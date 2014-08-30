@@ -1,0 +1,11 @@
+[package]
+
+name = "hyper"
+version = "0.0.1"
+authors = ["Sean McArthur <sean.monstar@gmail.com>"]
+
+[dependencies.url]
+git = "https://github.com/servo/rust-url"
+
+[dependencies.mime]
+git = "https://github.com/seanmonstar/mime.rs"
