@@ -1,4 +1,4 @@
-//! # HTTP Method
+//! The HTTP request method
 use std::fmt;
 use std::from_str::FromStr;
 

@@ -11,7 +11,9 @@ extern crate url;
 pub use std::io::net::ip::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr, Port};
 pub use mimewrapper::mime;
 pub use url::Url;
-pub use client::{get};
+pub use client::{get, head, post, delete, request};
+pub use method::{Get, Head, Post, Delete};
+pub use status::{Ok, BadRequest, NotFound};
 pub use server::Server;
 
 use std::fmt;
@@ -30,7 +32,7 @@ struct Trace;
 impl fmt::Show for Trace {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let _ = backtrace::write(fmt);
-        Ok(())
+        ::std::result::Ok(())
     }
 }
 

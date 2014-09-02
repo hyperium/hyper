@@ -9,3 +9,9 @@ git = "https://github.com/servo/rust-url"
 
 [dependencies.mime]
 git = "https://github.com/seanmonstar/mime.rs"
+
+[dev-dependencies.curl]
+git = "https://github.com/carllerche/curl-rust"
+
+[dev-dependencies.http]
+git = "https://github.com/chris-morgan/rust-http"

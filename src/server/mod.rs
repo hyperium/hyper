@@ -1,6 +1,6 @@
-//! # Server
-use std::io::net::tcp::TcpListener;
-use std::io::{Acceptor, Listener, IoResult};
+//! HTTP Server
+use std::io::net::tcp::{TcpListener, TcpAcceptor};
+use std::io::{Acceptor, Listener, IoResult, EndOfFile};
 use std::io::net::ip::{IpAddr, Port};
 
 pub use self::request::Request;
@@ -30,53 +30,72 @@ impl Server {
     }
 
     /// Binds to a socket, and starts handling connections.
-    pub fn listen<H: Handler>(&self, mut handler: H) {
-        let listener = match TcpListener::bind(self.ip.to_string().as_slice(), self.port) {
-            Ok(listener) => listener,
-            Err(err) => fail!("Listen failed: {}", err)
-        };
-        let mut acceptor = listener.listen();
+    pub fn listen<H: Handler + 'static>(&self, mut handler: H) -> IoResult<Listening> {
+        let listener = try!(TcpListener::bind(self.ip.to_string().as_slice(), self.port));
+        let acceptor = try!(listener.listen());
+        let worker = acceptor.clone();
 
-        for conn in acceptor.incoming() {
-            match conn {
-                Ok(stream) => {
-                    debug!("Incoming stream");
-                    let clone = stream.clone();
-                    let req = match Request::new(stream) {
-                        Ok(r) => r,
-                        Err(err) => {
-                            error!("creating Request: {}", err);
-                            continue;
+        spawn(proc() {
+            let mut acceptor = worker;
+            for conn in acceptor.incoming() {
+                match conn {
+                    Ok(stream) => {
+                        debug!("Incoming stream");
+                        let clone = stream.clone();
+                        let req = match Request::new(stream) {
+                            Ok(r) => r,
+                            Err(err) => {
+                                error!("creating Request: {}", err);
+                                continue;
+                            }
+                        };
+                        let mut res = Response::new(clone);
+                        res.version = req.version;
+                        match handler.handle(req, res) {
+                            Ok(..) => debug!("Stream handled"),
+                            Err(e) => {
+                                error!("Error from handler: {}", e)
+                                //TODO try to send a status code
+                            }
                         }
-                    };
-                    let mut res = Response::new(clone);
-                    res.version = req.version;
-                    match handler.handle(req, res) {
-                        Ok(..) => debug!("Stream handled"),
-                        Err(e) => {
-                            error!("Error from handler: {}", e)
-                            //TODO try to send a status code
-                        }
+                    },
+                    Err(ref e) if e.kind == EndOfFile => break, // server closed
+                    Err(e) => {
+                        error!("Connection failed: {}", e);
                     }
-                },
-                Err(e) => {
-                    error!("Connection failed: {}", e);
                 }
             }
-        }
+        });
+
+        Ok(Listening {
+            acceptor: acceptor
+        })
     }
 
 }
 
+/// A listening server, which can later be closed.
+pub struct Listening {
+    acceptor: TcpAcceptor
+}
+
+impl Listening {
+    /// Stop the server from listening to it's socket address.
+    pub fn close(mut self) -> IoResult<()> {
+        debug!("closing server");
+        self.acceptor.close_accept()
+    }
+}
+
 /// A handler that can handle incoming requests for a server.
-pub trait Handler {
+pub trait Handler: Send {
     /// Receives a `Request`/`Response` pair, and should perform some action on them.
     ///
     /// This could reading from the request, and writing to the response.
     fn handle(&mut self, req: Request, res: Response) -> IoResult<()>;
 }
 
-impl<'a> Handler for |Request, Response|: 'a -> IoResult<()> {
+impl Handler for fn(Request, Response) -> IoResult<()> {
     fn handle(&mut self, req: Request, res: Response) -> IoResult<()> {
         (*self)(req, res)
     }

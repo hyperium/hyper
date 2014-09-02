@@ -1,4 +1,4 @@
-//! # Headers
+//! Headers container, and common header fields.
 //!
 //! hyper has the opinion that Headers should be strongly-typed, because that's
 //! why we're using Rust in the first place. To set or get any header, an object

@@ -1,4 +1,4 @@
-//! # Client Responses
+//! Client Responses
 use std::io::{Reader, IoResult};
 use std::io::net::tcp::TcpStream;
 

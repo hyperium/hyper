@@ -1,4 +1,4 @@
-//! # RequestUri
+//! HTTP RequestUris
 use url::Url;
 
 /// The Request-URI of a Request's StartLine.

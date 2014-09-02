@@ -1,4 +1,4 @@
-//! # Server Responses
+//! Server Responses
 //!
 //! These are responses sent by a `hyper::Server` to clients, after
 //! receiving a request.

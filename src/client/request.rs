@@ -1,4 +1,4 @@
-//! # Client Requests
+//! Client Requests
 use std::io::net::tcp::TcpStream;
 use std::io::IoResult;
 

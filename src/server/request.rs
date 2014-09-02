@@ -1,4 +1,4 @@
-//! # Server Requests
+//! Server Requests
 //!
 //! These are requests that a `hyper::Server` receives, and include its method,
 //! target URI, headers, and message body.

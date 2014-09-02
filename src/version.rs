@@ -1,4 +1,4 @@
-//! # HTTP Versions
+//! HTTP Versions enum
 //!
 //! Instead of relying on typo-prone Strings, use expected HTTP versions as
 //! the `HttpVersion` enum.
