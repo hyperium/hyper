@@ -2,7 +2,7 @@
 //!
 //! These are requests that a `hyper::Server` receives, and include its method,
 //! target URI, headers, and message body.
-use std::io::{Reader, IoResult};
+use std::io::{Reader, BufferedReader, IoResult};
 use std::io::net::ip::SocketAddr;
 use std::io::net::tcp::TcpStream;
 
@@ -26,7 +26,7 @@ pub struct Request {
     pub uri: RequestUri,
     /// The version of HTTP for this request.
     pub version: HttpVersion,
-    body: HttpReader<TcpStream>
+    body: HttpReader<BufferedReader<TcpStream>>
 }
 
 
@@ -35,13 +35,14 @@ impl Request {
     /// Create a new Request, reading the StartLine and Headers so they are
     /// immediately useful.
     pub fn new(mut tcp: TcpStream) -> HttpResult<Request> {
+        let remote_addr = try_io!(tcp.peer_name());
+        let mut tcp = BufferedReader::new(tcp);
         let (method, uri, version) = try!(read_request_line(&mut tcp));
         let mut headers = try!(Headers::from_raw(&mut tcp));
 
         debug!("{} {} {}", method, uri, version);
         debug!("{}", headers);
 
-        let remote_addr = try_io!(tcp.peer_name());
 
         // TODO: handle Transfer-Encoding
         let body = if headers.has::<ContentLength>() {

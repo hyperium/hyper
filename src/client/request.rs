@@ -1,6 +1,6 @@
 //! Client Requests
 use std::io::net::tcp::TcpStream;
-use std::io::IoResult;
+use std::io::{BufferedWriter, IoResult};
 
 use url::Url;
 
@@ -23,7 +23,7 @@ pub struct Request {
     /// The HTTP version of this request.
     pub version: version::HttpVersion,
     headers_written: bool,
-    body: TcpStream,
+    body: BufferedWriter<TcpStream>,
 }
 
 impl Request {
@@ -43,6 +43,7 @@ impl Request {
         debug!("port={}", port);
 
         let stream = try_io!(TcpStream::connect(host.as_slice(), port));
+        let stream = BufferedWriter::new(stream);
         let mut headers = Headers::new();
         headers.set(Host(host));
         Ok(Request {
@@ -82,8 +83,9 @@ impl Request {
     /// Consumes the Request.
     pub fn send(mut self) -> HttpResult<Response> {
         try_io!(self.flush());
-        try_io!(self.body.close_write());
-        Response::new(self.body)
+        let mut raw = self.body.unwrap();
+        try_io!(raw.close_write());
+        Response::new(raw)
     }
 }
 

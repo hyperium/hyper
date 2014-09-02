@@ -1,5 +1,5 @@
 //! Client Responses
-use std::io::{Reader, IoResult};
+use std::io::{BufferedReader, IoResult};
 use std::io::net::tcp::TcpStream;
 
 use header::{mod, ContentLength, TransferEncoding, Chunked};
@@ -16,13 +16,14 @@ pub struct Response {
     pub headers: header::Headers,
     /// The HTTP version of this response from the server.
     pub version: version::HttpVersion,
-    body: HttpReader<TcpStream>,
+    body: HttpReader<BufferedReader<TcpStream>>,
 }
 
 impl Response {
 
     /// Creates a new response from a server.
-    pub fn new(mut tcp: TcpStream) -> HttpResult<Response> {
+    pub fn new(tcp: TcpStream) -> HttpResult<Response> {
+        let mut tcp = BufferedReader::new(tcp);
         let (version, status) = try!(read_status_line(&mut tcp));
         let mut headers = try!(header::Headers::from_raw(&mut tcp));
 

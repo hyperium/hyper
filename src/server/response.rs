@@ -2,7 +2,7 @@
 //!
 //! These are responses sent by a `hyper::Server` to clients, after
 //! receiving a request.
-use std::io::IoResult;
+use std::io::{BufferedWriter, IoResult};
 use std::io::net::tcp::TcpStream;
 
 use header;
@@ -21,7 +21,7 @@ pub struct Response {
     pub version: version::HttpVersion,
 
     headers_written: bool, // TODO: can this check be moved to compile time?
-    body: TcpStream
+    body: BufferedWriter<TcpStream>, // TODO: use a HttpWriter from rfc7230
 }
 
 impl Response {
@@ -33,7 +33,7 @@ impl Response {
             version: version::Http11,
             headers: header::Headers::new(),
             headers_written: false,
-            body: tcp
+            body: BufferedWriter::new(tcp)
         }
     }
 
@@ -56,9 +56,9 @@ impl Response {
     }
 
     /// Flushes all writing of a response to the client.
-    pub fn end(&mut self) -> IoResult<()> {
-        try!(self.flush());
-        self.body.close_write()
+    pub fn end(mut self) -> IoResult<()> {
+        debug!("ending");
+        self.flush()
     }
 }
 
