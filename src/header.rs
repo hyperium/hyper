@@ -50,7 +50,7 @@ trait UncheckedAnyRefExt<'a> {
     unsafe fn downcast_ref_unchecked<T: 'static>(self) -> &'a T;
 }
 
-impl<'a> UncheckedAnyRefExt<'a> for &'a Header {
+impl<'a> UncheckedAnyRefExt<'a> for &'a Header + 'a {
     #[inline]
     unsafe fn downcast_ref_unchecked<T: 'static>(self) -> &'a T {
         let to: TraitObject = transmute_copy(&self);
@@ -455,7 +455,7 @@ impl Header for TransferEncoding {
         match from_utf8(unsafe { raw.as_slice().unsafe_get(0).as_slice() }) {
             Some(s) => {
                 Some(TransferEncoding(s.as_slice()
-                     .split(&[',', ' '])
+                     .split([',', ' '].as_slice())
                      .filter_map(from_str)
                      .collect()))
             }
