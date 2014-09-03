@@ -4,6 +4,7 @@
 #![deny(warnings)]
 #![experimental]
 
+extern crate time;
 extern crate url;
 #[phase(plugin,link)] extern crate log;
 #[cfg(test)] extern crate test;

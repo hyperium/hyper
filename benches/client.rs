@@ -39,8 +39,8 @@ fn bench_curl(b: &mut test::Bencher) {
 struct Foo;
 
 impl hyper::header::Header for Foo {
-    fn header_name(_: Option<Foo>) -> SendStr {
-        Slice("x-foo")
+    fn header_name(_: Option<Foo>) -> &'static str {
+        "x-foo"
     }
     fn parse_header(_: &[Vec<u8>]) -> Option<Foo> {
         None

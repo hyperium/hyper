@@ -5,6 +5,8 @@
 use std::io::{BufferedWriter, IoResult};
 use std::io::net::tcp::TcpStream;
 
+use time::now_utc;
+
 use header;
 use status;
 use version;
@@ -45,6 +47,10 @@ impl Response {
         self.headers_written = true;
         debug!("writing head: {} {}", self.version, self.status);
         try!(write!(self.body, "{} {}{}{}", self.version, self.status, CR as char, LF as char));
+
+        if !self.headers.has::<header::Date>() {
+            self.headers.set(header::Date(now_utc()));
+        }
 
         for (name, header) in self.headers.iter() {
             debug!("headers {}: {}", name, header);
