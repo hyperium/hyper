@@ -34,7 +34,7 @@ impl Response {
             match headers.get_ref::<TransferEncoding>() {
                 Some(&TransferEncoding(ref codings)) => {
                     if codings.len() > 1 {
-                        debug!("TODO: handle other codings: {}", codings);
+                        debug!("TODO: #2 handle other codings: {}", codings);
                     };
 
                     if codings.contains(&Chunked) {

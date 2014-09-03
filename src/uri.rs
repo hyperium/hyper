@@ -10,10 +10,12 @@ use url::Url;
 /// > depending on both the method being requested and whether the request
 /// > is to a proxy.
 /// >
-/// >   request-target = origin-form
-/// >                  / absolute-form
-/// >                  / authority-form
-/// >                  / asterisk-form
+/// > ```notrust
+/// > request-target = origin-form
+/// >                / absolute-form
+/// >                / authority-form
+/// >                / asterisk-form
+/// > ```
 #[deriving(Show, PartialEq, Clone)]
 pub enum RequestUri {
     /// The most common request target, an absolute path and optional query.
