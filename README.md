@@ -4,6 +4,8 @@
 
 An HTTP library for Rust.
 
+[Documentation](http://seanmonstar.github.io/hyper)
+
 ## Scientific* Benchmarks
 
 [Client bench:](./benches/client.rs)
