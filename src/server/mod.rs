@@ -30,7 +30,7 @@ impl Server {
     }
 
     /// Binds to a socket, and starts handling connections.
-    pub fn listen<H: Handler + 'static>(&self, mut handler: H) -> IoResult<Listening> {
+    pub fn listen<H: Handler + 'static>(self, mut handler: H) -> IoResult<Listening> {
         let mut listener = try!(TcpListener::bind(self.ip.to_string().as_slice(), self.port));
         let socket = try!(listener.socket_name());
         let acceptor = try!(listener.listen());
