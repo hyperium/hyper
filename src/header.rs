@@ -17,7 +17,7 @@ use std::fmt::{mod, Show};
 use std::from_str::{FromStr, from_str};
 use std::mem::{transmute, transmute_copy};
 use std::raw::TraitObject;
-use std::str::{from_utf8, SendStr, Slice};
+use std::str::from_utf8;
 use std::string::raw;
 use std::collections::hashmap::{HashMap, Entries};
 
@@ -29,7 +29,7 @@ use {HttpResult};
 /// A trait for any object that will represent a header field and value.
 pub trait Header: Any {
     /// Returns the name of the header field this belongs to.
-    fn header_name(marker: Option<Self>) -> SendStr;
+    fn header_name(marker: Option<Self>) -> &'static str;
     /// Parse a header from a raw stream of bytes.
     ///
     /// It's possible that a request can include a header field more than once,
@@ -58,7 +58,7 @@ impl<'a> UncheckedAnyRefExt<'a> for &'a Header + 'a {
     }
 }
 
-fn header_name<T: Header>() -> SendStr {
+fn header_name<T: Header>() -> &'static str {
     let name = Header::header_name(None::<T>);
     debug_assert!(name.as_slice().chars().all(|c| c == '-' || is_lowercase(c)),
         "Header names should be lowercase: {}", name);
@@ -67,7 +67,7 @@ fn header_name<T: Header>() -> SendStr {
 
 /// A map of header fields on requests and responses.
 pub struct Headers {
-    data: HashMap<SendStr, Item>
+    data: HashMap<&'static str, Item>
 }
 
 impl Headers {
@@ -89,7 +89,8 @@ impl Headers {
                     // means its safe utf8
                     let name = unsafe {
                         raw::from_utf8(name)
-                    }.into_ascii_lower().into_maybe_owned();
+                    }.into_ascii_lower();
+                    let name: &'static str = unsafe { transmute(name.as_slice()) };
                     match headers.data.find_or_insert(name, Raw(vec![])) {
                         &Raw(ref mut pieces) => pieces.push(value),
                         // at this point, Raw is the only thing that has been inserted
@@ -190,11 +191,11 @@ impl fmt::Show for Headers {
 
 /// An `Iterator` over the fields in a `Headers` map.
 pub struct HeadersItems<'a> {
-    inner: Entries<'a, SendStr, Item>
+    inner: Entries<'a, &'static str, Item>
 }
 
-impl<'a> Iterator<(&'a SendStr, HeaderView<'a>)> for HeadersItems<'a> {
-    fn next(&mut self) -> Option<(&'a SendStr, HeaderView<'a>)> {
+impl<'a> Iterator<(&'a &'static str, HeaderView<'a>)> for HeadersItems<'a> {
+    fn next(&mut self) -> Option<(&'a &'static str, HeaderView<'a>)> {
         match self.inner.next() {
             Some((k, v)) => Some((k, HeaderView(v))),
             None => None
@@ -257,8 +258,8 @@ impl fmt::Show for Item {
 pub struct Host(pub String);
 
 impl Header for Host {
-    fn header_name(_: Option<Host>) -> SendStr {
-        Slice("host")
+    fn header_name(_: Option<Host>) -> &'static str {
+        "host"
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<Host> {
@@ -278,8 +279,8 @@ impl Header for Host {
 pub struct ContentLength(pub uint);
 
 impl Header for ContentLength {
-    fn header_name(_: Option<ContentLength>) -> SendStr {
-        Slice("content-length")
+    fn header_name(_: Option<ContentLength>) -> &'static str {
+        "content-length"
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<ContentLength> {
@@ -300,8 +301,8 @@ impl Header for ContentLength {
 pub struct ContentType(pub Mime);
 
 impl Header for ContentType {
-    fn header_name(_: Option<ContentType>) -> SendStr {
-        Slice("content-type")
+    fn header_name(_: Option<ContentType>) -> &'static str {
+        "content-type"
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<ContentType> {
@@ -332,8 +333,8 @@ impl Header for ContentType {
 pub struct Accept(pub Vec<Mime>);
 
 impl Header for Accept {
-    fn header_name(_: Option<Accept>) -> SendStr {
-        Slice("accept")
+    fn header_name(_: Option<Accept>) -> &'static str {
+        "accept"
     }
 
     fn parse_header(_raw: &[Vec<u8>]) -> Option<Accept> {
@@ -377,8 +378,8 @@ impl FromStr for Connection {
 }
 
 impl Header for Connection {
-    fn header_name(_: Option<Connection>) -> SendStr {
-        Slice("connection")
+    fn header_name(_: Option<Connection>) -> &'static str {
+        "connection"
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<Connection> {
@@ -443,8 +444,8 @@ impl FromStr for Encoding {
 }
 
 impl Header for TransferEncoding {
-    fn header_name(_: Option<TransferEncoding>) -> SendStr {
-        Slice("transfer-encoding")
+    fn header_name(_: Option<TransferEncoding>) -> &'static str {
+        "transfer-encoding"
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<TransferEncoding> {
@@ -483,8 +484,8 @@ impl Header for TransferEncoding {
 pub struct UserAgent(pub String);
 
 impl Header for UserAgent {
-    fn header_name(_: Option<UserAgent>) -> SendStr {
-        Slice("user-agent")
+    fn header_name(_: Option<UserAgent>) -> &'static str {
+        "user-agent"
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<UserAgent> {
