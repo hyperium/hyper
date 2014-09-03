@@ -27,8 +27,11 @@ use rfc7230::read_header;
 use {HttpResult};
 
 /// A trait for any object that will represent a header field and value.
-pub trait Header: Any {
+pub trait Header: Any + 'static {
     /// Returns the name of the header field this belongs to.
+    ///
+    /// The market `Option` is to hint to the type system which implementation
+    /// to call. This can be done away with once UFCS arrives.
     fn header_name(marker: Option<Self>) -> &'static str;
     /// Parse a header from a raw stream of bytes.
     ///
@@ -106,7 +109,7 @@ impl Headers {
     /// Set a header field to the corresponding value.
     ///
     /// The field is determined by the type of the value being set.
-    pub fn set<H: Header + 'static>(&mut self, value: H) {
+    pub fn set<H: Header>(&mut self, value: H) {
         self.data.insert(header_name::<H>(), Typed(box value));
     }
 
@@ -119,12 +122,12 @@ impl Headers {
     /// # let mut headers = Headers::new();
     /// let content_type = headers.get::<ContentType>();
     /// ```
-    pub fn get<H: Header + Clone + 'static>(&mut self) -> Option<H> {
+    pub fn get<H: Header + Clone>(&mut self) -> Option<H> {
         self.get_ref().map(|v: &H| v.clone())
     }
 
     /// Get a reference to the header field's value, if it exists.
-    pub fn get_ref<H: Header + 'static>(&mut self) -> Option<&H> {
+    pub fn get_ref<H: Header>(&mut self) -> Option<&H> {
         self.data.find_mut(&header_name::<H>()).and_then(|item| {
             debug!("get_ref, name={}, val={}", header_name::<H>(), item);
             let header = match *item {
@@ -136,7 +139,7 @@ impl Headers {
                 },
                 Typed(..) => return Some(item)
             };
-            *item = Typed(box header as Box<Header + 'static>);
+            *item = Typed(box header as Box<Header>);
             Some(item)
         }).and_then(|item| {
             debug!("downcasting {}", item);
@@ -162,7 +165,7 @@ impl Headers {
     /// # let mut headers = Headers::new();
     /// let has_type = headers.has::<ContentType>();
     /// ```
-    pub fn has<H: Header + 'static>(&self) -> bool {
+    pub fn has<H: Header>(&self) -> bool {
         self.data.contains_key(&header_name::<H>())
     }
 
@@ -227,7 +230,7 @@ impl Mutable for Headers {
 
 enum Item {
     Raw(Vec<Vec<u8>>),
-    Typed(Box<Header + 'static>)
+    Typed(Box<Header>)
 }
 
 impl fmt::Show for Item {
@@ -494,6 +497,27 @@ impl Header for UserAgent {
 
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let UserAgent(ref value) = *self;
+        value.fmt(fmt)
+    }
+}
+
+/// The `Server` header field.
+///
+/// They can contain any value, so it just wraps a `String`.
+#[deriving(Clone, PartialEq, Show)]
+pub struct Server(pub String);
+
+impl Header for Server {
+    fn header_name(_: Option<Server>) -> &'static str {
+        "server"
+    }
+
+    fn parse_header(raw: &[Vec<u8>]) -> Option<Server> {
+        from_one_raw_str(raw).map(|s| Server(s))
+    }
+
+    fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        let Server(ref value) = *self;
         value.fmt(fmt)
     }
 }
