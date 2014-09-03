@@ -1,7 +1,7 @@
 //! HTTP Server
 use std::io::net::tcp::{TcpListener, TcpAcceptor};
 use std::io::{Acceptor, Listener, IoResult, EndOfFile};
-use std::io::net::ip::{IpAddr, Port};
+use std::io::net::ip::{IpAddr, Port, SocketAddr};
 
 pub use self::request::Request;
 pub use self::response::Response;
@@ -31,7 +31,8 @@ impl Server {
 
     /// Binds to a socket, and starts handling connections.
     pub fn listen<H: Handler + 'static>(&self, mut handler: H) -> IoResult<Listening> {
-        let listener = try!(TcpListener::bind(self.ip.to_string().as_slice(), self.port));
+        let mut listener = try!(TcpListener::bind(self.ip.to_string().as_slice(), self.port));
+        let socket = try!(listener.socket_name());
         let acceptor = try!(listener.listen());
         let worker = acceptor.clone();
 
@@ -68,7 +69,8 @@ impl Server {
         });
 
         Ok(Listening {
-            acceptor: acceptor
+            acceptor: acceptor,
+            socket_addr: socket,
         })
     }
 
@@ -76,7 +78,9 @@ impl Server {
 
 /// A listening server, which can later be closed.
 pub struct Listening {
-    acceptor: TcpAcceptor
+    acceptor: TcpAcceptor,
+    /// The socket address that the server is bound to.
+    pub socket_addr: SocketAddr,
 }
 
 impl Listening {

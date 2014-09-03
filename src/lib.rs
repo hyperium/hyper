@@ -53,6 +53,7 @@ pub mod version;
 mod rfc7230;
 
 mod mimewrapper {
+    /// Re-exporting the mime crate, for convenience.
     extern crate mime;
 }
 

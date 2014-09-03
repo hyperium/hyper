@@ -4,26 +4,15 @@ extern crate hyper;
 
 extern crate test;
 
+use std::fmt::{mod, Show};
+use std::str::{SendStr, Slice};
 use std::io::IoResult;
-use std::time::Duration;
-use std::io::timer::sleep;
 use std::io::net::ip::Ipv4Addr;
-use std::sync::{Once, ONCE_INIT};
 use hyper::server::{Request, Response, Server};
 
-static mut SERVER: Once = ONCE_INIT;
-
-fn listen() {
-    unsafe {
-        SERVER.doit(|| {
-            let server = Server::http(Ipv4Addr(127, 0, 0, 1), 1337);
-            let listening = server.listen(handle).unwrap();
-            spawn(proc() {
-                sleep(Duration::seconds(20));
-                listening.close().unwrap();
-            });
-        })
-    }
+fn listen() -> hyper::server::Listening {
+    let server = Server::http(Ipv4Addr(127, 0, 0, 1), 0);
+    server.listen(handle).unwrap()
 }
 
 fn handle(_req: Request, mut res: Response) -> IoResult<()> {
@@ -34,35 +23,66 @@ fn handle(_req: Request, mut res: Response) -> IoResult<()> {
 
 #[bench]
 fn bench_curl(b: &mut test::Bencher) {
-    listen();
+    let listening = listen();
+    let s = format!("http://{}/", listening.socket_addr);
+    let url = s.as_slice();
     b.iter(|| {
-        curl::http::handle().get("http://127.0.0.1:1337/").exec().unwrap()
+        curl::http::handle()
+            .get(url)
+            .header("X-Foo", "Bar")
+            .exec()
+            .unwrap()
     });
+    listening.close().unwrap()
+}
+
+struct Foo;
+
+impl hyper::header::Header for Foo {
+    fn header_name(_: Option<Foo>) -> SendStr {
+        Slice("x-foo")
+    }
+    fn parse_header(_: &[Vec<u8>]) -> Option<Foo> {
+        None
+    }
+    fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        "Bar".fmt(fmt)
+    }
 }
 
 #[bench]
 fn bench_hyper(b: &mut test::Bencher) {
-    listen();
+    let listening = listen();
+    let s = format!("http://{}/", listening.socket_addr);
+    let url = s.as_slice();
     b.iter(|| {
-        hyper::get(hyper::Url::parse("http://127.0.0.1:1337/").unwrap()).unwrap()
+        let mut req = hyper::get(hyper::Url::parse(url).unwrap()).unwrap();
+        req.headers.set(Foo);
+
+        req
             .send().unwrap()
             .read_to_string().unwrap()
     });
+    listening.close().unwrap()
 }
 
 #[bench]
 fn bench_http(b: &mut test::Bencher) {
-    listen();
+    let listening = listen();
+    let s = format!("http://{}/", listening.socket_addr);
+    let url = s.as_slice();
     b.iter(|| {
-        let req: http::client::RequestWriter = http::client::RequestWriter::new(
+        let mut req: http::client::RequestWriter = http::client::RequestWriter::new(
             http::method::Get,
-            hyper::Url::parse("http://127.0.0.1:1337/").unwrap()
+            hyper::Url::parse(url).unwrap()
         ).unwrap();
+        req.headers.extensions.insert("x-foo".to_string(), "Bar".to_string());
         // cant unwrap because Err contains RequestWriter, which does not implement Show
         let mut res = match req.read_response() {
             Ok(res) => res,
             Err(..) => fail!("http response failed")
         };
         res.read_to_string().unwrap();
-    })
+    });
+    listening.close().unwrap()
 }
