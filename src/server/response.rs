@@ -41,7 +41,7 @@ impl Response {
 
     fn write_head(&mut self) -> IoResult<()> {
         if self.headers_written {
-            debug!("headers previsouly written, nooping");
+            debug!("headers previously written, nooping");
             return Ok(());
         }
         self.headers_written = true;

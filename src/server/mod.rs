@@ -92,7 +92,7 @@ pub struct Listening {
 }
 
 impl Listening {
-    /// Stop the server from listening to it's socket address.
+    /// Stop the server from listening to its socket address.
     pub fn close(mut self) -> IoResult<()> {
         debug!("closing server");
         self.acceptor.close_accept()
