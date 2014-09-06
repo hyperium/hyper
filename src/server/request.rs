@@ -44,13 +44,13 @@ impl Request {
         debug!("{}", headers);
 
 
-        // TODO: handle Transfer-Encoding
         let body = if headers.has::<ContentLength>() {
             match headers.get_ref::<ContentLength>() {
                 Some(&ContentLength(len)) => SizedReader(tcp, len),
                 None => unreachable!()
             }
         } else {
+            todo!("check for Transfer-Encoding: chunked");
             ChunkedReader(tcp, None)
         };
 

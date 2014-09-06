@@ -5,7 +5,6 @@ extern crate hyper;
 extern crate test;
 
 use std::fmt::{mod, Show};
-use std::str::{SendStr, Slice};
 use std::io::IoResult;
 use std::io::net::ip::Ipv4Addr;
 use hyper::server::{Request, Response, Server};

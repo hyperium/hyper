@@ -28,6 +28,12 @@ macro_rules! try_io(
     ($e:expr) => (match $e { Ok(v) => v, Err(e) => return Err(::HttpIoError(e)) })
 )
 
+macro_rules! todo(
+    ($($arg:tt)*) => (if cfg!(not(ndebug)) {
+        format_args!(|args| log!(5, "TODO: {}", args), $($arg)*)
+    })
+)
+
 #[allow(dead_code)]
 struct Trace;
 

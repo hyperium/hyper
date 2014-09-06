@@ -108,7 +108,7 @@ fn read_chunk_size<R: Reader>(rdr: &mut R) -> IoResult<uint> {
             },
             ext => {
                 in_ext = true;
-                debug!("TODO: chunk extension byte={}", ext);
+                todo!("chunk extension byte={}", ext);
             }
         }
     }
@@ -376,7 +376,7 @@ pub fn read_uri<R: Reader>(stream: &mut R) -> HttpResult<uri::RequestUri> {
         temp.push_str(s.as_slice());
         match Url::parse(temp.as_slice()) {
             Ok(_u) => {
-                debug!("TODO: compare vs u.authority()");
+                todo!("compare vs u.authority()");
                 Ok(uri::Authority(s))
             }
             Err(_e) => {
@@ -467,7 +467,7 @@ pub fn read_header<R: Reader>(stream: &mut R) -> HttpResult<Option<RawHeaderLine
 
     let mut ows = true; //optional whitespace
 
-    //TODO: handling obs-folding (gross!)
+    todo!("handle obs-folding (gross!)");
     loop {
         match try_io!(stream.read_byte()) {
             CR => break,
