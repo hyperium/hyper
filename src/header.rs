@@ -120,6 +120,27 @@ impl Headers {
         self.get_ref().map(|v: &H| v.clone())
     }
 
+    /// Access the raw value of a header, if it exists and has not
+    /// been already parsed.
+    ///
+    /// If the header field has already been parsed into a typed header,
+    /// then you *must* access it through that representation.
+    ///
+    /// Example:
+    /// ```
+    /// # use hyper::header::{Headers, ContentType};
+    /// # let mut headers = Headers::new();
+    /// let raw_content_type = unsafe { headers.get_raw("content-type") };
+    /// ```
+    pub unsafe fn get_raw(&self, name: &'static str) -> Option<&[Vec<u8>]> {
+        self.data.find(&name).and_then(|item| {
+            match *item {
+                Raw(ref raw) => Some(raw.as_slice()),
+                _ => None
+            }
+        })
+    }
+
     /// Get a reference to the header field's value, if it exists.
     pub fn get_ref<H: Header>(&mut self) -> Option<&H> {
         self.data.find_mut(&header_name::<H>()).and_then(|item| {
