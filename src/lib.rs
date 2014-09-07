@@ -8,6 +8,7 @@ extern crate time;
 extern crate url;
 #[phase(plugin,link)] extern crate log;
 #[cfg(test)] extern crate test;
+extern crate "unsafe-any" as uany;
 
 pub use std::io::net::ip::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr, Port};
 pub use mimewrapper::mime;

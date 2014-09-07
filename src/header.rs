@@ -23,6 +23,7 @@ use std::collections::hashmap::{HashMap, Entries};
 
 use mime::Mime;
 use time::{Tm, strptime};
+use uany::UncheckedAnyDowncast;
 
 use rfc7230::read_header;
 use {HttpResult};
@@ -46,15 +47,7 @@ pub trait Header: Any + 'static {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result;
 }
 
-/// A trait for downcasting owned TraitObjects to another type without checking
-/// `AnyRefExt::is::<T>(t)` first.
-trait UncheckedAnyRefExt<'a> {
-    /// This will downcast an object to another type without checking that it is
-    /// legal. Do not call this unless you are ABSOLUTE SURE of the types.
-    unsafe fn downcast_ref_unchecked<T: 'static>(self) -> &'a T;
-}
-
-impl<'a> UncheckedAnyRefExt<'a> for &'a Header + 'a {
+impl<'a> UncheckedAnyDowncast<'a> for &'a Header + 'a {
     #[inline]
     unsafe fn downcast_ref_unchecked<T: 'static>(self) -> &'a T {
         let to: TraitObject = transmute_copy(&self);
