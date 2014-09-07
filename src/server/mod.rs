@@ -1,6 +1,6 @@
 //! HTTP Server
 use std::io::net::tcp::{TcpListener, TcpAcceptor};
-use std::io::{Acceptor, Listener, IoResult, EndOfFile};
+use std::io::{Acceptor, Listener, IoResult, EndOfFile, IncomingConnections};
 use std::io::net::ip::{IpAddr, Port, SocketAddr};
 
 pub use self::request::Request;
@@ -30,7 +30,7 @@ impl Server {
     }
 
     /// Binds to a socket, and starts handling connections.
-    pub fn listen<H: Handler + 'static>(self, mut handler: H) -> IoResult<Listening> {
+    pub fn listen<H: Handler + 'static>(self, handler: H) -> IoResult<Listening> {
         let mut listener = try!(TcpListener::bind(self.ip.to_string().as_slice(), self.port));
         let socket = try!(listener.socket_name());
         let acceptor = try!(listener.listen());
@@ -38,34 +38,7 @@ impl Server {
 
         spawn(proc() {
             let mut acceptor = worker;
-            for conn in acceptor.incoming() {
-                match conn {
-                    Ok(stream) => {
-                        debug!("Incoming stream");
-                        let clone = stream.clone();
-                        let req = match Request::new(stream) {
-                            Ok(r) => r,
-                            Err(err) => {
-                                error!("creating Request: {}", err);
-                                continue;
-                            }
-                        };
-                        let mut res = Response::new(clone);
-                        res.version = req.version;
-                        match handler.handle(req, res) {
-                            Ok(..) => debug!("Stream handled"),
-                            Err(e) => {
-                                error!("Error from handler: {}", e)
-                                //TODO try to send a status code
-                            }
-                        }
-                    },
-                    Err(ref e) if e.kind == EndOfFile => break, // server closed
-                    Err(e) => {
-                        error!("Connection failed: {}", e);
-                    }
-                }
-            }
+            handler.handle(Incoming { from: acceptor.incoming() });
         });
 
         Ok(Listening {
@@ -74,6 +47,41 @@ impl Server {
         })
     }
 
+}
+
+/// An iterator over incoming connections, represented as pairs of
+/// hyper Requests and Responses.
+pub struct Incoming<'a> {
+    from: IncomingConnections<'a, TcpAcceptor>
+}
+
+impl<'a> Iterator<(Request, Response)> for Incoming<'a> {
+    fn next(&mut self) -> Option<(Request, Response)> {
+        for conn in self.from {
+            match conn {
+                Ok(stream) => {
+                    debug!("Incoming stream");
+                    let clone = stream.clone();
+                    let req = match Request::new(stream) {
+                        Ok(r) => r,
+                        Err(err) => {
+                            error!("creating Request: {}", err);
+                            continue;
+                        }
+                    };
+                    let mut res = Response::new(clone);
+                    res.version = req.version;
+                    return Some((req, res))
+                },
+                Err(ref e) if e.kind == EndOfFile => return None, // server closed
+                Err(e) => {
+                    error!("Connection failed: {}", e);
+                    continue;
+                }
+            }
+        }
+        None
+    }
 }
 
 /// A listening server, which can later be closed.
@@ -96,11 +104,12 @@ pub trait Handler: Send {
     /// Receives a `Request`/`Response` pair, and should perform some action on them.
     ///
     /// This could reading from the request, and writing to the response.
-    fn handle(&mut self, req: Request, res: Response) -> IoResult<()>;
+    fn handle(self, Incoming);
 }
 
-impl Handler for fn(Request, Response) -> IoResult<()> {
-    fn handle(&mut self, req: Request, res: Response) -> IoResult<()> {
-        (*self)(req, res)
+impl Handler for fn(Incoming) {
+    fn handle(self, incoming: Incoming) {
+        (self)(incoming)
     }
 }
+

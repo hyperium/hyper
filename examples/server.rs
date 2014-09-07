@@ -1,38 +1,55 @@
+#![feature(macro_rules)]
+
 extern crate hyper;
 extern crate debug;
 
-use std::io::{IoResult};
 use std::io::util::copy;
 use std::io::net::ip::Ipv4Addr;
 
 use hyper::{Get, Post};
-use hyper::server::{Server, Handler, Request, Response};
+use hyper::server::{Server, Handler, Incoming};
 use hyper::header::ContentLength;
 
 struct Echo;
 
+macro_rules! try_continue(
+    ($e:expr) => {{
+        match $e {
+            Ok(v) => v,
+            Err(e) => { println!("Error: {}", e); continue; }
+        }
+    }}
+)
+
 impl Handler for Echo {
-    fn handle(&mut self, mut req: Request, mut res: Response) -> IoResult<()> {
-        match req.uri {
-            hyper::uri::AbsolutePath(ref path) => match (&req.method, path.as_slice()) {
-                (&Get, "/") | (&Get, "/echo") => {
-                    let out = b"Try POST /echo";
+    fn handle(self, mut incoming: Incoming) {
+        for (mut req, mut res) in incoming {
+            match req.uri {
+                hyper::uri::AbsolutePath(ref path) => match (&req.method, path.as_slice()) {
+                    (&Get, "/") | (&Get, "/echo") => {
+                        let out = b"Try POST /echo";
 
-                    res.headers.set(ContentLength(out.len()));
-                    try!(res.write(out));
-                    return res.end();
+                        res.headers.set(ContentLength(out.len()));
+                        try_continue!(res.write(out));
+                        try_continue!(res.end());
+                        continue;
+                    },
+                    (&Post, "/echo") => (), // fall through, fighting mutable borrows
+                    _ => {
+                        res.status = hyper::status::NotFound;
+                        try_continue!(res.end());
+                        continue;
+                    }
                 },
-                (&Post, "/echo") => (), // fall through, fighting mutable borrows
                 _ => {
-                    res.status = hyper::status::NotFound;
-                    return res.end();
+                    try_continue!(res.end());
+                    continue; 
                 }
-            },
-            _ => return res.end()
-        };
+            };
 
-        try!(copy(&mut req, &mut res));
-        res.end()
+            try_continue!(copy(&mut req, &mut res));
+            try_continue!(res.end());
+        }
     }
 }
 
