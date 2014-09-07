@@ -25,6 +25,9 @@ pub trait NetworkAcceptor<S: NetworkStream>: Acceptor<S> + Clone + Send {
 pub trait NetworkStream: Stream + Clone {
     /// Get the remote address of the underlying connection.
     fn peer_name(&mut self) -> IoResult<SocketAddr>;
+
+    /// Connect to a remote address.
+    fn connect(host: &str, port: Port) -> IoResult<Self>;
 }
 
 /// A `NetworkListener` for `HttpStream`s.
@@ -106,5 +109,12 @@ impl NetworkStream for HttpStream {
     #[inline]
     fn peer_name(&mut self) -> IoResult<SocketAddr> {
         self.inner.peer_name()
+    }
+
+    #[inline]
+    fn connect(host: &str, port: Port) -> IoResult<HttpStream> {
+        Ok(HttpStream {
+            inner: try!(TcpStream::connect(host, port))
+        })
     }
 }
