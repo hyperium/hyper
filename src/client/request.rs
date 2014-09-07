@@ -1,5 +1,4 @@
 //! Client Requests
-use std::io::net::tcp::TcpStream;
 use std::io::{BufferedWriter, IoResult};
 
 use url::Url;
@@ -7,6 +6,7 @@ use url::Url;
 use method;
 use header::Headers;
 use header::common::Host;
+use net::{NetworkStream, HttpStream};
 use rfc7230::LINE_ENDING;
 use version;
 use {HttpResult, HttpUriError};
@@ -14,7 +14,7 @@ use super::{Response};
 
 
 /// A client request to a remote server.
-pub struct Request {
+pub struct Request<S = HttpStream> {
     /// The method of this request.
     pub method: method::Method,
     /// The headers that will be sent with this request.
@@ -24,13 +24,13 @@ pub struct Request {
     /// The HTTP version of this request.
     pub version: version::HttpVersion,
     headers_written: bool,
-    body: BufferedWriter<TcpStream>,
+    body: BufferedWriter<S>,
 }
 
-impl Request {
+impl<S: NetworkStream> Request<S> {
 
     /// Create a new client request.
-    pub fn new(method: method::Method, url: Url) -> HttpResult<Request> {
+    pub fn new(method: method::Method, url: Url) -> HttpResult<Request<S>> {
         debug!("{} {}", method, url);
         let host = match url.serialize_host() {
             Some(host) => host,
@@ -43,7 +43,7 @@ impl Request {
         };
         debug!("port={}", port);
 
-        let stream = try_io!(TcpStream::connect(host.as_slice(), port));
+        let stream = try_io!(NetworkStream::connect(host.as_slice(), port));
         let stream = BufferedWriter::new(stream);
         let mut headers = Headers::new();
         headers.set(Host(host));
@@ -82,16 +82,15 @@ impl Request {
     /// Completes writing the request, and returns a response to read from.
     ///
     /// Consumes the Request.
-    pub fn send(mut self) -> HttpResult<Response> {
+    pub fn send(mut self) -> HttpResult<Response<S>> {
         try_io!(self.flush());
-        let mut raw = self.body.unwrap();
-        try_io!(raw.close_write());
+        let raw = self.body.unwrap();
         Response::new(raw)
     }
 }
 
 
-impl Writer for Request {
+impl<S: NetworkStream> Writer for Request<S> {
     fn write(&mut self, msg: &[u8]) -> IoResult<()> {
         if !self.headers_written {
             try!(self.write_head());
