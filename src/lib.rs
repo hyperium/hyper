@@ -1,7 +1,7 @@
 //! # hyper
-#![feature(macro_rules, phase)]
+#![feature(macro_rules, phase, default_type_params)]
 #![warn(missing_doc)]
-#![deny(warnings)]
+//#![deny(warnings)]
 #![experimental]
 
 extern crate time;
@@ -53,6 +53,7 @@ macro_rules! trace(
 pub mod client;
 pub mod method;
 pub mod header;
+pub mod net;
 pub mod server;
 pub mod status;
 pub mod uri;

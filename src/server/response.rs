@@ -3,18 +3,18 @@
 //! These are responses sent by a `hyper::Server` to clients, after
 //! receiving a request.
 use std::io::{BufferedWriter, IoResult};
-use std::io::net::tcp::TcpStream;
 
 use time::now_utc;
 
 use header;
-use status;
-use version;
 use rfc7230::{CR, LF, LINE_ENDING};
+use status;
+use net::{NetworkStream, HttpStream};
+use version;
 
 
-/// The outgoing half for a Tcp connection, created by a `Server` and given to a `Handler`.
-pub struct Response {
+/// The outgoing half for a `NetworkStream`, created by a `Server` and given to a `Handler`.
+pub struct Response<S = HttpStream> {
     /// The status code for the request.
     pub status: status::StatusCode,
     /// The outgoing headers on this response.
@@ -23,19 +23,19 @@ pub struct Response {
     pub version: version::HttpVersion,
 
     headers_written: bool, // TODO: can this check be moved to compile time?
-    body: BufferedWriter<TcpStream>, // TODO: use a HttpWriter from rfc7230
+    body: BufferedWriter<S>, // TODO: use a HttpWriter from rfc7230
 }
 
-impl Response {
+impl<S: NetworkStream> Response<S> {
 
     /// Creates a new Response that can be used to write to a network stream.
-    pub fn new(tcp: TcpStream) -> Response {
+    pub fn new(stream: S) -> Response<S> {
         Response {
             status: status::Ok,
             version: version::Http11,
             headers: header::Headers::new(),
             headers_written: false,
-            body: BufferedWriter::new(tcp)
+            body: BufferedWriter::new(stream)
         }
     }
 
@@ -69,7 +69,7 @@ impl Response {
 }
 
 
-impl Writer for Response {
+impl<S: NetworkStream> Writer for Response<S> {
     fn write(&mut self, msg: &[u8]) -> IoResult<()> {
         if !self.headers_written {
             try!(self.write_head());
