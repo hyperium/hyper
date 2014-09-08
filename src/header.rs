@@ -10,14 +10,13 @@
 //! Several header fields use MIME values for their contents. Keeping with the
 //! strongly-typed theme, the [mime](http://seanmonstar.github.io/mime.rs) crate
 //! is used, such as `ContentType(pub Mime)`.
-use std::any::Any;
 use std::ascii::OwnedAsciiExt;
 use std::char::is_lowercase;
 use std::fmt::{mod, Show};
 use std::from_str::{FromStr, from_str};
 use std::mem::{transmute, transmute_copy};
 use std::raw::TraitObject;
-use std::str::from_utf8;
+use std::str::{from_utf8, SendStr, Slice, Owned};
 use std::string::raw;
 use std::collections::hashmap::{HashMap, Entries};
 
@@ -29,7 +28,7 @@ use rfc7230::read_header;
 use {HttpResult};
 
 /// A trait for any object that will represent a header field and value.
-pub trait Header: Any + 'static {
+pub trait Header: 'static {
     /// Returns the name of the header field this belongs to.
     ///
     /// The market `Option` is to hint to the type system which implementation
@@ -64,7 +63,7 @@ fn header_name<T: Header>() -> &'static str {
 
 /// A map of header fields on requests and responses.
 pub struct Headers {
-    data: HashMap<&'static str, Item>
+    data: HashMap<SendStr, Item>
 }
 
 impl Headers {
@@ -87,8 +86,7 @@ impl Headers {
                     let name = unsafe {
                         raw::from_utf8(name)
                     }.into_ascii_lower();
-                    let name: &'static str = unsafe { transmute(name.as_slice()) };
-                    match headers.data.find_or_insert(name, Raw(vec![])) {
+                    match headers.data.find_or_insert(Owned(name), Raw(vec![])) {
                         &Raw(ref mut pieces) => pieces.push(value),
                         // at this point, Raw is the only thing that has been inserted
                         _ => unreachable!()
@@ -104,7 +102,7 @@ impl Headers {
     ///
     /// The field is determined by the type of the value being set.
     pub fn set<H: Header>(&mut self, value: H) {
-        self.data.insert(header_name::<H>(), Typed(box value));
+        self.data.insert(Slice(header_name::<H>()), Typed(box value));
     }
 
     /// Get a clone of the header field's value, if it exists.
@@ -133,7 +131,7 @@ impl Headers {
     /// let raw_content_type = unsafe { headers.get_raw("content-type") };
     /// ```
     pub unsafe fn get_raw(&self, name: &'static str) -> Option<&[Vec<u8>]> {
-        self.data.find(&name).and_then(|item| {
+        self.data.find(&Slice(name)).and_then(|item| {
             match *item {
                 Raw(ref raw) => Some(raw.as_slice()),
                 _ => None
@@ -143,7 +141,7 @@ impl Headers {
 
     /// Get a reference to the header field's value, if it exists.
     pub fn get_ref<H: Header>(&mut self) -> Option<&H> {
-        self.data.find_mut(&header_name::<H>()).and_then(|item| {
+        self.data.find_mut(&Slice(header_name::<H>())).and_then(|item| {
             debug!("get_ref, name={}, val={}", header_name::<H>(), item);
             let header = match *item {
                 Raw(ref raw) => match Header::parse_header(raw.as_slice()) {
@@ -181,12 +179,13 @@ impl Headers {
     /// let has_type = headers.has::<ContentType>();
     /// ```
     pub fn has<H: Header>(&self) -> bool {
-        self.data.contains_key(&header_name::<H>())
+        self.data.contains_key(&Slice(header_name::<H>()))
     }
 
-    /// Removes a header from the map, if one existed. Returns true if a header has been removed.
+    /// Removes a header from the map, if one existed.
+    /// Returns true if a header has been removed.
     pub fn remove<H: Header>(&mut self) -> bool {
-        self.data.remove(&Header::header_name(None::<H>))
+        self.data.pop_equiv(&Header::header_name(None::<H>)).is_some()
     }
 
     /// Returns an iterator over the header fields.
@@ -209,13 +208,13 @@ impl fmt::Show for Headers {
 
 /// An `Iterator` over the fields in a `Headers` map.
 pub struct HeadersItems<'a> {
-    inner: Entries<'a, &'static str, Item>
+    inner: Entries<'a, SendStr, Item>
 }
 
-impl<'a> Iterator<(&'a &'static str, HeaderView<'a>)> for HeadersItems<'a> {
-    fn next(&mut self) -> Option<(&'a &'static str, HeaderView<'a>)> {
+impl<'a> Iterator<(&'a str, HeaderView<'a>)> for HeadersItems<'a> {
+    fn next(&mut self) -> Option<(&'a str, HeaderView<'a>)> {
         match self.inner.next() {
-            Some((k, v)) => Some((k, HeaderView(v))),
+            Some((k, v)) => Some((k.as_slice(), HeaderView(v))),
             None => None
         }
     }
