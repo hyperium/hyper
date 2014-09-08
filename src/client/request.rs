@@ -5,7 +5,8 @@ use std::io::{BufferedWriter, IoResult};
 use url::Url;
 
 use method;
-use header::{Headers, Host};
+use header::Headers;
+use header::common::Host;
 use rfc7230::LINE_ENDING;
 use version;
 use {HttpResult, HttpUriError};
