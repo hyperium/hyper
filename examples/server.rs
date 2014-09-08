@@ -8,7 +8,7 @@ use std::io::net::ip::Ipv4Addr;
 
 use hyper::{Get, Post};
 use hyper::server::{Server, Handler, Incoming};
-use hyper::header::ContentLength;
+use hyper::header::common::ContentLength;
 
 struct Echo;
 

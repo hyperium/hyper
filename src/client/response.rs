@@ -2,7 +2,9 @@
 use std::io::{BufferedReader, IoResult};
 use std::io::net::tcp::TcpStream;
 
-use header::{mod, ContentLength, TransferEncoding, Chunked};
+use header;
+use header::common::{ContentLength, TransferEncoding};
+use header::common::transfer_encoding::Chunked;
 use rfc7230::{read_status_line, HttpReader, SizedReader, ChunkedReader, EofReader};
 use status;
 use version;
