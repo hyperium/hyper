@@ -5,18 +5,19 @@ extern crate hyper;
 extern crate test;
 
 use std::fmt::{mod, Show};
-use std::io::IoResult;
 use std::io::net::ip::Ipv4Addr;
-use hyper::server::{Request, Response, Server};
+use hyper::server::{Incoming, Server};
 
 fn listen() -> hyper::server::Listening {
     let server = Server::http(Ipv4Addr(127, 0, 0, 1), 0);
     server.listen(handle).unwrap()
 }
 
-fn handle(_req: Request, mut res: Response) -> IoResult<()> {
-    try!(res.write(b"Benchmarking hyper vs others!"));
-    res.end()
+fn handle(mut incoming: Incoming) {
+    for (_, mut res) in incoming {
+        res.write(b"Benchmarking hyper vs others!").unwrap();
+        res.end().unwrap();
+    }
 }
 
 
