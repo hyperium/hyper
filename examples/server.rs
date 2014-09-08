@@ -36,8 +36,13 @@ impl Handler for Echo {
                     },
                     (&Post, "/echo") => (), // fall through, fighting mutable borrows
                     _ => {
+<<<<<<< Updated upstream
                         res.status = hyper::status::NotFound;
                         try_continue!(res.end());
+=======
+                        *res.status_mut() = hyper::status::NotFound;
+                        try_continue!(res.start().and_then(|res| res.end()));
+>>>>>>> Stashed changes
                         continue;
                     }
                 },
