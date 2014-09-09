@@ -1,3 +1,4 @@
+#![feature(macro_rules)]
 extern crate curl;
 extern crate http;
 extern crate hyper;
@@ -13,10 +14,19 @@ fn listen() -> hyper::server::Listening {
     server.listen(handle).unwrap()
 }
 
+macro_rules! try_continue(
+    ($e:expr) => {{
+        match $e {
+            Ok(v) => v,
+            Err(..) => continue
+        }
+    }})
+
 fn handle(mut incoming: Incoming) {
-    for (_, mut res) in incoming {
-        res.write(b"Benchmarking hyper vs others!").unwrap();
-        res.end().unwrap();
+    for (_, res) in incoming {
+        let mut res = try_continue!(res.start());
+        try_continue!(res.write(b"Benchmarking hyper vs others!"))
+        try_continue!(res.end());
     }
 }
 

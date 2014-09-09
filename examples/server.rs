@@ -29,24 +29,26 @@ impl Handler for Echo {
                     (&Get, "/") | (&Get, "/echo") => {
                         let out = b"Try POST /echo";
 
-                        res.headers.set(ContentLength(out.len()));
+                        res.headers_mut().set(ContentLength(out.len()));
+                        let mut res = try_continue!(res.start());
                         try_continue!(res.write(out));
                         try_continue!(res.end());
                         continue;
                     },
                     (&Post, "/echo") => (), // fall through, fighting mutable borrows
                     _ => {
-                        res.status = hyper::status::NotFound;
-                        try_continue!(res.end());
+                        *res.status_mut() = hyper::status::NotFound;
+                        try_continue!(res.start().and_then(|res| res.end()));
                         continue;
                     }
                 },
                 _ => {
-                    try_continue!(res.end());
-                    continue; 
+                    try_continue!(res.start().and_then(|res| res.end()));
+                    continue;
                 }
             };
 
+            let mut res = try_continue!(res.start());
             try_continue!(copy(&mut req, &mut res));
             try_continue!(res.end());
         }

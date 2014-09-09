@@ -4,7 +4,7 @@ use std::io::{Acceptor, Listener, IoResult, EndOfFile, IncomingConnections};
 use std::io::net::ip::{IpAddr, Port, SocketAddr};
 
 pub use self::request::Request;
-pub use self::response::Response;
+pub use self::response::{Response, Fresh, Streaming};
 
 pub mod request;
 pub mod response;
@@ -55,8 +55,8 @@ pub struct Incoming<'a> {
     from: IncomingConnections<'a, TcpAcceptor>
 }
 
-impl<'a> Iterator<(Request, Response)> for Incoming<'a> {
-    fn next(&mut self) -> Option<(Request, Response)> {
+impl<'a> Iterator<(Request, Response<Fresh>)> for Incoming<'a> {
+    fn next(&mut self) -> Option<(Request, Response<Fresh>)> {
         for conn in self.from {
             match conn {
                 Ok(stream) => {
