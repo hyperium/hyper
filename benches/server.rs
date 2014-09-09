@@ -19,6 +19,7 @@ fn request(url: hyper::Url) {
 
 fn hyper_handle(mut incoming: hyper::server::Incoming) {
     for (_, mut res) in incoming {
+        let mut res = res.start().unwrap();
         res.write(phrase).unwrap();
         res.end().unwrap();
     }
@@ -56,9 +57,12 @@ impl Server for HttpServer {
 
 #[bench]
 fn bench_http(b: &mut Bencher) {
-    if unsafe { !created_http } { spawn(proc() { HttpServer.serve_forever() }); unsafe { created_http = true } }
-    // Mega hack because there is no way to wait for serve_forever to start:
-    std::io::timer::sleep(std::time::duration::Duration::seconds(1));
+    if unsafe { !created_http } {
+        spawn(proc() { HttpServer.serve_forever() });
+        unsafe { created_http = true }
+        // Mega hack because there is no way to wait for serve_forever to start:
+        std::io::timer::sleep(std::time::duration::Duration::seconds(1));
+    }
 
     let url = hyper::Url::parse("http://localhost:4000").unwrap();
     b.iter(|| request(url.clone()));
