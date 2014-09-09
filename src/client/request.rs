@@ -14,7 +14,7 @@ use super::{Response};
 
 
 /// A client request to a remote server.
-pub struct Request<S = HttpStream> {
+pub struct Request {
     /// The method of this request.
     pub method: method::Method,
     /// The headers that will be sent with this request.
@@ -24,13 +24,13 @@ pub struct Request<S = HttpStream> {
     /// The HTTP version of this request.
     pub version: version::HttpVersion,
     headers_written: bool,
-    body: BufferedWriter<S>,
+    body: BufferedWriter<Box<NetworkStream + Send>>,
 }
 
-impl<S: NetworkStream> Request<S> {
+impl Request {
 
     /// Create a new client request.
-    pub fn new(method: method::Method, url: Url) -> HttpResult<Request<S>> {
+    pub fn new(method: method::Method, url: Url) -> HttpResult<Request> {
         debug!("{} {}", method, url);
         let host = match url.serialize_host() {
             Some(host) => host,
@@ -43,8 +43,8 @@ impl<S: NetworkStream> Request<S> {
         };
         debug!("port={}", port);
 
-        let stream = try_io!(NetworkStream::connect(host.as_slice(), port));
-        let stream = BufferedWriter::new(stream);
+        let stream: HttpStream = try_io!(NetworkStream::connect(host.as_slice(), port));
+        let stream = BufferedWriter::new(stream.abstract());
         let mut headers = Headers::new();
         headers.set(Host(host));
         Ok(Request {
@@ -82,7 +82,7 @@ impl<S: NetworkStream> Request<S> {
     /// Completes writing the request, and returns a response to read from.
     ///
     /// Consumes the Request.
-    pub fn send(mut self) -> HttpResult<Response<S>> {
+    pub fn send(mut self) -> HttpResult<Response> {
         try_io!(self.flush());
         let raw = self.body.unwrap();
         Response::new(raw)
@@ -90,7 +90,7 @@ impl<S: NetworkStream> Request<S> {
 }
 
 
-impl<S: NetworkStream> Writer for Request<S> {
+impl Writer for Request {
     fn write(&mut self, msg: &[u8]) -> IoResult<()> {
         if !self.headers_written {
             try!(self.write_head());

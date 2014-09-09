@@ -18,14 +18,14 @@ pub struct Response<S = HttpStream> {
     pub headers: header::Headers,
     /// The HTTP version of this response from the server.
     pub version: version::HttpVersion,
-    body: HttpReader<BufferedReader<S>>,
+    body: HttpReader<BufferedReader<Box<NetworkStream + Send>>>,
 }
 
-impl<S: NetworkStream> Response<S> {
+impl Response {
 
     /// Creates a new response from a server.
-    pub fn new(stream: S) -> HttpResult<Response<S>> {
-        let mut stream = BufferedReader::new(stream);
+    pub fn new(stream: Box<NetworkStream + Send>) -> HttpResult<Response> {
+        let mut stream = BufferedReader::new(stream.abstract());
         let (version, status) = try!(read_status_line(&mut stream));
         let mut headers = try!(header::Headers::from_raw(&mut stream));
 
@@ -67,7 +67,7 @@ impl<S: NetworkStream> Response<S> {
     }
 }
 
-impl<S: NetworkStream> Reader for Response<S> {
+impl Reader for Response {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> {
         self.body.read(buf)

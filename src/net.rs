@@ -28,6 +28,22 @@ pub trait NetworkStream: Stream + Clone + Send {
 
     /// Connect to a remote address.
     fn connect(host: &str, port: Port) -> IoResult<Self>;
+
+    /// Turn this into an appropriately typed trait object.
+    #[inline]
+    fn abstract(self) -> Box<NetworkStream + Send> {
+        box self as Box<NetworkStream + Send>
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    // Hack to work around lack of Clone impl for Box<Clone>
+    fn clone_box(&self) -> Box<NetworkStream + Send> { self.clone().abstract() }
+}
+
+impl Clone for Box<NetworkStream + Send> {
+    #[inline]
+    fn clone(&self) -> Box<NetworkStream + Send> { self.clone_box() }
 }
 
 impl Reader for Box<NetworkStream + Send> {
