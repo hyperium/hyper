@@ -48,7 +48,10 @@ impl FromStr for Encoding {
     fn from_str(s: &str) -> Option<Encoding> {
         match s {
             "chunked" => Some(Chunked),
-            _ => None
+            "deflate" => Some(Deflate),
+            "gzip" => Some(Gzip),
+            "compress" => Some(Compress),
+            _ => Some(EncodingExt(s.to_string()))
         }
     }
 }
