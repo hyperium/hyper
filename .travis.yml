@@ -1,5 +1,10 @@
 language: rust
 
+script:
+    - cargo build
+    - cargo test
+    - cargo bench --no-run
+
 after_success: |
     [ $TRAVIS_BRANCH = master ] &&
     [ $TRAVIS_PULL_REQUEST = false ] &&
