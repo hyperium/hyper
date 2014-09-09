@@ -44,6 +44,19 @@ impl<W: WriteStatus> Response<W> {
 
     /// The headers of this response.
     pub fn headers(&self) -> &header::Headers { &self.headers }
+
+    /// Construct a Response from its constituent parts.
+    pub fn construct(version: version::HttpVersion,
+                     body: BufferedWriter<TcpStream>,
+                     status: status::StatusCode,
+                     headers: header::Headers) -> Response<Fresh> {
+        Response {
+            status: status,
+            version: version,
+            body: body,
+            headers: headers
+        }
+    }
 }
 
 impl Response<Fresh> {
@@ -89,6 +102,11 @@ impl Response<Fresh> {
 
     /// Get a mutable reference to the Headers.
     pub fn headers_mut(&mut self) -> &mut header::Headers { &mut self.headers }
+
+    /// Deconstruct this Response into its constituent parts.
+    pub fn deconstruct(self) -> (version::HttpVersion, BufferedWriter<TcpStream>, status::StatusCode, header::Headers) {
+        (self.version, self.body, self.status, self.headers)
+    }
 }
 
 impl Response<Streaming> {
