@@ -22,12 +22,25 @@ pub trait NetworkAcceptor<S: NetworkStream>: Acceptor<S> + Clone + Send {
 }
 
 /// An abstraction over streams that a Server can utilize.
-pub trait NetworkStream: Stream + Clone {
+pub trait NetworkStream: Stream + Clone + Send {
     /// Get the remote address of the underlying connection.
     fn peer_name(&mut self) -> IoResult<SocketAddr>;
 
     /// Connect to a remote address.
     fn connect(host: &str, port: Port) -> IoResult<Self>;
+}
+
+impl Reader for Box<NetworkStream + Send> {
+    #[inline]
+    fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> { self.read(buf) }
+}
+
+impl Writer for Box<NetworkStream + Send> {
+    #[inline]
+    fn write(&mut self, msg: &[u8]) -> IoResult<()> { self.write(msg) }
+
+    #[inline]
+    fn flush(&mut self) -> IoResult<()> { self.flush() }
 }
 
 /// A `NetworkListener` for `HttpStream`s.

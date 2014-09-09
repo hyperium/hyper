@@ -6,7 +6,7 @@ pub use self::request::Request;
 pub use self::response::{Response, Fresh, Streaming};
 
 use net::{NetworkListener, NetworkAcceptor, NetworkStream};
-use net::{HttpListener, HttpAcceptor};
+use net::HttpListener;
 
 pub mod request;
 pub mod response;
@@ -31,7 +31,6 @@ impl Server<HttpListener> {
 }
 
 impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L> {
-
     /// Creates a server that can listen for and handle `NetworkStreams`.
     pub fn new(ip: IpAddr, port: Port) -> Server<L> {
         Server {
@@ -40,9 +39,8 @@ impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L
         }
     }
 
-
     /// Binds to a socket, and starts handling connections.
-    pub fn listen<H: Handler<A, S> + 'static>(self, handler: H) -> IoResult<Listening<A>> {
+    pub fn listen<H: Handler<A, S>>(self, handler: H) -> IoResult<Listening<A>> {
         let mut listener: L = try!(NetworkListener::bind(self.ip.to_string().as_slice(), self.port));
         let socket = try!(listener.socket_name());
         let acceptor = try!(listener.listen());
@@ -62,12 +60,12 @@ impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L
 
 /// An iterator over incoming connections, represented as pairs of
 /// hyper Requests and Responses.
-pub struct Incoming<'a, A: 'a = HttpAcceptor> {
+pub struct Incoming<'a, A: 'a> {
     from: IncomingConnections<'a, A>
 }
 
-impl<'a, A: NetworkAcceptor<S>, S: NetworkStream> Iterator<(Request<S>, Response<Fresh, S>)> for Incoming<'a, A> {
-    fn next(&mut self) -> Option<(Request<S>, Response<Fresh, S>)> {
+impl<'a, S: NetworkStream, A: NetworkAcceptor<S>> Iterator<(Request, Response<Fresh>)> for Incoming<'a, A> {
+    fn next(&mut self) -> Option<(Request, Response<Fresh>)> {
         for conn in self.from {
             match conn {
                 Ok(stream) => {
@@ -96,7 +94,7 @@ impl<'a, A: NetworkAcceptor<S>, S: NetworkStream> Iterator<(Request<S>, Response
 }
 
 /// A listening server, which can later be closed.
-pub struct Listening<A = HttpAcceptor> {
+pub struct Listening<A> {
     acceptor: A,
     /// The socket address that the server is bound to.
     pub socket_addr: SocketAddr,

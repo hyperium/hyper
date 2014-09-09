@@ -13,7 +13,7 @@ use hyper::header::common::ContentLength;
 use hyper::net::{HttpStream, HttpAcceptor};
 
 trait ConcurrentHandler: Send + Sync {
-    fn handle(&self, req: Request, res: Response<Fresh, HttpStream>);
+    fn handle(&self, req: Request, res: Response<Fresh>);
 }
 
 struct Concurrent<H: ConcurrentHandler> { handler: Arc<H> }
@@ -39,7 +39,7 @@ macro_rules! try_abort(
 struct Echo;
 
 impl ConcurrentHandler for Echo {
-    fn handle(&self, mut req: Request, mut res: Response<Fresh, HttpStream>) {
+    fn handle(&self, mut req: Request, mut res: Response<Fresh>) {
         match req.uri {
             hyper::uri::AbsolutePath(ref path) => match (&req.method, path.as_slice()) {
                 (&Get, "/") | (&Get, "/echo") => {

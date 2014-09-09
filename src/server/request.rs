@@ -12,11 +12,11 @@ use header::Headers;
 use header::common::ContentLength;
 use rfc7230::{read_request_line};
 use rfc7230::{HttpReader, SizedReader, ChunkedReader};
-use net::{NetworkStream, HttpStream};
+use net::NetworkStream;
 use uri::RequestUri;
 
 /// A request bundles several parts of an incoming `NetworkStream`, given to a `Handler`.
-pub struct Request<S = HttpStream> {
+pub struct Request {
     /// The IP address of the remote connection.
     pub remote_addr: SocketAddr,
     /// The `Method`, such as `Get`, `Post`, etc.
@@ -27,17 +27,17 @@ pub struct Request<S = HttpStream> {
     pub uri: RequestUri,
     /// The version of HTTP for this request.
     pub version: HttpVersion,
-    body: HttpReader<BufferedReader<S>>
+    body: HttpReader<BufferedReader<Box<NetworkStream + Send>>>
 }
 
 
-impl<S: NetworkStream> Request<S> {
+impl Request {
 
     /// Create a new Request, reading the StartLine and Headers so they are
     /// immediately useful.
-    pub fn new(mut stream: S) -> HttpResult<Request<S>> {
+    pub fn new<S: NetworkStream>(mut stream: S) -> HttpResult<Request> {
         let remote_addr = try_io!(stream.peer_name());
-        let mut stream = BufferedReader::new(stream);
+        let mut stream = BufferedReader::new(box stream as Box<NetworkStream + Send>);
         let (method, uri, version) = try!(read_request_line(&mut stream));
         let mut headers = try!(Headers::from_raw(&mut stream));
 
@@ -61,12 +61,12 @@ impl<S: NetworkStream> Request<S> {
             uri: uri,
             headers: headers,
             version: version,
-            body: body,
+            body: body
         })
     }
 }
 
-impl<S: NetworkStream> Reader for Request<S> {
+impl Reader for Request {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> {
         self.body.read(buf)
     }
