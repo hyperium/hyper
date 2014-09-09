@@ -34,8 +34,8 @@ fn handle(mut incoming: Incoming) {
 
 #[bench]
 fn bench_curl(b: &mut test::Bencher) {
-    let listening = listen();
-    let s = format!("http://{}/", listening.socket_addr);
+    let mut listening = listen();
+    let s = format!("http://{}/", listening.sockets[0]);
     let url = s.as_slice();
     b.iter(|| {
         curl::http::handle()
@@ -63,8 +63,8 @@ impl hyper::header::Header for Foo {
 
 #[bench]
 fn bench_hyper(b: &mut test::Bencher) {
-    let listening = listen();
-    let s = format!("http://{}/", listening.socket_addr);
+    let mut listening = listen();
+    let s = format!("http://{}/", listening.sockets[0]);
     let url = s.as_slice();
     b.iter(|| {
         let mut req = hyper::get(hyper::Url::parse(url).unwrap()).unwrap();
@@ -79,8 +79,8 @@ fn bench_hyper(b: &mut test::Bencher) {
 
 #[bench]
 fn bench_http(b: &mut test::Bencher) {
-    let listening = listen();
-    let s = format!("http://{}/", listening.socket_addr);
+    let mut listening = listen();
+    let s = format!("http://{}/", listening.sockets[0]);
     let url = s.as_slice();
     b.iter(|| {
         let mut req: http::client::RequestWriter = http::client::RequestWriter::new(
