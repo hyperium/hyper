@@ -13,6 +13,12 @@ git = "https://github.com/seanmonstar/mime.rs"
 [dependencies.unsafe-any]
 git = "https://github.com/reem/rust-unsafe-any"
 
+[dependencies.intertwine]
+git = "https://github.com/reem/rust-intertwine"
+
+[dependencies.move-acceptor]
+git = "https://github.com/reem/rust-move-acceptor"
+
 [dev-dependencies.curl]
 git = "https://github.com/carllerche/curl-rust"
 

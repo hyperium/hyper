@@ -28,9 +28,9 @@ fn hyper_handle(mut incoming: hyper::server::Incoming) {
 #[bench]
 fn bench_hyper(b: &mut Bencher) {
     let server = hyper::Server::http(Ipv4Addr(127, 0, 0, 1), 0);
-    let listener = server.listen(hyper_handle).unwrap();
+    let mut listener = server.listen(hyper_handle).unwrap();
 
-    let url = hyper::Url::parse(format!("http://{}", listener.socket_addr).as_slice()).unwrap();
+    let url = hyper::Url::parse(format!("http://{}", listener.sockets[0]).as_slice()).unwrap();
     b.iter(|| request(url.clone()));
     listener.close().unwrap();
 }

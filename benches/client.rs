@@ -8,9 +8,8 @@ extern crate test;
 use std::fmt::{mod, Show};
 use std::io::net::ip::Ipv4Addr;
 use hyper::server::{Incoming, Server};
-use hyper::net::HttpAcceptor;
 
-fn listen() -> hyper::server::Listening<HttpAcceptor> {
+fn listen() -> hyper::server::Listening {
     let server = Server::http(Ipv4Addr(127, 0, 0, 1), 0);
     server.listen(handle).unwrap()
 }
@@ -34,8 +33,8 @@ fn handle(mut incoming: Incoming) {
 
 #[bench]
 fn bench_curl(b: &mut test::Bencher) {
-    let listening = listen();
-    let s = format!("http://{}/", listening.socket_addr);
+    let mut listening = listen();
+    let s = format!("http://{}/", listening.sockets[0]);
     let url = s.as_slice();
     b.iter(|| {
         curl::http::handle()
@@ -63,24 +62,24 @@ impl hyper::header::Header for Foo {
 
 #[bench]
 fn bench_hyper(b: &mut test::Bencher) {
-    let listening = listen();
-    let s = format!("http://{}/", listening.socket_addr);
+    let mut listening = listen();
+    let s = format!("http://{}/", listening.sockets[0]);
     let url = s.as_slice();
     b.iter(|| {
         let mut req = hyper::get(hyper::Url::parse(url).unwrap()).unwrap();
         req.headers.set(Foo);
 
-        req
-            .send().unwrap()
-            .read_to_string().unwrap()
+    req
+        .send().unwrap()
+        .read_to_string().unwrap()
     });
-    listening.close().unwrap()
+listening.close().unwrap()
 }
 
 #[bench]
 fn bench_http(b: &mut test::Bencher) {
-    let listening = listen();
-    let s = format!("http://{}/", listening.socket_addr);
+    let mut listening = listen();
+    let s = format!("http://{}/", listening.sockets[0]);
     let url = s.as_slice();
     b.iter(|| {
         let mut req: http::client::RequestWriter = http::client::RequestWriter::new(

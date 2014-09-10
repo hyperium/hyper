@@ -19,7 +19,7 @@ trait ConcurrentHandler: Send + Sync {
 struct Concurrent<H: ConcurrentHandler> { handler: Arc<H> }
 
 impl<H: ConcurrentHandler> Handler<HttpAcceptor, HttpStream> for Concurrent<H> {
-    fn handle(self, mut incoming: Incoming<HttpAcceptor>) {
+    fn handle(self, mut incoming: Incoming) {
         for (mut req, mut res) in incoming {
             let clone = self.handler.clone();
             spawn(proc() { clone.handle(req, res) })
