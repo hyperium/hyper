@@ -3,9 +3,11 @@ use std::io::{Acceptor, Listener, IoResult, EndOfFile, IncomingConnections};
 use std::io::net::ip::{IpAddr, Port, SocketAddr};
 
 pub use self::request::Request;
-pub use self::response::{Response, Fresh, Streaming};
+pub use self::response::Response;
 
-use net::{NetworkListener, NetworkAcceptor, NetworkStream, HttpAcceptor, HttpListener};
+use net::{NetworkListener, NetworkAcceptor, NetworkStream,
+          HttpAcceptor, HttpListener,
+          Fresh};
 
 pub mod request;
 pub mod response;
