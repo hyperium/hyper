@@ -1,7 +1,7 @@
 //! # hyper
 #![feature(macro_rules, phase, default_type_params)]
-#![warn(missing_doc)]
-//#![deny(warnings)]
+#![deny(missing_doc)]
+#![deny(warnings)]
 #![experimental]
 
 extern crate time;
