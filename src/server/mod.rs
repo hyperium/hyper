@@ -5,8 +5,7 @@ use std::io::net::ip::{IpAddr, Port, SocketAddr};
 pub use self::request::Request;
 pub use self::response::{Response, Fresh, Streaming};
 
-use net::{NetworkListener, NetworkAcceptor, NetworkStream};
-use net::HttpListener;
+use net::{NetworkListener, NetworkAcceptor, NetworkStream, HttpAcceptor, HttpListener};
 
 pub mod request;
 pub mod response;
@@ -60,7 +59,7 @@ impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L
 
 /// An iterator over incoming connections, represented as pairs of
 /// hyper Requests and Responses.
-pub struct Incoming<'a, A: 'a> {
+pub struct Incoming<'a, A: 'a = HttpAcceptor> {
     from: IncomingConnections<'a, A>
 }
 
