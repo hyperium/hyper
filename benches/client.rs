@@ -67,10 +67,10 @@ fn bench_hyper(b: &mut test::Bencher) {
     let s = format!("http://{}/", listening.socket_addr);
     let url = s.as_slice();
     b.iter(|| {
-        let mut req = hyper::get(hyper::Url::parse(url).unwrap()).unwrap();
-        req.headers.set(Foo);
+        let mut req = hyper::client::Request::get(hyper::Url::parse(url).unwrap()).unwrap();
+        req.headers_mut().set(Foo);
 
-        req
+        req.start().unwrap()
             .send().unwrap()
             .read_to_string().unwrap()
     });
