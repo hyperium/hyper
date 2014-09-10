@@ -8,9 +8,9 @@ use std::io::net::ip::Ipv4Addr;
 use std::sync::Arc;
 
 use hyper::{Get, Post};
-use hyper::server::{Server, Handler, Incoming, Request, Response, Fresh};
+use hyper::server::{Server, Handler, Incoming, Request, Response};
 use hyper::header::common::ContentLength;
-use hyper::net::{HttpStream, HttpAcceptor};
+use hyper::net::{HttpStream, HttpAcceptor, Fresh};
 
 trait ConcurrentHandler: Send + Sync {
     fn handle(&self, req: Request, res: Response<Fresh>);

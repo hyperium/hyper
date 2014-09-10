@@ -6,28 +6,11 @@ use url::Url;
 use method::{mod, Get, Post, Delete, Put, Patch, Head, Options};
 use header::Headers;
 use header::common::Host;
-use net::{NetworkStream, HttpStream};
+use net::{NetworkStream, HttpStream, WriteStatus, Fresh, Streaming};
 use http::LINE_ENDING;
 use version;
 use {HttpResult, HttpUriError};
-use super::Response;
-
-/// The write-status of a Request that has not had its headers written.
-pub struct Fresh;
-
-/// The write-status of a Request that has had its headers written.
-pub struct Streaming;
-
-/// The write-status of a Request
-pub trait WriteStatus: Private {}
-impl WriteStatus for Fresh {}
-impl WriteStatus for Streaming {}
-
-// Only Fresh and Streaming can be WriteStatus
-#[doc(hidden)]
-trait Private {}
-impl Private for Fresh {}
-impl Private for Streaming {}
+use client::Response;
 
 /// A client request to a remote server.
 pub struct Request<W: WriteStatus> {

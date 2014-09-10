@@ -10,20 +10,8 @@ use header;
 use header::common;
 use http::{CR, LF, LINE_ENDING};
 use status;
-use net::NetworkStream;
+use net::{NetworkStream, WriteStatus, Fresh, Streaming};
 use version;
-
-/// Phantom type indicating Headers and StatusCode have not been written.
-pub struct Fresh;
-
-/// Phantom type indicating Headers and StatusCode have been written.
-pub struct Streaming;
-
-/// The status of a Response, indicating if the headers and status have been written.
-pub trait WriteStatus {}
-
-impl WriteStatus for Streaming {}
-impl WriteStatus for Fresh {}
 
 /// The outgoing half for a Tcp connection, created by a `Server` and given to a `Handler`.
 pub struct Response<W: WriteStatus> {
