@@ -68,9 +68,10 @@ fn bench_hyper(b: &mut test::Bencher) {
     let url = s.as_slice();
     b.iter(|| {
         let mut req = hyper::get(hyper::Url::parse(url).unwrap()).unwrap();
-        req.headers.set(Foo);
+        req.headers_mut().set(Foo);
 
         req
+            .start().unwrap()
             .send().unwrap()
             .read_to_string().unwrap()
     });

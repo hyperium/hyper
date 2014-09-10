@@ -14,7 +14,7 @@ static phrase: &'static [u8] = b"Benchmarking hyper vs others!";
 
 fn request(url: hyper::Url) {
     let req = hyper::get(url).unwrap();
-    req.send().unwrap().read_to_string().unwrap();
+    req.start().unwrap().send().unwrap().read_to_string().unwrap();
 }
 
 fn hyper_handle(mut incoming: hyper::server::Incoming) {

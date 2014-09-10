@@ -6,7 +6,7 @@ use url::Url;
 use method;
 use header::Headers;
 use header::common::Host;
-use net::{NetworkStream, HttpStream};
+use net::{NetworkStream, HttpStream, WriteStatus, Fresh, Streaming};
 use http::LINE_ENDING;
 use version;
 use {HttpResult, HttpUriError};
@@ -14,23 +14,32 @@ use super::{Response};
 
 
 /// A client request to a remote server.
-pub struct Request {
-    /// The method of this request.
-    pub method: method::Method,
-    /// The headers that will be sent with this request.
-    pub headers: Headers,
-    /// The target URI for this request.
-    pub url: Url,
-    /// The HTTP version of this request.
-    pub version: version::HttpVersion,
-    headers_written: bool,
+pub struct Request<W: WriteStatus> {
+    version: version::HttpVersion,
+    method: method::Method,
+    headers: Headers,
+    url: Url,
     body: BufferedWriter<Box<NetworkStream + Send>>,
 }
 
-impl Request {
+impl<W: WriteStatus> Request<W> {
+    /// The method of this request..
+    #[inline]
+    pub fn method(&self) -> &method::Method { &self.method }
+
+    /// The headers of this request.
+    pub fn headers(&self) -> &Headers { &self.headers }
+
+    /// The version of this request.
+    #[inline]
+    pub fn version(&self) -> version::HttpVersion { self.version }
+
+}
+
+impl Request<Fresh> {
 
     /// Create a new client request.
-    pub fn new(method: method::Method, url: Url) -> HttpResult<Request> {
+    pub fn new(method: method::Method, url: Url) -> HttpResult<Request<Fresh>> {
         debug!("{} {}", method, url);
         let host = match url.serialize_host() {
             Some(host) => host,
@@ -52,18 +61,23 @@ impl Request {
             headers: headers,
             url: url,
             version: version::Http11,
-            headers_written: false,
             body: stream
         })
     }
 
-    fn write_head(&mut self) -> IoResult<()> {
-        if self.headers_written {
-            debug!("headers previsouly written, nooping");
-            return Ok(());
-        }
-        self.headers_written = true;
+    /// Get a mutable reference to the Headers.
+    #[inline]
+    pub fn headers_mut(&mut self) -> &mut Headers { &mut self.headers }
 
+    /// Get a mutable reference to the Method.
+    #[inline]
+    pub fn method_mut(&mut self) -> &mut method::Method { &mut self.method }
+
+    /// Get a mutable reference to the HttpVersion.
+    #[inline]
+    pub fn version_mut(&mut self) -> &mut version::HttpVersion { &mut self.version }
+
+    fn write_head(&mut self) -> IoResult<()> {
         let uri = self.url.serialize_path().unwrap();
         debug!("writing head: {} {} {}", self.method, uri, self.version);
         try!(write!(self.body, "{} {} {}", self.method, uri, self.version))
@@ -79,6 +93,25 @@ impl Request {
         self.body.write(LINE_ENDING)
     }
 
+    /// Writes the StatusCode and Headers to the underlying stream, and returns
+    /// a Streaming Request to write an optional body.
+    ///
+    /// Consumes the Request<Fresh>.
+    pub fn start(mut self) -> IoResult<Request<Streaming>> {
+        try!(self.write_head());
+
+        // "copy" to change the phantom type
+        Ok(Request {
+            version: self.version,
+            body: self.body,
+            method: self.method,
+            url: self.url,
+            headers: self.headers
+        })
+    }
+}
+
+impl Request<Streaming> {
     /// Completes writing the request, and returns a response to read from.
     ///
     /// Consumes the Request.
@@ -90,18 +123,15 @@ impl Request {
 }
 
 
-impl Writer for Request {
+
+impl Writer for Request<Streaming> {
+    #[inline]
     fn write(&mut self, msg: &[u8]) -> IoResult<()> {
-        if !self.headers_written {
-            try!(self.write_head());
-        }
         self.body.write(msg)
     }
 
+    #[inline]
     fn flush(&mut self) -> IoResult<()> {
-        if !self.headers_written {
-            try!(self.write_head());
-        }
         self.body.flush()
     }
 }
