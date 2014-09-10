@@ -15,7 +15,6 @@ extern crate intertwine;
 pub use std::io::net::ip::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr, Port};
 pub use mimewrapper::mime;
 pub use url::Url;
-pub use client::{get, head, post, delete, request};
 pub use method::{Get, Head, Post, Delete};
 pub use status::{Ok, BadRequest, NotFound};
 pub use server::Server;

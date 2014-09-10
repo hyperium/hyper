@@ -5,6 +5,7 @@ use std::io::stdout;
 use std::io::util::copy;
 
 use hyper::Url;
+use hyper::client::Request;
 
 fn main() {
     let args = os::args();
@@ -25,12 +26,15 @@ fn main() {
     };
 
 
-    let req = match hyper::get(url) {
+    let req = match Request::get(url) {
         Ok(req) => req,
         Err(err) => fail!("Failed to connect: {}", err)
     };
-    let mut res = req.send().unwrap();
-    
+
+    let mut res = req
+        .start().ok().expect("Error writing Headers.")
+        .send().ok().expect("Error sending Request.");
+
     println!("Response: {}", res.status);
     println!("{}", res.headers);
     match copy(&mut res, &mut stdout()) {
