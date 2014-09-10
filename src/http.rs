@@ -429,7 +429,7 @@ pub type RawHeaderLine = (Vec<u8>, Vec<u8>);
 
 /// Read a RawHeaderLine from a Reader.
 ///
-/// From [spec](https://tools.ietf.org/html/rfc7230#section-3.2):
+/// From [spec](https://tools.ietf.org/html/http#section-3.2):
 ///
 /// > Each header field consists of a case-insensitive field name followed
 /// > by a colon (":"), optional leading whitespace, the field value, and

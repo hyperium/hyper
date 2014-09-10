@@ -15,7 +15,7 @@ use std::collections::hashmap::{HashMap, Entries};
 
 use uany::UncheckedAnyDowncast;
 
-use rfc7230::read_header;
+use http::read_header;
 use {HttpResult};
 
 /// Common Headers

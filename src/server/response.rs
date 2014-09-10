@@ -8,7 +8,7 @@ use time::now_utc;
 
 use header;
 use header::common;
-use rfc7230::{CR, LF, LINE_ENDING};
+use http::{CR, LF, LINE_ENDING};
 use status;
 use net::NetworkStream;
 use version;
@@ -30,7 +30,7 @@ pub struct Response<W: WriteStatus> {
     /// The HTTP version of this response.
     pub version: version::HttpVersion,
     // Stream the Response is writing to, not accessible through UnwrittenResponse
-    body: BufferedWriter<Box<NetworkStream + Send>>, // TODO: use a HttpWriter from rfc7230
+    body: BufferedWriter<Box<NetworkStream + Send>>, // TODO: use a HttpWriter from http
     // The status code for the request.
     status: status::StatusCode,
     // The outgoing headers on this response.
