@@ -1,5 +1,4 @@
 //! Client Requests
-use std::io::net::tcp::TcpStream;
 use std::io::{BufferedWriter, IoResult};
 
 use url::Url;
@@ -7,6 +6,7 @@ use url::Url;
 use method;
 use header::Headers;
 use header::common::Host;
+use net::{NetworkStream, HttpStream};
 use rfc7230::LINE_ENDING;
 use version;
 use {HttpResult, HttpUriError};
@@ -24,7 +24,7 @@ pub struct Request {
     /// The HTTP version of this request.
     pub version: version::HttpVersion,
     headers_written: bool,
-    body: BufferedWriter<TcpStream>,
+    body: BufferedWriter<Box<NetworkStream + Send>>,
 }
 
 impl Request {
@@ -43,8 +43,8 @@ impl Request {
         };
         debug!("port={}", port);
 
-        let stream = try_io!(TcpStream::connect(host.as_slice(), port));
-        let stream = BufferedWriter::new(stream);
+        let stream: HttpStream = try_io!(NetworkStream::connect(host.as_slice(), port));
+        let stream = BufferedWriter::new(stream.abstract());
         let mut headers = Headers::new();
         headers.set(Host(host));
         Ok(Request {
@@ -84,8 +84,7 @@ impl Request {
     /// Consumes the Request.
     pub fn send(mut self) -> HttpResult<Response> {
         try_io!(self.flush());
-        let mut raw = self.body.unwrap();
-        try_io!(raw.close_write());
+        let raw = self.body.unwrap();
         Response::new(raw)
     }
 }

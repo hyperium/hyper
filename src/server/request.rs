@@ -4,7 +4,6 @@
 //! target URI, headers, and message body.
 use std::io::{Reader, BufferedReader, IoResult};
 use std::io::net::ip::SocketAddr;
-use std::io::net::tcp::TcpStream;
 
 use {HttpResult};
 use version::{HttpVersion};
@@ -13,9 +12,10 @@ use header::Headers;
 use header::common::ContentLength;
 use rfc7230::{read_request_line};
 use rfc7230::{HttpReader, SizedReader, ChunkedReader};
+use net::NetworkStream;
 use uri::RequestUri;
 
-/// A request bundles several parts of an incoming TCP stream, given to a `Handler`.
+/// A request bundles several parts of an incoming `NetworkStream`, given to a `Handler`.
 pub struct Request {
     /// The IP address of the remote connection.
     pub remote_addr: SocketAddr,
@@ -27,7 +27,7 @@ pub struct Request {
     pub uri: RequestUri,
     /// The version of HTTP for this request.
     pub version: HttpVersion,
-    body: HttpReader<BufferedReader<TcpStream>>
+    body: HttpReader<BufferedReader<Box<NetworkStream + Send>>>
 }
 
 
@@ -35,11 +35,11 @@ impl Request {
 
     /// Create a new Request, reading the StartLine and Headers so they are
     /// immediately useful.
-    pub fn new(mut tcp: TcpStream) -> HttpResult<Request> {
-        let remote_addr = try_io!(tcp.peer_name());
-        let mut tcp = BufferedReader::new(tcp);
-        let (method, uri, version) = try!(read_request_line(&mut tcp));
-        let mut headers = try!(Headers::from_raw(&mut tcp));
+    pub fn new<S: NetworkStream>(mut stream: S) -> HttpResult<Request> {
+        let remote_addr = try_io!(stream.peer_name());
+        let mut stream = BufferedReader::new(stream.abstract());
+        let (method, uri, version) = try!(read_request_line(&mut stream));
+        let mut headers = try!(Headers::from_raw(&mut stream));
 
         debug!("{} {} {}", method, uri, version);
         debug!("{}", headers);
@@ -47,12 +47,12 @@ impl Request {
 
         let body = if headers.has::<ContentLength>() {
             match headers.get_ref::<ContentLength>() {
-                Some(&ContentLength(len)) => SizedReader(tcp, len),
+                Some(&ContentLength(len)) => SizedReader(stream, len),
                 None => unreachable!()
             }
         } else {
             todo!("check for Transfer-Encoding: chunked");
-            ChunkedReader(tcp, None)
+            ChunkedReader(stream, None)
         };
 
         Ok(Request {
@@ -61,7 +61,7 @@ impl Request {
             uri: uri,
             headers: headers,
             version: version,
-            body: body,
+            body: body
         })
     }
 }

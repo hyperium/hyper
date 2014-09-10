@@ -1,6 +1,6 @@
 //! # hyper
-#![feature(macro_rules, phase)]
-#![warn(missing_doc)]
+#![feature(macro_rules, phase, default_type_params)]
+#![deny(missing_doc)]
 #![deny(warnings)]
 #![experimental]
 
@@ -53,6 +53,7 @@ macro_rules! trace(
 pub mod client;
 pub mod method;
 pub mod header;
+pub mod net;
 pub mod server;
 pub mod status;
 pub mod uri;

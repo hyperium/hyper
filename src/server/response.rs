@@ -3,15 +3,15 @@
 //! These are responses sent by a `hyper::Server` to clients, after
 //! receiving a request.
 use std::io::{BufferedWriter, IoResult};
-use std::io::net::tcp::TcpStream;
 
 use time::now_utc;
 
 use header;
 use header::common;
-use status;
-use version;
 use rfc7230::{CR, LF, LINE_ENDING};
+use status;
+use net::NetworkStream;
+use version;
 
 /// Phantom type indicating Headers and StatusCode have not been written.
 pub struct Fresh;
@@ -30,7 +30,7 @@ pub struct Response<W: WriteStatus> {
     /// The HTTP version of this response.
     pub version: version::HttpVersion,
     // Stream the Response is writing to, not accessible through UnwrittenResponse
-    body: BufferedWriter<TcpStream>, // TODO: use a HttpWriter from rfc7230
+    body: BufferedWriter<Box<NetworkStream + Send>>, // TODO: use a HttpWriter from rfc7230
     // The status code for the request.
     status: status::StatusCode,
     // The outgoing headers on this response.
@@ -47,7 +47,7 @@ impl<W: WriteStatus> Response<W> {
 
     /// Construct a Response from its constituent parts.
     pub fn construct(version: version::HttpVersion,
-                     body: BufferedWriter<TcpStream>,
+                     body: BufferedWriter<Box<NetworkStream + Send>>,
                      status: status::StatusCode,
                      headers: header::Headers) -> Response<Fresh> {
         Response {
@@ -61,12 +61,12 @@ impl<W: WriteStatus> Response<W> {
 
 impl Response<Fresh> {
     /// Creates a new Response that can be used to write to a network stream.
-    pub fn new(tcp: TcpStream) -> Response<Fresh> {
+    pub fn new<S: NetworkStream>(stream: S) -> Response<Fresh> {
         Response {
             status: status::Ok,
             version: version::Http11,
             headers: header::Headers::new(),
-            body: BufferedWriter::new(tcp)
+            body: BufferedWriter::new(stream.abstract())
         }
     }
 
@@ -104,7 +104,8 @@ impl Response<Fresh> {
     pub fn headers_mut(&mut self) -> &mut header::Headers { &mut self.headers }
 
     /// Deconstruct this Response into its constituent parts.
-    pub fn deconstruct(self) -> (version::HttpVersion, BufferedWriter<TcpStream>, status::StatusCode, header::Headers) {
+    pub fn deconstruct(self) -> (version::HttpVersion, BufferedWriter<Box<NetworkStream + Send>>,
+                                 status::StatusCode, header::Headers) {
         (self.version, self.body, self.status, self.headers)
     }
 }

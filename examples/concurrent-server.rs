@@ -1,4 +1,4 @@
-#![feature(macro_rules)]
+#![feature(macro_rules, default_type_params)]
 
 extern crate hyper;
 extern crate debug;
@@ -10,6 +10,7 @@ use std::sync::Arc;
 use hyper::{Get, Post};
 use hyper::server::{Server, Handler, Incoming, Request, Response, Fresh};
 use hyper::header::common::ContentLength;
+use hyper::net::{HttpStream, HttpAcceptor};
 
 trait ConcurrentHandler: Send + Sync {
     fn handle(&self, req: Request, res: Response<Fresh>);
@@ -17,8 +18,8 @@ trait ConcurrentHandler: Send + Sync {
 
 struct Concurrent<H: ConcurrentHandler> { handler: Arc<H> }
 
-impl<H: ConcurrentHandler> Handler for Concurrent<H> {
-    fn handle(self, mut incoming: Incoming) {
+impl<H: ConcurrentHandler> Handler<HttpAcceptor, HttpStream> for Concurrent<H> {
+    fn handle(self, mut incoming: Incoming<HttpAcceptor>) {
         for (mut req, mut res) in incoming {
             let clone = self.handler.clone();
             spawn(proc() { clone.handle(req, res) })

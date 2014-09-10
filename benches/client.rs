@@ -8,8 +8,9 @@ extern crate test;
 use std::fmt::{mod, Show};
 use std::io::net::ip::Ipv4Addr;
 use hyper::server::{Incoming, Server};
+use hyper::net::HttpAcceptor;
 
-fn listen() -> hyper::server::Listening {
+fn listen() -> hyper::server::Listening<HttpAcceptor> {
     let server = Server::http(Ipv4Addr(127, 0, 0, 1), 0);
     server.listen(handle).unwrap()
 }
