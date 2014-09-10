@@ -7,7 +7,7 @@ use method;
 use header::Headers;
 use header::common::Host;
 use net::{NetworkStream, HttpStream};
-use rfc7230::LINE_ENDING;
+use http::LINE_ENDING;
 use version;
 use {HttpResult, HttpUriError};
 use super::{Response};

@@ -59,7 +59,7 @@ pub mod status;
 pub mod uri;
 pub mod version;
 
-mod rfc7230;
+mod http;
 
 mod mimewrapper {
     /// Re-exporting the mime crate, for convenience.

@@ -5,7 +5,7 @@ use header;
 use header::common::{ContentLength, TransferEncoding};
 use header::common::transfer_encoding::Chunked;
 use net::{NetworkStream, HttpStream};
-use rfc7230::{read_status_line, HttpReader, SizedReader, ChunkedReader, EofReader};
+use http::{read_status_line, HttpReader, SizedReader, ChunkedReader, EofReader};
 use status;
 use version;
 use {HttpResult};
