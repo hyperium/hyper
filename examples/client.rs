@@ -29,7 +29,7 @@ fn main() {
         Ok(req) => req,
         Err(err) => fail!("Failed to connect: {}", err)
     };
-    let mut res = req.send().unwrap();
+    let mut res = req.start().unwrap().send().unwrap();
     
     println!("Response: {}", res.status);
     println!("{}", res.headers);

@@ -41,6 +41,18 @@ pub trait NetworkStream: Stream + Clone + Send {
     fn clone_box(&self) -> Box<NetworkStream + Send> { self.clone().abstract() }
 }
 
+/// Phantom type indicating Headers and StatusCode have not been written.
+pub struct Fresh;
+
+/// Phantom type indicating Headers and StatusCode have been written.
+pub struct Streaming;
+
+/// The status of a Request/Response, indicating if the headers and status have been written.
+pub trait WriteStatus {}
+
+impl WriteStatus for Streaming {}
+impl WriteStatus for Fresh {}
+
 impl Clone for Box<NetworkStream + Send> {
     #[inline]
     fn clone(&self) -> Box<NetworkStream + Send> { self.clone_box() }
