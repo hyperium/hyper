@@ -6,11 +6,12 @@ use intertwine::{Intertwine, Intertwined};
 use macceptor::MoveAcceptor;
 
 pub use self::request::Request;
-pub use self::response::{Response, Fresh, Streaming};
-
-use net::{NetworkListener, NetworkAcceptor, NetworkStream, HttpAcceptor, HttpListener, HttpStream};
+pub use self::response::Response;
 
 use {HttpResult};
+use net::{NetworkListener, NetworkAcceptor, NetworkStream,
+          HttpAcceptor, HttpListener, HttpStream,
+          Fresh};
 
 pub mod request;
 pub mod response;
