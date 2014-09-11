@@ -38,6 +38,11 @@ impl<W: WriteStatus> Request<W> {
 impl Request<Fresh> {
     /// Create a new client request.
     pub fn new(method: method::Method, url: Url) -> HttpResult<Request<Fresh>> {
+        Request::with_stream::<HttpStream>(method, url)
+    }
+
+    /// Create a new client request with a specific underlying NetworkStream.
+    pub fn with_stream<S: NetworkStream>(method: method::Method, url: Url) -> HttpResult<Request<Fresh>> {
         debug!("{} {}", method, url);
         let host = match url.serialize_host() {
             Some(host) => host,
@@ -50,7 +55,7 @@ impl Request<Fresh> {
         };
         debug!("port={}", port);
 
-        let stream: HttpStream = try_io!(NetworkStream::connect(host.as_slice(), port));
+        let stream: S = try_io!(NetworkStream::connect(host.as_slice(), port));
         let stream = BufferedWriter::new(stream.abstract());
         let mut headers = Headers::new();
         headers.set(Host(host));
