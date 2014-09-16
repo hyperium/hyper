@@ -15,6 +15,7 @@ use std::string::raw;
 use std::collections::hashmap::{HashMap, Entries};
 
 use uany::UncheckedAnyDowncast;
+use typeable::Typeable;
 
 use http::read_header;
 use {HttpResult};
@@ -23,7 +24,7 @@ use {HttpResult};
 pub mod common;
 
 /// A trait for any object that will represent a header field and value.
-pub trait Header: 'static {
+pub trait Header: Typeable {
     /// Returns the name of the header field this belongs to.
     ///
     /// The market `Option` is to hint to the type system which implementation
@@ -41,7 +42,18 @@ pub trait Header: 'static {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result;
 }
 
-impl<'a> UncheckedAnyDowncast<'a> for &'a Header + 'a {
+#[doc(hidden)]
+trait Is {
+    fn is<T: 'static>(self) -> bool;
+}
+
+impl<'a> Is for &'a Header {
+    fn is<T: 'static>(self) -> bool {
+        self.get_type() == TypeId::of::<T>()
+    }
+}
+
+impl<'a> UncheckedAnyDowncast<'a> for &'a Header {
     #[inline]
     unsafe fn downcast_ref_unchecked<T: 'static>(self) -> &'a T {
         let to: TraitObject = transmute_copy(&self);
@@ -81,8 +93,12 @@ impl Headers {
                     let name = unsafe {
                         raw::from_utf8(name)
                     }.into_ascii_lower();
-                    let item = headers.data.find_or_insert(Owned(name), raw(vec![]));
-                    item.raw.push(value);
+                    let item = headers.data.find_or_insert(Owned(name), Raw(vec![]));
+                    match *item {
+                        Raw(ref mut raw) => raw.push(value),
+                        // Unreachable
+                        _ => {}
+                    };
                 },
                 None => break,
             }
@@ -94,11 +110,7 @@ impl Headers {
     ///
     /// The field is determined by the type of the value being set.
     pub fn set<H: Header>(&mut self, value: H) {
-        self.data.insert(Slice(header_name::<H>()), Item {
-            raw: vec![],
-            tid: Some(TypeId::of::<H>()),
-            typed: Some(box value as Box<Header>)
-        });
+        self.data.insert(Slice(header_name::<H>()), Typed(box value as Box<Header>));
     }
 
     /// Get a clone of the header field's value, if it exists.
@@ -128,8 +140,11 @@ impl Headers {
     /// let raw_content_type = unsafe { headers.get_raw("content-type") };
     /// ```
     pub unsafe fn get_raw(&self, name: &'static str) -> Option<&[Vec<u8>]> {
-        self.data.find(&Slice(name)).map(|item| {
-            item.raw.as_slice()
+        self.data.find(&Slice(name)).and_then(|item| {
+            match *item {
+                Raw(ref raw) => Some(raw.as_slice()),
+                _ => None
+            }
         })
     }
 
@@ -137,28 +152,35 @@ impl Headers {
     pub fn get_ref<H: Header>(&mut self) -> Option<&H> {
         self.data.find_mut(&Slice(header_name::<H>())).and_then(|item| {
             debug!("get_ref, name={}, val={}", header_name::<H>(), item);
-            let expected_tid = TypeId::of::<H>();
-            let header = match item.tid {
-                Some(tid) if tid == expected_tid => return Some(item),
-                _ => match Header::parse_header(item.raw.as_slice()) {
+            let header = match *item {
+                // Huge borrowck hack here, should be refactored to just return here.
+                Typed(ref typed) if typed.is::<H>() => None,
+                // Typed, wrong type
+                Typed(_) => return None,
+                Raw(ref raw) => match Header::parse_header(raw.as_slice()) {
                     Some::<H>(h) => {
-                        h
+                        Some(h)
                     },
                     None => return None
                 },
             };
-            item.typed = Some(box header as Box<Header>);
-            item.tid = Some(expected_tid);
-            Some(item)
+
+            match header {
+                Some(header) => {
+                    *item = Typed(box header as Box<Header>);
+                    Some(item)
+                },
+                None => {
+                    Some(item)
+                }
+            }
         }).and_then(|item| {
             debug!("downcasting {}", item);
-            let ret = match item.typed {
-                Some(ref val) => {
-                    unsafe {
-                        Some(val.downcast_ref_unchecked())
-                    }
+            let ret = match *item {
+                Typed(ref val) => {
+                    unsafe { Some(val.downcast_ref_unchecked()) }
                 },
-                None => unreachable!()
+                _ => unreachable!()
             };
             ret
         })
@@ -181,7 +203,7 @@ impl Headers {
     /// Removes a header from the map, if one existed.
     /// Returns true if a header has been removed.
     pub fn remove<H: Header>(&mut self) -> bool {
-        self.data.pop_equiv(&Header::header_name(None::<H>)).is_some()
+        self.data.remove(&Slice(Header::header_name(None::<H>)))
     }
 
     /// Returns an iterator over the header fields.
@@ -238,26 +260,17 @@ impl Mutable for Headers {
     }
 }
 
-struct Item {
-    raw: Vec<Vec<u8>>,
-    tid: Option<TypeId>,
-    typed: Option<Box<Header>>,
-}
-
-fn raw(parts: Vec<Vec<u8>>) -> Item {
-    Item {
-        raw: parts,
-        tid: None,
-        typed: None,
-    }
+enum Item {
+    Raw(Vec<Vec<u8>>),
+    Typed(Box<Header>)
 }
 
 impl fmt::Show for Item {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match self.typed {
-            Some(ref h) => h.fmt_header(fmt),
-            None => {
-                for part in self.raw.iter() {
+        match *self {
+            Typed(ref h) => h.fmt_header(fmt),
+            Raw(ref raw) => {
+                for part in raw.iter() {
                     try!(fmt.write(part.as_slice()));
                 }
                 Ok(())
