@@ -7,6 +7,7 @@
 use std::ascii::OwnedAsciiExt;
 use std::char::is_lowercase;
 use std::fmt::{mod, Show};
+use std::intrinsics::TypeId;
 use std::mem::{transmute, transmute_copy};
 use std::raw::TraitObject;
 use std::str::{from_utf8, SendStr, Slice, Owned};
@@ -80,11 +81,8 @@ impl Headers {
                     let name = unsafe {
                         raw::from_utf8(name)
                     }.into_ascii_lower();
-                    match headers.data.find_or_insert(Owned(name), Raw(vec![])) {
-                        &Raw(ref mut pieces) => pieces.push(value),
-                        // at this point, Raw is the only thing that has been inserted
-                        _ => unreachable!()
-                    }
+                    let item = headers.data.find_or_insert(Owned(name), raw(vec![]));
+                    item.raw.push(value);
                 },
                 None => break,
             }
@@ -96,7 +94,11 @@ impl Headers {
     ///
     /// The field is determined by the type of the value being set.
     pub fn set<H: Header>(&mut self, value: H) {
-        self.data.insert(Slice(header_name::<H>()), Typed(box value));
+        self.data.insert(Slice(header_name::<H>()), Item {
+            raw: vec![],
+            tid: Some(TypeId::of::<H>()),
+            typed: Some(box value as Box<Header>)
+        });
     }
 
     /// Get a clone of the header field's value, if it exists.
@@ -126,11 +128,8 @@ impl Headers {
     /// let raw_content_type = unsafe { headers.get_raw("content-type") };
     /// ```
     pub unsafe fn get_raw(&self, name: &'static str) -> Option<&[Vec<u8>]> {
-        self.data.find(&Slice(name)).and_then(|item| {
-            match *item {
-                Raw(ref raw) => Some(raw.as_slice()),
-                _ => None
-            }
+        self.data.find(&Slice(name)).map(|item| {
+            item.raw.as_slice()
         })
     }
 
@@ -138,28 +137,29 @@ impl Headers {
     pub fn get_ref<H: Header>(&mut self) -> Option<&H> {
         self.data.find_mut(&Slice(header_name::<H>())).and_then(|item| {
             debug!("get_ref, name={}, val={}", header_name::<H>(), item);
-            let header = match *item {
-                Raw(ref raw) => match Header::parse_header(raw.as_slice()) {
+            let expected_tid = TypeId::of::<H>();
+            let header = match item.tid {
+                Some(tid) if tid == expected_tid => return Some(item),
+                _ => match Header::parse_header(item.raw.as_slice()) {
                     Some::<H>(h) => {
                         h
                     },
                     None => return None
                 },
-                Typed(..) => return Some(item)
             };
-            *item = Typed(box header as Box<Header>);
+            item.typed = Some(box header as Box<Header>);
+            item.tid = Some(expected_tid);
             Some(item)
         }).and_then(|item| {
             debug!("downcasting {}", item);
-            let ret = match *item {
-                Typed(ref val) => {
+            let ret = match item.typed {
+                Some(ref val) => {
                     unsafe {
                         Some(val.downcast_ref_unchecked())
                     }
                 },
-                Raw(..) => unreachable!()
+                None => unreachable!()
             };
-            debug!("returning {}", ret.is_some());
             ret
         })
     }
@@ -238,21 +238,30 @@ impl Mutable for Headers {
     }
 }
 
-enum Item {
-    Raw(Vec<Vec<u8>>),
-    Typed(Box<Header>)
+struct Item {
+    raw: Vec<Vec<u8>>,
+    tid: Option<TypeId>,
+    typed: Option<Box<Header>>,
+}
+
+fn raw(parts: Vec<Vec<u8>>) -> Item {
+    Item {
+        raw: parts,
+        tid: None,
+        typed: None,
+    }
 }
 
 impl fmt::Show for Item {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Raw(ref v) => {
-                for part in v.iter() {
+        match self.typed {
+            Some(ref h) => h.fmt_header(fmt),
+            None => {
+                for part in self.raw.iter() {
                     try!(fmt.write(part.as_slice()));
                 }
                 Ok(())
             },
-            Typed(ref h) => h.fmt_header(fmt)
         }
     }
 }
@@ -260,6 +269,7 @@ impl fmt::Show for Item {
 #[cfg(test)]
 mod tests {
     use std::io::MemReader;
+    use std::fmt;
     use mime::{Mime, Text, Plain};
     use super::{Headers, Header};
     use super::common::{ContentLength, ContentType};
@@ -278,5 +288,40 @@ mod tests {
     fn test_content_type() {
         let content_type = Header::parse_header(["text/plain".as_bytes().to_vec()].as_slice());
         assert_eq!(content_type, Some(ContentType(Mime(Text, Plain, vec![]))));
+    }
+
+    #[deriving(Clone)]
+    struct CrazyLength(Option<bool>, uint);
+
+    impl Header for CrazyLength {
+        fn header_name(_: Option<CrazyLength>) -> &'static str {
+            "content-length"
+        }
+        fn parse_header(raw: &[Vec<u8>]) -> Option<CrazyLength> {
+            use std::str::from_utf8;
+            use std::from_str::FromStr;
+
+            if raw.len() != 1 {
+                return None;
+            }
+            // we JUST checked that raw.len() == 1, so raw[0] WILL exist.
+            match from_utf8(unsafe { raw.as_slice().unsafe_get(0).as_slice() }) {
+                Some(s) => FromStr::from_str(s),
+                None => None
+            }.map(|u| CrazyLength(Some(false), u))
+        }
+        fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+            use std::fmt::Show;
+            let CrazyLength(_, ref value) = *self;
+            value.fmt(fmt)
+        }
+    }
+
+    #[test]
+    fn test_different_structs_for_same_header() {
+        let mut headers = Headers::from_raw(&mut mem("Content-Length: 10\r\n\r\n")).unwrap();
+        let ContentLength(num) = headers.get::<ContentLength>().unwrap();
+        let CrazyLength(_, crazy_num) = headers.get::<CrazyLength>().unwrap();
+        assert_eq!(num, crazy_num);
     }
 }
