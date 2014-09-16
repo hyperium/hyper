@@ -333,8 +333,7 @@ mod tests {
     #[test]
     fn test_different_structs_for_same_header() {
         let mut headers = Headers::from_raw(&mut mem("Content-Length: 10\r\n\r\n")).unwrap();
-        let ContentLength(num) = headers.get::<ContentLength>().unwrap();
-        let CrazyLength(_, crazy_num) = headers.get::<CrazyLength>().unwrap();
-        assert_eq!(num, crazy_num);
+        let ContentLength(_) = headers.get::<ContentLength>().unwrap();
+        assert!(headers.get::<CrazyLength>().is_none());
     }
 }
