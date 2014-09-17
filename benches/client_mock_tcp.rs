@@ -84,7 +84,7 @@ impl hyper::header::Header for Foo {
 
 impl net::NetworkStream for MockStream {
 
-    fn connect(_host: &str, _port: u16) -> IoResult<MockStream> {
+    fn connect(_host: &str, _port: u16, _scheme: &str) -> IoResult<MockStream> {
         Ok(MockStream::new())
     }
 

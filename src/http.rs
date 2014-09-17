@@ -59,11 +59,13 @@ impl<R: Reader> Reader for HttpReader<R> {
                     // None means we don't know the size of the next chunk
                     None => try!(read_chunk_size(body))
                 };
+                debug!("Chunked read, remaining={}", rem);
 
                 if rem == 0 {
                     // chunk of size 0 signals the end of the chunked stream
                     // if the 0 digit was missing from the stream, it would
                     // be an InvalidInput error instead.
+                    debug!("end of chunked");
                     return Err(io::standard_error(io::EndOfFile));
                 }
 
@@ -71,7 +73,12 @@ impl<R: Reader> Reader for HttpReader<R> {
                 let count = try!(body.read(buf.mut_slice_to(to_read)));
 
                 rem -= count;
-                *opt_remaining = if rem > 0 { Some(rem) } else { None };
+                *opt_remaining = if rem > 0 {
+                    Some(rem)
+                } else {
+                    try!(eat(body, LINE_ENDING));
+                    None
+                };
                 Ok(count)
             },
             EofReader(ref mut body) => {
@@ -79,6 +86,16 @@ impl<R: Reader> Reader for HttpReader<R> {
             }
         }
     }
+}
+
+fn eat<R: Reader>(rdr: &mut R, bytes: &[u8]) -> IoResult<()> {
+    for &b in bytes.iter() {
+        match try!(rdr.read_byte()) {
+            byte if byte == b => (),
+            _ => return Err(io::standard_error(io::InvalidInput))
+        }
+    }
+    Ok(())
 }
 
 /// Chunked chunks start with 1*HEXDIGIT, indicating the size of the chunk.
@@ -112,6 +129,7 @@ fn read_chunk_size<R: Reader>(rdr: &mut R) -> IoResult<uint> {
             }
         }
     }
+    debug!("chunk size={}", size);
     Ok(size)
 }
 

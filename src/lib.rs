@@ -6,6 +6,7 @@
 
 extern crate time;
 extern crate url;
+extern crate openssl;
 #[phase(plugin,link)] extern crate log;
 #[cfg(test)] extern crate test;
 extern crate "unsafe-any" as uany;
