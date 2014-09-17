@@ -12,6 +12,7 @@ extern crate openssl;
 extern crate "unsafe-any" as uany;
 extern crate "move-acceptor" as macceptor;
 extern crate intertwine;
+extern crate typeable;
 
 pub use std::io::net::ip::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr, Port};
 pub use mimewrapper::mime;

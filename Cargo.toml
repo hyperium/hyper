@@ -22,6 +22,9 @@ git = "https://github.com/reem/rust-intertwine"
 [dependencies.move-acceptor]
 git = "https://github.com/reem/rust-move-acceptor"
 
+[dependencies.typeable]
+git = "https://github.com/reem/rust-typeable"
+
 [dev-dependencies.curl]
 git = "https://github.com/carllerche/curl-rust"
 
