@@ -1,6 +1,6 @@
 # hyper
 
-[![Build Status](https://travis-ci.org/seanmonstar/hyper.svg?branch=master)](https://travis-ci.org/seanmonstar/hyper)
+[![Build Status](https://travis-ci.org/hyperium/hyper.svg?branch=master)](https://travis-ci.org/hyperium/hyper)
 
 An HTTP library for Rust.
 
