@@ -56,13 +56,13 @@ macro_rules! trace(
 pub mod client;
 pub mod method;
 pub mod header;
+pub mod http;
 pub mod net;
 pub mod server;
 pub mod status;
 pub mod uri;
 pub mod version;
 
-mod http;
 
 mod mimewrapper {
     /// Re-exporting the mime crate, for convenience.

@@ -33,7 +33,6 @@ pub enum Encoding {
     /// The `chunked` encoding.
     Chunked,
 
-    // TODO: #2 implement this in `HttpReader`.
     /// The `gzip` encoding.
     Gzip,
     /// The `deflate` encoding.
