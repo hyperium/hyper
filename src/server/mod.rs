@@ -57,7 +57,7 @@ impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L
           L: NetworkListener<S, A>, {
         let mut acceptors = Vec::new();
         let mut sockets = Vec::new();
-        for (ip, port) in self.pairs.move_iter() {
+        for (ip, port) in self.pairs.into_iter() {
             let mut listener: L = try_io!(NetworkListener::<S, A>::bind(ip.to_string().as_slice(), port));
 
             sockets.push(try_io!(listener.socket_name()));
@@ -67,7 +67,7 @@ impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L
         }
 
         let connections = acceptors.clone()
-            .move_iter()
+            .into_iter()
             .map(|acceptor| acceptor.move_incoming())
             .intertwine();
 
@@ -136,7 +136,7 @@ impl<A: NetworkAcceptor<S>, S: NetworkStream> Listening<A> {
     /// and does not close the rest of the acceptors.
     pub fn close(&mut self) -> HttpResult<()> {
         debug!("closing server");
-        for acceptor in self.acceptors.mut_iter() {
+        for acceptor in self.acceptors.iter_mut() {
             try_io!(acceptor.close());
         }
         Ok(())
