@@ -4,7 +4,7 @@
 
 An HTTP library for Rust.
 
-[Documentation](http://seanmonstar.github.io/hyper)
+[Documentation](http://hyperium.github.io/hyper)
 
 ## Scientific* Benchmarks
 
