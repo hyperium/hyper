@@ -1,3 +1,4 @@
+//! Pieces pertaining to the HTTP message protocol.
 use std::cmp::min;
 use std::io::{mod, Reader, IoResult};
 use std::u16;
@@ -131,6 +132,77 @@ fn read_chunk_size<R: Reader>(rdr: &mut R) -> IoResult<uint> {
     }
     debug!("chunk size={}", size);
     Ok(size)
+}
+
+/// Writers to handle different Transfer-Encodings.
+pub enum HttpWriter<W: Writer> {
+    /// A no-op Writer, used initially before Transfer-Encoding is determined.
+    ThroughWriter(W),
+    /// A Writer for when Transfer-Encoding includes `chunked`.
+    ChunkedWriter(W),
+    /// A Writer for when Content-Length is set.
+    ///
+    /// Enforces that the body is not longer than the Content-Length header.
+    SizedWriter(W, uint),
+}
+
+impl<W: Writer> HttpWriter<W> {
+    /// Unwraps the HttpWriter and returns the underlying Writer.
+    #[inline]
+    pub fn unwrap(self) -> W {
+        match self {
+            ThroughWriter(w) => w,
+            ChunkedWriter(w) => w,
+            SizedWriter(w, _) => w
+        }
+    }
+
+    /// Ends the HttpWriter, and returns the underlying Writer.
+    ///
+    /// A final `write()` is called with an empty message, and then flushed.
+    /// The ChunkedWriter variant will use this to write the 0-sized last-chunk.
+    #[inline]
+    pub fn end(mut self) -> IoResult<W> {
+        try!(self.write(&[]));
+        try!(self.flush());
+        Ok(self.unwrap())
+    }
+}
+
+impl<W: Writer> Writer for HttpWriter<W> {
+    #[inline]
+    fn write(&mut self, msg: &[u8]) -> IoResult<()> {
+        match *self {
+            ThroughWriter(ref mut w) => w.write(msg),
+            ChunkedWriter(ref mut w) => {
+                let chunk_size = msg.len();
+                try!(write!(w, "{:X}{}{}", chunk_size, CR as char, LF as char));
+                try!(w.write(msg));
+                w.write(LINE_ENDING)
+            },
+            SizedWriter(ref mut w, ref mut remaining) => {
+                let len = msg.len();
+                if len > *remaining {
+                    let len = *remaining;
+                    *remaining = 0;
+                    try!(w.write(msg.slice_to(len))); // msg[..len]
+                    Err(io::standard_error(io::ShortWrite(len)))
+                } else {
+                    *remaining -= len;
+                    w.write(msg)
+                }
+            }
+        }
+    }
+
+    #[inline]
+    fn flush(&mut self) -> IoResult<()> {
+        match *self {
+            ThroughWriter(ref mut w) => w.flush(),
+            ChunkedWriter(ref mut w) => w.flush(),
+            SizedWriter(ref mut w, _) => w.flush(),
+        }
+    }
 }
 
 pub static SP: u8 = b' ';
@@ -551,6 +623,7 @@ pub fn read_status_line<R: Reader>(stream: &mut R) -> HttpResult<StatusLine> {
     Ok((version, code))
 }
 
+/// Read the StatusCode from a stream.
 pub fn read_status<R: Reader>(stream: &mut R) -> HttpResult<status::StatusCode> {
     let code = [
         try_io!(stream.read_byte()),
@@ -591,7 +664,7 @@ fn expect(r: IoResult<u8>, expected: u8) -> HttpResult<()> {
 
 #[cfg(test)]
 mod tests {
-    use std::io::MemReader;
+    use std::io::{mod, MemReader, MemWriter};
     use test::Bencher;
     use uri::{RequestUri, Star, AbsoluteUri, AbsolutePath, Authority};
     use method;
@@ -667,6 +740,29 @@ mod tests {
 
         read("Host: rust-lang.org\r\n", Ok(Some(("Host".as_bytes().to_vec(),
                                                 "rust-lang.org".as_bytes().to_vec()))));
+    }
+
+    #[test]
+    fn test_write_chunked() {
+        use std::str::from_utf8;
+        let mut w = super::ChunkedWriter(MemWriter::new());
+        w.write(b"foo bar").unwrap();
+        w.write(b"baz quux herp").unwrap();
+        let buf = w.end().unwrap().unwrap();
+        let s = from_utf8(buf.as_slice()).unwrap();
+        assert_eq!(s, "7\r\nfoo bar\r\nD\r\nbaz quux herp\r\n0\r\n\r\n");
+    }
+
+    #[test]
+    fn test_write_sized() {
+        use std::str::from_utf8;
+        let mut w = super::SizedWriter(MemWriter::new(), 8);
+        w.write(b"foo bar").unwrap();
+        assert_eq!(w.write(b"baz"), Err(io::standard_error(io::ShortWrite(1))));
+
+        let buf = w.end().unwrap().unwrap();
+        let s = from_utf8(buf.as_slice()).unwrap();
+        assert_eq!(s, "foo barb");
     }
 
     #[bench]

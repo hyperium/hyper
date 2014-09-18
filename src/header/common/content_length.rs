@@ -1,5 +1,6 @@
-use header::Header;
 use std::fmt::{mod, Show};
+
+use header::Header;
 use super::from_one_raw_str;
 
 /// The `Content-Length` header.
@@ -23,3 +24,11 @@ impl Header for ContentLength {
     }
 }
 
+impl ContentLength {
+    /// Returns the wrapped length.
+    #[inline]
+    pub fn len(&self) -> uint {
+        let ContentLength(len) = *self;
+        len
+    }
+}

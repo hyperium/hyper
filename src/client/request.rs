@@ -5,9 +5,9 @@ use url::Url;
 
 use method::{mod, Get, Post, Delete, Put, Patch, Head, Options};
 use header::Headers;
-use header::common::Host;
+use header::common::{mod, Host};
 use net::{NetworkStream, HttpStream, WriteStatus, Fresh, Streaming};
-use http::LINE_ENDING;
+use http::{HttpWriter, ThroughWriter, ChunkedWriter, SizedWriter, LINE_ENDING};
 use version;
 use {HttpResult, HttpUriError};
 use client::Response;
@@ -20,7 +20,7 @@ pub struct Request<W: WriteStatus> {
     /// The HTTP version of this request.
     pub version: version::HttpVersion,
 
-    body: BufferedWriter<Box<NetworkStream + Send>>,
+    body: HttpWriter<BufferedWriter<Box<NetworkStream + Send>>>,
     headers: Headers,
     method: method::Method,
 }
@@ -56,7 +56,7 @@ impl Request<Fresh> {
         debug!("port={}", port);
 
         let stream: S = try_io!(NetworkStream::connect(host.as_slice(), port, url.scheme.as_slice()));
-        let stream = BufferedWriter::new(stream.abstract());
+        let stream = ThroughWriter(BufferedWriter::new(stream.abstract()));
         let mut headers = Headers::new();
         headers.set(Host(host));
 
@@ -107,6 +107,31 @@ impl Request<Fresh> {
 
         debug!("{}", self.headers);
 
+        let mut chunked = true;
+        let mut len = 0;
+
+        match self.headers.get_ref::<common::ContentLength>() {
+            Some(cl) => {
+                chunked = false;
+                len = cl.len();
+            },
+            None => ()
+        };
+
+        // cant do in match above, thanks borrowck
+        if chunked {
+            //TODO: use CollectionViews (when implemented) to prevent double hash/lookup
+            let encodings = match self.headers.get::<common::TransferEncoding>() {
+                Some(common::TransferEncoding(mut encodings)) => {
+                    //TODO: check if chunked is already in encodings. use HashSet?
+                    encodings.push(common::transfer_encoding::Chunked);
+                    encodings
+                },
+                None => vec![common::transfer_encoding::Chunked]
+            };
+            self.headers.set(common::TransferEncoding(encodings));
+        }
+
         for (name, header) in self.headers.iter() {
             try_io!(write!(self.body, "{}: {}", name, header));
             try_io!(self.body.write(LINE_ENDING));
@@ -114,12 +139,18 @@ impl Request<Fresh> {
 
         try_io!(self.body.write(LINE_ENDING));
 
+        let stream = if chunked {
+            ChunkedWriter(self.body.unwrap())
+        } else {
+            SizedWriter(self.body.unwrap(), len)
+        };
+
         Ok(Request {
             method: self.method,
             headers: self.headers,
             url: self.url,
             version: self.version,
-            body: self.body
+            body: stream
         })
     }
 
@@ -132,18 +163,19 @@ impl Request<Streaming> {
     /// Completes writing the request, and returns a response to read from.
     ///
     /// Consumes the Request.
-    pub fn send(mut self) -> HttpResult<Response> {
-        try_io!(self.flush());
-        let raw = self.body.unwrap();
+    pub fn send(self) -> HttpResult<Response> {
+        let raw = try_io!(self.body.end()).unwrap();
         Response::new(raw)
     }
 }
 
 impl Writer for Request<Streaming> {
+    #[inline]
     fn write(&mut self, msg: &[u8]) -> IoResult<()> {
         self.body.write(msg)
     }
 
+    #[inline]
     fn flush(&mut self) -> IoResult<()> {
         self.body.flush()
     }
