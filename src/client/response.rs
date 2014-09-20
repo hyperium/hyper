@@ -27,7 +27,7 @@ impl Response {
     pub fn new(stream: Box<NetworkStream + Send>) -> HttpResult<Response> {
         let mut stream = BufferedReader::new(stream.abstract());
         let (version, status) = try!(read_status_line(&mut stream));
-        let mut headers = try!(header::Headers::from_raw(&mut stream));
+        let headers = try!(header::Headers::from_raw(&mut stream));
 
         debug!("{} {}", version, status);
         debug!("{}", headers);
