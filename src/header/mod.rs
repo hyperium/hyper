@@ -15,7 +15,7 @@ use std::string::raw;
 use std::collections::hashmap::{HashMap, Entries, Occupied, Vacant};
 use std::sync::RWLock;
 
-use uany::UncheckedAnyDowncast;
+use uany::{UncheckedAnyDowncast, UncheckedAnyMutDowncast};
 use typeable::Typeable;
 
 use http::read_header;
@@ -57,6 +57,14 @@ impl<'a> Is for &'a Header {
 impl<'a> UncheckedAnyDowncast<'a> for &'a Header {
     #[inline]
     unsafe fn downcast_ref_unchecked<T: 'static>(self) -> &'a T {
+        let to: TraitObject = transmute_copy(&self);
+        transmute(to.data)
+    }
+}
+
+impl<'a> UncheckedAnyMutDowncast<'a> for &'a mut Header {
+    #[inline]
+    unsafe fn downcast_mut_unchecked<T: 'static>(self) -> &'a mut T {
         let to: TraitObject = transmute_copy(&self);
         transmute(to.data)
     }
@@ -145,6 +153,31 @@ impl Headers {
 
     /// Get a reference to the header field's value, if it exists.
     pub fn get<H: Header>(&self) -> Option<&H> {
+        self.get_or_parse::<H>().map(|item| {
+            let read = item.read();
+            debug!("downcasting {}", *read);
+            let ret = match *read {
+                Typed(ref val) => unsafe { val.downcast_ref_unchecked() },
+                _ => unreachable!()
+            };
+            unsafe { transmute::<&H, &H>(ret) }
+        })
+    }
+
+    /// Get a mutable reference to the header field's value, if it exists.
+    pub fn get_mut<H: Header>(&mut self) -> Option<&mut H> {
+        self.get_or_parse::<H>().map(|item| {
+            let mut write = item.write();
+            debug!("downcasting {}", *write);
+            let ret = match *&mut *write {
+                Typed(ref mut val) => unsafe { val.downcast_mut_unchecked() },
+                _ => unreachable!()
+            };
+            unsafe { transmute::<&mut H, &mut H>(ret) }
+        })
+    }
+
+    fn get_or_parse<H: Header>(&self) -> Option<&RWLock<Item>> {
         self.data.find(&CaseInsensitive(Slice(header_name::<H>()))).and_then(|item| {
             let done = match *item.read() {
                 // Huge borrowck hack here, should be refactored to just return here.
@@ -185,14 +218,6 @@ impl Headers {
             // Mutate in the raw case.
             *write = Typed(box header as Box<Header + Send + Sync>);
             Some(item)
-        }).map(|item| {
-            let read = item.read();
-            debug!("downcasting {}", *read);
-            let ret = match *read {
-                Typed(ref val) => unsafe { val.downcast_ref_unchecked() },
-                _ => unreachable!()
-            };
-            unsafe { transmute::<&H, &H>(ret) }
         })
     }
 
@@ -349,7 +374,7 @@ mod tests {
     #[test]
     fn test_from_raw() {
         let headers = Headers::from_raw(&mut mem("Content-Length: 10\r\n\r\n")).unwrap();
-        assert_eq!(headers.get_ref(), Some(&ContentLength(10)));
+        assert_eq!(headers.get(), Some(&ContentLength(10)));
     }
 
     #[test]
@@ -388,23 +413,30 @@ mod tests {
     #[test]
     fn test_different_structs_for_same_header() {
         let headers = Headers::from_raw(&mut mem("Content-Length: 10\r\n\r\n")).unwrap();
-        let ContentLength(_) = headers.get::<ContentLength>().unwrap();
+        let ContentLength(_) = *headers.get::<ContentLength>().unwrap();
         assert!(headers.get::<CrazyLength>().is_none());
     }
 
     #[test]
     fn test_multiple_reads() {
         let headers = Headers::from_raw(&mut mem("Content-Length: 10\r\n\r\n")).unwrap();
-        let ContentLength(one) = headers.get::<ContentLength>().unwrap();
-        let ContentLength(two) = headers.get::<ContentLength>().unwrap();
+        let ContentLength(one) = *headers.get::<ContentLength>().unwrap();
+        let ContentLength(two) = *headers.get::<ContentLength>().unwrap();
         assert_eq!(one, two);
     }
 
     #[test]
     fn test_different_reads() {
         let headers = Headers::from_raw(&mut mem("Content-Length: 10\r\nContent-Type: text/plain\r\n\r\n")).unwrap();
-        let ContentLength(_) = headers.get::<ContentLength>().unwrap();
-        let ContentType(_) = headers.get::<ContentType>().unwrap();
+        let ContentLength(_) = *headers.get::<ContentLength>().unwrap();
+        let ContentType(_) = *headers.get::<ContentType>().unwrap();
+    }
+
+    #[test]
+    fn test_get_mutable() {
+        let mut headers = Headers::from_raw(&mut mem("Content-Length: 10\r\nContent-Type: text/plain\r\n\r\n")).unwrap();
+        *headers.get_mut::<ContentLength>().unwrap() = ContentLength(20);
+        assert_eq!(*headers.get::<ContentLength>().unwrap(), ContentLength(20));
     }
 }
 
