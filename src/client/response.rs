@@ -33,7 +33,7 @@ impl Response {
         debug!("{}", headers);
 
         let body = if headers.has::<TransferEncoding>() {
-            match headers.get_ref::<TransferEncoding>() {
+            match headers.get::<TransferEncoding>() {
                 Some(&TransferEncoding(ref codings)) => {
                     if codings.len() > 1 {
                         debug!("TODO: #2 handle other codings: {}", codings);
@@ -49,7 +49,7 @@ impl Response {
                 None => unreachable!()
             }
         } else if headers.has::<ContentLength>() {
-            match headers.get_ref::<ContentLength>() {
+            match headers.get::<ContentLength>() {
                 Some(&ContentLength(len)) => SizedReader(stream, len),
                 None => unreachable!()
             }

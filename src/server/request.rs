@@ -46,7 +46,7 @@ impl Request {
 
 
         let body = if headers.has::<ContentLength>() {
-            match headers.get_ref::<ContentLength>() {
+            match headers.get::<ContentLength>() {
                 Some(&ContentLength(len)) => SizedReader(stream, len),
                 None => unreachable!()
             }

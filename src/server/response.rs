@@ -72,7 +72,7 @@ impl Response<Fresh> {
         let mut chunked = true;
         let mut len = 0;
 
-        match self.headers.get_ref::<common::ContentLength>() {
+        match self.headers.get::<common::ContentLength>() {
             Some(cl) => {
                 chunked = false;
                 len = cl.len();
@@ -83,7 +83,7 @@ impl Response<Fresh> {
         // cant do in match above, thanks borrowck
         if chunked {
             //TODO: use CollectionViews (when implemented) to prevent double hash/lookup
-            let encodings = match self.headers.get::<common::TransferEncoding>() {
+            let encodings = match self.headers.get::<common::TransferEncoding>().map(|h| h.clone()) {
                 Some(common::TransferEncoding(mut encodings)) => {
                     //TODO: check if chunked is already in encodings. use HashSet?
                     encodings.push(common::transfer_encoding::Chunked);

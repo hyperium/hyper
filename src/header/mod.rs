@@ -118,20 +118,6 @@ impl Headers {
         self.data.insert(CaseInsensitive(Slice(header_name::<H>())), RWLock::new(Typed(box value as Box<Header + Send + Sync>)));
     }
 
-    /// Get a clone of the header field's value, if it exists.
-    ///
-    /// Example:
-    ///
-    /// ```
-    /// # use hyper::header::Headers;
-    /// # use hyper::header::common::ContentType;
-    /// # let mut headers = Headers::new();
-    /// let content_type = headers.get::<ContentType>();
-    /// ```
-    pub fn get<H: Header + Clone>(&self) -> Option<H> {
-        self.get_ref().map(|v: &H| v.clone())
-    }
-
     /// Access the raw value of a header, if it exists and has not
     /// been already parsed.
     ///
@@ -158,7 +144,7 @@ impl Headers {
     }
 
     /// Get a reference to the header field's value, if it exists.
-    pub fn get_ref<H: Header>(&self) -> Option<&H> {
+    pub fn get<H: Header>(&self) -> Option<&H> {
         self.data.find(&CaseInsensitive(Slice(header_name::<H>()))).and_then(|item| {
             let done = match *item.read() {
                 // Huge borrowck hack here, should be refactored to just return here.
