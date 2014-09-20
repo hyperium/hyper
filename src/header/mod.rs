@@ -160,38 +160,53 @@ impl Headers {
     /// Get a reference to the header field's value, if it exists.
     pub fn get_ref<H: Header>(&self) -> Option<&H> {
         self.data.find(&CaseInsensitive(Slice(header_name::<H>()))).and_then(|item| {
-            let header = match *item.read() {
+            let done = match *item.read() {
                 // Huge borrowck hack here, should be refactored to just return here.
-                Typed(ref typed) if typed.is::<H>() => None,
-                // Typed, wrong type
+                Typed(ref typed) if typed.is::<H>() => true,
+
+                // Typed, wrong type.
                 Typed(_) => return None,
-                Raw(ref raw) => match Header::parse_header(raw.as_slice()) {
-                    Some::<H>(h) => {
-                        Some(h)
-                    },
-                    None => return None
-                },
+
+                // Raw, work to do.
+                Raw(_) => false,
             };
 
-            match header {
-                Some(header) => {
-                    *item.write() = Typed(box header as Box<Header + Send + Sync>);
-                    Some(item)
-                },
-                None => {
-                    Some(item)
+            // borrowck hack continued
+            if done { return Some(item); }
+
+            // Take out a write lock to do the parsing and mutation.
+            let mut write = item.write();
+
+            let header = match *write {
+                // Since this lock can queue, it's possible another thread just
+                // did the work for us.
+                //
+                // Check they inserted the correct type and move on.
+                Typed(ref typed) if typed.is::<H>() => return Some(item),
+
+                // Wrong type, another thread got here before us and parsed
+                // as a different representation.
+                Typed(_) => return None,
+
+                // We are first in the queue or the only ones, so do the actual
+                // work of parsing and mutation.
+                Raw(ref raw) => match Header::parse_header(raw.as_slice()) {
+                    Some::<H>(h) => h,
+                    None => return None
                 }
-            }
-        }).and_then(|item| {
+            };
+
+            // Mutate in the raw case.
+            *write = Typed(box header as Box<Header + Send + Sync>);
+            Some(item)
+        }).map(|item| {
             let read = item.read();
             debug!("downcasting {}", *read);
             let ret = match *read {
-                Typed(ref val) => {
-                    unsafe { Some(val.downcast_ref_unchecked()) }
-                },
+                Typed(ref val) => unsafe { val.downcast_ref_unchecked() },
                 _ => unreachable!()
             };
-            unsafe { transmute::<Option<&H>, Option<&H>>(ret) }
+            unsafe { transmute::<&H, &H>(ret) }
         })
     }
 
