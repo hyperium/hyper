@@ -390,5 +390,20 @@ mod tests {
         let ContentLength(_) = headers.get::<ContentLength>().unwrap();
         assert!(headers.get::<CrazyLength>().is_none());
     }
+
+    #[test]
+    fn test_multiple_reads() {
+        let headers = Headers::from_raw(&mut mem("Content-Length: 10\r\n\r\n")).unwrap();
+        let ContentLength(one) = headers.get::<ContentLength>().unwrap();
+        let ContentLength(two) = headers.get::<ContentLength>().unwrap();
+        assert_eq!(one, two);
+    }
+
+    #[test]
+    fn test_different_reads() {
+        let headers = Headers::from_raw(&mut mem("Content-Length: 10\r\nContent-Type: text/plain\r\n\r\n")).unwrap();
+        let ContentLength(_) = headers.get::<ContentLength>().unwrap();
+        let ContentType(_) = headers.get::<ContentType>().unwrap();
+    }
 }
 
