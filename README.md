@@ -19,12 +19,12 @@ The documentation is located at [http://hyperium.github.io/hyper](http://hyperiu
 
 ## Example
 
-Echo Server:
+Hello World Server:
 
 ```rust
-fn echo(mut incoming: Incoming) {
+fn hello(mut incoming: Incoming) {
     for (_, mut res) in incoming {
-        *res.status_mut() = hyper::status::Ok;
+        *res.status_mut() = status::Ok;
         let mut res = res.start().unwrap();
         res.write(b"Hello World!");
         res.end().unwrap();
@@ -33,7 +33,7 @@ fn echo(mut incoming: Incoming) {
 
 fn main() {
     let server = Server::http(Ipv4Addr(127, 0, 0, 1), 1337);
-    server.listen(echo).unwrap();
+    server.listen(hello).unwrap();
 }
 ```
 
