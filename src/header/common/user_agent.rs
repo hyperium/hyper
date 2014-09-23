@@ -10,7 +10,7 @@ pub struct UserAgent(pub String);
 
 impl Header for UserAgent {
     fn header_name(_: Option<UserAgent>) -> &'static str {
-        "user-agent"
+        "User-Agent"
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<UserAgent> {

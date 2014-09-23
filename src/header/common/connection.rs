@@ -28,7 +28,7 @@ impl FromStr for Connection {
 
 impl Header for Connection {
     fn header_name(_: Option<Connection>) -> &'static str {
-        "connection"
+        "Connection"
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<Connection> {

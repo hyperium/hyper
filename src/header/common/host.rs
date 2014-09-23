@@ -14,7 +14,7 @@ pub struct Host(pub String);
 
 impl Header for Host {
     fn header_name(_: Option<Host>) -> &'static str {
-        "host"
+        "Host"
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<Host> {

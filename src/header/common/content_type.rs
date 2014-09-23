@@ -12,7 +12,7 @@ pub struct ContentType(pub Mime);
 
 impl Header for ContentType {
     fn header_name(_: Option<ContentType>) -> &'static str {
-        "content-type"
+        "Content-Type"
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<ContentType> {
