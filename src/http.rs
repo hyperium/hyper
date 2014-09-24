@@ -71,7 +71,7 @@ impl<R: Reader> Reader for HttpReader<R> {
                 }
 
                 let to_read = min(rem, buf.len());
-                let count = try!(body.read(buf.mut_slice_to(to_read)));
+                let count = try!(body.read(buf.slice_to_mut(to_read)));
 
                 rem -= count;
                 *opt_remaining = if rem > 0 {
