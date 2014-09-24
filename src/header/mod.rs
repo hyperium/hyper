@@ -4,9 +4,9 @@
 //! why we're using Rust in the first place. To set or get any header, an object
 //! must implement the `Header` trait from this module. Several common headers
 //! are already provided, such as `Host`, `ContentType`, `UserAgent`, and others.
-use std::ascii::OwnedAsciiExt;
-use std::char::is_lowercase;
+use std::ascii::{AsciiExt, ASCII_LOWER_MAP};
 use std::fmt::{mod, Show};
+use std::hash;
 use std::intrinsics::TypeId;
 use std::mem::{transmute, transmute_copy};
 use std::raw::TraitObject;
@@ -63,14 +63,12 @@ impl<'a> UncheckedAnyDowncast<'a> for &'a Header {
 
 fn header_name<T: Header>() -> &'static str {
     let name = Header::header_name(None::<T>);
-    debug_assert!(name.as_slice().chars().all(|c| c == '-' || is_lowercase(c)),
-        "Header names should be lowercase: {}", name);
     name
 }
 
 /// A map of header fields on requests and responses.
 pub struct Headers {
-    data: HashMap<SendStr, Item>
+    data: HashMap<CaseInsensitive, Item>
 }
 
 impl Headers {
@@ -92,8 +90,9 @@ impl Headers {
                     // means its safe utf8
                     let name = unsafe {
                         raw::from_utf8(name)
-                    }.into_ascii_lower();
-                    let item = headers.data.find_or_insert(Owned(name), Raw(vec![]));
+                    };
+                    let name = CaseInsensitive(Owned(name));
+                    let item = headers.data.find_or_insert(name, Raw(vec![]));
                     match *item {
                         Raw(ref mut raw) => raw.push(value),
                         // Unreachable
@@ -110,7 +109,7 @@ impl Headers {
     ///
     /// The field is determined by the type of the value being set.
     pub fn set<H: Header>(&mut self, value: H) {
-        self.data.insert(Slice(header_name::<H>()), Typed(box value as Box<Header>));
+        self.data.insert(CaseInsensitive(Slice(header_name::<H>())), Typed(box value as Box<Header>));
     }
 
     /// Get a clone of the header field's value, if it exists.
@@ -140,7 +139,7 @@ impl Headers {
     /// let raw_content_type = unsafe { headers.get_raw("content-type") };
     /// ```
     pub unsafe fn get_raw(&self, name: &'static str) -> Option<&[Vec<u8>]> {
-        self.data.find(&Slice(name)).and_then(|item| {
+        self.data.find(&CaseInsensitive(Slice(name))).and_then(|item| {
             match *item {
                 Raw(ref raw) => Some(raw.as_slice()),
                 _ => None
@@ -150,7 +149,7 @@ impl Headers {
 
     /// Get a reference to the header field's value, if it exists.
     pub fn get_ref<H: Header>(&mut self) -> Option<&H> {
-        self.data.find_mut(&Slice(header_name::<H>())).and_then(|item| {
+        self.data.find_mut(&CaseInsensitive(Slice(header_name::<H>()))).and_then(|item| {
             debug!("get_ref, name={}, val={}", header_name::<H>(), item);
             let header = match *item {
                 // Huge borrowck hack here, should be refactored to just return here.
@@ -197,13 +196,13 @@ impl Headers {
     /// let has_type = headers.has::<ContentType>();
     /// ```
     pub fn has<H: Header>(&self) -> bool {
-        self.data.contains_key(&Slice(header_name::<H>()))
+        self.data.contains_key(&CaseInsensitive(Slice(header_name::<H>())))
     }
 
     /// Removes a header from the map, if one existed.
     /// Returns true if a header has been removed.
     pub fn remove<H: Header>(&mut self) -> bool {
-        self.data.remove(&Slice(Header::header_name(None::<H>)))
+        self.data.remove(&CaseInsensitive(Slice(Header::header_name(None::<H>))))
     }
 
     /// Returns an iterator over the header fields.
@@ -226,7 +225,7 @@ impl fmt::Show for Headers {
 
 /// An `Iterator` over the fields in a `Headers` map.
 pub struct HeadersItems<'a> {
-    inner: Entries<'a, SendStr, Item>
+    inner: Entries<'a, CaseInsensitive, Item>
 }
 
 impl<'a> Iterator<(&'a str, HeaderView<'a>)> for HeadersItems<'a> {
@@ -279,16 +278,61 @@ impl fmt::Show for Item {
     }
 }
 
+struct CaseInsensitive(SendStr);
+
+impl Str for CaseInsensitive {
+    fn as_slice(&self) -> &str {
+        let CaseInsensitive(ref s) = *self;
+        s.as_slice()
+    }
+
+}
+
+impl fmt::Show for CaseInsensitive {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        self.as_slice().fmt(fmt)
+    }
+}
+
+impl PartialEq for CaseInsensitive {
+    fn eq(&self, other: &CaseInsensitive) -> bool {
+        self.as_slice().eq_ignore_ascii_case(other.as_slice())
+    }
+}
+
+impl Eq for CaseInsensitive {}
+
+impl<H: hash::Writer> hash::Hash<H> for CaseInsensitive {
+    #[inline]
+    fn hash(&self, hasher: &mut H) {
+        for byte in self.as_slice().bytes() {
+            hasher.write([ASCII_LOWER_MAP[byte as uint]].as_slice());
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::io::MemReader;
     use std::fmt;
+    use std::str::Slice;
+    use std::hash::sip::hash;
     use mime::{Mime, Text, Plain};
+    use super::CaseInsensitive;
     use super::{Headers, Header};
     use super::common::{ContentLength, ContentType};
 
     fn mem(s: &str) -> MemReader {
         MemReader::new(s.as_bytes().to_vec())
+    }
+
+    #[test]
+    fn test_case_insensitive() {
+        let a = CaseInsensitive(Slice("foobar"));
+        let b = CaseInsensitive(Slice("FOOBAR"));
+
+        assert_eq!(a, b);
+        assert_eq!(hash(&a), hash(&b));
     }
 
     #[test]

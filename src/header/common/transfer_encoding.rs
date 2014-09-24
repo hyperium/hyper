@@ -57,7 +57,7 @@ impl FromStr for Encoding {
 
 impl Header for TransferEncoding {
     fn header_name(_: Option<TransferEncoding>) -> &'static str {
-        "transfer-encoding"
+        "Transfer-Encoding"
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<TransferEncoding> {

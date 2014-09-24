@@ -22,7 +22,7 @@ pub struct Accept(pub Vec<Mime>);
 
 impl Header for Accept {
     fn header_name(_: Option<Accept>) -> &'static str {
-        "accept"
+        "Accept"
     }
 
     fn parse_header(_raw: &[Vec<u8>]) -> Option<Accept> {

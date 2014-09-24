@@ -11,7 +11,7 @@ pub struct ContentLength(pub uint);
 
 impl Header for ContentLength {
     fn header_name(_: Option<ContentLength>) -> &'static str {
-        "content-length"
+        "Content-Length"
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<ContentLength> {

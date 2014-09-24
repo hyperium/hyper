@@ -11,7 +11,7 @@ pub struct Date(pub Tm);
 
 impl Header for Date {
     fn header_name(_: Option<Date>) -> &'static str {
-        "date"
+        "Date"
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<Date> {

@@ -10,7 +10,7 @@ pub struct Server(pub String);
 
 impl Header for Server {
     fn header_name(_: Option<Server>) -> &'static str {
-        "server"
+        "Server"
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<Server> {
