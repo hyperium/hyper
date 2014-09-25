@@ -1,7 +1,7 @@
 use header::Header;
-use std::fmt::{mod, Show};
+use std::fmt;
 use std::from_str::FromStr;
-use std::str::from_utf8;
+use super::{from_comma_delimited, fmt_comma_delimited};
 
 /// The `Transfer-Encoding` header.
 ///
@@ -28,7 +28,7 @@ pub struct TransferEncoding(pub Vec<Encoding>);
 /// # use hyper::header::Headers;
 /// # let mut headers = Headers::new();
 /// headers.set(TransferEncoding(vec![Gzip, Chunked]));
-#[deriving(Clone, PartialEq, Show)]
+#[deriving(Clone, PartialEq)]
 pub enum Encoding {
     /// The `chunked` encoding.
     Chunked,
@@ -41,6 +41,18 @@ pub enum Encoding {
     Compress,
     /// Some other encoding that is less common, can be any String.
     EncodingExt(String)
+}
+
+impl fmt::Show for Encoding {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Chunked => "chunked",
+            Gzip => "gzip",
+            Deflate => "deflate",
+            Compress => "compress",
+            EncodingExt(ref s) => s.as_slice()
+        }.fmt(fmt)
+    }
 }
 
 impl FromStr for Encoding {
@@ -61,31 +73,12 @@ impl Header for TransferEncoding {
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<TransferEncoding> {
-        if raw.len() != 1 {
-            return None;
-        }
-        // we JUST checked that raw.len() == 1, so raw[0] WILL exist.
-        match from_utf8(unsafe { raw.as_slice().unsafe_get(0).as_slice() }) {
-            Some(s) => {
-                Some(TransferEncoding(s.as_slice()
-                     .split([',', ' '].as_slice())
-                     .filter_map(from_str)
-                     .collect()))
-            }
-            None => None
-        }
+        from_comma_delimited(raw).map(|vec| TransferEncoding(vec))
     }
 
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let TransferEncoding(ref parts) = *self;
-        let last = parts.len() - 1;
-        for (i, part) in parts.iter().enumerate() {
-            try!(part.fmt(fmt));
-            if i < last {
-                try!(", ".fmt(fmt));
-            }
-        }
-        Ok(())
+        fmt_comma_delimited(fmt, parts[])
     }
 }
 

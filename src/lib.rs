@@ -184,6 +184,7 @@ pub mod status;
 pub mod uri;
 pub mod version;
 
+#[cfg(test)] mod mock;
 
 mod mimewrapper {
     /// Re-exporting the mime crate, for convenience.
