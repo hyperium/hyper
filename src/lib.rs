@@ -211,3 +211,12 @@ pub enum HttpError {
     HttpIoError(IoError),
 }
 
+//FIXME: when Opt-in Built-in Types becomes a thing, we can force these structs
+//to be Send. For now, this has the compiler do a static check.
+fn _assert_send<T: Send>() {
+    _assert_send::<client::Request<net::Fresh>>();
+    _assert_send::<client::Response>();
+
+    _assert_send::<server::Request>();
+    _assert_send::<server::Response<net::Fresh>>();
+}
