@@ -10,11 +10,12 @@ use header;
 use header::common;
 use http::{CR, LF, LINE_ENDING, HttpWriter, ThroughWriter, ChunkedWriter, SizedWriter};
 use status;
-use net::{NetworkStream, WriteStatus, Fresh, Streaming};
+use net::{NetworkStream, Fresh, Streaming};
 use version;
 
+
 /// The outgoing half for a Tcp connection, created by a `Server` and given to a `Handler`.
-pub struct Response<W: WriteStatus> {
+pub struct Response<W> {
     /// The HTTP version of this response.
     pub version: version::HttpVersion,
     // Stream the Response is writing to, not accessible through UnwrittenResponse
@@ -25,7 +26,7 @@ pub struct Response<W: WriteStatus> {
     headers: header::Headers
 }
 
-impl<W: WriteStatus> Response<W> {
+impl<W> Response<W> {
     /// The status of this response.
     #[inline]
     pub fn status(&self) -> status::StatusCode { self.status }

@@ -14,17 +14,6 @@ pub struct Fresh;
 /// The write-status indicating headers have been written.
 pub struct Streaming;
 
-/// The write-status of a Request
-pub trait WriteStatus: Private {}
-impl WriteStatus for Fresh {}
-impl WriteStatus for Streaming {}
-
-// Only Fresh and Streaming can be WriteStatus
-#[doc(hidden)]
-trait Private {}
-impl Private for Fresh {}
-impl Private for Streaming {}
-
 /// An abstraction to listen for connections on a certain port.
 pub trait NetworkListener<S: NetworkStream, A: NetworkAcceptor<S>>: Listener<S, A> {
     /// Bind to a socket.

@@ -6,14 +6,15 @@ use url::Url;
 use method::{mod, Get, Post, Delete, Put, Patch, Head, Options};
 use header::Headers;
 use header::common::{mod, Host};
-use net::{NetworkStream, HttpStream, WriteStatus, Fresh, Streaming};
+use net::{NetworkStream, HttpStream, Fresh, Streaming};
 use http::{HttpWriter, ThroughWriter, ChunkedWriter, SizedWriter, LINE_ENDING};
 use version;
 use {HttpResult, HttpUriError};
 use client::Response;
 
+
 /// A client request to a remote server.
-pub struct Request<W: WriteStatus> {
+pub struct Request<W> {
     /// The target URI for this request.
     pub url: Url,
 
@@ -25,7 +26,7 @@ pub struct Request<W: WriteStatus> {
     method: method::Method,
 }
 
-impl<W: WriteStatus> Request<W> {
+impl<W> Request<W> {
     /// Read the Request headers.
     #[inline]
     pub fn headers(&self) -> &Headers { &self.headers }
