@@ -12,7 +12,7 @@ use std::mem::{transmute, transmute_copy};
 use std::raw::TraitObject;
 use std::str::{from_utf8, SendStr, Slice, Owned};
 use std::string::raw;
-use std::collections::hashmap::{HashMap, Entries};
+use std::collections::hashmap::{HashMap, Entries, Occupied, Vacant};
 
 use uany::UncheckedAnyDowncast;
 use typeable::Typeable;
@@ -91,8 +91,12 @@ impl Headers {
                     let name = unsafe {
                         raw::from_utf8(name)
                     };
-                    let name = CaseInsensitive(Owned(name));
-                    let item = headers.data.find_or_insert(name, Raw(vec![]));
+
+                    let item = match headers.data.entry(CaseInsensitive(Owned(name))) {
+                        Vacant(entry) => entry.set(Raw(vec![])),
+                        Occupied(entry) => entry.into_mut()
+                    };
+
                     match *item {
                         Raw(ref mut raw) => raw.push(value),
                         // Unreachable
