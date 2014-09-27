@@ -359,9 +359,10 @@ pub fn read_method<R: Reader>(stream: &mut R) -> HttpResult<method::Method> {
             (MsStart, b'O') => state = MsO,
             (MsStart, b'T') => state = MsT,
             (MsStart, b'C') => state = MsC,
+            (MsStart, b'D') => state = MsD,
             (MsStart, b@b'A'..b'Z') => {
                 state = MsExt;
-                s.push_char(b as char)
+                s.push(b as char)
             },
 
             (MsG, b'E') => state = MsGE,
@@ -402,11 +403,17 @@ pub fn read_method<R: Reader>(stream: &mut R) -> HttpResult<method::Method> {
             (MsCONNE, b'C') => state = MsCONNEC,
             (MsCONNEC, b'T') => state = MsCONNECT,
 
-            (MsExt, b@b'A'..b'Z') => s.push_char(b as char),
+            (MsD, b'E') => state = MsDE,
+            (MsDE, b'L') => state = MsDEL,
+            (MsDEL, b'E') => state = MsDELE,
+            (MsDELE, b'T') => state = MsDELET,
+            (MsDELET, b'E') => state = MsDELETE,
+
+            (MsExt, b@b'A'..b'Z') => s.push(b as char),
 
             (_, b@b'A'..b'Z') => {
                 s = state.as_slice().to_string();
-                s.push_char(b as char);
+                s.push(b as char);
             },
 
             (MsGET, SP) => return Ok(method::Get),
@@ -437,7 +444,7 @@ pub fn read_uri<R: Reader>(stream: &mut R) -> HttpResult<uri::RequestUri> {
         try!(expect(stream.read_byte(), SP));
         return Ok(uri::Star)
     } else {
-        s.push_char(b as char);
+        s.push(b as char);
         loop {
             match try_io!(stream.read_byte()) {
                 SP => {
@@ -446,7 +453,7 @@ pub fn read_uri<R: Reader>(stream: &mut R) -> HttpResult<uri::RequestUri> {
                 CR | LF => {
                     return Err(HttpUriError)
                 },
-                b => s.push_char(b as char)
+                b => s.push(b as char)
             }
         }
     }
