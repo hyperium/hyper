@@ -13,8 +13,9 @@ use std::raw::TraitObject;
 use std::str::{from_utf8, SendStr, Slice, Owned};
 use std::string::raw;
 use std::collections::hashmap::{HashMap, Entries, Occupied, Vacant};
+use std::sync::RWLock;
 
-use uany::UncheckedAnyDowncast;
+use uany::{UncheckedAnyDowncast, UncheckedAnyMutDowncast};
 use typeable::Typeable;
 
 use http::read_header;
@@ -24,7 +25,7 @@ use {HttpResult};
 pub mod common;
 
 /// A trait for any object that will represent a header field and value.
-pub trait Header: Typeable {
+pub trait Header: Typeable + Send + Sync {
     /// Returns the name of the header field this belongs to.
     ///
     /// The market `Option` is to hint to the type system which implementation
@@ -61,6 +62,14 @@ impl<'a> UncheckedAnyDowncast<'a> for &'a Header {
     }
 }
 
+impl<'a> UncheckedAnyMutDowncast<'a> for &'a mut Header {
+    #[inline]
+    unsafe fn downcast_mut_unchecked<T: 'static>(self) -> &'a mut T {
+        let to: TraitObject = transmute_copy(&self);
+        transmute(to.data)
+    }
+}
+
 fn header_name<T: Header>() -> &'static str {
     let name = Header::header_name(None::<T>);
     name
@@ -68,7 +77,7 @@ fn header_name<T: Header>() -> &'static str {
 
 /// A map of header fields on requests and responses.
 pub struct Headers {
-    data: HashMap<CaseInsensitive, Item>
+    data: HashMap<CaseInsensitive, RWLock<Item>>
 }
 
 impl Headers {
@@ -92,13 +101,14 @@ impl Headers {
                         raw::from_utf8(name)
                     };
 
-                    let item = match headers.data.entry(CaseInsensitive(Owned(name))) {
-                        Vacant(entry) => entry.set(Raw(vec![])),
+                    let name = CaseInsensitive(Owned(name));
+                    let item = match headers.data.entry(name) {
+                        Vacant(entry) => entry.set(RWLock::new(Raw(vec![]))),
                         Occupied(entry) => entry.into_mut()
                     };
 
-                    match *item {
-                        Raw(ref mut raw) => raw.push(value),
+                    match &mut *item.write() {
+                        &Raw(ref mut raw) => raw.push(value),
                         // Unreachable
                         _ => {}
                     };
@@ -113,21 +123,7 @@ impl Headers {
     ///
     /// The field is determined by the type of the value being set.
     pub fn set<H: Header>(&mut self, value: H) {
-        self.data.insert(CaseInsensitive(Slice(header_name::<H>())), Typed(box value as Box<Header>));
-    }
-
-    /// Get a clone of the header field's value, if it exists.
-    ///
-    /// Example:
-    ///
-    /// ```
-    /// # use hyper::header::Headers;
-    /// # use hyper::header::common::ContentType;
-    /// # let mut headers = Headers::new();
-    /// let content_type = headers.get::<ContentType>();
-    /// ```
-    pub fn get<H: Header + Clone>(&mut self) -> Option<H> {
-        self.get_ref().map(|v: &H| v.clone())
+        self.data.insert(CaseInsensitive(Slice(header_name::<H>())), RWLock::new(Typed(box value as Box<Header + Send + Sync>)));
     }
 
     /// Access the raw value of a header, if it exists and has not
@@ -136,56 +132,92 @@ impl Headers {
     /// If the header field has already been parsed into a typed header,
     /// then you *must* access it through that representation.
     ///
+    /// This operation is unsafe because the raw representation can be
+    /// invalidated by lasting too long or by the header being parsed
+    /// while you still have a reference to the data.
+    ///
     /// Example:
     /// ```
     /// # use hyper::header::Headers;
     /// # let mut headers = Headers::new();
     /// let raw_content_type = unsafe { headers.get_raw("content-type") };
     /// ```
-    pub unsafe fn get_raw(&self, name: &'static str) -> Option<&[Vec<u8>]> {
+    pub unsafe fn get_raw(&self, name: &'static str) -> Option<*const [Vec<u8>]> {
         self.data.find(&CaseInsensitive(Slice(name))).and_then(|item| {
-            match *item {
-                Raw(ref raw) => Some(raw.as_slice()),
+            match *item.read() {
+                Raw(ref raw) => Some(raw.as_slice() as *const [Vec<u8>]),
                 _ => None
             }
         })
     }
 
     /// Get a reference to the header field's value, if it exists.
-    pub fn get_ref<H: Header>(&mut self) -> Option<&H> {
-        self.data.find_mut(&CaseInsensitive(Slice(header_name::<H>()))).and_then(|item| {
-            debug!("get_ref, name={}, val={}", header_name::<H>(), item);
-            let header = match *item {
-                // Huge borrowck hack here, should be refactored to just return here.
-                Typed(ref typed) if typed.is::<H>() => None,
-                // Typed, wrong type
-                Typed(_) => return None,
-                Raw(ref raw) => match Header::parse_header(raw.as_slice()) {
-                    Some::<H>(h) => {
-                        Some(h)
-                    },
-                    None => return None
-                },
-            };
-
-            match header {
-                Some(header) => {
-                    *item = Typed(box header as Box<Header>);
-                    Some(item)
-                },
-                None => {
-                    Some(item)
-                }
-            }
-        }).and_then(|item| {
-            debug!("downcasting {}", item);
-            let ret = match *item {
-                Typed(ref val) => {
-                    unsafe { Some(val.downcast_ref_unchecked()) }
-                },
+    pub fn get<H: Header>(&self) -> Option<&H> {
+        self.get_or_parse::<H>().map(|item| {
+            let read = item.read();
+            debug!("downcasting {}", *read);
+            let ret = match *read {
+                Typed(ref val) => unsafe { val.downcast_ref_unchecked() },
                 _ => unreachable!()
             };
-            ret
+            unsafe { transmute::<&H, &H>(ret) }
+        })
+    }
+
+    /// Get a mutable reference to the header field's value, if it exists.
+    pub fn get_mut<H: Header>(&mut self) -> Option<&mut H> {
+        self.get_or_parse::<H>().map(|item| {
+            let mut write = item.write();
+            debug!("downcasting {}", *write);
+            let ret = match *&mut *write {
+                Typed(ref mut val) => unsafe { val.downcast_mut_unchecked() },
+                _ => unreachable!()
+            };
+            unsafe { transmute::<&mut H, &mut H>(ret) }
+        })
+    }
+
+    fn get_or_parse<H: Header>(&self) -> Option<&RWLock<Item>> {
+        self.data.find(&CaseInsensitive(Slice(header_name::<H>()))).and_then(|item| {
+            let done = match *item.read() {
+                // Huge borrowck hack here, should be refactored to just return here.
+                Typed(ref typed) if typed.is::<H>() => true,
+
+                // Typed, wrong type.
+                Typed(_) => return None,
+
+                // Raw, work to do.
+                Raw(_) => false,
+            };
+
+            // borrowck hack continued
+            if done { return Some(item); }
+
+            // Take out a write lock to do the parsing and mutation.
+            let mut write = item.write();
+
+            let header = match *write {
+                // Since this lock can queue, it's possible another thread just
+                // did the work for us.
+                //
+                // Check they inserted the correct type and move on.
+                Typed(ref typed) if typed.is::<H>() => return Some(item),
+
+                // Wrong type, another thread got here before us and parsed
+                // as a different representation.
+                Typed(_) => return None,
+
+                // We are first in the queue or the only ones, so do the actual
+                // work of parsing and mutation.
+                Raw(ref raw) => match Header::parse_header(raw.as_slice()) {
+                    Some::<H>(h) => h,
+                    None => return None
+                }
+            };
+
+            // Mutate in the raw case.
+            *write = Typed(box header as Box<Header + Send + Sync>);
+            Some(item)
         })
     }
 
@@ -229,7 +261,7 @@ impl fmt::Show for Headers {
 
 /// An `Iterator` over the fields in a `Headers` map.
 pub struct HeadersItems<'a> {
-    inner: Entries<'a, CaseInsensitive, Item>
+    inner: Entries<'a, CaseInsensitive, RWLock<Item>>
 }
 
 impl<'a> Iterator<(&'a str, HeaderView<'a>)> for HeadersItems<'a> {
@@ -242,12 +274,12 @@ impl<'a> Iterator<(&'a str, HeaderView<'a>)> for HeadersItems<'a> {
 }
 
 /// Returned with the `HeadersItems` iterator.
-pub struct HeaderView<'a>(&'a Item);
+pub struct HeaderView<'a>(&'a RWLock<Item>);
 
 impl<'a> fmt::Show for HeaderView<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let HeaderView(item) = *self;
-        item.fmt(fmt)
+        item.read().fmt(fmt)
     }
 }
 
@@ -265,7 +297,7 @@ impl Mutable for Headers {
 
 enum Item {
     Raw(Vec<Vec<u8>>),
-    Typed(Box<Header>)
+    Typed(Box<Header + Send + Sync>)
 }
 
 impl fmt::Show for Item {
@@ -341,8 +373,8 @@ mod tests {
 
     #[test]
     fn test_from_raw() {
-        let mut headers = Headers::from_raw(&mut mem("Content-Length: 10\r\n\r\n")).unwrap();
-        assert_eq!(headers.get_ref(), Some(&ContentLength(10)));
+        let headers = Headers::from_raw(&mut mem("Content-Length: 10\r\n\r\n")).unwrap();
+        assert_eq!(headers.get(), Some(&ContentLength(10)));
     }
 
     #[test]
@@ -380,8 +412,31 @@ mod tests {
 
     #[test]
     fn test_different_structs_for_same_header() {
-        let mut headers = Headers::from_raw(&mut mem("Content-Length: 10\r\n\r\n")).unwrap();
-        let ContentLength(_) = headers.get::<ContentLength>().unwrap();
+        let headers = Headers::from_raw(&mut mem("Content-Length: 10\r\n\r\n")).unwrap();
+        let ContentLength(_) = *headers.get::<ContentLength>().unwrap();
         assert!(headers.get::<CrazyLength>().is_none());
     }
+
+    #[test]
+    fn test_multiple_reads() {
+        let headers = Headers::from_raw(&mut mem("Content-Length: 10\r\n\r\n")).unwrap();
+        let ContentLength(one) = *headers.get::<ContentLength>().unwrap();
+        let ContentLength(two) = *headers.get::<ContentLength>().unwrap();
+        assert_eq!(one, two);
+    }
+
+    #[test]
+    fn test_different_reads() {
+        let headers = Headers::from_raw(&mut mem("Content-Length: 10\r\nContent-Type: text/plain\r\n\r\n")).unwrap();
+        let ContentLength(_) = *headers.get::<ContentLength>().unwrap();
+        let ContentType(_) = *headers.get::<ContentType>().unwrap();
+    }
+
+    #[test]
+    fn test_get_mutable() {
+        let mut headers = Headers::from_raw(&mut mem("Content-Length: 10\r\nContent-Type: text/plain\r\n\r\n")).unwrap();
+        *headers.get_mut::<ContentLength>().unwrap() = ContentLength(20);
+        assert_eq!(*headers.get::<ContentLength>().unwrap(), ContentLength(20));
+    }
 }
+

@@ -39,14 +39,14 @@ impl Request {
         let remote_addr = try_io!(stream.peer_name());
         let mut stream = BufferedReader::new(stream.abstract());
         let (method, uri, version) = try!(read_request_line(&mut stream));
-        let mut headers = try!(Headers::from_raw(&mut stream));
+        let headers = try!(Headers::from_raw(&mut stream));
 
         debug!("{} {} {}", method, uri, version);
         debug!("{}", headers);
 
 
         let body = if headers.has::<ContentLength>() {
-            match headers.get_ref::<ContentLength>() {
+            match headers.get::<ContentLength>() {
                 Some(&ContentLength(len)) => SizedReader(stream, len),
                 None => unreachable!()
             }

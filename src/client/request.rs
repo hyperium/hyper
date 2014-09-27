@@ -111,7 +111,7 @@ impl Request<Fresh> {
         let mut chunked = true;
         let mut len = 0;
 
-        match self.headers.get_ref::<common::ContentLength>() {
+        match self.headers.get::<common::ContentLength>() {
             Some(cl) => {
                 chunked = false;
                 len = cl.len();
@@ -121,16 +121,19 @@ impl Request<Fresh> {
 
         // cant do in match above, thanks borrowck
         if chunked {
-            //TODO: use CollectionViews (when implemented) to prevent double hash/lookup
-            let encodings = match self.headers.get::<common::TransferEncoding>() {
-                Some(common::TransferEncoding(mut encodings)) => {
+            let encodings = match self.headers.get_mut::<common::TransferEncoding>() {
+                Some(&common::TransferEncoding(ref mut encodings)) => {
                     //TODO: check if chunked is already in encodings. use HashSet?
                     encodings.push(common::transfer_encoding::Chunked);
-                    encodings
+                    false
                 },
-                None => vec![common::transfer_encoding::Chunked]
+                None => true
             };
-            self.headers.set(common::TransferEncoding(encodings));
+
+            if encodings {
+                self.headers.set::<common::TransferEncoding>(
+                    common::TransferEncoding(vec![common::transfer_encoding::Chunked]))
+            }
         }
 
         for (name, header) in self.headers.iter() {

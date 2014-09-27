@@ -27,13 +27,13 @@ impl Response {
     pub fn new(stream: Box<NetworkStream + Send>) -> HttpResult<Response> {
         let mut stream = BufferedReader::new(stream.abstract());
         let (version, status) = try!(read_status_line(&mut stream));
-        let mut headers = try!(header::Headers::from_raw(&mut stream));
+        let headers = try!(header::Headers::from_raw(&mut stream));
 
         debug!("{} {}", version, status);
         debug!("{}", headers);
 
         let body = if headers.has::<TransferEncoding>() {
-            match headers.get_ref::<TransferEncoding>() {
+            match headers.get::<TransferEncoding>() {
                 Some(&TransferEncoding(ref codings)) => {
                     if codings.len() > 1 {
                         debug!("TODO: #2 handle other codings: {}", codings);
@@ -49,7 +49,7 @@ impl Response {
                 None => unreachable!()
             }
         } else if headers.has::<ContentLength>() {
-            match headers.get_ref::<ContentLength>() {
+            match headers.get::<ContentLength>() {
                 Some(&ContentLength(len)) => SizedReader(stream, len),
                 None => unreachable!()
             }
