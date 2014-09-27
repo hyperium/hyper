@@ -59,15 +59,15 @@ impl Clone for Box<NetworkStream + Send> {
 
 impl Reader for Box<NetworkStream + Send> {
     #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> { self.read(buf) }
+    fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> { (**self).read(buf) }
 }
 
 impl Writer for Box<NetworkStream + Send> {
     #[inline]
-    fn write(&mut self, msg: &[u8]) -> IoResult<()> { self.write(msg) }
+    fn write(&mut self, msg: &[u8]) -> IoResult<()> { (**self).write(msg) }
 
     #[inline]
-    fn flush(&mut self) -> IoResult<()> { self.flush() }
+    fn flush(&mut self) -> IoResult<()> { (**self).flush() }
 }
 
 /// A `NetworkListener` for `HttpStream`s.

@@ -1,6 +1,7 @@
 //! HTTP Server
 use std::io::{Listener, IoResult, EndOfFile};
 use std::io::net::ip::{IpAddr, Port, SocketAddr};
+use std::task::TaskBuilder;
 
 use intertwine::{Intertwine, Intertwined};
 use macceptor::MoveAcceptor;
@@ -58,6 +59,7 @@ impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L
         let mut acceptors = Vec::new();
         let mut sockets = Vec::new();
         for (ip, port) in self.pairs.into_iter() {
+            debug!("binding to {}:{}", ip, port);
             let mut listener: L = try_io!(NetworkListener::<S, A>::bind(ip.to_string().as_slice(), port));
 
             sockets.push(try_io!(listener.socket_name()));
@@ -71,7 +73,7 @@ impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L
             .map(|acceptor| acceptor.move_incoming())
             .intertwine();
 
-        spawn(proc() {
+        TaskBuilder::new().named("hyper acceptor").spawn(proc() {
             handler.handle(Incoming { from: connections });
         });
 

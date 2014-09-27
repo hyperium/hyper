@@ -32,7 +32,7 @@ impl Clone for MockStream {
 impl MockStream {
     fn new() -> MockStream {
         let head = b"HTTP/1.1 200 OK\r\nServer: Mock\r\n\r\n";
-        let mut res = Vec::from_slice(head);
+        let mut res = head.to_vec();
         res.push_all(README);
         MockStream {
             read: MemReader::new(res),
