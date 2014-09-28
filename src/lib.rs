@@ -61,7 +61,7 @@
 //! ### Server
 //!
 //! Server-specific functionality, such as `Request` and `Response`
-//! representations, are found in in `src/serer`.
+//! representations, are found in in `src/server`.
 //!
 //! #### Handler + Server
 //!
