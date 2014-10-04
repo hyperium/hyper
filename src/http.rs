@@ -106,15 +106,15 @@ fn read_chunk_size<R: Reader>(rdr: &mut R) -> IoResult<uint> {
     let mut in_ext = false;
     loop {
         match try!(rdr.read_byte()) {
-            b@b'0'..b'9' if !in_ext => {
+            b@b'0'...b'9' if !in_ext => {
                 size *= radix;
                 size += (b - b'0') as uint;
             },
-            b@b'a'..b'f' if !in_ext => {
+            b@b'a'...b'f' if !in_ext => {
                 size *= radix;
                 size += (b + 10 - b'a') as uint;
             },
-            b@b'A'..b'F' if !in_ext => {
+            b@b'A'...b'F' if !in_ext => {
                 size *= radix;
                 size += (b + 10 - b'A') as uint;
             },
@@ -185,7 +185,7 @@ impl<W: Writer> Writer for HttpWriter<W> {
                 if len > *remaining {
                     let len = *remaining;
                     *remaining = 0;
-                    try!(w.write(msg.slice_to(len))); // msg[..len]
+                    try!(w.write(msg.slice_to(len))); // msg[...len]
                     Err(io::standard_error(io::ShortWrite(len)))
                 } else {
                     *remaining -= len;
@@ -224,9 +224,9 @@ pub static LINE_ENDING: &'static [u8] = &[CR, LF];
 #[inline]
 pub fn is_token(b: u8) -> bool {
     match b {
-        b'a'..b'z' |
-        b'A'..b'Z' |
-        b'0'..b'9' |
+        b'a'...b'z' |
+        b'A'...b'Z' |
+        b'0'...b'9' |
         b'!' |
         b'#' |
         b'$' |
@@ -360,7 +360,7 @@ pub fn read_method<R: Reader>(stream: &mut R) -> HttpResult<method::Method> {
             (MsStart, b'T') => state = MsT,
             (MsStart, b'C') => state = MsC,
             (MsStart, b'D') => state = MsD,
-            (MsStart, b@b'A'..b'Z') => {
+            (MsStart, b@b'A'...b'Z') => {
                 state = MsExt;
                 s.push(b as char)
             },
@@ -409,9 +409,9 @@ pub fn read_method<R: Reader>(stream: &mut R) -> HttpResult<method::Method> {
             (MsDELE, b'T') => state = MsDELET,
             (MsDELET, b'E') => state = MsDELETE,
 
-            (MsExt, b@b'A'..b'Z') => s.push(b as char),
+            (MsExt, b@b'A'...b'Z') => s.push(b as char),
 
-            (_, b@b'A'..b'Z') => {
+            (_, b@b'A'...b'Z') => {
                 s = state.as_slice().to_string();
                 s.push(b as char);
             },
