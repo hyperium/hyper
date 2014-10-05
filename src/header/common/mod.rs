@@ -15,6 +15,7 @@ pub use self::transfer_encoding::TransferEncoding;
 pub use self::user_agent::UserAgent;
 pub use self::server::Server;
 pub use self::date::Date;
+pub use self::location::Location;
 
 use std::from_str::FromStr;
 use std::str::from_utf8;
@@ -45,6 +46,9 @@ pub mod server;
 
 /// Exposes the Date header.
 pub mod date;
+
+/// Exposes the Location header.
+pub mod location;
 
 fn from_one_raw_str<T: FromStr>(raw: &[Vec<u8>]) -> Option<T> {
     if raw.len() != 1 {
