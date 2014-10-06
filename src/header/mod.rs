@@ -388,10 +388,10 @@ mod tests {
         let text_plain = Mime(Text, Plain, vec![]);
         let application_vendor = from_str("application/vnd.github.v3.full+json; q=0.5").unwrap();
 
-        let accept = Header::parse_header(["text/plain".as_bytes().to_vec()].as_slice());
+        let accept = Header::parse_header([b"text/plain".to_vec()].as_slice());
         assert_eq!(accept, Some(Accept(vec![text_plain.clone()])));
         
-        let accept = Header::parse_header(["application/vnd.github.v3.full+json; q=0.5, text/plain".as_bytes().to_vec()].as_slice());
+        let accept = Header::parse_header([b"application/vnd.github.v3.full+json; q=0.5, text/plain".to_vec()].as_slice());
         assert_eq!(accept, Some(Accept(vec![application_vendor, text_plain])));
     }
 
