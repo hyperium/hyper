@@ -1,5 +1,6 @@
 use header::Header;
 use std::fmt::{mod, Show};
+use std::str::from_utf8;
 use mime::Mime;
 
 /// The `Accept` header.
@@ -25,8 +26,28 @@ impl Header for Accept {
         "Accept"
     }
 
-    fn parse_header(_raw: &[Vec<u8>]) -> Option<Accept> {
-        unimplemented!()
+    fn parse_header(raw: &[Vec<u8>]) -> Option<Accept> {
+        let mut mimes: Vec<Mime> = vec![];
+        for mimes_raw in raw.iter() {
+            match from_utf8(mimes_raw.as_slice()) {
+                Some(mimes_str) => {
+                    for mime_str in mimes_str.split(',') {
+                        match from_str(mime_str.trim()) {
+                            Some(mime) => mimes.push(mime),
+                            None => return None
+                        }
+                    }
+                },
+                None => return None
+            };
+        }
+
+        if !mimes.is_empty() {
+            Some(Accept(mimes))
+        } else {
+            // Currently is just a None, but later it can be Accept for */*
+            None
+        }
     }
 
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
