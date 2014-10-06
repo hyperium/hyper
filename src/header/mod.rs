@@ -356,7 +356,7 @@ mod tests {
     use mime::{Mime, Text, Plain};
     use super::CaseInsensitive;
     use super::{Headers, Header};
-    use super::common::{ContentLength, ContentType};
+    use super::common::{ContentLength, ContentType, Accept};
 
     fn mem(s: &str) -> MemReader {
         MemReader::new(s.as_bytes().to_vec())
@@ -381,6 +381,18 @@ mod tests {
     fn test_content_type() {
         let content_type = Header::parse_header(["text/plain".as_bytes().to_vec()].as_slice());
         assert_eq!(content_type, Some(ContentType(Mime(Text, Plain, vec![]))));
+    }
+
+    #[test]
+    fn test_accept() {
+        let text_plain = Mime(Text, Plain, vec![]);
+        let application_vendor = from_str("application/vnd.github.v3.full+json; q=0.5").unwrap();
+
+        let accept = Header::parse_header(["text/plain".as_bytes().to_vec()].as_slice());
+        assert_eq!(accept, Some(Accept(vec![text_plain.clone()])));
+        
+        let accept = Header::parse_header(["application/vnd.github.v3.full+json; q=0.5, text/plain".as_bytes().to_vec()].as_slice());
+        assert_eq!(accept, Some(Accept(vec![application_vendor, text_plain])));
     }
 
     #[deriving(Clone)]
