@@ -25,6 +25,11 @@ use std::str::from_utf8;
 
 /// Exposes the Accept header.
 pub mod accept;
+/// Exposes the Authorization header.
+pub mod authorization;
+
+/// Exposes the Cookie header.
+pub mod cookie;
 
 /// Exposes the Connection header.
 pub mod connection;
@@ -41,8 +46,14 @@ pub mod date;
 /// Exposes the Host header.
 pub mod host;
 
+/// Exposes the Location header.
+pub mod location;
+
 /// Exposes the Server header.
 pub mod server;
+
+/// Exposes the Set-Cookie header.
+pub mod set_cookie;
 
 /// Exposes the TransferEncoding header.
 pub mod transfer_encoding;
@@ -54,11 +65,8 @@ pub mod upgrade;
 pub mod user_agent;
 
 
-/// Exposes the Location header.
-pub mod location;
+pub mod util;
 
-/// Exposes the Authorization header.
-pub mod authorization;
 
 fn from_comma_delimited<T: FromStr>(raw: &[Vec<u8>]) -> Option<Vec<T>> {
     if raw.len() != 1 {
@@ -86,4 +94,3 @@ fn fmt_comma_delimited<T: Show>(fmt: &mut fmt::Formatter, parts: &[T]) -> fmt::R
     }
     Ok(())
 }
-pub mod util;
