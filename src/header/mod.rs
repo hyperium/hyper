@@ -10,8 +10,7 @@ use std::hash;
 use std::intrinsics::TypeId;
 use std::mem::{transmute, transmute_copy};
 use std::raw::TraitObject;
-use std::str::{from_utf8, SendStr, Slice, Owned};
-use std::string::raw;
+use std::str::{SendStr, Slice, Owned};
 use std::collections::hashmap::{HashMap, Entries, Occupied, Vacant};
 use std::sync::RWLock;
 
@@ -95,12 +94,6 @@ impl Headers {
         loop {
             match try!(read_header(rdr)) {
                 Some((name, value)) => {
-                    // read_header already checks that name is a token, which 
-                    // means its safe utf8
-                    let name = unsafe {
-                        raw::from_utf8(name)
-                    };
-
                     let name = CaseInsensitive(Owned(name));
                     let item = match headers.data.entry(name) {
                         Vacant(entry) => entry.set(RWLock::new(Raw(vec![]))),

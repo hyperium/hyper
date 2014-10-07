@@ -520,9 +520,9 @@ pub fn read_http_version<R: Reader>(stream: &mut R) -> HttpResult<HttpVersion> {
 
 /// The raw bytes when parsing a header line.
 ///
-/// 2 vectors of u8s, divided by COLON (`:`). The first vector is guaranteed
+/// A String and Vec<u8>, divided by COLON (`:`). The String is guaranteed
 /// to be all `token`s. See `is_token_char` source for all valid characters.
-pub type RawHeaderLine = (Vec<u8>, Vec<u8>);
+pub type RawHeaderLine = (String, Vec<u8>);
 
 /// Read a RawHeaderLine from a Reader.
 ///
@@ -545,7 +545,7 @@ pub type RawHeaderLine = (Vec<u8>, Vec<u8>);
 /// >                ; see Section 3.2.4
 /// > ```
 pub fn read_header<R: Reader>(stream: &mut R) -> HttpResult<Option<RawHeaderLine>> {
-    let mut name = vec![];
+    let mut name = String::new();
     let mut value = vec![];
 
     loop {
@@ -557,7 +557,7 @@ pub fn read_header<R: Reader>(stream: &mut R) -> HttpResult<Option<RawHeaderLine
                 }
             },
             b':' => break,
-            b if is_token(b) => name.push(b),
+            b if is_token(b) => name.push(b as char),
             _nontoken => return Err(HttpHeaderError)
         };
     }
@@ -745,7 +745,7 @@ mod tests {
             assert_eq!(read_header(&mut mem(s)), result);
         }
 
-        read("Host: rust-lang.org\r\n", Ok(Some(("Host".as_bytes().to_vec(),
+        read("Host: rust-lang.org\r\n", Ok(Some(("Host".to_string(),
                                                 "rust-lang.org".as_bytes().to_vec()))));
     }
 
