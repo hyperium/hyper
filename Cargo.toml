@@ -4,6 +4,10 @@ name = "hyper"
 version = "0.0.1"
 authors = ["Sean McArthur <sean.monstar@gmail.com>"]
 
+[features]
+cookie_rs = ["cookie"]
+default = ["cookie_rs"]
+
 [dependencies.url]
 git = "https://github.com/servo/rust-url"
 
@@ -33,3 +37,4 @@ git = "https://github.com/chris-morgan/rust-http"
 
 [dependencies.cookie]
 git = "https://github.com/alexcrichton/cookie-rs"
+optional = true
