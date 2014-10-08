@@ -97,11 +97,9 @@ impl Response<Fresh> {
             }
         }
 
-        for (name, header) in self.headers.iter() {
-            debug!("header {}: {}", name, header);
-            try!(write!(self.body, "{}: {}", name, header));
-            try!(self.body.write(LINE_ENDING));
-        }
+
+        debug!("headers [\n{}]", self.headers);
+        try!(write!(self.body, "{}", self.headers));
 
         try!(self.body.write(LINE_ENDING));
 

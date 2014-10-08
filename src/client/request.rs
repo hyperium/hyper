@@ -112,7 +112,6 @@ impl Request<Fresh> {
         try_io!(write!(self.body, "{} {} {}", self.method, uri, self.version))
         try_io!(self.body.write(LINE_ENDING));
 
-        debug!("{}", self.headers);
 
         let mut chunked = true;
         let mut len = 0;
@@ -142,10 +141,8 @@ impl Request<Fresh> {
             }
         }
 
-        for (name, header) in self.headers.iter() {
-            try_io!(write!(self.body, "{}: {}", name, header));
-            try_io!(self.body.write(LINE_ENDING));
-        }
+        debug!("headers [\n{}]", self.headers);
+        try_io!(write!(self.body, "{}", self.headers));
 
         try_io!(self.body.write(LINE_ENDING));
 
