@@ -1,6 +1,7 @@
 use header::Header;
 use std::fmt;
 use std::str::from_utf8;
+use cookie::CookieJar;
 
 /// The `Set-Cookie` header
 ///
@@ -37,6 +38,15 @@ impl Header for SetCookie {
 
     fn fmt_header(&self, _: &mut fmt::Formatter) -> fmt::Result {
         unimplemented!()
+    }
+}
+
+impl SetCookie {
+    /// Use this to crate SetCookie header from CookieJar using
+    /// calculated delta.
+    #[allow(dead_code)]
+    fn from_cookie_jar(jar: &CookieJar) -> SetCookie {
+        SetCookie(jar.delta())
     }
 }
 
