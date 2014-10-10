@@ -55,7 +55,7 @@ impl Response<Fresh> {
             status: status::Ok,
             version: version::Http11,
             headers: header::Headers::new(),
-            body: ThroughWriter(BufferedWriter::new(stream.abstract()))
+            body: ThroughWriter(BufferedWriter::new(stream.dynamic()))
         }
     }
 

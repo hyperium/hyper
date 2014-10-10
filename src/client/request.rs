@@ -57,7 +57,7 @@ impl Request<Fresh> {
         debug!("port={}", port);
 
         let stream: S = try_io!(NetworkStream::connect(host.as_slice(), port, url.scheme.as_slice()));
-        let stream = ThroughWriter(BufferedWriter::new(stream.abstract()));
+        let stream = ThroughWriter(BufferedWriter::new(stream.dynamic()));
         let mut headers = Headers::new();
         headers.set(Host(host));
 
