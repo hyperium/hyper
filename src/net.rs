@@ -42,14 +42,14 @@ pub trait NetworkStream: Stream + Clone + Send {
 
     /// Turn this into an appropriately typed trait object.
     #[inline]
-    fn abstract(self) -> Box<NetworkStream + Send> {
+    fn dynamic(self) -> Box<NetworkStream + Send> {
         box self as Box<NetworkStream + Send>
     }
 
     #[doc(hidden)]
     #[inline]
     // Hack to work around lack of Clone impl for Box<Clone>
-    fn clone_box(&self) -> Box<NetworkStream + Send> { self.clone().abstract() }
+    fn clone_box(&self) -> Box<NetworkStream + Send> { self.clone().dynamic() }
 }
 
 impl Clone for Box<NetworkStream + Send> {
