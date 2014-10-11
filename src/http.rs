@@ -205,11 +205,11 @@ impl<W: Writer> Writer for HttpWriter<W> {
     }
 }
 
-pub static SP: u8 = b' ';
-pub static CR: u8 = b'\r';
-pub static LF: u8 = b'\n';
-pub static STAR: u8 = b'*';
-pub static LINE_ENDING: &'static [u8] = &[CR, LF];
+pub const SP: u8 = b' ';
+pub const CR: u8 = b'\r';
+pub const LF: u8 = b'\n';
+pub const STAR: u8 = b'*';
+pub const LINE_ENDING: &'static [u8] = &[CR, LF];
 
 /// Determines if byte is a token char.
 ///
