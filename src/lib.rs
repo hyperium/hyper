@@ -1,4 +1,4 @@
-#![feature(macro_rules, phase, default_type_params)]
+#![feature(macro_rules, phase, default_type_params, if_let, slicing_syntax)]
 #![deny(missing_doc)]
 #![deny(warnings)]
 #![experimental]

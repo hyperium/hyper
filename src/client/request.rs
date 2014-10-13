@@ -101,7 +101,13 @@ impl Request<Fresh> {
     /// Consume a Fresh Request, writing the headers and method,
     /// returning a Streaming Request.
     pub fn start(mut self) -> HttpResult<Request<Streaming>> {
-        let uri = self.url.serialize_path().unwrap();
+        let mut uri = self.url.serialize_path().unwrap();
+        //TODO: this needs a test
+        if let Some(ref q) = self.url.query {
+            uri.push('?');
+            uri.push_str(q[]);
+        }
+
         debug!("writing head: {} {} {}", self.method, uri, self.version);
         try_io!(write!(self.body, "{} {} {}", self.method, uri, self.version))
         try_io!(self.body.write(LINE_ENDING));
@@ -184,4 +190,3 @@ impl Writer for Request<Streaming> {
         self.body.flush()
     }
 }
-
