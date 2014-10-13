@@ -221,13 +221,11 @@ impl fmt::Show for LineEnding {
     }
 }
 
-impl Slice<u8> for LineEnding {
+impl AsSlice<u8> for LineEnding {
     fn as_slice(&self) -> &[u8] {
         LINE_ENDING
     }
 }
-
-
 
 /// Determines if byte is a token char.
 ///
