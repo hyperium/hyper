@@ -50,6 +50,12 @@ pub mod date;
 /// Exposes the Location header.
 pub mod location;
 
+/// Exposes the Cookie header.
+pub mod cookie;
+
+/// Exposes the Set-Cookie header.
+pub mod set_cookie;
+
 fn from_one_raw_str<T: FromStr>(raw: &[Vec<u8>]) -> Option<T> {
     if raw.len() != 1 {
         return None;
