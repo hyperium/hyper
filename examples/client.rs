@@ -32,8 +32,8 @@ fn main() {
     };
 
     let mut res = req
-        .start().ok().expect("Error writing Headers.")
-        .send().ok().expect("Error sending Request.");
+        .start().unwrap() // failure: Error writing Headers
+        .send().unwrap(); // failure: Error reading Response head.
 
     println!("Response: {}", res.status);
     println!("{}", res.headers);

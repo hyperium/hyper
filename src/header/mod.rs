@@ -17,7 +17,7 @@ use std::sync::RWLock;
 use uany::{UncheckedAnyDowncast, UncheckedAnyMutDowncast};
 use typeable::Typeable;
 
-use http::read_header;
+use http::{read_header, LineEnding};
 use {HttpResult};
 
 /// Common Headers
@@ -244,11 +244,10 @@ impl Headers {
 
 impl fmt::Show for Headers {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        try!("Headers {\n".fmt(fmt));
         for (k, v) in self.iter() {
-            try!(write!(fmt, "\t{}: {}\n", k, v));
+            try!(write!(fmt, "{}: {}{}", k, v, LineEnding));
         }
-        "}".fmt(fmt)
+        Ok(())
     }
 }
 
@@ -349,7 +348,7 @@ mod tests {
     use mime::{Mime, Text, Plain};
     use super::CaseInsensitive;
     use super::{Headers, Header};
-    use super::common::{ContentLength, ContentType, Accept};
+    use super::common::{ContentLength, ContentType, Accept, Host};
 
     fn mem(s: &str) -> MemReader {
         MemReader::new(s.as_bytes().to_vec())
@@ -442,6 +441,21 @@ mod tests {
         let mut headers = Headers::from_raw(&mut mem("Content-Length: 10\r\nContent-Type: text/plain\r\n\r\n")).unwrap();
         *headers.get_mut::<ContentLength>().unwrap() = ContentLength(20);
         assert_eq!(*headers.get::<ContentLength>().unwrap(), ContentLength(20));
+    }
+
+    #[test]
+    fn test_headers_show() {
+        let mut headers = Headers::new();
+        headers.set(ContentLength(15));
+        headers.set(Host("foo.bar".into_string()));
+
+        let s = headers.to_string();
+        // hashmap's iterators have arbitrary order, so we must sort first
+        let mut pieces = s[].split_str("\r\n").collect::<Vec<&str>>();
+        pieces.sort();
+        let s = pieces.into_iter().rev().collect::<Vec<&str>>().connect("\r\n");
+        assert_eq!(s[], "Host: foo.bar\r\nContent-Length: 15\r\n");
+
     }
 }
 

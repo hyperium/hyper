@@ -1,5 +1,6 @@
 //! Pieces pertaining to the HTTP message protocol.
 use std::cmp::min;
+use std::fmt;
 use std::io::{mod, Reader, IoResult};
 use std::u16;
 
@@ -210,6 +211,21 @@ pub const CR: u8 = b'\r';
 pub const LF: u8 = b'\n';
 pub const STAR: u8 = b'*';
 pub const LINE_ENDING: &'static [u8] = &[CR, LF];
+
+/// A `Show`able struct to easily write line endings to a formatter.
+pub struct LineEnding;
+
+impl fmt::Show for LineEnding {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.write(LINE_ENDING)
+    }
+}
+
+impl AsSlice<u8> for LineEnding {
+    fn as_slice(&self) -> &[u8] {
+        LINE_ENDING
+    }
+}
 
 /// Determines if byte is a token char.
 ///
