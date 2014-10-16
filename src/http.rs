@@ -262,190 +262,69 @@ pub fn is_token(b: u8) -> bool {
     }
 }
 
-// omg
-enum MethodState {
-    MsStart,
-    MsG,
-    MsGE,
-    MsGET,
-    MsP,
-    MsPO,
-    MsPOS,
-    MsPOST,
-    MsPU,
-    MsPUT,
-    MsPA,
-    MsPAT,
-    MsPATC,
-    MsPATCH,
-    MsH,
-    MsHE,
-    MsHEA,
-    MsHEAD,
-    MsD,
-    MsDE,
-    MsDEL,
-    MsDELE,
-    MsDELET,
-    MsDELETE,
-    MsT,
-    MsTR,
-    MsTRA,
-    MsTRAC,
-    MsTRACE,
-    MsO,
-    MsOP,
-    MsOPT,
-    MsOPTI,
-    MsOPTIO,
-    MsOPTION,
-    MsOPTIONS,
-    MsC,
-    MsCO,
-    MsCON,
-    MsCONN,
-    MsCONNE,
-    MsCONNEC,
-    MsCONNECT,
-    MsExt
-}
+/// Read bytes from `stream` into `buf` until a space is encountered.
+/// Returns `Ok(true)` if we read until a space,
+/// `Ok(false)` if we got to the end of `buf` without encountering a space,
+/// otherwise returns any error encountered reading the stream.
+///
+/// The remaining contents of `buf` are left untouched.
+fn read_until_space<R: Reader>(stream: &mut R, buf: &mut [u8]) -> HttpResult<bool> { 
+    use std::io::BufWriter;
+    let mut bufwrt = BufWriter::new(buf);
 
-// omg
-impl MethodState {
-    fn as_slice(&self) -> &str {
-        match *self {
-            MsG => "G",
-            MsGE => "GE",
-            MsGET => "GET",
-            MsP => "P",
-            MsPO => "PO",
-            MsPOS => "POS",
-            MsPOST => "POST",
-            MsPU => "PU",
-            MsPUT => "PUT",
-            MsPA => "PA",
-            MsPAT => "PAT",
-            MsPATC => "PATC",
-            MsPATCH => "PATCH",
-            MsH => "H",
-            MsHE => "HE",
-            MsHEA => "HEA",
-            MsHEAD => "HEAD",
-            MsD => "D",
-            MsDE => "DE",
-            MsDEL => "DEL",
-            MsDELE => "DELE",
-            MsDELET => "DELET",
-            MsDELETE => "DELETE",
-            MsT => "T",
-            MsTR => "TR",
-            MsTRA => "TRA",
-            MsTRAC => "TRAC",
-            MsTRACE => "TRACE",
-            MsO => "O",
-            MsOP => "OP",
-            MsOPT => "OPT",
-            MsOPTI => "OPTI",
-            MsOPTIO => "OPTIO",
-            MsOPTION => "OPTION",
-            MsOPTIONS => "OPTIONS",
-            MsC => "C",
-            MsCO => "CO",
-            MsCON => "CON",
-            MsCONN => "CONN",
-            MsCONNE => "CONNE",
-            MsCONNEC => "CONNEC",
-            MsCONNECT => "CONNECT",
-            MsStart | MsExt => unreachable!()
-        }
+    loop {
+        let byte = try_io!(stream.read_byte());
+        
+        if byte == SP {
+            break
+        // Read to end but there's still more
+        } else if bufwrt.write_u8(byte).is_err() {
+            return Ok(false)
+        } 
     }
+    
+    Ok(true) 
 }
 
 /// Read a `Method` from a raw stream, such as `GET`.
+/// ### Note:
+/// Extension methods are only parsed to 16 characters.
 pub fn read_method<R: Reader>(stream: &mut R) -> HttpResult<method::Method> {
-    let mut s = String::new();
-    let mut state = MsStart;
+    let mut buf = [SP, ..16];
 
-    // omg
-    loop {
-        match (state, try_io!(stream.read_byte())) {
-            (MsStart, b'G') => state = MsG,
-            (MsStart, b'P') => state = MsP,
-            (MsStart, b'H') => state = MsH,
-            (MsStart, b'O') => state = MsO,
-            (MsStart, b'T') => state = MsT,
-            (MsStart, b'C') => state = MsC,
-            (MsStart, b'D') => state = MsD,
-            (MsStart, b@b'A'...b'Z') => {
-                state = MsExt;
-                s.push(b as char)
-            },
-
-            (MsG, b'E') => state = MsGE,
-            (MsGE, b'T') => state = MsGET,
-
-            (MsP, b'O') => state = MsPO,
-            (MsPO, b'S') => state = MsPOS,
-            (MsPOS, b'T') => state = MsPOST,
-
-            (MsP, b'U') => state = MsPU,
-            (MsPU, b'T') => state = MsPUT,
-
-            (MsP, b'A') => state = MsPA,
-            (MsPA, b'T') => state = MsPAT,
-            (MsPAT, b'C') => state = MsPATC,
-            (MsPATC, b'H') => state = MsPATCH,
-
-            (MsH, b'E') => state = MsHE,
-            (MsHE, b'A') => state = MsHEA,
-            (MsHEA, b'D') => state = MsHEAD,
-
-            (MsO, b'P') => state = MsOP,
-            (MsOP, b'T') => state = MsOPT,
-            (MsOPT, b'I') => state = MsOPTI,
-            (MsOPTI, b'O') => state = MsOPTIO,
-            (MsOPTIO, b'N') => state = MsOPTION,
-            (MsOPTION, b'S') => state = MsOPTIONS,
-
-            (MsT, b'R') => state = MsTR,
-            (MsTR, b'A') => state = MsTRA,
-            (MsTRA, b'C') => state = MsTRAC,
-            (MsTRAC, b'E') => state = MsTRACE,
-
-            (MsC, b'O') => state = MsCO,
-            (MsCO, b'N') => state = MsCON,
-            (MsCON, b'N') => state = MsCONN,
-            (MsCONN, b'E') => state = MsCONNE,
-            (MsCONNE, b'C') => state = MsCONNEC,
-            (MsCONNEC, b'T') => state = MsCONNECT,
-
-            (MsD, b'E') => state = MsDE,
-            (MsDE, b'L') => state = MsDEL,
-            (MsDEL, b'E') => state = MsDELE,
-            (MsDELE, b'T') => state = MsDELET,
-            (MsDELET, b'E') => state = MsDELETE,
-
-            (MsExt, b@b'A'...b'Z') => s.push(b as char),
-
-            (_, b@b'A'...b'Z') => {
-                s = state.as_slice().to_string();
-                s.push(b as char);
-            },
-
-            (MsGET, SP) => return Ok(method::Get),
-            (MsPOST, SP) => return Ok(method::Post),
-            (MsPUT, SP) => return Ok(method::Put),
-            (MsPATCH, SP) => return Ok(method::Patch),
-            (MsHEAD, SP) => return Ok(method::Head),
-            (MsDELETE, SP) => return Ok(method::Delete),
-            (MsTRACE, SP) => return Ok(method::Trace),
-            (MsOPTIONS, SP) => return Ok(method::Options),
-            (MsCONNECT, SP) => return Ok(method::Connect),
-            (MsExt, SP) => return Ok(method::Extension(s)),
-
-            (_, _) => return Err(HttpMethodError)
-        }
+    if !try!(read_until_space(stream, &mut buf)){ 
+        return Err(HttpMethodError); 
     }
+
+    debug!("method: {}", buf[].to_ascii());
+    
+    let maybe_method = match buf[0..7] {
+        b"GET    " => Some(method::Get),
+        b"PUT    " => Some(method::Put),
+        b"POST   " => Some(method::Post),
+        b"HEAD   " => Some(method::Head),
+        b"PATCH  " => Some(method::Patch),
+        b"TRACE  " => Some(method::Trace),
+        b"DELETE " => Some(method::Delete),
+        b"CONNECT" => Some(method::Connect),
+        b"OPTIONS" => Some(method::Options),
+        _ => None,
+    };
+
+    match (maybe_method, buf[]) {
+        (Some(method), _) => Ok(method),
+        (None, ext) if is_valid_method(buf) => {
+            use std::str::raw;
+            // We already checked that the buffer is ASCII 
+            Ok(method::Extension(unsafe { raw::from_utf8(ext) }.trim().into_string()))
+        },
+        _ => Err(HttpMethodError)          
+    }
+}
+
+fn is_valid_method(buf: &[u8]) -> bool {
+    use std::char;
+    buf.iter().all(|&ch| char::is_uppercase(ch as char) || ch == SP)
 }
 
 /// Read a `RequestUri` from a raw stream.
