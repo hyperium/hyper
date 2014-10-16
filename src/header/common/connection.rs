@@ -1,6 +1,6 @@
 use header::Header;
 use std::fmt::{mod, Show};
-use super::from_one_raw_str;
+use super::util::from_one_raw_str;
 use std::from_str::FromStr;
 
 /// The `Connection` header.
