@@ -271,7 +271,8 @@ fn read_until_space<R: Reader>(stream: &mut R, buf: &mut [u8]) -> HttpResult<boo
         
         if byte == SP {
             break
-        } else if !bufwrt.write_u8(byte).is_ok() {
+        // Read to end but there's still more
+        } else if bufwrt.write_u8(byte).is_err() {
             return Ok(false)
         } 
     }
