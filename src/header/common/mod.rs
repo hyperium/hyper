@@ -17,9 +17,6 @@ pub use self::server::Server;
 pub use self::date::Date;
 pub use self::location::Location;
 
-use std::from_str::FromStr;
-use std::str::from_utf8;
-
 /// Exposes the Host header.
 pub mod host;
 
@@ -50,14 +47,6 @@ pub mod date;
 /// Exposes the Location header.
 pub mod location;
 
-fn from_one_raw_str<T: FromStr>(raw: &[Vec<u8>]) -> Option<T> {
-    if raw.len() != 1 {
-        return None;
-    }
-    // we JUST checked that raw.len() == 1, so raw[0] WILL exist.
-    match from_utf8(unsafe { raw.as_slice().unsafe_get(0).as_slice() }) {
-        Some(s) => FromStr::from_str(s),
-        None => None
-    }
-}
+pub mod util;
+
 
