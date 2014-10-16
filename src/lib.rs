@@ -1,4 +1,5 @@
-#![feature(macro_rules, phase, default_type_params, if_let, slicing_syntax)]
+#![feature(macro_rules, phase, default_type_params, if_let, slicing_syntax,
+           tuple_indexing)]
 #![deny(missing_docs)]
 #![deny(warnings)]
 #![experimental]
@@ -125,6 +126,7 @@
 //! implement `Reader` and can be read to get the data out of a `Response`.
 //!
 
+extern crate serialize;
 extern crate time;
 extern crate url;
 extern crate openssl;
