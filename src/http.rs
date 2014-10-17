@@ -262,6 +262,12 @@ pub fn is_token(b: u8) -> bool {
     }
 }
 
+/// Read bytes from `stream` into `buf` until a space is encountered.
+/// Returns `Ok(true)` if we read until a space,
+/// `Ok(false)` if we got to the end of `buf` without encountering a space,
+/// otherwise returns any error encountered reading the stream.
+///
+/// The remaining contents of `buf` are left untouched.
 fn read_until_space<R: Reader>(stream: &mut R, buf: &mut [u8]) -> HttpResult<bool> { 
     use std::io::BufWriter;
     let mut bufwrt = BufWriter::new(buf);
@@ -281,18 +287,18 @@ fn read_until_space<R: Reader>(stream: &mut R, buf: &mut [u8]) -> HttpResult<boo
 }
 
 /// Read a `Method` from a raw stream, such as `GET`.
-/// **Note**: Extension methods are only parsed up to 16 characters.
+/// ### Note:
+/// Extension methods are only parsed to 16 characters.
 pub fn read_method<R: Reader>(stream: &mut R) -> HttpResult<method::Method> {
-    const ERR: HttpResult<method::Method> = Err(HttpMethodError);
+    let mut buf = [SP, ..16];
 
-    // Allocated on the stack!
-    let mut buf = [SP, ..16]; // Oughta be big enough
-    if !try!(read_until_space(stream, &mut buf)){ return ERR; }
+    if !try!(read_until_space(stream, &mut buf)){ 
+        return Err(HttpMethodError); 
+    }
 
     debug!("method: {}", buf[].to_ascii());
     
     let maybe_method = match buf[0..7] {
-        // Dat alignment
         b"GET    " => Some(method::Get),
         b"PUT    " => Some(method::Put),
         b"POST   " => Some(method::Post),
@@ -309,15 +315,10 @@ pub fn read_method<R: Reader>(stream: &mut R) -> HttpResult<method::Method> {
         (Some(method), _) => Ok(method),
         (None, ext) if is_valid_method(buf) => {
             use std::str::raw;
-            // We already checked that the buffer is safe
-            // Converting safely would be like O(3n) 
-            // (checking that the buffer is ascii (x2), and then uppercase) 
-            // Probably a microoptimization, but meh, it looks cool.
-            let ext_str = unsafe {raw::from_utf8(ext)}.trim();
-
-            Ok(method::Extension(ext_str.into_string()))
+            // We already checked that the buffer is ASCII 
+            Ok(method::Extension(unsafe { raw::from_utf8(ext) }.trim().into_string()))
         },
-        _ => ERR          
+        _ => Err(HttpMethodError)          
     }
 }
 
