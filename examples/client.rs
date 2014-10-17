@@ -4,8 +4,7 @@ use std::os;
 use std::io::stdout;
 use std::io::util::copy;
 
-use hyper::Url;
-use hyper::client::Request;
+use hyper::Client;
 
 fn main() {
     let args = os::args();
@@ -17,26 +16,17 @@ fn main() {
         }
     };
 
-    let url = match Url::parse(args[1].as_slice()) {
-        Ok(url) => {
-            println!("GET {}...", url)
-            url
-        },
-        Err(e) => panic!("Invalid URL: {}", e)
-    };
+    let url = &*args[1];
 
+    let mut client = Client::new();
 
-    let req = match Request::get(url) {
-        Ok(req) => req,
+    let mut res = match client.get(url).send() {
+        Ok(res) => res,
         Err(err) => panic!("Failed to connect: {}", err)
     };
 
-    let mut res = req
-        .start().unwrap() // failure: Error writing Headers
-        .send().unwrap(); // failure: Error reading Response head.
-
     println!("Response: {}", res.status);
-    println!("{}", res.headers);
+    println!("Headers:\n{}", res.headers);
     match copy(&mut res, &mut stdout()) {
         Ok(..) => (),
         Err(e) => panic!("Stream failure: {}", e)

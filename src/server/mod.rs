@@ -105,8 +105,8 @@ impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L
                                 };
 
                                 keep_alive = match (req.version, req.headers.get::<Connection>()) {
-                                    (Http10, Some(conn)) if !conn.0.contains(&KeepAlive) => false,
-                                    (Http11, Some(conn)) if conn.0.contains(&Close)  => false,
+                                    (Http10, Some(conn)) if !conn.contains(&KeepAlive) => false,
+                                    (Http11, Some(conn)) if conn.contains(&Close)  => false,
                                     _ => true
                                 };
                                 res.version = req.version;

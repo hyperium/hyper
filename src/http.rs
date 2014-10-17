@@ -7,6 +7,7 @@ use std::num::from_u16;
 use std::str::{mod, SendStr};
 
 use url::Url;
+use url::ParseError as UrlError;
 
 use method;
 use status::StatusCode;
@@ -234,6 +235,7 @@ impl<W: Writer> Writer for HttpWriter<W> {
             ThroughWriter(ref mut w) => w.write(msg),
             ChunkedWriter(ref mut w) => {
                 let chunk_size = msg.len();
+                debug!("chunked write, size = {}", chunk_size);
                 try!(write!(w, "{:X}{}{}", chunk_size, CR as char, LF as char));
                 try!(w.write(msg));
                 w.write(LINE_ENDING)
@@ -419,7 +421,7 @@ pub fn read_uri<R: Reader>(stream: &mut R) -> HttpResult<uri::RequestUri> {
                     break;
                 },
                 CR | LF => {
-                    return Err(HttpUriError)
+                    return Err(HttpUriError(UrlError::InvalidCharacter))
                 },
                 b => s.push(b as char)
             }
@@ -431,26 +433,13 @@ pub fn read_uri<R: Reader>(stream: &mut R) -> HttpResult<uri::RequestUri> {
     if s.as_slice().starts_with("/") {
         Ok(AbsolutePath(s))
     } else if s.as_slice().contains("/") {
-        match Url::parse(s.as_slice()) {
-            Ok(u) => Ok(AbsoluteUri(u)),
-            Err(_e) => {
-                debug!("URL err {}", _e);
-                Err(HttpUriError)
-            }
-        }
+        Ok(AbsoluteUri(try!(Url::parse(s.as_slice()))))
     } else {
         let mut temp = "http://".to_string();
         temp.push_str(s.as_slice());
-        match Url::parse(temp.as_slice()) {
-            Ok(_u) => {
-                todo!("compare vs u.authority()");
-                Ok(Authority(s))
-            }
-            Err(_e) => {
-                debug!("URL err {}", _e);
-                Err(HttpUriError)
-            }
-        }
+        try!(Url::parse(temp.as_slice()));
+        todo!("compare vs u.authority()");
+        Ok(Authority(s))
     }
 
 
