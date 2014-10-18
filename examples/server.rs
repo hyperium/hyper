@@ -1,7 +1,6 @@
 #![feature(macro_rules)]
 
 extern crate hyper;
-extern crate debug;
 
 use std::io::util::copy;
 use std::io::net::ip::Ipv4Addr;
