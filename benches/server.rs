@@ -10,7 +10,7 @@ use std::io::net::ip::{SocketAddr, Ipv4Addr};
 
 use http::server::Server;
 
-static phrase: &'static [u8] = b"Benchmarking hyper vs others!";
+static PHRASE: &'static [u8] = b"Benchmarking hyper vs others!";
 
 fn request(url: hyper::Url) {
     let req = hyper::client::Request::get(url).unwrap();
@@ -20,7 +20,7 @@ fn request(url: hyper::Url) {
 fn hyper_handle(mut incoming: hyper::server::Incoming) {
     for (_, mut res) in incoming {
         let mut res = res.start().unwrap();
-        res.write(phrase).unwrap();
+        res.write(PHRASE).unwrap();
         res.end().unwrap();
     }
 }
@@ -51,7 +51,7 @@ impl Server for HttpServer {
     }
 
     fn handle_request(&self, _: http::server::Request, res: &mut http::server::ResponseWriter) {
-        res.write(phrase).unwrap();
+        res.write(PHRASE).unwrap();
     }
 }
 
