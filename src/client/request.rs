@@ -200,16 +200,18 @@ mod tests {
 
     #[test]
     fn test_host_header() {
-        let host_and_port = "www.example.com:8080".to_string();
-        let url = Url::parse(
-            format!("http://{}/some-url", host_and_port).as_slice()
-        ).unwrap();
+        fn check_host(url: &str, host_header: &str) {
+            let request = Request::with_stream::<MockStream>(
+                Get,
+                Url::parse(url).unwrap(),
+            ).unwrap();
 
-        let request = Request::with_stream::<MockStream>(Get, url).unwrap();
+            assert_eq!(
+                &Host(host_header.to_string()),
+                request.headers().get::<Host>().unwrap()
+            );
+        }
 
-        assert_eq!(
-            &Host(host_and_port),
-            request.headers().get::<Host>().unwrap()
-        );
+        check_host("http://www.example.com:8080/path", "www.example.com:8080");
     }
 }
