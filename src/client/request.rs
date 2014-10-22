@@ -59,7 +59,7 @@ impl Request<Fresh> {
         let stream: S = try_io!(NetworkStream::connect(host.as_slice(), port, url.scheme.as_slice()));
         let stream = ThroughWriter(BufferedWriter::new(stream.dynamic()));
         let mut headers = Headers::new();
-        headers.set(Host(host));
+        headers.set(Host(format!("{}:{}", host, port)));
 
         Ok(Request {
             method: method,
@@ -185,5 +185,31 @@ impl Writer for Request<Streaming> {
     #[inline]
     fn flush(&mut self) -> IoResult<()> {
         self.body.flush()
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use header::common::Host;
+    use method::Get;
+    use net::MockStream;
+    use url::Url;
+    use super::Request;
+
+
+    #[test]
+    fn test_host_header() {
+        let host_and_port = "www.example.com:8080".to_string();
+        let url = Url::parse(
+            format!("http://{}/some-url", host_and_port).as_slice()
+        ).unwrap();
+
+        let request = Request::with_stream::<MockStream>(Get, url).unwrap();
+
+        assert_eq!(
+            &Host(host_and_port),
+            request.headers().get::<Host>().unwrap()
+        );
     }
 }
