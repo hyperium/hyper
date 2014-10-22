@@ -212,6 +212,8 @@ mod tests {
             );
         }
 
+        check_host("http://www.example.com/path", "www.example.com:80");
+        check_host("https://www.example.com/path", "www.example.com:443");
         check_host("http://www.example.com:8080/path", "www.example.com:8080");
     }
 }
