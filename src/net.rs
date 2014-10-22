@@ -1,7 +1,7 @@
 //! A collection of traits abstracting over Listeners and Streams.
 use std::io::{IoResult, IoError, ConnectionAborted, InvalidInput, OtherIoError,
               Stream, Listener, Acceptor};
-use std::io::net::ip::{SocketAddr, Port};
+use std::io::net::ip::{SocketAddr, Ipv4Addr, Port};
 use std::io::net::tcp::{TcpStream, TcpListener, TcpAcceptor};
 use std::sync::{Arc, Mutex};
 
@@ -209,5 +209,39 @@ fn lift_ssl_error(ssl: SslError) -> IoError {
             desc: "Error in OpenSSL",
             detail: Some(format!("{}", errs))
         }
+    }
+}
+
+
+/// An implementation of `NetworkStream` useful for testing.
+#[deriving(Clone)]
+pub struct MockStream {
+    port: Port,
+}
+
+impl Reader for MockStream {
+    fn read(&mut self, _: &mut [u8]) -> IoResult<uint> {
+        Ok(0)
+    }
+}
+
+impl Writer for MockStream {
+    fn write(&mut self, _: &[u8]) -> IoResult<()> {
+        Ok(())
+    }
+}
+
+impl NetworkStream for MockStream {
+    fn connect(_: &str, port: Port, _: &str) -> IoResult<MockStream> {
+        Ok(MockStream {
+            port: port,
+        })
+    }
+
+    fn peer_name(&mut self) -> IoResult<SocketAddr> {
+        Ok(SocketAddr {
+            ip  : Ipv4Addr(127, 0, 0, 1),
+            port: self.port,
+        })
     }
 }
