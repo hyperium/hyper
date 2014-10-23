@@ -17,8 +17,8 @@ complex web applications written entirely in Rust.
 
 The documentation is located at [http://hyperium.github.io/hyper](http://hyperium.github.io/hyper).
 
-___WARNING: Hyper is still under active development. The API is still changing
-in non-backwards-compatible ways without warning._
+__WARNING: Hyper is still under active development. The API is still changing
+in non-backwards-compatible ways without warning.__
 
 ## Example
 
