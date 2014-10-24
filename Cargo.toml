@@ -11,7 +11,7 @@ git = "https://github.com/servo/rust-url"
 git = "https://github.com/sfackler/rust-openssl"
 
 [dependencies.mime]
-git = "https://github.com/seanmonstar/mime.rs"
+git = "https://github.com/hyperium/mime.rs"
 
 [dependencies.unsafe-any]
 git = "https://github.com/reem/rust-unsafe-any"
