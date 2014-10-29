@@ -16,6 +16,7 @@ pub use self::user_agent::UserAgent;
 pub use self::server::Server;
 pub use self::date::Date;
 pub use self::location::Location;
+pub use self::authorization::{Authorization, Raw, Basic, BasicCredentials};
 
 /// Exposes the Host header.
 pub mod host;
@@ -47,6 +48,7 @@ pub mod date;
 /// Exposes the Location header.
 pub mod location;
 
+/// Exposes the Authorization header.
+pub mod authorization;
+
 pub mod util;
-
-
