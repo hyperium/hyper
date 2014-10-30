@@ -22,13 +22,13 @@ fn main() {
             println!("GET {}...", url)
             url
         },
-        Err(e) => fail!("Invalid URL: {}", e)
+        Err(e) => panic!("Invalid URL: {}", e)
     };
 
 
     let req = match Request::get(url) {
         Ok(req) => req,
-        Err(err) => fail!("Failed to connect: {}", err)
+        Err(err) => panic!("Failed to connect: {}", err)
     };
 
     let mut res = req
@@ -39,7 +39,7 @@ fn main() {
     println!("{}", res.headers);
     match copy(&mut res, &mut stdout()) {
         Ok(..) => (),
-        Err(e) => fail!("Stream failure: {}", e)
+        Err(e) => panic!("Stream failure: {}", e)
     };
 
 }
