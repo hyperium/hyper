@@ -90,7 +90,7 @@ fn bench_http(b: &mut test::Bencher) {
         // cant unwrap because Err contains RequestWriter, which does not implement Show
         let mut res = match req.read_response() {
             Ok(res) => res,
-            Err(..) => fail!("http response failed")
+            Err(..) => panic!("http response failed")
         };
         res.read_to_string().unwrap();
     });
