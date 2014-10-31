@@ -38,6 +38,18 @@ pub enum HttpReader<R> {
     EofReader(R),
 }
 
+impl<R: Reader> HttpReader<R> {
+
+    /// Unwraps this HttpReader and returns the underlying Reader.
+    pub fn unwrap(self) -> R {
+        match self {
+            SizedReader(r, _) => r,
+            ChunkedReader(r, _) => r,
+            EofReader(r) => r,
+        }
+    }
+}
+
 impl<R: Reader> Reader for HttpReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> {
         match *self {

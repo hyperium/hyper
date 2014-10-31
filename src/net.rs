@@ -1,10 +1,18 @@
 //! A collection of traits abstracting over Listeners and Streams.
+use std::any::{Any, AnyRefExt};
+use std::boxed::BoxAny;
+use std::fmt;
+use std::intrinsics::TypeId;
 use std::io::{IoResult, IoError, ConnectionAborted, InvalidInput, OtherIoError,
               Stream, Listener, Acceptor};
 use std::io::net::ip::{SocketAddr, Port};
 use std::io::net::tcp::{TcpStream, TcpListener, TcpAcceptor};
+use std::mem::{mod, transmute, transmute_copy};
+use std::raw::{mod, TraitObject};
 use std::sync::{Arc, Mutex};
 
+use uany::UncheckedBoxAnyDowncast;
+use typeable::Typeable;
 use openssl::ssl::{SslStream, SslContext, Sslv23};
 use openssl::ssl::error::{SslError, StreamError, OpenSslErrors, SslSessionClosed};
 
@@ -15,7 +23,7 @@ pub struct Fresh;
 pub struct Streaming;
 
 /// An abstraction to listen for connections on a certain port.
-pub trait NetworkListener<S: NetworkStream, A: NetworkAcceptor<S>>: Listener<S, A> {
+pub trait NetworkListener<S: NetworkStream, A: NetworkAcceptor<S>>: Listener<S, A> + Typeable {
     /// Bind to a socket.
     ///
     /// Note: This does not start listening for connections. You must call
@@ -33,7 +41,7 @@ pub trait NetworkAcceptor<S: NetworkStream>: Acceptor<S> + Clone + Send {
 }
 
 /// An abstraction over streams that a Server can utilize.
-pub trait NetworkStream: Stream + Clone + Send {
+pub trait NetworkStream: Stream + Any + Clone + Send {
     /// Get the remote address of the underlying connection.
     fn peer_name(&mut self) -> IoResult<SocketAddr>;
 
@@ -52,6 +60,12 @@ pub trait NetworkStream: Stream + Clone + Send {
     fn clone_box(&self) -> Box<NetworkStream + Send> { self.clone().dynamic() }
 }
 
+impl fmt::Show for Box<NetworkStream + Send> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.pad("Box<NetworkStream>")
+    }
+}
+
 impl Clone for Box<NetworkStream + Send> {
     #[inline]
     fn clone(&self) -> Box<NetworkStream + Send> { self.clone_box() }
@@ -68,6 +82,46 @@ impl Writer for Box<NetworkStream + Send> {
 
     #[inline]
     fn flush(&mut self) -> IoResult<()> { (**self).flush() }
+}
+
+impl UncheckedBoxAnyDowncast for Box<NetworkStream + Send> {
+    unsafe fn downcast_unchecked<T: 'static>(self) -> Box<T>  {
+        let to = *mem::transmute::<&Box<NetworkStream + Send>, &raw::TraitObject>(&self);
+        // Prevent double-free.
+        mem::forget(self);
+        mem::transmute(to.data)
+    }
+}
+
+impl<'a> AnyRefExt<'a> for &'a NetworkStream + 'a {
+    #[inline]
+    fn is<T: 'static>(self) -> bool {
+        self.get_type_id() == TypeId::of::<T>()
+    }
+
+    #[inline]
+    fn downcast_ref<T: 'static>(self) -> Option<&'a T> {
+        if self.is::<T>() {
+            unsafe {
+                // Get the raw representation of the trait object
+                let to: TraitObject = transmute_copy(&self);
+                // Extract the data pointer
+                Some(transmute(to.data))
+            }
+        } else {
+            None
+        }
+    }
+}
+
+impl BoxAny for Box<NetworkStream + Send> {
+    fn downcast<T: 'static>(self) -> Result<Box<T>, Box<NetworkStream + Send>> {
+        if self.is::<T>() {
+            Ok(unsafe { self.downcast_unchecked() })
+        } else {
+            Err(self)
+        }
+    }
 }
 
 /// A `NetworkListener` for `HttpStream`s.
@@ -212,3 +266,30 @@ fn lift_ssl_error(ssl: SslError) -> IoError {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use std::boxed::BoxAny;
+    use uany::UncheckedBoxAnyDowncast;
+
+    use mock::MockStream;
+    use super::NetworkStream;
+
+    #[test]
+    fn test_downcast_box_stream() {
+        let stream = MockStream.dynamic();
+
+        let mock = stream.downcast::<MockStream>().unwrap();
+        assert_eq!(mock, box MockStream);
+
+    }
+
+    #[test]
+    fn test_downcast_unchecked_box_stream() {
+        let stream = MockStream.dynamic();
+
+        let mock = unsafe { stream.downcast_unchecked::<MockStream>() };
+        assert_eq!(mock, box MockStream);
+
+    }
+
+}
