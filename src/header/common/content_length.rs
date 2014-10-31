@@ -1,6 +1,6 @@
 use std::fmt::{mod, Show};
 
-use header::Header;
+use header::{Header, HeaderFormat};
 use super::util::from_one_raw_str;
 
 /// The `Content-Length` header.
@@ -17,7 +17,9 @@ impl Header for ContentLength {
     fn parse_header(raw: &[Vec<u8>]) -> Option<ContentLength> {
         from_one_raw_str(raw).map(|u| ContentLength(u))
     }
+}
 
+impl HeaderFormat for ContentLength {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let ContentLength(ref value) = *self;
         value.fmt(fmt)

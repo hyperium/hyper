@@ -1,4 +1,4 @@
-use header::Header;
+use header::{Header, HeaderFormat};
 use std::fmt;
 use std::from_str::FromStr;
 use super::{from_comma_delimited, fmt_comma_delimited};
@@ -75,7 +75,9 @@ impl Header for TransferEncoding {
     fn parse_header(raw: &[Vec<u8>]) -> Option<TransferEncoding> {
         from_comma_delimited(raw).map(|vec| TransferEncoding(vec))
     }
+}
 
+impl HeaderFormat for TransferEncoding {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let TransferEncoding(ref parts) = *self;
         fmt_comma_delimited(fmt, parts[])

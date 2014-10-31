@@ -1,4 +1,4 @@
-use header::Header;
+use header::{Header, HeaderFormat};
 use std::fmt::{mod, Show};
 use super::{from_comma_delimited, fmt_comma_delimited};
 use std::from_str::FromStr;
@@ -42,7 +42,9 @@ impl Header for Upgrade {
     fn parse_header(raw: &[Vec<u8>]) -> Option<Upgrade> {
         from_comma_delimited(raw).map(|vec| Upgrade(vec))
     }
+}
 
+impl HeaderFormat for Upgrade {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let Upgrade(ref parts) = *self;
         fmt_comma_delimited(fmt, parts[])
