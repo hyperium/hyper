@@ -6,24 +6,26 @@
 //! are already provided, such as `Host`, `ContentType`, `UserAgent`, and others.
 use std::ascii::{AsciiExt, ASCII_LOWER_MAP};
 use std::fmt::{mod, Show};
-use std::hash;
 use std::intrinsics::TypeId;
-use std::mem::{transmute, transmute_copy};
 use std::raw::TraitObject;
 use std::str::{SendStr, Slice, Owned};
 use std::collections::hashmap::{HashMap, Entries, Occupied, Vacant};
 use std::sync::RWLock;
+use std::{hash, mem};
 
 use uany::{UncheckedAnyDowncast, UncheckedAnyMutDowncast};
 use typeable::Typeable;
 
-use http::{read_header, LineEnding};
+use http::{mod, LineEnding};
 use {HttpResult};
 
 /// Common Headers
 pub mod common;
 
 /// A trait for any object that will represent a header field and value.
+///
+/// This trait represents the construction and identification of headers,
+/// and contains trait-object unsafe methods.
 pub trait Header: Typeable + Send + Sync {
     /// Returns the name of the header field this belongs to.
     ///
@@ -38,7 +40,16 @@ pub trait Header: Typeable + Send + Sync {
     /// than one field value. If that's the case, you **should** return `None`
     /// if `raw.len() > 1`.
     fn parse_header(raw: &[Vec<u8>]) -> Option<Self>;
+}
+
+/// A trait for any object that will represent a header field and value.
+///
+/// This trait represents the formatting of a Header for output to a TcpStream.
+pub trait HeaderFormat: Typeable + Send + Sync {
     /// Format a header to be output into a TcpStream.
+    ///
+    /// This method is not allowed to introduce an Err not produced
+    /// by the passed-in Formatter.
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result;
 }
 
@@ -47,29 +58,29 @@ trait Is {
     fn is<T: 'static>(self) -> bool;
 }
 
-impl<'a> Is for &'a Header {
+impl<'a> Is for &'a HeaderFormat {
     fn is<T: 'static>(self) -> bool {
         self.get_type() == TypeId::of::<T>()
     }
 }
 
-impl<'a> UncheckedAnyDowncast<'a> for &'a Header {
+impl<'a> UncheckedAnyDowncast<'a> for &'a HeaderFormat {
     #[inline]
     unsafe fn downcast_ref_unchecked<T: 'static>(self) -> &'a T {
-        let to: TraitObject = transmute_copy(&self);
-        transmute(to.data)
+        let to: TraitObject = mem::transmute_copy(&self);
+        mem::transmute(to.data)
     }
 }
 
-impl<'a> UncheckedAnyMutDowncast<'a> for &'a mut Header {
+impl<'a> UncheckedAnyMutDowncast<'a> for &'a mut HeaderFormat {
     #[inline]
     unsafe fn downcast_mut_unchecked<T: 'static>(self) -> &'a mut T {
-        let to: TraitObject = transmute_copy(&self);
-        transmute(to.data)
+        let to: TraitObject = mem::transmute_copy(&self);
+        mem::transmute(to.data)
     }
 }
 
-fn header_name<T: Header>() -> &'static str {
+fn header_name<T: Header + HeaderFormat>() -> &'static str {
     let name = Header::header_name(None::<T>);
     name
 }
@@ -92,7 +103,7 @@ impl Headers {
     pub fn from_raw<R: Reader>(rdr: &mut R) -> HttpResult<Headers> {
         let mut headers = Headers::new();
         loop {
-            match try!(read_header(rdr)) {
+            match try!(http::read_header(rdr)) {
                 Some((name, value)) => {
                     let name = CaseInsensitive(Owned(name));
                     let item = match headers.data.entry(name) {
@@ -115,9 +126,9 @@ impl Headers {
     /// Set a header field to the corresponding value.
     ///
     /// The field is determined by the type of the value being set.
-    pub fn set<H: Header>(&mut self, value: H) {
+    pub fn set<H: Header + HeaderFormat>(&mut self, value: H) {
         self.data.insert(CaseInsensitive(Slice(header_name::<H>())),
-                         RWLock::new(Item::typed(box value as Box<Header + Send + Sync>)));
+                         RWLock::new(Item::typed(box value as Box<HeaderFormat + Send + Sync>)));
     }
 
     /// Access the raw value of a header.
@@ -135,13 +146,13 @@ impl Headers {
         self.data.find_equiv(&CaseInsensitive(name)).and_then(|item| {
             let lock = item.read();
             if let Some(ref raw) = lock.raw {
-                return unsafe { transmute(Some(raw[])) };
+                return unsafe { mem::transmute(Some(raw[])) };
             }
 
             let mut lock = item.write();
             let raw = vec![lock.typed.as_ref().unwrap().to_string().into_bytes()];
             lock.raw = Some(raw);
-            unsafe { transmute(Some(lock.raw.as_ref().unwrap()[])) }
+            unsafe { mem::transmute(Some(lock.raw.as_ref().unwrap()[])) }
         })
     }
 
@@ -159,7 +170,7 @@ impl Headers {
     }
 
     /// Get a reference to the header field's value, if it exists.
-    pub fn get<H: Header>(&self) -> Option<&H> {
+    pub fn get<H: Header + HeaderFormat>(&self) -> Option<&H> {
         self.get_or_parse::<H>().map(|item| {
             let read = item.read();
             debug!("downcasting {}", *read);
@@ -167,12 +178,12 @@ impl Headers {
                 Some(ref val) => unsafe { val.downcast_ref_unchecked() },
                 _ => unreachable!()
             };
-            unsafe { transmute::<&H, &H>(ret) }
+            unsafe { mem::transmute::<&H, &H>(ret) }
         })
     }
 
     /// Get a mutable reference to the header field's value, if it exists.
-    pub fn get_mut<H: Header>(&mut self) -> Option<&mut H> {
+    pub fn get_mut<H: Header + HeaderFormat>(&mut self) -> Option<&mut H> {
         self.get_or_parse::<H>().map(|item| {
             let mut write = item.write();
             debug!("downcasting {}", *write);
@@ -180,11 +191,11 @@ impl Headers {
                 Some(ref mut val) => unsafe { val.downcast_mut_unchecked() },
                 _ => unreachable!()
             };
-            unsafe { transmute::<&mut H, &mut H>(ret) }
+            unsafe { mem::transmute::<&mut H, &mut H>(ret) }
         })
     }
 
-    fn get_or_parse<H: Header>(&self) -> Option<&RWLock<Item>> {
+    fn get_or_parse<H: Header + HeaderFormat>(&self) -> Option<&RWLock<Item>> {
         self.data.find(&CaseInsensitive(Slice(header_name::<H>()))).and_then(|item| {
             match item.read().typed {
                 Some(ref typed) if typed.is::<H>() => return Some(item),
@@ -226,7 +237,7 @@ impl Headers {
             };
 
             // Mutate!
-            write.typed = Some(box header as Box<Header + Send + Sync>);
+            write.typed = Some(box header as Box<HeaderFormat + Send + Sync>);
             Some(item)
         })
     }
@@ -241,13 +252,13 @@ impl Headers {
     /// # let mut headers = Headers::new();
     /// let has_type = headers.has::<ContentType>();
     /// ```
-    pub fn has<H: Header>(&self) -> bool {
+    pub fn has<H: Header + HeaderFormat>(&self) -> bool {
         self.data.contains_key(&CaseInsensitive(Slice(header_name::<H>())))
     }
 
     /// Removes a header from the map, if one existed.
     /// Returns true if a header has been removed.
-    pub fn remove<H: Header>(&mut self) -> bool {
+    pub fn remove<H: Header + HeaderFormat>(&mut self) -> bool {
         self.data.remove(&CaseInsensitive(Slice(Header::header_name(None::<H>))))
     }
 
@@ -306,7 +317,7 @@ impl Mutable for Headers {
 
 struct Item {
     raw: Option<Vec<Vec<u8>>>,
-    typed: Option<Box<Header + Send + Sync>>
+    typed: Option<Box<HeaderFormat + Send + Sync>>
 }
 
 impl Item {
@@ -317,7 +328,7 @@ impl Item {
         }
     }
 
-    fn typed(ty: Box<Header + Send + Sync>) -> Item {
+    fn typed(ty: Box<HeaderFormat + Send + Sync>) -> Item {
         Item {
             raw: None,
             typed: Some(ty),
@@ -342,7 +353,7 @@ impl fmt::Show for Item {
     }
 }
 
-impl fmt::Show for Box<Header + Send + Sync> {
+impl fmt::Show for Box<HeaderFormat + Send + Sync> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         (**self).fmt_header(fmt)
     }
@@ -432,7 +443,7 @@ mod tests {
 
         let accept = Header::parse_header([b"text/plain".to_vec()].as_slice());
         assert_eq!(accept, Some(Accept(vec![text_plain.clone()])));
-        
+
         let accept = Header::parse_header([b"application/vnd.github.v3.full+json; q=0.5, text/plain".to_vec()].as_slice());
         assert_eq!(accept, Some(Accept(vec![application_vendor, text_plain])));
     }
@@ -457,6 +468,9 @@ mod tests {
                 None => None
             }.map(|u| CrazyLength(Some(false), u))
         }
+    }
+
+    impl HeaderFormat for CrazyLength {
         fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
             let CrazyLength(ref opt, ref value) = *self;
             write!(fmt, "{}, {}", opt, value)

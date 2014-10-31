@@ -1,4 +1,4 @@
-use header::Header;
+use header::{Header, HeaderFormat};
 use std::fmt::{mod, Show};
 use std::str::from_utf8;
 use mime::Mime;
@@ -49,7 +49,9 @@ impl Header for Accept {
             None
         }
     }
+}
 
+impl HeaderFormat for Accept {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let Accept(ref value) = *self;
         let last = value.len() - 1;

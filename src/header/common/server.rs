@@ -1,4 +1,4 @@
-use header::Header;
+use header::{Header, HeaderFormat};
 use std::fmt::{mod, Show};
 use super::util::from_one_raw_str;
 
@@ -16,7 +16,9 @@ impl Header for Server {
     fn parse_header(raw: &[Vec<u8>]) -> Option<Server> {
         from_one_raw_str(raw).map(|s| Server(s))
     }
+}
 
+impl HeaderFormat for Server {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let Server(ref value) = *self;
         value.fmt(fmt)

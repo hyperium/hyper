@@ -1,4 +1,4 @@
-use header::Header;
+use header::{Header, HeaderFormat};
 use std::fmt::{mod, Show};
 use super::util::from_one_raw_str;
 use std::from_str::FromStr;
@@ -17,7 +17,9 @@ impl Header for Date {
     fn parse_header(raw: &[Vec<u8>]) -> Option<Date> {
         from_one_raw_str(raw)
     }
+}
 
+impl HeaderFormat for Date {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         self.fmt(fmt)
     }

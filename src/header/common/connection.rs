@@ -1,4 +1,4 @@
-use header::Header;
+use header::{Header, HeaderFormat};
 use std::fmt::{mod, Show};
 use super::{from_comma_delimited, fmt_comma_delimited};
 use std::from_str::FromStr;
@@ -53,7 +53,9 @@ impl Header for Connection {
     fn parse_header(raw: &[Vec<u8>]) -> Option<Connection> {
         from_comma_delimited(raw).map(|vec| Connection(vec))
     }
+}
 
+impl HeaderFormat for Connection {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let Connection(ref parts) = *self;
         fmt_comma_delimited(fmt, parts[])

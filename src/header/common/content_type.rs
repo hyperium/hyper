@@ -1,4 +1,4 @@
-use header::Header;
+use header::{Header, HeaderFormat};
 use std::fmt::{mod, Show};
 use super::util::from_one_raw_str;
 use mime::Mime;
@@ -18,7 +18,9 @@ impl Header for ContentType {
     fn parse_header(raw: &[Vec<u8>]) -> Option<ContentType> {
         from_one_raw_str(raw).map(|mime| ContentType(mime))
     }
+}
 
+impl HeaderFormat for ContentType {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let ContentType(ref value) = *self;
         value.fmt(fmt)
