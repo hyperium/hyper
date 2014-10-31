@@ -25,7 +25,7 @@ impl Response {
 
     /// Creates a new response from a server.
     pub fn new(stream: Box<NetworkStream + Send>) -> HttpResult<Response> {
-        let mut stream = BufferedReader::new(stream.dynamic());
+        let mut stream = BufferedReader::new(stream);
         let (version, status) = try!(read_status_line(&mut stream));
         let headers = try!(header::Headers::from_raw(&mut stream));
 

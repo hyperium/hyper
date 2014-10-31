@@ -38,7 +38,7 @@ impl Request {
     pub fn new<S: NetworkStream>(mut stream: S) -> HttpResult<Request> {
         let remote_addr = try_io!(stream.peer_name());
         debug!("remote addr = {}", remote_addr);
-        let mut stream = BufferedReader::new(stream.dynamic());
+        let mut stream = BufferedReader::new(box stream as Box<NetworkStream + Send>);
         let (method, uri, version) = try!(read_request_line(&mut stream));
         let headers = try!(Headers::from_raw(&mut stream));
 

@@ -77,20 +77,25 @@ impl hyper::header::Header for Foo {
     fn parse_header(_: &[Vec<u8>]) -> Option<Foo> {
         None
     }
+}
+
+impl hyper::header::HeaderFormat for Foo {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         "Bar".fmt(fmt)
     }
 }
 
 impl net::NetworkStream for MockStream {
+    fn peer_name(&mut self) -> IoResult<SocketAddr> {
+        Ok(from_str("127.0.0.1:1337").unwrap())
+    }
+}
 
+impl net::NetworkConnector for MockStream {
     fn connect(_host: &str, _port: u16, _scheme: &str) -> IoResult<MockStream> {
         Ok(MockStream::new())
     }
 
-    fn peer_name(&mut self) -> IoResult<SocketAddr> {
-        Ok(from_str("127.0.0.1:1337").unwrap())
-    }
 }
 
 #[bench]
