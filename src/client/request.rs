@@ -6,7 +6,7 @@ use url::Url;
 use method::{mod, Get, Post, Delete, Put, Patch, Head, Options};
 use header::Headers;
 use header::common::{mod, Host};
-use net::{NetworkStream, HttpStream, Fresh, Streaming};
+use net::{NetworkStream, NetworkConnector, HttpStream, Fresh, Streaming};
 use http::{HttpWriter, ThroughWriter, ChunkedWriter, SizedWriter, LINE_ENDING};
 use version;
 use {HttpResult, HttpUriError};
@@ -43,7 +43,7 @@ impl Request<Fresh> {
     }
 
     /// Create a new client request with a specific underlying NetworkStream.
-    pub fn with_stream<S: NetworkStream>(method: method::Method, url: Url) -> HttpResult<Request<Fresh>> {
+    pub fn with_stream<S: NetworkConnector>(method: method::Method, url: Url) -> HttpResult<Request<Fresh>> {
         debug!("{} {}", method, url);
         let host = match url.serialize_host() {
             Some(host) => host,
@@ -56,8 +56,8 @@ impl Request<Fresh> {
         };
         debug!("port={}", port);
 
-        let stream: S = try_io!(NetworkStream::connect(host.as_slice(), port, url.scheme.as_slice()));
-        let stream = ThroughWriter(BufferedWriter::new(stream.dynamic()));
+        let stream: S = try_io!(NetworkConnector::connect(host.as_slice(), port, url.scheme.as_slice()));
+        let stream = ThroughWriter(BufferedWriter::new(box stream as Box<NetworkStream + Send>));
 
         let mut headers = Headers::new();
         headers.set(Host {

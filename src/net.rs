@@ -45,19 +45,15 @@ pub trait NetworkStream: Stream + Any + Clone + Send {
     /// Get the remote address of the underlying connection.
     fn peer_name(&mut self) -> IoResult<SocketAddr>;
 
-    /// Connect to a remote address.
-    fn connect(host: &str, Port, scheme: &str) -> IoResult<Self>;
-
-    /// Turn this into an appropriately typed trait object.
-    #[inline]
-    fn dynamic(self) -> Box<NetworkStream + Send> {
-        box self as Box<NetworkStream + Send>
-    }
-
     #[doc(hidden)]
     #[inline]
-    // Hack to work around lack of Clone impl for Box<Clone>
-    fn clone_box(&self) -> Box<NetworkStream + Send> { self.clone().dynamic() }
+    fn clone_box(&self) -> Box<NetworkStream + Send> { box self.clone() }
+}
+
+/// A connector creates a NetworkStream.
+pub trait NetworkConnector: NetworkStream {
+    /// Connect to a remote address.
+    fn connect(host: &str, Port, scheme: &str) -> IoResult<Self>;
 }
 
 impl fmt::Show for Box<NetworkStream + Send> {
@@ -214,6 +210,15 @@ impl Writer for HttpStream {
 
 
 impl NetworkStream for HttpStream {
+    fn peer_name(&mut self) -> IoResult<SocketAddr> {
+        match *self {
+            Http(ref mut inner) => inner.peer_name(),
+            Https(_, addr) => Ok(addr)
+        }
+    }
+}
+
+impl NetworkConnector for HttpStream {
     fn connect(host: &str, port: Port, scheme: &str) -> IoResult<HttpStream> {
         match scheme {
             "http" => {
@@ -237,13 +242,6 @@ impl NetworkStream for HttpStream {
                     detail: None
                 })
             }
-        }
-    }
-
-    fn peer_name(&mut self) -> IoResult<SocketAddr> {
-        match *self {
-            Http(ref mut inner) => inner.peer_name(),
-            Https(_, addr) => Ok(addr)
         }
     }
 }
@@ -276,7 +274,7 @@ mod tests {
 
     #[test]
     fn test_downcast_box_stream() {
-        let stream = MockStream.dynamic();
+        let stream = box MockStream as Box<NetworkStream + Send>;
 
         let mock = stream.downcast::<MockStream>().unwrap();
         assert_eq!(mock, box MockStream);
@@ -285,7 +283,7 @@ mod tests {
 
     #[test]
     fn test_downcast_unchecked_box_stream() {
-        let stream = MockStream.dynamic();
+        let stream = box MockStream as Box<NetworkStream + Send>;
 
         let mock = unsafe { stream.downcast_unchecked::<MockStream>() };
         assert_eq!(mock, box MockStream);

@@ -408,7 +408,7 @@ mod tests {
     use std::hash::sip::hash;
     use mime::{Mime, Text, Plain};
     use super::CaseInsensitive;
-    use super::{Headers, Header};
+    use super::{Headers, Header, HeaderFormat};
     use super::common::{ContentLength, ContentType, Accept, Host};
 
     fn mem(s: &str) -> MemReader {
