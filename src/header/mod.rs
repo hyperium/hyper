@@ -9,7 +9,8 @@ use std::fmt::{mod, Show};
 use std::intrinsics::TypeId;
 use std::raw::TraitObject;
 use std::str::{SendStr, Slice, Owned};
-use std::collections::hashmap::{HashMap, Entries, Occupied, Vacant};
+use std::collections::HashMap;
+use std::collections::hash_map::{Entries, Occupied, Vacant};
 use std::sync::RWLock;
 use std::{hash, mem};
 

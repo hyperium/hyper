@@ -1571,7 +1571,7 @@ impl StatusCode {
 
 impl fmt::Unsigned for StatusCode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::secret_unsigned(&(*self as u16), f)
+        fmt::Unsigned::fmt(&(*self as u16), f)
     }
 }
 
