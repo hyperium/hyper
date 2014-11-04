@@ -534,6 +534,9 @@ mod tests {
         assert_eq!(headers.len(), 1);
         headers.set(ContentType(Mime(Text, Plain, vec![])));
         assert_eq!(headers.len(), 2);
+        // Redundant, should not increase count.
+        headers.set(ContentLength(20));
+        assert_eq!(headers.len(), 2);
     }
 
     #[test]
