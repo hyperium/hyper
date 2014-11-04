@@ -268,6 +268,16 @@ impl Headers {
             inner: self.data.iter()
         }
     }
+
+    /// Returns the number of headers in the map.
+    pub fn len(&self) -> uint {
+        self.data.len()
+    }
+
+    /// Remove all headers from the map.
+    pub fn clear(&mut self) {
+        self.data.clear()
+    }
 }
 
 impl fmt::Show for Headers {
@@ -300,18 +310,6 @@ impl<'a> fmt::Show for HeaderView<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let HeaderView(item) = *self;
         item.read().fmt(fmt)
-    }
-}
-
-impl Collection for Headers {
-    fn len(&self) -> uint {
-        self.data.len()
-    }
-}
-
-impl Mutable for Headers {
-    fn clear(&mut self) {
-        self.data.clear()
     }
 }
 
@@ -527,6 +525,28 @@ mod tests {
         headers.set_raw("content-LENGTH", vec![b"20".to_vec()]);
         assert_eq!(headers.get_raw("Content-length").unwrap(), [b"20".to_vec()][]);
         assert_eq!(headers.get(), Some(&ContentLength(20)));
+    }
+
+    #[test]
+    fn test_len() {
+        let mut headers = Headers::new();
+        headers.set(ContentLength(10));
+        assert_eq!(headers.len(), 1);
+        headers.set(ContentType(Mime(Text, Plain, vec![])));
+        assert_eq!(headers.len(), 2);
+        // Redundant, should not increase count.
+        headers.set(ContentLength(20));
+        assert_eq!(headers.len(), 2);
+    }
+
+    #[test]
+    fn test_clear() {
+        let mut headers = Headers::new();
+        headers.set(ContentLength(10));
+        headers.set(ContentType(Mime(Text, Plain, vec![])));
+        assert_eq!(headers.len(), 2);
+        headers.clear();
+        assert_eq!(headers.len(), 0);
     }
 }
 
