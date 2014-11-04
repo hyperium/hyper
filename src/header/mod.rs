@@ -303,18 +303,6 @@ impl<'a> fmt::Show for HeaderView<'a> {
     }
 }
 
-impl Collection for Headers {
-    fn len(&self) -> uint {
-        self.data.len()
-    }
-}
-
-impl Mutable for Headers {
-    fn clear(&mut self) {
-        self.data.clear()
-    }
-}
-
 struct Item {
     raw: Option<Vec<Vec<u8>>>,
     typed: Option<Box<HeaderFormat + Send + Sync>>
