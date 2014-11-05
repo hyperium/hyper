@@ -2,7 +2,7 @@
 use std::cmp::min;
 use std::fmt;
 use std::io::{mod, Reader, IoResult};
-use std::u16;
+use std::str;
 
 use url::Url;
 
@@ -545,7 +545,7 @@ pub fn read_status<R: Reader>(stream: &mut R) -> HttpResult<status::StatusCode> 
         try_io!(stream.read_byte()),
     ];
 
-    let code = match u16::parse_bytes(code.as_slice(), 10) {
+    let code = match str::from_utf8(code.as_slice()).and_then(from_str::<u16>) {
         Some(num) => match FromPrimitive::from_u16(num) {
             Some(code) => code,
             None => return Err(HttpStatusError)
