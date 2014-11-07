@@ -30,7 +30,10 @@ impl fmt::Show for Date {
         let Date(ref tm) = *self;
         // bummer that tm.strftime allocates a string. It would nice if it
         // returned a Show instead, since I don't need the String here
-        write!(fmt, "{}", tm.to_utc().rfc822())
+        match tm.tm_gmtoff {
+            0 => tm.rfc822().fmt(fmt),
+            _ => tm.to_utc().rfc822().fmt(fmt)
+        }
     }
 }
 
