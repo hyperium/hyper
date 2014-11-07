@@ -60,7 +60,7 @@ impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L
         let mut sockets = Vec::new();
         for (ip, port) in self.pairs.into_iter() {
             debug!("binding to {}:{}", ip, port);
-            let mut listener: L = try_io!(NetworkListener::<S, A>::bind(ip.to_string().as_slice(), port));
+            let mut listener: L = try_io!(NetworkListener::<S, A>::bind((ip, port)));
 
             sockets.push(try_io!(listener.socket_name()));
 

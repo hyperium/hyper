@@ -8,7 +8,7 @@ extern crate test;
 use std::fmt::{mod, Show};
 use std::from_str::from_str;
 use std::io::{IoResult, MemReader};
-use std::io::net::ip::SocketAddr;
+use std::io::net::ip::{SocketAddr, ToSocketAddr};
 use std::os;
 use std::path::BytesContainer;
 
@@ -92,7 +92,7 @@ impl net::NetworkStream for MockStream {
 }
 
 impl net::NetworkConnector for MockStream {
-    fn connect(_host: &str, _port: u16, _scheme: &str) -> IoResult<MockStream> {
+    fn connect<To: ToSocketAddr>(_addr: To, _scheme: &str) -> IoResult<MockStream> {
         Ok(MockStream::new())
     }
 

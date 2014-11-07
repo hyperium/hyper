@@ -5,7 +5,7 @@ use std::fmt;
 use std::intrinsics::TypeId;
 use std::io::{IoResult, IoError, ConnectionAborted, InvalidInput, OtherIoError,
               Stream, Listener, Acceptor};
-use std::io::net::ip::{SocketAddr, Port};
+use std::io::net::ip::{SocketAddr, ToSocketAddr};
 use std::io::net::tcp::{TcpStream, TcpListener, TcpAcceptor};
 use std::mem::{mod, transmute, transmute_copy};
 use std::raw::{mod, TraitObject};
@@ -28,7 +28,7 @@ pub trait NetworkListener<S: NetworkStream, A: NetworkAcceptor<S>>: Listener<S, 
     ///
     /// Note: This does not start listening for connections. You must call
     /// `listen()` to do that.
-    fn bind(host: &str, port: Port) -> IoResult<Self>;
+    fn bind<To: ToSocketAddr>(addr: To) -> IoResult<Self>;
 
     /// Get the address this Listener ended up listening on.
     fn socket_name(&mut self) -> IoResult<SocketAddr>;
@@ -53,7 +53,7 @@ pub trait NetworkStream: Stream + Any + Clone + Send {
 /// A connector creates a NetworkStream.
 pub trait NetworkConnector: NetworkStream {
     /// Connect to a remote address.
-    fn connect(host: &str, Port, scheme: &str) -> IoResult<Self>;
+    fn connect<To: ToSocketAddr>(addr: To, scheme: &str) -> IoResult<Self>;
 }
 
 impl fmt::Show for Box<NetworkStream + Send> {
@@ -136,9 +136,9 @@ impl Listener<HttpStream, HttpAcceptor> for HttpListener {
 
 impl NetworkListener<HttpStream, HttpAcceptor> for HttpListener {
     #[inline]
-    fn bind(host: &str, port: Port) -> IoResult<HttpListener> {
+    fn bind<To: ToSocketAddr>(addr: To) -> IoResult<HttpListener> {
         Ok(HttpListener {
-            inner: try!(TcpListener::bind(host, port))
+            inner: try!(TcpListener::bind(addr))
         })
     }
 
@@ -219,21 +219,21 @@ impl NetworkStream for HttpStream {
 }
 
 impl NetworkConnector for HttpStream {
-    fn connect(host: &str, port: Port, scheme: &str) -> IoResult<HttpStream> {
+    fn connect<To: ToSocketAddr>(addr: To, scheme: &str) -> IoResult<HttpStream> {
         match scheme {
             "http" => {
                 debug!("http scheme");
-                Ok(Http(try!(TcpStream::connect(host, port))))
+                Ok(Http(try!(TcpStream::connect(addr))))
             },
             "https" => {
                 debug!("https scheme");
-                let mut stream = try!(TcpStream::connect(host, port));
+                let mut stream = try!(TcpStream::connect(addr));
                 // we can't access the tcp stream once it's wrapped in an
                 // SslStream, so grab the ip address now, just in case.
-                let addr = try!(stream.peer_name());
+                let peer_addr = try!(stream.peer_name());
                 let context = try!(SslContext::new(Sslv23).map_err(lift_ssl_error));
                 let stream = try!(SslStream::new(&context, stream).map_err(lift_ssl_error));
-                Ok(Https(Arc::new(Mutex::new(stream)), addr))
+                Ok(Https(Arc::new(Mutex::new(stream)), peer_addr))
             },
             _ => {
                 Err(IoError {

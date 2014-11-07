@@ -56,7 +56,7 @@ impl Request<Fresh> {
         };
         debug!("port={}", port);
 
-        let stream: S = try_io!(NetworkConnector::connect(host.as_slice(), port, url.scheme.as_slice()));
+        let stream: S = try_io!(NetworkConnector::connect((host[], port), url.scheme.as_slice()));
         let stream = ThroughWriter(BufferedWriter::new(box stream as Box<NetworkStream + Send>));
 
         let mut headers = Headers::new();
