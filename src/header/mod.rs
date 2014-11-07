@@ -197,7 +197,7 @@ impl Headers {
     }
 
     fn get_or_parse<H: Header + HeaderFormat>(&self) -> Option<&RWLock<Item>> {
-        self.data.find(&CaseInsensitive(Slice(header_name::<H>()))).and_then(|item| {
+        self.data.get(&CaseInsensitive(Slice(header_name::<H>()))).and_then(|item| {
             match item.read().typed {
                 Some(ref typed) if typed.is::<H>() => return Some(item),
                 Some(ref typed) => {
@@ -260,7 +260,7 @@ impl Headers {
     /// Removes a header from the map, if one existed.
     /// Returns true if a header has been removed.
     pub fn remove<H: Header + HeaderFormat>(&mut self) -> bool {
-        self.data.remove(&CaseInsensitive(Slice(Header::header_name(None::<H>))))
+        self.data.remove(&CaseInsensitive(Slice(Header::header_name(None::<H>)))).is_some()
     }
 
     /// Returns an iterator over the header fields.
