@@ -1,5 +1,5 @@
 use std::io::IoResult;
-use std::io::net::ip::SocketAddr;
+use std::io::net::ip::{SocketAddr, ToSocketAddr};
 
 use net::{NetworkStream, NetworkConnector};
 
@@ -26,7 +26,7 @@ impl NetworkStream for MockStream {
 }
 
 impl NetworkConnector for MockStream {
-    fn connect(_host: &str, _port: u16, _scheme: &str) -> IoResult<MockStream> {
+    fn connect<To: ToSocketAddr>(_addr: To, _scheme: &str) -> IoResult<MockStream> {
         Ok(MockStream)
     }
 }
