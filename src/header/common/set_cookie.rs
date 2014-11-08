@@ -1,8 +1,8 @@
-use header::Header;
-use std::fmt;
+use header::{Header, HeaderFormat};
+use std::fmt::{mod, Show};
 use std::str::from_utf8;
 
-#[cfg(feature = "cookie_rs")]
+use cookie::Cookie;
 use cookie::CookieJar;
 
 /// The `Set-Cookie` header
@@ -11,7 +11,7 @@ use cookie::CookieJar;
 /// "Set-Cookie" followed by a ":" and a cookie.  Each cookie begins with
 /// a name-value-pair, followed by zero or more attribute-value pairs.
 #[deriving(Clone, PartialEq, Show)]
-pub struct SetCookie(pub Vec<String>);
+pub struct SetCookie(pub Vec<Cookie>);
 
 impl Header for SetCookie {
     fn header_name(_: Option<SetCookie>) -> &'static str {
@@ -19,15 +19,16 @@ impl Header for SetCookie {
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<SetCookie> {
-        let mut set_cookies: Vec<String> = vec![];
+        let mut set_cookies = vec![];
         for set_cookies_raw in raw.iter() {
-            match from_utf8(set_cookies_raw.as_slice()) {
-                Some(set_cookies_str) => {
-                    if !set_cookies_str.is_empty() {
-                        set_cookies.push(set_cookies_str.to_string());
+            match from_utf8(set_cookies_raw[]) {
+                Some(s) if !s.is_empty() => {
+                    match from_str(s) {
+                        Some(cookie) => set_cookies.push(cookie),
+                        None => ()
                     }
                 },
-                None => ()
+                _ => ()
             };
         }
 
@@ -38,18 +39,51 @@ impl Header for SetCookie {
         }
     }
 
-    fn fmt_header(&self, _: &mut fmt::Formatter) -> fmt::Result {
-        unimplemented!()
+}
+
+impl HeaderFormat for SetCookie {
+
+    fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for (i, cookie) in self.0.iter().enumerate() {
+            if i != 0 {
+                try!(f.write(b"\r\nSet-Cookie: "));
+            }
+            try!(cookie.fmt(f));
+        }
+        Ok(())
     }
 }
+
 
 impl SetCookie {
-    /// Use this to crate SetCookie header from CookieJar using
+    /// Use this to create SetCookie header from CookieJar using
     /// calculated delta.
-    #[allow(dead_code)]
-    #[cfg(feature = "cookie_rs")]
-    fn from_cookie_jar(jar: &CookieJar) -> SetCookie {
-        SetCookie(jar.delta())
+    pub fn from_cookie_jar(jar: &CookieJar) -> SetCookie {
+        //FIXME: https://github.com/alexcrichton/cookie-rs/issues/2
+        SetCookie(jar.delta().into_iter().map(|s| from_str(s[]).unwrap()).collect())
     }
 }
 
+
+#[test]
+fn test_parse() {
+    let h = Header::parse_header([b"foo=bar; HttpOnly".to_vec()][]);
+    let mut c1 = Cookie::new("foo".to_string(), "bar".to_string());
+    c1.httponly = true;
+
+    assert_eq!(h, Some(SetCookie(vec![c1])));
+}
+
+#[test]
+fn test_fmt() {
+    use header::Headers;
+
+    let mut cookie = Cookie::new("foo".to_string(), "bar".to_string());
+    cookie.httponly = true;
+    cookie.path = Some("/p".to_string());
+    let cookies = SetCookie(vec![cookie, Cookie::new("baz".to_string(), "quux".to_string())]);
+    let mut headers = Headers::new();
+    headers.set(cookies);
+
+    assert_eq!(headers.to_string()[], "Set-Cookie: foo=bar; HttpOnly; Path=/p\r\nSet-Cookie: baz=quux; Path=/\r\n");
+}
