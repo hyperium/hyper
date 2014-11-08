@@ -5,7 +5,7 @@ use std::from_str::FromStr;
 
 /// The `Connection` header.
 #[deriving(Clone, PartialEq, Show)]
-pub struct Connection(Vec<ConnectionOption>);
+pub struct Connection(pub Vec<ConnectionOption>);
 
 /// Values that can be in the `Connection` header.
 #[deriving(Clone, PartialEq)]
