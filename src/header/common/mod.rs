@@ -7,6 +7,7 @@
 //! is used, such as `ContentType(pub Mime)`.
 
 pub use self::accept::Accept;
+pub use self::authorization::Authorization;
 pub use self::connection::Connection;
 pub use self::content_length::ContentLength;
 pub use self::content_type::ContentType;
@@ -56,8 +57,8 @@ pub mod user_agent;
 /// Exposes the Location header.
 pub mod location;
 
-pub mod util;
-
+/// Exposes the Authorization header.
+pub mod authorization;
 
 fn from_comma_delimited<T: FromStr>(raw: &[Vec<u8>]) -> Option<Vec<T>> {
     if raw.len() != 1 {
@@ -85,3 +86,4 @@ fn fmt_comma_delimited<T: Show>(fmt: &mut fmt::Formatter, parts: &[T]) -> fmt::R
     }
     Ok(())
 }
+pub mod util;
