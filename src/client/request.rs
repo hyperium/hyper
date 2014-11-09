@@ -7,7 +7,7 @@ use method::{mod, Get, Post, Delete, Put, Patch, Head, Options};
 use header::Headers;
 use header::common::{mod, Host};
 use net::{NetworkStream, NetworkConnector, HttpStream, Fresh, Streaming};
-use http::{HttpWriter, ThroughWriter, ChunkedWriter, SizedWriter, LINE_ENDING};
+use http::{HttpWriter, ThroughWriter, ChunkedWriter, SizedWriter, EmptyWriter, LINE_ENDING};
 use version;
 use {HttpResult, HttpUriError};
 use client::Response;
@@ -117,43 +117,50 @@ impl Request<Fresh> {
         try_io!(self.body.write(LINE_ENDING));
 
 
-        let mut chunked = true;
-        let mut len = 0;
-
-        match self.headers.get::<common::ContentLength>() {
-            Some(cl) => {
-                chunked = false;
-                len = cl.len();
+        let stream = match self.method {
+            Get | Head => {
+                EmptyWriter(self.body.unwrap())
             },
-            None => ()
-        };
+            _ => {
+                let mut chunked = true;
+                let mut len = 0;
 
-        // cant do in match above, thanks borrowck
-        if chunked {
-            let encodings = match self.headers.get_mut::<common::TransferEncoding>() {
-                Some(&common::TransferEncoding(ref mut encodings)) => {
-                    //TODO: check if chunked is already in encodings. use HashSet?
-                    encodings.push(common::transfer_encoding::Chunked);
-                    false
-                },
-                None => true
-            };
+                match self.headers.get::<common::ContentLength>() {
+                    Some(cl) => {
+                        chunked = false;
+                        len = cl.len();
+                    },
+                    None => ()
+                };
 
-            if encodings {
-                self.headers.set::<common::TransferEncoding>(
-                    common::TransferEncoding(vec![common::transfer_encoding::Chunked]))
+                // cant do in match above, thanks borrowck
+                if chunked {
+                    let encodings = match self.headers.get_mut::<common::TransferEncoding>() {
+                        Some(&common::TransferEncoding(ref mut encodings)) => {
+                            //TODO: check if chunked is already in encodings. use HashSet?
+                            encodings.push(common::transfer_encoding::Chunked);
+                            false
+                        },
+                        None => true
+                    };
+
+                    if encodings {
+                        self.headers.set::<common::TransferEncoding>(
+                            common::TransferEncoding(vec![common::transfer_encoding::Chunked]))
+                    }
+                }
+
+                debug!("headers [\n{}]", self.headers);
+                try_io!(write!(self.body, "{}", self.headers));
+
+                try_io!(self.body.write(LINE_ENDING));
+
+                if chunked {
+                    ChunkedWriter(self.body.unwrap())
+                } else {
+                    SizedWriter(self.body.unwrap(), len)
+                }
             }
-        }
-
-        debug!("headers [\n{}]", self.headers);
-        try_io!(write!(self.body, "{}", self.headers));
-
-        try_io!(self.body.write(LINE_ENDING));
-
-        let stream = if chunked {
-            ChunkedWriter(self.body.unwrap())
-        } else {
-            SizedWriter(self.body.unwrap(), len)
         };
 
         Ok(Request {
@@ -192,3 +199,38 @@ impl Writer for Request<Streaming> {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use std::boxed::BoxAny;
+    use std::str::from_utf8;
+    use url::Url;
+    use method::{Get, Head};
+    use mock::MockStream;
+    use super::Request;
+
+    #[test]
+    fn test_get_empty_body() {
+        let req = Request::with_stream::<MockStream>(
+            Get, Url::parse("http://example.dom").unwrap()
+        ).unwrap();
+        let req = req.start().unwrap();
+        let stream = *req.body.end().unwrap().unwrap().downcast::<MockStream>().unwrap();
+        let bytes = stream.write.unwrap();
+        let s = from_utf8(bytes[]).unwrap();
+        assert!(!s.contains("Content-Length:"));
+        assert!(!s.contains("Transfer-Encoding:"));
+    }
+
+    #[test]
+    fn test_head_empty_body() {
+        let req = Request::with_stream::<MockStream>(
+            Head, Url::parse("http://example.dom").unwrap()
+        ).unwrap();
+        let req = req.start().unwrap();
+        let stream = *req.body.end().unwrap().unwrap().downcast::<MockStream>().unwrap();
+        let bytes = stream.write.unwrap();
+        let s = from_utf8(bytes[]).unwrap();
+        assert!(!s.contains("Content-Length:"));
+        assert!(!s.contains("Transfer-Encoding:"));
+    }
+}

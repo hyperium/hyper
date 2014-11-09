@@ -100,11 +100,11 @@ mod tests {
             status: status::Ok,
             headers: Headers::new(),
             version: version::Http11,
-            body: EofReader(BufferedReader::new(box MockStream as Box<NetworkStream + Send>))
+            body: EofReader(BufferedReader::new(box MockStream::new() as Box<NetworkStream + Send>))
         };
 
         let b = res.unwrap().downcast::<MockStream>().unwrap();
-        assert_eq!(b, box MockStream);
+        assert_eq!(b, box MockStream::new());
 
     }
 }

@@ -157,6 +157,8 @@ pub enum HttpWriter<W: Writer> {
     ///
     /// Enforces that the body is not longer than the Content-Length header.
     SizedWriter(W, uint),
+    /// A writer that should not write any body.
+    EmptyWriter(W),
 }
 
 impl<W: Writer> HttpWriter<W> {
@@ -166,7 +168,8 @@ impl<W: Writer> HttpWriter<W> {
         match self {
             ThroughWriter(w) => w,
             ChunkedWriter(w) => w,
-            SizedWriter(w, _) => w
+            SizedWriter(w, _) => w,
+            EmptyWriter(w) => w,
         }
     }
 
@@ -204,6 +207,18 @@ impl<W: Writer> Writer for HttpWriter<W> {
                     *remaining -= len;
                     w.write(msg)
                 }
+            },
+            EmptyWriter(..) => {
+                let bytes = msg.len();
+                if bytes == 0 {
+                    Ok(())
+                } else {
+                    Err(io::IoError {
+                        kind: io::ShortWrite(bytes),
+                        desc: "EmptyWriter cannot write any bytes",
+                        detail: Some("Cannot include a body with this kind of message".into_string())
+                    })
+                }
             }
         }
     }
@@ -214,6 +229,7 @@ impl<W: Writer> Writer for HttpWriter<W> {
             ThroughWriter(ref mut w) => w.flush(),
             ChunkedWriter(ref mut w) => w.flush(),
             SizedWriter(ref mut w, _) => w.flush(),
+            EmptyWriter(ref mut w) => w.flush(),
         }
     }
 }
