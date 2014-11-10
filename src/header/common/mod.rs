@@ -33,12 +33,6 @@ pub mod authorization;
 /// Exposes the Cookie header.
 pub mod cookie;
 
-/// Exposes the Cookie header.
-pub mod cookie;
-
-/// Exposes the Set-Cookie header.
-pub mod set_cookie;
-
 /// Exposes the Connection header.
 pub mod connection;
 

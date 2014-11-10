@@ -51,7 +51,7 @@ impl HeaderFormat for Cookies {
         let cookies = &self.0;
         let last = cookies.len() - 1;
         for (i, cookie) in cookies.iter().enumerate() {
-            try!(write!(fmt, "{}={}", cookie.name, cookie.value));
+            try!(cookie.pair().fmt(fmt));
             if i < last {
                 try!("; ".fmt(fmt));
             }

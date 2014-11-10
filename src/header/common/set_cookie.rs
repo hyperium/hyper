@@ -59,8 +59,7 @@ impl SetCookie {
     /// Use this to create SetCookie header from CookieJar using
     /// calculated delta.
     pub fn from_cookie_jar(jar: &CookieJar) -> SetCookie {
-        //FIXME: https://github.com/alexcrichton/cookie-rs/issues/2
-        SetCookie(jar.delta().into_iter().map(|s| from_str(s[]).unwrap()).collect())
+        SetCookie(jar.delta())
     }
 }
 
