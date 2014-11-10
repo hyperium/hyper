@@ -8,6 +8,7 @@
 
 pub use self::accept::Accept;
 pub use self::authorization::Authorization;
+pub use self::cookie::Cookies;
 pub use self::connection::Connection;
 pub use self::content_length::ContentLength;
 pub use self::content_type::ContentType;
@@ -18,6 +19,7 @@ pub use self::transfer_encoding::TransferEncoding;
 pub use self::upgrade::Upgrade;
 pub use self::user_agent::UserAgent;
 pub use self::server::Server;
+pub use self::set_cookie::SetCookie;
 
 use std::fmt::{mod, Show};
 use std::from_str::FromStr;
@@ -25,6 +27,11 @@ use std::str::from_utf8;
 
 /// Exposes the Accept header.
 pub mod accept;
+/// Exposes the Authorization header.
+pub mod authorization;
+
+/// Exposes the Cookie header.
+pub mod cookie;
 
 /// Exposes the Connection header.
 pub mod connection;
@@ -41,8 +48,14 @@ pub mod date;
 /// Exposes the Host header.
 pub mod host;
 
+/// Exposes the Location header.
+pub mod location;
+
 /// Exposes the Server header.
 pub mod server;
+
+/// Exposes the Set-Cookie header.
+pub mod set_cookie;
 
 /// Exposes the TransferEncoding header.
 pub mod transfer_encoding;
@@ -53,12 +66,7 @@ pub mod upgrade;
 /// Exposes the UserAgent header.
 pub mod user_agent;
 
-
-/// Exposes the Location header.
-pub mod location;
-
-/// Exposes the Authorization header.
-pub mod authorization;
+pub mod util;
 
 fn from_comma_delimited<T: FromStr>(raw: &[Vec<u8>]) -> Option<Vec<T>> {
     if raw.len() != 1 {
@@ -86,4 +94,3 @@ fn fmt_comma_delimited<T: Show>(fmt: &mut fmt::Formatter, parts: &[T]) -> fmt::R
     }
     Ok(())
 }
-pub mod util;

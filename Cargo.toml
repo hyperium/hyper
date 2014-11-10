@@ -31,3 +31,5 @@ git = "https://github.com/carllerche/curl-rust"
 [dev-dependencies.http]
 git = "https://github.com/chris-morgan/rust-http"
 
+[dependencies.cookie]
+git = "https://github.com/alexcrichton/cookie-rs"
