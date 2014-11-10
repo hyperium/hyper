@@ -8,8 +8,9 @@ static PHRASE: &'static [u8] = b"Hello World!";
 fn hyper_handle(mut incoming: hyper::server::Incoming) {
     let mut pool = TaskPool::new(100, || { proc(_) { } });
 
-    for (_, mut res) in incoming {
+    for conn in incoming {
         pool.execute(proc(_) {
+            let (_, res) = conn.open().unwrap();
             let mut res = res.start().unwrap();
             res.write(PHRASE).unwrap();
             res.end().unwrap();

@@ -19,7 +19,8 @@ macro_rules! try_continue(
 )
 
 fn echo(mut incoming: Incoming) {
-    for (mut req, mut res) in incoming {
+    for conn in incoming {
+        let (mut req, mut res) = try_continue!(conn.open());
         match req.uri {
             hyper::uri::AbsolutePath(ref path) => match (&req.method, path.as_slice()) {
                 (&Get, "/") | (&Get, "/echo") => {

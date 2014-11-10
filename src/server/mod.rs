@@ -89,29 +89,18 @@ impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L
     }
 }
 
-/// An iterator over incoming connections, represented as pairs of
-/// hyper Requests and Responses.
+/// An iterator over incoming `Connection`s.
 pub struct Incoming<S: Send = HttpStream> {
     from: Intertwined<IoResult<S>>
 }
 
-impl<S: NetworkStream + 'static> Iterator<(Request, Response<Fresh>)> for Incoming<S> {
-    fn next(&mut self) -> Option<(Request, Response<Fresh>)> {
+impl<S: NetworkStream + 'static> Iterator<Connection<S>> for Incoming<S> {
+    fn next(&mut self) -> Option<Connection<S>> {
         for conn in self.from {
             match conn {
                 Ok(stream) => {
                     debug!("Incoming stream");
-                    let clone = stream.clone();
-                    let req = match Request::new(stream) {
-                        Ok(r) => r,
-                        Err(err) => {
-                            error!("creating Request: {}", err);
-                            continue;
-                        }
-                    };
-                    let mut res = Response::new(clone);
-                    res.version = req.version;
-                    return Some((req, res))
+                    return Some(Connection(stream));
                 },
                 Err(ref e) if e.kind == EndOfFile => return None, // server closed
                 Err(e) => {
@@ -121,6 +110,21 @@ impl<S: NetworkStream + 'static> Iterator<(Request, Response<Fresh>)> for Incomi
             }
         }
         None
+    }
+}
+
+/// An incoming connection. It can be opened to receive a request/response pair.
+pub struct Connection<S: Send = HttpStream>(S);
+
+impl<S: NetworkStream + 'static> Connection<S> {
+    /// Opens the incoming connection, parsing it into a Request/Response pair.
+    pub fn open(self) -> HttpResult<(Request, Response<Fresh>)> {
+        let stream = self.0;
+        let clone = stream.clone();
+        let req = try!(Request::new(stream));
+        let mut res = Response::new(clone);
+        res.version = req.version;
+        return Ok((req, res))
     }
 }
 

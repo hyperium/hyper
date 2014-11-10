@@ -18,7 +18,8 @@ fn request(url: hyper::Url) {
 }
 
 fn hyper_handle(mut incoming: hyper::server::Incoming) {
-    for (_, mut res) in incoming {
+    for conn in incoming {
+        let (_, res) = conn.open().unwrap();
         let mut res = res.start().unwrap();
         res.write(PHRASE).unwrap();
         res.end().unwrap();
