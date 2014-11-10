@@ -23,7 +23,8 @@ macro_rules! try_continue(
     }})
 
 fn handle(mut incoming: Incoming) {
-    for (_, res) in incoming {
+    for conn in incoming {
+        let (_, res) = try_continue!(conn.open());
         let mut res = try_continue!(res.start());
         try_continue!(res.write(b"Benchmarking hyper vs others!"))
         try_continue!(res.end());

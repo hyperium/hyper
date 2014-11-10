@@ -11,21 +11,6 @@ use hyper::server::{Server, Handler, Incoming, Request, Response};
 use hyper::header::common::ContentLength;
 use hyper::net::{HttpStream, HttpAcceptor, Fresh};
 
-trait ConcurrentHandler: Send + Sync {
-    fn handle(&self, req: Request, res: Response<Fresh>);
-}
-
-struct Concurrent<H: ConcurrentHandler> { handler: Arc<H> }
-
-impl<H: ConcurrentHandler> Handler<HttpAcceptor, HttpStream> for Concurrent<H> {
-    fn handle(self, mut incoming: Incoming) {
-        for (mut req, mut res) in incoming {
-            let clone = self.handler.clone();
-            spawn(proc() { clone.handle(req, res) })
-        }
-    }
-}
-
 macro_rules! try_abort(
     ($e:expr) => {{
         match $e {
@@ -34,6 +19,24 @@ macro_rules! try_abort(
         }
     }}
 )
+
+trait ConcurrentHandler: Send + Sync {
+    fn handle(&self, req: Request, res: Response<Fresh>);
+}
+
+struct Concurrent<H: ConcurrentHandler> { handler: Arc<H> }
+
+impl<H: ConcurrentHandler> Handler<HttpAcceptor, HttpStream> for Concurrent<H> {
+    fn handle(self, mut incoming: Incoming) {
+        for conn in incoming {
+            let clone = self.handler.clone();
+            spawn(proc() {
+                let (req, res) = try_abort!(conn.open());
+                clone.handle(req, res);
+            })
+        }
+    }
+}
 
 struct Echo;
 
