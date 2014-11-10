@@ -23,7 +23,7 @@ impl Header for Cookies {
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<Cookies> {
-        let mut cookies = vec![];
+        let mut cookies = Vec::with_capacity(raw.len());
         for cookies_raw in raw.iter() {
             match from_utf8(cookies_raw[]) {
                 Some(cookies_str) => {
@@ -44,7 +44,6 @@ impl Header for Cookies {
             None
         }
     }
-
 }
 
 impl HeaderFormat for Cookies {

@@ -19,7 +19,7 @@ impl Header for SetCookie {
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<SetCookie> {
-        let mut set_cookies = vec![];
+        let mut set_cookies = Vec::with_capacity(raw.len());
         for set_cookies_raw in raw.iter() {
             match from_utf8(set_cookies_raw[]) {
                 Some(s) if !s.is_empty() => {
