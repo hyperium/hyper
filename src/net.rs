@@ -274,19 +274,19 @@ mod tests {
 
     #[test]
     fn test_downcast_box_stream() {
-        let stream = box MockStream as Box<NetworkStream + Send>;
+        let stream = box MockStream::new() as Box<NetworkStream + Send>;
 
         let mock = stream.downcast::<MockStream>().unwrap();
-        assert_eq!(mock, box MockStream);
+        assert_eq!(mock, box MockStream::new());
 
     }
 
     #[test]
     fn test_downcast_unchecked_box_stream() {
-        let stream = box MockStream as Box<NetworkStream + Send>;
+        let stream = box MockStream::new() as Box<NetworkStream + Send>;
 
         let mock = unsafe { stream.downcast_unchecked::<MockStream>() };
-        assert_eq!(mock, box MockStream);
+        assert_eq!(mock, box MockStream::new());
 
     }
 
