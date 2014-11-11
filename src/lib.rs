@@ -180,7 +180,7 @@ macro_rules! trace(
 macro_rules! inspect(
     ($name:expr, $value:expr) => ({
         let v = $value;
-        debug!("inspect: $name = {}", v);
+        debug!("inspect: {} = {}", $name, v);
         v
     })
 )

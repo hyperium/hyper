@@ -476,7 +476,7 @@ pub fn read_header<R: Reader>(stream: &mut R) -> HttpResult<Option<RawHeaderLine
     let mut value = vec![];
 
     loop {
-        match inspect!("header byte", try_io!(stream.read_byte())) {
+        match try_io!(stream.read_byte()) {
             CR if name.len() == 0 => {
                 match try_io!(stream.read_byte()) {
                     LF => return Ok(None),
