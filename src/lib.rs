@@ -134,7 +134,6 @@ extern crate openssl;
 #[cfg(test)] extern crate test;
 extern crate "unsafe-any" as uany;
 extern crate "move-acceptor" as macceptor;
-extern crate intertwine;
 extern crate typeable;
 extern crate cookie;
 
