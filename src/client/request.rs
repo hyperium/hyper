@@ -119,6 +119,9 @@ impl Request<Fresh> {
 
         let stream = match self.method {
             Get | Head => {
+                debug!("headers [\n{}]", self.headers);
+                try_io!(write!(self.body, "{}", self.headers));
+                try_io!(self.body.write(LINE_ENDING));
                 EmptyWriter(self.body.unwrap())
             },
             _ => {
@@ -152,7 +155,6 @@ impl Request<Fresh> {
 
                 debug!("headers [\n{}]", self.headers);
                 try_io!(write!(self.body, "{}", self.headers));
-
                 try_io!(self.body.write(LINE_ENDING));
 
                 if chunked {
