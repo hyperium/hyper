@@ -26,7 +26,8 @@ Hello World Server:
 
 ```rust
 fn hello(mut incoming: Incoming) {
-    for (_, mut res) in incoming {
+    for conn in incoming {
+        let (_, mut res) = conn.open().unwrap();
         *res.status_mut() = status::Ok;
         let mut res = res.start().unwrap();
         res.write(b"Hello World!");
@@ -68,9 +69,9 @@ fn main() {
 ```
 
 running 3 tests
-test bench_curl  ... bench:   1696689 ns/iter (+/- 540497)
-test bench_http  ... bench:   2222778 ns/iter (+/- 1159060)
-test bench_hyper ... bench:   1435613 ns/iter (+/- 359384)
+test bench_curl  ... bench:    298416 ns/iter (+/- 132455)
+test bench_http  ... bench:    292725 ns/iter (+/- 167575)
+test bench_hyper ... bench:    222819 ns/iter (+/- 86615)
 
 test result: ok. 0 passed; 0 failed; 0 ignored; 3 measured
 ```
@@ -79,9 +80,9 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 3 measured
 
 ```
 running 3 tests
-test bench_mock_curl  ... bench:    329240 ns/iter (+/- 50413)
-test bench_mock_http  ... bench:     61291 ns/iter (+/- 19253)
-test bench_mock_hyper ... bench:     54458 ns/iter (+/- 15792)
+test bench_mock_curl  ... bench:     25254 ns/iter (+/- 2113)
+test bench_mock_http  ... bench:     43585 ns/iter (+/- 1206)
+test bench_mock_hyper ... bench:     27153 ns/iter (+/- 2227)
 
 test result: ok. 0 passed; 0 failed; 0 ignored; 3 measured
 ```
@@ -90,12 +91,11 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 3 measured
 [Server Bench:](./benches/server.rs)
 
 ```
-running 3 tests
-test bench_curl  ... bench:    234539 ns/iter (+/- 22228)
-test bench_http  ... bench:    290370 ns/iter (+/- 69179)
-test bench_hyper ... bench:    224482 ns/iter (+/- 95197)
+running 2 tests
+test bench_http  ... bench:    296539 ns/iter (+/- 58861)
+test bench_hyper ... bench:    282451 ns/iter (+/- 115543)
 
-test result: ok. 0 passed; 0 failed; 0 ignored; 3 measured
+test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured
 ```
 
 \* No science was harmed in the making of this benchmark.
