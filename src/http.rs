@@ -296,22 +296,22 @@ pub fn is_token(b: u8) -> bool {
 /// otherwise returns any error encountered reading the stream.
 ///
 /// The remaining contents of `buf` are left untouched.
-fn read_until_space<R: Reader>(stream: &mut R, buf: &mut [u8]) -> HttpResult<bool> { 
+fn read_until_space<R: Reader>(stream: &mut R, buf: &mut [u8]) -> HttpResult<bool> {
     use std::io::BufWriter;
     let mut bufwrt = BufWriter::new(buf);
 
     loop {
         let byte = try_io!(stream.read_byte());
-        
+
         if byte == SP {
             break
         // Read to end but there's still more
         } else if bufwrt.write_u8(byte).is_err() {
             return Ok(false)
-        } 
+        }
     }
-    
-    Ok(true) 
+
+    Ok(true)
 }
 
 /// Read a `Method` from a raw stream, such as `GET`.
@@ -320,7 +320,7 @@ fn read_until_space<R: Reader>(stream: &mut R, buf: &mut [u8]) -> HttpResult<boo
 pub fn read_method<R: Reader>(stream: &mut R) -> HttpResult<method::Method> {
     let mut buf = [SP, ..16];
 
-    if !try!(read_until_space(stream, &mut buf)){ 
+    if !try!(read_until_space(stream, &mut buf)) {
         return Err(HttpMethodError); 
     }
 
@@ -520,6 +520,7 @@ pub type RequestLine = (method::Method, uri::RequestUri, HttpVersion);
 
 /// Read the `RequestLine`, such as `GET / HTTP/1.1`.
 pub fn read_request_line<R: Reader>(stream: &mut R) -> HttpResult<RequestLine> {
+    debug!("read request line");
     let method = try!(read_method(stream));
     debug!("method = {}", method);
     let uri = try!(read_uri(stream));
