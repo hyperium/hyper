@@ -93,7 +93,7 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 3 measured
 ```
 running 2 tests
 test bench_http  ... bench:    296539 ns/iter (+/- 58861)
-test bench_hyper ... bench:    282451 ns/iter (+/- 115543)
+test bench_hyper ... bench:    233069 ns/iter (+/- 90194)
 
 test result: ok. 0 passed; 0 failed; 0 ignored; 2 measured
 ```
