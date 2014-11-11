@@ -25,8 +25,47 @@ use std::fmt::{mod, Show};
 use std::from_str::FromStr;
 use std::str::from_utf8;
 
+macro_rules! bench_header(
+    ($name:ident, $ty:ty, $value:expr) => {
+        #[cfg(test)]
+        mod $name {
+            use test::Bencher;
+            use std::fmt::{mod, Show};
+
+            use super::*;
+
+            use header::{Header, HeaderFormat};
+
+            struct HeaderFormatter($ty);
+
+            impl Show for HeaderFormatter {
+                fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                    self.0.fmt_header(f)
+                }
+            }
+
+            #[bench]
+            fn bench_parse(b: &mut Bencher) {
+                let val = $value;
+                b.iter(|| {
+                    let _: $ty= Header::parse_header(val[]).unwrap();
+                });
+            }
+
+            #[bench]
+            fn bench_format(b: &mut Bencher) {
+                let val = HeaderFormatter(Header::parse_header($value[]).unwrap());
+                b.iter(|| {
+                    format!("{}", val);
+                });
+            }
+        }
+    }
+)
+
 /// Exposes the Accept header.
 pub mod accept;
+
 /// Exposes the Authorization header.
 pub mod authorization;
 
