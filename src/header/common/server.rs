@@ -25,3 +25,5 @@ impl HeaderFormat for Server {
     }
 }
 
+bench_header!(bench, Server, { vec![b"Some String".to_vec()] })
+

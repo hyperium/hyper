@@ -94,3 +94,5 @@ fn test_fmt() {
 
     assert_eq!(headers.to_string()[], "Cookie: foo=bar; baz=quux\r\n");
 }
+
+bench_header!(bench, Cookies, { vec![b"foo=bar; baz=quux".to_vec()] })

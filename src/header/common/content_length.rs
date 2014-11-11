@@ -34,3 +34,5 @@ impl ContentLength {
         len
     }
 }
+
+bench_header!(bench, ContentLength, { vec![b"42349984".to_vec()] })

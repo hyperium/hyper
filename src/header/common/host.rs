@@ -94,3 +94,6 @@ mod tests {
         }));
     }
 }
+
+bench_header!(bench, Host, { vec![b"foo.com:3000".to_vec()] })
+

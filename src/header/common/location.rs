@@ -33,3 +33,5 @@ impl HeaderFormat for Location {
     }
 }
 
+bench_header!(bench, Location, { vec![b"http://foo.com/hello:3000".to_vec()] })
+

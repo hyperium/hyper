@@ -51,3 +51,5 @@ impl HeaderFormat for Upgrade {
     }
 }
 
+bench_header!(bench, Upgrade, { vec![b"HTTP/2.0, RTA/x11, websocket".to_vec()] })
+
