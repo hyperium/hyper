@@ -56,7 +56,7 @@ impl Request<Fresh> {
         };
         debug!("port={}", port);
 
-        let stream: S = try_io!(NetworkConnector::connect((host[], port), url.scheme.as_slice()));
+        let stream: S = try!(NetworkConnector::connect((host[], port), url.scheme.as_slice()));
         let stream = ThroughWriter(BufferedWriter::new(box stream as Box<NetworkStream + Send>));
 
         let mut headers = Headers::new();
@@ -113,15 +113,15 @@ impl Request<Fresh> {
         }
 
         debug!("writing head: {} {} {}", self.method, uri, self.version);
-        try_io!(write!(self.body, "{} {} {}", self.method, uri, self.version))
-        try_io!(self.body.write(LINE_ENDING));
+        try!(write!(self.body, "{} {} {}", self.method, uri, self.version))
+        try!(self.body.write(LINE_ENDING));
 
 
         let stream = match self.method {
             Get | Head => {
                 debug!("headers [\n{}]", self.headers);
-                try_io!(write!(self.body, "{}", self.headers));
-                try_io!(self.body.write(LINE_ENDING));
+                try!(write!(self.body, "{}", self.headers));
+                try!(self.body.write(LINE_ENDING));
                 EmptyWriter(self.body.unwrap())
             },
             _ => {
@@ -154,8 +154,8 @@ impl Request<Fresh> {
                 }
 
                 debug!("headers [\n{}]", self.headers);
-                try_io!(write!(self.body, "{}", self.headers));
-                try_io!(self.body.write(LINE_ENDING));
+                try!(write!(self.body, "{}", self.headers));
+                try!(self.body.write(LINE_ENDING));
 
                 if chunked {
                     ChunkedWriter(self.body.unwrap())
@@ -184,7 +184,7 @@ impl Request<Streaming> {
     ///
     /// Consumes the Request.
     pub fn send(self) -> HttpResult<Response> {
-        let raw = try_io!(self.body.end()).unwrap();
+        let raw = try!(self.body.end()).unwrap();
         Response::new(raw)
     }
 }

@@ -55,11 +55,11 @@ impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L
           A: NetworkAcceptor<S>,
           L: NetworkListener<S, A>, {
         debug!("binding to {}:{}", self.ip, self.port);
-        let mut listener: L = try_io!(NetworkListener::<S, A>::bind((self.ip, self.port)));
+        let mut listener: L = try!(NetworkListener::<S, A>::bind((self.ip, self.port)));
 
-        let socket = try_io!(listener.socket_name());
+        let socket = try!(listener.socket_name());
 
-        let acceptor = try_io!(listener.listen());
+        let acceptor = try!(listener.listen());
 
         let captured = acceptor.clone();
         TaskBuilder::new().named("hyper acceptor").spawn(proc() {
@@ -131,7 +131,7 @@ impl<A: NetworkAcceptor<S>, S: NetworkStream> Listening<A> {
     /// and does not close the rest of the acceptors.
     pub fn close(&mut self) -> HttpResult<()> {
         debug!("closing server");
-        try_io!(self.acceptor.close());
+        try!(self.acceptor.close());
         Ok(())
     }
 }
