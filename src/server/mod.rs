@@ -1,10 +1,9 @@
 //! HTTP Server
-use std::io::{Listener, IoResult, EndOfFile};
+use std::io::{Listener, EndOfFile};
 use std::io::net::ip::{IpAddr, Port, SocketAddr};
 use std::task::TaskBuilder;
 
-use intertwine::{Intertwine, Intertwined};
-use macceptor::MoveAcceptor;
+use macceptor::{MoveAcceptor, MoveConnections};
 
 pub use self::request::Request;
 pub use self::response::Response;
@@ -22,7 +21,8 @@ pub mod response;
 /// Once listening, it will create a `Request`/`Response` pair for each
 /// incoming connection, and hand them to the provided handler.
 pub struct Server<L = HttpListener> {
-    pairs: Vec<(IpAddr, Port)>
+    ip: IpAddr,
+    port: Port
 }
 
 macro_rules! try_option(
@@ -37,12 +37,10 @@ macro_rules! try_option(
 impl Server<HttpListener> {
     /// Creates a new server that will handle `HttpStream`s.
     pub fn http(ip: IpAddr, port: Port) -> Server {
-        Server { pairs: vec![(ip, port)] }
-    }
-
-    /// Creates a server that can listen to many (ip, port) pairs.
-    pub fn many(pairs: Vec<(IpAddr, Port)>) -> Server {
-        Server { pairs: pairs }
+        Server {
+            ip: ip,
+            port: port
+        }
     }
 }
 
@@ -56,30 +54,21 @@ impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L
           S: NetworkStream,
           A: NetworkAcceptor<S>,
           L: NetworkListener<S, A>, {
-        let mut acceptors = Vec::new();
-        let mut sockets = Vec::new();
-        for (ip, port) in self.pairs.into_iter() {
-            debug!("binding to {}:{}", ip, port);
-            let mut listener: L = try_io!(NetworkListener::<S, A>::bind((ip, port)));
+        debug!("binding to {}:{}", self.ip, self.port);
+        let mut listener: L = try_io!(NetworkListener::<S, A>::bind((self.ip, self.port)));
 
-            sockets.push(try_io!(listener.socket_name()));
+        let socket = try_io!(listener.socket_name());
 
-            let acceptor = try_io!(listener.listen());
-            acceptors.push(acceptor.clone());
-        }
+        let acceptor = try_io!(listener.listen());
 
-        let connections = acceptors.clone()
-            .into_iter()
-            .map(|acceptor| acceptor.move_incoming())
-            .intertwine();
-
+        let captured = acceptor.clone();
         TaskBuilder::new().named("hyper acceptor").spawn(proc() {
-            handler.handle(Incoming { from: connections });
+            handler.handle(Incoming { from: captured.move_incoming() });
         });
 
         Ok(Listening {
-            acceptors: acceptors,
-            sockets: sockets,
+            acceptor: acceptor,
+            socket: socket,
         })
     }
 
@@ -90,11 +79,11 @@ impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L
 }
 
 /// An iterator over incoming `Connection`s.
-pub struct Incoming<S: Send = HttpStream> {
-    from: Intertwined<IoResult<S>>
+pub struct Incoming<A = HttpAcceptor> {
+    from: MoveConnections<A>
 }
 
-impl<S: NetworkStream + 'static> Iterator<Connection<S>> for Incoming<S> {
+impl<S: NetworkStream + 'static, A: NetworkAcceptor<S>> Iterator<Connection<S>> for Incoming<A> {
     fn next(&mut self) -> Option<Connection<S>> {
         for conn in self.from {
             match conn {
@@ -130,9 +119,9 @@ impl<S: NetworkStream + 'static> Connection<S> {
 
 /// A listening server, which can later be closed.
 pub struct Listening<A = HttpAcceptor> {
-    acceptors: Vec<A>,
+    acceptor: A,
     /// The socket addresses that the server is bound to.
-    pub sockets: Vec<SocketAddr>,
+    pub socket: SocketAddr,
 }
 
 impl<A: NetworkAcceptor<S>, S: NetworkStream> Listening<A> {
@@ -142,9 +131,7 @@ impl<A: NetworkAcceptor<S>, S: NetworkStream> Listening<A> {
     /// and does not close the rest of the acceptors.
     pub fn close(&mut self) -> HttpResult<()> {
         debug!("closing server");
-        for acceptor in self.acceptors.iter_mut() {
-            try_io!(acceptor.close());
-        }
+        try_io!(self.acceptor.close());
         Ok(())
     }
 }
@@ -154,11 +141,11 @@ pub trait Handler<A: NetworkAcceptor<S>, S: NetworkStream>: Send {
     /// Receives a `Request`/`Response` pair, and should perform some action on them.
     ///
     /// This could reading from the request, and writing to the response.
-    fn handle(self, Incoming<S>);
+    fn handle(self, Incoming<A>);
 }
 
-impl<A: NetworkAcceptor<S>, S: NetworkStream> Handler<A, S> for fn(Incoming<S>) {
-    fn handle(self, incoming: Incoming<S>) {
+impl<A: NetworkAcceptor<S>, S: NetworkStream> Handler<A, S> for fn(Incoming<A>) {
+    fn handle(self, incoming: Incoming<A>) {
         (self)(incoming)
     }
 }
