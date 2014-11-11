@@ -84,3 +84,6 @@ impl HeaderFormat for TransferEncoding {
     }
 }
 
+bench_header!(normal, TransferEncoding, { vec![b"chunked, gzip".to_vec()] })
+bench_header!(ext, TransferEncoding, { vec![b"ext".to_vec()] })
+

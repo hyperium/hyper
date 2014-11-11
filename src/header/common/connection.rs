@@ -62,3 +62,6 @@ impl HeaderFormat for Connection {
     }
 }
 
+bench_header!(close, Connection, { vec![b"close".to_vec()] })
+bench_header!(keep_alive, Connection, { vec![b"keep-alive".to_vec()] })
+bench_header!(header, Connection, { vec![b"authorization".to_vec()] })

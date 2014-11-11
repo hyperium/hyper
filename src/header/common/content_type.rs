@@ -27,3 +27,4 @@ impl HeaderFormat for ContentType {
     }
 }
 
+bench_header!(bench, ContentType, { vec![b"application/json; charset=utf-8".to_vec()] })
