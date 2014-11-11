@@ -145,14 +145,11 @@ pub use status::{Ok, BadRequest, NotFound};
 pub use server::Server;
 
 use std::fmt;
+use std::error::{Error, FromError};
 use std::io::IoError;
 
 use std::rt::backtrace;
 
-
-macro_rules! try_io(
-    ($e:expr) => (match $e { Ok(v) => v, Err(e) => return Err(::HttpIoError(e)) })
-)
 
 macro_rules! todo(
     ($($arg:tt)*) => (if cfg!(not(ndebug)) {
@@ -220,6 +217,32 @@ pub enum HttpError {
     HttpStatusError,
     /// An `IoError` that occured while trying to read or write to a network stream.
     HttpIoError(IoError),
+}
+
+impl Error for HttpError {
+    fn description(&self) -> &str {
+        match *self {
+            HttpMethodError => "Invalid Method specified",
+            HttpUriError => "Invalid Request URI specified",
+            HttpVersionError => "Invalid HTTP version specified",
+            HttpHeaderError => "Invalid Header provided",
+            HttpStatusError => "Invalid Status provided",
+            HttpIoError(_) => "An IoError occurred while connecting to the specified network",
+        }
+    }
+
+    fn cause(&self) -> Option<&Error> {
+        match *self {
+            HttpIoError(ref error) => Some(error as &Error),
+            _ => None,
+        }
+    }
+}
+
+impl FromError<IoError> for HttpError {
+    fn from_error(err: IoError) -> HttpError {
+        HttpIoError(err)
+    }
 }
 
 //FIXME: when Opt-in Built-in Types becomes a thing, we can force these structs

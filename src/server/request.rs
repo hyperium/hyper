@@ -36,7 +36,7 @@ impl Request {
     /// Create a new Request, reading the StartLine and Headers so they are
     /// immediately useful.
     pub fn new<S: NetworkStream>(mut stream: S) -> HttpResult<Request> {
-        let remote_addr = try_io!(stream.peer_name());
+        let remote_addr = try!(stream.peer_name());
         debug!("remote addr = {}", remote_addr);
         let mut stream = BufferedReader::new(box stream as Box<NetworkStream + Send>);
         let (method, uri, version) = try!(read_request_line(&mut stream));

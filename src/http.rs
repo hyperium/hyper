@@ -301,7 +301,7 @@ fn read_until_space<R: Reader>(stream: &mut R, buf: &mut [u8]) -> HttpResult<boo
     let mut bufwrt = BufWriter::new(buf);
 
     loop {
-        let byte = try_io!(stream.read_byte());
+        let byte = try!(stream.read_byte());
 
         if byte == SP {
             break
@@ -359,9 +359,9 @@ fn is_valid_method(buf: &[u8]) -> bool {
 
 /// Read a `RequestUri` from a raw stream.
 pub fn read_uri<R: Reader>(stream: &mut R) -> HttpResult<uri::RequestUri> {
-    let mut b = try_io!(stream.read_byte());
+    let mut b = try!(stream.read_byte());
     while b == SP {
-        b = try_io!(stream.read_byte());
+        b = try!(stream.read_byte());
     }
 
     let mut s = String::new();
@@ -371,7 +371,7 @@ pub fn read_uri<R: Reader>(stream: &mut R) -> HttpResult<uri::RequestUri> {
     } else {
         s.push(b as char);
         loop {
-            match try_io!(stream.read_byte()) {
+            match try!(stream.read_byte()) {
                 SP => {
                     break;
                 },
@@ -422,7 +422,7 @@ pub fn read_http_version<R: Reader>(stream: &mut R) -> HttpResult<HttpVersion> {
     try!(expect(stream.read_byte(), b'P'));
     try!(expect(stream.read_byte(), b'/'));
 
-    match try_io!(stream.read_byte()) {
+    match try!(stream.read_byte()) {
         b'0' => {
             try!(expect(stream.read_byte(), b'.'));
             try!(expect(stream.read_byte(), b'9'));
@@ -430,7 +430,7 @@ pub fn read_http_version<R: Reader>(stream: &mut R) -> HttpResult<HttpVersion> {
         },
         b'1' => {
             try!(expect(stream.read_byte(), b'.'));
-            match try_io!(stream.read_byte()) {
+            match try!(stream.read_byte()) {
                 b'0' => Ok(Http10),
                 b'1' => Ok(Http11),
                 _ => Err(HttpVersionError)
@@ -476,9 +476,9 @@ pub fn read_header<R: Reader>(stream: &mut R) -> HttpResult<Option<RawHeaderLine
     let mut value = vec![];
 
     loop {
-        match try_io!(stream.read_byte()) {
+        match try!(stream.read_byte()) {
             CR if name.len() == 0 => {
-                match try_io!(stream.read_byte()) {
+                match try!(stream.read_byte()) {
                     LF => return Ok(None),
                     _ => return Err(HttpHeaderError)
                 }
@@ -495,7 +495,7 @@ pub fn read_header<R: Reader>(stream: &mut R) -> HttpResult<Option<RawHeaderLine
 
     todo!("handle obs-folding (gross!)");
     loop {
-        match try_io!(stream.read_byte()) {
+        match try!(stream.read_byte()) {
             CR => break,
             LF => return Err(HttpHeaderError),
             b' ' if ows => {},
@@ -508,7 +508,7 @@ pub fn read_header<R: Reader>(stream: &mut R) -> HttpResult<Option<RawHeaderLine
 
     debug!("header value = {}", value);
 
-    match try_io!(stream.read_byte()) {
+    match try!(stream.read_byte()) {
         LF => Ok(Some((name, value))),
         _ => Err(HttpHeaderError)
     }
@@ -528,10 +528,10 @@ pub fn read_request_line<R: Reader>(stream: &mut R) -> HttpResult<RequestLine> {
     let version = try!(read_http_version(stream));
     debug!("version = {}", version);
 
-    if try_io!(stream.read_byte()) != CR {
+    if try!(stream.read_byte()) != CR {
         return Err(HttpVersionError);
     }
-    if try_io!(stream.read_byte()) != LF {
+    if try!(stream.read_byte()) != LF {
         return Err(HttpVersionError);
     }
 
@@ -557,7 +557,7 @@ pub type StatusLine = (HttpVersion, status::StatusCode);
 /// >```
 pub fn read_status_line<R: Reader>(stream: &mut R) -> HttpResult<StatusLine> {
     let version = try!(read_http_version(stream));
-    if try_io!(stream.read_byte()) != SP {
+    if try!(stream.read_byte()) != SP {
         return Err(HttpVersionError);
     }
     let code = try!(read_status(stream));
@@ -568,9 +568,9 @@ pub fn read_status_line<R: Reader>(stream: &mut R) -> HttpResult<StatusLine> {
 /// Read the StatusCode from a stream.
 pub fn read_status<R: Reader>(stream: &mut R) -> HttpResult<status::StatusCode> {
     let code = [
-        try_io!(stream.read_byte()),
-        try_io!(stream.read_byte()),
-        try_io!(stream.read_byte()),
+        try!(stream.read_byte()),
+        try!(stream.read_byte()),
+        try!(stream.read_byte()),
     ];
 
     let code = match str::from_utf8(code.as_slice()).and_then(from_str::<u16>) {
@@ -583,8 +583,8 @@ pub fn read_status<R: Reader>(stream: &mut R) -> HttpResult<status::StatusCode> 
 
     // reason is purely for humans, so just consume it till we get to CRLF
     loop {
-        match try_io!(stream.read_byte()) {
-            CR => match try_io!(stream.read_byte()) {
+        match try!(stream.read_byte()) {
+            CR => match try!(stream.read_byte()) {
                 LF => break,
                 _ => return Err(HttpStatusError)
             },
