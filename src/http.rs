@@ -324,7 +324,7 @@ pub fn read_method<R: Reader>(stream: &mut R) -> HttpResult<method::Method> {
         return Err(HttpMethodError); 
     }
 
-    debug!("method: {}", buf[].to_ascii());
+    debug!("method buf = {}", buf[].to_ascii());
     
     let maybe_method = match buf[0..7] {
         b"GET    " => Some(method::Get),
@@ -339,14 +339,16 @@ pub fn read_method<R: Reader>(stream: &mut R) -> HttpResult<method::Method> {
         _ => None,
     };
 
+    debug!("maybe_method = {}", maybe_method);
+
     match (maybe_method, buf[]) {
         (Some(method), _) => Ok(method),
         (None, ext) if is_valid_method(buf) => {
             use std::str::raw;
-            // We already checked that the buffer is ASCII 
+            // We already checked that the buffer is ASCII
             Ok(method::Extension(unsafe { raw::from_utf8(ext) }.trim().into_string()))
         },
-        _ => Err(HttpMethodError)          
+        _ => Err(HttpMethodError)
     }
 }
 
@@ -380,6 +382,8 @@ pub fn read_uri<R: Reader>(stream: &mut R) -> HttpResult<uri::RequestUri> {
             }
         }
     }
+
+    debug!("uri buf = {}", s);
 
     if s.as_slice().starts_with("/") {
         Ok(uri::AbsolutePath(s))
@@ -472,7 +476,7 @@ pub fn read_header<R: Reader>(stream: &mut R) -> HttpResult<Option<RawHeaderLine
     let mut value = vec![];
 
     loop {
-        match try_io!(stream.read_byte()) {
+        match inspect!("header byte", try_io!(stream.read_byte())) {
             CR if name.len() == 0 => {
                 match try_io!(stream.read_byte()) {
                     LF => return Ok(None),
@@ -484,6 +488,8 @@ pub fn read_header<R: Reader>(stream: &mut R) -> HttpResult<Option<RawHeaderLine
             _nontoken => return Err(HttpHeaderError)
         };
     }
+
+    debug!("header name = {}", name);
 
     let mut ows = true; //optional whitespace
 
@@ -500,6 +506,8 @@ pub fn read_header<R: Reader>(stream: &mut R) -> HttpResult<Option<RawHeaderLine
         };
     }
 
+    debug!("header value = {}", value);
+
     match try_io!(stream.read_byte()) {
         LF => Ok(Some((name, value))),
         _ => Err(HttpHeaderError)
@@ -513,8 +521,11 @@ pub type RequestLine = (method::Method, uri::RequestUri, HttpVersion);
 /// Read the `RequestLine`, such as `GET / HTTP/1.1`.
 pub fn read_request_line<R: Reader>(stream: &mut R) -> HttpResult<RequestLine> {
     let method = try!(read_method(stream));
+    debug!("method = {}", method);
     let uri = try!(read_uri(stream));
+    debug!("uri = {}", uri);
     let version = try!(read_http_version(stream));
+    debug!("version = {}", version);
 
     if try_io!(stream.read_byte()) != CR {
         return Err(HttpVersionError);

@@ -106,6 +106,7 @@ impl Headers {
         loop {
             match try!(http::read_header(rdr)) {
                 Some((name, value)) => {
+                    debug!("raw header: {}={}", name, value);
                     let name = CaseInsensitive(Owned(name));
                     let item = match headers.data.entry(name) {
                         Vacant(entry) => entry.set(RWLock::new(Item::raw(vec![]))),

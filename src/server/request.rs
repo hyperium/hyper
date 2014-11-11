@@ -40,10 +40,9 @@ impl Request {
         debug!("remote addr = {}", remote_addr);
         let mut stream = BufferedReader::new(box stream as Box<NetworkStream + Send>);
         let (method, uri, version) = try!(read_request_line(&mut stream));
+        debug!("Request Line: {} {} {}", method, uri, version);
         let headers = try!(Headers::from_raw(&mut stream));
-
-        debug!("{} {} {}", method, uri, version);
-        debug!("{}", headers);
+        debug!("Headers: [\n{}]", headers);
 
 
         let body = if headers.has::<ContentLength>() {
