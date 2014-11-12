@@ -2,7 +2,7 @@
 //!
 //! These are responses sent by a `hyper::Server` to clients, after
 //! receiving a request.
-use std::io::{BufferedWriter, IoResult};
+use std::io::IoResult;
 
 use time::now_utc;
 
@@ -11,23 +11,24 @@ use header::common;
 use http::{CR, LF, LINE_ENDING, HttpWriter};
 use http::HttpWriter::{ThroughWriter, ChunkedWriter, SizedWriter};
 use status;
-use net::{NetworkStream, Fresh, Streaming};
+use net::{Fresh, Streaming};
 use version;
 
+pub type InternalWriter<'a> = &'a mut Writer + 'a;
 
 /// The outgoing half for a Tcp connection, created by a `Server` and given to a `Handler`.
-pub struct Response<W> {
+pub struct Response<'a, W = Fresh> {
     /// The HTTP version of this response.
     pub version: version::HttpVersion,
     // Stream the Response is writing to, not accessible through UnwrittenResponse
-    body: HttpWriter<BufferedWriter<Box<NetworkStream + Send>>>,
+    body: HttpWriter<InternalWriter<'a>>,
     // The status code for the request.
     status: status::StatusCode,
     // The outgoing headers on this response.
     headers: header::Headers
 }
 
-impl<W> Response<W> {
+impl<'a, W> Response<'a, W> {
     /// The status of this response.
     #[inline]
     pub fn status(&self) -> status::StatusCode { self.status }
@@ -37,9 +38,9 @@ impl<W> Response<W> {
 
     /// Construct a Response from its constituent parts.
     pub fn construct(version: version::HttpVersion,
-                     body: HttpWriter<BufferedWriter<Box<NetworkStream + Send>>>,
+                     body: HttpWriter<InternalWriter<'a>>,
                      status: status::StatusCode,
-                     headers: header::Headers) -> Response<Fresh> {
+                     headers: header::Headers) -> Response<'a, Fresh> {
         Response {
             status: status,
             version: version,
@@ -49,25 +50,25 @@ impl<W> Response<W> {
     }
 
     /// Deconstruct this Response into its constituent parts.
-    pub fn deconstruct(self) -> (version::HttpVersion, HttpWriter<BufferedWriter<Box<NetworkStream + Send>>>,
+    pub fn deconstruct(self) -> (version::HttpVersion, HttpWriter<InternalWriter<'a>>,
                                  status::StatusCode, header::Headers) {
         (self.version, self.body, self.status, self.headers)
     }
 }
 
-impl Response<Fresh> {
+impl<'a> Response<'a, Fresh> {
     /// Creates a new Response that can be used to write to a network stream.
-    pub fn new<S: NetworkStream>(stream: S) -> Response<Fresh> {
+    pub fn new(stream: InternalWriter<'a>) -> Response<'a, Fresh> {
         Response {
             status: status::StatusCode::Ok,
             version: version::HttpVersion::Http11,
             headers: header::Headers::new(),
-            body: ThroughWriter(BufferedWriter::new(box stream as Box<NetworkStream + Send>))
+            body: ThroughWriter(stream)
         }
     }
 
     /// Consume this Response<Fresh>, writing the Headers and Status and creating a Response<Streaming>
-    pub fn start(mut self) -> IoResult<Response<Streaming>> {
+    pub fn start(mut self) -> IoResult<Response<'a, Streaming>> {
         debug!("writing head: {} {}", self.version, self.status);
         try!(write!(&mut self.body, "{} {}{}{}", self.version, self.status, CR as char, LF as char));
 
@@ -133,7 +134,7 @@ impl Response<Fresh> {
     pub fn headers_mut(&mut self) -> &mut header::Headers { &mut self.headers }
 }
 
-impl Response<Streaming> {
+impl<'a> Response<'a, Streaming> {
     /// Flushes all writing of a response to the client.
     pub fn end(self) -> IoResult<()> {
         debug!("ending");
@@ -142,7 +143,7 @@ impl Response<Streaming> {
     }
 }
 
-impl Writer for Response<Streaming> {
+impl<'a> Writer for Response<'a, Streaming> {
     fn write(&mut self, msg: &[u8]) -> IoResult<()> {
         debug!("write {} bytes", msg.len());
         self.body.write(msg)

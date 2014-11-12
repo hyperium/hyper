@@ -2,7 +2,7 @@
 //!
 //! These are requests that a `hyper::Server` receives, and include its method,
 //! target URI, headers, and message body.
-use std::io::{Reader, BufferedReader, IoResult};
+use std::io::IoResult;
 use std::io::net::ip::SocketAddr;
 
 use {HttpResult};
@@ -13,11 +13,12 @@ use header::common::ContentLength;
 use http::{read_request_line};
 use http::HttpReader;
 use http::HttpReader::{SizedReader, ChunkedReader};
-use net::NetworkStream;
 use uri::RequestUri;
 
+pub type InternalReader<'a> = &'a mut Reader + 'a;
+
 /// A request bundles several parts of an incoming `NetworkStream`, given to a `Handler`.
-pub struct Request {
+pub struct Request<'a> {
     /// The IP address of the remote connection.
     pub remote_addr: SocketAddr,
     /// The `Method`, such as `Get`, `Post`, etc.
@@ -28,18 +29,15 @@ pub struct Request {
     pub uri: RequestUri,
     /// The version of HTTP for this request.
     pub version: HttpVersion,
-    body: HttpReader<BufferedReader<Box<NetworkStream + Send>>>
+    body: HttpReader<InternalReader<'a>>
 }
 
 
-impl Request {
+impl<'a> Request<'a> {
 
     /// Create a new Request, reading the StartLine and Headers so they are
     /// immediately useful.
-    pub fn new<S: NetworkStream>(mut stream: S) -> HttpResult<Request> {
-        let remote_addr = try!(stream.peer_name());
-        debug!("remote addr = {}", remote_addr);
-        let mut stream = BufferedReader::new(box stream as Box<NetworkStream + Send>);
+    pub fn new(mut stream: InternalReader<'a>, addr: SocketAddr) -> HttpResult<Request<'a>> {
         let (method, uri, version) = try!(read_request_line(&mut stream));
         debug!("Request Line: {} {} {}", method, uri, version);
         let headers = try!(Headers::from_raw(&mut stream));
@@ -57,7 +55,7 @@ impl Request {
         };
 
         Ok(Request {
-            remote_addr: remote_addr,
+            remote_addr: addr,
             method: method,
             uri: uri,
             headers: headers,
@@ -67,7 +65,7 @@ impl Request {
     }
 }
 
-impl Reader for Request {
+impl<'a> Reader for Request<'a> {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> {
         self.body.read(buf)
     }

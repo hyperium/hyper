@@ -82,6 +82,19 @@ impl Writer for Box<NetworkStream + Send> {
     fn flush(&mut self) -> IoResult<()> { (**self).flush() }
 }
 
+impl<'a> Reader for &'a mut NetworkStream {
+    #[inline]
+    fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> { (**self).read(buf) }
+}
+
+impl<'a> Writer for &'a mut NetworkStream {
+    #[inline]
+    fn write(&mut self, msg: &[u8]) -> IoResult<()> { (**self).write(msg) }
+
+    #[inline]
+    fn flush(&mut self) -> IoResult<()> { (**self).flush() }
+}
+
 impl UncheckedBoxAnyDowncast for Box<NetworkStream + Send> {
     unsafe fn downcast_unchecked<T: 'static>(self) -> Box<T>  {
         let to = *mem::transmute::<&Box<NetworkStream + Send>, &raw::TraitObject>(&self);

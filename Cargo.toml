@@ -16,9 +16,6 @@ git = "https://github.com/hyperium/mime.rs"
 [dependencies.unsafe-any]
 git = "https://github.com/reem/rust-unsafe-any"
 
-[dependencies.move-acceptor]
-git = "https://github.com/reem/rust-move-acceptor"
-
 [dependencies.typeable]
 git = "https://github.com/reem/rust-typeable"
 
