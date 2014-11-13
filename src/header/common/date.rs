@@ -30,7 +30,7 @@ impl fmt::Show for Date {
         let Date(ref tm) = *self;
         // bummer that tm.strftime allocates a string. It would nice if it
         // returned a Show instead, since I don't need the String here
-        match tm.tm_gmtoff {
+        match tm.tm_utcoff {
             0 => tm.rfc822().fmt(fmt),
             _ => tm.to_utc().rfc822().fmt(fmt)
         }
@@ -72,4 +72,3 @@ impl FromStr for Date {
 bench_header!(imf_fixdate, Date, { vec![b"Sun, 07 Nov 1994 08:48:37 GMT".to_vec()] })
 bench_header!(rfc_850, Date, { vec![b"Sunday, 06-Nov-94 08:49:37 GMT".to_vec()] })
 bench_header!(asctime, Date, { vec![b"Sun Nov  6 08:49:37 1994".to_vec()] })
-

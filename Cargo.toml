@@ -30,3 +30,6 @@ git = "https://github.com/chris-morgan/rust-http"
 
 [dependencies.cookie]
 git = "https://github.com/alexcrichton/cookie-rs"
+
+[dependencies.time]
+git = "https://github.com/rust-lang/time"
