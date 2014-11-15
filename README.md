@@ -46,17 +46,17 @@ Client:
 ```rust
 fn main() {
     // Creating an outgoing request.
-    let mut req = Request::get(Url::parse("http://www.gooogle.com/")).unwrap();
+    let mut req = Request::get(Url::parse("http://www.gooogle.com/").unwrap()).unwrap();
 
     // Setting a header.
-    req.headers_mut().set(Foo);
+    req.headers_mut().set(Connection(vec![Close]));
 
     // Start the Request, writing headers and starting streaming.
     let res = req.start().unwrap()
         // Send the Request.
         .send().unwrap()
         // Read the Response.
-        .read_to_string().unwrap()
+        .read_to_string().unwrap();
 
     println!("Response: {}", res);
 }
