@@ -59,13 +59,8 @@ pub trait HeaderFormat: Clone + Any + Send + Sync {
     fn clone_box(&self) -> Box<HeaderFormat + Sync + Send> { box self.clone() }
 }
 
-#[doc(hidden)]
-trait Is {
-    fn is<T: 'static>(self) -> bool;
-}
-
-impl<'a> Is for &'a HeaderFormat {
-    fn is<T: 'static>(self) -> bool {
+impl HeaderFormat {
+    fn is<T: 'static>(&self) -> bool {
         self.get_type_id() == TypeId::of::<T>()
     }
 }
@@ -92,7 +87,7 @@ impl Clone for Box<HeaderFormat + Send + Sync> {
     }
 }
 
-fn header_name<T: Header + HeaderFormat>() -> &'static str {
+fn header_name<T: Header>() -> &'static str {
     let name = Header::header_name(None::<T>);
     name
 }
@@ -189,74 +184,23 @@ impl Headers {
     /// Get a reference to the header field's value, if it exists.
     pub fn get<H: Header + HeaderFormat>(&self) -> Option<&H> {
         self.get_or_parse::<H>().map(|item| {
-            let read = item.read();
-            debug!("downcasting {}", *read);
-            let ret = match read.typed {
-                Some(ref val) => unsafe { val.downcast_ref_unchecked() },
-                _ => unreachable!()
-            };
-            unsafe { mem::transmute::<&H, &H>(ret) }
+            unsafe {
+                mem::transmute::<&H, &H>(downcast(&*item.read()))
+            }
         })
     }
 
     /// Get a mutable reference to the header field's value, if it exists.
     pub fn get_mut<H: Header + HeaderFormat>(&mut self) -> Option<&mut H> {
         self.get_or_parse::<H>().map(|item| {
-            let mut write = item.write();
-            debug!("downcasting {}", *write);
-            let ret = match *&mut write.typed {
-                Some(ref mut val) => unsafe { val.downcast_mut_unchecked() },
-                _ => unreachable!()
-            };
-            unsafe { mem::transmute::<&mut H, &mut H>(ret) }
+            unsafe {
+                mem::transmute::<&mut H, &mut H>(downcast_mut(&mut *item.write()))
+            }
         })
     }
 
     fn get_or_parse<H: Header + HeaderFormat>(&self) -> Option<&RWLock<Item>> {
-        self.data.get(&CaseInsensitive(Slice(header_name::<H>()))).and_then(|item| {
-            match item.read().typed {
-                Some(ref typed) if typed.is::<H>() => return Some(item),
-                Some(ref typed) => {
-                    warn!("attempted to access {} as wrong type", typed);
-                    return None;
-                }
-                _ => ()
-            }
-
-            // Take out a write lock to do the parsing and mutation.
-            let mut write = item.write();
-
-            // Since this lock can queue, it's possible another thread just
-            // did the work for us.
-            match write.typed {
-                // Check they inserted the correct type and move on.
-                Some(ref typed) if typed.is::<H>() => return Some(item),
-
-                // Wrong type, another thread got here before us and parsed
-                // as a different representation.
-                Some(ref typed) => {
-                    debug!("other thread was here first?")
-                    warn!("attempted to access {} as wrong type", typed);
-                    return None;
-                },
-
-                // We are first in the queue or the only ones, so do the actual
-                // work of parsing and mutation.
-                _ => ()
-            }
-
-            let header = match write.raw {
-                Some(ref raw) => match Header::parse_header(raw[]) {
-                    Some::<H>(h) => h,
-                    None => return None
-                },
-                None => unreachable!()
-            };
-
-            // Mutate!
-            write.typed = Some(box header as Box<HeaderFormat + Send + Sync>);
-            Some(item)
-        })
+        self.data.get(&CaseInsensitive(Slice(header_name::<H>()))).and_then(|item| get_or_parse::<H>(item))
     }
 
     /// Returns a boolean of whether a certain header is in the map.
@@ -299,8 +243,8 @@ impl Headers {
 
 impl fmt::Show for Headers {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        for (k, v) in self.iter() {
-            try!(write!(fmt, "{}: {}{}", k, v, LineEnding));
+        for header in self.iter() {
+            try!(write!(fmt, "{}{}", header, LineEnding));
         }
         Ok(())
     }
@@ -311,22 +255,67 @@ pub struct HeadersItems<'a> {
     inner: Entries<'a, CaseInsensitive<SendStr>, RWLock<Item>>
 }
 
-impl<'a> Iterator<(&'a str, HeaderView<'a>)> for HeadersItems<'a> {
-    fn next(&mut self) -> Option<(&'a str, HeaderView<'a>)> {
+impl<'a> Iterator<HeaderView<'a>> for HeadersItems<'a> {
+    fn next(&mut self) -> Option<HeaderView<'a>> {
         match self.inner.next() {
-            Some((k, v)) => Some((k.as_slice(), HeaderView(v))),
+            Some((k, v)) => Some(HeaderView(k, v)),
             None => None
         }
     }
 }
 
 /// Returned with the `HeadersItems` iterator.
-pub struct HeaderView<'a>(&'a RWLock<Item>);
+pub struct HeaderView<'a>(&'a CaseInsensitive<SendStr>, &'a RWLock<Item>);
+
+impl<'a> HeaderView<'a> {
+    /// Check if a HeaderView is a certain Header.
+    #[inline]
+    pub fn is<H: Header>(&self) -> bool {
+        CaseInsensitive(header_name::<H>().into_maybe_owned()) == *self.0
+    }
+
+    /// Get the Header name as a slice.
+    #[inline]
+    pub fn name(&self) -> &'a str {
+        self.0.as_slice()
+    }
+
+    /// Cast the value to a certain Header type.
+    #[inline]
+    pub fn value<H: Header + HeaderFormat>(&self) -> Option<&'a H> {
+        get_or_parse::<H>(self.1).map(|item| {
+            unsafe {
+                mem::transmute::<&H, &H>(downcast(&*item.read()))
+            }
+        })
+    }
+
+    /// Get just the header value as a String.
+    #[inline]
+    pub fn value_string(&self) -> String {
+        (*self.1.read()).to_string()
+    }
+}
 
 impl<'a> fmt::Show for HeaderView<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        let HeaderView(item) = *self;
-        item.read().fmt(fmt)
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}: {}", self.0, *self.1.read())
+    }
+}
+
+impl<'a> Extend<HeaderView<'a>> for Headers {
+    fn extend<I: Iterator<HeaderView<'a>>>(&mut self, mut iter: I) {
+        for header in iter {
+            self.data.insert((*header.0).clone(), (*header.1).clone());
+        }
+    }
+}
+
+impl<'a> FromIterator<HeaderView<'a>> for Headers {
+    fn from_iter<I: Iterator<HeaderView<'a>>>(iter: I) -> Headers {
+        let mut headers = Headers::new();
+        headers.extend(iter);
+        headers
     }
 }
 
@@ -349,6 +338,68 @@ impl Item {
             raw: None,
             typed: Some(ty),
         }
+    }
+
+}
+
+fn get_or_parse<H: Header + HeaderFormat>(item: &RWLock<Item>) -> Option<&RWLock<Item>> {
+    match item.read().typed {
+        Some(ref typed) if typed.is::<H>() => return Some(item),
+        Some(ref typed) => {
+            warn!("attempted to access {} as wrong type", typed);
+            return None;
+        }
+        _ => ()
+    }
+
+    // Take out a write lock to do the parsing and mutation.
+    let mut write = item.write();
+
+    // Since this lock can queue, it's possible another thread just
+    // did the work for us.
+    match write.typed {
+        // Check they inserted the correct type and move on.
+        Some(ref typed) if typed.is::<H>() => return Some(item),
+
+        // Wrong type, another thread got here before us and parsed
+        // as a different representation.
+        Some(ref typed) => {
+            debug!("other thread was here first?")
+            warn!("attempted to access {} as wrong type", typed);
+            return None;
+        },
+
+        // We are first in the queue or the only ones, so do the actual
+        // work of parsing and mutation.
+        _ => ()
+    }
+
+    let header = match write.raw {
+        Some(ref raw) => match Header::parse_header(raw[]) {
+            Some::<H>(h) => h,
+            None => return None
+        },
+        None => unreachable!()
+    };
+
+    // Mutate!
+    write.typed = Some(box header as Box<HeaderFormat + Send + Sync>);
+    Some(item)
+}
+
+fn downcast<H: Header + HeaderFormat>(read: &Item) -> &H {
+    debug!("downcasting {}", *read);
+    match read.typed {
+        Some(ref val) => unsafe { val.downcast_ref_unchecked() },
+        _ => unreachable!()
+    }
+}
+
+fn downcast_mut<H: Header + HeaderFormat>(write: &mut Item) -> &mut H {
+    debug!("downcasting {}", *write);
+    match write.typed {
+        Some(ref mut val) => unsafe { val.downcast_mut_unchecked() },
+        _ => unreachable!()
     }
 }
 
@@ -446,6 +497,8 @@ mod tests {
     use super::CaseInsensitive;
     use super::{Headers, Header, HeaderFormat};
     use super::common::{ContentLength, ContentType, Accept, Host};
+
+    use test::Bencher;
 
     fn mem(s: &str) -> MemReader {
         MemReader::new(s.as_bytes().to_vec())
@@ -585,5 +638,26 @@ mod tests {
         assert_eq!(headers.len(), 2);
         headers.clear();
         assert_eq!(headers.len(), 0);
+    }
+
+    #[test]
+    fn test_iter() {
+        let mut headers = Headers::new();
+        headers.set(ContentLength(11));
+        for header in headers.iter() {
+            assert!(header.is::<ContentLength>());
+            assert_eq!(header.name(), Header::header_name(None::<ContentLength>));
+            assert_eq!(header.value(), Some(&ContentLength(11)));
+            assert_eq!(header.value_string(), "11".to_string());
+        }
+    }
+
+    #[bench]
+    fn bench_header_view_is(b: &mut Bencher) {
+        let mut headers = Headers::new();
+        headers.set(ContentLength(11));
+        let mut iter = headers.iter();
+        let view = iter.next().unwrap();
+        b.iter(|| assert!(view.is::<ContentLength>()))
     }
 }
