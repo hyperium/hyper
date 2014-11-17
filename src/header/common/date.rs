@@ -1,7 +1,7 @@
 use header::{Header, HeaderFormat};
 use std::fmt::{mod, Show};
 use super::util::from_one_raw_str;
-use std::from_str::FromStr;
+use std::str::FromStr;
 use time::{Tm, strptime};
 
 // Egh, replace as soon as something better than time::Tm exists.

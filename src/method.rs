@@ -1,6 +1,6 @@
 //! The HTTP request method
 use std::fmt;
-use std::from_str::FromStr;
+use std::str::FromStr;
 
 /// The Request Method (VERB)
 ///

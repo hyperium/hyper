@@ -22,8 +22,7 @@ pub use self::server::Server;
 pub use self::set_cookie::SetCookie;
 
 use std::fmt::{mod, Show};
-use std::from_str::FromStr;
-use std::str::from_utf8;
+use std::str::{FromStr, from_utf8};
 
 macro_rules! bench_header(
     ($name:ident, $ty:ty, $value:expr) => {

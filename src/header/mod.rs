@@ -457,7 +457,7 @@ mod tests {
         }
         fn parse_header(raw: &[Vec<u8>]) -> Option<CrazyLength> {
             use std::str::from_utf8;
-            use std::from_str::FromStr;
+            use std::str::FromStr;
 
             if raw.len() != 1 {
                 return None;
@@ -551,4 +551,3 @@ mod tests {
         assert_eq!(headers.len(), 0);
     }
 }
-

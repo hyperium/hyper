@@ -1,7 +1,7 @@
 use header::{Header, HeaderFormat};
 use std::fmt::{mod, Show};
 use super::{from_comma_delimited, fmt_comma_delimited};
-use std::from_str::FromStr;
+use std::str::FromStr;
 
 /// The `Upgrade` header.
 #[deriving(Clone, PartialEq, Show)]
@@ -52,4 +52,3 @@ impl HeaderFormat for Upgrade {
 }
 
 bench_header!(bench, Upgrade, { vec![b"HTTP/2.0, RTA/x11, websocket".to_vec()] })
-

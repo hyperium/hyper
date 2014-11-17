@@ -1,6 +1,6 @@
 use header::{Header, HeaderFormat};
 use std::fmt;
-use std::from_str::FromStr;
+use std::str::FromStr;
 use super::{from_comma_delimited, fmt_comma_delimited};
 
 /// The `Transfer-Encoding` header.
@@ -86,4 +86,3 @@ impl HeaderFormat for TransferEncoding {
 
 bench_header!(normal, TransferEncoding, { vec![b"chunked, gzip".to_vec()] })
 bench_header!(ext, TransferEncoding, { vec![b"ext".to_vec()] })
-
