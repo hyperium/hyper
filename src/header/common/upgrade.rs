@@ -1,7 +1,7 @@
 use header::{Header, HeaderFormat};
 use std::fmt::{mod, Show};
-use super::{from_comma_delimited, fmt_comma_delimited};
 use std::str::FromStr;
+use super::util::{from_comma_delimited, fmt_comma_delimited};
 
 /// The `Upgrade` header.
 #[deriving(Clone, PartialEq, Show)]

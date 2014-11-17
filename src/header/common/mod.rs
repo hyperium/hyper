@@ -21,9 +21,6 @@ pub use self::user_agent::UserAgent;
 pub use self::server::Server;
 pub use self::set_cookie::SetCookie;
 
-use std::fmt::{mod, Show};
-use std::str::{FromStr, from_utf8};
-
 macro_rules! bench_header(
     ($name:ident, $ty:ty, $value:expr) => {
         #[cfg(test)]
@@ -105,30 +102,3 @@ pub mod upgrade;
 pub mod user_agent;
 
 pub mod util;
-
-fn from_comma_delimited<T: FromStr>(raw: &[Vec<u8>]) -> Option<Vec<T>> {
-    if raw.len() != 1 {
-        return None;
-    }
-    // we JUST checked that raw.len() == 1, so raw[0] WILL exist.
-    match from_utf8(unsafe { raw.as_slice().unsafe_get(0).as_slice() }) {
-        Some(s) => {
-            Some(s.as_slice()
-                 .split([',', ' '].as_slice())
-                 .filter_map(from_str)
-                 .collect())
-        }
-        None => None
-    }
-}
-
-fn fmt_comma_delimited<T: Show>(fmt: &mut fmt::Formatter, parts: &[T]) -> fmt::Result {
-    let last = parts.len() - 1;
-    for (i, part) in parts.iter().enumerate() {
-        try!(part.fmt(fmt));
-        if i < last {
-            try!(", ".fmt(fmt));
-        }
-    }
-    Ok(())
-}
