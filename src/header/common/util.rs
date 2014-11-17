@@ -1,7 +1,6 @@
 //! Utility functions for Header implementations.
 
-use std::from_str::FromStr;
-use std::str::from_utf8;
+use std::str::{FromStr, from_utf8};
 
 /// Utility function that reads a single raw string when parsing a header
 pub fn from_one_raw_str<T: FromStr>(raw: &[Vec<u8>]) -> Option<T> {

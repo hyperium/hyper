@@ -1,6 +1,5 @@
 use std::fmt::{mod, Show};
-use std::from_str::FromStr;
-use std::str::from_utf8;
+use std::str::{FromStr, from_utf8};
 use serialize::base64::{ToBase64, FromBase64, Standard, Config};
 use header::{Header, HeaderFormat};
 
