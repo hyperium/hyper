@@ -3,6 +3,8 @@ use std::fmt::{mod, Show};
 use super::{from_comma_delimited, fmt_comma_delimited};
 use std::str::FromStr;
 
+use self::ConnectionOption::{KeepAlive, Close, ConnectionHeader};
+
 /// The `Connection` header.
 #[deriving(Clone, PartialEq, Show)]
 pub struct Connection(pub Vec<ConnectionOption>);

@@ -11,7 +11,8 @@ use method;
 use header::Headers;
 use header::common::ContentLength;
 use http::{read_request_line};
-use http::{HttpReader, SizedReader, ChunkedReader};
+use http::HttpReader;
+use http::HttpReader::{SizedReader, ChunkedReader};
 use net::NetworkStream;
 use uri::RequestUri;
 

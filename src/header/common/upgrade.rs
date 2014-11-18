@@ -3,6 +3,8 @@ use std::fmt::{mod, Show};
 use super::{from_comma_delimited, fmt_comma_delimited};
 use std::str::FromStr;
 
+use self::Protocol::{WebSocket, ProtocolExt};
+
 /// The `Upgrade` header.
 #[deriving(Clone, PartialEq, Show)]
 pub struct Upgrade(Vec<Protocol>);

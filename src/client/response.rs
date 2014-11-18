@@ -3,12 +3,13 @@ use std::io::{BufferedReader, IoResult};
 
 use header;
 use header::common::{ContentLength, TransferEncoding};
-use header::common::transfer_encoding::Chunked;
+use header::common::transfer_encoding::Encoding::Chunked;
 use net::{NetworkStream, HttpStream};
-use http::{read_status_line, HttpReader, SizedReader, ChunkedReader, EofReader};
+use http::{read_status_line, HttpReader};
+use http::HttpReader::{SizedReader, ChunkedReader, EofReader};
 use status;
 use version;
-use {HttpResult};
+use HttpResult;
 
 /// A response for a client request to a remote server.
 pub struct Response<S = HttpStream> {
@@ -85,7 +86,7 @@ mod tests {
     use std::io::BufferedReader;
 
     use header::Headers;
-    use http::EofReader;
+    use http::HttpReader::EofReader;
     use mock::MockStream;
     use net::NetworkStream;
     use status;
@@ -97,9 +98,9 @@ mod tests {
     #[test]
     fn test_unwrap() {
         let res = Response {
-            status: status::Ok,
+            status: status::StatusCode::Ok,
             headers: Headers::new(),
-            version: version::Http11,
+            version: version::HttpVersion::Http11,
             body: EofReader(BufferedReader::new(box MockStream::new() as Box<NetworkStream + Send>))
         };
 

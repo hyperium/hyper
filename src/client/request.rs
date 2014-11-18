@@ -3,13 +3,16 @@ use std::io::{BufferedWriter, IoResult};
 
 use url::Url;
 
-use method::{mod, Get, Post, Delete, Put, Patch, Head, Options};
+use method;
+use method::Method::{Get, Post, Delete, Put, Patch, Head, Options};
 use header::Headers;
 use header::common::{mod, Host};
 use net::{NetworkStream, NetworkConnector, HttpStream, Fresh, Streaming};
-use http::{HttpWriter, ThroughWriter, ChunkedWriter, SizedWriter, EmptyWriter, LINE_ENDING};
+use HttpError::HttpUriError;
+use http::{HttpWriter, LINE_ENDING};
+use http::HttpWriter::{ThroughWriter, ChunkedWriter, SizedWriter, EmptyWriter};
 use version;
-use {HttpResult, HttpUriError};
+use HttpResult;
 use client::Response;
 
 
@@ -69,7 +72,7 @@ impl Request<Fresh> {
             method: method,
             headers: headers,
             url: url,
-            version: version::Http11,
+            version: version::HttpVersion::Http11,
             body: stream
         })
     }
@@ -141,7 +144,7 @@ impl Request<Fresh> {
                     let encodings = match self.headers.get_mut::<common::TransferEncoding>() {
                         Some(&common::TransferEncoding(ref mut encodings)) => {
                             //TODO: check if chunked is already in encodings. use HashSet?
-                            encodings.push(common::transfer_encoding::Chunked);
+                            encodings.push(common::transfer_encoding::Encoding::Chunked);
                             false
                         },
                         None => true
@@ -149,7 +152,7 @@ impl Request<Fresh> {
 
                     if encodings {
                         self.headers.set::<common::TransferEncoding>(
-                            common::TransferEncoding(vec![common::transfer_encoding::Chunked]))
+                            common::TransferEncoding(vec![common::transfer_encoding::Encoding::Chunked]))
                     }
                 }
 
@@ -206,7 +209,7 @@ mod tests {
     use std::boxed::BoxAny;
     use std::str::from_utf8;
     use url::Url;
-    use method::{Get, Head};
+    use method::Method::{Get, Head};
     use mock::MockStream;
     use super::Request;
 
