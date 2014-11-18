@@ -1,5 +1,5 @@
 #![feature(macro_rules, phase, default_type_params, if_let, slicing_syntax,
-           tuple_indexing)]
+           tuple_indexing, globs)]
 #![deny(missing_docs)]
 #![deny(warnings)]
 #![experimental]
@@ -140,8 +140,8 @@ extern crate cookie;
 pub use std::io::net::ip::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr, Port};
 pub use mimewrapper::mime;
 pub use url::Url;
-pub use method::{Get, Head, Post, Delete};
-pub use status::{Ok, BadRequest, NotFound};
+pub use method::Method::{Get, Head, Post, Delete};
+pub use status::StatusCode::{Ok, BadRequest, NotFound};
 pub use server::Server;
 
 use std::fmt;
@@ -150,6 +150,8 @@ use std::io::IoError;
 
 use std::rt::backtrace;
 
+use self::HttpError::{HttpMethodError, HttpUriError, HttpVersionError,
+                      HttpHeaderError, HttpStatusError, HttpIoError};
 
 macro_rules! todo(
     ($($arg:tt)*) => (if cfg!(not(ndebug)) {

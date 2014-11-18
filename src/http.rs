@@ -9,9 +9,15 @@ use url::Url;
 use method;
 use status;
 use uri;
-use version::{HttpVersion, Http09, Http10, Http11, Http20};
-use {HttpResult, HttpMethodError, HttpVersionError, HttpIoError, HttpUriError};
-use {HttpHeaderError, HttpStatusError};
+use uri::RequestUri::{AbsolutePath, AbsoluteUri, Authority, Star};
+use version::HttpVersion;
+use version::HttpVersion::{Http09, Http10, Http11, Http20};
+use HttpError::{HttpHeaderError, HttpIoError, HttpMethodError, HttpStatusError,
+                HttpUriError, HttpVersionError};
+use HttpResult;
+
+use self::HttpReader::{SizedReader, ChunkedReader, EofReader};
+use self::HttpWriter::{ThroughWriter, ChunkedWriter, SizedWriter, EmptyWriter};
 
 /// Readers to handle different Transfer-Encodings.
 ///
@@ -327,15 +333,15 @@ pub fn read_method<R: Reader>(stream: &mut R) -> HttpResult<method::Method> {
     debug!("method buf = {}", buf[].to_ascii());
     
     let maybe_method = match buf[0..7] {
-        b"GET    " => Some(method::Get),
-        b"PUT    " => Some(method::Put),
-        b"POST   " => Some(method::Post),
-        b"HEAD   " => Some(method::Head),
-        b"PATCH  " => Some(method::Patch),
-        b"TRACE  " => Some(method::Trace),
-        b"DELETE " => Some(method::Delete),
-        b"CONNECT" => Some(method::Connect),
-        b"OPTIONS" => Some(method::Options),
+        b"GET    " => Some(method::Method::Get),
+        b"PUT    " => Some(method::Method::Put),
+        b"POST   " => Some(method::Method::Post),
+        b"HEAD   " => Some(method::Method::Head),
+        b"PATCH  " => Some(method::Method::Patch),
+        b"TRACE  " => Some(method::Method::Trace),
+        b"DELETE " => Some(method::Method::Delete),
+        b"CONNECT" => Some(method::Method::Connect),
+        b"OPTIONS" => Some(method::Method::Options),
         _ => None,
     };
 
@@ -346,7 +352,7 @@ pub fn read_method<R: Reader>(stream: &mut R) -> HttpResult<method::Method> {
         (None, ext) if is_valid_method(buf) => {
             use std::str::raw;
             // We already checked that the buffer is ASCII
-            Ok(method::Extension(unsafe { raw::from_utf8(ext) }.trim().into_string()))
+            Ok(method::Method::Extension(unsafe { raw::from_utf8(ext) }.trim().into_string()))
         },
         _ => Err(HttpMethodError)
     }
@@ -367,7 +373,7 @@ pub fn read_uri<R: Reader>(stream: &mut R) -> HttpResult<uri::RequestUri> {
     let mut s = String::new();
     if b == STAR {
         try!(expect(stream.read_byte(), SP));
-        return Ok(uri::Star)
+        return Ok(Star)
     } else {
         s.push(b as char);
         loop {
@@ -386,10 +392,10 @@ pub fn read_uri<R: Reader>(stream: &mut R) -> HttpResult<uri::RequestUri> {
     debug!("uri buf = {}", s);
 
     if s.as_slice().starts_with("/") {
-        Ok(uri::AbsolutePath(s))
+        Ok(AbsolutePath(s))
     } else if s.as_slice().contains("/") {
         match Url::parse(s.as_slice()) {
-            Ok(u) => Ok(uri::AbsoluteUri(u)),
+            Ok(u) => Ok(AbsoluteUri(u)),
             Err(_e) => {
                 debug!("URL err {}", _e);
                 Err(HttpUriError)
@@ -401,7 +407,7 @@ pub fn read_uri<R: Reader>(stream: &mut R) -> HttpResult<uri::RequestUri> {
         match Url::parse(temp.as_slice()) {
             Ok(_u) => {
                 todo!("compare vs u.authority()");
-                Ok(uri::Authority(s))
+                Ok(Authority(s))
             }
             Err(_e) => {
                 debug!("URL err {}", _e);
@@ -608,11 +614,14 @@ fn expect(r: IoResult<u8>, expected: u8) -> HttpResult<()> {
 mod tests {
     use std::io::{mod, MemReader, MemWriter};
     use test::Bencher;
-    use uri::{RequestUri, Star, AbsoluteUri, AbsolutePath, Authority};
+    use uri::RequestUri;
+    use uri::RequestUri::{Star, AbsoluteUri, AbsolutePath, Authority};
     use method;
     use status;
-    use version::{HttpVersion, Http10, Http11, Http20};
-    use {HttpResult, HttpVersionError};
+    use version::HttpVersion;
+    use version::HttpVersion::{Http10, Http11, Http20};
+    use HttpError::HttpVersionError;
+    use HttpResult;
     use url::Url;
 
     use super::{read_method, read_uri, read_http_version, read_header, RawHeaderLine, read_status};
@@ -627,15 +636,15 @@ mod tests {
             assert_eq!(read_method(&mut mem(s)), Ok(m));
         }
 
-        read("GET /", method::Get);
-        read("POST /", method::Post);
-        read("PUT /", method::Put);
-        read("HEAD /", method::Head);
-        read("OPTIONS /", method::Options);
-        read("CONNECT /", method::Connect);
-        read("TRACE /", method::Trace);
-        read("PATCH /", method::Patch);
-        read("FOO /", method::Extension("FOO".to_string()));
+        read("GET /", method::Method::Get);
+        read("POST /", method::Method::Post);
+        read("PUT /", method::Method::Put);
+        read("HEAD /", method::Method::Head);
+        read("OPTIONS /", method::Method::Options);
+        read("CONNECT /", method::Method::Connect);
+        read("TRACE /", method::Method::Trace);
+        read("PATCH /", method::Method::Patch);
+        read("FOO /", method::Method::Extension("FOO".to_string()));
     }
 
     #[test]
@@ -671,7 +680,7 @@ mod tests {
             assert_eq!(read_status(&mut mem(s)), result);
         }
 
-        read("200 OK\r\n", Ok(status::Ok));
+        read("200 OK\r\n", Ok(status::StatusCode::Ok));
     }
 
     #[test]
@@ -687,7 +696,7 @@ mod tests {
     #[test]
     fn test_write_chunked() {
         use std::str::from_utf8;
-        let mut w = super::ChunkedWriter(MemWriter::new());
+        let mut w = super::HttpWriter::ChunkedWriter(MemWriter::new());
         w.write(b"foo bar").unwrap();
         w.write(b"baz quux herp").unwrap();
         let buf = w.end().unwrap().unwrap();
@@ -698,7 +707,7 @@ mod tests {
     #[test]
     fn test_write_sized() {
         use std::str::from_utf8;
-        let mut w = super::SizedWriter(MemWriter::new(), 8);
+        let mut w = super::HttpWriter::SizedWriter(MemWriter::new(), 8);
         w.write(b"foo bar").unwrap();
         assert_eq!(w.write(b"baz"), Err(io::standard_error(io::ShortWrite(1))));
 
@@ -710,7 +719,7 @@ mod tests {
     #[bench]
     fn bench_read_method(b: &mut Bencher) {
         b.bytes = b"CONNECT ".len() as u64;
-        b.iter(|| assert_eq!(read_method(&mut mem("CONNECT ")), Ok(method::Connect)));
+        b.iter(|| assert_eq!(read_method(&mut mem("CONNECT ")), Ok(method::Method::Connect)));
     }
 
 }

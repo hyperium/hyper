@@ -8,7 +8,8 @@ use time::now_utc;
 
 use header;
 use header::common;
-use http::{CR, LF, LINE_ENDING, HttpWriter, ThroughWriter, ChunkedWriter, SizedWriter};
+use http::{CR, LF, LINE_ENDING, HttpWriter};
+use http::HttpWriter::{ThroughWriter, ChunkedWriter, SizedWriter};
 use status;
 use net::{NetworkStream, Fresh, Streaming};
 use version;
@@ -52,8 +53,8 @@ impl Response<Fresh> {
     /// Creates a new Response that can be used to write to a network stream.
     pub fn new<S: NetworkStream>(stream: S) -> Response<Fresh> {
         Response {
-            status: status::Ok,
-            version: version::Http11,
+            status: status::StatusCode::Ok,
+            version: version::HttpVersion::Http11,
             headers: header::Headers::new(),
             body: ThroughWriter(BufferedWriter::new(box stream as Box<NetworkStream + Send>))
         }
@@ -85,7 +86,7 @@ impl Response<Fresh> {
             let encodings = match self.headers.get_mut::<common::TransferEncoding>() {
                 Some(&common::TransferEncoding(ref mut encodings)) => {
                     //TODO: check if chunked is already in encodings. use HashSet?
-                    encodings.push(common::transfer_encoding::Chunked);
+                    encodings.push(common::transfer_encoding::Encoding::Chunked);
                     false
                 },
                 None => true
@@ -93,7 +94,7 @@ impl Response<Fresh> {
 
             if encodings {
                 self.headers.set::<common::TransferEncoding>(
-                    common::TransferEncoding(vec![common::transfer_encoding::Chunked]))
+                    common::TransferEncoding(vec![common::transfer_encoding::Encoding::Chunked]))
             }
         }
 

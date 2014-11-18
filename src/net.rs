@@ -16,6 +16,8 @@ use typeable::Typeable;
 use openssl::ssl::{SslStream, SslContext, Sslv23};
 use openssl::ssl::error::{SslError, StreamError, OpenSslErrors, SslSessionClosed};
 
+use self::HttpStream::{Http, Https};
+
 /// The write-status indicating headers have not been written.
 pub struct Fresh;
 
