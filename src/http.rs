@@ -327,11 +327,11 @@ pub fn read_method<R: Reader>(stream: &mut R) -> HttpResult<method::Method> {
     let mut buf = [SP, ..16];
 
     if !try!(read_until_space(stream, &mut buf)) {
-        return Err(HttpMethodError); 
+        return Err(HttpMethodError);
     }
 
     debug!("method buf = {}", buf[].to_ascii());
-    
+
     let maybe_method = match buf[0..7] {
         b"GET    " => Some(method::Method::Get),
         b"PUT    " => Some(method::Method::Put),
@@ -349,7 +349,7 @@ pub fn read_method<R: Reader>(stream: &mut R) -> HttpResult<method::Method> {
 
     match (maybe_method, buf[]) {
         (Some(method), _) => Ok(method),
-        (None, ext) if is_valid_method(buf) => {
+        (None, ext) if is_valid_method(&buf) => {
             use std::str::raw;
             // We already checked that the buffer is ASCII
             Ok(method::Method::Extension(unsafe { raw::from_utf8(ext) }.trim().into_string()))
@@ -629,7 +629,7 @@ mod tests {
     fn mem(s: &str) -> MemReader {
         MemReader::new(s.as_bytes().to_vec())
     }
-    
+
     #[test]
     fn test_read_method() {
         fn read(s: &str, m: method::Method) {

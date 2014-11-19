@@ -6,7 +6,7 @@ use std::io::net::ip::Ipv4Addr;
 static PHRASE: &'static [u8] = b"Hello World!";
 
 fn hyper_handle(mut incoming: hyper::server::Incoming) {
-    let mut pool = TaskPool::new(100);
+    let pool = TaskPool::new(100);
 
     for conn in incoming {
         pool.execute(proc() {
