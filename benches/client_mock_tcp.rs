@@ -6,7 +6,7 @@ extern crate hyper;
 extern crate test;
 
 use std::fmt::{mod, Show};
-use std::from_str::from_str;
+use std::str::from_str;
 use std::io::{IoResult, MemReader};
 use std::io::net::ip::{SocketAddr, ToSocketAddr};
 use std::os;
@@ -55,7 +55,7 @@ impl Writer for MockStream {
 
 #[bench]
 fn bench_mock_curl(b: &mut test::Bencher) {
-    let mut cwd = os::getcwd();
+    let mut cwd = os::getcwd().unwrap();
     cwd.push("README.md");
     let s = format!("file://{}", cwd.container_as_str().unwrap());
     let url = s.as_slice();

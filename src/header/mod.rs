@@ -145,17 +145,20 @@ impl Headers {
     /// let raw_content_type = headers.get_raw("content-type");
     /// ```
     pub fn get_raw(&self, name: &str) -> Option<&[Vec<u8>]> {
-        self.data.find_equiv(&CaseInsensitive(name)).and_then(|item| {
-            let lock = item.read();
-            if let Some(ref raw) = lock.raw {
-                return unsafe { mem::transmute(Some(raw[])) };
-            }
+        self.data
+            // FIXME(reem): Find a better way to do this lookup without find_equiv.
+            .get(&CaseInsensitive(Slice(unsafe { mem::transmute::<&str, &str>(name) })))
+            .and_then(|item| {
+                let lock = item.read();
+                if let Some(ref raw) = lock.raw {
+                    return unsafe { mem::transmute(Some(raw[])) };
+                }
 
-            let mut lock = item.write();
-            let raw = vec![lock.typed.as_ref().unwrap().to_string().into_bytes()];
-            lock.raw = Some(raw);
-            unsafe { mem::transmute(Some(lock.raw.as_ref().unwrap()[])) }
-        })
+                let mut lock = item.write();
+                let raw = vec![lock.typed.as_ref().unwrap().to_string().into_bytes()];
+                lock.raw = Some(raw);
+                unsafe { mem::transmute(Some(lock.raw.as_ref().unwrap()[])) }
+            })
     }
 
     /// Set the raw value of a header, bypassing any typed headers.
