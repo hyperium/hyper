@@ -5,6 +5,8 @@ use super::util::{from_comma_delimited, fmt_comma_delimited};
 
 use self::Encoding::{Chunked, Gzip, Deflate, Compress, EncodingExt};
 
+use self::Encoding::{Chunked, Gzip, Deflate, Compress, EncodingExt};
+
 /// The `Transfer-Encoding` header.
 ///
 /// This header describes the encoding of the message body. It can be

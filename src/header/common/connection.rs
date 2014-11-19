@@ -5,6 +5,8 @@ use super::util::{from_comma_delimited, fmt_comma_delimited};
 
 use self::ConnectionOption::{KeepAlive, Close, ConnectionHeader};
 
+use self::ConnectionOption::{KeepAlive, Close, ConnectionHeader};
+
 /// The `Connection` header.
 #[deriving(Clone, PartialEq, Show)]
 pub struct Connection(pub Vec<ConnectionOption>);

@@ -2,6 +2,11 @@
 use std::fmt;
 use std::mem::transmute;
 
+use self::StatusClass::{Informational, Success, Redirection, ClientError,
+                        ServerError};
+
+use self::StatusCode::*;
+
 // shamelessly lifted from Teepee. I tried a few schemes, this really
 // does seem like the best.
 
