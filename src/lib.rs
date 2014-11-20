@@ -1,5 +1,5 @@
 #![feature(macro_rules, phase, default_type_params, if_let, slicing_syntax,
-           tuple_indexing)]
+           tuple_indexing, globs)]
 #![deny(missing_docs)]
 #![deny(warnings)]
 #![experimental]
@@ -129,13 +129,15 @@
 extern crate serialize;
 extern crate time;
 extern crate url;
-extern crate openssl;
 #[phase(plugin,link)] extern crate log;
 #[cfg(test)] extern crate test;
 extern crate "unsafe-any" as uany;
 extern crate "move-acceptor" as macceptor;
 extern crate typeable;
 extern crate cookie;
+
+#[cfg(feature = "ssl")]
+extern crate openssl;
 
 pub use std::io::net::ip::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr, Port};
 pub use mimewrapper::mime;
