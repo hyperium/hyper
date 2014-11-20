@@ -69,7 +69,7 @@ impl Response<Fresh> {
     /// Consume this Response<Fresh>, writing the Headers and Status and creating a Response<Streaming>
     pub fn start(mut self) -> IoResult<Response<Streaming>> {
         debug!("writing head: {} {}", self.version, self.status);
-        try!(write!(self.body, "{} {}{}{}", self.version, self.status, CR as char, LF as char));
+        try!(write!(&mut self.body, "{} {}{}{}", self.version, self.status, CR as char, LF as char));
 
         if !self.headers.has::<common::Date>() {
             self.headers.set(common::Date(now_utc()));
@@ -106,7 +106,7 @@ impl Response<Fresh> {
 
 
         debug!("headers [\n{}]", self.headers);
-        try!(write!(self.body, "{}", self.headers));
+        try!(write!(&mut self.body, "{}", self.headers));
 
         try!(self.body.write(LINE_ENDING));
 
@@ -144,7 +144,7 @@ impl Response<Streaming> {
 
 impl Writer for Response<Streaming> {
     fn write(&mut self, msg: &[u8]) -> IoResult<()> {
-        debug!("write {:u} bytes", msg.len());
+        debug!("write {} bytes", msg.len());
         self.body.write(msg)
     }
 
