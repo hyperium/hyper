@@ -47,6 +47,12 @@ impl<W> Response<W> {
             headers: headers
         }
     }
+
+    /// Deconstruct this Response into its constituent parts.
+    pub fn deconstruct(self) -> (version::HttpVersion, HttpWriter<BufferedWriter<Box<NetworkStream + Send>>>,
+                                 status::StatusCode, header::Headers) {
+        (self.version, self.body, self.status, self.headers)
+    }
 }
 
 impl Response<Fresh> {
@@ -125,12 +131,6 @@ impl Response<Fresh> {
 
     /// Get a mutable reference to the Headers.
     pub fn headers_mut(&mut self) -> &mut header::Headers { &mut self.headers }
-
-    /// Deconstruct this Response into its constituent parts.
-    pub fn deconstruct(self) -> (version::HttpVersion, HttpWriter<BufferedWriter<Box<NetworkStream + Send>>>,
-                                 status::StatusCode, header::Headers) {
-        (self.version, self.body, self.status, self.headers)
-    }
 }
 
 impl Response<Streaming> {
