@@ -2,8 +2,11 @@ language: rust
 
 script:
     - cargo build
+    - cargo build --features ssl
     - cargo test
+    - cargo test --features ssl
     - cargo bench --no-run
+    - cargo bench --no-run --features ssl
 
 after_success: |
     [ $TRAVIS_BRANCH = master ] &&
