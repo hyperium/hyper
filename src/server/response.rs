@@ -144,7 +144,7 @@ impl Response<Streaming> {
 
 impl Writer for Response<Streaming> {
     fn write(&mut self, msg: &[u8]) -> IoResult<()> {
-        debug!("write {:u} bytes", msg.len());
+        debug!("write {} bytes", msg.len());
         self.body.write(msg)
     }
 
@@ -152,4 +152,3 @@ impl Writer for Response<Streaming> {
         self.body.flush()
     }
 }
-
