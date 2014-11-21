@@ -1,13 +1,14 @@
 //! Pieces pertaining to the HTTP message protocol.
 use std::cmp::min;
 use std::fmt;
-use std::io::{mod, Reader, IoResult};
-use std::str;
+use std::io::{mod, Reader, IoResult, BufWriter};
+use std::num::from_u16;
+use std::str::{mod, SendStr, Slice, Owned};
 
 use url::Url;
 
 use method;
-use status;
+use status::StatusCode;
 use uri;
 use uri::RequestUri::{AbsolutePath, AbsoluteUri, Authority, Star};
 use version::HttpVersion;
@@ -548,7 +549,11 @@ pub fn read_request_line<R: Reader>(stream: &mut R) -> HttpResult<RequestLine> {
 /// `status-line = HTTP-version SP status-code SP reason-phrase CRLF`
 ///
 /// However, reason-phrase is absolutely useless, so its tossed.
-pub type StatusLine = (HttpVersion, status::StatusCode);
+pub type StatusLine = (HttpVersion, RawStatus);
+
+/// The raw status code and reason-phrase.
+#[deriving(PartialEq, Show, Clone)]
+pub struct RawStatus(pub u16, pub SendStr);
 
 /// Read the StatusLine, such as `HTTP/1.1 200 OK`.
 ///
@@ -573,7 +578,7 @@ pub fn read_status_line<R: Reader>(stream: &mut R) -> HttpResult<StatusLine> {
 }
 
 /// Read the StatusCode from a stream.
-pub fn read_status<R: Reader>(stream: &mut R) -> HttpResult<status::StatusCode> {
+pub fn read_status<R: Reader>(stream: &mut R) -> HttpResult<RawStatus> {
     let code = [
         try!(stream.read_byte()),
         try!(stream.read_byte()),
@@ -581,25 +586,56 @@ pub fn read_status<R: Reader>(stream: &mut R) -> HttpResult<status::StatusCode> 
     ];
 
     let code = match str::from_utf8(code.as_slice()).and_then(from_str::<u16>) {
-        Some(num) => match FromPrimitive::from_u16(num) {
-            Some(code) => code,
-            None => return Err(HttpStatusError)
+        Some(num) => num,
+        None => return Err(HttpStatusError)
+    };
+
+    match try!(stream.read_byte()) {
+        b' ' => (),
+        _ => return Err(HttpStatusError)
+    }
+
+    let mut buf = [b' ', ..16];
+
+    {
+        let mut bufwrt = BufWriter::new(&mut buf);
+        loop {
+            match try!(stream.read_byte()) {
+                CR => match try!(stream.read_byte()) {
+                    LF => break,
+                    _ => return Err(HttpStatusError)
+                },
+                b => match bufwrt.write_u8(b) {
+                    Ok(_) => (),
+                    Err(_) => {
+                        // what sort of reason phrase is this long?
+                        return Err(HttpStatusError);
+                    }
+                }
+            }
+        }
+    }
+
+    let reason = match str::from_utf8(buf[]) {
+        Some(s) => s.trim(),
+        None => return Err(HttpStatusError)
+    };
+
+    let reason = match from_u16::<StatusCode>(code) {
+        Some(status) => match status.canonical_reason() {
+            Some(phrase) => {
+                if phrase == reason {
+                    Slice(phrase)
+                } else {
+                    Owned(reason.into_string())
+                }
+            }
+            _ => Owned(reason.into_string())
         },
         None => return Err(HttpStatusError)
     };
 
-    // reason is purely for humans, so just consume it till we get to CRLF
-    loop {
-        match try!(stream.read_byte()) {
-            CR => match try!(stream.read_byte()) {
-                LF => break,
-                _ => return Err(HttpStatusError)
-            },
-            _ => ()
-        }
-    }
-
-    Ok(code)
+    Ok(RawStatus(code, reason))
 }
 
 #[inline]
@@ -614,18 +650,19 @@ fn expect(r: IoResult<u8>, expected: u8) -> HttpResult<()> {
 #[cfg(test)]
 mod tests {
     use std::io::{mod, MemReader, MemWriter};
+    use std::str::{Slice, Owned};
     use test::Bencher;
     use uri::RequestUri;
     use uri::RequestUri::{Star, AbsoluteUri, AbsolutePath, Authority};
     use method;
-    use status;
     use version::HttpVersion;
     use version::HttpVersion::{Http10, Http11, Http20};
     use HttpError::{HttpVersionError, HttpMethodError};
     use HttpResult;
     use url::Url;
 
-    use super::{read_method, read_uri, read_http_version, read_header, RawHeaderLine, read_status};
+    use super::{read_method, read_uri, read_http_version, read_header,
+                RawHeaderLine, read_status, RawStatus};
 
     fn mem(s: &str) -> MemReader {
         MemReader::new(s.as_bytes().to_vec())
@@ -679,11 +716,13 @@ mod tests {
 
     #[test]
     fn test_read_status() {
-        fn read(s: &str, result: HttpResult<status::StatusCode>) {
+        fn read(s: &str, result: HttpResult<RawStatus>) {
             assert_eq!(read_status(&mut mem(s)), result);
         }
 
-        read("200 OK\r\n", Ok(status::StatusCode::Ok));
+        read("200 OK\r\n", Ok(RawStatus(200, Slice("OK"))));
+        read("404 Not Found\r\n", Ok(RawStatus(404, Slice("Not Found"))));
+        read("200 crazy pants\r\n", Ok(RawStatus(200, Owned("crazy pants".to_string()))));
     }
 
     #[test]
@@ -723,6 +762,12 @@ mod tests {
     fn bench_read_method(b: &mut Bencher) {
         b.bytes = b"CONNECT ".len() as u64;
         b.iter(|| assert_eq!(read_method(&mut mem("CONNECT ")), Ok(method::Method::Connect)));
+    }
+
+    #[bench]
+    fn bench_read_status(b: &mut Bencher) {
+        b.bytes = b"404 Not Found\r\n".len() as u64;
+        b.iter(|| assert_eq!(read_status(&mut mem("404 Not Found\r\n")), Ok(RawStatus(404, Slice("Not Found")))));
     }
 
 }

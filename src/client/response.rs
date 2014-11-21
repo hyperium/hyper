@@ -1,15 +1,17 @@
 //! Client Responses
+use std::num::FromPrimitive;
 use std::io::{BufferedReader, IoResult};
 
 use header;
 use header::common::{ContentLength, TransferEncoding};
 use header::common::transfer_encoding::Encoding::Chunked;
 use net::{NetworkStream, HttpStream};
-use http::{read_status_line, HttpReader};
+use http::{read_status_line, HttpReader, RawStatus};
 use http::HttpReader::{SizedReader, ChunkedReader, EofReader};
 use status;
 use version;
 use HttpResult;
+use HttpError::HttpStatusError;
 
 /// A response for a client request to a remote server.
 pub struct Response<S = HttpStream> {
@@ -19,6 +21,7 @@ pub struct Response<S = HttpStream> {
     pub headers: header::Headers,
     /// The HTTP version of this response from the server.
     pub version: version::HttpVersion,
+    status_raw: RawStatus,
     body: HttpReader<BufferedReader<Box<NetworkStream + Send>>>,
 }
 
@@ -27,10 +30,14 @@ impl Response {
     /// Creates a new response from a server.
     pub fn new(stream: Box<NetworkStream + Send>) -> HttpResult<Response> {
         let mut stream = BufferedReader::new(stream);
-        let (version, status) = try!(read_status_line(&mut stream));
-        let headers = try!(header::Headers::from_raw(&mut stream));
-
+        let (version, raw_status) = try!(read_status_line(&mut stream));
+        let status = match FromPrimitive::from_u16(raw_status.0) {
+            Some(status) => status,
+            None => return Err(HttpStatusError)
+        };
         debug!("{} {}", version, status);
+
+        let headers = try!(header::Headers::from_raw(&mut stream));
         debug!("{}", headers);
 
         let body = if headers.has::<TransferEncoding>() {
@@ -64,7 +71,13 @@ impl Response {
             version: version,
             headers: headers,
             body: body,
+            status_raw: raw_status,
         })
+    }
+
+    /// Get the raw status code and reason.
+    pub fn status_raw(&self) -> &RawStatus {
+        &self.status_raw
     }
 
     /// Unwraps the Request to return the NetworkStream underneath.
@@ -84,9 +97,11 @@ impl Reader for Response {
 mod tests {
     use std::boxed::BoxAny;
     use std::io::BufferedReader;
+    use std::str::Slice;
 
     use header::Headers;
     use http::HttpReader::EofReader;
+    use http::RawStatus;
     use mock::MockStream;
     use net::NetworkStream;
     use status;
@@ -101,7 +116,8 @@ mod tests {
             status: status::StatusCode::Ok,
             headers: Headers::new(),
             version: version::HttpVersion::Http11,
-            body: EofReader(BufferedReader::new(box MockStream::new() as Box<NetworkStream + Send>))
+            body: EofReader(BufferedReader::new(box MockStream::new() as Box<NetworkStream + Send>)),
+            status_raw: RawStatus(200, Slice("OK"))
         };
 
         let b = res.unwrap().downcast::<MockStream>().unwrap();
