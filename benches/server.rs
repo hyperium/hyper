@@ -9,6 +9,7 @@ use test::Bencher;
 use std::io::net::ip::{SocketAddr, Ipv4Addr};
 
 use http::server::Server;
+use hyper::server::{Request, Response};
 
 static PHRASE: &'static [u8] = b"Benchmarking hyper vs others!";
 
@@ -17,13 +18,10 @@ fn request(url: hyper::Url) {
     req.start().unwrap().send().unwrap().read_to_string().unwrap();
 }
 
-fn hyper_handle(mut incoming: hyper::server::Incoming) {
-    for conn in incoming {
-        let (_, res) = conn.open().unwrap();
-        let mut res = res.start().unwrap();
-        res.write(PHRASE).unwrap();
-        res.end().unwrap();
-    }
+fn hyper_handle(_: Request, res: Response) {
+    let mut res = res.start().unwrap();
+    res.write(PHRASE).unwrap();
+    res.end().unwrap();
 }
 
 #[bench]

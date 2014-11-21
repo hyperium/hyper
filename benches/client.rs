@@ -7,28 +7,25 @@ extern crate test;
 
 use std::fmt::{mod, Show};
 use std::io::net::ip::Ipv4Addr;
-use hyper::server::{Incoming, Server};
+use hyper::server::{Request, Response, Server};
 
 fn listen() -> hyper::server::Listening {
     let server = Server::http(Ipv4Addr(127, 0, 0, 1), 0);
     server.listen(handle).unwrap()
 }
 
-macro_rules! try_continue(
+macro_rules! try_return(
     ($e:expr) => {{
         match $e {
             Ok(v) => v,
-            Err(..) => continue
+            Err(..) => return
         }
     }})
 
-fn handle(mut incoming: Incoming) {
-    for conn in incoming {
-        let (_, res) = try_continue!(conn.open());
-        let mut res = try_continue!(res.start());
-        try_continue!(res.write(b"Benchmarking hyper vs others!"))
-        try_continue!(res.end());
-    }
+fn handle(_: Request, res: Response) {
+    let mut res = try_return!(res.start());
+    try_return!(res.write(b"Benchmarking hyper vs others!"))
+    try_return!(res.end());
 }
 
 

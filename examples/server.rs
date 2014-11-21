@@ -1,54 +1,52 @@
-#![feature(macro_rules)]
+#![feature(macro_rules, phase)]
 
 extern crate hyper;
+#[phase(plugin, link)] extern crate log;
 
 use std::io::util::copy;
 use std::io::net::ip::Ipv4Addr;
 
 use hyper::{Get, Post};
 use hyper::header::common::ContentLength;
-use hyper::server::{Server, Incoming};
+use hyper::server::{Server, Request, Response};
 
-macro_rules! try_continue(
+macro_rules! try_return(
     ($e:expr) => {{
         match $e {
             Ok(v) => v,
-            Err(e) => { println!("Error: {}", e); continue; }
+            Err(e) => { error!("Error: {}", e); return; }
         }
     }}
 )
 
-fn echo(mut incoming: Incoming) {
-    for conn in incoming {
-        let (mut req, mut res) = try_continue!(conn.open());
-        match req.uri {
-            hyper::uri::AbsolutePath(ref path) => match (&req.method, path.as_slice()) {
-                (&Get, "/") | (&Get, "/echo") => {
-                    let out = b"Try POST /echo";
+fn echo(mut req: Request, mut res: Response) {
+    match req.uri {
+        hyper::uri::AbsolutePath(ref path) => match (&req.method, path.as_slice()) {
+            (&Get, "/") | (&Get, "/echo") => {
+                let out = b"Try POST /echo";
 
-                    res.headers_mut().set(ContentLength(out.len()));
-                    let mut res = try_continue!(res.start());
-                    try_continue!(res.write(out));
-                    try_continue!(res.end());
-                    continue;
-                },
-                (&Post, "/echo") => (), // fall through, fighting mutable borrows
-                _ => {
-                    *res.status_mut() = hyper::status::NotFound;
-                    try_continue!(res.start().and_then(|res| res.end()));
-                    continue;
-                }
+                res.headers_mut().set(ContentLength(out.len()));
+                let mut res = try_return!(res.start());
+                try_return!(res.write(out));
+                try_return!(res.end());
+                return;
             },
+            (&Post, "/echo") => (), // fall through, fighting mutable borrows
             _ => {
-                try_continue!(res.start().and_then(|res| res.end()));
-                continue;
+                *res.status_mut() = hyper::status::NotFound;
+                try_return!(res.start().and_then(|res| res.end()));
+                return;
             }
-        };
+        },
+        _ => {
+            try_return!(res.start().and_then(|res| res.end()));
+            return;
+        }
+    };
 
-        let mut res = try_continue!(res.start());
-        try_continue!(copy(&mut req, &mut res));
-        try_continue!(res.end());
-    }
+    let mut res = try_return!(res.start());
+    try_return!(copy(&mut req, &mut res));
+    try_return!(res.end());
 }
 
 fn main() {
