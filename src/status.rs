@@ -1569,12 +1569,6 @@ impl StatusCode {
     }
 }
 
-impl fmt::Unsigned for StatusCode {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Unsigned::fmt(&(*self as u16), f)
-    }
-}
-
 /// Formats the status code, *including* the canonical reason.
 ///
 /// ```rust
@@ -1585,7 +1579,7 @@ impl fmt::Unsigned for StatusCode {
 ///            "123 <unknown status code>");
 /// ```
 ///
-/// If you wish to just include the number, use `Unsigned` instead (`{:u}`).
+/// If you wish to just include the number, cast to a u16 instead.
 impl fmt::Show for StatusCode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{} {}", *self as u16,
