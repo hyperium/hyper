@@ -41,17 +41,22 @@ pub trait Header: Typeable + Send + Sync {
     /// than one field value. If that's the case, you **should** return `None`
     /// if `raw.len() > 1`.
     fn parse_header(raw: &[Vec<u8>]) -> Option<Self>;
+
 }
 
 /// A trait for any object that will represent a header field and value.
 ///
 /// This trait represents the formatting of a Header for output to a TcpStream.
-pub trait HeaderFormat: Typeable + Send + Sync {
+pub trait HeaderFormat: Clone + Typeable + Send + Sync {
     /// Format a header to be output into a TcpStream.
     ///
     /// This method is not allowed to introduce an Err not produced
     /// by the passed-in Formatter.
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result;
+
+    #[doc(hidden)]
+    #[inline]
+    fn clone_box(&self) -> Box<HeaderFormat + Sync + Send> { box self.clone() }
 }
 
 #[doc(hidden)]
@@ -81,12 +86,19 @@ impl<'a> UncheckedAnyMutDowncast<'a> for &'a mut HeaderFormat {
     }
 }
 
+impl Clone for Box<HeaderFormat + Send + Sync> {
+    fn clone(&self) -> Box<HeaderFormat + Send + Sync> {
+        self.clone_box()
+    }
+}
+
 fn header_name<T: Header + HeaderFormat>() -> &'static str {
     let name = Header::header_name(None::<T>);
     name
 }
 
 /// A map of header fields on requests and responses.
+#[deriving(Clone)]
 pub struct Headers {
     data: HashMap<CaseInsensitive<SendStr>, RWLock<Item>>
 }
@@ -318,6 +330,7 @@ impl<'a> fmt::Show for HeaderView<'a> {
     }
 }
 
+#[deriving(Clone)]
 struct Item {
     raw: Option<Vec<Vec<u8>>>,
     typed: Option<Box<HeaderFormat + Send + Sync>>
@@ -356,12 +369,19 @@ impl fmt::Show for Item {
     }
 }
 
+impl Clone for RWLock<Item> {
+    fn clone(&self) -> RWLock<Item> {
+        RWLock::new(self.read().clone())
+    }
+}
+
 impl fmt::Show for Box<HeaderFormat + Send + Sync> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         (**self).fmt_header(fmt)
     }
 }
 
+#[deriving(Clone)]
 struct CaseInsensitive<S: Str>(S);
 
 impl<S: Str> Str for CaseInsensitive<S> {

@@ -39,7 +39,7 @@ impl<S: Scheme> HeaderFormat for Authorization<S> {
 }
 
 /// An Authorization scheme to be used in the header.
-pub trait Scheme: FromStr + Send + Sync {
+pub trait Scheme: FromStr + Clone + Send + Sync {
     /// An optional Scheme name.
     ///
     /// For example, `Basic asdf` has the name `Basic`. The Option<Self> is
