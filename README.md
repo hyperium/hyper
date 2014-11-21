@@ -25,14 +25,11 @@ in non-backwards-compatible ways without warning.__
 Hello World Server:
 
 ```rust
-fn hello(mut incoming: Incoming) {
-    for conn in incoming {
-        let (_, mut res) = conn.open().unwrap();
-        *res.status_mut() = status::Ok;
-        let mut res = res.start().unwrap();
-        res.write(b"Hello World!");
-        res.end().unwrap();
-    }
+fn hello(_: Request, res: Response<Fresh>) {
+    *res.status_mut() = status::Ok;
+    let mut res = res.start().unwrap();
+    res.write(b"Hello World!");
+    res.end().unwrap();
 }
 
 fn main() {
