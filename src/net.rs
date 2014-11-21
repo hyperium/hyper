@@ -3,20 +3,30 @@ use std::any::{Any, AnyRefExt};
 use std::boxed::BoxAny;
 use std::fmt;
 use std::intrinsics::TypeId;
-use std::io::{IoResult, IoError, ConnectionAborted, InvalidInput, OtherIoError,
-              Stream, Listener, Acceptor};
+use std::io::{IoResult, IoError, InvalidInput, Stream, Listener, Acceptor};
 use std::io::net::ip::{SocketAddr, ToSocketAddr};
 use std::io::net::tcp::{TcpStream, TcpListener, TcpAcceptor};
 use std::mem::{mod, transmute, transmute_copy};
 use std::raw::{mod, TraitObject};
-use std::sync::{Arc, Mutex};
 
 use uany::UncheckedBoxAnyDowncast;
 use typeable::Typeable;
-use openssl::ssl::{SslStream, SslContext, Sslv23};
-use openssl::ssl::error::{SslError, StreamError, OpenSslErrors, SslSessionClosed};
 
-use self::HttpStream::{Http, Https};
+use self::HttpStream::Http;
+
+#[cfg(feature = "ssl")]
+use self::HttpStream::Https;
+
+#[cfg(feature = "ssl")]
+use self::sslhelpers::*;
+
+#[cfg(feature = "ssl")]
+mod sslhelpers {
+    pub use openssl::ssl::{SslStream, SslContext, Sslv23};
+    pub use openssl::ssl::error::{SslError, StreamError, OpenSslErrors, SslSessionClosed};
+    pub use std::sync::{Arc, Mutex};
+    pub use std::io::{ConnectionAborted, OtherIoError};
+}
 
 /// The write-status indicating headers have not been written.
 pub struct Fresh;
@@ -189,6 +199,7 @@ pub enum HttpStream {
     /// A stream over the HTTP protocol.
     Http(TcpStream),
     /// A stream over the HTTP protocol, protected by SSL.
+    #[cfg(feature = "ssl")]
     // You may be asking wtf an Arc and Mutex? That's because SslStream
     // doesn't implement Clone, and we need Clone to use the stream for
     // both the Request and Response.
@@ -201,6 +212,7 @@ impl Reader for HttpStream {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> {
         match *self {
             Http(ref mut inner) => inner.read(buf),
+            #[cfg(feature = "ssl")]
             Https(ref mut inner, _) => inner.lock().read(buf)
         }
     }
@@ -211,6 +223,7 @@ impl Writer for HttpStream {
     fn write(&mut self, msg: &[u8]) -> IoResult<()> {
         match *self {
             Http(ref mut inner) => inner.write(msg),
+            #[cfg(feature = "ssl")]
             Https(ref mut inner, _) => inner.lock().write(msg)
         }
     }
@@ -218,6 +231,7 @@ impl Writer for HttpStream {
     fn flush(&mut self) -> IoResult<()> {
         match *self {
             Http(ref mut inner) => inner.flush(),
+            #[cfg(feature = "ssl")]
             Https(ref mut inner, _) => inner.lock().flush(),
         }
     }
@@ -228,6 +242,7 @@ impl NetworkStream for HttpStream {
     fn peer_name(&mut self) -> IoResult<SocketAddr> {
         match *self {
             Http(ref mut inner) => inner.peer_name(),
+            #[cfg(feature = "ssl")]
             Https(_, addr) => Ok(addr)
         }
     }
@@ -240,6 +255,7 @@ impl NetworkConnector for HttpStream {
                 debug!("http scheme");
                 Ok(Http(try!(TcpStream::connect(addr))))
             },
+            #[cfg(feature = "ssl")]
             "https" => {
                 debug!("https scheme");
                 let mut stream = try!(TcpStream::connect(addr));
@@ -261,6 +277,7 @@ impl NetworkConnector for HttpStream {
     }
 }
 
+#[cfg(feature = "ssl")]
 fn lift_ssl_error(ssl: SslError) -> IoError {
     match ssl {
         StreamError(err) => err,

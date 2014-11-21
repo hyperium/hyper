@@ -15,7 +15,6 @@ use version;
 use HttpResult;
 use client::Response;
 
-
 /// A client request to a remote server.
 pub struct Request<W> {
     /// The target URI for this request.
