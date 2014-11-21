@@ -1579,7 +1579,7 @@ impl StatusCode {
 ///            "123 <unknown status code>");
 /// ```
 ///
-/// If you wish to just include the number, use `Unsigned` instead (`{:u}`).
+/// If you wish to just include the number, cast to a u16 instead.
 impl fmt::Show for StatusCode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{} {}", *self as u16,
