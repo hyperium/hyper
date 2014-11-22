@@ -16,9 +16,6 @@ git = "https://github.com/hyperium/mime.rs"
 [dependencies.unsafe-any]
 git = "https://github.com/reem/rust-unsafe-any"
 
-[dependencies.typeable]
-git = "https://github.com/reem/rust-typeable"
-
 [dev-dependencies.curl]
 git = "https://github.com/carllerche/curl-rust"
 
