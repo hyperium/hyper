@@ -4,6 +4,7 @@
 //! why we're using Rust in the first place. To set or get any header, an object
 //! must implement the `Header` trait from this module. Several common headers
 //! are already provided, such as `Host`, `ContentType`, `UserAgent`, and others.
+use std::any::Any;
 use std::ascii::{AsciiExt, ASCII_LOWER_MAP};
 use std::fmt::{mod, Show};
 use std::intrinsics::TypeId;
@@ -15,7 +16,6 @@ use std::sync::RWLock;
 use std::{hash, mem};
 
 use uany::{UncheckedAnyDowncast, UncheckedAnyMutDowncast};
-use typeable::Typeable;
 
 use http::{mod, LineEnding};
 use {HttpResult};
@@ -27,7 +27,7 @@ pub mod common;
 ///
 /// This trait represents the construction and identification of headers,
 /// and contains trait-object unsafe methods.
-pub trait Header: Typeable + Send + Sync {
+pub trait Header: Any + Send + Sync {
     /// Returns the name of the header field this belongs to.
     ///
     /// The market `Option` is to hint to the type system which implementation
@@ -47,7 +47,7 @@ pub trait Header: Typeable + Send + Sync {
 /// A trait for any object that will represent a header field and value.
 ///
 /// This trait represents the formatting of a Header for output to a TcpStream.
-pub trait HeaderFormat: Clone + Typeable + Send + Sync {
+pub trait HeaderFormat: Clone + Any + Send + Sync {
     /// Format a header to be output into a TcpStream.
     ///
     /// This method is not allowed to introduce an Err not produced
@@ -66,7 +66,7 @@ trait Is {
 
 impl<'a> Is for &'a HeaderFormat {
     fn is<T: 'static>(self) -> bool {
-        self.get_type() == TypeId::of::<T>()
+        self.get_type_id() == TypeId::of::<T>()
     }
 }
 

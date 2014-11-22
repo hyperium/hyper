@@ -12,7 +12,6 @@ use std::raw::{mod, TraitObject};
 use std::sync::{Arc, Mutex};
 
 use uany::UncheckedBoxAnyDowncast;
-use typeable::Typeable;
 use openssl::ssl::{SslStream, SslContext, Sslv23};
 use openssl::ssl::error::{SslError, StreamError, OpenSslErrors, SslSessionClosed};
 
@@ -25,7 +24,7 @@ pub struct Fresh;
 pub struct Streaming;
 
 /// An abstraction to listen for connections on a certain port.
-pub trait NetworkListener<S: NetworkStream, A: NetworkAcceptor<S>>: Listener<S, A> + Typeable {
+pub trait NetworkListener<S: NetworkStream, A: NetworkAcceptor<S>>: Listener<S, A> {
     /// Bind to a socket.
     ///
     /// Note: This does not start listening for connections. You must call
