@@ -296,13 +296,13 @@ pub fn is_token(b: u8) -> bool {
     }
 }
 
-/// Read bytes from `stream` into `buf` until a space is encountered.
+/// Read token bytes from `stream` into `buf` until a space is encountered.
 /// Returns `Ok(true)` if we read until a space,
 /// `Ok(false)` if we got to the end of `buf` without encountering a space,
 /// otherwise returns any error encountered reading the stream.
 ///
 /// The remaining contents of `buf` are left untouched.
-fn read_until_space<R: Reader>(stream: &mut R, buf: &mut [u8]) -> HttpResult<bool> {
+fn read_token_until_space<R: Reader>(stream: &mut R, buf: &mut [u8]) -> HttpResult<bool> {
     use std::io::BufWriter;
     let mut bufwrt = BufWriter::new(buf);
 
@@ -310,11 +310,17 @@ fn read_until_space<R: Reader>(stream: &mut R, buf: &mut [u8]) -> HttpResult<boo
         let byte = try!(stream.read_byte());
 
         if byte == SP {
-            break
+            break;
+        } else if !is_token(byte) {
+            return Err(HttpMethodError);
         // Read to end but there's still more
         } else if bufwrt.write_u8(byte).is_err() {
-            return Ok(false)
+            return Ok(false);
         }
+    }
+
+    if bufwrt.tell().unwrap() == 0 {
+        return Err(HttpMethodError);
     }
 
     Ok(true)
@@ -326,7 +332,7 @@ fn read_until_space<R: Reader>(stream: &mut R, buf: &mut [u8]) -> HttpResult<boo
 pub fn read_method<R: Reader>(stream: &mut R) -> HttpResult<method::Method> {
     let mut buf = [SP, ..16];
 
-    if !try!(read_until_space(stream, &mut buf)) {
+    if !try!(read_token_until_space(stream, &mut buf)) {
         return Err(HttpMethodError);
     }
 
@@ -349,18 +355,12 @@ pub fn read_method<R: Reader>(stream: &mut R) -> HttpResult<method::Method> {
 
     match (maybe_method, buf[]) {
         (Some(method), _) => Ok(method),
-        (None, ext) if is_valid_method(&buf) => {
+        (None, ext) => {
             use std::str::raw;
             // We already checked that the buffer is ASCII
             Ok(method::Method::Extension(unsafe { raw::from_utf8(ext) }.trim().into_string()))
         },
-        _ => Err(HttpMethodError)
     }
-}
-
-fn is_valid_method(buf: &[u8]) -> bool {
-    use std::char;
-    buf.iter().all(|&ch| char::is_uppercase(ch as char) || ch == SP)
 }
 
 /// Read a `RequestUri` from a raw stream.
@@ -454,7 +454,7 @@ pub fn read_http_version<R: Reader>(stream: &mut R) -> HttpResult<HttpVersion> {
 /// The raw bytes when parsing a header line.
 ///
 /// A String and Vec<u8>, divided by COLON (`:`). The String is guaranteed
-/// to be all `token`s. See `is_token_char` source for all valid characters.
+/// to be all `token`s. See `is_token` source for all valid characters.
 pub type RawHeaderLine = (String, Vec<u8>);
 
 /// Read a RawHeaderLine from a Reader.
@@ -620,7 +620,7 @@ mod tests {
     use status;
     use version::HttpVersion;
     use version::HttpVersion::{Http10, Http11, Http20};
-    use HttpError::HttpVersionError;
+    use HttpError::{HttpVersionError, HttpMethodError};
     use HttpResult;
     use url::Url;
 
@@ -632,19 +632,21 @@ mod tests {
 
     #[test]
     fn test_read_method() {
-        fn read(s: &str, m: method::Method) {
-            assert_eq!(read_method(&mut mem(s)), Ok(m));
+        fn read(s: &str, result: HttpResult<method::Method>) {
+            assert_eq!(read_method(&mut mem(s)), result);
         }
 
-        read("GET /", method::Method::Get);
-        read("POST /", method::Method::Post);
-        read("PUT /", method::Method::Put);
-        read("HEAD /", method::Method::Head);
-        read("OPTIONS /", method::Method::Options);
-        read("CONNECT /", method::Method::Connect);
-        read("TRACE /", method::Method::Trace);
-        read("PATCH /", method::Method::Patch);
-        read("FOO /", method::Method::Extension("FOO".to_string()));
+        read("GET /", Ok(method::Method::Get));
+        read("POST /", Ok(method::Method::Post));
+        read("PUT /", Ok(method::Method::Put));
+        read("HEAD /", Ok(method::Method::Head));
+        read("OPTIONS /", Ok(method::Method::Options));
+        read("CONNECT /", Ok(method::Method::Connect));
+        read("TRACE /", Ok(method::Method::Trace));
+        read("PATCH /", Ok(method::Method::Patch));
+        read("FOO /", Ok(method::Method::Extension("FOO".to_string())));
+        read("akemi!~#HOMURA /", Ok(method::Method::Extension("akemi!~#HOMURA".to_string())));
+        read(" ", Err(HttpMethodError));
     }
 
     #[test]
