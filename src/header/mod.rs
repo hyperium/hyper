@@ -423,6 +423,19 @@ impl<S: Str, H: hash::Writer> hash::Hash<H> for CaseInsensitive<S> {
     }
 }
 
+/// A wrapper around any Header with a Show impl that calls fmt_header.
+///
+/// This can be used like so: `format!("{}", ShowHeader(header))` to
+/// get the representation of a Header which will be written to an
+/// outgoing TcpStream.
+pub struct HeaderFormatter<H: HeaderFormat>(H);
+
+impl<H: HeaderFormat> Show for HeaderFormatter<H> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.fmt_header(f)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::io::MemReader;
