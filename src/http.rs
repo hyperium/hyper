@@ -358,9 +358,8 @@ pub fn read_method<R: Reader>(stream: &mut R) -> HttpResult<method::Method> {
     match (maybe_method, buf[]) {
         (Some(method), _) => Ok(method),
         (None, ext) => {
-            use std::str::raw;
             // We already checked that the buffer is ASCII
-            Ok(method::Method::Extension(unsafe { raw::from_utf8(ext) }.trim().into_string()))
+            Ok(method::Method::Extension(unsafe { str::from_utf8_unchecked(ext) }.trim().into_string()))
         },
     }
 }
