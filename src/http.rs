@@ -82,6 +82,8 @@ impl<R: Reader> Reader for HttpReader<R> {
                 debug!("Chunked read, remaining={}", rem);
 
                 if rem == 0 {
+                    *opt_remaining = Some(0);
+
                     // chunk of size 0 signals the end of the chunked stream
                     // if the 0 digit was missing from the stream, it would
                     // be an InvalidInput error instead.
