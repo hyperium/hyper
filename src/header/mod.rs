@@ -5,7 +5,7 @@
 //! must implement the `Header` trait from this module. Several common headers
 //! are already provided, such as `Host`, `ContentType`, `UserAgent`, and others.
 use std::any::Any;
-use std::ascii::{AsciiExt, ASCII_LOWER_MAP};
+use std::ascii::{AsciiExt, AsciiCast};
 use std::fmt::{mod, Show};
 use std::intrinsics::TypeId;
 use std::raw::TraitObject;
@@ -417,8 +417,8 @@ impl<S: Str, S2: Str> Equiv<CaseInsensitive<S2>> for CaseInsensitive<S> {
 impl<S: Str, H: hash::Writer> hash::Hash<H> for CaseInsensitive<S> {
     #[inline]
     fn hash(&self, hasher: &mut H) {
-        for byte in self.as_slice().bytes() {
-            hasher.write([ASCII_LOWER_MAP[byte as uint]].as_slice());
+        for b in self.as_slice().bytes() {
+            hasher.write(&[b.to_ascii().to_lowercase().as_byte()])
         }
     }
 }
