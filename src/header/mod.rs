@@ -432,7 +432,7 @@ pub struct HeaderFormatter<H: HeaderFormat>(H);
 
 impl<H: HeaderFormat> Show for HeaderFormatter<H> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.fmt_header(f)
+        self.0.fmt_header(f)
     }
 }
 
