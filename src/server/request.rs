@@ -7,12 +7,12 @@ use std::io::net::ip::SocketAddr;
 
 use {HttpResult};
 use version::{HttpVersion};
-use method;
+use method::Method::{mod, Get, Head};
 use header::Headers;
-use header::common::ContentLength;
+use header::common::{ContentLength, TransferEncoding};
 use http::{read_request_line};
 use http::HttpReader;
-use http::HttpReader::{SizedReader, ChunkedReader};
+use http::HttpReader::{SizedReader, ChunkedReader, EmptyReader};
 use uri::RequestUri;
 
 pub type InternalReader<'a> = &'a mut Reader + 'a;
@@ -22,7 +22,7 @@ pub struct Request<'a> {
     /// The IP address of the remote connection.
     pub remote_addr: SocketAddr,
     /// The `Method`, such as `Get`, `Post`, etc.
-    pub method: method::Method,
+    pub method: Method,
     /// The headers of the incoming request.
     pub headers: Headers,
     /// The target request-uri for this request.
@@ -44,14 +44,18 @@ impl<'a> Request<'a> {
         debug!("Headers: [\n{}]", headers);
 
 
-        let body = if headers.has::<ContentLength>() {
+        let body = if method == Get || method == Head {
+            EmptyReader(stream)
+        } else if headers.has::<ContentLength>() {
             match headers.get::<ContentLength>() {
                 Some(&ContentLength(len)) => SizedReader(stream, len),
                 None => unreachable!()
             }
-        } else {
+        } else if headers.has::<TransferEncoding>() {
             todo!("check for Transfer-Encoding: chunked");
             ChunkedReader(stream, None)
+        } else {
+            EmptyReader(stream)
         };
 
         Ok(Request {
@@ -71,3 +75,51 @@ impl<'a> Reader for Request<'a> {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use mock::MockStream;
+    use super::Request;
+
+    macro_rules! sock(
+        ($s:expr) => (::std::str::from_str::<::std::io::net::ip::SocketAddr>($s).unwrap())
+    )
+
+    #[test]
+    fn test_get_empty_body() {
+        let mut stream = MockStream::with_input(b"\
+            GET / HTTP/1.1\r\n\
+            Host: example.domain\r\n\
+            \r\n\
+            I'm a bad request.\r\n\
+        ");
+
+        let mut req = Request::new(&mut stream, sock!("127.0.0.1:80")).unwrap();
+        assert_eq!(req.read_to_string(), Ok("".into_string()));
+    }
+
+    #[test]
+    fn test_head_empty_body() {
+        let mut stream = MockStream::with_input(b"\
+            HEAD / HTTP/1.1\r\n\
+            Host: example.domain\r\n\
+            \r\n\
+            I'm a bad request.\r\n\
+        ");
+
+        let mut req = Request::new(&mut stream, sock!("127.0.0.1:80")).unwrap();
+        assert_eq!(req.read_to_string(), Ok("".into_string()));
+    }
+
+    #[test]
+    fn test_post_empty_body() {
+        let mut stream = MockStream::with_input(b"\
+            POST / HTTP/1.1\r\n\
+            Host: example.domain\r\n\
+            \r\n\
+            I'm a bad request.\r\n\
+        ");
+
+        let mut req = Request::new(&mut stream, sock!("127.0.0.1:80")).unwrap();
+        assert_eq!(req.read_to_string(), Ok("".into_string()));
+    }
+}

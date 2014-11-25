@@ -40,6 +40,13 @@ impl MockStream {
             write: MemWriter::new(),
         }
     }
+
+    pub fn with_input(input: &[u8]) -> MockStream {
+        MockStream {
+            read: MemReader::new(input.to_vec()),
+            write: MemWriter::new(),
+        }
+    }
 }
 impl Reader for MockStream {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> {

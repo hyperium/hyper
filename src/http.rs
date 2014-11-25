@@ -17,7 +17,7 @@ use HttpError::{HttpHeaderError, HttpIoError, HttpMethodError, HttpStatusError,
                 HttpUriError, HttpVersionError};
 use HttpResult;
 
-use self::HttpReader::{SizedReader, ChunkedReader, EofReader};
+use self::HttpReader::{SizedReader, ChunkedReader, EofReader, EmptyReader};
 use self::HttpWriter::{ThroughWriter, ChunkedWriter, SizedWriter, EmptyWriter};
 
 /// Readers to handle different Transfer-Encodings.
@@ -30,6 +30,7 @@ pub enum HttpReader<R> {
     /// A Reader used when Transfer-Encoding is `chunked`.
     ChunkedReader(R, Option<uint>),
     /// A Reader used for responses that don't indicate a length or chunked.
+    ///
     /// Note: This should only used for `Response`s. It is illegal for a
     /// `Request` to be made with both `Content-Length` and
     /// `Transfer-Encoding: chunked` missing, as explained from the spec:
@@ -43,6 +44,10 @@ pub enum HttpReader<R> {
     /// > reliably; the server MUST respond with the 400 (Bad Request)
     /// > status code and then close the connection.
     EofReader(R),
+    /// A Reader used for messages that should never have a body.
+    ///
+    /// See https://tools.ietf.org/html/rfc7230#section-3.3.3
+    EmptyReader(R),
 }
 
 impl<R: Reader> HttpReader<R> {
@@ -53,6 +58,7 @@ impl<R: Reader> HttpReader<R> {
             SizedReader(r, _) => r,
             ChunkedReader(r, _) => r,
             EofReader(r) => r,
+            EmptyReader(r) => r,
         }
     }
 }
@@ -106,7 +112,8 @@ impl<R: Reader> Reader for HttpReader<R> {
             },
             EofReader(ref mut body) => {
                 body.read(buf)
-            }
+            },
+            EmptyReader(_) => Err(io::standard_error(io::EndOfFile))
         }
     }
 }
