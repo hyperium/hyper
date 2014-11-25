@@ -13,7 +13,7 @@ use self::Method::{Options, Get, Post, Put, Delete, Head, Trace, Connect, Patch,
 ///
 /// It may make sense to grow this to include all variants currently
 /// registered with IANA, if they are at all common to use.
-#[deriving(Clone, PartialEq)]
+#[deriving(Clone, PartialEq, Eq, Hash)]
 pub enum Method {
     /// OPTIONS
     Options,
@@ -98,5 +98,47 @@ impl fmt::Show for Method {
             Patch => "PATCH",
             Extension(ref s) => s.as_slice()
         }.fmt(fmt)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+    use std::str::FromStr;
+    use super::Method;
+    use super::Method::{Get, Post, Put, Extension};
+
+    #[test]
+    fn test_safe() {
+        assert_eq!(true, Get.safe());
+        assert_eq!(false, Post.safe());
+    }
+
+    #[test]
+    fn test_idempotent() {
+        assert_eq!(true, Get.idempotent());
+        assert_eq!(true, Put.idempotent());
+        assert_eq!(false, Post.idempotent());
+    }
+
+    #[test]
+    fn test_from_str() {
+        assert_eq!(Some(Get), FromStr::from_str("GET"));
+        assert_eq!(Some(Extension("MOVE".to_string())),
+                   FromStr::from_str("MOVE"));
+    }
+
+    #[test]
+    fn test_fmt() {
+        assert_eq!("GET".to_string(), format!("{}", Get));
+        assert_eq!("MOVE".to_string(),
+                   format!("{}", Extension("MOVE".to_string())));
+    }
+
+    #[test]
+    fn test_hashable() {
+        let mut counter: HashMap<Method,uint> = HashMap::new();
+        counter.insert(Get, 1);
+        assert_eq!(Some(&1), counter.get(&Get));
     }
 }
