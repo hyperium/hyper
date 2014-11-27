@@ -80,9 +80,9 @@ impl Response {
         &self.status_raw
     }
 
-    /// Unwraps the Request to return the NetworkStream underneath.
-    pub fn unwrap(self) -> Box<NetworkStream + Send> {
-        self.body.unwrap().unwrap()
+    /// Consumes the Request to return the NetworkStream underneath.
+    pub fn into_inner(self) -> Box<NetworkStream + Send> {
+        self.body.unwrap().into_inner()
     }
 }
 
@@ -120,7 +120,7 @@ mod tests {
             status_raw: RawStatus(200, Slice("OK"))
         };
 
-        let b = res.unwrap().downcast::<MockStream>().unwrap();
+        let b = res.into_inner().downcast::<MockStream>().unwrap();
         assert_eq!(b, box MockStream::new());
 
     }

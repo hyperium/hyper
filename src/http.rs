@@ -748,7 +748,7 @@ mod tests {
         let mut w = super::HttpWriter::ChunkedWriter(MemWriter::new());
         w.write(b"foo bar").unwrap();
         w.write(b"baz quux herp").unwrap();
-        let buf = w.end().unwrap().unwrap();
+        let buf = w.end().unwrap().into_inner();
         let s = from_utf8(buf.as_slice()).unwrap();
         assert_eq!(s, "7\r\nfoo bar\r\nD\r\nbaz quux herp\r\n0\r\n\r\n");
     }
@@ -760,7 +760,7 @@ mod tests {
         w.write(b"foo bar").unwrap();
         assert_eq!(w.write(b"baz"), Err(io::standard_error(io::ShortWrite(1))));
 
-        let buf = w.end().unwrap().unwrap();
+        let buf = w.end().unwrap().into_inner();
         let s = from_utf8(buf.as_slice()).unwrap();
         assert_eq!(s, "foo barb");
     }
