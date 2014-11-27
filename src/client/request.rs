@@ -125,7 +125,7 @@ impl Request<Fresh> {
                 debug!("headers [\n{}]", self.headers);
                 try!(write!(&mut self.body, "{}", self.headers));
                 try!(self.body.write(LINE_ENDING));
-                EmptyWriter(self.body.unwrap())
+                EmptyWriter(self.body.into_inner())
             },
             _ => {
                 let mut chunked = true;
@@ -161,9 +161,9 @@ impl Request<Fresh> {
                 try!(self.body.write(LINE_ENDING));
 
                 if chunked {
-                    ChunkedWriter(self.body.unwrap())
+                    ChunkedWriter(self.body.into_inner())
                 } else {
-                    SizedWriter(self.body.unwrap(), len)
+                    SizedWriter(self.body.into_inner(), len)
                 }
             }
         };
@@ -187,7 +187,7 @@ impl Request<Streaming> {
     ///
     /// Consumes the Request.
     pub fn send(self) -> HttpResult<Response> {
-        let raw = try!(self.body.end()).unwrap();
+        let raw = try!(self.body.end()).into_inner();
         Response::new(raw)
     }
 }
@@ -219,8 +219,8 @@ mod tests {
             Get, Url::parse("http://example.dom").unwrap()
         ).unwrap();
         let req = req.start().unwrap();
-        let stream = *req.body.end().unwrap().unwrap().downcast::<MockStream>().unwrap();
-        let bytes = stream.write.unwrap();
+        let stream = *req.body.end().unwrap().into_inner().downcast::<MockStream>().unwrap();
+        let bytes = stream.write.into_inner();
         let s = from_utf8(bytes[]).unwrap();
         assert!(!s.contains("Content-Length:"));
         assert!(!s.contains("Transfer-Encoding:"));
@@ -232,8 +232,8 @@ mod tests {
             Head, Url::parse("http://example.dom").unwrap()
         ).unwrap();
         let req = req.start().unwrap();
-        let stream = *req.body.end().unwrap().unwrap().downcast::<MockStream>().unwrap();
-        let bytes = stream.write.unwrap();
+        let stream = *req.body.end().unwrap().into_inner().downcast::<MockStream>().unwrap();
+        let bytes = stream.write.into_inner();
         let s = from_utf8(bytes[]).unwrap();
         assert!(!s.contains("Content-Length:"));
         assert!(!s.contains("Transfer-Encoding:"));

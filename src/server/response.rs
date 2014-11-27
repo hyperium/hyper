@@ -112,9 +112,9 @@ impl<'a> Response<'a, Fresh> {
         try!(self.body.write(LINE_ENDING));
 
         let stream = if chunked {
-            ChunkedWriter(self.body.unwrap())
+            ChunkedWriter(self.body.into_inner())
         } else {
-            SizedWriter(self.body.unwrap(), len)
+            SizedWriter(self.body.into_inner(), len)
         };
 
         // "copy" to change the phantom type
