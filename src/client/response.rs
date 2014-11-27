@@ -82,7 +82,7 @@ impl Response {
 
     /// Unwraps the Request to return the NetworkStream underneath.
     pub fn unwrap(self) -> Box<NetworkStream + Send> {
-        self.body.unwrap().unwrap()
+        self.body.unwrap().into_inner()
     }
 }
 
