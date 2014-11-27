@@ -1,9 +1,10 @@
 //! Pieces pertaining to the HTTP message protocol.
+use std::borrow::{Borrowed, Owned};
 use std::cmp::min;
 use std::fmt;
 use std::io::{mod, Reader, IoResult, BufWriter};
 use std::num::from_u16;
-use std::str::{mod, SendStr, Slice, Owned};
+use std::str::{mod, SendStr};
 
 use url::Url;
 
@@ -559,8 +560,14 @@ pub fn read_request_line<R: Reader>(stream: &mut R) -> HttpResult<RequestLine> {
 pub type StatusLine = (HttpVersion, RawStatus);
 
 /// The raw status code and reason-phrase.
-#[deriving(PartialEq, Show, Clone)]
+#[deriving(PartialEq, Show)]
 pub struct RawStatus(pub u16, pub SendStr);
+
+impl Clone for RawStatus {
+    fn clone(&self) -> RawStatus {
+        RawStatus(self.0, (*self.1).clone().into_cow())
+    }
+}
 
 /// Read the StatusLine, such as `HTTP/1.1 200 OK`.
 ///
@@ -632,7 +639,7 @@ pub fn read_status<R: Reader>(stream: &mut R) -> HttpResult<RawStatus> {
         Some(status) => match status.canonical_reason() {
             Some(phrase) => {
                 if phrase == reason {
-                    Slice(phrase)
+                    Borrowed(phrase)
                 } else {
                     Owned(reason.into_string())
                 }
@@ -657,7 +664,7 @@ fn expect(r: IoResult<u8>, expected: u8) -> HttpResult<()> {
 #[cfg(test)]
 mod tests {
     use std::io::{mod, MemReader, MemWriter};
-    use std::str::{Slice, Owned};
+    use std::borrow::{Borrowed, Owned};
     use test::Bencher;
     use uri::RequestUri;
     use uri::RequestUri::{Star, AbsoluteUri, AbsolutePath, Authority};
@@ -727,8 +734,8 @@ mod tests {
             assert_eq!(read_status(&mut mem(s)), result);
         }
 
-        read("200 OK\r\n", Ok(RawStatus(200, Slice("OK"))));
-        read("404 Not Found\r\n", Ok(RawStatus(404, Slice("Not Found"))));
+        read("200 OK\r\n", Ok(RawStatus(200, Borrowed("OK"))));
+        read("404 Not Found\r\n", Ok(RawStatus(404, Borrowed("Not Found"))));
         read("200 crazy pants\r\n", Ok(RawStatus(200, Owned("crazy pants".to_string()))));
     }
 
@@ -748,7 +755,7 @@ mod tests {
         let mut w = super::HttpWriter::ChunkedWriter(MemWriter::new());
         w.write(b"foo bar").unwrap();
         w.write(b"baz quux herp").unwrap();
-        let buf = w.end().unwrap().unwrap();
+        let buf = w.end().unwrap().into_inner();
         let s = from_utf8(buf.as_slice()).unwrap();
         assert_eq!(s, "7\r\nfoo bar\r\nD\r\nbaz quux herp\r\n0\r\n\r\n");
     }
@@ -760,7 +767,7 @@ mod tests {
         w.write(b"foo bar").unwrap();
         assert_eq!(w.write(b"baz"), Err(io::standard_error(io::ShortWrite(1))));
 
-        let buf = w.end().unwrap().unwrap();
+        let buf = w.end().unwrap().into_inner();
         let s = from_utf8(buf.as_slice()).unwrap();
         assert_eq!(s, "foo barb");
     }
@@ -774,7 +781,7 @@ mod tests {
     #[bench]
     fn bench_read_status(b: &mut Bencher) {
         b.bytes = b"404 Not Found\r\n".len() as u64;
-        b.iter(|| assert_eq!(read_status(&mut mem("404 Not Found\r\n")), Ok(RawStatus(404, Slice("Not Found")))));
+        b.iter(|| assert_eq!(read_status(&mut mem("404 Not Found\r\n")), Ok(RawStatus(404, Borrowed("Not Found")))));
     }
 
 }
