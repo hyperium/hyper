@@ -6,10 +6,11 @@
 //! are already provided, such as `Host`, `ContentType`, `UserAgent`, and others.
 use std::any::Any;
 use std::ascii::{AsciiExt, AsciiCast};
+use std::borrow::{Borrowed, Owned};
 use std::fmt::{mod, Show};
 use std::intrinsics::TypeId;
 use std::raw::TraitObject;
-use std::str::{SendStr, Slice, Owned};
+use std::str::SendStr;
 use std::collections::HashMap;
 use std::collections::hash_map::{Entries, Occupied, Vacant};
 use std::sync::RWLock;
@@ -95,7 +96,7 @@ fn header_name<T: Header>() -> &'static str {
 /// A map of header fields on requests and responses.
 #[deriving(Clone)]
 pub struct Headers {
-    data: HashMap<CaseInsensitive<SendStr>, RWLock<Item>>
+    data: HashMap<CaseInsensitive, RWLock<Item>>
 }
 
 impl Headers {
@@ -136,7 +137,7 @@ impl Headers {
     ///
     /// The field is determined by the type of the value being set.
     pub fn set<H: Header + HeaderFormat>(&mut self, value: H) {
-        self.data.insert(CaseInsensitive(Slice(header_name::<H>())),
+        self.data.insert(CaseInsensitive(Borrowed(header_name::<H>())),
                          RWLock::new(Item::typed(box value as Box<HeaderFormat + Send + Sync>)));
     }
 
@@ -154,7 +155,7 @@ impl Headers {
     pub fn get_raw(&self, name: &str) -> Option<&[Vec<u8>]> {
         self.data
             // FIXME(reem): Find a better way to do this lookup without find_equiv.
-            .get(&CaseInsensitive(Slice(unsafe { mem::transmute::<&str, &str>(name) })))
+            .get(&CaseInsensitive(Borrowed(unsafe { mem::transmute::<&str, &str>(name) })))
             .and_then(|item| {
                 let lock = item.read();
                 if let Some(ref raw) = lock.raw {
@@ -177,8 +178,8 @@ impl Headers {
     /// # let mut headers = Headers::new();
     /// headers.set_raw("content-length", vec!["5".as_bytes().to_vec()]);
     /// ```
-    pub fn set_raw<K: IntoMaybeOwned<'static>>(&mut self, name: K, value: Vec<Vec<u8>>) {
-        self.data.insert(CaseInsensitive(name.into_maybe_owned()), RWLock::new(Item::raw(value)));
+    pub fn set_raw<K: IntoCow<'static, String, str>>(&mut self, name: K, value: Vec<Vec<u8>>) {
+        self.data.insert(CaseInsensitive(name.into_cow()), RWLock::new(Item::raw(value)));
     }
 
     /// Get a reference to the header field's value, if it exists.
@@ -200,7 +201,7 @@ impl Headers {
     }
 
     fn get_or_parse<H: Header + HeaderFormat>(&self) -> Option<&RWLock<Item>> {
-        self.data.get(&CaseInsensitive(Slice(header_name::<H>()))).and_then(|item| get_or_parse::<H>(item))
+        self.data.get(&CaseInsensitive(Borrowed(header_name::<H>()))).and_then(|item| get_or_parse::<H>(item))
     }
 
     /// Returns a boolean of whether a certain header is in the map.
@@ -214,13 +215,13 @@ impl Headers {
     /// let has_type = headers.has::<ContentType>();
     /// ```
     pub fn has<H: Header + HeaderFormat>(&self) -> bool {
-        self.data.contains_key(&CaseInsensitive(Slice(header_name::<H>())))
+        self.data.contains_key(&CaseInsensitive(Borrowed(header_name::<H>())))
     }
 
     /// Removes a header from the map, if one existed.
     /// Returns true if a header has been removed.
     pub fn remove<H: Header + HeaderFormat>(&mut self) -> bool {
-        self.data.remove(&CaseInsensitive(Slice(Header::header_name(None::<H>)))).is_some()
+        self.data.remove(&CaseInsensitive(Borrowed(Header::header_name(None::<H>)))).is_some()
     }
 
     /// Returns an iterator over the header fields.
@@ -252,7 +253,7 @@ impl fmt::Show for Headers {
 
 /// An `Iterator` over the fields in a `Headers` map.
 pub struct HeadersItems<'a> {
-    inner: Entries<'a, CaseInsensitive<SendStr>, RWLock<Item>>
+    inner: Entries<'a, CaseInsensitive, RWLock<Item>>
 }
 
 impl<'a> Iterator<HeaderView<'a>> for HeadersItems<'a> {
@@ -265,13 +266,13 @@ impl<'a> Iterator<HeaderView<'a>> for HeadersItems<'a> {
 }
 
 /// Returned with the `HeadersItems` iterator.
-pub struct HeaderView<'a>(&'a CaseInsensitive<SendStr>, &'a RWLock<Item>);
+pub struct HeaderView<'a>(&'a CaseInsensitive, &'a RWLock<Item>);
 
 impl<'a> HeaderView<'a> {
     /// Check if a HeaderView is a certain Header.
     #[inline]
     pub fn is<H: Header>(&self) -> bool {
-        CaseInsensitive(header_name::<H>().into_maybe_owned()) == *self.0
+        CaseInsensitive(header_name::<H>().into_cow()) == *self.0
     }
 
     /// Get the Header name as a slice.
@@ -432,10 +433,16 @@ impl fmt::Show for Box<HeaderFormat + Send + Sync> {
     }
 }
 
-#[deriving(Clone)]
-struct CaseInsensitive<S: Str>(S);
+//#[deriving(Clone)]
+struct CaseInsensitive(SendStr);
 
-impl<S: Str> Str for CaseInsensitive<S> {
+impl Clone for CaseInsensitive {
+    fn clone(&self) -> CaseInsensitive {
+        CaseInsensitive((*self.0).clone().into_cow())
+    }
+}
+
+impl Str for CaseInsensitive {
     fn as_slice(&self) -> &str {
         let CaseInsensitive(ref s) = *self;
         s.as_slice()
@@ -443,29 +450,27 @@ impl<S: Str> Str for CaseInsensitive<S> {
 
 }
 
-impl<S: Str> fmt::Show for CaseInsensitive<S> {
+impl fmt::Show for CaseInsensitive {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         self.as_slice().fmt(fmt)
     }
 }
 
-impl<S: Str> PartialEq for CaseInsensitive<S> {
-    fn eq(&self, other: &CaseInsensitive<S>) -> bool {
+impl PartialEq for CaseInsensitive {
+    fn eq(&self, other: &CaseInsensitive) -> bool {
         self.as_slice().eq_ignore_ascii_case(other.as_slice())
     }
 }
 
-impl<S: Str> Eq for CaseInsensitive<S> {}
+impl Eq for CaseInsensitive {}
 
-impl<S: Str, S2: Str> Equiv<CaseInsensitive<S2>> for CaseInsensitive<S> {
-    fn equiv(&self, other: &CaseInsensitive<S2>) -> bool {
-        let left = CaseInsensitive(self.as_slice());
-        let right = CaseInsensitive(other.as_slice());
-        left == right
+impl Equiv<CaseInsensitive> for CaseInsensitive {
+    fn equiv(&self, other: &CaseInsensitive) -> bool {
+        self == other
     }
 }
 
-impl<S: Str, H: hash::Writer> hash::Hash<H> for CaseInsensitive<S> {
+impl<H: hash::Writer> hash::Hash<H> for CaseInsensitive {
     #[inline]
     fn hash(&self, hasher: &mut H) {
         for b in self.as_slice().bytes() {
@@ -491,7 +496,7 @@ impl<H: HeaderFormat> Show for HeaderFormatter<H> {
 mod tests {
     use std::io::MemReader;
     use std::fmt;
-    use std::str::Slice;
+    use std::borrow::Borrowed;
     use std::hash::sip::hash;
     use mime::{Mime, Text, Plain};
     use super::CaseInsensitive;
@@ -506,8 +511,8 @@ mod tests {
 
     #[test]
     fn test_case_insensitive() {
-        let a = CaseInsensitive(Slice("foobar"));
-        let b = CaseInsensitive(Slice("FOOBAR"));
+        let a = CaseInsensitive(Borrowed("foobar"));
+        let b = CaseInsensitive(Borrowed("FOOBAR"));
 
         assert_eq!(a, b);
         assert_eq!(hash(&a), hash(&b));

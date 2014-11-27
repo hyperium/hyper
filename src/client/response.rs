@@ -95,9 +95,9 @@ impl Reader for Response {
 
 #[cfg(test)]
 mod tests {
+    use std::borrow::Borrowed;
     use std::boxed::BoxAny;
     use std::io::BufferedReader;
-    use std::str::Slice;
 
     use header::Headers;
     use http::HttpReader::EofReader;
@@ -117,7 +117,7 @@ mod tests {
             headers: Headers::new(),
             version: version::HttpVersion::Http11,
             body: EofReader(BufferedReader::new(box MockStream::new() as Box<NetworkStream + Send>)),
-            status_raw: RawStatus(200, Slice("OK"))
+            status_raw: RawStatus(200, Borrowed("OK"))
         };
 
         let b = res.into_inner().downcast::<MockStream>().unwrap();
