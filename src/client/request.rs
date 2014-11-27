@@ -187,7 +187,7 @@ impl Request<Streaming> {
     ///
     /// Consumes the Request.
     pub fn send(self) -> HttpResult<Response> {
-        let raw = try!(self.body.end()).unwrap();
+        let raw = try!(self.body.end()).into_inner();
         Response::new(raw)
     }
 }
