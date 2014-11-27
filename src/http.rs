@@ -180,7 +180,7 @@ pub enum HttpWriter<W: Writer> {
 impl<W: Writer> HttpWriter<W> {
     /// Unwraps the HttpWriter and returns the underlying Writer.
     #[inline]
-    pub fn unwrap(self) -> W {
+    pub fn into_inner(self) -> W {
         match self {
             ThroughWriter(w) => w,
             ChunkedWriter(w) => w,
@@ -197,7 +197,7 @@ impl<W: Writer> HttpWriter<W> {
     pub fn end(mut self) -> IoResult<W> {
         try!(self.write(&[]));
         try!(self.flush());
-        Ok(self.unwrap())
+        Ok(self.into_inner())
     }
 }
 

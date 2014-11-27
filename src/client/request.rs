@@ -125,7 +125,7 @@ impl Request<Fresh> {
                 debug!("headers [\n{}]", self.headers);
                 try!(write!(&mut self.body, "{}", self.headers));
                 try!(self.body.write(LINE_ENDING));
-                EmptyWriter(self.body.unwrap())
+                EmptyWriter(self.body.into_inner())
             },
             _ => {
                 let mut chunked = true;
@@ -161,9 +161,9 @@ impl Request<Fresh> {
                 try!(self.body.write(LINE_ENDING));
 
                 if chunked {
-                    ChunkedWriter(self.body.unwrap())
+                    ChunkedWriter(self.body.into_inner())
                 } else {
-                    SizedWriter(self.body.unwrap(), len)
+                    SizedWriter(self.body.into_inner(), len)
                 }
             }
         };
