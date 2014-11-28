@@ -14,7 +14,7 @@ use status;
 use net::{Fresh, Streaming};
 use version;
 
-pub type InternalWriter<'a> = &'a mut Writer + 'a;
+pub type InternalWriter<'a> = &'a mut (Writer + 'a);
 
 /// The outgoing half for a Tcp connection, created by a `Server` and given to a `Handler`.
 pub struct Response<'a, W = Fresh> {

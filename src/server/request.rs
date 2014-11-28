@@ -15,7 +15,7 @@ use http::HttpReader;
 use http::HttpReader::{SizedReader, ChunkedReader, EmptyReader};
 use uri::RequestUri;
 
-pub type InternalReader<'a> = &'a mut Reader + 'a;
+pub type InternalReader<'a> = &'a mut (Reader + 'a);
 
 /// A request bundles several parts of an incoming `NetworkStream`, given to a `Handler`.
 pub struct Request<'a> {

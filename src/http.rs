@@ -1,5 +1,5 @@
 //! Pieces pertaining to the HTTP message protocol.
-use std::borrow::{Borrowed, Owned};
+use std::borrow::Cow::{Borrowed, Owned};
 use std::cmp::min;
 use std::fmt;
 use std::io::{mod, Reader, IoResult, BufWriter};
