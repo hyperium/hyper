@@ -481,12 +481,12 @@ impl<H: hash::Writer> hash::Hash<H> for CaseInsensitive {
 
 /// A wrapper around any Header with a Show impl that calls fmt_header.
 ///
-/// This can be used like so: `format!("{}", ShowHeader(header))` to
+/// This can be used like so: `format!("{}", HeaderFormatter(&header))` to
 /// get the representation of a Header which will be written to an
 /// outgoing TcpStream.
-pub struct HeaderFormatter<H: HeaderFormat>(H);
+pub struct HeaderFormatter<'a, H: HeaderFormat>(pub &'a H);
 
-impl<H: HeaderFormat> Show for HeaderFormatter<H> {
+impl<'a, H: HeaderFormat> Show for HeaderFormatter<'a, H> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt_header(f)
     }
