@@ -11,6 +11,7 @@ pub use self::response::Response;
 
 pub use net::{Fresh, Streaming};
 
+use HttpError::HttpIoError;
 use {HttpResult};
 use header::common::Connection;
 use header::common::connection::{KeepAlive, Close};
@@ -92,9 +93,13 @@ impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L
                                 let mut res = Response::new(&mut wrt);
                                 let req = match Request::new(&mut rdr, addr) {
                                     Ok(req) => req,
+                                    Err(e@HttpIoError(_)) => {
+                                        debug!("ioerror in keepalive loop = {}", e);
+                                        return;
+                                    }
                                     Err(e) => {
                                         //TODO: send a 400 response
-                                        error!("request error: {}", e);
+                                        error!("request error = {}", e);
                                         return;
                                     }
                                 };
