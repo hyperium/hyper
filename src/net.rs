@@ -12,7 +12,8 @@ use std::raw::{mod, TraitObject};
 use std::sync::{Arc, Mutex};
 
 use uany::UncheckedBoxAnyDowncast;
-use openssl::ssl::{SslStream, SslContext, Sslv23};
+use openssl::ssl::{SslStream, SslContext};
+use openssl::ssl::SslMethod::Sslv23;
 use openssl::ssl::error::{SslError, StreamError, OpenSslErrors, SslSessionClosed};
 
 use self::HttpStream::{Http, Https};
@@ -103,7 +104,7 @@ impl UncheckedBoxAnyDowncast for Box<NetworkStream + Send> {
     }
 }
 
-impl<'a> AnyRefExt<'a> for &'a NetworkStream + 'a {
+impl<'a> AnyRefExt<'a> for &'a (NetworkStream + 'a) {
     #[inline]
     fn is<T: 'static>(self) -> bool {
         self.get_type_id() == TypeId::of::<T>()

@@ -6,7 +6,7 @@
 //! are already provided, such as `Host`, `ContentType`, `UserAgent`, and others.
 use std::any::Any;
 use std::ascii::{AsciiExt, AsciiCast};
-use std::borrow::{Borrowed, Owned};
+use std::borrow::Cow::{Borrowed, Owned};
 use std::fmt::{mod, Show};
 use std::intrinsics::TypeId;
 use std::raw::TraitObject;
