@@ -522,7 +522,7 @@ pub fn read_header<R: Reader>(stream: &mut R) -> HttpResult<Option<RawHeaderLine
         };
     }
 
-    debug!("header value = {}", value);
+    debug!("header value = {}", value[].to_ascii());
 
     match try!(stream.read_byte()) {
         LF => Ok(Some((name, value))),

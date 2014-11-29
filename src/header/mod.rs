@@ -114,7 +114,7 @@ impl Headers {
         loop {
             match try!(http::read_header(rdr)) {
                 Some((name, value)) => {
-                    debug!("raw header: {}={}", name, value);
+                    debug!("raw header: {}={}", name, value[].to_ascii());
                     let name = CaseInsensitive(Owned(name));
                     let item = match headers.data.entry(name) {
                         Vacant(entry) => entry.set(RWLock::new(Item::raw(vec![]))),
@@ -389,7 +389,6 @@ fn get_or_parse<H: Header + HeaderFormat>(item: &RWLock<Item>) -> Option<&RWLock
 }
 
 fn downcast<H: Header + HeaderFormat>(read: &Item) -> &H {
-    debug!("downcasting {}", *read);
     match read.typed {
         Some(ref val) => unsafe { val.downcast_ref_unchecked() },
         _ => unreachable!()
@@ -397,7 +396,6 @@ fn downcast<H: Header + HeaderFormat>(read: &Item) -> &H {
 }
 
 fn downcast_mut<H: Header + HeaderFormat>(write: &mut Item) -> &mut H {
-    debug!("downcasting {}", *write);
     match write.typed {
         Some(ref mut val) => unsafe { val.downcast_mut_unchecked() },
         _ => unreachable!()
