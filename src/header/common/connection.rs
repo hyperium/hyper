@@ -9,6 +9,8 @@ pub use self::ConnectionOption::{KeepAlive, Close, ConnectionHeader};
 #[deriving(Clone, PartialEq, Show)]
 pub struct Connection(pub Vec<ConnectionOption>);
 
+deref!(Connection -> Vec<ConnectionOption>)
+
 /// Values that can be in the `Connection` header.
 #[deriving(Clone, PartialEq)]
 pub enum ConnectionOption {

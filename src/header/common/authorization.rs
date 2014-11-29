@@ -7,6 +7,18 @@ use header::{Header, HeaderFormat};
 #[deriving(Clone, PartialEq, Show)]
 pub struct Authorization<S: Scheme>(pub S);
 
+impl<S: Scheme> Deref<S> for Authorization<S> {
+    fn deref<'a>(&'a self) -> &'a S {
+        &self.0
+    }
+}
+
+impl<S: Scheme> DerefMut<S> for Authorization<S> {
+    fn deref_mut<'a>(&'a mut self) -> &'a mut S {
+        &mut self.0
+    }
+}
+
 impl<S: Scheme> Header for Authorization<S> {
     fn header_name(_: Option<Authorization<S>>) -> &'static str {
         "Authorization"

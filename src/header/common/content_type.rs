@@ -10,6 +10,8 @@ use mime::Mime;
 #[deriving(Clone, PartialEq, Show)]
 pub struct ContentType(pub Mime);
 
+deref!(ContentType -> Mime)
+
 impl Header for ContentType {
     fn header_name(_: Option<ContentType>) -> &'static str {
         "Content-Type"

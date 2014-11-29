@@ -21,6 +21,8 @@ use mime::Mime;
 #[deriving(Clone, PartialEq, Show)]
 pub struct Accept(pub Vec<Mime>);
 
+deref!(Accept -> Vec<Mime>)
+
 impl Header for Accept {
     fn header_name(_: Option<Accept>) -> &'static str {
         "Accept"

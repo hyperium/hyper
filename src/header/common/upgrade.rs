@@ -7,7 +7,9 @@ use self::Protocol::{WebSocket, ProtocolExt};
 
 /// The `Upgrade` header.
 #[deriving(Clone, PartialEq, Show)]
-pub struct Upgrade(Vec<Protocol>);
+pub struct Upgrade(pub Vec<Protocol>);
+
+deref!(Upgrade -> Vec<Protocol>)
 
 /// Protocol values that can appear in the Upgrade header.
 #[deriving(Clone, PartialEq)]

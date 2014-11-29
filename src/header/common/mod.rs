@@ -59,6 +59,22 @@ macro_rules! bench_header(
     }
 )
 
+macro_rules! deref(
+    ($from:ty -> $to:ty) => {
+        impl Deref<$to> for $from {
+            fn deref<'a>(&'a self) -> &'a $to {
+                &self.0
+            }
+        }
+
+        impl DerefMut<$to> for $from {
+            fn deref_mut<'a>(&'a mut self) -> &'a mut $to {
+                &mut self.0
+            }
+        }
+    }
+)
+
 /// Exposes the Accept header.
 pub mod accept;
 
