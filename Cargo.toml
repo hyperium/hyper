@@ -27,3 +27,6 @@ git = "https://github.com/alexcrichton/cookie-rs"
 
 [dependencies.time]
 git = "https://github.com/rust-lang/time"
+
+[dependencies.mucell]
+git = "https://github.com/chris-morgan/mucell"

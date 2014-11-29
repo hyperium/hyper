@@ -26,33 +26,24 @@ macro_rules! bench_header(
         #[cfg(test)]
         mod $name {
             use test::Bencher;
-            use std::fmt::{mod, Show};
-
             use super::*;
 
-            use header::{Header, HeaderFormat};
-
-            struct HeaderFormatter($ty);
-
-            impl Show for HeaderFormatter {
-                fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                    self.0.fmt_header(f)
-                }
-            }
+            use header::{Header, HeaderFormatter};
 
             #[bench]
             fn bench_parse(b: &mut Bencher) {
                 let val = $value;
                 b.iter(|| {
-                    let _: $ty= Header::parse_header(val[]).unwrap();
+                    let _: $ty = Header::parse_header(val[]).unwrap();
                 });
             }
 
             #[bench]
             fn bench_format(b: &mut Bencher) {
-                let val = HeaderFormatter(Header::parse_header($value[]).unwrap());
+                let val: $ty = Header::parse_header($value[]).unwrap();
+                let fmt = HeaderFormatter(&val);
                 b.iter(|| {
-                    format!("{}", val);
+                    format!("{}", fmt);
                 });
             }
         }
