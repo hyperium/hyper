@@ -96,6 +96,9 @@ pub mod content_type;
 /// Exposes the Date header.
 pub mod date;
 
+/// Exposes the Expires header.
+pub mod expires;
+
 /// Exposes the Host header.
 pub mod host;
 
