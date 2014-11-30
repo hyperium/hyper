@@ -9,6 +9,8 @@ use time::{Tm, strptime};
 #[deriving(PartialEq, Clone)]
 pub struct Date(pub Tm);
 
+deref!(Date -> Tm)
+
 impl Header for Date {
     fn header_name(_: Option<Date>) -> &'static str {
         "Date"

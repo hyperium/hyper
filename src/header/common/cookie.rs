@@ -16,6 +16,8 @@ use cookie::CookieJar;
 #[deriving(Clone, PartialEq, Show)]
 pub struct Cookies(pub Vec<Cookie>);
 
+deref!(Cookies -> Vec<Cookie>)
+
 impl Header for Cookies {
     fn header_name(_: Option<Cookies>) -> &'static str {
         "Cookie"

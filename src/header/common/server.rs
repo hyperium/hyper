@@ -8,6 +8,8 @@ use super::util::from_one_raw_str;
 #[deriving(Clone, PartialEq, Show)]
 pub struct Server(pub String);
 
+deref!(Server -> String)
+
 impl Header for Server {
     fn header_name(_: Option<Server>) -> &'static str {
         "Server"

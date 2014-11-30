@@ -9,6 +9,8 @@ use super::util::from_one_raw_str;
 #[deriving(Clone, PartialEq, Show)]
 pub struct ContentLength(pub uint);
 
+deref!(ContentLength -> uint)
+
 impl Header for ContentLength {
     fn header_name(_: Option<ContentLength>) -> &'static str {
         "Content-Length"
@@ -28,10 +30,10 @@ impl HeaderFormat for ContentLength {
 
 impl ContentLength {
     /// Returns the wrapped length.
+    #[deprecated = "use Deref instead"]
     #[inline]
     pub fn len(&self) -> uint {
-        let ContentLength(len) = *self;
-        len
+        **self
     }
 }
 

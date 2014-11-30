@@ -21,6 +21,8 @@ use self::Encoding::{Chunked, Gzip, Deflate, Compress, EncodingExt};
 #[deriving(Clone, PartialEq, Show)]
 pub struct TransferEncoding(pub Vec<Encoding>);
 
+deref!(TransferEncoding -> Vec<Encoding>)
+
 /// A value to be used with the `Transfer-Encoding` header.
 ///
 /// Example:

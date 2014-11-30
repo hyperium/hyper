@@ -134,7 +134,7 @@ impl Request<Fresh> {
                 match self.headers.get::<common::ContentLength>() {
                     Some(cl) => {
                         chunked = false;
-                        len = cl.len();
+                        len = **cl;
                     },
                     None => ()
                 };
