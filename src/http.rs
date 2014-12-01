@@ -609,11 +609,11 @@ pub fn read_status<R: Reader>(stream: &mut R) -> HttpResult<RawStatus> {
         _ => return Err(HttpStatusError)
     }
 
-    let mut buf = [b' ', ..16];
+    let mut buf = [b' ', ..32];
 
     {
         let mut bufwrt = BufWriter::new(&mut buf);
-        loop {
+        'read: loop {
             match try!(stream.read_byte()) {
                 CR => match try!(stream.read_byte()) {
                     LF => break,
@@ -622,8 +622,16 @@ pub fn read_status<R: Reader>(stream: &mut R) -> HttpResult<RawStatus> {
                 b => match bufwrt.write_u8(b) {
                     Ok(_) => (),
                     Err(_) => {
-                        // what sort of reason phrase is this long?
-                        return Err(HttpStatusError);
+                        for _ in range(0u, 128) {
+                            match try!(stream.read_byte()) {
+                                CR => match try!(stream.read_byte()) {
+                                    LF => break 'read,
+                                    _ => return Err(HttpStatusError)
+                                },
+                                _ => { /* ignore */ }
+                            }
+                        }
+                        return Err(HttpStatusError)
                     }
                 }
             }
@@ -734,9 +742,22 @@ mod tests {
             assert_eq!(read_status(&mut mem(s)), result);
         }
 
+        fn read_ignore_string(s: &str, result: HttpResult<RawStatus>) {
+            match (read_status(&mut mem(s)), result) {
+                (Ok(RawStatus(ref c1, _)), Ok(RawStatus(ref c2, _))) => {
+                    assert_eq!(c1, c2);
+                },
+                (r1, r2) => assert_eq!(r1, r2)
+            }
+        }
+
         read("200 OK\r\n", Ok(RawStatus(200, Borrowed("OK"))));
         read("404 Not Found\r\n", Ok(RawStatus(404, Borrowed("Not Found"))));
         read("200 crazy pants\r\n", Ok(RawStatus(200, Owned("crazy pants".to_string()))));
+        read("301 Moved Permanently\r\n", Ok(RawStatus(301, Owned("Moved Permanently".to_string()))));
+        read_ignore_string("301 Unreasonably long header that should not happen, \
+                           but some men just want to watch the world burn\r\n",
+             Ok(RawStatus(301, Owned("Ignored".to_string()))));
     }
 
     #[test]
