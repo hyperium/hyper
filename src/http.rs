@@ -609,11 +609,11 @@ pub fn read_status<R: Reader>(stream: &mut R) -> HttpResult<RawStatus> {
         _ => return Err(HttpStatusError)
     }
 
-    let mut buf = [b' ', ..16];
+    let mut buf = [b' ', ..32];
 
     {
         let mut bufwrt = BufWriter::new(&mut buf);
-        loop {
+        'read: loop {
             match try!(stream.read_byte()) {
                 CR => match try!(stream.read_byte()) {
                     LF => break,
@@ -622,8 +622,16 @@ pub fn read_status<R: Reader>(stream: &mut R) -> HttpResult<RawStatus> {
                 b => match bufwrt.write_u8(b) {
                     Ok(_) => (),
                     Err(_) => {
-                        // what sort of reason phrase is this long?
-                        return Err(HttpStatusError);
+                        for _ in range(0u, 128) {
+                            match try!(stream.read_byte()) {
+                                CR => match try!(stream.read_byte()) {
+                                    LF => break 'read,
+                                    _ => return Err(HttpStatusError)
+                                },
+                                _ => { /* ignore */ }
+                            }
+                        }
+                        return Err(HttpStatusError)
                     }
                 }
             }
