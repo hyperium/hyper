@@ -95,7 +95,7 @@ impl Reader for Response {
 
 #[cfg(test)]
 mod tests {
-    use std::borrow::Borrowed;
+    use std::borrow::Cow::Borrowed;
     use std::boxed::BoxAny;
     use std::io::BufferedReader;
 

@@ -14,7 +14,9 @@ use mime::Mime;
 /// ```
 /// # use hyper::header::Headers;
 /// # use hyper::header::common::Accept;
-/// use hyper::mime::{Mime, Text, Html, Xml};
+/// use hyper::mime::Mime;
+/// use hyper::mime::TopLevel::Text;
+/// use hyper::mime::SubLevel::{Html, Xml};
 /// # let mut headers = Headers::new();
 /// headers.set(Accept(vec![ Mime(Text, Html, vec![]), Mime(Text, Xml, vec![]) ]));
 /// ```

@@ -28,7 +28,8 @@ deref!(TransferEncoding -> Vec<Encoding>)
 /// Example:
 ///
 /// ```
-/// # use hyper::header::common::transfer_encoding::{TransferEncoding, Gzip, Chunked};
+/// # use hyper::header::TransferEncoding;
+/// # use hyper::header::transfer_encoding::Encoding::{Gzip, Chunked};
 /// # use hyper::header::Headers;
 /// # let mut headers = Headers::new();
 /// headers.set(TransferEncoding(vec![Gzip, Chunked]));
