@@ -76,14 +76,13 @@ impl Header for TransferEncoding {
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<TransferEncoding> {
-        from_comma_delimited(raw).map(|vec| TransferEncoding(vec))
+        from_comma_delimited(raw).map(TransferEncoding)
     }
 }
 
 impl HeaderFormat for TransferEncoding {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        let TransferEncoding(ref parts) = *self;
-        fmt_comma_delimited(fmt, parts[])
+        fmt_comma_delimited(fmt, self[])
     }
 }
 

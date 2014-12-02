@@ -8,6 +8,7 @@
 
 pub use self::accept::Accept;
 pub use self::authorization::Authorization;
+pub use self::cache_control::CacheControl;
 pub use self::cookie::Cookies;
 pub use self::connection::Connection;
 pub use self::content_length::ContentLength;
@@ -82,6 +83,9 @@ pub mod accept;
 
 /// Exposes the Authorization header.
 pub mod authorization;
+
+/// Exposes the CacheControl header.
+pub mod cache_control;
 
 /// Exposes the Cookie header.
 pub mod cookie;

@@ -16,13 +16,19 @@ pub fn from_one_raw_str<T: FromStr>(raw: &[Vec<u8>]) -> Option<T> {
     }
 }
 
-/// Reads a comma-delimited raw string into a Vec.
+/// Reads a comma-delimited raw header into a Vec.
+#[inline]
 pub fn from_comma_delimited<T: FromStr>(raw: &[Vec<u8>]) -> Option<Vec<T>> {
     if raw.len() != 1 {
         return None;
     }
     // we JUST checked that raw.len() == 1, so raw[0] WILL exist.
-    match from_utf8(unsafe { raw.as_slice().unsafe_get(0).as_slice() }) {
+    from_one_comma_delimited(unsafe { raw.as_slice().unsafe_get(0).as_slice() })
+}
+
+/// Reads a comma-delimited raw string into a Vec.
+pub fn from_one_comma_delimited<T: FromStr>(raw: &[u8]) -> Option<Vec<T>> {
+    match from_utf8(raw) {
         Some(s) => {
             Some(s.as_slice()
                  .split([',', ' '].as_slice())
