@@ -63,6 +63,14 @@ impl SetCookie {
     pub fn from_cookie_jar(jar: &CookieJar) -> SetCookie {
         SetCookie(jar.delta())
     }
+
+    /// Use this on client to apply changes from SetCookie to CookieJar.
+    /// Note that this will `panic!` if `CookieJar` is not root.
+    pub fn apply_to_cookie_jar(&self, jar: &mut CookieJar) {
+        for cookie in self.iter() {
+            jar.add_original(cookie.clone())
+        }
+    }
 }
 
 
@@ -87,4 +95,19 @@ fn test_fmt() {
     headers.set(cookies);
 
     assert_eq!(headers.to_string()[], "Set-Cookie: foo=bar; HttpOnly; Path=/p\r\nSet-Cookie: baz=quux; Path=/\r\n");
+}
+
+#[test]
+fn cookie_jar() {
+    let jar = CookieJar::new("secret".as_bytes());
+    let cookie = Cookie::new("foo".to_string(), "bar".to_string());
+    jar.encrypted().add(cookie);
+
+    let cookies = SetCookie::from_cookie_jar(&jar);
+
+    let mut new_jar = CookieJar::new("secret".as_bytes());
+    cookies.apply_to_cookie_jar(&mut new_jar);
+
+    assert_eq!(jar.encrypted().find("foo"), new_jar.encrypted().find("foo"));
+    assert_eq!(jar.iter().collect::<Vec<Cookie>>(), new_jar.iter().collect::<Vec<Cookie>>());
 }
