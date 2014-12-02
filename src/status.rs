@@ -20,7 +20,7 @@ use std::mem::transmute;
 /// `self.class().default_code()`:
 ///
 /// ```rust
-/// # use hyper::status::{Code123, Continue};
+/// # use hyper::status::StatusCode::{Code123, Continue};
 /// assert_eq!(Code123.class().default_code(), Continue);
 /// ```
 pub enum StatusCode {
@@ -1572,7 +1572,7 @@ impl StatusCode {
 /// Formats the status code, *including* the canonical reason.
 ///
 /// ```rust
-/// # use hyper::status::{ImATeapot, Code123};
+/// # use hyper::status::StatusCode::{ImATeapot, Code123};
 /// assert_eq!(format!("{}", ImATeapot).as_slice(),
 ///            "418 I'm a teapot");
 /// assert_eq!(format!("{}", Code123).as_slice(),
@@ -1709,7 +1709,8 @@ impl StatusClass {
     /// produce `BadRequest` (400):
     ///
     /// ```rust
-    /// # use hyper::status::{ClientError, BadRequest};
+    /// # use hyper::status::StatusClass::ClientError;
+    /// # use hyper::status::StatusCode::BadRequest;
     /// assert_eq!(ClientError.default_code(), BadRequest);
     /// ```
     ///
@@ -1733,7 +1734,7 @@ impl StatusClass {
     /// This is demonstrated thusly (I’ll use 432 rather than 431 as 431 *is* now in use):
     ///
     /// ```rust
-    /// # use hyper::status::{Code432, BadRequest};
+    /// # use hyper::status::StatusCode::{Code432, BadRequest};
     /// // Suppose we have received this status code.
     /// let status = Code432;
     ///

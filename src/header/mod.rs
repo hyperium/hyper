@@ -496,9 +496,11 @@ impl<'a, H: HeaderFormat> Show for HeaderFormatter<'a, H> {
 mod tests {
     use std::io::MemReader;
     use std::fmt;
-    use std::borrow::Borrowed;
+    use std::borrow::Cow::Borrowed;
     use std::hash::sip::hash;
-    use mime::{Mime, Text, Plain};
+    use mime::Mime;
+    use mime::TopLevel::Text;
+    use mime::SubLevel::Plain;
     use super::CaseInsensitive;
     use super::{Headers, Header, HeaderFormat};
     use super::common::{ContentLength, ContentType, Accept, Host};

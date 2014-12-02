@@ -9,6 +9,7 @@ use std::io::net::ip::Ipv4Addr;
 use hyper::{Get, Post};
 use hyper::header::common::ContentLength;
 use hyper::server::{Server, Request, Response};
+use hyper::uri::RequestUri::AbsolutePath;
 
 macro_rules! try_return(
     ($e:expr) => {{
@@ -21,7 +22,7 @@ macro_rules! try_return(
 
 fn echo(mut req: Request, mut res: Response) {
     match req.uri {
-        hyper::uri::AbsolutePath(ref path) => match (&req.method, path.as_slice()) {
+        AbsolutePath(ref path) => match (&req.method, path.as_slice()) {
             (&Get, "/") | (&Get, "/echo") => {
                 let out = b"Try POST /echo";
 
@@ -33,7 +34,7 @@ fn echo(mut req: Request, mut res: Response) {
             },
             (&Post, "/echo") => (), // fall through, fighting mutable borrows
             _ => {
-                *res.status_mut() = hyper::status::NotFound;
+                *res.status_mut() = hyper::NotFound;
                 try_return!(res.start().and_then(|res| res.end()));
                 return;
             }
