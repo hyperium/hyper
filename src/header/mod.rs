@@ -13,9 +13,9 @@ use std::raw::TraitObject;
 use std::str::SendStr;
 use std::collections::HashMap;
 use std::collections::hash_map::{Entries, Occupied, Vacant};
-use std::sync::RWLock;
 use std::{hash, mem};
 
+use mucell::MuCell;
 use uany::{UncheckedAnyDowncast, UncheckedAnyMutDowncast};
 
 use http::{mod, LineEnding};
@@ -98,7 +98,7 @@ fn header_name<T: Header>() -> &'static str {
 /// A map of header fields on requests and responses.
 #[deriving(Clone)]
 pub struct Headers {
-    data: HashMap<CaseInsensitive, RWLock<Item>>
+    data: HashMap<CaseInsensitive, MuCell<Item>>
 }
 
 impl Headers {
@@ -118,12 +118,12 @@ impl Headers {
                 Some((name, value)) => {
                     debug!("raw header: {}={}", name, value[].to_ascii());
                     let name = CaseInsensitive(Owned(name));
-                    let item = match headers.data.entry(name) {
-                        Vacant(entry) => entry.set(RWLock::new(Item::raw(vec![]))),
+                    let mut item = match headers.data.entry(name) {
+                        Vacant(entry) => entry.set(MuCell::new(Item::raw(vec![]))),
                         Occupied(entry) => entry.into_mut()
                     };
 
-                    match &mut item.write().raw {
+                    match &mut item.borrow_mut().raw {
                         &Some(ref mut raw) => raw.push(value),
                         // Unreachable
                         _ => {}
@@ -140,7 +140,7 @@ impl Headers {
     /// The field is determined by the type of the value being set.
     pub fn set<H: Header + HeaderFormat>(&mut self, value: H) {
         self.data.insert(CaseInsensitive(Borrowed(header_name::<H>())),
-                         RWLock::new(Item::typed(box value as Box<HeaderFormat + Send + Sync>)));
+                         MuCell::new(Item::typed(box value as Box<HeaderFormat + Send + Sync>)));
     }
 
     /// Access the raw value of a header.
@@ -159,15 +159,19 @@ impl Headers {
             // FIXME(reem): Find a better way to do this lookup without find_equiv.
             .get(&CaseInsensitive(Borrowed(unsafe { mem::transmute::<&str, &str>(name) })))
             .and_then(|item| {
-                let lock = item.read();
-                if let Some(ref raw) = lock.raw {
+                if let Some(ref raw) = item.borrow().raw {
                     return unsafe { mem::transmute(Some(raw[])) };
                 }
 
-                let mut lock = item.write();
-                let raw = vec![lock.typed.as_ref().unwrap().to_string().into_bytes()];
-                lock.raw = Some(raw);
-                unsafe { mem::transmute(Some(lock.raw.as_ref().unwrap()[])) }
+                let worked = item.try_mutate(|item| {
+                    let raw = vec![item.typed.as_ref().unwrap().to_string().into_bytes()];
+                    item.raw = Some(raw);
+                });
+                debug_assert!(worked, "item.try_mutate should return true");
+
+                let item = item.borrow();
+                let raw = item.raw.as_ref().unwrap();
+                unsafe { mem::transmute(Some(raw[])) }
             })
     }
 
@@ -181,29 +185,31 @@ impl Headers {
     /// headers.set_raw("content-length", vec!["5".as_bytes().to_vec()]);
     /// ```
     pub fn set_raw<K: IntoCow<'static, String, str>>(&mut self, name: K, value: Vec<Vec<u8>>) {
-        self.data.insert(CaseInsensitive(name.into_cow()), RWLock::new(Item::raw(value)));
+        self.data.insert(CaseInsensitive(name.into_cow()), MuCell::new(Item::raw(value)));
     }
 
     /// Get a reference to the header field's value, if it exists.
     pub fn get<H: Header + HeaderFormat>(&self) -> Option<&H> {
         self.get_or_parse::<H>().map(|item| {
             unsafe {
-                mem::transmute::<&H, &H>(downcast(&*item.read()))
+                mem::transmute::<&H, &H>(downcast(&*item.borrow()))
             }
         })
     }
 
     /// Get a mutable reference to the header field's value, if it exists.
     pub fn get_mut<H: Header + HeaderFormat>(&mut self) -> Option<&mut H> {
-        self.get_or_parse::<H>().map(|item| {
-            unsafe {
-                mem::transmute::<&mut H, &mut H>(downcast_mut(&mut *item.write()))
-            }
+        self.get_or_parse_mut::<H>().map(|item| {
+            unsafe { downcast_mut(item.borrow_mut()) }
         })
     }
 
-    fn get_or_parse<H: Header + HeaderFormat>(&self) -> Option<&RWLock<Item>> {
-        self.data.get(&CaseInsensitive(Borrowed(header_name::<H>()))).and_then(|item| get_or_parse::<H>(item))
+    fn get_or_parse<H: Header + HeaderFormat>(&self) -> Option<&MuCell<Item>> {
+        self.data.get(&CaseInsensitive(Borrowed(header_name::<H>()))).and_then(get_or_parse::<H>)
+    }
+
+    fn get_or_parse_mut<H: Header + HeaderFormat>(&mut self) -> Option<&mut MuCell<Item>> {
+        self.data.get_mut(&CaseInsensitive(Borrowed(header_name::<H>()))).and_then(get_or_parse_mut::<H>)
     }
 
     /// Returns a boolean of whether a certain header is in the map.
@@ -255,7 +261,7 @@ impl fmt::Show for Headers {
 
 /// An `Iterator` over the fields in a `Headers` map.
 pub struct HeadersItems<'a> {
-    inner: Entries<'a, CaseInsensitive, RWLock<Item>>
+    inner: Entries<'a, CaseInsensitive, MuCell<Item>>
 }
 
 impl<'a> Iterator<HeaderView<'a>> for HeadersItems<'a> {
@@ -268,7 +274,7 @@ impl<'a> Iterator<HeaderView<'a>> for HeadersItems<'a> {
 }
 
 /// Returned with the `HeadersItems` iterator.
-pub struct HeaderView<'a>(&'a CaseInsensitive, &'a RWLock<Item>);
+pub struct HeaderView<'a>(&'a CaseInsensitive, &'a MuCell<Item>);
 
 impl<'a> HeaderView<'a> {
     /// Check if a HeaderView is a certain Header.
@@ -288,7 +294,7 @@ impl<'a> HeaderView<'a> {
     pub fn value<H: Header + HeaderFormat>(&self) -> Option<&'a H> {
         get_or_parse::<H>(self.1).map(|item| {
             unsafe {
-                mem::transmute::<&H, &H>(downcast(&*item.read()))
+                mem::transmute::<&H, &H>(downcast(&*item.borrow()))
             }
         })
     }
@@ -296,13 +302,13 @@ impl<'a> HeaderView<'a> {
     /// Get just the header value as a String.
     #[inline]
     pub fn value_string(&self) -> String {
-        (*self.1.read()).to_string()
+        (*self.1.borrow()).to_string()
     }
 }
 
 impl<'a> fmt::Show for HeaderView<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}: {}", self.0, *self.1.read())
+        write!(f, "{}: {}", self.0, *self.1.borrow())
     }
 }
 
@@ -345,8 +351,8 @@ impl Item {
 
 }
 
-fn get_or_parse<H: Header + HeaderFormat>(item: &RWLock<Item>) -> Option<&RWLock<Item>> {
-    match item.read().typed {
+fn get_or_parse<H: Header + HeaderFormat>(item: &MuCell<Item>) -> Option<&MuCell<Item>> {
+    match item.borrow().typed {
         Some(ref typed) if typed.is::<H>() => return Some(item),
         Some(ref typed) => {
             warn!("attempted to access {} as wrong type", typed);
@@ -355,53 +361,55 @@ fn get_or_parse<H: Header + HeaderFormat>(item: &RWLock<Item>) -> Option<&RWLock
         _ => ()
     }
 
-    // Take out a write lock to do the parsing and mutation.
-    let mut write = item.write();
+    let worked = item.try_mutate(parse::<H>);
+    debug_assert!(worked, "item.try_mutate should return true");
+    if item.borrow().typed.is_some() {
+        Some(item)
+    } else {
+        None
+    }
+}
 
-    // Since this lock can queue, it's possible another thread just
-    // did the work for us.
-    match write.typed {
-        // Check they inserted the correct type and move on.
-        Some(ref typed) if typed.is::<H>() => return Some(item),
-
-        // Wrong type, another thread got here before us and parsed
-        // as a different representation.
+fn get_or_parse_mut<H: Header + HeaderFormat>(item: &mut MuCell<Item>) -> Option<&mut MuCell<Item>> {
+    let is_correct_type = match item.borrow().typed {
+        Some(ref typed) if typed.is::<H>() => Some(true),
         Some(ref typed) => {
-            debug!("other thread was here first?")
             warn!("attempted to access {} as wrong type", typed);
-            return None;
-        },
+            Some(false)
+        }
+        _ => None
+    };
 
-        // We are first in the queue or the only ones, so do the actual
-        // work of parsing and mutation.
-        _ => ()
+    match is_correct_type {
+        Some(true) => return Some(item),
+        Some(false) => return None,
+        None => ()
     }
 
-    let header = match write.raw {
+    parse::<H>(item.borrow_mut());
+    if item.borrow().typed.is_some() {
+        Some(item)
+    } else {
+        None
+    }
+}
+
+fn parse<H: Header + HeaderFormat>(item: &mut Item) {
+    item.typed = match item.raw {
         Some(ref raw) => match Header::parse_header(raw[]) {
-            Some::<H>(h) => h,
-            None => return None
+            Some::<H>(h) => Some(box h as Box<HeaderFormat + Send + Sync>),
+            None => None
         },
         None => unreachable!()
     };
-
-    // Mutate!
-    write.typed = Some(box header as Box<HeaderFormat + Send + Sync>);
-    Some(item)
 }
 
-fn downcast<H: Header + HeaderFormat>(read: &Item) -> &H {
-    match read.typed {
-        Some(ref val) => unsafe { val.downcast_ref_unchecked() },
-        _ => unreachable!()
-    }
+unsafe fn downcast<H: Header + HeaderFormat>(item: &Item) -> &H {
+    item.typed.as_ref().expect("item.typed must be set").downcast_ref_unchecked()
 }
 
-fn downcast_mut<H: Header + HeaderFormat>(write: &mut Item) -> &mut H {
-    match write.typed {
-        Some(ref mut val) => unsafe { val.downcast_mut_unchecked() },
-        _ => unreachable!()
-    }
+unsafe fn downcast_mut<H: Header + HeaderFormat>(item: &mut Item) -> &mut H {
+    item.typed.as_mut().expect("item.typed must be set").downcast_mut_unchecked()
 }
 
 impl fmt::Show for Item {
@@ -418,12 +426,6 @@ impl fmt::Show for Item {
                 None => unreachable!()
             }
         }
-    }
-}
-
-impl Clone for RWLock<Item> {
-    fn clone(&self) -> RWLock<Item> {
-        RWLock::new(self.read().clone())
     }
 }
 
@@ -657,6 +659,32 @@ mod tests {
             assert_eq!(header.value(), Some(&ContentLength(11)));
             assert_eq!(header.value_string(), "11".to_string());
         }
+    }
+
+    #[bench]
+    fn bench_header_get(b: &mut Bencher) {
+        let mut headers = Headers::new();
+        headers.set(ContentLength(11));
+        b.iter(|| assert_eq!(headers.get::<ContentLength>(), Some(&ContentLength(11))))
+    }
+
+    #[bench]
+    fn bench_header_get_miss(b: &mut Bencher) {
+        let headers = Headers::new();
+        b.iter(|| assert!(headers.get::<ContentLength>().is_none()))
+    }
+
+    #[bench]
+    fn bench_header_set(b: &mut Bencher) {
+        let mut headers = Headers::new();
+        b.iter(|| headers.set(ContentLength(12)))
+    }
+
+    #[bench]
+    fn bench_header_has(b: &mut Bencher) {
+        let mut headers = Headers::new();
+        headers.set(ContentLength(11));
+        b.iter(|| assert!(headers.has::<ContentLength>()))
     }
 
     #[bench]
