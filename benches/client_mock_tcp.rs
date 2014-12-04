@@ -92,8 +92,10 @@ impl net::NetworkStream for MockStream {
     }
 }
 
-impl net::NetworkConnector for MockStream {
-    fn connect<To: ToSocketAddr>(_addr: To, _scheme: &str) -> IoResult<MockStream> {
+struct MockConnector;
+
+impl net::NetworkConnector<MockStream> for MockConnector {
+    fn connect<To: ToSocketAddr>(&mut self, _addr: To, _scheme: &str) -> IoResult<MockStream> {
         Ok(MockStream::new())
     }
 
@@ -103,8 +105,9 @@ impl net::NetworkConnector for MockStream {
 fn bench_mock_hyper(b: &mut test::Bencher) {
     let url = "http://127.0.0.1:1337/";
     b.iter(|| {
-        let mut req = hyper::client::Request::with_stream::<MockStream>(
-            hyper::Get, hyper::Url::parse(url).unwrap()).unwrap();
+        let mut req = hyper::client::Request::with_connector(
+            hyper::Get, hyper::Url::parse(url).unwrap(), &mut MockConnector
+        ).unwrap();
         req.headers_mut().set(Foo);
 
         req

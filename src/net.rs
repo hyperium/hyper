@@ -9,7 +9,6 @@ use std::io::net::ip::{SocketAddr, ToSocketAddr};
 use std::io::net::tcp::{TcpStream, TcpListener, TcpAcceptor};
 use std::mem::{mod, transmute, transmute_copy};
 use std::raw::{mod, TraitObject};
-use std::sync::{Arc, Mutex};
 
 use uany::UncheckedBoxAnyDowncast;
 use openssl::ssl::{SslStream, SslContext};
@@ -53,9 +52,9 @@ pub trait NetworkStream: Stream + Any + Clone + Send {
 }
 
 /// A connector creates a NetworkStream.
-pub trait NetworkConnector: NetworkStream {
+pub trait NetworkConnector<S: NetworkStream> {
     /// Connect to a remote address.
-    fn connect<To: ToSocketAddr>(addr: To, scheme: &str) -> IoResult<Self>;
+    fn connect<To: ToSocketAddr>(&mut self, addr: To, scheme: &str) -> IoResult<S>;
 }
 
 impl fmt::Show for Box<NetworkStream + Send> {
@@ -189,11 +188,7 @@ pub enum HttpStream {
     /// A stream over the HTTP protocol.
     Http(TcpStream),
     /// A stream over the HTTP protocol, protected by SSL.
-    // You may be asking wtf an Arc and Mutex? That's because SslStream
-    // doesn't implement Clone, and we need Clone to use the stream for
-    // both the Request and Response.
-    // FIXME: https://github.com/sfackler/rust-openssl/issues/6
-    Https(Arc<Mutex<SslStream<TcpStream>>>, SocketAddr),
+    Https(SslStream<TcpStream>),
 }
 
 impl Reader for HttpStream {
@@ -201,7 +196,7 @@ impl Reader for HttpStream {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> {
         match *self {
             Http(ref mut inner) => inner.read(buf),
-            Https(ref mut inner, _) => inner.lock().read(buf)
+            Https(ref mut inner) => inner.read(buf)
         }
     }
 }
@@ -211,30 +206,32 @@ impl Writer for HttpStream {
     fn write(&mut self, msg: &[u8]) -> IoResult<()> {
         match *self {
             Http(ref mut inner) => inner.write(msg),
-            Https(ref mut inner, _) => inner.lock().write(msg)
+            Https(ref mut inner) => inner.write(msg)
         }
     }
     #[inline]
     fn flush(&mut self) -> IoResult<()> {
         match *self {
             Http(ref mut inner) => inner.flush(),
-            Https(ref mut inner, _) => inner.lock().flush(),
+            Https(ref mut inner) => inner.flush(),
         }
     }
 }
-
 
 impl NetworkStream for HttpStream {
     fn peer_name(&mut self) -> IoResult<SocketAddr> {
         match *self {
             Http(ref mut inner) => inner.peer_name(),
-            Https(_, addr) => Ok(addr)
+            Https(ref mut inner) => inner.get_mut().peer_name()
         }
     }
 }
 
-impl NetworkConnector for HttpStream {
-    fn connect<To: ToSocketAddr>(addr: To, scheme: &str) -> IoResult<HttpStream> {
+/// A connector that will produce HttpStreams.
+pub struct HttpConnector;
+
+impl NetworkConnector<HttpStream> for HttpConnector {
+    fn connect<To: ToSocketAddr>(&mut self, addr: To, scheme: &str) -> IoResult<HttpStream> {
         match scheme {
             "http" => {
                 debug!("http scheme");
@@ -242,13 +239,10 @@ impl NetworkConnector for HttpStream {
             },
             "https" => {
                 debug!("https scheme");
-                let mut stream = try!(TcpStream::connect(addr));
-                // we can't access the tcp stream once it's wrapped in an
-                // SslStream, so grab the ip address now, just in case.
-                let peer_addr = try!(stream.peer_name());
+                let stream = try!(TcpStream::connect(addr));
                 let context = try!(SslContext::new(Sslv23).map_err(lift_ssl_error));
                 let stream = try!(SslStream::new(&context, stream).map_err(lift_ssl_error));
-                Ok(Https(Arc::new(Mutex::new(stream)), peer_addr))
+                Ok(Https(stream))
             },
             _ => {
                 Err(IoError {
