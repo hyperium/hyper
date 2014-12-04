@@ -466,12 +466,6 @@ impl PartialEq for CaseInsensitive {
 
 impl Eq for CaseInsensitive {}
 
-impl Equiv<CaseInsensitive> for CaseInsensitive {
-    fn equiv(&self, other: &CaseInsensitive) -> bool {
-        self == other
-    }
-}
-
 impl<H: hash::Writer> hash::Hash<H> for CaseInsensitive {
     #[inline]
     fn hash(&self, hasher: &mut H) {
