@@ -190,6 +190,31 @@ impl<W: Writer> HttpWriter<W> {
         }
     }
 
+    /// Access the inner Writer.
+    #[inline]
+    pub fn get_ref<'a>(&'a self) -> &'a W {
+        match *self {
+            ThroughWriter(ref w) => w,
+            ChunkedWriter(ref w) => w,
+            SizedWriter(ref w, _) => w,
+            EmptyWriter(ref w) => w,
+        }
+    }
+
+    /// Access the inner Writer mutably.
+    ///
+    /// Warning: You should not write to this directly, as you can corrupt
+    /// the state.
+    #[inline]
+    pub fn get_mut<'a>(&'a mut self) -> &'a mut W {
+        match *self {
+            ThroughWriter(ref mut w) => w,
+            ChunkedWriter(ref mut w) => w,
+            SizedWriter(ref mut w, _) => w,
+            EmptyWriter(ref mut w) => w,
+        }
+    }
+
     /// Ends the HttpWriter, and returns the underlying Writer.
     ///
     /// A final `write()` is called with an empty message, and then flushed.

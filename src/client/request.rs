@@ -7,7 +7,7 @@ use method;
 use method::Method::{Get, Post, Delete, Put, Patch, Head, Options};
 use header::Headers;
 use header::common::{mod, Host};
-use net::{NetworkStream, NetworkConnector, HttpStream, Fresh, Streaming};
+use net::{NetworkStream, NetworkConnector, HttpConnector, Fresh, Streaming};
 use HttpError::HttpUriError;
 use http::{HttpWriter, LINE_ENDING};
 use http::HttpWriter::{ThroughWriter, ChunkedWriter, SizedWriter, EmptyWriter};
@@ -42,11 +42,12 @@ impl<W> Request<W> {
 impl Request<Fresh> {
     /// Create a new client request.
     pub fn new(method: method::Method, url: Url) -> HttpResult<Request<Fresh>> {
-        Request::with_stream::<HttpStream>(method, url)
+        let mut conn = HttpConnector;
+        Request::with_connector(method, url, &mut conn)
     }
 
     /// Create a new client request with a specific underlying NetworkStream.
-    pub fn with_stream<S: NetworkConnector>(method: method::Method, url: Url) -> HttpResult<Request<Fresh>> {
+    pub fn with_connector<C: NetworkConnector<S>, S: NetworkStream>(method: method::Method, url: Url, connector: &mut C) -> HttpResult<Request<Fresh>> {
         debug!("{} {}", method, url);
         let host = match url.serialize_host() {
             Some(host) => host,
@@ -59,7 +60,7 @@ impl Request<Fresh> {
         };
         debug!("port={}", port);
 
-        let stream: S = try!(NetworkConnector::connect((host[], port), url.scheme.as_slice()));
+        let stream: S = try!(connector.connect((host[], port), &*url.scheme));
         let stream = ThroughWriter(BufferedWriter::new(box stream as Box<NetworkStream + Send>));
 
         let mut headers = Headers::new();
@@ -210,13 +211,13 @@ mod tests {
     use std::str::from_utf8;
     use url::Url;
     use method::Method::{Get, Head};
-    use mock::MockStream;
+    use mock::{MockStream, MockConnector};
     use super::Request;
 
     #[test]
     fn test_get_empty_body() {
-        let req = Request::with_stream::<MockStream>(
-            Get, Url::parse("http://example.dom").unwrap()
+        let req = Request::with_connector(
+            Get, Url::parse("http://example.dom").unwrap(), &mut MockConnector
         ).unwrap();
         let req = req.start().unwrap();
         let stream = *req.body.end().unwrap().into_inner().downcast::<MockStream>().unwrap();
@@ -228,8 +229,8 @@ mod tests {
 
     #[test]
     fn test_head_empty_body() {
-        let req = Request::with_stream::<MockStream>(
-            Head, Url::parse("http://example.dom").unwrap()
+        let req = Request::with_connector(
+            Head, Url::parse("http://example.dom").unwrap(), &mut MockConnector
         ).unwrap();
         let req = req.start().unwrap();
         let stream = *req.body.end().unwrap().into_inner().downcast::<MockStream>().unwrap();

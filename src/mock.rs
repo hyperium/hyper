@@ -61,14 +61,15 @@ impl Writer for MockStream {
 }
 
 impl NetworkStream for MockStream {
-
     fn peer_name(&mut self) -> IoResult<SocketAddr> {
         Ok(from_str("127.0.0.1:1337").unwrap())
     }
 }
 
-impl NetworkConnector for MockStream {
-    fn connect<To: ToSocketAddr>(_addr: To, _scheme: &str) -> IoResult<MockStream> {
+pub struct MockConnector;
+
+impl NetworkConnector<MockStream> for MockConnector {
+    fn connect<To: ToSocketAddr>(&mut self, _addr: To, _scheme: &str) -> IoResult<MockStream> {
         Ok(MockStream::new())
     }
 }
