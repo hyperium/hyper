@@ -14,6 +14,7 @@ pub use self::connection::Connection;
 pub use self::content_length::ContentLength;
 pub use self::content_type::ContentType;
 pub use self::date::Date;
+pub use self::etag::Etag;
 pub use self::expires::Expires;
 pub use self::host::Host;
 pub use self::last_modified::LastModified;
@@ -92,6 +93,9 @@ pub mod content_type;
 
 /// Exposes the Date header.
 pub mod date;
+
+/// Exposes the Etag header.
+pub mod etag;
 
 /// Exposes the Expires header.
 pub mod expires;
