@@ -23,6 +23,7 @@ pub use self::upgrade::Upgrade;
 pub use self::user_agent::UserAgent;
 pub use self::server::Server;
 pub use self::set_cookie::SetCookie;
+pub use self::www_authenticate::WWWAuthenticate;
 
 macro_rules! bench_header(
     ($name:ident, $ty:ty, $value:expr) => {
@@ -119,5 +120,8 @@ pub mod upgrade;
 
 /// Exposes the UserAgent header.
 pub mod user_agent;
+
+/// Exposes the WWW-Authenticate header.
+pub mod www_authenticate;
 
 pub mod util;
