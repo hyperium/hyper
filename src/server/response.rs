@@ -14,14 +14,12 @@ use status;
 use net::{Fresh, Streaming};
 use version;
 
-pub type InternalWriter<'a> = &'a mut (Writer + 'a);
-
 /// The outgoing half for a Tcp connection, created by a `Server` and given to a `Handler`.
 pub struct Response<'a, W = Fresh> {
     /// The HTTP version of this response.
     pub version: version::HttpVersion,
     // Stream the Response is writing to, not accessible through UnwrittenResponse
-    body: HttpWriter<InternalWriter<'a>>,
+    body: HttpWriter<&'a mut (Writer + 'a)>,
     // The status code for the request.
     status: status::StatusCode,
     // The outgoing headers on this response.
@@ -38,7 +36,7 @@ impl<'a, W> Response<'a, W> {
 
     /// Construct a Response from its constituent parts.
     pub fn construct(version: version::HttpVersion,
-                     body: HttpWriter<InternalWriter<'a>>,
+                     body: HttpWriter<&'a mut (Writer + 'a)>,
                      status: status::StatusCode,
                      headers: header::Headers) -> Response<'a, Fresh> {
         Response {
@@ -50,7 +48,7 @@ impl<'a, W> Response<'a, W> {
     }
 
     /// Deconstruct this Response into its constituent parts.
-    pub fn deconstruct(self) -> (version::HttpVersion, HttpWriter<InternalWriter<'a>>,
+    pub fn deconstruct(self) -> (version::HttpVersion, HttpWriter<&'a mut (Writer + 'a)>,
                                  status::StatusCode, header::Headers) {
         (self.version, self.body, self.status, self.headers)
     }
@@ -58,7 +56,7 @@ impl<'a, W> Response<'a, W> {
 
 impl<'a> Response<'a, Fresh> {
     /// Creates a new Response that can be used to write to a network stream.
-    pub fn new(stream: InternalWriter<'a>) -> Response<'a, Fresh> {
+    pub fn new(stream: &'a mut (Writer + 'a)) -> Response<'a, Fresh> {
         Response {
             status: status::StatusCode::Ok,
             version: version::HttpVersion::Http11,

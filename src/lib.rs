@@ -1,5 +1,4 @@
-#![feature(macro_rules, phase, default_type_params, if_let, slicing_syntax,
-           tuple_indexing, globs)]
+#![feature(macro_rules, phase, default_type_params, slicing_syntax, globs)]
 #![deny(missing_docs)]
 #![deny(warnings)]
 #![experimental]

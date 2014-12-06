@@ -15,8 +15,6 @@ use http::HttpReader;
 use http::HttpReader::{SizedReader, ChunkedReader, EmptyReader};
 use uri::RequestUri;
 
-pub type InternalReader<'a> = &'a mut (Reader + 'a);
-
 /// A request bundles several parts of an incoming `NetworkStream`, given to a `Handler`.
 pub struct Request<'a> {
     /// The IP address of the remote connection.
@@ -29,7 +27,7 @@ pub struct Request<'a> {
     pub uri: RequestUri,
     /// The version of HTTP for this request.
     pub version: HttpVersion,
-    body: HttpReader<InternalReader<'a>>
+    body: HttpReader<&'a mut (Reader + 'a)>
 }
 
 
@@ -37,7 +35,7 @@ impl<'a> Request<'a> {
 
     /// Create a new Request, reading the StartLine and Headers so they are
     /// immediately useful.
-    pub fn new(mut stream: InternalReader<'a>, addr: SocketAddr) -> HttpResult<Request<'a>> {
+    pub fn new(mut stream: &'a mut (Reader + 'a), addr: SocketAddr) -> HttpResult<Request<'a>> {
         let (method, uri, version) = try!(read_request_line(&mut stream));
         debug!("Request Line: {} {} {}", method, uri, version);
         let headers = try!(Headers::from_raw(&mut stream));
