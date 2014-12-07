@@ -17,6 +17,7 @@ pub use self::date::Date;
 pub use self::expires::Expires;
 pub use self::host::Host;
 pub use self::last_modified::LastModified;
+pub use self::if_modified_since::IfModifiedSince;
 pub use self::location::Location;
 pub use self::transfer_encoding::TransferEncoding;
 pub use self::upgrade::Upgrade;
