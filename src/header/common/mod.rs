@@ -102,6 +102,9 @@ pub mod host;
 /// Exposes the LastModified header.
 pub mod last_modified;
 
+/// Exposes the If-Modified-Since header.
+pub mod if_modified_since;
+
 /// Exposes the Location header.
 pub mod location;
 
