@@ -83,8 +83,8 @@ impl Cookies {
 #[test]
 fn test_parse() {
     let h = Header::parse_header([b"foo=bar; baz=quux".to_vec()][]);
-    let c1 = Cookie::new("foo".to_string(), "bar".to_string());
-    let c2 = Cookie::new("baz".to_string(), "quux".to_string());
+    let c1 = Cookie::new("foo".into_string(), "bar".into_string());
+    let c2 = Cookie::new("baz".into_string(), "quux".into_string());
     assert_eq!(h, Some(Cookies(vec![c1, c2])));
 }
 
@@ -92,10 +92,10 @@ fn test_parse() {
 fn test_fmt() {
     use header::Headers;
 
-    let mut cookie = Cookie::new("foo".to_string(), "bar".to_string());
+    let mut cookie = Cookie::new("foo".into_string(), "bar".into_string());
     cookie.httponly = true;
-    cookie.path = Some("/p".to_string());
-    let cookies = Cookies(vec![cookie, Cookie::new("baz".to_string(), "quux".to_string())]);
+    cookie.path = Some("/p".into_string());
+    let cookies = Cookies(vec![cookie, Cookie::new("baz".into_string(), "quux".into_string())]);
     let mut headers = Headers::new();
     headers.set(cookies);
 
@@ -104,7 +104,7 @@ fn test_fmt() {
 
 #[test]
 fn cookie_jar() {
-    let cookie = Cookie::new("foo".to_string(), "bar".to_string());
+    let cookie = Cookie::new("foo".into_string(), "bar".into_string());
     let cookies = Cookies(vec![cookie]);
     let jar = cookies.to_cookie_jar(&[]);
     let new_cookies = Cookies::from_cookie_jar(&jar);

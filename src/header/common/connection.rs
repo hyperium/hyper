@@ -34,7 +34,7 @@ impl FromStr for ConnectionOption {
         match s {
             "keep-alive" => Some(KeepAlive),
             "close" => Some(Close),
-            s => Some(ConnectionHeader(s.to_string()))
+            s => Some(ConnectionHeader(s.into_string()))
         }
     }
 }

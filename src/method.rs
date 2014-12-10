@@ -82,7 +82,7 @@ impl FromStr for Method {
                 "TRACE" => Trace,
                 "CONNECT" => Connect,
                 "PATCH" => Patch,
-                _ => Extension(s.to_string())
+                _ => Extension(s.into_string())
             })
         }
     }
@@ -128,15 +128,15 @@ mod tests {
     #[test]
     fn test_from_str() {
         assert_eq!(Some(Get), FromStr::from_str("GET"));
-        assert_eq!(Some(Extension("MOVE".to_string())),
+        assert_eq!(Some(Extension("MOVE".into_string())),
                    FromStr::from_str("MOVE"));
     }
 
     #[test]
     fn test_fmt() {
-        assert_eq!("GET".to_string(), format!("{}", Get));
-        assert_eq!("MOVE".to_string(),
-                   format!("{}", Extension("MOVE".to_string())));
+        assert_eq!("GET".into_string(), format!("{}", Get));
+        assert_eq!("MOVE".into_string(),
+                   format!("{}", Extension("MOVE".into_string())));
     }
 
     #[test]

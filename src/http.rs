@@ -437,7 +437,7 @@ pub fn read_uri<R: Reader>(stream: &mut R) -> HttpResult<uri::RequestUri> {
             }
         }
     } else {
-        let mut temp = "http://".to_string();
+        let mut temp = "http://".into_string();
         temp.push_str(s.as_slice());
         match Url::parse(temp.as_slice()) {
             Ok(_u) => {
@@ -729,8 +729,8 @@ mod tests {
         read("CONNECT /", Ok(method::Method::Connect));
         read("TRACE /", Ok(method::Method::Trace));
         read("PATCH /", Ok(method::Method::Patch));
-        read("FOO /", Ok(method::Method::Extension("FOO".to_string())));
-        read("akemi!~#HOMURA /", Ok(method::Method::Extension("akemi!~#HOMURA".to_string())));
+        read("FOO /", Ok(method::Method::Extension("FOO".into_string())));
+        read("akemi!~#HOMURA /", Ok(method::Method::Extension("akemi!~#HOMURA".into_string())));
         read(" ", Err(HttpMethodError));
     }
 
@@ -742,8 +742,8 @@ mod tests {
 
         read("* ", Ok(Star));
         read("http://hyper.rs/ ", Ok(AbsoluteUri(Url::parse("http://hyper.rs/").unwrap())));
-        read("hyper.rs ", Ok(Authority("hyper.rs".to_string())));
-        read("/ ", Ok(AbsolutePath("/".to_string())));
+        read("hyper.rs ", Ok(Authority("hyper.rs".into_string())));
+        read("/ ", Ok(AbsolutePath("/".into_string())));
     }
 
     #[test]
@@ -778,11 +778,11 @@ mod tests {
 
         read("200 OK\r\n", Ok(RawStatus(200, Borrowed("OK"))));
         read("404 Not Found\r\n", Ok(RawStatus(404, Borrowed("Not Found"))));
-        read("200 crazy pants\r\n", Ok(RawStatus(200, Owned("crazy pants".to_string()))));
-        read("301 Moved Permanently\r\n", Ok(RawStatus(301, Owned("Moved Permanently".to_string()))));
+        read("200 crazy pants\r\n", Ok(RawStatus(200, Owned("crazy pants".into_string()))));
+        read("301 Moved Permanently\r\n", Ok(RawStatus(301, Owned("Moved Permanently".into_string()))));
         read_ignore_string("301 Unreasonably long header that should not happen, \
                            but some men just want to watch the world burn\r\n",
-             Ok(RawStatus(301, Owned("Ignored".to_string()))));
+             Ok(RawStatus(301, Owned("Ignored".into_string()))));
     }
 
     #[test]
@@ -791,7 +791,7 @@ mod tests {
             assert_eq!(read_header(&mut mem(s)), result);
         }
 
-        read("Host: rust-lang.org\r\n", Ok(Some(("Host".to_string(),
+        read("Host: rust-lang.org\r\n", Ok(Some(("Host".into_string(),
                                                 "rust-lang.org".as_bytes().to_vec()))));
     }
 

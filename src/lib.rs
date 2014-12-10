@@ -135,6 +135,8 @@ extern crate "unsafe-any" as uany;
 extern crate cookie;
 extern crate mucell;
 
+#[cfg(feature = "hyperlint")] #[phase(plugin)] extern crate hyperlint;
+
 pub use std::io::net::ip::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr, Port};
 pub use mimewrapper::mime;
 pub use url::Url;

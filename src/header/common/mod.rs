@@ -32,6 +32,7 @@ macro_rules! bench_header(
         #[cfg(test)]
         mod $name {
             use test::Bencher;
+            #[cfg_attr(feature = "hyperlint", glob = "benchmarks")]
             use super::*;
 
             use header::{Header, HeaderFormatter};
