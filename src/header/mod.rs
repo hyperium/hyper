@@ -50,19 +50,29 @@ pub trait Header: Any + Send + Sync {
 /// A trait for any object that will represent a header field and value.
 ///
 /// This trait represents the formatting of a Header for output to a TcpStream.
-pub trait HeaderFormat: Clone + Any + Send + Sync {
+pub trait HeaderFormat: HeaderClone + Any + Send + Sync {
     /// Format a header to be output into a TcpStream.
     ///
     /// This method is not allowed to introduce an Err not produced
     /// by the passed-in Formatter.
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result;
 
-    #[doc(hidden)]
+}
+
+#[doc(hidden)]
+pub trait HeaderClone {
+    fn clone_box(&self) -> Box<HeaderFormat + Sync + Send>;
+}
+
+impl<T: HeaderFormat + Send + Sync + Clone> HeaderClone for T {
     #[inline]
-    fn clone_box(&self) -> Box<HeaderFormat + Sync + Send> { box self.clone() }
+    fn clone_box(&self) -> Box<HeaderFormat + Sync + Send> {
+        box self.clone()
+    }
 }
 
 impl HeaderFormat {
+    #[inline]
     fn is<T: 'static>(&self) -> bool {
         self.get_type_id() == TypeId::of::<T>()
     }
@@ -85,6 +95,7 @@ impl<'a> UncheckedAnyMutDowncast<'a> for &'a mut HeaderFormat {
 }
 
 impl Clone for Box<HeaderFormat + Send + Sync> {
+    #[inline]
     fn clone(&self) -> Box<HeaderFormat + Send + Sync> {
         self.clone_box()
     }

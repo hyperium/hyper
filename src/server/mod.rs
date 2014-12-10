@@ -57,7 +57,7 @@ impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L
     /// something other than the provided HttpStream, HttpAcceptor, and HttpListener.
     pub fn listen_network<H, S, A, L>(self, handler: H, threads: uint) -> HttpResult<Listening<A>>
     where H: Handler,
-          S: NetworkStream,
+          S: NetworkStream + Clone,
           A: NetworkAcceptor<S>,
           L: NetworkListener<S, A>, {
         debug!("binding to {}:{}", self.ip, self.port);

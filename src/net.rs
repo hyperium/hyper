@@ -42,13 +42,21 @@ pub trait NetworkAcceptor<S: NetworkStream>: Acceptor<S> + Clone + Send {
 }
 
 /// An abstraction over streams that a Server can utilize.
-pub trait NetworkStream: Stream + Any + Clone + Send {
+pub trait NetworkStream: Stream + Any + StreamClone + Send {
     /// Get the remote address of the underlying connection.
     fn peer_name(&mut self) -> IoResult<SocketAddr>;
+}
 
-    #[doc(hidden)]
+#[doc(hidden)]
+pub trait StreamClone {
+    fn clone_box(&self) -> Box<NetworkStream + Send>;
+}
+
+impl<T: NetworkStream + Send + Clone> StreamClone for T {
     #[inline]
-    fn clone_box(&self) -> Box<NetworkStream + Send> { box self.clone() }
+    fn clone_box(&self) -> Box<NetworkStream + Send> {
+        box self.clone()
+    }
 }
 
 /// A connector creates a NetworkStream.
