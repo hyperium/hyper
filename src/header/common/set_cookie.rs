@@ -77,7 +77,7 @@ impl SetCookie {
 #[test]
 fn test_parse() {
     let h = Header::parse_header([b"foo=bar; HttpOnly".to_vec()][]);
-    let mut c1 = Cookie::new("foo".to_string(), "bar".to_string());
+    let mut c1 = Cookie::new("foo".into_string(), "bar".into_string());
     c1.httponly = true;
 
     assert_eq!(h, Some(SetCookie(vec![c1])));
@@ -87,10 +87,10 @@ fn test_parse() {
 fn test_fmt() {
     use header::Headers;
 
-    let mut cookie = Cookie::new("foo".to_string(), "bar".to_string());
+    let mut cookie = Cookie::new("foo".into_string(), "bar".into_string());
     cookie.httponly = true;
-    cookie.path = Some("/p".to_string());
-    let cookies = SetCookie(vec![cookie, Cookie::new("baz".to_string(), "quux".to_string())]);
+    cookie.path = Some("/p".into_string());
+    let cookies = SetCookie(vec![cookie, Cookie::new("baz".into_string(), "quux".into_string())]);
     let mut headers = Headers::new();
     headers.set(cookies);
 
@@ -100,7 +100,7 @@ fn test_fmt() {
 #[test]
 fn cookie_jar() {
     let jar = CookieJar::new("secret".as_bytes());
-    let cookie = Cookie::new("foo".to_string(), "bar".to_string());
+    let cookie = Cookie::new("foo".into_string(), "bar".into_string());
     jar.encrypted().add(cookie);
 
     let cookies = SetCookie::from_cookie_jar(&jar);

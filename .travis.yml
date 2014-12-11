@@ -1,8 +1,8 @@
 language: rust
 
 script:
-    - cargo build
-    - cargo test
+    - cargo build --features hyperlint
+    - cargo test --features hyperlint
     - cargo bench --no-run
 
 after_success: |

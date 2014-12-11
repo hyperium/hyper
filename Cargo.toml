@@ -30,3 +30,7 @@ git = "https://github.com/rust-lang/time"
 
 [dependencies.mucell]
 git = "https://github.com/chris-morgan/mucell"
+
+[dependencies.hyperlint]
+path = "./hyperlint"
+optional = true

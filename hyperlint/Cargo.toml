@@ -1,0 +1,9 @@
+[package]
+
+name = "hyperlint"
+version = "0.0.1"
+authors = ["Sean McArthur <sean.monstar@gmail.com>"]
+
+[[lib]]
+name = "hyperlint"
+crate-type = ["dylib"]

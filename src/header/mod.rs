@@ -662,7 +662,7 @@ mod tests {
             assert!(header.is::<ContentLength>());
             assert_eq!(header.name(), Header::header_name(None::<ContentLength>));
             assert_eq!(header.value(), Some(&ContentLength(11)));
-            assert_eq!(header.value_string(), "11".to_string());
+            assert_eq!(header.value_string(), "11".into_string());
         }
     }
 

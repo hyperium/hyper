@@ -126,6 +126,7 @@ impl FromStr for CacheDirective {
 #[cfg(test)]
 mod tests {
     use header::Header;
+    #[cfg_attr(feature = "hyperlint", glob = "tests")]
     use super::*;
 
     #[test]
@@ -151,8 +152,8 @@ mod tests {
     #[test]
     fn test_parse_extension() {
         let cache = Header::parse_header(&[b"foo, bar=baz".to_vec()]);
-        assert_eq!(cache, Some(CacheControl(vec![CacheDirective::Extension("foo".to_string(), None),
-                                                 CacheDirective::Extension("bar".to_string(), Some("baz".to_string()))])))
+        assert_eq!(cache, Some(CacheControl(vec![CacheDirective::Extension("foo".into_string(), None),
+                                                 CacheDirective::Extension("bar".into_string(), Some("baz".into_string()))])))
     }
 
     #[test]

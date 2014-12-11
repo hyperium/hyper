@@ -66,7 +66,7 @@ impl FromStr for Encoding {
             "deflate" => Some(Deflate),
             "gzip" => Some(Gzip),
             "compress" => Some(Compress),
-            _ => Some(EncodingExt(s.to_string()))
+            _ => Some(EncodingExt(s.into_string()))
         }
     }
 }

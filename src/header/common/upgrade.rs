@@ -24,7 +24,7 @@ impl FromStr for Protocol {
     fn from_str(s: &str) -> Option<Protocol> {
         match s {
             "websocket" => Some(WebSocket),
-            s => Some(ProtocolExt(s.to_string()))
+            s => Some(ProtocolExt(s.into_string()))
         }
     }
 }

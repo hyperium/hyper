@@ -149,7 +149,7 @@ mod tests {
     fn test_raw_auth() {
         let mut headers = Headers::new();
         headers.set(Authorization("foo bar baz".into_string()));
-        assert_eq!(headers.to_string(), "Authorization: foo bar baz\r\n".to_string());
+        assert_eq!(headers.to_string(), "Authorization: foo bar baz\r\n".into_string());
     }
 
     #[test]
@@ -168,8 +168,8 @@ mod tests {
     #[test]
     fn test_basic_auth_no_password() {
         let mut headers = Headers::new();
-        headers.set(Authorization(Basic { username: "Aladdin".to_string(), password: None }));
-        assert_eq!(headers.to_string(), "Authorization: Basic QWxhZGRpbjo=\r\n".to_string());
+        headers.set(Authorization(Basic { username: "Aladdin".into_string(), password: None }));
+        assert_eq!(headers.to_string(), "Authorization: Basic QWxhZGRpbjo=\r\n".into_string());
     }
 
     #[test]
@@ -177,7 +177,7 @@ mod tests {
         let headers = Headers::from_raw(&mut mem("Authorization: Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==\r\n\r\n")).unwrap();
         let auth = headers.get::<Authorization<Basic>>().unwrap();
         assert_eq!(auth.0.username[], "Aladdin");
-        assert_eq!(auth.0.password, Some("open sesame".to_string()));
+        assert_eq!(auth.0.password, Some("open sesame".into_string()));
     }
 
     #[test]
@@ -185,7 +185,7 @@ mod tests {
         let headers = Headers::from_raw(&mut mem("Authorization: Basic QWxhZGRpbjo=\r\n\r\n")).unwrap();
         let auth = headers.get::<Authorization<Basic>>().unwrap();
         assert_eq!(auth.0.username.as_slice(), "Aladdin");
-        assert_eq!(auth.0.password, Some("".to_string()));
+        assert_eq!(auth.0.password, Some("".into_string()));
     }
 
 }
