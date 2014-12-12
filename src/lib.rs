@@ -163,7 +163,7 @@ struct Trace;
 impl fmt::Show for Trace {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let _ = backtrace::write(fmt);
-        ::std::result::Ok(())
+        Result::Ok(())
     }
 }
 

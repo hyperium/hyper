@@ -6,7 +6,7 @@ use super::util::from_one_raw_str;
 /// The `Content-Length` header.
 ///
 /// Simply a wrapper around a `uint`.
-#[deriving(Clone, PartialEq, Show)]
+#[deriving(Copy, Clone, PartialEq, Show)]
 pub struct ContentLength(pub uint);
 
 deref!(ContentLength -> uint)

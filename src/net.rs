@@ -18,9 +18,11 @@ use openssl::ssl::error::{SslError, StreamError, OpenSslErrors, SslSessionClosed
 use self::HttpStream::{Http, Https};
 
 /// The write-status indicating headers have not been written.
+#[allow(missing_copy_implementations)]
 pub struct Fresh;
 
 /// The write-status indicating headers have been written.
+#[allow(missing_copy_implementations)]
 pub struct Streaming;
 
 /// An abstraction to listen for connections on a certain port.
@@ -236,6 +238,7 @@ impl NetworkStream for HttpStream {
 }
 
 /// A connector that will produce HttpStreams.
+#[allow(missing_copy_implementations)]
 pub struct HttpConnector;
 
 impl NetworkConnector<HttpStream> for HttpConnector {

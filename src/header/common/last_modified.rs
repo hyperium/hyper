@@ -5,7 +5,7 @@ use header::{Header, HeaderFormat};
 use super::util::{from_one_raw_str, tm_from_str};
 
 /// The `LastModified` header field.
-#[deriving(PartialEq, Clone)]
+#[deriving(Copy, PartialEq, Clone)]
 pub struct LastModified(pub Tm);
 
 deref!(LastModified -> Tm)

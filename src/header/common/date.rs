@@ -6,7 +6,7 @@ use super::util::{from_one_raw_str, tm_from_str};
 
 // Egh, replace as soon as something better than time::Tm exists.
 /// The `Date` header field.
-#[deriving(PartialEq, Clone)]
+#[deriving(Copy, PartialEq, Clone)]
 pub struct Date(pub Tm);
 
 deref!(Date -> Tm)

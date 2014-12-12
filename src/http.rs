@@ -285,6 +285,8 @@ pub const LINE_ENDING: &'static [u8] = &[CR, LF];
 /// A `Show`able struct to easily write line endings to a formatter.
 pub struct LineEnding;
 
+impl Copy for LineEnding {}
+
 impl fmt::Show for LineEnding {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.write(LINE_ENDING)

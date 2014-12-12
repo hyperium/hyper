@@ -118,7 +118,7 @@ mod tests {
         etag = Header::parse_header([b"W/\"\x65\x62\"".to_vec()].as_slice());
         assert_eq!(etag, Some(Etag {
             weak: true,
-            tag: "\u0065\u0062".into_string()
+            tag: "\u{0065}\u{0062}".into_string()
         }));
 
         etag = Header::parse_header([b"W/\"\"".to_vec()].as_slice());
