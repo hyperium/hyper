@@ -60,7 +60,7 @@ impl Request<Fresh> {
         };
         debug!("port={}", port);
 
-        let stream: S = try!(connector.connect((host[], port), &*url.scheme));
+        let stream: S = try!(connector.connect(host[], port, &*url.scheme));
         let stream = ThroughWriter(BufferedWriter::new(box stream as Box<NetworkStream + Send>));
 
         let mut headers = Headers::new();
