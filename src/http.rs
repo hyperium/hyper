@@ -486,6 +486,9 @@ pub fn read_http_version<R: Reader>(stream: &mut R) -> HttpResult<HttpVersion> {
     }
 }
 
+const MAX_HEADER_NAME_LENGTH: uint = 100;
+const MAX_HEADER_FIELD_LENGTH: uint = 1000;
+
 /// The raw bytes when parsing a header line.
 ///
 /// A String and Vec<u8>, divided by COLON (`:`). The String is guaranteed
@@ -525,7 +528,10 @@ pub fn read_header<R: Reader>(stream: &mut R) -> HttpResult<Option<RawHeaderLine
                 }
             },
             b':' => break,
-            b if is_token(b) => name.push(b as char),
+            b if is_token(b) => {
+                if name.len() > MAX_HEADER_NAME_LENGTH { return Err(HttpHeaderError); }
+                name.push(b as char)
+            },
             _nontoken => return Err(HttpHeaderError)
         };
     }
@@ -542,6 +548,7 @@ pub fn read_header<R: Reader>(stream: &mut R) -> HttpResult<Option<RawHeaderLine
             b' ' if ows => {},
             b => {
                 ows = false;
+                if value.len() > MAX_HEADER_FIELD_LENGTH { return Err(HttpHeaderError); }
                 value.push(b)
             }
         };
