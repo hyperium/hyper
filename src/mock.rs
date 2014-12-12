@@ -1,6 +1,6 @@
 use std::fmt;
 use std::io::{IoResult, MemReader, MemWriter};
-use std::io::net::ip::{SocketAddr, ToSocketAddr};
+use std::io::net::ip::SocketAddr;
 
 use net::{NetworkStream, NetworkConnector};
 
@@ -69,7 +69,7 @@ impl NetworkStream for MockStream {
 pub struct MockConnector;
 
 impl NetworkConnector<MockStream> for MockConnector {
-    fn connect<To: ToSocketAddr>(&mut self, _addr: To, _scheme: &str) -> IoResult<MockStream> {
+    fn connect(&mut self, _host: &str, _port: u16, _scheme: &str) -> IoResult<MockStream> {
         Ok(MockStream::new())
     }
 }

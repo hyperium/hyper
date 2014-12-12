@@ -95,7 +95,7 @@ impl net::NetworkStream for MockStream {
 struct MockConnector;
 
 impl net::NetworkConnector<MockStream> for MockConnector {
-    fn connect<To: ToSocketAddr>(&mut self, _addr: To, _scheme: &str) -> IoResult<MockStream> {
+    fn connect(&mut self, _: &str, _: u16, _: &str) -> IoResult<MockStream> {
         Ok(MockStream::new())
     }
 

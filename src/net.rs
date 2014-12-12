@@ -5,13 +5,13 @@ use std::fmt;
 use std::intrinsics::TypeId;
 use std::io::{IoResult, IoError, ConnectionAborted, InvalidInput, OtherIoError,
               Stream, Listener, Acceptor};
-use std::io::net::ip::{SocketAddr, ToSocketAddr};
+use std::io::net::ip::{SocketAddr, ToSocketAddr, Port};
 use std::io::net::tcp::{TcpStream, TcpListener, TcpAcceptor};
 use std::mem::{mod, transmute, transmute_copy};
 use std::raw::{mod, TraitObject};
 
 use uany::UncheckedBoxAnyDowncast;
-use openssl::ssl::{SslStream, SslContext};
+use openssl::ssl::{SslStream, SslContext, Ssl};
 use openssl::ssl::SslMethod::Sslv23;
 use openssl::ssl::error::{SslError, StreamError, OpenSslErrors, SslSessionClosed};
 
@@ -62,7 +62,7 @@ impl<T: NetworkStream + Send + Clone> StreamClone for T {
 /// A connector creates a NetworkStream.
 pub trait NetworkConnector<S: NetworkStream> {
     /// Connect to a remote address.
-    fn connect<To: ToSocketAddr>(&mut self, addr: To, scheme: &str) -> IoResult<S>;
+    fn connect(&mut self, host: &str, port: Port, scheme: &str) -> IoResult<S>;
 }
 
 impl fmt::Show for Box<NetworkStream + Send> {
@@ -239,7 +239,8 @@ impl NetworkStream for HttpStream {
 pub struct HttpConnector;
 
 impl NetworkConnector<HttpStream> for HttpConnector {
-    fn connect<To: ToSocketAddr>(&mut self, addr: To, scheme: &str) -> IoResult<HttpStream> {
+    fn connect(&mut self, host: &str, port: Port, scheme: &str) -> IoResult<HttpStream> {
+        let addr = (host, port);
         match scheme {
             "http" => {
                 debug!("http scheme");
@@ -249,7 +250,11 @@ impl NetworkConnector<HttpStream> for HttpConnector {
                 debug!("https scheme");
                 let stream = try!(TcpStream::connect(addr));
                 let context = try!(SslContext::new(Sslv23).map_err(lift_ssl_error));
-                let stream = try!(SslStream::new(&context, stream).map_err(lift_ssl_error));
+                let ssl = try!(Ssl::new(&context).map_err(lift_ssl_error));
+                debug!("ssl set_hostname = {}", host);
+                try!(ssl.set_hostname(host).map_err(lift_ssl_error));
+                debug!("ssl set_hostname done");
+                let stream = try!(SslStream::new_from(ssl, stream).map_err(lift_ssl_error));
                 Ok(Https(stream))
             },
             _ => {
@@ -264,6 +269,7 @@ impl NetworkConnector<HttpStream> for HttpConnector {
 }
 
 fn lift_ssl_error(ssl: SslError) -> IoError {
+    debug!("lift_ssl_error: {}", ssl);
     match ssl {
         StreamError(err) => err,
         SslSessionClosed => IoError {
