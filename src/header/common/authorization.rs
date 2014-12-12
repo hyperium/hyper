@@ -1,6 +1,6 @@
 use std::fmt::{mod, Show};
 use std::str::{FromStr, from_utf8};
-use serialize::base64::{ToBase64, FromBase64, Standard, Config};
+use serialize::base64::{ToBase64, FromBase64, Standard, Config, Newline};
 use header::{Header, HeaderFormat};
 
 /// The `Authorization` header field.
@@ -97,6 +97,7 @@ impl Scheme for Basic {
         }
         text.as_bytes().to_base64(Config {
             char_set: Standard,
+            newline: Newline::CRLF,
             pad: true,
             line_length: None
         }).fmt(f)
