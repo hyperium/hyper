@@ -10,7 +10,7 @@ use std::borrow::Cow::{Borrowed, Owned};
 use std::fmt::{mod, Show};
 use std::intrinsics::TypeId;
 use std::raw::TraitObject;
-use std::str::SendStr;
+use std::str::{SendStr, FromStr};
 use std::collections::HashMap;
 use std::collections::hash_map::{Entries, Occupied, Vacant};
 use std::{hash, mem};
@@ -446,8 +446,15 @@ impl fmt::Show for Box<HeaderFormat + Send + Sync> {
     }
 }
 
+/// Case-insensitive string.
 //#[deriving(Clone)]
-struct CaseInsensitive(SendStr);
+pub struct CaseInsensitive(SendStr);
+
+impl FromStr for CaseInsensitive {
+    fn from_str(s: &str) -> Option<CaseInsensitive> {
+        Some(CaseInsensitive(Owned(s.to_string())))
+    }
+}
 
 impl Clone for CaseInsensitive {
     fn clone(&self) -> CaseInsensitive {

@@ -24,6 +24,7 @@ pub use self::location::Location;
 pub use self::transfer_encoding::TransferEncoding;
 pub use self::upgrade::Upgrade;
 pub use self::user_agent::UserAgent;
+pub use self::vary::Vary;
 pub use self::server::Server;
 pub use self::set_cookie::SetCookie;
 
@@ -131,5 +132,8 @@ pub mod upgrade;
 
 /// Exposes the UserAgent header.
 pub mod user_agent;
+
+/// Exposes the Vary header.
+pub mod vary;
 
 pub mod util;
