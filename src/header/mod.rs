@@ -30,7 +30,7 @@ pub mod common;
 ///
 /// This trait represents the construction and identification of headers,
 /// and contains trait-object unsafe methods.
-pub trait Header: Any + Send + Sync {
+pub trait Header: Clone + Any + Send + Sync {
     /// Returns the name of the header field this belongs to.
     ///
     /// The market `Option` is to hint to the type system which implementation

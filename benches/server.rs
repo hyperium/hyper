@@ -9,12 +9,13 @@ use test::Bencher;
 use std::io::net::ip::{SocketAddr, Ipv4Addr};
 
 use http::server::Server;
+use hyper::method::Method::Get;
 use hyper::server::{Request, Response};
 
 static PHRASE: &'static [u8] = b"Benchmarking hyper vs others!";
 
 fn request(url: hyper::Url) {
-    let req = hyper::client::Request::get(url).unwrap();
+    let req = hyper::client::Request::new(Get, url).unwrap();
     req.start().unwrap().send().unwrap().read_to_string().unwrap();
 }
 

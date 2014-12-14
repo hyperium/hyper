@@ -38,7 +38,7 @@ impl Response {
         debug!("{} {}", version, status);
 
         let headers = try!(header::Headers::from_raw(&mut stream));
-        debug!("{}", headers);
+        debug!("Headers: [\n{}]", headers);
 
         let body = if headers.has::<TransferEncoding>() {
             match headers.get::<TransferEncoding>() {

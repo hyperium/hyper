@@ -11,7 +11,8 @@ use std::mem::{mod, transmute, transmute_copy};
 use std::raw::{mod, TraitObject};
 
 use uany::UncheckedBoxAnyDowncast;
-use openssl::ssl::{SslStream, SslContext, Ssl};
+use openssl::ssl::{Ssl, SslStream, SslContext, VerifyCallback};
+use openssl::ssl::SslVerifyMode::SslVerifyPeer;
 use openssl::ssl::SslMethod::Sslv23;
 use openssl::ssl::error::{SslError, StreamError, OpenSslErrors, SslSessionClosed};
 
@@ -239,7 +240,7 @@ impl NetworkStream for HttpStream {
 
 /// A connector that will produce HttpStreams.
 #[allow(missing_copy_implementations)]
-pub struct HttpConnector;
+pub struct HttpConnector(pub Option<VerifyCallback>);
 
 impl NetworkConnector<HttpStream> for HttpConnector {
     fn connect(&mut self, host: &str, port: Port, scheme: &str) -> IoResult<HttpStream> {
@@ -252,12 +253,11 @@ impl NetworkConnector<HttpStream> for HttpConnector {
             "https" => {
                 debug!("https scheme");
                 let stream = try!(TcpStream::connect(addr));
-                let context = try!(SslContext::new(Sslv23).map_err(lift_ssl_error));
+                let mut context = try!(SslContext::new(Sslv23).map_err(lift_ssl_error));
+                self.0.as_ref().map(|cb| context.set_verify(SslVerifyPeer, Some(*cb)));
                 let ssl = try!(Ssl::new(&context).map_err(lift_ssl_error));
-                debug!("ssl set_hostname = {}", host);
                 try!(ssl.set_hostname(host).map_err(lift_ssl_error));
-                debug!("ssl set_hostname done");
-                let stream = try!(SslStream::new_from(ssl, stream).map_err(lift_ssl_error));
+                let stream = try!(SslStream::new(&context, stream).map_err(lift_ssl_error));
                 Ok(Https(stream))
             },
             _ => {

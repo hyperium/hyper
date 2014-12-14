@@ -8,12 +8,11 @@ use method::Method::{Get, Post, Delete, Put, Patch, Head, Options};
 use header::Headers;
 use header::common::{mod, Host};
 use net::{NetworkStream, NetworkConnector, HttpConnector, Fresh, Streaming};
-use HttpError::HttpUriError;
 use http::{HttpWriter, LINE_ENDING};
 use http::HttpWriter::{ThroughWriter, ChunkedWriter, SizedWriter, EmptyWriter};
 use version;
 use HttpResult;
-use client::Response;
+use client::{Response, get_host_and_port};
 
 
 /// A client request to a remote server.
@@ -42,23 +41,14 @@ impl<W> Request<W> {
 impl Request<Fresh> {
     /// Create a new client request.
     pub fn new(method: method::Method, url: Url) -> HttpResult<Request<Fresh>> {
-        let mut conn = HttpConnector;
+        let mut conn = HttpConnector(None);
         Request::with_connector(method, url, &mut conn)
     }
 
     /// Create a new client request with a specific underlying NetworkStream.
     pub fn with_connector<C: NetworkConnector<S>, S: NetworkStream>(method: method::Method, url: Url, connector: &mut C) -> HttpResult<Request<Fresh>> {
         debug!("{} {}", method, url);
-        let host = match url.serialize_host() {
-            Some(host) => host,
-            None => return Err(HttpUriError)
-        };
-        debug!("host={}", host);
-        let port = match url.port_or_default() {
-            Some(port) => port,
-            None => return Err(HttpUriError)
-        };
-        debug!("port={}", port);
+        let (host, port) = try!(get_host_and_port(&url));
 
         let stream: S = try!(connector.connect(host[], port, &*url.scheme));
         let stream = ThroughWriter(BufferedWriter::new(box stream as Box<NetworkStream + Send>));
@@ -80,30 +70,37 @@ impl Request<Fresh> {
 
     /// Create a new GET request.
     #[inline]
+    #[deprecated = "use hyper::Client"]
     pub fn get(url: Url) -> HttpResult<Request<Fresh>> { Request::new(Get, url) }
 
     /// Create a new POST request.
     #[inline]
+    #[deprecated = "use hyper::Client"]
     pub fn post(url: Url) -> HttpResult<Request<Fresh>> { Request::new(Post, url) }
 
     /// Create a new DELETE request.
     #[inline]
+    #[deprecated = "use hyper::Client"]
     pub fn delete(url: Url) -> HttpResult<Request<Fresh>> { Request::new(Delete, url) }
 
     /// Create a new PUT request.
     #[inline]
+    #[deprecated = "use hyper::Client"]
     pub fn put(url: Url) -> HttpResult<Request<Fresh>> { Request::new(Put, url) }
 
     /// Create a new PATCH request.
     #[inline]
+    #[deprecated = "use hyper::Client"]
     pub fn patch(url: Url) -> HttpResult<Request<Fresh>> { Request::new(Patch, url) }
 
     /// Create a new HEAD request.
     #[inline]
+    #[deprecated = "use hyper::Client"]
     pub fn head(url: Url) -> HttpResult<Request<Fresh>> { Request::new(Head, url) }
 
     /// Create a new OPTIONS request.
     #[inline]
+    #[deprecated = "use hyper::Client"]
     pub fn options(url: Url) -> HttpResult<Request<Fresh>> { Request::new(Options, url) }
 
     /// Consume a Fresh Request, writing the headers and method,
