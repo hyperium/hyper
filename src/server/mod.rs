@@ -68,7 +68,7 @@ impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L
         let acceptor = try!(listener.listen());
 
         let mut captured = acceptor.clone();
-        TaskBuilder::new().named("hyper acceptor").spawn(proc() {
+        TaskBuilder::new().named("hyper acceptor").spawn(move || {
             let handler = Arc::new(handler);
             debug!("threads = {}", threads);
             let pool = TaskPool::new(threads);
@@ -77,7 +77,7 @@ impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L
                     Ok(mut stream) => {
                         debug!("Incoming stream");
                         let handler = handler.clone();
-                        pool.execute(proc() {
+                        pool.execute(move || {
                             let addr = match stream.peer_name() {
                                 Ok(addr) => addr,
                                 Err(e) => {

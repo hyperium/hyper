@@ -114,7 +114,7 @@ impl UncheckedBoxAnyDowncast for Box<NetworkStream + Send> {
     }
 }
 
-impl<'a> AnyRefExt<'a> for &'a (NetworkStream + 'a) {
+impl<'a> AnyRefExt<'a> for &'a (NetworkStream + 'static) {
     #[inline]
     fn is<T: 'static>(self) -> bool {
         self.get_type_id() == TypeId::of::<T>()
