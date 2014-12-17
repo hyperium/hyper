@@ -53,11 +53,14 @@ impl Server<HttpListener> {
         }
     }
 
-    /// Configures the server to use SSL.
-    pub fn with_ssl(&mut self, cert: Path, key:Path) -> &mut Server {
-        self.cert = Some(cert);
-        self.key = Some(key);
-        return self;
+    /// Creates a new server that will handle HTTPS streams.
+    pub fn https(ip: IpAddr, port: Port, cert: Path, key:Path) -> Server {
+        Server {
+            ip: ip,
+            port: port,
+            cert: Some(cert),
+            key: Some(key)
+        }
     }
 }
 
