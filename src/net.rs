@@ -185,15 +185,16 @@ impl NetworkListener<HttpStream, HttpAcceptor> for HttpListener {
             Some(err) => { return Err(lift_ssl_error(err)); } ,
             None => ()
         }
-        match ssl_context.set_certificate_file(&cert, X509FileType::Default) {
+        match ssl_context.set_certificate_file(&cert, X509FileType::PEM) {
             Some(err) => { return Err(lift_ssl_error(err)); } ,
             None => ()
         }
-        match ssl_context.set_private_key_file(&key, X509FileType::Default) {
+        match ssl_context.set_private_key_file(&key, X509FileType::PEM) {
             Some(err) => { return Err(lift_ssl_error(err)); } ,
             None => ()
         }
         ssl_context.set_verify(SslVerifyNone, None);
+        ssl_context.set_verify_depth(1);
         Ok(HttpsL(try!(TcpListener::bind(addr)), ssl_context))
     }
 
@@ -222,8 +223,7 @@ impl Acceptor<HttpStream> for HttpAcceptor {
             HttpA(ref mut inner) => Ok(Http(try!(inner.accept()))),
             HttpsA(ref mut inner, ref ssl_context) => {
                 let stream = try!(inner.accept());
-                let ssl = try!(Ssl::new(&**ssl_context).map_err(lift_ssl_error));
-                let ssl_stream = try!(SslStream::<TcpStream>::new_from(ssl, stream).
+                let ssl_stream = try!(SslStream::<TcpStream>::new_server(&**ssl_context, stream).
                                      map_err(lift_ssl_error));
                 Ok(Https(ssl_stream))
             }
