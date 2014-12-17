@@ -62,6 +62,13 @@ impl Server<HttpListener> {
             key: Some(key)
         }
     }
+
+    /// Configures the server to use SSL.
+    pub fn with_ssl(&mut self, cert: Path, key:Path) -> &mut Server {
+        self.cert = Some(cert);
+        self.key = Some(key);
+        return self;
+    }
 }
 
 impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L> {
