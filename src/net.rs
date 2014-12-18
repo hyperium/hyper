@@ -191,7 +191,6 @@ impl NetworkListener<HttpStream, HttpAcceptor> for HttpListener {
             return Err(lift_ssl_error(err));
         }
         ssl_context.set_verify(SslVerifyNone, None);
-        ssl_context.set_verify_depth(1);
         Ok(HttpsL(try!(TcpListener::bind(addr)), ssl_context))
     }
 
