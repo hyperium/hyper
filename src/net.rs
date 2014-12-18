@@ -181,20 +181,16 @@ impl NetworkListener<HttpStream, HttpAcceptor> for HttpListener {
     fn bind_with_ssl<To: ToSocketAddr>(addr: To, cert: Path, key: Path) -> IoResult<HttpListener> {
         // TODO: Make these more configurable
         let mut ssl_context = try!(SslContext::new(Sslv23).map_err(lift_ssl_error));
-        match ssl_context.set_cipher_list("DEFAULT") {
-            Some(err) => { return Err(lift_ssl_error(err)); } ,
-            None => ()
+        if let Some(err) = ssl_context.set_cipher_list("DEFAULT") {
+            return Err(lift_ssl_error(err));
         }
-        match ssl_context.set_certificate_file(&cert, X509FileType::PEM) {
-            Some(err) => { return Err(lift_ssl_error(err)); } ,
-            None => ()
+        if let Some(err) = ssl_context.set_certificate_file(&cert, X509FileType::PEM) {
+            return Err(lift_ssl_error(err));
         }
-        match ssl_context.set_private_key_file(&key, X509FileType::PEM) {
-            Some(err) => { return Err(lift_ssl_error(err)); } ,
-            None => ()
+        if let Some(err) = ssl_context.set_private_key_file(&key, X509FileType::PEM) {
+            return Err(lift_ssl_error(err));
         }
         ssl_context.set_verify(SslVerifyNone, None);
-        ssl_context.set_verify_depth(1);
         Ok(HttpsL(try!(TcpListener::bind(addr)), ssl_context))
     }
 
