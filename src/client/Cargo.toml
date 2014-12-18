@@ -1,0 +1,19 @@
+[package]
+
+name = "hyper-client"
+version = "0.1.0"
+authors = ["Sean McArthur <sean.monstar@gmail.com>"]
+
+[dependencies.hyper-core]
+path = "../core"
+[dependencies.hyper-protocol]
+path = "../protocol"
+[dependencies.hyper-net]
+path = "../net"
+
+[dependencies.time]
+version = "*"
+[dependencies.url]
+version = "*"
+[dependencies.openssl]
+version = "*"

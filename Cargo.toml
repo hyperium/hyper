@@ -1,7 +1,7 @@
 [package]
 
 name = "hyper"
-version = "0.0.15"
+version = "1.0.0"
 description = "A modern HTTP library."
 readme = "README.md"
 documentation = "http://hyperium.github.io/hyper/hyper/index.html"
@@ -10,16 +10,31 @@ license = "MIT"
 authors = ["Sean McArthur <sean.monstar@gmail.com>",
            "Jonathan Reem <jonathan.reem@gmail.com>"]
 
-[dependencies]
-url = "*"
-openssl = "*"
-mime = "*"
-unsafe-any = "*"
-typeable = "*"
-cookie = "*"
-time = "*"
-mucell = "*"
+[dependencies.hyper-core]
+path = "src/core/"
+[dependencies.hyper-protocol]
+path = "src/protocol/"
+[dependencies.hyper-net]
+path = "src/net/"
+optional = true
+[dependencies.hyper-client]
+path = "src/client/"
+optional = true
+[dependencies.hyper-server]
+path = "src/server/"
+optional = true
+[features]
+default = [ "hyper-client", "hyper-server" , "hyper-net" ]
+net = [ "hyper-net" ]
+server = [ "hyper-server", "hyper-net" ]
+client = [ "hyper-client", "hyper-net" ]
+[dependencies.url]
+version = "*"
+[dependencies.mime]
+version = "*"
 
-[dev-dependencies]
-curl = "*"
+[dev-dependencies.curl]
+version = "*"
 
+[dev-dependencies.http]
+version = "*"
