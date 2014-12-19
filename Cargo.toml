@@ -7,8 +7,8 @@ authors = ["Sean McArthur <sean.monstar@gmail.com>"]
 [dependencies.url]
 git = "https://github.com/servo/rust-url"
 
-[dependencies.openssl]
-git = "https://github.com/sfackler/rust-openssl"
+#[dependencies.openssl]
+#git = "https://github.com/sfackler/rust-openssl"
 
 [dependencies.mime]
 git = "https://github.com/hyperium/mime.rs"
