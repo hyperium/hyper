@@ -1,6 +1,5 @@
 #![feature(default_type_params)]
 extern crate curl;
-extern crate http;
 extern crate hyper;
 
 extern crate test;
@@ -8,11 +7,9 @@ extern crate test;
 use std::fmt::{mod, Show};
 use std::str::from_str;
 use std::io::{IoResult, MemReader};
-use std::io::net::ip::{SocketAddr, ToSocketAddr};
+use std::io::net::ip::SocketAddr;
 use std::os;
 use std::path::BytesContainer;
-
-use http::connecter::Connecter;
 
 use hyper::net;
 
@@ -114,30 +111,6 @@ fn bench_mock_hyper(b: &mut test::Bencher) {
             .start().unwrap()
             .send().unwrap()
             .read_to_string().unwrap()
-    });
-}
-
-impl Connecter for MockStream {
-    fn connect(_addr: SocketAddr, _host: &str, _use_ssl: bool) -> IoResult<MockStream> {
-        Ok(MockStream::new())
-    }
-}
-
-#[bench]
-fn bench_mock_http(b: &mut test::Bencher) {
-    let url = "http://127.0.0.1:1337/";
-    b.iter(|| {
-        let mut req: http::client::RequestWriter<MockStream> = http::client::RequestWriter::new(
-            http::method::Get,
-            hyper::Url::parse(url).unwrap()
-        ).unwrap();
-        req.headers.extensions.insert("x-foo".to_string(), "Bar".to_string());
-        // cant unwrap because Err contains RequestWriter, which does not implement Show
-        let mut res = match req.read_response() {
-            Ok(res) => res,
-            Err(..) => panic!("http response failed")
-        };
-        res.read_to_string().unwrap();
     });
 }
 

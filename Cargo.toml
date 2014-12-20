@@ -20,3 +20,6 @@ cookie = "*"
 time = "*"
 mucell = "*"
 
+[dev-dependencies]
+curl = "*"
+
