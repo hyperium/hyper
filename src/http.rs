@@ -588,7 +588,7 @@ pub struct RawStatus(pub u16, pub SendStr);
 
 impl Clone for RawStatus {
     fn clone(&self) -> RawStatus {
-        RawStatus(self.0, (*self.1).clone().into_cow())
+        RawStatus(self.0, self.1.clone().into_cow())
     }
 }
 
