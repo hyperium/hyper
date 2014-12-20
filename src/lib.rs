@@ -139,12 +139,21 @@ extern crate url;
 pub use std::io::net::ip::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr, Port};
 pub use mimewrapper::mime;
 pub use url::Url;
-#[cfg(feature = "hyper-client")]
-pub use client::Client;
 pub use core::method::Method::{Get, Head, Post, Delete};
 pub use core::status::StatusCode::{Ok, BadRequest, NotFound};
+
+#[cfg(feature = "hyper-client")]
+pub use client::Client;
+#[cfg(feature = "hyper-client")]
+pub use client;
 #[cfg(feature = "hyper-server")]
 pub use server::Server;
+#[cfg(feature = "hyper-server")]
+pub use server;
+#[cfg(feature = "hyper-net")]
+pub use net;
+pub use protocol;
+pub use core;
 
 pub use core::{HttpResult, HttpError};
 
