@@ -191,5 +191,6 @@ mod tests {
 
 }
 
-bench_header!(raw, Authorization<String>, { vec![b"foo bar baz".to_vec()] })
-bench_header!(basic, Authorization<Basic>, { vec![b"Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==".to_vec()] })
+bench_header!(raw, Authorization<String>, { vec![b"foo bar baz".to_vec()] });
+bench_header!(basic, Authorization<Basic>, { vec![b"Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==".to_vec()] });
+

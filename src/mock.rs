@@ -104,4 +104,5 @@ macro_rules! mock_connector (
         }
 
     )
-)
+);
+

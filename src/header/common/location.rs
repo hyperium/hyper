@@ -16,7 +16,7 @@ use super::util::from_one_raw_str;
 #[deriving(Clone, PartialEq, Show)]
 pub struct Location(pub String);
 
-deref!(Location -> String)
+deref!(Location -> String);
 
 impl Header for Location {
     fn header_name(_: Option<Location>) -> &'static str {
@@ -35,5 +35,5 @@ impl HeaderFormat for Location {
     }
 }
 
-bench_header!(bench, Location, { vec![b"http://foo.com/hello:3000".to_vec()] })
+bench_header!(bench, Location, { vec![b"http://foo.com/hello:3000".to_vec()] });
 

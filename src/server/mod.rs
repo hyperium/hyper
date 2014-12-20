@@ -38,7 +38,7 @@ macro_rules! try_option(
             None => return None
         }
     }}
-)
+);
 
 impl Server<HttpListener> {
     /// Creates a new server that will handle `HttpStream`s.

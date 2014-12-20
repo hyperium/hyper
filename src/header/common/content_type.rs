@@ -10,7 +10,7 @@ use mime::Mime;
 #[deriving(Clone, PartialEq, Show)]
 pub struct ContentType(pub Mime);
 
-deref!(ContentType -> Mime)
+deref!(ContentType -> Mime);
 
 impl Header for ContentType {
     fn header_name(_: Option<ContentType>) -> &'static str {
@@ -29,4 +29,5 @@ impl HeaderFormat for ContentType {
     }
 }
 
-bench_header!(bench, ContentType, { vec![b"application/json; charset=utf-8".to_vec()] })
+bench_header!(bench, ContentType, { vec![b"application/json; charset=utf-8".to_vec()] });
+

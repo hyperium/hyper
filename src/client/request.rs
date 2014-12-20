@@ -114,7 +114,7 @@ impl Request<Fresh> {
         }
 
         debug!("writing head: {} {} {}", self.method, uri, self.version);
-        try!(write!(&mut self.body, "{} {} {}", self.method, uri, self.version))
+        try!(write!(&mut self.body, "{} {} {}", self.method, uri, self.version));
         try!(self.body.write(LINE_ENDING));
 
 

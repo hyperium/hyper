@@ -8,7 +8,7 @@ use super::util::from_one_raw_str;
 #[deriving(Clone, PartialEq, Show)]
 pub struct Server(pub String);
 
-deref!(Server -> String)
+deref!(Server -> String);
 
 impl Header for Server {
     fn header_name(_: Option<Server>) -> &'static str {
@@ -27,5 +27,5 @@ impl HeaderFormat for Server {
     }
 }
 
-bench_header!(bench, Server, { vec![b"Some String".to_vec()] })
+bench_header!(bench, Server, { vec![b"Some String".to_vec()] });
 
