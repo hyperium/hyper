@@ -9,7 +9,7 @@ use super::util::from_one_raw_str;
 #[deriving(Copy, Clone, PartialEq, Show)]
 pub struct ContentLength(pub uint);
 
-deref!(ContentLength -> uint)
+deref!(ContentLength -> uint);
 
 impl Header for ContentLength {
     fn header_name(_: Option<ContentLength>) -> &'static str {
@@ -37,4 +37,5 @@ impl ContentLength {
     }
 }
 
-bench_header!(bench, ContentLength, { vec![b"42349984".to_vec()] })
+bench_header!(bench, ContentLength, { vec![b"42349984".to_vec()] });
+

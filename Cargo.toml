@@ -1,32 +1,25 @@
 [package]
 
 name = "hyper"
-version = "0.0.1"
-authors = ["Sean McArthur <sean.monstar@gmail.com>"]
+version = "0.0.14"
+description = "A modern HTTP library."
+readme = "README.md"
+documentation = "http://hyperium.github.io/hyper/hyper/index.html"
+repository = "https://github.com/hyperium/hyper"
+license = "MIT"
+authors = ["Sean McArthur <sean.monstar@gmail.com>",
+           "Jonathan Reem <jonathan.reem@gmail.com>"]
 
-[dependencies.url]
-git = "https://github.com/servo/rust-url"
+[dependencies]
+url = "*"
+openssl = "*"
+mime = "*"
+unsafe-any = "*"
+typeable = "*"
+cookie = "*"
+time = "*"
+mucell = "*"
 
-[dependencies.openssl]
-git = "https://github.com/sfackler/rust-openssl"
+[dev-dependencies]
+curl = "*"
 
-[dependencies.mime]
-git = "https://github.com/hyperium/mime.rs"
-
-[dependencies.unsafe-any]
-git = "https://github.com/reem/rust-unsafe-any"
-
-[dev-dependencies.curl]
-git = "https://github.com/carllerche/curl-rust"
-
-[dev-dependencies.http]
-git = "https://github.com/chris-morgan/rust-http"
-
-[dependencies.cookie]
-git = "https://github.com/alexcrichton/cookie-rs"
-
-[dependencies.time]
-git = "https://github.com/rust-lang/time"
-
-[dependencies.mucell]
-git = "https://github.com/chris-morgan/mucell"

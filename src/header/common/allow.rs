@@ -9,7 +9,7 @@ use super::util::{from_comma_delimited, fmt_comma_delimited};
 #[deriving(Clone, PartialEq, Show)]
 pub struct Allow(pub Vec<Method>);
 
-deref!(Allow -> Vec<Method>)
+deref!(Allow -> Vec<Method>);
 
 impl Header for Allow {
     fn header_name(_: Option<Allow>) -> &'static str {
@@ -45,4 +45,5 @@ mod tests {
     }
 }
 
-bench_header!(bench, Allow, { vec![b"OPTIONS,GET,PUT,POST,DELETE,HEAD,TRACE,CONNECT,PATCH,fOObAr".to_vec()] })
+bench_header!(bench, Allow, { vec![b"OPTIONS,GET,PUT,POST,DELETE,HEAD,TRACE,CONNECT,PATCH,fOObAr".to_vec()] });
+

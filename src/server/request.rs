@@ -80,7 +80,7 @@ mod tests {
 
     macro_rules! sock(
         ($s:expr) => (::std::str::from_str::<::std::io::net::ip::SocketAddr>($s).unwrap())
-    )
+    );
 
     #[test]
     fn test_get_empty_body() {

@@ -9,7 +9,7 @@ pub use self::ConnectionOption::{KeepAlive, Close, ConnectionHeader};
 #[deriving(Clone, PartialEq, Show)]
 pub struct Connection(pub Vec<ConnectionOption>);
 
-deref!(Connection -> Vec<ConnectionOption>)
+deref!(Connection -> Vec<ConnectionOption>);
 
 /// Values that can be in the `Connection` header.
 #[deriving(Clone, PartialEq)]
@@ -66,6 +66,7 @@ impl HeaderFormat for Connection {
     }
 }
 
-bench_header!(close, Connection, { vec![b"close".to_vec()] })
-bench_header!(keep_alive, Connection, { vec![b"keep-alive".to_vec()] })
-bench_header!(header, Connection, { vec![b"authorization".to_vec()] })
+bench_header!(close, Connection, { vec![b"close".to_vec()] });
+bench_header!(keep_alive, Connection, { vec![b"keep-alive".to_vec()] });
+bench_header!(header, Connection, { vec![b"authorization".to_vec()] });
+

@@ -21,7 +21,7 @@ use self::Encoding::{Chunked, Gzip, Deflate, Compress, EncodingExt};
 #[deriving(Clone, PartialEq, Show)]
 pub struct TransferEncoding(pub Vec<Encoding>);
 
-deref!(TransferEncoding -> Vec<Encoding>)
+deref!(TransferEncoding -> Vec<Encoding>);
 
 /// A value to be used with the `Transfer-Encoding` header.
 ///
@@ -87,5 +87,6 @@ impl HeaderFormat for TransferEncoding {
     }
 }
 
-bench_header!(normal, TransferEncoding, { vec![b"chunked, gzip".to_vec()] })
-bench_header!(ext, TransferEncoding, { vec![b"ext".to_vec()] })
+bench_header!(normal, TransferEncoding, { vec![b"chunked, gzip".to_vec()] });
+bench_header!(ext, TransferEncoding, { vec![b"ext".to_vec()] });
+

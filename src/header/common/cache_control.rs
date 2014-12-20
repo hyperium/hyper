@@ -7,7 +7,7 @@ use super::util::{from_one_comma_delimited, fmt_comma_delimited};
 #[deriving(PartialEq, Clone, Show)]
 pub struct CacheControl(pub Vec<CacheDirective>);
 
-deref!(CacheControl -> Vec<CacheDirective>)
+deref!(CacheControl -> Vec<CacheDirective>);
 
 impl Header for CacheControl {
     fn header_name(_: Option<CacheControl>) -> &'static str {
@@ -162,4 +162,5 @@ mod tests {
     }
 }
 
-bench_header!(normal, CacheControl, { vec![b"no-cache, private".to_vec(), b"max-age=100".to_vec()] })
+bench_header!(normal, CacheControl, { vec![b"no-cache, private".to_vec(), b"max-age=100".to_vec()] });
+

@@ -9,7 +9,7 @@ use self::Protocol::{WebSocket, ProtocolExt};
 #[deriving(Clone, PartialEq, Show)]
 pub struct Upgrade(pub Vec<Protocol>);
 
-deref!(Upgrade -> Vec<Protocol>)
+deref!(Upgrade -> Vec<Protocol>);
 
 /// Protocol values that can appear in the Upgrade header.
 #[deriving(Clone, PartialEq)]
@@ -55,4 +55,5 @@ impl HeaderFormat for Upgrade {
     }
 }
 
-bench_header!(bench, Upgrade, { vec![b"HTTP/2.0, RTA/x11, websocket".to_vec()] })
+bench_header!(bench, Upgrade, { vec![b"HTTP/2.0, RTA/x11, websocket".to_vec()] });
+

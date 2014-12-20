@@ -153,4 +153,5 @@ mod tests {
     }
 }
 
-bench_header!(bench, Etag, { vec![b"W/\"nonemptytag\"".to_vec()] })
+bench_header!(bench, Etag, { vec![b"W/\"nonemptytag\"".to_vec()] });
+

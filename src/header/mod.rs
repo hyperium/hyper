@@ -458,7 +458,7 @@ impl FromStr for CaseInsensitive {
 
 impl Clone for CaseInsensitive {
     fn clone(&self) -> CaseInsensitive {
-        CaseInsensitive((*self.0).clone().into_cow())
+        CaseInsensitive(self.0.clone().into_cow())
     }
 }
 

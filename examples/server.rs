@@ -18,7 +18,7 @@ macro_rules! try_return(
             Err(e) => { error!("Error: {}", e); return; }
         }
     }}
-)
+);
 
 fn echo(mut req: Request, mut res: Response) {
     match req.uri {
