@@ -366,7 +366,7 @@ mod tests {
                                      Server: mock3\r\n\
                                      \r\n\
                                     "
-    })
+    });
 
     #[test]
     fn test_redirect_followall() {

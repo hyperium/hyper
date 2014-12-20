@@ -8,7 +8,7 @@ use super::util::from_one_raw_str;
 #[deriving(Clone, PartialEq, Show)]
 pub struct UserAgent(pub String);
 
-deref!(UserAgent -> String)
+deref!(UserAgent -> String);
 
 impl Header for UserAgent {
     fn header_name(_: Option<UserAgent>) -> &'static str {
@@ -27,5 +27,5 @@ impl HeaderFormat for UserAgent {
     }
 }
 
-bench_header!(bench, UserAgent, { vec![b"cargo bench".to_vec()] })
+bench_header!(bench, UserAgent, { vec![b"cargo bench".to_vec()] });
 

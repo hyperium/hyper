@@ -156,7 +156,7 @@ macro_rules! todo(
     ($($arg:tt)*) => (if cfg!(not(ndebug)) {
         format_args!(|args| log!(5, "TODO: {}", args), $($arg)*)
     })
-)
+);
 
 #[allow(dead_code)]
 struct Trace;
@@ -172,7 +172,7 @@ macro_rules! trace(
     ($($arg:tt)*) => (if cfg!(not(ndebug)) {
         format_args!(|args| log!(5, "{}\n{}", args, ::Trace), $($arg)*)
     })
-)
+);
 
 macro_rules! inspect(
     ($name:expr, $value:expr) => ({
@@ -180,7 +180,7 @@ macro_rules! inspect(
         debug!("inspect: {} = {}", $name, v);
         v
     })
-)
+);
 
 #[cfg(test)]
 #[macro_escape]

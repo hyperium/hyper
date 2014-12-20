@@ -23,7 +23,7 @@ use mime::Mime;
 #[deriving(Clone, PartialEq, Show)]
 pub struct Accept(pub Vec<Mime>);
 
-deref!(Accept -> Vec<Mime>)
+deref!(Accept -> Vec<Mime>);
 
 impl Header for Accept {
     fn header_name(_: Option<Accept>) -> &'static str {
@@ -69,5 +69,5 @@ impl HeaderFormat for Accept {
     }
 }
 
-bench_header!(bench, Accept, { vec![b"text/plain; q=0.5, text/html".to_vec()] })
+bench_header!(bench, Accept, { vec![b"text/plain; q=0.5, text/html".to_vec()] });
 

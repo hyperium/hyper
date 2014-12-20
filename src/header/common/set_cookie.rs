@@ -13,7 +13,7 @@ use cookie::CookieJar;
 #[deriving(Clone, PartialEq, Show)]
 pub struct SetCookie(pub Vec<Cookie>);
 
-deref!(SetCookie -> Vec<Cookie>)
+deref!(SetCookie -> Vec<Cookie>);
 
 impl Header for SetCookie {
     fn header_name(_: Option<SetCookie>) -> &'static str {
