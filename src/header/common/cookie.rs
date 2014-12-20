@@ -16,7 +16,7 @@ use cookie::CookieJar;
 #[deriving(Clone, PartialEq, Show)]
 pub struct Cookies(pub Vec<Cookie>);
 
-deref!(Cookies -> Vec<Cookie>)
+deref!(Cookies -> Vec<Cookie>);
 
 impl Header for Cookies {
     fn header_name(_: Option<Cookies>) -> &'static str {
@@ -113,4 +113,4 @@ fn cookie_jar() {
 }
 
 
-bench_header!(bench, Cookies, { vec![b"foo=bar; baz=quux".to_vec()] })
+bench_header!(bench, Cookies, { vec![b"foo=bar; baz=quux".to_vec()] });
