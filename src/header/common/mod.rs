@@ -55,7 +55,7 @@ macro_rules! bench_header(
             }
         }
     }
-)
+);
 
 macro_rules! deref(
     ($from:ty -> $to:ty) => {
@@ -71,7 +71,7 @@ macro_rules! deref(
             }
         }
     }
-)
+);
 
 /// Exposes the Accept header.
 pub mod accept;
