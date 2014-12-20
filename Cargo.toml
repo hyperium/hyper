@@ -12,17 +12,22 @@ authors = ["Sean McArthur <sean.monstar@gmail.com>",
 
 [dependencies.hyper-core]
 path = "src/core/"
+version = "0.1.0"
 [dependencies.hyper-protocol]
 path = "src/protocol/"
+version = "0.1.0"
 [dependencies.hyper-net]
 path = "src/net/"
 optional = true
+version = "0.1.0"
 [dependencies.hyper-client]
 path = "src/client/"
 optional = true
+version = "0.1.0"
 [dependencies.hyper-server]
 path = "src/server/"
 optional = true
+version = "0.1.0"
 [features]
 default = [ "hyper-client", "hyper-server" , "hyper-net" ]
 net = [ "hyper-net" ]

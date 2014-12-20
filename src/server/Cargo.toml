@@ -6,10 +6,13 @@ authors = ["Sean McArthur <sean.monstar@gmail.com>"]
 
 [dependencies.hyper-core]
 path = "../core"
+version = "0.1.0"
 [dependencies.hyper-protocol]
 path = "../protocol"
+version = "0.1.0"
 [dependencies.hyper-net]
 path = "../net"
+version = "0.1.0"
 
 [dependencies.time]
 version = "*"

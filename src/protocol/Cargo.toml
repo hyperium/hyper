@@ -4,14 +4,15 @@ name = "hyper-protocol"
 version = "0.1.0"
 authors = ["Sean McArthur <sean.monstar@gmail.com>"]
 
-[dependencies.mucell]
-git = "https://github.com/chris-morgan/mucell"
-[dependencies.unsafe-any]
-version = "*"
-
 [dependencies.hyper-core]
 path = "../core/"
+version = "0.1.0"
 
+
+[dependencies.mucell]
+version = "*"
+[dependencies.unsafe-any]
+version = "*"
 [dependencies.time]
 version = "*"
 [dependencies.mime]
