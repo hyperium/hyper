@@ -1,7 +1,7 @@
 [package]
 
 name = "hyper"
-version = "0.0.14"
+version = "0.0.15"
 description = "A modern HTTP library."
 readme = "README.md"
 documentation = "http://hyperium.github.io/hyper/hyper/index.html"
