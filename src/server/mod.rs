@@ -3,7 +3,7 @@ use std::io::{Listener, EndOfFile, BufferedReader, BufferedWriter};
 use std::io::net::ip::{IpAddr, Port, SocketAddr};
 use std::os;
 use std::sync::{Arc, TaskPool};
-use std::task::TaskBuilder;
+use std::thread::Builder;
 
 
 pub use self::request::Request;
@@ -68,7 +68,7 @@ impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L
         let acceptor = try!(listener.listen());
 
         let mut captured = acceptor.clone();
-        TaskBuilder::new().named("hyper acceptor").spawn(move || {
+        Builder::new().name("hyper acceptor".into_string()).spawn(move || {
             let handler = Arc::new(handler);
             debug!("threads = {}", threads);
             let pool = TaskPool::new(threads);
@@ -126,7 +126,7 @@ impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L
                     }
                 }
             }
-        });
+        }).detach();
 
         Ok(Listening {
             acceptor: acceptor,

@@ -315,7 +315,7 @@ impl<'a> IntoUrl for &'a str {
 }
 
 /// Behavior regarding how to handle redirects within a Client.
-#[deriving(Copy, Clone)]
+#[deriving(Copy)]
 pub enum RedirectPolicy {
     /// Don't follow any redirects.
     FollowNone,
@@ -323,6 +323,13 @@ pub enum RedirectPolicy {
     FollowAll,
     /// Follow a redirect if the contained function returns true.
     FollowIf(fn(&Url) -> bool),
+}
+
+// This is a hack because of upstream typesystem issues. 
+impl Clone for RedirectPolicy {
+    fn clone(&self) -> RedirectPolicy {
+        *self 
+    }
 }
 
 impl Default for RedirectPolicy {
