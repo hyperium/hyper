@@ -52,6 +52,7 @@ fn echo(mut req: Request, mut res: Response) {
 
 fn main() {
     let server = Server::http(Ipv4Addr(127, 0, 0, 1), 1337);
-    server.listen(echo).unwrap();
+    let mut listening = server.listen(echo).unwrap();
     println!("Listening on http://127.0.0.1:1337");
+    listening.await();
 }
