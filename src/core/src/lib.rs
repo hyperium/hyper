@@ -14,12 +14,12 @@ use self::HttpError::{HttpMethodError, HttpUriError, HttpVersionError,
     ($($arg:tt)*) => (if cfg!(not(ndebug)) {
         format_args!(|args| log!(5, "TODO: {}", args), $($arg)*)
     })
-)
+);
 #[macro_export] macro_rules! trace(
     ($($arg:tt)*) => (if cfg!(not(ndebug)) {
         format_args!(|args| log!(5, "{}\n{}", args, ::Trace), $($arg)*)
     })
-)
+);
 
 #[macro_export] macro_rules! inspect(
     ($name:expr, $value:expr) => ({
@@ -27,7 +27,7 @@ use self::HttpError::{HttpMethodError, HttpUriError, HttpVersionError,
         debug!("inspect: {} = {}", $name, v);
         v
     })
-)
+);
 
 pub mod http;
 pub mod method;
