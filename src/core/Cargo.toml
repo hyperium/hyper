@@ -1,0 +1,7 @@
+[package]
+name = "hyper-core"
+version = "0.1.0"
+authors = [ "Sean McArthur <sean.mcarthur@gmail.com>" ]
+
+[dependencies.url]
+version = "*"

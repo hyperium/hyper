@@ -125,140 +125,48 @@
 //! implement `Reader` and can be read to get the data out of a `Response`.
 //!
 
-extern crate serialize;
-extern crate time;
 extern crate url;
-extern crate openssl;
-#[phase(plugin,link)] extern crate log;
-#[cfg(test)] extern crate test;
-extern crate "unsafe-any" as uany;
-extern crate cookie;
-extern crate mucell;
 
 pub use std::io::net::ip::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr, Port};
 pub use mimewrapper::mime;
 pub use url::Url;
-pub use client::Client;
-pub use method::Method::{Get, Head, Post, Delete};
-pub use status::StatusCode::{Ok, BadRequest, NotFound};
-pub use server::Server;
 
-use std::fmt;
-use std::error::{Error, FromError};
-use std::io::IoError;
+#[cfg(feature = "hyper-client")]
+pub use import_wrapper::client::Client;
+#[cfg(feature = "hyper-client")]
+pub use import_wrapper::client;
+#[cfg(feature = "hyper-server")]
+pub use import_wrapper::server::Server;
+#[cfg(feature = "hyper-server")]
+pub use import_wrapper::server;
+#[cfg(feature = "hyper-net")]
+pub use import_wrapper::net;
 
-use std::rt::backtrace;
+pub use import_wrapper::protocol;
 
-use self::HttpError::{HttpMethodError, HttpUriError, HttpVersionError,
-                      HttpHeaderError, HttpStatusError, HttpIoError};
-
-macro_rules! todo(
-    ($($arg:tt)*) => (if cfg!(not(ndebug)) {
-        format_args!(|args| log!(5, "TODO: {}", args), $($arg)*)
-    })
-);
-
-#[allow(dead_code)]
-struct Trace;
-
-impl fmt::Show for Trace {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        let _ = backtrace::write(fmt);
-        Result::Ok(())
-    }
-}
-
-macro_rules! trace(
-    ($($arg:tt)*) => (if cfg!(not(ndebug)) {
-        format_args!(|args| log!(5, "{}\n{}", args, ::Trace), $($arg)*)
-    })
-);
-
-macro_rules! inspect(
-    ($name:expr, $value:expr) => ({
-        let v = $value;
-        debug!("inspect: {} = {}", $name, v);
-        v
-    })
-);
+pub use import_wrapper::core;
+pub use import_wrapper::core::method::Method::{Get, Head, Post, Delete};
+pub use import_wrapper::core::status::StatusCode::{Ok, BadRequest, NotFound};
+pub use import_wrapper::core::{HttpResult, HttpError};
 
 #[cfg(test)]
 #[macro_escape]
 mod mock;
 
-pub mod client;
-pub mod method;
-pub mod header;
-pub mod http;
-pub mod net;
-pub mod server;
-pub mod status;
-pub mod uri;
-pub mod version;
+mod import_wrapper {
 
+    extern crate "hyper-core" as core;
+    extern crate "hyper-protocol" as protocol;
+
+    #[cfg(feature = "hyper-net")]
+    extern crate "hyper-net" as net;
+    #[cfg(feature = "hyper-server")]
+    extern crate "hyper-server" as server;
+    #[cfg(feature = "hyper-client")]
+    extern crate "hyper-client" as client;
+}
 
 mod mimewrapper {
     /// Re-exporting the mime crate, for convenience.
     extern crate mime;
-}
-
-
-/// Result type often returned from methods that can have `HttpError`s.
-pub type HttpResult<T> = Result<T, HttpError>;
-
-/// A set of errors that can occur parsing HTTP streams.
-#[deriving(Show, PartialEq, Clone)]
-pub enum HttpError {
-    /// An invalid `Method`, such as `GE,T`.
-    HttpMethodError,
-    /// An invalid `RequestUri`, such as `exam ple.domain`.
-    HttpUriError(url::ParseError),
-    /// An invalid `HttpVersion`, such as `HTP/1.1`
-    HttpVersionError,
-    /// An invalid `Header`.
-    HttpHeaderError,
-    /// An invalid `Status`, such as `1337 ELITE`.
-    HttpStatusError,
-    /// An `IoError` that occured while trying to read or write to a network stream.
-    HttpIoError(IoError),
-}
-
-impl Error for HttpError {
-    fn description(&self) -> &str {
-        match *self {
-            HttpMethodError => "Invalid Method specified",
-            HttpUriError(_) => "Invalid Request URI specified",
-            HttpVersionError => "Invalid HTTP version specified",
-            HttpHeaderError => "Invalid Header provided",
-            HttpStatusError => "Invalid Status provided",
-            HttpIoError(_) => "An IoError occurred while connecting to the specified network",
-        }
-    }
-
-    fn cause(&self) -> Option<&Error> {
-        match *self {
-            HttpIoError(ref error) => Some(error as &Error),
-            HttpUriError(ref error) => Some(error as &Error),
-            _ => None,
-        }
-    }
-}
-
-impl FromError<IoError> for HttpError {
-    fn from_error(err: IoError) -> HttpError {
-        HttpIoError(err)
-    }
-}
-
-impl FromError<url::ParseError> for HttpError {
-    fn from_error(err: url::ParseError) -> HttpError {
-        HttpUriError(err)
-    }
-}
-
-//FIXME: when Opt-in Built-in Types becomes a thing, we can force these structs
-//to be Send. For now, this has the compiler do a static check.
-fn _assert_send<T: Send>() {
-    _assert_send::<client::Request<net::Fresh>>();
-    _assert_send::<client::Response>();
 }
