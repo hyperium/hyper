@@ -125,41 +125,46 @@
 //! implement `Reader` and can be read to get the data out of a `Response`.
 //!
 
-extern crate "hyper-core" as core;
-extern crate "hyper-protocol" as protocol;
-#[cfg(feature = "hyper-net")]
-extern crate "hyper-net" as net;
-#[cfg(feature = "hyper-server")]
-extern crate "hyper-server" as server;
-#[cfg(feature = "hyper-client")]
-extern crate "hyper-client" as client;
-
 extern crate url;
 
 pub use std::io::net::ip::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr, Port};
 pub use mimewrapper::mime;
 pub use url::Url;
-pub use core::method::Method::{Get, Head, Post, Delete};
-pub use core::status::StatusCode::{Ok, BadRequest, NotFound};
 
 #[cfg(feature = "hyper-client")]
-pub use client::Client;
+pub use import_wrapper::client::Client;
 #[cfg(feature = "hyper-client")]
-pub use client;
+pub use import_wrapper::client;
 #[cfg(feature = "hyper-server")]
-pub use server::Server;
+pub use import_wrapper::server::Server;
 #[cfg(feature = "hyper-server")]
-pub use server;
+pub use import_wrapper::server;
 #[cfg(feature = "hyper-net")]
-pub use net;
-pub use protocol;
-pub use core;
+pub use import_wrapper::net;
 
-pub use core::{HttpResult, HttpError};
+pub use import_wrapper::protocol;
+
+pub use import_wrapper::core;
+pub use import_wrapper::core::method::Method::{Get, Head, Post, Delete};
+pub use import_wrapper::core::status::StatusCode::{Ok, BadRequest, NotFound};
+pub use import_wrapper::core::{HttpResult, HttpError};
 
 #[cfg(test)]
 #[macro_escape]
 mod mock;
+
+mod import_wrapper {
+
+    extern crate "hyper-core" as core;
+    extern crate "hyper-protocol" as protocol;
+
+    #[cfg(feature = "hyper-net")]
+    extern crate "hyper-net" as net;
+    #[cfg(feature = "hyper-server")]
+    extern crate "hyper-server" as server;
+    #[cfg(feature = "hyper-client")]
+    extern crate "hyper-client" as client;
+}
 
 mod mimewrapper {
     /// Re-exporting the mime crate, for convenience.
