@@ -19,6 +19,7 @@ typeable = "*"
 cookie = "*"
 time = "*"
 mucell = "*"
+log="*"
 
 [dev-dependencies]
 curl = "*"
