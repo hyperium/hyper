@@ -12,7 +12,7 @@ use std::intrinsics::TypeId;
 use std::raw::TraitObject;
 use std::str::{SendStr, FromStr};
 use std::collections::HashMap;
-use std::collections::hash_map::{Entries, Occupied, Vacant};
+use std::collections::hash_map::{Entries, Entry};
 use std::{hash, mem};
 
 use mucell::MuCell;
@@ -130,8 +130,8 @@ impl Headers {
                     debug!("raw header: {}={}", name, value[].to_ascii());
                     let name = CaseInsensitive(Owned(name));
                     let mut item = match headers.data.entry(name) {
-                        Vacant(entry) => entry.set(MuCell::new(Item::raw(vec![]))),
-                        Occupied(entry) => entry.into_mut()
+                        Entry::Vacant(entry) => entry.set(MuCell::new(Item::raw(vec![]))),
+                        Entry::Occupied(entry) => entry.into_mut()
                     };
 
                     match &mut item.borrow_mut().raw {

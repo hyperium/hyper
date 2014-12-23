@@ -24,7 +24,7 @@ impl Header for SetCookie {
         let mut set_cookies = Vec::with_capacity(raw.len());
         for set_cookies_raw in raw.iter() {
             match from_utf8(set_cookies_raw[]) {
-                Some(s) if !s.is_empty() => {
+                Ok(s) if !s.is_empty() => {
                     match from_str(s) {
                         Some(cookie) => set_cookies.push(cookie),
                         None => ()

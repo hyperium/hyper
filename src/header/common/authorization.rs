@@ -27,11 +27,11 @@ impl<S: Scheme> Header for Authorization<S> {
     fn parse_header(raw: &[Vec<u8>]) -> Option<Authorization<S>> {
         if raw.len() == 1 {
             match (from_utf8(unsafe { raw[].unsafe_get(0)[] }), Scheme::scheme(None::<S>)) {
-                (Some(header), Some(scheme))
+                (Ok(header), Some(scheme))
                     if header.starts_with(scheme) && header.len() > scheme.len() + 1 => {
                     from_str::<S>(header[scheme.len() + 1..]).map(|s| Authorization(s))
                 },
-                (Some(header), None) => from_str::<S>(header).map(|s| Authorization(s)),
+                (Ok(header), None) => from_str::<S>(header).map(|s| Authorization(s)),
                 _ => None
             }
         } else {

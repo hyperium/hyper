@@ -34,7 +34,7 @@ impl Header for Accept {
         let mut mimes: Vec<Mime> = vec![];
         for mimes_raw in raw.iter() {
             match from_utf8(mimes_raw.as_slice()) {
-                Some(mimes_str) => {
+                Ok(mimes_str) => {
                     for mime_str in mimes_str.split(',') {
                         match from_str(mime_str.trim()) {
                             Some(mime) => mimes.push(mime),
@@ -42,7 +42,7 @@ impl Header for Accept {
                         }
                     }
                 },
-                None => return None
+                Err(_) => return None
             };
         }
 

@@ -19,6 +19,8 @@ typeable = "*"
 cookie = "*"
 time = "*"
 mucell = "*"
+log = "*"
+rustc-serialize = "*"
 
 [dev-dependencies]
 curl = "*"

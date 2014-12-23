@@ -622,7 +622,7 @@ pub fn read_status<R: Reader>(stream: &mut R) -> HttpResult<RawStatus> {
         try!(stream.read_byte()),
     ];
 
-    let code = match str::from_utf8(code.as_slice()).and_then(from_str::<u16>) {
+    let code = match str::from_utf8(code.as_slice()).ok().and_then(from_str::<u16>) {
         Some(num) => num,
         None => return Err(HttpStatusError)
     };
@@ -662,8 +662,8 @@ pub fn read_status<R: Reader>(stream: &mut R) -> HttpResult<RawStatus> {
     }
 
     let reason = match str::from_utf8(buf[]) {
-        Some(s) => s.trim(),
-        None => return Err(HttpStatusError)
+        Ok(s) => s.trim(),
+        Err(_) => return Err(HttpStatusError)
     };
 
     let reason = match from_u16::<StatusCode>(code) {

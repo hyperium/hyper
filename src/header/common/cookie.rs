@@ -27,7 +27,7 @@ impl Header for Cookies {
         let mut cookies = Vec::with_capacity(raw.len());
         for cookies_raw in raw.iter() {
             match from_utf8(cookies_raw[]) {
-                Some(cookies_str) => {
+                Ok(cookies_str) => {
                     for cookie_str in cookies_str.split(';') {
                         match from_str(cookie_str.trim()) {
                             Some(cookie) => cookies.push(cookie),
@@ -35,7 +35,7 @@ impl Header for Cookies {
                         }
                     }
                 },
-                None => return None
+                Err(_) => return None
             };
         }
 
