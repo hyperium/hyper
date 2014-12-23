@@ -68,7 +68,7 @@ impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L
         let acceptor = try!(listener.listen());
 
         let mut captured = acceptor.clone();
-        let guard = Builder::new().name("hyper acceptor".into_string()).spawn(move || {
+        let guard = Builder::new().name("hyper acceptor".to_string()).spawn(move || {
             let handler = Arc::new(handler);
             debug!("threads = {}", threads);
             let pool = TaskPool::new(threads);

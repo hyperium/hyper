@@ -620,7 +620,7 @@ mod tests {
     fn test_headers_show() {
         let mut headers = Headers::new();
         headers.set(ContentLength(15));
-        headers.set(Host { hostname: "foo.bar".into_string(), port: None });
+        headers.set(Host { hostname: "foo.bar".to_string(), port: None });
 
         let s = headers.to_string();
         // hashmap's iterators have arbitrary order, so we must sort first

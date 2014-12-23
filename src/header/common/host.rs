@@ -46,7 +46,7 @@ impl Header for Host {
             };
 
             let port = match idx {
-                Some(idx) => from_str::<u16>(s[].slice_from(idx + 1)),
+                Some(idx) => s[].slice_from(idx + 1).parse(),
                 None => None
             };
 
@@ -82,14 +82,14 @@ mod tests {
     fn test_host() {
         let host = Header::parse_header([b"foo.com".to_vec()].as_slice());
         assert_eq!(host, Some(Host {
-            hostname: "foo.com".into_string(),
+            hostname: "foo.com".to_string(),
             port: None
         }));
 
 
         let host = Header::parse_header([b"foo.com:8080".to_vec()].as_slice());
         assert_eq!(host, Some(Host {
-            hostname: "foo.com".into_string(),
+            hostname: "foo.com".to_string(),
             port: Some(8080)
         }));
     }

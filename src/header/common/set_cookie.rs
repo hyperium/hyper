@@ -25,7 +25,7 @@ impl Header for SetCookie {
         for set_cookies_raw in raw.iter() {
             match from_utf8(set_cookies_raw[]) {
                 Ok(s) if !s.is_empty() => {
-                    match from_str(s) {
+                    match s.parse() {
                         Some(cookie) => set_cookies.push(cookie),
                         None => ()
                     }

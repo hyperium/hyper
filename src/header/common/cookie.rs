@@ -1,6 +1,6 @@
 use header::{Header, HeaderFormat};
 use std::fmt::{mod, Show};
-use std::str::{from_utf8, from_str};
+use std::str::from_utf8;
 
 use cookie::Cookie;
 use cookie::CookieJar;
@@ -29,7 +29,7 @@ impl Header for Cookies {
             match from_utf8(cookies_raw[]) {
                 Ok(cookies_str) => {
                     for cookie_str in cookies_str.split(';') {
-                        match from_str(cookie_str.trim()) {
+                        match cookie_str.trim().parse() {
                             Some(cookie) => cookies.push(cookie),
                             None => return None
                         }

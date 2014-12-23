@@ -32,7 +32,7 @@ pub fn from_one_comma_delimited<T: FromStr>(raw: &[u8]) -> Option<Vec<T>> {
         Ok(s) => {
             Some(s.as_slice()
                  .split([',', ' '].as_slice())
-                 .filter_map(from_str)
+                 .filter_map(FromStr::from_str)
                  .collect())
         }
         Err(_) => None

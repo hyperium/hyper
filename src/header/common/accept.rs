@@ -36,7 +36,7 @@ impl Header for Accept {
             match from_utf8(mimes_raw.as_slice()) {
                 Ok(mimes_str) => {
                     for mime_str in mimes_str.split(',') {
-                        match from_str(mime_str.trim()) {
+                        match mime_str.trim().parse() {
                             Some(mime) => mimes.push(mime),
                             None => return None
                         }

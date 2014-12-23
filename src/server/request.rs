@@ -92,7 +92,7 @@ mod tests {
         ");
 
         let mut req = Request::new(&mut stream, sock!("127.0.0.1:80")).unwrap();
-        assert_eq!(req.read_to_string(), Ok("".into_string()));
+        assert_eq!(req.read_to_string(), Ok("".to_string()));
     }
 
     #[test]
@@ -105,7 +105,7 @@ mod tests {
         ");
 
         let mut req = Request::new(&mut stream, sock!("127.0.0.1:80")).unwrap();
-        assert_eq!(req.read_to_string(), Ok("".into_string()));
+        assert_eq!(req.read_to_string(), Ok("".to_string()));
     }
 
     #[test]
@@ -118,6 +118,6 @@ mod tests {
         ");
 
         let mut req = Request::new(&mut stream, sock!("127.0.0.1:80")).unwrap();
-        assert_eq!(req.read_to_string(), Ok("".into_string()));
+        assert_eq!(req.read_to_string(), Ok("".to_string()));
     }
 }
