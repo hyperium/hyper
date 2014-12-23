@@ -42,7 +42,7 @@ impl HeaderFormat for Vary {
 #[cfg(test)]
 mod tests {
     use super::Vary;
-    use header::{Header, CaseInsensitive};
+    use header::Header;
 
     #[test]
     fn test_vary() {
@@ -52,8 +52,8 @@ mod tests {
         assert_eq!(vary, Some(Vary::Any));
 
         vary = Header::parse_header([b"etag,cookie,allow".to_vec()].as_slice());
-        assert_eq!(vary, Some(Vary::Headers(vec![from_str::<CaseInsensitive>("eTag").unwrap(),
-                                                 from_str::<CaseInsensitive>("cookIE").unwrap(),
-                                                 from_str::<CaseInsensitive>("AlLOw").unwrap(),])));
+        assert_eq!(vary, Some(Vary::Headers(vec!["eTag".parse().unwrap(),
+                                                 "cookIE".parse().unwrap(),
+                                                 "AlLOw".parse().unwrap(),])));
     }
 }

@@ -62,7 +62,7 @@ impl Writer for MockStream {
 
 impl NetworkStream for MockStream {
     fn peer_name(&mut self) -> IoResult<SocketAddr> {
-        Ok(from_str("127.0.0.1:1337").unwrap())
+        Ok("127.0.0.1:1337".parse().unwrap())
     }
 }
 

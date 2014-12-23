@@ -179,7 +179,7 @@ pub trait Handler: Sync + Send {
     fn handle(&self, Request, Response<Fresh>);
 }
 
-impl Handler for fn(Request, Response<Fresh>) {
+impl<F> Handler for F where F: Fn(Request, Response<Fresh>), F: Sync + Send {
     fn handle(&self, req: Request, res: Response<Fresh>) {
         (*self)(req, res)
     }

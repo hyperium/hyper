@@ -549,7 +549,7 @@ mod tests {
     #[test]
     fn test_accept() {
         let text_plain = Mime(Text, Plain, vec![]);
-        let application_vendor = from_str("application/vnd.github.v3.full+json; q=0.5").unwrap();
+        let application_vendor = "application/vnd.github.v3.full+json; q=0.5".parse().unwrap();
 
         let accept = Header::parse_header([b"text/plain".to_vec()].as_slice());
         assert_eq!(accept, Some(Accept(vec![text_plain.clone()])));
@@ -574,8 +574,8 @@ mod tests {
             }
             // we JUST checked that raw.len() == 1, so raw[0] WILL exist.
             match from_utf8(unsafe { raw.as_slice().unsafe_get(0).as_slice() }) {
-                Some(s) => FromStr::from_str(s),
-                None => None
+                Ok(s) => FromStr::from_str(s),
+                Err(_) => None
             }.map(|u| CrazyLength(Some(false), u))
         }
     }
