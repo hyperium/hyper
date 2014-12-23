@@ -11,8 +11,8 @@ pub fn from_one_raw_str<T: FromStr>(raw: &[Vec<u8>]) -> Option<T> {
     }
     // we JUST checked that raw.len() == 1, so raw[0] WILL exist.
     match from_utf8(unsafe { raw[].unsafe_get(0)[] }) {
-        Some(s) => FromStr::from_str(s),
-        None => None
+        Ok(s) => FromStr::from_str(s),
+        Err(_) => None
     }
 }
 
@@ -29,13 +29,13 @@ pub fn from_comma_delimited<T: FromStr>(raw: &[Vec<u8>]) -> Option<Vec<T>> {
 /// Reads a comma-delimited raw string into a Vec.
 pub fn from_one_comma_delimited<T: FromStr>(raw: &[u8]) -> Option<Vec<T>> {
     match from_utf8(raw) {
-        Some(s) => {
+        Ok(s) => {
             Some(s.as_slice()
                  .split([',', ' '].as_slice())
-                 .filter_map(from_str)
+                 .filter_map(FromStr::from_str)
                  .collect())
         }
-        None => None
+        Err(_) => None
     }
 }
 

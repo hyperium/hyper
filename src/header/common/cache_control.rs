@@ -110,14 +110,14 @@ impl FromStr for CacheDirective {
             "" => None,
             _ => match s.find('=') {
                 Some(idx) if idx+1 < s.len() => match (s[..idx], s[idx+1..].trim_chars('"')) {
-                    ("max-age" , secs) => from_str::<uint>(secs).map(MaxAge),
-                    ("max-stale", secs) => from_str::<uint>(secs).map(MaxStale),
-                    ("min-fresh", secs) => from_str::<uint>(secs).map(MinFresh),
-                    ("s-maxage", secs) => from_str::<uint>(secs).map(SMaxAge),
-                    (left, right) => Some(Extension(left.into_string(), Some(right.into_string())))
+                    ("max-age" , secs) => secs.parse().map(MaxAge),
+                    ("max-stale", secs) => secs.parse().map(MaxStale),
+                    ("min-fresh", secs) => secs.parse().map(MinFresh),
+                    ("s-maxage", secs) => secs.parse().map(SMaxAge),
+                    (left, right) => Some(Extension(left.to_string(), Some(right.to_string())))
                 },
                 Some(_) => None,
-                None => Some(Extension(s.into_string(), None))
+                None => Some(Extension(s.to_string(), None))
             }
         }
     }

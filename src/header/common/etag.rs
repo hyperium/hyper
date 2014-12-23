@@ -55,7 +55,7 @@ impl Header for Etag {
                 if check_slice_validity(slice.slice_chars(1, length-1)) {
                     return Some(Etag {
                         weak: false,
-                        tag: slice.slice_chars(1, length-1).into_string()
+                        tag: slice.slice_chars(1, length-1).to_string()
                     });
                 } else {
                     return None;
@@ -66,7 +66,7 @@ impl Header for Etag {
                 if check_slice_validity(slice.slice_chars(3, length-1)) {
                     return Some(Etag {
                         weak: true,
-                        tag: slice.slice_chars(3, length-1).into_string()
+                        tag: slice.slice_chars(3, length-1).to_string()
                     });
                 } else {
                     return None;
@@ -100,31 +100,31 @@ mod tests {
         etag = Header::parse_header([b"\"foobar\"".to_vec()].as_slice());
         assert_eq!(etag, Some(Etag {
             weak: false,
-            tag: "foobar".into_string()
+            tag: "foobar".to_string()
         }));
 
         etag = Header::parse_header([b"\"\"".to_vec()].as_slice());
         assert_eq!(etag, Some(Etag {
             weak: false,
-            tag: "".into_string()
+            tag: "".to_string()
         }));
 
         etag = Header::parse_header([b"W/\"weak-etag\"".to_vec()].as_slice());
         assert_eq!(etag, Some(Etag {
             weak: true,
-            tag: "weak-etag".into_string()
+            tag: "weak-etag".to_string()
         }));
 
         etag = Header::parse_header([b"W/\"\x65\x62\"".to_vec()].as_slice());
         assert_eq!(etag, Some(Etag {
             weak: true,
-            tag: "\u{0065}\u{0062}".into_string()
+            tag: "\u{0065}\u{0062}".to_string()
         }));
 
         etag = Header::parse_header([b"W/\"\"".to_vec()].as_slice());
         assert_eq!(etag, Some(Etag {
             weak: true,
-            tag: "".into_string()
+            tag: "".to_string()
         }));
     }
 

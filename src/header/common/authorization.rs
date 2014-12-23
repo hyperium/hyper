@@ -27,11 +27,11 @@ impl<S: Scheme> Header for Authorization<S> {
     fn parse_header(raw: &[Vec<u8>]) -> Option<Authorization<S>> {
         if raw.len() == 1 {
             match (from_utf8(unsafe { raw[].unsafe_get(0)[] }), Scheme::scheme(None::<S>)) {
-                (Some(header), Some(scheme))
+                (Ok(header), Some(scheme))
                     if header.starts_with(scheme) && header.len() > scheme.len() + 1 => {
-                    from_str::<S>(header[scheme.len() + 1..]).map(|s| Authorization(s))
+                    header[scheme.len() + 1..].parse::<S>().map(|s| Authorization(s))
                 },
-                (Some(header), None) => from_str::<S>(header).map(|s| Authorization(s)),
+                (Ok(header), None) => header.parse::<S>().map(|s| Authorization(s)),
                 _ => None
             }
         } else {
@@ -111,11 +111,11 @@ impl FromStr for Basic {
                 Ok(text) => {
                     let mut parts = text[].split(':');
                     let user = match parts.next() {
-                        Some(part) => part.into_string(),
+                        Some(part) => part.to_string(),
                         None => return None
                     };
                     let password = match parts.next() {
-                        Some(part) => Some(part.into_string()),
+                        Some(part) => Some(part.to_string()),
                         None => None
                     };
                     Some(Basic {
@@ -149,7 +149,7 @@ mod tests {
     #[test]
     fn test_raw_auth() {
         let mut headers = Headers::new();
-        headers.set(Authorization("foo bar baz".into_string()));
+        headers.set(Authorization("foo bar baz".to_string()));
         assert_eq!(headers.to_string(), "Authorization: foo bar baz\r\n".to_string());
     }
 
@@ -162,8 +162,8 @@ mod tests {
     #[test]
     fn test_basic_auth() {
         let mut headers = Headers::new();
-        headers.set(Authorization(Basic { username: "Aladdin".into_string(), password: Some("open sesame".into_string()) }));
-        assert_eq!(headers.to_string(), "Authorization: Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==\r\n".into_string());
+        headers.set(Authorization(Basic { username: "Aladdin".to_string(), password: Some("open sesame".to_string()) }));
+        assert_eq!(headers.to_string(), "Authorization: Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==\r\n".to_string());
     }
 
     #[test]
