@@ -179,20 +179,17 @@ impl NetworkListener<HttpStream, HttpAcceptor> for HttpListener {
 #[deriving(Clone)]
 pub struct TlsListener<L> {
     inner: L,
-    context: Option<Arc<SslContext>>
+    context: Arc<SslContext>
 }
 
 impl <S, A, L> Listener<TlsStream<S>, TlsAcceptor<A>> for TlsListener<L> where
         S: NetworkStream + Send + Clone, A: NetworkAcceptor<S>, L: NetworkListener<S, A> {
     #[inline]
     fn listen(self) -> IoResult<TlsAcceptor<A>> {
-        match self.context {
-            Some(ctx) => Ok(TlsAcceptor {
-                inner: try!(self.inner.listen()),
-                context: ctx
-            }),
-            None => unreachable!("listen() called on a TLS listener without a context")
-        }
+        Ok(TlsAcceptor {
+            inner: try!(self.inner.listen()),
+            context: self.context
+        })
     }
 }
 
@@ -227,7 +224,7 @@ impl <L: NetworkListener<S, A>, S: NetworkStream + Send + Clone, A: NetworkAccep
         ssl_context.set_verify(SslVerifyNone, None);
         Ok(TlsListener {
             inner: try!(NetworkListener::<S, A>::bind(addr)),
-            context: Some(Arc::<SslContext>::new(ssl_context))
+            context: Arc::<SslContext>::new(ssl_context)
         })
     }
 }
