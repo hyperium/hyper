@@ -16,7 +16,8 @@ use {HttpResult};
 use header::common::Connection;
 use header::common::connection::{KeepAlive, Close};
 use net::{NetworkListener, NetworkAcceptor, NetworkStream,
-          HttpAcceptor, HttpListener, HttpStream};
+          HttpAcceptor, HttpListener, HttpStream,
+          TlsListener, TlsAcceptor, TlsStream};
 use version::HttpVersion::{Http10, Http11};
 
 pub mod request;
@@ -28,7 +29,9 @@ pub mod response;
 /// incoming connection, and hand them to the provided handler.
 pub struct Server<L = HttpListener> {
     ip: IpAddr,
-    port: Port
+    port: Port,
+    cert: Option<Path>,
+    key: Option<Path>
 }
 
 macro_rules! try_option(
@@ -45,10 +48,23 @@ impl Server<HttpListener> {
     pub fn http(ip: IpAddr, port: Port) -> Server {
         Server {
             ip: ip,
-            port: port
+            port: port,
+            cert: None,
+            key: None
+        }
+    }
+
+    /// Creates a new server that will handle HTTPS streams.
+    pub fn https(ip: IpAddr, port: Port, cert: Path, key:Path) -> Server {
+        Server {
+            ip: ip,
+            port: port,
+            cert: Some(cert),
+            key: Some(key)
         }
     }
 }
+
 
 impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L> {
     /// Binds to a socket, and starts handling connections using a task pool.
@@ -61,8 +77,23 @@ impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L
           A: NetworkAcceptor<S>,
           L: NetworkListener<S, A>, {
         debug!("binding to {}:{}", self.ip, self.port);
-        let mut listener: L = try!(NetworkListener::<S, A>::bind((self.ip, self.port)));
+        if self.cert.is_some() && self.key.is_some() {
+            let mut listener = try!(TlsListener::<L, S, A>::bind_with_ssl((self.ip, self.port),
+                    self.cert.unwrap(), self.key.unwrap()));
+            self.use_listener(handler, threads, listener)
+        } else {
+            let mut listener = try!(NetworkListener::<S, A>::bind((self.ip, self.port)));
+            self.use_listener(handler, threads, listener)
+        }
+    }
+}
 
+impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L> {
+    fn use_listener<H, S, A, L>(self, handler: H, threads: uint, listener: L) -> HttpResult<Listening<A>>
+    where H: Handler,
+          S: NetworkStream + Clone,
+          A: NetworkAcceptor<S>,
+          L: NetworkListener<S, A> {
         let socket = try!(listener.socket_name());
 
         let acceptor = try!(listener.listen());
