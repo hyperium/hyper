@@ -173,6 +173,65 @@ impl NetworkListener<HttpStream, HttpAcceptor> for HttpListener {
     }
 }
 
+// A wrapper to layer SSL/TLS on top of another listener
+#[deriving(Clone)]
+pub struct SslListener<L> {
+    inner: L,
+    context: Option<Arc<SslContext>>
+}
+
+impl <L: NetworkListener<S, A>> Listener<S, SslAcceptor<A>> for SslListener<L> {
+    #[inline]
+    fn listen(self) -> IoResult<SslAcceptor<S>> {
+        match self.context {
+            Some(ctx) => Ok(SslAcceptor {
+                inner: try!(self.inner.listen()),
+                context: Some(ctx)
+            }),
+            None => Ok(SslAcceptor {
+                inner: try!(self.inner.listen()),
+                context: None
+            })
+        }
+    }
+}
+
+impl <L: NetworkListener<S, A>> NetworkListener<S, SslAcceptor<A>> for SslListener<L> {
+    #[inline]
+    fn bind<To: ToSocketAddr>(addr: To) -> IoResult<SslListener<L>> {
+        Ok(SslListener<L> {
+            inner: try!(L::bind(addr)),
+            context: None
+        })
+    }
+
+    #[inline]
+    fn socket_name(&mut self) -> IoResult<SocketAddr> {
+        self.inner.socket_name()
+    }
+}
+
+impl <L: NetworkListener<S, A>> SslListener<L> {
+    #[inline]
+    fn bind_with_ssl<To: ToSocketAddr>(addr: To) -> IoResult<SslListener<L>> {
+        let mut ssl_context = try!(SslContext::new(Sslv23).map_err(lift_ssl_error));
+        if let Some(err) = ssl_context.set_cipher_list("DEFAULT") {
+            return Err(lift_ssl_error(err));
+        }
+        if let Some(err) = ssl_context.set_certificate_file(&cert, X509FileType::PEM) {
+            return Err(lift_ssl_error(err));
+        }
+        if let Some(err) = ssl_context.set_private_key_file(&key, X509FileType::PEM) {
+            return Err(lift_ssl_error(err));
+        }
+        ssl_context.set_verify(SslVerifyNone, None);
+        Ok(SslListener<L> {
+            inner: try!(TcpListener::bind(addr)),
+            context: ssl_context
+        })
+    }
+}
+
 /// A `NetworkAcceptor` for `HttpStream`s.
 #[deriving(Clone)]
 pub struct HttpAcceptor {
