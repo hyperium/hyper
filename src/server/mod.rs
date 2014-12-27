@@ -175,7 +175,7 @@ pub trait Handler: Sync + Send {
     /// Receives a `Request`/`Response` pair, and should perform some action on them.
     ///
     /// This could reading from the request, and writing to the response.
-    fn handle(&self, Request, Response<Fresh>);
+    fn handle<'a>(&'a self, Request<'a>, Response<'a, Fresh>);
 }
 
 impl<F> Handler for F where F: Fn(Request, Response<Fresh>), F: Sync + Send {
