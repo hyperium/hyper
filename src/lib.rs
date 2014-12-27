@@ -13,7 +13,7 @@
 //!
 //! ## Internal Design
 //!
-//! Hyper is designed as a relatively low-level wrapped over raw HTTP. It should
+//! Hyper is designed as a relatively low-level wrapper over raw HTTP. It should
 //! allow the implementation of higher-level abstractions with as little pain as
 //! possible, and should not irrevocably hide any information from its users.
 //!
