@@ -595,6 +595,13 @@ mod tests {
     }
 
     #[test]
+    fn test_trailing_whitespace() {
+        let headers = Headers::from_raw(&mut mem("Content-Length: 10   \r\n\r\n")).unwrap();
+        let ContentLength(_) = *headers.get::<ContentLength>().unwrap();
+        assert!(headers.get::<CrazyLength>().is_none());
+    }
+
+    #[test]
     fn test_multiple_reads() {
         let headers = Headers::from_raw(&mut mem("Content-Length: 10\r\n\r\n")).unwrap();
         let ContentLength(one) = *headers.get::<ContentLength>().unwrap();

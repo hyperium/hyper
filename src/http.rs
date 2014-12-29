@@ -544,6 +544,9 @@ pub fn read_header<R: Reader>(stream: &mut R) -> HttpResult<Option<RawHeaderLine
             }
         };
     }
+    // Remove optional trailing whitespace
+    let real_len = value.len() - value.iter().rev().take_while(|&&x| b' ' == x).count();
+    value.truncate(real_len);
 
     debug!("header value = {}", value[].to_ascii());
 
