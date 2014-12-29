@@ -31,7 +31,8 @@ pub fn from_one_comma_delimited<T: FromStr>(raw: &[u8]) -> Option<Vec<T>> {
     match from_utf8(raw) {
         Ok(s) => {
             Some(s.as_slice()
-                 .split([',', ' '].as_slice())
+                 .split(',')
+                 .map(|x| x.trim())
                  .filter_map(FromStr::from_str)
                  .collect())
         }
