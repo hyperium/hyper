@@ -22,9 +22,12 @@ use http::{mod, LineEnding};
 use {HttpResult};
 
 pub use self::common::*;
+pub use self::shared::*;
 
 /// Common Headers
 pub mod common;
+
+pub mod shared;
 
 /// A trait for any object that will represent a header field and value.
 ///

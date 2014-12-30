@@ -1,7 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 use header::{Header, HeaderFormat};
-use super::util::{from_one_comma_delimited, fmt_comma_delimited};
+use header::shared::util::{from_one_comma_delimited, fmt_comma_delimited};
 
 /// The Cache-Control header.
 #[deriving(PartialEq, Clone, Show)]

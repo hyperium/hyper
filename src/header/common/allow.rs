@@ -1,7 +1,7 @@
 use header::{Header, HeaderFormat};
 use method::Method;
 use std::fmt::{mod};
-use super::util::{from_comma_delimited, fmt_comma_delimited};
+use header::shared::util::{from_comma_delimited, fmt_comma_delimited};
 
 /// The `Allow` header.
 /// See also https://tools.ietf.org/html/rfc7231#section-7.4.1
@@ -46,4 +46,3 @@ mod tests {
 }
 
 bench_header!(bench, Allow, { vec![b"OPTIONS,GET,PUT,POST,DELETE,HEAD,TRACE,CONNECT,PATCH,fOObAr".to_vec()] });
-

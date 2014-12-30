@@ -135,5 +135,3 @@ pub mod user_agent;
 
 /// Exposes the Vary header.
 pub mod vary;
-
-pub mod util;
