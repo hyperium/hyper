@@ -16,11 +16,14 @@ use mime;
 /// ```
 /// # use hyper::header::Headers;
 /// # use hyper::header::common::Accept;
+/// # use hyper::header::shared::QualityValue;
 /// use hyper::mime::Mime;
 /// use hyper::mime::TopLevel::Text;
 /// use hyper::mime::SubLevel::{Html, Xml};
 /// # let mut headers = Headers::new();
-/// headers.set(Accept(vec![ Mime(Text, Html, vec![]), Mime(Text, Xml, vec![]) ]));
+/// headers.set(Accept(vec![
+///     QualityValue{value: Mime(Text, Html, vec![]), quality: 1f32},
+///     QualityValue{value: Mime(Text, Xml, vec![]), quality: 1f32} ]));
 /// ```
 #[deriving(Clone, PartialEq, Show)]
 pub struct Accept(pub Vec<shared::QualityValue<mime::Mime>>);
