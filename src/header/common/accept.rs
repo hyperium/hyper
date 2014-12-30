@@ -1,7 +1,9 @@
-use header::{Header, HeaderFormat};
-use std::fmt::{mod, Show};
-use std::str::from_utf8;
-use mime::Mime;
+use std::fmt;
+
+use header;
+use header::shared;
+
+use mime;
 
 /// The `Accept` header.
 ///
@@ -21,53 +23,25 @@ use mime::Mime;
 /// headers.set(Accept(vec![ Mime(Text, Html, vec![]), Mime(Text, Xml, vec![]) ]));
 /// ```
 #[deriving(Clone, PartialEq, Show)]
-pub struct Accept(pub Vec<Mime>);
+pub struct Accept(pub Vec<shared::QualityValue<mime::Mime>>);
 
-deref!(Accept -> Vec<Mime>);
+deref!(Accept -> Vec<shared::QualityValue<mime::Mime>>);
 
-impl Header for Accept {
+impl header::Header for Accept {
     fn header_name(_: Option<Accept>) -> &'static str {
         "Accept"
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<Accept> {
-        let mut mimes: Vec<Mime> = vec![];
-        for mimes_raw in raw.iter() {
-            match from_utf8(mimes_raw.as_slice()) {
-                Ok(mimes_str) => {
-                    for mime_str in mimes_str.split(',') {
-                        match mime_str.trim().parse() {
-                            Some(mime) => mimes.push(mime),
-                            None => return None
-                        }
-                    }
-                },
-                Err(_) => return None
-            };
-        }
-
-        if !mimes.is_empty() {
-            Some(Accept(mimes))
-        } else {
-            // Currently is just a None, but later it can be Accept for */*
-            None
-        }
+        // TODO: Return */* if no value is given.
+        shared::from_comma_delimited(raw).map(Accept)
     }
 }
 
-impl HeaderFormat for Accept {
+impl header::HeaderFormat for Accept {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        let Accept(ref value) = *self;
-        let last = value.len() - 1;
-        for (i, mime) in value.iter().enumerate() {
-            try!(mime.fmt(fmt));
-            if i < last {
-                try!(", ".fmt(fmt));
-            }
-        }
-        Ok(())
+        shared::fmt_comma_delimited(fmt, self[])
     }
 }
 
 bench_header!(bench, Accept, { vec![b"text/plain; q=0.5, text/html".to_vec()] });
-

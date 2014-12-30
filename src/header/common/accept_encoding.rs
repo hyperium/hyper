@@ -1,18 +1,16 @@
 use std::fmt;
 
 use header;
-use header::shared::util;
-use header::shared::encoding;
-use header::shared::quality_value;
+use header::shared;
 
 /// The `Accept-Encoding` header
 ///
 /// The `Accept-Encoding` header can be used by clients to indicate what
 /// response encodings they accept.
 #[deriving(Clone, PartialEq, Show)]
-pub struct AcceptEncoding(pub Vec<quality_value::QualityValue<encoding::Encoding>>);
+pub struct AcceptEncoding(pub Vec<shared::QualityValue<shared::Encoding>>);
 
-deref!(AcceptEncoding -> Vec<quality_value::QualityValue<encoding::Encoding>>);
+deref!(AcceptEncoding -> Vec<shared::QualityValue<shared::Encoding>>);
 
 impl header::Header for AcceptEncoding {
     fn header_name(_: Option<AcceptEncoding>) -> &'static str {
@@ -20,13 +18,13 @@ impl header::Header for AcceptEncoding {
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<AcceptEncoding> {
-        util::from_comma_delimited(raw).map(AcceptEncoding)
+        shared::from_comma_delimited(raw).map(AcceptEncoding)
     }
 }
 
 impl header::HeaderFormat for AcceptEncoding {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        util::fmt_comma_delimited(fmt, self[])
+        shared::fmt_comma_delimited(fmt, self[])
     }
 }
 
@@ -34,8 +32,8 @@ impl header::HeaderFormat for AcceptEncoding {
 fn test_parse_header() {
     let a: AcceptEncoding = header::Header::parse_header([b"gzip;q=1.0, identity; q=0.5".to_vec()].as_slice()).unwrap();
     let b = AcceptEncoding(vec![
-        quality_value::QualityValue{value: encoding::Gzip, quality: 1f32},
-        quality_value::QualityValue{value: encoding::Identity, quality: 0.5f32},
+        shared::QualityValue{value: shared::Gzip, quality: 1f32},
+        shared::QualityValue{value: shared::Identity, quality: 0.5f32},
     ]);
     assert_eq!(a, b);
 }
