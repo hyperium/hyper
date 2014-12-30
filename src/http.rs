@@ -376,8 +376,6 @@ pub fn read_method<R: Reader>(stream: &mut R) -> HttpResult<method::Method> {
         return Err(HttpMethodError);
     }
 
-    debug!("method buf = {}", buf[].to_ascii());
-
     let maybe_method = match buf[0..7] {
         b"GET    " => Some(method::Method::Get),
         b"PUT    " => Some(method::Method::Put),
@@ -547,8 +545,6 @@ pub fn read_header<R: Reader>(stream: &mut R) -> HttpResult<Option<RawHeaderLine
     // Remove optional trailing whitespace
     let real_len = value.len() - value.iter().rev().take_while(|&&x| b' ' == x).count();
     value.truncate(real_len);
-
-    debug!("header value = {}", value[].to_ascii());
 
     match try!(stream.read_byte()) {
         LF => Ok(Some((name, value))),

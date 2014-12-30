@@ -154,7 +154,7 @@ use self::HttpError::{HttpMethodError, HttpUriError, HttpVersionError,
 
 macro_rules! todo(
     ($($arg:tt)*) => (if cfg!(not(ndebug)) {
-        format_args!(|args| log!(5, "TODO: {}", args), $($arg)*)
+        log!(5, "TODO: {}", format_args!($($arg)*))
     })
 );
 
@@ -170,7 +170,7 @@ impl fmt::Show for Trace {
 
 macro_rules! trace(
     ($($arg:tt)*) => (if cfg!(not(ndebug)) {
-        format_args!(|args| log!(5, "{}\n{}", args, ::Trace), $($arg)*)
+        log!(5, "{}\n{}", format_args!($($arg)*), ::Trace)
     })
 );
 

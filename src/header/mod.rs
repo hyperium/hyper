@@ -5,7 +5,7 @@
 //! must implement the `Header` trait from this module. Several common headers
 //! are already provided, such as `Host`, `ContentType`, `UserAgent`, and others.
 use std::any::Any;
-use std::ascii::{AsciiExt, AsciiCast};
+use std::ascii::AsciiExt;
 use std::borrow::Cow::{Borrowed, Owned};
 use std::fmt::{mod, Show};
 use std::intrinsics::TypeId;
@@ -127,7 +127,7 @@ impl Headers {
         loop {
             match try!(http::read_header(rdr)) {
                 Some((name, value)) => {
-                    debug!("raw header: {}={}", name, value[].to_ascii());
+                    debug!("raw header: {}={}", name, value[]);
                     let name = CaseInsensitive(Owned(name));
                     let mut item = match headers.data.entry(name) {
                         Entry::Vacant(entry) => entry.set(MuCell::new(Item::raw(vec![]))),
@@ -488,7 +488,7 @@ impl<H: hash::Writer> hash::Hash<H> for CaseInsensitive {
     #[inline]
     fn hash(&self, hasher: &mut H) {
         for b in self.as_slice().bytes() {
-            hasher.write(&[b.to_ascii().to_lowercase().as_byte()])
+            hasher.write(&[b.to_ascii_lowercase()])
         }
     }
 }

@@ -16,6 +16,10 @@ use cookie::CookieJar;
 #[deriving(Clone, PartialEq, Show)]
 pub struct Cookies(pub Vec<Cookie>);
 
+//TODO: remove when fixed in libstd
+unsafe impl Send for Cookies {}
+unsafe impl Sync for Cookies {}
+
 deref!(Cookies -> Vec<Cookie>);
 
 impl Header for Cookies {
