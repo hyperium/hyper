@@ -3,7 +3,7 @@
 use std::fmt;
 use std::str;
 
-pub use self::Encoding::{Chunked, Gzip, Deflate, Compress, EncodingExt};
+pub use self::Encoding::{Chunked, Gzip, Deflate, Compress, Identity, EncodingExt};
 
 /// A value to represent an encoding used in `Transfer-Encoding`
 /// or `Accept-Encoding` header.
@@ -17,6 +17,8 @@ pub enum Encoding {
     Deflate,
     /// The `compress` encoding.
     Compress,
+    /// The `identity` encoding.
+    Identity,
     /// Some other encoding that is less common, can be any String.
     EncodingExt(String)
 }
@@ -28,6 +30,7 @@ impl fmt::Show for Encoding {
             Gzip => "gzip",
             Deflate => "deflate",
             Compress => "compress",
+            Identity => "identity",
             EncodingExt(ref s) => s.as_slice()
             }.fmt(fmt)
         }
@@ -40,6 +43,7 @@ impl str::FromStr for Encoding {
             "deflate" => Some(Deflate),
             "gzip" => Some(Gzip),
             "compress" => Some(Compress),
+            "identity" => Some(Identity),
             _ => Some(EncodingExt(s.to_string()))
         }
     }
