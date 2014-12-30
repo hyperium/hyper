@@ -1,7 +1,7 @@
 use header::{Header, HeaderFormat};
 use Port;
 use std::fmt::{mod, Show};
-use super::util::from_one_raw_str;
+use header::shared::util::from_one_raw_str;
 
 /// The `Host` header.
 ///

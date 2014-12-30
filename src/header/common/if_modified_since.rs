@@ -2,7 +2,8 @@ use std::fmt::{mod, Show};
 use std::str::FromStr;
 use time::Tm;
 use header::{Header, HeaderFormat};
-use super::util::{from_one_raw_str, tm_from_str};
+use header::shared::util::from_one_raw_str;
+use header::shared::time::tm_from_str;
 
 /// The `If-Modified-Since` header field.
 #[deriving(Copy, PartialEq, Clone)]
@@ -40,4 +41,3 @@ impl FromStr for IfModifiedSince {
 bench_header!(imf_fixdate, IfModifiedSince, { vec![b"Sun, 07 Nov 1994 08:48:37 GMT".to_vec()] });
 bench_header!(rfc_850, IfModifiedSince, { vec![b"Sunday, 06-Nov-94 08:49:37 GMT".to_vec()] });
 bench_header!(asctime, IfModifiedSince, { vec![b"Sun Nov  6 08:49:37 1994".to_vec()] });
-

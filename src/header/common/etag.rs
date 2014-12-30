@@ -1,6 +1,6 @@
 use header::{Header, HeaderFormat};
 use std::fmt::{mod};
-use super::util::from_one_raw_str;
+use header::shared::util::from_one_raw_str;
 
 /// The `Etag` header.
 ///
