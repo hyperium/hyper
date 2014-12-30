@@ -32,7 +32,7 @@ impl header::HeaderFormat for AcceptEncoding {
 
 #[test]
 fn test_parse_header() {
-    let a: AcceptEncoding = header::Header::parse_header(["gzip;q=1.0, identity; q=0.5".as_bytes().to_vec()].as_slice()).unwrap();
+    let a: AcceptEncoding = header::Header::parse_header([b"gzip;q=1.0, identity; q=0.5".to_vec()].as_slice()).unwrap();
     let b = AcceptEncoding(vec![
         quality_value::QualityValue{value: encoding::Gzip, quality: 1f32},
         quality_value::QualityValue{value: encoding::Identity, quality: 0.5f32},

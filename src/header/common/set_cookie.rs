@@ -103,16 +103,15 @@ fn test_fmt() {
 
 #[test]
 fn cookie_jar() {
-    let jar = CookieJar::new("secret".as_bytes());
+    let jar = CookieJar::new(b"secret");
     let cookie = Cookie::new("foo".to_string(), "bar".to_string());
     jar.encrypted().add(cookie);
 
     let cookies = SetCookie::from_cookie_jar(&jar);
 
-    let mut new_jar = CookieJar::new("secret".as_bytes());
+    let mut new_jar = CookieJar::new(b"secret");
     cookies.apply_to_cookie_jar(&mut new_jar);
 
     assert_eq!(jar.encrypted().find("foo"), new_jar.encrypted().find("foo"));
     assert_eq!(jar.iter().collect::<Vec<Cookie>>(), new_jar.iter().collect::<Vec<Cookie>>());
 }
-
