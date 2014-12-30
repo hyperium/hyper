@@ -196,7 +196,7 @@ impl Headers {
     /// ```
     /// # use hyper::header::Headers;
     /// # let mut headers = Headers::new();
-    /// headers.set_raw("content-length", vec!["5".as_bytes().to_vec()]);
+    /// headers.set_raw("content-length", vec![b"5".to_vec()]);
     /// ```
     pub fn set_raw<K: IntoCow<'static, String, str>>(&mut self, name: K, value: Vec<Vec<u8>>) {
         self.data.insert(CaseInsensitive(name.into_cow()), MuCell::new(Item::raw(value)));
@@ -545,7 +545,7 @@ mod tests {
 
     #[test]
     fn test_content_type() {
-        let content_type = Header::parse_header(["text/plain".as_bytes().to_vec()].as_slice());
+        let content_type = Header::parse_header([b"text/plain".to_vec()].as_slice());
         assert_eq!(content_type, Some(ContentType(Mime(Text, Plain, vec![]))));
     }
 
