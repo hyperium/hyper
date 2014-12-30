@@ -521,6 +521,7 @@ mod tests {
     use super::CaseInsensitive;
     use super::{Headers, Header, HeaderFormat};
     use super::common::{ContentLength, ContentType, Accept, Host};
+    use super::shared::{QualityValue};
 
     use test::Bencher;
 
@@ -551,7 +552,7 @@ mod tests {
 
     #[test]
     fn test_accept() {
-        let text_plain = Mime(Text, Plain, vec![]);
+        let text_plain = QualityValue{value: Mime(Text, Plain, vec![]), quality: 1f32};
         let application_vendor = "application/vnd.github.v3.full+json; q=0.5".parse().unwrap();
 
         let accept = Header::parse_header([b"text/plain".to_vec()].as_slice());
