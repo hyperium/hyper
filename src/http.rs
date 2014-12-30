@@ -789,7 +789,7 @@ mod tests {
         }
 
         read("Host: rust-lang.org\r\n", Ok(Some(("Host".to_string(),
-                                                "rust-lang.org".as_bytes().to_vec()))));
+                                                 b"rust-lang.org".to_vec()))));
     }
 
     #[test]

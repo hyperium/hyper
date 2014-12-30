@@ -22,9 +22,12 @@ use http::{mod, LineEnding};
 use {HttpResult};
 
 pub use self::common::*;
+pub use self::shared::*;
 
 /// Common Headers
 pub mod common;
+
+pub mod shared;
 
 /// A trait for any object that will represent a header field and value.
 ///
@@ -193,7 +196,7 @@ impl Headers {
     /// ```
     /// # use hyper::header::Headers;
     /// # let mut headers = Headers::new();
-    /// headers.set_raw("content-length", vec!["5".as_bytes().to_vec()]);
+    /// headers.set_raw("content-length", vec![b"5".to_vec()]);
     /// ```
     pub fn set_raw<K: IntoCow<'static, String, str>>(&mut self, name: K, value: Vec<Vec<u8>>) {
         self.data.insert(CaseInsensitive(name.into_cow()), MuCell::new(Item::raw(value)));
@@ -518,6 +521,7 @@ mod tests {
     use super::CaseInsensitive;
     use super::{Headers, Header, HeaderFormat};
     use super::common::{ContentLength, ContentType, Accept, Host};
+    use super::shared::{QualityItem};
 
     use test::Bencher;
 
@@ -542,13 +546,13 @@ mod tests {
 
     #[test]
     fn test_content_type() {
-        let content_type = Header::parse_header(["text/plain".as_bytes().to_vec()].as_slice());
+        let content_type = Header::parse_header([b"text/plain".to_vec()].as_slice());
         assert_eq!(content_type, Some(ContentType(Mime(Text, Plain, vec![]))));
     }
 
     #[test]
     fn test_accept() {
-        let text_plain = Mime(Text, Plain, vec![]);
+        let text_plain = QualityItem{item: Mime(Text, Plain, vec![]), quality: 1f32};
         let application_vendor = "application/vnd.github.v3.full+json; q=0.5".parse().unwrap();
 
         let accept = Header::parse_header([b"text/plain".to_vec()].as_slice());

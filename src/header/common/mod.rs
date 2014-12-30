@@ -7,6 +7,7 @@
 //! is used, such as `ContentType(pub Mime)`.
 
 pub use self::accept::Accept;
+pub use self::accept_encoding::AcceptEncoding;
 pub use self::allow::Allow;
 pub use self::authorization::Authorization;
 pub use self::cache_control::CacheControl;
@@ -76,6 +77,9 @@ macro_rules! deref(
 /// Exposes the Accept header.
 pub mod accept;
 
+/// Exposes the AcceptEncoding header.
+pub mod accept_encoding;
+
 /// Exposes the Allow header.
 pub mod allow;
 
@@ -135,5 +139,3 @@ pub mod user_agent;
 
 /// Exposes the Vary header.
 pub mod vary;
-
-pub mod util;

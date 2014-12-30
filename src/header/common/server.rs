@@ -1,6 +1,6 @@
 use header::{Header, HeaderFormat};
 use std::fmt::{mod, Show};
-use super::util::from_one_raw_str;
+use header::shared::util::from_one_raw_str;
 
 /// The `Server` header field.
 ///
@@ -28,4 +28,3 @@ impl HeaderFormat for Server {
 }
 
 bench_header!(bench, Server, { vec![b"Some String".to_vec()] });
-

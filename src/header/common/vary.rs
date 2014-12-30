@@ -1,6 +1,6 @@
 use header::{Header, HeaderFormat, CaseInsensitive};
 use std::fmt::{mod};
-use super::util::{from_comma_delimited, fmt_comma_delimited, from_one_raw_str};
+use header::shared::util::{from_comma_delimited, fmt_comma_delimited, from_one_raw_str};
 
 /// The `Allow` header.
 /// See also https://tools.ietf.org/html/rfc7231#section-7.1.4
