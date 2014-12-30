@@ -11,8 +11,10 @@ use std::str;
 /// [RFC7231](https://tools.ietf.org/html/rfc7231#section-5.3.1).
 #[deriving(Clone, PartialEq)]
 pub struct QualityValue<T> {
-    value: T,
-    quality: f32,
+    /// The actual contents of the field.
+    pub value: T,
+    /// The quality (client or server preference) for the value.
+    pub quality: f32,
 }
 
 impl<T: fmt::Show> fmt::Show for QualityValue<T> {
