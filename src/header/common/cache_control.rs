@@ -109,7 +109,7 @@ impl FromStr for CacheDirective {
             "proxy-revalidate" => Some(ProxyRevalidate),
             "" => None,
             _ => match s.find('=') {
-                Some(idx) if idx+1 < s.len() => match (s[..idx], s[idx+1..].trim_chars('"')) {
+                Some(idx) if idx+1 < s.len() => match (s[..idx], s[idx+1..].trim_matches('"')) {
                     ("max-age" , secs) => secs.parse().map(MaxAge),
                     ("max-stale", secs) => secs.parse().map(MaxStale),
                     ("min-fresh", secs) => secs.parse().map(MinFresh),
