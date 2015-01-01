@@ -12,7 +12,7 @@ use std::intrinsics::TypeId;
 use std::raw::TraitObject;
 use std::str::{SendStr, FromStr};
 use std::collections::HashMap;
-use std::collections::hash_map::{Entries, Entry};
+use std::collections::hash_map::{Iter, Entry};
 use std::{hash, mem};
 
 use mucell::MuCell;
@@ -272,7 +272,7 @@ impl fmt::Show for Headers {
 
 /// An `Iterator` over the fields in a `Headers` map.
 pub struct HeadersItems<'a> {
-    inner: Entries<'a, CaseInsensitive, MuCell<Item>>
+    inner: Iter<'a, CaseInsensitive, MuCell<Item>>
 }
 
 impl<'a> Iterator<HeaderView<'a>> for HeadersItems<'a> {
