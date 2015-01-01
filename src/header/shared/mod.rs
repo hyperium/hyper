@@ -9,7 +9,8 @@ pub use self::encoding::Encoding::{
     Identity,
     EncodingExt};
 
-pub use self::quality_value::QualityValue;
+pub use self::quality_item::QualityItem;
+pub use self::quality_item::qitem;
 
 pub use self::time::tm_from_str;
 
@@ -20,6 +21,6 @@ pub use self::util::{
     fmt_comma_delimited};
 
 pub mod encoding;
-pub mod quality_value;
+pub mod quality_item;
 pub mod time;
 pub mod util;
