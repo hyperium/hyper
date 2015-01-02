@@ -43,8 +43,8 @@ impl Response {
 
         let keep_alive = match headers.get::<Connection>() {
             Some(&Connection(ref connection_options)) =>
-                connection_options.contains(&ConnectionOption::KeepAlive),
-            None => false,
+                !connection_options.contains(&ConnectionOption::Close),
+            None => true,
         };
         if !keep_alive {
             stream.get_mut().mark_dead()
