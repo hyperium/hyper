@@ -18,7 +18,7 @@ impl Header for CacheControl {
         let directives = raw.iter()
             .filter_map(|line| from_one_comma_delimited(line[]))
             .collect::<Vec<Vec<CacheDirective>>>()
-            .concat_vec();
+            .concat();
         if directives.len() > 0 {
             Some(CacheControl(directives))
         } else {
