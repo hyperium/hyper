@@ -3,7 +3,8 @@ use std::num::FromPrimitive;
 use std::io::{BufferedReader, IoResult};
 
 use header;
-use header::common::{ContentLength, TransferEncoding};
+use header::common::{Connection, ContentLength, TransferEncoding};
+use header::common::connection::{ConnectionOption};
 use header::common::transfer_encoding::Encoding::Chunked;
 use net::{NetworkStream, HttpStream};
 use http::{read_status_line, HttpReader, RawStatus};
@@ -39,6 +40,15 @@ impl Response {
 
         let headers = try!(header::Headers::from_raw(&mut stream));
         debug!("Headers: [\n{}]", headers);
+
+        let keep_alive = match headers.get::<Connection>() {
+            Some(&Connection(ref connection_options)) =>
+                !connection_options.contains(&ConnectionOption::Close),
+            None => true,
+        };
+        if !keep_alive {
+            stream.get_mut().mark_dead()
+        }
 
         let body = if headers.has::<TransferEncoding>() {
             match headers.get::<TransferEncoding>() {
