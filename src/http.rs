@@ -370,7 +370,7 @@ fn read_token_until_space<R: Reader>(stream: &mut R, buf: &mut [u8]) -> HttpResu
 /// ### Note:
 /// Extension methods are only parsed to 16 characters.
 pub fn read_method<R: Reader>(stream: &mut R) -> HttpResult<method::Method> {
-    let mut buf = [SP, ..16];
+    let mut buf = [SP; 16];
 
     if !try!(read_token_until_space(stream, &mut buf)) {
         return Err(HttpMethodError);
@@ -631,7 +631,7 @@ pub fn read_status<R: Reader>(stream: &mut R) -> HttpResult<RawStatus> {
         _ => return Err(HttpStatusError)
     }
 
-    let mut buf = [b' ', ..32];
+    let mut buf = [b' '; 32];
 
     {
         let mut bufwrt = BufWriter::new(&mut buf);
