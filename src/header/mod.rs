@@ -573,7 +573,7 @@ mod tests {
                 return None;
             }
             // we JUST checked that raw.len() == 1, so raw[0] WILL exist.
-            match from_utf8(unsafe { raw.as_slice().unsafe_get(0).as_slice() }) {
+            match from_utf8(unsafe { raw[].get_unchecked(0)[] }) {
                 Ok(s) => FromStr::from_str(s),
                 Err(_) => None
             }.map(|u| CrazyLength(Some(false), u))
