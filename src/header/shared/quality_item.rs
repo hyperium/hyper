@@ -27,10 +27,8 @@ impl<T> QualityItem<T> {
 }
 
 impl<T: fmt::Show> fmt::Show for QualityItem<T> {
-    // TODO: Nicer formatting, currently e.g. quality 1 results in 1.000
-    // but it is already standards conformant.
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}; q={:.3}", self.item, self.quality)
+        write!(f, "{}; q={}", self.item, format!("{:.3}", self.quality).trim_right_matches(['0', '.'].as_slice()))
     }
 }
 
