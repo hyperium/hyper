@@ -64,6 +64,9 @@ impl NetworkStream for MockStream {
     fn peer_name(&mut self) -> IoResult<SocketAddr> {
         Ok("127.0.0.1:1337".parse().unwrap())
     }
+
+    fn mark_dead(&mut self) {
+    }
 }
 
 pub struct MockConnector;
