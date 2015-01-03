@@ -9,12 +9,14 @@ use std::io::net::ip::{SocketAddr, ToSocketAddr, Port};
 use std::io::net::tcp::{TcpStream, TcpListener, TcpAcceptor};
 use std::mem::{mod, transmute, transmute_copy};
 use std::raw::{mod, TraitObject};
+use std::sync::Arc;
 
 use uany::UncheckedBoxAnyDowncast;
 use openssl::ssl::{Ssl, SslStream, SslContext, VerifyCallback};
-use openssl::ssl::SslVerifyMode::SslVerifyPeer;
+use openssl::ssl::SslVerifyMode::{SslVerifyPeer, SslVerifyNone};
 use openssl::ssl::SslMethod::Sslv23;
 use openssl::ssl::error::{SslError, StreamError, OpenSslErrors, SslSessionClosed};
+use openssl::x509::X509FileType;
 
 use self::HttpStream::{Http, Https};
 
@@ -173,6 +175,60 @@ impl NetworkListener<HttpStream, HttpAcceptor> for HttpListener {
     }
 }
 
+/// A wrapper to layer SSL/TLS on top of another listener
+#[deriving(Clone)]
+pub struct TlsListener<L> {
+    inner: L,
+    context: Arc<SslContext>
+}
+
+impl <S, A, L> Listener<TlsStream<S>, TlsAcceptor<A>> for TlsListener<L> where
+        S: NetworkStream + Send + Clone, A: NetworkAcceptor<S>, L: NetworkListener<S, A> {
+    #[inline]
+    fn listen(self) -> IoResult<TlsAcceptor<A>> {
+        Ok(TlsAcceptor {
+            inner: try!(self.inner.listen()),
+            context: self.context
+        })
+    }
+}
+
+impl <S, A, L> NetworkListener<TlsStream<S>, TlsAcceptor<A>> for TlsListener<L> where
+        S: NetworkStream + Send + Clone, A: NetworkAcceptor<S>, L: NetworkListener<S, A> {
+    #[inline]
+    #[allow(unused_variables)]
+    fn bind<To: ToSocketAddr>(addr: To) -> IoResult<TlsListener<L>> {
+        panic!("Binding on TLS listener without a context is forbidden");
+    }
+
+    #[inline]
+    fn socket_name(&mut self) -> IoResult<SocketAddr> {
+        self.inner.socket_name()
+    }
+}
+
+impl <L: NetworkListener<S, A>, S: NetworkStream + Send + Clone, A: NetworkAcceptor<S>> TlsListener<L> {
+    /// Binds a listener to given address and layers the TLS protocol over the resulting stream.
+    #[inline]
+    pub fn bind_with_ssl<To: ToSocketAddr>(addr: To, cert: Path, key: Path) -> IoResult<TlsListener<L>> {
+        let mut ssl_context = try!(SslContext::new(Sslv23).map_err(lift_ssl_error));
+        if let Some(err) = ssl_context.set_cipher_list("DEFAULT") {
+            return Err(lift_ssl_error(err));
+        }
+        if let Some(err) = ssl_context.set_certificate_file(&cert, X509FileType::PEM) {
+            return Err(lift_ssl_error(err));
+        }
+        if let Some(err) = ssl_context.set_private_key_file(&key, X509FileType::PEM) {
+            return Err(lift_ssl_error(err));
+        }
+        ssl_context.set_verify(SslVerifyNone, None);
+        Ok(TlsListener {
+            inner: try!(NetworkListener::<S, A>::bind(addr)),
+            context: Arc::<SslContext>::new(ssl_context)
+        })
+    }
+}
+
 /// A `NetworkAcceptor` for `HttpStream`s.
 #[deriving(Clone)]
 pub struct HttpAcceptor {
@@ -190,6 +246,64 @@ impl NetworkAcceptor<HttpStream> for HttpAcceptor {
     #[inline]
     fn close(&mut self) -> IoResult<()> {
         self.inner.close_accept()
+    }
+}
+
+/// Converts a normal stream acceptor into a TLS acceptor by layering a TLS connection over it
+#[deriving(Clone)]
+pub struct TlsAcceptor<A> {
+    inner: A,
+    context: Arc<SslContext>
+}
+
+impl <S, A> Acceptor<TlsStream<S>> for TlsAcceptor<A> where
+        S: NetworkStream + Send + Clone, A: NetworkAcceptor<S> {
+    #[inline]
+    fn accept(&mut self) -> IoResult<TlsStream<S>> {
+        let stream = try!(self.inner.accept());
+        let ssl_stream = try!(SslStream::<S>::new_server(&*self.context, stream).
+                             map_err(lift_ssl_error));
+        Ok(TlsStream {
+            inner: ssl_stream
+        })
+    }
+}
+
+impl <S, A> NetworkAcceptor<TlsStream<S>> for TlsAcceptor<A> where
+        S: NetworkStream + Send + Clone, A: NetworkAcceptor<S> {
+    #[inline]
+    fn close(&mut self) -> IoResult<()> {
+        self.inner.close()
+    }
+}
+
+/// Layers a TLS connection over an arbitrary stream
+#[deriving(Clone)]
+pub struct TlsStream<S> {
+    inner: SslStream<S>
+}
+
+impl <S: NetworkStream + Send + Clone> Reader for TlsStream<S> {
+    #[inline]
+    fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> {
+        self.inner.read(buf)
+    }
+}
+
+impl <S: NetworkStream + Send + Clone> Writer for TlsStream<S> {
+    #[inline]
+    fn write(&mut self, msg: &[u8]) -> IoResult<()> {
+        self.inner.write(msg)
+    }
+    #[inline]
+    fn flush(&mut self) -> IoResult<()> {
+        self.inner.flush()
+    }
+}
+
+impl <S: NetworkStream + Send + Clone> NetworkStream for TlsStream<S> {
+    fn peer_name(&mut self) -> IoResult<SocketAddr> {
+        self.inner.get_mut().peer_name()
     }
 }
 
