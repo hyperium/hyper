@@ -207,7 +207,7 @@ mod mimewrapper {
 pub type HttpResult<T> = Result<T, HttpError>;
 
 /// A set of errors that can occur parsing HTTP streams.
-#[deriving(Show, PartialEq, Clone)]
+#[derive(Show, PartialEq, Clone)]
 pub enum HttpError {
     /// An invalid `Method`, such as `GE,T`.
     HttpMethodError,

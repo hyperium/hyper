@@ -8,7 +8,7 @@ use header::shared::util::from_one_raw_str;
 /// Preceding the first double quote is an optional weakness indicator,
 /// which always looks like this: W/
 /// See also: https://tools.ietf.org/html/rfc7232#section-2.3
-#[deriving(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Show)]
 pub struct Etag {
     /// Weakness indicator for the tag
     pub weak: bool,

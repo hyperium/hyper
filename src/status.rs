@@ -1038,7 +1038,7 @@ impl StatusCode {
     /// other times.
     ///
     /// The reason phrase is defined as being exclusively for human readers. You should avoid
-    /// deriving any meaning from it at all costs.
+    /// derive any meaning from it at all costs.
     ///
     /// Bear in mind also that in HTTP/2.0 the reason phrase is abolished from transmission, and so
     /// this canonical reason phrase really is the only reason phrase you’ll find.
@@ -1600,7 +1600,7 @@ impl PartialEq for StatusCode {
 
 impl Eq for StatusCode {}
 
-// Ditto (though #[deriving(Clone)] only takes about 0.4 seconds).
+// Ditto (though #[derive(Clone)] only takes about 0.4 seconds).
 impl Clone for StatusCode {
     #[inline]
     fn clone(&self) -> StatusCode {
@@ -1686,7 +1686,7 @@ impl ToPrimitive for StatusCode {
 /// to get the appropriate *category* of status.
 ///
 /// For HTTP/2.0, the 1xx Informational class is invalid.
-#[deriving(Clone, PartialEq, Eq, PartialOrd, Ord, Copy)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Copy)]
 pub enum StatusClass {
     /// 1xx: Informational - Request received, continuing process
     Informational = 100,

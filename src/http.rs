@@ -582,7 +582,7 @@ pub fn read_request_line<R: Reader>(stream: &mut R) -> HttpResult<RequestLine> {
 pub type StatusLine = (HttpVersion, RawStatus);
 
 /// The raw status code and reason-phrase.
-#[deriving(PartialEq, Show)]
+#[derive(PartialEq, Show)]
 pub struct RawStatus(pub u16, pub SendStr);
 
 impl Clone for RawStatus {

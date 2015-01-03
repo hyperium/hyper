@@ -6,7 +6,7 @@ use header::shared::util::from_one_raw_str;
 use header::shared::time::tm_from_str;
 
 /// The `Expires` header field.
-#[deriving(Copy, PartialEq, Clone)]
+#[derive(Copy, PartialEq, Clone)]
 pub struct Expires(pub Tm);
 
 deref!(Expires -> Tm);

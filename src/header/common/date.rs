@@ -7,7 +7,7 @@ use header::shared::time::tm_from_str;
 
 // Egh, replace as soon as something better than time::Tm exists.
 /// The `Date` header field.
-#[deriving(Copy, PartialEq, Clone)]
+#[derive(Copy, PartialEq, Clone)]
 pub struct Date(pub Tm);
 
 deref!(Date -> Tm);

@@ -13,7 +13,7 @@ use cookie::CookieJar;
 ///
 /// > When the user agent generates an HTTP request, the user agent MUST NOT
 /// > attach more than one Cookie header field.
-#[deriving(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Show)]
 pub struct Cookies(pub Vec<Cookie>);
 
 //TODO: remove when fixed in libstd

@@ -315,7 +315,7 @@ impl<'a> IntoUrl for &'a str {
 }
 
 /// Behavior regarding how to handle redirects within a Client.
-#[deriving(Copy)]
+#[derive(Copy)]
 pub enum RedirectPolicy {
     /// Don't follow any redirects.
     FollowNone,

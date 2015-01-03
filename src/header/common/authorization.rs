@@ -4,7 +4,7 @@ use serialize::base64::{ToBase64, FromBase64, Standard, Config, Newline};
 use header::{Header, HeaderFormat};
 
 /// The `Authorization` header field.
-#[deriving(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Show)]
 pub struct Authorization<S: Scheme>(pub S);
 
 impl<S: Scheme> Deref<S> for Authorization<S> {
@@ -72,7 +72,7 @@ impl Scheme for String {
 }
 
 /// Credential holder for Basic Authentication
-#[deriving(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Show)]
 pub struct Basic {
     /// The username as a possibly empty string
     pub username: String,

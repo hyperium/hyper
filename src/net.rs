@@ -182,7 +182,7 @@ impl NetworkListener<HttpStream, HttpAcceptor> for HttpListener {
 }
 
 /// A `NetworkAcceptor` for `HttpStream`s.
-#[deriving(Clone)]
+#[derive(Clone)]
 pub struct HttpAcceptor {
     inner: TcpAcceptor
 }
@@ -202,7 +202,7 @@ impl NetworkAcceptor<HttpStream> for HttpAcceptor {
 }
 
 /// A wrapper around a TcpStream.
-#[deriving(Clone)]
+#[derive(Clone)]
 pub enum HttpStream {
     /// A stream over the HTTP protocol.
     Http(TcpStream),

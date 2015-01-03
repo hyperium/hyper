@@ -13,7 +13,7 @@ use self::Method::{Options, Get, Post, Put, Delete, Head, Trace, Connect, Patch,
 ///
 /// It may make sense to grow this to include all variants currently
 /// registered with IANA, if they are at all common to use.
-#[deriving(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Method {
     /// OPTIONS
     Options,

@@ -46,7 +46,7 @@ fn bench_curl(b: &mut test::Bencher) {
     listening.close().unwrap();
 }
 
-#[deriving(Clone)]
+#[derive(Clone)]
 struct Foo;
 
 impl hyper::header::Header for Foo {

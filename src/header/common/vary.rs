@@ -5,7 +5,7 @@ use header::shared::util::{from_comma_delimited, fmt_comma_delimited, from_one_r
 /// The `Allow` header.
 /// See also https://tools.ietf.org/html/rfc7231#section-7.1.4
 
-#[deriving(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Show)]
 pub enum Vary {
     /// This corresponds to '*'.
     Any,

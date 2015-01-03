@@ -110,7 +110,7 @@ fn header_name<T: Header>() -> &'static str {
 }
 
 /// A map of header fields on requests and responses.
-#[deriving(Clone)]
+#[derive(Clone)]
 pub struct Headers {
     data: HashMap<CaseInsensitive, MuCell<Item>>
 }
@@ -342,7 +342,7 @@ impl<'a> FromIterator<HeaderView<'a>> for Headers {
     }
 }
 
-#[deriving(Clone)]
+#[derive(Clone)]
 struct Item {
     raw: Option<Vec<Vec<u8>>>,
     typed: Option<Box<HeaderFormat + Send + Sync>>
@@ -450,7 +450,7 @@ impl fmt::Show for Box<HeaderFormat + Send + Sync> {
 }
 
 /// Case-insensitive string.
-//#[deriving(Clone)]
+//#[derive(Clone)]
 pub struct CaseInsensitive(SendStr);
 
 impl FromStr for CaseInsensitive {
@@ -562,7 +562,7 @@ mod tests {
         assert_eq!(accept, Some(Accept(vec![application_vendor, text_plain])));
     }
 
-    #[deriving(Clone, Show)]
+    #[derive(Clone, Show)]
     struct CrazyLength(Option<bool>, uint);
 
     impl Header for CrazyLength {

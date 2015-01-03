@@ -6,7 +6,7 @@ use header::shared::util::{from_comma_delimited, fmt_comma_delimited};
 /// The `Allow` header.
 /// See also https://tools.ietf.org/html/rfc7231#section-7.4.1
 
-#[deriving(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Show)]
 pub struct Allow(pub Vec<Method>);
 
 deref!(Allow -> Vec<Method>);

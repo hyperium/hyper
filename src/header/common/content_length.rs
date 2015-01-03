@@ -6,7 +6,7 @@ use header::shared::util::from_one_raw_str;
 /// The `Content-Length` header.
 ///
 /// Simply a wrapper around a `uint`.
-#[deriving(Copy, Clone, PartialEq, Show)]
+#[derive(Copy, Clone, PartialEq, Show)]
 pub struct ContentLength(pub uint);
 
 deref!(ContentLength -> uint);

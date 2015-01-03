@@ -65,7 +65,7 @@ fn bench_mock_curl(b: &mut test::Bencher) {
     });
 }
 
-#[deriving(Clone)]
+#[derive(Clone)]
 struct Foo;
 
 impl hyper::header::Header for Foo {

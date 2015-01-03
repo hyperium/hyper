@@ -7,7 +7,7 @@ use mime::Mime;
 ///
 /// Used to describe the MIME type of message body. Can be used with both
 /// requests and responses.
-#[deriving(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Show)]
 pub struct ContentType(pub Mime);
 
 deref!(ContentType -> Mime);
