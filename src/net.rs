@@ -105,12 +105,20 @@ impl<'a> Writer for &'a mut NetworkStream {
     fn flush(&mut self) -> IoResult<()> { (**self).flush() }
 }
 
-impl UncheckedBoxAnyDowncast for Box<NetworkStream + Send> {
-    unsafe fn downcast_unchecked<T: 'static>(self) -> Box<T>  {
-        let to = *mem::transmute::<&Box<NetworkStream + Send>, &raw::TraitObject>(&self);
-        // Prevent double-free.
-        mem::forget(self);
-        mem::transmute(to.data)
+impl UnsafeAnyExt for NetworkStream + Send {
+    unsafe fn downcast_ref_unchecked<T: 'static>(&self) -> &T {
+        mem::transmute(mem::transmute::<&NetworkStream + Send,
+                                        raw::TraitObject>(self).data)
+    }
+
+    unsafe fn downcast_mut_unchecked<T: 'static>(&mut self) -> &mut T {
+        mem::transmute(mem::transmute::<&mut NetworkStream + Send,
+                                        raw::TraitObject>(self).data)
+    }
+
+    unsafe fn downcast_unchecked<T: 'static>(self: Box<NetworkStream + Send>) -> Box<T>  {
+        mem::transmute(mem::transmute::<Box<NetworkStream + Send>,
+                                        raw::TraitObject>(self).data)
     }
 }
 
