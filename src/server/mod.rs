@@ -28,7 +28,9 @@ pub mod response;
 /// incoming connection, and hand them to the provided handler.
 pub struct Server<L = HttpListener> {
     ip: IpAddr,
-    port: Port
+    port: Port,
+    cert: Option<Path>,
+    key: Option<Path>
 }
 
 macro_rules! try_option(
@@ -45,7 +47,19 @@ impl Server<HttpListener> {
     pub fn http(ip: IpAddr, port: Port) -> Server {
         Server {
             ip: ip,
-            port: port
+            port: port,
+            cert: None,
+            key: None
+        }
+    }
+
+    /// Creates a new server that will handle HTTPS streams.
+    pub fn https(ip: IpAddr, port: Port, cert: Path, key:Path) -> Server {
+        Server {
+            ip: ip,
+            port: port,
+            cert: Some(cert),
+            key: Some(key)
         }
     }
 }
@@ -61,7 +75,12 @@ impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L
           A: NetworkAcceptor<S>,
           L: NetworkListener<S, A>, {
         debug!("binding to {}:{}", self.ip, self.port);
-        let mut listener: L = try!(NetworkListener::<S, A>::bind((self.ip, self.port)));
+        let mut listener: L = if self.cert.is_some() && self.key.is_some() {
+            try!(NetworkListener::<S, A>::bind_with_ssl((self.ip, self.port),
+                    self.cert.unwrap(), self.key.unwrap()))
+        } else {
+            try!(NetworkListener::<S, A>::bind((self.ip, self.port)))
+        };
 
         let socket = try!(listener.socket_name());
 

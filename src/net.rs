@@ -9,14 +9,18 @@ use std::io::net::ip::{SocketAddr, ToSocketAddr, Port};
 use std::io::net::tcp::{TcpStream, TcpListener, TcpAcceptor};
 use std::mem::{mod, transmute, transmute_copy};
 use std::raw::{mod, TraitObject};
+use std::sync::Arc;
 
 use uany::UncheckedBoxAnyDowncast;
 use openssl::ssl::{Ssl, SslStream, SslContext, VerifyCallback};
-use openssl::ssl::SslVerifyMode::SslVerifyPeer;
+use openssl::ssl::SslVerifyMode::{SslVerifyPeer, SslVerifyNone};
 use openssl::ssl::SslMethod::Sslv23;
 use openssl::ssl::error::{SslError, StreamError, OpenSslErrors, SslSessionClosed};
+use openssl::x509::X509FileType;
 
 use self::HttpStream::{Http, Https};
+use self::HttpListener::{HttpL, HttpsL};
+use self::HttpAcceptor::{HttpA, HttpsA};
 
 /// The write-status indicating headers have not been written.
 #[allow(missing_copy_implementations)]
@@ -33,6 +37,9 @@ pub trait NetworkListener<S: NetworkStream, A: NetworkAcceptor<S>>: Listener<S, 
     /// Note: This does not start listening for connections. You must call
     /// `listen()` to do that.
     fn bind<To: ToSocketAddr>(addr: To) -> IoResult<Self>;
+    
+    /// Bind to a socket with SSL. Otherwise behaves the same as bind().
+    fn bind_with_ssl<To: ToSocketAddr>(addr: To, cert: Path, key: Path) -> IoResult<Self>;
 
     /// Get the address this Listener ended up listening on.
     fn socket_name(&mut self) -> IoResult<SocketAddr>;
@@ -146,50 +153,87 @@ impl BoxAny for Box<NetworkStream + Send> {
 }
 
 /// A `NetworkListener` for `HttpStream`s.
-pub struct HttpListener {
-    inner: TcpListener
+pub enum HttpListener {
+    /// A listener for HTTP protocol over a TCP connection.
+    HttpL(TcpListener),
+    /// A listener for HTTP protocol over a TCP connection, protected by TLS/SSL.
+    HttpsL(TcpListener, SslContext)
 }
 
 impl Listener<HttpStream, HttpAcceptor> for HttpListener {
     #[inline]
     fn listen(self) -> IoResult<HttpAcceptor> {
-        Ok(HttpAcceptor {
-            inner: try!(self.inner.listen())
-        })
+        match self {
+            HttpL(inner) => Ok(HttpA(try!(inner.listen()))),
+            HttpsL(inner, ssl_context) => 
+                Ok(HttpsA(try!(inner.listen()), Arc::<SslContext>::new(ssl_context)))
+        }
     }
 }
 
 impl NetworkListener<HttpStream, HttpAcceptor> for HttpListener {
     #[inline]
     fn bind<To: ToSocketAddr>(addr: To) -> IoResult<HttpListener> {
-        Ok(HttpListener {
-            inner: try!(TcpListener::bind(addr))
-        })
+        Ok(HttpL(try!(TcpListener::bind(addr))))
+    }
+
+    #[inline]
+    fn bind_with_ssl<To: ToSocketAddr>(addr: To, cert: Path, key: Path) -> IoResult<HttpListener> {
+        // TODO: Make these more configurable
+        let mut ssl_context = try!(SslContext::new(Sslv23).map_err(lift_ssl_error));
+        if let Some(err) = ssl_context.set_cipher_list("DEFAULT") {
+            return Err(lift_ssl_error(err));
+        }
+        if let Some(err) = ssl_context.set_certificate_file(&cert, X509FileType::PEM) {
+            return Err(lift_ssl_error(err));
+        }
+        if let Some(err) = ssl_context.set_private_key_file(&key, X509FileType::PEM) {
+            return Err(lift_ssl_error(err));
+        }
+        ssl_context.set_verify(SslVerifyNone, None);
+        Ok(HttpsL(try!(TcpListener::bind(addr)), ssl_context))
     }
 
     #[inline]
     fn socket_name(&mut self) -> IoResult<SocketAddr> {
-        self.inner.socket_name()
+        match *self {
+            HttpL(ref mut inner) => inner.socket_name(),
+            HttpsL(ref mut inner, _) => inner.socket_name()
+        }
     }
 }
 
 /// A `NetworkAcceptor` for `HttpStream`s.
 #[deriving(Clone)]
-pub struct HttpAcceptor {
-    inner: TcpAcceptor
+pub enum HttpAcceptor {
+    /// An acceptor for HTTP protocol over TCP.
+    HttpA(TcpAcceptor),
+    /// An acceptor for HTTP protocol over TCP protected by TLS/SSL.
+    HttpsA(TcpAcceptor, Arc<SslContext>)
 }
 
 impl Acceptor<HttpStream> for HttpAcceptor {
     #[inline]
     fn accept(&mut self) -> IoResult<HttpStream> {
-        Ok(Http(try!(self.inner.accept())))
+        match *self {
+            HttpA(ref mut inner) => Ok(Http(try!(inner.accept()))),
+            HttpsA(ref mut inner, ref ssl_context) => {
+                let stream = try!(inner.accept());
+                let ssl_stream = try!(SslStream::<TcpStream>::new_server(&**ssl_context, stream).
+                                     map_err(lift_ssl_error));
+                Ok(Https(ssl_stream))
+            }
+        }
     }
 }
 
 impl NetworkAcceptor<HttpStream> for HttpAcceptor {
     #[inline]
     fn close(&mut self) -> IoResult<()> {
-        self.inner.close_accept()
+        match *self {
+            HttpA(ref mut inner) => inner.close_accept(),
+            HttpsA(ref mut inner, _) => inner.close_accept()
+        }
     }
 }
 
