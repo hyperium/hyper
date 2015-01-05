@@ -7,10 +7,10 @@ use std::io::{IoResult, IoError, ConnectionAborted, InvalidInput, OtherIoError,
               Stream, Listener, Acceptor};
 use std::io::net::ip::{SocketAddr, ToSocketAddr, Port};
 use std::io::net::tcp::{TcpStream, TcpListener, TcpAcceptor};
-use std::mem::{mod, transmute, transmute_copy};
-use std::raw::{mod, TraitObject};
+use std::mem::{self, transmute, transmute_copy};
+use std::raw::{self, TraitObject};
 
-use uany::UncheckedBoxAnyDowncast;
+use uany::UnsafeAnyExt;
 use openssl::ssl::{Ssl, SslStream, SslContext, VerifyCallback};
 use openssl::ssl::SslVerifyMode::SslVerifyPeer;
 use openssl::ssl::SslMethod::Sslv23;
@@ -107,12 +107,12 @@ impl<'a> Writer for &'a mut NetworkStream {
 
 impl UnsafeAnyExt for NetworkStream + Send {
     unsafe fn downcast_ref_unchecked<T: 'static>(&self) -> &T {
-        mem::transmute(mem::transmute::<&NetworkStream + Send,
+        mem::transmute(mem::transmute::<&(NetworkStream + Send),
                                         raw::TraitObject>(self).data)
     }
 
     unsafe fn downcast_mut_unchecked<T: 'static>(&mut self) -> &mut T {
-        mem::transmute(mem::transmute::<&mut NetworkStream + Send,
+        mem::transmute(mem::transmute::<&mut (NetworkStream + Send),
                                         raw::TraitObject>(self).data)
     }
 
@@ -301,7 +301,7 @@ fn lift_ssl_error(ssl: SslError) -> IoError {
 #[cfg(test)]
 mod tests {
     use std::boxed::BoxAny;
-    use uany::UncheckedBoxAnyDowncast;
+    use uany::UnsafeAnyExt;
 
     use mock::MockStream;
     use super::NetworkStream;

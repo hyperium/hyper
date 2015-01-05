@@ -4,7 +4,7 @@ extern crate hyper;
 
 extern crate test;
 
-use std::fmt::{mod, Show};
+use std::fmt::{self, Show};
 use std::str::from_str;
 use std::io::{IoResult, MemReader};
 use std::io::net::ip::SocketAddr;

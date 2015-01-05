@@ -9,7 +9,7 @@ use std::str;
 
 /// Represents an item with a quality value as defined in
 /// [RFC7231](https://tools.ietf.org/html/rfc7231#section-5.3.1).
-#[deriving(Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct QualityItem<T> {
     /// The actual contents of the field.
     pub item: T,

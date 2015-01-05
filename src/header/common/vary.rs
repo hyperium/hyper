@@ -1,5 +1,5 @@
 use header::{Header, HeaderFormat, CaseInsensitive};
-use std::fmt::{mod};
+use std::fmt::{self};
 use header::shared::util::{from_comma_delimited, fmt_comma_delimited, from_one_raw_str};
 
 /// The `Allow` header.

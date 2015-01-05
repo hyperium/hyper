@@ -1,10 +1,11 @@
 //! Pieces pertaining to the HTTP message protocol.
 use std::borrow::Cow::{Borrowed, Owned};
+use std::borrow::IntoCow;
 use std::cmp::min;
 use std::fmt;
-use std::io::{mod, Reader, IoResult, BufWriter};
+use std::io::{self, Reader, IoResult, BufWriter};
 use std::num::from_u16;
-use std::str::{mod, SendStr, FromStr};
+use std::str::{self, SendStr, FromStr};
 
 use url::Url;
 use url::ParseError as UrlError;
@@ -693,7 +694,7 @@ fn expect(r: IoResult<u8>, expected: u8) -> HttpResult<()> {
 
 #[cfg(test)]
 mod tests {
-    use std::io::{mod, MemReader, MemWriter};
+    use std::io::{self, MemReader, MemWriter};
     use std::borrow::Cow::{Borrowed, Owned};
     use test::Bencher;
     use uri::RequestUri;

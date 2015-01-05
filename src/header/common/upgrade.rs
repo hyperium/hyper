@@ -1,5 +1,5 @@
 use header::{Header, HeaderFormat};
-use std::fmt::{mod, Show};
+use std::fmt::{self, Show};
 use std::str::FromStr;
 use header::shared::util::{from_comma_delimited, fmt_comma_delimited};
 

@@ -6,7 +6,7 @@ use url::Url;
 use method;
 use method::Method::{Get, Post, Delete, Put, Patch, Head, Options};
 use header::Headers;
-use header::common::{mod, Host};
+use header::common::{self, Host};
 use net::{NetworkStream, NetworkConnector, HttpConnector, Fresh, Streaming};
 use http::{HttpWriter, LINE_ENDING};
 use http::HttpWriter::{ThroughWriter, ChunkedWriter, SizedWriter, EmptyWriter};

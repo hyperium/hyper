@@ -1,5 +1,5 @@
 use header::{Header, HeaderFormat};
-use std::fmt::{mod, Show};
+use std::fmt::{self, Show};
 use std::str::from_utf8;
 
 use cookie::Cookie;

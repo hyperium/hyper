@@ -7,7 +7,7 @@ use std::io::net::ip::SocketAddr;
 
 use {HttpResult};
 use version::{HttpVersion};
-use method::Method::{mod, Get, Head};
+use method::Method::{self, Get, Head};
 use header::Headers;
 use header::common::{ContentLength, TransferEncoding};
 use http::{read_request_line};

@@ -7,18 +7,20 @@
 use std::any::Any;
 use std::ascii::AsciiExt;
 use std::borrow::Cow::{Borrowed, Owned};
-use std::fmt::{mod, Show};
+use std::fmt::{self, Show};
 use std::intrinsics::TypeId;
 use std::raw::TraitObject;
 use std::str::{SendStr, FromStr};
 use std::collections::HashMap;
 use std::collections::hash_map::{Iter, Entry};
-use std::{hash, mem};
+use std::iter::FromIterator;
+use std::borrow::IntoCow;
+use std::{hash, mem, raw};
 
 use mucell::MuCell;
-use uany::{UncheckedAnyDowncast, UncheckedAnyMutDowncast};
+use uany::{UnsafeAnyExt};
 
-use http::{mod, LineEnding};
+use http::{self, LineEnding};
 use {HttpResult};
 
 pub use self::common::*;
@@ -81,19 +83,20 @@ impl HeaderFormat {
     }
 }
 
-impl<'a> UncheckedAnyDowncast<'a> for &'a HeaderFormat {
+impl UnsafeAnyExt for HeaderFormat {
     #[inline]
-    unsafe fn downcast_ref_unchecked<T: 'static>(self) -> &'a T {
-        let to: TraitObject = mem::transmute_copy(&self);
-        mem::transmute(to.data)
+    unsafe fn downcast_ref_unchecked<T: 'static>(&self) -> &T {
+        mem::transmute(mem::transmute::<&HeaderFormat, raw::TraitObject>(self).data)
     }
-}
 
-impl<'a> UncheckedAnyMutDowncast<'a> for &'a mut HeaderFormat {
     #[inline]
-    unsafe fn downcast_mut_unchecked<T: 'static>(self) -> &'a mut T {
-        let to: TraitObject = mem::transmute_copy(&self);
-        mem::transmute(to.data)
+    unsafe fn downcast_mut_unchecked<T: 'static>(&mut self) -> &mut T {
+        mem::transmute(mem::transmute::<&mut HeaderFormat, raw::TraitObject>(self).data)
+    }
+
+    #[inline]
+    unsafe fn downcast_unchecked<T: 'static>(self: Box<HeaderFormat>) -> Box<T> {
+        mem::transmute(mem::transmute::<Box<HeaderFormat>, raw::TraitObject>(self).data)
     }
 }
 
@@ -278,7 +281,9 @@ pub struct HeadersItems<'a> {
     inner: Iter<'a, CaseInsensitive, MuCell<Item>>
 }
 
-impl<'a> Iterator<HeaderView<'a>> for HeadersItems<'a> {
+impl<'a> Iterator for HeadersItems<'a> {
+    type Item = HeaderView<'a>;
+
     fn next(&mut self) -> Option<HeaderView<'a>> {
         match self.inner.next() {
             Some((k, v)) => Some(HeaderView(k, v)),
@@ -327,7 +332,7 @@ impl<'a> fmt::Show for HeaderView<'a> {
 }
 
 impl<'a> Extend<HeaderView<'a>> for Headers {
-    fn extend<I: Iterator<HeaderView<'a>>>(&mut self, mut iter: I) {
+    fn extend<I: Iterator<Item=HeaderView<'a>>>(&mut self, mut iter: I) {
         for header in iter {
             self.data.insert((*header.0).clone(), (*header.1).clone());
         }
@@ -335,7 +340,7 @@ impl<'a> Extend<HeaderView<'a>> for Headers {
 }
 
 impl<'a> FromIterator<HeaderView<'a>> for Headers {
-    fn from_iter<I: Iterator<HeaderView<'a>>>(iter: I) -> Headers {
+    fn from_iter<I: Iterator<Item=HeaderView<'a>>>(iter: I) -> Headers {
         let mut headers = Headers::new();
         headers.extend(iter);
         headers

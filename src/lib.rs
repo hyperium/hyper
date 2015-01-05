@@ -1,4 +1,6 @@
-#![feature(macro_rules, phase, default_type_params, slicing_syntax, globs)]
+#![feature(macro_rules, phase, default_type_params,
+           slicing_syntax, globs, associated_types,
+           old_orphan_check)]
 #![deny(missing_docs)]
 #![deny(warnings)]
 #![experimental]
@@ -158,21 +160,22 @@ macro_rules! todo(
     })
 );
 
-#[allow(dead_code)]
-struct Trace;
-
-impl fmt::Show for Trace {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        let _ = backtrace::write(fmt);
-        Result::Ok(())
-    }
-}
-
-macro_rules! trace(
-    ($($arg:tt)*) => (if cfg!(not(ndebug)) {
-        log!(5, "{}\n{}", format_args!($($arg)*), ::Trace)
-    })
-);
+// FIXME(reem): Uncomment this when backtrace::write can write to a fmt::Formatter.
+// #[allow(dead_code)]
+// struct Trace;
+//
+// impl fmt::Show for Trace {
+//     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+//         let _ = backtrace::write(fmt);
+//         Result::Ok(())
+//     }
+// }
+//
+// macro_rules! trace(
+//     ($($arg:tt)*) => (if cfg!(not(ndebug)) {
+//         log!(5, "{}\n{}", format_args!($($arg)*), ::Trace)
+//     })
+// );
 
 macro_rules! inspect(
     ($name:expr, $value:expr) => ({

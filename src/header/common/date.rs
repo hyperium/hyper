@@ -1,4 +1,4 @@
-use std::fmt::{mod, Show};
+use std::fmt::{self, Show};
 use std::str::FromStr;
 use time::Tm;
 use header::{Header, HeaderFormat};
