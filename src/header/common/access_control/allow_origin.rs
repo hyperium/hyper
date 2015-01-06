@@ -1,9 +1,14 @@
-use header::shared;
+extern crate url;
 
-#[deriving(Clone)]
+use std::fmt::{self};
+use std::str;
+
+use header;
+
+#[derive(Clone)]
 enum AccessControlAllowOrigin {
     AllowStar,
-    AllowOrigin(Url),
+    AllowOrigin(url::Url),
 }
 
 impl header::Header for AccessControlAllowOrigin {
@@ -14,15 +19,19 @@ impl header::Header for AccessControlAllowOrigin {
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<AccessControlAllowOrigin> {
         if raw.len() == 1 {
-            from_utf8(raw[0].as_slice()).and_then(|s| {
-                if s == "*" {
-                    Some(AllowStar)
-                } else {
-                    Url::parse(s).ok().map(|url| AllowOrigin(url))
-                }
-            })
+            match str::from_utf8(unsafe { raw[].get_unchecked(0)[] }) {
+                Ok(s) => {
+                    if s == "*" {
+                        Some(AccessControlAllowOrigin::AllowStar)
+                    } else {
+                        url::Url::parse(s).ok().map(
+                            |url| AccessControlAllowOrigin::AllowOrigin(url))
+                    }
+                },
+                _ => return None,
+            }
         } else {
-            None
+            return None;
         }
     }
 }
@@ -30,8 +39,9 @@ impl header::Header for AccessControlAllowOrigin {
 impl header::HeaderFormat for AccessControlAllowOrigin {
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            AllowStar => "*".fmt(f),
-            AllowOrigin(ref url) => url.fmt(f)
+            AccessControlAllowOrigin::AllowStar => write!(f, "*"),
+            AccessControlAllowOrigin::AllowOrigin(ref url) =>
+                write!(f, "{}", url)
         }
     }
 }

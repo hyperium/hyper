@@ -1,7 +1,9 @@
+use std::fmt;
+
 use header;
 use header::shared;
 
-#[deriving(Clone)]
+#[derive(Clone)]
 struct AccessControlMaxAge(pub u32);
 
 impl header::Header for AccessControlMaxAge {
@@ -18,6 +20,6 @@ impl header::Header for AccessControlMaxAge {
 impl header::HeaderFormat for AccessControlMaxAge {
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let AccessControlMaxAge(ref num) = *self;
-        num.fmt(f)
+        write!(f, "{}", num)
     }
 }

@@ -1,10 +1,11 @@
-use std::fmt::{mod};
+use std::fmt::{self};
 
 use header;
 use header::shared;
+use method;
 
-#[deriving(Clone)]
-struct AccessControlAllowMethods(pub Vec<Method>);
+#[derive(Clone)]
+struct AccessControlAllowMethods(pub Vec<method::Method>);
 
 impl header::Header for AccessControlAllowMethods {
     #[inline]

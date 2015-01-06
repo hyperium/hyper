@@ -1,9 +1,9 @@
-use std::fmt::{mod};
+use std::fmt::{self};
 
 use header;
 use header::shared;
 
-#[deriving(Clone)]
+#[derive(Clone)]
 struct AccessControlRequestHeaders(pub Vec<String>);
 
 impl header::Header for AccessControlRequestHeaders {

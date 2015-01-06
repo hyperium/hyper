@@ -1,10 +1,10 @@
-use std::fmt::{mod};
+use std::fmt;
 
 use header;
 use header::shared;
 use method::Method;
 
-#[deriving(Clone)]
+#[derive(Clone)]
 struct AccessControlRequestMethod(pub Method);
 
 impl header::Header for AccessControlRequestMethod {
@@ -21,6 +21,6 @@ impl header::Header for AccessControlRequestMethod {
 impl header::HeaderFormat for AccessControlRequestMethod {
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let AccessControlRequestMethod(ref method) = *self;
-        method.fmt(f)
+        write!(f, "{}", method)
     }
 }
