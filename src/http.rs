@@ -1,10 +1,12 @@
 //! Pieces pertaining to the HTTP message protocol.
 use std::borrow::Cow::{Borrowed, Owned};
+use std::borrow::IntoCow;
 use std::cmp::min;
 use std::fmt;
-use std::io::{mod, Reader, IoResult, BufWriter};
+use std::io::{self, Reader, IoResult, BufWriter};
 use std::num::from_u16;
-use std::str::{mod, SendStr, FromStr};
+use std::str::{self, FromStr};
+use std::string::CowString;
 
 use url::Url;
 use url::ParseError as UrlError;
@@ -107,7 +109,7 @@ impl<R: Reader> Reader for HttpReader<R> {
                 *opt_remaining = if rem > 0 {
                     Some(rem)
                 } else {
-                    try!(eat(body, LINE_ENDING));
+                    try!(eat(body, LINE_ENDING.as_bytes()));
                     None
                 };
                 Ok(count)
@@ -236,9 +238,9 @@ impl<W: Writer> Writer for HttpWriter<W> {
             ChunkedWriter(ref mut w) => {
                 let chunk_size = msg.len();
                 debug!("chunked write, size = {}", chunk_size);
-                try!(write!(w, "{:X}{}{}", chunk_size, CR as char, LF as char));
+                try!(write!(w, "{:X}{}", chunk_size, LINE_ENDING));
                 try!(w.write(msg));
-                w.write(LINE_ENDING)
+                w.write_str(LINE_ENDING)
             },
             SizedWriter(ref mut w, ref mut remaining) => {
                 let len = msg.len();
@@ -282,7 +284,7 @@ pub const SP: u8 = b' ';
 pub const CR: u8 = b'\r';
 pub const LF: u8 = b'\n';
 pub const STAR: u8 = b'*';
-pub const LINE_ENDING: &'static [u8] = &[CR, LF];
+pub const LINE_ENDING: &'static str = "\r\n";
 
 /// A `Show`able struct to easily write line endings to a formatter.
 pub struct LineEnding;
@@ -291,13 +293,7 @@ impl Copy for LineEnding {}
 
 impl fmt::Show for LineEnding {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.write(LINE_ENDING)
-    }
-}
-
-impl AsSlice<u8> for LineEnding {
-    fn as_slice(&self) -> &[u8] {
-        LINE_ENDING
+        fmt.write_str(LINE_ENDING)
     }
 }
 
@@ -582,8 +578,8 @@ pub fn read_request_line<R: Reader>(stream: &mut R) -> HttpResult<RequestLine> {
 pub type StatusLine = (HttpVersion, RawStatus);
 
 /// The raw status code and reason-phrase.
-#[deriving(PartialEq, Show)]
-pub struct RawStatus(pub u16, pub SendStr);
+#[derive(PartialEq, Show)]
+pub struct RawStatus(pub u16, pub CowString<'static>);
 
 impl Clone for RawStatus {
     fn clone(&self) -> RawStatus {
@@ -693,7 +689,7 @@ fn expect(r: IoResult<u8>, expected: u8) -> HttpResult<()> {
 
 #[cfg(test)]
 mod tests {
-    use std::io::{mod, MemReader, MemWriter};
+    use std::io::{self, MemReader, MemWriter};
     use std::borrow::Cow::{Borrowed, Owned};
     use test::Bencher;
     use uri::RequestUri;

@@ -1,19 +1,22 @@
-use std::fmt::{mod, Show};
+use std::fmt::{self, Show};
 use std::str::{FromStr, from_utf8};
+use std::ops::{Deref, DerefMut};
 use serialize::base64::{ToBase64, FromBase64, Standard, Config, Newline};
 use header::{Header, HeaderFormat};
 
 /// The `Authorization` header field.
-#[deriving(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Show)]
 pub struct Authorization<S: Scheme>(pub S);
 
-impl<S: Scheme> Deref<S> for Authorization<S> {
+impl<S: Scheme> Deref for Authorization<S> {
+    type Target = S;
+
     fn deref<'a>(&'a self) -> &'a S {
         &self.0
     }
 }
 
-impl<S: Scheme> DerefMut<S> for Authorization<S> {
+impl<S: Scheme> DerefMut for Authorization<S> {
     fn deref_mut<'a>(&'a mut self) -> &'a mut S {
         &mut self.0
     }
@@ -72,7 +75,7 @@ impl Scheme for String {
 }
 
 /// Credential holder for Basic Authentication
-#[deriving(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Show)]
 pub struct Basic {
     /// The username as a possibly empty string
     pub username: String,

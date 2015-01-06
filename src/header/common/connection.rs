@@ -1,18 +1,18 @@
 use header::{Header, HeaderFormat};
-use std::fmt::{mod, Show};
+use std::fmt::{self, Show};
 use std::str::FromStr;
 use header::shared::util::{from_comma_delimited, fmt_comma_delimited};
 
 pub use self::ConnectionOption::{KeepAlive, Close, ConnectionHeader};
 
 /// The `Connection` header.
-#[deriving(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Show)]
 pub struct Connection(pub Vec<ConnectionOption>);
 
 deref!(Connection -> Vec<ConnectionOption>);
 
 /// Values that can be in the `Connection` header.
-#[deriving(Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub enum ConnectionOption {
     /// The `keep-alive` connection value.
     KeepAlive,

@@ -4,7 +4,7 @@ use header::{Header, HeaderFormat};
 use header::shared::util::{from_one_comma_delimited, fmt_comma_delimited};
 
 /// The Cache-Control header.
-#[deriving(PartialEq, Clone, Show)]
+#[derive(PartialEq, Clone, Show)]
 pub struct CacheControl(pub Vec<CacheDirective>);
 
 deref!(CacheControl -> Vec<CacheDirective>);
@@ -34,7 +34,7 @@ impl HeaderFormat for CacheControl {
 }
 
 /// CacheControl contains a list of these directives.
-#[deriving(PartialEq, Clone)]
+#[derive(PartialEq, Clone)]
 pub enum CacheDirective {
     /// "no-cache"
     NoCache,

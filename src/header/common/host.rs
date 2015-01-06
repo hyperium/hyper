@@ -1,6 +1,6 @@
 use header::{Header, HeaderFormat};
 use Port;
-use std::fmt::{mod, Show};
+use std::fmt::{self, Show};
 use header::shared::util::from_one_raw_str;
 
 /// The `Host` header.
@@ -10,7 +10,7 @@ use header::shared::util::from_one_raw_str;
 ///
 /// Currently is just a String, but it should probably become a better type,
 /// like url::Host or something.
-#[deriving(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Show)]
 pub struct Host {
     /// The hostname, such a example.domain.
     pub hostname: String,

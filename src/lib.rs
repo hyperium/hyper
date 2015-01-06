@@ -1,4 +1,6 @@
-#![feature(macro_rules, phase, default_type_params, slicing_syntax, globs)]
+#![feature(macro_rules, phase, default_type_params,
+           slicing_syntax, globs, associated_types,
+           old_orphan_check)]
 #![deny(missing_docs)]
 #![deny(warnings)]
 #![experimental]
@@ -143,11 +145,8 @@ pub use method::Method::{Get, Head, Post, Delete};
 pub use status::StatusCode::{Ok, BadRequest, NotFound};
 pub use server::Server;
 
-use std::fmt;
 use std::error::{Error, FromError};
 use std::io::IoError;
-
-use std::rt::backtrace;
 
 use self::HttpError::{HttpMethodError, HttpUriError, HttpVersionError,
                       HttpHeaderError, HttpStatusError, HttpIoError};
@@ -155,22 +154,6 @@ use self::HttpError::{HttpMethodError, HttpUriError, HttpVersionError,
 macro_rules! todo(
     ($($arg:tt)*) => (if cfg!(not(ndebug)) {
         log!(5, "TODO: {}", format_args!($($arg)*))
-    })
-);
-
-#[allow(dead_code)]
-struct Trace;
-
-impl fmt::Show for Trace {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        let _ = backtrace::write(fmt);
-        Result::Ok(())
-    }
-}
-
-macro_rules! trace(
-    ($($arg:tt)*) => (if cfg!(not(ndebug)) {
-        log!(5, "{}\n{}", format_args!($($arg)*), ::Trace)
     })
 );
 
@@ -207,7 +190,7 @@ mod mimewrapper {
 pub type HttpResult<T> = Result<T, HttpError>;
 
 /// A set of errors that can occur parsing HTTP streams.
-#[deriving(Show, PartialEq, Clone)]
+#[derive(Show, PartialEq, Clone)]
 pub enum HttpError {
     /// An invalid `Method`, such as `GE,T`.
     HttpMethodError,
