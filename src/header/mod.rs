@@ -10,7 +10,7 @@ use std::borrow::Cow::{Borrowed, Owned};
 use std::fmt::{self, Show};
 use std::intrinsics::TypeId;
 use std::raw::TraitObject;
-use std::str::FromStr;
+use std::str::{FromStr, from_utf8};
 use std::string::CowString;
 use std::collections::HashMap;
 use std::collections::hash_map::{Iter, Entry};
@@ -439,7 +439,13 @@ impl fmt::Show for Item {
             None => match self.raw {
                 Some(ref raw) => {
                     for part in raw.iter() {
-                        try!(write!(fmt, "{}", part.as_slice()));
+                        match from_utf8(part[]) {
+                            Ok(s) => try!(fmt.write_str(s)),
+                            Err(e) => {
+                                error!("raw header value is not utf8. header={}, error={}", part[], e);
+                                return Err(fmt::Error);
+                            }
+                        }
                     }
                     Ok(())
                 },
@@ -644,6 +650,13 @@ mod tests {
         pieces.sort();
         let s = pieces.into_iter().rev().collect::<Vec<&str>>().connect("\r\n");
         assert_eq!(s[], "Host: foo.bar\r\nContent-Length: 15\r\n");
+    }
+
+    #[test]
+    fn test_headers_show_raw() {
+        let headers = Headers::from_raw(&mut mem("Content-Length: 10\r\n\r\n")).unwrap();
+        let s = headers.to_string();
+        assert_eq!(s, "Content-Length: 10\r\n");
     }
 
     #[test]
