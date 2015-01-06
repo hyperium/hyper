@@ -137,17 +137,18 @@ fn read_chunk_size<R: Reader>(rdr: &mut R) -> IoResult<uint> {
     let mut size = 0u;
     let radix = 16;
     let mut in_ext = false;
+    let mut in_chunk_size = true;
     loop {
         match try!(rdr.read_byte()) {
-            b@b'0'...b'9' if !in_ext => {
+            b@b'0'...b'9' if in_chunk_size => {
                 size *= radix;
                 size += (b - b'0') as uint;
             },
-            b@b'a'...b'f' if !in_ext => {
+            b@b'a'...b'f' if in_chunk_size => {
                 size *= radix;
                 size += (b + 10 - b'a') as uint;
             },
-            b@b'A'...b'F' if !in_ext => {
+            b@b'A'...b'F' if in_chunk_size => {
                 size *= radix;
                 size += (b + 10 - b'A') as uint;
             },
@@ -157,9 +158,28 @@ fn read_chunk_size<R: Reader>(rdr: &mut R) -> IoResult<uint> {
                     _ => return Err(io::standard_error(io::InvalidInput))
                 }
             },
-            ext => {
+            // If we weren't in the extension yet, the ";" signals its start
+            b';' if !in_ext => {
                 in_ext = true;
+                in_chunk_size = false;
+            },
+            // "Linear white space" is ignored between the chunk size and the
+            // extension separator token (";") due to the "implied *LWS rule".
+            b'\t' | b' ' if !in_ext & !in_chunk_size => {},
+            // LWS can follow the chunk size, but no more digits can come
+            b'\t' | b' ' if in_chunk_size => in_chunk_size = false,
+            // We allow any arbitrary octet once we are in the extension, since
+            // they all get ignored anyway. According to the HTTP spec, valid
+            // extensions would have a more strict syntax:
+            //     (token ["=" (token | quoted-string)])
+            // but we gain nothing by rejecting an otherwise valid chunk size.
+            ext if in_ext => {
                 todo!("chunk extension byte={}", ext);
+            },
+            // Finally, if we aren't in the extension and we're reading any
+            // other octet, the chunk size line is invalid!
+            _ => {
+                return Err(io::standard_error(io::InvalidInput));
             }
         }
     }
@@ -689,7 +709,7 @@ fn expect(r: IoResult<u8>, expected: u8) -> HttpResult<()> {
 
 #[cfg(test)]
 mod tests {
-    use std::io::{self, MemReader, MemWriter};
+    use std::io::{self, MemReader, MemWriter, IoResult};
     use std::borrow::Cow::{Borrowed, Owned};
     use test::Bencher;
     use uri::RequestUri;
@@ -702,7 +722,7 @@ mod tests {
     use url::Url;
 
     use super::{read_method, read_uri, read_http_version, read_header,
-                RawHeaderLine, read_status, RawStatus};
+                RawHeaderLine, read_status, RawStatus, read_chunk_size};
 
     fn mem(s: &str) -> MemReader {
         MemReader::new(s.as_bytes().to_vec())
@@ -809,6 +829,43 @@ mod tests {
         let buf = w.end().unwrap().into_inner();
         let s = from_utf8(buf.as_slice()).unwrap();
         assert_eq!(s, "foo barb");
+    }
+
+    #[test]
+    fn test_read_chunk_size() {
+        fn read(s: &str, result: IoResult<uint>) {
+            assert_eq!(read_chunk_size(&mut mem(s)), result);
+        }
+
+        read("1\r\n", Ok(1));
+        read("01\r\n", Ok(1));
+        read("0\r\n", Ok(0));
+        read("00\r\n", Ok(0));
+        read("A\r\n", Ok(10));
+        read("a\r\n", Ok(10));
+        read("Ff\r\n", Ok(255));
+        read("Ff   \r\n", Ok(255));
+        // Missing LF or CRLF
+        read("F\rF", Err(io::standard_error(io::InvalidInput)));
+        read("F", Err(io::standard_error(io::EndOfFile)));
+        // Invalid hex digit
+        read("X\r\n", Err(io::standard_error(io::InvalidInput)));
+        read("1X\r\n", Err(io::standard_error(io::InvalidInput)));
+        read("-\r\n", Err(io::standard_error(io::InvalidInput)));
+        read("-1\r\n", Err(io::standard_error(io::InvalidInput)));
+        // Acceptable (if not fully valid) extensions do not influence the size
+        read("1;extension\r\n", Ok(1));
+        read("a;ext name=value\r\n", Ok(10));
+        read("1;extension;extension2\r\n", Ok(1));
+        read("1;;;  ;\r\n", Ok(1));
+        read("2; extension...\r\n", Ok(2));
+        read("3   ; extension=123\r\n", Ok(3));
+        read("3   ;\r\n", Ok(3));
+        read("3   ;   \r\n", Ok(3));
+        // Invalid extensions cause an error
+        read("1 invalid extension\r\n", Err(io::standard_error(io::InvalidInput)));
+        read("1 A\r\n", Err(io::standard_error(io::InvalidInput)));
+        read("1;no CRLF", Err(io::standard_error(io::EndOfFile)));
     }
 
     #[bench]
