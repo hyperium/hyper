@@ -1,4 +1,4 @@
-use std::fmt::{mod, Show};
+use std::fmt::{self, Show};
 use std::str::FromStr;
 use time::Tm;
 use header::{Header, HeaderFormat};
@@ -6,7 +6,7 @@ use header::shared::util::from_one_raw_str;
 use header::shared::time::tm_from_str;
 
 /// The `LastModified` header field.
-#[deriving(Copy, PartialEq, Clone)]
+#[derive(Copy, PartialEq, Clone)]
 pub struct LastModified(pub Tm);
 
 deref!(LastModified -> Tm);

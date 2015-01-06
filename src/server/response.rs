@@ -107,7 +107,7 @@ impl<'a> Response<'a, Fresh> {
         debug!("headers [\n{}]", self.headers);
         try!(write!(&mut self.body, "{}", self.headers));
 
-        try!(self.body.write(LINE_ENDING));
+        try!(self.body.write_str(LINE_ENDING));
 
         let stream = if chunked {
             ChunkedWriter(self.body.unwrap())

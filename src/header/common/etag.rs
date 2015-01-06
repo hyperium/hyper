@@ -1,5 +1,5 @@
 use header::{Header, HeaderFormat};
-use std::fmt::{mod};
+use std::fmt::{self};
 use header::shared::util::from_one_raw_str;
 
 /// The `Etag` header.
@@ -8,7 +8,7 @@ use header::shared::util::from_one_raw_str;
 /// Preceding the first double quote is an optional weakness indicator,
 /// which always looks like this: W/
 /// See also: https://tools.ietf.org/html/rfc7232#section-2.3
-#[deriving(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Show)]
 pub struct Etag {
     /// Weakness indicator for the tag
     pub weak: bool,
@@ -81,7 +81,7 @@ impl Header for Etag {
 impl HeaderFormat for Etag {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         if self.weak {
-            try!(fmt.write(b"W/"));
+            try!(fmt.write_str("W/"));
         }
         write!(fmt, "\"{}\"", self.tag)
     }

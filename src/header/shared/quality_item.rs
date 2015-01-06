@@ -9,7 +9,7 @@ use std::str;
 
 /// Represents an item with a quality value as defined in
 /// [RFC7231](https://tools.ietf.org/html/rfc7231#section-5.3.1).
-#[deriving(Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct QualityItem<T> {
     /// The actual contents of the field.
     pub item: T,
@@ -79,7 +79,7 @@ pub fn qitem<T>(item: T) -> QualityItem<T> {
 #[test]
 fn test_quality_item_show1() {
     let x = qitem(Chunked);
-    assert_eq!(format!("{}", x), "chunked; q=1.000");
+    assert_eq!(format!("{}", x), "chunked; q=1");
 }
 #[test]
 fn test_quality_item_show2() {
@@ -93,7 +93,7 @@ fn test_quality_item_show3() {
         item: EncodingExt("identity".to_string()),
         quality: 0.5f32,
     };
-    assert_eq!(format!("{}", x), "identity; q=0.500");
+    assert_eq!(format!("{}", x), "identity; q=0.5");
 }
 
 #[test]

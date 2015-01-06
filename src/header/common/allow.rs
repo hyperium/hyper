@@ -1,12 +1,12 @@
 use header::{Header, HeaderFormat};
 use method::Method;
-use std::fmt::{mod};
+use std::fmt::{self};
 use header::shared::util::{from_comma_delimited, fmt_comma_delimited};
 
 /// The `Allow` header.
 /// See also https://tools.ietf.org/html/rfc7231#section-7.4.1
 
-#[deriving(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Show)]
 pub struct Allow(pub Vec<Method>);
 
 deref!(Allow -> Vec<Method>);
@@ -31,7 +31,7 @@ impl HeaderFormat for Allow {
 mod tests {
     use super::Allow;
     use header::Header;
-    use method::Method::{mod, Options, Get, Put, Post, Delete, Head, Trace, Connect, Patch, Extension};
+    use method::Method::{self, Options, Get, Put, Post, Delete, Head, Trace, Connect, Patch, Extension};
 
     #[test]
     fn test_allow() {

@@ -1,16 +1,15 @@
 //! A collection of traits abstracting over Listeners and Streams.
-use std::any::{Any, AnyRefExt};
-use std::boxed::BoxAny;
+use std::any::Any;
 use std::fmt;
 use std::intrinsics::TypeId;
 use std::io::{IoResult, IoError, ConnectionAborted, InvalidInput, OtherIoError,
               Stream, Listener, Acceptor};
 use std::io::net::ip::{SocketAddr, ToSocketAddr, Port};
 use std::io::net::tcp::{TcpStream, TcpListener, TcpAcceptor};
-use std::mem::{mod, transmute, transmute_copy};
-use std::raw::{mod, TraitObject};
+use std::mem;
+use std::raw::{self, TraitObject};
 
-use uany::UncheckedBoxAnyDowncast;
+use uany::UnsafeAnyExt;
 use openssl::ssl::{Ssl, SslStream, SslContext, VerifyCallback};
 use openssl::ssl::SslVerifyMode::SslVerifyPeer;
 use openssl::ssl::SslMethod::Sslv23;
@@ -105,38 +104,54 @@ impl<'a> Writer for &'a mut NetworkStream {
     fn flush(&mut self) -> IoResult<()> { (**self).flush() }
 }
 
-impl UncheckedBoxAnyDowncast for Box<NetworkStream + Send> {
-    unsafe fn downcast_unchecked<T: 'static>(self) -> Box<T>  {
-        let to = *mem::transmute::<&Box<NetworkStream + Send>, &raw::TraitObject>(&self);
-        // Prevent double-free.
-        mem::forget(self);
-        mem::transmute(to.data)
+impl UnsafeAnyExt for NetworkStream {
+    unsafe fn downcast_ref_unchecked<T: 'static>(&self) -> &T {
+        mem::transmute(mem::transmute::<&NetworkStream,
+                                        raw::TraitObject>(self).data)
+    }
+
+    unsafe fn downcast_mut_unchecked<T: 'static>(&mut self) -> &mut T {
+        mem::transmute(mem::transmute::<&mut NetworkStream,
+                                        raw::TraitObject>(self).data)
+    }
+
+    unsafe fn downcast_unchecked<T: 'static>(self: Box<NetworkStream>) -> Box<T>  {
+        mem::transmute(mem::transmute::<Box<NetworkStream>,
+                                        raw::TraitObject>(self).data)
     }
 }
 
-impl<'a> AnyRefExt<'a> for &'a (NetworkStream + 'static) {
+impl NetworkStream {
+    /// Is the underlying type in this trait object a T?
     #[inline]
-    fn is<T: 'static>(self) -> bool {
+    pub fn is<T: 'static>(&self) -> bool {
         self.get_type_id() == TypeId::of::<T>()
     }
 
+    /// If the underlying type is T, get a reference to the contained data.
     #[inline]
-    fn downcast_ref<T: 'static>(self) -> Option<&'a T> {
+    pub fn downcast_ref<T: 'static>(&self) -> Option<&T> {
         if self.is::<T>() {
-            unsafe {
-                // Get the raw representation of the trait object
-                let to: TraitObject = transmute_copy(&self);
-                // Extract the data pointer
-                Some(transmute(to.data))
-            }
+            Some(unsafe { self.downcast_ref_unchecked() })
         } else {
             None
         }
     }
-}
 
-impl BoxAny for Box<NetworkStream + Send> {
-    fn downcast<T: 'static>(self) -> Result<Box<T>, Box<NetworkStream + Send>> {
+    /// If the underlying type is T, get a mutable reference to the contained
+    /// data.
+    #[inline]
+    pub fn downcast_mut<T: 'static>(&mut self) -> Option<&mut T> {
+        if self.is::<T>() {
+            Some(unsafe { self.downcast_mut_unchecked() })
+        } else {
+            None
+        }
+    }
+
+    /// If the underlying type is T, extract it.
+    pub fn downcast<T: 'static>(self: Box<NetworkStream>)
+            -> Result<Box<T>, Box<NetworkStream>> {
         if self.is::<T>() {
             Ok(unsafe { self.downcast_unchecked() })
         } else {
@@ -174,7 +189,7 @@ impl NetworkListener<HttpStream, HttpAcceptor> for HttpListener {
 }
 
 /// A `NetworkAcceptor` for `HttpStream`s.
-#[deriving(Clone)]
+#[derive(Clone)]
 pub struct HttpAcceptor {
     inner: TcpAcceptor
 }
@@ -194,7 +209,7 @@ impl NetworkAcceptor<HttpStream> for HttpAcceptor {
 }
 
 /// A wrapper around a TcpStream.
-#[deriving(Clone)]
+#[derive(Clone)]
 pub enum HttpStream {
     /// A stream over the HTTP protocol.
     Http(TcpStream),
@@ -293,7 +308,7 @@ fn lift_ssl_error(ssl: SslError) -> IoError {
 #[cfg(test)]
 mod tests {
     use std::boxed::BoxAny;
-    use uany::UncheckedBoxAnyDowncast;
+    use uany::UnsafeAnyExt;
 
     use mock::MockStream;
     use super::NetworkStream;
@@ -302,7 +317,7 @@ mod tests {
     fn test_downcast_box_stream() {
         let stream = box MockStream::new() as Box<NetworkStream + Send>;
 
-        let mock = stream.downcast::<MockStream>().unwrap();
+        let mock = stream.downcast::<MockStream>().ok().unwrap();
         assert_eq!(mock, box MockStream::new());
 
     }
