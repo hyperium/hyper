@@ -7,7 +7,7 @@ use header::shared;
 ///
 /// The `Accept-Encoding` header can be used by clients to indicate what
 /// response encodings they accept.
-#[deriving(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Show)]
 pub struct AcceptEncoding(pub Vec<shared::QualityItem<shared::Encoding>>);
 
 deref!(AcceptEncoding -> Vec<shared::QualityItem<shared::Encoding>>);

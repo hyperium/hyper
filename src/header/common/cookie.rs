@@ -1,5 +1,5 @@
 use header::{Header, HeaderFormat};
-use std::fmt::{mod, Show};
+use std::fmt::{self, Show};
 use std::str::from_utf8;
 
 use cookie::Cookie;
@@ -13,7 +13,7 @@ use cookie::CookieJar;
 ///
 /// > When the user agent generates an HTTP request, the user agent MUST NOT
 /// > attach more than one Cookie header field.
-#[deriving(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Show)]
 pub struct Cookies(pub Vec<Cookie>);
 
 //TODO: remove when fixed in libstd

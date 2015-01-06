@@ -18,7 +18,7 @@ use self::Encoding::{Chunked, Gzip, Deflate, Compress, EncodingExt};
 /// this header should include `chunked` as the last encoding.
 ///
 /// The implementation uses a vector of `Encoding` values.
-#[deriving(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Show)]
 pub struct TransferEncoding(pub Vec<Encoding>);
 
 deref!(TransferEncoding -> Vec<Encoding>);
@@ -33,7 +33,7 @@ deref!(TransferEncoding -> Vec<Encoding>);
 /// # use hyper::header::Headers;
 /// # let mut headers = Headers::new();
 /// headers.set(TransferEncoding(vec![Gzip, Chunked]));
-#[deriving(Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub enum Encoding {
     /// The `chunked` encoding.
     Chunked,

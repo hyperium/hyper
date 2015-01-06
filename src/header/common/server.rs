@@ -1,11 +1,11 @@
 use header::{Header, HeaderFormat};
-use std::fmt::{mod, Show};
+use std::fmt::{self, Show};
 use header::shared::util::from_one_raw_str;
 
 /// The `Server` header field.
 ///
 /// They can contain any value, so it just wraps a `String`.
-#[deriving(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Show)]
 pub struct Server(pub String);
 
 deref!(Server -> String);

@@ -1,5 +1,5 @@
 use header::{Header, HeaderFormat};
-use std::fmt::{mod, Show};
+use std::fmt::{self, Show};
 use header::shared::util::from_one_raw_str;
 
 /// The `Location` header.
@@ -13,7 +13,7 @@ use header::shared::util::from_one_raw_str;
 ///
 /// Currently is just a String, but it should probably become a better type,
 /// like url::Url or something.
-#[deriving(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Show)]
 pub struct Location(pub String);
 
 deref!(Location -> String);

@@ -4,7 +4,7 @@ extern crate hyper;
 
 extern crate test;
 
-use std::fmt::{mod, Show};
+use std::fmt::{self, Show};
 use std::io::net::ip::Ipv4Addr;
 use hyper::server::{Request, Response, Server};
 use hyper::header::Headers;
@@ -46,7 +46,7 @@ fn bench_curl(b: &mut test::Bencher) {
     listening.close().unwrap();
 }
 
-#[deriving(Clone)]
+#[derive(Clone)]
 struct Foo;
 
 impl hyper::header::Header for Foo {

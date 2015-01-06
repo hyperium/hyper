@@ -120,7 +120,7 @@ mod tests {
             status_raw: RawStatus(200, Borrowed("OK"))
         };
 
-        let b = res.into_inner().downcast::<MockStream>().unwrap();
+        let b = res.into_inner().downcast::<MockStream>().ok().unwrap();
         assert_eq!(b, box MockStream::new());
 
     }

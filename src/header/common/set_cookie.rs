@@ -1,5 +1,5 @@
 use header::{Header, HeaderFormat};
-use std::fmt::{mod, Show};
+use std::fmt::{self, Show};
 use std::str::from_utf8;
 
 use cookie::Cookie;
@@ -10,7 +10,7 @@ use cookie::CookieJar;
 /// Informally, the Set-Cookie response header contains the header name
 /// "Set-Cookie" followed by a ":" and a cookie.  Each cookie begins with
 /// a name-value-pair, followed by zero or more attribute-value pairs.
-#[deriving(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Show)]
 pub struct SetCookie(pub Vec<Cookie>);
 
 //TODO: remove when fixed in libstd
@@ -52,7 +52,7 @@ impl HeaderFormat for SetCookie {
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for (i, cookie) in self.0.iter().enumerate() {
             if i != 0 {
-                try!(f.write(b"\r\nSet-Cookie: "));
+                try!(f.write_str("\r\nSet-Cookie: "));
             }
             try!(cookie.fmt(f));
         }

@@ -4,8 +4,7 @@ extern crate hyper;
 
 extern crate test;
 
-use std::fmt::{mod, Show};
-use std::str::from_str;
+use std::fmt::{self, Show};
 use std::io::{IoResult, MemReader};
 use std::io::net::ip::SocketAddr;
 use std::os;
@@ -65,7 +64,7 @@ fn bench_mock_curl(b: &mut test::Bencher) {
     });
 }
 
-#[deriving(Clone)]
+#[derive(Clone)]
 struct Foo;
 
 impl hyper::header::Header for Foo {
@@ -85,7 +84,7 @@ impl hyper::header::HeaderFormat for Foo {
 
 impl net::NetworkStream for MockStream {
     fn peer_name(&mut self) -> IoResult<SocketAddr> {
-        Ok(from_str("127.0.0.1:1337").unwrap())
+        Ok("127.0.0.1:1337".parse().unwrap())
     }
 }
 

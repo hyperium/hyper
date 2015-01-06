@@ -1,18 +1,18 @@
 use header::{Header, HeaderFormat};
-use std::fmt::{mod, Show};
+use std::fmt::{self, Show};
 use std::str::FromStr;
 use header::shared::util::{from_comma_delimited, fmt_comma_delimited};
 
 use self::Protocol::{WebSocket, ProtocolExt};
 
 /// The `Upgrade` header.
-#[deriving(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Show)]
 pub struct Upgrade(pub Vec<Protocol>);
 
 deref!(Upgrade -> Vec<Protocol>);
 
 /// Protocol values that can appear in the Upgrade header.
-#[deriving(Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub enum Protocol {
     /// The websocket protocol.
     WebSocket,
