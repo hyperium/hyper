@@ -78,9 +78,11 @@ mod tests {
     use mock::MockStream;
     use super::Request;
 
-    macro_rules! sock(
-        ($s:expr) => (::std::str::from_str::<::std::io::net::ip::SocketAddr>($s).unwrap())
-    );
+    use std::io::net::ip::SocketAddr;
+
+    fn sock(s: &str) -> SocketAddr {
+        s.parse().unwrap()
+    }
 
     #[test]
     fn test_get_empty_body() {
@@ -91,7 +93,7 @@ mod tests {
             I'm a bad request.\r\n\
         ");
 
-        let mut req = Request::new(&mut stream, sock!("127.0.0.1:80")).unwrap();
+        let mut req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
         assert_eq!(req.read_to_string(), Ok("".to_string()));
     }
 
@@ -104,7 +106,7 @@ mod tests {
             I'm a bad request.\r\n\
         ");
 
-        let mut req = Request::new(&mut stream, sock!("127.0.0.1:80")).unwrap();
+        let mut req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
         assert_eq!(req.read_to_string(), Ok("".to_string()));
     }
 
@@ -117,7 +119,7 @@ mod tests {
             I'm a bad request.\r\n\
         ");
 
-        let mut req = Request::new(&mut stream, sock!("127.0.0.1:80")).unwrap();
+        let mut req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
         assert_eq!(req.read_to_string(), Ok("".to_string()));
     }
 }

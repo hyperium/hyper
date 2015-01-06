@@ -92,7 +92,7 @@ macro_rules! mock_connector (
 
                 let key = format!("{}://{}", scheme, host);
                 // ignore port for now
-                match map.find(&&*key) {
+                match map.get(&&*key) {
                     Some(res) => Ok(::mock::MockStream {
                         write: ::std::io::MemWriter::new(),
                         read: ::std::io::MemReader::new(res.to_string().into_bytes())

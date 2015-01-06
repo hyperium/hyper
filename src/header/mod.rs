@@ -10,7 +10,8 @@ use std::borrow::Cow::{Borrowed, Owned};
 use std::fmt::{self, Show};
 use std::intrinsics::TypeId;
 use std::raw::TraitObject;
-use std::str::{SendStr, FromStr};
+use std::str::FromStr;
+use std::string::CowString;
 use std::collections::HashMap;
 use std::collections::hash_map::{Iter, Entry};
 use std::iter::FromIterator;
@@ -135,8 +136,8 @@ impl Headers {
                 Some((name, value)) => {
                     debug!("raw header: {}={}", name, value[]);
                     let name = CaseInsensitive(Owned(name));
-                    let mut item = match headers.data.entry(name) {
-                        Entry::Vacant(entry) => entry.set(MuCell::new(Item::raw(vec![]))),
+                    let mut item = match headers.data.entry(&name) {
+                        Entry::Vacant(entry) => entry.insert(MuCell::new(Item::raw(vec![]))),
                         Entry::Occupied(entry) => entry.into_mut()
                     };
 
@@ -438,7 +439,7 @@ impl fmt::Show for Item {
             None => match self.raw {
                 Some(ref raw) => {
                     for part in raw.iter() {
-                        try!(fmt.write(part.as_slice()));
+                        try!(write!(fmt, "{}", part.as_slice()));
                     }
                     Ok(())
                 },
@@ -455,8 +456,7 @@ impl fmt::Show for Box<HeaderFormat + Send + Sync> {
 }
 
 /// Case-insensitive string.
-//#[derive(Clone)]
-pub struct CaseInsensitive(SendStr);
+pub struct CaseInsensitive(CowString<'static>);
 
 impl FromStr for CaseInsensitive {
     fn from_str(s: &str) -> Option<CaseInsensitive> {
