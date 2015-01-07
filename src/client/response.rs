@@ -100,6 +100,8 @@ mod tests {
     use std::io::BufferedReader;
 
     use header::Headers;
+    use header::common::TransferEncoding;
+    use header::common::transfer_encoding::Encoding;
     use http::HttpReader::EofReader;
     use http::RawStatus;
     use mock::MockStream;
@@ -123,5 +125,96 @@ mod tests {
         let b = res.into_inner().downcast::<MockStream>().ok().unwrap();
         assert_eq!(b, box MockStream::new());
 
+    }
+
+    #[test]
+    fn test_parse_chunked_response() {
+        let stream = MockStream::with_input(b"\
+            HTTP/1.1 200 OK\r\n\
+            Transfer-Encoding: chunked\r\n\
+            \r\n\
+            1\r\n\
+            q\r\n\
+            2\r\n\
+            we\r\n\
+            2\r\n\
+            rt\r\n\
+            0\r\n\
+            \r\n"
+        );
+
+        let mut res = Response::new(box stream).unwrap();
+
+        // The status line is correct?
+        assert_eq!(res.status, status::StatusCode::Ok);
+        assert_eq!(res.version, version::HttpVersion::Http11);
+        // The header is correct?
+        match res.headers.get::<TransferEncoding>() {
+            Some(encodings) => {
+                assert_eq!(1, encodings.len());
+                assert_eq!(Encoding::Chunked, encodings[0]);
+            },
+            None => panic!("Transfer-Encoding: chunked expected!"),
+        };
+        // The body is correct?
+        let body = res.read_to_string().unwrap();
+        assert_eq!("qwert", body);
+    }
+
+    /// Tests that when a chunk size is not a valid radix-16 number, an error
+    /// is returned.
+    #[test]
+    fn test_invalid_chunk_size_not_hex_digit() {
+        let stream = MockStream::with_input(b"\
+            HTTP/1.1 200 OK\r\n\
+            Transfer-Encoding: chunked\r\n\
+            \r\n\
+            X\r\n\
+            1\r\n\
+            0\r\n\
+            \r\n"
+        );
+
+        let mut res = Response::new(box stream).unwrap();
+
+        assert!(res.read_to_string().is_err());
+    }
+
+    /// Tests that when a chunk size contains an invalid extension, an error is
+    /// returned.
+    #[test]
+    fn test_invalid_chunk_size_extension() {
+        let stream = MockStream::with_input(b"\
+            HTTP/1.1 200 OK\r\n\
+            Transfer-Encoding: chunked\r\n\
+            \r\n\
+            1 this is an invalid extension\r\n\
+            1\r\n\
+            0\r\n\
+            \r\n"
+        );
+
+        let mut res = Response::new(box stream).unwrap();
+
+        assert!(res.read_to_string().is_err());
+    }
+
+    /// Tests that when a valid extension that contains a digit is appended to
+    /// the chunk size, the chunk is correctly read.
+    #[test]
+    fn test_chunk_size_with_extension() {
+        let stream = MockStream::with_input(b"\
+            HTTP/1.1 200 OK\r\n\
+            Transfer-Encoding: chunked\r\n\
+            \r\n\
+            1;this is an extension with a digit 1\r\n\
+            1\r\n\
+            0\r\n\
+            \r\n"
+        );
+
+        let mut res = Response::new(box stream).unwrap();
+
+        assert_eq!("1", res.read_to_string().unwrap())
     }
 }

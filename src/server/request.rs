@@ -75,6 +75,8 @@ impl<'a> Reader for Request<'a> {
 
 #[cfg(test)]
 mod tests {
+    use header::common::{Host, TransferEncoding};
+    use header::common::transfer_encoding::Encoding;
     use mock::MockStream;
     use super::Request;
 
@@ -122,4 +124,103 @@ mod tests {
         let mut req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
         assert_eq!(req.read_to_string(), Ok("".to_string()));
     }
+
+    #[test]
+    fn test_parse_chunked_request() {
+        let mut stream = MockStream::with_input(b"\
+            POST / HTTP/1.1\r\n\
+            Host: example.domain\r\n\
+            Transfer-Encoding: chunked\r\n\
+            \r\n\
+            1\r\n\
+            q\r\n\
+            2\r\n\
+            we\r\n\
+            2\r\n\
+            rt\r\n\
+            0\r\n\
+            \r\n"
+        );
+
+        let mut req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
+
+        // The headers are correct?
+        match req.headers.get::<Host>() {
+            Some(host) => {
+                assert_eq!("example.domain", host.hostname);
+            },
+            None => panic!("Host header expected!"),
+        };
+        match req.headers.get::<TransferEncoding>() {
+            Some(encodings) => {
+                assert_eq!(1, encodings.len());
+                assert_eq!(Encoding::Chunked, encodings[0]);
+            }
+            None => panic!("Transfer-Encoding: chunked expected!"),
+        };
+        // The content is correctly read?
+        let body = req.read_to_string().unwrap();
+        assert_eq!("qwert", body);
+    }
+
+    /// Tests that when a chunk size is not a valid radix-16 number, an error
+    /// is returned.
+    #[test]
+    fn test_invalid_chunk_size_not_hex_digit() {
+        let mut stream = MockStream::with_input(b"\
+            POST / HTTP/1.1\r\n\
+            Host: example.domain\r\n\
+            Transfer-Encoding: chunked\r\n\
+            \r\n\
+            X\r\n\
+            1\r\n\
+            0\r\n\
+            \r\n"
+        );
+
+        let mut req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
+
+        assert!(req.read_to_string().is_err());
+    }
+
+    /// Tests that when a chunk size contains an invalid extension, an error is
+    /// returned.
+    #[test]
+    fn test_invalid_chunk_size_extension() {
+        let mut stream = MockStream::with_input(b"\
+            POST / HTTP/1.1\r\n\
+            Host: example.domain\r\n\
+            Transfer-Encoding: chunked\r\n\
+            \r\n\
+            1 this is an invalid extension\r\n\
+            1\r\n\
+            0\r\n\
+            \r\n"
+        );
+
+        let mut req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
+
+        assert!(req.read_to_string().is_err());
+    }
+
+    /// Tests that when a valid extension that contains a digit is appended to
+    /// the chunk size, the chunk is correctly read.
+    #[test]
+    fn test_chunk_size_with_extension() {
+        let mut stream = MockStream::with_input(b"\
+            POST / HTTP/1.1\r\n\
+            Host: example.domain\r\n\
+            Transfer-Encoding: chunked\r\n\
+            \r\n\
+            1;this is an extension with a digit 1\r\n\
+            1\r\n\
+            0\r\n\
+            \r\n"
+        );
+
+        let mut req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
+
+        assert_eq!("1", req.read_to_string().unwrap())
+    }
+
 }
