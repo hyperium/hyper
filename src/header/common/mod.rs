@@ -76,6 +76,9 @@ macro_rules! deref(
     }
 );
 
+/// Exposes the AccessControl* family of headers.
+pub mod access_control;
+
 /// Exposes the Accept header.
 pub mod accept;
 
