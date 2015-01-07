@@ -1,6 +1,4 @@
-#![feature(macro_rules, phase, default_type_params,
-           slicing_syntax, globs, associated_types,
-           old_orphan_check)]
+#![feature(slicing_syntax, old_orphan_check)]
 #![deny(missing_docs)]
 #![deny(warnings)]
 #![experimental]
@@ -131,7 +129,7 @@ extern crate "rustc-serialize" as serialize;
 extern crate time;
 extern crate url;
 extern crate openssl;
-#[phase(plugin,link)] extern crate log;
+#[macro_use] extern crate log;
 #[cfg(test)] extern crate test;
 extern crate "unsafe-any" as uany;
 extern crate cookie;
@@ -166,7 +164,7 @@ macro_rules! inspect(
 );
 
 #[cfg(test)]
-#[macro_escape]
+#[macro_use]
 mod mock;
 
 pub mod client;
