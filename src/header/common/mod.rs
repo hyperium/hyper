@@ -1,7 +1,7 @@
 //! A Collection of Header implementations for common HTTP Headers.
 //!
 //! Several header fields use MIME values for their contents. Keeping with the
-//! strongly-typed theme, the [mime](//seanmonstar.github.io/mime.rs) crate
+//! strongly-typed theme, the [mime](http://seanmonstar.github.io/mime.rs) crate
 //! is used, such as `ContentType(pub Mime)`.
 //!
 //! Hyper aims to provide all common headers. This list shows which headers
@@ -9,22 +9,22 @@
 //!
 //! # Common HTTP/1.1 headers
 //! ## Core header fields
-//! These header fields are defined by [RFC7231]
-//! (//tools.ietf.org/html/rfc7231#section-5.1) and they do not fit into one
-//! of the other categories.
+//! These header fields are defined by [RFC7230]
+//! (http://tools.ietf.org/html/rfc7230#section-8.1) and they do not fit into
+//! one of the other categories.
 //!
-//! * ✔ `Connection`
-//! * ✔ `Content-Length`
+//! * ✔ [`Connection`](struct.Connection.html)
+//! * ✔ [`Content-Length`](struct.ContentLength.html)
 //! * ✘ `Trailer`
-//! * ✔ `Transfer-Encoding`
-//! * ✔ `Upgrade`
+//! * ✔ [`Transfer-Encoding`](struct.TransferEncoding.html)
+//! * ✔ [`Upgrade`](struct.Upgrade.html)
 //! * ✘ `Via`
 //!
 //! ## Request Header Fields
 //! ### Controls
-//! * ✔ `Cache-Control`
+//! * ✔ [`Cache-Control`](struct.CacheControl.html)
 //! * ✘ `Expect`
-//! * ✔ `Host`
+//! * ✔ [`Host`](struct.Host.html)
 //! * ✘ `Max-Forwards`
 //! * ✘ `Pragma`
 //! * ✘ `Range`
@@ -38,20 +38,20 @@
 //!
 //! * ✘ `If-Match`
 //! * ✘ `If-None-Match`
-//! * ✔ `If-Modified-Since`
+//! * ✔ [`If-Modified-Since`](struct.IfModifiedSince.html)
 //! * ✘ `If-Unmodified-Since`
 //! * ✘ `If-Range`
 //!
 //! ### Content Negotiation
-//! * ✔ `Accept`
+//! * ✔ [`Accept`](struct.Accept.html)
 //! * ✘ `Accept-Charset`
-//! * ✔ `Accept-Encoding`
+//! * ✔ [`Accept-Encoding`](struct.AcceptEncoding.html)
 //! * ✘ `Accept-Language`
 //!
 //! ### Authentication Credentials
 //! The two header fields are used for carrying authentication credentials.
 //!
-//! * ✔ `Authorization`
+//! * ✔ [`Authorization`](struct.Authorization.html)
 //! * ✘ `Proxy-Authorization`
 //!
 //! ### Request Context
@@ -61,22 +61,22 @@
 //!
 //! * ✘ `From`
 //! * ✘ `Referer`
-//! * ✔ `User-Agent`
+//! * ✔ [`User-Agent`](struct.UserAgent.html)
 //!
 //! ## Response Header Fields
 //! ### Control Data
 //! * ✘ `Age`
-//! * ✔ `Cache-Control`
-//! * ✔ `Expires`
-//! * ✔ `Date`
-//! * ✔ `Location`
+//! * ✔ [`Cache-Control`](struct.CacheControl.html)
+//! * ✔ [`Expires`](struct.Expires.html)
+//! * ✔ [`Date`](struct.Date.html)
+//! * ✔ [`Location`](struct.Location.html)
 //! * ✘ `Retry-After`
-//! * ✔ `Vary`
+//! * ✔ [`Vary`](enum.Vary.html)
 //! * ✘ `Warning`
 //!
 //! ### Validator Header Fields
-//! * ✔ `ETag`
-//! * ✔ `Last-Modified`
+//! * ✔ [`ETag`](struct.ETag.html)
+//! * ✔ [`Last-Modified`](struct.LastModified.html)
 //!
 //! ### Authentication Challenges
 //! * ✘ `WWW-Authenticate`
@@ -84,11 +84,11 @@
 //!
 //! ### Response Context
 //! * ✘ `Accept-Ranges`
-//! * ✔ `Allow`
-//! * ✔ `Server`
+//! * ✔ [`Allow`](struct.Allow.html)
+//! * ✔ [`Server`](struct.Server.html)
 //!
 //! # Cross-Origin Resource Sharing
-//! [Cross-Origin Resource Sharing](//www.w3.org/TR/cors/) (CORS)
+//! [Cross-Origin Resource Sharing](http://www.w3.org/TR/cors/) (CORS)
 //! defines a mechanism to enable client-side cross-origin requests.
 //!
 //! ## Request Header Fields
@@ -106,7 +106,7 @@
 //!
 //! # Cookies
 //! Cookies are defined in [RFC6265]
-//! (//tools.ietf.org/html/rfc6265).
+//! (http://tools.ietf.org/html/rfc6265).
 //!
 //! * ✔ [`Cookie`](struct.Cookies.html)
 //! * ✔ [`Set-Cookie`](struct.SetCookie.html)
