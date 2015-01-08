@@ -13,8 +13,8 @@ pub use net::{Fresh, Streaming};
 
 use HttpError::HttpIoError;
 use {HttpResult};
+use header::shared;
 use header::common::Connection;
-use header::common::connection::{KeepAlive, Close};
 use net::{NetworkListener, NetworkAcceptor, NetworkStream,
           HttpAcceptor, HttpListener, HttpStream};
 use version::HttpVersion::{Http10, Http11};
@@ -105,8 +105,8 @@ impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L
                                 };
 
                                 keep_alive = match (req.version, req.headers.get::<Connection>()) {
-                                    (Http10, Some(conn)) if !conn.contains(&KeepAlive) => false,
-                                    (Http11, Some(conn)) if conn.contains(&Close)  => false,
+                                    (Http10, Some(conn)) if !conn.contains(&shared::ConnectionOption::KeepAlive) => false,
+                                    (Http11, Some(conn)) if conn.contains(&shared::ConnectionOption::Close)  => false,
                                     _ => true
                                 };
                                 res.version = req.version;
@@ -184,4 +184,3 @@ impl<F> Handler for F where F: Fn(Request, Response<Fresh>), F: Sync + Send {
         (*self)(req, res)
     }
 }
-

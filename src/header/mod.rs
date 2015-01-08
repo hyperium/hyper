@@ -24,9 +24,6 @@ use uany::{UnsafeAnyExt};
 use http::{self, LineEnding};
 use {HttpResult};
 
-pub use self::common::*;
-pub use self::shared::*;
-
 /// Common Headers
 pub mod common;
 

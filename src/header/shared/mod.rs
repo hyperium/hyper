@@ -20,7 +20,10 @@ pub use self::util::{
     from_one_comma_delimited,
     fmt_comma_delimited};
 
+pub use self::connection_option::ConnectionOption;
+
 pub mod encoding;
 pub mod quality_item;
 pub mod time;
 pub mod util;
+mod connection_option;
