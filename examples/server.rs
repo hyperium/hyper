@@ -1,7 +1,5 @@
-#![feature(macro_rules, phase)]
-
 extern crate hyper;
-#[phase(plugin, link)] extern crate log;
+#[macro_use] extern crate log;
 
 use std::io::util::copy;
 use std::io::net::ip::Ipv4Addr;
