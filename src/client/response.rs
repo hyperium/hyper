@@ -4,7 +4,6 @@ use std::io::{BufferedReader, IoResult};
 
 use header;
 use header::common::{ContentLength, TransferEncoding};
-use header::common::transfer_encoding::Encoding::Chunked;
 use net::{NetworkStream, HttpStream};
 use http::{read_status_line, HttpReader, RawStatus};
 use http::HttpReader::{SizedReader, ChunkedReader, EofReader};
@@ -47,7 +46,7 @@ impl Response {
                         debug!("TODO: #2 handle other codings: {}", codings);
                     };
 
-                    if codings.contains(&Chunked) {
+                    if codings.contains(&header::shared::Encoding::Chunked) {
                         ChunkedReader(stream, None)
                     } else {
                         debug!("not chuncked. read till eof");
@@ -101,7 +100,7 @@ mod tests {
 
     use header::Headers;
     use header::common::TransferEncoding;
-    use header::common::transfer_encoding::Encoding;
+    use header::shared::Encoding;
     use http::HttpReader::EofReader;
     use http::RawStatus;
     use mock::MockStream;

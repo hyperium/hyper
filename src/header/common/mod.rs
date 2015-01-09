@@ -1,13 +1,124 @@
 //! A Collection of Header implementations for common HTTP Headers.
 //!
-//! ## Mime
-//!
 //! Several header fields use MIME values for their contents. Keeping with the
 //! strongly-typed theme, the [mime](http://seanmonstar.github.io/mime.rs) crate
 //! is used, such as `ContentType(pub Mime)`.
+//!
+//! Hyper aims to provide all common headers. This list shows which headers
+//! are currently supported, grouped by their usage.
+//!
+//! # Common HTTP/1.1 headers
+//! ## Core header fields
+//! These header fields are defined by [RFC7230]
+//! (http://tools.ietf.org/html/rfc7230#section-8.1) and they do not fit into
+//! one of the other categories.
+//!
+//! * ✔ [`Connection`](struct.Connection.html)
+//! * ✔ [`Content-Length`](struct.ContentLength.html)
+//! * ✘ `Trailer`
+//! * ✔ [`Transfer-Encoding`](struct.TransferEncoding.html)
+//! * ✔ [`Upgrade`](struct.Upgrade.html)
+//! * ✘ `Via`
+//!
+//! ## Request Header Fields
+//! ### Controls
+//! * ✔ [`Cache-Control`](struct.CacheControl.html)
+//! * ✘ `Expect`
+//! * ✔ [`Host`](struct.Host.html)
+//! * ✘ `Max-Forwards`
+//! * ✘ `Pragma`
+//! * ✘ `Range`
+//! * ✘ `TE`
+//!
+//! #### Conditionals
+//! The HTTP conditional request header fields allow a client to place a
+//! precondition on the state of the target resource, so that
+//! the action corresponding to the method semantics will not be applied
+//! if the precondition evaluates to false.
+//!
+//! * ✘ `If-Match`
+//! * ✘ `If-None-Match`
+//! * ✔ [`If-Modified-Since`](struct.IfModifiedSince.html)
+//! * ✘ `If-Unmodified-Since`
+//! * ✘ `If-Range`
+//!
+//! ### Content Negotiation
+//! * ✔ [`Accept`](struct.Accept.html)
+//! * ✘ `Accept-Charset`
+//! * ✔ [`Accept-Encoding`](struct.AcceptEncoding.html)
+//! * ✘ `Accept-Language`
+//!
+//! ### Authentication Credentials
+//! The two header fields are used for carrying authentication credentials.
+//!
+//! * ✔ [`Authorization`](struct.Authorization.html)
+//! * ✘ `Proxy-Authorization`
+//!
+//! ### Request Context
+//! Request context fields provide additional information about the request
+//! context, including information about the user, user agent, and resource
+//! behind the request.
+//!
+//! * ✘ `From`
+//! * ✘ `Referer`
+//! * ✔ [`User-Agent`](struct.UserAgent.html)
+//!
+//! ## Response Header Fields
+//! ### Control Data
+//! * ✘ `Age`
+//! * ✔ [`Cache-Control`](struct.CacheControl.html)
+//! * ✔ [`Expires`](struct.Expires.html)
+//! * ✔ [`Date`](struct.Date.html)
+//! * ✔ [`Location`](struct.Location.html)
+//! * ✘ `Retry-After`
+//! * ✔ [`Vary`](enum.Vary.html)
+//! * ✘ `Warning`
+//!
+//! ### Validator Header Fields
+//! * ✔ [`ETag`](struct.ETag.html)
+//! * ✔ [`Last-Modified`](struct.LastModified.html)
+//!
+//! ### Authentication Challenges
+//! * ✘ `WWW-Authenticate`
+//! * ✘ `Proxy-Authenticate`
+//!
+//! ### Response Context
+//! * ✘ `Accept-Ranges`
+//! * ✔ [`Allow`](struct.Allow.html)
+//! * ✔ [`Server`](struct.Server.html)
+//!
+//! # Cross-Origin Resource Sharing
+//! [Cross-Origin Resource Sharing](http://www.w3.org/TR/cors/) (CORS)
+//! defines a mechanism to enable client-side cross-origin requests.
+//!
+//! ## Request Header Fields
+//! * ✘ `Origin`
+//! * ✔ [`Access-Control-Request-Method`](struct.AccessControlRequestMethod.html)
+//! * ✔ [`Access-Control-Request-Headers`](struct.AccessControlRequestHeaders.html)
+//!
+//! ## Response Header Fields
+//! * ✔ [`Access-Control-Allow-Origin`](enum.AccessControlAllowOrigin.html)
+//! * ✘ `Access-Control-Allow-Credentials`
+//! * ✘ `Access-Control-Expose-Headers`
+//! * ✔ [`Access-Control-Max-Age`](struct.AccessControlMaxAge.html)
+//! * ✔ [`Access-Control-Allow-Methods`](struct.AccessControlAllowMethods.html)
+//! * ✔ [`Access-Control-Allow-Headers`](struct.AccessControlAllowHeaders.html)
+//!
+//! # Cookies
+//! Cookies are defined in [RFC6265]
+//! (http://tools.ietf.org/html/rfc6265).
+//!
+//! * ✔ [`Cookie`](struct.Cookies.html)
+//! * ✔ [`Set-Cookie`](struct.SetCookie.html)
 
 pub use self::accept::Accept;
 pub use self::accept_encoding::AcceptEncoding;
+pub use self::access_control::AccessControlAllowHeaders;
+pub use self::access_control::AccessControlAllowMethods;
+pub use self::access_control::AccessControlAllowOrigin;
+pub use self::access_control::AccessControlMaxAge;
+pub use self::access_control::AccessControlRequestHeaders;
+pub use self::access_control::AccessControlRequestMethod;
 pub use self::allow::Allow;
 pub use self::authorization::Authorization;
 pub use self::cache_control::CacheControl;
@@ -76,71 +187,26 @@ macro_rules! deref(
     }
 );
 
-/// Exposes the AccessControl* family of headers.
-pub mod access_control;
-
-/// Exposes the Accept header.
-pub mod accept;
-
-/// Exposes the AcceptEncoding header.
-pub mod accept_encoding;
-
-/// Exposes the Allow header.
-pub mod allow;
-
-/// Exposes the Authorization header.
-pub mod authorization;
-
-/// Exposes the CacheControl header.
-pub mod cache_control;
-
-/// Exposes the Cookie header.
-pub mod cookie;
-
-/// Exposes the Connection header.
-pub mod connection;
-
-/// Exposes the ContentLength header.
-pub mod content_length;
-
-/// Exposes the ContentType header.
-pub mod content_type;
-
-/// Exposes the Date header.
-pub mod date;
-
-/// Exposes the Etag header.
-pub mod etag;
-
-/// Exposes the Expires header.
-pub mod expires;
-
-/// Exposes the Host header.
-pub mod host;
-
-/// Exposes the LastModified header.
-pub mod last_modified;
-
-/// Exposes the If-Modified-Since header.
-pub mod if_modified_since;
-
-/// Exposes the Location header.
-pub mod location;
-
-/// Exposes the Server header.
-pub mod server;
-
-/// Exposes the Set-Cookie header.
-pub mod set_cookie;
-
-/// Exposes the TransferEncoding header.
-pub mod transfer_encoding;
-
-/// Exposes the Upgrade header.
-pub mod upgrade;
-
-/// Exposes the UserAgent header.
-pub mod user_agent;
-
-/// Exposes the Vary header.
-pub mod vary;
+mod accept;
+mod accept_encoding;
+mod access_control;
+mod allow;
+mod authorization;
+mod cache_control;
+mod cookie;
+mod connection;
+mod content_length;
+mod content_type;
+mod date;
+mod etag;
+mod expires;
+mod host;
+mod last_modified;
+mod if_modified_since;
+mod location;
+mod server;
+mod set_cookie;
+mod transfer_encoding;
+mod upgrade;
+mod user_agent;
+mod vary;

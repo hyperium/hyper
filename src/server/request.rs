@@ -76,7 +76,7 @@ impl<'a> Reader for Request<'a> {
 #[cfg(test)]
 mod tests {
     use header::common::{Host, TransferEncoding};
-    use header::common::transfer_encoding::Encoding;
+    use header::shared::Encoding;
     use mock::MockStream;
     use super::Request;
 

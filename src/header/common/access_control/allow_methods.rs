@@ -4,8 +4,16 @@ use header;
 use header::shared;
 use method;
 
-#[derive(Clone)]
-struct AccessControlAllowMethods(pub Vec<method::Method>);
+/// The `Access-Control-Allow-Methods` response header,
+/// part of [CORS](http://www.w3.org/TR/cors/).
+///
+/// > The `Access-Control-Allow-Methods` header indicates, as part of the
+/// > response to a preflight request, which methods can be used during the
+/// > actual request.
+///
+/// Spec: www.w3.org/TR/cors/#access-control-allow-methods-response-header
+#[derive(Clone, PartialEq, Show)]
+pub struct AccessControlAllowMethods(pub Vec<method::Method>);
 
 impl header::Header for AccessControlAllowMethods {
     #[inline]

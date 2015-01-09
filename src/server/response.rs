@@ -91,7 +91,7 @@ impl<'a> Response<'a, Fresh> {
             let encodings = match self.headers.get_mut::<common::TransferEncoding>() {
                 Some(&common::TransferEncoding(ref mut encodings)) => {
                     //TODO: check if chunked is already in encodings. use HashSet?
-                    encodings.push(common::transfer_encoding::Encoding::Chunked);
+                    encodings.push(header::shared::Encoding::Chunked);
                     false
                 },
                 None => true
@@ -99,7 +99,7 @@ impl<'a> Response<'a, Fresh> {
 
             if encodings {
                 self.headers.set::<common::TransferEncoding>(
-                    common::TransferEncoding(vec![common::transfer_encoding::Encoding::Chunked]))
+                    common::TransferEncoding(vec![header::shared::Encoding::Chunked]))
             }
         }
 
@@ -151,4 +151,3 @@ impl<'a> Writer for Response<'a, Streaming> {
         self.body.flush()
     }
 }
-

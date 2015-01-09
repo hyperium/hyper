@@ -5,6 +5,7 @@ use url::Url;
 
 use method;
 use method::Method::{Get, Post, Delete, Put, Patch, Head, Options};
+use header;
 use header::Headers;
 use header::common::{self, Host};
 use net::{NetworkStream, NetworkConnector, HttpConnector, Fresh, Streaming};
@@ -141,7 +142,7 @@ impl Request<Fresh> {
                     let encodings = match self.headers.get_mut::<common::TransferEncoding>() {
                         Some(&common::TransferEncoding(ref mut encodings)) => {
                             //TODO: check if chunked is already in encodings. use HashSet?
-                            encodings.push(common::transfer_encoding::Encoding::Chunked);
+                            encodings.push(header::shared::Encoding::Chunked);
                             false
                         },
                         None => true
@@ -149,7 +150,7 @@ impl Request<Fresh> {
 
                     if encodings {
                         self.headers.set::<common::TransferEncoding>(
-                            common::TransferEncoding(vec![common::transfer_encoding::Encoding::Chunked]))
+                            common::TransferEncoding(vec![header::shared::Encoding::Chunked]))
                     }
                 }
 

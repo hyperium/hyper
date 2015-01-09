@@ -3,8 +3,15 @@ use std::fmt::{self};
 use header;
 use header::shared;
 
-#[derive(Clone)]
-struct AccessControlRequestHeaders(pub Vec<String>);
+/// The `Access-Control-Request-Headers` request header,
+/// part of [CORS](http://www.w3.org/TR/cors/).
+///
+/// > The `Access-Control-Request-Headers` header indicates which headers will
+/// > be used in the actual request as part of the preflight request.
+///
+/// Spec: www.w3.org/TR/cors/#access-control-request-headers-request-header
+#[derive(Clone, PartialEq, Show)]
+pub struct AccessControlRequestHeaders(pub Vec<String>);
 
 impl header::Header for AccessControlRequestHeaders {
     #[inline]
