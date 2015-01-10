@@ -1,5 +1,5 @@
 use header::{Header, HeaderFormat};
-use std::fmt::{self, Show};
+use std::fmt;
 use std::str::from_utf8;
 
 use cookie::Cookie;
@@ -54,7 +54,7 @@ impl HeaderFormat for SetCookie {
             if i != 0 {
                 try!(f.write_str("\r\nSet-Cookie: "));
             }
-            try!(cookie.fmt(f));
+            try!(write!(f, "{}", cookie));
         }
         Ok(())
     }

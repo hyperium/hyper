@@ -1,4 +1,4 @@
-use std::fmt::{self, Show};
+use std::fmt;
 
 use header::{Header, HeaderFormat};
 use header::shared::util::from_one_raw_str;
@@ -24,7 +24,7 @@ impl Header for ContentLength {
 impl HeaderFormat for ContentLength {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let ContentLength(ref value) = *self;
-        value.fmt(fmt)
+        write!(fmt, "{}", value)
     }
 }
 

@@ -1,5 +1,5 @@
 use header::{Header, HeaderFormat};
-use std::fmt::{self, Show};
+use std::fmt;
 use std::str::from_utf8;
 
 use cookie::Cookie;
@@ -58,7 +58,7 @@ impl HeaderFormat for Cookies {
         for (i, cookie) in cookies.iter().enumerate() {
             try!(write!(fmt, "{}", cookie.pair()));
 			if i < last {
-                try!("; ".fmt(fmt));
+                try!(fmt.write_str("; "));
             }
         }
         Ok(())

@@ -1,4 +1,4 @@
-use std::fmt::{self, Show};
+use std::fmt;
 use std::str::{FromStr, from_utf8};
 use std::ops::{Deref, DerefMut};
 use serialize::base64::{ToBase64, FromBase64, Standard, Config, Newline};
@@ -70,7 +70,7 @@ impl Scheme for String {
     }
 
     fn fmt_scheme(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.fmt(f)
+		write!(f, "{}", self)
     }
 }
 
@@ -98,12 +98,12 @@ impl Scheme for Basic {
         if let Some(ref pass) = self.password {
             text.push_str(&pass[]);
         }
-        text.as_bytes().to_base64(Config {
+        write!(f, "{}", text.as_bytes().to_base64(Config {
             char_set: Standard,
             newline: Newline::CRLF,
             pad: true,
             line_length: None
-        }).fmt(f)
+        }))
     }
 }
 
