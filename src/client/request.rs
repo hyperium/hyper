@@ -46,7 +46,10 @@ impl Request<Fresh> {
     }
 
     /// Create a new client request with a specific underlying NetworkStream.
-    pub fn with_connector<C: NetworkConnector<S>, S: NetworkStream>(method: method::Method, url: Url, connector: &mut C) -> HttpResult<Request<Fresh>> {
+    pub fn with_connector<S, C>(method: method::Method, url: Url, connector: &mut C) -> HttpResult<Request<Fresh>>
+        where S: NetworkStream,
+              C: NetworkConnector<Stream=S>,
+    {
         debug!("{:?} {:?}", method, url);
         let (host, port) = try!(get_host_and_port(&url));
 
