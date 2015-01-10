@@ -13,10 +13,6 @@ use cookie::CookieJar;
 #[derive(Clone, PartialEq, Show)]
 pub struct SetCookie(pub Vec<Cookie>);
 
-//TODO: remove when fixed in libstd
-unsafe impl Send for SetCookie {}
-unsafe impl Sync for SetCookie {}
-
 deref!(SetCookie => Vec<Cookie>);
 
 impl Header for SetCookie {

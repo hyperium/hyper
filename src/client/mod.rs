@@ -30,7 +30,7 @@ use openssl::ssl::VerifyCallback;
 use header::{Headers, Header, HeaderFormat};
 use header::common::{ContentLength, Location};
 use method::Method;
-use net::{NetworkConnector, NetworkStream, HttpConnector};
+use net::{NetworkConnector, HttpConnector};
 use status::StatusClass::Redirection;
 use {Url, Port, HttpResult};
 use HttpError::HttpUriError;
@@ -63,8 +63,7 @@ impl Client<HttpConnector> {
 
 }
 
-#[old_impl_check]
-impl<C: NetworkConnector<S>, S: NetworkStream> Client<C> {
+impl<C: NetworkConnector> Client<C> {
 
     /// Create a new client with a specific connector.
     pub fn with_connector(connector: C) -> Client<C> {
@@ -80,33 +79,33 @@ impl<C: NetworkConnector<S>, S: NetworkStream> Client<C> {
     }
 
     /// Execute a Get request.
-    pub fn get<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U, C, S> {
+    pub fn get<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U, C> {
         self.request(Method::Get, url)
     }
 
     /// Execute a Head request.
-    pub fn head<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U, C, S> {
+    pub fn head<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U, C> {
         self.request(Method::Head, url)
     }
 
     /// Execute a Post request.
-    pub fn post<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U, C, S> {
+    pub fn post<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U, C> {
         self.request(Method::Post, url)
     }
 
     /// Execute a Put request.
-    pub fn put<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U, C, S> {
+    pub fn put<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U, C> {
         self.request(Method::Put, url)
     }
 
     /// Execute a Delete request.
-    pub fn delete<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U, C, S> {
+    pub fn delete<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U, C> {
         self.request(Method::Delete, url)
     }
 
 
     /// Build a new request using this Client.
-    pub fn request<U: IntoUrl>(&mut self, method: Method, url: U) -> RequestBuilder<U, C, S> {
+    pub fn request<U: IntoUrl>(&mut self, method: Method, url: U) -> RequestBuilder<U, C> {
         RequestBuilder {
             client: self,
             method: method,
@@ -121,7 +120,7 @@ impl<C: NetworkConnector<S>, S: NetworkStream> Client<C> {
 ///
 /// One of these will be built for you if you use one of the convenience
 /// methods, such as `get()`, `post()`, etc.
-pub struct RequestBuilder<'a, U: IntoUrl, C: NetworkConnector<S> + 'a, S: NetworkStream> {
+pub struct RequestBuilder<'a, U: IntoUrl, C: NetworkConnector + 'a> {
     client: &'a mut Client<C>,
     url: U,
     headers: Option<Headers>,
@@ -129,22 +128,22 @@ pub struct RequestBuilder<'a, U: IntoUrl, C: NetworkConnector<S> + 'a, S: Networ
     body: Option<Body<'a>>,
 }
 
-impl<'a, U: IntoUrl, C: NetworkConnector<S>, S: NetworkStream> RequestBuilder<'a, U, C, S> {
+impl<'a, U: IntoUrl, C: NetworkConnector> RequestBuilder<'a, U, C> {
 
     /// Set a request body to be sent.
-    pub fn body<B: IntoBody<'a>>(mut self, body: B) -> RequestBuilder<'a, U, C, S> {
+    pub fn body<B: IntoBody<'a>>(mut self, body: B) -> RequestBuilder<'a, U, C> {
         self.body = Some(body.into_body());
         self
     }
 
     /// Add additional headers to the request.
-    pub fn headers(mut self, headers: Headers) -> RequestBuilder<'a, U, C, S> {
+    pub fn headers(mut self, headers: Headers) -> RequestBuilder<'a, U, C> {
         self.headers = Some(headers);
         self
     }
 
     /// Add an individual new header to the request.
-    pub fn header<H: Header + HeaderFormat>(mut self, header: H) -> RequestBuilder<'a, U, C, S> {
+    pub fn header<H: Header + HeaderFormat>(mut self, header: H) -> RequestBuilder<'a, U, C> {
         {
             let mut headers = match self.headers {
                 Some(ref mut h) => h,
@@ -243,15 +242,16 @@ pub enum Body<'a> {
     /// A Reader does not necessarily know it's size, so it is chunked.
     ChunkedBody(&'a mut (Reader + 'a)),
     /// For Readers that can know their size, like a `File`.
-    SizedBody(&'a mut (Reader + 'a), usize),
+    SizedBody(&'a mut (Reader + 'a), u64),
     /// A String has a size, and uses Content-Length.
     BufBody(&'a [u8] , usize),
 }
 
 impl<'a> Body<'a> {
-    fn size(&self) -> Option<usize> {
+    fn size(&self) -> Option<u64> {
         match *self {
-            Body::SizedBody(_, len) | Body::BufBody(_, len) => Some(len),
+            Body::SizedBody(_, len) => Some(len),
+            Body::BufBody(_, len) => Some(len as u64),
             _ => None
         }
     }

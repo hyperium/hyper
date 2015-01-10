@@ -15,8 +15,6 @@ use openssl::ssl::SslVerifyMode::SslVerifyPeer;
 use openssl::ssl::SslMethod::Sslv23;
 use openssl::ssl::error::{SslError, StreamError, OpenSslErrors, SslSessionClosed};
 
-use self::HttpStream::{Http, Https};
-
 /// The write-status indicating headers have not been written.
 #[allow(missing_copy_implementations)]
 pub struct Fresh;
@@ -26,28 +24,48 @@ pub struct Fresh;
 pub struct Streaming;
 
 /// An abstraction to listen for connections on a certain port.
-pub trait NetworkListener<S: NetworkStream, A: NetworkAcceptor<S>>: Listener<S, A> {
-    /// Bind to a socket.
-    ///
-    /// Note: This does not start listening for connections. You must call
-    /// `listen()` to do that.
-    fn bind<To: ToSocketAddr>(addr: To) -> IoResult<Self>;
-
-    /// Get the address this Listener ended up listening on.
-    fn socket_name(&mut self) -> IoResult<SocketAddr>;
+pub trait NetworkListener {
+    type Acceptor: NetworkAcceptor;
+    /// Listens on a socket.
+    fn listen<To: ToSocketAddr>(&mut self, addr: To) -> IoResult<Self::Acceptor>;
 }
 
 /// An abstraction to receive `NetworkStream`s.
-pub trait NetworkAcceptor<S: NetworkStream>: Acceptor<S> + Clone + Send {
+pub trait NetworkAcceptor: Clone + Send {
+    type Stream: NetworkStream + Send + Clone;
+
+    /// Returns an iterator of streams.
+    fn accept(&mut self) -> IoResult<Self::Stream>;
+
+    /// Get the address this Listener ended up listening on.
+    fn socket_name(&self) -> IoResult<SocketAddr>;
+
     /// Closes the Acceptor, so no more incoming connections will be handled.
     fn close(&mut self) -> IoResult<()>;
+
+    /// Returns an iterator over incoming connections.
+    fn incoming(&mut self) -> NetworkConnections<Self> {
+        NetworkConnections(self)
+    }
 }
+
+/// An iterator wrapper over a NetworkAcceptor.
+pub struct NetworkConnections<'a, N: NetworkAcceptor>(&'a mut N);
+
+impl<'a, N: NetworkAcceptor> Iterator for NetworkConnections<'a, N> {
+    type Item = IoResult<N::Stream>;
+    fn next(&mut self) -> Option<IoResult<N::Stream>> {
+        Some(self.0.accept())
+    }
+}
+
 
 /// An abstraction over streams that a Server can utilize.
 pub trait NetworkStream: Stream + Any + StreamClone + Send {
     /// Get the remote address of the underlying connection.
     fn peer_name(&mut self) -> IoResult<SocketAddr>;
 }
+
 
 #[doc(hidden)]
 pub trait StreamClone {
@@ -57,14 +75,15 @@ pub trait StreamClone {
 impl<T: NetworkStream + Send + Clone> StreamClone for T {
     #[inline]
     fn clone_box(&self) -> Box<NetworkStream + Send> {
-        box self.clone()
+        Box::new(self.clone())
     }
 }
 
 /// A connector creates a NetworkStream.
-pub trait NetworkConnector<S: NetworkStream> {
+pub trait NetworkConnector {
+    type Stream: NetworkStream + Send;
     /// Connect to a remote address.
-    fn connect(&mut self, host: &str, port: Port, scheme: &str) -> IoResult<S>;
+    fn connect(&mut self, host: &str, port: Port, scheme: &str) -> IoResult<Self::Stream>;
 }
 
 impl fmt::Show for Box<NetworkStream + Send> {
@@ -161,50 +180,62 @@ impl NetworkStream {
 }
 
 /// A `NetworkListener` for `HttpStream`s.
-pub struct HttpListener {
-    inner: TcpListener
+#[allow(missing_copy_implementations)]
+pub enum HttpListener {
+    /// Http variant.
+    Http,
+    /// Https variant.
+    Https,
 }
 
-impl Listener<HttpStream, HttpAcceptor> for HttpListener {
-    #[inline]
-    fn listen(self) -> IoResult<HttpAcceptor> {
-        Ok(HttpAcceptor {
-            inner: try!(self.inner.listen())
-        })
-    }
-}
-
-impl NetworkListener<HttpStream, HttpAcceptor> for HttpListener {
-    #[inline]
-    fn bind<To: ToSocketAddr>(addr: To) -> IoResult<HttpListener> {
-        Ok(HttpListener {
-            inner: try!(TcpListener::bind(addr))
-        })
-    }
+impl NetworkListener for HttpListener {
+    type Acceptor = HttpAcceptor;
 
     #[inline]
-    fn socket_name(&mut self) -> IoResult<SocketAddr> {
-        self.inner.socket_name()
+    fn listen<To: ToSocketAddr>(&mut self, addr: To) -> IoResult<HttpAcceptor> {
+        let mut tcp = try!(TcpListener::bind(addr));
+        let addr = try!(tcp.socket_name());
+        Ok(match *self {
+            HttpListener::Http => HttpAcceptor::Http(try!(tcp.listen()), addr),
+            HttpListener::Https => unimplemented!(),
+        })
     }
 }
 
 /// A `NetworkAcceptor` for `HttpStream`s.
 #[derive(Clone)]
-pub struct HttpAcceptor {
-    inner: TcpAcceptor
+pub enum HttpAcceptor {
+    /// Http variant.
+    Http(TcpAcceptor, SocketAddr),
+    /// Https variant.
+    Https(TcpAcceptor, SocketAddr),
 }
 
-impl Acceptor<HttpStream> for HttpAcceptor {
+impl NetworkAcceptor for HttpAcceptor {
+    type Stream = HttpStream;
+
     #[inline]
     fn accept(&mut self) -> IoResult<HttpStream> {
-        Ok(Http(try!(self.inner.accept())))
+        Ok(match *self {
+            HttpAcceptor::Http(ref mut tcp, _) => HttpStream::Http(try!(tcp.accept())),
+            HttpAcceptor::Https(ref mut _tcp, _) => unimplemented!(),
+        })
     }
-}
 
-impl NetworkAcceptor<HttpStream> for HttpAcceptor {
     #[inline]
     fn close(&mut self) -> IoResult<()> {
-        self.inner.close_accept()
+        match *self {
+            HttpAcceptor::Http(ref mut tcp, _) => tcp.close_accept(),
+            HttpAcceptor::Https(ref mut tcp, _) => tcp.close_accept(),
+        }
+    }
+
+    #[inline]
+    fn socket_name(&self) -> IoResult<SocketAddr> {
+        match *self {
+            HttpAcceptor::Http(_, addr) => Ok(addr),
+            HttpAcceptor::Https(_, addr) => Ok(addr),
+        }
     }
 }
 
@@ -221,8 +252,8 @@ impl Reader for HttpStream {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         match *self {
-            Http(ref mut inner) => inner.read(buf),
-            Https(ref mut inner) => inner.read(buf)
+            HttpStream::Http(ref mut inner) => inner.read(buf),
+            HttpStream::Https(ref mut inner) => inner.read(buf)
         }
     }
 }
@@ -231,15 +262,15 @@ impl Writer for HttpStream {
     #[inline]
     fn write(&mut self, msg: &[u8]) -> IoResult<()> {
         match *self {
-            Http(ref mut inner) => inner.write(msg),
-            Https(ref mut inner) => inner.write(msg)
+            HttpStream::Http(ref mut inner) => inner.write(msg),
+            HttpStream::Https(ref mut inner) => inner.write(msg)
         }
     }
     #[inline]
     fn flush(&mut self) -> IoResult<()> {
         match *self {
-            Http(ref mut inner) => inner.flush(),
-            Https(ref mut inner) => inner.flush(),
+            HttpStream::Http(ref mut inner) => inner.flush(),
+            HttpStream::Https(ref mut inner) => inner.flush(),
         }
     }
 }
@@ -247,8 +278,8 @@ impl Writer for HttpStream {
 impl NetworkStream for HttpStream {
     fn peer_name(&mut self) -> IoResult<SocketAddr> {
         match *self {
-            Http(ref mut inner) => inner.peer_name(),
-            Https(ref mut inner) => inner.get_mut().peer_name()
+            HttpStream::Http(ref mut inner) => inner.peer_name(),
+            HttpStream::Https(ref mut inner) => inner.get_mut().peer_name()
         }
     }
 }
@@ -257,13 +288,15 @@ impl NetworkStream for HttpStream {
 #[allow(missing_copy_implementations)]
 pub struct HttpConnector(pub Option<VerifyCallback>);
 
-impl NetworkConnector<HttpStream> for HttpConnector {
+impl NetworkConnector for HttpConnector {
+    type Stream = HttpStream;
+
     fn connect(&mut self, host: &str, port: Port, scheme: &str) -> IoResult<HttpStream> {
         let addr = (host, port);
         match scheme {
             "http" => {
                 debug!("http scheme");
-                Ok(Http(try!(TcpStream::connect(addr))))
+                Ok(HttpStream::Http(try!(TcpStream::connect(addr))))
             },
             "https" => {
                 debug!("https scheme");
@@ -273,7 +306,7 @@ impl NetworkConnector<HttpStream> for HttpConnector {
                 let ssl = try!(Ssl::new(&context).map_err(lift_ssl_error));
                 try!(ssl.set_hostname(host).map_err(lift_ssl_error));
                 let stream = try!(SslStream::new(&context, stream).map_err(lift_ssl_error));
-                Ok(Https(stream))
+                Ok(HttpStream::Https(stream))
             },
             _ => {
                 Err(IoError {
@@ -307,7 +340,6 @@ fn lift_ssl_error(ssl: SslError) -> IoError {
 
 #[cfg(test)]
 mod tests {
-    use std::boxed::BoxAny;
     use uany::UnsafeAnyExt;
 
     use mock::MockStream;

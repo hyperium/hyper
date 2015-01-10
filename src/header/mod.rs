@@ -5,24 +5,23 @@
 //! must implement the `Header` trait from this module. Several common headers
 //! are already provided, such as `Host`, `ContentType`, `UserAgent`, and others.
 use std::any::Any;
-use std::ascii::AsciiExt;
 use std::borrow::Cow::{Borrowed, Owned};
-use std::fmt::{self, Show};
+use std::fmt;
 use std::intrinsics::TypeId;
 use std::raw::TraitObject;
-use std::str::{FromStr, from_utf8};
+use std::str::from_utf8;
 use std::string::CowString;
 use std::collections::HashMap;
 use std::collections::hash_map::{Iter, Entry};
 use std::iter::FromIterator;
 use std::borrow::IntoCow;
-use std::{hash, mem, raw};
+use std::{mem, raw};
 
 use mucell::MuCell;
 use uany::{UnsafeAnyExt};
+use unicase::UniCase;
 
-use http::{self, LineEnding};
-use {HttpResult};
+use {http, HttpResult};
 
 pub use self::common::*;
 pub use self::shared::*;
@@ -31,6 +30,8 @@ pub use self::shared::*;
 pub mod common;
 
 pub mod shared;
+
+type HeaderName = UniCase<CowString<'static>>;
 
 /// A trait for any object that will represent a header field and value.
 ///
@@ -73,7 +74,7 @@ pub trait HeaderClone {
 impl<T: HeaderFormat + Send + Sync + Clone> HeaderClone for T {
     #[inline]
     fn clone_box(&self) -> Box<HeaderFormat + Sync + Send> {
-        box self.clone()
+        Box::new(self.clone())
     }
 }
 
@@ -116,7 +117,7 @@ fn header_name<T: Header>() -> &'static str {
 /// A map of header fields on requests and responses.
 #[derive(Clone)]
 pub struct Headers {
-    data: HashMap<CaseInsensitive, MuCell<Item>>
+    data: HashMap<HeaderName, MuCell<Item>>
 }
 
 impl Headers {
@@ -135,7 +136,7 @@ impl Headers {
             match try!(http::read_header(rdr)) {
                 Some((name, value)) => {
                     debug!("raw header: {:?}={:?}", name, &value[]);
-                    let name = CaseInsensitive(Owned(name));
+                    let name = UniCase(Owned(name));
                     let mut item = match headers.data.entry(name) {
                         Entry::Vacant(entry) => entry.insert(MuCell::new(Item::raw(vec![]))),
                         Entry::Occupied(entry) => entry.into_mut()
@@ -157,8 +158,8 @@ impl Headers {
     ///
     /// The field is determined by the type of the value being set.
     pub fn set<H: Header + HeaderFormat>(&mut self, value: H) {
-        self.data.insert(CaseInsensitive(Borrowed(header_name::<H>())),
-                         MuCell::new(Item::typed(box value as Box<HeaderFormat + Send + Sync>)));
+        self.data.insert(UniCase(Borrowed(header_name::<H>())),
+                         MuCell::new(Item::typed(Box::new(value))));
     }
 
     /// Access the raw value of a header.
@@ -175,7 +176,7 @@ impl Headers {
     pub fn get_raw(&self, name: &str) -> Option<&[Vec<u8>]> {
         self.data
             // FIXME(reem): Find a better way to do this lookup without find_equiv.
-            .get(&CaseInsensitive(Borrowed(unsafe { mem::transmute::<&str, &str>(name) })))
+            .get(&UniCase(Borrowed(unsafe { mem::transmute::<&str, &str>(name) })))
             .and_then(|item| {
                 if let Some(ref raw) = item.borrow().raw {
                     return unsafe { mem::transmute(Some(&raw[])) };
@@ -203,7 +204,7 @@ impl Headers {
     /// headers.set_raw("content-length", vec![b"5".to_vec()]);
     /// ```
     pub fn set_raw<K: IntoCow<'static, String, str>>(&mut self, name: K, value: Vec<Vec<u8>>) {
-        self.data.insert(CaseInsensitive(name.into_cow()), MuCell::new(Item::raw(value)));
+        self.data.insert(UniCase(name.into_cow()), MuCell::new(Item::raw(value)));
     }
 
     /// Get a reference to the header field's value, if it exists.
@@ -223,11 +224,11 @@ impl Headers {
     }
 
     fn get_or_parse<H: Header + HeaderFormat>(&self) -> Option<&MuCell<Item>> {
-        self.data.get(&CaseInsensitive(Borrowed(header_name::<H>()))).and_then(get_or_parse::<H>)
+        self.data.get(&UniCase(Borrowed(header_name::<H>()))).and_then(get_or_parse::<H>)
     }
 
     fn get_or_parse_mut<H: Header + HeaderFormat>(&mut self) -> Option<&mut MuCell<Item>> {
-        self.data.get_mut(&CaseInsensitive(Borrowed(header_name::<H>()))).and_then(get_or_parse_mut::<H>)
+        self.data.get_mut(&UniCase(Borrowed(header_name::<H>()))).and_then(get_or_parse_mut::<H>)
     }
 
     /// Returns a boolean of whether a certain header is in the map.
@@ -241,13 +242,13 @@ impl Headers {
     /// let has_type = headers.has::<ContentType>();
     /// ```
     pub fn has<H: Header + HeaderFormat>(&self) -> bool {
-        self.data.contains_key(&CaseInsensitive(Borrowed(header_name::<H>())))
+        self.data.contains_key(&UniCase(Borrowed(header_name::<H>())))
     }
 
     /// Removes a header from the map, if one existed.
     /// Returns true if a header has been removed.
     pub fn remove<H: Header + HeaderFormat>(&mut self) -> bool {
-        self.data.remove(&CaseInsensitive(Borrowed(Header::header_name(None::<H>)))).is_some()
+        self.data.remove(&UniCase(Borrowed(Header::header_name(None::<H>)))).is_some()
     }
 
     /// Returns an iterator over the header fields.
@@ -269,9 +270,9 @@ impl Headers {
 }
 
 impl fmt::String for Headers {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+   fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         for header in self.iter() {
-            try!(write!(fmt, "{}{}", header, LineEnding));
+            try!(write!(fmt, "{}\r\n", header));
         }
         Ok(())
     }
@@ -279,13 +280,18 @@ impl fmt::String for Headers {
 
 impl fmt::Show for Headers {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        self.to_string().fmt(fmt)
+        try!(fmt.write_str("Headers {{ "));
+        for header in self.iter() {
+            try!(write!(fmt, "{:?}, ", header));
+        }
+        try!(fmt.write_str("}}"));
+        Ok(())
     }
 }
 
 /// An `Iterator` over the fields in a `Headers` map.
 pub struct HeadersItems<'a> {
-    inner: Iter<'a, CaseInsensitive, MuCell<Item>>
+    inner: Iter<'a, HeaderName, MuCell<Item>>
 }
 
 impl<'a> Iterator for HeadersItems<'a> {
@@ -300,13 +306,13 @@ impl<'a> Iterator for HeadersItems<'a> {
 }
 
 /// Returned with the `HeadersItems` iterator.
-pub struct HeaderView<'a>(&'a CaseInsensitive, &'a MuCell<Item>);
+pub struct HeaderView<'a>(&'a HeaderName, &'a MuCell<Item>);
 
 impl<'a> HeaderView<'a> {
     /// Check if a HeaderView is a certain Header.
     #[inline]
     pub fn is<H: Header>(&self) -> bool {
-        CaseInsensitive(header_name::<H>().into_cow()) == *self.0
+        UniCase(header_name::<H>().into_cow()) == *self.0
     }
 
     /// Get the Header name as a slice.
@@ -454,7 +460,7 @@ impl fmt::String for Item {
                         match from_utf8(&part[]) {
                             Ok(s) => try!(fmt.write_str(s)),
                             Err(e) => {
-                                error!("raw header value is not utf8. header={:?}, error={:?}", &part[], e);
+                                error!("raw header value is not utf8. header={:?}, error={:?}", part, e);
                                 return Err(fmt::Error);
                             }
                         }
@@ -467,73 +473,16 @@ impl fmt::String for Item {
     }
 }
 
-impl<'a> fmt::Show for Item {
+
+impl fmt::Show for Box<HeaderFormat + Send + Sync> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        self.to_string().fmt(fmt)
+        (**self).fmt_header(fmt)
     }
 }
 
 impl fmt::String for Box<HeaderFormat + Send + Sync> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         (**self).fmt_header(fmt)
-    }
-}
-
-impl fmt::Show for Box<HeaderFormat + Send + Sync> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        self.to_string().fmt(fmt)
-    }
-}
-
-/// Case-insensitive string.
-pub struct CaseInsensitive(CowString<'static>);
-
-impl FromStr for CaseInsensitive {
-    fn from_str(s: &str) -> Option<CaseInsensitive> {
-        Some(CaseInsensitive(Owned(s.to_string())))
-    }
-}
-
-impl Clone for CaseInsensitive {
-    fn clone(&self) -> CaseInsensitive {
-        CaseInsensitive(self.0.clone().into_cow())
-    }
-}
-
-impl Str for CaseInsensitive {
-    fn as_slice(&self) -> &str {
-        let CaseInsensitive(ref s) = *self;
-        s.as_slice()
-    }
-
-}
-
-impl fmt::String for CaseInsensitive {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "{}", self.as_slice())
-    }
-}
-
-impl fmt::Show for CaseInsensitive {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        self.to_string().fmt(fmt)
-    }
-}
-
-impl PartialEq for CaseInsensitive {
-    fn eq(&self, other: &CaseInsensitive) -> bool {
-        self.as_slice().eq_ignore_ascii_case(other.as_slice())
-    }
-}
-
-impl Eq for CaseInsensitive {}
-
-impl<H: hash::Writer + hash::Hasher> hash::Hash<H> for CaseInsensitive {
-    #[inline]
-    fn hash(&self, hasher: &mut H) {
-        for b in self.as_slice().bytes() {
-            hasher.write(&[b.to_ascii_lowercase()])
-        }
     }
 }
 
@@ -550,7 +499,7 @@ impl<'a, H: HeaderFormat> fmt::String for HeaderFormatter<'a, H> {
     }
 }
 
-impl<'a, H: HeaderFormat> Show for HeaderFormatter<'a, H> {
+impl<'a, H: HeaderFormat> fmt::Show for HeaderFormatter<'a, H> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt_header(f)
     }
@@ -565,7 +514,7 @@ mod tests {
     use mime::Mime;
     use mime::TopLevel::Text;
     use mime::SubLevel::Plain;
-    use super::CaseInsensitive;
+    use unicase::UniCase;
     use super::{Headers, Header, HeaderFormat};
     use super::common::{ContentLength, ContentType, Accept, Host};
     use super::shared::{QualityItem};
@@ -578,8 +527,8 @@ mod tests {
 
     #[test]
     fn test_case_insensitive() {
-        let a = CaseInsensitive(Borrowed("foobar"));
-        let b = CaseInsensitive(Borrowed("FOOBAR"));
+        let a = UniCase(Borrowed("foobar"));
+        let b = UniCase(Borrowed("FOOBAR"));
 
         assert_eq!(a, b);
         assert_eq!(hash::<_, SipHasher>(&a), hash::<_, SipHasher>(&b));
@@ -682,10 +631,10 @@ mod tests {
 
         let s = headers.to_string();
         // hashmap's iterators have arbitrary order, so we must sort first
-        let mut pieces = s[].split_str("\r\n").collect::<Vec<&str>>();
+        let mut pieces = s.split_str("\r\n").collect::<Vec<&str>>();
         pieces.sort();
         let s = pieces.into_iter().rev().collect::<Vec<&str>>().connect("\r\n");
-        assert_eq!(&s[], "Host: foo.bar\r\nContent-Length: 15\r\n");
+        assert_eq!(s, "Host: foo.bar\r\nContent-Length: 15\r\n");
     }
 
     #[test]

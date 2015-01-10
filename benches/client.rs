@@ -1,5 +1,4 @@
-#![feature(macro_rules)]
-extern crate curl;
+#![allow(unstable)]
 extern crate hyper;
 
 extern crate test;
@@ -29,21 +28,6 @@ fn handle(_r: Request, res: Response) {
     let mut res = try_return!(res.start());
     try_return!(res.write(BODY));
     try_return!(res.end());
-}
-
-#[bench]
-fn bench_curl(b: &mut test::Bencher) {
-    let mut listening = listen();
-    let s = format!("http://{}/", listening.socket);
-    let url = s.as_slice();
-    b.iter(|| {
-        curl::http::handle()
-            .get(url)
-            .header("X-Foo", "Bar")
-            .exec()
-            .unwrap()
-    });
-    listening.close().unwrap();
 }
 
 #[derive(Clone)]

@@ -39,8 +39,7 @@ impl<'a> Request<'a> {
         let (method, uri, version) = try!(read_request_line(&mut stream));
         debug!("Request Line: {:?} {:?} {:?}", method, uri, version);
         let headers = try!(Headers::from_raw(&mut stream));
-        debug!("Headers: [\n{:?}]", headers);
-
+        debug!("{:?}", headers);
 
         let body = if method == Get || method == Head {
             EmptyReader(stream)

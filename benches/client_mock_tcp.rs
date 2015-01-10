@@ -1,5 +1,4 @@
-#![feature(default_type_params)]
-extern crate curl;
+#![allow(unstable)]
 extern crate hyper;
 
 extern crate test;
@@ -49,21 +48,6 @@ impl Writer for MockStream {
     }
 }
 
-#[bench]
-fn bench_mock_curl(b: &mut test::Bencher) {
-    let mut cwd = os::getcwd().unwrap();
-    cwd.push("README.md");
-    let s = format!("file://{}", cwd.container_as_str().unwrap());
-    let url = s.as_slice();
-    b.iter(|| {
-        curl::http::handle()
-            .get(url)
-            .header("X-Foo", "Bar")
-            .exec()
-            .unwrap()
-    });
-}
-
 #[derive(Clone)]
 struct Foo;
 
@@ -90,7 +74,8 @@ impl net::NetworkStream for MockStream {
 
 struct MockConnector;
 
-impl net::NetworkConnector<MockStream> for MockConnector {
+impl net::NetworkConnector for MockConnector {
+    type Stream = MockStream;
     fn connect(&mut self, _: &str, _: u16, _: &str) -> IoResult<MockStream> {
         Ok(MockStream::new())
     }

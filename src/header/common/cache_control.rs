@@ -34,7 +34,7 @@ impl HeaderFormat for CacheControl {
 }
 
 /// CacheControl contains a list of these directives.
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Show)]
 pub enum CacheDirective {
     /// "no-cache"
     NoCache,
@@ -47,11 +47,11 @@ pub enum CacheDirective {
 
     // request directives
     /// "max-age=delta"
-    MaxAge(usize),
+    MaxAge(u32),
     /// "max-stale=delta"
-    MaxStale(usize),
+    MaxStale(u32),
     /// "min-fresh=delta"
-    MinFresh(usize),
+    MinFresh(u32),
 
     // response directives
     /// "must-revalidate"
@@ -63,7 +63,7 @@ pub enum CacheDirective {
     /// "proxy-revalidate"
     ProxyRevalidate,
     /// "s-maxage=delta"
-    SMaxAge(usize),
+    SMaxAge(u32),
 
     /// Extension directives. Optionally include an argument.
     Extension(String, Option<String>)
@@ -95,11 +95,6 @@ impl fmt::String for CacheDirective {
     }
 }
 
-impl fmt::Show for CacheDirective {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-		self.to_string().fmt(fmt)
-	}
-}
 impl FromStr for CacheDirective {
     fn from_str(s: &str) -> Option<CacheDirective> {
         use self::CacheDirective::*;
