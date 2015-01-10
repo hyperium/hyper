@@ -1,5 +1,5 @@
 use header::{Header, HeaderFormat};
-use std::fmt::{self, Show};
+use std::fmt::{self, String};
 use header::shared::util::from_one_raw_str;
 use mime::Mime;
 
