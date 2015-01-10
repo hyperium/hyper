@@ -1578,10 +1578,13 @@ impl Copy for StatusCode {}
 ///
 /// ```rust
 /// # use hyper::status::StatusCode::{ImATeapot, Code123};
-/// assert_eq!(format!("{}", ImATeapot).as_slice(),
+/// # #[allow(unstable)]
+/// # fn main() {
+/// assert_eq!(&format!("{}", ImATeapot)[],
 ///            "418 I'm a teapot");
-/// assert_eq!(format!("{}", Code123).as_slice(),
+/// assert_eq!(&format!("{}", Code123)[],
 ///            "123 <unknown status code>");
+/// # }
 /// ```
 ///
 /// If you wish to just include the number, cast to a u16 instead.
