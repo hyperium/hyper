@@ -88,7 +88,7 @@ impl FromStr for Method {
     }
 }
 
-impl fmt::Show for Method {
+impl fmt::String for Method {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Options => "OPTIONS",
@@ -102,6 +102,12 @@ impl fmt::Show for Method {
             Patch => "PATCH",
             Extension(ref s) => s.as_slice()
         }.fmt(fmt)
+    }
+}
+
+impl fmt::Show for Method {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        self.to_string().fmt(fmt)
     }
 }
 
@@ -141,7 +147,7 @@ mod tests {
 
     #[test]
     fn test_hashable() {
-        let mut counter: HashMap<Method,uint> = HashMap::new();
+        let mut counter: HashMap<Method,usize> = HashMap::new();
         counter.insert(Get, 1);
         assert_eq!(Some(&1), counter.get(&Get));
     }

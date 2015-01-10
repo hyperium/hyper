@@ -63,6 +63,7 @@ impl Client<HttpConnector> {
 
 }
 
+#[old_impl_check]
 impl<C: NetworkConnector<S>, S: NetworkStream> Client<C> {
 
     /// Create a new client with a specific connector.
@@ -162,7 +163,7 @@ impl<'a, U: IntoUrl, C: NetworkConnector<S>, S: NetworkStream> RequestBuilder<'a
     pub fn send(self) -> HttpResult<Response> {
         let RequestBuilder { client, method, url, headers, body } = self;
         let mut url = try!(url.into_url());
-        debug!("client.request {} {}", method, url);
+        debug!("client.request {:?} {:?}", method, url);
 
         let can_have_body = match &method {
             &Method::Get | &Method::Head => false,
@@ -193,13 +194,13 @@ impl<'a, U: IntoUrl, C: NetworkConnector<S>, S: NetworkStream> RequestBuilder<'a
             if res.status.class() != Redirection {
                 return Ok(res)
             }
-            debug!("redirect code {} for {}", res.status, url);
+            debug!("redirect code {:?} for {:?}", res.status, url);
 
             let loc = {
                 // punching borrowck here
                 let loc = match res.headers.get::<Location>() {
                     Some(&Location(ref loc)) => {
-                        Some(UrlParser::new().base_url(&url).parse(loc[]))
+                        Some(UrlParser::new().base_url(&url).parse(&loc[]))
                     }
                     None => {
                         debug!("no Location header");
@@ -217,7 +218,7 @@ impl<'a, U: IntoUrl, C: NetworkConnector<S>, S: NetworkStream> RequestBuilder<'a
                     inspect!("Location", u)
                 },
                 Err(e) => {
-                    debug!("Location header had invalid URI: {}", e);
+                    debug!("Location header had invalid URI: {:?}", e);
                     return Ok(res);
                 }
             };
@@ -242,13 +243,13 @@ pub enum Body<'a> {
     /// A Reader does not necessarily know it's size, so it is chunked.
     ChunkedBody(&'a mut (Reader + 'a)),
     /// For Readers that can know their size, like a `File`.
-    SizedBody(&'a mut (Reader + 'a), uint),
+    SizedBody(&'a mut (Reader + 'a), usize),
     /// A String has a size, and uses Content-Length.
-    BufBody(&'a [u8] , uint),
+    BufBody(&'a [u8] , usize),
 }
 
 impl<'a> Body<'a> {
-    fn size(&self) -> Option<uint> {
+    fn size(&self) -> Option<usize> {
         match *self {
             Body::SizedBody(_, len) | Body::BufBody(_, len) => Some(len),
             _ => None
@@ -258,7 +259,7 @@ impl<'a> Body<'a> {
 
 impl<'a> Reader for Body<'a> {
     #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> {
+    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         match *self {
             Body::ChunkedBody(ref mut r) => r.read(buf),
             Body::SizedBody(ref mut r, _) => r.read(buf),
@@ -343,12 +344,12 @@ fn get_host_and_port(url: &Url) -> HttpResult<(String, Port)> {
         Some(host) => host,
         None => return Err(HttpUriError(UrlError::EmptyHost))
     };
-    debug!("host={}", host);
+    debug!("host={:?}", host);
     let port = match url.port_or_default() {
         Some(port) => port,
         None => return Err(HttpUriError(UrlError::InvalidPort))
     };
-    debug!("port={}", port);
+    debug!("port={:?}", port);
     Ok((host, port))
 }
 

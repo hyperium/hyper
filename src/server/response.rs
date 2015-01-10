@@ -67,7 +67,7 @@ impl<'a> Response<'a, Fresh> {
 
     /// Consume this Response<Fresh>, writing the Headers and Status and creating a Response<Streaming>
     pub fn start(mut self) -> IoResult<Response<'a, Streaming>> {
-        debug!("writing head: {} {}", self.version, self.status);
+        debug!("writing head: {:?} {:?}", self.version, self.status);
         try!(write!(&mut self.body, "{} {}{}{}", self.version, self.status, CR as char, LF as char));
 
         if !self.headers.has::<common::Date>() {
@@ -89,7 +89,7 @@ impl<'a> Response<'a, Fresh> {
         // cant do in match above, thanks borrowck
         if chunked {
             let encodings = match self.headers.get_mut::<common::TransferEncoding>() {
-                Some(&common::TransferEncoding(ref mut encodings)) => {
+                Some(&mut common::TransferEncoding(ref mut encodings)) => {
                     //TODO: check if chunked is already in encodings. use HashSet?
                     encodings.push(common::transfer_encoding::Encoding::Chunked);
                     false
@@ -104,7 +104,7 @@ impl<'a> Response<'a, Fresh> {
         }
 
 
-        debug!("headers [\n{}]", self.headers);
+        debug!("headers [\n{:?}]", self.headers);
         try!(write!(&mut self.body, "{}", self.headers));
 
         try!(self.body.write_str(LINE_ENDING));
@@ -143,7 +143,7 @@ impl<'a> Response<'a, Streaming> {
 
 impl<'a> Writer for Response<'a, Streaming> {
     fn write(&mut self, msg: &[u8]) -> IoResult<()> {
-        debug!("write {} bytes", msg.len());
+        debug!("write {:?} bytes", msg.len());
         self.body.write(msg)
     }
 

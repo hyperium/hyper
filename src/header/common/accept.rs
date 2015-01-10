@@ -28,7 +28,7 @@ use mime;
 #[derive(Clone, PartialEq, Show)]
 pub struct Accept(pub Vec<shared::QualityItem<mime::Mime>>);
 
-deref!(Accept -> Vec<shared::QualityItem<mime::Mime>>);
+deref!(Accept => Vec<shared::QualityItem<mime::Mime>>);
 
 impl header::Header for Accept {
     fn header_name(_: Option<Accept>) -> &'static str {
@@ -43,7 +43,7 @@ impl header::Header for Accept {
 
 impl header::HeaderFormat for Accept {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        shared::fmt_comma_delimited(fmt, self[])
+        shared::fmt_comma_delimited(fmt, &self[])
     }
 }
 

@@ -9,7 +9,7 @@ use self::Protocol::{WebSocket, ProtocolExt};
 #[derive(Clone, PartialEq, Show)]
 pub struct Upgrade(pub Vec<Protocol>);
 
-deref!(Upgrade -> Vec<Protocol>);
+deref!(Upgrade => Vec<Protocol>);
 
 /// Protocol values that can appear in the Upgrade header.
 #[derive(Clone, PartialEq)]
@@ -29,12 +29,18 @@ impl FromStr for Protocol {
     }
 }
 
-impl fmt::Show for Protocol {
+impl fmt::String for Protocol {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
+        write!(fmt, "{}", match *self {
             WebSocket => "websocket",
             ProtocolExt(ref s) => s.as_slice()
-        }.fmt(fmt)
+        })
+    }
+}
+
+impl fmt::Show for Protocol {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        self.to_string().fmt(fmt)
     }
 }
 
@@ -51,7 +57,7 @@ impl Header for Upgrade {
 impl HeaderFormat for Upgrade {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let Upgrade(ref parts) = *self;
-        fmt_comma_delimited(fmt, parts[])
+        fmt_comma_delimited(fmt, &parts[])
     }
 }
 

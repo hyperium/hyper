@@ -9,7 +9,7 @@ use header::shared::time::tm_from_str;
 #[derive(Copy, PartialEq, Clone)]
 pub struct LastModified(pub Tm);
 
-deref!(LastModified -> Tm);
+deref!(LastModified => Tm);
 
 impl Header for LastModified {
     fn header_name(_: Option<LastModified>) -> &'static str {

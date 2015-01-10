@@ -37,9 +37,9 @@ impl<'a> Request<'a> {
     /// immediately useful.
     pub fn new(mut stream: &'a mut (Reader + 'a), addr: SocketAddr) -> HttpResult<Request<'a>> {
         let (method, uri, version) = try!(read_request_line(&mut stream));
-        debug!("Request Line: {} {} {}", method, uri, version);
+        debug!("Request Line: {:?} {:?} {:?}", method, uri, version);
         let headers = try!(Headers::from_raw(&mut stream));
-        debug!("Headers: [\n{}]", headers);
+        debug!("Headers: [\n{:?}]", headers);
 
 
         let body = if method == Get || method == Head {
@@ -68,7 +68,7 @@ impl<'a> Request<'a> {
 }
 
 impl<'a> Reader for Request<'a> {
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> {
+    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         self.body.read(buf)
     }
 }

@@ -5,11 +5,11 @@ use header::shared::util::from_one_raw_str;
 
 /// The `Content-Length` header.
 ///
-/// Simply a wrapper around a `uint`.
+/// Simply a wrapper around a `usize`.
 #[derive(Copy, Clone, PartialEq, Show)]
-pub struct ContentLength(pub uint);
+pub struct ContentLength(pub usize);
 
-deref!(ContentLength -> uint);
+deref!(ContentLength => usize);
 
 impl Header for ContentLength {
     fn header_name(_: Option<ContentLength>) -> &'static str {
@@ -32,7 +32,7 @@ impl ContentLength {
     /// Returns the wrapped length.
     #[deprecated = "use Deref instead"]
     #[inline]
-    pub fn len(&self) -> uint {
+    pub fn len(&self) -> usize {
         **self
     }
 }

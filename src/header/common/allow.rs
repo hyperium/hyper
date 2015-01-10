@@ -9,7 +9,7 @@ use header::shared::util::{from_comma_delimited, fmt_comma_delimited};
 #[derive(Clone, PartialEq, Show)]
 pub struct Allow(pub Vec<Method>);
 
-deref!(Allow -> Vec<Method>);
+deref!(Allow => Vec<Method>);
 
 impl Header for Allow {
     fn header_name(_: Option<Allow>) -> &'static str {
@@ -23,7 +23,7 @@ impl Header for Allow {
 
 impl HeaderFormat for Allow {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt_comma_delimited(fmt, self[])
+        fmt_comma_delimited(fmt, &self[])
     }
 }
 

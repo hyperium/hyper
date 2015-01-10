@@ -9,7 +9,7 @@ use header::shared::time::tm_from_str;
 #[derive(Copy, PartialEq, Clone)]
 pub struct IfModifiedSince(pub Tm);
 
-deref!(IfModifiedSince -> Tm);
+deref!(IfModifiedSince => Tm);
 
 impl Header for IfModifiedSince {
     fn header_name(_: Option<IfModifiedSince>) -> &'static str {

@@ -47,10 +47,10 @@ impl Request<Fresh> {
 
     /// Create a new client request with a specific underlying NetworkStream.
     pub fn with_connector<C: NetworkConnector<S>, S: NetworkStream>(method: method::Method, url: Url, connector: &mut C) -> HttpResult<Request<Fresh>> {
-        debug!("{} {}", method, url);
+        debug!("{:?} {:?}", method, url);
         let (host, port) = try!(get_host_and_port(&url));
 
-        let stream: S = try!(connector.connect(host[], port, &*url.scheme));
+        let stream: S = try!(connector.connect(&host[], port, &*url.scheme));
         let stream = ThroughWriter(BufferedWriter::new(box stream as Box<NetworkStream + Send>));
 
         let mut headers = Headers::new();
@@ -110,17 +110,17 @@ impl Request<Fresh> {
         //TODO: this needs a test
         if let Some(ref q) = self.url.query {
             uri.push('?');
-            uri.push_str(q[]);
+            uri.push_str(&q[]);
         }
 
-        debug!("writing head: {} {} {}", self.method, uri, self.version);
+        debug!("writing head: {:?} {:?} {:?}", self.method, uri, self.version);
         try!(write!(&mut self.body, "{} {} {}{}",
                     self.method, uri, self.version, LINE_ENDING));
 
 
         let stream = match self.method {
             Get | Head => {
-                debug!("headers [\n{}]", self.headers);
+                debug!("headers [\n{:?}]", self.headers);
                 try!(write!(&mut self.body, "{}{}", self.headers, LINE_ENDING));
                 EmptyWriter(self.body.unwrap())
             },
@@ -139,7 +139,7 @@ impl Request<Fresh> {
                 // cant do in match above, thanks borrowck
                 if chunked {
                     let encodings = match self.headers.get_mut::<common::TransferEncoding>() {
-                        Some(&common::TransferEncoding(ref mut encodings)) => {
+                        Some(&mut common::TransferEncoding(ref mut encodings)) => {
                             //TODO: check if chunked is already in encodings. use HashSet?
                             encodings.push(common::transfer_encoding::Encoding::Chunked);
                             false
@@ -153,7 +153,7 @@ impl Request<Fresh> {
                     }
                 }
 
-                debug!("headers [\n{}]", self.headers);
+                debug!("headers [\n{:?}]", self.headers);
                 try!(write!(&mut self.body, "{}{}", self.headers, LINE_ENDING));
 
                 if chunked {
@@ -218,7 +218,7 @@ mod tests {
         let stream = *req.body.end().unwrap()
             .into_inner().downcast::<MockStream>().ok().unwrap();
         let bytes = stream.write.into_inner();
-        let s = from_utf8(bytes[]).unwrap();
+        let s = from_utf8(&bytes[]).unwrap();
         assert!(!s.contains("Content-Length:"));
         assert!(!s.contains("Transfer-Encoding:"));
     }
@@ -232,7 +232,7 @@ mod tests {
         let stream = *req.body.end().unwrap()
             .into_inner().downcast::<MockStream>().ok().unwrap();
         let bytes = stream.write.into_inner();
-        let s = from_utf8(bytes[]).unwrap();
+        let s = from_utf8(&bytes[]).unwrap();
         assert!(!s.contains("Content-Length:"));
         assert!(!s.contains("Transfer-Encoding:"));
     }

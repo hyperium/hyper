@@ -35,16 +35,16 @@ impl Response {
             Some(status) => status,
             None => return Err(HttpStatusError)
         };
-        debug!("{} {}", version, status);
+        debug!("{:?} {:?}", version, status);
 
         let headers = try!(header::Headers::from_raw(&mut stream));
-        debug!("Headers: [\n{}]", headers);
+        debug!("Headers: [\n{:?}]", headers);
 
         let body = if headers.has::<TransferEncoding>() {
             match headers.get::<TransferEncoding>() {
                 Some(&TransferEncoding(ref codings)) => {
                     if codings.len() > 1 {
-                        debug!("TODO: #2 handle other codings: {}", codings);
+                        debug!("TODO: #2 handle other codings: {:?}", codings);
                     };
 
                     if codings.contains(&Chunked) {
@@ -88,7 +88,7 @@ impl Response {
 
 impl Reader for Response {
     #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> {
+    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         self.body.read(buf)
     }
 }

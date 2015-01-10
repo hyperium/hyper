@@ -21,7 +21,7 @@ use self::Encoding::{Chunked, Gzip, Deflate, Compress, EncodingExt};
 #[derive(Clone, PartialEq, Show)]
 pub struct TransferEncoding(pub Vec<Encoding>);
 
-deref!(TransferEncoding -> Vec<Encoding>);
+deref!(TransferEncoding => Vec<Encoding>);
 
 /// A value to be used with the `Transfer-Encoding` header.
 ///
@@ -47,16 +47,22 @@ pub enum Encoding {
     EncodingExt(String)
 }
 
-impl fmt::Show for Encoding {
+impl fmt::String for Encoding {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
+        write!(fmt, "{}", match *self {
             Chunked => "chunked",
             Gzip => "gzip",
             Deflate => "deflate",
             Compress => "compress",
             EncodingExt(ref s) => s.as_slice()
-        }.fmt(fmt)
+        })
     }
+}
+
+impl fmt::Show for Encoding {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+		self.to_string().fmt(fmt)
+	}
 }
 
 impl FromStr for Encoding {
@@ -83,7 +89,7 @@ impl Header for TransferEncoding {
 
 impl HeaderFormat for TransferEncoding {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt_comma_delimited(fmt, self[])
+        fmt_comma_delimited(fmt, &self[])
     }
 }
 

@@ -42,13 +42,13 @@ macro_rules! bench_header(
             fn bench_parse(b: &mut Bencher) {
                 let val = $value;
                 b.iter(|| {
-                    let _: $ty = Header::parse_header(val[]).unwrap();
+                    let _: $ty = Header::parse_header(&val[]).unwrap();
                 });
             }
 
             #[bench]
             fn bench_format(b: &mut Bencher) {
-                let val: $ty = Header::parse_header($value[]).unwrap();
+                let val: $ty = Header::parse_header(&$value[]).unwrap();
                 let fmt = HeaderFormatter(&val);
                 b.iter(|| {
                     format!("{}", fmt);
@@ -59,7 +59,7 @@ macro_rules! bench_header(
 );
 
 macro_rules! deref(
-    ($from:ty -> $to:ty) => {
+    ($from:ty => $to:ty) => {
         impl ::std::ops::Deref for $from {
             type Target = $to;
 

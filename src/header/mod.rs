@@ -134,15 +134,15 @@ impl Headers {
         loop {
             match try!(http::read_header(rdr)) {
                 Some((name, value)) => {
-                    debug!("raw header: {}={}", name, value[]);
+                    debug!("raw header: {:?}={:?}", name, &value[]);
                     let name = CaseInsensitive(Owned(name));
-                    let mut item = match headers.data.entry(&name) {
+                    let mut item = match headers.data.entry(name) {
                         Entry::Vacant(entry) => entry.insert(MuCell::new(Item::raw(vec![]))),
                         Entry::Occupied(entry) => entry.into_mut()
                     };
 
                     match &mut item.borrow_mut().raw {
-                        &Some(ref mut raw) => raw.push(value),
+                        &mut Some(ref mut raw) => raw.push(value),
                         // Unreachable
                         _ => {}
                     };
@@ -178,7 +178,7 @@ impl Headers {
             .get(&CaseInsensitive(Borrowed(unsafe { mem::transmute::<&str, &str>(name) })))
             .and_then(|item| {
                 if let Some(ref raw) = item.borrow().raw {
-                    return unsafe { mem::transmute(Some(raw[])) };
+                    return unsafe { mem::transmute(Some(&raw[])) };
                 }
 
                 let worked = item.try_mutate(|item| {
@@ -189,7 +189,7 @@ impl Headers {
 
                 let item = item.borrow();
                 let raw = item.raw.as_ref().unwrap();
-                unsafe { mem::transmute(Some(raw[])) }
+                unsafe { mem::transmute(Some(&raw[])) }
             })
     }
 
@@ -258,7 +258,7 @@ impl Headers {
     }
 
     /// Returns the number of headers in the map.
-    pub fn len(&self) -> uint {
+    pub fn len(&self) -> usize {
         self.data.len()
     }
 
@@ -268,12 +268,18 @@ impl Headers {
     }
 }
 
-impl fmt::Show for Headers {
+impl fmt::String for Headers {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         for header in self.iter() {
             try!(write!(fmt, "{}{}", header, LineEnding));
         }
         Ok(())
+    }
+}
+
+impl fmt::Show for Headers {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        self.to_string().fmt(fmt)
     }
 }
 
@@ -326,9 +332,15 @@ impl<'a> HeaderView<'a> {
     }
 }
 
-impl<'a> fmt::Show for HeaderView<'a> {
+impl<'a> fmt::String for HeaderView<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}: {}", self.0, *self.1.borrow())
+    }
+}
+
+impl<'a> fmt::Show for HeaderView<'a> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        self.to_string().fmt(fmt)
     }
 }
 
@@ -375,7 +387,7 @@ fn get_or_parse<H: Header + HeaderFormat>(item: &MuCell<Item>) -> Option<&MuCell
     match item.borrow().typed {
         Some(ref typed) if typed.is::<H>() => return Some(item),
         Some(ref typed) => {
-            warn!("attempted to access {} as wrong type", typed);
+            warn!("attempted to access {:?} as wrong type", typed);
             return None;
         }
         _ => ()
@@ -394,7 +406,7 @@ fn get_or_parse_mut<H: Header + HeaderFormat>(item: &mut MuCell<Item>) -> Option
     let is_correct_type = match item.borrow().typed {
         Some(ref typed) if typed.is::<H>() => Some(true),
         Some(ref typed) => {
-            warn!("attempted to access {} as wrong type", typed);
+            warn!("attempted to access {:?} as wrong type", typed);
             Some(false)
         }
         _ => None
@@ -416,7 +428,7 @@ fn get_or_parse_mut<H: Header + HeaderFormat>(item: &mut MuCell<Item>) -> Option
 
 fn parse<H: Header + HeaderFormat>(item: &mut Item) {
     item.typed = match item.raw {
-        Some(ref raw) => match Header::parse_header(raw[]) {
+        Some(ref raw) => match Header::parse_header(&raw[]) {
             Some::<H>(h) => Some(box h as Box<HeaderFormat + Send + Sync>),
             None => None
         },
@@ -432,17 +444,17 @@ unsafe fn downcast_mut<H: Header + HeaderFormat>(item: &mut Item) -> &mut H {
     item.typed.as_mut().expect("item.typed must be set").downcast_mut_unchecked()
 }
 
-impl fmt::Show for Item {
+impl fmt::String for Item {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match self.typed {
             Some(ref h) => h.fmt_header(fmt),
             None => match self.raw {
                 Some(ref raw) => {
                     for part in raw.iter() {
-                        match from_utf8(part[]) {
+                        match from_utf8(&part[]) {
                             Ok(s) => try!(fmt.write_str(s)),
                             Err(e) => {
-                                error!("raw header value is not utf8. header={}, error={}", part[], e);
+                                error!("raw header value is not utf8. header={:?}, error={:?}", &part[], e);
                                 return Err(fmt::Error);
                             }
                         }
@@ -455,9 +467,21 @@ impl fmt::Show for Item {
     }
 }
 
-impl fmt::Show for Box<HeaderFormat + Send + Sync> {
+impl<'a> fmt::Show for Item {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        self.to_string().fmt(fmt)
+    }
+}
+
+impl fmt::String for Box<HeaderFormat + Send + Sync> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         (**self).fmt_header(fmt)
+    }
+}
+
+impl fmt::Show for Box<HeaderFormat + Send + Sync> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        self.to_string().fmt(fmt)
     }
 }
 
@@ -484,9 +508,15 @@ impl Str for CaseInsensitive {
 
 }
 
+impl fmt::String for CaseInsensitive {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "{}", self.as_slice())
+    }
+}
+
 impl fmt::Show for CaseInsensitive {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        self.as_slice().fmt(fmt)
+        self.to_string().fmt(fmt)
     }
 }
 
@@ -498,7 +528,7 @@ impl PartialEq for CaseInsensitive {
 
 impl Eq for CaseInsensitive {}
 
-impl<H: hash::Writer> hash::Hash<H> for CaseInsensitive {
+impl<H: hash::Writer + hash::Hasher> hash::Hash<H> for CaseInsensitive {
     #[inline]
     fn hash(&self, hasher: &mut H) {
         for b in self.as_slice().bytes() {
@@ -514,6 +544,12 @@ impl<H: hash::Writer> hash::Hash<H> for CaseInsensitive {
 /// outgoing TcpStream.
 pub struct HeaderFormatter<'a, H: HeaderFormat>(pub &'a H);
 
+impl<'a, H: HeaderFormat> fmt::String for HeaderFormatter<'a, H> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt_header(f)
+    }
+}
+
 impl<'a, H: HeaderFormat> Show for HeaderFormatter<'a, H> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt_header(f)
@@ -525,7 +561,7 @@ mod tests {
     use std::io::MemReader;
     use std::fmt;
     use std::borrow::Cow::Borrowed;
-    use std::hash::sip::hash;
+    use std::hash::{SipHasher, hash};
     use mime::Mime;
     use mime::TopLevel::Text;
     use mime::SubLevel::Plain;
@@ -546,7 +582,7 @@ mod tests {
         let b = CaseInsensitive(Borrowed("FOOBAR"));
 
         assert_eq!(a, b);
-        assert_eq!(hash(&a), hash(&b));
+        assert_eq!(hash::<_, SipHasher>(&a), hash::<_, SipHasher>(&b));
     }
 
     #[test]
@@ -574,7 +610,7 @@ mod tests {
     }
 
     #[derive(Clone, Show)]
-    struct CrazyLength(Option<bool>, uint);
+    struct CrazyLength(Option<bool>, usize);
 
     impl Header for CrazyLength {
         fn header_name(_: Option<CrazyLength>) -> &'static str {
@@ -588,7 +624,7 @@ mod tests {
                 return None;
             }
             // we JUST checked that raw.len() == 1, so raw[0] WILL exist.
-            match from_utf8(unsafe { raw[].get_unchecked(0)[] }) {
+            match from_utf8(unsafe { &raw[].get_unchecked(0)[] }) {
                 Ok(s) => FromStr::from_str(s),
                 Err(_) => None
             }.map(|u| CrazyLength(Some(false), u))
@@ -598,7 +634,7 @@ mod tests {
     impl HeaderFormat for CrazyLength {
         fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
             let CrazyLength(ref opt, ref value) = *self;
-            write!(fmt, "{}, {}", opt, value)
+            write!(fmt, "{:?}, {:?}", opt, value)
         }
     }
 
@@ -649,7 +685,7 @@ mod tests {
         let mut pieces = s[].split_str("\r\n").collect::<Vec<&str>>();
         pieces.sort();
         let s = pieces.into_iter().rev().collect::<Vec<&str>>().connect("\r\n");
-        assert_eq!(s[], "Host: foo.bar\r\nContent-Length: 15\r\n");
+        assert_eq!(&s[], "Host: foo.bar\r\nContent-Length: 15\r\n");
     }
 
     #[test]
@@ -664,7 +700,7 @@ mod tests {
         let mut headers = Headers::new();
         headers.set(ContentLength(10));
         headers.set_raw("content-LENGTH", vec![b"20".to_vec()]);
-        assert_eq!(headers.get_raw("Content-length").unwrap(), [b"20".to_vec()][]);
+        assert_eq!(headers.get_raw("Content-length").unwrap(), &[b"20".to_vec()][]);
         assert_eq!(headers.get(), Some(&ContentLength(20)));
     }
 

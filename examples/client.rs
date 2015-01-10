@@ -22,14 +22,14 @@ fn main() {
 
     let mut res = match client.get(url).send() {
         Ok(res) => res,
-        Err(err) => panic!("Failed to connect: {}", err)
+        Err(err) => panic!("Failed to connect: {:?}", err)
     };
 
     println!("Response: {}", res.status);
     println!("Headers:\n{}", res.headers);
     match copy(&mut res, &mut stdout()) {
         Ok(..) => (),
-        Err(e) => panic!("Stream failure: {}", e)
+        Err(e) => panic!("Stream failure: {:?}", e)
     };
 
 }

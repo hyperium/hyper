@@ -26,7 +26,13 @@ impl<T> QualityItem<T> {
     }
 }
 
-impl<T: fmt::Show> fmt::Show for QualityItem<T> {
+impl<T: fmt::String> fmt::String for QualityItem<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}; q={}", self.item, format!("{:.3}", self.quality).trim_right_matches(['0', '.'].as_slice()))
+    }
+}
+
+impl<T: fmt::String> fmt::Show for QualityItem<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}; q={}", self.item, format!("{:.3}", self.quality).trim_right_matches(['0', '.'].as_slice()))
     }

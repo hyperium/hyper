@@ -16,7 +16,7 @@ use header::shared::util::from_one_raw_str;
 #[derive(Clone, PartialEq, Show)]
 pub struct Location(pub String);
 
-deref!(Location -> String);
+deref!(Location => String);
 
 impl Header for Location {
     fn header_name(_: Option<Location>) -> &'static str {
