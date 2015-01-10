@@ -1,6 +1,6 @@
 use header::{Header, HeaderFormat};
 use Port;
-use std::fmt::{self, Show};
+use std::fmt;
 use header::shared::util::from_one_raw_str;
 
 /// The `Host` header.
@@ -28,7 +28,7 @@ impl Header for Host {
             // FIXME: use rust-url to parse this
             // https://github.com/servo/rust-url/issues/42
             let idx = {
-                let slice = s[];
+                let slice = &s[];
                 if slice.char_at(1) == '[' {
                     match slice.rfind(']') {
                         Some(idx) => {
@@ -66,7 +66,7 @@ impl Header for Host {
 impl HeaderFormat for Host {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match self.port {
-            None | Some(80) | Some(443) => self.hostname.fmt(fmt),
+            None | Some(80) | Some(443) => write!(fmt, "{}", self.hostname),
             Some(port) => write!(fmt, "{}:{}", self.hostname, port)
         }
     }

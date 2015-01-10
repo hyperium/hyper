@@ -1,5 +1,5 @@
 use header::{Header, HeaderFormat};
-use std::fmt::{self, Show};
+use std::fmt;
 use std::str::from_utf8;
 
 use cookie::Cookie;
@@ -17,7 +17,7 @@ pub struct SetCookie(pub Vec<Cookie>);
 unsafe impl Send for SetCookie {}
 unsafe impl Sync for SetCookie {}
 
-deref!(SetCookie -> Vec<Cookie>);
+deref!(SetCookie => Vec<Cookie>);
 
 impl Header for SetCookie {
     fn header_name(_: Option<SetCookie>) -> &'static str {
@@ -27,7 +27,7 @@ impl Header for SetCookie {
     fn parse_header(raw: &[Vec<u8>]) -> Option<SetCookie> {
         let mut set_cookies = Vec::with_capacity(raw.len());
         for set_cookies_raw in raw.iter() {
-            match from_utf8(set_cookies_raw[]) {
+            match from_utf8(&set_cookies_raw[]) {
                 Ok(s) if !s.is_empty() => {
                     match s.parse() {
                         Some(cookie) => set_cookies.push(cookie),
@@ -54,7 +54,7 @@ impl HeaderFormat for SetCookie {
             if i != 0 {
                 try!(f.write_str("\r\nSet-Cookie: "));
             }
-            try!(cookie.fmt(f));
+            try!(write!(f, "{}", cookie));
         }
         Ok(())
     }
@@ -80,7 +80,7 @@ impl SetCookie {
 
 #[test]
 fn test_parse() {
-    let h = Header::parse_header([b"foo=bar; HttpOnly".to_vec()][]);
+    let h = Header::parse_header(&[b"foo=bar; HttpOnly".to_vec()][]);
     let mut c1 = Cookie::new("foo".to_string(), "bar".to_string());
     c1.httponly = true;
 
@@ -98,7 +98,7 @@ fn test_fmt() {
     let mut headers = Headers::new();
     headers.set(cookies);
 
-    assert_eq!(headers.to_string()[], "Set-Cookie: foo=bar; HttpOnly; Path=/p\r\nSet-Cookie: baz=quux; Path=/\r\n");
+    assert_eq!(&headers.to_string()[], "Set-Cookie: foo=bar; HttpOnly; Path=/p\r\nSet-Cookie: baz=quux; Path=/\r\n");
 }
 
 #[test]

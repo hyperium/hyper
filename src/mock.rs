@@ -27,7 +27,7 @@ impl PartialEq for MockStream {
 
 impl fmt::Show for MockStream {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "MockStream {{ read: {}, write: {} }}",
+        write!(f, "MockStream {{ read: {:?}, write: {:?} }}",
                self.read.get_ref(), self.write.get_ref())
     }
 
@@ -49,7 +49,7 @@ impl MockStream {
     }
 }
 impl Reader for MockStream {
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> {
+    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         self.read.read(buf)
     }
 }
@@ -85,7 +85,7 @@ macro_rules! mock_connector (
         impl ::net::NetworkConnector<::mock::MockStream> for $name {
             fn connect(&mut self, host: &str, port: u16, scheme: &str) -> ::std::io::IoResult<::mock::MockStream> {
                 use std::collections::HashMap;
-                debug!("MockStream::connect({}, {}, {})", host, port, scheme);
+                debug!("MockStream::connect({:?}, {:?}, {:?})", host, port, scheme);
                 let mut map = HashMap::new();
                 $(map.insert($url, $res);)*
 
@@ -97,7 +97,7 @@ macro_rules! mock_connector (
                         write: ::std::io::MemWriter::new(),
                         read: ::std::io::MemReader::new(res.to_string().into_bytes())
                     }),
-                    None => panic!("{} doesn't know url {}", stringify!($name), key)
+                    None => panic!("{:?} doesn't know url {}", stringify!($name), key)
                 }
             }
 

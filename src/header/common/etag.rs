@@ -38,8 +38,8 @@ impl Header for Etag {
 
 
         from_one_raw_str(raw).and_then(|s: String| {
-            let length: uint = s.len();
-            let slice = s[];
+            let length: usize = s.len();
+            let slice = &s[];
 
             // Early exits:
             // 1. The string is empty, or,

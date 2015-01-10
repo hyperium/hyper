@@ -9,7 +9,7 @@ pub fn from_one_raw_str<T: str::FromStr>(raw: &[Vec<u8>]) -> Option<T> {
         return None;
     }
     // we JUST checked that raw.len() == 1, so raw[0] WILL exist.
-    match str::from_utf8(raw[0][]) {
+    match str::from_utf8(&raw[0][]) {
         Ok(s) => str::FromStr::from_str(s),
         Err(_) => None
     }
@@ -22,7 +22,7 @@ pub fn from_comma_delimited<T: str::FromStr>(raw: &[Vec<u8>]) -> Option<Vec<T>> 
         return None;
     }
     // we JUST checked that raw.len() == 1, so raw[0] WILL exist.
-    from_one_comma_delimited(raw[0][])
+    from_one_comma_delimited(&raw[0][])
 }
 
 /// Reads a comma-delimited raw string into a Vec.
@@ -40,7 +40,7 @@ pub fn from_one_comma_delimited<T: str::FromStr>(raw: &[u8]) -> Option<Vec<T>> {
 }
 
 /// Format an array into a comma-delimited string.
-pub fn fmt_comma_delimited<T: fmt::Show>(fmt: &mut fmt::Formatter, parts: &[T]) -> fmt::Result {
+pub fn fmt_comma_delimited<T: fmt::String>(fmt: &mut fmt::Formatter, parts: &[T]) -> fmt::Result {
     let last = parts.len() - 1;
     for (i, part) in parts.iter().enumerate() {
         try!(write!(fmt, "{}", part));

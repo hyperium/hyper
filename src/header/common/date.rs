@@ -10,7 +10,7 @@ use header::shared::time::tm_from_str;
 #[derive(Copy, PartialEq, Clone)]
 pub struct Date(pub Tm);
 
-deref!(Date -> Tm);
+deref!(Date => Tm);
 
 impl Header for Date {
     fn header_name(_: Option<Date>) -> &'static str {

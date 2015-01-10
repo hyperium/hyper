@@ -9,7 +9,7 @@ pub use self::ConnectionOption::{KeepAlive, Close, ConnectionHeader};
 #[derive(Clone, PartialEq, Show)]
 pub struct Connection(pub Vec<ConnectionOption>);
 
-deref!(Connection -> Vec<ConnectionOption>);
+deref!(Connection => Vec<ConnectionOption>);
 
 /// Values that can be in the `Connection` header.
 #[derive(Clone, PartialEq)]
@@ -39,14 +39,20 @@ impl FromStr for ConnectionOption {
     }
 }
 
-impl fmt::Show for ConnectionOption {
+impl fmt::String for ConnectionOption {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
+        write!(fmt, "{}", match *self {
             KeepAlive => "keep-alive",
             Close => "close",
             ConnectionHeader(ref s) => s.as_slice()
-        }.fmt(fmt)
+        })
     }
+}
+
+impl fmt::Show for ConnectionOption {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+		self.to_string().fmt(fmt)
+	}
 }
 
 impl Header for Connection {
@@ -62,7 +68,7 @@ impl Header for Connection {
 impl HeaderFormat for Connection {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let Connection(ref parts) = *self;
-        fmt_comma_delimited(fmt, parts[])
+        fmt_comma_delimited(fmt, &parts[])
     }
 }
 

@@ -19,7 +19,7 @@ pub enum HttpVersion {
     Http20
 }
 
-impl fmt::Show for HttpVersion {
+impl fmt::String for HttpVersion {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Http09 => "HTTP/0.9",
@@ -29,3 +29,10 @@ impl fmt::Show for HttpVersion {
         }.fmt(fmt)
     }
 }
+
+impl fmt::Show for HttpVersion {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        self.to_string().fmt(fmt)
+    }
+}
+

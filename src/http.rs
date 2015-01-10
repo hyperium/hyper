@@ -30,9 +30,9 @@ use self::HttpWriter::{ThroughWriter, ChunkedWriter, SizedWriter, EmptyWriter};
 /// include a Content-Length header.
 pub enum HttpReader<R> {
     /// A Reader used when a Content-Length header is passed with a positive integer.
-    SizedReader(R, uint),
+    SizedReader(R, usize),
     /// A Reader used when Transfer-Encoding is `chunked`.
-    ChunkedReader(R, Option<uint>),
+    ChunkedReader(R, Option<usize>),
     /// A Reader used for responses that don't indicate a length or chunked.
     ///
     /// Note: This should only used for `Response`s. It is illegal for a
@@ -68,10 +68,10 @@ impl<R: Reader> HttpReader<R> {
 }
 
 impl<R: Reader> Reader for HttpReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> {
+    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         match *self {
             SizedReader(ref mut body, ref mut remaining) => {
-                debug!("Sized read, remaining={}", remaining);
+                debug!("Sized read, remaining={:?}", remaining);
                 if *remaining == 0 {
                     Err(io::standard_error(io::EndOfFile))
                 } else {
@@ -90,7 +90,7 @@ impl<R: Reader> Reader for HttpReader<R> {
                     // None means we don't know the size of the next chunk
                     None => try!(read_chunk_size(body))
                 };
-                debug!("Chunked read, remaining={}", rem);
+                debug!("Chunked read, remaining={:?}", rem);
 
                 if rem == 0 {
                     *opt_remaining = Some(0);
@@ -133,8 +133,8 @@ fn eat<R: Reader>(rdr: &mut R, bytes: &[u8]) -> IoResult<()> {
 }
 
 /// Chunked chunks start with 1*HEXDIGIT, indicating the size of the chunk.
-fn read_chunk_size<R: Reader>(rdr: &mut R) -> IoResult<uint> {
-    let mut size = 0u;
+fn read_chunk_size<R: Reader>(rdr: &mut R) -> IoResult<usize> {
+    let mut size = 0us;
     let radix = 16;
     let mut in_ext = false;
     let mut in_chunk_size = true;
@@ -142,15 +142,15 @@ fn read_chunk_size<R: Reader>(rdr: &mut R) -> IoResult<uint> {
         match try!(rdr.read_byte()) {
             b@b'0'...b'9' if in_chunk_size => {
                 size *= radix;
-                size += (b - b'0') as uint;
+                size += (b - b'0') as usize;
             },
             b@b'a'...b'f' if in_chunk_size => {
                 size *= radix;
-                size += (b + 10 - b'a') as uint;
+                size += (b + 10 - b'a') as usize;
             },
             b@b'A'...b'F' if in_chunk_size => {
                 size *= radix;
-                size += (b + 10 - b'A') as uint;
+                size += (b + 10 - b'A') as usize;
             },
             CR => {
                 match try!(rdr.read_byte()) {
@@ -183,7 +183,7 @@ fn read_chunk_size<R: Reader>(rdr: &mut R) -> IoResult<uint> {
             }
         }
     }
-    debug!("chunk size={}", size);
+    debug!("chunk size={:?}", size);
     Ok(size)
 }
 
@@ -196,7 +196,7 @@ pub enum HttpWriter<W: Writer> {
     /// A Writer for when Content-Length is set.
     ///
     /// Enforces that the body is not longer than the Content-Length header.
-    SizedWriter(W, uint),
+    SizedWriter(W, usize),
     /// A writer that should not write any body.
     EmptyWriter(W),
 }
@@ -257,7 +257,7 @@ impl<W: Writer> Writer for HttpWriter<W> {
             ThroughWriter(ref mut w) => w.write(msg),
             ChunkedWriter(ref mut w) => {
                 let chunk_size = msg.len();
-                debug!("chunked write, size = {}", chunk_size);
+                debug!("chunked write, size = {:?}", chunk_size);
                 try!(write!(w, "{:X}{}", chunk_size, LINE_ENDING));
                 try!(w.write(msg));
                 w.write_str(LINE_ENDING)
@@ -311,9 +311,15 @@ pub struct LineEnding;
 
 impl Copy for LineEnding {}
 
-impl fmt::Show for LineEnding {
+impl fmt::String for LineEnding {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.write_str(LINE_ENDING)
+    }
+}
+
+impl fmt::Show for LineEnding {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        self.to_string().fmt(fmt)
     }
 }
 
@@ -392,7 +398,7 @@ pub fn read_method<R: Reader>(stream: &mut R) -> HttpResult<method::Method> {
         return Err(HttpMethodError);
     }
 
-    let maybe_method = match buf[0..7] {
+    let maybe_method = match &buf[0..7] {
         b"GET    " => Some(method::Method::Get),
         b"PUT    " => Some(method::Method::Put),
         b"POST   " => Some(method::Method::Post),
@@ -405,9 +411,9 @@ pub fn read_method<R: Reader>(stream: &mut R) -> HttpResult<method::Method> {
         _ => None,
     };
 
-    debug!("maybe_method = {}", maybe_method);
+    debug!("maybe_method = {:?}", maybe_method);
 
-    match (maybe_method, buf[]) {
+    match (maybe_method, &buf[]) {
         (Some(method), _) => Ok(method),
         (None, ext) => {
             // We already checked that the buffer is ASCII
@@ -442,7 +448,7 @@ pub fn read_uri<R: Reader>(stream: &mut R) -> HttpResult<uri::RequestUri> {
         }
     }
 
-    debug!("uri buf = {}", s);
+    debug!("uri buf = {:?}", s);
 
     if s.as_slice().starts_with("/") {
         Ok(AbsolutePath(s))
@@ -491,8 +497,8 @@ pub fn read_http_version<R: Reader>(stream: &mut R) -> HttpResult<HttpVersion> {
     }
 }
 
-const MAX_HEADER_NAME_LENGTH: uint = 100;
-const MAX_HEADER_FIELD_LENGTH: uint = 1000;
+const MAX_HEADER_NAME_LENGTH: usize = 100;
+const MAX_HEADER_FIELD_LENGTH: usize = 1000;
 
 /// The raw bytes when parsing a header line.
 ///
@@ -541,7 +547,7 @@ pub fn read_header<R: Reader>(stream: &mut R) -> HttpResult<Option<RawHeaderLine
         };
     }
 
-    debug!("header name = {}", name);
+    debug!("header name = {:?}", name);
 
     let mut ows = true; //optional whitespace
 
@@ -576,11 +582,11 @@ pub type RequestLine = (method::Method, uri::RequestUri, HttpVersion);
 pub fn read_request_line<R: Reader>(stream: &mut R) -> HttpResult<RequestLine> {
     debug!("read request line");
     let method = try!(read_method(stream));
-    debug!("method = {}", method);
+    debug!("method = {:?}", method);
     let uri = try!(read_uri(stream));
-    debug!("uri = {}", uri);
+    debug!("uri = {:?}", uri);
     let version = try!(read_http_version(stream));
-    debug!("version = {}", version);
+    debug!("version = {:?}", version);
 
     if try!(stream.read_byte()) != CR {
         return Err(HttpVersionError);
@@ -660,7 +666,7 @@ pub fn read_status<R: Reader>(stream: &mut R) -> HttpResult<RawStatus> {
                 b => match bufwrt.write_u8(b) {
                     Ok(_) => (),
                     Err(_) => {
-                        for _ in range(0u, 128) {
+                        for _ in range(0us, 128) {
                             match try!(stream.read_byte()) {
                                 CR => match try!(stream.read_byte()) {
                                     LF => break 'read,
@@ -676,7 +682,7 @@ pub fn read_status<R: Reader>(stream: &mut R) -> HttpResult<RawStatus> {
         }
     }
 
-    let reason = match str::from_utf8(buf[]) {
+    let reason = match str::from_utf8(&buf[]) {
         Ok(s) => s.trim(),
         Err(_) => return Err(HttpStatusError)
     };
@@ -833,7 +839,7 @@ mod tests {
 
     #[test]
     fn test_read_chunk_size() {
-        fn read(s: &str, result: IoResult<uint>) {
+        fn read(s: &str, result: IoResult<usize>) {
             assert_eq!(read_chunk_size(&mut mem(s)), result);
         }
 

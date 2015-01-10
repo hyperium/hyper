@@ -1,5 +1,5 @@
 use header::{Header, HeaderFormat};
-use std::fmt::{self, Show};
+use std::fmt;
 use std::str::from_utf8;
 
 use cookie::Cookie;
@@ -20,7 +20,7 @@ pub struct Cookies(pub Vec<Cookie>);
 unsafe impl Send for Cookies {}
 unsafe impl Sync for Cookies {}
 
-deref!(Cookies -> Vec<Cookie>);
+deref!(Cookies => Vec<Cookie>);
 
 impl Header for Cookies {
     fn header_name(_: Option<Cookies>) -> &'static str {
@@ -30,7 +30,7 @@ impl Header for Cookies {
     fn parse_header(raw: &[Vec<u8>]) -> Option<Cookies> {
         let mut cookies = Vec::with_capacity(raw.len());
         for cookies_raw in raw.iter() {
-            match from_utf8(cookies_raw[]) {
+            match from_utf8(&cookies_raw[]) {
                 Ok(cookies_str) => {
                     for cookie_str in cookies_str.split(';') {
                         match cookie_str.trim().parse() {
@@ -56,9 +56,9 @@ impl HeaderFormat for Cookies {
         let cookies = &self.0;
         let last = cookies.len() - 1;
         for (i, cookie) in cookies.iter().enumerate() {
-            try!(cookie.pair().fmt(fmt));
-            if i < last {
-                try!("; ".fmt(fmt));
+            try!(write!(fmt, "{}", cookie.pair()));
+			if i < last {
+                try!(fmt.write_str("; "));
             }
         }
         Ok(())
@@ -86,7 +86,7 @@ impl Cookies {
 
 #[test]
 fn test_parse() {
-    let h = Header::parse_header([b"foo=bar; baz=quux".to_vec()][]);
+    let h = Header::parse_header(&[b"foo=bar; baz=quux".to_vec()][]);
     let c1 = Cookie::new("foo".to_string(), "bar".to_string());
     let c2 = Cookie::new("baz".to_string(), "quux".to_string());
     assert_eq!(h, Some(Cookies(vec![c1, c2])));
@@ -103,7 +103,7 @@ fn test_fmt() {
     let mut headers = Headers::new();
     headers.set(cookies);
 
-    assert_eq!(headers.to_string()[], "Cookie: foo=bar; baz=quux\r\n");
+    assert_eq!(&headers.to_string()[], "Cookie: foo=bar; baz=quux\r\n");
 }
 
 #[test]

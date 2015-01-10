@@ -8,7 +8,7 @@ use header::shared::util::from_one_raw_str;
 #[derive(Clone, PartialEq, Show)]
 pub struct Server(pub String);
 
-deref!(Server -> String);
+deref!(Server => String);
 
 impl Header for Server {
     fn header_name(_: Option<Server>) -> &'static str {

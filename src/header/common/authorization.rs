@@ -1,4 +1,4 @@
-use std::fmt::{self, Show};
+use std::fmt;
 use std::str::{FromStr, from_utf8};
 use std::ops::{Deref, DerefMut};
 use serialize::base64::{ToBase64, FromBase64, Standard, Config, Newline};
@@ -29,7 +29,7 @@ impl<S: Scheme> Header for Authorization<S> {
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<Authorization<S>> {
         if raw.len() == 1 {
-            match (from_utf8(unsafe { raw[].get_unchecked(0)[] }), Scheme::scheme(None::<S>)) {
+            match (from_utf8(unsafe { &raw[].get_unchecked(0)[] }), Scheme::scheme(None::<S>)) {
                 (Ok(header), Some(scheme))
                     if header.starts_with(scheme) && header.len() > scheme.len() + 1 => {
                     header[scheme.len() + 1..].parse::<S>().map(|s| Authorization(s))
@@ -70,7 +70,7 @@ impl Scheme for String {
     }
 
     fn fmt_scheme(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.fmt(f)
+		write!(f, "{}", self)
     }
 }
 
@@ -96,14 +96,14 @@ impl Scheme for Basic {
         let mut text = self.username.clone();
         text.push(':');
         if let Some(ref pass) = self.password {
-            text.push_str(pass[]);
+            text.push_str(&pass[]);
         }
-        text.as_bytes().to_base64(Config {
+        write!(f, "{}", text.as_bytes().to_base64(Config {
             char_set: Standard,
             newline: Newline::CRLF,
             pad: true,
             line_length: None
-        }).fmt(f)
+        }))
     }
 }
 
@@ -112,7 +112,7 @@ impl FromStr for Basic {
         match s.from_base64() {
             Ok(decoded) => match String::from_utf8(decoded) {
                 Ok(text) => {
-                    let mut parts = text[].split(':');
+                    let mut parts = &mut text[].split(':');
                     let user = match parts.next() {
                         Some(part) => part.to_string(),
                         None => return None
@@ -127,12 +127,12 @@ impl FromStr for Basic {
                     })
                 },
                 Err(e) => {
-                    debug!("Basic::from_utf8 error={}", e);
+                    debug!("Basic::from_utf8 error={:?}", e);
                     None
                 }
             },
             Err(e) => {
-                debug!("Basic::from_base64 error={}", e);
+                debug!("Basic::from_base64 error={:?}", e);
                 None
             }
         }
@@ -159,7 +159,7 @@ mod tests {
     #[test]
     fn test_raw_auth_parse() {
         let headers = Headers::from_raw(&mut mem("Authorization: foo bar baz\r\n\r\n")).unwrap();
-        assert_eq!(headers.get::<Authorization<String>>().unwrap().0[], "foo bar baz");
+        assert_eq!(&headers.get::<Authorization<String>>().unwrap().0[], "foo bar baz");
     }
 
     #[test]
@@ -180,7 +180,7 @@ mod tests {
     fn test_basic_auth_parse() {
         let headers = Headers::from_raw(&mut mem("Authorization: Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==\r\n\r\n")).unwrap();
         let auth = headers.get::<Authorization<Basic>>().unwrap();
-        assert_eq!(auth.0.username[], "Aladdin");
+        assert_eq!(&auth.0.username[], "Aladdin");
         assert_eq!(auth.0.password, Some("open sesame".to_string()));
     }
 

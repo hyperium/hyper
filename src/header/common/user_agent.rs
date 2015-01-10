@@ -8,7 +8,7 @@ use header::shared::util::from_one_raw_str;
 #[derive(Clone, PartialEq, Show)]
 pub struct UserAgent(pub String);
 
-deref!(UserAgent -> String);
+deref!(UserAgent => String);
 
 impl Header for UserAgent {
     fn header_name(_: Option<UserAgent>) -> &'static str {

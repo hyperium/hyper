@@ -9,7 +9,7 @@ use header::shared::time::tm_from_str;
 #[derive(Copy, PartialEq, Clone)]
 pub struct Expires(pub Tm);
 
-deref!(Expires -> Tm);
+deref!(Expires => Tm);
 
 impl Header for Expires {
     fn header_name(_: Option<Expires>) -> &'static str {

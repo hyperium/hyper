@@ -23,18 +23,24 @@ pub enum Encoding {
     EncodingExt(String)
 }
 
-impl fmt::Show for Encoding {
+impl fmt::String for Encoding {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
+        write!(fmt, "{}", match *self {
             Chunked => "chunked",
             Gzip => "gzip",
             Deflate => "deflate",
             Compress => "compress",
             Identity => "identity",
             EncodingExt(ref s) => s.as_slice()
-            }.fmt(fmt)
-        }
-    }
+        })
+	}
+}
+
+impl fmt::Show for Encoding {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+		self.to_string().fmt(fmt)
+	}
+}
 
 impl str::FromStr for Encoding {
     fn from_str(s: &str) -> Option<Encoding> {

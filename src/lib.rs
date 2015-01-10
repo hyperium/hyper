@@ -1,4 +1,5 @@
-#![feature(slicing_syntax, old_orphan_check)]
+#![feature(slicing_syntax, box_syntax, old_orphan_check, old_impl_check)]
+#![allow(unstable)]
 #![deny(missing_docs)]
 #![deny(warnings)]
 #![experimental]
@@ -151,14 +152,14 @@ use self::HttpError::{HttpMethodError, HttpUriError, HttpVersionError,
 
 macro_rules! todo(
     ($($arg:tt)*) => (if cfg!(not(ndebug)) {
-        log!(5, "TODO: {}", format_args!($($arg)*))
+        log!(5, "TODO: {:?}", format_args!($($arg)*))
     })
 );
 
 macro_rules! inspect(
     ($name:expr, $value:expr) => ({
         let v = $value;
-        debug!("inspect: {} = {}", $name, v);
+        debug!("inspect: {:?} = {:?}", $name, v);
         v
     })
 );

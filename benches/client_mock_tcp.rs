@@ -12,7 +12,7 @@ use std::path::BytesContainer;
 
 use hyper::net;
 
-static README: &'static [u8] = include_bin!("../README.md");
+static README: &'static [u8] = include_bytes!("../README.md");
 
 
 struct MockStream {

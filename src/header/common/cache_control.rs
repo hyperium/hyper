@@ -7,7 +7,7 @@ use header::shared::util::{from_one_comma_delimited, fmt_comma_delimited};
 #[derive(PartialEq, Clone, Show)]
 pub struct CacheControl(pub Vec<CacheDirective>);
 
-deref!(CacheControl -> Vec<CacheDirective>);
+deref!(CacheControl => Vec<CacheDirective>);
 
 impl Header for CacheControl {
     fn header_name(_: Option<CacheControl>) -> &'static str {
@@ -16,7 +16,7 @@ impl Header for CacheControl {
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<CacheControl> {
         let directives = raw.iter()
-            .filter_map(|line| from_one_comma_delimited(line[]))
+            .filter_map(|line| from_one_comma_delimited(&line[]))
             .collect::<Vec<Vec<CacheDirective>>>()
             .concat();
         if directives.len() > 0 {
@@ -29,7 +29,7 @@ impl Header for CacheControl {
 
 impl HeaderFormat for CacheControl {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt_comma_delimited(fmt, self[])
+        fmt_comma_delimited(fmt, &self[])
     }
 }
 
@@ -47,11 +47,11 @@ pub enum CacheDirective {
 
     // request directives
     /// "max-age=delta"
-    MaxAge(uint),
+    MaxAge(usize),
     /// "max-stale=delta"
-    MaxStale(uint),
+    MaxStale(usize),
     /// "min-fresh=delta"
-    MinFresh(uint),
+    MinFresh(usize),
 
     // response directives
     /// "must-revalidate"
@@ -63,13 +63,13 @@ pub enum CacheDirective {
     /// "proxy-revalidate"
     ProxyRevalidate,
     /// "s-maxage=delta"
-    SMaxAge(uint),
+    SMaxAge(usize),
 
     /// Extension directives. Optionally include an argument.
     Extension(String, Option<String>)
 }
 
-impl fmt::Show for CacheDirective {
+impl fmt::String for CacheDirective {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use self::CacheDirective::*;
         match *self {
@@ -88,13 +88,18 @@ impl fmt::Show for CacheDirective {
             ProxyRevalidate => "proxy-revalidate",
             SMaxAge(secs) => return write!(f, "s-maxage={}", secs),
 
-            Extension(ref name, None) => name[],
+            Extension(ref name, None) => &name[],
             Extension(ref name, Some(ref arg)) => return write!(f, "{}={}", name, arg),
 
         }.fmt(f)
     }
 }
 
+impl fmt::Show for CacheDirective {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+		self.to_string().fmt(fmt)
+	}
+}
 impl FromStr for CacheDirective {
     fn from_str(s: &str) -> Option<CacheDirective> {
         use self::CacheDirective::*;
@@ -109,7 +114,7 @@ impl FromStr for CacheDirective {
             "proxy-revalidate" => Some(ProxyRevalidate),
             "" => None,
             _ => match s.find('=') {
-                Some(idx) if idx+1 < s.len() => match (s[..idx], s[idx+1..].trim_matches('"')) {
+                Some(idx) if idx+1 < s.len() => match (&s[..idx], &s[idx+1..].trim_matches('"')) {
                     ("max-age" , secs) => secs.parse().map(MaxAge),
                     ("max-stale", secs) => secs.parse().map(MaxStale),
                     ("min-fresh", secs) => secs.parse().map(MinFresh),

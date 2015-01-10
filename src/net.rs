@@ -80,7 +80,7 @@ impl Clone for Box<NetworkStream + Send> {
 
 impl Reader for Box<NetworkStream + Send> {
     #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> { (**self).read(buf) }
+    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> { (**self).read(buf) }
 }
 
 impl Writer for Box<NetworkStream + Send> {
@@ -93,7 +93,7 @@ impl Writer for Box<NetworkStream + Send> {
 
 impl<'a> Reader for &'a mut NetworkStream {
     #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> { (**self).read(buf) }
+    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> { (**self).read(buf) }
 }
 
 impl<'a> Writer for &'a mut NetworkStream {
@@ -219,7 +219,7 @@ pub enum HttpStream {
 
 impl Reader for HttpStream {
     #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> {
+    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         match *self {
             Http(ref mut inner) => inner.read(buf),
             Https(ref mut inner) => inner.read(buf)
@@ -287,7 +287,7 @@ impl NetworkConnector<HttpStream> for HttpConnector {
 }
 
 fn lift_ssl_error(ssl: SslError) -> IoError {
-    debug!("lift_ssl_error: {}", ssl);
+    debug!("lift_ssl_error: {:?}", ssl);
     match ssl {
         StreamError(err) => err,
         SslSessionClosed => IoError {
@@ -300,7 +300,7 @@ fn lift_ssl_error(ssl: SslError) -> IoError {
         OpenSslErrors(errs) => IoError {
             kind: OtherIoError,
             desc: "Error in OpenSSL",
-            detail: Some(format!("{}", errs))
+            detail: Some(format!("{:?}", errs))
         }
     }
 }
