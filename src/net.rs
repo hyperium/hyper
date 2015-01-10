@@ -62,9 +62,10 @@ impl<T: NetworkStream + Send + Clone> StreamClone for T {
 }
 
 /// A connector creates a NetworkStream.
-pub trait NetworkConnector<S: NetworkStream> {
+pub trait NetworkConnector {
+    type Stream = NetworkStream;
     /// Connect to a remote address.
-    fn connect(&mut self, host: &str, port: Port, scheme: &str) -> IoResult<S>;
+    fn connect(&mut self, host: &str, port: Port, scheme: &str) -> IoResult<Self::Stream>;
 }
 
 impl fmt::Show for Box<NetworkStream + Send> {
@@ -257,7 +258,9 @@ impl NetworkStream for HttpStream {
 #[allow(missing_copy_implementations)]
 pub struct HttpConnector(pub Option<VerifyCallback>);
 
-impl NetworkConnector<HttpStream> for HttpConnector {
+impl NetworkConnector for HttpConnector {
+    type Stream = HttpStream;
+
     fn connect(&mut self, host: &str, port: Port, scheme: &str) -> IoResult<HttpStream> {
         let addr = (host, port);
         match scheme {

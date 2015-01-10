@@ -64,7 +64,10 @@ impl Client<HttpConnector> {
 }
 
 #[old_impl_check]
-impl<C: NetworkConnector<S>, S: NetworkStream> Client<C> {
+impl<S, C> Client<C>
+    where S: NetworkStream,
+          C: NetworkConnector<Stream=S>,
+{
 
     /// Create a new client with a specific connector.
     pub fn with_connector(connector: C) -> Client<C> {
@@ -121,7 +124,7 @@ impl<C: NetworkConnector<S>, S: NetworkStream> Client<C> {
 ///
 /// One of these will be built for you if you use one of the convenience
 /// methods, such as `get()`, `post()`, etc.
-pub struct RequestBuilder<'a, U: IntoUrl, C: NetworkConnector<S> + 'a, S: NetworkStream> {
+pub struct RequestBuilder<'a, U: IntoUrl, C: NetworkConnector<Stream=S> + 'a, S: NetworkStream> {
     client: &'a mut Client<C>,
     url: U,
     headers: Option<Headers>,
@@ -129,7 +132,11 @@ pub struct RequestBuilder<'a, U: IntoUrl, C: NetworkConnector<S> + 'a, S: Networ
     body: Option<Body<'a>>,
 }
 
-impl<'a, U: IntoUrl, C: NetworkConnector<S>, S: NetworkStream> RequestBuilder<'a, U, C, S> {
+impl<'a, U, C, S> RequestBuilder<'a, U, C, S>
+    where U: IntoUrl,
+          S: NetworkStream,
+          C: NetworkConnector<Stream=S>,
+{
 
     /// Set a request body to be sent.
     pub fn body<B: IntoBody<'a>>(mut self, body: B) -> RequestBuilder<'a, U, C, S> {
