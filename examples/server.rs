@@ -1,3 +1,4 @@
+#![allow(unstable)]
 extern crate hyper;
 #[macro_use] extern crate log;
 
@@ -24,7 +25,7 @@ fn echo(mut req: Request, mut res: Response) {
             (&Get, "/") | (&Get, "/echo") => {
                 let out = b"Try POST /echo";
 
-                res.headers_mut().set(ContentLength(out.len()));
+                res.headers_mut().set(ContentLength(out.len() as u64));
                 let mut res = try_return!(res.start());
                 try_return!(res.write(out));
                 try_return!(res.end());

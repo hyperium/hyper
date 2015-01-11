@@ -1,6 +1,7 @@
-use header::{Header, HeaderFormat, CaseInsensitive};
+use header::{Header, HeaderFormat};
 use std::fmt::{self};
 use header::shared::util::{from_comma_delimited, fmt_comma_delimited, from_one_raw_str};
+use unicase::UniCase;
 
 /// The `Allow` header.
 /// See also https://tools.ietf.org/html/rfc7231#section-7.1.4
@@ -10,7 +11,7 @@ pub enum Vary {
     /// This corresponds to '*'.
     Any,
     /// The header field names which will influence the response representation.
-    Headers(Vec<CaseInsensitive>),
+    Headers(Vec<UniCase<String>>),
 }
 
 impl Header for Vary {

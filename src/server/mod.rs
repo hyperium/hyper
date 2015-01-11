@@ -15,8 +15,8 @@ use HttpError::HttpIoError;
 use {HttpResult};
 use header::common::Connection;
 use header::common::connection::{KeepAlive, Close};
-use net::{NetworkListener, NetworkAcceptor, NetworkStream,
-          HttpAcceptor, HttpListener, HttpStream};
+use net::{NetworkListener, NetworkStream, NetworkAcceptor,
+          HttpAcceptor, HttpListener};
 use version::HttpVersion::{Http10, Http11};
 
 pub mod request;
@@ -28,7 +28,8 @@ pub mod response;
 /// incoming connection, and hand them to the provided handler.
 pub struct Server<L = HttpListener> {
     ip: IpAddr,
-    port: Port
+    port: Port,
+    listener: L,
 }
 
 macro_rules! try_option(
@@ -43,29 +44,28 @@ macro_rules! try_option(
 impl Server<HttpListener> {
     /// Creates a new server that will handle `HttpStream`s.
     pub fn http(ip: IpAddr, port: Port) -> Server {
-        Server {
-            ip: ip,
-            port: port
-        }
+        Server::with_listener(ip, port, HttpListener::Http)
     }
 }
 
-impl<X> Server<X> {
-	/// Binds to a socket, and starts handling connections using a task pool.
-    ///
-    /// This method has unbound type parameters, so can be used when you want to use
-    /// something other than the provided HttpStream, HttpAcceptor, and HttpListener.
-    pub fn listen_network<H, S, A, L>(self, handler: H, threads: usize) -> HttpResult<Listening<A>>
-    where H: Handler,
-          S: NetworkStream + Clone,
-          A: NetworkAcceptor<S>,
-          L: NetworkListener<S, A>, {
+impl<
+L: NetworkListener<Acceptor=A> + Send,
+A: NetworkAcceptor<Stream=S> + Send,
+S: NetworkStream + Clone + Send> Server<L> {
+    /// Creates a new server that will handle `HttpStream`s.
+    pub fn with_listener(ip: IpAddr, port: Port, listener: L) -> Server<L> {
+        Server {
+            ip: ip,
+            port: port,
+            listener: listener,
+        }
+    }
+
+    /// Binds to a socket, and starts handling connections using a task pool.
+    pub fn listen_threads<H: Handler>(mut self, handler: H, threads: usize) -> HttpResult<Listening<L::Acceptor>> {
         debug!("binding to {:?}:{:?}", self.ip, self.port);
-        let mut listener: L = try!(NetworkListener::<S, A>::bind((self.ip, self.port)));
-
-        let socket = try!(listener.socket_name());
-
-        let acceptor = try!(listener.listen());
+        let acceptor = try!(self.listener.listen((self.ip, self.port)));
+        let socket = try!(acceptor.socket_name());
 
         let mut captured = acceptor.clone();
         let guard = Builder::new().name("hyper acceptor".to_string()).scoped(move || {
@@ -134,17 +134,9 @@ impl<X> Server<X> {
             socket: socket,
         })
     }
-}
-
-#[old_impl_check]
-impl<L: NetworkListener<S, A>, S: NetworkStream, A: NetworkAcceptor<S>> Server<L> {
-    /// Binds to a socket and starts handling connections with the specified number of tasks.
-    pub fn listen_threads<H: Handler>(self, handler: H, threads: usize) -> HttpResult<Listening<HttpAcceptor>> {
-        self.listen_network::<H, HttpStream, HttpAcceptor, HttpListener>(handler, threads)
-    }
 
     /// Binds to a socket and starts handling connections.
-    pub fn listen<H: Handler>(self, handler: H) -> HttpResult<Listening<HttpAcceptor>> {
+    pub fn listen<H: Handler>(self, handler: H) -> HttpResult<Listening<L::Acceptor>> {
         self.listen_threads(handler, os::num_cpus() * 5 / 4)
     }
 
@@ -158,8 +150,7 @@ pub struct Listening<A = HttpAcceptor> {
     pub socket: SocketAddr,
 }
 
-#[old_impl_check]
-impl<A: NetworkAcceptor<S>, S: NetworkStream> Listening<A> {
+impl<A: NetworkAcceptor> Listening<A> {
     /// Causes the current thread to wait for this listening to complete.
     pub fn await(&mut self) {
         if let Some(guard) = self.guard.take() {

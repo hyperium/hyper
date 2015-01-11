@@ -68,7 +68,9 @@ impl NetworkStream for MockStream {
 
 pub struct MockConnector;
 
-impl NetworkConnector<MockStream> for MockConnector {
+impl NetworkConnector for MockConnector {
+    type Stream = MockStream;
+
     fn connect(&mut self, _host: &str, _port: u16, _scheme: &str) -> IoResult<MockStream> {
         Ok(MockStream::new())
     }
@@ -82,7 +84,8 @@ macro_rules! mock_connector (
 
         struct $name;
 
-        impl ::net::NetworkConnector<::mock::MockStream> for $name {
+        impl ::net::NetworkConnector for $name {
+            type Stream = ::mock::MockStream;
             fn connect(&mut self, host: &str, port: u16, scheme: &str) -> ::std::io::IoResult<::mock::MockStream> {
                 use std::collections::HashMap;
                 debug!("MockStream::connect({:?}, {:?}, {:?})", host, port, scheme);

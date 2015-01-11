@@ -11,16 +11,13 @@ authors = ["Sean McArthur <sean.monstar@gmail.com>",
            "Jonathan Reem <jonathan.reem@gmail.com>"]
 
 [dependencies]
-url = "*"
-openssl = "*"
-mime = "*"
-unsafe-any = "*"
 cookie = "*"
-time = "*"
-mucell = "*"
 log = "*"
+mime = "*"
+mucell = "*"
+openssl = "*"
 rustc-serialize = "*"
-
-[dev-dependencies]
-curl = "*"
-
+time = "*"
+unicase = "*"
+unsafe-any = "*"
+url = "*"

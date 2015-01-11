@@ -7,9 +7,9 @@ use header::shared::util::from_one_raw_str;
 ///
 /// Simply a wrapper around a `usize`.
 #[derive(Copy, Clone, PartialEq, Show)]
-pub struct ContentLength(pub usize);
+pub struct ContentLength(pub u64);
 
-deref!(ContentLength => usize);
+deref!(ContentLength => u64);
 
 impl Header for ContentLength {
     fn header_name(_: Option<ContentLength>) -> &'static str {
@@ -23,17 +23,7 @@ impl Header for ContentLength {
 
 impl HeaderFormat for ContentLength {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        let ContentLength(ref value) = *self;
-        write!(fmt, "{}", value)
-    }
-}
-
-impl ContentLength {
-    /// Returns the wrapped length.
-    #[deprecated = "use Deref instead"]
-    #[inline]
-    pub fn len(&self) -> usize {
-        **self
+       fmt::String::fmt(&self.0, fmt)
     }
 }
 

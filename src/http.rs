@@ -30,9 +30,9 @@ use self::HttpWriter::{ThroughWriter, ChunkedWriter, SizedWriter, EmptyWriter};
 /// include a Content-Length header.
 pub enum HttpReader<R> {
     /// A Reader used when a Content-Length header is passed with a positive integer.
-    SizedReader(R, usize),
+    SizedReader(R, u64),
     /// A Reader used when Transfer-Encoding is `chunked`.
-    ChunkedReader(R, Option<usize>),
+    ChunkedReader(R, Option<u64>),
     /// A Reader used for responses that don't indicate a length or chunked.
     ///
     /// Note: This should only used for `Response`s. It is illegal for a
@@ -75,13 +75,13 @@ impl<R: Reader> Reader for HttpReader<R> {
                 if *remaining == 0 {
                     Err(io::standard_error(io::EndOfFile))
                 } else {
-                    let num = try!(body.read(buf));
+                    let num = try!(body.read(buf)) as u64;
                     if num > *remaining {
                         *remaining = 0;
                     } else {
                         *remaining -= num;
                     }
-                    Ok(num)
+                    Ok(num as usize)
                 }
             },
             ChunkedReader(ref mut body, ref mut opt_remaining) => {
@@ -102,8 +102,8 @@ impl<R: Reader> Reader for HttpReader<R> {
                     return Err(io::standard_error(io::EndOfFile));
                 }
 
-                let to_read = min(rem, buf.len());
-                let count = try!(body.read(buf.slice_to_mut(to_read)));
+                let to_read = min(rem as usize, buf.len());
+                let count = try!(body.read(buf.slice_to_mut(to_read))) as u64;
 
                 rem -= count;
                 *opt_remaining = if rem > 0 {
@@ -112,7 +112,7 @@ impl<R: Reader> Reader for HttpReader<R> {
                     try!(eat(body, LINE_ENDING.as_bytes()));
                     None
                 };
-                Ok(count)
+                Ok(count as usize)
             },
             EofReader(ref mut body) => {
                 body.read(buf)
@@ -133,8 +133,8 @@ fn eat<R: Reader>(rdr: &mut R, bytes: &[u8]) -> IoResult<()> {
 }
 
 /// Chunked chunks start with 1*HEXDIGIT, indicating the size of the chunk.
-fn read_chunk_size<R: Reader>(rdr: &mut R) -> IoResult<usize> {
-    let mut size = 0us;
+fn read_chunk_size<R: Reader>(rdr: &mut R) -> IoResult<u64> {
+    let mut size = 0u64;
     let radix = 16;
     let mut in_ext = false;
     let mut in_chunk_size = true;
@@ -142,15 +142,15 @@ fn read_chunk_size<R: Reader>(rdr: &mut R) -> IoResult<usize> {
         match try!(rdr.read_byte()) {
             b@b'0'...b'9' if in_chunk_size => {
                 size *= radix;
-                size += (b - b'0') as usize;
+                size += (b - b'0') as u64;
             },
             b@b'a'...b'f' if in_chunk_size => {
                 size *= radix;
-                size += (b + 10 - b'a') as usize;
+                size += (b + 10 - b'a') as u64;
             },
             b@b'A'...b'F' if in_chunk_size => {
                 size *= radix;
-                size += (b + 10 - b'A') as usize;
+                size += (b + 10 - b'A') as u64;
             },
             CR => {
                 match try!(rdr.read_byte()) {
@@ -196,7 +196,7 @@ pub enum HttpWriter<W: Writer> {
     /// A Writer for when Content-Length is set.
     ///
     /// Enforces that the body is not longer than the Content-Length header.
-    SizedWriter(W, usize),
+    SizedWriter(W, u64),
     /// A writer that should not write any body.
     EmptyWriter(W),
 }
@@ -263,12 +263,12 @@ impl<W: Writer> Writer for HttpWriter<W> {
                 w.write_str(LINE_ENDING)
             },
             SizedWriter(ref mut w, ref mut remaining) => {
-                let len = msg.len();
+                let len = msg.len() as u64;
                 if len > *remaining {
                     let len = *remaining;
                     *remaining = 0;
-                    try!(w.write(msg.slice_to(len))); // msg[...len]
-                    Err(io::standard_error(io::ShortWrite(len)))
+                    try!(w.write(&msg[..len as usize]));
+                    Err(io::standard_error(io::ShortWrite(len as usize)))
                 } else {
                     *remaining -= len;
                     w.write(msg)
@@ -666,7 +666,7 @@ pub fn read_status<R: Reader>(stream: &mut R) -> HttpResult<RawStatus> {
                 b => match bufwrt.write_u8(b) {
                     Ok(_) => (),
                     Err(_) => {
-                        for _ in range(0us, 128) {
+                        for _ in 0u8..128 {
                             match try!(stream.read_byte()) {
                                 CR => match try!(stream.read_byte()) {
                                     LF => break 'read,
@@ -839,7 +839,7 @@ mod tests {
 
     #[test]
     fn test_read_chunk_size() {
-        fn read(s: &str, result: IoResult<usize>) {
+        fn read(s: &str, result: IoResult<u64>) {
             assert_eq!(read_chunk_size(&mut mem(s)), result);
         }
 

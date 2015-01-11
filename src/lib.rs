@@ -1,8 +1,7 @@
-#![feature(slicing_syntax, box_syntax, old_orphan_check, old_impl_check)]
-#![allow(unstable)]
+#![feature(slicing_syntax, box_syntax)]
 #![deny(missing_docs)]
-#![deny(warnings)]
-#![experimental]
+#![allow(unstable)]
+#![cfg_attr(test, deny(warnings))]
 
 //! # Hyper
 //! Hyper is a fast, modern HTTP implementation written in and for Rust. It
@@ -135,6 +134,7 @@ extern crate openssl;
 extern crate "unsafe-any" as uany;
 extern crate cookie;
 extern crate mucell;
+extern crate unicase;
 
 pub use std::io::net::ip::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr, Port};
 pub use mimewrapper::mime;
@@ -238,8 +238,6 @@ impl FromError<url::ParseError> for HttpError {
     }
 }
 
-//FIXME: when Opt-in Built-in Types becomes a thing, we can force these structs
-//to be Send. For now, this has the compiler do a static check.
 fn _assert_send<T: Send>() {
     _assert_send::<client::Request<net::Fresh>>();
     _assert_send::<client::Response>();

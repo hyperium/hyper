@@ -26,6 +26,7 @@ use std::cmp::Ordering::{self, Less, Equal, Greater};
 /// # use hyper::status::StatusCode::{Code123, Continue};
 /// assert_eq!(Code123.class().default_code(), Continue);
 /// ```
+#[derive(Show)]
 pub enum StatusCode {
     /// 100 Continue
     Continue = 100,
@@ -1592,12 +1593,6 @@ impl fmt::String for StatusCode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{} {}", *self as u16,
                self.canonical_reason().unwrap_or("<unknown status code>"))
-    }
-}
-
-impl fmt::Show for StatusCode {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        self.to_string().fmt(fmt)
     }
 }
 
