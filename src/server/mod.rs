@@ -46,6 +46,10 @@ impl Server<HttpListener> {
     pub fn http(ip: IpAddr, port: Port) -> Server {
         Server::with_listener(ip, port, HttpListener::Http)
     }
+    /// Creates a new server that will handler `HttpStreams`s using a TLS connection.
+    pub fn https(ip: IpAddr, port: Port, cert: Path, key: Path) -> Server {
+        Server::with_listener(ip, port, HttpListener::Https(cert, key))
+    }
 }
 
 impl<
