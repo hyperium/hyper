@@ -1,5 +1,5 @@
 use header::{Header, HeaderFormat};
-use std::fmt::{self, Show};
+use std::fmt;
 use std::str::FromStr;
 use header::shared::util::{from_comma_delimited, fmt_comma_delimited};
 
@@ -12,7 +12,7 @@ pub struct Upgrade(pub Vec<Protocol>);
 deref!(Upgrade => Vec<Protocol>);
 
 /// Protocol values that can appear in the Upgrade header.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Show)]
 pub enum Protocol {
     /// The websocket protocol.
     WebSocket,
@@ -35,12 +35,6 @@ impl fmt::String for Protocol {
             WebSocket => "websocket",
             ProtocolExt(ref s) => s.as_slice()
         })
-    }
-}
-
-impl fmt::Show for Protocol {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        self.to_string().fmt(fmt)
     }
 }
 

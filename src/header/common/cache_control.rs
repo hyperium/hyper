@@ -72,7 +72,7 @@ pub enum CacheDirective {
 impl fmt::String for CacheDirective {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use self::CacheDirective::*;
-        match *self {
+        fmt::String::fmt(match *self {
             NoCache => "no-cache",
             NoStore => "no-store",
             NoTransform => "no-transform",
@@ -91,7 +91,7 @@ impl fmt::String for CacheDirective {
             Extension(ref name, None) => &name[],
             Extension(ref name, Some(ref arg)) => return write!(f, "{}={}", name, arg),
 
-        }.fmt(f)
+        }, f)
     }
 }
 

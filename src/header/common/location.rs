@@ -1,5 +1,5 @@
 use header::{Header, HeaderFormat};
-use std::fmt::{self, Show};
+use std::fmt;
 use header::shared::util::from_one_raw_str;
 
 /// The `Location` header.
@@ -30,8 +30,7 @@ impl Header for Location {
 
 impl HeaderFormat for Location {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        let Location(ref value) = *self;
-        value.fmt(fmt)
+        fmt.write_str(&*self.0)
     }
 }
 

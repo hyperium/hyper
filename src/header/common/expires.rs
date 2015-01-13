@@ -1,4 +1,4 @@
-use std::fmt::{self, Show};
+use std::fmt;
 use std::str::FromStr;
 use time::Tm;
 use header::{Header, HeaderFormat};
@@ -6,7 +6,7 @@ use header::shared::util::from_one_raw_str;
 use header::shared::time::tm_from_str;
 
 /// The `Expires` header field.
-#[derive(Copy, PartialEq, Clone)]
+#[derive(Copy, PartialEq, Clone, Show)]
 pub struct Expires(pub Tm);
 
 deref!(Expires => Tm);
@@ -24,11 +24,12 @@ impl Header for Expires {
 
 impl HeaderFormat for Expires {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        let tm = **self;
-        match tm.tm_utcoff {
-            0 => tm.rfc822().fmt(fmt),
-            _ => tm.to_utc().rfc822().fmt(fmt)
-        }
+        let tm = self.0;
+        let tm = match tm.tm_utcoff {
+            0 => tm,
+            _ => tm.to_utc(),
+        };
+        fmt::String::fmt(&tm.rfc822(), fmt)
     }
 }
 
