@@ -33,7 +33,7 @@ deref!(TransferEncoding => Vec<Encoding>);
 /// # use hyper::header::Headers;
 /// # let mut headers = Headers::new();
 /// headers.set(TransferEncoding(vec![Gzip, Chunked]));
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Show)]
 pub enum Encoding {
     /// The `chunked` encoding.
     Chunked,
@@ -57,12 +57,6 @@ impl fmt::String for Encoding {
             EncodingExt(ref s) => s.as_slice()
         })
     }
-}
-
-impl fmt::Show for Encoding {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-		self.to_string().fmt(fmt)
-	}
 }
 
 impl FromStr for Encoding {

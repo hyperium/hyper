@@ -1,5 +1,5 @@
 use header::{Header, HeaderFormat};
-use std::fmt::{self, Show};
+use std::fmt;
 use std::str::FromStr;
 use header::shared::util::{from_comma_delimited, fmt_comma_delimited};
 
@@ -12,7 +12,7 @@ pub struct Connection(pub Vec<ConnectionOption>);
 deref!(Connection => Vec<ConnectionOption>);
 
 /// Values that can be in the `Connection` header.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Show)]
 pub enum ConnectionOption {
     /// The `keep-alive` connection value.
     KeepAlive,
@@ -47,12 +47,6 @@ impl fmt::String for ConnectionOption {
             ConnectionHeader(ref s) => s.as_slice()
         })
     }
-}
-
-impl fmt::Show for ConnectionOption {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-		self.to_string().fmt(fmt)
-	}
 }
 
 impl Header for Connection {
