@@ -114,8 +114,14 @@ macro_rules! impl_header(
 
         impl header::HeaderFormat for $from {
             fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-                let value = &(self[]);
-                value.fmt(fmt)
+                let value = &*self;
+                fmt::String::fmt(&value, fmt)
+            }
+        }
+
+        impl fmt::String for $from {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                fmt::String::fmt(&**self, f)
             }
         }
     }

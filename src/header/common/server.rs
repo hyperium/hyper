@@ -1,5 +1,5 @@
 use header;
-use std::fmt::{self, Show};
+use std::fmt;
 use header::shared::util::from_one_raw_str;
 
 /// The `Server` header field.
