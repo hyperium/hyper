@@ -11,8 +11,8 @@ use std::raw::{self, TraitObject};
 use std::sync::Arc;
 
 use uany::UnsafeAnyExt;
-use openssl::ssl::{Ssl, SslStream, SslContext, VerifyCallback};
-use openssl::ssl::SslVerifyMode::{SslVerifyPeer, SslVerifyNone};
+use openssl::ssl::{Ssl, SslStream, SslContext};
+use openssl::ssl::SslVerifyMode::SslVerifyNone;
 use openssl::ssl::SslMethod::Sslv23;
 use openssl::ssl::error::{SslError, StreamError, OpenSslErrors, SslSessionClosed};
 use openssl::x509::X509FileType;
@@ -309,7 +309,10 @@ impl NetworkStream for HttpStream {
 
 /// A connector that will produce HttpStreams.
 #[allow(missing_copy_implementations)]
-pub struct HttpConnector(pub Option<VerifyCallback>);
+pub struct HttpConnector(pub Option<ContextVerifier>);
+
+/// A method that can set verification methods on an SSL context
+pub type ContextVerifier = for <'a> fn(&'a mut SslContext) -> ();
 
 impl NetworkConnector for HttpConnector {
     type Stream = HttpStream;
@@ -325,7 +328,9 @@ impl NetworkConnector for HttpConnector {
                 debug!("https scheme");
                 let stream = try!(TcpStream::connect(addr));
                 let mut context = try!(SslContext::new(Sslv23).map_err(lift_ssl_error));
-                self.0.as_ref().map(|cb| context.set_verify(SslVerifyPeer, Some(*cb)));
+                if let Some(ref v) = self.0 {
+                    v(&mut context);
+                }
                 let ssl = try!(Ssl::new(&context).map_err(lift_ssl_error));
                 try!(ssl.set_hostname(host).map_err(lift_ssl_error));
                 let stream = try!(SslStream::new(&context, stream).map_err(lift_ssl_error));

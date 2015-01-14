@@ -25,12 +25,10 @@ use std::iter::Extend;
 use url::UrlParser;
 use url::ParseError as UrlError;
 
-use openssl::ssl::VerifyCallback;
-
 use header::{Headers, Header, HeaderFormat};
 use header::common::{ContentLength, Location};
 use method::Method;
-use net::{NetworkConnector, HttpConnector};
+use net::{NetworkConnector, HttpConnector, ContextVerifier};
 use status::StatusClass::Redirection;
 use {Url, Port, HttpResult};
 use HttpError::HttpUriError;
@@ -57,7 +55,7 @@ impl Client<HttpConnector> {
     }
 
     /// Set the SSL verifier callback for use with OpenSSL.
-    pub fn set_ssl_verifier(&mut self, verifier: VerifyCallback) {
+    pub fn set_ssl_verifier(&mut self, verifier: ContextVerifier) {
         self.connector = HttpConnector(Some(verifier));
     }
 
