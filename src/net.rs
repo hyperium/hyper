@@ -8,12 +8,21 @@ use std::io::net::ip::{SocketAddr, ToSocketAddr, Port};
 use std::io::net::tcp::{TcpStream, TcpListener, TcpAcceptor};
 use std::mem;
 use std::raw::{self, TraitObject};
+use std::sync::Arc;
 
 use uany::UnsafeAnyExt;
 use openssl::ssl::{Ssl, SslStream, SslContext, VerifyCallback};
-use openssl::ssl::SslVerifyMode::SslVerifyPeer;
+use openssl::ssl::SslVerifyMode::{SslVerifyPeer, SslVerifyNone};
 use openssl::ssl::SslMethod::Sslv23;
 use openssl::ssl::error::{SslError, StreamError, OpenSslErrors, SslSessionClosed};
+use openssl::x509::X509FileType;
+
+macro_rules! try_some {
+    ($expr:expr) => (match $expr {
+        Some(val) => { return Err(val); },
+        _ => {}
+    })
+}
 
 /// The write-status indicating headers have not been written.
 #[allow(missing_copy_implementations)]
@@ -184,8 +193,8 @@ impl NetworkStream {
 pub enum HttpListener {
     /// Http variant.
     Http,
-    /// Https variant.
-    Https,
+    /// Https variant. The two paths point to the certificate and key PEM files, in that order.
+    Https(Path, Path),
 }
 
 impl NetworkListener for HttpListener {
@@ -197,7 +206,16 @@ impl NetworkListener for HttpListener {
         let addr = try!(tcp.socket_name());
         Ok(match *self {
             HttpListener::Http => HttpAcceptor::Http(try!(tcp.listen()), addr),
-            HttpListener::Https => unimplemented!(),
+            HttpListener::Https(ref cert, ref key) => {
+                let mut ssl_context = try!(SslContext::new(Sslv23).map_err(lift_ssl_error));
+                try_some!(ssl_context.set_cipher_list("DEFAULT").map(lift_ssl_error));
+                try_some!(ssl_context.set_certificate_file(
+                        cert, X509FileType::PEM).map(lift_ssl_error));
+                try_some!(ssl_context.set_private_key_file(
+                        key, X509FileType::PEM).map(lift_ssl_error));
+                ssl_context.set_verify(SslVerifyNone, None);
+                HttpAcceptor::Https(try!(tcp.listen()), addr, Arc::new(ssl_context))
+            }
         })
     }
 }
@@ -208,7 +226,7 @@ pub enum HttpAcceptor {
     /// Http variant.
     Http(TcpAcceptor, SocketAddr),
     /// Https variant.
-    Https(TcpAcceptor, SocketAddr),
+    Https(TcpAcceptor, SocketAddr, Arc<SslContext>),
 }
 
 impl NetworkAcceptor for HttpAcceptor {
@@ -218,7 +236,12 @@ impl NetworkAcceptor for HttpAcceptor {
     fn accept(&mut self) -> IoResult<HttpStream> {
         Ok(match *self {
             HttpAcceptor::Http(ref mut tcp, _) => HttpStream::Http(try!(tcp.accept())),
-            HttpAcceptor::Https(ref mut _tcp, _) => unimplemented!(),
+            HttpAcceptor::Https(ref mut tcp, _, ref ssl_context) => {
+                let stream = try!(tcp.accept());
+                let ssl_stream = try!(SslStream::<TcpStream>::new_server(&**ssl_context, stream).
+                                     map_err(lift_ssl_error));
+                HttpStream::Https(ssl_stream)
+            }
         })
     }
 
@@ -226,7 +249,7 @@ impl NetworkAcceptor for HttpAcceptor {
     fn close(&mut self) -> IoResult<()> {
         match *self {
             HttpAcceptor::Http(ref mut tcp, _) => tcp.close_accept(),
-            HttpAcceptor::Https(ref mut tcp, _) => tcp.close_accept(),
+            HttpAcceptor::Https(ref mut tcp, _, _) => tcp.close_accept(),
         }
     }
 
@@ -234,7 +257,7 @@ impl NetworkAcceptor for HttpAcceptor {
     fn socket_name(&self) -> IoResult<SocketAddr> {
         match *self {
             HttpAcceptor::Http(_, addr) => Ok(addr),
-            HttpAcceptor::Https(_, addr) => Ok(addr),
+            HttpAcceptor::Https(_, addr, _) => Ok(addr),
         }
     }
 }

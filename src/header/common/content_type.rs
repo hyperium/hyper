@@ -1,5 +1,5 @@
 use header::{Header, HeaderFormat};
-use std::fmt::{self, String};
+use std::fmt;
 use header::shared::util::from_one_raw_str;
 use mime::Mime;
 
@@ -24,8 +24,7 @@ impl Header for ContentType {
 
 impl HeaderFormat for ContentType {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        let ContentType(ref value) = *self;
-        value.fmt(fmt)
+        fmt::String::fmt(&self.0, fmt)
     }
 }
 
