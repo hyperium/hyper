@@ -1,7 +1,4 @@
-use std::fmt;
-
-use header;
-use header::shared;
+use header::{self, shared};
 
 /// The `Accept-Encoding` header
 ///

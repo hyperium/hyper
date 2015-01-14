@@ -86,13 +86,13 @@ macro_rules! impl_list_header(
             }
 
             fn parse_header(raw: &[Vec<u8>]) -> Option<$from> {
-                shared::from_comma_delimited(raw).map($from)
+                $crate::header::shared::from_comma_delimited(raw).map($from)
             }
         }
 
         impl header::HeaderFormat for $from {
-            fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-                shared::fmt_comma_delimited(fmt, &self[])
+            fn fmt_header(&self, fmt: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                $crate::header::shared::fmt_comma_delimited(fmt, &self[])
             }
         }
     }
@@ -108,20 +108,20 @@ macro_rules! impl_header(
             }
 
             fn parse_header(raw: &[Vec<u8>]) -> Option<$from> {
-                from_one_raw_str(raw).map($from)
+                $crate::header::shared::from_one_raw_str(raw).map($from)
             }
         }
 
         impl header::HeaderFormat for $from {
-            fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-                let value = &*self;
-                fmt::String::fmt(&value, fmt)
+            fn fmt_header(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                ::std::fmt::String::fmt(&**self, f)
             }
         }
 
-        impl fmt::String for $from {
-            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                fmt::String::fmt(&**self, f)
+        impl ::std::fmt::String for $from {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                use header::HeaderFormat;
+                self.fmt_header(f)
             }
         }
     }
