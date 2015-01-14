@@ -95,6 +95,13 @@ macro_rules! impl_list_header(
                 $crate::header::shared::fmt_comma_delimited(fmt, &self[])
             }
         }
+
+        impl ::std::fmt::String for $from {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                use header::HeaderFormat;
+                self.fmt_header(f)
+            }
+        }
     }
 );
 
