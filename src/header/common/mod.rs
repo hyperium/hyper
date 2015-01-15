@@ -76,6 +76,64 @@ macro_rules! deref(
     }
 );
 
+macro_rules! impl_list_header(
+    ($from:ident, $name:expr, $item:ty) => {
+        deref!($from => $item);
+
+        impl header::Header for $from {
+            fn header_name(_: Option<$from>) -> &'static str {
+                $name
+            }
+
+            fn parse_header(raw: &[Vec<u8>]) -> Option<$from> {
+                $crate::header::shared::from_comma_delimited(raw).map($from)
+            }
+        }
+
+        impl header::HeaderFormat for $from {
+            fn fmt_header(&self, fmt: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                $crate::header::shared::fmt_comma_delimited(fmt, &self[])
+            }
+        }
+
+        impl ::std::fmt::String for $from {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                use header::HeaderFormat;
+                self.fmt_header(f)
+            }
+        }
+    }
+);
+
+macro_rules! impl_header(
+    ($from:ident, $name:expr, $item:ty) => {
+        deref!($from => $item);
+
+        impl header::Header for $from {
+            fn header_name(_: Option<$from>) -> &'static str {
+                $name
+            }
+
+            fn parse_header(raw: &[Vec<u8>]) -> Option<$from> {
+                $crate::header::shared::from_one_raw_str(raw).map($from)
+            }
+        }
+
+        impl header::HeaderFormat for $from {
+            fn fmt_header(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                ::std::fmt::String::fmt(&**self, f)
+            }
+        }
+
+        impl ::std::fmt::String for $from {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                use header::HeaderFormat;
+                self.fmt_header(f)
+            }
+        }
+    }
+);
+
 /// Exposes the AccessControl* family of headers.
 pub mod access_control;
 

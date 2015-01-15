@@ -1,7 +1,4 @@
-use std::fmt;
-
-use header;
-use header::shared;
+use header::{self, shared};
 
 /// The `Accept-Encoding` header
 ///
@@ -10,23 +7,9 @@ use header::shared;
 #[derive(Clone, PartialEq, Show)]
 pub struct AcceptEncoding(pub Vec<shared::QualityItem<shared::Encoding>>);
 
-deref!(AcceptEncoding => Vec<shared::QualityItem<shared::Encoding>>);
-
-impl header::Header for AcceptEncoding {
-    fn header_name(_: Option<AcceptEncoding>) -> &'static str {
-        "AcceptEncoding"
-    }
-
-    fn parse_header(raw: &[Vec<u8>]) -> Option<AcceptEncoding> {
-        shared::from_comma_delimited(raw).map(AcceptEncoding)
-    }
-}
-
-impl header::HeaderFormat for AcceptEncoding {
-    fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        shared::fmt_comma_delimited(fmt, &self[])
-    }
-}
+impl_list_header!(AcceptEncoding,
+                  "Accept-Encoding",
+                  Vec<shared::QualityItem<shared::Encoding>>);
 
 #[test]
 fn test_parse_header() {
