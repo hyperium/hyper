@@ -309,12 +309,12 @@ impl NetworkStream for HttpStream {
 
 /// A connector that will produce HttpStreams.
 #[allow(missing_copy_implementations)]
-pub struct HttpConnector(pub Option<ContextVerifier>);
+pub struct HttpConnector<'v>(pub Option<ContextVerifier<'v>>);
 
 /// A method that can set verification methods on an SSL context
-pub type ContextVerifier = for <'a> fn(&'a mut SslContext) -> ();
+pub type ContextVerifier<'v> = Box<FnMut(&mut SslContext) -> ()+'v>;
 
-impl NetworkConnector for HttpConnector {
+impl<'v> NetworkConnector for HttpConnector<'v> {
     type Stream = HttpStream;
 
     fn connect(&mut self, host: &str, port: Port, scheme: &str) -> IoResult<HttpStream> {
@@ -328,8 +328,8 @@ impl NetworkConnector for HttpConnector {
                 debug!("https scheme");
                 let stream = try!(TcpStream::connect(addr));
                 let mut context = try!(SslContext::new(Sslv23).map_err(lift_ssl_error));
-                if let Some(ref v) = self.0 {
-                    v(&mut context);
+                if let Some(ref mut verifier) = self.0 {
+                    verifier(&mut context);
                 }
                 let ssl = try!(Ssl::new(&context).map_err(lift_ssl_error));
                 try!(ssl.set_hostname(host).map_err(lift_ssl_error));
