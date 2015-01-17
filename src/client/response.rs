@@ -3,8 +3,8 @@ use std::num::FromPrimitive;
 use std::io::{BufferedReader, IoResult};
 
 use header;
-use header::common::{ContentLength, TransferEncoding};
-use header::common::transfer_encoding::Encoding::Chunked;
+use header::{ContentLength, TransferEncoding};
+use header::Encoding::Chunked;
 use net::{NetworkStream, HttpStream};
 use http::{read_status_line, HttpReader, RawStatus};
 use http::HttpReader::{SizedReader, ChunkedReader, EofReader};
@@ -100,8 +100,8 @@ mod tests {
     use std::io::BufferedReader;
 
     use header::Headers;
-    use header::common::TransferEncoding;
-    use header::common::transfer_encoding::Encoding;
+    use header::TransferEncoding;
+    use header::Encoding;
     use http::HttpReader::EofReader;
     use http::RawStatus;
     use mock::MockStream;
