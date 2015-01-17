@@ -23,13 +23,12 @@ use unicase::UniCase;
 
 use {http, HttpResult};
 
+pub use self::shared::{Encoding, QualityItem, qitem};
 pub use self::common::*;
-pub use self::shared::*;
 
-/// Common Headers
-pub mod common;
-
-pub mod shared;
+mod common;
+mod shared;
+pub mod parsing;
 
 type HeaderName = UniCase<CowString<'static>>;
 
@@ -237,7 +236,7 @@ impl Headers {
     ///
     /// ```
     /// # use hyper::header::Headers;
-    /// # use hyper::header::common::ContentType;
+    /// # use hyper::header::ContentType;
     /// # let mut headers = Headers::new();
     /// let has_type = headers.has::<ContentType>();
     /// ```
@@ -515,9 +514,8 @@ mod tests {
     use mime::TopLevel::Text;
     use mime::SubLevel::Plain;
     use unicase::UniCase;
-    use super::{Headers, Header, HeaderFormat};
-    use super::common::{ContentLength, ContentType, Accept, Host};
-    use super::shared::{QualityItem};
+    use super::{Headers, Header, HeaderFormat, ContentLength, ContentType,
+                Accept, Host, QualityItem};
 
     use test::Bencher;
 
