@@ -28,6 +28,7 @@ pub use self::user_agent::UserAgent;
 pub use self::vary::Vary;
 pub use self::server::Server;
 pub use self::set_cookie::SetCookie;
+pub use self::referer::Referer;
 
 macro_rules! bench_header(
     ($name:ident, $ty:ty, $value:expr) => {
@@ -202,3 +203,7 @@ pub mod user_agent;
 
 /// Exposes the Vary header.
 pub mod vary;
+
+/// Exposes the Referer header
+pub mod referer;
+
