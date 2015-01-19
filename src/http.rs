@@ -498,7 +498,7 @@ pub fn read_http_version<R: Reader>(stream: &mut R) -> HttpResult<HttpVersion> {
 }
 
 const MAX_HEADER_NAME_LENGTH: usize = 100;
-const MAX_HEADER_FIELD_LENGTH: usize = 1000;
+const MAX_HEADER_FIELD_LENGTH: usize = 4096;
 
 /// The raw bytes when parsing a header line.
 ///
