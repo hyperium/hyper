@@ -13,8 +13,8 @@ pub use net::{Fresh, Streaming};
 
 use HttpError::HttpIoError;
 use {HttpResult};
-use header::common::Connection;
-use header::common::connection::{KeepAlive, Close};
+use header::Connection;
+use header::ConnectionOption::{Close, KeepAlive};
 use net::{NetworkListener, NetworkStream, NetworkAcceptor,
           HttpAcceptor, HttpListener};
 use version::HttpVersion::{Http10, Http11};
@@ -183,4 +183,3 @@ impl<F> Handler for F where F: Fn(Request, Response<Fresh>), F: Sync + Send {
         (*self)(req, res)
     }
 }
-

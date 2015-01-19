@@ -6,7 +6,7 @@ use std::io::util::copy;
 use std::io::net::ip::Ipv4Addr;
 
 use hyper::{Get, Post};
-use hyper::header::common::ContentLength;
+use hyper::header::ContentLength;
 use hyper::server::{Server, Request, Response};
 use hyper::uri::RequestUri::AbsolutePath;
 

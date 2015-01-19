@@ -1,6 +1,6 @@
 use header::{Header, HeaderFormat};
 use std::fmt::{self};
-use header::shared::util::{from_comma_delimited, fmt_comma_delimited, from_one_raw_str};
+use header::parsing::{from_comma_delimited, fmt_comma_delimited, from_one_raw_str};
 use unicase::UniCase;
 
 /// The `Allow` header.
