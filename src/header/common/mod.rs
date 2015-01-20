@@ -6,30 +6,34 @@
 //! strongly-typed theme, the [mime](http://seanmonstar.github.io/mime.rs) crate
 //! is used, such as `ContentType(pub Mime)`.
 
+pub use self::access_control::*;
 pub use self::accept::Accept;
 pub use self::accept_encoding::AcceptEncoding;
 pub use self::allow::Allow;
 pub use self::authorization::Authorization;
 pub use self::cache_control::CacheControl;
-pub use self::cookie::Cookies;
 pub use self::connection::Connection;
 pub use self::content_length::ContentLength;
 pub use self::content_type::ContentType;
+pub use self::cookie::Cookies;
 pub use self::date::Date;
 pub use self::etag::Etag;
 pub use self::expires::Expires;
 pub use self::host::Host;
-pub use self::last_modified::LastModified;
 pub use self::if_modified_since::IfModifiedSince;
+pub use self::last_modified::LastModified;
 pub use self::location::Location;
+pub use self::referer::Referer;
+pub use self::server::Server;
+pub use self::set_cookie::SetCookie;
 pub use self::transfer_encoding::TransferEncoding;
 pub use self::upgrade::Upgrade;
 pub use self::user_agent::UserAgent;
 pub use self::vary::Vary;
-pub use self::server::Server;
-pub use self::set_cookie::SetCookie;
-pub use self::referer::Referer;
 
+pub use self::connection::ConnectionOption;
+
+#[macro_export]
 macro_rules! bench_header(
     ($name:ident, $ty:ty, $value:expr) => {
         #[cfg(test)]
@@ -59,6 +63,7 @@ macro_rules! bench_header(
     }
 );
 
+#[macro_export]
 macro_rules! deref(
     ($from:ty => $to:ty) => {
         impl ::std::ops::Deref for $from {
@@ -77,6 +82,7 @@ macro_rules! deref(
     }
 );
 
+#[macro_export]
 macro_rules! impl_list_header(
     ($from:ident, $name:expr, $item:ty) => {
         deref!($from => $item);
@@ -87,13 +93,13 @@ macro_rules! impl_list_header(
             }
 
             fn parse_header(raw: &[Vec<u8>]) -> Option<$from> {
-                $crate::header::shared::from_comma_delimited(raw).map($from)
+                $crate::header::parsing::from_comma_delimited(raw).map($from)
             }
         }
 
         impl header::HeaderFormat for $from {
             fn fmt_header(&self, fmt: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-                $crate::header::shared::fmt_comma_delimited(fmt, &self[])
+                $crate::header::parsing::fmt_comma_delimited(fmt, &self[])
             }
         }
 
@@ -106,6 +112,7 @@ macro_rules! impl_list_header(
     }
 );
 
+#[macro_export]
 macro_rules! impl_header(
     ($from:ident, $name:expr, $item:ty) => {
         deref!($from => $item);
@@ -116,7 +123,7 @@ macro_rules! impl_header(
             }
 
             fn parse_header(raw: &[Vec<u8>]) -> Option<$from> {
-                $crate::header::shared::from_one_raw_str(raw).map($from)
+                $crate::header::parsing::from_one_raw_str(raw).map($from)
             }
         }
 
@@ -135,75 +142,28 @@ macro_rules! impl_header(
     }
 );
 
-/// Exposes the AccessControl* family of headers.
-pub mod access_control;
-
-/// Exposes the Accept header.
-pub mod accept;
-
-/// Exposes the AcceptEncoding header.
-pub mod accept_encoding;
-
-/// Exposes the Allow header.
-pub mod allow;
-
-/// Exposes the Authorization header.
-pub mod authorization;
-
-/// Exposes the CacheControl header.
-pub mod cache_control;
-
-/// Exposes the Cookie header.
-pub mod cookie;
-
-/// Exposes the Connection header.
-pub mod connection;
-
-/// Exposes the ContentLength header.
-pub mod content_length;
-
-/// Exposes the ContentType header.
-pub mod content_type;
-
-/// Exposes the Date header.
-pub mod date;
-
-/// Exposes the Etag header.
-pub mod etag;
-
-/// Exposes the Expires header.
-pub mod expires;
-
-/// Exposes the Host header.
-pub mod host;
-
-/// Exposes the LastModified header.
-pub mod last_modified;
-
-/// Exposes the If-Modified-Since header.
-pub mod if_modified_since;
-
-/// Exposes the Location header.
-pub mod location;
-
-/// Exposes the Server header.
-pub mod server;
-
-/// Exposes the Set-Cookie header.
-pub mod set_cookie;
-
-/// Exposes the TransferEncoding header.
-pub mod transfer_encoding;
-
-/// Exposes the Upgrade header.
-pub mod upgrade;
-
-/// Exposes the UserAgent header.
-pub mod user_agent;
-
-/// Exposes the Vary header.
-pub mod vary;
-
-/// Exposes the Referer header
-pub mod referer;
+mod access_control;
+mod accept;
+mod accept_encoding;
+mod allow;
+mod authorization;
+mod cache_control;
+mod cookie;
+mod connection;
+mod content_length;
+mod content_type;
+mod date;
+mod etag;
+mod expires;
+mod host;
+mod last_modified;
+mod if_modified_since;
+mod location;
+mod referer;
+mod server;
+mod set_cookie;
+mod transfer_encoding;
+mod upgrade;
+mod user_agent;
+mod vary;
 

@@ -1,17 +1,13 @@
-/// Exposes the AccessControlAllowHeaders header
-pub mod allow_headers;
+pub use self::allow_headers::AccessControlAllowHeaders;
+pub use self::allow_methods::AccessControlAllowMethods;
+pub use self::allow_origin::AccessControlAllowOrigin;
+pub use self::max_age::AccessControlMaxAge;
+pub use self::request_headers::AccessControlRequestHeaders;
+pub use self::request_method::AccessControlRequestMethod;
 
-/// Exposes the AccessControlAllowMethods header
-pub mod allow_methods;
-
-/// Exposes the AccessControlAllowOrigin header
-pub mod allow_origin;
-
-/// Exposes the AccessControlMaxAge header
-pub mod max_age;
-
-/// Exposes the AccessControlRequestHeaders header
-pub mod request_headers;
-
-/// Exposes the AccessControlRequestMethod header
-pub mod request_method;
+mod allow_headers;
+mod allow_methods;
+mod allow_origin;
+mod max_age;
+mod request_headers;
+mod request_method;

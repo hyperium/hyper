@@ -1,7 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 use header::{Header, HeaderFormat};
-use header::shared::util::{from_one_comma_delimited, fmt_comma_delimited};
+use header::parsing::{from_one_comma_delimited, fmt_comma_delimited};
 
 /// The Cache-Control header.
 #[derive(PartialEq, Clone, Show)]
@@ -163,4 +163,3 @@ mod tests {
 }
 
 bench_header!(normal, CacheControl, { vec![b"no-cache, private".to_vec(), b"max-age=100".to_vec()] });
-

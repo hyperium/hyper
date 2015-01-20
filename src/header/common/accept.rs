@@ -1,7 +1,7 @@
 use std::fmt;
 
 use header;
-use header::shared;
+use header::parsing;
 
 use mime;
 
@@ -15,8 +15,8 @@ use mime;
 ///
 /// ```
 /// # use hyper::header::Headers;
-/// # use hyper::header::common::Accept;
-/// # use hyper::header::shared::qitem;
+/// # use hyper::header::Accept;
+/// # use hyper::header::qitem;
 /// use hyper::mime::Mime;
 /// use hyper::mime::TopLevel::Text;
 /// use hyper::mime::SubLevel::{Html, Xml};
@@ -26,9 +26,9 @@ use mime;
 ///     qitem(Mime(Text, Xml, vec![])) ]));
 /// ```
 #[derive(Clone, PartialEq, Show)]
-pub struct Accept(pub Vec<shared::QualityItem<mime::Mime>>);
+pub struct Accept(pub Vec<header::QualityItem<mime::Mime>>);
 
-deref!(Accept => Vec<shared::QualityItem<mime::Mime>>);
+deref!(Accept => Vec<header::QualityItem<mime::Mime>>);
 
 impl header::Header for Accept {
     fn header_name(_: Option<Accept>) -> &'static str {
@@ -37,13 +37,13 @@ impl header::Header for Accept {
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<Accept> {
         // TODO: Return */* if no value is given.
-        shared::from_comma_delimited(raw).map(Accept)
+        parsing::from_comma_delimited(raw).map(Accept)
     }
 }
 
 impl header::HeaderFormat for Accept {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        shared::fmt_comma_delimited(fmt, &self[])
+        parsing::fmt_comma_delimited(fmt, &self[])
     }
 }
 
@@ -53,7 +53,7 @@ bench_header!(bench, Accept, { vec![b"text/plain; q=0.5, text/html".to_vec()] })
 fn test_parse_header_no_quality() {
     let a: Accept = header::Header::parse_header([b"text/plain; charset=utf-8".to_vec()].as_slice()).unwrap();
     let b = Accept(vec![
-        shared::QualityItem{item: mime::Mime(mime::TopLevel::Text, mime::SubLevel::Plain, vec![(mime::Attr::Charset, mime::Value::Utf8)]), quality: 1f32},
+        header::QualityItem{item: mime::Mime(mime::TopLevel::Text, mime::SubLevel::Plain, vec![(mime::Attr::Charset, mime::Value::Utf8)]), quality: 1f32},
     ]);
     assert_eq!(a, b);
 }
@@ -62,7 +62,7 @@ fn test_parse_header_no_quality() {
 fn test_parse_header_with_quality() {
     let a: Accept = header::Header::parse_header([b"text/plain; charset=utf-8; q=0.5".to_vec()].as_slice()).unwrap();
     let b = Accept(vec![
-        shared::QualityItem{item: mime::Mime(mime::TopLevel::Text, mime::SubLevel::Plain, vec![(mime::Attr::Charset, mime::Value::Utf8)]), quality: 0.5f32},
+        header::QualityItem{item: mime::Mime(mime::TopLevel::Text, mime::SubLevel::Plain, vec![(mime::Attr::Charset, mime::Value::Utf8)]), quality: 0.5f32},
     ]);
     assert_eq!(a, b);
 }
