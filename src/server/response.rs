@@ -7,7 +7,6 @@ use std::io::IoResult;
 use time::now_utc;
 
 use header;
-use header::common;
 use http::{CR, LF, LINE_ENDING, HttpWriter};
 use http::HttpWriter::{ThroughWriter, ChunkedWriter, SizedWriter};
 use status;
@@ -70,15 +69,15 @@ impl<'a> Response<'a, Fresh> {
         debug!("writing head: {:?} {:?}", self.version, self.status);
         try!(write!(&mut self.body, "{} {}{}{}", self.version, self.status, CR as char, LF as char));
 
-        if !self.headers.has::<common::Date>() {
-            self.headers.set(common::Date(now_utc()));
+        if !self.headers.has::<header::Date>() {
+            self.headers.set(header::Date(now_utc()));
         }
 
 
         let mut chunked = true;
         let mut len = 0;
 
-        match self.headers.get::<common::ContentLength>() {
+        match self.headers.get::<header::ContentLength>() {
             Some(cl) => {
                 chunked = false;
                 len = **cl;
@@ -88,18 +87,18 @@ impl<'a> Response<'a, Fresh> {
 
         // cant do in match above, thanks borrowck
         if chunked {
-            let encodings = match self.headers.get_mut::<common::TransferEncoding>() {
-                Some(&mut common::TransferEncoding(ref mut encodings)) => {
+            let encodings = match self.headers.get_mut::<header::TransferEncoding>() {
+                Some(&mut header::TransferEncoding(ref mut encodings)) => {
                     //TODO: check if chunked is already in encodings. use HashSet?
-                    encodings.push(common::transfer_encoding::Encoding::Chunked);
+                    encodings.push(header::Encoding::Chunked);
                     false
                 },
                 None => true
             };
 
             if encodings {
-                self.headers.set::<common::TransferEncoding>(
-                    common::TransferEncoding(vec![common::transfer_encoding::Encoding::Chunked]))
+                self.headers.set::<header::TransferEncoding>(
+                    header::TransferEncoding(vec![header::Encoding::Chunked]))
             }
         }
 
@@ -151,4 +150,3 @@ impl<'a> Writer for Response<'a, Streaming> {
         self.body.flush()
     }
 }
-

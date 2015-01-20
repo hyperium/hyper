@@ -1,7 +1,7 @@
 use std::fmt;
 
 use header::{Header, HeaderFormat};
-use header::shared::util::from_one_raw_str;
+use header::parsing::from_one_raw_str;
 
 /// The `Content-Length` header.
 ///
