@@ -6,8 +6,6 @@ extern crate test;
 use std::fmt::{self, Show};
 use std::io::{IoResult, MemReader};
 use std::io::net::ip::SocketAddr;
-use std::os;
-use std::path::BytesContainer;
 
 use hyper::net;
 
@@ -36,7 +34,7 @@ impl MockStream {
 }
 
 impl Reader for MockStream {
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<uint> {
+    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         self.read.read(buf)
     }
 }
