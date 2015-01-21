@@ -8,8 +8,7 @@ use std::io::net::ip::SocketAddr;
 use {HttpResult};
 use version::{HttpVersion};
 use method::Method::{self, Get, Head};
-use header::Headers;
-use header::common::{ContentLength, TransferEncoding};
+use header::{Headers, ContentLength, TransferEncoding};
 use http::{read_request_line};
 use http::HttpReader;
 use http::HttpReader::{SizedReader, ChunkedReader, EmptyReader};
@@ -81,8 +80,7 @@ impl<'a> Reader for Request<'a> {
 
 #[cfg(test)]
 mod tests {
-    use header::common::{Host, TransferEncoding};
-    use header::common::transfer_encoding::Encoding;
+    use header::{Host, TransferEncoding, Encoding};
     use mock::MockStream;
     use super::Request;
 

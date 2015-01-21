@@ -26,7 +26,7 @@ use url::UrlParser;
 use url::ParseError as UrlError;
 
 use header::{Headers, Header, HeaderFormat};
-use header::common::{ContentLength, Location};
+use header::{ContentLength, Location};
 use method::Method;
 use net::{NetworkConnector, HttpConnector, ContextVerifier};
 use status::StatusClass::Redirection;
@@ -353,7 +353,7 @@ fn get_host_and_port(url: &Url) -> HttpResult<(String, Port)> {
 
 #[cfg(test)]
 mod tests {
-    use header::common::Server;
+    use header::Server;
     use super::{Client, RedirectPolicy};
     use url::Url;
 

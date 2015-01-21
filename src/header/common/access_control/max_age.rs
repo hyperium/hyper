@@ -1,10 +1,16 @@
 use std::fmt;
 
 use header;
-use header::shared;
 
-#[derive(Clone)]
-struct AccessControlMaxAge(pub u32);
+/// The `Access-Control-Max-Age` response header,
+/// part of [CORS](http://www.w3.org/TR/cors/).
+///
+/// > The `Access-Control-Max-Age` header indicates how long the results of a
+/// > preflight request can be cached in a preflight result cache.
+///
+/// Spec: www.w3.org/TR/cors/#access-control-max-age-response-header
+#[derive(Clone, Copy, PartialEq, Show)]
+pub struct AccessControlMaxAge(pub u32);
 
 impl header::Header for AccessControlMaxAge {
     #[inline]
@@ -13,7 +19,7 @@ impl header::Header for AccessControlMaxAge {
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<AccessControlMaxAge> {
-        shared::from_one_raw_str(raw).map(AccessControlMaxAge)
+        header::parsing::from_one_raw_str(raw).map(AccessControlMaxAge)
     }
 }
 

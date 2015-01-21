@@ -5,7 +5,7 @@ use url::Url;
 
 use method::{self, Method};
 use header::Headers;
-use header::common::{self, Host};
+use header::{self, Host};
 use net::{NetworkStream, NetworkConnector, HttpConnector, Fresh, Streaming};
 use http::{HttpWriter, LINE_ENDING};
 use http::HttpWriter::{ThroughWriter, ChunkedWriter, SizedWriter, EmptyWriter};
@@ -95,7 +95,7 @@ impl Request<Fresh> {
                 let mut chunked = true;
                 let mut len = 0;
 
-                match self.headers.get::<common::ContentLength>() {
+                match self.headers.get::<header::ContentLength>() {
                     Some(cl) => {
                         chunked = false;
                         len = **cl;
@@ -105,18 +105,18 @@ impl Request<Fresh> {
 
                 // cant do in match above, thanks borrowck
                 if chunked {
-                    let encodings = match self.headers.get_mut::<common::TransferEncoding>() {
-                        Some(&mut common::TransferEncoding(ref mut encodings)) => {
+                    let encodings = match self.headers.get_mut::<header::TransferEncoding>() {
+                        Some(&mut header::TransferEncoding(ref mut encodings)) => {
                             //TODO: check if chunked is already in encodings. use HashSet?
-                            encodings.push(common::transfer_encoding::Encoding::Chunked);
+                            encodings.push(header::Encoding::Chunked);
                             false
                         },
                         None => true
                     };
 
                     if encodings {
-                        self.headers.set::<common::TransferEncoding>(
-                            common::TransferEncoding(vec![common::transfer_encoding::Encoding::Chunked]))
+                        self.headers.set::<header::TransferEncoding>(
+                            header::TransferEncoding(vec![header::Encoding::Chunked]))
                     }
                 }
 

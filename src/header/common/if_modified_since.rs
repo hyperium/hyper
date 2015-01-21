@@ -2,8 +2,8 @@ use std::fmt;
 use std::str::FromStr;
 use time::Tm;
 use header::{Header, HeaderFormat};
-use header::shared::util::from_one_raw_str;
-use header::shared::time::tm_from_str;
+use header::parsing::from_one_raw_str;
+use header::parsing::tm_from_str;
 
 /// The `If-Modified-Since` header field.
 #[derive(Copy, PartialEq, Clone, Show)]
