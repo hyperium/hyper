@@ -11,7 +11,7 @@ pub use self::accept::Accept;
 pub use self::accept_encoding::AcceptEncoding;
 pub use self::allow::Allow;
 pub use self::authorization::Authorization;
-pub use self::cache_control::CacheControl;
+pub use self::cache_control::{CacheControl, CacheDirective};
 pub use self::connection::Connection;
 pub use self::content_length::ContentLength;
 pub use self::content_type::ContentType;
