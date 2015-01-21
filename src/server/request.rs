@@ -32,7 +32,6 @@ pub struct Request<'a> {
 
 
 impl<'a> Request<'a> {
-
     /// Create a new Request, reading the StartLine and Headers so they are
     /// immediately useful.
     pub fn new(mut stream: &'a mut (Reader + 'a), addr: SocketAddr) -> HttpResult<Request<'a>> {
@@ -63,6 +62,14 @@ impl<'a> Request<'a> {
             version: version,
             body: body
         })
+    }
+
+    /// Deconstruct a Request into its constituent parts.
+    pub fn deconstruct(self) -> (SocketAddr, Method, Headers,
+                                 RequestUri, HttpVersion,
+                                 HttpReader<&'a mut (Reader + 'a)>,) {
+        (self.remote_addr, self.method, self.headers,
+         self.uri, self.version, self.body)
     }
 }
 
