@@ -1,7 +1,6 @@
 //! A collection of traits abstracting over Listeners and Streams.
-use std::any::Any;
+use std::any::{Any, TypeId};
 use std::fmt;
-use std::intrinsics::TypeId;
 use std::io::{IoResult, IoError, ConnectionAborted, InvalidInput, OtherIoError,
               Stream, Listener, Acceptor};
 use std::io::net::ip::{SocketAddr, ToSocketAddr, Port};

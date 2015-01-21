@@ -4,10 +4,9 @@
 //! why we're using Rust in the first place. To set or get any header, an object
 //! must implement the `Header` trait from this module. Several common headers
 //! are already provided, such as `Host`, `ContentType`, `UserAgent`, and others.
-use std::any::Any;
+use std::any::{Any, TypeId};
 use std::borrow::Cow::{Borrowed, Owned};
 use std::fmt;
-use std::intrinsics::TypeId;
 use std::raw::TraitObject;
 use std::str::from_utf8;
 use std::string::CowString;
