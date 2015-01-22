@@ -10,9 +10,9 @@ pub use self::access_control::*;
 pub use self::accept::Accept;
 pub use self::accept_encoding::AcceptEncoding;
 pub use self::allow::Allow;
-pub use self::authorization::Authorization;
+pub use self::authorization::{Authorization, Scheme, Basic};
 pub use self::cache_control::{CacheControl, CacheDirective};
-pub use self::connection::Connection;
+pub use self::connection::{Connection, ConnectionOption};
 pub use self::content_length::ContentLength;
 pub use self::content_type::ContentType;
 pub use self::cookie::Cookies;
@@ -27,11 +27,9 @@ pub use self::referer::Referer;
 pub use self::server::Server;
 pub use self::set_cookie::SetCookie;
 pub use self::transfer_encoding::TransferEncoding;
-pub use self::upgrade::Upgrade;
+pub use self::upgrade::{Upgrade, Protocol};
 pub use self::user_agent::UserAgent;
 pub use self::vary::Vary;
-
-pub use self::connection::ConnectionOption;
 
 #[macro_export]
 macro_rules! bench_header(
