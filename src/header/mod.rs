@@ -38,9 +38,8 @@ type HeaderName = UniCase<CowString<'static>>;
 pub trait Header: Clone + Any + Send + Sync {
     /// Returns the name of the header field this belongs to.
     ///
-    /// The market `Option` is to hint to the type system which implementation
-    /// to call. This can be done away with once UFCS arrives.
-    fn header_name(marker: Option<Self>) -> &'static str;
+    /// This will become an associated constant once available.
+    fn header_name() -> &'static str;
     /// Parse a header from a raw stream of bytes.
     ///
     /// It's possible that a request can include a header field more than once,
@@ -107,8 +106,9 @@ impl Clone for Box<HeaderFormat + Send + Sync> {
     }
 }
 
+#[inline]
 fn header_name<T: Header>() -> &'static str {
-    let name = Header::header_name(None::<T>);
+    let name = <T as Header>::header_name();
     name
 }
 
@@ -246,7 +246,7 @@ impl Headers {
     /// Removes a header from the map, if one existed.
     /// Returns true if a header has been removed.
     pub fn remove<H: Header + HeaderFormat>(&mut self) -> bool {
-        self.data.remove(&UniCase(Borrowed(Header::header_name(None::<H>)))).is_some()
+        self.data.remove(&UniCase(Borrowed(header_name::<H>()))).is_some()
     }
 
     /// Returns an iterator over the header fields.
@@ -559,7 +559,7 @@ mod tests {
     struct CrazyLength(Option<bool>, usize);
 
     impl Header for CrazyLength {
-        fn header_name(_: Option<CrazyLength>) -> &'static str {
+        fn header_name() -> &'static str {
             "content-length"
         }
         fn parse_header(raw: &[Vec<u8>]) -> Option<CrazyLength> {
@@ -678,7 +678,7 @@ mod tests {
         headers.set(ContentLength(11));
         for header in headers.iter() {
             assert!(header.is::<ContentLength>());
-            assert_eq!(header.name(), Header::header_name(None::<ContentLength>));
+            assert_eq!(header.name(), <ContentLength as Header>::header_name());
             assert_eq!(header.value(), Some(&ContentLength(11)));
             assert_eq!(header.value_string(), "11".to_string());
         }

@@ -16,7 +16,7 @@ pub struct SetCookie(pub Vec<Cookie>);
 deref!(SetCookie => Vec<Cookie>);
 
 impl Header for SetCookie {
-    fn header_name(_: Option<SetCookie>) -> &'static str {
+    fn header_name() -> &'static str {
         "Set-Cookie"
     }
 

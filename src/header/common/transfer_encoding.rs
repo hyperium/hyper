@@ -22,7 +22,7 @@ pub struct TransferEncoding(pub Vec<Encoding>);
 deref!(TransferEncoding => Vec<Encoding>);
 
 impl Header for TransferEncoding {
-    fn header_name(_: Option<TransferEncoding>) -> &'static str {
+    fn header_name() -> &'static str {
         "Transfer-Encoding"
     }
 

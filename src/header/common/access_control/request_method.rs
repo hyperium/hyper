@@ -15,7 +15,7 @@ pub struct AccessControlRequestMethod(pub Method);
 
 impl header::Header for AccessControlRequestMethod {
     #[inline]
-    fn header_name(_: Option<AccessControlRequestMethod>) -> &'static str {
+    fn header_name() -> &'static str {
         "Access-Control-Request-Method"
     }
 

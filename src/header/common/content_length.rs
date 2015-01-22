@@ -12,7 +12,7 @@ pub struct ContentLength(pub u64);
 deref!(ContentLength => u64);
 
 impl Header for ContentLength {
-    fn header_name(_: Option<ContentLength>) -> &'static str {
+    fn header_name() -> &'static str {
         "Content-Length"
     }
 

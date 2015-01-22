@@ -12,7 +12,7 @@ pub struct Expires(pub Tm);
 deref!(Expires => Tm);
 
 impl Header for Expires {
-    fn header_name(_: Option<Expires>) -> &'static str {
+    fn header_name() -> &'static str {
         "Expires"
     }
 

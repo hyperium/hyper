@@ -14,7 +14,7 @@ pub struct AccessControlRequestHeaders(pub Vec<String>);
 
 impl header::Header for AccessControlRequestHeaders {
     #[inline]
-    fn header_name(_: Option<AccessControlRequestHeaders>) -> &'static str {
+    fn header_name() -> &'static str {
         "Access-Control-Request-Headers"
     }
 

@@ -16,7 +16,7 @@ pub struct AccessControlAllowMethods(pub Vec<method::Method>);
 
 impl header::Header for AccessControlAllowMethods {
     #[inline]
-    fn header_name(_: Option<AccessControlAllowMethods>) -> &'static str {
+    fn header_name() -> &'static str {
         "Access-Control-Allow-Methods"
     }
 

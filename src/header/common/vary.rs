@@ -15,7 +15,7 @@ pub enum Vary {
 }
 
 impl Header for Vary {
-    fn header_name(_: Option<Vary>) -> &'static str {
+    fn header_name() -> &'static str {
         "Vary"
     }
 

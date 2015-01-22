@@ -17,7 +17,7 @@ pub struct Etag {
 }
 
 impl Header for Etag {
-    fn header_name(_: Option<Etag>) -> &'static str {
+    fn header_name() -> &'static str {
         "Etag"
     }
 

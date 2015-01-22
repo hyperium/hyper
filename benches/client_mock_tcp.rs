@@ -50,7 +50,7 @@ impl Writer for MockStream {
 struct Foo;
 
 impl hyper::header::Header for Foo {
-    fn header_name(_: Option<Foo>) -> &'static str {
+    fn header_name() -> &'static str {
         "x-foo"
     }
     fn parse_header(_: &[Vec<u8>]) -> Option<Foo> {

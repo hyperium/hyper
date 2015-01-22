@@ -15,7 +15,7 @@ pub struct AccessControlAllowHeaders(pub Vec<String>);
 
 impl header::Header for AccessControlAllowHeaders {
     #[inline]
-    fn header_name(_: Option<AccessControlAllowHeaders>) -> &'static str {
+    fn header_name() -> &'static str {
         "Access-Control-Allow-Headers"
     }
 

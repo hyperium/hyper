@@ -19,7 +19,7 @@ pub struct Location(pub String);
 deref!(Location => String);
 
 impl Header for Location {
-    fn header_name(_: Option<Location>) -> &'static str {
+    fn header_name() -> &'static str {
         "Location"
     }
 

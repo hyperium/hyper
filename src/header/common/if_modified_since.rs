@@ -12,7 +12,7 @@ pub struct IfModifiedSince(pub Tm);
 deref!(IfModifiedSince => Tm);
 
 impl Header for IfModifiedSince {
-    fn header_name(_: Option<IfModifiedSince>) -> &'static str {
+    fn header_name() -> &'static str {
         "If-Modified-Since"
     }
 

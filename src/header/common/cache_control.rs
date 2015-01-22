@@ -10,7 +10,7 @@ pub struct CacheControl(pub Vec<CacheDirective>);
 deref!(CacheControl => Vec<CacheDirective>);
 
 impl Header for CacheControl {
-    fn header_name(_: Option<CacheControl>) -> &'static str {
+    fn header_name() -> &'static str {
         "Cache-Control"
     }
 

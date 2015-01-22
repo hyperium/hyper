@@ -19,7 +19,7 @@ pub struct Host {
 }
 
 impl Header for Host {
-    fn header_name(_: Option<Host>) -> &'static str {
+    fn header_name() -> &'static str {
         "Host"
     }
 
