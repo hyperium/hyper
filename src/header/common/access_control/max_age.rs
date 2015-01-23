@@ -14,7 +14,7 @@ pub struct AccessControlMaxAge(pub u32);
 
 impl header::Header for AccessControlMaxAge {
     #[inline]
-    fn header_name(_: Option<AccessControlMaxAge>) -> &'static str {
+    fn header_name() -> &'static str {
         "Access-Control-Max-Age"
     }
 

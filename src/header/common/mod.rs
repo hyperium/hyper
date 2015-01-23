@@ -86,7 +86,7 @@ macro_rules! impl_list_header(
         deref!($from => $item);
 
         impl header::Header for $from {
-            fn header_name(_: Option<$from>) -> &'static str {
+            fn header_name() -> &'static str {
                 $name
             }
 
@@ -116,7 +116,7 @@ macro_rules! impl_header(
         deref!($from => $item);
 
         impl header::Header for $from {
-            fn header_name(_: Option<$from>) -> &'static str {
+            fn header_name() -> &'static str {
                 $name
             }
 

@@ -23,7 +23,7 @@ impl<S: Scheme> DerefMut for Authorization<S> {
 }
 
 impl<S: Scheme> Header for Authorization<S> {
-    fn header_name(_: Option<Authorization<S>>) -> &'static str {
+    fn header_name() -> &'static str {
         "Authorization"
     }
 

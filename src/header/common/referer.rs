@@ -16,7 +16,7 @@ pub struct Referer(pub String);
 deref!(Referer => String);
 
 impl Header for Referer {
-    fn header_name(_: Option<Referer>) -> &'static str {
+    fn header_name() -> &'static str {
         "Referer"
     }
 

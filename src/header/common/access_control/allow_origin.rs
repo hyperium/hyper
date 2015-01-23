@@ -23,7 +23,7 @@ pub enum AccessControlAllowOrigin {
 
 impl header::Header for AccessControlAllowOrigin {
     #[inline]
-    fn header_name(_: Option<AccessControlAllowOrigin>) -> &'static str {
+    fn header_name() -> &'static str {
         "Access-Control-Allow-Origin"
     }
 

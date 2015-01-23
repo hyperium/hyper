@@ -31,7 +31,7 @@ pub struct Accept(pub Vec<header::QualityItem<mime::Mime>>);
 deref!(Accept => Vec<header::QualityItem<mime::Mime>>);
 
 impl header::Header for Accept {
-    fn header_name(_: Option<Accept>) -> &'static str {
+    fn header_name() -> &'static str {
         "Accept"
     }
 

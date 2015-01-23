@@ -13,7 +13,7 @@ pub struct ContentType(pub Mime);
 deref!(ContentType => Mime);
 
 impl Header for ContentType {
-    fn header_name(_: Option<ContentType>) -> &'static str {
+    fn header_name() -> &'static str {
         "Content-Type"
     }
 

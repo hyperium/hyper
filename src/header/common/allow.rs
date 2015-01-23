@@ -12,7 +12,7 @@ pub struct Allow(pub Vec<Method>);
 deref!(Allow => Vec<Method>);
 
 impl Header for Allow {
-    fn header_name(_: Option<Allow>) -> &'static str {
+    fn header_name() -> &'static str {
         "Allow"
     }
 

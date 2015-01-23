@@ -50,7 +50,7 @@ impl fmt::String for ConnectionOption {
 }
 
 impl Header for Connection {
-    fn header_name(_: Option<Connection>) -> &'static str {
+    fn header_name() -> &'static str {
         "Connection"
     }
 

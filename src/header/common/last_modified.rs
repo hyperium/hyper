@@ -12,7 +12,7 @@ pub struct LastModified(pub Tm);
 deref!(LastModified => Tm);
 
 impl Header for LastModified {
-    fn header_name(_: Option<LastModified>) -> &'static str {
+    fn header_name() -> &'static str {
         "Last-Modified"
     }
 

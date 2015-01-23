@@ -11,7 +11,7 @@ pub struct UserAgent(pub String);
 deref!(UserAgent => String);
 
 impl Header for UserAgent {
-    fn header_name(_: Option<UserAgent>) -> &'static str {
+    fn header_name() -> &'static str {
         "User-Agent"
     }
 

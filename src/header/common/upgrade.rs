@@ -39,7 +39,7 @@ impl fmt::String for Protocol {
 }
 
 impl Header for Upgrade {
-    fn header_name(_: Option<Upgrade>) -> &'static str {
+    fn header_name() -> &'static str {
         "Upgrade"
     }
 

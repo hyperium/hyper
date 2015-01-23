@@ -19,7 +19,7 @@ pub struct Cookies(pub Vec<Cookie>);
 deref!(Cookies => Vec<Cookie>);
 
 impl Header for Cookies {
-    fn header_name(_: Option<Cookies>) -> &'static str {
+    fn header_name() -> &'static str {
         "Cookie"
     }
 
