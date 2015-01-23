@@ -6,7 +6,7 @@ use header::parsing::{from_comma_delimited, fmt_comma_delimited};
 /// The `Allow` header.
 /// See also https://tools.ietf.org/html/rfc7231#section-7.4.1
 
-#[derive(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Allow(pub Vec<Method>);
 
 deref!(Allow => Vec<Method>);

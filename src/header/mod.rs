@@ -267,7 +267,7 @@ impl Headers {
     }
 }
 
-impl fmt::String for Headers {
+impl fmt::Display for Headers {
    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         for header in self.iter() {
             try!(write!(fmt, "{}\r\n", header));
@@ -276,7 +276,7 @@ impl fmt::String for Headers {
     }
 }
 
-impl fmt::Show for Headers {
+impl fmt::Debug for Headers {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         try!(fmt.write_str("Headers {{ "));
         for header in self.iter() {
@@ -336,15 +336,15 @@ impl<'a> HeaderView<'a> {
     }
 }
 
-impl<'a> fmt::String for HeaderView<'a> {
+impl<'a> fmt::Display for HeaderView<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}: {}", self.0, *self.1.borrow())
     }
 }
 
-impl<'a> fmt::Show for HeaderView<'a> {
+impl<'a> fmt::Debug for HeaderView<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        self.to_string().fmt(fmt)
+        fmt::Display::fmt(self, fmt)
     }
 }
 
@@ -448,7 +448,7 @@ unsafe fn downcast_mut<H: Header + HeaderFormat>(item: &mut Item) -> &mut H {
     item.typed.as_mut().expect("item.typed must be set").downcast_mut_unchecked()
 }
 
-impl fmt::String for Item {
+impl fmt::Display for Item {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match self.typed {
             Some(ref h) => h.fmt_header(fmt),
@@ -472,13 +472,13 @@ impl fmt::String for Item {
 }
 
 
-impl fmt::Show for Box<HeaderFormat + Send + Sync> {
+impl fmt::Debug for Box<HeaderFormat + Send + Sync> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         (**self).fmt_header(fmt)
     }
 }
 
-impl fmt::String for Box<HeaderFormat + Send + Sync> {
+impl fmt::Display for Box<HeaderFormat + Send + Sync> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         (**self).fmt_header(fmt)
     }
@@ -491,13 +491,13 @@ impl fmt::String for Box<HeaderFormat + Send + Sync> {
 /// outgoing TcpStream.
 pub struct HeaderFormatter<'a, H: HeaderFormat>(pub &'a H);
 
-impl<'a, H: HeaderFormat> fmt::String for HeaderFormatter<'a, H> {
+impl<'a, H: HeaderFormat> fmt::Display for HeaderFormatter<'a, H> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt_header(f)
     }
 }
 
-impl<'a, H: HeaderFormat> fmt::Show for HeaderFormatter<'a, H> {
+impl<'a, H: HeaderFormat> fmt::Debug for HeaderFormatter<'a, H> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt_header(f)
     }

@@ -5,7 +5,7 @@ use serialize::base64::{ToBase64, FromBase64, Standard, Config, Newline};
 use header::{Header, HeaderFormat};
 
 /// The `Authorization` header field.
-#[derive(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Authorization<S: Scheme>(pub S);
 
 impl<S: Scheme> Deref for Authorization<S> {
@@ -75,7 +75,7 @@ impl Scheme for String {
 }
 
 /// Credential holder for Basic Authentication
-#[derive(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Basic {
     /// The username as a possibly empty string
     pub username: String,
@@ -90,7 +90,7 @@ impl Scheme for Basic {
     }
 
     fn fmt_scheme(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        //FIXME: serialize::base64 could use some Show implementation, so
+        //FIXME: serialize::base64 could use some Debug implementation, so
         //that we don't have to allocate a new string here just to write it
         //to the formatter.
         let mut text = self.username.clone();

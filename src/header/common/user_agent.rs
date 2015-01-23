@@ -5,7 +5,7 @@ use header::parsing::from_one_raw_str;
 /// The `User-Agent` header field.
 ///
 /// They can contain any value, so it just wraps a `String`.
-#[derive(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct UserAgent(pub String);
 
 deref!(UserAgent => String);

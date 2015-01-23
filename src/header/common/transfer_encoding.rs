@@ -16,7 +16,7 @@ use header::parsing::{from_comma_delimited, fmt_comma_delimited};
 /// this header should include `chunked` as the last encoding.
 ///
 /// The implementation uses a vector of `Encoding` values.
-#[derive(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct TransferEncoding(pub Vec<Encoding>);
 
 deref!(TransferEncoding => Vec<Encoding>);

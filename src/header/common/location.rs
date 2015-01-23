@@ -13,7 +13,7 @@ use header::parsing::from_one_raw_str;
 ///
 /// Currently is just a String, but it should probably become a better type,
 /// like url::Url or something.
-#[derive(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Location(pub String);
 
 deref!(Location => String);

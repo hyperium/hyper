@@ -6,7 +6,7 @@ use header::parsing::from_one_raw_str;
 use header::parsing::tm_from_str;
 
 /// The `Expires` header field.
-#[derive(Copy, PartialEq, Clone, Show)]
+#[derive(Copy, PartialEq, Clone, Debug)]
 pub struct Expires(pub Tm);
 
 deref!(Expires => Tm);
@@ -29,7 +29,7 @@ impl HeaderFormat for Expires {
             0 => tm,
             _ => tm.to_utc(),
         };
-        fmt::String::fmt(&tm.rfc822(), fmt)
+        fmt::Display::fmt(&tm.rfc822(), fmt)
     }
 }
 

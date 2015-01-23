@@ -10,7 +10,7 @@ use cookie::CookieJar;
 /// Informally, the Set-Cookie response header contains the header name
 /// "Set-Cookie" followed by a ":" and a cookie.  Each cookie begins with
 /// a name-value-pair, followed by zero or more attribute-value pairs.
-#[derive(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct SetCookie(pub Vec<Cookie>);
 
 deref!(SetCookie => Vec<Cookie>);

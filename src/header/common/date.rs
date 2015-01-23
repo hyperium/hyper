@@ -7,7 +7,7 @@ use header::parsing::tm_from_str;
 
 // Egh, replace as soon as something better than time::Tm exists.
 /// The `Date` header field.
-#[derive(Copy, PartialEq, Clone, Show)]
+#[derive(Copy, PartialEq, Clone, Debug)]
 pub struct Date(pub Tm);
 
 deref!(Date => Tm);
@@ -30,7 +30,7 @@ impl HeaderFormat for Date {
             0 => tm,
             _ => tm.to_utc(),
         };
-        fmt::String::fmt(&tm.rfc822(), fmt)
+        fmt::Display::fmt(&tm.rfc822(), fmt)
     }
 }
 

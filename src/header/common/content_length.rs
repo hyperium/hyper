@@ -6,7 +6,7 @@ use header::parsing::from_one_raw_str;
 /// The `Content-Length` header.
 ///
 /// Simply a wrapper around a `usize`.
-#[derive(Copy, Clone, PartialEq, Show)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub struct ContentLength(pub u64);
 
 deref!(ContentLength => u64);
@@ -23,7 +23,7 @@ impl Header for ContentLength {
 
 impl HeaderFormat for ContentLength {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-       fmt::String::fmt(&self.0, fmt)
+       fmt::Display::fmt(&self.0, fmt)
     }
 }
 

@@ -16,7 +16,7 @@ use url::Url;
 /// >                / authority-form
 /// >                / asterisk-form
 /// > ```
-#[derive(Show, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum RequestUri {
     /// The most common request target, an absolute path and optional query.
     ///
