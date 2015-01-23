@@ -2,7 +2,6 @@
 use std::borrow::Cow::{Borrowed, Owned};
 use std::borrow::IntoCow;
 use std::cmp::min;
-use std::fmt;
 use std::io::{self, Reader, IoResult, BufWriter};
 use std::num::from_u16;
 use std::str::{self, FromStr};
@@ -103,7 +102,7 @@ impl<R: Reader> Reader for HttpReader<R> {
                 }
 
                 let to_read = min(rem as usize, buf.len());
-                let count = try!(body.read(buf.slice_to_mut(to_read))) as u64;
+                let count = try!(body.read(&mut buf[..to_read])) as u64;
 
                 rem -= count;
                 *opt_remaining = if rem > 0 {
@@ -305,23 +304,6 @@ pub const CR: u8 = b'\r';
 pub const LF: u8 = b'\n';
 pub const STAR: u8 = b'*';
 pub const LINE_ENDING: &'static str = "\r\n";
-
-/// A `Show`able struct to easily write line endings to a formatter.
-pub struct LineEnding;
-
-impl Copy for LineEnding {}
-
-impl fmt::String for LineEnding {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.write_str(LINE_ENDING)
-    }
-}
-
-impl fmt::Show for LineEnding {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        self.to_string().fmt(fmt)
-    }
-}
 
 /// Determines if byte is a token char.
 ///

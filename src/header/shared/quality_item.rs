@@ -9,7 +9,7 @@ use std::str;
 
 /// Represents an item with a quality value as defined in
 /// [RFC7231](https://tools.ietf.org/html/rfc7231#section-5.3.1).
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct QualityItem<T> {
     /// The actual contents of the field.
     pub item: T,
@@ -26,13 +26,7 @@ impl<T> QualityItem<T> {
     }
 }
 
-impl<T: fmt::String> fmt::String for QualityItem<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}; q={}", self.item, format!("{:.3}", self.quality).trim_right_matches(['0', '.'].as_slice()))
-    }
-}
-
-impl<T: fmt::String> fmt::Show for QualityItem<T> {
+impl<T: fmt::Display> fmt::Display for QualityItem<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}; q={}", self.item, format!("{:.3}", self.quality).trim_right_matches(['0', '.'].as_slice()))
     }
@@ -46,9 +40,9 @@ impl<T: str::FromStr> str::FromStr for QualityItem<T> {
 
         let parts: Vec<&str> = s.rsplitn(1, ';').map(|x| x.trim()).collect();
         if parts.len() == 2 {
-            let start = parts[0].slice(0, 2);
+            let start = &parts[0][0..2];
             if start == "q=" || start == "Q=" {
-                let q_part = parts[0].slice(2, parts[0].len());
+                let q_part = &parts[0][2..parts[0].len()];
                 if q_part.len() > 5 {
                     return None;
                 }

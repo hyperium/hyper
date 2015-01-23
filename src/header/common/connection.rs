@@ -6,13 +6,13 @@ use header::parsing::{from_comma_delimited, fmt_comma_delimited};
 pub use self::ConnectionOption::{KeepAlive, Close, ConnectionHeader};
 
 /// The `Connection` header.
-#[derive(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Connection(pub Vec<ConnectionOption>);
 
 deref!(Connection => Vec<ConnectionOption>);
 
 /// Values that can be in the `Connection` header.
-#[derive(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum ConnectionOption {
     /// The `keep-alive` connection value.
     KeepAlive,
@@ -39,7 +39,7 @@ impl FromStr for ConnectionOption {
     }
 }
 
-impl fmt::String for ConnectionOption {
+impl fmt::Display for ConnectionOption {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt, "{}", match *self {
             KeepAlive => "keep-alive",

@@ -7,7 +7,7 @@ pub use self::Encoding::{Chunked, Gzip, Deflate, Compress, Identity, EncodingExt
 
 /// A value to represent an encoding used in `Transfer-Encoding`
 /// or `Accept-Encoding` header.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum Encoding {
     /// The `chunked` encoding.
     Chunked,
@@ -23,9 +23,9 @@ pub enum Encoding {
     EncodingExt(String)
 }
 
-impl fmt::String for Encoding {
+impl fmt::Display for Encoding {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "{}", match *self {
+        fmt.write_str(match *self {
             Chunked => "chunked",
             Gzip => "gzip",
             Deflate => "deflate",
@@ -33,13 +33,7 @@ impl fmt::String for Encoding {
             Identity => "identity",
             EncodingExt(ref s) => s.as_slice()
         })
-	}
-}
-
-impl fmt::Show for Encoding {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-		self.to_string().fmt(fmt)
-	}
+    }
 }
 
 impl str::FromStr for Encoding {

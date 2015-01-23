@@ -145,6 +145,7 @@ pub use status::StatusCode::{Ok, BadRequest, NotFound};
 pub use server::Server;
 
 use std::error::{Error, FromError};
+use std::fmt;
 use std::io::IoError;
 
 use self::HttpError::{HttpMethodError, HttpUriError, HttpVersionError,
@@ -189,7 +190,7 @@ mod mimewrapper {
 pub type HttpResult<T> = Result<T, HttpError>;
 
 /// A set of errors that can occur parsing HTTP streams.
-#[derive(Show, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum HttpError {
     /// An invalid `Method`, such as `GE,T`.
     HttpMethodError,
@@ -203,6 +204,12 @@ pub enum HttpError {
     HttpStatusError,
     /// An `IoError` that occured while trying to read or write to a network stream.
     HttpIoError(IoError),
+}
+
+impl fmt::Display for HttpError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(self.description())
+    }
 }
 
 impl Error for HttpError {

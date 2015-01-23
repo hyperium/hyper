@@ -13,7 +13,7 @@ use self::Method::{Options, Get, Post, Put, Delete, Head, Trace, Connect, Patch,
 ///
 /// It may make sense to grow this to include all variants currently
 /// registered with IANA, if they are at all common to use.
-#[derive(Clone, PartialEq, Eq, Hash, Show)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum Method {
     /// OPTIONS
     Options,
@@ -88,9 +88,9 @@ impl FromStr for Method {
     }
 }
 
-impl fmt::String for Method {
+impl fmt::Display for Method {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
+        fmt.write_str(match *self {
             Options => "OPTIONS",
             Get => "GET",
             Post => "POST",
@@ -101,7 +101,7 @@ impl fmt::String for Method {
             Connect => "CONNECT",
             Patch => "PATCH",
             Extension(ref s) => s.as_slice()
-        }.fmt(fmt)
+        })
     }
 }
 

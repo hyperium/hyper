@@ -4,7 +4,7 @@ use header::{self, Encoding, QualityItem};
 ///
 /// The `Accept-Encoding` header can be used by clients to indicate what
 /// response encodings they accept.
-#[derive(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct AcceptEncoding(pub Vec<QualityItem<Encoding>>);
 
 impl_list_header!(AcceptEncoding,

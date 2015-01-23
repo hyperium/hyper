@@ -10,7 +10,7 @@ use header::parsing::from_one_raw_str;
 ///
 /// Currently is just a String, but it should probably become a better type,
 /// like url::Host or something.
-#[derive(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Host {
     /// The hostname, such a example.domain.
     pub hostname: String,
@@ -46,7 +46,7 @@ impl Header for Host {
             };
 
             let port = match idx {
-                Some(idx) => s[].slice_from(idx + 1).parse(),
+                Some(idx) => s[idx + 1..].parse(),
                 None => None
             };
 

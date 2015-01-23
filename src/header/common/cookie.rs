@@ -13,7 +13,7 @@ use cookie::CookieJar;
 ///
 /// > When the user agent generates an HTTP request, the user agent MUST NOT
 /// > attach more than one Cookie header field.
-#[derive(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Cookies(pub Vec<Cookie>);
 
 deref!(Cookies => Vec<Cookie>);
@@ -53,7 +53,7 @@ impl HeaderFormat for Cookies {
         let last = cookies.len() - 1;
         for (i, cookie) in cookies.iter().enumerate() {
             try!(write!(fmt, "{}", cookie.pair()));
-			if i < last {
+            if i < last {
                 try!(fmt.write_str("; "));
             }
         }

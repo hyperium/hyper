@@ -25,7 +25,7 @@ use mime;
 ///     qitem(Mime(Text, Html, vec![])),
 ///     qitem(Mime(Text, Xml, vec![])) ]));
 /// ```
-#[derive(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Accept(pub Vec<header::QualityItem<mime::Mime>>);
 
 deref!(Accept => Vec<header::QualityItem<mime::Mime>>);

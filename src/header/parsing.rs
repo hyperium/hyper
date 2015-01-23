@@ -42,7 +42,7 @@ pub fn from_one_comma_delimited<T: str::FromStr>(raw: &[u8]) -> Option<Vec<T>> {
 }
 
 /// Format an array into a comma-delimited string.
-pub fn fmt_comma_delimited<T: fmt::String>(fmt: &mut fmt::Formatter, parts: &[T]) -> fmt::Result {
+pub fn fmt_comma_delimited<T: fmt::Display>(fmt: &mut fmt::Formatter, parts: &[T]) -> fmt::Result {
     let last = parts.len() - 1;
     for (i, part) in parts.iter().enumerate() {
         try!(write!(fmt, "{}", part));

@@ -94,7 +94,7 @@ pub trait NetworkConnector {
     fn connect(&mut self, host: &str, port: Port, scheme: &str) -> IoResult<Self::Stream>;
 }
 
-impl fmt::Show for Box<NetworkStream + Send> {
+impl fmt::Debug for Box<NetworkStream + Send> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.pad("Box<NetworkStream>")
     }

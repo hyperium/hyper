@@ -3,7 +3,7 @@ extern crate hyper;
 
 extern crate test;
 
-use std::fmt::{self, Show};
+use std::fmt;
 use std::io::net::ip::Ipv4Addr;
 use hyper::server::{Request, Response, Server};
 use hyper::header::Headers;
@@ -44,7 +44,7 @@ impl hyper::header::Header for Foo {
 
 impl hyper::header::HeaderFormat for Foo {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        "Bar".fmt(fmt)
+        fmt.write_str("Bar")
     }
 }
 

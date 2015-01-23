@@ -4,7 +4,7 @@ use header::{Header, HeaderFormat};
 use header::parsing::{from_one_comma_delimited, fmt_comma_delimited};
 
 /// The Cache-Control header.
-#[derive(PartialEq, Clone, Show)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct CacheControl(pub Vec<CacheDirective>);
 
 deref!(CacheControl => Vec<CacheDirective>);
@@ -34,7 +34,7 @@ impl HeaderFormat for CacheControl {
 }
 
 /// CacheControl contains a list of these directives.
-#[derive(PartialEq, Clone, Show)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum CacheDirective {
     /// "no-cache"
     NoCache,
@@ -69,10 +69,10 @@ pub enum CacheDirective {
     Extension(String, Option<String>)
 }
 
-impl fmt::String for CacheDirective {
+impl fmt::Display for CacheDirective {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use self::CacheDirective::*;
-        fmt::String::fmt(match *self {
+        fmt::Display::fmt(match *self {
             NoCache => "no-cache",
             NoStore => "no-store",
             NoTransform => "no-transform",

@@ -1,5 +1,5 @@
 use header::{Header, HeaderFormat};
-use std::fmt::{self, Show};
+use std::fmt;
 use header::parsing::from_one_raw_str;
 
 /// The `Referer` header.
@@ -10,7 +10,7 @@ use header::parsing::from_one_raw_str;
 /// See alse [RFC 1945, section 10.13](http://tools.ietf.org/html/rfc1945#section-10.13).
 ///
 /// Currently just a string, but maybe better replace it with url::Url or something like it.
-#[derive(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Referer(pub String);
 
 deref!(Referer => String);
@@ -27,8 +27,7 @@ impl Header for Referer {
 
 impl HeaderFormat for Referer {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        let Referer(ref value) = *self;
-        value.fmt(fmt)
+        fmt::Display::fmt(&self.0, fmt)
     }
 }
 

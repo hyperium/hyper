@@ -6,13 +6,13 @@ use header::parsing::{from_comma_delimited, fmt_comma_delimited};
 use self::Protocol::{WebSocket, ProtocolExt};
 
 /// The `Upgrade` header.
-#[derive(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Upgrade(pub Vec<Protocol>);
 
 deref!(Upgrade => Vec<Protocol>);
 
 /// Protocol values that can appear in the Upgrade header.
-#[derive(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum Protocol {
     /// The websocket protocol.
     WebSocket,
@@ -29,7 +29,7 @@ impl FromStr for Protocol {
     }
 }
 
-impl fmt::String for Protocol {
+impl fmt::Display for Protocol {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt, "{}", match *self {
             WebSocket => "websocket",

@@ -25,7 +25,7 @@ impl PartialEq for MockStream {
     }
 }
 
-impl fmt::Show for MockStream {
+impl fmt::Debug for MockStream {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "MockStream {{ read: {:?}, write: {:?} }}",
                self.read.get_ref(), self.write.get_ref())

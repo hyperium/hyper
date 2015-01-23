@@ -7,7 +7,7 @@ use mime::Mime;
 ///
 /// Used to describe the MIME type of message body. Can be used with both
 /// requests and responses.
-#[derive(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct ContentType(pub Mime);
 
 deref!(ContentType => Mime);
@@ -24,7 +24,7 @@ impl Header for ContentType {
 
 impl HeaderFormat for ContentType {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt::String::fmt(&self.0, fmt)
+        fmt::Display::fmt(&self.0, fmt)
     }
 }
 
