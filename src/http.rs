@@ -7,7 +7,8 @@ use std::fmt;
 use httparse;
 
 use buffer::BufReader;
-use header::Headers;
+use header::{Headers, Connection};
+use header::ConnectionOption::{Close, KeepAlive};
 use method::Method;
 use status::StatusCode;
 use uri::RequestUri;
@@ -442,6 +443,15 @@ pub const LINE_ENDING: &'static str = "\r\n";
 /// The raw status code and reason-phrase.
 #[derive(Clone, PartialEq, Debug)]
 pub struct RawStatus(pub u16, pub Cow<'static, str>);
+
+/// Checks if a connection should be kept alive.
+pub fn should_keep_alive(version: HttpVersion, headers: &Headers) -> bool {
+    match (version, headers.get::<Connection>()) {
+        (Http10, Some(conn)) if !conn.contains(&KeepAlive) => false,
+        (Http11, Some(conn)) if conn.contains(&Close)  => false,
+        _ => true
+    }
+}
 
 #[cfg(test)]
 mod tests {

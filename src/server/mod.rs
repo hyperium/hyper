@@ -36,13 +36,13 @@ pub use net::{Fresh, Streaming};
 use HttpError::HttpIoError;
 use {HttpResult};
 use buffer::BufReader;
-use header::{Headers, Connection, Expect};
-use header::ConnectionOption::{Close, KeepAlive};
+use header::{Headers, Expect};
+use http;
 use method::Method;
 use net::{NetworkListener, NetworkStream, HttpListener};
 use status::StatusCode;
 use uri::RequestUri;
-use version::HttpVersion::{Http10, Http11};
+use version::HttpVersion::Http11;
 
 use self::listener::ListenerPool;
 
@@ -206,11 +206,7 @@ where S: NetworkStream + Clone, H: Handler {
             }
         }
 
-        keep_alive = match (req.version, req.headers.get::<Connection>()) {
-            (Http10, Some(conn)) if !conn.contains(&KeepAlive) => false,
-            (Http11, Some(conn)) if conn.contains(&Close)  => false,
-            _ => true
-        };
+        keep_alive = http::should_keep_alive(req.version, &req.headers);
         let mut res = Response::new(&mut wrt);
         res.version = req.version;
         handler.handle(req, res);
