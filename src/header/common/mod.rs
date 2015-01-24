@@ -15,7 +15,7 @@ pub use self::cache_control::{CacheControl, CacheDirective};
 pub use self::connection::{Connection, ConnectionOption};
 pub use self::content_length::ContentLength;
 pub use self::content_type::ContentType;
-pub use self::cookie::Cookies;
+pub use self::cookie::Cookie;
 pub use self::date::Date;
 pub use self::etag::Etag;
 pub use self::expires::Expires;
@@ -164,4 +164,3 @@ mod transfer_encoding;
 mod upgrade;
 mod user_agent;
 mod vary;
-
