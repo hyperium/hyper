@@ -2,6 +2,7 @@ use header::{Header, HeaderFormat};
 use std::fmt;
 use std::str::FromStr;
 use header::parsing::{from_comma_delimited, fmt_comma_delimited};
+use unicase::UniCase;
 
 use self::Protocol::{WebSocket, ProtocolExt};
 
@@ -22,9 +23,11 @@ pub enum Protocol {
 
 impl FromStr for Protocol {
     fn from_str(s: &str) -> Option<Protocol> {
-        match s {
-            "websocket" => Some(WebSocket),
-            s => Some(ProtocolExt(s.to_string()))
+        if UniCase(s) == UniCase("websocket") {
+            Some(WebSocket)
+        }
+        else {
+            Some(ProtocolExt(s.to_string()))
         }
     }
 }
