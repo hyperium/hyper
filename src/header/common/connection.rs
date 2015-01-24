@@ -2,6 +2,7 @@ use header::{Header, HeaderFormat};
 use std::fmt;
 use std::str::FromStr;
 use header::parsing::{from_comma_delimited, fmt_comma_delimited};
+use unicase::UniCase;
 
 pub use self::ConnectionOption::{KeepAlive, Close, ConnectionHeader};
 
@@ -26,7 +27,7 @@ pub enum ConnectionOption {
     // TODO: it would be nice if these "Strings" could be stronger types, since
     // they are supposed to relate to other Header fields (which we have strong
     // types for).
-    ConnectionHeader(String),
+    ConnectionHeader(UniCase<String>),
 }
 
 impl FromStr for ConnectionOption {
@@ -34,7 +35,7 @@ impl FromStr for ConnectionOption {
         match s {
             "keep-alive" => Some(KeepAlive),
             "close" => Some(Close),
-            s => Some(ConnectionHeader(s.to_string()))
+            s => Some(ConnectionHeader(UniCase(s.to_string())))
         }
     }
 }
@@ -44,7 +45,7 @@ impl fmt::Display for ConnectionOption {
         write!(fmt, "{}", match *self {
             KeepAlive => "keep-alive",
             Close => "close",
-            ConnectionHeader(ref s) => s.as_slice()
+            ConnectionHeader(UniCase(ref s)) => s.as_slice()
         })
     }
 }
