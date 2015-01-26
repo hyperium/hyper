@@ -245,6 +245,7 @@ impl FromError<url::ParseError> for HttpError {
     }
 }
 
+#[allow(unconditional_recursion)]
 fn _assert_send<T: Send>() {
     _assert_send::<client::Request<net::Fresh>>();
     _assert_send::<client::Response>();
