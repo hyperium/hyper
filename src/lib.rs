@@ -153,7 +153,7 @@ use self::HttpError::{HttpMethodError, HttpUriError, HttpVersionError,
 
 macro_rules! todo(
     ($($arg:tt)*) => (if cfg!(not(ndebug)) {
-        log!(5, "TODO: {:?}", format_args!($($arg)*))
+        trace!("TODO: {:?}", format_args!($($arg)*))
     })
 );
 
