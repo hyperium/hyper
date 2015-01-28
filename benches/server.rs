@@ -3,7 +3,7 @@ extern crate hyper;
 extern crate test;
 
 use test::Bencher;
-use std::io::net::ip::Ipv4Addr;
+use std::old_io::net::ip::Ipv4Addr;
 
 use hyper::method::Method::Get;
 use hyper::server::{Request, Response};

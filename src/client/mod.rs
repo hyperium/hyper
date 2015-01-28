@@ -18,8 +18,8 @@
 //! to the `status`, the `headers`, and the response body via the `Writer`
 //! trait.
 use std::default::Default;
-use std::io::IoResult;
-use std::io::util::copy;
+use std::old_io::IoResult;
+use std::old_io::util::copy;
 use std::iter::Extend;
 
 use url::UrlParser;

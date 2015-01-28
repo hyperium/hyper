@@ -4,8 +4,8 @@ extern crate hyper;
 extern crate test;
 
 use std::fmt;
-use std::io::{IoResult, MemReader};
-use std::io::net::ip::SocketAddr;
+use std::old_io::{IoResult, MemReader};
+use std::old_io::net::ip::SocketAddr;
 
 use hyper::net;
 
