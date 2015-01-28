@@ -1571,6 +1571,31 @@ impl StatusCode {
             StatusClass::ServerError
         }
     }
+
+    /// Check if class is Informational.
+    pub fn is_informational(&self) -> bool {
+        self.class() == StatusClass::Informational
+    }
+
+    /// Check if class is Success.
+    pub fn is_success(&self) -> bool {
+        self.class() == StatusClass::Success
+    }
+
+    /// Check if class is Redirection.
+    pub fn is_redirection(&self) -> bool {
+        self.class() == StatusClass::Redirection
+    }
+
+    /// Check if class is ClientError.
+    pub fn is_client_error(&self) -> bool {
+        self.class() == StatusClass::ClientError
+    }
+
+    /// Check if class is ServerError.
+    pub fn is_server_error(&self) -> bool {
+        self.class() == StatusClass::ServerError
+    }
 }
 
 impl Copy for StatusCode {}
