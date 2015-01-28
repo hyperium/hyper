@@ -51,6 +51,7 @@ The scope should refer to a module in hyper that is being touched. Examples:
 * net
 * status
 * version
+* fixup
 
 ### Subject
 The subject contains succinct description of the change:
