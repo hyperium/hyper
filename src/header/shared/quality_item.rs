@@ -28,7 +28,12 @@ impl<T> QualityItem<T> {
 
 impl<T: fmt::Display> fmt::Display for QualityItem<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}; q={}", self.item, format!("{:.3}", self.quality).trim_right_matches(['0', '.'].as_slice()))
+        if self.quality == 1.0 {
+            write!(f, "{}", self.item)
+        } else {
+            write!(f, "{}; q={}", self.item,
+                   format!("{:.3}", self.quality).trim_right_matches(&['0', '.'][]))
+        }
     }
 }
 
@@ -79,7 +84,7 @@ pub fn qitem<T>(item: T) -> QualityItem<T> {
 #[test]
 fn test_quality_item_show1() {
     let x = qitem(Chunked);
-    assert_eq!(format!("{}", x), "chunked; q=1");
+    assert_eq!(format!("{}", x), "chunked");
 }
 #[test]
 fn test_quality_item_show2() {
