@@ -1,6 +1,6 @@
 use std::fmt;
-use std::io::{IoResult, MemReader, MemWriter};
-use std::io::net::ip::SocketAddr;
+use std::old_io::{IoResult, MemReader, MemWriter};
+use std::old_io::net::ip::SocketAddr;
 
 use net::{NetworkStream, NetworkConnector};
 
@@ -55,7 +55,7 @@ impl Reader for MockStream {
 }
 
 impl Writer for MockStream {
-    fn write(&mut self, msg: &[u8]) -> IoResult<()> {
+    fn write_all(&mut self, msg: &[u8]) -> IoResult<()> {
         self.write.write(msg)
     }
 }
@@ -86,7 +86,7 @@ macro_rules! mock_connector (
 
         impl ::net::NetworkConnector for $name {
             type Stream = ::mock::MockStream;
-            fn connect(&mut self, host: &str, port: u16, scheme: &str) -> ::std::io::IoResult<::mock::MockStream> {
+            fn connect(&mut self, host: &str, port: u16, scheme: &str) -> ::std::old_io::IoResult<::mock::MockStream> {
                 use std::collections::HashMap;
                 debug!("MockStream::connect({:?}, {:?}, {:?})", host, port, scheme);
                 let mut map = HashMap::new();
@@ -97,8 +97,8 @@ macro_rules! mock_connector (
                 // ignore port for now
                 match map.get(&&*key) {
                     Some(res) => Ok(::mock::MockStream {
-                        write: ::std::io::MemWriter::new(),
-                        read: ::std::io::MemReader::new(res.to_string().into_bytes())
+                        write: ::std::old_io::MemWriter::new(),
+                        read: ::std::old_io::MemReader::new(res.to_string().into_bytes())
                     }),
                     None => panic!("{:?} doesn't know url {}", stringify!($name), key)
                 }

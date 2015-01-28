@@ -141,7 +141,7 @@ impl FromStr for Basic {
 
 #[cfg(test)]
 mod tests {
-    use std::io::MemReader;
+    use std::old_io::MemReader;
     use super::{Authorization, Basic};
     use super::super::super::{Headers};
 
