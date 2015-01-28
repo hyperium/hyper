@@ -2,7 +2,7 @@
 use std::borrow::Cow::{Borrowed, Owned};
 use std::borrow::IntoCow;
 use std::cmp::min;
-use std::io::{self, Reader, IoResult, BufWriter};
+use std::old_io::{self, Reader, IoResult, BufWriter};
 use std::num::from_u16;
 use std::str::{self, FromStr};
 use std::string::CowString;
@@ -72,7 +72,7 @@ impl<R: Reader> Reader for HttpReader<R> {
             SizedReader(ref mut body, ref mut remaining) => {
                 debug!("Sized read, remaining={:?}", remaining);
                 if *remaining == 0 {
-                    Err(io::standard_error(io::EndOfFile))
+                    Err(old_io::standard_error(old_io::EndOfFile))
                 } else {
                     let num = try!(body.read(buf)) as u64;
                     if num > *remaining {
@@ -98,7 +98,7 @@ impl<R: Reader> Reader for HttpReader<R> {
                     // if the 0 digit was missing from the stream, it would
                     // be an InvalidInput error instead.
                     debug!("end of chunked");
-                    return Err(io::standard_error(io::EndOfFile));
+                    return Err(old_io::standard_error(old_io::EndOfFile));
                 }
 
                 let to_read = min(rem as usize, buf.len());
@@ -116,7 +116,7 @@ impl<R: Reader> Reader for HttpReader<R> {
             EofReader(ref mut body) => {
                 body.read(buf)
             },
-            EmptyReader(_) => Err(io::standard_error(io::EndOfFile))
+            EmptyReader(_) => Err(old_io::standard_error(old_io::EndOfFile))
         }
     }
 }
@@ -125,7 +125,7 @@ fn eat<R: Reader>(rdr: &mut R, bytes: &[u8]) -> IoResult<()> {
     for &b in bytes.iter() {
         match try!(rdr.read_byte()) {
             byte if byte == b => (),
-            _ => return Err(io::standard_error(io::InvalidInput))
+            _ => return Err(old_io::standard_error(old_io::InvalidInput))
         }
     }
     Ok(())
@@ -154,7 +154,7 @@ fn read_chunk_size<R: Reader>(rdr: &mut R) -> IoResult<u64> {
             CR => {
                 match try!(rdr.read_byte()) {
                     LF => break,
-                    _ => return Err(io::standard_error(io::InvalidInput))
+                    _ => return Err(old_io::standard_error(old_io::InvalidInput))
                 }
             },
             // If we weren't in the extension yet, the ";" signals its start
@@ -178,7 +178,7 @@ fn read_chunk_size<R: Reader>(rdr: &mut R) -> IoResult<u64> {
             // Finally, if we aren't in the extension and we're reading any
             // other octet, the chunk size line is invalid!
             _ => {
-                return Err(io::standard_error(io::InvalidInput));
+                return Err(old_io::standard_error(old_io::InvalidInput));
             }
         }
     }
@@ -239,11 +239,11 @@ impl<W: Writer> HttpWriter<W> {
 
     /// Ends the HttpWriter, and returns the underlying Writer.
     ///
-    /// A final `write()` is called with an empty message, and then flushed.
+    /// A final `write_all()` is called with an empty message, and then flushed.
     /// The ChunkedWriter variant will use this to write the 0-sized last-chunk.
     #[inline]
     pub fn end(mut self) -> IoResult<W> {
-        try!(self.write(&[]));
+        try!(self.write_all(&[]));
         try!(self.flush());
         Ok(self.unwrap())
     }
@@ -251,14 +251,14 @@ impl<W: Writer> HttpWriter<W> {
 
 impl<W: Writer> Writer for HttpWriter<W> {
     #[inline]
-    fn write(&mut self, msg: &[u8]) -> IoResult<()> {
+    fn write_all(&mut self, msg: &[u8]) -> IoResult<()> {
         match *self {
-            ThroughWriter(ref mut w) => w.write(msg),
+            ThroughWriter(ref mut w) => w.write_all(msg),
             ChunkedWriter(ref mut w) => {
                 let chunk_size = msg.len();
                 debug!("chunked write, size = {:?}", chunk_size);
                 try!(write!(w, "{:X}{}", chunk_size, LINE_ENDING));
-                try!(w.write(msg));
+                try!(w.write_all(msg));
                 w.write_str(LINE_ENDING)
             },
             SizedWriter(ref mut w, ref mut remaining) => {
@@ -266,11 +266,11 @@ impl<W: Writer> Writer for HttpWriter<W> {
                 if len > *remaining {
                     let len = *remaining;
                     *remaining = 0;
-                    try!(w.write(&msg[..len as usize]));
-                    Err(io::standard_error(io::ShortWrite(len as usize)))
+                    try!(w.write_all(&msg[..len as usize]));
+                    Err(old_io::standard_error(old_io::ShortWrite(len as usize)))
                 } else {
                     *remaining -= len;
-                    w.write(msg)
+                    w.write_all(msg)
                 }
             },
             EmptyWriter(..) => {
@@ -278,8 +278,8 @@ impl<W: Writer> Writer for HttpWriter<W> {
                 if bytes == 0 {
                     Ok(())
                 } else {
-                    Err(io::IoError {
-                        kind: io::ShortWrite(bytes),
+                    Err(old_io::IoError {
+                        kind: old_io::ShortWrite(bytes),
                         desc: "EmptyWriter cannot write any bytes",
                         detail: Some("Cannot include a body with this kind of message".to_string())
                     })
@@ -347,7 +347,7 @@ pub fn is_token(b: u8) -> bool {
 ///
 /// The remaining contents of `buf` are left untouched.
 fn read_token_until_space<R: Reader>(stream: &mut R, buf: &mut [u8]) -> HttpResult<bool> {
-    use std::io::BufWriter;
+    use std::old_io::BufWriter;
     let mut bufwrt = BufWriter::new(buf);
 
     loop {
@@ -697,7 +697,7 @@ fn expect(r: IoResult<u8>, expected: u8) -> HttpResult<()> {
 
 #[cfg(test)]
 mod tests {
-    use std::io::{self, MemReader, MemWriter, IoResult};
+    use std::old_io::{self, MemReader, MemWriter, IoResult};
     use std::borrow::Cow::{Borrowed, Owned};
     use test::Bencher;
     use uri::RequestUri;
@@ -800,8 +800,8 @@ mod tests {
     fn test_write_chunked() {
         use std::str::from_utf8;
         let mut w = super::HttpWriter::ChunkedWriter(MemWriter::new());
-        w.write(b"foo bar").unwrap();
-        w.write(b"baz quux herp").unwrap();
+        w.write_all(b"foo bar").unwrap();
+        w.write_all(b"baz quux herp").unwrap();
         let buf = w.end().unwrap().into_inner();
         let s = from_utf8(buf.as_slice()).unwrap();
         assert_eq!(s, "7\r\nfoo bar\r\nD\r\nbaz quux herp\r\n0\r\n\r\n");
@@ -811,8 +811,8 @@ mod tests {
     fn test_write_sized() {
         use std::str::from_utf8;
         let mut w = super::HttpWriter::SizedWriter(MemWriter::new(), 8);
-        w.write(b"foo bar").unwrap();
-        assert_eq!(w.write(b"baz"), Err(io::standard_error(io::ShortWrite(1))));
+        w.write_all(b"foo bar").unwrap();
+        assert_eq!(w.write_all(b"baz"), Err(old_io::standard_error(old_io::ShortWrite(1))));
 
         let buf = w.end().unwrap().into_inner();
         let s = from_utf8(buf.as_slice()).unwrap();
@@ -834,13 +834,13 @@ mod tests {
         read("Ff\r\n", Ok(255));
         read("Ff   \r\n", Ok(255));
         // Missing LF or CRLF
-        read("F\rF", Err(io::standard_error(io::InvalidInput)));
-        read("F", Err(io::standard_error(io::EndOfFile)));
+        read("F\rF", Err(old_io::standard_error(old_io::InvalidInput)));
+        read("F", Err(old_io::standard_error(old_io::EndOfFile)));
         // Invalid hex digit
-        read("X\r\n", Err(io::standard_error(io::InvalidInput)));
-        read("1X\r\n", Err(io::standard_error(io::InvalidInput)));
-        read("-\r\n", Err(io::standard_error(io::InvalidInput)));
-        read("-1\r\n", Err(io::standard_error(io::InvalidInput)));
+        read("X\r\n", Err(old_io::standard_error(old_io::InvalidInput)));
+        read("1X\r\n", Err(old_io::standard_error(old_io::InvalidInput)));
+        read("-\r\n", Err(old_io::standard_error(old_io::InvalidInput)));
+        read("-1\r\n", Err(old_io::standard_error(old_io::InvalidInput)));
         // Acceptable (if not fully valid) extensions do not influence the size
         read("1;extension\r\n", Ok(1));
         read("a;ext name=value\r\n", Ok(10));
@@ -851,9 +851,9 @@ mod tests {
         read("3   ;\r\n", Ok(3));
         read("3   ;   \r\n", Ok(3));
         // Invalid extensions cause an error
-        read("1 invalid extension\r\n", Err(io::standard_error(io::InvalidInput)));
-        read("1 A\r\n", Err(io::standard_error(io::InvalidInput)));
-        read("1;no CRLF", Err(io::standard_error(io::EndOfFile)));
+        read("1 invalid extension\r\n", Err(old_io::standard_error(old_io::InvalidInput)));
+        read("1 A\r\n", Err(old_io::standard_error(old_io::InvalidInput)));
+        read("1;no CRLF", Err(old_io::standard_error(old_io::EndOfFile)));
     }
 
     #[bench]

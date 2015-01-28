@@ -2,8 +2,8 @@
 extern crate hyper;
 #[macro_use] extern crate log;
 
-use std::io::util::copy;
-use std::io::net::ip::Ipv4Addr;
+use std::old_io::util::copy;
+use std::old_io::net::ip::Ipv4Addr;
 
 use hyper::{Get, Post};
 use hyper::header::ContentLength;
@@ -27,7 +27,7 @@ fn echo(mut req: Request, mut res: Response) {
 
                 res.headers_mut().set(ContentLength(out.len() as u64));
                 let mut res = try_return!(res.start());
-                try_return!(res.write(out));
+                try_return!(res.write_all(out));
                 try_return!(res.end());
                 return;
             },

@@ -4,8 +4,8 @@ extern crate hyper;
 extern crate test;
 
 use std::fmt;
-use std::io::{IoResult, MemReader};
-use std::io::net::ip::SocketAddr;
+use std::old_io::{IoResult, MemReader};
+use std::old_io::net::ip::SocketAddr;
 
 use hyper::net;
 
@@ -40,7 +40,7 @@ impl Reader for MockStream {
 }
 
 impl Writer for MockStream {
-    fn write(&mut self, _msg: &[u8]) -> IoResult<()> {
+    fn write_all(&mut self, _msg: &[u8]) -> IoResult<()> {
         // we're mocking, what do we care.
         Ok(())
     }

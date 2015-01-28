@@ -1,6 +1,6 @@
 //! HTTP Server
-use std::io::{Listener, EndOfFile, BufferedReader, BufferedWriter};
-use std::io::net::ip::{IpAddr, Port, SocketAddr};
+use std::old_io::{Listener, EndOfFile, BufferedReader, BufferedWriter};
+use std::old_io::net::ip::{IpAddr, Port, SocketAddr};
 use std::os;
 use std::sync::{Arc, TaskPool};
 use std::thread::{Builder, JoinGuard};
