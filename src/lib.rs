@@ -136,7 +136,7 @@ extern crate cookie;
 extern crate mucell;
 extern crate unicase;
 
-pub use std::io::net::ip::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr, Port};
+pub use std::old_io::net::ip::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr, Port};
 pub use mimewrapper::mime;
 pub use url::Url;
 pub use client::Client;
@@ -146,7 +146,7 @@ pub use server::Server;
 
 use std::error::{Error, FromError};
 use std::fmt;
-use std::io::IoError;
+use std::old_io::IoError;
 
 use self::HttpError::{HttpMethodError, HttpUriError, HttpVersionError,
                       HttpHeaderError, HttpStatusError, HttpIoError};

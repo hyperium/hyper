@@ -3,7 +3,7 @@ extern crate hyper;
 extern crate test;
 
 use test::Bencher;
-use std::io::net::ip::Ipv4Addr;
+use std::old_io::net::ip::Ipv4Addr;
 
 use hyper::method::Method::Get;
 use hyper::server::{Request, Response};
@@ -17,7 +17,7 @@ fn request(url: hyper::Url) {
 
 fn hyper_handle(_: Request, res: Response) {
     let mut res = res.start().unwrap();
-    res.write(PHRASE).unwrap();
+    res.write_all(PHRASE).unwrap();
     res.end().unwrap();
 }
 

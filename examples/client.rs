@@ -2,8 +2,8 @@
 extern crate hyper;
 
 use std::os;
-use std::io::stdout;
-use std::io::util::copy;
+use std::old_io::stdout;
+use std::old_io::util::copy;
 
 use hyper::Client;
 

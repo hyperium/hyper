@@ -4,7 +4,7 @@ extern crate hyper;
 extern crate test;
 
 use std::fmt;
-use std::io::net::ip::Ipv4Addr;
+use std::old_io::net::ip::Ipv4Addr;
 use hyper::server::{Request, Response, Server};
 use hyper::header::Headers;
 use hyper::Client;
@@ -26,7 +26,7 @@ macro_rules! try_return(
 fn handle(_r: Request, res: Response) {
     static BODY: &'static [u8] = b"Benchmarking hyper vs others!";
     let mut res = try_return!(res.start());
-    try_return!(res.write(BODY));
+    try_return!(res.write_all(BODY));
     try_return!(res.end());
 }
 
