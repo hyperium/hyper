@@ -505,7 +505,7 @@ impl<'a, H: HeaderFormat> fmt::Debug for HeaderFormatter<'a, H> {
 
 #[cfg(test)]
 mod tests {
-    use std::io::MemReader;
+    use std::old_io::MemReader;
     use std::fmt;
     use std::borrow::Cow::Borrowed;
     use std::hash::{SipHasher, hash};

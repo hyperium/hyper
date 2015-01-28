@@ -1,7 +1,7 @@
 #![allow(unstable)]
 extern crate hyper;
 
-use std::io::net::ip::Ipv4Addr;
+use std::old_io::net::ip::Ipv4Addr;
 use hyper::server::{Request, Response};
 
 static PHRASE: &'static [u8] = b"Hello World!";

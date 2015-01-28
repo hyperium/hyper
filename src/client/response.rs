@@ -1,6 +1,6 @@
 //! Client Responses
 use std::num::FromPrimitive;
-use std::io::{BufferedReader, IoResult};
+use std::old_io::{BufferedReader, IoResult};
 
 use header;
 use header::{ContentLength, TransferEncoding};
@@ -97,7 +97,7 @@ impl Reader for Response {
 mod tests {
     use std::borrow::Cow::Borrowed;
     use std::boxed::BoxAny;
-    use std::io::BufferedReader;
+    use std::old_io::BufferedReader;
 
     use header::Headers;
     use header::TransferEncoding;
