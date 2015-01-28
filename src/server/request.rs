@@ -2,8 +2,8 @@
 //!
 //! These are requests that a `hyper::Server` receives, and include its method,
 //! target URI, headers, and message body.
-use std::io::IoResult;
-use std::io::net::ip::SocketAddr;
+use std::old_io::IoResult;
+use std::old_io::net::ip::SocketAddr;
 
 use {HttpResult};
 use version::{HttpVersion};
@@ -84,7 +84,7 @@ mod tests {
     use mock::MockStream;
     use super::Request;
 
-    use std::io::net::ip::SocketAddr;
+    use std::old_io::net::ip::SocketAddr;
 
     fn sock(s: &str) -> SocketAddr {
         s.parse().unwrap()
