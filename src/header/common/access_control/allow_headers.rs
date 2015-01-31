@@ -10,7 +10,7 @@ use header;
 /// > during the actual request.
 ///
 /// Spec: www.w3.org/TR/cors/#access-control-allow-headers-response-header
-#[derive(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct AccessControlAllowHeaders(pub Vec<String>);
 
 impl header::Header for AccessControlAllowHeaders {

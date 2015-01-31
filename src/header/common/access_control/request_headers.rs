@@ -9,7 +9,7 @@ use header;
 /// > be used in the actual request as part of the preflight request.
 ///
 /// Spec: www.w3.org/TR/cors/#access-control-request-headers-request-header
-#[derive(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct AccessControlRequestHeaders(pub Vec<String>);
 
 impl header::Header for AccessControlRequestHeaders {

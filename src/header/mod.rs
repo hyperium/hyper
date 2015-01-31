@@ -484,7 +484,7 @@ impl fmt::Display for Box<HeaderFormat + Send + Sync> {
     }
 }
 
-/// A wrapper around any Header with a Show impl that calls fmt_header.
+/// A wrapper around any Header with a Display impl that calls fmt_header.
 ///
 /// This can be used like so: `format!("{}", HeaderFormatter(&header))` to
 /// get the representation of a Header which will be written to an
@@ -555,7 +555,7 @@ mod tests {
         assert_eq!(accept, Some(Accept(vec![application_vendor, text_plain])));
     }
 
-    #[derive(Clone, Show)]
+    #[derive(Clone, Debug)]
     struct CrazyLength(Option<bool>, usize);
 
     impl Header for CrazyLength {

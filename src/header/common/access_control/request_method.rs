@@ -10,7 +10,7 @@ use method::Method;
 /// > used in the actual request as part of the preflight request.
 ///
 /// Spec: www.w3.org/TR/cors/#access-control-request-method-request-header
-#[derive(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct AccessControlRequestMethod(pub Method);
 
 impl header::Header for AccessControlRequestMethod {

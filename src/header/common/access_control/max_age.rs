@@ -9,7 +9,7 @@ use header;
 /// > preflight request can be cached in a preflight result cache.
 ///
 /// Spec: www.w3.org/TR/cors/#access-control-max-age-response-header
-#[derive(Clone, Copy, PartialEq, Show)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct AccessControlMaxAge(pub u32);
 
 impl header::Header for AccessControlMaxAge {

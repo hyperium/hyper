@@ -1,4 +1,4 @@
-#![allow(unstable)]
+#![feature(os, io)]
 extern crate hyper;
 
 use std::os;
