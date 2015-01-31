@@ -1,4 +1,4 @@
-#![allow(unstable)]
+#![feature(core, io, test)]
 extern crate hyper;
 
 extern crate test;

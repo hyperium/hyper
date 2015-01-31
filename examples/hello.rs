@@ -1,4 +1,4 @@
-#![allow(unstable)]
+#![feature(io)]
 extern crate hyper;
 
 use std::old_io::net::ip::Ipv4Addr;

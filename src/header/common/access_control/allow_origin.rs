@@ -13,7 +13,7 @@ use header;
 /// > "*", or "null" in the response.
 ///
 /// Spec: www.w3.org/TR/cors/#access-control-allow-origin-response-header
-#[derive(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum AccessControlAllowOrigin {
     /// Allow all origins
     AllowStar,

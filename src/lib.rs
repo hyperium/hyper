@@ -1,7 +1,8 @@
-#![feature(slicing_syntax, box_syntax)]
+#![feature(core, collections, hash, io, os, std_misc,
+           slicing_syntax, box_syntax)]
 #![deny(missing_docs)]
-#![allow(unstable)]
 #![cfg_attr(test, deny(warnings))]
+#![cfg_attr(test, feature(test))]
 
 //! # Hyper
 //! Hyper is a fast, modern HTTP implementation written in and for Rust. It

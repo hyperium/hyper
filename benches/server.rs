@@ -1,4 +1,4 @@
-#![allow(unstable)]
+#![feature(io, test)]
 extern crate hyper;
 extern crate test;
 
@@ -26,7 +26,7 @@ fn bench_hyper(b: &mut Bencher) {
     let server = hyper::Server::http(Ipv4Addr(127, 0, 0, 1), 0);
     let mut listener = server.listen(hyper_handle).unwrap();
 
-    let url = hyper::Url::parse(format!("http://{}", listener.socket).as_slice()).unwrap();
+    let url = hyper::Url::parse(&*format!("http://{}", listener.socket)).unwrap();
     b.iter(|| request(url.clone()));
     listener.close().unwrap();
 }

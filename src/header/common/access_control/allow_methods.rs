@@ -11,7 +11,7 @@ use method;
 /// > actual request.
 ///
 /// Spec: www.w3.org/TR/cors/#access-control-allow-methods-response-header
-#[derive(Clone, PartialEq, Show)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct AccessControlAllowMethods(pub Vec<method::Method>);
 
 impl header::Header for AccessControlAllowMethods {
