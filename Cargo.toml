@@ -9,6 +9,7 @@ repository = "https://github.com/hyperium/hyper"
 license = "MIT"
 authors = ["Sean McArthur <sean.monstar@gmail.com>",
            "Jonathan Reem <jonathan.reem@gmail.com>"]
+keywords = ["http", "hyper", "hyperium"]
 
 [dependencies]
 cookie = "*"
