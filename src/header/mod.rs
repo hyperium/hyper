@@ -16,15 +16,16 @@ use std::iter::FromIterator;
 use std::borrow::IntoCow;
 use std::{mem, raw};
 
-use mucell::MuCell;
 use uany::{UnsafeAnyExt};
 use unicase::UniCase;
 
+use self::cell::OptCell;
 use {http, HttpResult, HttpError};
 
 pub use self::shared::{Encoding, QualityItem, qitem};
 pub use self::common::*;
 
+mod cell;
 mod common;
 mod shared;
 pub mod parsing;
@@ -115,7 +116,7 @@ fn header_name<T: Header>() -> &'static str {
 /// A map of header fields on requests and responses.
 #[derive(Clone)]
 pub struct Headers {
-    data: HashMap<HeaderName, MuCell<Item>>
+    data: HashMap<HeaderName, Item>
 }
 
 // To prevent DOS from a server sending a never ending header.
@@ -146,15 +147,10 @@ impl Headers {
                     }
                     let name = UniCase(Owned(name));
                     let mut item = match headers.data.entry(name) {
-                        Entry::Vacant(entry) => entry.insert(MuCell::new(Item::raw(vec![]))),
+                        Entry::Vacant(entry) => entry.insert(Item::new_raw(vec![])),
                         Entry::Occupied(entry) => entry.into_mut()
                     };
-
-                    match &mut item.borrow_mut().raw {
-                        &mut Some(ref mut raw) => raw.push(value),
-                        // Unreachable
-                        _ => {}
-                    };
+                    item.mut_raw().push(value);
                 },
                 None => break,
             }
@@ -167,7 +163,7 @@ impl Headers {
     /// The field is determined by the type of the value being set.
     pub fn set<H: Header + HeaderFormat>(&mut self, value: H) {
         self.data.insert(UniCase(Borrowed(header_name::<H>())),
-                         MuCell::new(Item::typed(Box::new(value))));
+                         Item::new_typed(Box::new(value)));
     }
 
     /// Access the raw value of a header.
@@ -186,19 +182,15 @@ impl Headers {
             // FIXME(reem): Find a better way to do this lookup without find_equiv.
             .get(&UniCase(Borrowed(unsafe { mem::transmute::<&str, &str>(name) })))
             .and_then(|item| {
-                if let Some(ref raw) = item.borrow().raw {
-                    return unsafe { mem::transmute(Some(&raw[])) };
+                if let Some(ref raw) = *item.raw {
+                    return Some(&raw[]);
                 }
 
-                let worked = item.try_mutate(|item| {
-                    let raw = vec![item.typed.as_ref().unwrap().to_string().into_bytes()];
-                    item.raw = Some(raw);
-                });
-                debug_assert!(worked, "item.try_mutate should return true");
+                let raw = vec![item.typed.as_ref().unwrap().to_string().into_bytes()];
+                item.raw.set(raw);
 
-                let item = item.borrow();
                 let raw = item.raw.as_ref().unwrap();
-                unsafe { mem::transmute(Some(&raw[])) }
+                Some(&raw[])
             })
     }
 
@@ -212,14 +204,14 @@ impl Headers {
     /// headers.set_raw("content-length", vec![b"5".to_vec()]);
     /// ```
     pub fn set_raw<K: IntoCow<'static, String, str>>(&mut self, name: K, value: Vec<Vec<u8>>) {
-        self.data.insert(UniCase(name.into_cow()), MuCell::new(Item::raw(value)));
+        self.data.insert(UniCase(name.into_cow()), Item::new_raw(value));
     }
 
     /// Get a reference to the header field's value, if it exists.
     pub fn get<H: Header + HeaderFormat>(&self) -> Option<&H> {
         self.get_or_parse::<H>().map(|item| {
             unsafe {
-                mem::transmute::<&H, &H>(downcast(&*item.borrow()))
+                downcast(&*item)
             }
         })
     }
@@ -227,15 +219,15 @@ impl Headers {
     /// Get a mutable reference to the header field's value, if it exists.
     pub fn get_mut<H: Header + HeaderFormat>(&mut self) -> Option<&mut H> {
         self.get_or_parse_mut::<H>().map(|item| {
-            unsafe { downcast_mut(item.borrow_mut()) }
+            unsafe { downcast_mut(item) }
         })
     }
 
-    fn get_or_parse<H: Header + HeaderFormat>(&self) -> Option<&MuCell<Item>> {
+    fn get_or_parse<H: Header + HeaderFormat>(&self) -> Option<&Item> {
         self.data.get(&UniCase(Borrowed(header_name::<H>()))).and_then(get_or_parse::<H>)
     }
 
-    fn get_or_parse_mut<H: Header + HeaderFormat>(&mut self) -> Option<&mut MuCell<Item>> {
+    fn get_or_parse_mut<H: Header + HeaderFormat>(&mut self) -> Option<&mut Item> {
         self.data.get_mut(&UniCase(Borrowed(header_name::<H>()))).and_then(get_or_parse_mut::<H>)
     }
 
@@ -299,7 +291,7 @@ impl fmt::Debug for Headers {
 
 /// An `Iterator` over the fields in a `Headers` map.
 pub struct HeadersItems<'a> {
-    inner: Iter<'a, HeaderName, MuCell<Item>>
+    inner: Iter<'a, HeaderName, Item>
 }
 
 impl<'a> Iterator for HeadersItems<'a> {
@@ -314,7 +306,7 @@ impl<'a> Iterator for HeadersItems<'a> {
 }
 
 /// Returned with the `HeadersItems` iterator.
-pub struct HeaderView<'a>(&'a HeaderName, &'a MuCell<Item>);
+pub struct HeaderView<'a>(&'a HeaderName, &'a Item);
 
 impl<'a> HeaderView<'a> {
     /// Check if a HeaderView is a certain Header.
@@ -334,7 +326,7 @@ impl<'a> HeaderView<'a> {
     pub fn value<H: Header + HeaderFormat>(&self) -> Option<&'a H> {
         get_or_parse::<H>(self.1).map(|item| {
             unsafe {
-                mem::transmute::<&H, &H>(downcast(&*item.borrow()))
+                downcast(&*item)
             }
         })
     }
@@ -342,13 +334,13 @@ impl<'a> HeaderView<'a> {
     /// Get just the header value as a String.
     #[inline]
     pub fn value_string(&self) -> String {
-        (*self.1.borrow()).to_string()
+        (*self.1).to_string()
     }
 }
 
 impl<'a> fmt::Display for HeaderView<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}: {}", self.0, *self.1.borrow())
+        write!(f, "{}: {}", self.0, *self.1)
     }
 }
 
@@ -376,29 +368,47 @@ impl<'a> FromIterator<HeaderView<'a>> for Headers {
 
 #[derive(Clone)]
 struct Item {
-    raw: Option<Vec<Vec<u8>>>,
-    typed: Option<Box<HeaderFormat + Send + Sync>>
+    raw: OptCell<Vec<Vec<u8>>>,
+    typed: OptCell<Box<HeaderFormat + Send + Sync>>
 }
 
 impl Item {
-    fn raw(data: Vec<Vec<u8>>) -> Item {
+    #[inline]
+    fn new_raw(data: Vec<Vec<u8>>) -> Item {
         Item {
-            raw: Some(data),
-            typed: None,
+            raw: OptCell::new(Some(data)),
+            typed: OptCell::new(None),
         }
     }
 
-    fn typed(ty: Box<HeaderFormat + Send + Sync>) -> Item {
+    #[inline]
+    fn new_typed(ty: Box<HeaderFormat + Send + Sync>) -> Item {
         Item {
-            raw: None,
-            typed: Some(ty),
+            raw: OptCell::new(None),
+            typed: OptCell::new(Some(ty)),
         }
     }
 
+    #[inline]
+    fn mut_raw(&mut self) -> &mut Vec<Vec<u8>> {
+        self.typed = OptCell::new(None);
+        unsafe {
+            self.raw.get_mut()
+        }
+    }
+
+    #[inline]
+    fn mut_typed(&mut self) -> &mut Box<HeaderFormat + Send + Sync> {
+        self.raw = OptCell::new(None);
+        unsafe {
+            self.typed.get_mut()
+        }
+    }
 }
 
-fn get_or_parse<H: Header + HeaderFormat>(item: &MuCell<Item>) -> Option<&MuCell<Item>> {
-    match item.borrow().typed {
+
+fn get_or_parse<H: Header + HeaderFormat>(item: &Item) -> Option<&Item> {
+    match *item.typed {
         Some(ref typed) if typed.is::<H>() => return Some(item),
         Some(ref typed) => {
             warn!("attempted to access {:?} as wrong type", typed);
@@ -407,17 +417,16 @@ fn get_or_parse<H: Header + HeaderFormat>(item: &MuCell<Item>) -> Option<&MuCell
         _ => ()
     }
 
-    let worked = item.try_mutate(parse::<H>);
-    debug_assert!(worked, "item.try_mutate should return true");
-    if item.borrow().typed.is_some() {
+    parse::<H>(item);
+    if item.typed.is_some() {
         Some(item)
     } else {
         None
     }
 }
 
-fn get_or_parse_mut<H: Header + HeaderFormat>(item: &mut MuCell<Item>) -> Option<&mut MuCell<Item>> {
-    let is_correct_type = match item.borrow().typed {
+fn get_or_parse_mut<H: Header + HeaderFormat>(item: &mut Item) -> Option<&mut Item> {
+    let is_correct_type = match *item.typed {
         Some(ref typed) if typed.is::<H>() => Some(true),
         Some(ref typed) => {
             warn!("attempted to access {:?} as wrong type", typed);
@@ -432,37 +441,39 @@ fn get_or_parse_mut<H: Header + HeaderFormat>(item: &mut MuCell<Item>) -> Option
         None => ()
     }
 
-    parse::<H>(item.borrow_mut());
-    if item.borrow().typed.is_some() {
+    parse::<H>(&item);
+    if item.typed.is_some() {
         Some(item)
     } else {
         None
     }
 }
 
-fn parse<H: Header + HeaderFormat>(item: &mut Item) {
-    item.typed = match item.raw {
+fn parse<H: Header + HeaderFormat>(item: &Item) {
+    match *item.raw {
         Some(ref raw) => match Header::parse_header(&raw[]) {
-            Some::<H>(h) => Some(box h as Box<HeaderFormat + Send + Sync>),
-            None => None
+            Some::<H>(h) => item.typed.set(box h as Box<HeaderFormat + Send + Sync>),
+            None => ()
         },
         None => unreachable!()
-    };
+    }
 }
 
+#[inline]
 unsafe fn downcast<H: Header + HeaderFormat>(item: &Item) -> &H {
     item.typed.as_ref().expect("item.typed must be set").downcast_ref_unchecked()
 }
 
+#[inline]
 unsafe fn downcast_mut<H: Header + HeaderFormat>(item: &mut Item) -> &mut H {
-    item.typed.as_mut().expect("item.typed must be set").downcast_mut_unchecked()
+    item.mut_typed().downcast_mut_unchecked()
 }
 
 impl fmt::Display for Item {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match self.typed {
+        match *self.typed {
             Some(ref h) => h.fmt_header(fmt),
-            None => match self.raw {
+            None => match *self.raw {
                 Some(ref raw) => {
                     for part in raw.iter() {
                         match from_utf8(&part[]) {
@@ -483,12 +494,14 @@ impl fmt::Display for Item {
 
 
 impl fmt::Debug for Box<HeaderFormat + Send + Sync> {
+    #[inline]
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         (**self).fmt_header(fmt)
     }
 }
 
 impl fmt::Display for Box<HeaderFormat + Send + Sync> {
+    #[inline]
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         (**self).fmt_header(fmt)
     }
@@ -502,12 +515,14 @@ impl fmt::Display for Box<HeaderFormat + Send + Sync> {
 pub struct HeaderFormatter<'a, H: HeaderFormat>(pub &'a H);
 
 impl<'a, H: HeaderFormat> fmt::Display for HeaderFormatter<'a, H> {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt_header(f)
     }
 }
 
 impl<'a, H: HeaderFormat> fmt::Debug for HeaderFormatter<'a, H> {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt_header(f)
     }
@@ -695,37 +710,58 @@ mod tests {
     }
 
     #[bench]
-    fn bench_header_get(b: &mut Bencher) {
+    fn bench_headers_new(b: &mut Bencher) {
+        b.iter(|| {
+            let mut h = Headers::new();
+            h.set(ContentLength(11));
+            h
+        })
+    }
+
+    #[bench]
+    fn bench_headers_from_raw(b: &mut Bencher) {
+        b.iter(|| Headers::from_raw(&mut mem("Content-Length: 10\r\n\r\n")).unwrap())
+    }
+
+    #[bench]
+    fn bench_headers_get(b: &mut Bencher) {
         let mut headers = Headers::new();
         headers.set(ContentLength(11));
         b.iter(|| assert_eq!(headers.get::<ContentLength>(), Some(&ContentLength(11))))
     }
 
     #[bench]
-    fn bench_header_get_miss(b: &mut Bencher) {
+    fn bench_headers_get_miss(b: &mut Bencher) {
         let headers = Headers::new();
         b.iter(|| assert!(headers.get::<ContentLength>().is_none()))
     }
 
     #[bench]
-    fn bench_header_set(b: &mut Bencher) {
+    fn bench_headers_set(b: &mut Bencher) {
         let mut headers = Headers::new();
         b.iter(|| headers.set(ContentLength(12)))
     }
 
     #[bench]
-    fn bench_header_has(b: &mut Bencher) {
+    fn bench_headers_has(b: &mut Bencher) {
         let mut headers = Headers::new();
         headers.set(ContentLength(11));
         b.iter(|| assert!(headers.has::<ContentLength>()))
     }
 
     #[bench]
-    fn bench_header_view_is(b: &mut Bencher) {
+    fn bench_headers_view_is(b: &mut Bencher) {
         let mut headers = Headers::new();
         headers.set(ContentLength(11));
         let mut iter = headers.iter();
         let view = iter.next().unwrap();
         b.iter(|| assert!(view.is::<ContentLength>()))
+    }
+
+    #[bench]
+    fn bench_headers_fmt(b: &mut Bencher) {
+        let mut headers = Headers::new();
+        headers.set(ContentLength(11));
+        b.iter(|| headers.to_string())
     }
 }

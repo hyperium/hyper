@@ -134,7 +134,6 @@ extern crate openssl;
 #[cfg(test)] extern crate test;
 extern crate "unsafe-any" as uany;
 extern crate cookie;
-extern crate mucell;
 extern crate unicase;
 
 pub use std::old_io::net::ip::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr, Port};
