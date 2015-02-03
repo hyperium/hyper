@@ -20,7 +20,7 @@ use mucell::MuCell;
 use uany::{UnsafeAnyExt};
 use unicase::UniCase;
 
-use {http, HttpResult};
+use {http, HttpResult, HttpError};
 
 pub use self::shared::{Encoding, QualityItem, qitem};
 pub use self::common::*;
@@ -118,6 +118,10 @@ pub struct Headers {
     data: HashMap<HeaderName, MuCell<Item>>
 }
 
+// To prevent DOS from a server sending a never ending header.
+// The value was copied from curl.
+const MAX_HEADERS_LENGTH: u32 = 100 * 1024;
+
 impl Headers {
 
     /// Creates a new, empty headers map.
@@ -130,10 +134,16 @@ impl Headers {
     #[doc(hidden)]
     pub fn from_raw<R: Reader>(rdr: &mut R) -> HttpResult<Headers> {
         let mut headers = Headers::new();
+        let mut count = 0u32;
         loop {
             match try!(http::read_header(rdr)) {
                 Some((name, value)) => {
                     debug!("raw header: {:?}={:?}", name, &value[]);
+                    count += (name.len() + value.len()) as u32;
+                    if count > MAX_HEADERS_LENGTH {
+                        debug!("Max header size reached, aborting");
+                        return Err(HttpError::HttpHeaderError)
+                    }
                     let name = UniCase(Owned(name));
                     let mut item = match headers.data.entry(name) {
                         Entry::Vacant(entry) => entry.insert(MuCell::new(Item::raw(vec![]))),
