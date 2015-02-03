@@ -34,8 +34,9 @@ impl HeaderFormat for IfModifiedSince {
 }
 
 impl FromStr for IfModifiedSince {
-    fn from_str(s: &str) -> Option<IfModifiedSince> {
-        tm_from_str(s).map(IfModifiedSince)
+    type Err = ();
+    fn from_str(s: &str) -> Result<IfModifiedSince, ()> {
+        tm_from_str(s).map(IfModifiedSince).ok_or(())
     }
 }
 

@@ -34,8 +34,9 @@ impl HeaderFormat for Expires {
 }
 
 impl FromStr for Expires {
-    fn from_str(s: &str) -> Option<Expires> {
-        tm_from_str(s).map(Expires)
+    type Err = ();
+    fn from_str(s: &str) -> Result<Expires, ()> {
+        tm_from_str(s).map(Expires).ok_or(())
     }
 }
 

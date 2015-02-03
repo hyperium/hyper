@@ -46,7 +46,7 @@ impl Header for Host {
             };
 
             let port = match idx {
-                Some(idx) => s[idx + 1..].parse(),
+                Some(idx) => s[idx + 1..].parse().ok(),
                 None => None
             };
 

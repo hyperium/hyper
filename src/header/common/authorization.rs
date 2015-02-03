@@ -32,9 +32,9 @@ impl<S: Scheme> Header for Authorization<S> {
             match (from_utf8(unsafe { &raw[].get_unchecked(0)[] }), Scheme::scheme(None::<S>)) {
                 (Ok(header), Some(scheme))
                     if header.starts_with(scheme) && header.len() > scheme.len() + 1 => {
-                    header[scheme.len() + 1..].parse::<S>().map(|s| Authorization(s))
+                    header[scheme.len() + 1..].parse::<S>().map(|s| Authorization(s)).ok()
                 },
-                (Ok(header), None) => header.parse::<S>().map(|s| Authorization(s)),
+                (Ok(header), None) => header.parse::<S>().map(|s| Authorization(s)).ok(),
                 _ => None
             }
         } else {
@@ -108,32 +108,33 @@ impl Scheme for Basic {
 }
 
 impl FromStr for Basic {
-    fn from_str(s: &str) -> Option<Basic> {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Basic, ()> {
         match s.from_base64() {
             Ok(decoded) => match String::from_utf8(decoded) {
                 Ok(text) => {
                     let mut parts = &mut text[].split(':');
                     let user = match parts.next() {
                         Some(part) => part.to_string(),
-                        None => return None
+                        None => return Err(())
                     };
                     let password = match parts.next() {
                         Some(part) => Some(part.to_string()),
                         None => None
                     };
-                    Some(Basic {
+                    Ok(Basic {
                         username: user,
                         password: password
                     })
                 },
                 Err(e) => {
                     debug!("Basic::from_utf8 error={:?}", e);
-                    None
+                    Err(())
                 }
             },
             Err(e) => {
                 debug!("Basic::from_base64 error={:?}", e);
-                None
+                Err(())
             }
         }
     }
