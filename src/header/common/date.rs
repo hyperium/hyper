@@ -35,8 +35,9 @@ impl HeaderFormat for Date {
 }
 
 impl FromStr for Date {
-    fn from_str(s: &str) -> Option<Date> {
-        tm_from_str(s).map(Date)
+    type Err = ();
+    fn from_str(s: &str) -> Result<Date, ()> {
+        tm_from_str(s).map(Date).ok_or(())
     }
 }
 

@@ -34,8 +34,9 @@ impl HeaderFormat for LastModified {
 }
 
 impl FromStr for LastModified {
-    fn from_str(s: &str) -> Option<LastModified> {
-        tm_from_str(s).map(LastModified)
+    type Err = ();
+    fn from_str(s: &str) -> Result<LastModified, ()> {
+        tm_from_str(s).map(LastModified).ok_or(())
     }
 }
 

@@ -96,28 +96,29 @@ impl fmt::Display for CacheDirective {
 }
 
 impl FromStr for CacheDirective {
-    fn from_str(s: &str) -> Option<CacheDirective> {
+    type Err = Option<<u32 as FromStr>::Err>;
+    fn from_str(s: &str) -> Result<CacheDirective, Option<<u32 as FromStr>::Err>> {
         use self::CacheDirective::*;
         match s {
-            "no-cache" => Some(NoCache),
-            "no-store" => Some(NoStore),
-            "no-transform" => Some(NoTransform),
-            "only-if-cached" => Some(OnlyIfCached),
-            "must-revalidate" => Some(MustRevalidate),
-            "public" => Some(Public),
-            "private" => Some(Private),
-            "proxy-revalidate" => Some(ProxyRevalidate),
-            "" => None,
+            "no-cache" => Ok(NoCache),
+            "no-store" => Ok(NoStore),
+            "no-transform" => Ok(NoTransform),
+            "only-if-cached" => Ok(OnlyIfCached),
+            "must-revalidate" => Ok(MustRevalidate),
+            "public" => Ok(Public),
+            "private" => Ok(Private),
+            "proxy-revalidate" => Ok(ProxyRevalidate),
+            "" => Err(None),
             _ => match s.find('=') {
                 Some(idx) if idx+1 < s.len() => match (&s[..idx], &s[idx+1..].trim_matches('"')) {
-                    ("max-age" , secs) => secs.parse().map(MaxAge),
-                    ("max-stale", secs) => secs.parse().map(MaxStale),
-                    ("min-fresh", secs) => secs.parse().map(MinFresh),
-                    ("s-maxage", secs) => secs.parse().map(SMaxAge),
-                    (left, right) => Some(Extension(left.to_string(), Some(right.to_string())))
+                    ("max-age" , secs) => secs.parse().map(MaxAge).map_err(|x| Some(x)),
+                    ("max-stale", secs) => secs.parse().map(MaxStale).map_err(|x| Some(x)),
+                    ("min-fresh", secs) => secs.parse().map(MinFresh).map_err(|x| Some(x)),
+                    ("s-maxage", secs) => secs.parse().map(SMaxAge).map_err(|x| Some(x)),
+                    (left, right) => Ok(Extension(left.to_string(), Some(right.to_string())))
                 },
-                Some(_) => None,
-                None => Some(Extension(s.to_string(), None))
+                Some(_) => Err(None),
+                None => Ok(Extension(s.to_string(), None))
             }
         }
     }

@@ -22,12 +22,13 @@ pub enum Protocol {
 }
 
 impl FromStr for Protocol {
-    fn from_str(s: &str) -> Option<Protocol> {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Protocol, ()> {
         if UniCase(s) == UniCase("websocket") {
-            Some(WebSocket)
+            Ok(WebSocket)
         }
         else {
-            Some(ProtocolExt(s.to_string()))
+            Ok(ProtocolExt(s.to_string()))
         }
     }
 }

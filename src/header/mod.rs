@@ -349,7 +349,7 @@ impl<'a> fmt::Debug for HeaderView<'a> {
 }
 
 impl<'a> Extend<HeaderView<'a>> for Headers {
-    fn extend<I: Iterator<Item=HeaderView<'a>>>(&mut self, mut iter: I) {
+    fn extend<I: Iterator<Item=HeaderView<'a>>>(&mut self, iter: I) {
         for header in iter {
             self.data.insert((*header.0).clone(), (*header.1).clone());
         }
@@ -571,7 +571,7 @@ mod tests {
             }
             // we JUST checked that raw.len() == 1, so raw[0] WILL exist.
             match from_utf8(unsafe { &raw[].get_unchecked(0)[] }) {
-                Ok(s) => FromStr::from_str(s),
+                Ok(s) => FromStr::from_str(s).ok(),
                 Err(_) => None
             }.map(|u| CrazyLength(Some(false), u))
         }

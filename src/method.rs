@@ -68,11 +68,12 @@ impl Method {
 }
 
 impl FromStr for Method {
-    fn from_str(s: &str) -> Option<Method> {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Method, ()> {
         if s == "" {
-            None
+            Err(())
         } else {
-            Some(match s {
+            Ok(match s {
                 "OPTIONS" => Options,
                 "GET" => Get,
                 "POST" => Post,
@@ -127,8 +128,8 @@ mod tests {
 
     #[test]
     fn test_from_str() {
-        assert_eq!(Some(Get), FromStr::from_str("GET"));
-        assert_eq!(Some(Extension("MOVE".to_string())),
+        assert_eq!(Ok(Get), FromStr::from_str("GET"));
+        assert_eq!(Ok(Extension("MOVE".to_string())),
                    FromStr::from_str("MOVE"));
     }
 
