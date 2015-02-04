@@ -4,7 +4,7 @@ use std::borrow::IntoCow;
 use std::cmp::min;
 use std::old_io::{self, Reader, IoResult, BufWriter};
 use std::num::from_u16;
-use std::str::{self, FromStr};
+use std::str;
 use std::string::CowString;
 
 use url::Url;
@@ -625,7 +625,7 @@ pub fn read_status<R: Reader>(stream: &mut R) -> HttpResult<RawStatus> {
         try!(stream.read_byte()),
     ];
 
-    let code = match str::from_utf8(code.as_slice()).ok().and_then(FromStr::from_str) {
+    let code = match str::from_utf8(code.as_slice()).ok().and_then(|x| x.parse().ok()) {
         Some(num) => num,
         None => return Err(HttpStatusError)
     };

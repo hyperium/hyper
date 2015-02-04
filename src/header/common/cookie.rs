@@ -30,8 +30,8 @@ impl Header for Cookie {
                 Ok(cookies_str) => {
                     for cookie_str in cookies_str.split(';') {
                         match cookie_str.trim().parse() {
-                            Some(cookie) => cookies.push(cookie),
-                            None => return None
+                            Ok(cookie) => cookies.push(cookie),
+                            Err(_) => return None
                         }
                     }
                 },

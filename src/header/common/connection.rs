@@ -31,11 +31,12 @@ pub enum ConnectionOption {
 }
 
 impl FromStr for ConnectionOption {
-    fn from_str(s: &str) -> Option<ConnectionOption> {
+    type Err = ();
+    fn from_str(s: &str) -> Result<ConnectionOption, ()> {
         match s {
-            "keep-alive" => Some(KeepAlive),
-            "close" => Some(Close),
-            s => Some(ConnectionHeader(UniCase(s.to_string())))
+            "keep-alive" => Ok(KeepAlive),
+            "close" => Ok(Close),
+            s => Ok(ConnectionHeader(UniCase(s.to_string())))
         }
     }
 }

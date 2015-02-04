@@ -38,7 +38,8 @@ impl<T: fmt::Display> fmt::Display for QualityItem<T> {
 }
 
 impl<T: str::FromStr> str::FromStr for QualityItem<T> {
-    fn from_str(s: &str) -> Option<Self> {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, ()> {
         // Set defaults used if parsing fails.
         let mut raw_item = s;
         let mut quality = 1f32;
@@ -49,28 +50,28 @@ impl<T: str::FromStr> str::FromStr for QualityItem<T> {
             if start == "q=" || start == "Q=" {
                 let q_part = &parts[0][2..parts[0].len()];
                 if q_part.len() > 5 {
-                    return None;
+                    return Err(());
                 }
-                let x: Option<f32> = q_part.parse();
+                let x: Result<f32, _> = q_part.parse();
                 match x {
-                    Some(q_value) => {
+                    Ok(q_value) => {
                         if 0f32 <= q_value && q_value <= 1f32 {
                             quality = q_value;
                             raw_item = parts[1];
                             } else {
-                                return None;
+                                return Err(());
                             }
                         },
-                    None => return None,
+                    Err(_) => return Err(()),
                 }
             }
         }
-        let x: Option<T> = raw_item.parse();
+        let x: Result<T, _> = raw_item.parse();
         match x {
-            Some(item) => {
-                Some(QualityItem{ item: item, quality: quality, })
+            Ok(item) => {
+                Ok(QualityItem{ item: item, quality: quality, })
             },
-            None => return None,
+            Err(_) => return Err(()),
         }
     }
 }
@@ -103,26 +104,26 @@ fn test_quality_item_show3() {
 
 #[test]
 fn test_quality_item_from_str1() {
-    let x: Option<QualityItem<Encoding>> = "chunked".parse();
+    let x: Result<QualityItem<Encoding>, ()> = "chunked".parse();
     assert_eq!(x.unwrap(), QualityItem{ item: Chunked, quality: 1f32, });
 }
 #[test]
 fn test_quality_item_from_str2() {
-    let x: Option<QualityItem<Encoding>> = "chunked; q=1".parse();
+    let x: Result<QualityItem<Encoding>, ()> = "chunked; q=1".parse();
     assert_eq!(x.unwrap(), QualityItem{ item: Chunked, quality: 1f32, });
 }
 #[test]
 fn test_quality_item_from_str3() {
-    let x: Option<QualityItem<Encoding>> = "gzip; q=0.5".parse();
+    let x: Result<QualityItem<Encoding>, ()> = "gzip; q=0.5".parse();
     assert_eq!(x.unwrap(), QualityItem{ item: Gzip, quality: 0.5f32, });
 }
 #[test]
 fn test_quality_item_from_str4() {
-    let x: Option<QualityItem<Encoding>> = "gzip; q=0.273".parse();
+    let x: Result<QualityItem<Encoding>, ()> = "gzip; q=0.273".parse();
     assert_eq!(x.unwrap(), QualityItem{ item: Gzip, quality: 0.273f32, });
 }
 #[test]
 fn test_quality_item_from_str5() {
-    let x: Option<QualityItem<Encoding>> = "gzip; q=0.2739999".parse();
-    assert_eq!(x, None);
+    let x: Result<QualityItem<Encoding>, ()> = "gzip; q=0.2739999".parse();
+    assert_eq!(x, Err(()));
 }
