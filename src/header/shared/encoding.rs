@@ -37,14 +37,15 @@ impl fmt::Display for Encoding {
 }
 
 impl str::FromStr for Encoding {
-    fn from_str(s: &str) -> Option<Encoding> {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Encoding, ()> {
         match s {
-            "chunked" => Some(Chunked),
-            "deflate" => Some(Deflate),
-            "gzip" => Some(Gzip),
-            "compress" => Some(Compress),
-            "identity" => Some(Identity),
-            _ => Some(EncodingExt(s.to_string()))
+            "chunked" => Ok(Chunked),
+            "deflate" => Ok(Deflate),
+            "gzip" => Ok(Gzip),
+            "compress" => Ok(Compress),
+            "identity" => Ok(Identity),
+            _ => Ok(EncodingExt(s.to_string()))
         }
     }
 }
