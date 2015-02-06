@@ -40,7 +40,10 @@ impl<W> Request<W> {
 impl Request<Fresh> {
     /// Create a new client request.
     pub fn new(method: method::Method, url: Url) -> HttpResult<Request<Fresh>> {
-        let mut conn = HttpConnector(None);
+        let mut conn = HttpConnector {
+            verifier: None,
+            connect_timeout: None
+        };
         Request::with_connector(method, url, &mut conn)
     }
 

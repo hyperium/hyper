@@ -21,6 +21,7 @@ use std::default::Default;
 use std::old_io::IoResult;
 use std::old_io::util::copy;
 use std::iter::Extend;
+use std::time;
 
 use url::UrlParser;
 use url::ParseError as UrlError;
@@ -51,14 +52,21 @@ impl<'v> Client<HttpConnector<'v>> {
 
     /// Create a new Client.
     pub fn new() -> Client<HttpConnector<'v>> {
-        Client::with_connector(HttpConnector(None))
+        Client::with_connector(HttpConnector {
+            verifier: None,
+            connect_timeout: None
+        })
     }
 
     /// Set the SSL verifier callback for use with OpenSSL.
     pub fn set_ssl_verifier(&mut self, verifier: ContextVerifier<'v>) {
-        self.connector = HttpConnector(Some(verifier));
+        self.connector.verifier = Some(verifier);
     }
 
+    /// Set connect and read/write timeouts.
+    pub fn set_connect_timeout(&mut self, connect_timeout: Option<time::Duration>) {
+        self.connector.connect_timeout = connect_timeout;
+    }
 }
 
 impl<C: NetworkConnector> Client<C> {
