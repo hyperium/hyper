@@ -22,7 +22,7 @@ use unicase::UniCase;
 
 use {http, HttpResult, HttpError};
 
-pub use self::shared::{Encoding, QualityItem, qitem};
+pub use self::shared::{Encoding, EntityTag, QualityItem, qitem};
 pub use self::common::*;
 
 mod common;
