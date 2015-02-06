@@ -54,7 +54,7 @@ impl<S: Scheme + 'static> HeaderFormat for Authorization<S> where <S as FromStr>
 }
 
 /// An Authorization scheme to be used in the header.
-pub trait Scheme: FromStr + Clone + Send + Sync {
+pub trait Scheme: FromStr + fmt::Debug + Clone + Send + Sync {
     /// An optional Scheme name.
     ///
     /// For example, `Basic asdf` has the name `Basic`. The Option<Self> is

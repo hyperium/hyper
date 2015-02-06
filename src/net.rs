@@ -8,7 +8,6 @@ use std::path::Path;
 use std::raw::{self, TraitObject};
 use std::sync::Arc;
 
-use uany::UnsafeAnyExt;
 use openssl::ssl::{Ssl, SslStream, SslContext};
 use openssl::ssl::SslVerifyMode::SslVerifyNone;
 use openssl::ssl::SslMethod::Sslv23;
@@ -99,7 +98,7 @@ impl Clone for Box<NetworkStream + Send> {
     fn clone(&self) -> Box<NetworkStream + Send> { self.clone_box() }
 }
 
-impl UnsafeAnyExt for NetworkStream {
+impl NetworkStream {
     unsafe fn downcast_ref_unchecked<T: 'static>(&self) -> &T {
         mem::transmute(mem::transmute::<&NetworkStream,
                                         raw::TraitObject>(self).data)
@@ -351,8 +350,6 @@ fn lift_ssl_error(ssl: SslError) -> io::Error {
 
 #[cfg(test)]
 mod tests {
-    use uany::UnsafeAnyExt;
-
     use mock::MockStream;
     use super::NetworkStream;
 
