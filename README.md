@@ -46,16 +46,16 @@ fn main() {
     let mut client = Client::new();
 
     // Creating an outgoing request.
-    let mut res = client.get("http://www.gooogle.com/")
+    let res = client.get("http://www.gooogle.com/")
         // set a header
         .header(Connection(vec![Close]))
         // let 'er go!
-        .send();
+        .send().unwrap();
 
     // Read the Response.
     let body = res.read_to_string().unwrap();
 
-    println!("Response: {}", res);
+    println!("Response: {}", body);
 }
 ```
 
