@@ -10,6 +10,7 @@ after_success: |
     [ $TRAVIS_PULL_REQUEST = false ] &&
     cargo doc &&
     echo '<meta http-equiv=refresh content=0;url=hyper/index.html>' > target/doc/index.html &&
+    git shortlog -s -n | cut -c 8- > target/doc/humans.txt &&
     sudo pip install ghp-import &&
     ghp-import -n target/doc &&
     git push -fq https://${TOKEN}@github.com/${TRAVIS_REPO_SLUG}.git gh-pages
