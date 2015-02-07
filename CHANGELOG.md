@@ -1,3 +1,24 @@
+### v0.1.11 (2015-02-06)
+
+
+#### Bug Fixes
+
+* **readme:** Make the README client example work ([9b5d6aab](https://github.com/hyperium/hyper/commit/9b5d6aab7e68cf776618151e9e69e34fd66aba6c))
+
+
+#### Features
+
+* **headers:** add IfUnmodifiedSince header ([b5543b67](https://github.com/hyperium/hyper/commit/b5543b67525e3d6ebc655d7e1736c8ade5b6dbb0))
+
+
+#### Breaking Changes
+
+* for any consumers of the Etag header, since the entity
+tag is now in a tuple.
+
+ ([28fd5c81](https://github.com/hyperium/hyper/commit/28fd5c81f54bb0ea3eda43a4014c736d00b4b07d))
+
+
 ### v0.1.10 (2015-02-03)
 
 
