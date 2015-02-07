@@ -1,4 +1,4 @@
-use header::{Header, HeaderFormat};
+use header::{EntityTag, Header, HeaderFormat};
 use std::fmt::{self};
 use header::parsing::from_one_raw_str;
 
@@ -9,12 +9,9 @@ use header::parsing::from_one_raw_str;
 /// which always looks like this: W/
 /// See also: https://tools.ietf.org/html/rfc7232#section-2.3
 #[derive(Clone, PartialEq, Debug)]
-pub struct Etag {
-    /// Weakness indicator for the tag
-    pub weak: bool,
-    /// The opaque string in between the DQUOTEs
-    pub tag: String
-}
+pub struct Etag(pub EntityTag);
+
+deref!(Etag => EntityTag);
 
 impl Header for Etag {
     fn header_name() -> &'static str {
@@ -22,75 +19,26 @@ impl Header for Etag {
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<Etag> {
-        // check that each char in the slice is either:
-        // 1. %x21, or
-        // 2. in the range %x23 to %x7E, or
-        // 3. in the range %x80 to %xFF
-        fn check_slice_validity(slice: &str) -> bool {
-            for c in slice.bytes() {
-                match c {
-                    b'\x21' | b'\x23' ... b'\x7e' | b'\x80' ... b'\xff' => (),
-                    _ => { return false; }
-                }
-            }
-            true
-        }
-
 
         from_one_raw_str(raw).and_then(|s: String| {
-            let length: usize = s.len();
-            let slice = &s[];
-
-            // Early exits:
-            // 1. The string is empty, or,
-            // 2. it doesn't terminate in a DQUOTE.
-            if slice.is_empty() || !slice.ends_with("\"") {
-                return None;
-            }
-
-            // The etag is weak if its first char is not a DQUOTE.
-            if slice.char_at(0) == '"' {
-                // No need to check if the last char is a DQUOTE,
-                // we already did that above.
-                if check_slice_validity(slice.slice_chars(1, length-1)) {
-                    return Some(Etag {
-                        weak: false,
-                        tag: slice.slice_chars(1, length-1).to_string()
-                    });
-                } else {
-                    return None;
-                }
-            }
-
-            if slice.slice_chars(0, 3) == "W/\"" {
-                if check_slice_validity(slice.slice_chars(3, length-1)) {
-                    return Some(Etag {
-                        weak: true,
-                        tag: slice.slice_chars(3, length-1).to_string()
-                    });
-                } else {
-                    return None;
-                }
-            }
-
-            None
+            s.parse::<EntityTag>().and_then(|x| Ok(Etag(x))).ok()
         })
     }
 }
 
 impl HeaderFormat for Etag {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        if self.weak {
+        if self.0.weak {
             try!(fmt.write_str("W/"));
         }
-        write!(fmt, "\"{}\"", self.tag)
+        write!(fmt, "\"{}\"", self.0.tag)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::Etag;
-    use header::Header;
+    use header::{Header,EntityTag};
 
     #[test]
     fn test_etag_successes() {
@@ -98,34 +46,34 @@ mod tests {
         let mut etag: Option<Etag>;
 
         etag = Header::parse_header([b"\"foobar\"".to_vec()].as_slice());
-        assert_eq!(etag, Some(Etag {
+        assert_eq!(etag, Some(Etag(EntityTag{
             weak: false,
             tag: "foobar".to_string()
-        }));
+        })));
 
         etag = Header::parse_header([b"\"\"".to_vec()].as_slice());
-        assert_eq!(etag, Some(Etag {
+        assert_eq!(etag, Some(Etag(EntityTag{
             weak: false,
             tag: "".to_string()
-        }));
+        })));
 
         etag = Header::parse_header([b"W/\"weak-etag\"".to_vec()].as_slice());
-        assert_eq!(etag, Some(Etag {
+        assert_eq!(etag, Some(Etag(EntityTag{
             weak: true,
             tag: "weak-etag".to_string()
-        }));
+        })));
 
         etag = Header::parse_header([b"W/\"\x65\x62\"".to_vec()].as_slice());
-        assert_eq!(etag, Some(Etag {
+        assert_eq!(etag, Some(Etag(EntityTag{
             weak: true,
             tag: "\u{0065}\u{0062}".to_string()
-        }));
+        })));
 
         etag = Header::parse_header([b"W/\"\"".to_vec()].as_slice());
-        assert_eq!(etag, Some(Etag {
+        assert_eq!(etag, Some(Etag(EntityTag{
             weak: true,
             tag: "".to_string()
-        }));
+        })));
     }
 
     #[test]
