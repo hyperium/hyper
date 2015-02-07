@@ -8,6 +8,7 @@
 
 pub use self::access_control::*;
 pub use self::accept::Accept;
+pub use self::accept_charset::AcceptCharset;
 pub use self::accept_encoding::AcceptEncoding;
 pub use self::allow::Allow;
 pub use self::authorization::{Authorization, Scheme, Basic};
@@ -144,6 +145,7 @@ macro_rules! impl_header(
 
 mod access_control;
 mod accept;
+mod accept_charset;
 mod accept_encoding;
 mod allow;
 mod authorization;
