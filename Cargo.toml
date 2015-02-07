@@ -15,7 +15,6 @@ keywords = ["http", "hyper", "hyperium"]
 cookie = "*"
 log = ">= 0.2.0"
 mime = "*"
-mucell = "*"
 openssl = "*"
 rustc-serialize = "*"
 time = "*"
