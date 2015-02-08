@@ -1,6 +1,4 @@
-use header::{self, QualityItem};
-
-pub type Charset = String;
+use header::{Charset, QualityItem};
 
 /// The `Accept-Charset` header
 ///
@@ -16,11 +14,12 @@ impl_list_header!(AcceptCharset,
 
 #[test]
 fn test_parse_header() {
+    use header::{self, q};
     let a: AcceptCharset = header::Header::parse_header(
-        [b"iso-8859-5, unicode-1-1;q=0.8".to_vec()].as_slice()).unwrap();
+        [b"iso-8859-5, iso-8859-6;q=0.8".to_vec()].as_slice()).unwrap();
     let b = AcceptCharset(vec![
-        QualityItem{item: "iso-8859-5".to_string(), quality: 1.0},
-        QualityItem{item: "unicode-1-1".to_string(), quality: 0.8},
+        QualityItem { item: Charset::Iso_8859_5, quality: q(1.0) },
+        QualityItem { item: Charset::Iso_8859_6, quality: q(0.8) },
     ]);
     assert_eq!(format!("{}", a), format!("{}", b));
     assert_eq!(a, b);
