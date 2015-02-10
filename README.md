@@ -46,7 +46,7 @@ fn main() {
     let mut client = Client::new();
 
     // Creating an outgoing request.
-    let res = client.get("http://www.gooogle.com/")
+    let mut res = client.get("http://www.gooogle.com/")
         // set a header
         .header(Connection(vec![Close]))
         // let 'er go!
