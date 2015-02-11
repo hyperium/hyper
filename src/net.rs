@@ -237,9 +237,17 @@ impl NetworkAcceptor for HttpAcceptor {
             HttpAcceptor::Http(ref mut tcp, _) => HttpStream::Http(try!(tcp.accept())),
             HttpAcceptor::Https(ref mut tcp, _, ref ssl_context) => {
                 let stream = try!(tcp.accept());
-                let ssl_stream = try!(SslStream::<TcpStream>::new_server(&**ssl_context, stream).
-                                     map_err(lift_ssl_error));
-                HttpStream::Https(ssl_stream)
+                match SslStream::<TcpStream>::new_server(&**ssl_context, stream) {
+                    Ok(ssl_stream) => HttpStream::Https(ssl_stream),
+                    Err(StreamError(ref e)) => {
+                        return Err(IoError {
+                            kind: ConnectionAborted,
+                            desc: "SSL Handshake Interrupted",
+                            detail: Some(e.desc.to_string())
+                        });
+                    },
+                    Err(e) => return Err(lift_ssl_error(e))
+                }
             }
         })
     }
