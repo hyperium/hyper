@@ -1,23 +1,28 @@
-#![feature(os, io)]
+#![feature(env, os, io)]
 extern crate hyper;
 
-use std::os;
+use std::env;
 use std::old_io::stdout;
 use std::old_io::util::copy;
 
 use hyper::Client;
 
 fn main() {
-    let args = os::args();
-    match args.len() {
-        2 => (),
-        _ => {
+    let url = match env::args().nth(1) {
+        Some(url) => url,
+        None => {
             println!("Usage: client <url>");
             return;
         }
     };
 
-    let url = &*args[1];
+    let url = match url.to_str() {
+        Some(url) => url,
+        None => {
+            println!("Url contains invalid unicode");
+            return;
+        }
+    };
 
     let mut client = Client::new();
 
