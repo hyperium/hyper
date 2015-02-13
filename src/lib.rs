@@ -1,4 +1,4 @@
-#![feature(core, collections, hash, io, os, std_misc,
+#![feature(core, collections, hash, io, os, path, std_misc,
            slicing_syntax, box_syntax)]
 #![deny(missing_docs)]
 #![cfg_attr(test, deny(warnings))]
