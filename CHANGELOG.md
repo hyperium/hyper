@@ -1,3 +1,16 @@
+### v0.1.12 (2015-02-13)
+
+
+#### Bug Fixes
+
+* **net:** don't stop the server when an SSL handshake fails with EOF ([55f12660](https://github.com/hyperium/hyper/commit/55f12660891812d13a59e799b0ab5b185926479a))
+
+
+#### Features
+
+* **headers:** Add `If-None-Match` header field ([318b067a](https://github.com/hyperium/hyper/commit/318b067a06ecb42f0fba51928675d3b4291c7643), closes [#238](https://github.com/hyperium/hyper/issues/238))
+
+
 ### v0.1.11 (2015-02-06)
 
 
