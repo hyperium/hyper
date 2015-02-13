@@ -1,4 +1,4 @@
-#![feature(env, os, io)]
+#![feature(env, io)]
 extern crate hyper;
 
 use std::env;
@@ -16,17 +16,9 @@ fn main() {
         }
     };
 
-    let url = match url.to_str() {
-        Some(url) => url,
-        None => {
-            println!("Url contains invalid unicode");
-            return;
-        }
-    };
-
     let mut client = Client::new();
 
-    let mut res = match client.get(url).send() {
+    let mut res = match client.get(&*url).send() {
         Ok(res) => res,
         Err(err) => panic!("Failed to connect: {:?}", err)
     };
