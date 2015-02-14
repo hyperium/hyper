@@ -1,5 +1,5 @@
 #![feature(core, collections, hash, io, os, path, std_misc,
-           slicing_syntax, box_syntax)]
+           slicing_syntax, box_syntax, unsafe_destructor)]
 #![deny(missing_docs)]
 #![cfg_attr(test, deny(warnings))]
 #![cfg_attr(test, feature(alloc, test))]
@@ -130,11 +130,15 @@ extern crate "rustc-serialize" as serialize;
 extern crate time;
 extern crate url;
 extern crate openssl;
-#[macro_use] extern crate log;
-#[cfg(test)] extern crate test;
 extern crate "unsafe-any" as uany;
 extern crate cookie;
 extern crate unicase;
+
+#[macro_use]
+extern crate log;
+
+#[cfg(test)]
+extern crate test;
 
 pub use std::old_io::net::ip::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr, Port};
 pub use mimewrapper::mime;
