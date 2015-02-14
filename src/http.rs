@@ -3,10 +3,7 @@ use std::borrow::Cow::{Borrowed, Owned};
 use std::borrow::IntoCow;
 use std::cmp::min;
 use std::old_io::{self, Reader, IoResult, BufWriter};
-use std::old_io::util as io_util;
-use std::mem;
 use std::num::from_u16;
-use std::ptr;
 use std::str;
 use std::string::CowString;
 
@@ -23,7 +20,7 @@ use HttpError::{HttpHeaderError, HttpIoError, HttpMethodError, HttpStatusError,
                 HttpUriError, HttpVersionError};
 use HttpResult;
 
-use self::HttpReader::{SizedReader, ChunkedReader, EofReader};
+use self::HttpReader::{SizedReader, ChunkedReader, EofReader, EmptyReader};
 use self::HttpWriter::{ThroughWriter, ChunkedWriter, SizedWriter, EmptyWriter};
 
 /// Readers to handle different Transfer-Encodings.
@@ -50,30 +47,22 @@ pub enum HttpReader<R> {
     /// > reliably; the server MUST respond with the 400 (Bad Request)
     /// > status code and then close the connection.
     EofReader(R),
+    /// A Reader used for messages that should never have a body.
+    ///
+    /// See https://tools.ietf.org/html/rfc7230#section-3.3.3
+    EmptyReader(R),
 }
 
 impl<R: Reader> HttpReader<R> {
 
     /// Unwraps this HttpReader and returns the underlying Reader.
-    #[inline]
     pub fn unwrap(self) -> R {
-        let r = unsafe {
-            ptr::read(match self {
-                SizedReader(ref r, _) => r,
-                ChunkedReader(ref r, _) => r,
-                EofReader(ref r) => r,
-            })
-        };
-        unsafe { mem::forget(self); }
-        r
-    }
-}
-
-#[unsafe_destructor]
-impl<R: Reader> Drop for HttpReader<R> {
-    #[inline]
-    fn drop(&mut self) {
-        let _cant_use = io_util::copy(self, &mut io_util::NullWriter);
+        match self {
+            SizedReader(r, _) => r,
+            ChunkedReader(r, _) => r,
+            EofReader(r) => r,
+            EmptyReader(r) => r,
+        }
     }
 }
 
@@ -127,6 +116,7 @@ impl<R: Reader> Reader for HttpReader<R> {
             EofReader(ref mut body) => {
                 body.read(buf)
             },
+            EmptyReader(_) => Err(old_io::standard_error(old_io::EndOfFile))
         }
     }
 }
