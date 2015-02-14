@@ -8,6 +8,7 @@ use std::old_io::net::tcp::{TcpStream, TcpListener, TcpAcceptor};
 use std::mem;
 use std::raw::{self, TraitObject};
 use std::sync::Arc;
+use std::time::Duration;
 
 use uany::UnsafeAnyExt;
 use openssl::ssl::{Ssl, SslStream, SslContext};
@@ -315,8 +316,11 @@ impl NetworkStream for HttpStream {
 }
 
 /// A connector that will produce HttpStreams.
-#[allow(missing_copy_implementations)]
-pub struct HttpConnector<'v>(pub Option<ContextVerifier<'v>>);
+#[allow(missing_copy_implementations, missing_docs)]
+pub struct HttpConnector<'v> {
+    pub verifier: Option<ContextVerifier<'v>>,
+    pub connect_timeout: Option<Duration>
+}
 
 /// A method that can set verification methods on an SSL context
 pub type ContextVerifier<'v> = Box<FnMut(&mut SslContext) -> ()+'v>;
@@ -326,16 +330,27 @@ impl<'v> NetworkConnector for HttpConnector<'v> {
 
     fn connect(&mut self, host: &str, port: Port, scheme: &str) -> IoResult<HttpStream> {
         let addr = (host, port);
+
         match scheme {
             "http" => {
                 debug!("http scheme");
-                Ok(HttpStream::Http(try!(TcpStream::connect(addr))))
+                let stream = if let Some(t) = self.connect_timeout {
+                    try!(TcpStream::connect_timeout(addr, t))
+                } else {
+                    try!(TcpStream::connect(addr))
+                };
+
+                Ok(HttpStream::Http(stream))
             },
             "https" => {
                 debug!("https scheme");
-                let stream = try!(TcpStream::connect(addr));
+                let stream = if let Some(t) = self.connect_timeout {
+                    try!(TcpStream::connect_timeout(addr, t))
+                } else {
+                    try!(TcpStream::connect(addr))
+                };
                 let mut context = try!(SslContext::new(Sslv23).map_err(lift_ssl_error));
-                if let Some(ref mut verifier) = self.0 {
+                if let Some(ref mut verifier) = self.verifier {
                     verifier(&mut context);
                 }
                 let ssl = try!(Ssl::new(&context).map_err(lift_ssl_error));
