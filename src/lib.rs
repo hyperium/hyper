@@ -1,5 +1,5 @@
 #![feature(core, collections, hash, io, os, path, std_misc,
-           slicing_syntax, box_syntax)]
+           slicing_syntax, box_syntax, unsafe_destructor)]
 #![deny(missing_docs)]
 #![cfg_attr(test, deny(warnings))]
 #![cfg_attr(test, feature(alloc, test))]
