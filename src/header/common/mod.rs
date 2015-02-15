@@ -9,6 +9,7 @@
 pub use self::access_control::*;
 pub use self::accept::Accept;
 pub use self::accept_encoding::AcceptEncoding;
+pub use self::accept_language::AcceptLanguage;
 pub use self::allow::Allow;
 pub use self::authorization::{Authorization, Scheme, Basic};
 pub use self::cache_control::{CacheControl, CacheDirective};
@@ -147,6 +148,7 @@ macro_rules! impl_header(
 mod access_control;
 mod accept;
 mod accept_encoding;
+mod accept_language;
 mod allow;
 mod authorization;
 mod cache_control;
