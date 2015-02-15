@@ -5,6 +5,7 @@
 
 use std::fmt;
 use std::str;
+use std::cmp;
 #[cfg(test)] use super::encoding::*;
 
 /// Represents an item with a quality value as defined in
@@ -23,6 +24,12 @@ impl<T> QualityItem<T> {
     /// The quality should be a value in the range [0, 1].
     pub fn new(item: T, quality: f32) -> QualityItem<T> {
         QualityItem{item: item, quality: quality}
+    }
+}
+
+impl<T: PartialEq> cmp::PartialOrd for QualityItem<T> {
+    fn partial_cmp(&self, other: &QualityItem<T>) -> Option<cmp::Ordering> {
+        self.quality.partial_cmp(&other.quality)
     }
 }
 
@@ -126,4 +133,11 @@ fn test_quality_item_from_str4() {
 fn test_quality_item_from_str5() {
     let x: Result<QualityItem<Encoding>, ()> = "gzip; q=0.2739999".parse();
     assert_eq!(x, Err(()));
+}
+#[test]
+fn test_quality_item_ordering() {
+    let x: QualityItem<Encoding> = "gzip; q=0.5".parse().ok().unwrap();
+    let y: QualityItem<Encoding> = "gzip; q=0.273".parse().ok().unwrap();
+    let comparision_result: bool = x.gt(&y);
+    assert_eq!(comparision_result, true)
 }
