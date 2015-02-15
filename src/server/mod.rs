@@ -1,10 +1,8 @@
 //! HTTP Server
-use std::old_io::{Listener, EndOfFile, BufferedReader, BufferedWriter};
+use std::old_io::{Listener, BufferedReader, BufferedWriter};
 use std::old_io::net::ip::{IpAddr, Port, SocketAddr};
 use std::os;
-use std::sync::{Arc, TaskPool};
-use std::thread::{Builder, JoinGuard};
-
+use std::thread::JoinGuard;
 
 pub use self::request::Request;
 pub use self::response::Response;
@@ -19,8 +17,12 @@ use net::{NetworkListener, NetworkStream, NetworkAcceptor,
           HttpAcceptor, HttpListener};
 use version::HttpVersion::{Http10, Http11};
 
+use self::acceptor::AcceptorPool;
+
 pub mod request;
 pub mod response;
+
+mod acceptor;
 
 /// A server can listen on a TCP socket.
 ///
@@ -71,71 +73,14 @@ S: NetworkStream + Clone + Send> Server<L> {
         let acceptor = try!(self.listener.listen((self.ip, self.port)));
         let socket = try!(acceptor.socket_name());
 
-        let mut captured = acceptor.clone();
-        let guard = Builder::new().name("hyper acceptor".to_string()).scoped(move || {
-            let handler = Arc::new(handler);
-            debug!("threads = {:?}", threads);
-            let pool = TaskPool::new(threads);
-            for conn in captured.incoming() {
-                match conn {
-                    Ok(mut stream) => {
-                        debug!("Incoming stream");
-                        let handler = handler.clone();
-                        pool.execute(move || {
-                            let addr = match stream.peer_name() {
-                                Ok(addr) => addr,
-                                Err(e) => {
-                                    error!("Peer Name error: {:?}", e);
-                                    return;
-                                }
-                            };
-                            let mut rdr = BufferedReader::new(stream.clone());
-                            let mut wrt = BufferedWriter::new(stream);
-
-                            let mut keep_alive = true;
-                            while keep_alive {
-                                let mut res = Response::new(&mut wrt);
-                                let req = match Request::new(&mut rdr, addr) {
-                                    Ok(req) => req,
-                                    Err(e@HttpIoError(_)) => {
-                                        debug!("ioerror in keepalive loop = {:?}", e);
-                                        return;
-                                    }
-                                    Err(e) => {
-                                        //TODO: send a 400 response
-                                        error!("request error = {:?}", e);
-                                        return;
-                                    }
-                                };
-
-                                keep_alive = match (req.version, req.headers.get::<Connection>()) {
-                                    (Http10, Some(conn)) if !conn.contains(&KeepAlive) => false,
-                                    (Http11, Some(conn)) if conn.contains(&Close)  => false,
-                                    _ => true
-                                };
-                                res.version = req.version;
-                                handler.handle(req, res);
-                                debug!("keep_alive = {:?}", keep_alive);
-                            }
-
-                        });
-                    },
-                    Err(ref e) if e.kind == EndOfFile => {
-                        debug!("server closed");
-                        break;
-                    },
-                    Err(e) => {
-                        error!("Connection failed: {}", e);
-                        continue;
-                    }
-                }
-            }
-        });
+        debug!("threads = {:?}", threads);
+        let pool = AcceptorPool::new(acceptor.clone());
+        let work = move |stream| handle_connection(stream, &handler);
 
         Ok(Listening {
-            acceptor: acceptor,
-            guard: Some(guard),
+            _guard: pool.accept(work, threads),
             socket: socket,
+            acceptor: acceptor
         })
     }
 
@@ -146,22 +91,56 @@ S: NetworkStream + Clone + Send> Server<L> {
 
 }
 
+fn handle_connection<S, H>(mut stream: S, handler: &H)
+where S: NetworkStream + Clone, H: Handler {
+    debug!("Incoming stream");
+    let addr = match stream.peer_name() {
+        Ok(addr) => addr,
+        Err(e) => {
+            error!("Peer Name error: {:?}", e);
+            return;
+        }
+    };
+
+    let mut rdr = BufferedReader::new(stream.clone());
+    let mut wrt = BufferedWriter::new(stream);
+
+    let mut keep_alive = true;
+    while keep_alive {
+        let mut res = Response::new(&mut wrt);
+        let req = match Request::new(&mut rdr, addr) {
+            Ok(req) => req,
+            Err(e@HttpIoError(_)) => {
+                debug!("ioerror in keepalive loop = {:?}", e);
+                return;
+            }
+            Err(e) => {
+                //TODO: send a 400 response
+                error!("request error = {:?}", e);
+                return;
+            }
+        };
+
+        keep_alive = match (req.version, req.headers.get::<Connection>()) {
+            (Http10, Some(conn)) if !conn.contains(&KeepAlive) => false,
+            (Http11, Some(conn)) if conn.contains(&Close)  => false,
+            _ => true
+        };
+        res.version = req.version;
+        handler.handle(req, res);
+        debug!("keep_alive = {:?}", keep_alive);
+    }
+}
+
 /// A listening server, which can later be closed.
 pub struct Listening<A = HttpAcceptor> {
     acceptor: A,
-    guard: Option<JoinGuard<'static, ()>>,
+    _guard: JoinGuard<'static, ()>,
     /// The socket addresses that the server is bound to.
     pub socket: SocketAddr,
 }
 
 impl<A: NetworkAcceptor> Listening<A> {
-    /// Causes the current thread to wait for this listening to complete.
-    pub fn await(&mut self) {
-        if let Some(guard) = self.guard.take() {
-            let _ = guard.join();
-        }
-    }
-
     /// Stop the server from listening to its socket address.
     pub fn close(&mut self) -> HttpResult<()> {
         debug!("closing server");

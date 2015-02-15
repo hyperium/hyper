@@ -13,6 +13,7 @@ fn hello(_: Request, res: Response) {
 }
 
 fn main() {
-    hyper::Server::http(Ipv4Addr(127, 0, 0, 1), 3000).listen(hello).unwrap();
+    let _listening = hyper::Server::http(Ipv4Addr(127, 0, 0, 1), 3000)
+        .listen(hello).unwrap();
     println!("Listening on http://127.0.0.1:3000");
 }
