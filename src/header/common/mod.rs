@@ -88,7 +88,7 @@ macro_rules! impl_list_header(
     ($from:ident, $name:expr, $item:ty) => {
         deref!($from => $item);
 
-        impl header::Header for $from {
+        impl $crate::header::Header for $from {
             fn header_name() -> &'static str {
                 $name
             }
@@ -98,7 +98,7 @@ macro_rules! impl_list_header(
             }
         }
 
-        impl header::HeaderFormat for $from {
+        impl $crate::header::HeaderFormat for $from {
             fn fmt_header(&self, fmt: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
                 $crate::header::parsing::fmt_comma_delimited(fmt, &self[])
             }
@@ -118,7 +118,7 @@ macro_rules! impl_header(
     ($from:ident, $name:expr, $item:ty) => {
         deref!($from => $item);
 
-        impl header::Header for $from {
+        impl $crate::header::Header for $from {
             fn header_name() -> &'static str {
                 $name
             }
@@ -128,7 +128,7 @@ macro_rules! impl_header(
             }
         }
 
-        impl header::HeaderFormat for $from {
+        impl $crate::header::HeaderFormat for $from {
             fn fmt_header(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
                 ::std::fmt::Display::fmt(&**self, f)
             }
