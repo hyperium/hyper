@@ -1,7 +1,8 @@
-#![feature(old_io)]
+#![feature(io, net)]
 extern crate hyper;
 
-use std::old_io::net::ip::Ipv4Addr;
+use std::io::Write;
+use std::net::IpAddr;
 use hyper::server::{Request, Response};
 
 static PHRASE: &'static [u8] = b"Hello World!";
@@ -13,7 +14,7 @@ fn hello(_: Request, res: Response) {
 }
 
 fn main() {
-    let _listening = hyper::Server::http(Ipv4Addr(127, 0, 0, 1), 3000)
-        .listen(hello).unwrap();
+    let _listening = hyper::Server::http(hello)
+        .listen(IpAddr::new_v4(127, 0, 0, 1), 3000).unwrap();
     println!("Listening on http://127.0.0.1:3000");
 }

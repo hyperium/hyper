@@ -2,8 +2,8 @@
 //!
 //! These are responses sent by a `hyper::Server` to clients, after
 //! receiving a request.
-use std::old_io::IoResult;
 use std::marker::PhantomData;
+use std::io::{self, Write};
 
 use time::now_utc;
 
@@ -19,7 +19,7 @@ pub struct Response<'a, W = Fresh> {
     /// The HTTP version of this response.
     pub version: version::HttpVersion,
     // Stream the Response is writing to, not accessible through UnwrittenResponse
-    body: HttpWriter<&'a mut (Writer + 'a)>,
+    body: HttpWriter<&'a mut (Write + 'a)>,
     // The status code for the request.
     status: status::StatusCode,
     // The outgoing headers on this response.
@@ -38,7 +38,7 @@ impl<'a, W> Response<'a, W> {
 
     /// Construct a Response from its constituent parts.
     pub fn construct(version: version::HttpVersion,
-                     body: HttpWriter<&'a mut (Writer + 'a)>,
+                     body: HttpWriter<&'a mut (Write + 'a)>,
                      status: status::StatusCode,
                      headers: header::Headers) -> Response<'a, Fresh> {
         Response {
@@ -51,7 +51,7 @@ impl<'a, W> Response<'a, W> {
     }
 
     /// Deconstruct this Response into its constituent parts.
-    pub fn deconstruct(self) -> (version::HttpVersion, HttpWriter<&'a mut (Writer + 'a)>,
+    pub fn deconstruct(self) -> (version::HttpVersion, HttpWriter<&'a mut (Write + 'a)>,
                                  status::StatusCode, header::Headers) {
         (self.version, self.body, self.status, self.headers)
     }
@@ -59,7 +59,7 @@ impl<'a, W> Response<'a, W> {
 
 impl<'a> Response<'a, Fresh> {
     /// Creates a new Response that can be used to write to a network stream.
-    pub fn new(stream: &'a mut (Writer + 'a)) -> Response<'a, Fresh> {
+    pub fn new(stream: &'a mut (Write + 'a)) -> Response<'a, Fresh> {
         Response {
             status: status::StatusCode::Ok,
             version: version::HttpVersion::Http11,
@@ -70,7 +70,7 @@ impl<'a> Response<'a, Fresh> {
     }
 
     /// Consume this Response<Fresh>, writing the Headers and Status and creating a Response<Streaming>
-    pub fn start(mut self) -> IoResult<Response<'a, Streaming>> {
+    pub fn start(mut self) -> io::Result<Response<'a, Streaming>> {
         debug!("writing head: {:?} {:?}", self.version, self.status);
         try!(write!(&mut self.body, "{} {}{}{}", self.version, self.status, CR as char, LF as char));
 
@@ -110,13 +110,12 @@ impl<'a> Response<'a, Fresh> {
 
         debug!("headers [\n{:?}]", self.headers);
         try!(write!(&mut self.body, "{}", self.headers));
-
-        try!(self.body.write_str(LINE_ENDING));
+        try!(write!(&mut self.body, "{}", LINE_ENDING));
 
         let stream = if chunked {
-            ChunkedWriter(self.body.unwrap())
+            ChunkedWriter(self.body.into_inner())
         } else {
-            SizedWriter(self.body.unwrap(), len)
+            SizedWriter(self.body.into_inner(), len)
         };
 
         // "copy" to change the phantom type
@@ -139,20 +138,20 @@ impl<'a> Response<'a, Fresh> {
 
 impl<'a> Response<'a, Streaming> {
     /// Flushes all writing of a response to the client.
-    pub fn end(self) -> IoResult<()> {
+    pub fn end(self) -> io::Result<()> {
         debug!("ending");
         try!(self.body.end());
         Ok(())
     }
 }
 
-impl<'a> Writer for Response<'a, Streaming> {
-    fn write_all(&mut self, msg: &[u8]) -> IoResult<()> {
+impl<'a> Write for Response<'a, Streaming> {
+    fn write(&mut self, msg: &[u8]) -> io::Result<usize> {
         debug!("write {:?} bytes", msg.len());
-        self.body.write_all(msg)
+        self.body.write(msg)
     }
 
-    fn flush(&mut self) -> IoResult<()> {
+    fn flush(&mut self) -> io::Result<()> {
         self.body.flush()
     }
 }

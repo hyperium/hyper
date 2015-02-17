@@ -2,7 +2,7 @@
 use std::borrow::Cow::{self, Borrowed, Owned};
 use std::borrow::IntoCow;
 use std::cmp::min;
-use std::old_io::{self, Reader, IoResult, BufWriter};
+use std::io::{self, Read, Write, Cursor};
 use std::num::from_u16;
 use std::str;
 
@@ -14,8 +14,8 @@ use status::StatusCode;
 use uri;
 use uri::RequestUri::{AbsolutePath, AbsoluteUri, Authority, Star};
 use version::HttpVersion;
-use version::HttpVersion::{Http09, Http10, Http11, Http20};
-use HttpError::{HttpHeaderError, HttpIoError, HttpMethodError, HttpStatusError,
+use version::HttpVersion::{Http09, Http10, Http11};
+use HttpError::{HttpHeaderError, HttpMethodError, HttpStatusError,
                 HttpUriError, HttpVersionError};
 use HttpResult;
 
@@ -52,10 +52,10 @@ pub enum HttpReader<R> {
     EmptyReader(R),
 }
 
-impl<R: Reader> HttpReader<R> {
+impl<R: Read> HttpReader<R> {
 
     /// Unwraps this HttpReader and returns the underlying Reader.
-    pub fn unwrap(self) -> R {
+    pub fn into_inner(self) -> R {
         match self {
             SizedReader(r, _) => r,
             ChunkedReader(r, _) => r,
@@ -65,13 +65,13 @@ impl<R: Reader> HttpReader<R> {
     }
 }
 
-impl<R: Reader> Reader for HttpReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
+impl<R: Read> Read for HttpReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match *self {
             SizedReader(ref mut body, ref mut remaining) => {
                 debug!("Sized read, remaining={:?}", remaining);
                 if *remaining == 0 {
-                    Err(old_io::standard_error(old_io::EndOfFile))
+                    Ok(0)
                 } else {
                     let num = try!(body.read(buf)) as u64;
                     if num > *remaining {
@@ -97,7 +97,7 @@ impl<R: Reader> Reader for HttpReader<R> {
                     // if the 0 digit was missing from the stream, it would
                     // be an InvalidInput error instead.
                     debug!("end of chunked");
-                    return Err(old_io::standard_error(old_io::EndOfFile));
+                    return Ok(0)
                 }
 
                 let to_read = min(rem as usize, buf.len());
@@ -115,29 +115,44 @@ impl<R: Reader> Reader for HttpReader<R> {
             EofReader(ref mut body) => {
                 body.read(buf)
             },
-            EmptyReader(_) => Err(old_io::standard_error(old_io::EndOfFile))
+            EmptyReader(_) => Ok(0)
         }
     }
 }
 
-fn eat<R: Reader>(rdr: &mut R, bytes: &[u8]) -> IoResult<()> {
+fn eat<R: Read>(rdr: &mut R, bytes: &[u8]) -> io::Result<()> {
+    let mut buf = [0];
     for &b in bytes.iter() {
-        match try!(rdr.read_byte()) {
-            byte if byte == b => (),
-            _ => return Err(old_io::standard_error(old_io::InvalidInput))
+        match try!(rdr.read(&mut buf)) {
+            1 if buf[0] == b => (),
+            _ => return Err(io::Error::new(io::ErrorKind::InvalidInput,
+                                          "Invalid characters found",
+                                           None))
         }
     }
     Ok(())
 }
 
 /// Chunked chunks start with 1*HEXDIGIT, indicating the size of the chunk.
-fn read_chunk_size<R: Reader>(rdr: &mut R) -> IoResult<u64> {
+fn read_chunk_size<R: Read>(rdr: &mut R) -> io::Result<u64> {
+    macro_rules! byte (
+        ($rdr:ident) => ({
+            let mut buf = [0];
+            match try!($rdr.read(&mut buf)) {
+                1 => buf[0],
+                _ => return Err(io::Error::new(io::ErrorKind::InvalidInput,
+                                                  "Invalid chunk size line",
+                                                   None)),
+
+            }
+        })
+    );
     let mut size = 0u64;
     let radix = 16;
     let mut in_ext = false;
     let mut in_chunk_size = true;
     loop {
-        match try!(rdr.read_byte()) {
+        match byte!(rdr) {
             b@b'0'...b'9' if in_chunk_size => {
                 size *= radix;
                 size += (b - b'0') as u64;
@@ -151,9 +166,12 @@ fn read_chunk_size<R: Reader>(rdr: &mut R) -> IoResult<u64> {
                 size += (b + 10 - b'A') as u64;
             },
             CR => {
-                match try!(rdr.read_byte()) {
+                match byte!(rdr) {
                     LF => break,
-                    _ => return Err(old_io::standard_error(old_io::InvalidInput))
+                    _ => return Err(io::Error::new(io::ErrorKind::InvalidInput,
+                                                  "Invalid chunk size line",
+                                                   None))
+
                 }
             },
             // If we weren't in the extension yet, the ";" signals its start
@@ -177,7 +195,9 @@ fn read_chunk_size<R: Reader>(rdr: &mut R) -> IoResult<u64> {
             // Finally, if we aren't in the extension and we're reading any
             // other octet, the chunk size line is invalid!
             _ => {
-                return Err(old_io::standard_error(old_io::InvalidInput));
+                return Err(io::Error::new(io::ErrorKind::InvalidInput,
+                                         "Invalid chunk size line",
+                                         None))
             }
         }
     }
@@ -186,7 +206,7 @@ fn read_chunk_size<R: Reader>(rdr: &mut R) -> IoResult<u64> {
 }
 
 /// Writers to handle different Transfer-Encodings.
-pub enum HttpWriter<W: Writer> {
+pub enum HttpWriter<W: Write> {
     /// A no-op Writer, used initially before Transfer-Encoding is determined.
     ThroughWriter(W),
     /// A Writer for when Transfer-Encoding includes `chunked`.
@@ -199,10 +219,10 @@ pub enum HttpWriter<W: Writer> {
     EmptyWriter(W),
 }
 
-impl<W: Writer> HttpWriter<W> {
+impl<W: Write> HttpWriter<W> {
     /// Unwraps the HttpWriter and returns the underlying Writer.
     #[inline]
-    pub fn unwrap(self) -> W {
+    pub fn into_inner(self) -> W {
         match self {
             ThroughWriter(w) => w,
             ChunkedWriter(w) => w,
@@ -241,24 +261,25 @@ impl<W: Writer> HttpWriter<W> {
     /// A final `write_all()` is called with an empty message, and then flushed.
     /// The ChunkedWriter variant will use this to write the 0-sized last-chunk.
     #[inline]
-    pub fn end(mut self) -> IoResult<W> {
-        try!(self.write_all(&[]));
+    pub fn end(mut self) -> io::Result<W> {
+        try!(self.write(&[]));
         try!(self.flush());
-        Ok(self.unwrap())
+        Ok(self.into_inner())
     }
 }
 
-impl<W: Writer> Writer for HttpWriter<W> {
+impl<W: Write> Write for HttpWriter<W> {
     #[inline]
-    fn write_all(&mut self, msg: &[u8]) -> IoResult<()> {
+    fn write(&mut self, msg: &[u8]) -> io::Result<usize> {
         match *self {
-            ThroughWriter(ref mut w) => w.write_all(msg),
+            ThroughWriter(ref mut w) => w.write(msg),
             ChunkedWriter(ref mut w) => {
                 let chunk_size = msg.len();
                 debug!("chunked write, size = {:?}", chunk_size);
                 try!(write!(w, "{:X}{}", chunk_size, LINE_ENDING));
                 try!(w.write_all(msg));
-                w.write_str(LINE_ENDING)
+                try!(w.write_all(LINE_ENDING.as_bytes()));
+                Ok(msg.len())
             },
             SizedWriter(ref mut w, ref mut remaining) => {
                 let len = msg.len() as u64;
@@ -266,29 +287,24 @@ impl<W: Writer> Writer for HttpWriter<W> {
                     let len = *remaining;
                     *remaining = 0;
                     try!(w.write_all(&msg[..len as usize]));
-                    Err(old_io::standard_error(old_io::ShortWrite(len as usize)))
+                    Ok(len as usize)
                 } else {
                     *remaining -= len;
-                    w.write_all(msg)
+                    try!(w.write_all(msg));
+                    Ok(len as usize)
                 }
             },
             EmptyWriter(..) => {
-                let bytes = msg.len();
-                if bytes == 0 {
-                    Ok(())
-                } else {
-                    Err(old_io::IoError {
-                        kind: old_io::ShortWrite(bytes),
-                        desc: "EmptyWriter cannot write any bytes",
-                        detail: Some("Cannot include a body with this kind of message".to_string())
-                    })
+                if msg.len() != 0 {
+                    error!("Cannot include a body with this kind of message");
                 }
+                Ok(0)
             }
         }
     }
 
     #[inline]
-    fn flush(&mut self) -> IoResult<()> {
+    fn flush(&mut self) -> io::Result<()> {
         match *self {
             ThroughWriter(ref mut w) => w.flush(),
             ChunkedWriter(ref mut w) => w.flush(),
@@ -345,24 +361,36 @@ pub fn is_token(b: u8) -> bool {
 /// otherwise returns any error encountered reading the stream.
 ///
 /// The remaining contents of `buf` are left untouched.
-fn read_token_until_space<R: Reader>(stream: &mut R, buf: &mut [u8]) -> HttpResult<bool> {
-    use std::old_io::BufWriter;
-    let mut bufwrt = BufWriter::new(buf);
+fn read_method_token_until_space<R: Read>(stream: &mut R, buf: &mut [u8]) -> HttpResult<bool> {
+    macro_rules! byte (
+        ($rdr:ident) => ({
+            let mut slot = [0];
+            match try!($rdr.read(&mut slot)) {
+                1 => slot[0],
+                _ => return Err(HttpMethodError),
+            }
+        })
+    );
+
+    let mut cursor = Cursor::new(buf);
 
     loop {
-        let byte = try!(stream.read_byte());
+        let b = byte!(stream);
 
-        if byte == SP {
+        if b == SP {
             break;
-        } else if !is_token(byte) {
+        } else if !is_token(b) {
             return Err(HttpMethodError);
         // Read to end but there's still more
-        } else if bufwrt.write_u8(byte).is_err() {
-            return Ok(false);
+        } else {
+            match cursor.write(&[b]) {
+                Ok(1) => (),
+                _ => return Ok(false)
+            }
         }
     }
 
-    if bufwrt.tell().unwrap() == 0 {
+    if cursor.position() == 0 {
         return Err(HttpMethodError);
     }
 
@@ -372,10 +400,10 @@ fn read_token_until_space<R: Reader>(stream: &mut R, buf: &mut [u8]) -> HttpResu
 /// Read a `Method` from a raw stream, such as `GET`.
 /// ### Note:
 /// Extension methods are only parsed to 16 characters.
-pub fn read_method<R: Reader>(stream: &mut R) -> HttpResult<method::Method> {
+pub fn read_method<R: Read>(stream: &mut R) -> HttpResult<method::Method> {
     let mut buf = [SP; 16];
 
-    if !try!(read_token_until_space(stream, &mut buf)) {
+    if !try!(read_method_token_until_space(stream, &mut buf)) {
         return Err(HttpMethodError);
     }
 
@@ -404,20 +432,29 @@ pub fn read_method<R: Reader>(stream: &mut R) -> HttpResult<method::Method> {
 }
 
 /// Read a `RequestUri` from a raw stream.
-pub fn read_uri<R: Reader>(stream: &mut R) -> HttpResult<uri::RequestUri> {
-    let mut b = try!(stream.read_byte());
+pub fn read_uri<R: Read>(stream: &mut R) -> HttpResult<uri::RequestUri> {
+    macro_rules! byte (
+        ($rdr:ident) => ({
+            let mut buf = [0];
+            match try!($rdr.read(&mut buf)) {
+                1 => buf[0],
+                _ => return Err(HttpUriError(UrlError::InvalidCharacter)),
+            }
+        })
+    );
+    let mut b = byte!(stream);
     while b == SP {
-        b = try!(stream.read_byte());
+        b = byte!(stream);
     }
 
     let mut s = String::new();
     if b == STAR {
-        try!(expect(stream.read_byte(), SP));
+        try!(expect(byte!(stream), SP));
         return Ok(Star)
     } else {
         s.push(b as char);
         loop {
-            match try!(stream.read_byte()) {
+            match byte!(stream) {
                 SP => {
                     break;
                 },
@@ -448,31 +485,36 @@ pub fn read_uri<R: Reader>(stream: &mut R) -> HttpResult<uri::RequestUri> {
 
 
 /// Read the `HttpVersion` from a raw stream, such as `HTTP/1.1`.
-pub fn read_http_version<R: Reader>(stream: &mut R) -> HttpResult<HttpVersion> {
-    try!(expect(stream.read_byte(), b'H'));
-    try!(expect(stream.read_byte(), b'T'));
-    try!(expect(stream.read_byte(), b'T'));
-    try!(expect(stream.read_byte(), b'P'));
-    try!(expect(stream.read_byte(), b'/'));
+pub fn read_http_version<R: Read>(stream: &mut R) -> HttpResult<HttpVersion> {
+    macro_rules! byte (
+        ($rdr:ident) => ({
+            let mut buf = [0];
+            match try!($rdr.read(&mut buf)) {
+                1 => buf[0],
+                _ => return Err(HttpVersionError),
+            }
+        })
+    );
 
-    match try!(stream.read_byte()) {
+    try!(expect(byte!(stream), b'H'));
+    try!(expect(byte!(stream), b'T'));
+    try!(expect(byte!(stream), b'T'));
+    try!(expect(byte!(stream), b'P'));
+    try!(expect(byte!(stream), b'/'));
+
+    match byte!(stream) {
         b'0' => {
-            try!(expect(stream.read_byte(), b'.'));
-            try!(expect(stream.read_byte(), b'9'));
+            try!(expect(byte!(stream), b'.'));
+            try!(expect(byte!(stream), b'9'));
             Ok(Http09)
         },
         b'1' => {
-            try!(expect(stream.read_byte(), b'.'));
-            match try!(stream.read_byte()) {
+            try!(expect(byte!(stream), b'.'));
+            match byte!(stream) {
                 b'0' => Ok(Http10),
                 b'1' => Ok(Http11),
                 _ => Err(HttpVersionError)
             }
-        },
-        b'2' => {
-            try!(expect(stream.read_byte(), b'.'));
-            try!(expect(stream.read_byte(), b'0'));
-            Ok(Http20)
         },
         _ => Err(HttpVersionError)
     }
@@ -507,14 +549,24 @@ pub type RawHeaderLine = (String, Vec<u8>);
 /// >                ; obsolete line folding
 /// >                ; see Section 3.2.4
 /// > ```
-pub fn read_header<R: Reader>(stream: &mut R) -> HttpResult<Option<RawHeaderLine>> {
+pub fn read_header<R: Read>(stream: &mut R) -> HttpResult<Option<RawHeaderLine>> {
+    macro_rules! byte (
+        ($rdr:ident) => ({
+            let mut buf = [0];
+            match try!($rdr.read(&mut buf)) {
+                1 => buf[0],
+                _ => return Err(HttpHeaderError),
+            }
+        })
+    );
+
     let mut name = String::new();
     let mut value = vec![];
 
     loop {
-        match try!(stream.read_byte()) {
+        match byte!(stream) {
             CR if name.len() == 0 => {
-                match try!(stream.read_byte()) {
+                match byte!(stream) {
                     LF => return Ok(None),
                     _ => return Err(HttpHeaderError)
                 }
@@ -534,7 +586,7 @@ pub fn read_header<R: Reader>(stream: &mut R) -> HttpResult<Option<RawHeaderLine
 
     todo!("handle obs-folding (gross!)");
     loop {
-        match try!(stream.read_byte()) {
+        match byte!(stream) {
             CR => break,
             LF => return Err(HttpHeaderError),
             b' ' if ows => {},
@@ -549,7 +601,7 @@ pub fn read_header<R: Reader>(stream: &mut R) -> HttpResult<Option<RawHeaderLine
     let real_len = value.len() - value.iter().rev().take_while(|&&x| b' ' == x).count();
     value.truncate(real_len);
 
-    match try!(stream.read_byte()) {
+    match byte!(stream) {
         LF => Ok(Some((name, value))),
         _ => Err(HttpHeaderError)
     }
@@ -560,7 +612,17 @@ pub fn read_header<R: Reader>(stream: &mut R) -> HttpResult<Option<RawHeaderLine
 pub type RequestLine = (method::Method, uri::RequestUri, HttpVersion);
 
 /// Read the `RequestLine`, such as `GET / HTTP/1.1`.
-pub fn read_request_line<R: Reader>(stream: &mut R) -> HttpResult<RequestLine> {
+pub fn read_request_line<R: Read>(stream: &mut R) -> HttpResult<RequestLine> {
+    macro_rules! byte (
+        ($rdr:ident) => ({
+            let mut buf = [0];
+            match try!($rdr.read(&mut buf)) {
+                1 => buf[0],
+                _ => return Err(HttpVersionError),
+            }
+        })
+    );
+
     debug!("read request line");
     let method = try!(read_method(stream));
     debug!("method = {:?}", method);
@@ -569,10 +631,10 @@ pub fn read_request_line<R: Reader>(stream: &mut R) -> HttpResult<RequestLine> {
     let version = try!(read_http_version(stream));
     debug!("version = {:?}", version);
 
-    if try!(stream.read_byte()) != CR {
+    if byte!(stream) != CR {
         return Err(HttpVersionError);
     }
-    if try!(stream.read_byte()) != LF {
+    if byte!(stream) != LF {
         return Err(HttpVersionError);
     }
 
@@ -606,9 +668,19 @@ impl Clone for RawStatus {
 /// > status-code    = 3DIGIT
 /// > reason-phrase  = *( HTAB / SP / VCHAR / obs-text )
 /// >```
-pub fn read_status_line<R: Reader>(stream: &mut R) -> HttpResult<StatusLine> {
+pub fn read_status_line<R: Read>(stream: &mut R) -> HttpResult<StatusLine> {
+    macro_rules! byte (
+        ($rdr:ident) => ({
+            let mut buf = [0];
+            match try!($rdr.read(&mut buf)) {
+                1 => buf[0],
+                _ => return Err(HttpVersionError),
+            }
+        })
+    );
+
     let version = try!(read_http_version(stream));
-    if try!(stream.read_byte()) != SP {
+    if byte!(stream) != SP {
         return Err(HttpVersionError);
     }
     let code = try!(read_status(stream));
@@ -617,11 +689,21 @@ pub fn read_status_line<R: Reader>(stream: &mut R) -> HttpResult<StatusLine> {
 }
 
 /// Read the StatusCode from a stream.
-pub fn read_status<R: Reader>(stream: &mut R) -> HttpResult<RawStatus> {
+pub fn read_status<R: Read>(stream: &mut R) -> HttpResult<RawStatus> {
+    macro_rules! byte (
+        ($rdr:ident) => ({
+            let mut buf = [0];
+            match try!($rdr.read(&mut buf)) {
+                1 => buf[0],
+                _ => return Err(HttpStatusError),
+            }
+        })
+    );
+
     let code = [
-        try!(stream.read_byte()),
-        try!(stream.read_byte()),
-        try!(stream.read_byte()),
+        byte!(stream),
+        byte!(stream),
+        byte!(stream),
     ];
 
     let code = match str::from_utf8(code.as_slice()).ok().and_then(|x| x.parse().ok()) {
@@ -629,27 +711,25 @@ pub fn read_status<R: Reader>(stream: &mut R) -> HttpResult<RawStatus> {
         None => return Err(HttpStatusError)
     };
 
-    match try!(stream.read_byte()) {
+    match byte!(stream) {
         b' ' => (),
         _ => return Err(HttpStatusError)
     }
 
-    let mut buf = [b' '; 32];
-
+    let mut buf = [SP; 32];
+    let mut cursor = Cursor::new(&mut buf[..]);
     {
-        let mut bufwrt = BufWriter::new(&mut buf);
         'read: loop {
-            match try!(stream.read_byte()) {
-                CR => match try!(stream.read_byte()) {
+            match byte!(stream) {
+                CR => match byte!(stream) {
                     LF => break,
                     _ => return Err(HttpStatusError)
                 },
-                b => match bufwrt.write_u8(b) {
-                    Ok(_) => (),
-                    Err(_) => {
+                b => match cursor.write(&[b]) {
+                    Ok(0) | Err(_) => {
                         for _ in 0u8..128 {
-                            match try!(stream.read_byte()) {
-                                CR => match try!(stream.read_byte()) {
+                            match byte!(stream) {
+                                CR => match byte!(stream) {
                                     LF => break 'read,
                                     _ => return Err(HttpStatusError)
                                 },
@@ -658,12 +738,13 @@ pub fn read_status<R: Reader>(stream: &mut R) -> HttpResult<RawStatus> {
                         }
                         return Err(HttpStatusError)
                     }
+                    Ok(_) => (),
                 }
             }
         }
     }
 
-    let reason = match str::from_utf8(&buf[..]) {
+    let reason = match str::from_utf8(cursor.into_inner()) {
         Ok(s) => s.trim(),
         Err(_) => return Err(HttpStatusError)
     };
@@ -686,39 +767,34 @@ pub fn read_status<R: Reader>(stream: &mut R) -> HttpResult<RawStatus> {
 }
 
 #[inline]
-fn expect(r: IoResult<u8>, expected: u8) -> HttpResult<()> {
-    match r {
-        Ok(b) if b == expected => Ok(()),
-        Ok(_) => Err(HttpVersionError),
-        Err(e) => Err(HttpIoError(e))
+fn expect(actual: u8, expected: u8) -> HttpResult<()> {
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(HttpVersionError)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::old_io::{self, MemReader, MemWriter, IoResult};
+    use std::io::{self, Write};
     use std::borrow::Cow::{Borrowed, Owned};
     use test::Bencher;
     use uri::RequestUri;
     use uri::RequestUri::{Star, AbsoluteUri, AbsolutePath, Authority};
     use method;
     use version::HttpVersion;
-    use version::HttpVersion::{Http10, Http11, Http20};
+    use version::HttpVersion::{Http10, Http11};
     use HttpError::{HttpVersionError, HttpMethodError};
     use HttpResult;
     use url::Url;
 
     use super::{read_method, read_uri, read_http_version, read_header,
                 RawHeaderLine, read_status, RawStatus, read_chunk_size};
-
-    fn mem(s: &str) -> MemReader {
-        MemReader::new(s.as_bytes().to_vec())
-    }
-
     #[test]
     fn test_read_method() {
         fn read(s: &str, result: HttpResult<method::Method>) {
-            assert_eq!(read_method(&mut mem(s)), result);
+            assert_eq!(read_method(&mut s.as_bytes()), result);
         }
 
         read("GET /", Ok(method::Method::Get));
@@ -737,7 +813,7 @@ mod tests {
     #[test]
     fn test_read_uri() {
         fn read(s: &str, result: HttpResult<RequestUri>) {
-            assert_eq!(read_uri(&mut mem(s)), result);
+            assert_eq!(read_uri(&mut s.as_bytes()), result);
         }
 
         read("* ", Ok(Star));
@@ -749,12 +825,11 @@ mod tests {
     #[test]
     fn test_read_http_version() {
         fn read(s: &str, result: HttpResult<HttpVersion>) {
-            assert_eq!(read_http_version(&mut mem(s)), result);
+            assert_eq!(read_http_version(&mut s.as_bytes()), result);
         }
 
         read("HTTP/1.0", Ok(Http10));
         read("HTTP/1.1", Ok(Http11));
-        read("HTTP/2.0", Ok(Http20));
         read("HTP/2.0", Err(HttpVersionError));
         read("HTTP.2.0", Err(HttpVersionError));
         read("HTTP 2.0", Err(HttpVersionError));
@@ -764,11 +839,11 @@ mod tests {
     #[test]
     fn test_read_status() {
         fn read(s: &str, result: HttpResult<RawStatus>) {
-            assert_eq!(read_status(&mut mem(s)), result);
+            assert_eq!(read_status(&mut s.as_bytes()), result);
         }
 
         fn read_ignore_string(s: &str, result: HttpResult<RawStatus>) {
-            match (read_status(&mut mem(s)), result) {
+            match (read_status(&mut s.as_bytes()), result) {
                 (Ok(RawStatus(ref c1, _)), Ok(RawStatus(ref c2, _))) => {
                     assert_eq!(c1, c2);
                 },
@@ -788,7 +863,7 @@ mod tests {
     #[test]
     fn test_read_header() {
         fn read(s: &str, result: HttpResult<Option<RawHeaderLine>>) {
-            assert_eq!(read_header(&mut mem(s)), result);
+            assert_eq!(read_header(&mut s.as_bytes()), result);
         }
 
         read("Host: rust-lang.org\r\n", Ok(Some(("Host".to_string(),
@@ -798,10 +873,10 @@ mod tests {
     #[test]
     fn test_write_chunked() {
         use std::str::from_utf8;
-        let mut w = super::HttpWriter::ChunkedWriter(MemWriter::new());
+        let mut w = super::HttpWriter::ChunkedWriter(Vec::new());
         w.write_all(b"foo bar").unwrap();
         w.write_all(b"baz quux herp").unwrap();
-        let buf = w.end().unwrap().into_inner();
+        let buf = w.end().unwrap();
         let s = from_utf8(buf.as_slice()).unwrap();
         assert_eq!(s, "7\r\nfoo bar\r\nD\r\nbaz quux herp\r\n0\r\n\r\n");
     }
@@ -809,19 +884,23 @@ mod tests {
     #[test]
     fn test_write_sized() {
         use std::str::from_utf8;
-        let mut w = super::HttpWriter::SizedWriter(MemWriter::new(), 8);
+        let mut w = super::HttpWriter::SizedWriter(Vec::new(), 8);
         w.write_all(b"foo bar").unwrap();
-        assert_eq!(w.write_all(b"baz"), Err(old_io::standard_error(old_io::ShortWrite(1))));
+        assert_eq!(w.write(b"baz"), Ok(1));
 
-        let buf = w.end().unwrap().into_inner();
+        let buf = w.end().unwrap();
         let s = from_utf8(buf.as_slice()).unwrap();
         assert_eq!(s, "foo barb");
     }
 
     #[test]
     fn test_read_chunk_size() {
-        fn read(s: &str, result: IoResult<u64>) {
-            assert_eq!(read_chunk_size(&mut mem(s)), result);
+        fn read(s: &str, result: io::Result<u64>) {
+            assert_eq!(read_chunk_size(&mut s.as_bytes()), result);
+        }
+
+        fn read_err(s: &str) {
+            assert_eq!(read_chunk_size(&mut s.as_bytes()).unwrap_err().kind(), io::ErrorKind::InvalidInput);
         }
 
         read("1\r\n", Ok(1));
@@ -833,13 +912,13 @@ mod tests {
         read("Ff\r\n", Ok(255));
         read("Ff   \r\n", Ok(255));
         // Missing LF or CRLF
-        read("F\rF", Err(old_io::standard_error(old_io::InvalidInput)));
-        read("F", Err(old_io::standard_error(old_io::EndOfFile)));
+        read_err("F\rF");
+        read_err("F");
         // Invalid hex digit
-        read("X\r\n", Err(old_io::standard_error(old_io::InvalidInput)));
-        read("1X\r\n", Err(old_io::standard_error(old_io::InvalidInput)));
-        read("-\r\n", Err(old_io::standard_error(old_io::InvalidInput)));
-        read("-1\r\n", Err(old_io::standard_error(old_io::InvalidInput)));
+        read_err("X\r\n");
+        read_err("1X\r\n");
+        read_err("-\r\n");
+        read_err("-1\r\n");
         // Acceptable (if not fully valid) extensions do not influence the size
         read("1;extension\r\n", Ok(1));
         read("a;ext name=value\r\n", Ok(10));
@@ -850,21 +929,21 @@ mod tests {
         read("3   ;\r\n", Ok(3));
         read("3   ;   \r\n", Ok(3));
         // Invalid extensions cause an error
-        read("1 invalid extension\r\n", Err(old_io::standard_error(old_io::InvalidInput)));
-        read("1 A\r\n", Err(old_io::standard_error(old_io::InvalidInput)));
-        read("1;no CRLF", Err(old_io::standard_error(old_io::EndOfFile)));
+        read_err("1 invalid extension\r\n");
+        read_err("1 A\r\n");
+        read_err("1;no CRLF");
     }
 
     #[bench]
     fn bench_read_method(b: &mut Bencher) {
         b.bytes = b"CONNECT ".len() as u64;
-        b.iter(|| assert_eq!(read_method(&mut mem("CONNECT ")), Ok(method::Method::Connect)));
+        b.iter(|| assert_eq!(read_method(&mut b"CONNECT "), Ok(method::Method::Connect)));
     }
 
     #[bench]
     fn bench_read_status(b: &mut Bencher) {
         b.bytes = b"404 Not Found\r\n".len() as u64;
-        b.iter(|| assert_eq!(read_status(&mut mem("404 Not Found\r\n")), Ok(RawStatus(404, Borrowed("Not Found")))));
+        b.iter(|| assert_eq!(read_status(&mut b"404 Not Found\r\n"), Ok(RawStatus(404, Borrowed("Not Found")))));
     }
 
 }

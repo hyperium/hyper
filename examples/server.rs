@@ -1,9 +1,9 @@
-#![feature(old_io)]
+#![feature(io, net)]
 extern crate hyper;
 #[macro_use] extern crate log;
 
-use std::old_io::util::copy;
-use std::old_io::net::ip::Ipv4Addr;
+use std::io::{Write, copy};
+use std::net::IpAddr;
 
 use hyper::{Get, Post};
 use hyper::header::ContentLength;
@@ -50,7 +50,7 @@ fn echo(mut req: Request, mut res: Response) {
 }
 
 fn main() {
-    let server = Server::http(Ipv4Addr(127, 0, 0, 1), 1337);
-    let _guard = server.listen(echo).unwrap();
+    let server = Server::http(echo);
+    let _guard = server.listen(IpAddr::new_v4(127, 0, 0, 1), 1337).unwrap();
     println!("Listening on http://127.0.0.1:1337");
 }
