@@ -1,30 +1,12 @@
-use header::{Header, HeaderFormat};
-use std::fmt;
-use header::parsing::from_one_raw_str;
-
 /// The `User-Agent` header field.
 ///
 /// They can contain any value, so it just wraps a `String`.
 #[derive(Clone, PartialEq, Debug)]
 pub struct UserAgent(pub String);
 
-deref!(UserAgent => String);
-
-impl Header for UserAgent {
-    fn header_name() -> &'static str {
-        "User-Agent"
-    }
-
-    fn parse_header(raw: &[Vec<u8>]) -> Option<UserAgent> {
-        from_one_raw_str(raw).map(|s| UserAgent(s))
-    }
-}
-
-impl HeaderFormat for UserAgent {
-    fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.write_str(&*self.0)
-    }
-}
+impl_header!(UserAgent,
+             "User-Agent",
+             String);
 
 bench_header!(bench, UserAgent, { vec![b"cargo bench".to_vec()] });
 

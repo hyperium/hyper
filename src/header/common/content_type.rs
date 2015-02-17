@@ -1,6 +1,3 @@
-use header::{Header, HeaderFormat};
-use std::fmt;
-use header::parsing::from_one_raw_str;
 use mime::Mime;
 
 /// The `Content-Type` header.
@@ -10,23 +7,8 @@ use mime::Mime;
 #[derive(Clone, PartialEq, Debug)]
 pub struct ContentType(pub Mime);
 
-deref!(ContentType => Mime);
-
-impl Header for ContentType {
-    fn header_name() -> &'static str {
-        "Content-Type"
-    }
-
-    fn parse_header(raw: &[Vec<u8>]) -> Option<ContentType> {
-        from_one_raw_str(raw).map(|mime| ContentType(mime))
-    }
-}
-
-impl HeaderFormat for ContentType {
-    fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(&self.0, fmt)
-    }
-}
+impl_header!(ContentType,
+             "Content-Type",
+             Mime);
 
 bench_header!(bench, ContentType, { vec![b"application/json; charset=utf-8".to_vec()] });
-

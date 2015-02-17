@@ -1,5 +1,3 @@
-use header;
-
 /// The `Server` header field.
 ///
 /// They can contain any value, so it just wraps a `String`.

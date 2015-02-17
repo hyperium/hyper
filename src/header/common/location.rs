@@ -1,7 +1,3 @@
-use header::{Header, HeaderFormat};
-use std::fmt;
-use header::parsing::from_one_raw_str;
-
 /// The `Location` header.
 ///
 /// The Location response-header field is used to redirect the recipient to
@@ -16,23 +12,8 @@ use header::parsing::from_one_raw_str;
 #[derive(Clone, PartialEq, Debug)]
 pub struct Location(pub String);
 
-deref!(Location => String);
-
-impl Header for Location {
-    fn header_name() -> &'static str {
-        "Location"
-    }
-
-    fn parse_header(raw: &[Vec<u8>]) -> Option<Location> {
-        from_one_raw_str(raw).map(|s| Location(s))
-    }
-}
-
-impl HeaderFormat for Location {
-    fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.write_str(&*self.0)
-    }
-}
+impl_header!(Location,
+             "Location",
+             String);
 
 bench_header!(bench, Location, { vec![b"http://foo.com/hello:3000".to_vec()] });
-

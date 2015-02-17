@@ -1,7 +1,4 @@
-use header::{Header, HeaderFormat};
 use method::Method;
-use std::fmt::{self};
-use header::parsing::{from_comma_delimited, fmt_comma_delimited};
 
 /// The `Allow` header.
 /// See also https://tools.ietf.org/html/rfc7231#section-7.4.1
@@ -9,23 +6,9 @@ use header::parsing::{from_comma_delimited, fmt_comma_delimited};
 #[derive(Clone, PartialEq, Debug)]
 pub struct Allow(pub Vec<Method>);
 
-deref!(Allow => Vec<Method>);
-
-impl Header for Allow {
-    fn header_name() -> &'static str {
-        "Allow"
-    }
-
-    fn parse_header(raw: &[Vec<u8>]) -> Option<Allow> {
-        from_comma_delimited(raw).map(|vec| Allow(vec))
-    }
-}
-
-impl HeaderFormat for Allow {
-    fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt_comma_delimited(fmt, &self[])
-    }
-}
+impl_list_header!(Allow,
+                  "Allow",
+                  Vec<Method>);
 
 #[cfg(test)]
 mod tests {
