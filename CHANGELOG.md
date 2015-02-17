@@ -1,3 +1,31 @@
+### v0.1.13 (2015-02-17)
+
+
+#### Bug Fixes
+
+* **server:** Drain requests on drop. ([3d0f423e](https://github.com/hyperium/hyper/commit/3d0f423eb26c4f14aaf9f8a909b307f661a3c5d6), closes [#197](https://github.com/hyperium/hyper/issues/197), [#309](https://github.com/hyperium/hyper/issues/309))
+
+
+#### Features
+
+* **header:** Support arbitary status codes ([73978531](https://github.com/hyperium/hyper/commit/7397853148b8221c0eb8315ae2e5f195ad2e642c))
+* **headers:**
+  * Implement PartialOrd for QualityItem ([2859d7ef](https://github.com/hyperium/hyper/commit/2859d7ef4ecadc3927fa46292ebbb225da597690), closes [#314](https://github.com/hyperium/hyper/issues/314))
+  * add AcceptLanguage header ([20a585e3](https://github.com/hyperium/hyper/commit/20a585e30bbb060a91839de7e95fd75a95d03d93))
+  * add IfMatch header ([5df06d44](https://github.com/hyperium/hyper/commit/5df06d4465fae01ef08b926f1f3be9f32a0f5c80))
+* **server:** Rewrite the accept loop into a custom thread pool. ([3528fb9b](https://github.com/hyperium/hyper/commit/3528fb9b015a0959268452d5b42d5544c7b98a6a))
+
+
+#### Breaking Changes
+
+* This removes unregistered status codes from the enum. Use
+`FromPrimitive` methods to create them now. StatusCode and StatusClass can no
+longer be casted to `u16`, use `ToPrimitive` methods now.
+For example `status.to_u16().unwrap()` to get the status code number.
+
+ ([73978531](https://github.com/hyperium/hyper/commit/7397853148b8221c0eb8315ae2e5f195ad2e642c))
+
+
 ### v0.1.12 (2015-02-13)
 
 
