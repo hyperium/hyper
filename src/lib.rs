@@ -1,6 +1,6 @@
-#![feature(core, collections, io, old_io, os, old_path,
+#![feature(core, collections, io, net, os, path,
            std_misc, box_syntax, unsafe_destructor)]
-#![deny(missing_docs)]
+#![cfg_attr(test, deny(missing_docs))]
 #![cfg_attr(test, deny(warnings))]
 #![cfg_attr(test, feature(alloc, test))]
 
@@ -140,7 +140,7 @@ extern crate log;
 #[cfg(test)]
 extern crate test;
 
-pub use std::old_io::net::ip::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr, Port};
+
 pub use mimewrapper::mime;
 pub use url::Url;
 pub use client::Client;
@@ -150,7 +150,7 @@ pub use server::Server;
 
 use std::error::{Error, FromError};
 use std::fmt;
-use std::old_io::IoError;
+use std::io::Error as IoError;
 
 use self::HttpError::{HttpMethodError, HttpUriError, HttpVersionError,
                       HttpHeaderError, HttpStatusError, HttpIoError};
@@ -164,7 +164,7 @@ macro_rules! todo(
 macro_rules! inspect(
     ($name:expr, $value:expr) => ({
         let v = $value;
-        debug!("inspect: {:?} = {:?}", $name, v);
+        trace!("inspect: {:?} = {:?}", $name, v);
         v
     })
 );

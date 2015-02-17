@@ -1,67 +1,69 @@
 use std::fmt;
-use std::old_io::{IoResult, MemReader, MemWriter};
-use std::old_io::net::ip::SocketAddr;
+use std::io::{self, Read, Write, Cursor};
+use std::net::SocketAddr;
 
 use net::{NetworkStream, NetworkConnector};
 
 pub struct MockStream {
-    pub read: MemReader,
-    pub write: MemWriter,
+    pub read: Cursor<Vec<u8>>,
+    pub write: Vec<u8>,
 }
 
 impl Clone for MockStream {
     fn clone(&self) -> MockStream {
         MockStream {
-            read: MemReader::new(self.read.get_ref().to_vec()),
-            write: MemWriter::from_vec(self.write.get_ref().to_vec()),
+            read: Cursor::new(self.read.get_ref().clone()),
+            write: self.write.clone()
         }
-    }
-}
-
-impl PartialEq for MockStream {
-    fn eq(&self, other: &MockStream) -> bool {
-        self.read.get_ref() == other.read.get_ref() &&
-            self.write.get_ref() == other.write.get_ref()
     }
 }
 
 impl fmt::Debug for MockStream {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "MockStream {{ read: {:?}, write: {:?} }}",
-               self.read.get_ref(), self.write.get_ref())
+        write!(f, "MockStream {{ read: {:?}, write: {:?} }}", self.read.get_ref(), self.write)
     }
+}
 
+impl PartialEq for MockStream {
+    fn eq(&self, other: &MockStream) -> bool {
+        self.read.get_ref() == other.read.get_ref() && self.write == other.write
+    }
 }
 
 impl MockStream {
     pub fn new() -> MockStream {
         MockStream {
-            read: MemReader::new(vec![]),
-            write: MemWriter::new(),
+            read: Cursor::new(vec![]),
+            write: vec![],
         }
     }
 
     pub fn with_input(input: &[u8]) -> MockStream {
         MockStream {
-            read: MemReader::new(input.to_vec()),
-            write: MemWriter::new(),
+            read: Cursor::new(input.to_vec()),
+            write: vec![]
         }
     }
 }
-impl Reader for MockStream {
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
+
+impl Read for MockStream {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.read.read(buf)
     }
 }
 
-impl Writer for MockStream {
-    fn write_all(&mut self, msg: &[u8]) -> IoResult<()> {
-        self.write.write_all(msg)
+impl Write for MockStream {
+    fn write(&mut self, msg: &[u8]) -> io::Result<usize> {
+        Write::write(&mut self.write, msg)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
     }
 }
 
 impl NetworkStream for MockStream {
-    fn peer_name(&mut self) -> IoResult<SocketAddr> {
+    fn peer_addr(&mut self) -> io::Result<SocketAddr> {
         Ok("127.0.0.1:1337".parse().unwrap())
     }
 }
@@ -71,7 +73,7 @@ pub struct MockConnector;
 impl NetworkConnector for MockConnector {
     type Stream = MockStream;
 
-    fn connect(&mut self, _host: &str, _port: u16, _scheme: &str) -> IoResult<MockStream> {
+    fn connect(&mut self, _host: &str, _port: u16, _scheme: &str) -> io::Result<MockStream> {
         Ok(MockStream::new())
     }
 }
@@ -86,8 +88,9 @@ macro_rules! mock_connector (
 
         impl ::net::NetworkConnector for $name {
             type Stream = ::mock::MockStream;
-            fn connect(&mut self, host: &str, port: u16, scheme: &str) -> ::std::old_io::IoResult<::mock::MockStream> {
+            fn connect(&mut self, host: &str, port: u16, scheme: &str) -> ::std::io::Result<::mock::MockStream> {
                 use std::collections::HashMap;
+                use std::io::Cursor;
                 debug!("MockStream::connect({:?}, {:?}, {:?})", host, port, scheme);
                 let mut map = HashMap::new();
                 $(map.insert($url, $res);)*
@@ -97,8 +100,8 @@ macro_rules! mock_connector (
                 // ignore port for now
                 match map.get(&*key) {
                     Some(res) => Ok(::mock::MockStream {
-                        write: ::std::old_io::MemWriter::new(),
-                        read: ::std::old_io::MemReader::new(res.to_string().into_bytes())
+                        write: vec![],
+                        read: Cursor::new(res.to_string().into_bytes()),
                     }),
                     None => panic!("{:?} doesn't know url {}", stringify!($name), key)
                 }

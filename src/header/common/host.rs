@@ -1,5 +1,4 @@
 use header::{Header, HeaderFormat};
-use Port;
 use std::fmt;
 use header::parsing::from_one_raw_str;
 
@@ -15,7 +14,7 @@ pub struct Host {
     /// The hostname, such a example.domain.
     pub hostname: String,
     /// An optional port number.
-    pub port: Option<Port>
+    pub port: Option<u16>
 }
 
 impl Header for Host {
