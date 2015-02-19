@@ -1,4 +1,4 @@
-#![feature(env, io)]
+#![feature(env, old_io)]
 extern crate hyper;
 
 use std::env;
