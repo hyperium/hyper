@@ -108,7 +108,7 @@ macro_rules! impl_list_header(
 
         impl ::std::fmt::Display for $from {
             fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-                use header::HeaderFormat;
+                use $crate::header::HeaderFormat;
                 self.fmt_header(f)
             }
         }
@@ -138,7 +138,7 @@ macro_rules! impl_header(
 
         impl ::std::fmt::Display for $from {
             fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-                use header::HeaderFormat;
+                use $crate::header::HeaderFormat;
                 self.fmt_header(f)
             }
         }
