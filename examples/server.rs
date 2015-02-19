@@ -1,4 +1,4 @@
-#![feature(io)]
+#![feature(old_io)]
 extern crate hyper;
 #[macro_use] extern crate log;
 
