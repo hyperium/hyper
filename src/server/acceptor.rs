@@ -1,4 +1,4 @@
-use std::thread::{Thread, JoinGuard};
+use std::thread::{self, JoinGuard};
 use std::sync::Arc;
 use std::sync::mpsc;
 use net::NetworkAcceptor;
@@ -34,7 +34,7 @@ impl<A: NetworkAcceptor + 'static> AcceptorPool<A> {
         for _ in 0..threads { spawn() }
 
         // Spawn the supervisor
-        Thread::scoped(move || for () in supervisor_rx.iter() { spawn() })
+        thread::scoped(move || for () in supervisor_rx.iter() { spawn() })
     }
 }
 
@@ -43,7 +43,7 @@ where A: NetworkAcceptor + 'static,
       F: Fn(<A as NetworkAcceptor>::Stream) + Send + Sync + 'static {
     use std::old_io::EndOfFile;
 
-    Thread::spawn(move || {
+    thread::spawn(move || {
         let sentinel = Sentinel::new(supervisor, ());
 
         loop {
