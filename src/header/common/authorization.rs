@@ -22,7 +22,7 @@ impl<S: Scheme> DerefMut for Authorization<S> {
     }
 }
 
-impl<S: Scheme> Header for Authorization<S> {
+impl<S: Scheme + 'static> Header for Authorization<S> {
     fn header_name() -> &'static str {
         "Authorization"
     }
@@ -43,7 +43,7 @@ impl<S: Scheme> Header for Authorization<S> {
     }
 }
 
-impl<S: Scheme> HeaderFormat for Authorization<S> {
+impl<S: Scheme + 'static> HeaderFormat for Authorization<S> {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match Scheme::scheme(None::<S>) {
             Some(scheme) => try!(write!(fmt, "{} ", scheme)),

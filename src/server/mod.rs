@@ -56,7 +56,7 @@ impl Server<HttpListener> {
 
 impl<
 L: NetworkListener<Acceptor=A> + Send,
-A: NetworkAcceptor<Stream=S> + Send,
+A: NetworkAcceptor<Stream=S> + Send + 'static,
 S: NetworkStream + Clone + Send> Server<L> {
     /// Creates a new server that will handle `HttpStream`s.
     pub fn with_listener(ip: IpAddr, port: Port, listener: L) -> Server<L> {
@@ -68,7 +68,7 @@ S: NetworkStream + Clone + Send> Server<L> {
     }
 
     /// Binds to a socket, and starts handling connections using a task pool.
-    pub fn listen_threads<H: Handler>(mut self, handler: H, threads: usize) -> HttpResult<Listening<L::Acceptor>> {
+    pub fn listen_threads<H: Handler + 'static>(mut self, handler: H, threads: usize) -> HttpResult<Listening<L::Acceptor>> {
         debug!("binding to {:?}:{:?}", self.ip, self.port);
         let acceptor = try!(self.listener.listen((self.ip, self.port)));
         let socket = try!(acceptor.socket_name());
@@ -85,7 +85,7 @@ S: NetworkStream + Clone + Send> Server<L> {
     }
 
     /// Binds to a socket and starts handling connections.
-    pub fn listen<H: Handler>(self, handler: H) -> HttpResult<Listening<L::Acceptor>> {
+    pub fn listen<H: Handler + 'static>(self, handler: H) -> HttpResult<Listening<L::Acceptor>> {
         self.listen_threads(handler, os::num_cpus() * 5 / 4)
     }
 
