@@ -33,7 +33,7 @@ impl Header for IfNoneMatch {
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<IfNoneMatch> {
         from_one_raw_str(raw).and_then(|s: String| {
-            let slice = &s[];
+            let slice = &s[..];
             match slice {
                 "" => None,
                 "*" => Some(IfNoneMatch::Any),
@@ -47,7 +47,7 @@ impl HeaderFormat for IfNoneMatch {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             IfNoneMatch::Any => { write!(fmt, "*") }
-            IfNoneMatch::EntityTags(ref fields) => { fmt_comma_delimited(fmt, &fields[]) }
+            IfNoneMatch::EntityTags(ref fields) => { fmt_comma_delimited(fmt, &fields[..]) }
         }
     }
 }

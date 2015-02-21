@@ -1,4 +1,4 @@
-#![feature(io)]
+#![feature(old_io)]
 extern crate hyper;
 #[macro_use] extern crate log;
 
@@ -21,7 +21,7 @@ macro_rules! try_return(
 
 fn echo(mut req: Request, mut res: Response) {
     match req.uri {
-        AbsolutePath(ref path) => match (&req.method, &path[]) {
+        AbsolutePath(ref path) => match (&req.method, &path[..]) {
             (&Get, "/") | (&Get, "/echo") => {
                 let out = b"Try POST /echo";
 

@@ -1,6 +1,7 @@
 //! Client Responses
 use std::num::FromPrimitive;
 use std::old_io::{BufferedReader, IoResult};
+use std::marker::PhantomData;
 
 use header;
 use header::{ContentLength, TransferEncoding};
@@ -23,7 +24,12 @@ pub struct Response<S = HttpStream> {
     pub version: version::HttpVersion,
     status_raw: RawStatus,
     body: HttpReader<BufferedReader<Box<NetworkStream + Send>>>,
+
+    _marker: PhantomData<S>,
 }
+
+//FIXME: remove once https://github.com/rust-lang/issues/22629 is fixed
+unsafe impl<S: Send> Send for Response<S> {}
 
 impl Response {
 
@@ -72,6 +78,7 @@ impl Response {
             headers: headers,
             body: body,
             status_raw: raw_status,
+            _marker: PhantomData,
         })
     }
 
@@ -98,6 +105,7 @@ mod tests {
     use std::borrow::Cow::Borrowed;
     use std::boxed::BoxAny;
     use std::old_io::BufferedReader;
+    use std::marker::PhantomData;
 
     use header::Headers;
     use header::TransferEncoding;
@@ -119,7 +127,8 @@ mod tests {
             headers: Headers::new(),
             version: version::HttpVersion::Http11,
             body: EofReader(BufferedReader::new(box MockStream::new() as Box<NetworkStream + Send>)),
-            status_raw: RawStatus(200, Borrowed("OK"))
+            status_raw: RawStatus(200, Borrowed("OK")),
+            _marker: PhantomData,
         };
 
         let b = res.into_inner().downcast::<MockStream>().ok().unwrap();

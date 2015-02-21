@@ -16,7 +16,7 @@ impl Header for CacheControl {
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<CacheControl> {
         let directives = raw.iter()
-            .filter_map(|line| from_one_comma_delimited(&line[]))
+            .filter_map(|line| from_one_comma_delimited(&line[..]))
             .collect::<Vec<Vec<CacheDirective>>>()
             .concat();
         if directives.len() > 0 {
@@ -29,7 +29,7 @@ impl Header for CacheControl {
 
 impl HeaderFormat for CacheControl {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt_comma_delimited(fmt, &self[])
+        fmt_comma_delimited(fmt, &self[..])
     }
 }
 
@@ -88,7 +88,7 @@ impl fmt::Display for CacheDirective {
             ProxyRevalidate => "proxy-revalidate",
             SMaxAge(secs) => return write!(f, "s-maxage={}", secs),
 
-            Extension(ref name, None) => &name[],
+            Extension(ref name, None) => &name[..],
             Extension(ref name, Some(ref arg)) => return write!(f, "{}={}", name, arg),
 
         }, f)

@@ -39,7 +39,7 @@ impl<T: fmt::Display> fmt::Display for QualityItem<T> {
             write!(f, "{}", self.item)
         } else {
             write!(f, "{}; q={}", self.item,
-                   format!("{:.3}", self.quality).trim_right_matches(&['0', '.'][]))
+                   format!("{:.3}", self.quality).trim_right_matches(&['0', '.'][..]))
         }
     }
 }
