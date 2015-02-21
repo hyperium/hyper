@@ -42,7 +42,7 @@ impl FromStr for EntityTag {
     type Err = ();
     fn from_str(s: &str) -> Result<EntityTag, ()> {
         let length: usize = s.len();
-        let slice = &s[];
+        let slice = &s[..];
 
         // Early exits:
         // 1. The string is empty, or,

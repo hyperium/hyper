@@ -77,7 +77,7 @@ impl Request<Fresh> {
         //TODO: this needs a test
         if let Some(ref q) = self.url.query {
             uri.push('?');
-            uri.push_str(&q[]);
+            uri.push_str(&q[..]);
         }
 
         debug!("writing head: {:?} {:?} {:?}", self.method, uri, self.version);
@@ -185,7 +185,7 @@ mod tests {
         let stream = *req.body.end().unwrap()
             .into_inner().downcast::<MockStream>().ok().unwrap();
         let bytes = stream.write.into_inner();
-        let s = from_utf8(&bytes[]).unwrap();
+        let s = from_utf8(&bytes[..]).unwrap();
         assert!(!s.contains("Content-Length:"));
         assert!(!s.contains("Transfer-Encoding:"));
     }
@@ -199,7 +199,7 @@ mod tests {
         let stream = *req.body.end().unwrap()
             .into_inner().downcast::<MockStream>().ok().unwrap();
         let bytes = stream.write.into_inner();
-        let s = from_utf8(&bytes[]).unwrap();
+        let s = from_utf8(&bytes[..]).unwrap();
         assert!(!s.contains("Content-Length:"));
         assert!(!s.contains("Transfer-Encoding:"));
     }

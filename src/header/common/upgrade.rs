@@ -55,7 +55,7 @@ impl Header for Upgrade {
 impl HeaderFormat for Upgrade {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let Upgrade(ref parts) = *self;
-        fmt_comma_delimited(fmt, &parts[])
+        fmt_comma_delimited(fmt, &parts[..])
     }
 }
 

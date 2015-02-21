@@ -64,7 +64,7 @@ impl Header for Connection {
 impl HeaderFormat for Connection {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let Connection(ref parts) = *self;
-        fmt_comma_delimited(fmt, &parts[])
+        fmt_comma_delimited(fmt, &parts[..])
     }
 }
 

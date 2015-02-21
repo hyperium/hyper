@@ -197,7 +197,7 @@ impl<'a, U: IntoUrl, C: NetworkConnector> RequestBuilder<'a, U, C> {
                 // punching borrowck here
                 let loc = match res.headers.get::<Location>() {
                     Some(&Location(ref loc)) => {
-                        Some(UrlParser::new().base_url(&url).parse(&loc[]))
+                        Some(UrlParser::new().base_url(&url).parse(&loc[..]))
                     }
                     None => {
                         debug!("no Location header");
@@ -394,7 +394,7 @@ mod tests {
     #[test]
     fn test_redirect_followif() {
         fn follow_if(url: &Url) -> bool {
-            !url.serialize()[].contains("127.0.0.3")
+            !url.serialize().contains("127.0.0.3")
         }
         let mut client = Client::with_connector(MockRedirectPolicy);
         client.set_redirect_policy(RedirectPolicy::FollowIf(follow_if));
