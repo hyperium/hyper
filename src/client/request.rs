@@ -1,5 +1,6 @@
 //! Client Requests
 use std::old_io::{BufferedWriter, IoResult};
+use std::marker::PhantomData;
 
 use url::Url;
 
@@ -25,6 +26,8 @@ pub struct Request<W> {
     body: HttpWriter<BufferedWriter<Box<NetworkStream + Send>>>,
     headers: Headers,
     method: method::Method,
+
+    _marker: PhantomData<W>,
 }
 
 impl<W> Request<W> {
@@ -66,7 +69,8 @@ impl Request<Fresh> {
             headers: headers,
             url: url,
             version: version::HttpVersion::Http11,
-            body: stream
+            body: stream,
+            _marker: PhantomData,
         })
     }
 
@@ -136,7 +140,8 @@ impl Request<Fresh> {
             headers: self.headers,
             url: self.url,
             version: self.version,
-            body: stream
+            body: stream,
+            _marker: PhantomData,
         })
     }
 
