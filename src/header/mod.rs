@@ -139,7 +139,7 @@ impl Headers {
         loop {
             match try!(http::read_header(rdr)) {
                 Some((name, value)) => {
-                    debug!("raw header: {:?}={:?}", name, &value[]);
+                    debug!("raw header: {:?}={:?}", name, &value[..]);
                     count += (name.len() + value.len()) as u32;
                     if count > MAX_HEADERS_LENGTH {
                         debug!("Max header size reached, aborting");
@@ -183,14 +183,14 @@ impl Headers {
             .get(&UniCase(Borrowed(unsafe { mem::transmute::<&str, &str>(name) })))
             .and_then(|item| {
                 if let Some(ref raw) = *item.raw {
-                    return Some(&raw[]);
+                    return Some(&raw[..]);
                 }
 
                 let raw = vec![item.typed.as_ref().unwrap().to_string().into_bytes()];
                 item.raw.set(raw);
 
                 let raw = item.raw.as_ref().unwrap();
-                Some(&raw[])
+                Some(&raw[..])
             })
     }
 
@@ -451,7 +451,7 @@ fn get_or_parse_mut<H: Header + HeaderFormat>(item: &mut Item) -> Option<&mut It
 
 fn parse<H: Header + HeaderFormat>(item: &Item) {
     match *item.raw {
-        Some(ref raw) => match Header::parse_header(&raw[]) {
+        Some(ref raw) => match Header::parse_header(&raw[..]) {
             Some::<H>(h) => item.typed.set(box h as Box<HeaderFormat + Send + Sync>),
             None => ()
         },
@@ -476,7 +476,7 @@ impl fmt::Display for Item {
             None => match *self.raw {
                 Some(ref raw) => {
                     for part in raw.iter() {
-                        match from_utf8(&part[]) {
+                        match from_utf8(&part[..]) {
                             Ok(s) => try!(fmt.write_str(s)),
                             Err(e) => {
                                 error!("raw header value is not utf8. header={:?}, error={:?}", part, e);
@@ -595,7 +595,7 @@ mod tests {
                 return None;
             }
             // we JUST checked that raw.len() == 1, so raw[0] WILL exist.
-            match from_utf8(unsafe { &raw[].get_unchecked(0)[] }) {
+            match from_utf8(unsafe { &raw.get_unchecked(0)[..] }) {
                 Ok(s) => FromStr::from_str(s).ok(),
                 Err(_) => None
             }.map(|u| CrazyLength(Some(false), u))
@@ -671,7 +671,7 @@ mod tests {
         let mut headers = Headers::new();
         headers.set(ContentLength(10));
         headers.set_raw("content-LENGTH", vec![b"20".to_vec()]);
-        assert_eq!(headers.get_raw("Content-length").unwrap(), &[b"20".to_vec()][]);
+        assert_eq!(headers.get_raw("Content-length").unwrap(), &[b"20".to_vec()][..]);
         assert_eq!(headers.get(), Some(&ContentLength(20)));
     }
 

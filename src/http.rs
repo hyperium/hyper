@@ -395,7 +395,7 @@ pub fn read_method<R: Reader>(stream: &mut R) -> HttpResult<method::Method> {
 
     debug!("maybe_method = {:?}", maybe_method);
 
-    match (maybe_method, &buf[]) {
+    match (maybe_method, &buf[..]) {
         (Some(method), _) => Ok(method),
         (None, ext) => {
             // We already checked that the buffer is ASCII
@@ -664,7 +664,7 @@ pub fn read_status<R: Reader>(stream: &mut R) -> HttpResult<RawStatus> {
         }
     }
 
-    let reason = match str::from_utf8(&buf[]) {
+    let reason = match str::from_utf8(&buf[..]) {
         Ok(s) => s.trim(),
         Err(_) => return Err(HttpStatusError)
     };

@@ -50,13 +50,13 @@ macro_rules! bench_header(
             fn bench_parse(b: &mut Bencher) {
                 let val = $value;
                 b.iter(|| {
-                    let _: $ty = Header::parse_header(&val[]).unwrap();
+                    let _: $ty = Header::parse_header(&val[..]).unwrap();
                 });
             }
 
             #[bench]
             fn bench_format(b: &mut Bencher) {
-                let val: $ty = Header::parse_header(&$value[]).unwrap();
+                let val: $ty = Header::parse_header(&$value[..]).unwrap();
                 let fmt = HeaderFormatter(&val);
                 b.iter(|| {
                     format!("{}", fmt);
@@ -102,7 +102,7 @@ macro_rules! impl_list_header(
 
         impl $crate::header::HeaderFormat for $from {
             fn fmt_header(&self, fmt: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-                $crate::header::parsing::fmt_comma_delimited(fmt, &self[])
+                $crate::header::parsing::fmt_comma_delimited(fmt, &self[..])
             }
         }
 

@@ -29,7 +29,7 @@ impl header::Header for AccessControlAllowOrigin {
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<AccessControlAllowOrigin> {
         if raw.len() == 1 {
-            match str::from_utf8(unsafe { &raw[].get_unchecked(0)[] }) {
+            match str::from_utf8(unsafe { &raw.get_unchecked(0)[..] }) {
                 Ok(s) => {
                     if s == "*" {
                         Some(AccessControlAllowOrigin::AllowStar)

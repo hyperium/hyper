@@ -26,7 +26,7 @@ impl Header for Cookie {
     fn parse_header(raw: &[Vec<u8>]) -> Option<Cookie> {
         let mut cookies = Vec::with_capacity(raw.len());
         for cookies_raw in raw.iter() {
-            match from_utf8(&cookies_raw[]) {
+            match from_utf8(&cookies_raw[..]) {
                 Ok(cookies_str) => {
                     for cookie_str in cookies_str.split(';') {
                         match cookie_str.trim().parse() {
@@ -82,7 +82,7 @@ impl Cookie {
 
 #[test]
 fn test_parse() {
-    let h = Header::parse_header(&[b"foo=bar; baz=quux".to_vec()][]);
+    let h = Header::parse_header(&[b"foo=bar; baz=quux".to_vec()][..]);
     let c1 = CookiePair::new("foo".to_string(), "bar".to_string());
     let c2 = CookiePair::new("baz".to_string(), "quux".to_string());
     assert_eq!(h, Some(Cookie(vec![c1, c2])));
@@ -99,7 +99,7 @@ fn test_fmt() {
     let mut headers = Headers::new();
     headers.set(cookie_header);
 
-    assert_eq!(&headers.to_string()[], "Cookie: foo=bar; baz=quux\r\n");
+    assert_eq!(&headers.to_string()[..], "Cookie: foo=bar; baz=quux\r\n");
 }
 
 #[test]

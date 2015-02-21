@@ -21,7 +21,7 @@ impl Header for Vary {
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<Vary> {
         from_one_raw_str(raw).and_then(|s: String| {
-            let slice = &s[];
+            let slice = &s[..];
             match slice {
                 "" => None,
                 "*" => Some(Vary::Any),
@@ -35,7 +35,7 @@ impl HeaderFormat for Vary {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Vary::Any => { write!(fmt, "*") }
-            Vary::Headers(ref fields) => { fmt_comma_delimited(fmt, &fields[]) }
+            Vary::Headers(ref fields) => { fmt_comma_delimited(fmt, &fields[..]) }
         }
     }
 }
