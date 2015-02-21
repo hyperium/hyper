@@ -9,11 +9,10 @@ use std::borrow::Cow::{Borrowed, Owned};
 use std::fmt;
 use std::raw::TraitObject;
 use std::str::from_utf8;
-use std::string::CowString;
 use std::collections::HashMap;
 use std::collections::hash_map::{Iter, Entry};
 use std::iter::{FromIterator, IntoIterator};
-use std::borrow::IntoCow;
+use std::borrow::{Cow, IntoCow};
 use std::{mem, raw};
 
 use uany::{UnsafeAnyExt};
@@ -30,7 +29,7 @@ mod common;
 mod shared;
 pub mod parsing;
 
-type HeaderName = UniCase<CowString<'static>>;
+type HeaderName = UniCase<Cow<'static, str>>;
 
 /// A trait for any object that will represent a header field and value.
 ///
