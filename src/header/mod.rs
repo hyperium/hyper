@@ -203,7 +203,7 @@ impl Headers {
     /// # let mut headers = Headers::new();
     /// headers.set_raw("content-length", vec![b"5".to_vec()]);
     /// ```
-    pub fn set_raw<K: IntoCow<'static, String, str>>(&mut self, name: K, value: Vec<Vec<u8>>) {
+    pub fn set_raw<K: IntoCow<'static, str>>(&mut self, name: K, value: Vec<Vec<u8>>) {
         self.data.insert(UniCase(name.into_cow()), Item::new_raw(value));
     }
 
