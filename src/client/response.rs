@@ -28,6 +28,9 @@ pub struct Response<S = HttpStream> {
     _marker: PhantomData<S>,
 }
 
+//FIXME: remove once https://github.com/rust-lang/issues/22629 is fixed
+unsafe impl<S: Send> Send for Response<S> {}
+
 impl Response {
 
     /// Creates a new response from a server.

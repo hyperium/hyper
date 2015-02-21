@@ -30,6 +30,9 @@ pub struct Request<W> {
     _marker: PhantomData<W>,
 }
 
+//FIXME: remove once https://github.com/rust-lang/issues/22629 is fixed
+unsafe impl<W> Send for Request<W> {}
+
 impl<W> Request<W> {
     /// Read the Request headers.
     #[inline]

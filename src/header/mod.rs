@@ -531,12 +531,9 @@ impl<'a, H: HeaderFormat> fmt::Debug for HeaderFormatter<'a, H> {
 mod tests {
     use std::old_io::MemReader;
     use std::fmt;
-    use std::borrow::Cow::Borrowed;
-    use std::hash::{SipHasher, hash};
     use mime::Mime;
     use mime::TopLevel::Text;
     use mime::SubLevel::Plain;
-    use unicase::UniCase;
     use super::{Headers, Header, HeaderFormat, ContentLength, ContentType,
                 Accept, Host, QualityItem};
 
@@ -544,15 +541,6 @@ mod tests {
 
     fn mem(s: &str) -> MemReader {
         MemReader::new(s.as_bytes().to_vec())
-    }
-
-    #[test]
-    fn test_case_insensitive() {
-        let a = UniCase(Borrowed("foobar"));
-        let b = UniCase(Borrowed("FOOBAR"));
-
-        assert_eq!(a, b);
-        assert_eq!(hash::<_, SipHasher>(&a), hash::<_, SipHasher>(&b));
     }
 
     #[test]

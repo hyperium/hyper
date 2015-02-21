@@ -1,4 +1,4 @@
-#![feature(core, collections, hash, io, old_io, os, old_path,
+#![feature(core, collections, io, old_io, os, old_path,
            std_misc, box_syntax, unsafe_destructor)]
 #![deny(missing_docs)]
 #![cfg_attr(test, deny(warnings))]
