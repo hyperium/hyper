@@ -1,13 +1,13 @@
 use std::thread::{self, JoinGuard};
-use std::sync::Arc;
 use std::sync::mpsc;
+use std::collections::VecMap;
 use net::NetworkAcceptor;
 
 pub struct AcceptorPool<A: NetworkAcceptor> {
     acceptor: A
 }
 
-impl<A: NetworkAcceptor + 'static> AcceptorPool<A> {
+impl<'a, A: NetworkAcceptor + 'a> AcceptorPool<A> {
     /// Create a thread pool to manage the acceptor.
     pub fn new(acceptor: A) -> AcceptorPool<A> {
         AcceptorPool { acceptor: acceptor }
@@ -18,33 +18,39 @@ impl<A: NetworkAcceptor + 'static> AcceptorPool<A> {
     /// ## Panics
     ///
     /// Panics if threads == 0.
-    pub fn accept<F>(self, work: F, threads: usize) -> JoinGuard<'static, ()>
-        where F: Fn(A::Stream) + Send + Sync + 'static {
+    pub fn accept<F>(self, work: F, threads: usize)
+        where F: Fn(A::Stream) + Send + Sync + 'a {
         assert!(threads != 0, "Can't accept on 0 threads.");
-
-        // Replace with &F when Send changes land.
-        let work = Arc::new(work);
 
         let (super_tx, supervisor_rx) = mpsc::channel();
 
-        let spawn =
-            move || spawn_with(super_tx.clone(), work.clone(), self.acceptor.clone());
+        let counter = &mut 0;
+        let work = &work;
+        let mut spawn = move || {
+            let id = *counter;
+            let guard = spawn_with(super_tx.clone(), work, self.acceptor.clone(), id);
+            *counter += 1;
+            (id, guard)
+        };
 
         // Go
-        for _ in 0..threads { spawn() }
+        let mut guards: VecMap<_> = (0..threads).map(|_| spawn()).collect();
 
-        // Spawn the supervisor
-        thread::scoped(move || for () in supervisor_rx.iter() { spawn() })
+        for id in supervisor_rx.iter() {
+            guards.remove(&id);
+            let (id, guard) = spawn();
+            guards.insert(id, guard);
+        }
     }
 }
 
-fn spawn_with<A, F>(supervisor: mpsc::Sender<()>, work: Arc<F>, mut acceptor: A)
-where A: NetworkAcceptor + 'static,
-      F: Fn(<A as NetworkAcceptor>::Stream) + Send + Sync + 'static {
+fn spawn_with<'a, A, F>(supervisor: mpsc::Sender<usize>, work: &'a F, mut acceptor: A, id: usize) -> JoinGuard<'a, ()>
+where A: NetworkAcceptor + 'a,
+      F: Fn(<A as NetworkAcceptor>::Stream) + Send + Sync + 'a {
     use std::old_io::EndOfFile;
 
-    thread::spawn(move || {
-        let sentinel = Sentinel::new(supervisor, ());
+    thread::scoped(move || {
+        let sentinel = Sentinel::new(supervisor, id);
 
         loop {
             match acceptor.accept() {
@@ -60,7 +66,7 @@ where A: NetworkAcceptor + 'static,
                 }
             }
         }
-    });
+    })
 }
 
 struct Sentinel<T: Send> {

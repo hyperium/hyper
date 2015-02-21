@@ -2,7 +2,7 @@
 use std::old_io::{Listener, BufferedReader, BufferedWriter};
 use std::old_io::net::ip::{IpAddr, Port, SocketAddr};
 use std::os;
-use std::thread::JoinGuard;
+use std::thread::{self, JoinGuard};
 
 pub use self::request::Request;
 pub use self::response::Response;
@@ -77,8 +77,10 @@ S: NetworkStream + Clone + Send> Server<L> {
         let pool = AcceptorPool::new(acceptor.clone());
         let work = move |stream| handle_connection(stream, &handler);
 
+        let guard = thread::scoped(move || pool.accept(work, threads));
+
         Ok(Listening {
-            _guard: pool.accept(work, threads),
+            _guard: guard,
             socket: socket,
             acceptor: acceptor
         })
