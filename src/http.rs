@@ -1,11 +1,10 @@
 //! Pieces pertaining to the HTTP message protocol.
-use std::borrow::Cow::{Borrowed, Owned};
+use std::borrow::Cow::{self, Borrowed, Owned};
 use std::borrow::IntoCow;
 use std::cmp::min;
 use std::old_io::{self, Reader, IoResult, BufWriter};
 use std::num::from_u16;
 use std::str;
-use std::string::CowString;
 
 use url::Url;
 use url::ParseError as UrlError;
@@ -587,7 +586,7 @@ pub type StatusLine = (HttpVersion, RawStatus);
 
 /// The raw status code and reason-phrase.
 #[derive(PartialEq, Debug)]
-pub struct RawStatus(pub u16, pub CowString<'static>);
+pub struct RawStatus(pub u16, pub Cow<'static, str>);
 
 impl Clone for RawStatus {
     fn clone(&self) -> RawStatus {
