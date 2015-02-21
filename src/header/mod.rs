@@ -12,7 +12,7 @@ use std::str::from_utf8;
 use std::string::CowString;
 use std::collections::HashMap;
 use std::collections::hash_map::{Iter, Entry};
-use std::iter::FromIterator;
+use std::iter::{FromIterator, IntoIterator};
 use std::borrow::IntoCow;
 use std::{mem, raw};
 
@@ -351,7 +351,7 @@ impl<'a> fmt::Debug for HeaderView<'a> {
 }
 
 impl<'a> Extend<HeaderView<'a>> for Headers {
-    fn extend<I: Iterator<Item=HeaderView<'a>>>(&mut self, iter: I) {
+    fn extend<I: IntoIterator<Item=HeaderView<'a>>>(&mut self, iter: I) {
         for header in iter {
             self.data.insert((*header.0).clone(), (*header.1).clone());
         }
@@ -359,7 +359,7 @@ impl<'a> Extend<HeaderView<'a>> for Headers {
 }
 
 impl<'a> FromIterator<HeaderView<'a>> for Headers {
-    fn from_iter<I: Iterator<Item=HeaderView<'a>>>(iter: I) -> Headers {
+    fn from_iter<I: IntoIterator<Item=HeaderView<'a>>>(iter: I) -> Headers {
         let mut headers = Headers::new();
         headers.extend(iter);
         headers
