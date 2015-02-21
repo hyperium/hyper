@@ -25,7 +25,7 @@ impl Header for IfMatch {
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<IfMatch> {
         from_one_raw_str(raw).and_then(|s: String| {
-            let slice = &s[];
+            let slice = &s[..];
             match slice {
                 "" => None,
                 "*" => Some(IfMatch::Any),
@@ -39,7 +39,7 @@ impl HeaderFormat for IfMatch {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             IfMatch::Any => write!(fmt, "*"),
-            IfMatch::EntityTags(ref fields) => fmt_comma_delimited(fmt, &fields[])
+            IfMatch::EntityTags(ref fields) => fmt_comma_delimited(fmt, &fields[..])
         }
     }
 }

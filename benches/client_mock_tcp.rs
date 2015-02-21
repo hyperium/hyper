@@ -1,4 +1,4 @@
-#![feature(collections, io, test)]
+#![feature(collections, old_io, test)]
 extern crate hyper;
 
 extern crate test;

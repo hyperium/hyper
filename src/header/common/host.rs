@@ -28,7 +28,7 @@ impl Header for Host {
             // FIXME: use rust-url to parse this
             // https://github.com/servo/rust-url/issues/42
             let idx = {
-                let slice = &s[];
+                let slice = &s[..];
                 if slice.char_at(1) == '[' {
                     match slice.rfind(']') {
                         Some(idx) => {

@@ -3,6 +3,7 @@
 //! These are responses sent by a `hyper::Server` to clients, after
 //! receiving a request.
 use std::old_io::IoResult;
+use std::marker::PhantomData;
 
 use time::now_utc;
 
@@ -22,7 +23,9 @@ pub struct Response<'a, W = Fresh> {
     // The status code for the request.
     status: status::StatusCode,
     // The outgoing headers on this response.
-    headers: header::Headers
+    headers: header::Headers,
+
+    _marker: PhantomData<W>
 }
 
 impl<'a, W> Response<'a, W> {
@@ -42,7 +45,8 @@ impl<'a, W> Response<'a, W> {
             status: status,
             version: version,
             body: body,
-            headers: headers
+            headers: headers,
+            _marker: PhantomData,
         }
     }
 
@@ -60,7 +64,8 @@ impl<'a> Response<'a, Fresh> {
             status: status::StatusCode::Ok,
             version: version::HttpVersion::Http11,
             headers: header::Headers::new(),
-            body: ThroughWriter(stream)
+            body: ThroughWriter(stream),
+            _marker: PhantomData,
         }
     }
 
@@ -119,7 +124,8 @@ impl<'a> Response<'a, Fresh> {
             version: self.version,
             body: stream,
             status: self.status,
-            headers: self.headers
+            headers: self.headers,
+            _marker: PhantomData,
         })
     }
 

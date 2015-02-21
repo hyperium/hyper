@@ -58,7 +58,7 @@ pub trait NetworkAcceptor: Clone + Send {
 }
 
 /// An iterator wrapper over a NetworkAcceptor.
-pub struct NetworkConnections<'a, N: NetworkAcceptor>(&'a mut N);
+pub struct NetworkConnections<'a, N: NetworkAcceptor + 'a>(&'a mut N);
 
 impl<'a, N: NetworkAcceptor> Iterator for NetworkConnections<'a, N> {
     type Item = IoResult<N::Stream>;

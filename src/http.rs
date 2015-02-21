@@ -1,11 +1,10 @@
 //! Pieces pertaining to the HTTP message protocol.
-use std::borrow::Cow::{Borrowed, Owned};
+use std::borrow::Cow::{self, Borrowed, Owned};
 use std::borrow::IntoCow;
 use std::cmp::min;
 use std::old_io::{self, Reader, IoResult, BufWriter};
 use std::num::from_u16;
 use std::str;
-use std::string::CowString;
 
 use url::Url;
 use url::ParseError as UrlError;
@@ -395,7 +394,7 @@ pub fn read_method<R: Reader>(stream: &mut R) -> HttpResult<method::Method> {
 
     debug!("maybe_method = {:?}", maybe_method);
 
-    match (maybe_method, &buf[]) {
+    match (maybe_method, &buf[..]) {
         (Some(method), _) => Ok(method),
         (None, ext) => {
             // We already checked that the buffer is ASCII
@@ -587,7 +586,7 @@ pub type StatusLine = (HttpVersion, RawStatus);
 
 /// The raw status code and reason-phrase.
 #[derive(PartialEq, Debug)]
-pub struct RawStatus(pub u16, pub CowString<'static>);
+pub struct RawStatus(pub u16, pub Cow<'static, str>);
 
 impl Clone for RawStatus {
     fn clone(&self) -> RawStatus {
@@ -664,7 +663,7 @@ pub fn read_status<R: Reader>(stream: &mut R) -> HttpResult<RawStatus> {
         }
     }
 
-    let reason = match str::from_utf8(&buf[]) {
+    let reason = match str::from_utf8(&buf[..]) {
         Ok(s) => s.trim(),
         Err(_) => return Err(HttpStatusError)
     };

@@ -1,5 +1,6 @@
 //! Client Requests
 use std::old_io::{BufferedWriter, IoResult};
+use std::marker::PhantomData;
 
 use url::Url;
 
@@ -25,6 +26,8 @@ pub struct Request<W> {
     body: HttpWriter<BufferedWriter<Box<NetworkStream + Send>>>,
     headers: Headers,
     method: method::Method,
+
+    _marker: PhantomData<W>,
 }
 
 impl<W> Request<W> {
@@ -66,7 +69,8 @@ impl Request<Fresh> {
             headers: headers,
             url: url,
             version: version::HttpVersion::Http11,
-            body: stream
+            body: stream,
+            _marker: PhantomData,
         })
     }
 
@@ -77,7 +81,7 @@ impl Request<Fresh> {
         //TODO: this needs a test
         if let Some(ref q) = self.url.query {
             uri.push('?');
-            uri.push_str(&q[]);
+            uri.push_str(&q[..]);
         }
 
         debug!("writing head: {:?} {:?} {:?}", self.method, uri, self.version);
@@ -136,7 +140,8 @@ impl Request<Fresh> {
             headers: self.headers,
             url: self.url,
             version: self.version,
-            body: stream
+            body: stream,
+            _marker: PhantomData,
         })
     }
 
@@ -185,7 +190,7 @@ mod tests {
         let stream = *req.body.end().unwrap()
             .into_inner().downcast::<MockStream>().ok().unwrap();
         let bytes = stream.write.into_inner();
-        let s = from_utf8(&bytes[]).unwrap();
+        let s = from_utf8(&bytes[..]).unwrap();
         assert!(!s.contains("Content-Length:"));
         assert!(!s.contains("Transfer-Encoding:"));
     }
@@ -199,7 +204,7 @@ mod tests {
         let stream = *req.body.end().unwrap()
             .into_inner().downcast::<MockStream>().ok().unwrap();
         let bytes = stream.write.into_inner();
-        let s = from_utf8(&bytes[]).unwrap();
+        let s = from_utf8(&bytes[..]).unwrap();
         assert!(!s.contains("Content-Length:"));
         assert!(!s.contains("Transfer-Encoding:"));
     }
