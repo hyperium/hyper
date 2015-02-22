@@ -206,6 +206,11 @@ impl Headers {
         self.data.insert(UniCase(name.into_cow()), Item::new_raw(value));
     }
 
+    /// Remove a header set by set_raw
+    pub fn remove_raw(&mut self, name: &str) {
+        self.data.remove(&UniCase(name.into_cow()));
+    }
+
     /// Get a reference to the header field's value, if it exists.
     pub fn get<H: Header + HeaderFormat>(&self) -> Option<&H> {
         self.get_or_parse::<H>().map(|item| {
@@ -660,6 +665,14 @@ mod tests {
         headers.set_raw("content-LENGTH", vec![b"20".to_vec()]);
         assert_eq!(headers.get_raw("Content-length").unwrap(), &[b"20".to_vec()][..]);
         assert_eq!(headers.get(), Some(&ContentLength(20)));
+    }
+
+    #[test]
+    fn test_remove_raw() {
+        let mut headers = Headers::new();
+        headers.set_raw("content-LENGTH", vec![b"20".to_vec()]);
+        headers.remove_raw("content-LENGTH");
+        assert_eq!(headers.get_raw("Content-length"), None);
     }
 
     #[test]
