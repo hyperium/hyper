@@ -21,7 +21,7 @@ use unicase::UniCase;
 use self::cell::OptCell;
 use {http, HttpResult, HttpError};
 
-pub use self::shared::{Encoding, EntityTag, QualityItem, qitem};
+pub use self::shared::{Encoding, EntityTag, Quality, QualityItem, qitem};
 pub use self::common::*;
 
 mod cell;
@@ -540,7 +540,7 @@ mod tests {
     use mime::TopLevel::Text;
     use mime::SubLevel::Plain;
     use super::{Headers, Header, HeaderFormat, ContentLength, ContentType,
-                Accept, Host, QualityItem};
+                Accept, Host, qitem};
 
     use test::Bencher;
 
@@ -562,7 +562,7 @@ mod tests {
 
     #[test]
     fn test_accept() {
-        let text_plain = QualityItem{item: Mime(Text, Plain, vec![]), quality: 1f32};
+        let text_plain = qitem(Mime(Text, Plain, vec![]));
         let application_vendor = "application/vnd.github.v3.full+json; q=0.5".parse().unwrap();
 
         let accept = Header::parse_header([b"text/plain".to_vec()].as_slice());

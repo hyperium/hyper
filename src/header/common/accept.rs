@@ -33,7 +33,8 @@ impl_list_header!(Accept,
 mod tests {
     use mime::*;
 
-    use header::{Header, QualityItem, qitem};
+    use header::{Header, Quality, QualityItem, qitem};
+    
     use super::Accept;
 
     #[test]
@@ -49,7 +50,7 @@ mod tests {
     fn test_parse_header_with_quality() {
         let a: Accept = Header::parse_header([b"text/plain; charset=utf-8; q=0.5".to_vec()].as_slice()).unwrap();
         let b = Accept(vec![
-            QualityItem::new(Mime(TopLevel::Text, SubLevel::Plain, vec![(Attr::Charset, Value::Utf8)]), 0.5f32),
+            QualityItem::new(Mime(TopLevel::Text, SubLevel::Plain, vec![(Attr::Charset, Value::Utf8)]), Quality(500)),
         ]);
         assert_eq!(a, b);
     }

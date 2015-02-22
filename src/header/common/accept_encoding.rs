@@ -13,7 +13,7 @@ impl_list_header!(AcceptEncoding,
 
 #[cfg(test)]
 mod tests {
-    use header::{Encoding, Header, QualityItem};
+    use header::{Encoding, Header, qitem, Quality, QualityItem};
 
     use super::*;
 
@@ -21,8 +21,8 @@ mod tests {
     fn test_parse_header() {
         let a: AcceptEncoding = Header::parse_header([b"gzip;q=1.0, identity; q=0.5".to_vec()].as_slice()).unwrap();
         let b = AcceptEncoding(vec![
-            QualityItem{item: Encoding::Gzip, quality: 1f32},
-            QualityItem{item: Encoding::Identity, quality: 0.5f32},
+            qitem(Encoding::Gzip),
+            QualityItem::new(Encoding::Identity, Quality(500)),
         ]);
         assert_eq!(a, b);
     }
