@@ -35,9 +35,8 @@ use hyper::net::Fresh;
 use hyper::IpAddr::Ipv4Addr;
 
 fn hello(_: Request, mut res: Response<Fresh>) {
-    *res.status_mut() = StatusCode::Ok;
     let mut res = res.start().unwrap();
-    res.write(b"Hello World!");
+    res.write_all(b"Hello World!").unwrap();
     res.end().unwrap();
 }
 
