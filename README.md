@@ -26,9 +26,8 @@ Hello World Server:
 
 ```rust
 fn hello(_: Request, res: Response<Fresh>) {
-    *res.status_mut() = status::Ok;
     let mut res = res.start().unwrap();
-    res.write(b"Hello World!");
+    res.write_all(b"Hello World!").unwrap();
     res.end().unwrap();
 }
 
