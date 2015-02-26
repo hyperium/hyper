@@ -25,8 +25,17 @@ in non-backwards-compatible ways without warning.__
 Hello World Server:
 
 ```rust
-fn hello(_: Request, res: Response<Fresh>) {
-    *res.status_mut() = status::Ok;
+extern crate hyper;
+
+use hyper::status::StatusCode;
+use hyper::server::Server;
+use hyper::server::request::Request;
+use hyper::server::response::Response;
+use hyper::net::Fresh;
+use hyper::IpAddr::Ipv4Addr;
+
+fn hello(_: Request, mut res: Response<Fresh>) {
+    *res.status_mut() = StatusCode::Ok;
     let mut res = res.start().unwrap();
     res.write(b"Hello World!");
     res.end().unwrap();
@@ -41,6 +50,12 @@ fn main() {
 Client:
 
 ```rust
+extern crate hyper;
+
+use hyper::client::Client;
+use hyper::header::Connection;
+use hyper::header::ConnectionOption;
+
 fn main() {
     // Create a client.
     let mut client = Client::new();
@@ -48,7 +63,7 @@ fn main() {
     // Creating an outgoing request.
     let mut res = client.get("http://www.gooogle.com/")
         // set a header
-        .header(Connection(vec![Close]))
+        .header(Connection(vec![ConnectionOption::Close]))
         // let 'er go!
         .send().unwrap();
 
