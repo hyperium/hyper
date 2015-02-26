@@ -1,4 +1,4 @@
-use header::{self, Encoding};
+use header::Encoding;
 
 /// The `Transfer-Encoding` header.
 ///
