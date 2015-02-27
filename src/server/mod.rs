@@ -1,5 +1,6 @@
 //! HTTP Server
 use std::io::{BufReader, BufWriter};
+use std::net::ToSocketAddrs;
 use std::marker::PhantomData;
 use std::net::{IpAddr, SocketAddr};
 use std::os;
@@ -59,6 +60,7 @@ impl<'a, H: Handler + 'static> Server<'a, H, HttpListener> {
     pub fn http(handler: H) -> Server<'a, H, HttpListener> {
         Server::new(handler)
     }
+
     /// Creates a new server that will handler `HttpStreams`s using a TLS connection.
     pub fn https(handler: H, cert: &'a Path, key: &'a Path) -> Server<'a, H, HttpListener> {
         Server {
@@ -67,9 +69,7 @@ impl<'a, H: Handler + 'static> Server<'a, H, HttpListener> {
             _marker: PhantomData
         }
     }
-}
 
-impl<'a, H: Handler + 'static> Server<'a, H, HttpListener> {
     /// Binds to a socket, and starts handling connections using a task pool.
     pub fn listen_threads(self, ip: IpAddr, port: u16, threads: usize) -> HttpResult<Listening> {
         let addr = &(ip, port);
@@ -84,7 +84,9 @@ impl<'a, H: Handler + 'static> Server<'a, H, HttpListener> {
     pub fn listen(self, ip: IpAddr, port: u16) -> HttpResult<Listening> {
         self.listen_threads(ip, port, os::num_cpus() * 5 / 4)
     }
+
 }
+
 impl<
 'a,
 H: Handler + 'static,
@@ -108,6 +110,31 @@ S: NetworkStream + Clone + Send> Server<'a, H, L> {
     }
 }
 
+/// Bind to a socket and handle a single connection, then disconnect.
+///
+/// Blocks until one connection is accepted and a single request is handled.
+// Uses the FnOnce trait instead of Handler since the ownership mode is different.
+pub fn oneshot<T, F, S>(addr: S, ssl: Option<(&Path, &Path)>, handler: F) -> HttpResult<T>
+where F: FnOnce(Request, Response) -> T, S: ToSocketAddrs {
+    let socket = try!(addr.to_socket_addrs()).next().unwrap();
+
+    let addr = &(socket.ip(), socket.port());
+    let mut listener = try!(match ssl {
+        Some((cert, key)) => HttpListener::https(addr, cert, key),
+        None => HttpListener::http(addr)
+    });
+
+    let stream = try!(listener.accept());
+    drop(listener);
+
+    let mut rdr = BufReader::new(stream.clone());
+    let mut wrt = BufWriter::new(stream);
+
+    let res = Response::new(&mut wrt);
+    let req = try!(Request::new(&mut rdr, socket)); // TODO: Send 4XX
+
+    Ok(handler(req, res))
+}
 
 fn handle_connection<S, H>(mut stream: S, handler: &H)
 where S: NetworkStream + Clone, H: Handler {
