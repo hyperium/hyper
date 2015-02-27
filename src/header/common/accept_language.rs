@@ -13,7 +13,7 @@ pub struct Language{
 impl FromStr for Language {
     type Err = ();
     fn from_str(s: &str) -> Result<Language, ()> {
-        let mut i = s.split_str("-");
+        let mut i = s.split("-");
         let p = i.next();
         let s = i.next();
         match (p, s) {

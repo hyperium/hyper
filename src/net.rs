@@ -33,6 +33,7 @@ pub struct Streaming;
 
 /// An abstraction to listen for connections on a certain port.
 pub trait NetworkListener {
+    /// Type of Acceptor
     type Acceptor: NetworkAcceptor;
     /// Listens on a socket.
     fn listen<To: ToSocketAddr>(&mut self, addr: To) -> IoResult<Self::Acceptor>;
@@ -40,6 +41,7 @@ pub trait NetworkListener {
 
 /// An abstraction to receive `NetworkStream`s.
 pub trait NetworkAcceptor: Clone + Send {
+    /// Type of Stream to receive
     type Stream: NetworkStream + Send + Clone;
 
     /// Returns an iterator of streams.
@@ -89,6 +91,7 @@ impl<T: NetworkStream + Send + Clone> StreamClone for T {
 
 /// A connector creates a NetworkStream.
 pub trait NetworkConnector {
+    /// Type of Stream to create
     type Stream: NetworkStream + Send;
     /// Connect to a remote address.
     fn connect(&mut self, host: &str, port: Port, scheme: &str) -> IoResult<Self::Stream>;
