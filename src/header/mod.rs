@@ -21,7 +21,7 @@ use unicase::UniCase;
 use self::cell::OptCell;
 use {http, HttpResult, HttpError};
 
-pub use self::shared::{Encoding, EntityTag, QualityItem, qitem};
+pub use self::shared::{Charset,Encoding, EntityTag, QualityItem, qitem};
 pub use self::common::*;
 
 mod cell;
