@@ -1,3 +1,19 @@
+### v0.2.1 (2015-02-27)
+
+
+### v0.2.1 (2015-02-27)
+
+
+#### Bug Fixes
+
+* **rustup:** str.split and associated type changes ([1b6e6a04](https://github.com/hyperium/hyper/commit/1b6e6a040fa26a8b3855ac46ccbcd5ee78065c71))
+
+
+#### Features
+
+* **headers:** add remove_raw method and corresponding test ([4f576780](https://github.com/hyperium/hyper/commit/4f576780c24ff3f943d5f821730ba65f4cdf8d4a), closes [#326](https://github.com/hyperium/hyper/issues/326))
+
+
 ## v0.2.0 (2015-02-21)
 
 
