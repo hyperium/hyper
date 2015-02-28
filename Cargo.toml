@@ -1,7 +1,7 @@
 [package]
 
 name = "hyper"
-version = "0.2.0"
+version = "0.2.1"
 description = "A modern HTTP library."
 readme = "README.md"
 documentation = "http://hyperium.github.io/hyper/hyper/index.html"
@@ -21,3 +21,4 @@ time = "*"
 unicase = "*"
 unsafe-any = "*"
 url = "*"
+rand = "*" # src/client/mod.rs // for generate some keys which cookiejar needs.

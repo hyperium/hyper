@@ -17,6 +17,9 @@
 //! The returned value from is a `Response`, which provides easy access
 //! to the `status`, the `headers`, and the response body via the `Writer`
 //! trait.
+extern crate rand;
+use self::rand::Rng;
+
 use std::default::Default;
 use std::old_io::IoResult;
 use std::old_io::util::copy;
@@ -25,13 +28,17 @@ use std::iter::Extend;
 use url::UrlParser;
 use url::ParseError as UrlError;
 
-use header::{Headers, Header, HeaderFormat};
+use header::{Headers, Header, HeaderFormat, SetCookie};
+use header::Cookie;
 use header::{ContentLength, Location};
 use method::Method;
 use net::{NetworkConnector, HttpConnector, ContextVerifier};
 use status::StatusClass::Redirection;
 use {Url, Port, HttpResult};
 use HttpError::HttpUriError;
+
+use cookie::Cookie as CookiePair;
+use cookie::CookieJar;
 
 pub use self::request::Request;
 pub use self::response::Response;
@@ -44,6 +51,7 @@ pub mod response;
 /// Clients can handle things such as: redirect policy.
 pub struct Client<C> {
     connector: C,
+    cookies_policy: CookiesPolicy,
     redirect_policy: RedirectPolicy,
 }
 
@@ -67,6 +75,7 @@ impl<C: NetworkConnector> Client<C> {
     pub fn with_connector(connector: C) -> Client<C> {
         Client {
             connector: connector,
+            cookies_policy: Default::default(),
             redirect_policy: Default::default()
         }
     }
@@ -74,6 +83,11 @@ impl<C: NetworkConnector> Client<C> {
     /// Set the RedirectPolicy.
     pub fn set_redirect_policy(&mut self, policy: RedirectPolicy) {
         self.redirect_policy = policy;
+    }
+
+    /// Set the CookiesPolicy
+    pub fn set_cookies_policy(&mut self, policy: CookiesPolicy) {
+        self.cookies_policy = policy;
     }
 
     /// Execute a Get request.
@@ -109,6 +123,7 @@ impl<C: NetworkConnector> Client<C> {
             method: method,
             url: url,
             body: None,
+            // because sometimes maybe I will do different ways.
             headers: None,
         }
     }
@@ -158,7 +173,7 @@ impl<'a, U: IntoUrl, C: NetworkConnector> RequestBuilder<'a, U, C> {
 
     /// Execute this request and receive a Response back.
     pub fn send(self) -> HttpResult<Response> {
-        let RequestBuilder { client, method, url, headers, body } = self;
+        let RequestBuilder { client, method, url, mut headers, body } = self;
         let mut url = try!(url.into_url());
         debug!("client.request {:?} {:?}", method, url);
 
@@ -172,9 +187,27 @@ impl<'a, U: IntoUrl, C: NetworkConnector> RequestBuilder<'a, U, C> {
         } else {
              None
         };
+        let mut _v;
+        let mut cookiejar = CookieJar::new({
+            _v = vec![0u8; 32];
+            rand::thread_rng().fill_bytes(&mut _v);
+            &mut _v
+        });
+
+        headers.as_ref().map( |headers| {
+            match headers.get::<Cookie>() {
+                Some(&Cookie(ref cookies)) => {
+                    for cookie in cookies.iter() {
+                        cookiejar.add(cookie.clone());
+                    }
+                },
+                None => ()
+            }
+        });
 
         loop {
             let mut req = try!(Request::with_connector(method.clone(), url.clone(), &mut client.connector));
+            headers.as_mut().map(|headers| headers.set(Cookie::from_cookie_jar(&cookiejar)));
             headers.as_ref().map(|headers| req.headers_mut().extend(headers.iter()));
 
             match (can_have_body, body.as_ref()) {
@@ -185,13 +218,21 @@ impl<'a, U: IntoUrl, C: NetworkConnector> RequestBuilder<'a, U, C> {
                 (true, None) => req.headers_mut().set(ContentLength(0)),
                 _ => () // neither
             }
+
             let mut streaming = try!(req.start());
             body.take().map(|mut rdr| copy(&mut rdr, &mut streaming));
             let res = try!(streaming.send());
+
+            match res.headers.get::<SetCookie>() {
+                Some(setcookie) => setcookie.apply_to_cookie_jar(&mut cookiejar),
+                None => {
+                    debug!("no Set-Header header");
+                }   
+            };
+
             if res.status.class() != Redirection {
                 return Ok(res)
             }
-            debug!("redirect code {:?} for {:?}", res.status, url);
 
             let loc = {
                 // punching borrowck here
@@ -337,6 +378,30 @@ impl Default for RedirectPolicy {
     }
 }
 
+/// FIXME
+#[derive(Copy)]
+pub enum CookiesPolicy {
+    /// Accept all cookies.
+    AcceptAll,
+    /// Don't accept cookies.
+    AcceptNone,
+    /// Accept cookies the contained function returns.
+    AcceptSome(fn(&Vec<CookiePair>) -> &Vec<CookiePair>),
+}
+
+impl Clone for CookiesPolicy {
+    fn clone(&self) -> CookiesPolicy {
+        *self 
+    }
+}
+
+impl Default for CookiesPolicy {
+    fn default() -> CookiesPolicy {
+        CookiesPolicy::AcceptAll
+    }
+}
+
+
 fn get_host_and_port(url: &Url) -> HttpResult<(String, Port)> {
     let host = match url.serialize_host() {
         Some(host) => host,
@@ -353,8 +418,13 @@ fn get_host_and_port(url: &Url) -> HttpResult<(String, Port)> {
 
 #[cfg(test)]
 mod tests {
+    extern crate rand;
+    use self::rand::Rng;
+
     use header::Server;
-    use super::{Client, RedirectPolicy};
+    use header::Cookie;
+    use cookie::Cookie as CookiePair;
+    use super::{Client, RedirectPolicy, CookiesPolicy};
     use url::Url;
 
     mock_connector!(MockRedirectPolicy {
@@ -400,6 +470,47 @@ mod tests {
         client.set_redirect_policy(RedirectPolicy::FollowIf(follow_if));
         let res = client.get("http://127.0.0.1").send().unwrap();
         assert_eq!(res.headers.get(), Some(&Server("mock2".to_string())));
+    }
+
+    mock_connector!(MockCookiesPolicy {
+        "http://127.0.0.1" =>       "HTTP/1.1 301 Redirect\r\n\
+                                     Location: http://127.0.0.2\r\n\
+                                     Server: mock1\r\n\
+                                     Set-Cookie: k2=v2; Path=/\r\n\
+                                     Set-Cookie: k1=v1; Path=/\r\n\
+                                     \r\n\
+                                    "
+        "http://127.0.0.2" =>       "HTTP/1.1 302 Found\r\n\
+                                     Location: https://127.0.0.3\r\n\
+                                     Server: mock2\r\n\
+                                     \r\n\
+                                    "
+        "https://127.0.0.3" =>      "HTTP/1.1 200 OK\r\n\
+                                     Server: mock3\r\n\
+                                     \r\n\
+                                    "
+    });
+
+    #[test]
+    fn test_cookies_acceptall() {
+        fn follow_if(url: &Url) -> bool {
+            !url.serialize().contains("127.0.0.3")
+        }
+        let mut client = Client::with_connector(MockCookiesPolicy);
+        client.set_redirect_policy(RedirectPolicy::FollowAll(follow_if));
+        client.set_cookies_policy(CookiesPolicy::AcceptAll);
+
+        let res = client.get("http://127.0.0.1").send().unwrap();
+        assert_eq!(res.headers.get(), Some(&Server("mock2".to_string())));
+        let mut _v;
+        println!("{:?}", res.headers);
+        let cookiejar = res.headers.get::<Cookie>().unwrap().to_cookie_jar({
+            _v = vec![0u8; 32];
+            rand::thread_rng().fill_bytes(&mut _v);
+            &mut _v
+        });
+        assert_eq!(cookiejar.find("k2"), Some(CookiePair::new("k2".to_string(), "v2".to_string())));
+
     }
 
 }
