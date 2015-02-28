@@ -5,6 +5,7 @@ version = "0.2.1"
 description = "A modern HTTP library."
 readme = "README.md"
 documentation = "http://hyperium.github.io/hyper/hyper/index.html"
+repository = "https://github.com/hyperium/hyper"
 license = "MIT"
 authors = ["Sean McArthur <sean.monstar@gmail.com>",
            "Jonathan Reem <jonathan.reem@gmail.com>"]
