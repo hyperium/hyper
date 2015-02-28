@@ -5,17 +5,16 @@ version = "0.2.1"
 description = "A modern HTTP library."
 readme = "README.md"
 documentation = "http://hyperium.github.io/hyper/hyper/index.html"
-repository = "https://github.com/hyperium/hyper"
 license = "MIT"
 authors = ["Sean McArthur <sean.monstar@gmail.com>",
            "Jonathan Reem <jonathan.reem@gmail.com>"]
 keywords = ["http", "hyper", "hyperium"]
 
 [dependencies]
-cookie = "*"
+cookie = "<= 0.1.13"
 log = ">= 0.2.0"
 mime = "*"
-openssl = "*"
+openssl = "0.4.3"
 rustc-serialize = "*"
 time = "*"
 unicase = "*"
