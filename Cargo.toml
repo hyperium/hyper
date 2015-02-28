@@ -1,7 +1,7 @@
 [package]
 
 name = "hyper"
-version = "0.2.1"
+version = "0.2.2"
 description = "A modern HTTP library."
 readme = "README.md"
 documentation = "http://hyperium.github.io/hyper/hyper/index.html"
@@ -12,10 +12,10 @@ authors = ["Sean McArthur <sean.monstar@gmail.com>",
 keywords = ["http", "hyper", "hyperium"]
 
 [dependencies]
-cookie = "*"
+cookie = "= 0.1.13"
 log = ">= 0.2.0"
 mime = "*"
-openssl = "*"
+openssl = "0.4"
 rustc-serialize = "*"
 time = "*"
 unicase = "*"
