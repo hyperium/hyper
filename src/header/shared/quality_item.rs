@@ -3,10 +3,79 @@
 //! [RFC7231 Section 5.3.1](https://tools.ietf.org/html/rfc7231#section-5.3.1)
 //! gives more information on quality values in HTTP header fields.
 
-use std::fmt;
-use std::str;
 use std::cmp;
-#[cfg(test)] use super::encoding::*;
+use std::default::Default;
+use std::fmt;
+use std::num::{FromPrimitive, ToPrimitive};
+use std::str;
+
+/// Represents a quality used in quality values.
+///
+/// `Quality` should only be created using the `FromPrimitve` trait methods `from_f32` and
+/// `from_f64`, they take a value between 0.0 and 1.0. To create a quality with the value 1.0, the
+/// default you can use `let q: Quality = Default::default()`.
+///
+/// # Implementation notes
+/// The quality value is defined as a number between 0 and 1 with three decimal places. This means
+/// there are 1000 possible values. Since floating point numbers are not exact and the smallest
+/// floating point data type (`f32`) consumes four bytes, hyper uses an `u16` value to store the
+/// quality internally. For performance reasons you may set quality directly to a value between
+/// 0 and 1000 e.g. `Quality(532)` matches the quality `q=0.532`.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct Quality(pub u16);
+
+impl fmt::Display for Quality {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.0 == 1000 {
+            write!(f, "")
+        } else {
+            write!(f, "; q=0.{}", format!("{:03}", self.0).trim_right_matches('0'))
+        }
+    }
+}
+
+impl FromPrimitive for Quality {
+    fn from_i64(n: i64) -> Option<Quality> {
+        match n >= 0 {
+            true => FromPrimitive::from_u64(n as u64),
+            false => None,
+        }
+    }
+
+    fn from_u64(n: u64) -> Option<Quality> {
+        match n <= 1000 {
+            true => Some(Quality(n as u16)),
+            false => None,
+        }
+    }
+
+    fn from_f64(n: f64) -> Option<Quality> {
+        match n >= 0f64 && n <= 1f64 {
+            true => Some(Quality((n * 1000f64) as u16)),
+            false => None,
+        }
+    }
+}
+
+impl ToPrimitive for Quality {
+    fn to_i64(&self) -> Option<i64> {
+        Some(self.0 as i64)
+    }
+
+    fn to_u64(&self) -> Option<u64> {
+        Some(self.0 as u64)
+    }
+
+    fn to_f64(&self) -> Option<f64> {
+        Some((self.0 as f64) / 1000f64)
+    }
+}
+
+impl Default for Quality {
+    fn default() -> Quality {
+        Quality(1000)
+    }
+}
 
 /// Represents an item with a quality value as defined in
 /// [RFC7231](https://tools.ietf.org/html/rfc7231#section-5.3.1).
@@ -15,14 +84,14 @@ pub struct QualityItem<T> {
     /// The actual contents of the field.
     pub item: T,
     /// The quality (client or server preference) for the value.
-    pub quality: f32,
+    pub quality: Quality,
 }
 
 impl<T> QualityItem<T> {
     /// Creates a new `QualityItem` from an item and a quality.
     /// The item can be of any type.
     /// The quality should be a value in the range [0, 1].
-    pub fn new(item: T, quality: f32) -> QualityItem<T> {
+    pub fn new(item: T, quality: Quality) -> QualityItem<T> {
         QualityItem{item: item, quality: quality}
     }
 }
@@ -35,12 +104,7 @@ impl<T: PartialEq> cmp::PartialOrd for QualityItem<T> {
 
 impl<T: fmt::Display> fmt::Display for QualityItem<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.quality == 1.0 {
-            write!(f, "{}", self.item)
-        } else {
-            write!(f, "{}; q={}", self.item,
-                   format!("{:.3}", self.quality).trim_right_matches(&['0', '.'][..]))
-        }
+        write!(f, "{}{}", self.item, format!("{}", self.quality))
     }
 }
 
@@ -59,8 +123,7 @@ impl<T: str::FromStr> str::FromStr for QualityItem<T> {
                 if q_part.len() > 5 {
                     return Err(());
                 }
-                let x: Result<f32, _> = q_part.parse();
-                match x {
+                match q_part.parse::<f32>() {
                     Ok(q_value) => {
                         if 0f32 <= q_value && q_value <= 1f32 {
                             quality = q_value;
@@ -73,11 +136,8 @@ impl<T: str::FromStr> str::FromStr for QualityItem<T> {
                 }
             }
         }
-        let x: Result<T, _> = raw_item.parse();
-        match x {
-            Ok(item) => {
-                Ok(QualityItem{ item: item, quality: quality, })
-            },
+        match raw_item.parse::<T>() {
+            Ok(item) => Ok(QualityItem::new(item, FromPrimitive::from_f32(quality).unwrap())),
             Err(_) => return Err(()),
         }
     }
@@ -86,58 +146,81 @@ impl<T: str::FromStr> str::FromStr for QualityItem<T> {
 /// Convinience function to wrap a value in a `QualityItem`
 /// Sets `q` to the default 1.0
 pub fn qitem<T>(item: T) -> QualityItem<T> {
-    QualityItem::new(item, 1.0)
+    QualityItem::new(item, Default::default())
 }
 
-#[test]
-fn test_quality_item_show1() {
-    let x = qitem(Chunked);
-    assert_eq!(format!("{}", x), "chunked");
-}
-#[test]
-fn test_quality_item_show2() {
-    let x = QualityItem::new(Chunked, 0.001);
-    assert_eq!(format!("{}", x), "chunked; q=0.001");
-}
-#[test]
-fn test_quality_item_show3() {
-    // Custom value
-    let x = QualityItem{
-        item: EncodingExt("identity".to_string()),
-        quality: 0.5f32,
-    };
-    assert_eq!(format!("{}", x), "identity; q=0.5");
-}
+#[cfg(test)]
+mod tests {
+    use std::num::FromPrimitive;
 
-#[test]
-fn test_quality_item_from_str1() {
-    let x: Result<QualityItem<Encoding>, ()> = "chunked".parse();
-    assert_eq!(x.unwrap(), QualityItem{ item: Chunked, quality: 1f32, });
-}
-#[test]
-fn test_quality_item_from_str2() {
-    let x: Result<QualityItem<Encoding>, ()> = "chunked; q=1".parse();
-    assert_eq!(x.unwrap(), QualityItem{ item: Chunked, quality: 1f32, });
-}
-#[test]
-fn test_quality_item_from_str3() {
-    let x: Result<QualityItem<Encoding>, ()> = "gzip; q=0.5".parse();
-    assert_eq!(x.unwrap(), QualityItem{ item: Gzip, quality: 0.5f32, });
-}
-#[test]
-fn test_quality_item_from_str4() {
-    let x: Result<QualityItem<Encoding>, ()> = "gzip; q=0.273".parse();
-    assert_eq!(x.unwrap(), QualityItem{ item: Gzip, quality: 0.273f32, });
-}
-#[test]
-fn test_quality_item_from_str5() {
-    let x: Result<QualityItem<Encoding>, ()> = "gzip; q=0.2739999".parse();
-    assert_eq!(x, Err(()));
-}
-#[test]
-fn test_quality_item_ordering() {
-    let x: QualityItem<Encoding> = "gzip; q=0.5".parse().ok().unwrap();
-    let y: QualityItem<Encoding> = "gzip; q=0.273".parse().ok().unwrap();
-    let comparision_result: bool = x.gt(&y);
-    assert_eq!(comparision_result, true)
+    use super::*;
+    use super::super::encoding::*;
+
+    #[test]
+    fn test_quality_item_show1() {
+        let x = qitem(Chunked);
+        assert_eq!(format!("{}", x), "chunked");
+    }
+    #[test]
+    fn test_quality_item_show2() {
+        let x = QualityItem::new(Chunked, Quality(1));
+        assert_eq!(format!("{}", x), "chunked; q=0.001");
+    }
+    #[test]
+    fn test_quality_item_show3() {
+        // Custom value
+        let x = QualityItem{
+            item: EncodingExt("identity".to_string()),
+            quality: Quality(500),
+        };
+        assert_eq!(format!("{}", x), "identity; q=0.5");
+    }
+
+    #[test]
+    fn test_quality_item_from_str1() {
+        let x: Result<QualityItem<Encoding>, ()> = "chunked".parse();
+        assert_eq!(x.unwrap(), QualityItem{ item: Chunked, quality: Quality(1000), });
+    }
+    #[test]
+    fn test_quality_item_from_str2() {
+        let x: Result<QualityItem<Encoding>, ()> = "chunked; q=1".parse();
+        assert_eq!(x.unwrap(), QualityItem{ item: Chunked, quality: Quality(1000), });
+    }
+    #[test]
+    fn test_quality_item_from_str3() {
+        let x: Result<QualityItem<Encoding>, ()> = "gzip; q=0.5".parse();
+        assert_eq!(x.unwrap(), QualityItem{ item: Gzip, quality: Quality(500), });
+    }
+    #[test]
+    fn test_quality_item_from_str4() {
+        let x: Result<QualityItem<Encoding>, ()> = "gzip; q=0.273".parse();
+        assert_eq!(x.unwrap(), QualityItem{ item: Gzip, quality: Quality(273), });
+    }
+    #[test]
+    fn test_quality_item_from_str5() {
+        let x: Result<QualityItem<Encoding>, ()> = "gzip; q=0.2739999".parse();
+        assert_eq!(x, Err(()));
+    }
+    #[test]
+    fn test_quality_item_ordering() {
+        let x: QualityItem<Encoding> = "gzip; q=0.5".parse().ok().unwrap();
+        let y: QualityItem<Encoding> = "gzip; q=0.273".parse().ok().unwrap();
+        let comparision_result: bool = x.gt(&y);
+        assert_eq!(comparision_result, true)
+    }
+    #[test]
+    fn test_quality() {
+        assert_eq!(Some(Quality(421)), FromPrimitive::from_f64(0.421f64));
+        assert_eq!(Some(Quality(421)), FromPrimitive::from_f32(0.421f32));
+        assert_eq!(Some(Quality(421)), FromPrimitive::from_i16(421i16));
+        assert_eq!(Some(Quality(421)), FromPrimitive::from_i32(421i32));
+        assert_eq!(Some(Quality(421)), FromPrimitive::from_i64(421i64));
+        assert_eq!(Some(Quality(421)), FromPrimitive::from_u16(421u16));
+        assert_eq!(Some(Quality(421)), FromPrimitive::from_u32(421u32));
+        assert_eq!(Some(Quality(421)), FromPrimitive::from_u64(421u64));
+
+        assert_eq!(None::<Quality>, FromPrimitive::from_i16(-5i16));
+        assert_eq!(None::<Quality>, FromPrimitive::from_i32(5000i32));
+        assert_eq!(None::<Quality>, FromPrimitive::from_f32(2.5f32));
+    }
 }

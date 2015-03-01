@@ -46,41 +46,45 @@ impl_list_header!(AcceptLanguage,
                   "Accept-Language",
                   Vec<QualityItem<Language>>);
 
+#[cfg(test)]
+mod tests {
+    use header::{Header, qitem, Quality, QualityItem};
+
+    use super::*;
+
+    #[test]
+    fn test_parse_header() {
+        let a: AcceptLanguage = Header::parse_header(
+            [b"en-us;q=1.0, en;q=0.5, fr".to_vec()].as_slice()).unwrap();
+        let b = AcceptLanguage(vec![
+            qitem(Language{primary: "en".to_string(), sub: Some("us".to_string())}),
+            QualityItem::new(Language{primary: "en".to_string(), sub: None},
+                             Quality(500)),
+            qitem(Language{primary: "fr".to_string(), sub: None}),
+        ]);
+        assert_eq!(format!("{}", a), format!("{}", b));
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn test_display() {
+        assert_eq!("en".to_string(),
+                   format!("{}", Language{primary: "en".to_string(),
+                                          sub: None}));
+        assert_eq!("en-us".to_string(),
+                   format!("{}", Language{primary: "en".to_string(),
+                                          sub: Some("us".to_string())}));
+    }
+
+    #[test]
+    fn test_from_str() {
+        assert_eq!(Language { primary: "en".to_string(), sub: None },
+                   "en".parse().unwrap());
+        assert_eq!(Language { primary: "en".to_string(),
+                              sub: Some("us".to_string()) },
+                   "en-us".parse().unwrap());
+    }
+}
+
 bench_header!(bench, AcceptLanguage,
               { vec![b"en-us;q=1.0, en;q=0.5, fr".to_vec()] });
-
-#[test]
-fn test_parse_header() {
-    let a: AcceptLanguage = header::Header::parse_header(
-        [b"en-us;q=1.0, en;q=0.5, fr".to_vec()].as_slice()).unwrap();
-    let b = AcceptLanguage(vec![
-        QualityItem { item: Language{primary: "en".to_string(),
-                                   sub: Some("us".to_string())},
-                      quality: 1f32 },
-        QualityItem { item: Language{primary: "en".to_string(), sub: None},
-                      quality: 0.5f32 },
-        QualityItem { item: Language{primary: "fr".to_string(), sub: None},
-                      quality: 1f32 },
-    ]);
-    assert_eq!(format!("{}", a), format!("{}", b));
-    assert_eq!(a, b);
-}
-
-#[test]
-fn test_display() {
-    assert_eq!("en".to_string(),
-               format!("{}", Language{primary: "en".to_string(),
-                                      sub: None}));
-    assert_eq!("en-us".to_string(),
-               format!("{}", Language{primary: "en".to_string(),
-                                      sub: Some("us".to_string())}));
-}
-
-#[test]
-fn test_from_str() {
-    assert_eq!(Language { primary: "en".to_string(), sub: None },
-               "en".parse().unwrap());
-    assert_eq!(Language { primary: "en".to_string(),
-                          sub: Some("us".to_string()) },
-               "en-us".parse().unwrap());
-}
