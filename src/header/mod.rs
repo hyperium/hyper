@@ -22,7 +22,7 @@ use unicase::UniCase;
 use self::cell::OptCell;
 use {http, HttpResult, HttpError};
 
-pub use self::shared::{Encoding, EntityTag, Quality, QualityItem, qitem};
+pub use self::shared::{Encoding, EntityTag, Quality, QualityItem, qitem, q};
 pub use self::common::*;
 
 mod cell;

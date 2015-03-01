@@ -11,11 +11,10 @@ use std::str;
 
 /// Represents a quality used in quality values.
 ///
-/// `Quality` should only be created using the `FromPrimitve` trait methods `from_f32` and
-/// `from_f64`, they take a value between 0.0 and 1.0. To create a quality with the value 1.0, the
-/// default you can use `let q: Quality = Default::default()`.
+/// Can be created with the `q` function.
 ///
 /// # Implementation notes
+///
 /// The quality value is defined as a number between 0 and 1 with three decimal places. This means
 /// there are 1000 possible values. Since floating point numbers are not exact and the smallest
 /// floating point data type (`f32`) consumes four bytes, hyper uses an `u16` value to store the
@@ -147,6 +146,11 @@ impl<T: str::FromStr> str::FromStr for QualityItem<T> {
 /// Sets `q` to the default 1.0
 pub fn qitem<T>(item: T) -> QualityItem<T> {
     QualityItem::new(item, Default::default())
+}
+
+/// Convenience function to create a `Quality` fromt a float.
+pub fn q(f: f32) -> Quality {
+    FromPrimitive::from_f32(f).expect("q value must be between 0.0 and 1.0")
 }
 
 #[cfg(test)]
