@@ -21,3 +21,4 @@ time = "*"
 unicase = "*"
 unsafe-any = "*"
 url = "*"
+rand = "*" # src/client/mod.rs // for generate some keys which cookiejar needs.
