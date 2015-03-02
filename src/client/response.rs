@@ -1,6 +1,6 @@
 //! Client Responses
+use std::io::{self, Read, BufReader};
 use std::num::FromPrimitive;
-use std::old_io::{BufferedReader, IoResult};
 use std::marker::PhantomData;
 
 use header;
@@ -23,7 +23,7 @@ pub struct Response<S = HttpStream> {
     /// The HTTP version of this response from the server.
     pub version: version::HttpVersion,
     status_raw: RawStatus,
-    body: HttpReader<BufferedReader<Box<NetworkStream + Send>>>,
+    body: HttpReader<BufReader<Box<NetworkStream + Send>>>,
 
     _marker: PhantomData<S>,
 }
@@ -35,7 +35,7 @@ impl Response {
 
     /// Creates a new response from a server.
     pub fn new(stream: Box<NetworkStream + Send>) -> HttpResult<Response> {
-        let mut stream = BufferedReader::new(stream);
+        let mut stream = BufReader::new(stream);
         let (version, raw_status) = try!(read_status_line(&mut stream));
         let status = match FromPrimitive::from_u16(raw_status.0) {
             Some(status) => status,
@@ -89,13 +89,13 @@ impl Response {
 
     /// Consumes the Request to return the NetworkStream underneath.
     pub fn into_inner(self) -> Box<NetworkStream + Send> {
-        self.body.unwrap().into_inner()
+        self.body.into_inner().into_inner()
     }
 }
 
-impl Reader for Response {
+impl Read for Response {
     #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.body.read(buf)
     }
 }
@@ -104,7 +104,7 @@ impl Reader for Response {
 mod tests {
     use std::borrow::Cow::Borrowed;
     use std::boxed::BoxAny;
-    use std::old_io::BufferedReader;
+    use std::io::{self, Read, BufReader};
     use std::marker::PhantomData;
 
     use header::Headers;
@@ -119,14 +119,20 @@ mod tests {
 
     use super::Response;
 
+    fn read_to_string(mut r: Response) -> io::Result<String> {
+        let mut s = String::new();
+        try!(r.read_to_string(&mut s));
+        Ok(s)
+    }
+
 
     #[test]
-    fn test_unwrap() {
+    fn test_into_inner() {
         let res = Response {
             status: status::StatusCode::Ok,
             headers: Headers::new(),
             version: version::HttpVersion::Http11,
-            body: EofReader(BufferedReader::new(box MockStream::new() as Box<NetworkStream + Send>)),
+            body: EofReader(BufReader::new(box MockStream::new() as Box<NetworkStream + Send>)),
             status_raw: RawStatus(200, Borrowed("OK")),
             _marker: PhantomData,
         };
@@ -152,7 +158,7 @@ mod tests {
             \r\n"
         );
 
-        let mut res = Response::new(box stream).unwrap();
+        let res = Response::new(box stream).unwrap();
 
         // The status line is correct?
         assert_eq!(res.status, status::StatusCode::Ok);
@@ -166,8 +172,7 @@ mod tests {
             None => panic!("Transfer-Encoding: chunked expected!"),
         };
         // The body is correct?
-        let body = res.read_to_string().unwrap();
-        assert_eq!("qwert", body);
+        assert_eq!(read_to_string(res), Ok("qwert".to_string()));
     }
 
     /// Tests that when a chunk size is not a valid radix-16 number, an error
@@ -184,9 +189,9 @@ mod tests {
             \r\n"
         );
 
-        let mut res = Response::new(box stream).unwrap();
+        let res = Response::new(box stream).unwrap();
 
-        assert!(res.read_to_string().is_err());
+        assert!(read_to_string(res).is_err());
     }
 
     /// Tests that when a chunk size contains an invalid extension, an error is
@@ -203,9 +208,9 @@ mod tests {
             \r\n"
         );
 
-        let mut res = Response::new(box stream).unwrap();
+        let res = Response::new(box stream).unwrap();
 
-        assert!(res.read_to_string().is_err());
+        assert!(read_to_string(res).is_err());
     }
 
     /// Tests that when a valid extension that contains a digit is appended to
@@ -222,8 +227,8 @@ mod tests {
             \r\n"
         );
 
-        let mut res = Response::new(box stream).unwrap();
+        let res = Response::new(box stream).unwrap();
 
-        assert_eq!("1", res.read_to_string().unwrap())
+        assert_eq!(read_to_string(res), Ok("1".to_string()));
     }
 }

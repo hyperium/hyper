@@ -6,7 +6,9 @@
 //! are already provided, such as `Host`, `ContentType`, `UserAgent`, and others.
 use std::any::{Any, TypeId};
 use std::borrow::Cow::{Borrowed, Owned};
+use std::default::Default;
 use std::fmt;
+use std::io::Read;
 use std::raw::TraitObject;
 use std::str::from_utf8;
 use std::collections::HashMap;
@@ -17,6 +19,7 @@ use std::{mem, raw};
 
 use uany::{UnsafeAnyExt};
 use unicase::UniCase;
+use url::Url;
 
 use self::cell::OptCell;
 use {http, HttpResult, HttpError};
@@ -61,6 +64,10 @@ pub trait HeaderFormat: HeaderClone + Any + Send + Sync {
     /// by the passed-in Formatter.
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result;
 
+}
+
+pub trait ToHeader {
+    fn from_iter<'a, I: IntoIterator<Item=&'a str>, C: HttpContext>(iterator: I, context: C) -> Option<Self>;
 }
 
 #[doc(hidden)]
@@ -112,6 +119,32 @@ fn header_name<T: Header>() -> &'static str {
     name
 }
 
+pub trait HttpContext {
+    fn get_url(&self) -> &Url;
+}
+
+pub struct DummyHttpContext {
+    url: Url,
+}
+
+impl DummyHttpContext {
+    pub fn new(url: Url) -> DummyHttpContext {
+        DummyHttpContext{url: url}
+    }
+}
+
+impl Default for DummyHttpContext {
+    fn default() -> DummyHttpContext {
+        DummyHttpContext{url: Url::parse("http://www.example.com/foobar").unwrap()}
+    }
+}
+
+impl HttpContext for DummyHttpContext {
+    fn get_url(&self) -> &Url {
+        &self.url
+    }
+}
+
 /// A map of header fields on requests and responses.
 #[derive(Clone)]
 pub struct Headers {
@@ -132,7 +165,7 @@ impl Headers {
     }
 
     #[doc(hidden)]
-    pub fn from_raw<R: Reader>(rdr: &mut R) -> HttpResult<Headers> {
+    pub fn from_raw<R: Read>(rdr: &mut R) -> HttpResult<Headers> {
         let mut headers = Headers::new();
         let mut count = 0u32;
         loop {
@@ -534,7 +567,6 @@ impl<'a, H: HeaderFormat> fmt::Debug for HeaderFormatter<'a, H> {
 
 #[cfg(test)]
 mod tests {
-    use std::old_io::MemReader;
     use std::fmt;
     use mime::Mime;
     use mime::TopLevel::Text;
@@ -544,13 +576,9 @@ mod tests {
 
     use test::Bencher;
 
-    fn mem(s: &str) -> MemReader {
-        MemReader::new(s.as_bytes().to_vec())
-    }
-
     #[test]
     fn test_from_raw() {
-        let headers = Headers::from_raw(&mut mem("Content-Length: 10\r\n\r\n")).unwrap();
+        let headers = Headers::from_raw(&mut b"Content-Length: 10\r\n\r\n").unwrap();
         assert_eq!(headers.get(), Some(&ContentLength(10)));
     }
 
@@ -603,21 +631,21 @@ mod tests {
 
     #[test]
     fn test_different_structs_for_same_header() {
-        let headers = Headers::from_raw(&mut mem("Content-Length: 10\r\n\r\n")).unwrap();
+        let headers = Headers::from_raw(&mut b"Content-Length: 10\r\n\r\n").unwrap();
         let ContentLength(_) = *headers.get::<ContentLength>().unwrap();
         assert!(headers.get::<CrazyLength>().is_none());
     }
 
     #[test]
     fn test_trailing_whitespace() {
-        let headers = Headers::from_raw(&mut mem("Content-Length: 10   \r\n\r\n")).unwrap();
+        let headers = Headers::from_raw(&mut b"Content-Length: 10   \r\n\r\n").unwrap();
         let ContentLength(_) = *headers.get::<ContentLength>().unwrap();
         assert!(headers.get::<CrazyLength>().is_none());
     }
 
     #[test]
     fn test_multiple_reads() {
-        let headers = Headers::from_raw(&mut mem("Content-Length: 10\r\n\r\n")).unwrap();
+        let headers = Headers::from_raw(&mut b"Content-Length: 10\r\n\r\n").unwrap();
         let ContentLength(one) = *headers.get::<ContentLength>().unwrap();
         let ContentLength(two) = *headers.get::<ContentLength>().unwrap();
         assert_eq!(one, two);
@@ -625,14 +653,14 @@ mod tests {
 
     #[test]
     fn test_different_reads() {
-        let headers = Headers::from_raw(&mut mem("Content-Length: 10\r\nContent-Type: text/plain\r\n\r\n")).unwrap();
+        let headers = Headers::from_raw(&mut b"Content-Length: 10\r\nContent-Type: text/plain\r\n\r\n").unwrap();
         let ContentLength(_) = *headers.get::<ContentLength>().unwrap();
         let ContentType(_) = *headers.get::<ContentType>().unwrap();
     }
 
     #[test]
     fn test_get_mutable() {
-        let mut headers = Headers::from_raw(&mut mem("Content-Length: 10\r\nContent-Type: text/plain\r\n\r\n")).unwrap();
+        let mut headers = Headers::from_raw(&mut b"Content-Length: 10\r\nContent-Type: text/plain\r\n\r\n").unwrap();
         *headers.get_mut::<ContentLength>().unwrap() = ContentLength(20);
         assert_eq!(*headers.get::<ContentLength>().unwrap(), ContentLength(20));
     }
@@ -653,7 +681,7 @@ mod tests {
 
     #[test]
     fn test_headers_show_raw() {
-        let headers = Headers::from_raw(&mut mem("Content-Length: 10\r\n\r\n")).unwrap();
+        let headers = Headers::from_raw(&mut b"Content-Length: 10\r\n\r\n").unwrap();
         let s = headers.to_string();
         assert_eq!(s, "Content-Length: 10\r\n");
     }
@@ -720,7 +748,7 @@ mod tests {
 
     #[bench]
     fn bench_headers_from_raw(b: &mut Bencher) {
-        b.iter(|| Headers::from_raw(&mut mem("Content-Length: 10\r\n\r\n")).unwrap())
+        b.iter(|| Headers::from_raw(&mut b"Content-Length: 10\r\n\r\n").unwrap())
     }
 
     #[bench]

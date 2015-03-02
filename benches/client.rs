@@ -1,33 +1,53 @@
-#![feature(core, old_io, test)]
+#![feature(collections, io, net, test)]
 extern crate hyper;
 
 extern crate test;
 
 use std::fmt;
-use std::old_io::net::ip::Ipv4Addr;
-use hyper::server::{Request, Response, Server};
-use hyper::header::Headers;
-use hyper::Client;
+use std::io::{self, Read, Write, Cursor};
+use std::net::SocketAddr;
 
-fn listen() -> hyper::server::Listening {
-    let server = Server::http(Ipv4Addr(127, 0, 0, 1), 0);
-    server.listen(handle).unwrap()
+use hyper::net;
+
+static README: &'static [u8] = include_bytes!("../README.md");
+
+struct MockStream {
+    read: Cursor<Vec<u8>>
 }
 
-macro_rules! try_return(
-    ($e:expr) => {{
-        match $e {
-            Ok(v) => v,
-            Err(..) => return
+impl MockStream {
+    fn new() -> MockStream {
+        let head = b"HTTP/1.1 200 OK\r\nServer: Mock\r\n\r\n";
+        let mut res = head.to_vec();
+        res.push_all(README);
+        MockStream {
+            read: Cursor::new(res)
         }
-    }}
-);
+    }
+}
 
-fn handle(_r: Request, res: Response) {
-    static BODY: &'static [u8] = b"Benchmarking hyper vs others!";
-    let mut res = try_return!(res.start());
-    try_return!(res.write_all(BODY));
-    try_return!(res.end());
+impl Clone for MockStream {
+    fn clone(&self) -> MockStream {
+        MockStream {
+            read: Cursor::new(self.read.get_ref().clone())
+        }
+    }
+}
+
+impl Read for MockStream {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.read.read(buf)
+    }
+}
+
+impl Write for MockStream {
+    fn write(&mut self, msg: &[u8]) -> io::Result<usize> {
+        // we're mocking, what do we care.
+        Ok(msg.len())
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
 }
 
 #[derive(Clone)]
@@ -48,17 +68,36 @@ impl hyper::header::HeaderFormat for Foo {
     }
 }
 
+impl net::NetworkStream for MockStream {
+    fn peer_addr(&mut self) -> io::Result<SocketAddr> {
+        Ok("127.0.0.1:1337".parse().unwrap())
+    }
+}
+
+struct MockConnector;
+
+impl net::NetworkConnector for MockConnector {
+    type Stream = MockStream;
+    fn connect(&mut self, _: &str, _: u16, _: &str) -> io::Result<MockStream> {
+        Ok(MockStream::new())
+    }
+
+}
+
 #[bench]
-fn bench_hyper(b: &mut test::Bencher) {
-    let mut listening = listen();
-    let s = format!("http://{}/", listening.socket);
-    let url = s.as_slice();
-    let mut client = Client::new();
-    let mut headers = Headers::new();
-    headers.set(Foo);
+fn bench_mock_hyper(b: &mut test::Bencher) {
+    let url = "http://127.0.0.1:1337/";
     b.iter(|| {
-        client.get(url).header(Foo).send().unwrap().read_to_string().unwrap();
+        let mut req = hyper::client::Request::with_connector(
+            hyper::Get, hyper::Url::parse(url).unwrap(), &mut MockConnector
+        ).unwrap();
+        req.headers_mut().set(Foo);
+
+        let mut s = String::new();
+        req
+            .start().unwrap()
+            .send().unwrap()
+            .read_to_string(&mut s).unwrap()
     });
-    listening.close().unwrap()
 }
 

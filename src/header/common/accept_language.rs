@@ -1,4 +1,4 @@
-use header::{self, QualityItem};
+use header::QualityItem;
 use std::str::FromStr;
 use std::fmt;
 
@@ -49,7 +49,6 @@ impl_list_header!(AcceptLanguage,
 #[cfg(test)]
 mod tests {
     use header::{Header, qitem, Quality, QualityItem};
-
     use super::*;
 
     #[test]
