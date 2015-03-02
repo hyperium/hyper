@@ -6,6 +6,7 @@
 //! are already provided, such as `Host`, `ContentType`, `UserAgent`, and others.
 use std::any::{Any, TypeId};
 use std::borrow::Cow::{Borrowed, Owned};
+use std::default::Default;
 use std::fmt;
 use std::io::Read;
 use std::raw::TraitObject;
@@ -18,6 +19,7 @@ use std::{mem, raw};
 
 use uany::{UnsafeAnyExt};
 use unicase::UniCase;
+use url::Url;
 
 use self::cell::OptCell;
 use {http, HttpResult, HttpError};
@@ -62,6 +64,10 @@ pub trait HeaderFormat: HeaderClone + Any + Send + Sync {
     /// by the passed-in Formatter.
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result;
 
+}
+
+pub trait ToHeader {
+    fn from_iter<'a, I: IntoIterator<Item=&'a str>, C: HttpContext>(iterator: I, context: C) -> Option<Self>;
 }
 
 #[doc(hidden)]
@@ -111,6 +117,32 @@ impl Clone for Box<HeaderFormat + Send + Sync> {
 fn header_name<T: Header>() -> &'static str {
     let name = <T as Header>::header_name();
     name
+}
+
+pub trait HttpContext {
+    fn get_url(&self) -> &Url;
+}
+
+pub struct DummyHttpContext {
+    url: Url,
+}
+
+impl DummyHttpContext {
+    pub fn new(url: Url) -> DummyHttpContext {
+        DummyHttpContext{url: url}
+    }
+}
+
+impl Default for DummyHttpContext {
+    fn default() -> DummyHttpContext {
+        DummyHttpContext{url: Url::parse("http://www.example.com/foobar").unwrap()}
+    }
+}
+
+impl HttpContext for DummyHttpContext {
+    fn get_url(&self) -> &Url {
+        &self.url
+    }
 }
 
 /// A map of header fields on requests and responses.
