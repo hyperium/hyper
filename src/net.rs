@@ -1,11 +1,10 @@
 //! A collection of traits abstracting over Listeners and Streams.
 use std::any::{Any, TypeId};
 use std::fmt;
-use std::old_io::{IoResult, IoError, ConnectionAborted, InvalidInput, OtherIoError,
-              Stream, Listener, Acceptor};
-use std::old_io::net::ip::{SocketAddr, ToSocketAddr, Port};
-use std::old_io::net::tcp::{TcpStream, TcpListener, TcpAcceptor};
+use std::io::{self, Read, Write};
+use std::net::{SocketAddr, ToSocketAddrs, TcpStream, TcpListener};
 use std::mem;
+use std::path::Path;
 use std::raw::{self, TraitObject};
 use std::sync::Arc;
 
@@ -24,34 +23,26 @@ macro_rules! try_some {
 }
 
 /// The write-status indicating headers have not been written.
-#[allow(missing_copy_implementations)]
-pub struct Fresh;
+pub enum Fresh {}
 
 /// The write-status indicating headers have been written.
-#[allow(missing_copy_implementations)]
-pub struct Streaming;
+pub enum Streaming {}
 
 /// An abstraction to listen for connections on a certain port.
-pub trait NetworkListener {
-    /// Type of Acceptor
-    type Acceptor: NetworkAcceptor;
-    /// Listens on a socket.
-    fn listen<To: ToSocketAddr>(&mut self, addr: To) -> IoResult<Self::Acceptor>;
-}
-
-/// An abstraction to receive `NetworkStream`s.
-pub trait NetworkAcceptor: Clone + Send {
-    /// Type of Stream to receive
+pub trait NetworkListener: Clone {
+    /// The stream produced for each connection.
     type Stream: NetworkStream + Send + Clone;
+    /// Listens on a socket.
+    //fn listen<To: ToSocketAddrs>(&mut self, addr: To) -> io::Result<Self::Acceptor>;
 
     /// Returns an iterator of streams.
-    fn accept(&mut self) -> IoResult<Self::Stream>;
+    fn accept(&mut self) -> io::Result<Self::Stream>;
 
     /// Get the address this Listener ended up listening on.
-    fn socket_name(&self) -> IoResult<SocketAddr>;
+    fn socket_addr(&mut self) -> io::Result<SocketAddr>;
 
     /// Closes the Acceptor, so no more incoming connections will be handled.
-    fn close(&mut self) -> IoResult<()>;
+//    fn close(&mut self) -> io::Result<()>;
 
     /// Returns an iterator over incoming connections.
     fn incoming(&mut self) -> NetworkConnections<Self> {
@@ -60,20 +51,20 @@ pub trait NetworkAcceptor: Clone + Send {
 }
 
 /// An iterator wrapper over a NetworkAcceptor.
-pub struct NetworkConnections<'a, N: NetworkAcceptor + 'a>(&'a mut N);
+pub struct NetworkConnections<'a, N: NetworkListener + 'a>(&'a mut N);
 
-impl<'a, N: NetworkAcceptor> Iterator for NetworkConnections<'a, N> {
-    type Item = IoResult<N::Stream>;
-    fn next(&mut self) -> Option<IoResult<N::Stream>> {
+impl<'a, N: NetworkListener + 'a> Iterator for NetworkConnections<'a, N> {
+    type Item = io::Result<N::Stream>;
+    fn next(&mut self) -> Option<io::Result<N::Stream>> {
         Some(self.0.accept())
     }
 }
 
 
 /// An abstraction over streams that a Server can utilize.
-pub trait NetworkStream: Stream + Any + StreamClone + Send {
+pub trait NetworkStream: Read + Write + Any + StreamClone + Send {
     /// Get the remote address of the underlying connection.
-    fn peer_name(&mut self) -> IoResult<SocketAddr>;
+    fn peer_addr(&mut self) -> io::Result<SocketAddr>;
 }
 
 
@@ -94,7 +85,7 @@ pub trait NetworkConnector {
     /// Type of Stream to create
     type Stream: NetworkStream + Send;
     /// Connect to a remote address.
-    fn connect(&mut self, host: &str, port: Port, scheme: &str) -> IoResult<Self::Stream>;
+    fn connect(&mut self, host: &str, port: u16, scheme: &str) -> io::Result<Self::Stream>;
 }
 
 impl fmt::Debug for Box<NetworkStream + Send> {
@@ -106,32 +97,6 @@ impl fmt::Debug for Box<NetworkStream + Send> {
 impl Clone for Box<NetworkStream + Send> {
     #[inline]
     fn clone(&self) -> Box<NetworkStream + Send> { self.clone_box() }
-}
-
-impl Reader for Box<NetworkStream + Send> {
-    #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> { (**self).read(buf) }
-}
-
-impl Writer for Box<NetworkStream + Send> {
-    #[inline]
-    fn write_all(&mut self, msg: &[u8]) -> IoResult<()> { (**self).write_all(msg) }
-
-    #[inline]
-    fn flush(&mut self) -> IoResult<()> { (**self).flush() }
-}
-
-impl<'a> Reader for &'a mut NetworkStream {
-    #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> { (**self).read(buf) }
-}
-
-impl<'a> Writer for &'a mut NetworkStream {
-    #[inline]
-    fn write_all(&mut self, msg: &[u8]) -> IoResult<()> { (**self).write_all(msg) }
-
-    #[inline]
-    fn flush(&mut self) -> IoResult<()> { (**self).flush() }
 }
 
 impl UnsafeAnyExt for NetworkStream {
@@ -191,63 +156,57 @@ impl NetworkStream {
 }
 
 /// A `NetworkListener` for `HttpStream`s.
-#[allow(missing_copy_implementations)]
 pub enum HttpListener {
     /// Http variant.
-    Http,
+    Http(TcpListener),
     /// Https variant. The two paths point to the certificate and key PEM files, in that order.
-    Https(Path, Path),
+    Https(TcpListener, Arc<SslContext>)
 }
 
-impl NetworkListener for HttpListener {
-    type Acceptor = HttpAcceptor;
-
-    #[inline]
-    fn listen<To: ToSocketAddr>(&mut self, addr: To) -> IoResult<HttpAcceptor> {
-        let mut tcp = try!(TcpListener::bind(addr));
-        let addr = try!(tcp.socket_name());
-        Ok(match *self {
-            HttpListener::Http => HttpAcceptor::Http(try!(tcp.listen()), addr),
-            HttpListener::Https(ref cert, ref key) => {
-                let mut ssl_context = try!(SslContext::new(Sslv23).map_err(lift_ssl_error));
-                try_some!(ssl_context.set_cipher_list("DEFAULT").map(lift_ssl_error));
-                try_some!(ssl_context.set_certificate_file(
-                        cert, X509FileType::PEM).map(lift_ssl_error));
-                try_some!(ssl_context.set_private_key_file(
-                        key, X509FileType::PEM).map(lift_ssl_error));
-                ssl_context.set_verify(SslVerifyNone, None);
-                HttpAcceptor::Https(try!(tcp.listen()), addr, Arc::new(ssl_context))
-            }
-        })
+impl Clone for HttpListener {
+    fn clone(&self) -> HttpListener {
+        match *self {
+            HttpListener::Http(ref tcp) => HttpListener::Http(tcp.try_clone().unwrap()),
+            HttpListener::Https(ref tcp, ref ssl) => HttpListener::Https(tcp.try_clone().unwrap(), ssl.clone()),
+        }
     }
 }
 
-/// A `NetworkAcceptor` for `HttpStream`s.
-#[derive(Clone)]
-pub enum HttpAcceptor {
-    /// Http variant.
-    Http(TcpAcceptor, SocketAddr),
-    /// Https variant.
-    Https(TcpAcceptor, SocketAddr, Arc<SslContext>),
+impl HttpListener {
+
+    /// Start listening to an address over HTTP.
+    pub fn http<To: ToSocketAddrs>(addr: &To) -> io::Result<HttpListener> {
+        Ok(HttpListener::Http(try!(TcpListener::bind(addr))))
+    }
+
+    /// Start listening to an address over HTTPS.
+    pub fn https<To: ToSocketAddrs>(addr: &To, cert: &Path, key: &Path) -> io::Result<HttpListener> {
+        let mut ssl_context = try!(SslContext::new(Sslv23).map_err(lift_ssl_error));
+        try_some!(ssl_context.set_cipher_list("DEFAULT").map(lift_ssl_error));
+        try_some!(ssl_context.set_certificate_file(
+                cert, X509FileType::PEM).map(lift_ssl_error));
+        try_some!(ssl_context.set_private_key_file(
+                key, X509FileType::PEM).map(lift_ssl_error));
+        ssl_context.set_verify(SslVerifyNone, None);
+        Ok(HttpListener::Https(try!(TcpListener::bind(addr)), Arc::new(ssl_context)))
+    }
 }
 
-impl NetworkAcceptor for HttpAcceptor {
+impl NetworkListener for HttpListener {
     type Stream = HttpStream;
 
     #[inline]
-    fn accept(&mut self) -> IoResult<HttpStream> {
+    fn accept(&mut self) -> io::Result<HttpStream> {
         Ok(match *self {
-            HttpAcceptor::Http(ref mut tcp, _) => HttpStream::Http(try!(tcp.accept())),
-            HttpAcceptor::Https(ref mut tcp, _, ref ssl_context) => {
-                let stream = try!(tcp.accept());
-                match SslStream::<TcpStream>::new_server(&**ssl_context, stream) {
+            HttpListener::Http(ref mut tcp) => HttpStream::Http(CloneTcpStream(try!(tcp.accept()).0)),
+            HttpListener::Https(ref mut tcp, ref ssl_context) => {
+                let stream = CloneTcpStream(try!(tcp.accept()).0);
+                match SslStream::new_server(&**ssl_context, stream) {
                     Ok(ssl_stream) => HttpStream::Https(ssl_stream),
                     Err(StreamError(ref e)) => {
-                        return Err(IoError {
-                            kind: ConnectionAborted,
-                            desc: "SSL Handshake Interrupted",
-                            detail: Some(e.desc.to_string())
-                        });
+                        return Err(io::Error::new(io::ErrorKind::ConnectionAborted,
+                                                "SSL Handshake Interrupted",
+                                                Some(e.to_string())));
                     },
                     Err(e) => return Err(lift_ssl_error(e))
                 }
@@ -256,19 +215,39 @@ impl NetworkAcceptor for HttpAcceptor {
     }
 
     #[inline]
-    fn close(&mut self) -> IoResult<()> {
+    fn socket_addr(&mut self) -> io::Result<SocketAddr> {
         match *self {
-            HttpAcceptor::Http(ref mut tcp, _) => tcp.close_accept(),
-            HttpAcceptor::Https(ref mut tcp, _, _) => tcp.close_accept(),
+            HttpListener::Http(ref mut tcp) => tcp.socket_addr(),
+            HttpListener::Https(ref mut tcp, _) => tcp.socket_addr(),
         }
     }
+}
 
+#[doc(hidden)]
+pub struct CloneTcpStream(TcpStream);
+
+impl Clone for CloneTcpStream{
     #[inline]
-    fn socket_name(&self) -> IoResult<SocketAddr> {
-        match *self {
-            HttpAcceptor::Http(_, addr) => Ok(addr),
-            HttpAcceptor::Https(_, addr, _) => Ok(addr),
-        }
+    fn clone(&self) -> CloneTcpStream {
+        CloneTcpStream(self.0.try_clone().unwrap())
+    }
+}
+
+impl Read for CloneTcpStream {
+    #[inline]
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.0.read(buf)
+    }
+}
+
+impl Write for CloneTcpStream {
+    #[inline]
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.write(buf)
+    }
+    #[inline]
+    fn flush(&mut self) -> io::Result<()> {
+        self.0.flush()
     }
 }
 
@@ -276,14 +255,14 @@ impl NetworkAcceptor for HttpAcceptor {
 #[derive(Clone)]
 pub enum HttpStream {
     /// A stream over the HTTP protocol.
-    Http(TcpStream),
+    Http(CloneTcpStream),
     /// A stream over the HTTP protocol, protected by SSL.
-    Https(SslStream<TcpStream>),
+    Https(SslStream<CloneTcpStream>),
 }
 
-impl Reader for HttpStream {
+impl Read for HttpStream {
     #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match *self {
             HttpStream::Http(ref mut inner) => inner.read(buf),
             HttpStream::Https(ref mut inner) => inner.read(buf)
@@ -291,16 +270,16 @@ impl Reader for HttpStream {
     }
 }
 
-impl Writer for HttpStream {
+impl Write for HttpStream {
     #[inline]
-    fn write_all(&mut self, msg: &[u8]) -> IoResult<()> {
+    fn write(&mut self, msg: &[u8]) -> io::Result<usize> {
         match *self {
-            HttpStream::Http(ref mut inner) => inner.write_all(msg),
-            HttpStream::Https(ref mut inner) => inner.write_all(msg)
+            HttpStream::Http(ref mut inner) => inner.write(msg),
+            HttpStream::Https(ref mut inner) => inner.write(msg)
         }
     }
     #[inline]
-    fn flush(&mut self) -> IoResult<()> {
+    fn flush(&mut self) -> io::Result<()> {
         match *self {
             HttpStream::Http(ref mut inner) => inner.flush(),
             HttpStream::Https(ref mut inner) => inner.flush(),
@@ -309,10 +288,10 @@ impl Writer for HttpStream {
 }
 
 impl NetworkStream for HttpStream {
-    fn peer_name(&mut self) -> IoResult<SocketAddr> {
+    fn peer_addr(&mut self) -> io::Result<SocketAddr> {
         match *self {
-            HttpStream::Http(ref mut inner) => inner.peer_name(),
-            HttpStream::Https(ref mut inner) => inner.get_mut().peer_name()
+            HttpStream::Http(ref mut inner) => inner.0.peer_addr(),
+            HttpStream::Https(ref mut inner) => inner.get_mut().0.peer_addr()
         }
     }
 }
@@ -327,16 +306,16 @@ pub type ContextVerifier<'v> = Box<FnMut(&mut SslContext) -> ()+'v>;
 impl<'v> NetworkConnector for HttpConnector<'v> {
     type Stream = HttpStream;
 
-    fn connect(&mut self, host: &str, port: Port, scheme: &str) -> IoResult<HttpStream> {
-        let addr = (host, port);
+    fn connect(&mut self, host: &str, port: u16, scheme: &str) -> io::Result<HttpStream> {
+        let addr = &(host, port);
         match scheme {
             "http" => {
                 debug!("http scheme");
-                Ok(HttpStream::Http(try!(TcpStream::connect(addr))))
+                Ok(HttpStream::Http(CloneTcpStream(try!(TcpStream::connect(addr)))))
             },
             "https" => {
                 debug!("https scheme");
-                let stream = try!(TcpStream::connect(addr));
+                let stream = CloneTcpStream(try!(TcpStream::connect(addr)));
                 let mut context = try!(SslContext::new(Sslv23).map_err(lift_ssl_error));
                 if let Some(ref mut verifier) = self.0 {
                     verifier(&mut context);
@@ -347,32 +326,26 @@ impl<'v> NetworkConnector for HttpConnector<'v> {
                 Ok(HttpStream::Https(stream))
             },
             _ => {
-                Err(IoError {
-                    kind: InvalidInput,
-                    desc: "Invalid scheme for Http",
-                    detail: None
-                })
+                Err(io::Error::new(io::ErrorKind::InvalidInput,
+                                "Invalid scheme for Http",
+                                None))
             }
         }
     }
 }
 
-fn lift_ssl_error(ssl: SslError) -> IoError {
+fn lift_ssl_error(ssl: SslError) -> io::Error {
     debug!("lift_ssl_error: {:?}", ssl);
     match ssl {
         StreamError(err) => err,
-        SslSessionClosed => IoError {
-            kind: ConnectionAborted,
-            desc: "SSL Connection Closed",
-            detail: None
-        },
+        SslSessionClosed => io::Error::new(io::ErrorKind::ConnectionAborted,
+                                         "SSL Connection Closed",
+                                         None),
         // Unfortunately throw this away. No way to support this
         // detail without a better Error abstraction.
-        OpenSslErrors(errs) => IoError {
-            kind: OtherIoError,
-            desc: "Error in OpenSSL",
-            detail: Some(format!("{:?}", errs))
-        }
+        OpenSslErrors(errs) => io::Error::new(io::ErrorKind::Other,
+                                         "Error in OpenSSL",
+                                         Some(format!("{:?}", errs)))
     }
 }
 

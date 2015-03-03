@@ -18,8 +18,7 @@
 //! to the `status`, the `headers`, and the response body via the `Writer`
 //! trait.
 use std::default::Default;
-use std::old_io::IoResult;
-use std::old_io::util::copy;
+use std::io::{self, copy, Read};
 use std::iter::Extend;
 
 use url::UrlParser;
@@ -30,7 +29,7 @@ use header::{ContentLength, Location};
 use method::Method;
 use net::{NetworkConnector, HttpConnector, ContextVerifier};
 use status::StatusClass::Redirection;
-use {Url, Port, HttpResult};
+use {Url, HttpResult};
 use HttpError::HttpUriError;
 
 pub use self::request::Request;
@@ -238,9 +237,9 @@ pub trait IntoBody<'a> {
 /// The target enum for the IntoBody trait.
 pub enum Body<'a> {
     /// A Reader does not necessarily know it's size, so it is chunked.
-    ChunkedBody(&'a mut (Reader + 'a)),
+    ChunkedBody(&'a mut (Read + 'a)),
     /// For Readers that can know their size, like a `File`.
-    SizedBody(&'a mut (Reader + 'a), u64),
+    SizedBody(&'a mut (Read + 'a), u64),
     /// A String has a size, and uses Content-Length.
     BufBody(&'a [u8] , usize),
 }
@@ -255,13 +254,13 @@ impl<'a> Body<'a> {
     }
 }
 
-impl<'a> Reader for Body<'a> {
+impl<'a> Read for Body<'a> {
     #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match *self {
             Body::ChunkedBody(ref mut r) => r.read(buf),
             Body::SizedBody(ref mut r, _) => r.read(buf),
-            Body::BufBody(ref mut r, _) => r.read(buf),
+            Body::BufBody(ref mut r, _) => Read::read(r, buf),
         }
     }
 }
@@ -288,7 +287,7 @@ impl<'a> IntoBody<'a> for &'a str {
     }
 }
 
-impl<'a, R: Reader> IntoBody<'a> for &'a mut R {
+impl<'a, R: Read> IntoBody<'a> for &'a mut R {
     #[inline]
     fn into_body(self) -> Body<'a> {
         Body::ChunkedBody(self)
@@ -337,7 +336,7 @@ impl Default for RedirectPolicy {
     }
 }
 
-fn get_host_and_port(url: &Url) -> HttpResult<(String, Port)> {
+fn get_host_and_port(url: &Url) -> HttpResult<(String, u16)> {
     let host = match url.serialize_host() {
         Some(host) => host,
         None => return Err(HttpUriError(UrlError::EmptyHost))

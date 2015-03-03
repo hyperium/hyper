@@ -1,6 +1,6 @@
 //! Client Requests
-use std::old_io::{BufferedWriter, IoResult};
 use std::marker::PhantomData;
+use std::io::{self, Write, BufWriter};
 
 use url::Url;
 
@@ -23,7 +23,7 @@ pub struct Request<W> {
     /// The HTTP version of this request.
     pub version: version::HttpVersion,
 
-    body: HttpWriter<BufferedWriter<Box<NetworkStream + Send>>>,
+    body: HttpWriter<BufWriter<Box<NetworkStream + Send>>>,
     headers: Headers,
     method: method::Method,
 
@@ -59,7 +59,7 @@ impl Request<Fresh> {
         let (host, port) = try!(get_host_and_port(&url));
 
         let stream = try!(connector.connect(&*host, port, &*url.scheme));
-        let stream = ThroughWriter(BufferedWriter::new(box stream as Box<NetworkStream + Send>));
+        let stream = ThroughWriter(BufWriter::new(box stream as Box<NetworkStream + Send>));
 
         let mut headers = Headers::new();
         headers.set(Host {
@@ -96,7 +96,7 @@ impl Request<Fresh> {
             Method::Get | Method::Head => {
                 debug!("headers [\n{:?}]", self.headers);
                 try!(write!(&mut self.body, "{}{}", self.headers, LINE_ENDING));
-                EmptyWriter(self.body.unwrap())
+                EmptyWriter(self.body.into_inner())
             },
             _ => {
                 let mut chunked = true;
@@ -131,9 +131,9 @@ impl Request<Fresh> {
                 try!(write!(&mut self.body, "{}{}", self.headers, LINE_ENDING));
 
                 if chunked {
-                    ChunkedWriter(self.body.unwrap())
+                    ChunkedWriter(self.body.into_inner())
                 } else {
-                    SizedWriter(self.body.unwrap(), len)
+                    SizedWriter(self.body.into_inner(), len)
                 }
             }
         };
@@ -158,19 +158,19 @@ impl Request<Streaming> {
     ///
     /// Consumes the Request.
     pub fn send(self) -> HttpResult<Response> {
-        let raw = try!(self.body.end()).into_inner();
+        let raw = try!(self.body.end()).into_inner().unwrap(); // end() already flushes
         Response::new(raw)
     }
 }
 
-impl Writer for Request<Streaming> {
+impl Write for Request<Streaming> {
     #[inline]
-    fn write_all(&mut self, msg: &[u8]) -> IoResult<()> {
-        self.body.write_all(msg)
+    fn write(&mut self, msg: &[u8]) -> io::Result<usize> {
+        self.body.write(msg)
     }
 
     #[inline]
-    fn flush(&mut self) -> IoResult<()> {
+    fn flush(&mut self) -> io::Result<()> {
         self.body.flush()
     }
 }
@@ -191,8 +191,8 @@ mod tests {
         ).unwrap();
         let req = req.start().unwrap();
         let stream = *req.body.end().unwrap()
-            .into_inner().downcast::<MockStream>().ok().unwrap();
-        let bytes = stream.write.into_inner();
+            .into_inner().unwrap().downcast::<MockStream>().ok().unwrap();
+        let bytes = stream.write;
         let s = from_utf8(&bytes[..]).unwrap();
         assert!(!s.contains("Content-Length:"));
         assert!(!s.contains("Transfer-Encoding:"));
@@ -205,8 +205,8 @@ mod tests {
         ).unwrap();
         let req = req.start().unwrap();
         let stream = *req.body.end().unwrap()
-            .into_inner().downcast::<MockStream>().ok().unwrap();
-        let bytes = stream.write.into_inner();
+            .into_inner().unwrap().downcast::<MockStream>().ok().unwrap();
+        let bytes = stream.write;
         let s = from_utf8(&bytes[..]).unwrap();
         assert!(!s.contains("Content-Length:"));
         assert!(!s.contains("Transfer-Encoding:"));

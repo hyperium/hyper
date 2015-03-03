@@ -2,8 +2,8 @@
 //!
 //! These are requests that a `hyper::Server` receives, and include its method,
 //! target URI, headers, and message body.
-use std::old_io::IoResult;
-use std::old_io::net::ip::SocketAddr;
+use std::io::{self, Read};
+use std::net::SocketAddr;
 
 use {HttpResult};
 use version::{HttpVersion};
@@ -26,14 +26,14 @@ pub struct Request<'a> {
     pub uri: RequestUri,
     /// The version of HTTP for this request.
     pub version: HttpVersion,
-    body: HttpReader<&'a mut (Reader + 'a)>
+    body: HttpReader<&'a mut (Read + 'a)>
 }
 
 
 impl<'a> Request<'a> {
     /// Create a new Request, reading the StartLine and Headers so they are
     /// immediately useful.
-    pub fn new(mut stream: &'a mut (Reader + 'a), addr: SocketAddr) -> HttpResult<Request<'a>> {
+    pub fn new(mut stream: &'a mut (Read + 'a), addr: SocketAddr) -> HttpResult<Request<'a>> {
         let (method, uri, version) = try!(read_request_line(&mut stream));
         debug!("Request Line: {:?} {:?} {:?}", method, uri, version);
         let headers = try!(Headers::from_raw(&mut stream));
@@ -66,14 +66,14 @@ impl<'a> Request<'a> {
     /// Deconstruct a Request into its constituent parts.
     pub fn deconstruct(self) -> (SocketAddr, Method, Headers,
                                  RequestUri, HttpVersion,
-                                 HttpReader<&'a mut (Reader + 'a)>,) {
+                                 HttpReader<&'a mut (Read + 'a)>,) {
         (self.remote_addr, self.method, self.headers,
          self.uri, self.version, self.body)
     }
 }
 
-impl<'a> Reader for Request<'a> {
-    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
+impl<'a> Read for Request<'a> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.body.read(buf)
     }
 }
@@ -84,10 +84,17 @@ mod tests {
     use mock::MockStream;
     use super::Request;
 
-    use std::old_io::net::ip::SocketAddr;
+    use std::io::{self, Read};
+    use std::net::SocketAddr;
 
     fn sock(s: &str) -> SocketAddr {
         s.parse().unwrap()
+    }
+
+    fn read_to_string(mut req: Request) -> io::Result<String> {
+        let mut s = String::new();
+        try!(req.read_to_string(&mut s));
+        Ok(s)
     }
 
     #[test]
@@ -99,8 +106,8 @@ mod tests {
             I'm a bad request.\r\n\
         ");
 
-        let mut req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
-        assert_eq!(req.read_to_string(), Ok("".to_string()));
+        let req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
+        assert_eq!(read_to_string(req), Ok("".to_string()));
     }
 
     #[test]
@@ -112,8 +119,8 @@ mod tests {
             I'm a bad request.\r\n\
         ");
 
-        let mut req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
-        assert_eq!(req.read_to_string(), Ok("".to_string()));
+        let req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
+        assert_eq!(read_to_string(req), Ok("".to_string()));
     }
 
     #[test]
@@ -125,8 +132,8 @@ mod tests {
             I'm a bad request.\r\n\
         ");
 
-        let mut req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
-        assert_eq!(req.read_to_string(), Ok("".to_string()));
+        let req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
+        assert_eq!(read_to_string(req), Ok("".to_string()));
     }
 
     #[test]
@@ -146,7 +153,7 @@ mod tests {
             \r\n"
         );
 
-        let mut req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
+        let req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
 
         // The headers are correct?
         match req.headers.get::<Host>() {
@@ -163,8 +170,7 @@ mod tests {
             None => panic!("Transfer-Encoding: chunked expected!"),
         };
         // The content is correctly read?
-        let body = req.read_to_string().unwrap();
-        assert_eq!("qwert", body);
+        assert_eq!(read_to_string(req), Ok("qwert".to_string()));
     }
 
     /// Tests that when a chunk size is not a valid radix-16 number, an error
@@ -182,9 +188,9 @@ mod tests {
             \r\n"
         );
 
-        let mut req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
+        let req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
 
-        assert!(req.read_to_string().is_err());
+        assert!(read_to_string(req).is_err());
     }
 
     /// Tests that when a chunk size contains an invalid extension, an error is
@@ -202,9 +208,9 @@ mod tests {
             \r\n"
         );
 
-        let mut req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
+        let req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
 
-        assert!(req.read_to_string().is_err());
+        assert!(read_to_string(req).is_err());
     }
 
     /// Tests that when a valid extension that contains a digit is appended to
@@ -222,9 +228,9 @@ mod tests {
             \r\n"
         );
 
-        let mut req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
+        let req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
 
-        assert_eq!("1", req.read_to_string().unwrap())
+        assert_eq!(read_to_string(req), Ok("1".to_string()));
     }
 
 }

@@ -27,12 +27,13 @@ Hello World Server:
 ```rust
 extern crate hyper;
 
-use hyper::status::StatusCode;
-use hyper::server::Server;
-use hyper::server::request::Request;
-use hyper::server::response::Response;
+use std::io::Write;
+use std::net::IpAddr;
+
+use hyper::Server;
+use hyper::server::Request;
+use hyper::server::Response;
 use hyper::net::Fresh;
-use hyper::IpAddr::Ipv4Addr;
 
 fn hello(_: Request, mut res: Response<Fresh>) {
     let mut res = res.start().unwrap();
@@ -41,8 +42,7 @@ fn hello(_: Request, mut res: Response<Fresh>) {
 }
 
 fn main() {
-    let server = Server::http(Ipv4Addr(127, 0, 0, 1), 1337);
-    server.listen(hello).unwrap();
+    Server::http(hello).listen(IpAddr::new_v4(127, 0, 0, 1), 3000).unwrap();
 }
 ```
 
@@ -51,7 +51,9 @@ Client:
 ```rust
 extern crate hyper;
 
-use hyper::client::Client;
+use std::io::Read;
+
+use hyper::Client;
 use hyper::header::Connection;
 use hyper::header::ConnectionOption;
 
@@ -67,7 +69,8 @@ fn main() {
         .send().unwrap();
 
     // Read the Response.
-    let body = res.read_to_string().unwrap();
+    let mut body = String::new();
+    res.read_to_string(&mut body).unwrap();
 
     println!("Response: {}", body);
 }

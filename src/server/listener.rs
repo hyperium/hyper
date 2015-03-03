@@ -1,16 +1,16 @@
 use std::thread::{self, JoinGuard};
 use std::sync::mpsc;
 use std::collections::VecMap;
-use net::NetworkAcceptor;
+use net::NetworkListener;
 
-pub struct AcceptorPool<A: NetworkAcceptor> {
+pub struct ListenerPool<A: NetworkListener> {
     acceptor: A
 }
 
-impl<'a, A: NetworkAcceptor + 'a> AcceptorPool<A> {
+impl<'a, A: NetworkListener + Send + 'a> ListenerPool<A> {
     /// Create a thread pool to manage the acceptor.
-    pub fn new(acceptor: A) -> AcceptorPool<A> {
-        AcceptorPool { acceptor: acceptor }
+    pub fn new(acceptor: A) -> ListenerPool<A> {
+        ListenerPool { acceptor: acceptor }
     }
 
     /// Runs the acceptor pool. Blocks until the acceptors are closed.
@@ -44,23 +44,16 @@ impl<'a, A: NetworkAcceptor + 'a> AcceptorPool<A> {
     }
 }
 
-fn spawn_with<'a, A, F>(supervisor: mpsc::Sender<usize>, work: &'a F, mut acceptor: A, id: usize) -> JoinGuard<'a, ()>
-where A: NetworkAcceptor + 'a,
-      F: Fn(<A as NetworkAcceptor>::Stream) + Send + Sync + 'a {
-    use std::old_io::EndOfFile;
+fn spawn_with<'a, A, F>(supervisor: mpsc::Sender<usize>, work: &'a F, mut acceptor: A, id: usize) -> thread::JoinGuard<'a, ()>
+where A: NetworkListener + Send + 'a,
+      F: Fn(<A as NetworkListener>::Stream) + Send + Sync + 'a {
 
     thread::scoped(move || {
-        let sentinel = Sentinel::new(supervisor, id);
+        let _sentinel = Sentinel::new(supervisor, id);
 
         loop {
             match acceptor.accept() {
                 Ok(stream) => work(stream),
-                Err(ref e) if e.kind == EndOfFile => {
-                    debug!("Server closed.");
-                    sentinel.cancel();
-                    return;
-                },
-
                 Err(e) => {
                     error!("Connection failed: {}", e);
                 }
@@ -72,7 +65,7 @@ where A: NetworkAcceptor + 'a,
 struct Sentinel<T: Send> {
     value: Option<T>,
     supervisor: mpsc::Sender<T>,
-    active: bool
+    //active: bool
 }
 
 impl<T: Send> Sentinel<T> {
@@ -80,18 +73,18 @@ impl<T: Send> Sentinel<T> {
         Sentinel {
             value: Some(data),
             supervisor: channel,
-            active: true
+            //active: true
         }
     }
 
-    fn cancel(mut self) { self.active = false; }
+    //fn cancel(mut self) { self.active = false; }
 }
 
 #[unsafe_destructor]
 impl<T: Send + 'static> Drop for Sentinel<T> {
     fn drop(&mut self) {
         // If we were cancelled, get out of here.
-        if !self.active { return; }
+        //if !self.active { return; }
 
         // Respawn ourselves
         let _ = self.supervisor.send(self.value.take().unwrap());
