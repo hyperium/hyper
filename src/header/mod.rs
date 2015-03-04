@@ -4,29 +4,27 @@
 //! why we're using Rust in the first place. To set or get any header, an object
 //! must implement the `Header` trait from this module. Several common headers
 //! are already provided, such as `Host`, `ContentType`, `UserAgent`, and others.
-use std::any::{Any, TypeId};
+use std::any::Any;
 use std::borrow::Cow::{Borrowed, Owned};
 use std::fmt;
 use std::io::Read;
 use std::raw::TraitObject;
-use std::str::from_utf8;
 use std::collections::HashMap;
 use std::collections::hash_map::{Iter, Entry};
 use std::iter::{FromIterator, IntoIterator};
 use std::borrow::{Cow, IntoCow};
 use std::{mem, raw};
 
-use uany::{UnsafeAnyExt};
 use unicase::UniCase;
 
-use self::cell::OptCell;
+use self::internals::Item;
 use {http, HttpResult, HttpError};
 
 pub use self::shared::{Charset, Encoding, EntityTag, Quality, QualityItem, qitem, q};
 pub use self::common::*;
 
-mod cell;
 mod common;
+mod internals;
 mod shared;
 pub mod parsing;
 
@@ -55,7 +53,7 @@ pub trait Header: Clone + Any + Send + Sync {
 /// A trait for any object that will represent a header field and value.
 ///
 /// This trait represents the formatting of a Header for output to a TcpStream.
-pub trait HeaderFormat: HeaderClone + Any + Send + Sync {
+pub trait HeaderFormat: fmt::Debug + HeaderClone + Any + Send + Sync {
     /// Format a header to be output into a TcpStream.
     ///
     /// This method is not allowed to introduce an Err not produced
@@ -78,13 +76,6 @@ impl<T: HeaderFormat + Send + Sync + Clone> HeaderClone for T {
 
 impl HeaderFormat {
     #[inline]
-    fn is<T: 'static>(&self) -> bool {
-        self.get_type_id() == TypeId::of::<T>()
-    }
-}
-
-impl UnsafeAnyExt for HeaderFormat {
-    #[inline]
     unsafe fn downcast_ref_unchecked<T: 'static>(&self) -> &T {
         mem::transmute(mem::transmute::<&HeaderFormat, raw::TraitObject>(self).data)
     }
@@ -92,11 +83,6 @@ impl UnsafeAnyExt for HeaderFormat {
     #[inline]
     unsafe fn downcast_mut_unchecked<T: 'static>(&mut self) -> &mut T {
         mem::transmute(mem::transmute::<&mut HeaderFormat, raw::TraitObject>(self).data)
-    }
-
-    #[inline]
-    unsafe fn downcast_unchecked<T: 'static>(self: Box<HeaderFormat>) -> Box<T> {
-        mem::transmute(mem::transmute::<Box<HeaderFormat>, raw::TraitObject>(self).data)
     }
 }
 
@@ -179,19 +165,8 @@ impl Headers {
     /// ```
     pub fn get_raw(&self, name: &str) -> Option<&[Vec<u8>]> {
         self.data
-            // FIXME(reem): Find a better way to do this lookup without find_equiv.
             .get(&UniCase(Borrowed(unsafe { mem::transmute::<&str, &str>(name) })))
-            .and_then(|item| {
-                if let Some(ref raw) = *item.raw {
-                    return Some(&raw[..]);
-                }
-
-                let raw = vec![item.typed.as_ref().unwrap().to_string().into_bytes()];
-                item.raw.set(raw);
-
-                let raw = item.raw.as_ref().unwrap();
-                Some(&raw[..])
-            })
+            .map(Item::raw)
     }
 
     /// Set the raw value of a header, bypassing any typed headers.
@@ -214,26 +189,12 @@ impl Headers {
 
     /// Get a reference to the header field's value, if it exists.
     pub fn get<H: Header + HeaderFormat>(&self) -> Option<&H> {
-        self.get_or_parse::<H>().map(|item| {
-            unsafe {
-                downcast(&*item)
-            }
-        })
+        self.data.get(&UniCase(Borrowed(header_name::<H>()))).and_then(Item::typed::<H>)
     }
 
     /// Get a mutable reference to the header field's value, if it exists.
     pub fn get_mut<H: Header + HeaderFormat>(&mut self) -> Option<&mut H> {
-        self.get_or_parse_mut::<H>().map(|item| {
-            unsafe { downcast_mut(item) }
-        })
-    }
-
-    fn get_or_parse<H: Header + HeaderFormat>(&self) -> Option<&Item> {
-        self.data.get(&UniCase(Borrowed(header_name::<H>()))).and_then(get_or_parse::<H>)
-    }
-
-    fn get_or_parse_mut<H: Header + HeaderFormat>(&mut self) -> Option<&mut Item> {
-        self.data.get_mut(&UniCase(Borrowed(header_name::<H>()))).and_then(get_or_parse_mut::<H>)
+        self.data.get_mut(&UniCase(Borrowed(header_name::<H>()))).and_then(Item::typed_mut::<H>)
     }
 
     /// Returns a boolean of whether a certain header is in the map.
@@ -329,11 +290,7 @@ impl<'a> HeaderView<'a> {
     /// Cast the value to a certain Header type.
     #[inline]
     pub fn value<H: Header + HeaderFormat>(&self) -> Option<&'a H> {
-        get_or_parse::<H>(self.1).map(|item| {
-            unsafe {
-                downcast(&*item)
-            }
-        })
+        self.1.typed::<H>()
     }
 
     /// Get just the header value as a String.
@@ -371,141 +328,7 @@ impl<'a> FromIterator<HeaderView<'a>> for Headers {
     }
 }
 
-#[derive(Clone)]
-struct Item {
-    raw: OptCell<Vec<Vec<u8>>>,
-    typed: OptCell<Box<HeaderFormat + Send + Sync>>
-}
-
-impl Item {
-    #[inline]
-    fn new_raw(data: Vec<Vec<u8>>) -> Item {
-        Item {
-            raw: OptCell::new(Some(data)),
-            typed: OptCell::new(None),
-        }
-    }
-
-    #[inline]
-    fn new_typed(ty: Box<HeaderFormat + Send + Sync>) -> Item {
-        Item {
-            raw: OptCell::new(None),
-            typed: OptCell::new(Some(ty)),
-        }
-    }
-
-    #[inline]
-    fn mut_raw(&mut self) -> &mut Vec<Vec<u8>> {
-        self.typed = OptCell::new(None);
-        unsafe {
-            self.raw.get_mut()
-        }
-    }
-
-    #[inline]
-    fn mut_typed(&mut self) -> &mut Box<HeaderFormat + Send + Sync> {
-        self.raw = OptCell::new(None);
-        unsafe {
-            self.typed.get_mut()
-        }
-    }
-}
-
-
-fn get_or_parse<H: Header + HeaderFormat>(item: &Item) -> Option<&Item> {
-    match *item.typed {
-        Some(ref typed) if typed.is::<H>() => return Some(item),
-        Some(ref typed) => {
-            warn!("attempted to access {:?} as wrong type", typed);
-            return None;
-        }
-        _ => ()
-    }
-
-    parse::<H>(item);
-    if item.typed.is_some() {
-        Some(item)
-    } else {
-        None
-    }
-}
-
-fn get_or_parse_mut<H: Header + HeaderFormat>(item: &mut Item) -> Option<&mut Item> {
-    let is_correct_type = match *item.typed {
-        Some(ref typed) if typed.is::<H>() => Some(true),
-        Some(ref typed) => {
-            warn!("attempted to access {:?} as wrong type", typed);
-            Some(false)
-        }
-        _ => None
-    };
-
-    match is_correct_type {
-        Some(true) => return Some(item),
-        Some(false) => return None,
-        None => ()
-    }
-
-    parse::<H>(&item);
-    if item.typed.is_some() {
-        Some(item)
-    } else {
-        None
-    }
-}
-
-fn parse<H: Header + HeaderFormat>(item: &Item) {
-    match *item.raw {
-        Some(ref raw) => match Header::parse_header(&raw[..]) {
-            Some::<H>(h) => item.typed.set(box h as Box<HeaderFormat + Send + Sync>),
-            None => ()
-        },
-        None => unreachable!()
-    }
-}
-
-#[inline]
-unsafe fn downcast<H: Header + HeaderFormat>(item: &Item) -> &H {
-    item.typed.as_ref().expect("item.typed must be set").downcast_ref_unchecked()
-}
-
-#[inline]
-unsafe fn downcast_mut<H: Header + HeaderFormat>(item: &mut Item) -> &mut H {
-    item.mut_typed().downcast_mut_unchecked()
-}
-
-impl fmt::Display for Item {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match *self.typed {
-            Some(ref h) => h.fmt_header(fmt),
-            None => match *self.raw {
-                Some(ref raw) => {
-                    for part in raw.iter() {
-                        match from_utf8(&part[..]) {
-                            Ok(s) => try!(fmt.write_str(s)),
-                            Err(e) => {
-                                error!("raw header value is not utf8. header={:?}, error={:?}", part, e);
-                                return Err(fmt::Error);
-                            }
-                        }
-                    }
-                    Ok(())
-                },
-                None => unreachable!()
-            }
-        }
-    }
-}
-
-
-impl fmt::Debug for Box<HeaderFormat + Send + Sync> {
-    #[inline]
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        (**self).fmt_header(fmt)
-    }
-}
-
-impl fmt::Display for Box<HeaderFormat + Send + Sync> {
+impl<'a> fmt::Display for &'a (HeaderFormat + Send + Sync) {
     #[inline]
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         (**self).fmt_header(fmt)
@@ -568,7 +391,7 @@ mod tests {
         assert_eq!(accept, Some(Accept(vec![application_vendor, text_plain])));
     }
 
-    #[derive(Clone, Debug)]
+    #[derive(Clone, PartialEq, Debug)]
     struct CrazyLength(Option<bool>, usize);
 
     impl Header for CrazyLength {
@@ -600,15 +423,14 @@ mod tests {
     #[test]
     fn test_different_structs_for_same_header() {
         let headers = Headers::from_raw(&mut b"Content-Length: 10\r\n\r\n").unwrap();
-        let ContentLength(_) = *headers.get::<ContentLength>().unwrap();
-        assert!(headers.get::<CrazyLength>().is_none());
+        assert_eq!(headers.get::<ContentLength>(), Some(&ContentLength(10)));
+        assert_eq!(headers.get::<CrazyLength>(), Some(&CrazyLength(Some(false), 10)));
     }
 
     #[test]
     fn test_trailing_whitespace() {
         let headers = Headers::from_raw(&mut b"Content-Length: 10   \r\n\r\n").unwrap();
-        let ContentLength(_) = *headers.get::<ContentLength>().unwrap();
-        assert!(headers.get::<CrazyLength>().is_none());
+        assert_eq!(headers.get::<ContentLength>(), Some(&ContentLength(10)));
     }
 
     #[test]

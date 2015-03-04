@@ -130,7 +130,6 @@ extern crate "rustc-serialize" as serialize;
 extern crate time;
 extern crate url;
 extern crate openssl;
-extern crate "unsafe-any" as uany;
 extern crate cookie;
 extern crate unicase;
 
