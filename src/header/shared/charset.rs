@@ -117,7 +117,7 @@ impl FromStr for Charset {
             "ISO-8859-8" => Iso_8859_8,
             "ISO-8859-9" => Iso_8859_9,
             "ISO-8859-10" => Iso_8859_10,
-            "Shift-JIS" => Shift_Jis,
+            "SHIFT-JIS" => Shift_Jis,
             "EUC-JP" => Euc_Jp,
             "ISO-2022-KR" => Iso_2022_Kr,
             "EUC-KR" => Euc_Kr,
@@ -140,6 +140,7 @@ fn test_parse() {
     assert_eq!(Us_Ascii,"us-ascii".parse().unwrap());
     assert_eq!(Us_Ascii,"US-Ascii".parse().unwrap());
     assert_eq!(Us_Ascii,"US-ASCII".parse().unwrap());
+    assert_eq!(Shift_Jis,"Shift-JIS".parse().unwrap());
     assert_eq!(Ext("ABCD".to_string()),"abcd".parse().unwrap());
 }
 
