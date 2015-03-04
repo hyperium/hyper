@@ -75,27 +75,27 @@ impl<C: NetworkConnector> Client<C> {
         self.redirect_policy = policy;
     }
 
-    /// Execute a Get request.
+    /// Build a Get request.
     pub fn get<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U, C> {
         self.request(Method::Get, url)
     }
 
-    /// Execute a Head request.
+    /// Build a Head request.
     pub fn head<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U, C> {
         self.request(Method::Head, url)
     }
 
-    /// Execute a Post request.
+    /// Build a Post request.
     pub fn post<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U, C> {
         self.request(Method::Post, url)
     }
 
-    /// Execute a Put request.
+    /// Build a Put request.
     pub fn put<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U, C> {
         self.request(Method::Put, url)
     }
 
-    /// Execute a Delete request.
+    /// Build a Delete request.
     pub fn delete<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U, C> {
         self.request(Method::Delete, url)
     }
