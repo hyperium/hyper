@@ -1,4 +1,26 @@
-### v0.2.1 (2015-02-27)
+## v0.3.0 (2015-03-03)
+
+
+#### Features
+
+* **headers:**
+  * add enum for Charset ([180d9a92](https://github.com/hyperium/hyper/commit/180d9a92d92541aa415c918a2265bd6b33d39655))
+  * add AcceptCharset header ([235089a1](https://github.com/hyperium/hyper/commit/235089a1034dc93ca62f47dcab0a93f1d49c72dd))
+  * add q function to ease creating Quality values ([d68773c7](https://github.com/hyperium/hyper/commit/d68773c79f998813bbd1bf50a0dbc2bc01ee0470))
+  * adds re-parsing ability when getting typed headers ([df756871](https://github.com/hyperium/hyper/commit/df756871edf4143135644c211106c5a8f8f5adb0))
+* **hyper:** switch to std::io, std::net, and std::path. ([0fd6fcd7](https://github.com/hyperium/hyper/commit/0fd6fcd7c7f30c4317678a3b0968cc08ae9c0a71), closes [#347](https://github.com/hyperium/hyper/issues/347))
+
+
+#### Breaking Changes
+
+* added requirement that all HeaderFormat implementations
+  must also be fmt::Debug. This likely as easy as slapping
+  #[derive(Debug)] on to any custom headers.
+
+ ([df756871](https://github.com/hyperium/hyper/commit/df756871edf4143135644c211106c5a8f8f5adb0))
+* Check the docs. Everything was touched.
+
+ ([0fd6fcd7](https://github.com/hyperium/hyper/commit/0fd6fcd7c7f30c4317678a3b0968cc08ae9c0a71))
 
 
 ### v0.2.1 (2015-02-27)
