@@ -1,4 +1,4 @@
-#![feature(env)]
+#![deny(warnings)]
 extern crate hyper;
 
 use std::env;

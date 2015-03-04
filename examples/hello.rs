@@ -1,3 +1,4 @@
+#![deny(warnings)]
 #![feature(io, net)]
 extern crate hyper;
 
