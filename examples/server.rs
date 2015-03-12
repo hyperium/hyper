@@ -1,7 +1,7 @@
 #![deny(warnings)]
 #![feature(io, net)]
 extern crate hyper;
-#[macro_use] extern crate log;
+extern crate env_logger;
 
 use std::io::{Write, copy};
 use std::net::IpAddr;
@@ -15,7 +15,7 @@ macro_rules! try_return(
     ($e:expr) => {{
         match $e {
             Ok(v) => v,
-            Err(e) => { error!("Error: {}", e); return; }
+            Err(e) => { println!("Error: {}", e); return; }
         }
     }}
 );
@@ -51,6 +51,7 @@ fn echo(mut req: Request, mut res: Response) {
 }
 
 fn main() {
+    env_logger::init().unwrap();
     let server = Server::http(echo);
     let _guard = server.listen(IpAddr::new_v4(127, 0, 0, 1), 1337).unwrap();
     println!("Listening on http://127.0.0.1:1337");

@@ -66,7 +66,6 @@ pub trait NetworkStream: Read + Write + Any + StreamClone + Send {
     fn peer_addr(&mut self) -> io::Result<SocketAddr>;
 }
 
-
 #[doc(hidden)]
 pub trait StreamClone {
     fn clone_box(&self) -> Box<NetworkStream + Send>;

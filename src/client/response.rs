@@ -7,7 +7,7 @@ use header;
 use header::{ContentLength, TransferEncoding};
 use header::Encoding::Chunked;
 use net::{NetworkStream, HttpStream};
-use http::{read_status_line, HttpReader, RawStatus};
+use http::{self, HttpReader, RawStatus};
 use http::HttpReader::{SizedReader, ChunkedReader, EofReader};
 use status;
 use version;
@@ -36,15 +36,17 @@ impl Response {
     /// Creates a new response from a server.
     pub fn new(stream: Box<NetworkStream + Send>) -> HttpResult<Response> {
         let mut stream = BufReader::new(stream);
-        let (version, raw_status) = try!(read_status_line(&mut stream));
+
+        let head = try!(http::parse_response(&mut stream));
+        let raw_status = head.subject;
+        let headers = head.headers;
+
         let status = match FromPrimitive::from_u16(raw_status.0) {
             Some(status) => status,
             None => return Err(HttpStatusError)
         };
-        debug!("{:?} {:?}", version, status);
-
-        let headers = try!(header::Headers::from_raw(&mut stream));
-        debug!("Headers: [\n{:?}]", headers);
+        debug!("version={:?}, status={:?}", head.version, status);
+        debug!("headers={:?}", headers);
 
         let body = if headers.has::<TransferEncoding>() {
             match headers.get::<TransferEncoding>() {
@@ -74,7 +76,7 @@ impl Response {
 
         Ok(Response {
             status: status,
-            version: version,
+            version: head.version,
             headers: headers,
             body: body,
             status_raw: raw_status,

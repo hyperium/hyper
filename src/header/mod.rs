@@ -5,9 +5,9 @@
 //! must implement the `Header` trait from this module. Several common headers
 //! are already provided, such as `Host`, `ContentType`, `UserAgent`, and others.
 use std::any::Any;
-use std::borrow::Cow::{Borrowed, Owned};
+use std::borrow::Cow::{Borrowed};
+use std::borrow::ToOwned;
 use std::fmt;
-use std::io::Read;
 use std::raw::TraitObject;
 use std::collections::HashMap;
 use std::collections::hash_map::{Iter, Entry};
@@ -15,10 +15,11 @@ use std::iter::{FromIterator, IntoIterator};
 use std::borrow::{Cow, IntoCow};
 use std::{mem, raw};
 
+use httparse;
 use unicase::UniCase;
 
 use self::internals::Item;
-use {http, HttpResult, HttpError};
+use error::HttpResult;
 
 pub use self::shared::{Charset, Encoding, EntityTag, Quality, QualityItem, qitem, q};
 pub use self::common::*;
@@ -105,10 +106,6 @@ pub struct Headers {
     data: HashMap<HeaderName, Item>
 }
 
-// To prevent DOS from a server sending a never ending header.
-// The value was copied from curl.
-const MAX_HEADERS_LENGTH: u32 = 100 * 1024;
-
 impl Headers {
 
     /// Creates a new, empty headers map.
@@ -119,27 +116,18 @@ impl Headers {
     }
 
     #[doc(hidden)]
-    pub fn from_raw<R: Read>(rdr: &mut R) -> HttpResult<Headers> {
+    pub fn from_raw<'a>(raw: &[httparse::Header<'a>]) -> HttpResult<Headers> {
         let mut headers = Headers::new();
-        let mut count = 0u32;
-        loop {
-            match try!(http::read_header(rdr)) {
-                Some((name, value)) => {
-                    debug!("raw header: {:?}={:?}", name, &value[..]);
-                    count += (name.len() + value.len()) as u32;
-                    if count > MAX_HEADERS_LENGTH {
-                        debug!("Max header size reached, aborting");
-                        return Err(HttpError::HttpHeaderError)
-                    }
-                    let name = UniCase(Owned(name));
-                    let mut item = match headers.data.entry(name) {
-                        Entry::Vacant(entry) => entry.insert(Item::new_raw(vec![])),
-                        Entry::Occupied(entry) => entry.into_mut()
-                    };
-                    item.mut_raw().push(value);
-                },
-                None => break,
-            }
+        for header in raw {
+            debug!("raw header: {:?}={:?}", header.name, &header.value[..]);
+            let name = UniCase(header.name.to_owned().into_cow());
+            let mut item = match headers.data.entry(name) {
+                Entry::Vacant(entry) => entry.insert(Item::new_raw(vec![])),
+                Entry::Occupied(entry) => entry.into_mut()
+            };
+            let trim = header.value.iter().rev().take_while(|&&x| x == b' ').count();
+            let value = &header.value[.. header.value.len() - trim];
+            item.mut_raw().push(value.to_vec());
         }
         Ok(headers)
     }
@@ -364,12 +352,26 @@ mod tests {
     use mime::SubLevel::Plain;
     use super::{Headers, Header, HeaderFormat, ContentLength, ContentType,
                 Accept, Host, qitem};
+    use httparse;
 
     use test::Bencher;
 
+    macro_rules! raw {
+        ($($line:expr),*) => ({
+            [$({
+                let line = $line;
+                let pos = line.position_elem(&b':').expect("raw splits on :, not found");
+                httparse::Header {
+                    name: ::std::str::from_utf8(&line[..pos]).unwrap(),
+                    value: &line[pos + 2..]
+                }
+            }),*]
+        })
+    }
+
     #[test]
     fn test_from_raw() {
-        let headers = Headers::from_raw(&mut b"Content-Length: 10\r\n\r\n").unwrap();
+        let headers = Headers::from_raw(&raw!(b"Content-Length: 10")).unwrap();
         assert_eq!(headers.get(), Some(&ContentLength(10)));
     }
 
@@ -422,20 +424,20 @@ mod tests {
 
     #[test]
     fn test_different_structs_for_same_header() {
-        let headers = Headers::from_raw(&mut b"Content-Length: 10\r\n\r\n").unwrap();
+        let headers = Headers::from_raw(&raw!(b"Content-Length: 10")).unwrap();
         assert_eq!(headers.get::<ContentLength>(), Some(&ContentLength(10)));
         assert_eq!(headers.get::<CrazyLength>(), Some(&CrazyLength(Some(false), 10)));
     }
 
     #[test]
     fn test_trailing_whitespace() {
-        let headers = Headers::from_raw(&mut b"Content-Length: 10   \r\n\r\n").unwrap();
+        let headers = Headers::from_raw(&raw!(b"Content-Length: 10   ")).unwrap();
         assert_eq!(headers.get::<ContentLength>(), Some(&ContentLength(10)));
     }
 
     #[test]
     fn test_multiple_reads() {
-        let headers = Headers::from_raw(&mut b"Content-Length: 10\r\n\r\n").unwrap();
+        let headers = Headers::from_raw(&raw!(b"Content-Length: 10")).unwrap();
         let ContentLength(one) = *headers.get::<ContentLength>().unwrap();
         let ContentLength(two) = *headers.get::<ContentLength>().unwrap();
         assert_eq!(one, two);
@@ -443,14 +445,14 @@ mod tests {
 
     #[test]
     fn test_different_reads() {
-        let headers = Headers::from_raw(&mut b"Content-Length: 10\r\nContent-Type: text/plain\r\n\r\n").unwrap();
+        let headers = Headers::from_raw(&raw!(b"Content-Length: 10", b"Content-Type: text/plain")).unwrap();
         let ContentLength(_) = *headers.get::<ContentLength>().unwrap();
         let ContentType(_) = *headers.get::<ContentType>().unwrap();
     }
 
     #[test]
     fn test_get_mutable() {
-        let mut headers = Headers::from_raw(&mut b"Content-Length: 10\r\nContent-Type: text/plain\r\n\r\n").unwrap();
+        let mut headers = Headers::from_raw(&raw!(b"Content-Length: 10")).unwrap();
         *headers.get_mut::<ContentLength>().unwrap() = ContentLength(20);
         assert_eq!(*headers.get::<ContentLength>().unwrap(), ContentLength(20));
     }
@@ -471,7 +473,7 @@ mod tests {
 
     #[test]
     fn test_headers_show_raw() {
-        let headers = Headers::from_raw(&mut b"Content-Length: 10\r\n\r\n").unwrap();
+        let headers = Headers::from_raw(&raw!(b"Content-Length: 10")).unwrap();
         let s = headers.to_string();
         assert_eq!(s, "Content-Length: 10\r\n");
     }
@@ -538,7 +540,8 @@ mod tests {
 
     #[bench]
     fn bench_headers_from_raw(b: &mut Bencher) {
-        b.iter(|| Headers::from_raw(&mut b"Content-Length: 10\r\n\r\n").unwrap())
+        let raw = raw!(b"Content-Length: 10");
+        b.iter(|| Headers::from_raw(&raw).unwrap())
     }
 
     #[bench]

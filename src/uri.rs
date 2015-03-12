@@ -1,5 +1,9 @@
 //! HTTP RequestUris
+use std::str::FromStr;
 use url::Url;
+use url::ParseError as UrlError;
+
+use error::HttpError;
 
 /// The Request-URI of a Request's StartLine.
 ///
@@ -44,4 +48,41 @@ pub enum RequestUri {
     /// This is only used for a server-wide `OPTIONS` request.
     Star,
 }
+
+impl FromStr for RequestUri {
+    type Err = HttpError;
+
+    fn from_str(s: &str) -> Result<RequestUri, HttpError> {
+        match s.as_bytes() {
+            [] => Err(HttpError::HttpUriError(UrlError::InvalidCharacter)),
+            [b'*'] => Ok(RequestUri::Star),
+            [b'/', ..] => Ok(RequestUri::AbsolutePath(s.to_string())),
+            bytes if bytes.contains(&b'/') => {
+                Ok(RequestUri::AbsoluteUri(try!(Url::parse(s))))
+            }
+            _ => {
+                let mut temp = "http://".to_string();
+                temp.push_str(s);
+                try!(Url::parse(&temp[..]));
+                todo!("compare vs u.authority()");
+                Ok(RequestUri::Authority(s.to_string()))
+            }
+
+        }
+    }
+}
+
+#[test]
+fn test_uri_fromstr() {
+    use error::HttpResult;
+    fn read(s: &str, result: HttpResult<RequestUri>) {
+        assert_eq!(s.parse(), result);
+    }
+
+    read("*", Ok(RequestUri::Star));
+    read("http://hyper.rs/", Ok(RequestUri::AbsoluteUri(Url::parse("http://hyper.rs/").unwrap())));
+    read("hyper.rs", Ok(RequestUri::Authority("hyper.rs".to_string())));
+    read("/", Ok(RequestUri::AbsolutePath("/".to_string())));
+}
+
 

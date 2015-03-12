@@ -1,11 +1,15 @@
 #![deny(warnings)]
 extern crate hyper;
 
+extern crate env_logger;
+
 use std::env;
 
 use hyper::Client;
 
 fn main() {
+    env_logger::init().unwrap();
+
     let url = match env::args().nth(1) {
         Some(url) => url,
         None => {

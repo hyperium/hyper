@@ -32,9 +32,9 @@ impl<S: Scheme + 'static> Header for Authorization<S> where <S as FromStr>::Err:
             match (from_utf8(unsafe { &raw.get_unchecked(0)[..] }), Scheme::scheme(None::<S>)) {
                 (Ok(header), Some(scheme))
                     if header.starts_with(scheme) && header.len() > scheme.len() + 1 => {
-                    header[scheme.len() + 1..].parse::<S>().map(|s| Authorization(s)).ok()
+                    header[scheme.len() + 1..].parse::<S>().map(Authorization).ok()
                 },
-                (Ok(header), None) => header.parse::<S>().map(|s| Authorization(s)).ok(),
+                (Ok(header), None) => header.parse::<S>().map(Authorization).ok(),
                 _ => None
             }
         } else {
@@ -143,7 +143,7 @@ impl FromStr for Basic {
 #[cfg(test)]
 mod tests {
     use super::{Authorization, Basic};
-    use super::super::super::{Headers};
+    use super::super::super::{Headers, Header};
 
     #[test]
     fn test_raw_auth() {
@@ -154,8 +154,8 @@ mod tests {
 
     #[test]
     fn test_raw_auth_parse() {
-        let headers = Headers::from_raw(&mut b"Authorization: foo bar baz\r\n\r\n").unwrap();
-        assert_eq!(&headers.get::<Authorization<String>>().unwrap().0[..], "foo bar baz");
+        let header: Authorization<String> = Header::parse_header(&[b"foo bar baz".to_vec()]).unwrap();
+        assert_eq!(header.0, "foo bar baz");
     }
 
     #[test]
@@ -174,17 +174,15 @@ mod tests {
 
     #[test]
     fn test_basic_auth_parse() {
-        let headers = Headers::from_raw(&mut b"Authorization: Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==\r\n\r\n").unwrap();
-        let auth = headers.get::<Authorization<Basic>>().unwrap();
-        assert_eq!(&auth.0.username[..], "Aladdin");
+        let auth: Authorization<Basic> = Header::parse_header(&[b"Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==".to_vec()]).unwrap();
+        assert_eq!(auth.0.username, "Aladdin");
         assert_eq!(auth.0.password, Some("open sesame".to_string()));
     }
 
     #[test]
     fn test_basic_auth_parse_no_password() {
-        let headers = Headers::from_raw(&mut b"Authorization: Basic QWxhZGRpbjo=\r\n\r\n").unwrap();
-        let auth = headers.get::<Authorization<Basic>>().unwrap();
-        assert_eq!(auth.0.username.as_slice(), "Aladdin");
+        let auth: Authorization<Basic> = Header::parse_header(&[b"Basic QWxhZGRpbjo=".to_vec()]).unwrap();
+        assert_eq!(auth.0.username, "Aladdin");
         assert_eq!(auth.0.password, Some("".to_string()));
     }
 

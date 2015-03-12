@@ -2,20 +2,20 @@
 //!
 //! These are requests that a `hyper::Server` receives, and include its method,
 //! target URI, headers, and message body.
-use std::io::{self, Read};
+use std::io::{self, Read, BufReader};
 use std::net::SocketAddr;
 
 use {HttpResult};
+use net::NetworkStream;
 use version::{HttpVersion};
 use method::Method::{self, Get, Head};
 use header::{Headers, ContentLength, TransferEncoding};
-use http::{read_request_line};
-use http::HttpReader;
+use http::{self, Incoming, HttpReader};
 use http::HttpReader::{SizedReader, ChunkedReader, EmptyReader};
 use uri::RequestUri;
 
 /// A request bundles several parts of an incoming `NetworkStream`, given to a `Handler`.
-pub struct Request<'a> {
+pub struct Request<'a, 'b: 'a> {
     /// The IP address of the remote connection.
     pub remote_addr: SocketAddr,
     /// The `Method`, such as `Get`, `Post`, etc.
@@ -26,17 +26,18 @@ pub struct Request<'a> {
     pub uri: RequestUri,
     /// The version of HTTP for this request.
     pub version: HttpVersion,
-    body: HttpReader<&'a mut (Read + 'a)>
+    body: HttpReader<&'a mut BufReader<&'b mut NetworkStream>>
 }
 
 
-impl<'a> Request<'a> {
+impl<'a, 'b: 'a> Request<'a, 'b> {
     /// Create a new Request, reading the StartLine and Headers so they are
     /// immediately useful.
-    pub fn new(mut stream: &'a mut (Read + 'a), addr: SocketAddr) -> HttpResult<Request<'a>> {
-        let (method, uri, version) = try!(read_request_line(&mut stream));
+    pub fn new(mut stream: &'a mut BufReader<&'b mut NetworkStream>, addr: SocketAddr)
+        -> HttpResult<Request<'a, 'b>> {
+
+        let Incoming { version, subject: (method, uri), headers } = try!(http::parse_request(stream));
         debug!("Request Line: {:?} {:?} {:?}", method, uri, version);
-        let headers = try!(Headers::from_raw(&mut stream));
         debug!("{:?}", headers);
 
         let body = if method == Get || method == Head {
@@ -66,13 +67,13 @@ impl<'a> Request<'a> {
     /// Deconstruct a Request into its constituent parts.
     pub fn deconstruct(self) -> (SocketAddr, Method, Headers,
                                  RequestUri, HttpVersion,
-                                 HttpReader<&'a mut (Read + 'a)>,) {
+                                 HttpReader<&'a mut BufReader<&'b mut NetworkStream>>) {
         (self.remote_addr, self.method, self.headers,
          self.uri, self.version, self.body)
     }
 }
 
-impl<'a> Read for Request<'a> {
+impl<'a, 'b> Read for Request<'a, 'b> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.body.read(buf)
     }
@@ -81,10 +82,11 @@ impl<'a> Read for Request<'a> {
 #[cfg(test)]
 mod tests {
     use header::{Host, TransferEncoding, Encoding};
+    use net::NetworkStream;
     use mock::MockStream;
     use super::Request;
 
-    use std::io::{self, Read};
+    use std::io::{self, Read, BufReader};
     use std::net::SocketAddr;
 
     fn sock(s: &str) -> SocketAddr {
@@ -99,12 +101,14 @@ mod tests {
 
     #[test]
     fn test_get_empty_body() {
-        let mut stream = MockStream::with_input(b"\
+        let mut mock = MockStream::with_input(b"\
             GET / HTTP/1.1\r\n\
             Host: example.domain\r\n\
             \r\n\
             I'm a bad request.\r\n\
         ");
+
+        let mut stream = BufReader::new(&mut mock as &mut NetworkStream);
 
         let req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
         assert_eq!(read_to_string(req), Ok("".to_string()));
@@ -112,12 +116,13 @@ mod tests {
 
     #[test]
     fn test_head_empty_body() {
-        let mut stream = MockStream::with_input(b"\
+        let mut mock = MockStream::with_input(b"\
             HEAD / HTTP/1.1\r\n\
             Host: example.domain\r\n\
             \r\n\
             I'm a bad request.\r\n\
         ");
+        let mut stream = BufReader::new(&mut mock as &mut NetworkStream);
 
         let req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
         assert_eq!(read_to_string(req), Ok("".to_string()));
@@ -125,12 +130,13 @@ mod tests {
 
     #[test]
     fn test_post_empty_body() {
-        let mut stream = MockStream::with_input(b"\
+        let mut mock = MockStream::with_input(b"\
             POST / HTTP/1.1\r\n\
             Host: example.domain\r\n\
             \r\n\
             I'm a bad request.\r\n\
         ");
+        let mut stream = BufReader::new(&mut mock as &mut NetworkStream);
 
         let req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
         assert_eq!(read_to_string(req), Ok("".to_string()));
@@ -138,7 +144,7 @@ mod tests {
 
     #[test]
     fn test_parse_chunked_request() {
-        let mut stream = MockStream::with_input(b"\
+        let mut mock = MockStream::with_input(b"\
             POST / HTTP/1.1\r\n\
             Host: example.domain\r\n\
             Transfer-Encoding: chunked\r\n\
@@ -152,6 +158,7 @@ mod tests {
             0\r\n\
             \r\n"
         );
+        let mut stream = BufReader::new(&mut mock as &mut NetworkStream);
 
         let req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
 
@@ -177,7 +184,7 @@ mod tests {
     /// is returned.
     #[test]
     fn test_invalid_chunk_size_not_hex_digit() {
-        let mut stream = MockStream::with_input(b"\
+        let mut mock = MockStream::with_input(b"\
             POST / HTTP/1.1\r\n\
             Host: example.domain\r\n\
             Transfer-Encoding: chunked\r\n\
@@ -187,6 +194,7 @@ mod tests {
             0\r\n\
             \r\n"
         );
+        let mut stream = BufReader::new(&mut mock as &mut NetworkStream);
 
         let req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
 
@@ -197,7 +205,7 @@ mod tests {
     /// returned.
     #[test]
     fn test_invalid_chunk_size_extension() {
-        let mut stream = MockStream::with_input(b"\
+        let mut mock = MockStream::with_input(b"\
             POST / HTTP/1.1\r\n\
             Host: example.domain\r\n\
             Transfer-Encoding: chunked\r\n\
@@ -207,6 +215,7 @@ mod tests {
             0\r\n\
             \r\n"
         );
+        let mut stream = BufReader::new(&mut mock as &mut NetworkStream);
 
         let req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
 
@@ -217,7 +226,7 @@ mod tests {
     /// the chunk size, the chunk is correctly read.
     #[test]
     fn test_chunk_size_with_extension() {
-        let mut stream = MockStream::with_input(b"\
+        let mut mock = MockStream::with_input(b"\
             POST / HTTP/1.1\r\n\
             Host: example.domain\r\n\
             Transfer-Encoding: chunked\r\n\
@@ -227,6 +236,7 @@ mod tests {
             0\r\n\
             \r\n"
         );
+        let mut stream = BufReader::new(&mut mock as &mut NetworkStream);
 
         let req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
 
