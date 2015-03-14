@@ -13,6 +13,7 @@ keywords = ["http", "hyper", "hyperium"]
 
 [dependencies]
 cookie = "*"
+httparse = "*"
 log = ">= 0.2.0"
 mime = "*"
 openssl = "*"
@@ -20,3 +21,7 @@ rustc-serialize = "*"
 time = "*"
 unicase = "*"
 url = "*"
+
+[dev-dependencies]
+env_logger = "*"
+

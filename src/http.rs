@@ -1,22 +1,15 @@
 //! Pieces pertaining to the HTTP message protocol.
-use std::borrow::Cow::{self, Borrowed, Owned};
-use std::borrow::IntoCow;
+use std::borrow::{Cow, IntoCow, ToOwned};
 use std::cmp::min;
-use std::io::{self, Read, Write, Cursor};
-use std::num::from_u16;
-use std::str;
+use std::io::{self, Read, Write, BufRead};
 
-use url::Url;
-use url::ParseError as UrlError;
+use httparse;
 
-use method;
-use status::StatusCode;
-use uri;
-use uri::RequestUri::{AbsolutePath, AbsoluteUri, Authority, Star};
-use version::HttpVersion;
-use version::HttpVersion::{Http09, Http10, Http11};
-use HttpError::{HttpHeaderError, HttpMethodError, HttpStatusError,
-                HttpUriError, HttpVersionError};
+use header::Headers;
+use method::Method;
+use uri::RequestUri;
+use version::HttpVersion::{self, Http10, Http11};
+use HttpError:: HttpTooLargeError;
 use HttpResult;
 
 use self::HttpReader::{SizedReader, ChunkedReader, EofReader, EmptyReader};
@@ -314,337 +307,73 @@ impl<W: Write> Write for HttpWriter<W> {
     }
 }
 
+/// Parses a request into an Incoming message head.
+pub fn parse_request<T: BufRead>(buf: &mut T) -> HttpResult<Incoming<(Method, RequestUri)>> {
+    let (inc, len) = {
+        let slice = try!(buf.fill_buf());
+        let mut headers = [httparse::Header { name: "", value: b"" }; 64];
+        let mut req = httparse::Request::new(&mut headers);
+        match try!(req.parse(slice)) {
+            httparse::Status::Complete(len) => {
+                (Incoming {
+                    version: if req.version.unwrap() == 1 { Http11 } else { Http10 },
+                    subject: (
+                        try!(req.method.unwrap().parse()),
+                        try!(req.path.unwrap().parse())
+                    ),
+                    headers: try!(Headers::from_raw(req.headers))
+                }, len)
+            },
+            _ => {
+                // request head is bigger than a BufRead's buffer? 400 that!
+                return Err(HttpTooLargeError)
+            }
+        }
+    };
+    buf.consume(len);
+    Ok(inc)
+}
+
+/// Parses a response into an Incoming message head.
+pub fn parse_response<T: BufRead>(buf: &mut T) -> HttpResult<Incoming<RawStatus>> {
+    let (inc, len) = {
+        let mut headers = [httparse::Header { name: "", value: b"" }; 64];
+        let mut res = httparse::Response::new(&mut headers);
+        match try!(res.parse(try!(buf.fill_buf()))) {
+            httparse::Status::Complete(len) => {
+                (Incoming {
+                    version: if res.version.unwrap() == 1 { Http11 } else { Http10 },
+                    subject: RawStatus(
+                        res.code.unwrap(), res.reason.unwrap().to_owned().into_cow()
+                    ),
+                    headers: try!(Headers::from_raw(res.headers))
+                }, len)
+            },
+            _ => {
+                // response head is bigger than a BufRead's buffer?
+                return Err(HttpTooLargeError)
+            }
+        }
+    };
+    buf.consume(len);
+    Ok(inc)
+}
+
+/// An Incoming Message head. Includes request/status line, and headers.
+pub struct Incoming<S> {
+    /// HTTP version of the message.
+    pub version: HttpVersion,
+    /// Subject (request line or status line) of Incoming message.
+    pub subject: S,
+    /// Headers of the Incoming message.
+    pub headers: Headers
+}
+
 pub const SP: u8 = b' ';
 pub const CR: u8 = b'\r';
 pub const LF: u8 = b'\n';
 pub const STAR: u8 = b'*';
 pub const LINE_ENDING: &'static str = "\r\n";
-
-/// Determines if byte is a token char.
-///
-/// > ```notrust
-/// > token          = 1*tchar
-/// >
-/// > tchar          = "!" / "#" / "$" / "%" / "&" / "'" / "*"
-/// >                / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~"
-/// >                / DIGIT / ALPHA
-/// >                ; any VCHAR, except delimiters
-/// > ```
-#[inline]
-pub fn is_token(b: u8) -> bool {
-    match b {
-        b'a'...b'z' |
-        b'A'...b'Z' |
-        b'0'...b'9' |
-        b'!' |
-        b'#' |
-        b'$' |
-        b'%' |
-        b'&' |
-        b'\''|
-        b'*' |
-        b'+' |
-        b'-' |
-        b'.' |
-        b'^' |
-        b'_' |
-        b'`' |
-        b'|' |
-        b'~' => true,
-        _ => false
-    }
-}
-
-/// Read token bytes from `stream` into `buf` until a space is encountered.
-/// Returns `Ok(true)` if we read until a space,
-/// `Ok(false)` if we got to the end of `buf` without encountering a space,
-/// otherwise returns any error encountered reading the stream.
-///
-/// The remaining contents of `buf` are left untouched.
-fn read_method_token_until_space<R: Read>(stream: &mut R, buf: &mut [u8]) -> HttpResult<bool> {
-    macro_rules! byte (
-        ($rdr:ident) => ({
-            let mut slot = [0];
-            match try!($rdr.read(&mut slot)) {
-                1 => slot[0],
-                _ => return Err(HttpMethodError),
-            }
-        })
-    );
-
-    let mut cursor = Cursor::new(buf);
-
-    loop {
-        let b = byte!(stream);
-
-        if b == SP {
-            break;
-        } else if !is_token(b) {
-            return Err(HttpMethodError);
-        // Read to end but there's still more
-        } else {
-            match cursor.write(&[b]) {
-                Ok(1) => (),
-                _ => return Ok(false)
-            }
-        }
-    }
-
-    if cursor.position() == 0 {
-        return Err(HttpMethodError);
-    }
-
-    Ok(true)
-}
-
-/// Read a `Method` from a raw stream, such as `GET`.
-/// ### Note:
-/// Extension methods are only parsed to 16 characters.
-pub fn read_method<R: Read>(stream: &mut R) -> HttpResult<method::Method> {
-    let mut buf = [SP; 16];
-
-    if !try!(read_method_token_until_space(stream, &mut buf)) {
-        return Err(HttpMethodError);
-    }
-
-    let maybe_method = match &buf[0..7] {
-        b"GET    " => Some(method::Method::Get),
-        b"PUT    " => Some(method::Method::Put),
-        b"POST   " => Some(method::Method::Post),
-        b"HEAD   " => Some(method::Method::Head),
-        b"PATCH  " => Some(method::Method::Patch),
-        b"TRACE  " => Some(method::Method::Trace),
-        b"DELETE " => Some(method::Method::Delete),
-        b"CONNECT" => Some(method::Method::Connect),
-        b"OPTIONS" => Some(method::Method::Options),
-        _ => None,
-    };
-
-    debug!("maybe_method = {:?}", maybe_method);
-
-    match (maybe_method, &buf[..]) {
-        (Some(method), _) => Ok(method),
-        (None, ext) => {
-            // We already checked that the buffer is ASCII
-            Ok(method::Method::Extension(unsafe { str::from_utf8_unchecked(ext) }.trim().to_string()))
-        },
-    }
-}
-
-/// Read a `RequestUri` from a raw stream.
-pub fn read_uri<R: Read>(stream: &mut R) -> HttpResult<uri::RequestUri> {
-    macro_rules! byte (
-        ($rdr:ident) => ({
-            let mut buf = [0];
-            match try!($rdr.read(&mut buf)) {
-                1 => buf[0],
-                _ => return Err(HttpUriError(UrlError::InvalidCharacter)),
-            }
-        })
-    );
-    let mut b = byte!(stream);
-    while b == SP {
-        b = byte!(stream);
-    }
-
-    let mut s = String::new();
-    if b == STAR {
-        try!(expect(byte!(stream), SP));
-        return Ok(Star)
-    } else {
-        s.push(b as char);
-        loop {
-            match byte!(stream) {
-                SP => {
-                    break;
-                },
-                CR | LF => {
-                    return Err(HttpUriError(UrlError::InvalidCharacter))
-                },
-                b => s.push(b as char)
-            }
-        }
-    }
-
-    debug!("uri buf = {:?}", s);
-
-    if s.as_slice().starts_with("/") {
-        Ok(AbsolutePath(s))
-    } else if s.as_slice().contains("/") {
-        Ok(AbsoluteUri(try!(Url::parse(s.as_slice()))))
-    } else {
-        let mut temp = "http://".to_string();
-        temp.push_str(s.as_slice());
-        try!(Url::parse(temp.as_slice()));
-        todo!("compare vs u.authority()");
-        Ok(Authority(s))
-    }
-
-
-}
-
-
-/// Read the `HttpVersion` from a raw stream, such as `HTTP/1.1`.
-pub fn read_http_version<R: Read>(stream: &mut R) -> HttpResult<HttpVersion> {
-    macro_rules! byte (
-        ($rdr:ident) => ({
-            let mut buf = [0];
-            match try!($rdr.read(&mut buf)) {
-                1 => buf[0],
-                _ => return Err(HttpVersionError),
-            }
-        })
-    );
-
-    try!(expect(byte!(stream), b'H'));
-    try!(expect(byte!(stream), b'T'));
-    try!(expect(byte!(stream), b'T'));
-    try!(expect(byte!(stream), b'P'));
-    try!(expect(byte!(stream), b'/'));
-
-    match byte!(stream) {
-        b'0' => {
-            try!(expect(byte!(stream), b'.'));
-            try!(expect(byte!(stream), b'9'));
-            Ok(Http09)
-        },
-        b'1' => {
-            try!(expect(byte!(stream), b'.'));
-            match byte!(stream) {
-                b'0' => Ok(Http10),
-                b'1' => Ok(Http11),
-                _ => Err(HttpVersionError)
-            }
-        },
-        _ => Err(HttpVersionError)
-    }
-}
-
-const MAX_HEADER_NAME_LENGTH: usize = 100;
-const MAX_HEADER_FIELD_LENGTH: usize = 4096;
-
-/// The raw bytes when parsing a header line.
-///
-/// A String and Vec<u8>, divided by COLON (`:`). The String is guaranteed
-/// to be all `token`s. See `is_token` source for all valid characters.
-pub type RawHeaderLine = (String, Vec<u8>);
-
-/// Read a RawHeaderLine from a Reader.
-///
-/// From [spec](https://tools.ietf.org/html/http#section-3.2):
-///
-/// > Each header field consists of a case-insensitive field name followed
-/// > by a colon (":"), optional leading whitespace, the field value, and
-/// > optional trailing whitespace.
-/// >
-/// > ```notrust
-/// > header-field   = field-name ":" OWS field-value OWS
-/// >
-/// > field-name     = token
-/// > field-value    = *( field-content / obs-fold )
-/// > field-content  = field-vchar [ 1*( SP / HTAB ) field-vchar ]
-/// > field-vchar    = VCHAR / obs-text
-/// >
-/// > obs-fold       = CRLF 1*( SP / HTAB )
-/// >                ; obsolete line folding
-/// >                ; see Section 3.2.4
-/// > ```
-pub fn read_header<R: Read>(stream: &mut R) -> HttpResult<Option<RawHeaderLine>> {
-    macro_rules! byte (
-        ($rdr:ident) => ({
-            let mut buf = [0];
-            match try!($rdr.read(&mut buf)) {
-                1 => buf[0],
-                _ => return Err(HttpHeaderError),
-            }
-        })
-    );
-
-    let mut name = String::new();
-    let mut value = vec![];
-
-    loop {
-        match byte!(stream) {
-            CR if name.len() == 0 => {
-                match byte!(stream) {
-                    LF => return Ok(None),
-                    _ => return Err(HttpHeaderError)
-                }
-            },
-            b':' => break,
-            b if is_token(b) => {
-                if name.len() > MAX_HEADER_NAME_LENGTH { return Err(HttpHeaderError); }
-                name.push(b as char)
-            },
-            _nontoken => return Err(HttpHeaderError)
-        };
-    }
-
-    debug!("header name = {:?}", name);
-
-    let mut ows = true; //optional whitespace
-
-    todo!("handle obs-folding (gross!)");
-    loop {
-        match byte!(stream) {
-            CR => break,
-            LF => return Err(HttpHeaderError),
-            b' ' if ows => {},
-            b => {
-                ows = false;
-                if value.len() > MAX_HEADER_FIELD_LENGTH { return Err(HttpHeaderError); }
-                value.push(b)
-            }
-        };
-    }
-    // Remove optional trailing whitespace
-    let real_len = value.len() - value.iter().rev().take_while(|&&x| b' ' == x).count();
-    value.truncate(real_len);
-
-    match byte!(stream) {
-        LF => Ok(Some((name, value))),
-        _ => Err(HttpHeaderError)
-    }
-
-}
-
-/// `request-line   = method SP request-target SP HTTP-version CRLF`
-pub type RequestLine = (method::Method, uri::RequestUri, HttpVersion);
-
-/// Read the `RequestLine`, such as `GET / HTTP/1.1`.
-pub fn read_request_line<R: Read>(stream: &mut R) -> HttpResult<RequestLine> {
-    macro_rules! byte (
-        ($rdr:ident) => ({
-            let mut buf = [0];
-            match try!($rdr.read(&mut buf)) {
-                1 => buf[0],
-                _ => return Err(HttpVersionError),
-            }
-        })
-    );
-
-    debug!("read request line");
-    let method = try!(read_method(stream));
-    debug!("method = {:?}", method);
-    let uri = try!(read_uri(stream));
-    debug!("uri = {:?}", uri);
-    let version = try!(read_http_version(stream));
-    debug!("version = {:?}", version);
-
-    if byte!(stream) != CR {
-        return Err(HttpVersionError);
-    }
-    if byte!(stream) != LF {
-        return Err(HttpVersionError);
-    }
-
-    Ok((method, uri, version))
-}
-
-/// `status-line = HTTP-version SP status-code SP reason-phrase CRLF`
-///
-/// However, reason-phrase is absolutely useless, so its tossed.
-pub type StatusLine = (HttpVersion, RawStatus);
 
 /// The raw status code and reason-phrase.
 #[derive(PartialEq, Debug)]
@@ -656,219 +385,12 @@ impl Clone for RawStatus {
     }
 }
 
-/// Read the StatusLine, such as `HTTP/1.1 200 OK`.
-///
-/// > The first line of a response message is the status-line, consisting
-/// > of the protocol version, a space (SP), the status code, another
-/// > space, a possibly empty textual phrase describing the status code,
-/// > and ending with CRLF.
-/// >
-/// >```notrust
-/// > status-line = HTTP-version SP status-code SP reason-phrase CRLF
-/// > status-code    = 3DIGIT
-/// > reason-phrase  = *( HTAB / SP / VCHAR / obs-text )
-/// >```
-pub fn read_status_line<R: Read>(stream: &mut R) -> HttpResult<StatusLine> {
-    macro_rules! byte (
-        ($rdr:ident) => ({
-            let mut buf = [0];
-            match try!($rdr.read(&mut buf)) {
-                1 => buf[0],
-                _ => return Err(HttpVersionError),
-            }
-        })
-    );
-
-    let version = try!(read_http_version(stream));
-    if byte!(stream) != SP {
-        return Err(HttpVersionError);
-    }
-    let code = try!(read_status(stream));
-
-    Ok((version, code))
-}
-
-/// Read the StatusCode from a stream.
-pub fn read_status<R: Read>(stream: &mut R) -> HttpResult<RawStatus> {
-    macro_rules! byte (
-        ($rdr:ident) => ({
-            let mut buf = [0];
-            match try!($rdr.read(&mut buf)) {
-                1 => buf[0],
-                _ => return Err(HttpStatusError),
-            }
-        })
-    );
-
-    let code = [
-        byte!(stream),
-        byte!(stream),
-        byte!(stream),
-    ];
-
-    let code = match str::from_utf8(code.as_slice()).ok().and_then(|x| x.parse().ok()) {
-        Some(num) => num,
-        None => return Err(HttpStatusError)
-    };
-
-    match byte!(stream) {
-        b' ' => (),
-        _ => return Err(HttpStatusError)
-    }
-
-    let mut buf = [SP; 32];
-    let mut cursor = Cursor::new(&mut buf[..]);
-    {
-        'read: loop {
-            match byte!(stream) {
-                CR => match byte!(stream) {
-                    LF => break,
-                    _ => return Err(HttpStatusError)
-                },
-                b => match cursor.write(&[b]) {
-                    Ok(0) | Err(_) => {
-                        for _ in 0u8..128 {
-                            match byte!(stream) {
-                                CR => match byte!(stream) {
-                                    LF => break 'read,
-                                    _ => return Err(HttpStatusError)
-                                },
-                                _ => { /* ignore */ }
-                            }
-                        }
-                        return Err(HttpStatusError)
-                    }
-                    Ok(_) => (),
-                }
-            }
-        }
-    }
-
-    let reason = match str::from_utf8(cursor.into_inner()) {
-        Ok(s) => s.trim(),
-        Err(_) => return Err(HttpStatusError)
-    };
-
-    let reason = match from_u16::<StatusCode>(code) {
-        Some(status) => match status.canonical_reason() {
-            Some(phrase) => {
-                if phrase == reason {
-                    Borrowed(phrase)
-                } else {
-                    Owned(reason.to_string())
-                }
-            }
-            _ => Owned(reason.to_string())
-        },
-        None => return Err(HttpStatusError)
-    };
-
-    Ok(RawStatus(code, reason))
-}
-
-#[inline]
-fn expect(actual: u8, expected: u8) -> HttpResult<()> {
-    if actual == expected {
-        Ok(())
-    } else {
-        Err(HttpVersionError)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::io::{self, Write};
-    use std::borrow::Cow::{Borrowed, Owned};
-    use test::Bencher;
-    use uri::RequestUri;
-    use uri::RequestUri::{Star, AbsoluteUri, AbsolutePath, Authority};
-    use method;
-    use version::HttpVersion;
-    use version::HttpVersion::{Http10, Http11};
-    use HttpError::{HttpVersionError, HttpMethodError};
-    use HttpResult;
-    use url::Url;
 
-    use super::{read_method, read_uri, read_http_version, read_header,
-                RawHeaderLine, read_status, RawStatus, read_chunk_size};
-    #[test]
-    fn test_read_method() {
-        fn read(s: &str, result: HttpResult<method::Method>) {
-            assert_eq!(read_method(&mut s.as_bytes()), result);
-        }
+    use super::{read_chunk_size};
 
-        read("GET /", Ok(method::Method::Get));
-        read("POST /", Ok(method::Method::Post));
-        read("PUT /", Ok(method::Method::Put));
-        read("HEAD /", Ok(method::Method::Head));
-        read("OPTIONS /", Ok(method::Method::Options));
-        read("CONNECT /", Ok(method::Method::Connect));
-        read("TRACE /", Ok(method::Method::Trace));
-        read("PATCH /", Ok(method::Method::Patch));
-        read("FOO /", Ok(method::Method::Extension("FOO".to_string())));
-        read("akemi!~#HOMURA /", Ok(method::Method::Extension("akemi!~#HOMURA".to_string())));
-        read(" ", Err(HttpMethodError));
-    }
-
-    #[test]
-    fn test_read_uri() {
-        fn read(s: &str, result: HttpResult<RequestUri>) {
-            assert_eq!(read_uri(&mut s.as_bytes()), result);
-        }
-
-        read("* ", Ok(Star));
-        read("http://hyper.rs/ ", Ok(AbsoluteUri(Url::parse("http://hyper.rs/").unwrap())));
-        read("hyper.rs ", Ok(Authority("hyper.rs".to_string())));
-        read("/ ", Ok(AbsolutePath("/".to_string())));
-    }
-
-    #[test]
-    fn test_read_http_version() {
-        fn read(s: &str, result: HttpResult<HttpVersion>) {
-            assert_eq!(read_http_version(&mut s.as_bytes()), result);
-        }
-
-        read("HTTP/1.0", Ok(Http10));
-        read("HTTP/1.1", Ok(Http11));
-        read("HTP/2.0", Err(HttpVersionError));
-        read("HTTP.2.0", Err(HttpVersionError));
-        read("HTTP 2.0", Err(HttpVersionError));
-        read("TTP 2.0", Err(HttpVersionError));
-    }
-
-    #[test]
-    fn test_read_status() {
-        fn read(s: &str, result: HttpResult<RawStatus>) {
-            assert_eq!(read_status(&mut s.as_bytes()), result);
-        }
-
-        fn read_ignore_string(s: &str, result: HttpResult<RawStatus>) {
-            match (read_status(&mut s.as_bytes()), result) {
-                (Ok(RawStatus(ref c1, _)), Ok(RawStatus(ref c2, _))) => {
-                    assert_eq!(c1, c2);
-                },
-                (r1, r2) => assert_eq!(r1, r2)
-            }
-        }
-
-        read("200 OK\r\n", Ok(RawStatus(200, Borrowed("OK"))));
-        read("404 Not Found\r\n", Ok(RawStatus(404, Borrowed("Not Found"))));
-        read("200 crazy pants\r\n", Ok(RawStatus(200, Owned("crazy pants".to_string()))));
-        read("301 Moved Permanently\r\n", Ok(RawStatus(301, Owned("Moved Permanently".to_string()))));
-        read_ignore_string("301 Unreasonably long header that should not happen, \
-                           but some men just want to watch the world burn\r\n",
-             Ok(RawStatus(301, Owned("Ignored".to_string()))));
-    }
-
-    #[test]
-    fn test_read_header() {
-        fn read(s: &str, result: HttpResult<Option<RawHeaderLine>>) {
-            assert_eq!(read_header(&mut s.as_bytes()), result);
-        }
-
-        read("Host: rust-lang.org\r\n", Ok(Some(("Host".to_string(),
-                                                 b"rust-lang.org".to_vec()))));
-    }
 
     #[test]
     fn test_write_chunked() {
@@ -934,16 +456,19 @@ mod tests {
         read_err("1;no CRLF");
     }
 
-    #[bench]
-    fn bench_read_method(b: &mut Bencher) {
-        b.bytes = b"CONNECT ".len() as u64;
-        b.iter(|| assert_eq!(read_method(&mut b"CONNECT "), Ok(method::Method::Connect)));
-    }
+    use test::Bencher;
 
     #[bench]
-    fn bench_read_status(b: &mut Bencher) {
-        b.bytes = b"404 Not Found\r\n".len() as u64;
-        b.iter(|| assert_eq!(read_status(&mut b"404 Not Found\r\n"), Ok(RawStatus(404, Borrowed("Not Found")))));
+    fn bench_parse_incoming(b: &mut Bencher) {
+        use std::io::BufReader;
+        use mock::MockStream;
+        use net::NetworkStream;
+        use super::parse_request;
+        b.iter(|| {
+            let mut raw = MockStream::with_input(b"GET /echo HTTP/1.1\r\nHost: hyper.rs\r\n\r\n");
+            let mut buf = BufReader::new(&mut raw as &mut NetworkStream);
+            
+            parse_request(&mut buf).unwrap();
+        });
     }
-
 }
