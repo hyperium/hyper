@@ -1,2 +1,6 @@
 /target
 /Cargo.lock
+/hypernet/target
+/hypernet/Cargo.lock
+/hyperprotocol/target
+/hyperprotocol/Cargo.lock

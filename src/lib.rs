@@ -1,8 +1,8 @@
 #![doc(html_root_url = "https://hyperium.github.io/hyper/hyper/index.html")]
-#![feature(core, io, unsafe_destructor, into_cow, convert)]
+#![feature(core, io, unsafe_destructor, into_cow)]
 #![deny(missing_docs)]
 #![cfg_attr(test, deny(warnings))]
-#![cfg_attr(test, feature(alloc, test))]
+#![cfg_attr(test, feature(alloc, test, convert))]
 
 //! # Hyper
 //! Hyper is a fast, modern HTTP implementation written in and for Rust. It
@@ -126,29 +126,29 @@
 //! implement `Reader` and can be read to get the data out of a `Response`.
 //!
 
-extern crate rustc_serialize as serialize;
 extern crate time;
 extern crate url;
-extern crate openssl;
-extern crate cookie;
-extern crate unicase;
 extern crate httparse;
 extern crate num_cpus;
 
 #[macro_use]
+extern crate hypernet;
+extern crate hyperprotocol;
+#[macro_use]
 extern crate log;
-
 #[cfg(test)]
 extern crate test;
 
-
-pub use mimewrapper::mime;
 pub use url::Url;
 pub use client::Client;
-pub use error::{HttpResult, HttpError};
-pub use method::Method::{Get, Head, Post, Delete};
-pub use status::StatusCode::{Ok, BadRequest, NotFound};
 pub use server::Server;
+pub use hypernet as net;
+#[cfg(test)]
+pub use hypernet::mock as mock;
+pub use hyperprotocol::{header, method, mime, status, version};
+pub use hyperprotocol::error::{self, HttpResult, HttpError};
+pub use hyperprotocol::method::Method::{Get, Head, Post, Delete};
+pub use hyperprotocol::status::StatusCode::{Ok, BadRequest, NotFound};
 
 macro_rules! todo(
     ($($arg:tt)*) => (if cfg!(not(ndebug)) {
@@ -164,26 +164,10 @@ macro_rules! inspect(
     })
 );
 
-#[cfg(test)]
-#[macro_use]
-mod mock;
-
 pub mod client;
-pub mod error;
-pub mod method;
-pub mod header;
 pub mod http;
-pub mod net;
 pub mod server;
-pub mod status;
 pub mod uri;
-pub mod version;
-
-
-mod mimewrapper {
-    /// Re-exporting the mime crate, for convenience.
-    extern crate mime;
-}
 
 #[allow(unconditional_recursion)]
 fn _assert_send<T: Send>() {

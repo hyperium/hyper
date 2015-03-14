@@ -22,7 +22,7 @@ use std::cmp::Ordering;
 /// ```rust
 /// #![feature(core)]
 /// # use std::num::FromPrimitive;
-/// # use hyper::status::StatusCode;
+/// # use hyperprotocol::status::StatusCode;
 /// let statusopt: Option<StatusCode> = FromPrimitive::from_u16(137u16);
 /// assert_eq!(statusopt.unwrap().class().default_code(), StatusCode::Continue);
 /// ```
@@ -357,7 +357,7 @@ impl Copy for StatusCode {}
 /// Formats the status code, *including* the canonical reason.
 ///
 /// ```rust
-/// # use hyper::status::StatusCode::{ImATeapot, Unregistered};
+/// # use hyperprotocol::status::StatusCode::{ImATeapot, Unregistered};
 /// assert_eq!(format!("{}", ImATeapot), "418 I'm a teapot");
 /// assert_eq!(format!("{}", Unregistered(123)),
 ///            "123 <unknown status code>");
@@ -367,8 +367,8 @@ impl Copy for StatusCode {}
 ///
 /// ```rust
 /// #![feature(core)]
+/// # use hyperprotocol::status::StatusCode::{ImATeapot, Unregistered};
 /// # use std::num::ToPrimitive;
-/// # use hyper::status::StatusCode::{ImATeapot, Unregistered};
 /// assert_eq!(format!("{}", ImATeapot.to_u16().unwrap()), "418");
 /// assert_eq!(format!("{}", Unregistered(123).to_u16().unwrap()), "123");
 /// ```
@@ -696,8 +696,8 @@ impl StatusClass {
     /// example, this will produce `BadRequest` (400):
     ///
     /// ```rust
-    /// # use hyper::status::StatusClass::ClientError;
-    /// # use hyper::status::StatusCode::BadRequest;
+    /// # use hyperprotocol::status::StatusClass::ClientError;
+    /// # use hyperprotocol::status::StatusCode::BadRequest;
     /// assert_eq!(ClientError.default_code(), BadRequest);
     /// ```
     ///
@@ -721,7 +721,7 @@ impl StatusClass {
     /// This is demonstrated thusly:
     ///
     /// ```rust
-    /// # use hyper::status::StatusCode::{Unregistered, BadRequest};
+    /// # use hyperprotocol::status::StatusCode::{Unregistered, BadRequest};
     /// // Suppose we have received this status code.
     /// // You will never directly create an unregistered status code.
     /// let status = Unregistered(471);

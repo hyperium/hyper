@@ -1,7 +1,7 @@
-extern crate url;
-
-use std::fmt::{self};
+use std::fmt;
 use std::str;
+
+use url;
 
 use header;
 

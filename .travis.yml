@@ -5,10 +5,7 @@ cache:
   directories:
       - target
 
-script:
-    - cargo build
-    - cargo test
-    - cargo bench
+script: ./script.sh
 
 after_success: |
     [ $TRAVIS_BRANCH = master ] &&
