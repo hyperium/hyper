@@ -1,0 +1,17 @@
+[package]
+
+name = "hyperprotocol"
+version = "0.0.1"
+authors = ["Sean McArthur <sean.monstar@gmail.com>",
+           "Jonathan Reem <jonathan.reem@gmail.com>",
+           "Pyfisch <pyfisch@gmail.com>"]
+
+[dependencies]
+cookie = "*"
+httparse = "*"
+log = ">= 0.2.0"
+mime = "*"
+rustc-serialize = "*"
+time = "*"
+unicase = "*"
+url = "*"

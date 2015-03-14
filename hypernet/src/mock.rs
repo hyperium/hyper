@@ -1,11 +1,15 @@
+//! Contains various utility types and macros useful for testing hyper clients.
 use std::fmt;
 use std::io::{self, Read, Write, Cursor};
 use std::net::SocketAddr;
 
-use net::{NetworkStream, NetworkConnector};
+use super::{NetworkStream, NetworkConnector};
 
+/// A `NetworkStream` compatible stream that writes into memory, and reads from memory.
 pub struct MockStream {
+    /// Data readable from stream.
     pub read: Cursor<Vec<u8>>,
+    /// Data written to the stream.
     pub write: Vec<u8>,
 }
 
@@ -31,6 +35,7 @@ impl PartialEq for MockStream {
 }
 
 impl MockStream {
+    /// Creates a new empty mock stream.
     pub fn new() -> MockStream {
         MockStream {
             read: Cursor::new(vec![]),
@@ -38,6 +43,7 @@ impl MockStream {
         }
     }
 
+    /// Creates a new stream with data that can be read from the stream.
     pub fn with_input(input: &[u8]) -> MockStream {
         MockStream {
             read: Cursor::new(input.to_vec()),
@@ -68,6 +74,8 @@ impl NetworkStream for MockStream {
     }
 }
 
+/// A `NetworkConnector` which creates `MockStream` instances exclusively.
+/// It may be useful to intercept writes.
 pub struct MockConnector;
 
 impl NetworkConnector for MockConnector {
@@ -78,7 +86,10 @@ impl NetworkConnector for MockConnector {
     }
 }
 
-/// new connectors must be created if you wish to intercept requests.
+/// This macro maps host URLs to a respective reply, which is given in plain-text.
+/// It ignores, but stores, everything that is written to it. However, the stored
+/// values are not accessible just yet.
+#[macro_export]
 macro_rules! mock_connector (
     ($name:ident {
         $($url:expr => $res:expr)*
@@ -111,4 +122,3 @@ macro_rules! mock_connector (
 
     )
 );
-

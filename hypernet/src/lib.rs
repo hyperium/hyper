@@ -1,4 +1,13 @@
+#![feature(core, io)]
+#![deny(missing_docs)]
+#![cfg_attr(test, deny(warnings))]
+#![cfg_attr(test, feature(box_syntax))]
 //! A collection of traits abstracting over Listeners and Streams.
+
+#[macro_use]
+extern crate log;
+extern crate openssl;
+
 use std::any::{Any, TypeId};
 use std::fmt;
 use std::io::{self, Read, Write};
@@ -347,9 +356,12 @@ fn lift_ssl_error(ssl: SslError) -> io::Error {
     }
 }
 
+#[cfg(any(test, feature="mock"))]
+pub mod mock;
+
 #[cfg(test)]
 mod tests {
-    use mock::MockStream;
+    use super::mock::MockStream;
     use super::NetworkStream;
 
     #[test]

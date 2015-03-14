@@ -11,12 +11,12 @@ use header::QualityItem;
 /// Example:
 ///
 /// ```
-/// # use hyper::header::Headers;
-/// # use hyper::header::Accept;
-/// # use hyper::header::qitem;
-/// use hyper::mime::Mime;
-/// use hyper::mime::TopLevel::Text;
-/// use hyper::mime::SubLevel::{Html, Xml};
+/// # use hyperprotocol::header::Headers;
+/// # use hyperprotocol::header::Accept;
+/// # use hyperprotocol::header::qitem;
+/// use hyperprotocol::mime::Mime;
+/// use hyperprotocol::mime::TopLevel::Text;
+/// use hyperprotocol::mime::SubLevel::{Html, Xml};
 /// # let mut headers = Headers::new();
 /// headers.set(Accept(vec![
 ///     qitem(Mime(Text, Html, vec![])),

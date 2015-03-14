@@ -101,4 +101,3 @@ fn bench_mock_hyper(b: &mut test::Bencher) {
             .read_to_string(&mut s).unwrap()
     });
 }
-

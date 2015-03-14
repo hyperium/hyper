@@ -1,0 +1,13 @@
+[package]
+
+name = "hypernet"
+version = "0.0.1"
+authors = ["Sean McArthur <sean.monstar@gmail.com>",
+           "Jonathan Reem <jonathan.reem@gmail.com>"]
+
+[dependencies]
+log = ">= 0.2.0"
+openssl = "*"
+
+[features]
+mock = []

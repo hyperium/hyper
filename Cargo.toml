@@ -12,17 +12,21 @@ authors = ["Sean McArthur <sean.monstar@gmail.com>",
 keywords = ["http", "hyper", "hyperium"]
 
 [dependencies]
-cookie = "*"
 httparse = "*"
 log = ">= 0.2.0"
-mime = "*"
-num_cpus = "*"
-openssl = "*"
-rustc-serialize = "*"
 time = "*"
-unicase = "*"
+num_cpus = "*"
 url = "*"
+
+[dependencies.hypernet]
+path = "hypernet"
+
+[dependencies.hyperprotocol]
+path = "hyperprotocol"
 
 [dev-dependencies]
 env_logger = "*"
 
+[dev-dependencies.hypernet]
+path = "hypernet"
+features = ["mock"]
