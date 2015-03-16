@@ -1,5 +1,5 @@
 #![deny(warnings)]
-#![feature(io, net)]
+#![feature(net)]
 extern crate hyper;
 extern crate env_logger;
 

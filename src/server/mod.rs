@@ -2,9 +2,10 @@
 use std::io::{BufReader, BufWriter};
 use std::marker::PhantomData;
 use std::net::{IpAddr, SocketAddr};
-use std::os;
 use std::path::Path;
 use std::thread::{self, JoinGuard};
+
+use num_cpus;
 
 pub use self::request::Request;
 pub use self::response::Response;
@@ -83,7 +84,7 @@ impl<'a, H: Handler + 'static> Server<'a, H, HttpListener> {
 
     /// Binds to a socket and starts handling connections.
     pub fn listen(self, ip: IpAddr, port: u16) -> HttpResult<Listening> {
-        self.listen_threads(ip, port, os::num_cpus() * 5 / 4)
+        self.listen_threads(ip, port, num_cpus::get() * 5 / 4)
     }
 }
 impl<

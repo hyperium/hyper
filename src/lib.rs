@@ -1,4 +1,4 @@
-#![feature(core, collections, io, net, os, path,
+#![feature(core, collections, io, net,
            std_misc, box_syntax, unsafe_destructor)]
 #![deny(missing_docs)]
 #![cfg_attr(test, deny(warnings))]
@@ -133,6 +133,7 @@ extern crate openssl;
 extern crate cookie;
 extern crate unicase;
 extern crate httparse;
+extern crate num_cpus;
 
 #[macro_use]
 extern crate log;
