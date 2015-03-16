@@ -50,12 +50,11 @@ impl Header for Cookie {
 impl HeaderFormat for Cookie {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let cookies = &self.0;
-        let last = cookies.len() - 1;
         for (i, cookie) in cookies.iter().enumerate() {
-            try!(write!(fmt, "{}", cookie.pair()));
-            if i < last {
+            if i != 0 {
                 try!(fmt.write_str("; "));
             }
+            try!(write!(fmt, "{}", cookie.pair()));
         }
         Ok(())
     }
