@@ -4,6 +4,7 @@ extern crate hyper;
 extern crate env_logger;
 
 use std::env;
+use std::io;
 
 use hyper::Client;
 
@@ -20,12 +21,12 @@ fn main() {
 
     let mut client = Client::new();
 
-    let res = match client.get(&*url).send() {
+    let mut res = match client.get(&*url).send() {
         Ok(res) => res,
         Err(err) => panic!("Failed to connect: {:?}", err)
     };
 
     println!("Response: {}", res.status);
     println!("Headers:\n{}", res.headers);
-    //TODO: add copy back when std::stdio impls std::io::Write.
+    io::copy(&mut res, &mut io::stdout()).unwrap();
 }
