@@ -141,6 +141,7 @@ extern crate log;
 #[cfg(test)]
 extern crate test;
 
+pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 pub use mimewrapper::mime;
 pub use url::Url;
