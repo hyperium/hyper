@@ -1,3 +1,27 @@
+### v0.3.1 (2015-03-18)
+
+
+#### Bug Fixes
+
+* **header:** Fix charset parsing bug. ([5a6e176f](https://github.com/hyperium/hyper/commit/5a6e176f50fe667fbdc4c933c81d2db5ba5c571d))
+* **headers:** Fix overflow with empty cookies ([99baaa10](https://github.com/hyperium/hyper/commit/99baaa10157f6c69ef1795a97e0db8bd794011f6))
+* **rustup:** update to latest rustc ([4fd8a6a9](https://github.com/hyperium/hyper/commit/4fd8a6a9dc0dc969b36f3d3ad51cee177545f883))
+
+
+#### Features
+
+* **server:** add Expect 100-continue support ([0b716943](https://github.com/hyperium/hyper/commit/0b7169432b5f51efe5c167be418c2c50220e46a5), closes [#369](https://github.com/hyperium/hyper/issues/369))
+
+
+#### Breaking Changes
+
+* Several public functions and types in the `http` module
+  have been removed. They have been replaced with 2 methods that handle
+  all of the http1 parsing.
+
+ ([b87bb20f](https://github.com/hyperium/hyper/commit/b87bb20f0c25891c30ef2399da2721596fbc1fcf))
+
+
 ## v0.3.0 (2015-03-03)
 
 
