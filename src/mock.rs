@@ -68,13 +68,13 @@ impl NetworkStream for MockStream {
     }
 }
 
-pub struct MockConnector;
+pub struct MockConnector(pub &'static [u8]);
 
 impl NetworkConnector for MockConnector {
     type Stream = MockStream;
 
     fn connect(&mut self, _host: &str, _port: u16, _scheme: &str) -> io::Result<MockStream> {
-        Ok(MockStream::new())
+        Ok(MockStream::with_input(self.0))
     }
 }
 

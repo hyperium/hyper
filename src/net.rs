@@ -86,7 +86,7 @@ pub trait NetworkConnector {
     fn connect(&mut self, host: &str, port: u16, scheme: &str) -> io::Result<Self::Stream>;
 }
 
-impl fmt::Debug for Box<NetworkStream + Send> {
+impl fmt::Debug for Box<NetworkStream> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.pad("Box<NetworkStream>")
     }

@@ -25,11 +25,11 @@ use url::UrlParser;
 use url::ParseError as UrlError;
 
 use header::{Headers, Header, HeaderFormat};
-use header::{ContentLength, Location};
+use header::{ContentLength, Location, UserAgent};
 use method::Method;
 use net::{NetworkConnector, HttpConnector, ContextVerifier};
 use status::StatusClass::Redirection;
-use {Url, HttpResult};
+use {VERSION, Url, HttpResult};
 use HttpError::HttpUriError;
 
 pub use self::request::Request;
@@ -44,6 +44,7 @@ pub mod response;
 pub struct Client<C> {
     connector: C,
     redirect_policy: RedirectPolicy,
+    user_agent: Option<String>
 }
 
 impl<'v> Client<HttpConnector<'v>> {
@@ -66,13 +67,19 @@ impl<C: NetworkConnector> Client<C> {
     pub fn with_connector(connector: C) -> Client<C> {
         Client {
             connector: connector,
-            redirect_policy: Default::default()
+            redirect_policy: Default::default(),
+            user_agent: Some(format!("hyper/{}", VERSION)),
         }
     }
 
     /// Set the RedirectPolicy.
     pub fn set_redirect_policy(&mut self, policy: RedirectPolicy) {
         self.redirect_policy = policy;
+    }
+
+    /// Set the UserAgent. Pass `None` to disable.
+    pub fn set_user_agent(&mut self, agent: Option<String>) {
+        self.user_agent = agent;
     }
 
     /// Build a Get request.
@@ -103,12 +110,20 @@ impl<C: NetworkConnector> Client<C> {
 
     /// Build a new request using this Client.
     pub fn request<U: IntoUrl>(&mut self, method: Method, url: U) -> RequestBuilder<U, C> {
+        let headers = match self.user_agent {
+            Some(ref agent) => {
+                let mut headers = Headers::new();
+                headers.set(UserAgent(agent.clone()));
+                Some(headers)
+            },
+            None => None
+        };
         RequestBuilder {
             client: self,
             method: method,
             url: url,
             body: None,
-            headers: None,
+            headers: headers,
         }
     }
 }
@@ -352,9 +367,28 @@ fn get_host_and_port(url: &Url) -> HttpResult<(String, u16)> {
 
 #[cfg(test)]
 mod tests {
+    use std::str;
     use header::Server;
-    use super::{Client, RedirectPolicy};
+    use mock::{MockConnector, MockStream};
     use url::Url;
+    use super::{Client, RedirectPolicy};
+
+    #[test]
+    fn test_user_agent_default() {
+        let mut client = Client::with_connector(MockConnector(b"HTTP/1.1 200 OK\r\n\r\n"));
+        let res = client.get("http://exam.ple/foo").send().unwrap();
+        let mock = res.into_inner().downcast::<MockStream>().unwrap();
+        assert!(str::from_utf8(&mock.write).unwrap().contains("User-Agent: hyper/"));
+    }
+
+    #[test]
+    fn test_user_agent_custom() {
+        let mut client = Client::with_connector(MockConnector(b"HTTP/1.1 200 OK\r\n\r\n"));
+        client.set_user_agent(Some("foo/bar".to_string()));
+        let res = client.get("http://exam.ple/foo").send().unwrap();
+        let mock = res.into_inner().downcast::<MockStream>().unwrap();
+        assert!(str::from_utf8(&mock.write).unwrap().contains("User-Agent: foo/bar\r\n"));
+    }
 
     mock_connector!(MockRedirectPolicy {
         "http://127.0.0.1" =>       "HTTP/1.1 301 Redirect\r\n\

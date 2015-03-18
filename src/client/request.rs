@@ -184,7 +184,7 @@ mod tests {
     #[test]
     fn test_get_empty_body() {
         let req = Request::with_connector(
-            Get, Url::parse("http://example.dom").unwrap(), &mut MockConnector
+            Get, Url::parse("http://example.dom").unwrap(), &mut MockConnector(b"")
         ).unwrap();
         let req = req.start().unwrap();
         let stream = *req.body.end().unwrap()
@@ -198,7 +198,7 @@ mod tests {
     #[test]
     fn test_head_empty_body() {
         let req = Request::with_connector(
-            Head, Url::parse("http://example.dom").unwrap(), &mut MockConnector
+            Head, Url::parse("http://example.dom").unwrap(), &mut MockConnector(b"")
         ).unwrap();
         let req = req.start().unwrap();
         let stream = *req.body.end().unwrap()
