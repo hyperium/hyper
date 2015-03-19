@@ -28,7 +28,7 @@ Hello World Server:
 extern crate hyper;
 
 use std::io::Write;
-use std::net::IpAddr;
+use std::net::Ipv4Addr;
 
 use hyper::Server;
 use hyper::server::Request;
@@ -42,7 +42,7 @@ fn hello(_: Request, mut res: Response<Fresh>) {
 }
 
 fn main() {
-    Server::http(hello).listen(IpAddr::new_v4(127, 0, 0, 1), 3000).unwrap();
+    Server::http(hello).listen(Ipv4Addr::new(127, 0, 0, 1), 3000).unwrap();
 }
 ```
 

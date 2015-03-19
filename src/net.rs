@@ -215,8 +215,8 @@ impl NetworkListener for HttpListener {
     #[inline]
     fn socket_addr(&mut self) -> io::Result<SocketAddr> {
         match *self {
-            HttpListener::Http(ref mut tcp) => tcp.socket_addr(),
-            HttpListener::Https(ref mut tcp, _) => tcp.socket_addr(),
+            HttpListener::Http(ref mut tcp) => tcp.local_addr(),
+            HttpListener::Https(ref mut tcp, _) => tcp.local_addr(),
         }
     }
 }

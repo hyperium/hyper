@@ -1,7 +1,7 @@
 //! HTTP Server
 use std::io::{BufReader, BufWriter, Write};
 use std::marker::PhantomData;
-use std::net::{IpAddr, SocketAddr};
+use std::net::{Ipv4Addr, SocketAddr};
 use std::path::Path;
 use std::thread::{self, JoinGuard};
 
@@ -76,7 +76,7 @@ impl<'a, H: Handler + 'static> Server<'a, H, HttpListener> {
 
 impl<'a, H: Handler + 'static> Server<'a, H, HttpListener> {
     /// Binds to a socket, and starts handling connections using a task pool.
-    pub fn listen_threads(self, ip: IpAddr, port: u16, threads: usize) -> HttpResult<Listening> {
+    pub fn listen_threads(self, ip: Ipv4Addr, port: u16, threads: usize) -> HttpResult<Listening> {
         let addr = &(ip, port);
         let listener = try!(match self.ssl {
             Some((cert, key)) => HttpListener::https(addr, cert, key),
@@ -86,7 +86,7 @@ impl<'a, H: Handler + 'static> Server<'a, H, HttpListener> {
     }
 
     /// Binds to a socket and starts handling connections.
-    pub fn listen(self, ip: IpAddr, port: u16) -> HttpResult<Listening> {
+    pub fn listen(self, ip: Ipv4Addr, port: u16) -> HttpResult<Listening> {
         self.listen_threads(ip, port, num_cpus::get() * 5 / 4)
     }
 }
