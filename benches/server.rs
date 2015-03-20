@@ -1,5 +1,5 @@
 #![deny(warnings)]
-#![feature(net, test)]
+#![feature(test)]
 extern crate hyper;
 extern crate test;
 
