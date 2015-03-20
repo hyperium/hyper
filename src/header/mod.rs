@@ -75,7 +75,7 @@ impl<T: HeaderFormat + Send + Sync + Clone> HeaderClone for T {
     }
 }
 
-impl HeaderFormat {
+impl HeaderFormat + Send + Sync {
     #[inline]
     unsafe fn downcast_ref_unchecked<T: 'static>(&self) -> &T {
         mem::transmute(mem::transmute::<&HeaderFormat, raw::TraitObject>(self).data)

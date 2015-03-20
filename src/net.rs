@@ -97,7 +97,7 @@ impl Clone for Box<NetworkStream + Send> {
     fn clone(&self) -> Box<NetworkStream + Send> { self.clone_box() }
 }
 
-impl NetworkStream {
+impl NetworkStream + Send {
     unsafe fn downcast_ref_unchecked<T: 'static>(&self) -> &T {
         mem::transmute(mem::transmute::<&NetworkStream,
                                         raw::TraitObject>(self).data)
@@ -108,13 +108,13 @@ impl NetworkStream {
                                         raw::TraitObject>(self).data)
     }
 
-    unsafe fn downcast_unchecked<T: 'static>(self: Box<NetworkStream>) -> Box<T>  {
-        mem::transmute(mem::transmute::<Box<NetworkStream>,
+    unsafe fn downcast_unchecked<T: 'static>(self: Box<NetworkStream + Send>) -> Box<T>  {
+        mem::transmute(mem::transmute::<Box<NetworkStream + Send>,
                                         raw::TraitObject>(self).data)
     }
 }
 
-impl NetworkStream {
+impl NetworkStream + Send {
     /// Is the underlying type in this trait object a T?
     #[inline]
     pub fn is<T: 'static>(&self) -> bool {
@@ -143,8 +143,8 @@ impl NetworkStream {
     }
 
     /// If the underlying type is T, extract it.
-    pub fn downcast<T: 'static>(self: Box<NetworkStream>)
-            -> Result<Box<T>, Box<NetworkStream>> {
+    pub fn downcast<T: 'static>(self: Box<NetworkStream + Send>)
+            -> Result<Box<T>, Box<NetworkStream + Send>> {
         if self.is::<T>() {
             Ok(unsafe { self.downcast_unchecked() })
         } else {
@@ -215,8 +215,8 @@ impl NetworkListener for HttpListener {
     #[inline]
     fn socket_addr(&mut self) -> io::Result<SocketAddr> {
         match *self {
-            HttpListener::Http(ref mut tcp) => tcp.socket_addr(),
-            HttpListener::Https(ref mut tcp, _) => tcp.socket_addr(),
+            HttpListener::Http(ref mut tcp) => tcp.local_addr(),
+            HttpListener::Https(ref mut tcp, _) => tcp.local_addr(),
         }
     }
 }
