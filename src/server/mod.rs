@@ -264,6 +264,6 @@ mod tests {
         ");
 
         handle_connection(&mut mock, &Reject);
-        assert_eq!(mock.write, b"HTTP/1.1 417 Expectation Failed\r\n\r\n");
+        assert_eq!(mock.write, &b"HTTP/1.1 417 Expectation Failed\r\n\r\n"[..]);
     }
 }
