@@ -52,7 +52,7 @@ impl FromStr for EntityTag {
         }
 
         // The etag is weak if its first char is not a DQUOTE.
-        if slice.char_at(0) == '"' /* '"' */ {
+        if slice.chars().next().unwrap() == '"' /* '"' */ {
             // No need to check if the last char is a DQUOTE,
             // we already did that above.
             if check_slice_validity(slice.slice_chars(1, length-1)) {
