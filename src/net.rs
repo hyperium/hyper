@@ -38,7 +38,7 @@ pub trait NetworkListener: Clone {
     fn accept(&mut self) -> io::Result<Self::Stream>;
 
     /// Get the address this Listener ended up listening on.
-    fn socket_addr(&mut self) -> io::Result<SocketAddr>;
+    fn local_addr(&mut self) -> io::Result<SocketAddr>;
 
     /// Closes the Acceptor, so no more incoming connections will be handled.
 //    fn close(&mut self) -> io::Result<()>;
@@ -173,12 +173,12 @@ impl Clone for HttpListener {
 impl HttpListener {
 
     /// Start listening to an address over HTTP.
-    pub fn http<To: ToSocketAddrs>(addr: &To) -> io::Result<HttpListener> {
+    pub fn http<To: ToSocketAddrs>(addr: To) -> io::Result<HttpListener> {
         Ok(HttpListener::Http(try!(TcpListener::bind(addr))))
     }
 
     /// Start listening to an address over HTTPS.
-    pub fn https<To: ToSocketAddrs>(addr: &To, cert: &Path, key: &Path) -> io::Result<HttpListener> {
+    pub fn https<To: ToSocketAddrs>(addr: To, cert: &Path, key: &Path) -> io::Result<HttpListener> {
         let mut ssl_context = try!(SslContext::new(Sslv23).map_err(lift_ssl_error));
         try_some!(ssl_context.set_cipher_list("DEFAULT").map(lift_ssl_error));
         try_some!(ssl_context.set_certificate_file(
@@ -213,7 +213,7 @@ impl NetworkListener for HttpListener {
     }
 
     #[inline]
-    fn socket_addr(&mut self) -> io::Result<SocketAddr> {
+    fn local_addr(&mut self) -> io::Result<SocketAddr> {
         match *self {
             HttpListener::Http(ref mut tcp) => tcp.local_addr(),
             HttpListener::Https(ref mut tcp, _) => tcp.local_addr(),

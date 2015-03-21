@@ -3,7 +3,6 @@ extern crate hyper;
 extern crate env_logger;
 
 use std::io::{Write, copy};
-use std::net::Ipv4Addr;
 
 use hyper::{Get, Post};
 use hyper::header::ContentLength;
@@ -52,6 +51,6 @@ fn echo(mut req: Request, mut res: Response) {
 fn main() {
     env_logger::init().unwrap();
     let server = Server::http(echo);
-    let _guard = server.listen(Ipv4Addr::new(127, 0, 0, 1), 1337).unwrap();
+    let _guard = server.listen("127.0.0.1:1337").unwrap();
     println!("Listening on http://127.0.0.1:1337");
 }

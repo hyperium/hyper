@@ -1,7 +1,7 @@
 //! HTTP Server
 use std::io::{BufReader, BufWriter, Write};
 use std::marker::PhantomData;
-use std::net::{Ipv4Addr, SocketAddr};
+use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::Path;
 use std::thread::{self, JoinGuard};
 
@@ -76,8 +76,7 @@ impl<'a, H: Handler + 'static> Server<'a, H, HttpListener> {
 
 impl<'a, H: Handler + 'static> Server<'a, H, HttpListener> {
     /// Binds to a socket, and starts handling connections using a task pool.
-    pub fn listen_threads(self, ip: Ipv4Addr, port: u16, threads: usize) -> HttpResult<Listening> {
-        let addr = &(ip, port);
+    pub fn listen_threads<T: ToSocketAddrs>(self, addr: T, threads: usize) -> HttpResult<Listening> {
         let listener = try!(match self.ssl {
             Some((cert, key)) => HttpListener::https(addr, cert, key),
             None => HttpListener::http(addr)
@@ -86,8 +85,8 @@ impl<'a, H: Handler + 'static> Server<'a, H, HttpListener> {
     }
 
     /// Binds to a socket and starts handling connections.
-    pub fn listen(self, ip: Ipv4Addr, port: u16) -> HttpResult<Listening> {
-        self.listen_threads(ip, port, num_cpus::get() * 5 / 4)
+    pub fn listen<T: ToSocketAddrs>(self, addr: T) -> HttpResult<Listening> {
+        self.listen_threads(addr, num_cpus::get() * 5 / 4)
     }
 }
 impl<
@@ -97,7 +96,7 @@ L: NetworkListener<Stream=S> + Send + 'static,
 S: NetworkStream + Clone + Send> Server<'a, H, L> {
     /// Creates a new server that will handle `HttpStream`s.
     pub fn with_listener(self, mut listener: L, threads: usize) -> HttpResult<Listening> {
-        let socket = try!(listener.socket_addr());
+        let socket = try!(listener.local_addr());
         let handler = self.handler;
 
         debug!("threads = {:?}", threads);

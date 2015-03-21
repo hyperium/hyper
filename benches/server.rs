@@ -5,7 +5,6 @@ extern crate test;
 
 use test::Bencher;
 use std::io::{Read, Write};
-use std::net::Ipv4Addr;
 
 use hyper::method::Method::Get;
 use hyper::server::{Request, Response};
@@ -27,7 +26,7 @@ fn hyper_handle(_: Request, res: Response) {
 #[bench]
 fn bench_hyper(b: &mut Bencher) {
     let server = hyper::Server::http(hyper_handle);
-    let mut listener = server.listen(Ipv4Addr::new(127, 0, 0, 1), 0).unwrap();
+    let mut listener = server.listen("127.0.0.1").unwrap();
 
     let url = hyper::Url::parse(&*format!("http://{}", listener.socket)).unwrap();
     b.iter(|| request(url.clone()));
