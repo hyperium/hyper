@@ -1,9 +1,8 @@
 //! Utility functions for Header implementations.
 
-extern crate time;
-
 use std::str;
 use std::fmt;
+use time;
 
 /// Reads a single raw string when parsing a header
 pub fn from_one_raw_str<T: str::FromStr>(raw: &[Vec<u8>]) -> Option<T> {
@@ -82,4 +81,44 @@ pub fn tm_from_str(s: &str) -> Option<time::Tm> {
     }).or_else(|_| {
         time::strptime(s, "%c")
     }).ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use time::Tm;
+    use super::tm_from_str;
+
+    const NOV_07: Tm = Tm {
+        tm_nsec: 0,
+        tm_sec: 37,
+        tm_min: 48,
+        tm_hour: 8,
+        tm_mday: 7,
+        tm_mon: 10,
+        tm_year: 94,
+        tm_wday: 0,
+        tm_isdst: 0,
+        tm_yday: 0,
+        tm_utcoff: 0,
+    };
+
+    #[test]
+    fn test_imf_fixdate() {
+        assert_eq!(tm_from_str("Sun, 07 Nov 1994 08:48:37 GMT"),
+                   Some(NOV_07));
+    }
+
+    #[test]
+    fn test_rfc_850() {
+        assert_eq!(tm_from_str("Sunday, 07-Nov-94 08:48:37 GMT"),
+                   Some(NOV_07));
+    }
+
+    #[test]
+    fn test_asctime() {
+        assert_eq!(tm_from_str("Sun Nov  7 08:48:37 1994"),
+                   Some(NOV_07));
+    }
+
+
 }
