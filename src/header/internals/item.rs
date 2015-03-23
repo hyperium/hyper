@@ -83,7 +83,8 @@ impl Item {
 
 #[inline]
 fn parse<H: Header + HeaderFormat>(raw: &Vec<Vec<u8>>) -> Option<Box<HeaderFormat + Send + Sync>> {
-    Header::parse_header(&raw[..]).map(|h: H| box h as Box<HeaderFormat + Send + Sync>)
+    Header::parse_header(&raw[..])
+        .map(|h: H| Box::new(h) as Box<HeaderFormat + Send + Sync>)
 }
 
 impl fmt::Display for Item {

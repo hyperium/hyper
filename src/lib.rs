@@ -1,5 +1,4 @@
-#![feature(core, collections, io,
-           std_misc, box_syntax, unsafe_destructor)]
+#![feature(core, collections, io, std_misc, unsafe_destructor)]
 #![deny(missing_docs)]
 #![cfg_attr(test, deny(warnings))]
 #![cfg_attr(test, feature(alloc, test))]

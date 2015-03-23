@@ -56,7 +56,7 @@ impl Request<Fresh> {
         let (host, port) = try!(get_host_and_port(&url));
 
         let stream = try!(connector.connect(&*host, port, &*url.scheme));
-        let stream = ThroughWriter(BufWriter::new(box stream as Box<NetworkStream + Send>));
+        let stream = ThroughWriter(BufWriter::new(Box::new(stream) as Box<NetworkStream + Send>));
 
         let mut headers = Headers::new();
         headers.set(Host {
