@@ -130,13 +130,13 @@ mod tests {
             status: status::StatusCode::Ok,
             headers: Headers::new(),
             version: version::HttpVersion::Http11,
-            body: EofReader(BufReader::new(box MockStream::new())),
+            body: EofReader(BufReader::new(Box::new(MockStream::new()))),
             status_raw: RawStatus(200, Borrowed("OK")),
             _marker: PhantomData,
         };
 
         let b = res.into_inner().downcast::<MockStream>().ok().unwrap();
-        assert_eq!(b, box MockStream::new());
+        assert_eq!(b, Box::new(MockStream::new()));
 
     }
 
@@ -156,7 +156,7 @@ mod tests {
             \r\n"
         );
 
-        let res = Response::new(box stream).unwrap();
+        let res = Response::new(Box::new(stream)).unwrap();
 
         // The status line is correct?
         assert_eq!(res.status, status::StatusCode::Ok);
@@ -187,7 +187,7 @@ mod tests {
             \r\n"
         );
 
-        let res = Response::new(box stream).unwrap();
+        let res = Response::new(Box::new(stream)).unwrap();
 
         assert!(read_to_string(res).is_err());
     }
@@ -206,7 +206,7 @@ mod tests {
             \r\n"
         );
 
-        let res = Response::new(box stream).unwrap();
+        let res = Response::new(Box::new(stream)).unwrap();
 
         assert!(read_to_string(res).is_err());
     }
@@ -225,7 +225,7 @@ mod tests {
             \r\n"
         );
 
-        let res = Response::new(box stream).unwrap();
+        let res = Response::new(Box::new(stream)).unwrap();
 
         assert_eq!(read_to_string(res), Ok("1".to_string()));
     }

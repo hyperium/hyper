@@ -57,7 +57,7 @@ impl Request<Fresh> {
 
         let stream = try!(connector.connect(&*host, port, &*url.scheme));
         // FIXME: Use Type ascription
-        let stream: Box<NetworkStream + Send> = box stream;
+        let stream: Box<NetworkStream + Send> = Box::new(stream);
         let stream = ThroughWriter(BufWriter::new(stream));
 
         let mut headers = Headers::new();
