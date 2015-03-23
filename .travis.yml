@@ -4,7 +4,7 @@ sudo: false
 script:
     - cargo build
     - cargo test
-    - cargo bench --no-run
+    - cargo bench
 
 after_success: |
     [ $TRAVIS_BRANCH = master ] &&
