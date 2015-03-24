@@ -1,3 +1,4 @@
+#![doc(html_root_url = "https://hyperium.github.io/hyper/hyper/index.html")]
 #![feature(core, collections, io,
            std_misc, box_syntax, unsafe_destructor)]
 #![deny(missing_docs)]
