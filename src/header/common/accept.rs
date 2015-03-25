@@ -39,7 +39,7 @@ mod tests {
 
     #[test]
     fn test_parse_header_no_quality() {
-        let a: Accept = Header::parse_header([b"text/plain; charset=utf-8".to_vec()].as_slice()).unwrap();
+        let a: Accept = Header::parse_header([b"text/plain; charset=utf-8".to_vec()].as_ref()).unwrap();
         let b = Accept(vec![
             qitem(Mime(TopLevel::Text, SubLevel::Plain, vec![(Attr::Charset, Value::Utf8)])),
         ]);
@@ -48,7 +48,7 @@ mod tests {
 
     #[test]
     fn test_parse_header_with_quality() {
-        let a: Accept = Header::parse_header([b"text/plain; charset=utf-8; q=0.5".to_vec()].as_slice()).unwrap();
+        let a: Accept = Header::parse_header([b"text/plain; charset=utf-8; q=0.5".to_vec()].as_ref()).unwrap();
         let b = Accept(vec![
             QualityItem::new(Mime(TopLevel::Text, SubLevel::Plain, vec![(Attr::Charset, Value::Utf8)]), Quality(500)),
         ]);

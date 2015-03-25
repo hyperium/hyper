@@ -48,12 +48,12 @@ impl HeaderFormat for IfMatch {
 fn test_parse_header() {
     {
         let a: IfMatch = Header::parse_header(
-        [b"*".to_vec()].as_slice()).unwrap();
+        [b"*".to_vec()].as_ref()).unwrap();
         assert_eq!(a, IfMatch::Any);
     }
     {
         let a: IfMatch = Header::parse_header(
-            [b"\"xyzzy\", \"r2d2xxxx\", \"c3piozzzz\"".to_vec()].as_slice()).unwrap();
+            [b"\"xyzzy\", \"r2d2xxxx\", \"c3piozzzz\"".to_vec()].as_ref()).unwrap();
         let b = IfMatch::EntityTags(
             vec![EntityTag{weak:false, tag: "xyzzy".to_string()},
                  EntityTag{weak:false, tag: "r2d2xxxx".to_string()},

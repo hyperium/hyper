@@ -45,31 +45,31 @@ mod tests {
         // Expected successes
         let mut etag: Option<Etag>;
 
-        etag = Header::parse_header([b"\"foobar\"".to_vec()].as_slice());
+        etag = Header::parse_header([b"\"foobar\"".to_vec()].as_ref());
         assert_eq!(etag, Some(Etag(EntityTag{
             weak: false,
             tag: "foobar".to_string()
         })));
 
-        etag = Header::parse_header([b"\"\"".to_vec()].as_slice());
+        etag = Header::parse_header([b"\"\"".to_vec()].as_ref());
         assert_eq!(etag, Some(Etag(EntityTag{
             weak: false,
             tag: "".to_string()
         })));
 
-        etag = Header::parse_header([b"W/\"weak-etag\"".to_vec()].as_slice());
+        etag = Header::parse_header([b"W/\"weak-etag\"".to_vec()].as_ref());
         assert_eq!(etag, Some(Etag(EntityTag{
             weak: true,
             tag: "weak-etag".to_string()
         })));
 
-        etag = Header::parse_header([b"W/\"\x65\x62\"".to_vec()].as_slice());
+        etag = Header::parse_header([b"W/\"\x65\x62\"".to_vec()].as_ref());
         assert_eq!(etag, Some(Etag(EntityTag{
             weak: true,
             tag: "\u{0065}\u{0062}".to_string()
         })));
 
-        etag = Header::parse_header([b"W/\"\"".to_vec()].as_slice());
+        etag = Header::parse_header([b"W/\"\"".to_vec()].as_ref());
         assert_eq!(etag, Some(Etag(EntityTag{
             weak: true,
             tag: "".to_string()
@@ -81,22 +81,22 @@ mod tests {
         // Expected failures
         let mut etag: Option<Etag>;
 
-        etag = Header::parse_header([b"no-dquotes".to_vec()].as_slice());
+        etag = Header::parse_header([b"no-dquotes".to_vec()].as_ref());
         assert_eq!(etag, None);
 
-        etag = Header::parse_header([b"w/\"the-first-w-is-case-sensitive\"".to_vec()].as_slice());
+        etag = Header::parse_header([b"w/\"the-first-w-is-case-sensitive\"".to_vec()].as_ref());
         assert_eq!(etag, None);
 
-        etag = Header::parse_header([b"".to_vec()].as_slice());
+        etag = Header::parse_header([b"".to_vec()].as_ref());
         assert_eq!(etag, None);
 
-        etag = Header::parse_header([b"\"unmatched-dquotes1".to_vec()].as_slice());
+        etag = Header::parse_header([b"\"unmatched-dquotes1".to_vec()].as_ref());
         assert_eq!(etag, None);
 
-        etag = Header::parse_header([b"unmatched-dquotes2\"".to_vec()].as_slice());
+        etag = Header::parse_header([b"unmatched-dquotes2\"".to_vec()].as_ref());
         assert_eq!(etag, None);
 
-        etag = Header::parse_header([b"matched-\"dquotes\"".to_vec()].as_slice());
+        etag = Header::parse_header([b"matched-\"dquotes\"".to_vec()].as_ref());
         assert_eq!(etag, None);
     }
 }

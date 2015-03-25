@@ -26,6 +26,6 @@ impl header::Header for AccessControlRequestHeaders {
 impl header::HeaderFormat for AccessControlRequestHeaders {
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let AccessControlRequestHeaders(ref parts) = *self;
-        header::parsing::fmt_comma_delimited(f, parts.as_slice())
+        header::parsing::fmt_comma_delimited(f, parts.as_ref())
     }
 }

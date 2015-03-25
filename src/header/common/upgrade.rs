@@ -37,7 +37,7 @@ impl fmt::Display for Protocol {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt, "{}", match *self {
             WebSocket => "websocket",
-            ProtocolExt(ref s) => s.as_slice()
+            ProtocolExt(ref s) => s.as_ref()
         })
     }
 }

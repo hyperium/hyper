@@ -46,7 +46,7 @@ impl fmt::Display for ConnectionOption {
         write!(fmt, "{}", match *self {
             KeepAlive => "keep-alive",
             Close => "close",
-            ConnectionHeader(UniCase(ref s)) => s.as_slice()
+            ConnectionHeader(UniCase(ref s)) => s.as_ref()
         })
     }
 }

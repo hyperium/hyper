@@ -399,7 +399,7 @@ mod tests {
         w.write_all(b"foo bar").unwrap();
         w.write_all(b"baz quux herp").unwrap();
         let buf = w.end().unwrap();
-        let s = from_utf8(buf.as_slice()).unwrap();
+        let s = from_utf8(buf.as_ref()).unwrap();
         assert_eq!(s, "7\r\nfoo bar\r\nD\r\nbaz quux herp\r\n0\r\n\r\n");
     }
 
@@ -411,7 +411,7 @@ mod tests {
         assert_eq!(w.write(b"baz"), Ok(1));
 
         let buf = w.end().unwrap();
-        let s = from_utf8(buf.as_slice()).unwrap();
+        let s = from_utf8(buf.as_ref()).unwrap();
         assert_eq!(s, "foo barb");
     }
 

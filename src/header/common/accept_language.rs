@@ -54,7 +54,7 @@ mod tests {
     #[test]
     fn test_parse_header() {
         let a: AcceptLanguage = Header::parse_header(
-            [b"en-us;q=1.0, en;q=0.5, fr".to_vec()].as_slice()).unwrap();
+            [b"en-us;q=1.0, en;q=0.5, fr".to_vec()].as_ref()).unwrap();
         let b = AcceptLanguage(vec![
             qitem(Language{primary: "en".to_string(), sub: Some("us".to_string())}),
             QualityItem::new(Language{primary: "en".to_string(), sub: None},

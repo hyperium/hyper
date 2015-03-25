@@ -105,7 +105,7 @@ impl Display for Charset {
 impl FromStr for Charset {
     type Err = ();
     fn from_str(s: &str) -> Result<Charset, ()> {
-        Ok(match s.to_ascii_uppercase().as_slice() {
+        Ok(match s.to_ascii_uppercase().as_ref() {
             "US-ASCII" => Us_Ascii,
             "ISO-8859-1" => Iso_8859_1,
             "ISO-8859-2" => Iso_8859_2,

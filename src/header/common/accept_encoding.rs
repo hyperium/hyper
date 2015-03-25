@@ -19,7 +19,7 @@ mod tests {
 
     #[test]
     fn test_parse_header() {
-        let a: AcceptEncoding = Header::parse_header([b"gzip;q=1.0, identity; q=0.5".to_vec()].as_slice()).unwrap();
+        let a: AcceptEncoding = Header::parse_header([b"gzip;q=1.0, identity; q=0.5".to_vec()].as_ref()).unwrap();
         let b = AcceptEncoding(vec![
             qitem(Encoding::Gzip),
             QualityItem::new(Encoding::Identity, Quality(500)),

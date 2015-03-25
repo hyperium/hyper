@@ -272,7 +272,7 @@ impl<'a> HeaderView<'a> {
     /// Get the Header name as a slice.
     #[inline]
     pub fn name(&self) -> &'a str {
-        self.0.as_slice()
+        self.0.as_ref()
     }
 
     /// Cast the value to a certain Header type.
@@ -377,7 +377,7 @@ mod tests {
 
     #[test]
     fn test_content_type() {
-        let content_type = Header::parse_header([b"text/plain".to_vec()].as_slice());
+        let content_type = Header::parse_header([b"text/plain".to_vec()].as_ref());
         assert_eq!(content_type, Some(ContentType(Mime(Text, Plain, vec![]))));
     }
 
@@ -386,10 +386,10 @@ mod tests {
         let text_plain = qitem(Mime(Text, Plain, vec![]));
         let application_vendor = "application/vnd.github.v3.full+json; q=0.5".parse().unwrap();
 
-        let accept = Header::parse_header([b"text/plain".to_vec()].as_slice());
+        let accept = Header::parse_header([b"text/plain".to_vec()].as_ref());
         assert_eq!(accept, Some(Accept(vec![text_plain.clone()])));
 
-        let accept = Header::parse_header([b"application/vnd.github.v3.full+json; q=0.5, text/plain".to_vec()].as_slice());
+        let accept = Header::parse_header([b"application/vnd.github.v3.full+json; q=0.5, text/plain".to_vec()].as_ref());
         assert_eq!(accept, Some(Accept(vec![application_vendor, text_plain])));
     }
 
