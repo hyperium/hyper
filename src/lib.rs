@@ -1,6 +1,6 @@
 #![doc(html_root_url = "https://hyperium.github.io/hyper/hyper/index.html")]
 #![feature(core, collections, io,
-           std_misc, box_syntax, unsafe_destructor)]
+           box_syntax, unsafe_destructor, into_cow, convert)]
 #![deny(missing_docs)]
 #![cfg_attr(test, deny(warnings))]
 #![cfg_attr(test, feature(alloc, test))]
@@ -127,7 +127,7 @@
 //! implement `Reader` and can be read to get the data out of a `Response`.
 //!
 
-extern crate "rustc-serialize" as serialize;
+extern crate rustc_serialize as serialize;
 extern crate time;
 extern crate url;
 extern crate openssl;

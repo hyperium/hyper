@@ -31,7 +31,7 @@ impl fmt::Display for Encoding {
             Deflate => "deflate",
             Compress => "compress",
             Identity => "identity",
-            EncodingExt(ref s) => s.as_slice()
+            EncodingExt(ref s) => s.as_ref()
         })
     }
 }

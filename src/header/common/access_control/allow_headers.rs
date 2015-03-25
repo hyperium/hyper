@@ -27,6 +27,6 @@ impl header::Header for AccessControlAllowHeaders {
 impl header::HeaderFormat for AccessControlAllowHeaders {
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let AccessControlAllowHeaders(ref parts) = *self;
-        header::parsing::fmt_comma_delimited(f, parts.as_slice())
+        header::parsing::fmt_comma_delimited(f, parts.as_ref())
     }
 }

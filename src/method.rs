@@ -102,7 +102,7 @@ impl fmt::Display for Method {
             Trace => "TRACE",
             Connect => "CONNECT",
             Patch => "PATCH",
-            Extension(ref s) => s.as_slice()
+            Extension(ref s) => s.as_ref()
         })
     }
 }

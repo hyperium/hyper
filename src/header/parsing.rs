@@ -30,7 +30,7 @@ pub fn from_comma_delimited<T: str::FromStr>(raw: &[Vec<u8>]) -> Option<Vec<T>> 
 pub fn from_one_comma_delimited<T: str::FromStr>(raw: &[u8]) -> Option<Vec<T>> {
     match str::from_utf8(raw) {
         Ok(s) => {
-            Some(s.as_slice()
+            Some(s
                  .split(',')
                  .map(|x| x.trim())
                  .filter_map(|x| x.parse().ok())

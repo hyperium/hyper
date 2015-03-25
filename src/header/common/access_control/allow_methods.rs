@@ -28,6 +28,6 @@ impl header::Header for AccessControlAllowMethods {
 impl header::HeaderFormat for AccessControlAllowMethods {
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let AccessControlAllowMethods(ref parts) = *self;
-        header::parsing::fmt_comma_delimited(f, parts.as_slice())
+        header::parsing::fmt_comma_delimited(f, parts.as_ref())
     }
 }

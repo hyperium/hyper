@@ -52,10 +52,10 @@ impl HeaderFormat for Pragma {
 
 #[test]
 fn test_parse_header() {
-    let a: Pragma = Header::parse_header([b"no-cache".to_vec()].as_slice()).unwrap();
+    let a: Pragma = Header::parse_header([b"no-cache".to_vec()].as_ref()).unwrap();
     let b = Pragma::NoCache;
     assert_eq!(a, b);
-    let c: Pragma = Header::parse_header([b"FoObar".to_vec()].as_slice()).unwrap();
+    let c: Pragma = Header::parse_header([b"FoObar".to_vec()].as_ref()).unwrap();
     let d = Pragma::Ext("FoObar".to_string());
     assert_eq!(c, d);
 }

@@ -20,10 +20,10 @@ mod tests {
     fn test_allow() {
         let mut allow: Option<Allow>;
 
-        allow = Header::parse_header([b"OPTIONS,GET,PUT,POST,DELETE,HEAD,TRACE,CONNECT,PATCH,fOObAr".to_vec()].as_slice());
+        allow = Header::parse_header([b"OPTIONS,GET,PUT,POST,DELETE,HEAD,TRACE,CONNECT,PATCH,fOObAr".to_vec()].as_ref());
         assert_eq!(allow, Some(Allow(vec![Options, Get, Put, Post, Delete, Head, Trace, Connect, Patch, Extension("fOObAr".to_string())])));
 
-        allow = Header::parse_header([b"".to_vec()].as_slice());
+        allow = Header::parse_header([b"".to_vec()].as_ref());
         assert_eq!(allow, Some(Allow(Vec::<Method>::new())));
     }
 }

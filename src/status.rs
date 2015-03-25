@@ -20,6 +20,7 @@ use std::cmp::Ordering;
 /// `self.class().default_code()`:
 ///
 /// ```rust
+/// #![feature(core)]
 /// # use std::num::FromPrimitive;
 /// # use hyper::status::StatusCode;
 /// let statusopt: Option<StatusCode> = FromPrimitive::from_u16(137u16);
@@ -357,19 +358,19 @@ impl Copy for StatusCode {}
 ///
 /// ```rust
 /// # use hyper::status::StatusCode::{ImATeapot, Unregistered};
-/// assert_eq!(format!("{}", ImATeapot).as_slice(),
-///            "418 I'm a teapot");
-/// assert_eq!(format!("{}", Unregistered(123)).as_slice(),
+/// assert_eq!(format!("{}", ImATeapot), "418 I'm a teapot");
+/// assert_eq!(format!("{}", Unregistered(123)),
 ///            "123 <unknown status code>");
 /// ```
 ///
 /// If you wish to just include the number, convert to `u16` instead:
 ///
 /// ```rust
+/// #![feature(core)]
 /// # use std::num::ToPrimitive;
 /// # use hyper::status::StatusCode::{ImATeapot, Unregistered};
-/// assert_eq!(format!("{}", ImATeapot.to_u16().unwrap()).as_slice(), "418");
-/// assert_eq!(format!("{}", Unregistered(123).to_u16().unwrap()).as_slice(), "123");
+/// assert_eq!(format!("{}", ImATeapot.to_u16().unwrap()), "418");
+/// assert_eq!(format!("{}", Unregistered(123).to_u16().unwrap()), "123");
 /// ```
 impl fmt::Display for StatusCode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
