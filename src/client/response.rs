@@ -1,8 +1,9 @@
 //! Client Responses
-use std::io::{self, Read, BufReader};
+use std::io::{self, Read};
 use std::num::FromPrimitive;
 use std::marker::PhantomData;
 
+use buffer::BufReader;
 use header;
 use header::{ContentLength, TransferEncoding};
 use header::Encoding::Chunked;
@@ -103,9 +104,10 @@ impl Read for Response {
 mod tests {
     use std::borrow::Cow::Borrowed;
     use std::boxed::BoxAny;
-    use std::io::{self, Read, BufReader};
+    use std::io::{self, Read};
     use std::marker::PhantomData;
 
+    use buffer::BufReader;
     use header::Headers;
     use header::TransferEncoding;
     use header::Encoding;

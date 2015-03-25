@@ -1,5 +1,5 @@
 //! HTTP Server
-use std::io::{BufReader, BufWriter, Write};
+use std::io::{BufWriter, Write};
 use std::marker::PhantomData;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::Path;
@@ -14,6 +14,7 @@ pub use net::{Fresh, Streaming};
 
 use HttpError::HttpIoError;
 use {HttpResult};
+use buffer::BufReader;
 use header::{Headers, Connection, Expect};
 use header::ConnectionOption::{Close, KeepAlive};
 use method::Method;
@@ -227,6 +228,7 @@ mod tests {
             Host: example.domain\r\n\
             Expect: 100-continue\r\n\
             Content-Length: 10\r\n\
+            Connection: close\r\n\
             \r\n\
             1234567890\
         ");
