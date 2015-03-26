@@ -108,7 +108,9 @@ mod tests {
             I'm a bad request.\r\n\
         ");
 
-        let mut stream = BufReader::new(&mut mock as &mut NetworkStream);
+        // FIXME: Use Type ascription
+        let mock: &mut NetworkStream = &mut mock;
+        let mut stream = BufReader::new(mock);
 
         let req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
         assert_eq!(read_to_string(req), Ok("".to_string()));
@@ -122,7 +124,10 @@ mod tests {
             \r\n\
             I'm a bad request.\r\n\
         ");
-        let mut stream = BufReader::new(&mut mock as &mut NetworkStream);
+
+        // FIXME: Use Type ascription
+        let mock: &mut NetworkStream = &mut mock;
+        let mut stream = BufReader::new(mock);
 
         let req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
         assert_eq!(read_to_string(req), Ok("".to_string()));
@@ -136,7 +141,10 @@ mod tests {
             \r\n\
             I'm a bad request.\r\n\
         ");
-        let mut stream = BufReader::new(&mut mock as &mut NetworkStream);
+
+        // FIXME: Use Type ascription
+        let mock: &mut NetworkStream = &mut mock;
+        let mut stream = BufReader::new(mock);
 
         let req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
         assert_eq!(read_to_string(req), Ok("".to_string()));
@@ -158,7 +166,10 @@ mod tests {
             0\r\n\
             \r\n"
         );
-        let mut stream = BufReader::new(&mut mock as &mut NetworkStream);
+
+        // FIXME: Use Type ascription
+        let mock: &mut NetworkStream = &mut mock;
+        let mut stream = BufReader::new(mock);
 
         let req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
 
@@ -194,7 +205,10 @@ mod tests {
             0\r\n\
             \r\n"
         );
-        let mut stream = BufReader::new(&mut mock as &mut NetworkStream);
+
+        // FIXME: Use Type ascription
+        let mock: &mut NetworkStream = &mut mock;
+        let mut stream = BufReader::new(mock);
 
         let req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
 
@@ -215,7 +229,10 @@ mod tests {
             0\r\n\
             \r\n"
         );
-        let mut stream = BufReader::new(&mut mock as &mut NetworkStream);
+
+        // FIXME: Use Type ascription
+        let mock: &mut NetworkStream = &mut mock;
+        let mut stream = BufReader::new(mock);
 
         let req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
 
@@ -236,7 +253,10 @@ mod tests {
             0\r\n\
             \r\n"
         );
-        let mut stream = BufReader::new(&mut mock as &mut NetworkStream);
+
+        // FIXME: Use Type ascription
+        let mock: &mut NetworkStream = &mut mock;
+        let mut stream = BufReader::new(mock);
 
         let req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
 

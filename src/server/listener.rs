@@ -62,13 +62,13 @@ where A: NetworkListener + Send + 'a,
     })
 }
 
-struct Sentinel<T: Send> {
+struct Sentinel<T: Send + 'static> {
     value: Option<T>,
     supervisor: mpsc::Sender<T>,
     //active: bool
 }
 
-impl<T: Send> Sentinel<T> {
+impl<T: Send + 'static> Sentinel<T> {
     fn new(channel: mpsc::Sender<T>, data: T) -> Sentinel<T> {
         Sentinel {
             value: Some(data),

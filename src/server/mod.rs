@@ -124,8 +124,9 @@ where S: NetworkStream + Clone, H: Handler {
         }
     };
 
-    let mut stream_clone = stream.clone();
-    let mut rdr = BufReader::new(&mut stream_clone as &mut NetworkStream);
+    // FIXME: Use Type ascription
+    let stream_clone: &mut NetworkStream = &mut stream.clone();
+    let mut rdr = BufReader::new(stream_clone);
     let mut wrt = BufWriter::new(stream);
 
     let mut keep_alive = true;

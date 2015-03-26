@@ -462,12 +462,12 @@ mod tests {
     fn bench_parse_incoming(b: &mut Bencher) {
         use std::io::BufReader;
         use mock::MockStream;
-        use net::NetworkStream;
+
         use super::parse_request;
         b.iter(|| {
             let mut raw = MockStream::with_input(b"GET /echo HTTP/1.1\r\nHost: hyper.rs\r\n\r\n");
-            let mut buf = BufReader::new(&mut raw as &mut NetworkStream);
-            
+            let mut buf = BufReader::new(&mut raw);
+
             parse_request(&mut buf).unwrap();
         });
     }
