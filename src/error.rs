@@ -54,8 +54,8 @@ impl Error for HttpError {
 
     fn cause(&self) -> Option<&Error> {
         match *self {
-            HttpIoError(ref error) => Some(error as &Error),
-            HttpUriError(ref error) => Some(error as &Error),
+            HttpIoError(ref error) => Some(error),
+            HttpUriError(ref error) => Some(error),
             _ => None,
         }
     }

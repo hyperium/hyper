@@ -354,7 +354,8 @@ mod tests {
 
     #[test]
     fn test_downcast_box_stream() {
-        let stream = box MockStream::new() as Box<NetworkStream + Send>;
+        // FIXME: Use Type ascription
+        let stream: Box<NetworkStream + Send> = box MockStream::new();
 
         let mock = stream.downcast::<MockStream>().ok().unwrap();
         assert_eq!(mock, box MockStream::new());
@@ -363,7 +364,8 @@ mod tests {
 
     #[test]
     fn test_downcast_unchecked_box_stream() {
-        let stream = box MockStream::new() as Box<NetworkStream + Send>;
+        // FIXME: Use Type ascription
+        let stream: Box<NetworkStream + Send> = box MockStream::new();
 
         let mock = unsafe { stream.downcast_unchecked::<MockStream>() };
         assert_eq!(mock, box MockStream::new());

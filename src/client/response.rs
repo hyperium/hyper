@@ -112,7 +112,6 @@ mod tests {
     use http::HttpReader::EofReader;
     use http::RawStatus;
     use mock::MockStream;
-    use net::NetworkStream;
     use status;
     use version;
 
@@ -131,7 +130,7 @@ mod tests {
             status: status::StatusCode::Ok,
             headers: Headers::new(),
             version: version::HttpVersion::Http11,
-            body: EofReader(BufReader::new(box MockStream::new() as Box<NetworkStream + Send>)),
+            body: EofReader(BufReader::new(box MockStream::new())),
             status_raw: RawStatus(200, Borrowed("OK")),
             _marker: PhantomData,
         };
