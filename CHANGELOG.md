@@ -1,3 +1,11 @@
+### v0.3.4 (2015-03-26)
+
+
+#### Bug Fixes
+
+* **rustup:** static bounds required on Type definition, trivial_casts ([eee7a85d](https://github.com/hyperium/hyper/commit/eee7a85d3c3a3f51a1c3c12496c0e45ea312524e))
+
+
 ### v0.3.3 (2015-03-25)
 
 
