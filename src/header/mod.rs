@@ -356,11 +356,21 @@ mod tests {
 
     use test::Bencher;
 
+    // Slice.position_elem is unstable
+    fn index_of(slice: &[u8], byte: u8) -> Option<usize> {
+        for (index, &b) in slice.iter().enumerate() {
+            if b == byte {
+                return Some(index);
+            }
+        }
+        None
+    }
+
     macro_rules! raw {
         ($($line:expr),*) => ({
             [$({
                 let line = $line;
-                let pos = line.position_elem(&b':').expect("raw splits on :, not found");
+                let pos = index_of(line, b':').expect("raw splits on ':', not found");
                 httparse::Header {
                     name: ::std::str::from_utf8(&line[..pos]).unwrap(),
                     value: &line[pos + 2..]

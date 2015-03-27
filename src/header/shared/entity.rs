@@ -47,29 +47,29 @@ impl FromStr for EntityTag {
         // Early exits:
         // 1. The string is empty, or,
         // 2. it doesn't terminate in a DQUOTE.
-        if slice.is_empty() || !slice.ends_with("\"") {
+        if slice.is_empty() || !slice.ends_with('"') {
             return Err(());
         }
 
         // The etag is weak if its first char is not a DQUOTE.
-        if slice.chars().next().unwrap() == '"' /* '"' */ {
+        if slice.starts_with('"') /* '"' */ {
             // No need to check if the last char is a DQUOTE,
             // we already did that above.
-            if check_slice_validity(slice.slice_chars(1, length-1)) {
+            if check_slice_validity(&slice[1..length-1]) {
                 return Ok(EntityTag {
                     weak: false,
-                    tag: slice.slice_chars(1, length-1).to_string()
+                    tag: slice[1..length-1].to_string()
                 });
             } else {
                 return Err(());
             }
         }
 
-        if slice.slice_chars(0, 3) == "W/\"" {
-            if check_slice_validity(slice.slice_chars(3, length-1)) {
+        if slice.starts_with("W/\"") {
+            if check_slice_validity(&slice[3..length-1]) {
                 return Ok(EntityTag {
                     weak: true,
-                    tag: slice.slice_chars(3, length-1).to_string()
+                    tag: slice[3..length-1].to_string()
                 });
             } else {
                 return Err(());

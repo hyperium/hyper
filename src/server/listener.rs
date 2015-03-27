@@ -1,6 +1,5 @@
 use std::thread::{self, JoinGuard};
 use std::sync::mpsc;
-use std::collections::VecMap;
 use net::NetworkListener;
 
 pub struct ListenerPool<A: NetworkListener> {
@@ -24,22 +23,16 @@ impl<'a, A: NetworkListener + Send + 'a> ListenerPool<A> {
 
         let (super_tx, supervisor_rx) = mpsc::channel();
 
-        let counter = &mut 0;
         let work = &work;
-        let mut spawn = move || {
-            let id = *counter;
-            let guard = spawn_with(super_tx.clone(), work, self.acceptor.clone(), id);
-            *counter += 1;
-            (id, guard)
+        let spawn = move |id| {
+            spawn_with(super_tx.clone(), work, self.acceptor.clone(), id)
         };
 
         // Go
-        let mut guards: VecMap<_> = (0..threads).map(|_| spawn()).collect();
+        let mut guards: Vec<_> = (0..threads).map(|id| spawn(id)).collect();
 
         for id in supervisor_rx.iter() {
-            guards.remove(&id);
-            let (id, guard) = spawn();
-            guards.insert(id, guard);
+            guards[id] = spawn(id);
         }
     }
 }
