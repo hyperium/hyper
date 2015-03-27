@@ -1,6 +1,10 @@
 language: rust
 sudo: false
 
+cache:
+  directories:
+      - target
+
 script:
     - cargo build
     - cargo test
