@@ -1,3 +1,11 @@
+### v0.3.5 (2015-03-28)
+
+
+#### Bug Fixes
+
+* **http:** read more before triggering TooLargeError ([cb59f609](https://github.com/hyperium/hyper/commit/cb59f609c61a097d5d9fa728b9df33d79922573b), closes [#389](https://github.com/hyperium/hyper/issues/389))
+
+
 ### v0.3.4 (2015-03-26)
 
 
