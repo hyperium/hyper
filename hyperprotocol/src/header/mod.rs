@@ -147,7 +147,7 @@ impl Headers {
     /// Example:
     ///
     /// ```
-    /// # use hyper::header::Headers;
+    /// # use hyperprotocol::header::Headers;
     /// # let mut headers = Headers::new();
     /// let raw_content_type = headers.get_raw("content-type");
     /// ```
@@ -162,7 +162,7 @@ impl Headers {
     /// Example:
     ///
     /// ```
-    /// # use hyper::header::Headers;
+    /// # use hyperprotocol::header::Headers;
     /// # let mut headers = Headers::new();
     /// headers.set_raw("content-length", vec![b"5".to_vec()]);
     /// ```
@@ -190,8 +190,8 @@ impl Headers {
     /// Example:
     ///
     /// ```
-    /// # use hyper::header::Headers;
-    /// # use hyper::header::ContentType;
+    /// # use hyperprotocol::header::Headers;
+    /// # use hyperprotocol::header::ContentType;
     /// # let mut headers = Headers::new();
     /// let has_type = headers.has::<ContentType>();
     /// ```
