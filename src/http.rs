@@ -5,12 +5,13 @@ use std::io::{self, Read, Write, BufRead};
 
 use httparse;
 
+use buffer::BufReader;
 use header::Headers;
 use method::Method;
 use uri::RequestUri;
 use version::HttpVersion::{self, Http10, Http11};
 use HttpError:: HttpTooLargeError;
-use HttpResult;
+use {HttpError, HttpResult};
 
 use self::HttpReader::{SizedReader, ChunkedReader, EofReader, EmptyReader};
 use self::HttpWriter::{ThroughWriter, ChunkedWriter, SizedWriter, EmptyWriter};
@@ -307,56 +308,88 @@ impl<W: Write> Write for HttpWriter<W> {
     }
 }
 
+const MAX_HEADERS: usize = 100;
+
 /// Parses a request into an Incoming message head.
-pub fn parse_request<T: BufRead>(buf: &mut T) -> HttpResult<Incoming<(Method, RequestUri)>> {
-    let (inc, len) = {
-        let slice = try!(buf.fill_buf());
-        let mut headers = [httparse::Header { name: "", value: b"" }; 64];
-        let mut req = httparse::Request::new(&mut headers);
-        match try!(req.parse(slice)) {
+#[inline]
+pub fn parse_request<R: Read>(buf: &mut BufReader<R>) -> HttpResult<Incoming<(Method, RequestUri)>> {
+    parse::<R, httparse::Request, (Method, RequestUri)>(buf)
+}
+
+/// Parses a response into an Incoming message head.
+#[inline]
+pub fn parse_response<R: Read>(buf: &mut BufReader<R>) -> HttpResult<Incoming<RawStatus>> {
+    parse::<R, httparse::Response, RawStatus>(buf)
+}
+
+fn parse<R: Read, T: TryParse<Subject=I>, I>(rdr: &mut BufReader<R>) -> HttpResult<Incoming<I>> {
+    loop {
+        match try!(try_parse::<R, T, I>(rdr)) {
+            httparse::Status::Complete((inc, len)) => {
+                rdr.consume(len);
+                return Ok(inc);
+            },
+            _partial => ()
+        }
+        match try!(rdr.read_into_buf()) {
+            0 => return Err(HttpTooLargeError),
+            _ => ()
+        }
+    }
+}
+
+fn try_parse<R: Read, T: TryParse<Subject=I>, I>(rdr: &mut BufReader<R>) -> TryParseResult<I> {
+    let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
+    <T as TryParse>::try_parse(&mut headers, rdr.get_buf())
+}
+
+#[doc(hidden)]
+trait TryParse {
+    type Subject;
+    fn try_parse<'a>(headers: &'a mut [httparse::Header<'a>], buf: &'a [u8]) -> TryParseResult<Self::Subject>;
+}
+
+type TryParseResult<T> = Result<httparse::Status<(Incoming<T>, usize)>, HttpError>;
+
+impl<'a> TryParse for httparse::Request<'a> {
+    type Subject = (Method, RequestUri);
+
+    fn try_parse<'b>(headers: &'b mut [httparse::Header<'b>], buf: &'b [u8]) -> TryParseResult<(Method, RequestUri)> {
+        let mut req = httparse::Request::new(headers);
+        Ok(match try!(req.parse(buf)) {
             httparse::Status::Complete(len) => {
-                (Incoming {
+                httparse::Status::Complete((Incoming {
                     version: if req.version.unwrap() == 1 { Http11 } else { Http10 },
                     subject: (
                         try!(req.method.unwrap().parse()),
                         try!(req.path.unwrap().parse())
                     ),
                     headers: try!(Headers::from_raw(req.headers))
-                }, len)
+                }, len))
             },
-            _ => {
-                // request head is bigger than a BufRead's buffer? 400 that!
-                return Err(HttpTooLargeError)
-            }
-        }
-    };
-    buf.consume(len);
-    Ok(inc)
+            httparse::Status::Partial => httparse::Status::Partial
+        })
+    }
 }
 
-/// Parses a response into an Incoming message head.
-pub fn parse_response<T: BufRead>(buf: &mut T) -> HttpResult<Incoming<RawStatus>> {
-    let (inc, len) = {
-        let mut headers = [httparse::Header { name: "", value: b"" }; 64];
-        let mut res = httparse::Response::new(&mut headers);
-        match try!(res.parse(try!(buf.fill_buf()))) {
+impl<'a> TryParse for httparse::Response<'a> {
+    type Subject = RawStatus;
+
+    fn try_parse<'b>(headers: &'b mut [httparse::Header<'b>], buf: &'b [u8]) -> TryParseResult<RawStatus> {
+        let mut res = httparse::Response::new(headers);
+        Ok(match try!(res.parse(buf)) {
             httparse::Status::Complete(len) => {
-                (Incoming {
+                httparse::Status::Complete((Incoming {
                     version: if res.version.unwrap() == 1 { Http11 } else { Http10 },
                     subject: RawStatus(
                         res.code.unwrap(), res.reason.unwrap().to_owned().into_cow()
                     ),
                     headers: try!(Headers::from_raw(res.headers))
-                }, len)
+                }, len))
             },
-            _ => {
-                // response head is bigger than a BufRead's buffer?
-                return Err(HttpTooLargeError)
-            }
-        }
-    };
-    buf.consume(len);
-    Ok(inc)
+            httparse::Status::Partial => httparse::Status::Partial
+        })
+    }
 }
 
 /// An Incoming Message head. Includes request/status line, and headers.
@@ -456,19 +489,30 @@ mod tests {
         read_err("1;no CRLF");
     }
 
+    #[test]
+    fn test_parse_incoming() {
+        use buffer::BufReader;
+        use mock::MockStream;
+
+        use super::parse_request;
+        let mut raw = MockStream::with_input(b"GET /echo HTTP/1.1\r\nHost: hyper.rs\r\n\r\n");
+        let mut buf = BufReader::new(&mut raw);
+        parse_request(&mut buf).unwrap();
+    }
+
     use test::Bencher;
 
     #[bench]
     fn bench_parse_incoming(b: &mut Bencher) {
-        use std::io::BufReader;
+        use buffer::BufReader;
         use mock::MockStream;
 
         use super::parse_request;
+        let mut raw = MockStream::with_input(b"GET /echo HTTP/1.1\r\nHost: hyper.rs\r\n\r\n");
+        let mut buf = BufReader::new(&mut raw);
         b.iter(|| {
-            let mut raw = MockStream::with_input(b"GET /echo HTTP/1.1\r\nHost: hyper.rs\r\n\r\n");
-            let mut buf = BufReader::new(&mut raw);
-
             parse_request(&mut buf).unwrap();
+            buf.get_mut().read.set_position(0);
         });
     }
 }
