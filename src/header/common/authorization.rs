@@ -1,6 +1,7 @@
 use std::fmt;
 use std::str::{FromStr, from_utf8};
 use std::ops::{Deref, DerefMut};
+use std::marker::Reflect;
 use serialize::base64::{ToBase64, FromBase64, Standard, Config, Newline};
 use header::{Header, HeaderFormat};
 
@@ -22,7 +23,7 @@ impl<S: Scheme> DerefMut for Authorization<S> {
     }
 }
 
-impl<S: Scheme + 'static> Header for Authorization<S> where <S as FromStr>::Err: 'static {
+impl<S: Scheme + Reflect + 'static> Header for Authorization<S> where <S as FromStr>::Err: 'static {
     fn header_name() -> &'static str {
         "Authorization"
     }
@@ -43,7 +44,7 @@ impl<S: Scheme + 'static> Header for Authorization<S> where <S as FromStr>::Err:
     }
 }
 
-impl<S: Scheme + 'static> HeaderFormat for Authorization<S> where <S as FromStr>::Err: 'static {
+impl<S: Scheme + Reflect + 'static> HeaderFormat for Authorization<S> where <S as FromStr>::Err: 'static {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match Scheme::scheme(None::<S>) {
             Some(scheme) => try!(write!(fmt, "{} ", scheme)),
