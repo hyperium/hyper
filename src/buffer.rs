@@ -1,115 +1,143 @@
 use std::cmp;
 use std::iter;
-use std::io::{self, Read, BufRead, Cursor};
+use std::io::{self, Read, BufRead};
 
 pub struct BufReader<R> {
-    buf: Cursor<Vec<u8>>,
-    inner: R
+    inner: R,
+    buf: Vec<u8>,
+    pos: usize,
+    cap: usize,
 }
 
 const INIT_BUFFER_SIZE: usize = 4096;
 const MAX_BUFFER_SIZE: usize = 8192 + 4096 * 100;
 
 impl<R: Read> BufReader<R> {
+    #[inline]
     pub fn new(rdr: R) -> BufReader<R> {
         BufReader::with_capacity(rdr, INIT_BUFFER_SIZE)
     }
 
+    #[inline]
     pub fn with_capacity(rdr: R, cap: usize) -> BufReader<R> {
+        let mut buf = Vec::with_capacity(cap);
+        buf.extend(iter::repeat(0).take(cap));
         BufReader {
-            buf: Cursor::new(Vec::with_capacity(cap)),
-            inner: rdr
+            inner: rdr,
+            buf: buf,
+            pos: 0,
+            cap: 0,
         }
     }
 
+    #[inline]
     pub fn get_ref(&self) -> &R { &self.inner }
 
+    #[inline]
     pub fn get_mut(&mut self) -> &mut R { &mut self.inner }
 
+    #[inline]
     pub fn get_buf(&self) -> &[u8] {
-        let pos = self.buf.position() as usize;
-        if pos < self.buf.get_ref().len() {
-            &self.buf.get_ref()[pos..]
+        if self.pos < self.cap {
+            debug!("slicing {:?}", (self.pos, self.cap, self.buf.len()));
+            &self.buf[self.pos..self.cap]
         } else {
             &[]
         }
     }
 
+    #[inline]
     pub fn into_inner(self) -> R { self.inner }
 
+    #[inline]
     pub fn read_into_buf(&mut self) -> io::Result<usize> {
-        let v = self.buf.get_mut();
-        reserve(v);
-        let inner = &mut self.inner;
-        with_end_to_cap(v, |b| inner.read(b))
+        self.maybe_reserve();
+        let v = &mut self.buf;
+        if self.cap < v.capacity() {
+            let nread = try!(self.inner.read(&mut v[self.cap..]));
+            self.cap += nread;
+            Ok(nread)
+        } else {
+            Ok(0)
+        }
+    }
+
+    #[inline]
+    fn maybe_reserve(&mut self) {
+        let cap = self.buf.capacity();
+        if self.cap == cap {
+            self.buf.reserve(cmp::min(cap * 4, MAX_BUFFER_SIZE) - cap);
+        }
     }
 }
 
 impl<R: Read> Read for BufReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        if self.buf.get_ref().len() == self.buf.position() as usize &&
-            buf.len() >= self.buf.get_ref().capacity() {
+        if self.cap == self.pos && buf.len() >= self.buf.len() {
             return self.inner.read(buf);
         }
-        try!(self.fill_buf());
-        self.buf.read(buf)
+        let nread = {
+           let mut rem = try!(self.fill_buf());
+           try!(rem.read(buf))
+        };
+        self.consume(nread);
+        Ok(nread)
     }
 }
 
 impl<R: Read> BufRead for BufReader<R> {
     fn fill_buf(&mut self) -> io::Result<&[u8]> {
-         if self.buf.position() as usize == self.buf.get_ref().len() {
-            self.buf.set_position(0);
-            let v = self.buf.get_mut();
-            v.truncate(0);
-            let inner = &mut self.inner;
-            try!(with_end_to_cap(v, |b| inner.read(b)));
-         }
-         self.buf.fill_buf()
+        if self.pos == self.cap {
+            self.cap = try!(self.inner.read(&mut self.buf));
+            self.pos = 0;
+        }
+        Ok(&self.buf[self.pos..self.cap])
     }
 
+    #[inline]
     fn consume(&mut self, amt: usize) {
-        self.buf.consume(amt)
-    }
-}
-
-fn with_end_to_cap<F>(v: &mut Vec<u8>, f: F) -> io::Result<usize>
-    where F: FnOnce(&mut [u8]) -> io::Result<usize>
-{
-    let len = v.len();
-    let new_area = v.capacity() - len;
-    v.extend(iter::repeat(0).take(new_area));
-    match f(&mut v[len..]) {
-        Ok(n) => {
-            v.truncate(len + n);
-            Ok(n)
+        self.pos = cmp::min(self.pos + amt, self.cap);
+        if self.pos == self.cap {
+            self.pos = 0;
+            self.cap = 0;
         }
-        Err(e) => {
-            v.truncate(len);
-            Err(e)
-        }
-    }
-}
-
-#[inline]
-fn reserve(v: &mut Vec<u8>) {
-    let cap = v.capacity();
-    if v.len() == cap {
-        v.reserve(cmp::min(cap * 4, MAX_BUFFER_SIZE) - cap);
     }
 }
 
 #[cfg(test)]
 mod tests {
 
-    use std::io::BufRead;
+    use std::io::{self, Read, BufRead};
     use super::BufReader;
+
+    struct SlowRead(u8);
+
+    impl Read for SlowRead {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            let state = self.0;
+            self.0 += 1;
+            (&match state % 3 {
+                0 => b"foo",
+                1 => b"bar",
+                _ => b"baz",
+            }[..]).read(buf)
+        }
+    }
 
     #[test]
     fn test_consume_and_get_buf() {
-        let mut rdr = BufReader::new(&b"foo bar baz"[..]);
+        let mut rdr = BufReader::new(SlowRead(0));
         rdr.read_into_buf().unwrap();
-        rdr.consume(8);
+        rdr.consume(1);
+        assert_eq!(rdr.get_buf(), b"oo");
+        rdr.read_into_buf().unwrap();
+        rdr.read_into_buf().unwrap();
+        assert_eq!(rdr.get_buf(), b"oobarbaz");
+        rdr.consume(5);
         assert_eq!(rdr.get_buf(), b"baz");
+        rdr.consume(3);
+        assert_eq!(rdr.get_buf(), b"");
+        assert_eq!(rdr.pos, 0);
+        assert_eq!(rdr.cap, 0);
     }
 }
