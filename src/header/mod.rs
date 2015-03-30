@@ -5,14 +5,12 @@
 //! must implement the `Header` trait from this module. Several common headers
 //! are already provided, such as `Host`, `ContentType`, `UserAgent`, and others.
 use std::any::Any;
-use std::borrow::Cow::{Borrowed};
-use std::borrow::ToOwned;
+use std::borrow::{Cow, ToOwned};
 use std::fmt;
-use std::raw::TraitObject;
 use std::collections::HashMap;
 use std::collections::hash_map::{Iter, Entry};
 use std::iter::{FromIterator, IntoIterator};
-use std::borrow::{Cow, IntoCow};
+use std::raw::TraitObject;
 use std::{mem, raw};
 
 use httparse;
@@ -120,7 +118,7 @@ impl Headers {
         let mut headers = Headers::new();
         for header in raw {
             debug!("raw header: {:?}={:?}", header.name, &header.value[..]);
-            let name = UniCase(header.name.to_owned().into_cow());
+            let name = UniCase(Cow::Owned(header.name.to_owned()));
             let mut item = match headers.data.entry(name) {
                 Entry::Vacant(entry) => entry.insert(Item::new_raw(vec![])),
                 Entry::Occupied(entry) => entry.into_mut()
@@ -136,7 +134,7 @@ impl Headers {
     ///
     /// The field is determined by the type of the value being set.
     pub fn set<H: Header + HeaderFormat>(&mut self, value: H) {
-        self.data.insert(UniCase(Borrowed(header_name::<H>())),
+        self.data.insert(UniCase(Cow::Borrowed(header_name::<H>())),
                          Item::new_typed(Box::new(value)));
     }
 
@@ -153,7 +151,7 @@ impl Headers {
     /// ```
     pub fn get_raw(&self, name: &str) -> Option<&[Vec<u8>]> {
         self.data
-            .get(&UniCase(Borrowed(unsafe { mem::transmute::<&str, &str>(name) })))
+            .get(&UniCase(Cow::Borrowed(unsafe { mem::transmute::<&str, &str>(name) })))
             .map(Item::raw)
     }
 
@@ -166,23 +164,23 @@ impl Headers {
     /// # let mut headers = Headers::new();
     /// headers.set_raw("content-length", vec![b"5".to_vec()]);
     /// ```
-    pub fn set_raw<K: IntoCow<'static, str>>(&mut self, name: K, value: Vec<Vec<u8>>) {
-        self.data.insert(UniCase(name.into_cow()), Item::new_raw(value));
+    pub fn set_raw<K: Into<Cow<'static, str>>>(&mut self, name: K, value: Vec<Vec<u8>>) {
+        self.data.insert(UniCase(name.into()), Item::new_raw(value));
     }
 
     /// Remove a header set by set_raw
     pub fn remove_raw(&mut self, name: &str) {
-        self.data.remove(&UniCase(name.into_cow()));
+        self.data.remove(&UniCase(Cow::Borrowed(name)));
     }
 
     /// Get a reference to the header field's value, if it exists.
     pub fn get<H: Header + HeaderFormat>(&self) -> Option<&H> {
-        self.data.get(&UniCase(Borrowed(header_name::<H>()))).and_then(Item::typed::<H>)
+        self.data.get(&UniCase(Cow::Borrowed(header_name::<H>()))).and_then(Item::typed::<H>)
     }
 
     /// Get a mutable reference to the header field's value, if it exists.
     pub fn get_mut<H: Header + HeaderFormat>(&mut self) -> Option<&mut H> {
-        self.data.get_mut(&UniCase(Borrowed(header_name::<H>()))).and_then(Item::typed_mut::<H>)
+        self.data.get_mut(&UniCase(Cow::Borrowed(header_name::<H>()))).and_then(Item::typed_mut::<H>)
     }
 
     /// Returns a boolean of whether a certain header is in the map.
@@ -196,13 +194,13 @@ impl Headers {
     /// let has_type = headers.has::<ContentType>();
     /// ```
     pub fn has<H: Header + HeaderFormat>(&self) -> bool {
-        self.data.contains_key(&UniCase(Borrowed(header_name::<H>())))
+        self.data.contains_key(&UniCase(Cow::Borrowed(header_name::<H>())))
     }
 
     /// Removes a header from the map, if one existed.
     /// Returns true if a header has been removed.
     pub fn remove<H: Header + HeaderFormat>(&mut self) -> bool {
-        self.data.remove(&UniCase(Borrowed(header_name::<H>()))).is_some()
+        self.data.remove(&UniCase(Cow::Borrowed(header_name::<H>()))).is_some()
     }
 
     /// Returns an iterator over the header fields.
@@ -266,7 +264,7 @@ impl<'a> HeaderView<'a> {
     /// Check if a HeaderView is a certain Header.
     #[inline]
     pub fn is<H: Header>(&self) -> bool {
-        UniCase(header_name::<H>().into_cow()) == *self.0
+        UniCase(Cow::Borrowed(header_name::<H>())) == *self.0
     }
 
     /// Get the Header name as a slice.

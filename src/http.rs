@@ -1,13 +1,15 @@
 //! Pieces pertaining to the HTTP message protocol.
-use std::borrow::{Cow, IntoCow, ToOwned};
+use std::borrow::{Cow, ToOwned};
 use std::cmp::min;
 use std::io::{self, Read, Write, BufRead};
+use std::num::FromPrimitive;
 
 use httparse;
 
 use buffer::BufReader;
 use header::Headers;
 use method::Method;
+use status::StatusCode;
 use uri::RequestUri;
 use version::HttpVersion::{self, Http10, Http11};
 use HttpError:: HttpTooLargeError;
@@ -375,11 +377,17 @@ impl<'a> TryParse for httparse::Response<'a> {
         let mut res = httparse::Response::new(headers);
         Ok(match try!(res.parse(buf)) {
             httparse::Status::Complete(len) => {
+                let code = res.code.unwrap();
+                let reason = match <StatusCode as FromPrimitive>::from_u16(code) {
+                    Some(status) => match status.canonical_reason() {
+                        Some(reason) => Cow::Borrowed(reason),
+                        None => Cow::Owned(res.reason.unwrap().to_owned())
+                    },
+                    None => Cow::Owned(res.reason.unwrap().to_owned())
+                };
                 httparse::Status::Complete((Incoming {
                     version: if res.version.unwrap() == 1 { Http11 } else { Http10 },
-                    subject: RawStatus(
-                        res.code.unwrap(), res.reason.unwrap().to_owned().into_cow()
-                    ),
+                    subject: RawStatus(code, reason),
                     headers: try!(Headers::from_raw(res.headers))
                 }, len))
             },
@@ -405,14 +413,8 @@ pub const STAR: u8 = b'*';
 pub const LINE_ENDING: &'static str = "\r\n";
 
 /// The raw status code and reason-phrase.
-#[derive(PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct RawStatus(pub u16, pub Cow<'static, str>);
-
-impl Clone for RawStatus {
-    fn clone(&self) -> RawStatus {
-        RawStatus(self.0, self.1.clone().into_cow())
-    }
-}
 
 #[cfg(test)]
 mod tests {
