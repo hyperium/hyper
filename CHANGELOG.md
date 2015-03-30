@@ -1,3 +1,12 @@
+### v0.3.6 (2015-03-30)
+
+
+#### Bug Fixes
+
+* **buffer:** get_buf to not return consumed part of buffer ([04e3b565](https://github.com/hyperium/hyper/commit/04e3b5651561f087fee7c0345fe77d217d3ad35a), closes [#406](https://github.com/hyperium/hyper/issues/406))
+* **rustup:** get rid of slice pattern, add `Reflect` bounds ([c9f2c841](https://github.com/hyperium/hyper/commit/c9f2c841ff0e68dead38e762ed5f8c0f42255bc4))
+
+
 ### v0.3.5 (2015-03-28)
 
 
