@@ -55,9 +55,9 @@ fn test_parse_header() {
         let a: IfMatch = Header::parse_header(
             [b"\"xyzzy\", \"r2d2xxxx\", \"c3piozzzz\"".to_vec()].as_ref()).unwrap();
         let b = IfMatch::EntityTags(
-            vec![EntityTag{weak:false, tag: "xyzzy".to_string()},
-                 EntityTag{weak:false, tag: "r2d2xxxx".to_string()},
-                 EntityTag{weak:false, tag: "c3piozzzz".to_string()}]);
+            vec![EntityTag::new(false, "xyzzy".to_string()),
+                 EntityTag::new(false, "r2d2xxxx".to_string()),
+                 EntityTag::new(false, "c3piozzzz".to_string())]);
         assert_eq!(a, b);
     }
 }
