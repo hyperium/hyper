@@ -1,5 +1,5 @@
 use header::{EntityTag, Header, HeaderFormat};
-use std::fmt::{self};
+use std::fmt::{self, Display};
 use header::parsing::from_one_raw_str;
 
 /// The `Etag` header.
@@ -28,10 +28,7 @@ impl Header for Etag {
 
 impl HeaderFormat for Etag {
     fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        if self.0.weak {
-            try!(fmt.write_str("W/"));
-        }
-        write!(fmt, "\"{}\"", self.0.tag)
+        self.0.fmt(fmt)
     }
 }
 
@@ -46,34 +43,19 @@ mod tests {
         let mut etag: Option<Etag>;
 
         etag = Header::parse_header([b"\"foobar\"".to_vec()].as_ref());
-        assert_eq!(etag, Some(Etag(EntityTag{
-            weak: false,
-            tag: "foobar".to_string()
-        })));
+        assert_eq!(etag, Some(Etag(EntityTag::new(false, "foobar".to_string()))));
 
         etag = Header::parse_header([b"\"\"".to_vec()].as_ref());
-        assert_eq!(etag, Some(Etag(EntityTag{
-            weak: false,
-            tag: "".to_string()
-        })));
+        assert_eq!(etag, Some(Etag(EntityTag::new(false, "".to_string()))));
 
         etag = Header::parse_header([b"W/\"weak-etag\"".to_vec()].as_ref());
-        assert_eq!(etag, Some(Etag(EntityTag{
-            weak: true,
-            tag: "weak-etag".to_string()
-        })));
+        assert_eq!(etag, Some(Etag(EntityTag::new(true, "weak-etag".to_string()))));
 
         etag = Header::parse_header([b"W/\"\x65\x62\"".to_vec()].as_ref());
-        assert_eq!(etag, Some(Etag(EntityTag{
-            weak: true,
-            tag: "\u{0065}\u{0062}".to_string()
-        })));
+        assert_eq!(etag, Some(Etag(EntityTag::new(true, "\u{0065}\u{0062}".to_string()))));
 
         etag = Header::parse_header([b"W/\"\"".to_vec()].as_ref());
-        assert_eq!(etag, Some(Etag(EntityTag{
-            weak: true,
-            tag: "".to_string()
-        })));
+        assert_eq!(etag, Some(Etag(EntityTag::new(true, "".to_string()))));
     }
 
     #[test]
@@ -102,4 +84,3 @@ mod tests {
 }
 
 bench_header!(bench, Etag, { vec![b"W/\"nonemptytag\"".to_vec()] });
-
