@@ -27,7 +27,12 @@ impl<R: Read> BufReader<R> {
     pub fn get_mut(&mut self) -> &mut R { &mut self.inner }
 
     pub fn get_buf(&self) -> &[u8] {
-        self.buf.get_ref()
+        let pos = self.buf.position() as usize;
+        if pos < self.buf.get_ref().len() {
+            &self.buf.get_ref()[pos..]
+        } else {
+            &[]
+        }
     }
 
     pub fn into_inner(self) -> R { self.inner }
@@ -91,5 +96,20 @@ fn reserve(v: &mut Vec<u8>) {
     let cap = v.capacity();
     if v.len() == cap {
         v.reserve(cmp::min(cap * 4, MAX_BUFFER_SIZE) - cap);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use std::io::BufRead;
+    use super::BufReader;
+
+    #[test]
+    fn test_consume_and_get_buf() {
+        let mut rdr = BufReader::new(&b"foo bar baz"[..]);
+        rdr.read_into_buf().unwrap();
+        rdr.consume(8);
+        assert_eq!(rdr.get_buf(), b"baz");
     }
 }
