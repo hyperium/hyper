@@ -228,7 +228,6 @@ mod tests {
             Host: example.domain\r\n\
             Expect: 100-continue\r\n\
             Content-Length: 10\r\n\
-            Connection: close\r\n\
             \r\n\
             1234567890\
         ");
