@@ -21,7 +21,7 @@ use unicase::UniCase;
 use self::internals::Item;
 use error::HttpResult;
 
-pub use self::shared::{Charset, Encoding, EntityTag, Quality, QualityItem, qitem, q};
+pub use self::shared::{Charset, Encoding, EntityTag, HttpDate, Quality, QualityItem, qitem, q};
 pub use self::common::*;
 
 mod common;

@@ -75,7 +75,7 @@ impl<'a> Response<'a, Fresh> {
         try!(write!(&mut self.body, "{} {}{}{}", self.version, self.status, CR as char, LF as char));
 
         if !self.headers.has::<header::Date>() {
-            self.headers.set(header::Date(now_utc()));
+            self.headers.set(header::Date(header::HttpDate(now_utc())));
         }
 
 
