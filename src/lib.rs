@@ -2,7 +2,7 @@
 #![feature(core, io, unsafe_destructor, into_cow, convert)]
 #![deny(missing_docs)]
 #![cfg_attr(test, deny(warnings))]
-#![cfg_attr(test, feature(alloc, test))]
+#![cfg_attr(test, feature(test))]
 
 //! # Hyper
 //! Hyper is a fast, modern HTTP implementation written in and for Rust. It

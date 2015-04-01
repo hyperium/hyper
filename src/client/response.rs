@@ -103,7 +103,6 @@ impl Read for Response {
 #[cfg(test)]
 mod tests {
     use std::borrow::Cow::Borrowed;
-    use std::boxed::BoxAny;
     use std::io::{self, Read};
     use std::marker::PhantomData;
 

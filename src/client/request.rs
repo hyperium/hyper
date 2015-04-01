@@ -176,7 +176,6 @@ impl Write for Request<Streaming> {
 
 #[cfg(test)]
 mod tests {
-    use std::boxed::BoxAny;
     use std::str::from_utf8;
     use url::Url;
     use method::Method::{Get, Head};
