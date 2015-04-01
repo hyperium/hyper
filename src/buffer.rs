@@ -67,6 +67,8 @@ impl<R: Read> BufReader<R> {
         let cap = self.buf.capacity();
         if self.cap == cap {
             self.buf.reserve(cmp::min(cap * 4, MAX_BUFFER_SIZE) - cap);
+            let new = self.buf.capacity() - self.buf.len();
+            self.buf.extend(iter::repeat(0).take(new));
         }
     }
 }
