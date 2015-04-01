@@ -113,7 +113,7 @@
 //!
 //! Outgoing Requests track their write-status in almost exactly the same way as
 //! outgoing HTTP Responses do on the Server, so we will defer to the explanation
-//! in the documentation for sever Response.
+//! in the documentation for server Response.
 //!
 //! Requests expose an efficient streaming interface instead of a builder pattern,
 //! but they also provide the needed interface for creating a builder pattern over
