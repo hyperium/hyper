@@ -1,3 +1,16 @@
+### v0.3.7 (2015-03-31)
+
+
+#### Bug Fixes
+
+* **buffer:** zero out new capacity when buffer grows ([cfdabd70](https://github.com/hyperium/hyper/commit/cfdabd70ecc3f5290ae1e6f7e5dfd50310d8658d))
+
+
+#### Features
+
+* **entitytag:** Add EntityTag comparison, make EntityTag safe to use ([9c21f7f9](https://github.com/hyperium/hyper/commit/9c21f7f953a5163792e71fb186cab391c45d1bb4))
+
+
 ### v0.3.6 (2015-03-30)
 
 
