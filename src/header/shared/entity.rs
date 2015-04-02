@@ -141,11 +141,11 @@ mod tests {
     #[test]
     fn test_etag_parse_success() {
         // Expected success
-        assert_eq!("\"foobar\"".parse().unwrap(), EntityTag::new(false, "foobar".to_string()));
-        assert_eq!("\"\"".parse().unwrap(), EntityTag::new(false, "".to_string()));
-        assert_eq!("W/\"weaktag\"".parse().unwrap(), EntityTag::new(true, "weaktag".to_string()));
-        assert_eq!("W/\"\x65\x62\"".parse().unwrap(), EntityTag::new(true, "\x65\x62".to_string()));
-        assert_eq!("W/\"\"".parse().unwrap(), EntityTag::new(true, "".to_string()));
+        assert_eq!("\"foobar\"".parse::<EntityTag>().unwrap(), EntityTag::new(false, "foobar".to_string()));
+        assert_eq!("\"\"".parse::<EntityTag>().unwrap(), EntityTag::new(false, "".to_string()));
+        assert_eq!("W/\"weaktag\"".parse::<EntityTag>().unwrap(), EntityTag::new(true, "weaktag".to_string()));
+        assert_eq!("W/\"\x65\x62\"".parse::<EntityTag>().unwrap(), EntityTag::new(true, "\x65\x62".to_string()));
+        assert_eq!("W/\"\"".parse::<EntityTag>().unwrap(), EntityTag::new(true, "".to_string()));
     }
 
     #[test]

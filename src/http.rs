@@ -120,8 +120,7 @@ fn eat<R: Read>(rdr: &mut R, bytes: &[u8]) -> io::Result<()> {
         match try!(rdr.read(&mut buf)) {
             1 if buf[0] == b => (),
             _ => return Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                          "Invalid characters found",
-                                           None))
+                                          "Invalid characters found")),
         }
     }
     Ok(())
@@ -135,8 +134,7 @@ fn read_chunk_size<R: Read>(rdr: &mut R) -> io::Result<u64> {
             match try!($rdr.read(&mut buf)) {
                 1 => buf[0],
                 _ => return Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                                  "Invalid chunk size line",
-                                                   None)),
+                                                  "Invalid chunk size line")),
 
             }
         })
@@ -163,8 +161,7 @@ fn read_chunk_size<R: Read>(rdr: &mut R) -> io::Result<u64> {
                 match byte!(rdr) {
                     LF => break,
                     _ => return Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                                  "Invalid chunk size line",
-                                                   None))
+                                                  "Invalid chunk size line"))
 
                 }
             },
@@ -190,8 +187,7 @@ fn read_chunk_size<R: Read>(rdr: &mut R) -> io::Result<u64> {
             // other octet, the chunk size line is invalid!
             _ => {
                 return Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                         "Invalid chunk size line",
-                                         None))
+                                         "Invalid chunk size line"));
             }
         }
     }
@@ -441,7 +437,7 @@ mod tests {
         use std::str::from_utf8;
         let mut w = super::HttpWriter::SizedWriter(Vec::new(), 8);
         w.write_all(b"foo bar").unwrap();
-        assert_eq!(w.write(b"baz"), Ok(1));
+        assert_eq!(w.write(b"baz").unwrap(), 1);
 
         let buf = w.end().unwrap();
         let s = from_utf8(buf.as_ref()).unwrap();
@@ -450,22 +446,22 @@ mod tests {
 
     #[test]
     fn test_read_chunk_size() {
-        fn read(s: &str, result: io::Result<u64>) {
-            assert_eq!(read_chunk_size(&mut s.as_bytes()), result);
+        fn read(s: &str, result: u64) {
+            assert_eq!(read_chunk_size(&mut s.as_bytes()).unwrap(), result);
         }
 
         fn read_err(s: &str) {
             assert_eq!(read_chunk_size(&mut s.as_bytes()).unwrap_err().kind(), io::ErrorKind::InvalidInput);
         }
 
-        read("1\r\n", Ok(1));
-        read("01\r\n", Ok(1));
-        read("0\r\n", Ok(0));
-        read("00\r\n", Ok(0));
-        read("A\r\n", Ok(10));
-        read("a\r\n", Ok(10));
-        read("Ff\r\n", Ok(255));
-        read("Ff   \r\n", Ok(255));
+        read("1\r\n", 1);
+        read("01\r\n", 1);
+        read("0\r\n", 0);
+        read("00\r\n", 0);
+        read("A\r\n", 10);
+        read("a\r\n", 10);
+        read("Ff\r\n", 255);
+        read("Ff   \r\n", 255);
         // Missing LF or CRLF
         read_err("F\rF");
         read_err("F");
@@ -475,14 +471,14 @@ mod tests {
         read_err("-\r\n");
         read_err("-1\r\n");
         // Acceptable (if not fully valid) extensions do not influence the size
-        read("1;extension\r\n", Ok(1));
-        read("a;ext name=value\r\n", Ok(10));
-        read("1;extension;extension2\r\n", Ok(1));
-        read("1;;;  ;\r\n", Ok(1));
-        read("2; extension...\r\n", Ok(2));
-        read("3   ; extension=123\r\n", Ok(3));
-        read("3   ;\r\n", Ok(3));
-        read("3   ;   \r\n", Ok(3));
+        read("1;extension\r\n", 1);
+        read("a;ext name=value\r\n", 10);
+        read("1;extension;extension2\r\n", 1);
+        read("1;;;  ;\r\n", 1);
+        read("2; extension...\r\n", 2);
+        read("3   ; extension=123\r\n", 3);
+        read("3   ;\r\n", 3);
+        read("3   ;   \r\n", 3);
         // Invalid extensions cause an error
         read_err("1 invalid extension\r\n");
         read_err("1 A\r\n");

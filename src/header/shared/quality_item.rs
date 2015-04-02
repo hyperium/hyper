@@ -114,7 +114,7 @@ impl<T: str::FromStr> str::FromStr for QualityItem<T> {
         let mut raw_item = s;
         let mut quality = 1f32;
 
-        let parts: Vec<&str> = s.rsplitn(1, ';').map(|x| x.trim()).collect();
+        let parts: Vec<&str> = s.rsplitn(2, ';').map(|x| x.trim()).collect();
         if parts.len() == 2 {
             let start = &parts[0][0..2];
             if start == "q=" || start == "Q=" {
