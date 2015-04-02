@@ -1,15 +1,22 @@
 use header::{Encoding, QualityItem};
 
-/// The `Accept-Encoding` header
-///
-/// The `Accept-Encoding` header can be used by clients to indicate what
-/// response encodings they accept.
-#[derive(Clone, PartialEq, Debug)]
-pub struct AcceptEncoding(pub Vec<QualityItem<Encoding>>);
-
-impl_list_header!(AcceptEncoding,
-                  "Accept-Encoding",
-                  Vec<QualityItem<Encoding>>);
+header! {
+    #[doc="`Accept-Encoding` header, defined in"]
+    #[doc="[RFC7231](http://tools.ietf.org/html/rfc7231#section-5.3.4)"]
+    #[doc=""]
+    #[doc="The `Accept-Encoding` header field can be used by user agents to"]
+    #[doc="indicate what response content-codings are"]
+    #[doc="acceptable in the response.  An  `identity` token is used as a synonym"]
+    #[doc="for \"no encoding\" in order to communicate when no encoding is"]
+    #[doc="preferred."]
+    #[doc=""]
+    #[doc="# ABNF"]
+    #[doc="```plain"]
+    #[doc="Accept-Encoding  = #( codings [ weight ] )"]
+    #[doc="codings          = content-coding / \"identity\" / \"*\""]
+    #[doc="```"]
+    (AcceptEncoding, "Accept-Encoding") => (QualityItem<Encoding>)*
+}
 
 #[cfg(test)]
 mod tests {

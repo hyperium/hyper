@@ -1,14 +1,19 @@
 use method::Method;
 
-/// The `Allow` header.
-/// See also https://tools.ietf.org/html/rfc7231#section-7.4.1
-
-#[derive(Clone, PartialEq, Debug)]
-pub struct Allow(pub Vec<Method>);
-
-impl_list_header!(Allow,
-                  "Allow",
-                  Vec<Method>);
+header! {
+    #[doc="`Allow` header, defined in [RFC7231](http://tools.ietf.org/html/rfc7231#section-7.4.1)"]
+    #[doc=""]
+    #[doc="The `Allow` header field lists the set of methods advertised as"]
+    #[doc="supported by the target resource.  The purpose of this field is"]
+    #[doc="strictly to inform the recipient of valid request methods associated"]
+    #[doc="with the resource."]
+    #[doc=""]
+    #[doc="# ABNF"]
+    #[doc="```plain"]
+    #[doc="Allow = #method"]
+    #[doc="```"]
+    (Allow, "Allow") => (Method)*
+}
 
 #[cfg(test)]
 mod tests {

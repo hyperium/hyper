@@ -89,64 +89,91 @@ macro_rules! deref(
 );
 
 #[macro_export]
-macro_rules! impl_list_header(
-    ($from:ident, $name:expr, $item:ty) => {
-        deref!($from => $item);
+macro_rules! header {
+    // $a:meta: Attributes associated with the header item (usually docs)
+    // $id:ident: Identifier of the header
+    // $n:expr: Lowercase name of the header
+    // $nn:expr: Nice name of the header
 
-        impl $crate::header::Header for $from {
+    // List header, zero or more items
+    ($(#[$a:meta])*($id:ident, $n:expr) => ($item:ty)*) => {
+        $(#[$a])*
+        #[derive(Clone, Debug, PartialEq)]
+        pub struct $id(pub Vec<$item>);
+        deref!($id => Vec<$item>);
+        impl $crate::header::Header for $id {
             fn header_name() -> &'static str {
-                $name
+                $n
             }
-
-            fn parse_header(raw: &[Vec<u8>]) -> Option<$from> {
-                $crate::header::parsing::from_comma_delimited(raw).map($from)
-            }
-        }
-
-        impl $crate::header::HeaderFormat for $from {
-            fn fmt_header(&self, fmt: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-                $crate::header::parsing::fmt_comma_delimited(fmt, &self[..])
+            fn parse_header(raw: &[Vec<u8>]) -> Option<Self> {
+                $crate::header::parsing::from_comma_delimited(raw).map($id)
             }
         }
-
-        impl ::std::fmt::Display for $from {
+        impl $crate::header::HeaderFormat for $id {
+            fn fmt_header(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                $crate::header::parsing::fmt_comma_delimited(f, &self.0[..])
+            }
+        }
+        impl ::std::fmt::Display for $id {
             fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
                 use $crate::header::HeaderFormat;
                 self.fmt_header(f)
             }
         }
-    }
-);
 
-#[macro_export]
-macro_rules! impl_header(
-    ($from:ident, $name:expr, $item:ty) => {
-        deref!($from => $item);
-
-        impl $crate::header::Header for $from {
+    };
+    // List header, one or more items
+    ($(#[$a:meta])*($id:ident, $n:expr) => ($item:ty)+) => {
+        $(#[$a])*
+        #[derive(Clone, Debug, PartialEq)]
+        pub struct $id(pub Vec<$item>);
+        deref!($id => Vec<$item>);
+        impl $crate::header::Header for $id {
             fn header_name() -> &'static str {
-                $name
+                $n
             }
-
-            fn parse_header(raw: &[Vec<u8>]) -> Option<$from> {
-                $crate::header::parsing::from_one_raw_str(raw).map($from)
+            fn parse_header(raw: &[Vec<u8>]) -> Option<Self> {
+                $crate::header::parsing::from_comma_delimited(raw).map($id)
             }
         }
-
-        impl $crate::header::HeaderFormat for $from {
+        impl $crate::header::HeaderFormat for $id {
+            fn fmt_header(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                $crate::header::parsing::fmt_comma_delimited(f, &self.0[..])
+            }
+        }
+        impl ::std::fmt::Display for $id {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                use $crate::header::HeaderFormat;
+                self.fmt_header(f)
+            }
+        }
+    };
+    // Single value header
+    ($(#[$a:meta])*($id:ident, $n:expr) => [$value:ty]) => {
+        $(#[$a])*
+        #[derive(Clone, Debug, PartialEq)]
+        pub struct $id(pub $value);
+        deref!($id => $value);
+        impl $crate::header::Header for $id {
+            fn header_name() -> &'static str {
+                $n
+            }
+            fn parse_header(raw: &[Vec<u8>]) -> Option<Self> {
+                $crate::header::parsing::from_one_raw_str(raw).map($id)
+            }
+        }
+        impl $crate::header::HeaderFormat for $id {
             fn fmt_header(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
                 ::std::fmt::Display::fmt(&**self, f)
             }
         }
-
-        impl ::std::fmt::Display for $from {
+        impl ::std::fmt::Display for $id {
             fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-                use $crate::header::HeaderFormat;
-                self.fmt_header(f)
+                ::std::fmt::Display::fmt(&**self, f)
             }
         }
-    }
-);
+    };
+}
 
 mod access_control;
 mod accept;

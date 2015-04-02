@@ -1,24 +1,20 @@
 use header::Encoding;
 
-/// The `Transfer-Encoding` header.
-///
-/// This header describes the encoding of the message body. It can be
-/// comma-separated, including multiple encodings.
-///
-/// ```notrust
-/// Transfer-Encoding: gzip, chunked
-/// ```
-///
-/// According to the spec, if a `Content-Length` header is not included,
-/// this header should include `chunked` as the last encoding.
-///
-/// The implementation uses a vector of `Encoding` values.
-#[derive(Clone, PartialEq, Debug)]
-pub struct TransferEncoding(pub Vec<Encoding>);
-
-impl_list_header!(TransferEncoding,
-                  "Transfer-Encoding",
-                  Vec<Encoding>);
+header! {
+    #[doc="`Transfer-Encoding` header, defined in"]
+    #[doc="[RFC7230](http://tools.ietf.org/html/rfc7230#section-3.3.1)"]
+    #[doc=""]
+    #[doc="The `Transfer-Encoding` header field lists the transfer coding names"]
+    #[doc="corresponding to the sequence of transfer codings that have been (or"]
+    #[doc="will be) applied to the payload body in order to form the message"]
+    #[doc="body."]
+    #[doc=""]
+    #[doc="# ABNF"]
+    #[doc="```plain"]
+    #[doc="Transfer-Encoding = 1#transfer-coding"]
+    #[doc="```"]
+    (TransferEncoding, "Transfer-Encoding") => (Encoding)+
+}
 
 bench_header!(normal, TransferEncoding, { vec![b"chunked, gzip".to_vec()] });
 bench_header!(ext, TransferEncoding, { vec![b"ext".to_vec()] });
