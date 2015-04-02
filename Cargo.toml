@@ -22,6 +22,8 @@ rustc-serialize = "*"
 time = "*"
 unicase = "*"
 url = "*"
+traitobject = "*"
+typeable = "*"
 
 [dev-dependencies]
 env_logger = "*"
