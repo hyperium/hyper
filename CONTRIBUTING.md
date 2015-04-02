@@ -67,7 +67,7 @@ The body should include the motivation for the change and contrast this with pre
 The footer should contain any information about **Breaking Changes** and is also the place to
 reference GitHub issues that this commit **Closes**.
 
-The last line of commits introducing breaking changes should be in the form `BREAKING_CHANGE: <desc>`
+The last line of commits introducing breaking changes should be in the form `BREAKING CHANGE: <desc>`
 
 
 A detailed explanation can be found in this [document][commit-message-format].
