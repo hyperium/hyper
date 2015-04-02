@@ -6,7 +6,6 @@ use std::net::{SocketAddr, ToSocketAddrs, TcpStream, TcpListener};
 use std::mem;
 use std::path::Path;
 use std::sync::Arc;
-use std::marker::Reflect;
 
 use openssl::ssl::{Ssl, SslStream, SslContext};
 use openssl::ssl::SslVerifyMode::SslVerifyNone;
@@ -135,7 +134,7 @@ impl NetworkStream + Send {
     /// If the underlying type is T, get a mutable reference to the contained
     /// data.
     #[inline]
-    pub fn downcast_mut<T: Reflect + 'static>(&mut self) -> Option<&mut T> {
+    pub fn downcast_mut<T: Any>(&mut self) -> Option<&mut T> {
         if self.is::<T>() {
             Some(unsafe { self.downcast_mut_unchecked() })
         } else {
@@ -144,7 +143,7 @@ impl NetworkStream + Send {
     }
 
     /// If the underlying type is T, extract it.
-    pub fn downcast<T: Reflect + 'static>(self: Box<NetworkStream + Send>)
+    pub fn downcast<T: Any>(self: Box<NetworkStream + Send>)
             -> Result<Box<T>, Box<NetworkStream + Send>> {
         if self.is::<T>() {
             Ok(unsafe { self.downcast_unchecked() })

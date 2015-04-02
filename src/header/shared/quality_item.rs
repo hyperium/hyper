@@ -6,7 +6,6 @@
 use std::cmp;
 use std::default::Default;
 use std::fmt;
-use std::num::{FromPrimitive, ToPrimitive};
 use std::str;
 
 /// Represents a quality used in quality values.
@@ -20,7 +19,7 @@ use std::str;
 /// floating point data type (`f32`) consumes four bytes, hyper uses an `u16` value to store the
 /// quality internally. For performance reasons you may set quality directly to a value between
 /// 0 and 1000 e.g. `Quality(532)` matches the quality `q=0.532`.
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Quality(pub u16);
 
 impl fmt::Display for Quality {
@@ -30,43 +29,6 @@ impl fmt::Display for Quality {
         } else {
             write!(f, "; q=0.{}", format!("{:03}", self.0).trim_right_matches('0'))
         }
-    }
-}
-
-impl FromPrimitive for Quality {
-    fn from_i64(n: i64) -> Option<Quality> {
-        match n >= 0 {
-            true => FromPrimitive::from_u64(n as u64),
-            false => None,
-        }
-    }
-
-    fn from_u64(n: u64) -> Option<Quality> {
-        match n <= 1000 {
-            true => Some(Quality(n as u16)),
-            false => None,
-        }
-    }
-
-    fn from_f64(n: f64) -> Option<Quality> {
-        match n >= 0f64 && n <= 1f64 {
-            true => Some(Quality((n * 1000f64) as u16)),
-            false => None,
-        }
-    }
-}
-
-impl ToPrimitive for Quality {
-    fn to_i64(&self) -> Option<i64> {
-        Some(self.0 as i64)
-    }
-
-    fn to_u64(&self) -> Option<u64> {
-        Some(self.0 as u64)
-    }
-
-    fn to_f64(&self) -> Option<f64> {
-        Some((self.0 as f64) / 1000f64)
     }
 }
 
@@ -91,7 +53,10 @@ impl<T> QualityItem<T> {
     /// The item can be of any type.
     /// The quality should be a value in the range [0, 1].
     pub fn new(item: T, quality: Quality) -> QualityItem<T> {
-        QualityItem{item: item, quality: quality}
+        QualityItem {
+            item: item,
+            quality: quality
+        }
     }
 }
 
@@ -136,10 +101,19 @@ impl<T: str::FromStr> str::FromStr for QualityItem<T> {
             }
         }
         match raw_item.parse::<T>() {
-            Ok(item) => Ok(QualityItem::new(item, FromPrimitive::from_f32(quality).unwrap())),
+            // we already checked above that the quality is within range
+            Ok(item) => Ok(QualityItem::new(item, from_f32(quality))),
             Err(_) => return Err(()),
         }
     }
+}
+
+fn from_f32(f: f32) -> Quality {
+    // this function is only used internally. A check that `f` is within range
+    // should be done before calling this method. Just in case, this
+    // debug_assert should catch if we were forgetful
+    debug_assert!(f >= 0f32 && f <= 1f32, "q value must be between 0.0 and 1.0");
+    Quality((f * 1000f32) as u16)
 }
 
 /// Convinience function to wrap a value in a `QualityItem`
@@ -150,13 +124,12 @@ pub fn qitem<T>(item: T) -> QualityItem<T> {
 
 /// Convenience function to create a `Quality` fromt a float.
 pub fn q(f: f32) -> Quality {
-    FromPrimitive::from_f32(f).expect("q value must be between 0.0 and 1.0")
+    assert!(f >= 0f32 && f <= 1f32, "q value must be between 0.0 and 1.0");
+    from_f32(f)
 }
 
 #[cfg(test)]
 mod tests {
-    use std::num::FromPrimitive;
-
     use super::*;
     use super::super::encoding::*;
 
@@ -206,25 +179,32 @@ mod tests {
         assert_eq!(x, Err(()));
     }
     #[test]
+    fn test_quality_item_from_str6() {
+        let x: Result<QualityItem<Encoding>, ()> = "gzip; q=2".parse();
+        assert_eq!(x, Err(()));
+    }
+    #[test]
     fn test_quality_item_ordering() {
         let x: QualityItem<Encoding> = "gzip; q=0.5".parse().ok().unwrap();
         let y: QualityItem<Encoding> = "gzip; q=0.273".parse().ok().unwrap();
         let comparision_result: bool = x.gt(&y);
         assert_eq!(comparision_result, true)
     }
+
     #[test]
     fn test_quality() {
-        assert_eq!(Some(Quality(421)), FromPrimitive::from_f64(0.421f64));
-        assert_eq!(Some(Quality(421)), FromPrimitive::from_f32(0.421f32));
-        assert_eq!(Some(Quality(421)), FromPrimitive::from_i16(421i16));
-        assert_eq!(Some(Quality(421)), FromPrimitive::from_i32(421i32));
-        assert_eq!(Some(Quality(421)), FromPrimitive::from_i64(421i64));
-        assert_eq!(Some(Quality(421)), FromPrimitive::from_u16(421u16));
-        assert_eq!(Some(Quality(421)), FromPrimitive::from_u32(421u32));
-        assert_eq!(Some(Quality(421)), FromPrimitive::from_u64(421u64));
+        assert_eq!(q(0.5), Quality(500));
+    }
 
-        assert_eq!(None::<Quality>, FromPrimitive::from_i16(-5i16));
-        assert_eq!(None::<Quality>, FromPrimitive::from_i32(5000i32));
-        assert_eq!(None::<Quality>, FromPrimitive::from_f32(2.5f32));
+    #[test]
+    #[should_panic]
+    fn test_quality_invalid() {
+        q(-1.0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_quality_invalid2() {
+        q(2.0);
     }
 }

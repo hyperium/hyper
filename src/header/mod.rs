@@ -12,6 +12,7 @@ use std::iter::{FromIterator, IntoIterator};
 use std::{mem, fmt};
 
 use {httparse, traitobject};
+use typeable::Typeable;
 use unicase::UniCase;
 
 use self::internals::Item;
@@ -50,7 +51,7 @@ pub trait Header: Clone + Any + Send + Sync {
 /// A trait for any object that will represent a header field and value.
 ///
 /// This trait represents the formatting of a Header for output to a TcpStream.
-pub trait HeaderFormat: fmt::Debug + HeaderClone + Any + Send + Sync {
+pub trait HeaderFormat: fmt::Debug + HeaderClone + Any + Typeable + Send + Sync {
     /// Format a header to be output into a TcpStream.
     ///
     /// This method is not allowed to introduce an Err not produced
@@ -61,12 +62,12 @@ pub trait HeaderFormat: fmt::Debug + HeaderClone + Any + Send + Sync {
 
 #[doc(hidden)]
 pub trait HeaderClone {
-    fn clone_box(&self) -> Box<HeaderFormat + Sync + Send>;
+    fn clone_box(&self) -> Box<HeaderFormat + Send + Sync>;
 }
 
-impl<T: HeaderFormat + Send + Sync + Clone> HeaderClone for T {
+impl<T: HeaderFormat + Clone> HeaderClone for T {
     #[inline]
-    fn clone_box(&self) -> Box<HeaderFormat + Sync + Send> {
+    fn clone_box(&self) -> Box<HeaderFormat + Send + Sync> {
         Box::new(self.clone())
     }
 }
