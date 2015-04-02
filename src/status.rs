@@ -31,6 +31,7 @@ use std::cmp::Ordering;
 /// Registry](http://www.iana.org/assignments/http-status-codes/http-status-codes.xhtml) which is
 /// the source for this enum (with one exception, 418 I'm a teapot, which is
 /// inexplicably not in the register).
+#[derive(Debug)]
 pub enum StatusCode {
     /// 100 Continue
     /// [[RFC7231, Section 6.2.1](https://tools.ietf.org/html/rfc7231#section-6.2.1)]
@@ -305,7 +306,7 @@ impl StatusCode {
 
             StatusCode::NotExtended => Some("Not Extended"),
             StatusCode::NetworkAuthenticationRequired => Some("Network Authentication Required"),
-            _ => None
+            StatusCode::Unregistered(..) => None
         }
     }
 
@@ -376,86 +377,6 @@ impl fmt::Display for StatusCode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{} {}", self.to_u16().unwrap(),
                self.canonical_reason().unwrap_or("<unknown status code>"))
-    }
-}
-
-impl fmt::Debug for StatusCode {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let s = match *self {
-            StatusCode::Continue => "Continue",
-            StatusCode::SwitchingProtocols => "SwitchingProtocols",
-            StatusCode::Processing => "Processing",
-
-            StatusCode::Ok => "Ok",
-            StatusCode::Created => "Created",
-            StatusCode::Accepted => "Accepted",
-            StatusCode::NonAuthoritativeInformation => "NonAuthoritativeInformation",
-            StatusCode::NoContent => "NoContent",
-            StatusCode::ResetContent => "ResetContent",
-            StatusCode::PartialContent => "PartialContent",
-            StatusCode::MultiStatus => "MultiStatus",
-            StatusCode::AlreadyReported => "AlreadyReported",
-
-            StatusCode::ImUsed => "ImUsed",
-
-            StatusCode::MultipleChoices => "MultipleChoices",
-            StatusCode::MovedPermanently => "MovedPermanently",
-            StatusCode::Found => "Found",
-            StatusCode::SeeOther => "SeeOther",
-            StatusCode::NotModified => "NotModified",
-            StatusCode::UseProxy => "UseProxy",
-
-            StatusCode::TemporaryRedirect => "TemporaryRedirect",
-            StatusCode::PermanentRedirect => "PermanentRedirect",
-
-            StatusCode::BadRequest => "BadRequest",
-            StatusCode::Unauthorized => "Unauthorized",
-            StatusCode::PaymentRequired => "PaymentRequired",
-            StatusCode::Forbidden => "Forbidden",
-            StatusCode::NotFound => "NotFound",
-            StatusCode::MethodNotAllowed => "MethodNotAllowed",
-            StatusCode::NotAcceptable => "NotAcceptable",
-            StatusCode::ProxyAuthenticationRequired => "ProxyAuthenticationRequired",
-            StatusCode::RequestTimeout => "RequestTimeout",
-            StatusCode::Conflict => "Conflict",
-            StatusCode::Gone => "Gone",
-            StatusCode::LengthRequired => "LengthRequired",
-            StatusCode::PreconditionFailed => "PreconditionFailed",
-            StatusCode::PayloadTooLarge => "PayloadTooLarge",
-            StatusCode::UriTooLong => "UriTooLong",
-            StatusCode::UnsupportedMediaType => "UnsupportedMediaType",
-            StatusCode::RangeNotSatisfiable => "RangeNotSatisfiable",
-            StatusCode::ExpectationFailed => "ExpectationFailed",
-            StatusCode::ImATeapot => "ImATeapot",
-
-            StatusCode::UnprocessableEntity => "UnprocessableEntity",
-            StatusCode::Locked => "Locked",
-            StatusCode::FailedDependency => "FailedDependency",
-
-            StatusCode::UpgradeRequired => "UpgradeRequired",
-
-            StatusCode::PreconditionRequired => "PreconditionRequired",
-            StatusCode::TooManyRequests => "TooManyRequests",
-
-            StatusCode::RequestHeaderFieldsTooLarge => "RequestHeaderFieldsTooLarge",
-
-            StatusCode::InternalServerError => "InternalServerError",
-            StatusCode::NotImplemented => "NotImplemented",
-            StatusCode::BadGateway => "BadGateway",
-            StatusCode::ServiceUnavailable => "ServiceUnavailable",
-            StatusCode::GatewayTimeout => "GatewayTimeout",
-            StatusCode::HttpVersionNotSupported => "HttpVersionNotSupported",
-            StatusCode::VariantAlsoNegotiates => "VariantAlsoNegotiates",
-            StatusCode::InsufficientStorage => "InsufficientStorage",
-            StatusCode::LoopDetected => "LoopDetected",
-
-            StatusCode::NotExtended => "NotExtended",
-            StatusCode::NetworkAuthenticationRequired => "NetworkAuthenticationRequired",
-            StatusCode::Unregistered(ref code) => {
-                return write!(f, "Unregistered({})", code);
-            }
-        };
-        f.write_str(s)
     }
 }
 
