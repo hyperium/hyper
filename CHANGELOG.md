@@ -1,3 +1,19 @@
+### v0.3.8 (2015-04-02)
+
+
+#### Bug Fixes
+
+* **rustup:** update to rust beta ([0f5858f3](https://github.com/hyperium/hyper/commit/0f5858f37974731243d47710364776fdd73376fe))
+
+
+#### Breaking Changes
+
+* Removed impl_header!() and impl_list_header!() macros,
+use new header!() macro.
+
+ ([262c450f](https://github.com/hyperium/hyper/commit/262c450f908dbf27754daff0784f0f20145036dd))
+
+
 ### v0.3.7 (2015-03-31)
 
 
