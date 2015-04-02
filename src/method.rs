@@ -129,9 +129,9 @@ mod tests {
 
     #[test]
     fn test_from_str() {
-        assert_eq!(Ok(Get), FromStr::from_str("GET"));
-        assert_eq!(Ok(Extension("MOVE".to_string())),
-                   FromStr::from_str("MOVE"));
+        assert_eq!(Get, FromStr::from_str("GET").unwrap());
+        assert_eq!(Extension("MOVE".to_string()),
+                   FromStr::from_str("MOVE").unwrap());
     }
 
     #[test]

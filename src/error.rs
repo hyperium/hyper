@@ -1,5 +1,5 @@
 //! HttpError and HttpResult module.
-use std::error::{Error, FromError};
+use std::error::Error;
 use std::fmt;
 use std::io::Error as IoError;
 
@@ -15,7 +15,7 @@ use self::HttpError::{HttpMethodError, HttpUriError, HttpVersionError,
 pub type HttpResult<T> = Result<T, HttpError>;
 
 /// A set of errors that can occur parsing HTTP streams.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug)]
 pub enum HttpError {
     /// An invalid `Method`, such as `GE,T`.
     HttpMethodError,
@@ -61,20 +61,20 @@ impl Error for HttpError {
     }
 }
 
-impl FromError<IoError> for HttpError {
-    fn from_error(err: IoError) -> HttpError {
+impl From<IoError> for HttpError {
+    fn from(err: IoError) -> HttpError {
         HttpIoError(err)
     }
 }
 
-impl FromError<url::ParseError> for HttpError {
-    fn from_error(err: url::ParseError) -> HttpError {
+impl From<url::ParseError> for HttpError {
+    fn from(err: url::ParseError) -> HttpError {
         HttpUriError(err)
     }
 }
 
-impl FromError<httparse::Error> for HttpError {
-    fn from_error(err: httparse::Error) -> HttpError {
+impl From<httparse::Error> for HttpError {
+    fn from(err: httparse::Error) -> HttpError {
         match err {
             httparse::Error::HeaderName => HttpHeaderError,
             httparse::Error::HeaderValue => HttpHeaderError,

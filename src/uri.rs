@@ -74,15 +74,14 @@ impl FromStr for RequestUri {
 
 #[test]
 fn test_uri_fromstr() {
-    use error::HttpResult;
-    fn read(s: &str, result: HttpResult<RequestUri>) {
-        assert_eq!(s.parse(), result);
+    fn read(s: &str, result: RequestUri) {
+        assert_eq!(s.parse::<RequestUri>().unwrap(), result);
     }
 
-    read("*", Ok(RequestUri::Star));
-    read("http://hyper.rs/", Ok(RequestUri::AbsoluteUri(Url::parse("http://hyper.rs/").unwrap())));
-    read("hyper.rs", Ok(RequestUri::Authority("hyper.rs".to_string())));
-    read("/", Ok(RequestUri::AbsolutePath("/".to_string())));
+    read("*", RequestUri::Star);
+    read("http://hyper.rs/", RequestUri::AbsoluteUri(Url::parse("http://hyper.rs/").unwrap()));
+    read("hyper.rs", RequestUri::Authority("hyper.rs".to_string()));
+    read("/", RequestUri::AbsolutePath("/".to_string()));
 }
 
 

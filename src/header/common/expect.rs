@@ -1,4 +1,7 @@
 use std::fmt;
+use std::str;
+
+use unicase::UniCase;
 
 use header::{Header, HeaderFormat};
 
@@ -16,14 +19,29 @@ pub enum Expect {
     Continue
 }
 
+const EXPECT_CONTINUE: UniCase<&'static str> = UniCase("100-continue");
+
 impl Header for Expect {
     fn header_name() -> &'static str {
         "Expect"
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<Expect> {
-        if &[b"100-continue"] == raw {
-            Some(Expect::Continue)
+        if raw.len() == 1 {
+            let text = unsafe {
+                // safe because:
+                // 1. we just checked raw.len == 1
+                // 2. we don't actually care if it's utf8, we just want to
+                //    compare the bytes with the "case" normalized. If it's not
+                //    utf8, then the byte comparison will fail, and we'll return
+                //    None. No big deal.
+                str::from_utf8_unchecked(raw.get_unchecked(0))
+            };
+            if UniCase(text) == EXPECT_CONTINUE {
+                Some(Expect::Continue)
+            } else {
+                None
+            }
         } else {
             None
         }

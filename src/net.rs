@@ -202,10 +202,9 @@ impl NetworkListener for HttpListener {
                 let stream = CloneTcpStream(try!(tcp.accept()).0);
                 match SslStream::new_server(&**ssl_context, stream) {
                     Ok(ssl_stream) => HttpStream::Https(ssl_stream),
-                    Err(StreamError(ref e)) => {
+                    Err(StreamError(e)) => {
                         return Err(io::Error::new(io::ErrorKind::ConnectionAborted,
-                                                "SSL Handshake Interrupted",
-                                                Some(e.to_string())));
+                                                  e));
                     },
                     Err(e) => return Err(lift_ssl_error(e))
                 }
@@ -326,8 +325,7 @@ impl<'v> NetworkConnector for HttpConnector<'v> {
             },
             _ => {
                 Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                "Invalid scheme for Http",
-                                None))
+                                "Invalid scheme for Http"))
             }
         }
     }
@@ -338,13 +336,8 @@ fn lift_ssl_error(ssl: SslError) -> io::Error {
     match ssl {
         StreamError(err) => err,
         SslSessionClosed => io::Error::new(io::ErrorKind::ConnectionAborted,
-                                         "SSL Connection Closed",
-                                         None),
-        // Unfortunately throw this away. No way to support this
-        // detail without a better Error abstraction.
-        OpenSslErrors(errs) => io::Error::new(io::ErrorKind::Other,
-                                         "Error in OpenSSL",
-                                         Some(format!("{:?}", errs)))
+                                         "SSL Connection Closed"),
+        e@OpenSslErrors(..) => io::Error::new(io::ErrorKind::Other, e)
     }
 }
 

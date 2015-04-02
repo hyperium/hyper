@@ -73,7 +73,6 @@ impl<T: Send + 'static> Sentinel<T> {
     //fn cancel(mut self) { self.active = false; }
 }
 
-#[unsafe_destructor]
 impl<T: Send + 'static> Drop for Sentinel<T> {
     fn drop(&mut self) {
         // If we were cancelled, get out of here.
