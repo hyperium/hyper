@@ -1,15 +1,22 @@
 use header::{Charset, QualityItem};
 
-/// The `Accept-Charset` header
-///
-/// The `Accept-Charset` header can be used by clients to indicate what
-/// response charsets they accept.
-#[derive(Clone, PartialEq, Debug)]
-pub struct AcceptCharset(pub Vec<QualityItem<Charset>>);
-
-impl_list_header!(AcceptCharset,
-                  "Accept-Charset",
-                  Vec<QualityItem<Charset>>);
+header! {
+    #[doc="`Accept-Charset` header, defined in"]
+    #[doc="[RFC7231](http://tools.ietf.org/html/rfc7231#section-5.3.3)"]
+    #[doc=""]
+    #[doc="The `Accept-Charset` header field can be sent by a user agent to"]
+    #[doc="indicate what charsets are acceptable in textual response content."]
+    #[doc="This field allows user agents capable of understanding more"]
+    #[doc="comprehensive or special-purpose charsets to signal that capability"]
+    #[doc="to an origin server that is capable of representing information in"]
+    #[doc="those charsets."]
+    #[doc=""]
+    #[doc="# ABNF"]
+    #[doc="```plain"]
+    #[doc="Accept-Charset = 1#( ( charset / \"*\" ) [ weight ] )"]
+    #[doc="```"]
+    (AcceptCharset, "Accept-Charset") => (QualityItem<Charset>)+
+}
 
 
 #[test]
