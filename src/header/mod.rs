@@ -6,14 +6,12 @@
 //! are already provided, such as `Host`, `ContentType`, `UserAgent`, and others.
 use std::any::Any;
 use std::borrow::{Cow, ToOwned};
-use std::fmt;
 use std::collections::HashMap;
 use std::collections::hash_map::{Iter, Entry};
 use std::iter::{FromIterator, IntoIterator};
-use std::raw::TraitObject;
-use std::{mem, raw};
+use std::{mem, fmt};
 
-use httparse;
+use {httparse, traitobject};
 use unicase::UniCase;
 
 use self::internals::Item;
@@ -76,12 +74,12 @@ impl<T: HeaderFormat + Send + Sync + Clone> HeaderClone for T {
 impl HeaderFormat + Send + Sync {
     #[inline]
     unsafe fn downcast_ref_unchecked<T: 'static>(&self) -> &T {
-        mem::transmute(mem::transmute::<&HeaderFormat, raw::TraitObject>(self).data)
+        mem::transmute(traitobject::data(self))
     }
 
     #[inline]
     unsafe fn downcast_mut_unchecked<T: 'static>(&mut self) -> &mut T {
-        mem::transmute(mem::transmute::<&mut HeaderFormat, raw::TraitObject>(self).data)
+        mem::transmute(traitobject::data_mut(self))
     }
 }
 

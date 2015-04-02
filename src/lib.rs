@@ -5,6 +5,7 @@
 #![cfg_attr(test, feature(test))]
 
 //! # Hyper
+//!
 //! Hyper is a fast, modern HTTP implementation written in and for Rust. It
 //! is a low-level typesafe abstraction over raw HTTP, providing an elegant
 //! layer over "stringly-typed" HTTP.
@@ -134,6 +135,8 @@ extern crate cookie;
 extern crate unicase;
 extern crate httparse;
 extern crate num_cpus;
+extern crate traitobject;
+extern crate typeable;
 
 #[macro_use]
 extern crate log;

@@ -5,7 +5,6 @@ use std::io::{self, Read, Write};
 use std::net::{SocketAddr, ToSocketAddrs, TcpStream, TcpListener};
 use std::mem;
 use std::path::Path;
-use std::raw::{self, TraitObject};
 use std::sync::Arc;
 use std::marker::Reflect;
 
@@ -14,6 +13,9 @@ use openssl::ssl::SslVerifyMode::SslVerifyNone;
 use openssl::ssl::SslMethod::Sslv23;
 use openssl::ssl::error::{SslError, StreamError, OpenSslErrors, SslSessionClosed};
 use openssl::x509::X509FileType;
+
+use typeable::Typeable;
+use {traitobject};
 
 macro_rules! try_some {
     ($expr:expr) => (match $expr {
@@ -62,7 +64,7 @@ impl<'a, N: NetworkListener + 'a> Iterator for NetworkConnections<'a, N> {
 
 
 /// An abstraction over streams that a Server can utilize.
-pub trait NetworkStream: Read + Write + Any + StreamClone + Send {
+pub trait NetworkStream: Read + Write + Any + StreamClone + Send + Typeable {
     /// Get the remote address of the underlying connection.
     fn peer_addr(&mut self) -> io::Result<SocketAddr>;
 }
@@ -100,31 +102,29 @@ impl Clone for Box<NetworkStream + Send> {
 
 impl NetworkStream + Send {
     unsafe fn downcast_ref_unchecked<T: 'static>(&self) -> &T {
-        mem::transmute(mem::transmute::<&NetworkStream,
-                                        raw::TraitObject>(self).data)
+        mem::transmute(traitobject::data(self))
     }
 
     unsafe fn downcast_mut_unchecked<T: 'static>(&mut self) -> &mut T {
-        mem::transmute(mem::transmute::<&mut NetworkStream,
-                                        raw::TraitObject>(self).data)
+        mem::transmute(traitobject::data_mut(self))
     }
 
     unsafe fn downcast_unchecked<T: 'static>(self: Box<NetworkStream + Send>) -> Box<T>  {
-        mem::transmute(mem::transmute::<Box<NetworkStream + Send>,
-                                        raw::TraitObject>(self).data)
+        let raw: *mut NetworkStream = mem::transmute(self);
+        mem::transmute(traitobject::data_mut(raw))
     }
 }
 
 impl NetworkStream + Send {
     /// Is the underlying type in this trait object a T?
     #[inline]
-    pub fn is<T: Reflect + 'static>(&self) -> bool {
-        self.get_type_id() == TypeId::of::<T>()
+    pub fn is<T: Any>(&self) -> bool {
+        (*self).get_type() == TypeId::of::<T>()
     }
 
     /// If the underlying type is T, get a reference to the contained data.
     #[inline]
-    pub fn downcast_ref<T: Reflect + 'static>(&self) -> Option<&T> {
+    pub fn downcast_ref<T: Any>(&self) -> Option<&T> {
         if self.is::<T>() {
             Some(unsafe { self.downcast_ref_unchecked() })
         } else {
