@@ -1,3 +1,11 @@
+### v0.3.9 (2015-04-03)
+
+
+#### Bug Fixes
+
+* **headers:** Add CowStr as a temporary hack to build on beta. ([8e065563](https://github.com/hyperium/hyper/commit/8e0655637e80c5377c01da4dbca6fb627e6d4225))
+
+
 ### v0.3.8 (2015-04-02)
 
 
