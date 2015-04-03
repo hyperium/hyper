@@ -1,5 +1,4 @@
 #![doc(html_root_url = "https://hyperium.github.io/hyper/hyper/index.html")]
-#![feature(core)]
 #![deny(missing_docs)]
 #![cfg_attr(test, deny(warnings))]
 #![cfg_attr(test, feature(test))]

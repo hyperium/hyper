@@ -2,7 +2,6 @@
 use std::borrow::{Cow, ToOwned};
 use std::cmp::min;
 use std::io::{self, Read, Write, BufRead};
-use std::num::FromPrimitive;
 
 use httparse;
 
@@ -378,11 +377,8 @@ impl<'a> TryParse for httparse::Response<'a> {
         Ok(match try!(res.parse(buf)) {
             httparse::Status::Complete(len) => {
                 let code = res.code.unwrap();
-                let reason = match <StatusCode as FromPrimitive>::from_u16(code) {
-                    Some(status) => match status.canonical_reason() {
-                        Some(reason) => Cow::Borrowed(reason),
-                        None => Cow::Owned(res.reason.unwrap().to_owned())
-                    },
+                let reason = match StatusCode::from_u16(code).canonical_reason() {
+                    Some(reason) => Cow::Borrowed(reason),
                     None => Cow::Owned(res.reason.unwrap().to_owned())
                 };
                 httparse::Status::Complete((Incoming {

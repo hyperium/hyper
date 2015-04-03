@@ -7,7 +7,7 @@ use std::fmt;
 use self::HttpVersion::{Http09, Http10, Http11, Http20};
 
 /// Represents a version of the HTTP spec.
-#[derive(PartialEq, PartialOrd, Copy, Debug)]
+#[derive(PartialEq, PartialOrd, Copy, Clone, Eq, Ord, Hash, Debug)]
 pub enum HttpVersion {
     /// `HTTP/0.9`
     Http09,

@@ -1,6 +1,5 @@
 //! Client Responses
 use std::io::{self, Read};
-use std::num::FromPrimitive;
 use std::marker::PhantomData;
 
 use buffer::BufReader;
@@ -13,7 +12,6 @@ use http::HttpReader::{SizedReader, ChunkedReader, EofReader};
 use status;
 use version;
 use HttpResult;
-use HttpError::HttpStatusError;
 
 /// A response for a client request to a remote server.
 pub struct Response<S = HttpStream> {
@@ -39,10 +37,7 @@ impl Response {
         let raw_status = head.subject;
         let headers = head.headers;
 
-        let status = match FromPrimitive::from_u16(raw_status.0) {
-            Some(status) => status,
-            None => return Err(HttpStatusError)
-        };
+        let status = status::StatusCode::from_u16(raw_status.0);
         debug!("version={:?}, status={:?}", head.version, status);
         debug!("headers={:?}", headers);
 
