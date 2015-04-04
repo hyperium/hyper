@@ -83,9 +83,15 @@ impl<T: NetworkStream + Send + Clone> StreamClone for T {
 /// A connector creates a NetworkStream.
 pub trait NetworkConnector {
     /// Type of Stream to create
-    type Stream: NetworkStream + Send;
+    type Stream: Into<Box<NetworkStream + Send>>;
     /// Connect to a remote address.
     fn connect(&mut self, host: &str, port: u16, scheme: &str) -> io::Result<Self::Stream>;
+}
+
+impl<T: NetworkStream + Send> From<T> for Box<NetworkStream + Send> {
+    fn from(s: T) -> Box<NetworkStream + Send> {
+        Box::new(s)
+    }
 }
 
 impl fmt::Debug for Box<NetworkStream + Send> {
@@ -294,13 +300,12 @@ impl NetworkStream for HttpStream {
 }
 
 /// A connector that will produce HttpStreams.
-#[allow(missing_copy_implementations)]
-pub struct HttpConnector<'v>(pub Option<ContextVerifier<'v>>);
+pub struct HttpConnector(pub Option<ContextVerifier>);
 
 /// A method that can set verification methods on an SSL context
-pub type ContextVerifier<'v> = Box<FnMut(&mut SslContext) -> ()+'v>;
+pub type ContextVerifier = Box<FnMut(&mut SslContext) -> () + Send>;
 
-impl<'v> NetworkConnector for HttpConnector<'v> {
+impl NetworkConnector for HttpConnector {
     type Stream = HttpStream;
 
     fn connect(&mut self, host: &str, port: u16, scheme: &str) -> io::Result<HttpStream> {

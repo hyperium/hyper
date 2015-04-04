@@ -27,7 +27,7 @@ use url::ParseError as UrlError;
 use header::{Headers, Header, HeaderFormat};
 use header::{ContentLength, Location};
 use method::Method;
-use net::{NetworkConnector, HttpConnector, ContextVerifier};
+use net::{NetworkConnector, NetworkStream, HttpConnector, ContextVerifier};
 use status::StatusClass::Redirection;
 use {Url, HttpResult};
 use HttpError::HttpUriError;
@@ -41,33 +41,30 @@ pub mod response;
 /// A Client to use additional features with Requests.
 ///
 /// Clients can handle things such as: redirect policy.
-pub struct Client<C> {
-    connector: C,
+pub struct Client {
+    connector: Connector,
     redirect_policy: RedirectPolicy,
 }
 
-impl<'v> Client<HttpConnector<'v>> {
+impl Client {
 
     /// Create a new Client.
-    pub fn new() -> Client<HttpConnector<'v>> {
+    pub fn new() -> Client {
         Client::with_connector(HttpConnector(None))
     }
 
-    /// Set the SSL verifier callback for use with OpenSSL.
-    pub fn set_ssl_verifier(&mut self, verifier: ContextVerifier<'v>) {
-        self.connector = HttpConnector(Some(verifier));
-    }
-
-}
-
-impl<C: NetworkConnector> Client<C> {
-
     /// Create a new client with a specific connector.
-    pub fn with_connector(connector: C) -> Client<C> {
+    pub fn with_connector<C, S>(connector: C) -> Client
+    where C: NetworkConnector<Stream=S> + Send + 'static, S: NetworkStream + Send {
         Client {
-            connector: connector,
+            connector: with_connector(connector),
             redirect_policy: Default::default()
         }
+    }
+
+    /// Set the SSL verifier callback for use with OpenSSL.
+    pub fn set_ssl_verifier(&mut self, verifier: ContextVerifier) {
+        self.connector = with_connector(HttpConnector(Some(verifier)));
     }
 
     /// Set the RedirectPolicy.
@@ -76,33 +73,33 @@ impl<C: NetworkConnector> Client<C> {
     }
 
     /// Build a Get request.
-    pub fn get<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U, C> {
+    pub fn get<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U> {
         self.request(Method::Get, url)
     }
 
     /// Build a Head request.
-    pub fn head<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U, C> {
+    pub fn head<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U> {
         self.request(Method::Head, url)
     }
 
     /// Build a Post request.
-    pub fn post<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U, C> {
+    pub fn post<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U> {
         self.request(Method::Post, url)
     }
 
     /// Build a Put request.
-    pub fn put<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U, C> {
+    pub fn put<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U> {
         self.request(Method::Put, url)
     }
 
     /// Build a Delete request.
-    pub fn delete<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U, C> {
+    pub fn delete<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U> {
         self.request(Method::Delete, url)
     }
 
 
     /// Build a new request using this Client.
-    pub fn request<U: IntoUrl>(&mut self, method: Method, url: U) -> RequestBuilder<U, C> {
+    pub fn request<U: IntoUrl>(&mut self, method: Method, url: U) -> RequestBuilder<U> {
         RequestBuilder {
             client: self,
             method: method,
@@ -113,34 +110,60 @@ impl<C: NetworkConnector> Client<C> {
     }
 }
 
+fn with_connector<C: NetworkConnector<Stream=S> + Send + 'static, S: NetworkStream + Send>(c: C) -> Connector {
+    Connector(Box::new(ConnAdapter(c)))
+}
+
+struct ConnAdapter<C: NetworkConnector + Send>(C);
+
+impl<C: NetworkConnector<Stream=S> + Send, S: NetworkStream + Send> NetworkConnector for ConnAdapter<C> {
+    type Stream = Box<NetworkStream + Send>;
+    #[inline]
+    fn connect(&mut self, host: &str, port: u16, scheme: &str)
+        -> io::Result<Box<NetworkStream + Send>> {
+        Ok(try!(self.0.connect(host, port, scheme)).into())
+    }
+}
+
+struct Connector(Box<NetworkConnector<Stream=Box<NetworkStream + Send>> + Send>);
+
+impl NetworkConnector for Connector {
+    type Stream = Box<NetworkStream + Send>;
+    #[inline]
+    fn connect(&mut self, host: &str, port: u16, scheme: &str)
+        -> io::Result<Box<NetworkStream + Send>> {
+        Ok(try!(self.0.connect(host, port, scheme)).into())
+    }
+}
+
 /// Options for an individual Request.
 ///
 /// One of these will be built for you if you use one of the convenience
 /// methods, such as `get()`, `post()`, etc.
-pub struct RequestBuilder<'a, U: IntoUrl, C: NetworkConnector + 'a> {
-    client: &'a mut Client<C>,
+pub struct RequestBuilder<'a, U: IntoUrl> {
+    client: &'a mut Client,
     url: U,
     headers: Option<Headers>,
     method: Method,
     body: Option<Body<'a>>,
 }
 
-impl<'a, U: IntoUrl, C: NetworkConnector> RequestBuilder<'a, U, C> {
+impl<'a, U: IntoUrl> RequestBuilder<'a, U> {
 
     /// Set a request body to be sent.
-    pub fn body<B: IntoBody<'a>>(mut self, body: B) -> RequestBuilder<'a, U, C> {
+    pub fn body<B: IntoBody<'a>>(mut self, body: B) -> RequestBuilder<'a, U> {
         self.body = Some(body.into_body());
         self
     }
 
     /// Add additional headers to the request.
-    pub fn headers(mut self, headers: Headers) -> RequestBuilder<'a, U, C> {
+    pub fn headers(mut self, headers: Headers) -> RequestBuilder<'a, U> {
         self.headers = Some(headers);
         self
     }
 
     /// Add an individual new header to the request.
-    pub fn header<H: Header + HeaderFormat>(mut self, header: H) -> RequestBuilder<'a, U, C> {
+    pub fn header<H: Header + HeaderFormat>(mut self, header: H) -> RequestBuilder<'a, U> {
         {
             let mut headers = match self.headers {
                 Some(ref mut h) => h,
