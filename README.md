@@ -28,21 +28,20 @@ Hello World Server:
 extern crate hyper;
 
 use std::io::Write;
-use std::net::Ipv4Addr;
 
 use hyper::Server;
 use hyper::server::Request;
 use hyper::server::Response;
 use hyper::net::Fresh;
 
-fn hello(_: Request, mut res: Response<Fresh>) {
+fn hello(_: Request, res: Response<Fresh>) {
     let mut res = res.start().unwrap();
     res.write_all(b"Hello World!").unwrap();
     res.end().unwrap();
 }
 
 fn main() {
-    Server::http(hello).listen(Ipv4Addr::new(127, 0, 0, 1), 3000).unwrap();
+    Server::http(hello).listen("127.0.0.1:3000").unwrap();
 }
 ```
 
