@@ -2,8 +2,7 @@ use header::{Header, HeaderFormat};
 use std::fmt;
 use std::str::from_utf8;
 
-use cookie::Cookie as CookiePair;
-use cookie::CookieJar;
+use header::CookiePair;
 
 /// The `Cookie` header. Defined in [RFC6265](tools.ietf.org/html/rfc6265#section-5.4):
 ///
@@ -60,25 +59,6 @@ impl HeaderFormat for Cookie {
     }
 }
 
-impl Cookie {
-    /// This method can be used to create CookieJar that can be used
-    /// to manipulate cookies and create a corresponding `SetCookie` header afterwards.
-    pub fn to_cookie_jar(&self, key: &[u8]) -> CookieJar<'static> {
-        let mut jar = CookieJar::new(key);
-        for cookie in self.iter() {
-            jar.add_original(cookie.clone());
-        }
-        jar
-    }
-
-    /// Extracts all cookies from `CookieJar` and creates Cookie header.
-    /// Useful for clients.
-    pub fn from_cookie_jar(jar: &CookieJar) -> Cookie {
-        Cookie(jar.iter().collect())
-    }
-}
-
-
 #[test]
 fn test_parse() {
     let h = Header::parse_header(&[b"foo=bar; baz=quux".to_vec()][..]);
@@ -100,16 +80,5 @@ fn test_fmt() {
 
     assert_eq!(&headers.to_string()[..], "Cookie: foo=bar; baz=quux\r\n");
 }
-
-#[test]
-fn cookie_jar() {
-    let cookie_pair = CookiePair::new("foo".to_string(), "bar".to_string());
-    let cookie_header = Cookie(vec![cookie_pair]);
-    let jar = cookie_header.to_cookie_jar(&[]);
-    let new_cookie_header = Cookie::from_cookie_jar(&jar);
-
-    assert_eq!(cookie_header, new_cookie_header);
-}
-
 
 bench_header!(bench, Cookie, { vec![b"foo=bar; baz=quux".to_vec()] });

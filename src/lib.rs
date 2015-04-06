@@ -130,7 +130,6 @@ extern crate rustc_serialize as serialize;
 extern crate time;
 extern crate url;
 extern crate openssl;
-extern crate cookie;
 extern crate unicase;
 extern crate httparse;
 extern crate num_cpus;

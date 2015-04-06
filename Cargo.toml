@@ -12,7 +12,6 @@ authors = ["Sean McArthur <sean.monstar@gmail.com>",
 keywords = ["http", "hyper", "hyperium"]
 
 [dependencies]
-cookie = "*"
 httparse = "*"
 log = ">= 0.2.0"
 mime = "*"
@@ -27,4 +26,3 @@ typeable = "*"
 
 [dev-dependencies]
 env_logger = "*"
-
