@@ -7,21 +7,13 @@ use std::mem;
 use std::path::Path;
 use std::sync::Arc;
 
-use openssl::ssl::{Ssl, SslStream, SslContext};
-use openssl::ssl::SslVerifyMode::SslVerifyNone;
+use openssl::ssl::{Ssl, SslStream, SslContext, SSL_VERIFY_NONE};
 use openssl::ssl::SslMethod::Sslv23;
 use openssl::ssl::error::{SslError, StreamError, OpenSslErrors, SslSessionClosed};
 use openssl::x509::X509FileType;
 
 use typeable::Typeable;
 use {traitobject};
-
-macro_rules! try_some {
-    ($expr:expr) => (match $expr {
-        Some(val) => { return Err(val); },
-        _ => {}
-    })
-}
 
 /// The write-status indicating headers have not been written.
 pub enum Fresh {}
@@ -180,12 +172,10 @@ impl HttpListener {
     /// Start listening to an address over HTTPS.
     pub fn https<To: ToSocketAddrs>(addr: To, cert: &Path, key: &Path) -> io::Result<HttpListener> {
         let mut ssl_context = try!(SslContext::new(Sslv23).map_err(lift_ssl_error));
-        try_some!(ssl_context.set_cipher_list("DEFAULT").map(lift_ssl_error));
-        try_some!(ssl_context.set_certificate_file(
-                cert, X509FileType::PEM).map(lift_ssl_error));
-        try_some!(ssl_context.set_private_key_file(
-                key, X509FileType::PEM).map(lift_ssl_error));
-        ssl_context.set_verify(SslVerifyNone, None);
+        try!(ssl_context.set_cipher_list("DEFAULT").map_err(lift_ssl_error));
+        try!(ssl_context.set_certificate_file(cert, X509FileType::PEM).map_err(lift_ssl_error));
+        try!(ssl_context.set_private_key_file(key, X509FileType::PEM).map_err(lift_ssl_error));
+        ssl_context.set_verify(SSL_VERIFY_NONE, None);
         Ok(HttpListener::Https(try!(TcpListener::bind(addr)), Arc::new(ssl_context)))
     }
 }
