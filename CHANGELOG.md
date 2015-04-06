@@ -1,3 +1,11 @@
+### v0.3.10 (2015-04-06)
+
+
+#### Bug Fixes
+
+* **README:** Update to compile example against Rust beta ([341f19d3](https://github.com/hyperium/hyper/commit/341f19d3266c6de9a9a90c94f718124792766630))
+
+
 ### v0.3.9 (2015-04-03)
 
 
