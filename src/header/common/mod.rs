@@ -20,7 +20,7 @@ pub use self::content_encoding::ContentEncoding;
 pub use self::content_type::ContentType;
 pub use self::cookie::Cookie;
 pub use self::date::Date;
-pub use self::etag::Etag;
+pub use self::etag::ETag;
 pub use self::expect::Expect;
 pub use self::expires::Expires;
 pub use self::host::Host;
