@@ -173,6 +173,47 @@ macro_rules! header {
             }
         }
     };
+    // List header, one or more items with "*" option
+    ($(#[$a:meta])*($id:ident, $n:expr) => {Any / ($item:ty)+}) => {
+        $(#[$a])*
+        #[derive(Clone, Debug, PartialEq)]
+        pub enum $id {
+            /// Any value is a match
+            Any,
+            /// Only the listed items are a match
+            Items(Vec<$item>),
+        }
+        impl $crate::header::Header for $id {
+            fn header_name() -> &'static str {
+                $n
+            }
+            fn parse_header(raw: &[Vec<u8>]) -> Option<Self> {
+                // FIXME: Return None if no item is in $id::Only
+                if raw.len() == 1 {
+                    if raw[0] == b"*" {
+                        return Some($id::Any)
+                    } else if raw[0] == b"" {
+                        return None
+                    }
+                }
+                $crate::header::parsing::from_comma_delimited(raw).map(|vec| $id::Items(vec))
+            }
+        }
+        impl $crate::header::HeaderFormat for $id {
+            fn fmt_header(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                match *self {
+                    $id::Any => write!(f, "*"),
+                    $id::Items(ref fields) => $crate::header::parsing::fmt_comma_delimited(f, &fields[..])
+                }
+            }
+        }
+        impl ::std::fmt::Display for $id {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                use $crate::header::HeaderFormat;
+                self.fmt_header(f)
+            }
+        }
+    };
 }
 
 mod access_control;

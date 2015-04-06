@@ -1,51 +1,31 @@
-use header::{EntityTag, Header, HeaderFormat};
-use header::parsing::{from_comma_delimited, fmt_comma_delimited, from_one_raw_str};
-use std::fmt;
+use header::EntityTag;
 
-/// The `If-Match` header
-///
-/// The `If-Match` request-header field is used with a method to make
-/// it conditional.  The client provides a list of entity tags, and
-/// the request is only executed if one of those tags matches the
-/// current entity.
-///
-/// See http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.24
-#[derive(Clone, PartialEq, Debug)]
-pub enum IfMatch {
-    /// This corresponds to '*'.
-    Any,
-    /// The header field names which will influence the response representation.
-    EntityTags(Vec<EntityTag>)
-}
-
-impl Header for IfMatch {
-    fn header_name() -> &'static str {
-        "If-Match"
-    }
-
-    fn parse_header(raw: &[Vec<u8>]) -> Option<IfMatch> {
-        from_one_raw_str(raw).and_then(|s: String| {
-            let slice = &s[..];
-            match slice {
-                "" => None,
-                "*" => Some(IfMatch::Any),
-                _ => from_comma_delimited(raw).map(IfMatch::EntityTags),
-            }
-        })
-    }
-}
-
-impl HeaderFormat for IfMatch {
-    fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            IfMatch::Any => write!(fmt, "*"),
-            IfMatch::EntityTags(ref fields) => fmt_comma_delimited(fmt, &fields[..])
-        }
-    }
+header! {
+    #[doc="`If-Match` header, defined in"]
+    #[doc="[RFC7232](https://tools.ietf.org/html/rfc7232#section-3.1)"]
+    #[doc=""]
+    #[doc="The `If-Match` header field makes the request method conditional on"]
+    #[doc="the recipient origin server either having at least one current"]
+    #[doc="representation of the target resource, when the field-value is \"*\","]
+    #[doc="or having a current representation of the target resource that has an"]
+    #[doc="entity-tag matching a member of the list of entity-tags provided in"]
+    #[doc="the field-value."]
+    #[doc=""]
+    #[doc="An origin server MUST use the strong comparison function when"]
+    #[doc="comparing entity-tags for `If-Match`, since the client"]
+    #[doc="intends this precondition to prevent the method from being applied if"]
+    #[doc="there have been any changes to the representation data."]
+    #[doc=""]
+    #[doc="# ABNF"]
+    #[doc="```plain"]
+    #[doc="If-Match = \"*\" / 1#entity-tag"]
+    #[doc="```"]
+    (IfMatch, "If-Match") => {Any / (EntityTag)+}
 }
 
 #[test]
 fn test_parse_header() {
+    use header::Header;
     {
         let a: IfMatch = Header::parse_header(
         [b"*".to_vec()].as_ref()).unwrap();
@@ -54,7 +34,7 @@ fn test_parse_header() {
     {
         let a: IfMatch = Header::parse_header(
             [b"\"xyzzy\", \"r2d2xxxx\", \"c3piozzzz\"".to_vec()].as_ref()).unwrap();
-        let b = IfMatch::EntityTags(
+        let b = IfMatch::Items(
             vec![EntityTag::new(false, "xyzzy".to_string()),
                  EntityTag::new(false, "r2d2xxxx".to_string()),
                  EntityTag::new(false, "c3piozzzz".to_string())]);

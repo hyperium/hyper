@@ -1,8 +1,28 @@
-use header::{Header, HeaderFormat, EntityTag};
-use header::parsing::{from_comma_delimited, fmt_comma_delimited, from_one_raw_str};
-use std::fmt::{self};
+use header::EntityTag;
 
-/// The `If-None-Match` header defined by HTTP/1.1.
+header! {
+    #[doc="`If-None-Match` header, defined in"]
+    #[doc="[RFC7232](https://tools.ietf.org/html/rfc7232#section-3.2)"]
+    #[doc=""]
+    #[doc="The `If-None-Match` header field makes the request method conditional"]
+    #[doc="on a recipient cache or origin server either not having any current"]
+    #[doc="representation of the target resource, when the field-value is \"*\","]
+    #[doc="or having a selected representation with an entity-tag that does not"]
+    #[doc="match any of those listed in the field-value."]
+    #[doc=""]
+    #[doc="A recipient MUST use the weak comparison function when comparing"]
+    #[doc="entity-tags for If-None-Match (Section 2.3.2), since weak entity-tags"]
+    #[doc="can be used for cache validation even if there have been changes to"]
+    #[doc="the representation data."]
+    #[doc=""]
+    #[doc="# ABNF"]
+    #[doc="```plain"]
+    #[doc="If-None-Match = \"*\" / 1#entity-tag"]
+    #[doc="```"]
+    (IfNoneMatch, "If-None-Match") => {Any / (EntityTag)+}
+}
+
+/*/// The `If-None-Match` header defined by HTTP/1.1.
 ///
 /// The "If-None-Match" header field makes the request method conditional
 /// on a recipient cache or origin server either not having any current
@@ -50,7 +70,7 @@ impl HeaderFormat for IfNoneMatch {
             IfNoneMatch::EntityTags(ref fields) => { fmt_comma_delimited(fmt, &fields[..]) }
         }
     }
-}
+}*/
 
 #[cfg(test)]
 mod tests {
@@ -71,7 +91,7 @@ mod tests {
         let weak_etag = EntityTag::new(true, "weak-etag".to_string());
         entities.push(foobar_etag);
         entities.push(weak_etag);
-        assert_eq!(if_none_match, Some(IfNoneMatch::EntityTags(entities)));
+        assert_eq!(if_none_match, Some(IfNoneMatch::Items(entities)));
     }
 }
 
