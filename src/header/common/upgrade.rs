@@ -1,16 +1,32 @@
-use header::{Header, HeaderFormat};
 use std::fmt;
 use std::str::FromStr;
-use header::parsing::{from_comma_delimited, fmt_comma_delimited};
 use unicase::UniCase;
 
 use self::Protocol::{WebSocket, ProtocolExt};
 
-/// The `Upgrade` header.
-#[derive(Clone, PartialEq, Debug)]
-pub struct Upgrade(pub Vec<Protocol>);
-
-deref!(Upgrade => Vec<Protocol>);
+header! {
+    #[doc="`Upgrade` header, defined in [RFC7230](http://tools.ietf.org/html/rfc7230#section-6.7)"]
+    #[doc=""]
+    #[doc="The `Upgrade` header field is intended to provide a simple mechanism"]
+    #[doc="for transitioning from HTTP/1.1 to some other protocol on the same"]
+    #[doc="connection.  A client MAY send a list of protocols in the Upgrade"]
+    #[doc="header field of a request to invite the server to switch to one or"]
+    #[doc="more of those protocols, in order of descending preference, before"]
+    #[doc="sending the final response.  A server MAY ignore a received Upgrade"]
+    #[doc="header field if it wishes to continue using the current protocol on"]
+    #[doc="that connection.  Upgrade cannot be used to insist on a protocol"]
+    #[doc="change."]
+    #[doc=""]
+    #[doc="# ABNF"]
+    #[doc="```plain"]
+    #[doc="Upgrade          = 1#protocol"]
+    #[doc=""]
+    #[doc="protocol         = protocol-name [\"/\" protocol-version]"]
+    #[doc="protocol-name    = token"]
+    #[doc="protocol-version = token"]
+    #[doc="```"]
+    (Upgrade, "Upgrade") => (Protocol)+
+}
 
 /// Protocol values that can appear in the Upgrade header.
 #[derive(Clone, PartialEq, Debug)]
@@ -42,22 +58,4 @@ impl fmt::Display for Protocol {
     }
 }
 
-impl Header for Upgrade {
-    fn header_name() -> &'static str {
-        "Upgrade"
-    }
-
-    fn parse_header(raw: &[Vec<u8>]) -> Option<Upgrade> {
-        from_comma_delimited(raw).map(|vec| Upgrade(vec))
-    }
-}
-
-impl HeaderFormat for Upgrade {
-    fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        let Upgrade(ref parts) = *self;
-        fmt_comma_delimited(fmt, &parts[..])
-    }
-}
-
 bench_header!(bench, Upgrade, { vec![b"HTTP/2.0, RTA/x11, websocket".to_vec()] });
-
