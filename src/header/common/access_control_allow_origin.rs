@@ -1,8 +1,7 @@
-extern crate url;
-
 use std::fmt::{self};
 use std::str;
 
+use url::Url;
 use header;
 
 /// The `Access-Control-Allow-Origin` response header,
@@ -16,13 +15,12 @@ use header;
 #[derive(Clone, PartialEq, Debug)]
 pub enum AccessControlAllowOrigin {
     /// Allow all origins
-    AllowStar,
+    Any,
     /// Allow one particular origin
-    AllowOrigin(url::Url),
+    Value(Url),
 }
 
 impl header::Header for AccessControlAllowOrigin {
-    #[inline]
     fn header_name() -> &'static str {
         "Access-Control-Allow-Origin"
     }
@@ -32,10 +30,10 @@ impl header::Header for AccessControlAllowOrigin {
             match str::from_utf8(unsafe { &raw.get_unchecked(0)[..] }) {
                 Ok(s) => {
                     if s == "*" {
-                        Some(AccessControlAllowOrigin::AllowStar)
+                        Some(AccessControlAllowOrigin::Any)
                     } else {
-                        url::Url::parse(s).ok().map(
-                            |url| AccessControlAllowOrigin::AllowOrigin(url))
+                        Url::parse(s).ok().map(
+                            |url| AccessControlAllowOrigin::Value(url))
                     }
                 },
                 _ => return None,
@@ -49,8 +47,8 @@ impl header::Header for AccessControlAllowOrigin {
 impl header::HeaderFormat for AccessControlAllowOrigin {
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            AccessControlAllowOrigin::AllowStar => write!(f, "*"),
-            AccessControlAllowOrigin::AllowOrigin(ref url) =>
+            AccessControlAllowOrigin::Any => write!(f, "*"),
+            AccessControlAllowOrigin::Value(ref url) =>
                 write!(f, "{}", url)
         }
     }

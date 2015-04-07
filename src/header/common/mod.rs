@@ -6,8 +6,13 @@
 //! strongly-typed theme, the [mime](http://seanmonstar.github.io/mime.rs) crate
 //! is used, such as `ContentType(pub Mime)`.
 
-pub use self::access_control::*;
 pub use self::accept::Accept;
+pub use self::access_control_allow_headers::AccessControlAllowHeaders;
+pub use self::access_control_allow_methods::AccessControlAllowMethods;
+pub use self::access_control_allow_origin::AccessControlAllowOrigin;
+pub use self::access_control_max_age::AccessControlMaxAge;
+pub use self::access_control_request_headers::AccessControlRequestHeaders;
+pub use self::access_control_request_method::AccessControlRequestMethod;
 pub use self::accept_charset::AcceptCharset;
 pub use self::accept_encoding::AcceptEncoding;
 pub use self::accept_language::AcceptLanguage;
@@ -216,8 +221,13 @@ macro_rules! header {
     };
 }
 
-mod access_control;
 mod accept;
+mod access_control_allow_headers;
+mod access_control_allow_methods;
+mod access_control_allow_origin;
+mod access_control_max_age;
+mod access_control_request_headers;
+mod access_control_request_method;
 mod accept_charset;
 mod accept_encoding;
 mod accept_language;
