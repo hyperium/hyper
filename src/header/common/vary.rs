@@ -17,43 +17,6 @@ header! {
     (Vary, "Vary") => {Any / (UniCase<String>)+}
 }
 
-/*/// The `Allow` header.
-/// See also https://tools.ietf.org/html/rfc7231#section-7.1.4
-
-#[derive(Clone, PartialEq, Debug)]
-pub enum Vary {
-    /// This corresponds to '*'.
-    Any,
-    /// The header field names which will influence the response representation.
-    Headers(Vec<UniCase<String>>),
-}
-
-impl Header for Vary {
-    fn header_name() -> &'static str {
-        "Vary"
-    }
-
-    fn parse_header(raw: &[Vec<u8>]) -> Option<Vary> {
-        from_one_raw_str(raw).and_then(|s: String| {
-            let slice = &s[..];
-            match slice {
-                "" => None,
-                "*" => Some(Vary::Any),
-                _ => from_comma_delimited(raw).map(|vec| Vary::Headers(vec)),
-            }
-        })
-    }
-}
-
-impl HeaderFormat for Vary {
-    fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Vary::Any => { write!(fmt, "*") }
-            Vary::Headers(ref fields) => { fmt_comma_delimited(fmt, &fields[..]) }
-        }
-    }
-}*/
-
 #[cfg(test)]
 mod tests {
     use super::Vary;
