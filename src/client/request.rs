@@ -51,13 +51,11 @@ impl Request<Fresh> {
     pub fn with_connector<C, S>(method: method::Method, url: Url, connector: &mut C)
         -> HttpResult<Request<Fresh>> where
         C: NetworkConnector<Stream=S>,
-        S: NetworkStream + Send {
+        S: Into<Box<NetworkStream + Send>> {
         debug!("{} {}", method, url);
         let (host, port) = try!(get_host_and_port(&url));
 
-        let stream = try!(connector.connect(&*host, port, &*url.scheme));
-        // FIXME: Use Type ascription
-        let stream: Box<NetworkStream + Send> = Box::new(stream);
+        let stream = try!(connector.connect(&*host, port, &*url.scheme)).into();
         let stream = ThroughWriter(BufWriter::new(stream));
 
         let mut headers = Headers::new();
