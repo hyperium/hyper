@@ -84,20 +84,6 @@ fn test_parse() {
 }
 
 #[test]
-fn test_fmt() {
-    use header::Headers;
-
-    let mut cookie = Cookie::new("foo".to_string(), "bar".to_string());
-    cookie.httponly = true;
-    cookie.path = Some("/p".to_string());
-    let cookies = SetCookie(vec![cookie, Cookie::new("baz".to_string(), "quux".to_string())]);
-    let mut headers = Headers::new();
-    headers.set(cookies);
-
-    assert_eq!(&headers.to_string()[..], "Set-Cookie: foo=bar; HttpOnly; Path=/p\r\nSet-Cookie: baz=quux; Path=/\r\n");
-}
-
-#[test]
 fn cookie_jar() {
     let jar = CookieJar::new(b"secret");
     let cookie = Cookie::new("foo".to_string(), "bar".to_string());

@@ -5,8 +5,7 @@ use std::io::{self, Write, BufWriter};
 use url::Url;
 
 use method::{self, Method};
-use header::Headers;
-use header::{self, Host};
+use header::{self, Headers, Host, encode_headers};
 use net::{NetworkStream, NetworkConnector, HttpConnector, Fresh, Streaming};
 use http::{HttpWriter, LINE_ENDING};
 use http::HttpWriter::{ThroughWriter, ChunkedWriter, SizedWriter, EmptyWriter};
@@ -90,8 +89,9 @@ impl Request<Fresh> {
 
         let stream = match self.method {
             Method::Get | Method::Head => {
-                debug!("headers={:?}", self.headers);
-                try!(write!(&mut self.body, "{}{}", self.headers, LINE_ENDING));
+                debug!("headers [\n{:?}]", self.headers);
+                try!(encode_headers(&self.headers, &mut self.body));
+                try!(write!(&mut self.body, "{}", LINE_ENDING));
                 EmptyWriter(self.body.into_inner())
             },
             _ => {
@@ -123,8 +123,9 @@ impl Request<Fresh> {
                     }
                 }
 
-                debug!("headers={:?}", self.headers);
-                try!(write!(&mut self.body, "{}{}", self.headers, LINE_ENDING));
+                debug!("headers [\n{:?}]", self.headers);
+                try!(encode_headers(&self.headers, &mut self.body));
+                try!(write!(&mut self.body, "{}", LINE_ENDING));
 
                 if chunked {
                     ChunkedWriter(self.body.into_inner())

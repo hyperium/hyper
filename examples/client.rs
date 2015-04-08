@@ -27,6 +27,6 @@ fn main() {
     };
 
     println!("Response: {}", res.status);
-    println!("Headers:\n{}", res.headers);
+    println!("Headers:\n{:?}", res.headers);
     io::copy(&mut res, &mut io::stdout()).unwrap();
 }

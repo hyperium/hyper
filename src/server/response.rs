@@ -7,7 +7,7 @@ use std::io::{self, Write};
 
 use time::now_utc;
 
-use header;
+use header::{self, encode_headers};
 use http::{CR, LF, LINE_ENDING, HttpWriter};
 use http::HttpWriter::{ThroughWriter, ChunkedWriter, SizedWriter};
 use status;
@@ -110,7 +110,7 @@ impl<'a> Response<'a, Fresh> {
 
 
         debug!("headers [\n{:?}]", self.headers);
-        try!(write!(&mut self.body, "{}", self.headers));
+        try!(encode_headers(&self.headers, &mut self.body));
         try!(write!(&mut self.body, "{}", LINE_ENDING));
 
         let stream = if chunked {

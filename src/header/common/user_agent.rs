@@ -19,11 +19,3 @@ header! {
     // TODO: Maybe write parsing according to the spec? (Split the String)
     (UserAgent, "User-Agent") => [String]
 }
-
-#[test] fn test_format() {
-    use std::borrow::ToOwned;
-    use header::Headers;
-    let mut head = Headers::new();
-    head.set(UserAgent("Bunnies".to_owned()));
-    assert!(head.to_string() == "User-Agent: Bunnies\r\n".to_owned());
-}

@@ -143,33 +143,12 @@ impl FromStr for Basic {
 #[cfg(test)]
 mod tests {
     use super::{Authorization, Basic};
-    use super::super::super::{Headers, Header};
-
-    #[test]
-    fn test_raw_auth() {
-        let mut headers = Headers::new();
-        headers.set(Authorization("foo bar baz".to_string()));
-        assert_eq!(headers.to_string(), "Authorization: foo bar baz\r\n".to_string());
-    }
+    use super::super::super::Header;
 
     #[test]
     fn test_raw_auth_parse() {
         let header: Authorization<String> = Header::parse_header(&[b"foo bar baz".to_vec()]).unwrap();
         assert_eq!(header.0, "foo bar baz");
-    }
-
-    #[test]
-    fn test_basic_auth() {
-        let mut headers = Headers::new();
-        headers.set(Authorization(Basic { username: "Aladdin".to_string(), password: Some("open sesame".to_string()) }));
-        assert_eq!(headers.to_string(), "Authorization: Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==\r\n".to_string());
-    }
-
-    #[test]
-    fn test_basic_auth_no_password() {
-        let mut headers = Headers::new();
-        headers.set(Authorization(Basic { username: "Aladdin".to_string(), password: None }));
-        assert_eq!(headers.to_string(), "Authorization: Basic QWxhZGRpbjo=\r\n".to_string());
     }
 
     #[test]

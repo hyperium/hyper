@@ -8,6 +8,7 @@ use std::any::Any;
 use std::borrow::{Cow, ToOwned};
 use std::collections::HashMap;
 use std::collections::hash_map::{Iter, Entry};
+use std::io::{self, Write};
 use std::iter::{FromIterator, IntoIterator};
 use std::ops::{Deref, DerefMut};
 use std::{mem, fmt};
@@ -223,13 +224,12 @@ impl Headers {
     }
 }
 
-impl fmt::Display for Headers {
-   fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        for header in self.iter() {
-            try!(write!(fmt, "{}\r\n", header));
-        }
-        Ok(())
+/// Encodes headers for use with HTTP/1.x
+pub fn encode_headers<W: Write>(headers: &Headers, writeable: &mut W) -> io::Result<()> {
+    for header in headers.iter() {
+        try!(write!(writeable, "{}\r\n", header));
     }
+    Ok(())
 }
 
 impl fmt::Debug for Headers {
@@ -383,11 +383,12 @@ impl AsRef<str> for CowStr {
 #[cfg(test)]
 mod tests {
     use std::fmt;
+    use std::str;
     use mime::Mime;
     use mime::TopLevel::Text;
     use mime::SubLevel::Plain;
     use super::{Headers, Header, HeaderFormat, ContentLength, ContentType,
-                Accept, Host, qitem};
+                Accept, Host, qitem, encode_headers};
     use httparse;
 
     #[cfg(feature = "nightly")]
@@ -510,7 +511,9 @@ mod tests {
         headers.set(ContentLength(15));
         headers.set(Host { hostname: "foo.bar".to_string(), port: None });
 
-        let s = headers.to_string();
+        let mut b: Vec<u8> = Vec::new();
+        encode_headers(&headers, &mut b).unwrap();
+        let s = str::from_utf8(&b[..]).ok().unwrap();
         // hashmap's iterators have arbitrary order, so we must sort first
         let mut pieces = s.split("\r\n").collect::<Vec<&str>>();
         pieces.sort();
@@ -521,7 +524,9 @@ mod tests {
     #[test]
     fn test_headers_show_raw() {
         let headers = Headers::from_raw(&raw!(b"Content-Length: 10")).unwrap();
-        let s = headers.to_string();
+        let mut b: Vec<u8> = Vec::new();
+        encode_headers(&headers, &mut b).unwrap();
+        let s = str::from_utf8(&b[..]).ok().unwrap();
         assert_eq!(s, "Content-Length: 10\r\n");
     }
 
@@ -635,9 +640,12 @@ mod tests {
 
     #[cfg(feature = "nightly")]
     #[bench]
-    fn bench_headers_fmt(b: &mut Bencher) {
+    fn bench_headers_encode(b: &mut Bencher) {
         let mut headers = Headers::new();
         headers.set(ContentLength(11));
-        b.iter(|| headers.to_string())
+        b.iter(|| {
+            let mut b: Vec<u8> = Vec::new();
+            encode_headers(&headers, &mut b).unwrap();
+        })
     }
 }
