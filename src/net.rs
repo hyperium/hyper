@@ -53,23 +53,10 @@ impl<'a, N: NetworkListener + 'a> Iterator for NetworkConnections<'a, N> {
     }
 }
 
-
 /// An abstraction over streams that a Server can utilize.
-pub trait NetworkStream: Read + Write + Any + StreamClone + Send + Typeable {
+pub trait NetworkStream: Read + Write + Any + Send + Typeable {
     /// Get the remote address of the underlying connection.
     fn peer_addr(&mut self) -> io::Result<SocketAddr>;
-}
-
-#[doc(hidden)]
-pub trait StreamClone {
-    fn clone_box(&self) -> Box<NetworkStream + Send>;
-}
-
-impl<T: NetworkStream + Send + Clone> StreamClone for T {
-    #[inline]
-    fn clone_box(&self) -> Box<NetworkStream + Send> {
-        Box::new(self.clone())
-    }
 }
 
 /// A connector creates a NetworkStream.
@@ -90,11 +77,6 @@ impl fmt::Debug for Box<NetworkStream + Send> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.pad("Box<NetworkStream>")
     }
-}
-
-impl Clone for Box<NetworkStream + Send> {
-    #[inline]
-    fn clone(&self) -> Box<NetworkStream + Send> { self.clone_box() }
 }
 
 impl NetworkStream + Send {
