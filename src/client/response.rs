@@ -14,6 +14,7 @@ use version;
 use HttpResult;
 
 /// A response for a client request to a remote server.
+#[derive(Debug)]
 pub struct Response<S = HttpStream> {
     /// The status from the server.
     pub status: status::StatusCode,
