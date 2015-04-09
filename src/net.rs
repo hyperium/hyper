@@ -253,6 +253,15 @@ pub enum HttpStream {
     Https(SslStream<CloneTcpStream>),
 }
 
+impl fmt::Debug for HttpStream {
+  fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    match *self {
+      HttpStream::Http(_) => write!(fmt, "Http HttpStream"),
+      HttpStream::Https(_) => write!(fmt, "Https HttpStream"),
+    }
+  }
+}
+
 impl Read for HttpStream {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
