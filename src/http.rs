@@ -2,6 +2,7 @@
 use std::borrow::{Cow, ToOwned};
 use std::cmp::min;
 use std::io::{self, Read, Write, BufRead};
+use std::fmt;
 
 use httparse;
 
@@ -56,6 +57,18 @@ impl<R: Read> HttpReader<R> {
             ChunkedReader(r, _) => r,
             EofReader(r) => r,
             EmptyReader(r) => r,
+        }
+    }
+}
+
+impl<R> fmt::Debug for HttpReader<R> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            SizedReader(_,rem) => write!(fmt, "SizedReader(remaining={:?})", rem),
+            ChunkedReader(_, None) => write!(fmt, "ChunkedReader(chunk_remaining=unknown)"),
+            ChunkedReader(_, Some(rem)) => write!(fmt, "ChunkedReader(chunk_remaining={:?})", rem),
+            EofReader(_) => write!(fmt, "EofReader"),
+            EmptyReader(_) => write!(fmt, "EmptyReader"),
         }
     }
 }
@@ -301,6 +314,17 @@ impl<W: Write> Write for HttpWriter<W> {
             ChunkedWriter(ref mut w) => w.flush(),
             SizedWriter(ref mut w, _) => w.flush(),
             EmptyWriter(ref mut w) => w.flush(),
+        }
+    }
+}
+
+impl<W: Write> fmt::Debug for HttpWriter<W> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ThroughWriter(_) => write!(fmt, "ThroughWriter"),
+            ChunkedWriter(_) => write!(fmt, "ChunkedWriter"),
+            SizedWriter(_, rem) => write!(fmt, "SizedWriter(remaining={:?})", rem),
+            EmptyWriter(_) => write!(fmt, "EmptyWriter"),
         }
     }
 }

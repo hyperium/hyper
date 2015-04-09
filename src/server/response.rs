@@ -15,6 +15,7 @@ use net::{Fresh, Streaming};
 use version;
 
 /// The outgoing half for a Tcp connection, created by a `Server` and given to a `Handler`.
+#[derive(Debug)]
 pub struct Response<'a, W = Fresh> {
     /// The HTTP version of this response.
     pub version: version::HttpVersion,
