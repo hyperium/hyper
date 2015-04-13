@@ -1,6 +1,7 @@
 //! The HTTP request method
 use std::fmt;
 use std::str::FromStr;
+use std::convert::AsRef;
 
 use error::HttpError;
 use self::Method::{Options, Get, Post, Put, Delete, Head, Trace, Connect, Patch,
@@ -36,6 +37,23 @@ pub enum Method {
     Patch,
     /// Method extentions. An example would be `let m = Extension("FOO".to_string())`.
     Extension(String)
+}
+
+impl AsRef<str> for Method {
+    fn as_ref(&self) -> &str {
+        match *self {
+            Options => "OPTIONS",
+            Get => "GET",
+            Post => "POST",
+            Put => "PUT",
+            Delete => "DELETE",
+            Head => "HEAD",
+            Trace => "TRACE",
+            Connect => "CONNECT",
+            Patch => "PATCH",
+            Extension(ref s) => s.as_ref()
+        }
+    }
 }
 
 impl Method {
@@ -146,5 +164,13 @@ mod tests {
         let mut counter: HashMap<Method,usize> = HashMap::new();
         counter.insert(Get, 1);
         assert_eq!(Some(&1), counter.get(&Get));
+    }
+
+    #[test]
+    fn test_as_str() {
+        assert_eq!(Get.as_ref(), "GET");
+        assert_eq!(Post.as_ref(), "POST");
+        assert_eq!(Put.as_ref(), "PUT");
+        assert_eq!(Extension("MOVE".to_string()).as_ref(), "MOVE");
     }
 }
