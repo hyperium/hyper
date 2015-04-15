@@ -48,6 +48,7 @@ pub use self::vary::Vary;
 macro_rules! bench_header(
     ($name:ident, $ty:ty, $value:expr) => {
         #[cfg(test)]
+        #[cfg(feature = "nightly")]
         mod $name {
             use test::Bencher;
             use super::*;
