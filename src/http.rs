@@ -12,7 +12,7 @@ use method::Method;
 use status::StatusCode;
 use uri::RequestUri;
 use version::HttpVersion::{self, Http10, Http11};
-use HttpError:: HttpTooLargeError;
+use HttpError::{HttpIoError, HttpTooLargeError};
 use {HttpError, HttpResult};
 
 use self::HttpReader::{SizedReader, ChunkedReader, EofReader, EmptyReader};
@@ -353,6 +353,12 @@ fn parse<R: Read, T: TryParse<Subject=I>, I>(rdr: &mut BufReader<R>) -> HttpResu
             _partial => ()
         }
         match try!(rdr.read_into_buf()) {
+            0 if rdr.get_buf().len() == 0 => {
+                return Err(HttpIoError(io::Error::new(
+                    io::ErrorKind::ConnectionAborted,
+                    "Connection closed"
+                )))
+            },
             0 => return Err(HttpTooLargeError),
             _ => ()
         }
@@ -417,6 +423,7 @@ impl<'a> TryParse for httparse::Response<'a> {
 }
 
 /// An Incoming Message head. Includes request/status line, and headers.
+#[derive(Debug)]
 pub struct Incoming<S> {
     /// HTTP version of the message.
     pub version: HttpVersion,
@@ -440,8 +447,10 @@ pub struct RawStatus(pub u16, pub Cow<'static, str>);
 mod tests {
     use std::io::{self, Write};
 
-    use super::{read_chunk_size};
+    use buffer::BufReader;
+    use mock::MockStream;
 
+    use super::{read_chunk_size, parse_request};
 
     #[test]
     fn test_write_chunked() {
@@ -509,13 +518,22 @@ mod tests {
 
     #[test]
     fn test_parse_incoming() {
-        use buffer::BufReader;
-        use mock::MockStream;
-
-        use super::parse_request;
         let mut raw = MockStream::with_input(b"GET /echo HTTP/1.1\r\nHost: hyper.rs\r\n\r\n");
         let mut buf = BufReader::new(&mut raw);
         parse_request(&mut buf).unwrap();
+    }
+
+    #[test]
+    fn test_parse_tcp_closed() {
+        use std::io::ErrorKind;
+        use error::HttpError::HttpIoError;
+
+        let mut empty = MockStream::new();
+        let mut buf = BufReader::new(&mut empty);
+        match parse_request(&mut buf) {
+            Err(HttpIoError(ref e)) if e.kind() == ErrorKind::ConnectionAborted => (),
+            other => panic!("unexpected result: {:?}", other)
+        }
     }
 
     #[cfg(feature = "nightly")]
@@ -524,10 +542,6 @@ mod tests {
     #[cfg(feature = "nightly")]
     #[bench]
     fn bench_parse_incoming(b: &mut Bencher) {
-        use buffer::BufReader;
-        use mock::MockStream;
-
-        use super::parse_request;
         let mut raw = MockStream::with_input(b"GET /echo HTTP/1.1\r\nHost: hyper.rs\r\n\r\n");
         let mut buf = BufReader::new(&mut raw);
         b.iter(|| {
