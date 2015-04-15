@@ -3,7 +3,7 @@ sudo: false
 
 cache:
   directories:
-      - target
+    - target
 
 script:
     - cargo build --features nightly
@@ -16,7 +16,7 @@ after_success: |
     cargo doc --features nightly &&
     echo '<meta http-equiv=refresh content=0;url=hyper/index.html>' > target/doc/index.html &&
     git shortlog -s -n | cut -c 8- > target/doc/humans.txt &&
-    pip install ghp-import &&
+    pip install --user ghp-import &&
     ghp-import -n target/doc &&
     git push -fq https://${TOKEN}@github.com/${TRAVIS_REPO_SLUG}.git gh-pages
 
