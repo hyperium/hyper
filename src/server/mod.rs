@@ -107,7 +107,7 @@ S: NetworkStream + Clone + Send> Server<'a, H, L> {
         let guard = thread::spawn(move || pool.accept(work, threads));
 
         Ok(Listening {
-            _guard: guard,
+            _guard: Some(guard),
             socket: socket,
         })
     }
@@ -176,16 +176,23 @@ where S: NetworkStream + Clone, H: Handler {
 /// A listening server, which can later be closed.
 pub struct Listening {
     #[cfg(feature = "nightly")]
-    _guard: JoinHandle<()>,
+    _guard: Option<JoinHandle<()>>,
     #[cfg(not(feature = "nightly"))]
-    _guard: JoinHandle,
+    _guard: Option<JoinHandle>,
     /// The socket addresses that the server is bound to.
     pub socket: SocketAddr,
+}
+
+impl Drop for Listening {
+    fn drop(&mut self) {
+        let _ = self._guard.take().map(|g| g.join());
+    }
 }
 
 impl Listening {
     /// Stop the server from listening to its socket address.
     pub fn close(&mut self) -> HttpResult<()> {
+        let _ = self._guard.take();
         debug!("closing server");
         //try!(self.acceptor.close());
         Ok(())
