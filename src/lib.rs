@@ -1,7 +1,7 @@
 #![doc(html_root_url = "https://hyperium.github.io/hyper/hyper/index.html")]
 #![deny(missing_docs)]
 #![cfg_attr(test, deny(warnings))]
-#![cfg_attr(test, feature(test))]
+#![cfg_attr(all(test, feature = "nightly"), feature(test))]
 
 //! # Hyper
 //!
@@ -140,7 +140,7 @@ extern crate typeable;
 #[macro_use]
 extern crate log;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "nightly"))]
 extern crate test;
 
 

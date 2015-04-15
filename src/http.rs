@@ -518,8 +518,10 @@ mod tests {
         parse_request(&mut buf).unwrap();
     }
 
+    #[cfg(feature = "nightly")]
     use test::Bencher;
 
+    #[cfg(feature = "nightly")]
     #[bench]
     fn bench_parse_incoming(b: &mut Bencher) {
         use buffer::BufReader;

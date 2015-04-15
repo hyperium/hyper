@@ -28,3 +28,5 @@ typeable = "*"
 [dev-dependencies]
 env_logger = "*"
 
+[features]
+nightly = []

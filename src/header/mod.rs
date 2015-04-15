@@ -390,6 +390,7 @@ mod tests {
                 Accept, Host, qitem};
     use httparse;
 
+    #[cfg(feature = "nightly")]
     use test::Bencher;
 
     // Slice.position_elem is unstable
@@ -575,6 +576,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "nightly")]
     #[bench]
     fn bench_headers_new(b: &mut Bencher) {
         b.iter(|| {
@@ -584,12 +586,14 @@ mod tests {
         })
     }
 
+    #[cfg(feature = "nightly")]
     #[bench]
     fn bench_headers_from_raw(b: &mut Bencher) {
         let raw = raw!(b"Content-Length: 10");
         b.iter(|| Headers::from_raw(&raw).unwrap())
     }
 
+    #[cfg(feature = "nightly")]
     #[bench]
     fn bench_headers_get(b: &mut Bencher) {
         let mut headers = Headers::new();
@@ -597,18 +601,21 @@ mod tests {
         b.iter(|| assert_eq!(headers.get::<ContentLength>(), Some(&ContentLength(11))))
     }
 
+    #[cfg(feature = "nightly")]
     #[bench]
     fn bench_headers_get_miss(b: &mut Bencher) {
         let headers = Headers::new();
         b.iter(|| assert!(headers.get::<ContentLength>().is_none()))
     }
 
+    #[cfg(feature = "nightly")]
     #[bench]
     fn bench_headers_set(b: &mut Bencher) {
         let mut headers = Headers::new();
         b.iter(|| headers.set(ContentLength(12)))
     }
 
+    #[cfg(feature = "nightly")]
     #[bench]
     fn bench_headers_has(b: &mut Bencher) {
         let mut headers = Headers::new();
@@ -616,6 +623,7 @@ mod tests {
         b.iter(|| assert!(headers.has::<ContentLength>()))
     }
 
+    #[cfg(feature = "nightly")]
     #[bench]
     fn bench_headers_view_is(b: &mut Bencher) {
         let mut headers = Headers::new();
@@ -625,6 +633,7 @@ mod tests {
         b.iter(|| assert!(view.is::<ContentLength>()))
     }
 
+    #[cfg(feature = "nightly")]
     #[bench]
     fn bench_headers_fmt(b: &mut Bencher) {
         let mut headers = Headers::new();

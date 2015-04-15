@@ -8,7 +8,7 @@ cache:
 script:
     - cargo build
     - cargo test
-    - cargo bench
+    - cargo bench --features nightly
 
 after_success: |
     [ $TRAVIS_BRANCH = master ] &&
