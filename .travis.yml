@@ -13,7 +13,7 @@ script:
 after_success: |
     [ $TRAVIS_BRANCH = master ] &&
     [ $TRAVIS_PULL_REQUEST = false ] &&
-    cargo doc &&
+    cargo doc --features nightly &&
     echo '<meta http-equiv=refresh content=0;url=hyper/index.html>' > target/doc/index.html &&
     git shortlog -s -n | cut -c 8- > target/doc/humans.txt &&
     pip install ghp-import &&
