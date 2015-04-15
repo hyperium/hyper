@@ -3,7 +3,7 @@ use std::io::{BufWriter, Write};
 use std::marker::PhantomData;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::Path;
-use std::thread::{self, JoinGuard};
+use std::thread::{self, JoinHandle};
 
 use num_cpus;
 
@@ -104,7 +104,7 @@ S: NetworkStream + Clone + Send> Server<'a, H, L> {
         let pool = ListenerPool::new(listener.clone());
         let work = move |mut stream| handle_connection(&mut stream, &handler);
 
-        let guard = thread::scoped(move || pool.accept(work, threads));
+        let guard = thread::spawn(move || pool.accept(work, threads));
 
         Ok(Listening {
             _guard: guard,
@@ -175,7 +175,10 @@ where S: NetworkStream + Clone, H: Handler {
 
 /// A listening server, which can later be closed.
 pub struct Listening {
-    _guard: JoinGuard<'static, ()>,
+    #[cfg(feature = "nightly")]
+    _guard: JoinHandle<()>,
+    #[cfg(not(feature = "nightly"))]
+    _guard: JoinHandle,
     /// The socket addresses that the server is bound to.
     pub socket: SocketAddr,
 }
