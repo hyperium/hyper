@@ -58,7 +58,8 @@ impl<R: Read> BufReader<R> {
             self.cap += nread;
             Ok(nread)
         } else {
-            Ok(0)
+            Err(io::Error::new(io::ErrorKind::InvalidInput,
+                               "Buffer capacity error."))
         }
     }
 

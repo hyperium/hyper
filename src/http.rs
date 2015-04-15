@@ -352,8 +352,8 @@ fn parse<R: Read, T: TryParse<Subject=I>, I>(rdr: &mut BufReader<R>) -> HttpResu
             },
             _partial => ()
         }
-        match try!(rdr.read_into_buf()) {
-            0 => return Err(HttpTooLargeError),
+        match rdr.read_into_buf() {
+            Err(_) => return Err(HttpTooLargeError),
             _ => ()
         }
     }
