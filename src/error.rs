@@ -8,7 +8,7 @@ use url;
 
 use self::HttpError::{HttpMethodError, HttpUriError, HttpVersionError,
                       HttpHeaderError, HttpStatusError, HttpIoError,
-                      HttpTooLargeError};
+                      HttpTooLargeError, HttpClosed};
 
 
 /// Result type often returned from methods that can have `HttpError`s.
@@ -31,6 +31,8 @@ pub enum HttpError {
     HttpStatusError,
     /// An `IoError` that occured while trying to read or write to a network stream.
     HttpIoError(IoError),
+    /// TCP FIN
+    HttpClosed,
 }
 
 impl fmt::Display for HttpError {
@@ -49,6 +51,7 @@ impl Error for HttpError {
             HttpTooLargeError => "Message head is too large",
             HttpStatusError => "Invalid Status provided",
             HttpIoError(_) => "An IoError occurred while connecting to the specified network",
+            HttpClosed => "TCP connection closed",
         }
     }
 

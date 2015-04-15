@@ -12,7 +12,7 @@ pub use self::response::Response;
 
 pub use net::{Fresh, Streaming};
 
-use HttpError::HttpIoError;
+use HttpError::{HttpIoError,HttpClosed};
 use {HttpResult};
 use buffer::BufReader;
 use header::{Headers, Connection, Expect};
@@ -134,6 +134,7 @@ where S: NetworkStream + Clone, H: Handler {
     while keep_alive {
         let req = match Request::new(&mut rdr, addr) {
             Ok(req) => req,
+            Err(HttpClosed) => break,
             Err(e@HttpIoError(_)) => {
                 debug!("ioerror in keepalive loop = {:?}", e);
                 break;

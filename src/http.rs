@@ -12,7 +12,7 @@ use method::Method;
 use status::StatusCode;
 use uri::RequestUri;
 use version::HttpVersion::{self, Http10, Http11};
-use HttpError:: HttpTooLargeError;
+use HttpError::{HttpTooLargeError, HttpClosed};
 use {HttpError, HttpResult};
 
 use self::HttpReader::{SizedReader, ChunkedReader, EofReader, EmptyReader};
@@ -352,8 +352,9 @@ fn parse<R: Read, T: TryParse<Subject=I>, I>(rdr: &mut BufReader<R>) -> HttpResu
             },
             _partial => ()
         }
-        match try!(rdr.read_into_buf()) {
-            0 => return Err(HttpTooLargeError),
+        match rdr.read_into_buf() {
+            Err(_) => return Err(HttpTooLargeError),
+            Ok(0)  => return Err(HttpClosed),
             _ => ()
         }
     }
