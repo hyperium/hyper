@@ -1,3 +1,63 @@
+### v0.3.12 (2015-04-15)
+
+
+#### Bug Fixes
+
+* **server:**
+  * handle keep-alive closing ([d9187713](https://github.com/hyperium/hyper/commit/d9187713b2eaa628eb34f68c8a7201a6cf8e010d), closes [#437](https://github.com/hyperium/hyper/issues/437))
+  * join on thread when Listening drops ([68d4d63c](https://github.com/hyperium/hyper/commit/68d4d63c2a0289b72ec1442d13e1212a0479c50b), closes [#447](https://github.com/hyperium/hyper/issues/447))
+  * Use thread::spawn instead of thread::scoped. ([e8649567](https://github.com/hyperium/hyper/commit/e864956734af72bab07a3e01c9665bc1b7c96e5e))
+
+
+#### Features
+
+* **http:** Implement Debug for HttpReader/Writer. ([2f606c88](https://github.com/hyperium/hyper/commit/2f606c88bd91e5e36dee4c6db00c3117b1adf067))
+* **log:** clean up logging ([4f09b002](https://github.com/hyperium/hyper/commit/4f09b002ffb2d076fc8fb01d9b9e0464216b2b41))
+* **net:** make HttpStream implement Debug ([7b7f9c25](https://github.com/hyperium/hyper/commit/7b7f9c257d0e2d515bf336c567f12a625471e477))
+
+
+### v0.3.11 (2015-04-15)
+
+
+#### Bug Fixes
+
+* **headers:** Content-Encoding needs a hyphen. ([ca2815ef](https://github.com/hyperium/hyper/commit/ca2815effda2a5b27f781b7bc35105aa81121bae))
+
+
+#### Features
+
+* **client:** remove generic parameter for Connector ([139a51f1](https://github.com/hyperium/hyper/commit/139a51f1c31b80cdddf643e984bbbfbb3d3e8c96), closes [#379](https://github.com/hyperium/hyper/issues/379))
+
+
+#### Breaking Changes
+
+* `AccessControlAllowHeaders` and `AccessControlRequestHeaders` values
+are case insensitive now. `AccessControlAllowOrigin` variants are now `Any` and
+`Value` to match the other headers.
+
+ ([94f38950](https://github.com/hyperium/hyper/commit/94f38950ddf9a97fdc4f44e42aada4ed8f4d9b43))
+* `If-Match`, `If-None-Match` and `Vary` item variant name changed to `Items`
+
+ ([38d297b1](https://github.com/hyperium/hyper/commit/38d297b16e5d14d533947988f770f03b49d47a17))
+* `Etag` header field is now `ETag` header field
+
+ ([4434ea6a](https://github.com/hyperium/hyper/commit/4434ea6a7d57d367c0a541c82f6289ffbda5fb6c))
+* For people using the default HttpConnector and Client,
+    everything should continue to just work. If the Client has been
+    used with a generic parameter, it should be removed.
+
+    However, there were some breaking changes to the internals of
+    NetworkConnectors. Specifically, they no longer return a
+    NetworkStream, but instead a Into<Box<NetworkStream + Send>>. All
+    implementations of NetworkStream should continue to just work,
+    however.
+
+    Possible breakages could come from the stricter usage of Send
+    throughout the Client API.
+
+ ([139a51f1](https://github.com/hyperium/hyper/commit/139a51f1c31b80cdddf643e984bbbfbb3d3e8c96))
+
+
 ### v0.3.10 (2015-04-06)
 
 
