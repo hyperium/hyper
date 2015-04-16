@@ -349,7 +349,7 @@ pub enum RedirectPolicy {
 // This is a hack because of upstream typesystem issues. 
 impl Clone for RedirectPolicy {
     fn clone(&self) -> RedirectPolicy {
-        *self 
+        *self
     }
 }
 

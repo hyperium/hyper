@@ -1,4 +1,5 @@
 //! HTTP Server
+use std::fmt;
 use std::io::{ErrorKind, BufWriter, Write};
 use std::marker::PhantomData;
 use std::net::{SocketAddr, ToSocketAddrs};
@@ -34,6 +35,7 @@ mod listener;
 ///
 /// Once listening, it will create a `Request`/`Response` pair for each
 /// incoming connection, and hand them to the provided handler.
+#[derive(Debug)]
 pub struct Server<'a, H: Handler, L = HttpListener> {
     handler: H,
     ssl: Option<(&'a Path, &'a Path)>,
@@ -185,6 +187,12 @@ pub struct Listening {
     _guard: Option<JoinHandle>,
     /// The socket addresses that the server is bound to.
     pub socket: SocketAddr,
+}
+
+impl fmt::Debug for Listening {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Listening {{ socket: {:?} }}", self.socket)
+    }
 }
 
 impl Drop for Listening {
