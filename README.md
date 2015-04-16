@@ -1,6 +1,7 @@
 # hyper
 
 [![Build Status](https://travis-ci.org/hyperium/hyper.svg?branch=master)](https://travis-ci.org/hyperium/hyper)
+[![crates.io](http://meritbadge.herokuapp.com/hyper)](https://crates.io/crates/hyper)
 
 A Modern HTTP library for Rust.
 
