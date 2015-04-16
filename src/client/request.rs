@@ -12,7 +12,6 @@ use net::{NetworkStream, NetworkConnector, HttpConnector, Fresh, Streaming};
 use http::{self, HttpWriter, LINE_ENDING};
 use http::HttpWriter::{ThroughWriter, ChunkedWriter, SizedWriter, EmptyWriter};
 use version;
-use HttpResult;
 use client::{Response, get_host_and_port};
 
 
@@ -43,14 +42,14 @@ impl<W> Request<W> {
 
 impl Request<Fresh> {
     /// Create a new client request.
-    pub fn new(method: method::Method, url: Url) -> HttpResult<Request<Fresh>> {
+    pub fn new(method: method::Method, url: Url) -> ::Result<Request<Fresh>> {
         let mut conn = HttpConnector(None);
         Request::with_connector(method, url, &mut conn)
     }
 
     /// Create a new client request with a specific underlying NetworkStream.
     pub fn with_connector<C, S>(method: method::Method, url: Url, connector: &mut C)
-        -> HttpResult<Request<Fresh>> where
+        -> ::Result<Request<Fresh>> where
         C: NetworkConnector<Stream=S>,
         S: Into<Box<NetworkStream + Send>> {
         let (host, port) = try!(get_host_and_port(&url));
@@ -76,7 +75,7 @@ impl Request<Fresh> {
 
     /// Consume a Fresh Request, writing the headers and method,
     /// returning a Streaming Request.
-    pub fn start(mut self) -> HttpResult<Request<Streaming>> {
+    pub fn start(mut self) -> ::Result<Request<Streaming>> {
         let mut uri = self.url.serialize_path().unwrap();
         //TODO: this needs a test
         if let Some(ref q) = self.url.query {
@@ -154,7 +153,7 @@ impl Request<Streaming> {
     /// Completes writing the request, and returns a response to read from.
     ///
     /// Consumes the Request.
-    pub fn send(self) -> HttpResult<Response> {
+    pub fn send(self) -> ::Result<Response> {
         let mut raw = try!(self.body.end()).into_inner().unwrap(); // end() already flushes
         if !http::should_keep_alive(self.version, &self.headers) {
             try!(raw.close(Shutdown::Write));

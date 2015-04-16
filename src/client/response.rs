@@ -12,7 +12,6 @@ use http::{self, HttpReader, RawStatus};
 use http::HttpReader::{SizedReader, ChunkedReader, EofReader};
 use status;
 use version;
-use HttpResult;
 
 /// A response for a client request to a remote server.
 #[derive(Debug)]
@@ -32,7 +31,7 @@ pub struct Response<S = HttpStream> {
 impl Response {
 
     /// Creates a new response from a server.
-    pub fn new(stream: Box<NetworkStream + Send>) -> HttpResult<Response> {
+    pub fn new(stream: Box<NetworkStream + Send>) -> ::Result<Response> {
         let mut stream = BufReader::new(stream);
 
         let head = try!(http::parse_response(&mut stream));

@@ -3,7 +3,7 @@ use std::str::FromStr;
 use url::Url;
 use url::ParseError as UrlError;
 
-use error::HttpError;
+use Error;
 
 /// The Request-URI of a Request's StartLine.
 ///
@@ -50,12 +50,12 @@ pub enum RequestUri {
 }
 
 impl FromStr for RequestUri {
-    type Err = HttpError;
+    type Err = Error;
 
-    fn from_str(s: &str) -> Result<RequestUri, HttpError> {
+    fn from_str(s: &str) -> Result<RequestUri, Error> {
         let bytes = s.as_bytes();
         if bytes == [] {
-            Err(HttpError::HttpUriError(UrlError::InvalidCharacter))
+            Err(Error::Uri(UrlError::InvalidCharacter))
         } else if bytes == b"*" {
             Ok(RequestUri::Star)
         } else if bytes.starts_with(b"/") {

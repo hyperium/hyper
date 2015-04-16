@@ -17,7 +17,6 @@ use typeable::Typeable;
 use unicase::UniCase;
 
 use self::internals::Item;
-use error::HttpResult;
 
 pub use self::shared::*;
 pub use self::common::*;
@@ -113,7 +112,7 @@ impl Headers {
     }
 
     #[doc(hidden)]
-    pub fn from_raw<'a>(raw: &[httparse::Header<'a>]) -> HttpResult<Headers> {
+    pub fn from_raw<'a>(raw: &[httparse::Header<'a>]) -> ::Result<Headers> {
         let mut headers = Headers::new();
         for header in raw {
             trace!("raw header: {:?}={:?}", header.name, &header.value[..]);

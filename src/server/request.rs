@@ -5,7 +5,6 @@
 use std::io::{self, Read};
 use std::net::SocketAddr;
 
-use {HttpResult};
 use buffer::BufReader;
 use net::NetworkStream;
 use version::{HttpVersion};
@@ -35,7 +34,7 @@ impl<'a, 'b: 'a> Request<'a, 'b> {
     /// Create a new Request, reading the StartLine and Headers so they are
     /// immediately useful.
     pub fn new(mut stream: &'a mut BufReader<&'b mut NetworkStream>, addr: SocketAddr)
-        -> HttpResult<Request<'a, 'b>> {
+        -> ::Result<Request<'a, 'b>> {
 
         let Incoming { version, subject: (method, uri), headers } = try!(http::parse_request(stream));
         debug!("Request Line: {:?} {:?} {:?}", method, uri, version);
