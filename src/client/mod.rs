@@ -151,8 +151,8 @@ pub struct RequestBuilder<'a, U: IntoUrl> {
 impl<'a, U: IntoUrl> RequestBuilder<'a, U> {
 
     /// Set a request body to be sent.
-    pub fn body<B: IntoBody<'a>>(mut self, body: B) -> RequestBuilder<'a, U> {
-        self.body = Some(body.into_body());
+    pub fn body<B: Into<Body<'a>>>(mut self, body: B) -> RequestBuilder<'a, U> {
+        self.body = Some(body.into());
         self
     }
 
@@ -190,9 +190,9 @@ impl<'a, U: IntoUrl> RequestBuilder<'a, U> {
         };
 
         let mut body = if can_have_body {
-            body.map(|b| b.into_body())
+            body
         } else {
-             None
+            None
         };
 
         loop {
@@ -200,7 +200,7 @@ impl<'a, U: IntoUrl> RequestBuilder<'a, U> {
             headers.as_ref().map(|headers| req.headers_mut().extend(headers.iter()));
 
             match (can_have_body, body.as_ref()) {
-                (true, Some(ref body)) => match body.size() {
+                (true, Some(body)) => match body.size() {
                     Some(size) => req.headers_mut().set(ContentLength(size)),
                     None => (), // chunked, Request will add it automatically
                 },
@@ -251,13 +251,7 @@ impl<'a, U: IntoUrl> RequestBuilder<'a, U> {
     }
 }
 
-/// A helper trait to allow overloading of the body parameter.
-pub trait IntoBody<'a> {
-    /// Consumes self into an instance of `Body`.
-    fn into_body(self) -> Body<'a>;
-}
-
-/// The target enum for the IntoBody trait.
+/// An enum of possible body types for a Request.
 pub enum Body<'a> {
     /// A Reader does not necessarily know it's size, so it is chunked.
     ChunkedBody(&'a mut (Read + 'a)),
@@ -288,32 +282,31 @@ impl<'a> Read for Body<'a> {
     }
 }
 
-// To allow someone to pass a `Body::SizedBody()` themselves.
-impl<'a> IntoBody<'a> for Body<'a> {
+impl<'a> Into<Body<'a>> for &'a [u8] {
     #[inline]
-    fn into_body(self) -> Body<'a> {
-        self
-    }
-}
-
-impl<'a> IntoBody<'a> for &'a [u8] {
-    #[inline]
-    fn into_body(self) -> Body<'a> {
+    fn into(self) -> Body<'a> {
         Body::BufBody(self, self.len())
     }
 }
 
-impl<'a> IntoBody<'a> for &'a str {
+impl<'a> Into<Body<'a>> for &'a str {
     #[inline]
-    fn into_body(self) -> Body<'a> {
-        self.as_bytes().into_body()
+    fn into(self) -> Body<'a> {
+        self.as_bytes().into()
     }
 }
 
-impl<'a, R: Read> IntoBody<'a> for &'a mut R {
+impl<'a> Into<Body<'a>> for &'a String {
     #[inline]
-    fn into_body(self) -> Body<'a> {
-        Body::ChunkedBody(self)
+    fn into(self) -> Body<'a> {
+        self.as_bytes().into()
+    }
+}
+
+impl<'a, R: Read> From<&'a mut R> for Body<'a> {
+    #[inline]
+    fn from(r: &'a mut R) -> Body<'a> {
+        Body::ChunkedBody(r)
     }
 }
 
