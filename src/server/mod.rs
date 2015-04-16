@@ -1,5 +1,5 @@
 //! HTTP Server
-use std::io::{BufWriter, Write};
+use std::io::{ErrorKind, BufWriter, Write};
 use std::marker::PhantomData;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::Path;
@@ -134,7 +134,11 @@ where S: NetworkStream + Clone, H: Handler {
     while keep_alive {
         let req = match Request::new(&mut rdr, addr) {
             Ok(req) => req,
-            Err(e@HttpIoError(_)) => {
+            Err(HttpIoError(ref e)) if e.kind() == ErrorKind::ConnectionAborted => {
+                trace!("tcp closed, cancelling keep-alive loop");
+                break;
+            }
+            Err(HttpIoError(e)) => {
                 debug!("ioerror in keepalive loop = {:?}", e);
                 break;
             }
