@@ -335,6 +335,12 @@ impl<'a> IntoUrl for &'a str {
     }
 }
 
+impl<'a> IntoUrl for &'a String {
+    fn into_url(self) -> Result<Url, UrlError> {
+        Url::parse(self)
+    }
+}
+
 /// Behavior regarding how to handle redirects within a Client.
 #[derive(Copy)]
 pub enum RedirectPolicy {
