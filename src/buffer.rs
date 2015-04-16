@@ -39,7 +39,7 @@ impl<R: Read> BufReader<R> {
     #[inline]
     pub fn get_buf(&self) -> &[u8] {
         if self.pos < self.cap {
-            debug!("slicing {:?}", (self.pos, self.cap, self.buf.len()));
+            trace!("slicing {:?}", (self.pos, self.cap, self.buf.len()));
             &self.buf[self.pos..self.cap]
         } else {
             &[]
@@ -68,6 +68,7 @@ impl<R: Read> BufReader<R> {
         if self.cap == cap {
             self.buf.reserve(cmp::min(cap * 4, MAX_BUFFER_SIZE) - cap);
             let new = self.buf.capacity() - self.buf.len();
+            trace!("reserved {}", new);
             self.buf.extend(iter::repeat(0).take(new));
         }
     }

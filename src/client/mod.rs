@@ -182,7 +182,7 @@ impl<'a, U: IntoUrl> RequestBuilder<'a, U> {
     pub fn send(self) -> HttpResult<Response> {
         let RequestBuilder { client, method, url, headers, body } = self;
         let mut url = try!(url.into_url());
-        debug!("client.request {:?} {:?}", method, url);
+        trace!("send {:?} {:?}", method, url);
 
         let can_have_body = match &method {
             &Method::Get | &Method::Head => false,
@@ -364,12 +364,12 @@ fn get_host_and_port(url: &Url) -> HttpResult<(String, u16)> {
         Some(host) => host,
         None => return Err(HttpUriError(UrlError::EmptyHost))
     };
-    debug!("host={:?}", host);
+    trace!("host={:?}", host);
     let port = match url.port_or_default() {
         Some(port) => port,
         None => return Err(HttpUriError(UrlError::InvalidPort))
     };
-    debug!("port={:?}", port);
+    trace!("port={:?}", port);
     Ok((host, port))
 }
 

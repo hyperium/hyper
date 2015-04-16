@@ -117,7 +117,7 @@ impl Headers {
     pub fn from_raw<'a>(raw: &[httparse::Header<'a>]) -> HttpResult<Headers> {
         let mut headers = Headers::new();
         for header in raw {
-            debug!("raw header: {:?}={:?}", header.name, &header.value[..]);
+            trace!("raw header: {:?}={:?}", header.name, &header.value[..]);
             let name = UniCase(CowStr(Cow::Owned(header.name.to_owned())));
             let mut item = match headers.data.entry(name) {
                 Entry::Vacant(entry) => entry.insert(Item::new_raw(vec![])),
@@ -234,11 +234,11 @@ impl fmt::Display for Headers {
 
 impl fmt::Debug for Headers {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        try!(fmt.write_str("Headers {{ "));
+        try!(fmt.write_str("Headers { "));
         for header in self.iter() {
             try!(write!(fmt, "{:?}, ", header));
         }
-        try!(fmt.write_str("}}"));
+        try!(fmt.write_str("}"));
         Ok(())
     }
 }

@@ -52,7 +52,6 @@ impl Request<Fresh> {
         -> HttpResult<Request<Fresh>> where
         C: NetworkConnector<Stream=S>,
         S: Into<Box<NetworkStream + Send>> {
-        debug!("{} {}", method, url);
         let (host, port) = try!(get_host_and_port(&url));
 
         let stream = try!(connector.connect(&*host, port, &*url.scheme)).into();
@@ -84,14 +83,14 @@ impl Request<Fresh> {
             uri.push_str(&q[..]);
         }
 
-        debug!("writing head: {:?} {:?} {:?}", self.method, uri, self.version);
+        debug!("request line: {:?} {:?} {:?}", self.method, uri, self.version);
         try!(write!(&mut self.body, "{} {} {}{}",
                     self.method, uri, self.version, LINE_ENDING));
 
 
         let stream = match self.method {
             Method::Get | Method::Head => {
-                debug!("headers [\n{:?}]", self.headers);
+                debug!("headers={:?}", self.headers);
                 try!(write!(&mut self.body, "{}{}", self.headers, LINE_ENDING));
                 EmptyWriter(self.body.into_inner())
             },
@@ -124,7 +123,7 @@ impl Request<Fresh> {
                     }
                 }
 
-                debug!("headers [\n{:?}]", self.headers);
+                debug!("headers={:?}", self.headers);
                 try!(write!(&mut self.body, "{}{}", self.headers, LINE_ENDING));
 
                 if chunked {

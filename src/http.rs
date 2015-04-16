@@ -77,7 +77,7 @@ impl<R: Read> Read for HttpReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match *self {
             SizedReader(ref mut body, ref mut remaining) => {
-                debug!("Sized read, remaining={:?}", remaining);
+                trace!("Sized read, remaining={:?}", remaining);
                 if *remaining == 0 {
                     Ok(0)
                 } else {
@@ -96,7 +96,7 @@ impl<R: Read> Read for HttpReader<R> {
                     // None means we don't know the size of the next chunk
                     None => try!(read_chunk_size(body))
                 };
-                debug!("Chunked read, remaining={:?}", rem);
+                trace!("Chunked read, remaining={:?}", rem);
 
                 if rem == 0 {
                     *opt_remaining = Some(0);
@@ -104,7 +104,7 @@ impl<R: Read> Read for HttpReader<R> {
                     // chunk of size 0 signals the end of the chunked stream
                     // if the 0 digit was missing from the stream, it would
                     // be an InvalidInput error instead.
-                    debug!("end of chunked");
+                    trace!("end of chunked");
                     return Ok(0)
                 }
 
@@ -205,7 +205,7 @@ fn read_chunk_size<R: Read>(rdr: &mut R) -> io::Result<u64> {
             }
         }
     }
-    debug!("chunk size={:?}", size);
+    trace!("chunk size={:?}", size);
     Ok(size)
 }
 
@@ -279,7 +279,7 @@ impl<W: Write> Write for HttpWriter<W> {
             ThroughWriter(ref mut w) => w.write(msg),
             ChunkedWriter(ref mut w) => {
                 let chunk_size = msg.len();
-                debug!("chunked write, size = {:?}", chunk_size);
+                trace!("chunked write, size = {:?}", chunk_size);
                 try!(write!(w, "{:X}{}", chunk_size, LINE_ENDING));
                 try!(w.write_all(msg));
                 try!(w.write_all(LINE_ENDING.as_bytes()));

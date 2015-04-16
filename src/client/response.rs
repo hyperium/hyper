@@ -46,13 +46,13 @@ impl Response {
             match headers.get::<TransferEncoding>() {
                 Some(&TransferEncoding(ref codings)) => {
                     if codings.len() > 1 {
-                        debug!("TODO: #2 handle other codings: {:?}", codings);
+                        trace!("TODO: #2 handle other codings: {:?}", codings);
                     };
 
                     if codings.contains(&Chunked) {
                         ChunkedReader(stream, None)
                     } else {
-                        debug!("not chuncked. read till eof");
+                        trace!("not chuncked. read till eof");
                         EofReader(stream)
                     }
                 }
@@ -64,7 +64,7 @@ impl Response {
                 None => unreachable!()
             }
         } else {
-            debug!("neither Transfer-Encoding nor Content-Length");
+            trace!("neither Transfer-Encoding nor Content-Length");
             EofReader(stream)
         };
 
