@@ -181,10 +181,7 @@ where S: NetworkStream + Clone, H: Handler {
 
 /// A listening server, which can later be closed.
 pub struct Listening {
-    #[cfg(feature = "nightly")]
     _guard: Option<JoinHandle<()>>,
-    #[cfg(not(feature = "nightly"))]
-    _guard: Option<JoinHandle>,
     /// The socket addresses that the server is bound to.
     pub socket: SocketAddr,
 }
