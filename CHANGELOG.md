@@ -1,3 +1,16 @@
+### v0.3.13 (2015-04-17)
+
+
+#### Bug Fixes
+
+* **server:** JoinHandle type parameter ([c694b138](https://github.com/hyperium/hyper/commit/c694b1385bd294e7c8e0398ee75e3a054ced5006))
+
+
+#### Features
+
+* **debug:** add Debug impls for StatusClass, Server, and Listening ([0fb92ee7](https://github.com/hyperium/hyper/commit/0fb92ee735136a07c832124df521b96a6779bd39))
+
+
 ### v0.3.12 (2015-04-15)
 
 
