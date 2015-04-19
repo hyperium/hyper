@@ -378,7 +378,7 @@ trait TryParse {
 
 type TryParseResult<T> = Result<httparse::Status<(Incoming<T>, usize)>, HttpError>;
 
-impl<'a> TryParse for httparse::Request<'a> {
+impl<'a> TryParse for httparse::Request<'a, 'a> {
     type Subject = (Method, RequestUri);
 
     fn try_parse<'b>(headers: &'b mut [httparse::Header<'b>], buf: &'b [u8]) -> TryParseResult<(Method, RequestUri)> {
@@ -399,7 +399,7 @@ impl<'a> TryParse for httparse::Request<'a> {
     }
 }
 
-impl<'a> TryParse for httparse::Response<'a> {
+impl<'a> TryParse for httparse::Response<'a, 'a> {
     type Subject = RawStatus;
 
     fn try_parse<'b>(headers: &'b mut [httparse::Header<'b>], buf: &'b [u8]) -> TryParseResult<RawStatus> {
