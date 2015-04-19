@@ -1,3 +1,11 @@
+### v0.3.14 (2015-04-18)
+
+
+#### Bug Fixes
+
+* **http:** Adjust httparse Request and Response lifetimes. ([76550fdb](https://github.com/hyperium/hyper/commit/76550fdb20bb812e92a1fc3f3a7eaaf4a689348b))
+
+
 ### v0.3.13 (2015-04-17)
 
 
