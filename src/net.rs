@@ -164,6 +164,11 @@ impl HttpListener {
         try!(ssl_context.set_certificate_file(cert, X509FileType::PEM).map_err(lift_ssl_error));
         try!(ssl_context.set_private_key_file(key, X509FileType::PEM).map_err(lift_ssl_error));
         ssl_context.set_verify(SSL_VERIFY_NONE, None);
+        HttpListener::https_with_context(addr, ssl_context)
+    }
+
+    /// Start listening to an address of HTTPS using the given SslContext
+    pub fn https_with_context<To: ToSocketAddrs>(addr: To, ssl_context: SslContext) -> io::Result<HttpListener> {
         Ok(HttpListener::Https(try!(TcpListener::bind(addr)), Arc::new(ssl_context)))
     }
 }
