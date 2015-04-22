@@ -9,8 +9,9 @@
 //! is a low-level typesafe abstraction over raw HTTP, providing an elegant
 //! layer over "stringly-typed" HTTP.
 //!
-//! Hyper offers both an HTTP/S client an HTTP server which can be used to drive
-//! complex web applications written entirely in Rust.
+//! Hyper offers both a [Client](client/index.html) and a
+//! [Server](server/index.html) which can be used to drive complex web
+//! applications written entirely in Rust.
 //!
 //! ## Internal Design
 //!
@@ -20,8 +21,8 @@
 //!
 //! ### Common Functionality
 //!
-//! Functionality and code shared between the Server and Client implementations can
-//! be found in `src` directly - this includes `NetworkStream`s, `Method`s,
+//! Functionality and code shared between the Server and Client implementations
+//! can be found in `src` directly - this includes `NetworkStream`s, `Method`s,
 //! `StatusCode`, and so on.
 //!
 //! #### Methods
@@ -38,7 +39,8 @@
 //!
 //! #### Headers
 //!
-//! Hyper's header representation is likely the most complex API exposed by Hyper.
+//! Hyper's [header](header/index.html) representation is likely the most
+//! complex API exposed by Hyper.
 //!
 //! Hyper's headers are an abstraction over an internal `HashMap` and provides a
 //! typesafe API for interacting with headers that does not rely on the use of
