@@ -5,18 +5,32 @@
 //! The `Client` API is designed for most people to make HTTP requests.
 //! It utilizes the lower level `Request` API.
 //!
-//! ```no_run
-//! use hyper::Client;
+//! ## GET
 //!
+//! ```no_run
+//! # use hyper::Client;
 //! let mut client = Client::new();
 //!
-//! let mut res = client.get("http://example.domain").send().unwrap();
+//! let res = client.get("http://example.domain").send().unwrap();
 //! assert_eq!(res.status, hyper::Ok);
 //! ```
 //!
-//! The returned value from is a `Response`, which provides easy access
-//! to the `status`, the `headers`, and the response body via the `Writer`
+//! The returned value is a `Response`, which provides easy access to
+//! the `status`, the `headers`, and the response body via the `Read`
 //! trait.
+//!
+//! ## POST
+//!
+//! ```no_run
+//! # use hyper::Client;
+//! let mut client = Client::new();
+//!
+//! let res = client.post("http://exmaple.domain")
+//!     .body("foo=bar")
+//!     .send()
+//!     .unwrap();
+//! assert_eq!(res.status, hyper::Ok);
+//! ```
 use std::default::Default;
 use std::io::{self, copy, Read};
 use std::iter::Extend;
