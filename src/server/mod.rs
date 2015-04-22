@@ -1,4 +1,23 @@
 //! HTTP Server
+//!
+//! # Example
+//!
+//! ```no_run
+//! use hyper::server::{Server, Request, Response};
+//! use hyper::status::StatusCode;
+//! use hyper::uri::RequestUri;
+//!
+//! let server = Server::http(|req: Request, mut res: Response| {
+//!     *res.status_mut() = match (req.method, req.uri) {
+//!         (hyper::Get, RequestUri::AbsolutePath(ref path)) if path == "/"  => {
+//!             StatusCode::Ok
+//!         },
+//!         (hyper::Get, _) => StatusCode::NotFound,
+//!         _ => StatusCode::MethodNotAllowed
+//!     };
+//!
+//!     res.start().unwrap().end().unwrap();
+//! }).listen("0.0.0.0:8080").unwrap();
 use std::fmt;
 use std::io::{ErrorKind, BufWriter, Write};
 use std::marker::PhantomData;
