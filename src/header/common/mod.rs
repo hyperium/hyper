@@ -95,17 +95,23 @@ macro_rules! deref(
 );
 
 macro_rules! test_header {
-    ($id:ident, $test:expr) => {
+    ($id:ident, $raw:expr) => {
         #[test]
         fn $id() {
-            let a: Vec<Vec<u8>> = $test.iter().map(|x| x.to_vec()).collect();
-            HeaderField::parse_header(&a[..]).unwrap();
+            use std::ascii::AsciiExt;
+            let raw = $raw;
+            let a: Vec<Vec<u8>> = raw.iter().map(|x| x.to_vec()).collect();
+            let value = HeaderField::parse_header(&a[..]);
+            let result = format!("{}", value.unwrap());
+            let expected = String::from_utf8(raw[0].to_vec()).unwrap();
+            let result_cmp: Vec<String> = result.to_ascii_lowercase().split(' ').map(|x| x.to_string()).collect();
+            let expected_cmp: Vec<String> = expected.to_ascii_lowercase().split(' ').map(|x| x.to_string()).collect();
+            assert_eq!(result_cmp.concat(), expected_cmp.concat());
         }
     };
     ($id:ident, $raw:expr, $typed:expr) => {
         #[test]
         fn $id() {
-            use std::str;
             let a: Vec<Vec<u8>> = $raw.iter().map(|x| x.to_vec()).collect();
             let val = HeaderField::parse_header(&a[..]);
             // Test parsing
@@ -151,6 +157,7 @@ macro_rules! header {
         }
         #[allow(unused_imports)]
         mod $tm{
+            use std::str;
             use $crate::header::*;
             use $crate::mime::*;
             use $crate::method::Method;
@@ -186,6 +193,7 @@ macro_rules! header {
         }
         #[allow(unused_imports)]
         mod $tm{
+            use std::str;
             use $crate::header::*;
             use $crate::mime::*;
             use $crate::method::Method;
@@ -260,6 +268,7 @@ macro_rules! header {
         }
         #[allow(unused_imports)]
         mod $tm{
+            use std::str;
             use $crate::header::*;
             use $crate::mime::*;
             use $crate::method::Method;
