@@ -202,7 +202,7 @@ macro_rules! header {
         }
     };
     // Single value header
-    ($(#[$a:meta])*($id:ident, $n:expr) => [$value:ty]) => {
+    ($(#[$a:meta])*($id:ident, $n:expr) => [$value:ty] $tm:ident{$($tf:item)*}) => {
         $(#[$a])*
         #[derive(Clone, Debug, PartialEq)]
         pub struct $id(pub $value);
@@ -224,6 +224,15 @@ macro_rules! header {
             fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
                 ::std::fmt::Display::fmt(&**self, f)
             }
+        }
+        #[allow(unused_imports)]
+        mod $tm{
+            use std::str;
+            use $crate::header::*;
+            use $crate::mime::*;
+            use $crate::method::Method;
+            use super::$id as HeaderField;
+            $($tf)*
         }
     };
     // List header, one or more items with "*" option

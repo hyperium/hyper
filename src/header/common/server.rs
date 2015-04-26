@@ -15,6 +15,11 @@ header! {
     #[doc="```"]
     // TODO: Maybe parse as defined in the spec?
     (Server, "Server") => [String]
+
+    test_server {
+        // Testcase from RFC
+        test_header!(test1, vec![b"CERN/3.0 libwww/2.17"]);
+    }
 }
 
 bench_header!(bench, Server, { vec![b"Some String".to_vec()] });

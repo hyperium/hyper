@@ -14,6 +14,12 @@ header! {
     // TODO: Use URL
     (Location, "Location") => [String]
 
+    test_location {
+        // Testcase from RFC
+        test_header!(test1, vec![b"/People.html#tim"]);
+        test_header!(test2, vec![b"http://www.example.net/index.html"]);
+    }
+
 }
 
 bench_header!(bench, Location, { vec![b"http://foo.com/hello:3000".to_vec()] });

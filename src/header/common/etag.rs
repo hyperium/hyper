@@ -18,6 +18,12 @@ header! {
     #[doc="ETag       = entity-tag"]
     #[doc="```"]
     (ETag, "ETag") => [EntityTag]
+
+    test_etag {
+        test_header!(test1, vec![b"\"xyzzy\""], Some(HeaderField(EntityTag::new(false, "xyzzy".to_string()))));
+        test_header!(test2, vec![b"W/\"xyzzy\""], Some(HeaderField(EntityTag::new(true, "xyzzy".to_string()))));
+        test_header!(test3, vec![b"\"\""], Some(HeaderField(EntityTag::new(false, "".to_string()))));
+    }
 }
 
 #[cfg(test)]

@@ -18,6 +18,11 @@ header! {
     #[doc="```"]
     // TODO: Maybe write parsing according to the spec? (Split the String)
     (UserAgent, "User-Agent") => [String]
+
+    test_user_agent {
+        // Testcase from RFC
+        test_header!(test1, vec![b"CERN-LineMode/2.15 libwww/2.17b3"]);
+    }
 }
 
 #[test] fn test_format() {

@@ -16,6 +16,11 @@ header! {
     #[doc="Content-Length = 1*DIGIT"]
     #[doc="```"]
     (ContentLength, "Content-Length") => [u64]
+
+    test_content_length {
+        // Testcase from RFC
+        test_header!(test1, vec![b"3495"], Some(HeaderField(3495)));
+    }
 }
 
 bench_header!(bench, ContentLength, { vec![b"42349984".to_vec()] });

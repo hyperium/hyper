@@ -5,4 +5,6 @@ header! {
     #[doc="The `Access-Control-Max-Age` header indicates how long the results of a"]
     #[doc="preflight request can be cached in a preflight result cache."]
     (AccessControlMaxAge, "Access-Control-Max-Age") => [u32]
+
+    test_access_control_max_age {}
 }

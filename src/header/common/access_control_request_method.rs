@@ -7,4 +7,6 @@ header! {
     #[doc="The `Access-Control-Request-Method` header indicates which method will be"]
     #[doc="used in the actual request as part of the preflight request."]
     (AccessControlRequestMethod, "Access-Control-Request-Method") => [Method]
+
+    test_access_control_request_method {}
 }

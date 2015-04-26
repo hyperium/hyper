@@ -15,6 +15,11 @@ header! {
     #[doc="Expires = HTTP-date"]
     #[doc="```"]
     (Expires, "Expires") => [HttpDate]
+
+    test_expires {
+        // Testcase from RFC
+        test_header!(test1, vec![b"Thu, 01 Dec 1994 16:00:00 GMT"]);
+    }
 }
 
 bench_header!(imf_fixdate, Expires, { vec![b"Sun, 07 Nov 1994 08:48:37 GMT".to_vec()] });
