@@ -94,6 +94,29 @@ macro_rules! deref(
     }
 );
 
+macro_rules! test_header {
+    ($id:ident, $test:expr) => {
+        #[test]
+        fn $id() {
+            let a: Vec<Vec<u8>> = $test.iter().map(|x| x.to_vec()).collect();
+            HeaderField::parse_header(&a[..]).unwrap();
+        }
+    };
+    ($id:ident, $raw:expr, $typed:expr) => {
+        #[test]
+        fn $id() {
+            use std::str;
+            let a: Vec<Vec<u8>> = $raw.iter().map(|x| x.to_vec()).collect();
+            let val = HeaderField::parse_header(&a[..]);
+            // Test parsing
+            assert_eq!(val, $typed);
+            // Test formatting
+            let res: &str = str::from_utf8($raw[0]).unwrap();
+            assert_eq!(format!("{}", $typed.unwrap()), res);
+        }
+    }
+}
+
 #[macro_export]
 macro_rules! header {
     // $a:meta: Attributes associated with the header item (usually docs)
@@ -129,7 +152,7 @@ macro_rules! header {
 
     };
     // List header, one or more items
-    ($(#[$a:meta])*($id:ident, $n:expr) => ($item:ty)+) => {
+    ($(#[$a:meta])*($id:ident, $n:expr) => ($item:ty)+ $tm:ident{$($tf:item)*}) => {
         $(#[$a])*
         #[derive(Clone, Debug, PartialEq)]
         pub struct $id(pub Vec<$item>);
@@ -152,6 +175,14 @@ macro_rules! header {
                 use $crate::header::HeaderFormat;
                 self.fmt_header(f)
             }
+        }
+
+        #[allow(unused_imports)]
+        mod $tm{
+            use $crate::header::*;
+            use $crate::mime::*;
+            use super::$id as HeaderField;
+            $($tf)*
         }
     };
     // Single value header

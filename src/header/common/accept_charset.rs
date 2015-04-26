@@ -16,6 +16,10 @@ header! {
     #[doc="Accept-Charset = 1#( ( charset / \"*\" ) [ weight ] )"]
     #[doc="```"]
     (AcceptCharset, "Accept-Charset") => (QualityItem<Charset>)+
+
+    test_accept_charset {
+        test_header!(test1, vec![b"iso-8859-5, unicode-1-1;q=0.8"]);
+    }
 }
 
 

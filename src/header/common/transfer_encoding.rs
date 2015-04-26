@@ -14,6 +14,16 @@ header! {
     #[doc="Transfer-Encoding = 1#transfer-coding"]
     #[doc="```"]
     (TransferEncoding, "Transfer-Encoding") => (Encoding)+
+
+    transfer_encoding {
+        test_header!(
+            test1,
+            vec![b"gzip, chunked"],
+            Some(HeaderField(
+                vec![Encoding::Gzip, Encoding::Chunked]
+                )));
+
+    }
 }
 
 bench_header!(normal, TransferEncoding, { vec![b"chunked, gzip".to_vec()] });

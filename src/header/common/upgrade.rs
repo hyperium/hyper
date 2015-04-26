@@ -26,6 +26,18 @@ header! {
     #[doc="protocol-version = token"]
     #[doc="```"]
     (Upgrade, "Upgrade") => (Protocol)+
+
+    test_upgrade {
+        test_header!(
+            test1,
+            vec![b"HTTP/2.0, SHTTP/1.3, IRC/6.9, RTA/x11"],
+            Some(HeaderField(vec![
+                Protocol::ProtocolExt("HTTP/2.0".to_string()),
+                Protocol::ProtocolExt("SHTTP/1.3".to_string()),
+                Protocol::ProtocolExt("IRC/6.9".to_string()),
+                Protocol::ProtocolExt("RTA/x11".to_string()),
+                ])));
+    }
 }
 
 /// Protocol values that can appear in the Upgrade header.
