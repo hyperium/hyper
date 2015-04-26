@@ -16,6 +16,14 @@ header! {
     #[doc="codings          = content-coding / \"identity\" / \"*\""]
     #[doc="```"]
     (AcceptEncoding, "Accept-Encoding") => (QualityItem<Encoding>)*
+
+    test_accept_encoding {
+        test_header!(test1, vec![b"compress, gzip".to_vec()]);
+        test_header!(test2, vec![b"".to_vec()]);
+        test_header!(test3, vec![b"*".to_vec()]);
+        test_header!(test4, vec![b"compress;q=0.5, gzip;q=1.0".to_vec()]);
+        test_header!(test5, vec![b"gzip;q=1.0, identity; q=0.5, *;q=0".to_vec()]);
+    }
 }
 
 #[cfg(test)]

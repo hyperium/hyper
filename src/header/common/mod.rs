@@ -125,7 +125,7 @@ macro_rules! header {
     // $nn:expr: Nice name of the header
 
     // List header, zero or more items
-    ($(#[$a:meta])*($id:ident, $n:expr) => ($item:ty)*) => {
+    ($(#[$a:meta])*($id:ident, $n:expr) => ($item:ty)* $tm:ident{$($tf:item)*}) => {
         $(#[$a])*
         #[derive(Clone, Debug, PartialEq)]
         pub struct $id(pub Vec<$item>);
@@ -148,6 +148,14 @@ macro_rules! header {
                 use $crate::header::HeaderFormat;
                 self.fmt_header(f)
             }
+        }
+        #[allow(unused_imports)]
+        mod $tm{
+            use $crate::header::*;
+            use $crate::mime::*;
+            use $crate::method::Method;
+            use super::$id as HeaderField;
+            $($tf)*
         }
 
     };
@@ -180,6 +188,7 @@ macro_rules! header {
         mod $tm{
             use $crate::header::*;
             use $crate::mime::*;
+            use $crate::method::Method;
             use super::$id as HeaderField;
             $($tf)*
         }
@@ -253,6 +262,7 @@ macro_rules! header {
         mod $tm{
             use $crate::header::*;
             use $crate::mime::*;
+            use $crate::method::Method;
             use super::$id as HeaderField;
             $($tf)*
         }
