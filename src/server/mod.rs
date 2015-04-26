@@ -26,6 +26,7 @@ use std::path::Path;
 use std::thread::{self, JoinHandle};
 
 use num_cpus;
+use openssl::ssl::SslContext;
 
 pub use self::request::Request;
 pub use self::response::Response;
@@ -50,6 +51,12 @@ pub mod response;
 
 mod listener;
 
+#[derive(Debug)]
+enum SslConfig<'a> {
+    CertAndKey(&'a Path, &'a Path),
+    Context(SslContext),
+}
+
 /// A server can listen on a TCP socket.
 ///
 /// Once listening, it will create a `Request`/`Response` pair for each
@@ -57,7 +64,7 @@ mod listener;
 #[derive(Debug)]
 pub struct Server<'a, H: Handler, L = HttpListener> {
     handler: H,
-    ssl: Option<(&'a Path, &'a Path)>,
+    ssl: Option<SslConfig<'a>>,
     _marker: PhantomData<L>
 }
 
@@ -90,7 +97,15 @@ impl<'a, H: Handler + 'static> Server<'a, H, HttpListener> {
     pub fn https(handler: H, cert: &'a Path, key: &'a Path) -> Server<'a, H, HttpListener> {
         Server {
             handler: handler,
-            ssl: Some((cert, key)),
+            ssl: Some(SslConfig::CertAndKey(cert, key)),
+            _marker: PhantomData
+        }
+    }
+    /// Creates a new server that will handler `HttpStreams`s using a TLS connection defined by an SslContext.
+    pub fn https_with_context(handler: H, ssl_context: SslContext) -> Server<'a, H, HttpListener> {
+        Server {
+            handler: handler,
+            ssl: Some(SslConfig::Context(ssl_context)),
             _marker: PhantomData
         }
     }
@@ -100,7 +115,8 @@ impl<'a, H: Handler + 'static> Server<'a, H, HttpListener> {
     /// Binds to a socket, and starts handling connections using a task pool.
     pub fn listen_threads<T: ToSocketAddrs>(self, addr: T, threads: usize) -> HttpResult<Listening> {
         let listener = try!(match self.ssl {
-            Some((cert, key)) => HttpListener::https(addr, cert, key),
+            Some(SslConfig::CertAndKey(cert, key)) => HttpListener::https(addr, cert, key),
+            Some(SslConfig::Context(ssl_context)) => HttpListener::https_with_context(addr, ssl_context),
             None => HttpListener::http(addr)
         });
         with_listener(self.handler, listener, threads)
