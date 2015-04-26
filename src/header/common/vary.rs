@@ -15,6 +15,10 @@ header! {
     #[doc="Vary = \"*\" / 1#field-name"]
     #[doc="```"]
     (Vary, "Vary") => {Any / (UniCase<String>)+}
+
+    test_vary {
+        test_header!(test1, vec![b"accept-encoding, accept-language"]);
+    }
 }
 
 #[cfg(test)]

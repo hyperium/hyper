@@ -176,7 +176,6 @@ macro_rules! header {
                 self.fmt_header(f)
             }
         }
-
         #[allow(unused_imports)]
         mod $tm{
             use $crate::header::*;
@@ -211,7 +210,7 @@ macro_rules! header {
         }
     };
     // List header, one or more items with "*" option
-    ($(#[$a:meta])*($id:ident, $n:expr) => {Any / ($item:ty)+}) => {
+    ($(#[$a:meta])*($id:ident, $n:expr) => {Any / ($item:ty)+} $tm:ident{$($tf:item)*}) => {
         $(#[$a])*
         #[derive(Clone, Debug, PartialEq)]
         pub enum $id {
@@ -249,6 +248,13 @@ macro_rules! header {
                 use $crate::header::HeaderFormat;
                 self.fmt_header(f)
             }
+        }
+        #[allow(unused_imports)]
+        mod $tm{
+            use $crate::header::*;
+            use $crate::mime::*;
+            use super::$id as HeaderField;
+            $($tf)*
         }
     };
 }

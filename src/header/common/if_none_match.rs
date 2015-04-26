@@ -20,6 +20,14 @@ header! {
     #[doc="If-None-Match = \"*\" / 1#entity-tag"]
     #[doc="```"]
     (IfNoneMatch, "If-None-Match") => {Any / (EntityTag)+}
+
+    test_if_none_match {
+        test_header!(test1, vec![b"\"xyzzy\""]);
+        test_header!(test2, vec![b"W/\"xyzzy\""]);
+        test_header!(test3, vec![b"\"xyzzy\", \"r2d2xxxx\", \"c3piozzzz\""]);
+        test_header!(test4, vec![b"W/\"xyzzy\", W/\"r2d2xxxx\", W/\"c3piozzzz\""]);
+        test_header!(test5, vec![b"*"]);
+    }
 }
 
 #[cfg(test)]
