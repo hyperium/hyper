@@ -26,6 +26,7 @@ use std::path::Path;
 use std::thread::{self, JoinHandle};
 
 use num_cpus;
+use openssl::ssl::SslContext;
 
 pub use self::request::Request;
 pub use self::response::Response;
@@ -50,6 +51,12 @@ pub mod response;
 
 mod listener;
 
+#[derive(Debug)]
+enum SslConfig<'a> {
+    CertAndKey(&'a Path, &'a Path),
+    Context(SslContext),
+}
+
 /// A server can listen on a TCP socket.
 ///
 /// Once listening, it will create a `Request`/`Response` pair for each
@@ -57,7 +64,7 @@ mod listener;
 #[derive(Debug)]
 pub struct Server<'a, H: Handler, L = HttpListener> {
     handler: H,
-    ssl: Option<(&'a Path, &'a Path)>,
+    ssl: Option<SslConfig<'a>>,
     _marker: PhantomData<L>
 }
 
@@ -90,7 +97,15 @@ impl<'a, H: Handler + 'static> Server<'a, H, HttpListener> {
     pub fn https(handler: H, cert: &'a Path, key: &'a Path) -> Server<'a, H, HttpListener> {
         Server {
             handler: handler,
-            ssl: Some((cert, key)),
+            ssl: Some(SslConfig::CertAndKey(cert, key)),
+            _marker: PhantomData
+        }
+    }
+    /// Creates a new server that will handler `HttpStreams`s using a TLS connection defined by an SslContext.
+    pub fn https_with_context(handler: H, ssl_context: SslContext) -> Server<'a, H, HttpListener> {
+        Server {
+            handler: handler,
+            ssl: Some(SslConfig::Context(ssl_context)),
             _marker: PhantomData
         }
     }
@@ -100,10 +115,11 @@ impl<'a, H: Handler + 'static> Server<'a, H, HttpListener> {
     /// Binds to a socket, and starts handling connections using a task pool.
     pub fn listen_threads<T: ToSocketAddrs>(self, addr: T, threads: usize) -> HttpResult<Listening> {
         let listener = try!(match self.ssl {
-            Some((cert, key)) => HttpListener::https(addr, cert, key),
+            Some(SslConfig::CertAndKey(cert, key)) => HttpListener::https(addr, cert, key),
+            Some(SslConfig::Context(ssl_context)) => HttpListener::https_with_context(addr, ssl_context),
             None => HttpListener::http(addr)
         });
-        self.with_listener(listener, threads)
+        with_listener(self.handler, listener, threads)
     }
 
     /// Binds to a socket and starts handling connections.
@@ -117,23 +133,27 @@ H: Handler + 'static,
 L: NetworkListener<Stream=S> + Send + 'static,
 S: NetworkStream + Clone + Send> Server<'a, H, L> {
     /// Creates a new server that will handle `HttpStream`s.
-    pub fn with_listener(self, mut listener: L, threads: usize) -> HttpResult<Listening> {
-        let socket = try!(listener.local_addr());
-        let handler = self.handler;
-
-        debug!("threads = {:?}", threads);
-        let pool = ListenerPool::new(listener.clone());
-        let work = move |mut stream| handle_connection(&mut stream, &handler);
-
-        let guard = thread::spawn(move || pool.accept(work, threads));
-
-        Ok(Listening {
-            _guard: Some(guard),
-            socket: socket,
-        })
+    pub fn with_listener(self, listener: L, threads: usize) -> HttpResult<Listening> {
+        with_listener(self.handler, listener, threads)
     }
 }
 
+fn with_listener<H, L>(handler: H, mut listener: L, threads: usize) -> HttpResult<Listening>
+where H: Handler + 'static,
+L: NetworkListener + Send + 'static {
+    let socket = try!(listener.local_addr());
+
+    debug!("threads = {:?}", threads);
+    let pool = ListenerPool::new(listener.clone());
+    let work = move |mut stream| handle_connection(&mut stream, &handler);
+
+    let guard = thread::spawn(move || pool.accept(work, threads));
+
+    Ok(Listening {
+        _guard: Some(guard),
+        socket: socket,
+    })
+}
 
 fn handle_connection<'h, S, H>(mut stream: &mut S, handler: &'h H)
 where S: NetworkStream + Clone, H: Handler {
