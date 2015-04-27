@@ -8,7 +8,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use openssl::ssl::{Ssl, SslStream, SslContext, SSL_VERIFY_NONE};
-use openssl::ssl::SslMethod::Sslv23;
+use openssl::ssl::SslMethod::Tlsv1_2;
 use openssl::ssl::error::{SslError, StreamError, OpenSslErrors, SslSessionClosed};
 use openssl::x509::X509FileType;
 
@@ -159,7 +159,7 @@ impl HttpListener {
 
     /// Start listening to an address over HTTPS.
     pub fn https<To: ToSocketAddrs>(addr: To, cert: &Path, key: &Path) -> io::Result<HttpListener> {
-        let mut ssl_context = try!(SslContext::new(Sslv23).map_err(lift_ssl_error));
+        let mut ssl_context = try!(SslContext::new(Tlsv1_2).map_err(lift_ssl_error));
         try!(ssl_context.set_cipher_list("DEFAULT").map_err(lift_ssl_error));
         try!(ssl_context.set_certificate_file(cert, X509FileType::PEM).map_err(lift_ssl_error));
         try!(ssl_context.set_private_key_file(key, X509FileType::PEM).map_err(lift_ssl_error));
@@ -299,7 +299,7 @@ impl NetworkConnector for HttpConnector {
             "https" => {
                 debug!("https scheme");
                 let stream = CloneTcpStream(try!(TcpStream::connect(addr)));
-                let mut context = try!(SslContext::new(Sslv23).map_err(lift_ssl_error));
+                let mut context = try!(SslContext::new(Tlsv1_2).map_err(lift_ssl_error));
                 if let Some(ref mut verifier) = self.0 {
                     verifier(&mut context);
                 }

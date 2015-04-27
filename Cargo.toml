@@ -17,13 +17,16 @@ httparse = "*"
 log = ">= 0.2.0"
 mime = "*"
 num_cpus = "*"
-openssl = "*"
 rustc-serialize = "*"
 time = "*"
 unicase = "*"
 url = "*"
 traitobject = "*"
 typeable = "*"
+
+[dependencies.openssl]
+version = "*"
+features = ["tlsv1_2"]
 
 [dev-dependencies]
 env_logger = "*"
