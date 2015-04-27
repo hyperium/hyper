@@ -1,39 +1,4 @@
-use header::QualityItem;
-use std::str::FromStr;
-use std::fmt;
-
-/// A language tag.
-/// See http://www.w3.org/Protocols/rfc2616/rfc2616-sec3.html#sec3.10
-#[derive(Clone, PartialEq, Debug)]
-pub struct Language{
-    primary: String,
-    sub: Option<String>
-}
-
-impl FromStr for Language {
-    type Err = ();
-    fn from_str(s: &str) -> Result<Language, ()> {
-        let mut i = s.split("-");
-        let p = i.next();
-        let s = i.next();
-        match (p, s) {
-            (Some(p),Some(s)) => Ok(Language{primary: p.to_string(),
-                                             sub: Some(s.to_string())}),
-            (Some(p),_) => Ok(Language{primary: p.to_string(), sub: None}),
-            _ => Err(())
-        }
-    }
-}
-
-impl fmt::Display for Language {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        try!(write!(f, "{}", self.primary));
-        match self.sub {
-            Some(ref s) => write!(f, "-{}", s),
-            None => Ok(())
-        }
-    }
-}
+use header::{Language, QualityItem};
 
 header! {
     #[doc="`Accept-Language` header, defined in"]
@@ -57,7 +22,7 @@ header! {
 
 #[cfg(test)]
 mod tests {
-    use header::{Header, qitem, Quality, QualityItem};
+    use header::{Header, Language, qitem, Quality, QualityItem};
     use super::*;
 
     #[test]
