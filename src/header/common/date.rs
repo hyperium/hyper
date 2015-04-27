@@ -11,6 +11,10 @@ header! {
     #[doc="Date = HTTP-date"]
     #[doc="```"]
     (Date, "Date") => [HttpDate]
+
+    test_date {
+        test_header!(test1, vec![b"Tue, 15 Nov 1994 08:12:31 GMT"]);
+    }
 }
 
 bench_header!(imf_fixdate, Date, { vec![b"Sun, 07 Nov 1994 08:48:37 GMT".to_vec()] });

@@ -17,6 +17,8 @@ header! {
     #[doc="Content-Encoding = 1#content-coding"]
     #[doc="```"]
     (ContentEncoding, "Content-Encoding") => (Encoding)+
+
+    test_content_encoding {}
 }
 
 bench_header!(single, ContentEncoding, { vec![b"gzip".to_vec()] });

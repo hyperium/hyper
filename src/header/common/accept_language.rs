@@ -49,6 +49,10 @@ header! {
     #[doc="language-range  = <language-range, see [RFC4647], Section 2.1>"]
     #[doc="```"]
     (AcceptLanguage, "Accept-Language") => (QualityItem<Language>)+
+
+    test_accept_language {
+        test_header!(test1, vec![b"da, en-gb;q=0.8, en;q=0.7"]);
+    }
 }
 
 #[cfg(test)]

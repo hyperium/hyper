@@ -21,24 +21,21 @@ header! {
     #[doc="If-Match = \"*\" / 1#entity-tag"]
     #[doc="```"]
     (IfMatch, "If-Match") => {Any / (EntityTag)+}
-}
 
-#[test]
-fn test_parse_header() {
-    use header::Header;
-    {
-        let a: IfMatch = Header::parse_header(
-        [b"*".to_vec()].as_ref()).unwrap();
-        assert_eq!(a, IfMatch::Any);
-    }
-    {
-        let a: IfMatch = Header::parse_header(
-            [b"\"xyzzy\", \"r2d2xxxx\", \"c3piozzzz\"".to_vec()].as_ref()).unwrap();
-        let b = IfMatch::Items(
-            vec![EntityTag::new(false, "xyzzy".to_string()),
-                 EntityTag::new(false, "r2d2xxxx".to_string()),
-                 EntityTag::new(false, "c3piozzzz".to_string())]);
-        assert_eq!(a, b);
+    test_if_match {
+        test_header!(
+            test1,
+            vec![b"\"xyzzy\""],
+            Some(HeaderField::Items(
+                vec![EntityTag::new(false, "xyzzy".to_string())])));
+        test_header!(
+            test2,
+            vec![b"\"xyzzy\", \"r2d2xxxx\", \"c3piozzzz\""],
+            Some(HeaderField::Items(
+                vec![EntityTag::new(false, "xyzzy".to_string()),
+                     EntityTag::new(false, "r2d2xxxx".to_string()),
+                     EntityTag::new(false, "c3piozzzz".to_string())])));
+        test_header!(test3, vec![b"*"], Some(IfMatch::Any));
     }
 }
 

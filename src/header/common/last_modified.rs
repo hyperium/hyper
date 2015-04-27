@@ -13,6 +13,10 @@ header! {
     #[doc="Expires = HTTP-date"]
     #[doc="```"]
     (LastModified, "Last-Modified") => [HttpDate]
+
+    test_last_modified {
+        // Testcase from RFC
+        test_header!(test1, vec![b"Sat, 29 Oct 1994 19:43:31 GMT"]);}
 }
 
 bench_header!(imf_fixdate, LastModified, { vec![b"Sun, 07 Nov 1994 08:48:37 GMT".to_vec()] });

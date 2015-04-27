@@ -8,4 +8,6 @@ header! {
     #[doc="response to a preflight request, which methods can be used during the"]
     #[doc="actual request."]
     (AccessControlAllowMethods, "Access-Control-Allow-Methods") => (Method)*
+
+    test_access_control_allow_methods {}
 }

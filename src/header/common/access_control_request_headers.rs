@@ -8,4 +8,6 @@ header! {
     #[doc="be used in the actual request as part of the preflight request."]
     #[doc="during the actual request."]
     (AccessControlRequestHeaders, "Access-Control-Request-Headers") => (UniCase<String>)*
+
+    test_access_control_request_headers {}
 }

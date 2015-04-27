@@ -94,6 +94,35 @@ macro_rules! deref(
     }
 );
 
+macro_rules! test_header {
+    ($id:ident, $raw:expr) => {
+        #[test]
+        fn $id() {
+            use std::ascii::AsciiExt;
+            let raw = $raw;
+            let a: Vec<Vec<u8>> = raw.iter().map(|x| x.to_vec()).collect();
+            let value = HeaderField::parse_header(&a[..]);
+            let result = format!("{}", value.unwrap());
+            let expected = String::from_utf8(raw[0].to_vec()).unwrap();
+            let result_cmp: Vec<String> = result.to_ascii_lowercase().split(' ').map(|x| x.to_string()).collect();
+            let expected_cmp: Vec<String> = expected.to_ascii_lowercase().split(' ').map(|x| x.to_string()).collect();
+            assert_eq!(result_cmp.concat(), expected_cmp.concat());
+        }
+    };
+    ($id:ident, $raw:expr, $typed:expr) => {
+        #[test]
+        fn $id() {
+            let a: Vec<Vec<u8>> = $raw.iter().map(|x| x.to_vec()).collect();
+            let val = HeaderField::parse_header(&a[..]);
+            // Test parsing
+            assert_eq!(val, $typed);
+            // Test formatting
+            let res: &str = str::from_utf8($raw[0]).unwrap();
+            assert_eq!(format!("{}", $typed.unwrap()), res);
+        }
+    }
+}
+
 #[macro_export]
 macro_rules! header {
     // $a:meta: Attributes associated with the header item (usually docs)
@@ -102,7 +131,7 @@ macro_rules! header {
     // $nn:expr: Nice name of the header
 
     // List header, zero or more items
-    ($(#[$a:meta])*($id:ident, $n:expr) => ($item:ty)*) => {
+    ($(#[$a:meta])*($id:ident, $n:expr) => ($item:ty)* $tm:ident{$($tf:item)*}) => {
         $(#[$a])*
         #[derive(Clone, Debug, PartialEq)]
         pub struct $id(pub Vec<$item>);
@@ -125,11 +154,20 @@ macro_rules! header {
                 use $crate::header::HeaderFormat;
                 self.fmt_header(f)
             }
+        }
+        #[allow(unused_imports)]
+        mod $tm{
+            use std::str;
+            use $crate::header::*;
+            use $crate::mime::*;
+            use $crate::method::Method;
+            use super::$id as HeaderField;
+            $($tf)*
         }
 
     };
     // List header, one or more items
-    ($(#[$a:meta])*($id:ident, $n:expr) => ($item:ty)+) => {
+    ($(#[$a:meta])*($id:ident, $n:expr) => ($item:ty)+ $tm:ident{$($tf:item)*}) => {
         $(#[$a])*
         #[derive(Clone, Debug, PartialEq)]
         pub struct $id(pub Vec<$item>);
@@ -153,9 +191,18 @@ macro_rules! header {
                 self.fmt_header(f)
             }
         }
+        #[allow(unused_imports)]
+        mod $tm{
+            use std::str;
+            use $crate::header::*;
+            use $crate::mime::*;
+            use $crate::method::Method;
+            use super::$id as HeaderField;
+            $($tf)*
+        }
     };
     // Single value header
-    ($(#[$a:meta])*($id:ident, $n:expr) => [$value:ty]) => {
+    ($(#[$a:meta])*($id:ident, $n:expr) => [$value:ty] $tm:ident{$($tf:item)*}) => {
         $(#[$a])*
         #[derive(Clone, Debug, PartialEq)]
         pub struct $id(pub $value);
@@ -178,9 +225,18 @@ macro_rules! header {
                 ::std::fmt::Display::fmt(&**self, f)
             }
         }
+        #[allow(unused_imports)]
+        mod $tm{
+            use std::str;
+            use $crate::header::*;
+            use $crate::mime::*;
+            use $crate::method::Method;
+            use super::$id as HeaderField;
+            $($tf)*
+        }
     };
     // List header, one or more items with "*" option
-    ($(#[$a:meta])*($id:ident, $n:expr) => {Any / ($item:ty)+}) => {
+    ($(#[$a:meta])*($id:ident, $n:expr) => {Any / ($item:ty)+} $tm:ident{$($tf:item)*}) => {
         $(#[$a])*
         #[derive(Clone, Debug, PartialEq)]
         pub enum $id {
@@ -218,6 +274,15 @@ macro_rules! header {
                 use $crate::header::HeaderFormat;
                 self.fmt_header(f)
             }
+        }
+        #[allow(unused_imports)]
+        mod $tm{
+            use std::str;
+            use $crate::header::*;
+            use $crate::mime::*;
+            use $crate::method::Method;
+            use super::$id as HeaderField;
+            $($tf)*
         }
     };
 }

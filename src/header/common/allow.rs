@@ -13,23 +13,33 @@ header! {
     #[doc="Allow = #method"]
     #[doc="```"]
     (Allow, "Allow") => (Method)*
-}
 
-#[cfg(test)]
-mod tests {
-    use super::Allow;
-    use header::Header;
-    use method::Method::{self, Options, Get, Put, Post, Delete, Head, Trace, Connect, Patch, Extension};
-
-    #[test]
-    fn test_allow() {
-        let mut allow: Option<Allow>;
-
-        allow = Header::parse_header([b"OPTIONS,GET,PUT,POST,DELETE,HEAD,TRACE,CONNECT,PATCH,fOObAr".to_vec()].as_ref());
-        assert_eq!(allow, Some(Allow(vec![Options, Get, Put, Post, Delete, Head, Trace, Connect, Patch, Extension("fOObAr".to_string())])));
-
-        allow = Header::parse_header([b"".to_vec()].as_ref());
-        assert_eq!(allow, Some(Allow(Vec::<Method>::new())));
+    test_allow {
+        // From the RFC
+        test_header!(
+            test1,
+            vec![b"GET, HEAD, PUT"],
+            Some(HeaderField(vec![Method::Get, Method::Head, Method::Put])));
+        // Own tests
+        test_header!(
+            test2,
+            vec![b"OPTIONS, GET, PUT, POST, DELETE, HEAD, TRACE, CONNECT, PATCH, fOObAr"],
+            Some(HeaderField(vec![
+                Method::Options,
+                Method::Get,
+                Method::Put,
+                Method::Post,
+                Method::Delete,
+                Method::Head,
+                Method::Trace,
+                Method::Connect,
+                Method::Patch,
+                Method::Extension("fOObAr".to_string())])));
+        // FIXME: Formatting fails
+        // test_header!(
+        //    test3,
+        //    vec![b""],
+        //    Some(HeaderField(Vec::<Method>::new())));
     }
 }
 

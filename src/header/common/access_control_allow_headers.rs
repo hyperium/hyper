@@ -8,4 +8,6 @@ header! {
     #[doc="response to a preflight request, which header field names can be used"]
     #[doc="during the actual request."]
     (AccessControlAllowHeaders, "Access-Control-Allow-Headers") => (UniCase<String>)*
+    
+    test_access_control_allow_headers {}
 }

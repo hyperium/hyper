@@ -16,6 +16,17 @@ header! {
     #[doc="codings          = content-coding / \"identity\" / \"*\""]
     #[doc="```"]
     (AcceptEncoding, "Accept-Encoding") => (QualityItem<Encoding>)*
+
+    test_accept_encoding {
+        // From the RFC
+        test_header!(test1, vec![b"compress, gzip"]);
+        test_header!(test2, vec![b""]);
+        test_header!(test3, vec![b"*"]);
+        // Note: Removed quality 1 from gzip
+        test_header!(test4, vec![b"compress;q=0.5, gzip"]);
+        // FIXME: Formatting of 0 as quality value
+        // test_header!(test5, vec![b"gzip;q=1.0, identity; q=0.5, *;q=0"]);
+    }
 }
 
 #[cfg(test)]
