@@ -1,21 +1,27 @@
 language: rust
+matrix:
+    fast_finish: true
+    include:
+        - rust: nightly
+          env: FEATURES="--features nightly"
+        - rust: nightly
+          env: FEATURES="--features nightly" BENCH=true
+        - rust: beta
+
 sudo: false
 
 cache:
     directories:
         - target
 
-script:
-    - cargo build --features nightly
-    - cargo test --features nightly
-    - cargo bench --features nightly
+script: ./.travis.sh
 
 after_success: |
     [ $TRAVIS_BRANCH = master ] &&
     [ $TRAVIS_PULL_REQUEST = false ] &&
-    cargo doc --features nightly &&
+    [ $TRAVIS_RUST_VERSION = beta ] &&
+    cargo doc  &&
     echo '<meta http-equiv=refresh content=0;url=hyper/index.html>' > target/doc/index.html &&
-    git shortlog -s -n | cut -c 8- > target/doc/humans.txt &&
     pip install --user ghp-import &&
     /home/travis/.local/bin/ghp-import -n target/doc &&
     git push -fq https://${TOKEN}@github.com/${TRAVIS_REPO_SLUG}.git gh-pages
