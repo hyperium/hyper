@@ -15,6 +15,13 @@ header! {
     #[doc="Accept-Encoding  = #( codings [ weight ] )"]
     #[doc="codings          = content-coding / \"identity\" / \"*\""]
     #[doc="```"]
+    #[doc=""]
+    #[doc="# Example values"]
+    #[doc="* `compress, gzip`"]
+    #[doc="* ``"]
+    #[doc="* `*`"]
+    #[doc="* `compress;q=0.5, gzip;q=1`"]
+    #[doc="* `gzip;q=1.0, identity; q=0.5, *;q=0`"]
     (AcceptEncoding, "Accept-Encoding") => (QualityItem<Encoding>)*
 
     test_accept_encoding {
