@@ -35,11 +35,10 @@ header! {
                 Method::Connect,
                 Method::Patch,
                 Method::Extension("fOObAr".to_string())])));
-        // FIXME: Formatting fails
-        // test_header!(
-        //    test3,
-        //    vec![b""],
-        //    Some(HeaderField(Vec::<Method>::new())));
+        test_header!(
+            test3,
+            vec![b""],
+            Some(HeaderField(Vec::<Method>::new())));
     }
 }
 

@@ -24,10 +24,10 @@ pub struct Quality(pub u16);
 
 impl fmt::Display for Quality {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.0 == 1000 {
-            write!(f, "")
-        } else {
-            write!(f, "; q=0.{}", format!("{:03}", self.0).trim_right_matches('0'))
+        match self.0 {
+            1000 => Ok(()),
+            0 => f.write_str("; q=0"),
+            x => write!(f, "; q=0.{}", format!("{:03}", x).trim_right_matches('0'))
         }
     }
 }
@@ -194,6 +194,11 @@ mod tests {
     #[test]
     fn test_quality() {
         assert_eq!(q(0.5), Quality(500));
+    }
+
+    #[test]
+    fn test_quality2() {
+        assert_eq!(format!("{}", q(0.0)), "; q=0");
     }
 
     #[test]
