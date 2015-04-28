@@ -12,6 +12,9 @@ header! {
     #[doc="```plain"]
     #[doc="Expires = HTTP-date"]
     #[doc="```"]
+    #[doc=""]
+    #[doc="# Example values"]
+    #[doc="* `Sat, 29 Oct 1994 19:43:31 GMT`"]
     (LastModified, "Last-Modified") => [HttpDate]
 
     test_last_modified {

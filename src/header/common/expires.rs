@@ -14,6 +14,9 @@ header! {
     #[doc="```plain"]
     #[doc="Expires = HTTP-date"]
     #[doc="```"]
+    #[doc=""]
+    #[doc="# Example values"]
+    #[doc="* `Thu, 01 Dec 1994 16:00:00 GMT`"]
     (Expires, "Expires") => [HttpDate]
 
     test_expires {

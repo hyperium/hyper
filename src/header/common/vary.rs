@@ -14,28 +14,25 @@ header! {
     #[doc="```plain"]
     #[doc="Vary = \"*\" / 1#field-name"]
     #[doc="```"]
+    #[doc=""]
+    #[doc="# Example values"]
+    #[doc="* `accept-encoding, accept-language`"]
     (Vary, "Vary") => {Any / (UniCase<String>)+}
 
     test_vary {
         test_header!(test1, vec![b"accept-encoding, accept-language"]);
-    }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::Vary;
-    use header::Header;
+        #[test]
+        fn test2() {
+            let mut vary: Option<Vary>;
 
-    #[test]
-    fn test_vary() {
-        let mut vary: Option<Vary>;
+            vary = Header::parse_header([b"*".to_vec()].as_ref());
+            assert_eq!(vary, Some(Vary::Any));
 
-        vary = Header::parse_header([b"*".to_vec()].as_ref());
-        assert_eq!(vary, Some(Vary::Any));
-
-        vary = Header::parse_header([b"etag,cookie,allow".to_vec()].as_ref());
-        assert_eq!(vary, Some(Vary::Items(vec!["eTag".parse().unwrap(),
-                                                "cookIE".parse().unwrap(),
-                                                "AlLOw".parse().unwrap(),])));
+            vary = Header::parse_header([b"etag,cookie,allow".to_vec()].as_ref());
+            assert_eq!(vary, Some(Vary::Items(vec!["eTag".parse().unwrap(),
+                                                    "cookIE".parse().unwrap(),
+                                                    "AlLOw".parse().unwrap(),])));
+        }
     }
 }

@@ -10,6 +10,9 @@ header! {
     #[doc="```plain"]
     #[doc="Date = HTTP-date"]
     #[doc="```"]
+    #[doc=""]
+    #[doc="# Example values"]
+    #[doc="* `Tue, 15 Nov 1994 08:12:31 GMT`"]
     (Date, "Date") => [HttpDate]
 
     test_date {

@@ -118,8 +118,10 @@ macro_rules! test_header {
             // Test parsing
             assert_eq!(val, $typed);
             // Test formatting
-            let res: &str = str::from_utf8($raw[0]).unwrap();
-            assert_eq!(format!("{}", $typed.unwrap()), res);
+            if $typed != None {
+                let res: &str = str::from_utf8($raw[0]).unwrap();
+                assert_eq!(format!("{}", $typed.unwrap()), res);
+            }
         }
     }
 }

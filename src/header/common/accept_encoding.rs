@@ -15,33 +15,23 @@ header! {
     #[doc="Accept-Encoding  = #( codings [ weight ] )"]
     #[doc="codings          = content-coding / \"identity\" / \"*\""]
     #[doc="```"]
+    #[doc=""]
+    #[doc="# Example values"]
+    #[doc="* `compress, gzip`"]
+    #[doc="* ``"]
+    #[doc="* `*`"]
+    #[doc="* `compress;q=0.5, gzip;q=1`"]
+    #[doc="* `gzip;q=1.0, identity; q=0.5, *;q=0`"]
     (AcceptEncoding, "Accept-Encoding") => (QualityItem<Encoding>)*
 
     test_accept_encoding {
         // From the RFC
         test_header!(test1, vec![b"compress, gzip"]);
-        test_header!(test2, vec![b""]);
+        test_header!(test2, vec![b""], Some(AcceptEncoding(vec![])));
         test_header!(test3, vec![b"*"]);
         // Note: Removed quality 1 from gzip
         test_header!(test4, vec![b"compress;q=0.5, gzip"]);
-        // FIXME: Formatting of 0 as quality value
-        // test_header!(test5, vec![b"gzip;q=1.0, identity; q=0.5, *;q=0"]);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use header::{Encoding, Header, qitem, Quality, QualityItem};
-
-    use super::*;
-
-    #[test]
-    fn test_parse_header() {
-        let a: AcceptEncoding = Header::parse_header([b"gzip;q=1.0, identity; q=0.5".to_vec()].as_ref()).unwrap();
-        let b = AcceptEncoding(vec![
-            qitem(Encoding::Gzip),
-            QualityItem::new(Encoding::Identity, Quality(500)),
-        ]);
-        assert_eq!(a, b);
+        // Note: Removed quality 1 from gzip
+        test_header!(test5, vec![b"gzip, identity; q=0.5, *;q=0"]);
     }
 }

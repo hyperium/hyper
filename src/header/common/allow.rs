@@ -12,6 +12,11 @@ header! {
     #[doc="```plain"]
     #[doc="Allow = #method"]
     #[doc="```"]
+    #[doc=""]
+    #[doc="# Example values"]
+    #[doc="* `GET, HEAD, PUT`"]
+    #[doc="* `OPTIONS, GET, PUT, POST, DELETE, HEAD, TRACE, CONNECT, PATCH, fOObAr`"]
+    #[doc="* ``"]
     (Allow, "Allow") => (Method)*
 
     test_allow {
@@ -35,11 +40,10 @@ header! {
                 Method::Connect,
                 Method::Patch,
                 Method::Extension("fOObAr".to_string())])));
-        // FIXME: Formatting fails
-        // test_header!(
-        //    test3,
-        //    vec![b""],
-        //    Some(HeaderField(Vec::<Method>::new())));
+        test_header!(
+            test3,
+            vec![b""],
+            Some(HeaderField(Vec::<Method>::new())));
     }
 }
 

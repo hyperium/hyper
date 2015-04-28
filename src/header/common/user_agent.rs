@@ -16,19 +16,19 @@ header! {
     #[doc="product         = token [\"/\" product-version]"]
     #[doc="product-version = token"]
     #[doc="```"]
-    // TODO: Maybe write parsing according to the spec? (Split the String)
+    #[doc=""]
+    #[doc="# Example values"]
+    #[doc="* `CERN-LineMode/2.15 libwww/2.17b3`"]
+    #[doc="* `Bunnies`"]
+    #[doc=""]
+    #[doc="# Notes"]
+    #[doc="* The parser does not split the value"]
     (UserAgent, "User-Agent") => [String]
 
     test_user_agent {
         // Testcase from RFC
         test_header!(test1, vec![b"CERN-LineMode/2.15 libwww/2.17b3"]);
+        // Own testcase
+        test_header!(test2, vec![b"Bunnies"], Some(UserAgent("Bunnies".to_string())));
     }
-}
-
-#[test] fn test_format() {
-    use std::borrow::ToOwned;
-    use header::Headers;
-    let mut head = Headers::new();
-    head.set(UserAgent("Bunnies".to_owned()));
-    assert!(head.to_string() == "User-Agent: Bunnies\r\n".to_owned());
 }

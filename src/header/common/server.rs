@@ -13,6 +13,9 @@ header! {
     #[doc="```plain"]
     #[doc="Server = product *( RWS ( product / comment ) )"]
     #[doc="```"]
+    #[doc=""]
+    #[doc="# Example values"]
+    #[doc="* `CERN/3.0 libwww/2.17`"]
     // TODO: Maybe parse as defined in the spec?
     (Server, "Server") => [String]
 

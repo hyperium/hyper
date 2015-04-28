@@ -15,9 +15,13 @@ header! {
     #[doc="```plain"]
     #[doc="Accept-Charset = 1#( ( charset / \"*\" ) [ weight ] )"]
     #[doc="```"]
+    #[doc=""]
+    #[doc="# Example values"]
+    #[doc="* `iso-8859-5, unicode-1-1;q=0.8`"]
     (AcceptCharset, "Accept-Charset") => (QualityItem<Charset>)+
 
     test_accept_charset {
+        /// Testcase from RFC
         test_header!(test1, vec![b"iso-8859-5, unicode-1-1;q=0.8"]);
     }
 }

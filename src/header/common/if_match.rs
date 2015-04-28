@@ -20,6 +20,10 @@ header! {
     #[doc="```plain"]
     #[doc="If-Match = \"*\" / 1#entity-tag"]
     #[doc="```"]
+    #[doc=""]
+    #[doc="# Example values"]
+    #[doc="* `\"xyzzy\"`"]
+    #[doc="* \"xyzzy\", \"r2d2xxxx\", \"c3piozzzz\""]
     (IfMatch, "If-Match") => {Any / (EntityTag)+}
 
     test_if_match {

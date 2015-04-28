@@ -11,6 +11,10 @@ header! {
     #[doc="```plain"]
     #[doc="Location = URI-reference"]
     #[doc="```"]
+    #[doc=""]
+    #[doc="# Example values"]
+    #[doc="* `/People.html#tim`"]
+    #[doc="* `http://www.example.net/index.html`"]
     // TODO: Use URL
     (Location, "Location") => [String]
 

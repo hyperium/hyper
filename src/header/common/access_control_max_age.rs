@@ -4,7 +4,17 @@ header! {
     #[doc=""]
     #[doc="The `Access-Control-Max-Age` header indicates how long the results of a"]
     #[doc="preflight request can be cached in a preflight result cache."]
+    #[doc=""]
+    #[doc="# ABNF"]
+    #[doc="```plain"]
+    #[doc="Access-Control-Max-Age = \"Access-Control-Max-Age\" \":\" delta-seconds"]
+    #[doc="```"]
+    #[doc=""]
+    #[doc="# Example values"]
+    #[doc="* `531`"]
     (AccessControlMaxAge, "Access-Control-Max-Age") => [u32]
 
-    test_access_control_max_age {}
+    test_access_control_max_age {
+        test_header!(test1, vec![b"531"]);
+    }
 }
