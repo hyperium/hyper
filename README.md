@@ -1,5 +1,7 @@
 # hyper
 
+[![Join the chat at https://gitter.im/hyperium/hyper](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/hyperium/hyper?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 [![Build Status](https://travis-ci.org/hyperium/hyper.svg?branch=master)](https://travis-ci.org/hyperium/hyper)
 [![crates.io](http://meritbadge.herokuapp.com/hyper)](https://crates.io/crates/hyper)
 
