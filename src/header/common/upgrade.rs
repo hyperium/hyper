@@ -25,6 +25,9 @@ header! {
     #[doc="protocol-name    = token"]
     #[doc="protocol-version = token"]
     #[doc="```"]
+    #[doc=""]
+    #[doc="# Example values"]
+    #[doc="* `HTTP/2.0, SHTTP/1.3, IRC/6.9, RTA/x11`"]
     (Upgrade, "Upgrade") => (Protocol)+
 
     test_upgrade {
@@ -41,6 +44,7 @@ header! {
 }
 
 /// Protocol values that can appear in the Upgrade header.
+// TODO: Parse version part seperately
 #[derive(Clone, PartialEq, Debug)]
 pub enum Protocol {
     /// The websocket protocol.

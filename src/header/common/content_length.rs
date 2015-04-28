@@ -15,6 +15,9 @@ header! {
     #[doc="```plain"]
     #[doc="Content-Length = 1*DIGIT"]
     #[doc="```"]
+    #[doc=""]
+    #[doc="# Example values"]
+    #[doc="* `3495`"]
     (ContentLength, "Content-Length") => [u64]
 
     test_content_length {

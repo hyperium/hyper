@@ -13,6 +13,10 @@ header! {
     #[doc="```plain"]
     #[doc="Content-Language = 1#language-tag"]
     #[doc="```"]
+    #[doc=""]
+    #[doc="# Example values"]
+    #[doc="* `da`"]
+    #[doc="* `mi, en`"]
     (ContentLanguage, "Content-Language") => (QualityItem<Language>)+
 
     test_content_language {

@@ -13,6 +13,9 @@ header! {
     #[doc="```plain"]
     #[doc="Transfer-Encoding = 1#transfer-coding"]
     #[doc="```"]
+    #[doc=""]
+    #[doc="# Example values"]
+    #[doc="* `gzip, chunked`"]
     (TransferEncoding, "Transfer-Encoding") => (Encoding)+
 
     transfer_encoding {

@@ -12,6 +12,11 @@ header! {
     #[doc="```plain"]
     #[doc="Allow = #method"]
     #[doc="```"]
+    #[doc=""]
+    #[doc="# Example values"]
+    #[doc="* `GET, HEAD, PUT`"]
+    #[doc="* `OPTIONS, GET, PUT, POST, DELETE, HEAD, TRACE, CONNECT, PATCH, fOObAr`"]
+    #[doc="* ``"]
     (Allow, "Allow") => (Method)*
 
     test_allow {

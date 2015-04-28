@@ -12,6 +12,9 @@ header! {
     #[doc="```plain"]
     #[doc="Referer = absolute-URI / partial-URI"]
     #[doc="```"]
+    #[doc=""]
+    #[doc="# Example values"]
+    #[doc="* `http://www.example.org/hypertext/Overview.html`"]
     // TODO: Use URL
     (Referer, "Referer") => [String]
 

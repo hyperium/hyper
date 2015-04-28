@@ -16,6 +16,9 @@ header! {
     #[doc="```plain"]
     #[doc="Content-Type = media-type"]
     #[doc="```"]
+    #[doc=""]
+    #[doc="# Example values"]
+    #[doc="* `text/html; charset=ISO-8859-4`"]
     (ContentType, "Content-Type") => [Mime]
 
     test_content_type {

@@ -17,63 +17,30 @@ header! {
     #[doc="```plain"]
     #[doc="ETag       = entity-tag"]
     #[doc="```"]
+    #[doc=""]
+    #[doc="# Example values"]
+    #[doc="* `\"xyzzy\"`"]
+    #[doc="* `W/\"xyzzy\"`"]
+    #[doc="* `\"\"`"]
     (ETag, "ETag") => [EntityTag]
 
     test_etag {
-        test_header!(test1, vec![b"\"xyzzy\""], Some(HeaderField(EntityTag::new(false, "xyzzy".to_string()))));
-        test_header!(test2, vec![b"W/\"xyzzy\""], Some(HeaderField(EntityTag::new(true, "xyzzy".to_string()))));
-        test_header!(test3, vec![b"\"\""], Some(HeaderField(EntityTag::new(false, "".to_string()))));
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::ETag;
-    use header::{Header,EntityTag};
-
-    #[test]
-    fn test_etag_successes() {
-        // Expected successes
-        let mut etag: Option<ETag>;
-
-        etag = Header::parse_header([b"\"foobar\"".to_vec()].as_ref());
-        assert_eq!(etag, Some(ETag(EntityTag::new(false, "foobar".to_string()))));
-
-        etag = Header::parse_header([b"\"\"".to_vec()].as_ref());
-        assert_eq!(etag, Some(ETag(EntityTag::new(false, "".to_string()))));
-
-        etag = Header::parse_header([b"W/\"weak-etag\"".to_vec()].as_ref());
-        assert_eq!(etag, Some(ETag(EntityTag::new(true, "weak-etag".to_string()))));
-
-        etag = Header::parse_header([b"W/\"\x65\x62\"".to_vec()].as_ref());
-        assert_eq!(etag, Some(ETag(EntityTag::new(true, "\u{0065}\u{0062}".to_string()))));
-
-        etag = Header::parse_header([b"W/\"\"".to_vec()].as_ref());
-        assert_eq!(etag, Some(ETag(EntityTag::new(true, "".to_string()))));
-    }
-
-    #[test]
-    fn test_etag_failures() {
-        // Expected failures
-        let mut etag: Option<ETag>;
-
-        etag = Header::parse_header([b"no-dquotes".to_vec()].as_ref());
-        assert_eq!(etag, None);
-
-        etag = Header::parse_header([b"w/\"the-first-w-is-case-sensitive\"".to_vec()].as_ref());
-        assert_eq!(etag, None);
-
-        etag = Header::parse_header([b"".to_vec()].as_ref());
-        assert_eq!(etag, None);
-
-        etag = Header::parse_header([b"\"unmatched-dquotes1".to_vec()].as_ref());
-        assert_eq!(etag, None);
-
-        etag = Header::parse_header([b"unmatched-dquotes2\"".to_vec()].as_ref());
-        assert_eq!(etag, None);
-
-        etag = Header::parse_header([b"matched-\"dquotes\"".to_vec()].as_ref());
-        assert_eq!(etag, None);
+        // From the RFC
+        test_header!(test1, vec![b"\"xyzzy\""], Some(ETag(EntityTag::new(false, "xyzzy".to_string()))));
+        test_header!(test2, vec![b"W/\"xyzzy\""], Some(ETag(EntityTag::new(true, "xyzzy".to_string()))));
+        test_header!(test3, vec![b"\"\""], Some(ETag(EntityTag::new(false, "".to_string()))));
+        // Own tests
+        test_header!(test4, vec![b"\"foobar\""], Some(ETag(EntityTag::new(false, "foobar".to_string()))));
+        test_header!(test5, vec![b"\"\""], Some(ETag(EntityTag::new(false, "".to_string()))));
+        test_header!(test6, vec![b"W/\"weak-etag\""], Some(ETag(EntityTag::new(true, "weak-etag".to_string()))));
+        test_header!(test7, vec![b"W/\"\x65\x62\""], Some(ETag(EntityTag::new(true, "\u{0065}\u{0062}".to_string()))));
+        test_header!(test8, vec![b"W/\"\""], Some(ETag(EntityTag::new(true, "".to_string()))));
+        test_header!(test9, vec![b"no-dquotes"], None::<ETag>);
+        test_header!(test10, vec![b"w/\"the-first-w-is-case-sensitive\""], None::<ETag>);
+        test_header!(test11, vec![b""], None::<ETag>);
+        test_header!(test12, vec![b"\"unmatched-dquotes1"], None::<ETag>);
+        test_header!(test13, vec![b"unmatched-dquotes2\""], None::<ETag>);
+        test_header!(test14, vec![b"matched-\"dquotes\""], None::<ETag>);
     }
 }
 
