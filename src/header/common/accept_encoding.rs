@@ -20,7 +20,7 @@ header! {
     test_accept_encoding {
         // From the RFC
         test_header!(test1, vec![b"compress, gzip"]);
-        test_header!(test2, vec![b""]);
+        test_header!(test2, vec![b""], Some(AcceptEncoding(vec![])));
         test_header!(test3, vec![b"*"]);
         // Note: Removed quality 1 from gzip
         test_header!(test4, vec![b"compress;q=0.5, gzip"]);
