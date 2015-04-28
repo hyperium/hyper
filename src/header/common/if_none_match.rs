@@ -19,6 +19,13 @@ header! {
     #[doc="```plain"]
     #[doc="If-None-Match = \"*\" / 1#entity-tag"]
     #[doc="```"]
+    #[doc=""]
+    #[doc="# Example values"]
+    #[doc="* `\"xyzzy\"`"]
+    #[doc="* `W/\"xyzzy\"`"]
+    #[doc="* `\"xyzzy\", \"r2d2xxxx\", \"c3piozzzz\"`"]
+    #[doc="* `W/\"xyzzy\", W/\"r2d2xxxx\", W/\"c3piozzzz\"`"]
+    #[doc="* `*`"]
     (IfNoneMatch, "If-None-Match") => {Any / (EntityTag)+}
 
     test_if_none_match {

@@ -14,6 +14,9 @@ header! {
     #[doc="```plain"]
     #[doc="If-Unmodified-Since = HTTP-date"]
     #[doc="```"]
+    #[doc=""]
+    #[doc="# Example values"]
+    #[doc="* `Sat, 29 Oct 1994 19:43:31 GMT`"]
     (IfModifiedSince, "If-Modified-Since") => [HttpDate]
 
     test_if_modified_since {
