@@ -1,17 +1,22 @@
-use std::fmt::{self};
+use std::fmt;
 use std::str;
 
 use url::Url;
 use header;
 
 /// The `Access-Control-Allow-Origin` response header,
-/// part of [CORS](http://www.w3.org/TR/cors/).
+/// part of [CORS](www.w3.org/TR/cors/#access-control-allow-origin-response-header)
 ///
-/// > The `Access-Control-Allow-Origin` header indicates whether a resource
-/// > can be shared based by returning the value of the Origin request header,
-/// > "*", or "null" in the response.
+/// The `Access-Control-Allow-Origin` header indicates whether a resource
+/// can be shared based by returning the value of the Origin request header,
+/// "*", or "null" in the response.
 ///
-/// Spec: www.w3.org/TR/cors/#access-control-allow-origin-response-header
+/// # ABNF
+/// ```plain
+/// Access-Control-Allow-Origin = "Access-Control-Allow-Origin" ":" origin-list-or-null | "*"
+/// ```
+// FIXME: The documentation says differently (missing "null" value, "*" not used in practice,
+// orgin list no list but single value)
 #[derive(Clone, PartialEq, Debug)]
 pub enum AccessControlAllowOrigin {
     /// Allow all origins
