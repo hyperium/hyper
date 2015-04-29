@@ -1,3 +1,34 @@
+### v0.3.15 (2015-04-29)
+
+
+#### Bug Fixes
+
+* **headers:**
+  * Do not parse empty values in list headers. ([093a29ba](https://github.com/hyperium/hyper/commit/093a29bab7eb27e78bb10506478ac486e8d61671))
+  * Fix formatting of 0 qualites and formatting of empty list header fields. ([621ef521](https://github.com/hyperium/hyper/commit/621ef521f6723ba2d59beff05ff39ae8fd6df2c3))
+
+
+#### Features
+
+* **client:**
+  * remove Clone requirement for NetworkStream in Client ([60d92c29](https://github.com/hyperium/hyper/commit/60d92c296a445b352679919c03c5ed2a2a297e16))
+  * accept &String as Body in RequestBuilder ([a2aefd9a](https://github.com/hyperium/hyper/commit/a2aefd9a5689d4816f7c054bd6c32aa5c6fe3087))
+  * accept &String for a Url in RequestBuilder ([8bc179fb](https://github.com/hyperium/hyper/commit/8bc179fb517735a7c1d5cd1d7f5598bb82914dc6))
+* **headers:** Implement Content-Language header field ([308880b4](https://github.com/hyperium/hyper/commit/308880b455df4dbb5d32817b5c0320c2a88139e3), closes [#475](https://github.com/hyperium/hyper/issues/475))
+* **net:** add https_using_context for user-supplied SslContext ([1a076d1b](https://github.com/hyperium/hyper/commit/1a076d1bc7e8fb9c58904b0cec879dcf0fbce97b))
+* **server:** allow consumer to supply an SslContext ([3a1a2427](https://github.com/hyperium/hyper/commit/3a1a24270dd13e22ef59120d66d327528949d5e0), closes [#471](https://github.com/hyperium/hyper/issues/471))
+
+
+#### Breaking Changes
+
+* This removes the trait `IntoBody`, and instead using
+  `Into<Body>`, as it's more idiomatic. This will only have broken code
+  that had custom implementations of `IntoBody`, and can be fixed by
+  changing them to `Into<Body>`.
+
+ ([a2aefd9a](https://github.com/hyperium/hyper/commit/a2aefd9a5689d4816f7c054bd6c32aa5c6fe3087))
+
+
 ### v0.3.14 (2015-04-18)
 
 
