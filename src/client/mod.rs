@@ -46,15 +46,17 @@ use status::StatusClass::Redirection;
 use {Url, HttpResult};
 use HttpError::HttpUriError;
 
+pub use self::pool::Pool;
 pub use self::request::Request;
 pub use self::response::Response;
 
+pub mod pool;
 pub mod request;
 pub mod response;
 
 /// A Client to use additional features with Requests.
 ///
-/// Clients can handle things such as: redirect policy.
+/// Clients can handle things such as: redirect policy, connection pooling.
 pub struct Client {
     connector: Connector,
     redirect_policy: RedirectPolicy,
@@ -64,7 +66,12 @@ impl Client {
 
     /// Create a new Client.
     pub fn new() -> Client {
-        Client::with_connector(HttpConnector(None))
+        Client::with_pool_config(Default::default())
+    }
+
+    /// Create a new Client with a configured Pool Config.
+    pub fn with_pool_config(config: pool::Config) -> Client {
+        Client::with_connector(Pool::new(config))
     }
 
     /// Create a new client with a specific connector.
@@ -78,7 +85,10 @@ impl Client {
 
     /// Set the SSL verifier callback for use with OpenSSL.
     pub fn set_ssl_verifier(&mut self, verifier: ContextVerifier) {
-        self.connector = with_connector(HttpConnector(Some(verifier)));
+        self.connector = with_connector(Pool::with_connector(
+            Default::default(),
+            HttpConnector(Some(verifier))
+        ));
     }
 
     /// Set the RedirectPolicy.

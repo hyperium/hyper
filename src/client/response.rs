@@ -1,6 +1,7 @@
 //! Client Responses
 use std::io::{self, Read};
 use std::marker::PhantomData;
+use std::net::Shutdown;
 
 use buffer::BufReader;
 use header;
@@ -41,6 +42,10 @@ impl Response {
         let status = status::StatusCode::from_u16(raw_status.0);
         debug!("version={:?}, status={:?}", head.version, status);
         debug!("headers={:?}", headers);
+
+        if !http::should_keep_alive(head.version, &headers) {
+            try!(stream.get_mut().close(Shutdown::Write));
+        }
 
         let body = if headers.has::<TransferEncoding>() {
             match headers.get::<TransferEncoding>() {
