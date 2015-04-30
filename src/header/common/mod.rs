@@ -95,6 +95,7 @@ macro_rules! deref(
     }
 );
 
+#[macro_export]
 macro_rules! test_header {
     ($id:ident, $raw:expr) => {
         #[test]
