@@ -34,6 +34,7 @@ pub use self::if_match::IfMatch;
 pub use self::if_modified_since::IfModifiedSince;
 pub use self::if_none_match::IfNoneMatch;
 pub use self::if_unmodified_since::IfUnmodifiedSince;
+pub use self::if_range::IfRange;
 pub use self::last_modified::LastModified;
 pub use self::location::Location;
 pub use self::pragma::Pragma;
@@ -118,8 +119,10 @@ macro_rules! test_header {
             // Test parsing
             assert_eq!(val, $typed);
             // Test formatting
-            let res: &str = str::from_utf8($raw[0]).unwrap();
-            assert_eq!(format!("{}", $typed.unwrap()), res);
+            if $typed != None {
+                let res: &str = str::from_utf8($raw[0]).unwrap();
+                assert_eq!(format!("{}", $typed.unwrap()), res);
+            }
         }
     }
 }
@@ -313,10 +316,11 @@ mod expect;
 mod expires;
 mod host;
 mod if_match;
-mod last_modified;
 mod if_modified_since;
 mod if_none_match;
+mod if_range;
 mod if_unmodified_since;
+mod last_modified;
 mod location;
 mod pragma;
 mod referer;
