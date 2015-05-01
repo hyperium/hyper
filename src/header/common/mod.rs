@@ -96,6 +96,21 @@ macro_rules! deref(
     }
 );
 
+macro_rules! tm {
+    ($id:ident, $tm:ident{$($tf:item)*}) => {
+        #[allow(unused_imports)]
+        mod $tm{
+            use std::str;
+            use $crate::header::*;
+            use $crate::mime::*;
+            use $crate::method::Method;
+            use super::$id as HeaderField;
+            $($tf)*
+        }
+
+    }
+}
+
 #[macro_export]
 macro_rules! test_header {
     ($id:ident, $raw:expr) => {
@@ -136,7 +151,7 @@ macro_rules! header {
     // $nn:expr: Nice name of the header
 
     // List header, zero or more items
-    ($(#[$a:meta])*($id:ident, $n:expr) => ($item:ty)* $tm:ident{$($tf:item)*}) => {
+    ($(#[$a:meta])*($id:ident, $n:expr) => ($item:ty)*) => {
         $(#[$a])*
         #[derive(Clone, Debug, PartialEq)]
         pub struct $id(pub Vec<$item>);
@@ -160,19 +175,9 @@ macro_rules! header {
                 self.fmt_header(f)
             }
         }
-        #[allow(unused_imports)]
-        mod $tm{
-            use std::str;
-            use $crate::header::*;
-            use $crate::mime::*;
-            use $crate::method::Method;
-            use super::$id as HeaderField;
-            $($tf)*
-        }
-
     };
     // List header, one or more items
-    ($(#[$a:meta])*($id:ident, $n:expr) => ($item:ty)+ $tm:ident{$($tf:item)*}) => {
+    ($(#[$a:meta])*($id:ident, $n:expr) => ($item:ty)+) => {
         $(#[$a])*
         #[derive(Clone, Debug, PartialEq)]
         pub struct $id(pub Vec<$item>);
@@ -195,19 +200,10 @@ macro_rules! header {
                 use $crate::header::HeaderFormat;
                 self.fmt_header(f)
             }
-        }
-        #[allow(unused_imports)]
-        mod $tm{
-            use std::str;
-            use $crate::header::*;
-            use $crate::mime::*;
-            use $crate::method::Method;
-            use super::$id as HeaderField;
-            $($tf)*
         }
     };
     // Single value header
-    ($(#[$a:meta])*($id:ident, $n:expr) => [$value:ty] $tm:ident{$($tf:item)*}) => {
+    ($(#[$a:meta])*($id:ident, $n:expr) => [$value:ty]) => {
         $(#[$a])*
         #[derive(Clone, Debug, PartialEq)]
         pub struct $id(pub $value);
@@ -230,18 +226,9 @@ macro_rules! header {
                 ::std::fmt::Display::fmt(&**self, f)
             }
         }
-        #[allow(unused_imports)]
-        mod $tm{
-            use std::str;
-            use $crate::header::*;
-            use $crate::mime::*;
-            use $crate::method::Method;
-            use super::$id as HeaderField;
-            $($tf)*
-        }
     };
     // List header, one or more items with "*" option
-    ($(#[$a:meta])*($id:ident, $n:expr) => {Any / ($item:ty)+} $tm:ident{$($tf:item)*}) => {
+    ($(#[$a:meta])*($id:ident, $n:expr) => {Any / ($item:ty)+}) => {
         $(#[$a])*
         #[derive(Clone, Debug, PartialEq)]
         pub enum $id {
@@ -280,17 +267,43 @@ macro_rules! header {
                 self.fmt_header(f)
             }
         }
-        #[allow(unused_imports)]
-        mod $tm{
-            use std::str;
-            use $crate::header::*;
-            use $crate::mime::*;
-            use $crate::method::Method;
-            use super::$id as HeaderField;
-            $($tf)*
+    };
+
+    // optional test module
+    ($(#[$a:meta])*($id:ident, $n:expr) => ($item:ty)* $tm:ident{$($tf:item)*}) => {
+        header! {
+            $(#[$a])*
+            ($id, $n) => ($item)*
         }
+
+        tm! { $id, $tm { $($tf)* }}
+    };
+    ($(#[$a:meta])*($id:ident, $n:expr) => ($item:ty)+ $tm:ident{$($tf:item)*}) => {
+        header! {
+            $(#[$a])*
+            ($id, $n) => ($item)+
+        }
+
+        tm! { $id, $tm { $($tf)* }}
+    };
+    ($(#[$a:meta])*($id:ident, $n:expr) => [$item:ty] $tm:ident{$($tf:item)*}) => {
+        header! {
+            $(#[$a])*
+            ($id, $n) => [$item]
+        }
+
+        tm! { $id, $tm { $($tf)* }}
+    };
+    ($(#[$a:meta])*($id:ident, $n:expr) => {Any / ($item:ty)+} $tm:ident{$($tf:item)*}) => {
+        header! {
+            $(#[$a])*
+            ($id, $n) => {Any / ($item)+}
+        }
+
+        tm! { $id, $tm { $($tf)* }}
     };
 }
+
 
 mod accept;
 mod access_control_allow_headers;
