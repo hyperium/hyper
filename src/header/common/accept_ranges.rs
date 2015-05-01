@@ -16,12 +16,15 @@ header! {
     #[doc="# Example values"]
     #[doc="* `bytes`"]
     #[doc="* `none`"]
+    #[doc="* `unknown-unit`"]
     #[doc="```"]
     (AcceptRanges, "Accept-Ranges") => (RangeUnit)+
 
     test_acccept_ranges {
         test_header!(test1, vec![b"bytes"]);
         test_header!(test2, vec![b"none"]);
+        test_header!(test3, vec![b"unknown-unit"]);
+        test_header!(test4, vec![b"bytes, unknown-unit"]);
     }
 }
 

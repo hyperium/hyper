@@ -129,6 +129,7 @@ impl fmt::Display for Method {
 mod tests {
     use std::collections::HashMap;
     use std::str::FromStr;
+    use error::Error;
     use super::Method;
     use super::Method::{Get, Post, Put, Extension};
 
@@ -150,6 +151,11 @@ mod tests {
         assert_eq!(Get, FromStr::from_str("GET").unwrap());
         assert_eq!(Extension("MOVE".to_string()),
                    FromStr::from_str("MOVE").unwrap());
+        let x: Result<Method, _> = FromStr::from_str("");
+        if let Err(Error::Method) = x {
+        } else {
+            panic!("An empty method is invalid!")
+        }
     }
 
     #[test]

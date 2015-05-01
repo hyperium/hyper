@@ -6,13 +6,8 @@ use std::fmt::{self, Display};
 // 2. in the range %x23 to %x7E, or
 // 3. in the range %x80 to %xFF
 fn check_slice_validity(slice: &str) -> bool {
-    for c in slice.bytes() {
-        match c {
-            b'\x21' | b'\x23' ... b'\x7e' | b'\x80' ... b'\xff' => (),
-            _ => { return false; }
-        }
-    }
-    true
+    slice.bytes().all(|c|
+        c == b'\x21' || (c >= b'\x23' && c <= b'\x7e') | (c >= b'\x80' && c <= b'\xff'))
 }
 
 /// An entity tag, defined in [RFC7232](https://tools.ietf.org/html/rfc7232#section-2.3)
