@@ -52,9 +52,8 @@ impl header::Header for AccessControlAllowOrigin {
 impl header::HeaderFormat for AccessControlAllowOrigin {
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            AccessControlAllowOrigin::Any => write!(f, "*"),
-            AccessControlAllowOrigin::Value(ref url) =>
-                write!(f, "{}", url)
+            AccessControlAllowOrigin::Any => f.write_str("*"),
+            AccessControlAllowOrigin::Value(ref url) => fmt::Display::fmt(url, f)
         }
     }
 }

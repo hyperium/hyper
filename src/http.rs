@@ -300,7 +300,7 @@ impl<W: Write> Write for HttpWriter<W> {
                 }
             },
             EmptyWriter(..) => {
-                if msg.len() != 0 {
+                if !msg.is_empty() {
                     error!("Cannot include a body with this kind of message");
                 }
                 Ok(0)
@@ -354,7 +354,7 @@ fn parse<R: Read, T: TryParse<Subject=I>, I>(rdr: &mut BufReader<R>) -> HttpResu
             _partial => ()
         }
         match try!(rdr.read_into_buf()) {
-            0 if rdr.get_buf().len() == 0 => {
+            0 if rdr.get_buf().is_empty() => {
                 return Err(HttpIoError(io::Error::new(
                     io::ErrorKind::ConnectionAborted,
                     "Connection closed"

@@ -33,7 +33,6 @@ impl Header for Pragma {
         parsing::from_one_raw_str(raw).and_then(|s: String| {
             let slice = &s.to_ascii_lowercase()[..];
             match slice {
-                "" => None,
                 "no-cache" => Some(Pragma::NoCache),
                 _ => Some(Pragma::Ext(s)),
             }

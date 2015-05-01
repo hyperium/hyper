@@ -45,12 +45,11 @@ impl<S: Scheme + Any> Header for Authorization<S> where <S as FromStr>::Err: 'st
 }
 
 impl<S: Scheme + Any> HeaderFormat for Authorization<S> where <S as FromStr>::Err: 'static {
-    fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match <S as Scheme>::scheme() {
-            Some(scheme) => try!(write!(fmt, "{} ", scheme)),
-            None => ()
+    fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Some(scheme) = <S as Scheme>::scheme() {
+            try!(write!(f, "{} ", scheme))
         };
-        self.0.fmt_scheme(fmt)
+        self.0.fmt_scheme(f)
     }
 }
 
@@ -70,7 +69,7 @@ impl Scheme for String {
     }
 
     fn fmt_scheme(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self)
+        fmt::Display::fmt(self, f)
     }
 }
 
@@ -190,4 +189,3 @@ mod tests {
 
 bench_header!(raw, Authorization<String>, { vec![b"foo bar baz".to_vec()] });
 bench_header!(basic, Authorization<Basic>, { vec![b"Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==".to_vec()] });
-

@@ -19,7 +19,7 @@ impl Header for CacheControl {
             .filter_map(|line| from_one_comma_delimited(&line[..]))
             .collect::<Vec<Vec<CacheDirective>>>()
             .concat();
-        if directives.len() > 0 {
+        if !directives.is_empty() {
             Some(CacheControl(directives))
         } else {
             None
