@@ -1,3 +1,20 @@
+### v0.3.16 (2015-05-01)
+
+
+#### Bug Fixes
+
+* **header:**
+  * make test_module of header! optional ([a5ce9c59](https://github.com/hyperium/hyper/commit/a5ce9c59fa61410551b07252364564a2bb13bb86), closes [#490](https://github.com/hyperium/hyper/issues/490))
+  * exporting test_header! macro ([2bc5a779](https://github.com/hyperium/hyper/commit/2bc5a779bdc3fce67e06c398ac8702fcbea93dab))
+* **http:** keep raw reason phrase in RawStatus ([8cdb9d5d](https://github.com/hyperium/hyper/commit/8cdb9d5d3b0972629e8843d3c1db58dbbbaf49cf), closes [#497](https://github.com/hyperium/hyper/issues/497))
+
+
+#### Features
+
+* **client:** add a Connection Pool ([1e72a8ab](https://github.com/hyperium/hyper/commit/1e72a8ab3a0092bb863686ad2e65646710706c1b), closes [#363](https://github.com/hyperium/hyper/issues/363), [#41](https://github.com/hyperium/hyper/issues/41))
+* **headers:** Add If-Range header ([a39735f1](https://github.com/hyperium/hyper/commit/a39735f1d3d1a314969b5b0085e8f77f0c10c863), closes [#388](https://github.com/hyperium/hyper/issues/388))
+
+
 ### v0.3.15 (2015-04-29)
 
 
