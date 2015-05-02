@@ -33,7 +33,6 @@ impl Header for Pragma {
         parsing::from_one_raw_str(raw).and_then(|s: String| {
             let slice = &s.to_ascii_lowercase()[..];
             match slice {
-                "" => None,
                 "no-cache" => Some(Pragma::NoCache),
                 _ => Some(Pragma::Ext(s)),
             }
@@ -58,4 +57,6 @@ fn test_parse_header() {
     let c: Pragma = Header::parse_header([b"FoObar".to_vec()].as_ref()).unwrap();
     let d = Pragma::Ext("FoObar".to_string());
     assert_eq!(c, d);
+    let e: Option<Pragma> = Header::parse_header([b"".to_vec()].as_ref());
+    assert_eq!(e, None);
 }

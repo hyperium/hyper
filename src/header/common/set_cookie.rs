@@ -22,16 +22,12 @@ impl Header for SetCookie {
 
     fn parse_header(raw: &[Vec<u8>]) -> Option<SetCookie> {
         let mut set_cookies = Vec::with_capacity(raw.len());
-        for set_cookies_raw in raw.iter() {
-            match from_utf8(&set_cookies_raw[..]) {
-                Ok(s) if !s.is_empty() => {
-                    match s.parse() {
-                        Ok(cookie) => set_cookies.push(cookie),
-                        Err(_) => ()
-                    }
-                },
-                _ => ()
-            };
+        for set_cookies_raw in raw {
+            if let Ok(s) = from_utf8(&set_cookies_raw[..]) {
+                if let Ok(cookie) = s.parse() {
+                    set_cookies.push(cookie);
+                }
+            }
         }
 
         if !set_cookies.is_empty() {

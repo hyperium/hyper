@@ -252,10 +252,7 @@ impl<'a> Iterator for HeadersItems<'a> {
     type Item = HeaderView<'a>;
 
     fn next(&mut self) -> Option<HeaderView<'a>> {
-        match self.inner.next() {
-            Some((k, v)) => Some(HeaderView(k, v)),
-            None => None
-        }
+        self.inner.next().map(|(k, v)| HeaderView(k, v))
     }
 }
 

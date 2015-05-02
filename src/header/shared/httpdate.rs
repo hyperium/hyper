@@ -46,12 +46,7 @@ impl FromStr for HttpDate {
 
 impl Display for HttpDate {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let tm = self.0;
-        let tm = match tm.tm_utcoff {
-            0 => tm,
-            _ => tm.to_utc(),
-        };
-        fmt::Display::fmt(&tm.rfc822(), f)
+        fmt::Display::fmt(&self.0.to_utc().rfc822(), f)
     }
 }
 
