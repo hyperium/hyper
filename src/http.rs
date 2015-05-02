@@ -409,8 +409,8 @@ impl<'a> TryParse for httparse::Response<'a, 'a> {
             httparse::Status::Complete(len) => {
                 let code = res.code.unwrap();
                 let reason = match StatusCode::from_u16(code).canonical_reason() {
-                    Some(reason) => Cow::Borrowed(reason),
-                    None => Cow::Owned(res.reason.unwrap().to_owned())
+                    Some(reason) if reason == res.reason.unwrap() => Cow::Borrowed(reason),
+                    _ => Cow::Owned(res.reason.unwrap().to_owned())
                 };
                 httparse::Status::Complete((Incoming {
                     version: if res.version.unwrap() == 1 { Http11 } else { Http10 },
@@ -460,7 +460,7 @@ mod tests {
     use buffer::BufReader;
     use mock::MockStream;
 
-    use super::{read_chunk_size, parse_request};
+    use super::{read_chunk_size, parse_request, parse_response};
 
     #[test]
     fn test_write_chunked() {
@@ -532,6 +532,22 @@ mod tests {
         let mut buf = BufReader::new(&mut raw);
         parse_request(&mut buf).unwrap();
     }
+
+    #[test]
+    fn test_parse_raw_status() {
+        let mut raw = MockStream::with_input(b"HTTP/1.1 200 OK\r\n\r\n");
+        let mut buf = BufReader::new(&mut raw);
+        let res = parse_response(&mut buf).unwrap();
+
+        assert_eq!(res.subject.1, "OK");
+
+        let mut raw = MockStream::with_input(b"HTTP/1.1 200 Howdy\r\n\r\n");
+        let mut buf = BufReader::new(&mut raw);
+        let res = parse_response(&mut buf).unwrap();
+
+        assert_eq!(res.subject.1, "Howdy");
+    }
+
 
     #[test]
     fn test_parse_tcp_closed() {
