@@ -1,4 +1,5 @@
-use header::{self, EntityTag, HttpDate};
+use std::fmt::{self, Display};
+use header::{self, Header, HeaderFormat, EntityTag, HttpDate};
 
 /// `If-Range` header, defined in [RFC7233](http://tools.ietf.org/html/rfc7233#section-3.2)
 ///
@@ -31,7 +32,7 @@ pub enum IfRange {
     Date(HttpDate),
 }
 
-impl header::Header for IfRange {
+impl Header for IfRange {
     fn header_name() -> &'static str {
         "If-Range"
     }
@@ -48,18 +49,17 @@ impl header::Header for IfRange {
     }
 }
 
-impl header::HeaderFormat for IfRange {
+impl HeaderFormat for IfRange {
     fn fmt_header(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match self {
-            &IfRange::EntityTag(ref x) => write!(f, "{}", x),
-            &IfRange::Date(ref x) => write!(f, "{}", x),
+            &IfRange::EntityTag(ref x) => Display::fmt(x, f),
+            &IfRange::Date(ref x) => Display::fmt(x, f),
         }
     }
 }
 
-impl ::std::fmt::Display for IfRange {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        use header::HeaderFormat;
+impl Display for IfRange {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.fmt_header(f)
     }
 }

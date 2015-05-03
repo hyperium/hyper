@@ -42,10 +42,10 @@ impl Header for Pragma {
 
 impl HeaderFormat for Pragma {
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Pragma::NoCache => write!(f, "no-cache"),
-            Pragma::Ext(ref string) => write!(f, "{}", string),
-        }
+        f.write_str(match *self {
+            Pragma::NoCache => "no-cache",
+            Pragma::Ext(ref string) => &string[..],
+        })
     }
 }
 

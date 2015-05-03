@@ -94,12 +94,12 @@ fn parse<H: Header + HeaderFormat>(raw: &Vec<Vec<u8>>) -> Option<Box<HeaderForma
 }
 
 impl fmt::Display for Item {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self.raw {
             Some(ref raw) => {
                 for part in raw.iter() {
                     match from_utf8(&part[..]) {
-                        Ok(s) => try!(fmt.write_str(s)),
+                        Ok(s) => try!(f.write_str(s)),
                         Err(e) => {
                             error!("raw header value is not utf8. header={:?}, error={:?}", part, e);
                             return Err(fmt::Error);
@@ -108,7 +108,7 @@ impl fmt::Display for Item {
                 }
                 Ok(())
             },
-            None => fmt::Display::fmt(&unsafe { self.typed.one() }, fmt)
+            None => fmt::Display::fmt(&unsafe { self.typed.one() }, f)
         }
     }
 }

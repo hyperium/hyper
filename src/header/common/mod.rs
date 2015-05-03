@@ -258,7 +258,7 @@ macro_rules! header {
         impl $crate::header::HeaderFormat for $id {
             fn fmt_header(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
                 match *self {
-                    $id::Any => write!(f, "*"),
+                    $id::Any => f.write_str("*"),
                     $id::Items(ref fields) => $crate::header::parsing::fmt_comma_delimited(f, &fields[..])
                 }
             }
