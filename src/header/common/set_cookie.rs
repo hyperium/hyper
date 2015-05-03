@@ -134,7 +134,9 @@ fn test_fmt() {
     let mut headers = Headers::new();
     headers.set(cookies);
 
-    assert_eq!(&headers.to_string()[..], "Set-Cookie: foo=bar; HttpOnly; Path=/p\r\nSet-Cookie: baz=quux; Path=/\r\n");
+    assert_eq!(
+        &headers.to_string()[..],
+        "Set-Cookie: foo=bar; HttpOnly; Path=/p\r\nSet-Cookie: baz=quux; Path=/\r\n");
 }
 
 #[test]

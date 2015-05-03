@@ -168,8 +168,9 @@ mod tests {
     #[test]
     fn test_parse_extension() {
         let cache = Header::parse_header(&[b"foo, bar=baz".to_vec()]);
-        assert_eq!(cache, Some(CacheControl(vec![CacheDirective::Extension("foo".to_string(), None),
-                                                 CacheDirective::Extension("bar".to_string(), Some("baz".to_string()))])))
+        assert_eq!(cache, Some(CacheControl(vec![
+            CacheDirective::Extension("foo".to_string(), None),
+            CacheDirective::Extension("bar".to_string(), Some("baz".to_string()))])))
     }
 
     #[test]
@@ -179,4 +180,5 @@ mod tests {
     }
 }
 
-bench_header!(normal, CacheControl, { vec![b"no-cache, private".to_vec(), b"max-age=100".to_vec()] });
+bench_header!(normal,
+    CacheControl, { vec![b"no-cache, private".to_vec(), b"max-age=100".to_vec()] });

@@ -94,8 +94,7 @@ impl Clone for Box<HeaderFormat + Send + Sync> {
 
 #[inline]
 fn header_name<T: Header>() -> &'static str {
-    let name = <T as Header>::header_name();
-    name
+    <T as Header>::header_name()
 }
 
 /// A map of header fields on requests and responses.
