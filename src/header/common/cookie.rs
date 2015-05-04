@@ -1,18 +1,22 @@
 use header::{Header, HeaderFormat};
-use std::fmt;
+use std::fmt::{self, Display};
 use std::str::from_utf8;
 
 use cookie::Cookie as CookiePair;
 use cookie::CookieJar;
 
-/// The `Cookie` header. Defined in [RFC6265](tools.ietf.org/html/rfc6265#section-5.4):
+/// `Cookie` header, defined in [RFC6265](http://tools.ietf.org/html/rfc6265#section-5.4)
 ///
-/// > If the user agent does attach a Cookie header field to an HTTP
-/// > request, the user agent must send the cookie-string
-/// > as the value of the header field.
+/// If the user agent does attach a Cookie header field to an HTTP
+/// request, the user agent must send the cookie-string
+/// as the value of the header field.
 ///
-/// > When the user agent generates an HTTP request, the user agent MUST NOT
-/// > attach more than one Cookie header field.
+/// When the user agent generates an HTTP request, the user agent MUST NOT
+/// attach more than one Cookie header field.
+///
+/// # Example values
+/// * `SID=31d4d96e407aad42`
+/// * `SID=31d4d96e407aad42; lang=en-US`
 #[derive(Clone, PartialEq, Debug)]
 pub struct Cookie(pub Vec<CookiePair>);
 
@@ -48,13 +52,13 @@ impl Header for Cookie {
 }
 
 impl HeaderFormat for Cookie {
-    fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let cookies = &self.0;
         for (i, cookie) in cookies.iter().enumerate() {
             if i != 0 {
-                try!(fmt.write_str("; "));
+                try!(f.write_str("; "));
             }
-            try!(write!(fmt, "{}", cookie.pair()));
+            try!(Display::fmt(&cookie.pair(), f));
         }
         Ok(())
     }
@@ -94,7 +98,9 @@ fn test_fmt() {
     let mut cookie_pair = CookiePair::new("foo".to_string(), "bar".to_string());
     cookie_pair.httponly = true;
     cookie_pair.path = Some("/p".to_string());
-    let cookie_header = Cookie(vec![cookie_pair, CookiePair::new("baz".to_string(), "quux".to_string())]);
+    let cookie_header = Cookie(vec![
+        cookie_pair,
+        CookiePair::new("baz".to_string(),"quux".to_string())]);
     let mut headers = Headers::new();
     headers.set(cookie_header);
 

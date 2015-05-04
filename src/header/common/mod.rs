@@ -124,8 +124,16 @@ macro_rules! test_header {
             let value = HeaderField::parse_header(&a[..]);
             let result = format!("{}", value.unwrap());
             let expected = String::from_utf8(raw[0].to_vec()).unwrap();
-            let result_cmp: Vec<String> = result.to_ascii_lowercase().split(' ').map(|x| x.to_string()).collect();
-            let expected_cmp: Vec<String> = expected.to_ascii_lowercase().split(' ').map(|x| x.to_string()).collect();
+            let result_cmp: Vec<String> = result
+                .to_ascii_lowercase()
+                .split(' ')
+                .map(|x| x.to_string())
+                .collect();
+            let expected_cmp: Vec<String> = expected
+                .to_ascii_lowercase()
+                .split(' ')
+                .map(|x| x.to_string())
+                .collect();
             assert_eq!(result_cmp.concat(), expected_cmp.concat());
         }
     };
@@ -258,8 +266,9 @@ macro_rules! header {
         impl $crate::header::HeaderFormat for $id {
             fn fmt_header(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
                 match *self {
-                    $id::Any => write!(f, "*"),
-                    $id::Items(ref fields) => $crate::header::parsing::fmt_comma_delimited(f, &fields[..])
+                    $id::Any => f.write_str("*"),
+                    $id::Items(ref fields) => $crate::header::parsing::fmt_comma_delimited(
+                        f, &fields[..])
                 }
             }
         }

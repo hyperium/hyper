@@ -57,7 +57,7 @@ pub trait HeaderFormat: fmt::Debug + HeaderClone + Any + Typeable + Send + Sync 
     ///
     /// This method is not allowed to introduce an Err not produced
     /// by the passed-in Formatter.
-    fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result;
+    fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result;
 
 }
 
@@ -94,8 +94,7 @@ impl Clone for Box<HeaderFormat + Send + Sync> {
 
 #[inline]
 fn header_name<T: Header>() -> &'static str {
-    let name = <T as Header>::header_name();
-    name
+    <T as Header>::header_name()
 }
 
 /// A map of header fields on requests and responses.
@@ -224,21 +223,21 @@ impl Headers {
 }
 
 impl fmt::Display for Headers {
-   fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for header in self.iter() {
-            try!(write!(fmt, "{}\r\n", header));
+            try!(write!(f, "{}\r\n", header));
         }
         Ok(())
     }
 }
 
 impl fmt::Debug for Headers {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        try!(fmt.write_str("Headers { "));
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        try!(f.write_str("Headers { "));
         for header in self.iter() {
-            try!(write!(fmt, "{:?}, ", header));
+            try!(write!(f, "{:?}, ", header));
         }
-        try!(fmt.write_str("}"));
+        try!(f.write_str("}"));
         Ok(())
     }
 }
@@ -292,8 +291,8 @@ impl<'a> fmt::Display for HeaderView<'a> {
 }
 
 impl<'a> fmt::Debug for HeaderView<'a> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(self, fmt)
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(self, f)
     }
 }
 
@@ -315,8 +314,8 @@ impl<'a> FromIterator<HeaderView<'a>> for Headers {
 
 impl<'a> fmt::Display for &'a (HeaderFormat + Send + Sync) {
     #[inline]
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        (**self).fmt_header(fmt)
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        (**self).fmt_header(f)
     }
 }
 
@@ -353,14 +352,14 @@ impl Deref for CowStr {
 }
 
 impl fmt::Debug for CowStr {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Debug::fmt(&self.0, fmt)
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(&self.0, f)
     }
 }
 
 impl fmt::Display for CowStr {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(&self.0, fmt)
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
     }
 }
 
@@ -460,9 +459,9 @@ mod tests {
     }
 
     impl HeaderFormat for CrazyLength {
-        fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
             let CrazyLength(ref opt, ref value) = *self;
-            write!(fmt, "{:?}, {:?}", opt, value)
+            write!(f, "{:?}, {:?}", opt, value)
         }
     }
 

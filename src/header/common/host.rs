@@ -65,10 +65,10 @@ impl Header for Host {
 }
 
 impl HeaderFormat for Host {
-    fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.port {
-            None | Some(80) | Some(443) => write!(fmt, "{}", self.hostname),
-            Some(port) => write!(fmt, "{}:{}", self.hostname, port)
+            None | Some(80) | Some(443) => f.write_str(&self.hostname[..]),
+            Some(port) => write!(f, "{}:{}", self.hostname, port)
         }
     }
 }
@@ -97,4 +97,3 @@ mod tests {
 }
 
 bench_header!(bench, Host, { vec![b"foo.com:3000".to_vec()] });
-

@@ -27,7 +27,10 @@ header! {
             // FIXME: Should be b"text/html; charset=ISO-8859-4" but mime crate lowercases
             // the whole value so parsing and formatting the value gives a different result
             vec![b"text/html; charset=iso-8859-4"],
-            Some(HeaderField(Mime(TopLevel::Text, SubLevel::Html, vec![(Attr::Charset, Value::Ext("iso-8859-4".to_string()))]))));
+            Some(HeaderField(Mime(
+                TopLevel::Text,
+                SubLevel::Html,
+                vec![(Attr::Charset, Value::Ext("iso-8859-4".to_string()))]))));
     }
 }
 

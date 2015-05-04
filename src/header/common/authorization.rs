@@ -1,11 +1,25 @@
 use std::any::Any;
-use std::fmt;
+use std::fmt::{self, Display};
 use std::str::{FromStr, from_utf8};
 use std::ops::{Deref, DerefMut};
 use serialize::base64::{ToBase64, FromBase64, Standard, Config, Newline};
 use header::{Header, HeaderFormat};
 
-/// The `Authorization` header field.
+/// `Authorization` header, defined in [RFC7235](https://tools.ietf.org/html/rfc7235#section-4.2)
+///
+/// The `Authorization` header field allows a user agent to authenticate
+/// itself with an origin server -- usually, but not necessarily, after
+/// receiving a 401 (Unauthorized) response.  Its value consists of
+/// credentials containing the authentication information of the user
+/// agent for the realm of the resource being requested.
+///
+/// # ABNF
+/// ```plain
+/// Authorization = credentials
+/// ```
+///
+/// # Example values
+/// * `Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==`
 #[derive(Clone, PartialEq, Debug)]
 pub struct Authorization<S: Scheme>(pub S);
 
@@ -69,7 +83,7 @@ impl Scheme for String {
     }
 
     fn fmt_scheme(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(self, f)
+        Display::fmt(self, f)
     }
 }
 
@@ -97,12 +111,12 @@ impl Scheme for Basic {
         if let Some(ref pass) = self.password {
             text.push_str(&pass[..]);
         }
-        write!(f, "{}", text.as_bytes().to_base64(Config {
+        f.write_str(&text.as_bytes().to_base64(Config {
             char_set: Standard,
             newline: Newline::CRLF,
             pad: true,
             line_length: None
-        }))
+        })[..])
     }
 }
 
@@ -153,15 +167,19 @@ mod tests {
 
     #[test]
     fn test_raw_auth_parse() {
-        let header: Authorization<String> = Header::parse_header(&[b"foo bar baz".to_vec()]).unwrap();
+        let header: Authorization<String> = Header::parse_header(
+            &[b"foo bar baz".to_vec()]).unwrap();
         assert_eq!(header.0, "foo bar baz");
     }
 
     #[test]
     fn test_basic_auth() {
         let mut headers = Headers::new();
-        headers.set(Authorization(Basic { username: "Aladdin".to_string(), password: Some("open sesame".to_string()) }));
-        assert_eq!(headers.to_string(), "Authorization: Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==\r\n".to_string());
+        headers.set(Authorization(
+            Basic { username: "Aladdin".to_string(), password: Some("open sesame".to_string()) }));
+        assert_eq!(
+            headers.to_string(),
+            "Authorization: Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==\r\n".to_string());
     }
 
     #[test]
@@ -173,14 +191,16 @@ mod tests {
 
     #[test]
     fn test_basic_auth_parse() {
-        let auth: Authorization<Basic> = Header::parse_header(&[b"Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==".to_vec()]).unwrap();
+        let auth: Authorization<Basic> = Header::parse_header(
+            &[b"Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==".to_vec()]).unwrap();
         assert_eq!(auth.0.username, "Aladdin");
         assert_eq!(auth.0.password, Some("open sesame".to_string()));
     }
 
     #[test]
     fn test_basic_auth_parse_no_password() {
-        let auth: Authorization<Basic> = Header::parse_header(&[b"Basic QWxhZGRpbjo=".to_vec()]).unwrap();
+        let auth: Authorization<Basic> = Header::parse_header(
+            &[b"Basic QWxhZGRpbjo=".to_vec()]).unwrap();
         assert_eq!(auth.0.username, "Aladdin");
         assert_eq!(auth.0.password, Some("".to_string()));
     }
@@ -188,4 +208,4 @@ mod tests {
 }
 
 bench_header!(raw, Authorization<String>, { vec![b"foo bar baz".to_vec()] });
-bench_header!(basic, Authorization<Basic>, { vec![b"Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==".to_vec()] });
+bench_header!(basic, Authorization<Basic>, { vec![b"Basic QWxhZGRpbjpuIHNlc2FtZQ==".to_vec()] });

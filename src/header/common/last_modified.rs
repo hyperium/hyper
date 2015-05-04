@@ -1,7 +1,8 @@
 use header::HttpDate;
 
 header! {
-    #[doc="`Last-Modified` header, defined in [RFC7232](http://tools.ietf.org/html/rfc7232#section-2.2)"]
+    #[doc="`Last-Modified` header, defined in"]
+    #[doc="[RFC7232](http://tools.ietf.org/html/rfc7232#section-2.2)"]
     #[doc=""]
     #[doc="The `Last-Modified` header field in a response provides a timestamp"]
     #[doc="indicating the date and time at which the origin server believes the"]

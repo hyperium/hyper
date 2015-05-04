@@ -1,12 +1,29 @@
 use header::{Header, HeaderFormat};
-use std::fmt;
+use std::fmt::{self, Display};
 use std::str::FromStr;
 use header::parsing::{from_comma_delimited, fmt_comma_delimited};
 use unicase::UniCase;
 
 pub use self::ConnectionOption::{KeepAlive, Close, ConnectionHeader};
 
-/// The `Connection` header.
+/// `Connection` header, defined in [RFC7230](https://tools.ietf.org/html/rfc7230#section-6.1)
+///
+/// The `Connection` header field allows the sender to indicate desired
+/// control options for the current connection.  In order to avoid
+/// confusing downstream recipients, a proxy or gateway MUST remove or
+/// replace any received connection options before forwarding the
+/// message.
+///
+/// # ABNF
+/// ```plain
+/// Connection        = 1#connection-option
+/// connection-option = token
+/// ```
+///
+/// # Example values
+/// * `close`
+/// * `upgrade`
+/// * `keep-alive`
 #[derive(Clone, PartialEq, Debug)]
 pub struct Connection(pub Vec<ConnectionOption>);
 
@@ -33,20 +50,20 @@ pub enum ConnectionOption {
 impl FromStr for ConnectionOption {
     type Err = ();
     fn from_str(s: &str) -> Result<ConnectionOption, ()> {
-        match s {
-            "keep-alive" => Ok(KeepAlive),
-            "close" => Ok(Close),
-            s => Ok(ConnectionHeader(UniCase(s.to_string())))
-        }
+        Ok(match s {
+            "keep-alive" => KeepAlive,
+            "close" => Close,
+            s => ConnectionHeader(UniCase(s.to_string())),
+        })
     }
 }
 
-impl fmt::Display for ConnectionOption {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "{}", match *self {
+impl Display for ConnectionOption {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(match *self {
             KeepAlive => "keep-alive",
             Close => "close",
-            ConnectionHeader(UniCase(ref s)) => s.as_ref()
+            ConnectionHeader(UniCase(ref s)) => s,
         })
     }
 }
@@ -62,13 +79,12 @@ impl Header for Connection {
 }
 
 impl HeaderFormat for Connection {
-    fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let Connection(ref parts) = *self;
-        fmt_comma_delimited(fmt, &parts[..])
+        fmt_comma_delimited(f, &parts[..])
     }
 }
 
 bench_header!(close, Connection, { vec![b"close".to_vec()] });
 bench_header!(keep_alive, Connection, { vec![b"keep-alive".to_vec()] });
 bench_header!(header, Connection, { vec![b"authorization".to_vec()] });
-

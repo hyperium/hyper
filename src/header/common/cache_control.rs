@@ -3,7 +3,23 @@ use std::str::FromStr;
 use header::{Header, HeaderFormat};
 use header::parsing::{from_one_comma_delimited, fmt_comma_delimited};
 
-/// The Cache-Control header.
+/// `Cache-Control` header, defined in [RFC7234](https://tools.ietf.org/html/rfc7234#section-5.2)
+///
+/// The `Cache-Control` header field is used to specify directives for
+/// caches along the request/response chain.  Such cache directives are
+/// unidirectional in that the presence of a directive in a request does
+/// not imply that the same directive is to be given in the response.
+///
+/// # ABNF
+/// ```plain
+/// Cache-Control   = 1#cache-directive
+/// cache-directive = token [ "=" ( token / quoted-string ) ]
+/// ```
+///
+/// # Example values
+/// * `no-cache`
+/// * `private, community="UCI"`
+/// * `max-age=30`
 #[derive(PartialEq, Clone, Debug)]
 pub struct CacheControl(pub Vec<CacheDirective>);
 
@@ -28,8 +44,8 @@ impl Header for CacheControl {
 }
 
 impl HeaderFormat for CacheControl {
-    fn fmt_header(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt_comma_delimited(fmt, &self[..])
+    fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt_comma_delimited(f, &self[..])
     }
 }
 
@@ -152,8 +168,9 @@ mod tests {
     #[test]
     fn test_parse_extension() {
         let cache = Header::parse_header(&[b"foo, bar=baz".to_vec()]);
-        assert_eq!(cache, Some(CacheControl(vec![CacheDirective::Extension("foo".to_string(), None),
-                                                 CacheDirective::Extension("bar".to_string(), Some("baz".to_string()))])))
+        assert_eq!(cache, Some(CacheControl(vec![
+            CacheDirective::Extension("foo".to_string(), None),
+            CacheDirective::Extension("bar".to_string(), Some("baz".to_string()))])))
     }
 
     #[test]
@@ -163,4 +180,5 @@ mod tests {
     }
 }
 
-bench_header!(normal, CacheControl, { vec![b"no-cache, private".to_vec(), b"max-age=100".to_vec()] });
+bench_header!(normal,
+    CacheControl, { vec![b"no-cache, private".to_vec(), b"max-age=100".to_vec()] });

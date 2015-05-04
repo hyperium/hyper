@@ -48,7 +48,9 @@ header! {
             Some(HeaderField(vec![
                 QualityItem::new(Mime(TopLevel::Text, SubLevel::Plain, vec![]), Quality(500)),
                 qitem(Mime(TopLevel::Text, SubLevel::Html, vec![])),
-                QualityItem::new(Mime(TopLevel::Text, SubLevel::Ext("x-dvi".to_string()), vec![]), Quality(800)),
+                QualityItem::new(
+                    Mime(TopLevel::Text, SubLevel::Ext("x-dvi".to_string()), vec![]),
+                    Quality(800)),
                 qitem(Mime(TopLevel::Text, SubLevel::Ext("x-c".to_string()), vec![])),
                 ])));
         // Custom tests
@@ -62,7 +64,9 @@ header! {
             test4,
             vec![b"text/plain; charset=utf-8; q=0.5"],
             Some(Accept(vec![
-                QualityItem::new(Mime(TopLevel::Text, SubLevel::Plain, vec![(Attr::Charset, Value::Utf8)]), Quality(500)),
+                QualityItem::new(Mime(TopLevel::Text,
+                    SubLevel::Plain, vec![(Attr::Charset, Value::Utf8)]),
+                    Quality(500)),
             ])));
     }
 }

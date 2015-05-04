@@ -36,7 +36,7 @@ impl FromStr for Language {
 
 impl fmt::Display for Language {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        try!(write!(f, "{}", self.primary));
+        try!(f.write_str(&self.primary[..]));
         match self.sub {
             Some(ref s) => write!(f, "-{}", s),
             None => Ok(())

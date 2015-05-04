@@ -103,10 +103,10 @@ impl EntityTag {
 }
 
 impl Display for EntityTag {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.weak {
-            true => write!(fmt, "W/\"{}\"", self.tag),
-            false => write!(fmt, "\"{}\"", self.tag),
+            true => write!(f, "W/\"{}\"", self.tag),
+            false => write!(f, "\"{}\"", self.tag),
         }
     }
 }
@@ -116,10 +116,8 @@ impl FromStr for EntityTag {
     fn from_str(s: &str) -> Result<EntityTag, ()> {
         let length: usize = s.len();
         let slice = &s[..];
-        // Early exits:
-        // 1. The string is empty, or,
-        // 2. it doesn't terminate in a DQUOTE.
-        if slice.is_empty() || !slice.ends_with('"') {
+        // Early exits if it doesn't terminate in a DQUOTE.
+        if !slice.ends_with('"') {
             return Err(());
         }
         // The etag is weak if its first char is not a DQUOTE.
