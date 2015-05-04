@@ -44,7 +44,7 @@ pub use self::referer::Referer;
 pub use self::server::Server;
 pub use self::set_cookie::SetCookie;
 pub use self::transfer_encoding::TransferEncoding;
-pub use self::upgrade::{Upgrade, Protocol};
+pub use self::upgrade::{Upgrade, Protocol, ProtocolName};
 pub use self::user_agent::UserAgent;
 pub use self::vary::Vary;
 
