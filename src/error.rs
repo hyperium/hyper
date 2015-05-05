@@ -4,11 +4,19 @@ use std::fmt;
 use std::io::Error as IoError;
 
 use httparse;
+use openssl::ssl::error::SslError;
 use url;
 
-use self::Error::{Method, Uri, Version,
-                      Header, Status, Io,
-                      TooLarge};
+use self::Error::{
+    Method,
+    Uri,
+    Version,
+    Header,
+    Status,
+    Io,
+    Ssl,
+    TooLarge
+};
 
 
 /// Result type often returned from methods that can have hyper `Error`s.
@@ -29,8 +37,10 @@ pub enum Error {
     TooLarge,
     /// An invalid `Status`, such as `1337 ELITE`.
     Status,
-    /// An `IoError` that occurred while trying to read or write to a network stream.
+    /// An `io::Error` that occurred while trying to read or write to a network stream.
     Io(IoError),
+    /// An error from the `openssl` library.
+    Ssl(SslError)
 }
 
 impl fmt::Display for Error {
@@ -48,13 +58,15 @@ impl StdError for Error {
             Header => "Invalid Header provided",
             TooLarge => "Message head is too large",
             Status => "Invalid Status provided",
-            Io(_) => "An IoError occurred while connecting to the specified network",
+            Io(ref e) => e.description(),
+            Ssl(ref e) => e.description(),
         }
     }
 
     fn cause(&self) -> Option<&StdError> {
         match *self {
             Io(ref error) => Some(error),
+            Ssl(ref error) => Some(error),
             Uri(ref error) => Some(error),
             _ => None,
         }
@@ -70,6 +82,15 @@ impl From<IoError> for Error {
 impl From<url::ParseError> for Error {
     fn from(err: url::ParseError) -> Error {
         Uri(err)
+    }
+}
+
+impl From<SslError> for Error {
+    fn from(err: SslError) -> Error {
+        match err {
+            SslError::StreamError(err) => Io(err),
+            err => Ssl(err),
+        }
     }
 }
 
