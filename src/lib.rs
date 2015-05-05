@@ -149,7 +149,7 @@ extern crate test;
 pub use mimewrapper::mime;
 pub use url::Url;
 pub use client::Client;
-pub use error::{HttpResult, HttpError};
+pub use error::{Result, Error};
 pub use method::Method::{Get, Head, Post, Delete};
 pub use status::StatusCode::{Ok, BadRequest, NotFound};
 pub use server::Server;

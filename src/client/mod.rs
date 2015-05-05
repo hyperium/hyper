@@ -43,8 +43,8 @@ use header::{ContentLength, Location};
 use method::Method;
 use net::{NetworkConnector, NetworkStream, HttpConnector, ContextVerifier};
 use status::StatusClass::Redirection;
-use {Url, HttpResult};
-use HttpError::HttpUriError;
+use {Url};
+use Error;
 
 pub use self::pool::Pool;
 pub use self::request::Request;
@@ -203,7 +203,7 @@ impl<'a, U: IntoUrl> RequestBuilder<'a, U> {
     }
 
     /// Execute this request and receive a Response back.
-    pub fn send(self) -> HttpResult<Response> {
+    pub fn send(self) -> ::Result<Response> {
         let RequestBuilder { client, method, url, headers, body } = self;
         let mut url = try!(url.into_url());
         trace!("send {:?} {:?}", method, url);
@@ -382,15 +382,15 @@ impl Default for RedirectPolicy {
     }
 }
 
-fn get_host_and_port(url: &Url) -> HttpResult<(String, u16)> {
+fn get_host_and_port(url: &Url) -> ::Result<(String, u16)> {
     let host = match url.serialize_host() {
         Some(host) => host,
-        None => return Err(HttpUriError(UrlError::EmptyHost))
+        None => return Err(Error::Uri(UrlError::EmptyHost))
     };
     trace!("host={:?}", host);
     let port = match url.port_or_default() {
         Some(port) => port,
-        None => return Err(HttpUriError(UrlError::InvalidPort))
+        None => return Err(Error::Uri(UrlError::InvalidPort))
     };
     trace!("port={:?}", port);
     Ok((host, port))

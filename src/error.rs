@@ -1,88 +1,88 @@
-//! HttpError and HttpResult module.
-use std::error::Error;
+//! Error and Result module.
+use std::error::Error as StdError;
 use std::fmt;
 use std::io::Error as IoError;
 
 use httparse;
 use url;
 
-use self::HttpError::{HttpMethodError, HttpUriError, HttpVersionError,
-                      HttpHeaderError, HttpStatusError, HttpIoError,
-                      HttpTooLargeError};
+use self::Error::{Method, Uri, Version,
+                      Header, Status, Io,
+                      TooLarge};
 
 
-/// Result type often returned from methods that can have `HttpError`s.
-pub type HttpResult<T> = Result<T, HttpError>;
+/// Result type often returned from methods that can have hyper `Error`s.
+pub type Result<T> = ::std::result::Result<T, Error>;
 
 /// A set of errors that can occur parsing HTTP streams.
 #[derive(Debug)]
-pub enum HttpError {
+pub enum Error {
     /// An invalid `Method`, such as `GE,T`.
-    HttpMethodError,
+    Method,
     /// An invalid `RequestUri`, such as `exam ple.domain`.
-    HttpUriError(url::ParseError),
+    Uri(url::ParseError),
     /// An invalid `HttpVersion`, such as `HTP/1.1`
-    HttpVersionError,
+    Version,
     /// An invalid `Header`.
-    HttpHeaderError,
+    Header,
     /// A message head is too large to be reasonable.
-    HttpTooLargeError,
+    TooLarge,
     /// An invalid `Status`, such as `1337 ELITE`.
-    HttpStatusError,
+    Status,
     /// An `IoError` that occured while trying to read or write to a network stream.
-    HttpIoError(IoError),
+    Io(IoError),
 }
 
-impl fmt::Display for HttpError {
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str(self.description())
     }
 }
 
-impl Error for HttpError {
+impl StdError for Error {
     fn description(&self) -> &str {
         match *self {
-            HttpMethodError => "Invalid Method specified",
-            HttpUriError(_) => "Invalid Request URI specified",
-            HttpVersionError => "Invalid HTTP version specified",
-            HttpHeaderError => "Invalid Header provided",
-            HttpTooLargeError => "Message head is too large",
-            HttpStatusError => "Invalid Status provided",
-            HttpIoError(_) => "An IoError occurred while connecting to the specified network",
+            Method => "Invalid Method specified",
+            Uri(_) => "Invalid Request URI specified",
+            Version => "Invalid HTTP version specified",
+            Header => "Invalid Header provided",
+            TooLarge => "Message head is too large",
+            Status => "Invalid Status provided",
+            Io(_) => "An IoError occurred while connecting to the specified network",
         }
     }
 
-    fn cause(&self) -> Option<&Error> {
+    fn cause(&self) -> Option<&StdError> {
         match *self {
-            HttpIoError(ref error) => Some(error),
-            HttpUriError(ref error) => Some(error),
+            Io(ref error) => Some(error),
+            Uri(ref error) => Some(error),
             _ => None,
         }
     }
 }
 
-impl From<IoError> for HttpError {
-    fn from(err: IoError) -> HttpError {
-        HttpIoError(err)
+impl From<IoError> for Error {
+    fn from(err: IoError) -> Error {
+        Io(err)
     }
 }
 
-impl From<url::ParseError> for HttpError {
-    fn from(err: url::ParseError) -> HttpError {
-        HttpUriError(err)
+impl From<url::ParseError> for Error {
+    fn from(err: url::ParseError) -> Error {
+        Uri(err)
     }
 }
 
-impl From<httparse::Error> for HttpError {
-    fn from(err: httparse::Error) -> HttpError {
+impl From<httparse::Error> for Error {
+    fn from(err: httparse::Error) -> Error {
         match err {
-            httparse::Error::HeaderName => HttpHeaderError,
-            httparse::Error::HeaderValue => HttpHeaderError,
-            httparse::Error::NewLine => HttpHeaderError,
-            httparse::Error::Status => HttpStatusError,
-            httparse::Error::Token => HttpHeaderError,
-            httparse::Error::TooManyHeaders => HttpTooLargeError,
-            httparse::Error::Version => HttpVersionError,
+            httparse::Error::HeaderName => Header,
+            httparse::Error::HeaderValue => Header,
+            httparse::Error::NewLine => Header,
+            httparse::Error::Status => Status,
+            httparse::Error::Token => Header,
+            httparse::Error::TooManyHeaders => TooLarge,
+            httparse::Error::Version => Version,
         }
     }
 }

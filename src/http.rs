@@ -13,8 +13,7 @@ use method::Method;
 use status::StatusCode;
 use uri::RequestUri;
 use version::HttpVersion::{self, Http10, Http11};
-use HttpError::{HttpIoError, HttpTooLargeError};
-use {HttpError, HttpResult};
+use {Error};
 
 use self::HttpReader::{SizedReader, ChunkedReader, EofReader, EmptyReader};
 use self::HttpWriter::{ThroughWriter, ChunkedWriter, SizedWriter, EmptyWriter};
@@ -334,17 +333,17 @@ const MAX_HEADERS: usize = 100;
 
 /// Parses a request into an Incoming message head.
 #[inline]
-pub fn parse_request<R: Read>(buf: &mut BufReader<R>) -> HttpResult<Incoming<(Method, RequestUri)>> {
+pub fn parse_request<R: Read>(buf: &mut BufReader<R>) -> ::Result<Incoming<(Method, RequestUri)>> {
     parse::<R, httparse::Request, (Method, RequestUri)>(buf)
 }
 
 /// Parses a response into an Incoming message head.
 #[inline]
-pub fn parse_response<R: Read>(buf: &mut BufReader<R>) -> HttpResult<Incoming<RawStatus>> {
+pub fn parse_response<R: Read>(buf: &mut BufReader<R>) -> ::Result<Incoming<RawStatus>> {
     parse::<R, httparse::Response, RawStatus>(buf)
 }
 
-fn parse<R: Read, T: TryParse<Subject=I>, I>(rdr: &mut BufReader<R>) -> HttpResult<Incoming<I>> {
+fn parse<R: Read, T: TryParse<Subject=I>, I>(rdr: &mut BufReader<R>) -> ::Result<Incoming<I>> {
     loop {
         match try!(try_parse::<R, T, I>(rdr)) {
             httparse::Status::Complete((inc, len)) => {
@@ -355,12 +354,12 @@ fn parse<R: Read, T: TryParse<Subject=I>, I>(rdr: &mut BufReader<R>) -> HttpResu
         }
         match try!(rdr.read_into_buf()) {
             0 if rdr.get_buf().is_empty() => {
-                return Err(HttpIoError(io::Error::new(
+                return Err(Error::Io(io::Error::new(
                     io::ErrorKind::ConnectionAborted,
                     "Connection closed"
                 )))
             },
-            0 => return Err(HttpTooLargeError),
+            0 => return Err(Error::TooLarge),
             _ => ()
         }
     }
@@ -377,7 +376,7 @@ trait TryParse {
     fn try_parse<'a>(headers: &'a mut [httparse::Header<'a>], buf: &'a [u8]) -> TryParseResult<Self::Subject>;
 }
 
-type TryParseResult<T> = Result<httparse::Status<(Incoming<T>, usize)>, HttpError>;
+type TryParseResult<T> = Result<httparse::Status<(Incoming<T>, usize)>, Error>;
 
 impl<'a> TryParse for httparse::Request<'a, 'a> {
     type Subject = (Method, RequestUri);
@@ -552,12 +551,12 @@ mod tests {
     #[test]
     fn test_parse_tcp_closed() {
         use std::io::ErrorKind;
-        use error::HttpError::HttpIoError;
+        use error::Error;
 
         let mut empty = MockStream::new();
         let mut buf = BufReader::new(&mut empty);
         match parse_request(&mut buf) {
-            Err(HttpIoError(ref e)) if e.kind() == ErrorKind::ConnectionAborted => (),
+            Err(Error::Io(ref e)) if e.kind() == ErrorKind::ConnectionAborted => (),
             other => panic!("unexpected result: {:?}", other)
         }
     }
