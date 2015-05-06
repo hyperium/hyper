@@ -25,7 +25,7 @@
 //! # use hyper::Client;
 //! let mut client = Client::new();
 //!
-//! let res = client.post("http://exmaple.domain")
+//! let res = client.post("http://example.domain")
 //!     .body("foo=bar")
 //!     .send()
 //!     .unwrap();
@@ -266,7 +266,7 @@ impl<'a, U: IntoUrl> RequestBuilder<'a, U> {
                 }
             };
             match client.redirect_policy {
-                // separate branches because they cant be one
+                // separate branches because they can't be one
                 RedirectPolicy::FollowAll => (), //continue
                 RedirectPolicy::FollowIf(cond) if cond(&url) => (), //continue
                 _ => return Ok(res),

@@ -91,7 +91,7 @@ impl<'a> Response<'a, Fresh> {
             None => ()
         };
 
-        // cant do in match above, thanks borrowck
+        // can't do in match above, thanks borrowck
         if chunked {
             let encodings = match self.headers.get_mut::<header::TransferEncoding>() {
                 Some(&mut header::TransferEncoding(ref mut encodings)) => {
