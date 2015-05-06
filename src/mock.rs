@@ -73,7 +73,7 @@ pub struct MockConnector;
 impl NetworkConnector for MockConnector {
     type Stream = MockStream;
 
-    fn connect(&mut self, _host: &str, _port: u16, _scheme: &str) -> io::Result<MockStream> {
+    fn connect(&mut self, _host: &str, _port: u16, _scheme: &str) -> ::Result<MockStream> {
         Ok(MockStream::new())
     }
 }
@@ -88,7 +88,7 @@ macro_rules! mock_connector (
 
         impl ::net::NetworkConnector for $name {
             type Stream = ::mock::MockStream;
-            fn connect(&mut self, host: &str, port: u16, scheme: &str) -> ::std::io::Result<::mock::MockStream> {
+            fn connect(&mut self, host: &str, port: u16, scheme: &str) -> $crate::Result<::mock::MockStream> {
                 use std::collections::HashMap;
                 use std::io::Cursor;
                 debug!("MockStream::connect({:?}, {:?}, {:?})", host, port, scheme);
@@ -99,7 +99,7 @@ macro_rules! mock_connector (
                 let key = format!("{}://{}", scheme, host);
                 // ignore port for now
                 match map.get(&*key) {
-                    Some(res) => Ok(::mock::MockStream {
+                    Some(res) => Ok($crate::mock::MockStream {
                         write: vec![],
                         read: Cursor::new(res.to_string().into_bytes()),
                     }),

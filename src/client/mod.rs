@@ -144,7 +144,7 @@ impl<C: NetworkConnector<Stream=S> + Send, S: NetworkStream + Send> NetworkConne
     type Stream = Box<NetworkStream + Send>;
     #[inline]
     fn connect(&mut self, host: &str, port: u16, scheme: &str)
-        -> io::Result<Box<NetworkStream + Send>> {
+        -> ::Result<Box<NetworkStream + Send>> {
         Ok(try!(self.0.connect(host, port, scheme)).into())
     }
 }
@@ -155,7 +155,7 @@ impl NetworkConnector for Connector {
     type Stream = Box<NetworkStream + Send>;
     #[inline]
     fn connect(&mut self, host: &str, port: u16, scheme: &str)
-        -> io::Result<Box<NetworkStream + Send>> {
+        -> ::Result<Box<NetworkStream + Send>> {
         Ok(try!(self.0.connect(host, port, scheme)).into())
     }
 }

@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use openssl::ssl::{Ssl, SslStream, SslContext, SSL_VERIFY_NONE};
 use openssl::ssl::SslMethod::Sslv23;
-use openssl::ssl::error::{SslError, StreamError, OpenSslErrors, SslSessionClosed};
+use openssl::ssl::error::StreamError as SslIoError;
 use openssl::x509::X509FileType;
 
 use typeable::Typeable;
@@ -29,7 +29,7 @@ pub trait NetworkListener: Clone {
     //fn listen<To: ToSocketAddrs>(&mut self, addr: To) -> io::Result<Self::Acceptor>;
 
     /// Returns an iterator of streams.
-    fn accept(&mut self) -> io::Result<Self::Stream>;
+    fn accept(&mut self) -> ::Result<Self::Stream>;
 
     /// Get the address this Listener ended up listening on.
     fn local_addr(&mut self) -> io::Result<SocketAddr>;
@@ -47,8 +47,8 @@ pub trait NetworkListener: Clone {
 pub struct NetworkConnections<'a, N: NetworkListener + 'a>(&'a mut N);
 
 impl<'a, N: NetworkListener + 'a> Iterator for NetworkConnections<'a, N> {
-    type Item = io::Result<N::Stream>;
-    fn next(&mut self) -> Option<io::Result<N::Stream>> {
+    type Item = ::Result<N::Stream>;
+    fn next(&mut self) -> Option<::Result<N::Stream>> {
         Some(self.0.accept())
     }
 }
@@ -58,6 +58,7 @@ pub trait NetworkStream: Read + Write + Any + Send + Typeable {
     /// Get the remote address of the underlying connection.
     fn peer_addr(&mut self) -> io::Result<SocketAddr>;
     /// This will be called when Stream should no longer be kept alive.
+    #[inline]
     fn close(&mut self, _how: Shutdown) -> io::Result<()> {
         Ok(())
     }
@@ -68,7 +69,7 @@ pub trait NetworkConnector {
     /// Type of Stream to create
     type Stream: Into<Box<NetworkStream + Send>>;
     /// Connect to a remote address.
-    fn connect(&mut self, host: &str, port: u16, scheme: &str) -> io::Result<Self::Stream>;
+    fn connect(&mut self, host: &str, port: u16, scheme: &str) -> ::Result<Self::Stream>;
 }
 
 impl<T: NetworkStream + Send> From<T> for Box<NetworkStream + Send> {
@@ -158,22 +159,22 @@ impl Clone for HttpListener {
 impl HttpListener {
 
     /// Start listening to an address over HTTP.
-    pub fn http<To: ToSocketAddrs>(addr: To) -> io::Result<HttpListener> {
+    pub fn http<To: ToSocketAddrs>(addr: To) -> ::Result<HttpListener> {
         Ok(HttpListener::Http(try!(TcpListener::bind(addr))))
     }
 
     /// Start listening to an address over HTTPS.
-    pub fn https<To: ToSocketAddrs>(addr: To, cert: &Path, key: &Path) -> io::Result<HttpListener> {
-        let mut ssl_context = try!(SslContext::new(Sslv23).map_err(lift_ssl_error));
-        try!(ssl_context.set_cipher_list("DEFAULT").map_err(lift_ssl_error));
-        try!(ssl_context.set_certificate_file(cert, X509FileType::PEM).map_err(lift_ssl_error));
-        try!(ssl_context.set_private_key_file(key, X509FileType::PEM).map_err(lift_ssl_error));
+    pub fn https<To: ToSocketAddrs>(addr: To, cert: &Path, key: &Path) -> ::Result<HttpListener> {
+        let mut ssl_context = try!(SslContext::new(Sslv23));
+        try!(ssl_context.set_cipher_list("DEFAULT"));
+        try!(ssl_context.set_certificate_file(cert, X509FileType::PEM));
+        try!(ssl_context.set_private_key_file(key, X509FileType::PEM));
         ssl_context.set_verify(SSL_VERIFY_NONE, None);
         HttpListener::https_with_context(addr, ssl_context)
     }
 
     /// Start listening to an address of HTTPS using the given SslContext
-    pub fn https_with_context<To: ToSocketAddrs>(addr: To, ssl_context: SslContext) -> io::Result<HttpListener> {
+    pub fn https_with_context<To: ToSocketAddrs>(addr: To, ssl_context: SslContext) -> ::Result<HttpListener> {
         Ok(HttpListener::Https(try!(TcpListener::bind(addr)), Arc::new(ssl_context)))
     }
 }
@@ -182,21 +183,20 @@ impl NetworkListener for HttpListener {
     type Stream = HttpStream;
 
     #[inline]
-    fn accept(&mut self) -> io::Result<HttpStream> {
-        Ok(match *self {
-            HttpListener::Http(ref mut tcp) => HttpStream::Http(CloneTcpStream(try!(tcp.accept()).0)),
+    fn accept(&mut self) -> ::Result<HttpStream> {
+        match *self {
+            HttpListener::Http(ref mut tcp) => Ok(HttpStream::Http(CloneTcpStream(try!(tcp.accept()).0))),
             HttpListener::Https(ref mut tcp, ref ssl_context) => {
                 let stream = CloneTcpStream(try!(tcp.accept()).0);
                 match SslStream::new_server(&**ssl_context, stream) {
-                    Ok(ssl_stream) => HttpStream::Https(ssl_stream),
-                    Err(StreamError(e)) => {
-                        return Err(io::Error::new(io::ErrorKind::ConnectionAborted,
-                                                  e));
+                    Ok(ssl_stream) => Ok(HttpStream::Https(ssl_stream)),
+                    Err(SslIoError(e)) => {
+                        Err(io::Error::new(io::ErrorKind::ConnectionAborted, e).into())
                     },
-                    Err(e) => return Err(lift_ssl_error(e))
+                    Err(e) => Err(e.into())
                 }
             }
-        })
+        }
     }
 
     #[inline]
@@ -308,9 +308,9 @@ pub type ContextVerifier = Box<FnMut(&mut SslContext) -> () + Send>;
 impl NetworkConnector for HttpConnector {
     type Stream = HttpStream;
 
-    fn connect(&mut self, host: &str, port: u16, scheme: &str) -> io::Result<HttpStream> {
+    fn connect(&mut self, host: &str, port: u16, scheme: &str) -> ::Result<HttpStream> {
         let addr = &(host, port);
-        match scheme {
+        Ok(try!(match scheme {
             "http" => {
                 debug!("http scheme");
                 Ok(HttpStream::Http(CloneTcpStream(try!(TcpStream::connect(addr)))))
@@ -318,30 +318,20 @@ impl NetworkConnector for HttpConnector {
             "https" => {
                 debug!("https scheme");
                 let stream = CloneTcpStream(try!(TcpStream::connect(addr)));
-                let mut context = try!(SslContext::new(Sslv23).map_err(lift_ssl_error));
+                let mut context = try!(SslContext::new(Sslv23));
                 if let Some(ref mut verifier) = self.0 {
                     verifier(&mut context);
                 }
-                let ssl = try!(Ssl::new(&context).map_err(lift_ssl_error));
-                try!(ssl.set_hostname(host).map_err(lift_ssl_error));
-                let stream = try!(SslStream::new(&context, stream).map_err(lift_ssl_error));
+                let ssl = try!(Ssl::new(&context));
+                try!(ssl.set_hostname(host));
+                let stream = try!(SslStream::new(&context, stream));
                 Ok(HttpStream::Https(stream))
             },
             _ => {
                 Err(io::Error::new(io::ErrorKind::InvalidInput,
                                 "Invalid scheme for Http"))
             }
-        }
-    }
-}
-
-fn lift_ssl_error(ssl: SslError) -> io::Error {
-    debug!("lift_ssl_error: {:?}", ssl);
-    match ssl {
-        StreamError(err) => err,
-        SslSessionClosed => io::Error::new(io::ErrorKind::ConnectionAborted,
-                                         "SSL Connection Closed"),
-        e@OpenSslErrors(..) => io::Error::new(io::ErrorKind::Other, e)
+        }))
     }
 }
 

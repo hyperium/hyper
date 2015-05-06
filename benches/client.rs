@@ -79,7 +79,7 @@ struct MockConnector;
 
 impl net::NetworkConnector for MockConnector {
     type Stream = MockStream;
-    fn connect(&mut self, _: &str, _: u16, _: &str) -> io::Result<MockStream> {
+    fn connect(&mut self, _: &str, _: u16, _: &str) -> hyper::Result<MockStream> {
         Ok(MockStream::new())
     }
 

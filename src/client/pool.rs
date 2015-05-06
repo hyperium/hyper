@@ -98,7 +98,7 @@ impl<S> PoolImpl<S> {
 
 impl<C: NetworkConnector<Stream=S>, S: NetworkStream + Send> NetworkConnector for Pool<C> {
     type Stream = PooledStream<S>;
-    fn connect(&mut self, host: &str, port: u16, scheme: &str) -> io::Result<PooledStream<S>> {
+    fn connect(&mut self, host: &str, port: u16, scheme: &str) -> ::Result<PooledStream<S>> {
         let key = key(host, port, scheme);
         let mut locked = self.inner.lock().unwrap();
         let mut should_remove = false;
