@@ -2,6 +2,7 @@
 
 [![Build Status](https://travis-ci.org/hyperium/hyper.svg?branch=master)](https://travis-ci.org/hyperium/hyper)
 [![crates.io](http://meritbadge.herokuapp.com/hyper)](https://crates.io/crates/hyper)
+[![Coverage Status](https://coveralls.io/repos/hyperium/hyper/badge.svg?branch=master)](https://coveralls.io/r/hyperium/hyper?branch=master)
 
 A Modern HTTP library for Rust.
 
