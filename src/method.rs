@@ -35,7 +35,7 @@ pub enum Method {
     Connect,
     /// PATCH
     Patch,
-    /// Method extentions. An example would be `let m = Extension("FOO".to_string())`.
+    /// Method extensions. An example would be `let m = Extension("FOO".to_string())`.
     Extension(String)
 }
 

@@ -29,7 +29,7 @@ pub enum Error {
     TooLarge,
     /// An invalid `Status`, such as `1337 ELITE`.
     Status,
-    /// An `IoError` that occured while trying to read or write to a network stream.
+    /// An `IoError` that occurred while trying to read or write to a network stream.
     Io(IoError),
 }
 

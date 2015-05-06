@@ -3,7 +3,7 @@ use std::fmt;
 use std::cmp::Ordering;
 
 // shamelessly lifted from Teepee. I tried a few schemes, this really
-// does seem like the best. Improved scheme to support arbitary status codes.
+// does seem like the best. Improved scheme to support arbitrary status codes.
 
 /// An HTTP status code (`status-code` in RFC 7230 et al.).
 ///
