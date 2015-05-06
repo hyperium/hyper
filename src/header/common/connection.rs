@@ -1,33 +1,8 @@
-use header::{Header, HeaderFormat};
 use std::fmt::{self, Display};
 use std::str::FromStr;
-use header::parsing::{from_comma_delimited, fmt_comma_delimited};
 use unicase::UniCase;
 
 pub use self::ConnectionOption::{KeepAlive, Close, ConnectionHeader};
-
-/// `Connection` header, defined in [RFC7230](https://tools.ietf.org/html/rfc7230#section-6.1)
-///
-/// The `Connection` header field allows the sender to indicate desired
-/// control options for the current connection.  In order to avoid
-/// confusing downstream recipients, a proxy or gateway MUST remove or
-/// replace any received connection options before forwarding the
-/// message.
-///
-/// # ABNF
-/// ```plain
-/// Connection        = 1#connection-option
-/// connection-option = token
-/// ```
-///
-/// # Example values
-/// * `close`
-/// * `upgrade`
-/// * `keep-alive`
-#[derive(Clone, PartialEq, Debug)]
-pub struct Connection(pub Vec<ConnectionOption>);
-
-deref!(Connection => Vec<ConnectionOption>);
 
 /// Values that can be in the `Connection` header.
 #[derive(Clone, PartialEq, Debug)]
@@ -50,11 +25,11 @@ pub enum ConnectionOption {
 impl FromStr for ConnectionOption {
     type Err = ();
     fn from_str(s: &str) -> Result<ConnectionOption, ()> {
-        Ok(match s {
-            "keep-alive" => KeepAlive,
-            "close" => Close,
-            s => ConnectionHeader(UniCase(s.to_string())),
-        })
+        match s {
+            "keep-alive" => Ok(KeepAlive),
+            "close" => Ok(Close),
+            s => Ok(ConnectionHeader(UniCase(s.to_string())))
+        }
     }
 }
 
@@ -63,25 +38,36 @@ impl Display for ConnectionOption {
         f.write_str(match *self {
             KeepAlive => "keep-alive",
             Close => "close",
-            ConnectionHeader(UniCase(ref s)) => s,
+            ConnectionHeader(UniCase(ref s)) => s.as_ref()
         })
     }
 }
 
-impl Header for Connection {
-    fn header_name() -> &'static str {
-        "Connection"
-    }
+header! {
+    #[doc="`Connection` header, defined in"]
+    #[doc="[RFC7230](http://tools.ietf.org/html/rfc7230#section-6.1)"]
+    #[doc=""]
+    #[doc="The `Connection` header field allows the sender to indicate desired"]
+    #[doc="control options for the current connection.  In order to avoid"]
+    #[doc="confusing downstream recipients, a proxy or gateway MUST remove or"]
+    #[doc="replace any received connection options before forwarding the"]
+    #[doc="message."]
+    #[doc=""]
+    #[doc="# ABNF"]
+    #[doc="```plain"]
+    #[doc="Connection        = 1#connection-option"]
+    #[doc="connection-option = token"]
+    #[doc=""]
+    #[doc="# Example values"]
+    #[doc="* `close`"]
+    #[doc="* `keep-alive`"]
+    #[doc="* `upgrade`"]
+    (Connection, "Connection") => (ConnectionOption)+
 
-    fn parse_header(raw: &[Vec<u8>]) -> Option<Connection> {
-        from_comma_delimited(raw).map(|vec| Connection(vec))
-    }
-}
-
-impl HeaderFormat for Connection {
-    fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let Connection(ref parts) = *self;
-        fmt_comma_delimited(f, &parts[..])
+    test_connection {
+        test_header!(test1, vec![b"close"]);
+        test_header!(test2, vec![b"keep-alive"]);
+        test_header!(test3, vec![b"upgrade"]);
     }
 }
 

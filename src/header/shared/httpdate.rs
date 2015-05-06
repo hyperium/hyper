@@ -83,4 +83,9 @@ mod tests {
     fn test_asctime() {
         assert_eq!("Sun Nov  7 08:48:37 1994".parse(), Ok(NOV_07));
     }
+
+    #[test]
+    fn test_no_date() {
+        assert_eq!("this-is-no-date".parse(), Err::<HttpDate, ()>(()));
+    }
 }

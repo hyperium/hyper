@@ -256,8 +256,6 @@ macro_rules! header {
                 if raw.len() == 1 {
                     if raw[0] == b"*" {
                         return Some($id::Any)
-                    } else if raw[0] == b"" {
-                        return None
                     }
                 }
                 $crate::header::parsing::from_comma_delimited(raw).map(|vec| $id::Items(vec))
