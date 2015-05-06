@@ -15,8 +15,6 @@
 //!         (hyper::Get, _) => StatusCode::NotFound,
 //!         _ => StatusCode::MethodNotAllowed
 //!     };
-//!
-//!     res.start().unwrap().end().unwrap();
 //! }).listen("0.0.0.0:8080").unwrap();
 use std::fmt;
 use std::io::{ErrorKind, BufWriter, Write};
