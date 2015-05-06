@@ -27,25 +27,21 @@ fn echo(mut req: Request, mut res: Response) {
                 res.headers_mut().set(ContentLength(out.len() as u64));
                 let mut res = try_return!(res.start());
                 try_return!(res.write_all(out));
-                try_return!(res.end());
                 return;
             },
             (&Post, "/echo") => (), // fall through, fighting mutable borrows
             _ => {
                 *res.status_mut() = hyper::NotFound;
-                try_return!(res.start().and_then(|res| res.end()));
                 return;
             }
         },
         _ => {
-            try_return!(res.start().and_then(|res| res.end()));
             return;
         }
     };
 
     let mut res = try_return!(res.start());
     try_return!(copy(&mut req, &mut res));
-    try_return!(res.end());
 }
 
 fn main() {
