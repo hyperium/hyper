@@ -1,7 +1,7 @@
 //! A collection of traits abstracting over Listeners and Streams.
 use std::any::{Any, TypeId};
 use std::fmt;
-use std::io::{self, Read, Write};
+use std::io::{self, ErrorKind, Read, Write};
 use std::net::{SocketAddr, ToSocketAddrs, TcpStream, TcpListener, Shutdown};
 use std::mem;
 use std::path::Path;
@@ -292,10 +292,21 @@ impl NetworkStream for HttpStream {
 
     #[inline]
     fn close(&mut self, how: Shutdown) -> io::Result<()> {
-        match *self {
-            HttpStream::Http(ref mut inner) => inner.0.shutdown(how),
-            HttpStream::Https(ref mut inner) => inner.get_mut().0.shutdown(how)
+        #[inline]
+        fn shutdown(tcp: &mut TcpStream, how: Shutdown) -> io::Result<()> {
+            match tcp.shutdown(how) {
+                Ok(_) => Ok(()),
+                // see https://github.com/hyperium/hyper/issues/508
+                Err(ref e) if e.kind() == ErrorKind::NotConnected => Ok(()),
+                err => err
+            }
         }
+
+        match *self {
+            HttpStream::Http(ref mut inner) => shutdown(&mut inner.0, how),
+            HttpStream::Https(ref mut inner) => shutdown(&mut inner.get_mut().0, how)
+        }
+
     }
 }
 
