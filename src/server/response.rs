@@ -109,8 +109,6 @@ impl<'a, W: Any> Response<'a, W> {
 
         Ok(body_type)
     }
-
-
 }
 
 impl<'a> Response<'a, Fresh> {
@@ -124,6 +122,23 @@ impl<'a> Response<'a, Fresh> {
             body: ThroughWriter(stream),
             _writing: PhantomData,
         }
+    }
+
+    /// Writes the body and ends the response.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use hyper::server::Response;
+    /// fn handler(res: Response) {
+    ///     res.send(b"Hello World!").unwrap();
+    /// }
+    /// ```
+    pub fn send(mut self, body: &[u8]) -> io::Result<()> {
+        self.headers.set(header::ContentLength(body.len() as u64));
+        let mut stream = try!(self.start());
+        try!(stream.write_all(body));
+        stream.end()
     }
 
     /// Consume this Response<Fresh>, writing the Headers and Status and creating a Response<Streaming>
