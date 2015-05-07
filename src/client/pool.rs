@@ -5,7 +5,7 @@ use std::io::{self, Read, Write};
 use std::net::{SocketAddr, Shutdown};
 use std::sync::{Arc, Mutex};
 
-use net::{NetworkConnector, NetworkStream, HttpConnector};
+use net::{NetworkConnector, NetworkStream, HttpConnector, ContextVerifier};
 
 /// The `NetworkConnector` that behaves as a connection pool used by hyper's `Client`.
 pub struct Pool<C: NetworkConnector> {
@@ -119,6 +119,10 @@ impl<C: NetworkConnector<Stream=S>, S: NetworkStream + Send> NetworkConnector fo
             pool: self.inner.clone()
         })
     }
+    #[inline]
+    fn set_ssl_verifier(&mut self, verifier: ContextVerifier) {
+        self.connector.set_ssl_verifier(verifier);
+    }
 }
 
 /// A Stream that will try to be returned to the Pool when dropped.
@@ -184,8 +188,9 @@ impl<S> Drop for PooledStream<S> {
 #[cfg(test)]
 mod tests {
     use std::net::Shutdown;
-    use mock::MockConnector;
+    use mock::{MockConnector, ChannelMockConnector};
     use net::{NetworkConnector, NetworkStream};
+    use std::sync::mpsc;
 
     use super::{Pool, key};
 
@@ -223,5 +228,19 @@ mod tests {
         assert_eq!(locked.conns.len(), 0);
     }
 
+    /// Tests that the `Pool::set_ssl_verifier` method sets the SSL verifier of
+    /// the underlying `Connector` instance that it uses.
+    #[test]
+    fn test_set_ssl_verifier_delegates_to_connector() {
+        let (tx, rx) = mpsc::channel();
+        let mut pool = Pool::with_connector(
+            Default::default(), ChannelMockConnector::new(tx));
 
+        pool.set_ssl_verifier(Box::new(|_| { }));
+
+        match rx.try_recv() {
+            Ok(meth) => assert_eq!(meth, "set_ssl_verifier"),
+            _ => panic!("Expected a call to `set_ssl_verifier`"),
+        };
+    }
 }

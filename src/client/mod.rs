@@ -147,6 +147,10 @@ impl<C: NetworkConnector<Stream=S> + Send, S: NetworkStream + Send> NetworkConne
         -> ::Result<Box<NetworkStream + Send>> {
         Ok(try!(self.0.connect(host, port, scheme)).into())
     }
+    #[inline]
+    fn set_ssl_verifier(&mut self, verifier: ContextVerifier) {
+        self.0.set_ssl_verifier(verifier);
+    }
 }
 
 struct Connector(Box<NetworkConnector<Stream=Box<NetworkStream + Send>> + Send>);
@@ -157,6 +161,10 @@ impl NetworkConnector for Connector {
     fn connect(&mut self, host: &str, port: u16, scheme: &str)
         -> ::Result<Box<NetworkStream + Send>> {
         Ok(try!(self.0.connect(host, port, scheme)).into())
+    }
+    #[inline]
+    fn set_ssl_verifier(&mut self, verifier: ContextVerifier) {
+        self.0.set_ssl_verifier(verifier);
     }
 }
 
