@@ -2,10 +2,9 @@
 extern crate hyper;
 extern crate env_logger;
 
-use std::io::{Write, copy};
+use std::io::copy;
 
 use hyper::{Get, Post};
-use hyper::header::ContentLength;
 use hyper::server::{Server, Request, Response};
 use hyper::uri::RequestUri::AbsolutePath;
 
@@ -22,11 +21,7 @@ fn echo(mut req: Request, mut res: Response) {
     match req.uri {
         AbsolutePath(ref path) => match (&req.method, &path[..]) {
             (&Get, "/") | (&Get, "/echo") => {
-                let out = b"Try POST /echo";
-
-                res.headers_mut().set(ContentLength(out.len() as u64));
-                let mut res = try_return!(res.start());
-                try_return!(res.write_all(out));
+                try_return!(res.send(b"Try POST /echo"));
                 return;
             },
             (&Post, "/echo") => (), // fall through, fighting mutable borrows
