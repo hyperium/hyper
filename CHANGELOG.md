@@ -1,3 +1,47 @@
+## v0.4.0 (2015-05-07)
+
+
+#### Bug Fixes
+
+* **net:** ignore NotConnected error in NetworkStream.close ([6be60052](https://github.com/hyperium/hyper/commit/6be60052c627b7e498d973465b4a3ee7efc40665), closes [#508](https://github.com/hyperium/hyper/issues/508))
+
+
+#### Features
+
+* **error:** add Ssl variant to hyper::Error ([972b3a38](https://github.com/hyperium/hyper/commit/972b3a388ac3af98ba038927c551b92be3a68d62), closes [#483](https://github.com/hyperium/hyper/issues/483))
+* **headers:**
+  * Allow `null` value in Access-Control-Allow-Origin ([5e341714](https://github.com/hyperium/hyper/commit/5e3417145ced116147ef1e890b4f1e7c775ad173))
+  * Parse Upgrade header protocols further ([f47d11b9](https://github.com/hyperium/hyper/commit/f47d11b97bb4a4bf67c3f9aa47c203babf4a9c72), closes [#480](https://github.com/hyperium/hyper/issues/480))
+  * Add From header field ([ce9c4af1](https://github.com/hyperium/hyper/commit/ce9c4af1e0a46abc9f7908c2cb0659a2ecab137c))
+  * Add Accept-Ranges header field ([2dbe3f9b](https://github.com/hyperium/hyper/commit/2dbe3f9b9a3fc9f04346712e55f40dabaf72d9a8))
+* **method:** implement `AsRef<str>` for `Method` ([c29af729](https://github.com/hyperium/hyper/commit/c29af729726ae782bece5e790bce02b0d3ab9ef9))
+* **server:**
+  * add Response.send to write a sized body ([d5558b68](https://github.com/hyperium/hyper/commit/d5558b687d32d0affb9aaa7185227a4e294f5454), closes [#446](https://github.com/hyperium/hyper/issues/446))
+  * dropping a Response will write out to the underlying stream ([a9dcc59c](https://github.com/hyperium/hyper/commit/a9dcc59cd9846609a5733678f66353655c075279))
+
+
+#### Breaking Changes
+
+* Adds a variant to `hyper::Error`, which may break any
+exhaustive matches.
+
+ ([972b3a38](https://github.com/hyperium/hyper/commit/972b3a388ac3af98ba038927c551b92be3a68d62))
+* The terms `Http` and `Error` have been removed from the Error
+  type and its variants. `HttpError` should now be accessed as `hyper::Error`,
+  and variants like `HttpIoError` should be accessed as `Error::Io`.
+
+ ([9ba074d1](https://github.com/hyperium/hyper/commit/9ba074d150a55a749161317405fe8b28253c5a9d))
+* Add variant to Access-Control-Allow-Origin enum
+
+ ([5e341714](https://github.com/hyperium/hyper/commit/5e3417145ced116147ef1e890b4f1e7c775ad173))
+* Upgrade header Protocol changed.
+
+ ([f47d11b9](https://github.com/hyperium/hyper/commit/f47d11b97bb4a4bf67c3f9aa47c203babf4a9c72))
+* `from_one_raw_str()` returns `None` on empty values.
+
+ ([a6974c99](https://github.com/hyperium/hyper/commit/a6974c99d39fcbaf3fb9ed38428b21e0301f3602))
+
+
 ### v0.3.16 (2015-05-01)
 
 
