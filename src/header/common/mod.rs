@@ -98,6 +98,7 @@ macro_rules! deref(
     }
 );
 
+#[macro_export]
 macro_rules! tm {
     ($id:ident, $tm:ident{$($tf:item)*}) => {
         #[allow(unused_imports)]
