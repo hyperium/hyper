@@ -98,7 +98,7 @@ impl<S> PoolImpl<S> {
 
 impl<C: NetworkConnector<Stream=S>, S: NetworkStream + Send> NetworkConnector for Pool<C> {
     type Stream = PooledStream<S>;
-    fn connect(&mut self, host: &str, port: u16, scheme: &str) -> ::Result<PooledStream<S>> {
+    fn connect(&self, host: &str, port: u16, scheme: &str) -> ::Result<PooledStream<S>> {
         let key = key(host, port, scheme);
         let mut locked = self.inner.lock().unwrap();
         let mut should_remove = false;
@@ -203,7 +203,7 @@ mod tests {
 
     #[test]
     fn test_connect_and_drop() {
-        let mut pool = mocked!();
+        let pool = mocked!();
         let key = key("127.0.0.1", 3000, "http");
         pool.connect("127.0.0.1", 3000, "http").unwrap().is_drained = true;
         {
@@ -221,7 +221,7 @@ mod tests {
 
     #[test]
     fn test_closed() {
-        let mut pool = mocked!();
+        let pool = mocked!();
         let mut stream = pool.connect("127.0.0.1", 3000, "http").unwrap();
         stream.close(Shutdown::Both).unwrap();
         drop(stream);

@@ -69,7 +69,7 @@ pub trait NetworkConnector {
     /// Type of Stream to create
     type Stream: Into<Box<NetworkStream + Send>>;
     /// Connect to a remote address.
-    fn connect(&mut self, host: &str, port: u16, scheme: &str) -> ::Result<Self::Stream>;
+    fn connect(&self, host: &str, port: u16, scheme: &str) -> ::Result<Self::Stream>;
     /// Sets the given `ContextVerifier` to be used when verifying the SSL context
     /// on the establishment of a new connection.
     fn set_ssl_verifier(&mut self, verifier: ContextVerifier);
@@ -317,12 +317,12 @@ impl NetworkStream for HttpStream {
 pub struct HttpConnector(pub Option<ContextVerifier>);
 
 /// A method that can set verification methods on an SSL context
-pub type ContextVerifier = Box<FnMut(&mut SslContext) -> () + Send>;
+pub type ContextVerifier = Box<Fn(&mut SslContext) -> () + Send>;
 
 impl NetworkConnector for HttpConnector {
     type Stream = HttpStream;
 
-    fn connect(&mut self, host: &str, port: u16, scheme: &str) -> ::Result<HttpStream> {
+    fn connect(&self, host: &str, port: u16, scheme: &str) -> ::Result<HttpStream> {
         let addr = &(host, port);
         Ok(try!(match scheme {
             "http" => {
@@ -333,7 +333,7 @@ impl NetworkConnector for HttpConnector {
                 debug!("https scheme");
                 let stream = CloneTcpStream(try!(TcpStream::connect(addr)));
                 let mut context = try!(SslContext::new(Sslv23));
-                if let Some(ref mut verifier) = self.0 {
+                if let Some(ref verifier) = self.0 {
                     verifier(&mut context);
                 }
                 let ssl = try!(Ssl::new(&context));

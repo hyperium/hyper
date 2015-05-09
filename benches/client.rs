@@ -79,7 +79,7 @@ struct MockConnector;
 
 impl net::NetworkConnector for MockConnector {
     type Stream = MockStream;
-    fn connect(&mut self, _: &str, _: u16, _: &str) -> hyper::Result<MockStream> {
+    fn connect(&self, _: &str, _: u16, _: &str) -> hyper::Result<MockStream> {
         Ok(MockStream::new())
     }
 
@@ -93,7 +93,7 @@ fn bench_mock_hyper(b: &mut test::Bencher) {
     let url = "http://127.0.0.1:1337/";
     b.iter(|| {
         let mut req = hyper::client::Request::with_connector(
-            hyper::Get, hyper::Url::parse(url).unwrap(), &mut MockConnector
+            hyper::Get, hyper::Url::parse(url).unwrap(), &MockConnector
         ).unwrap();
         req.headers_mut().set(Foo);
 
