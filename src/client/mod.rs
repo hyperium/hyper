@@ -41,7 +41,7 @@ use url::ParseError as UrlError;
 use header::{Headers, Header, HeaderFormat};
 use header::{ContentLength, Location};
 use method::Method;
-use net::{NetworkConnector, NetworkStream, HttpConnector, ContextVerifier};
+use net::{NetworkConnector, NetworkStream, ContextVerifier};
 use status::StatusClass::Redirection;
 use {Url};
 use Error;
@@ -85,10 +85,7 @@ impl Client {
 
     /// Set the SSL verifier callback for use with OpenSSL.
     pub fn set_ssl_verifier(&mut self, verifier: ContextVerifier) {
-        self.connector = with_connector(Pool::with_connector(
-            Default::default(),
-            HttpConnector(Some(verifier))
-        ));
+        self.connector.set_ssl_verifier(verifier);
     }
 
     /// Set the RedirectPolicy.
@@ -409,6 +406,8 @@ mod tests {
     use header::Server;
     use super::{Client, RedirectPolicy};
     use url::Url;
+    use mock::ChannelMockConnector;
+    use std::sync::mpsc::{self, TryRecvError};
 
     mock_connector!(MockRedirectPolicy {
         "http://127.0.0.1" =>       "HTTP/1.1 301 Redirect\r\n\
@@ -455,4 +454,30 @@ mod tests {
         assert_eq!(res.headers.get(), Some(&Server("mock2".to_string())));
     }
 
+    /// Tests that the `Client::set_ssl_verifier` method does not drop the
+    /// old connector, but rather delegates the change to the connector itself.
+    #[test]
+    fn test_client_set_ssl_verifer() {
+        let (tx, rx) = mpsc::channel();
+        let mut client = Client::with_connector(ChannelMockConnector::new(tx));
+
+        client.set_ssl_verifier(Box::new(|_| {}));
+
+        // Make sure that the client called the `set_ssl_verifier` method
+        match rx.try_recv() {
+            Ok(meth) => {
+                assert_eq!(meth, "set_ssl_verifier");
+            },
+            _ => panic!("Expected a call to `set_ssl_verifier`"),
+        };
+        // Now make sure that no other method was called, as well as that
+        // the connector is still alive (i.e. wasn't dropped by the client).
+        match rx.try_recv() {
+            Err(TryRecvError::Empty) => {},
+            Err(TryRecvError::Disconnected) => {
+                panic!("Expected the connector to still be alive.");
+            },
+            Ok(_) => panic!("Did not expect any more method calls."),
+        };
+    }
 }
