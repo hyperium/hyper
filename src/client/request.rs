@@ -47,7 +47,7 @@ impl Request<Fresh> {
     }
 
     /// Create a new client request with a specific underlying NetworkStream.
-    pub fn with_connector<C, S>(method: method::Method, url: Url, connector: &mut C)
+    pub fn with_connector<C, S>(method: method::Method, url: Url, connector: &C)
         -> ::Result<Request<Fresh>> where
         C: NetworkConnector<Stream=S>,
         S: Into<Box<NetworkStream + Send>> {

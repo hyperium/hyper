@@ -140,7 +140,7 @@ struct ConnAdapter<C: NetworkConnector + Send>(C);
 impl<C: NetworkConnector<Stream=S> + Send, S: NetworkStream + Send> NetworkConnector for ConnAdapter<C> {
     type Stream = Box<NetworkStream + Send>;
     #[inline]
-    fn connect(&mut self, host: &str, port: u16, scheme: &str)
+    fn connect(&self, host: &str, port: u16, scheme: &str)
         -> ::Result<Box<NetworkStream + Send>> {
         Ok(try!(self.0.connect(host, port, scheme)).into())
     }
@@ -155,7 +155,7 @@ struct Connector(Box<NetworkConnector<Stream=Box<NetworkStream + Send>> + Send>)
 impl NetworkConnector for Connector {
     type Stream = Box<NetworkStream + Send>;
     #[inline]
-    fn connect(&mut self, host: &str, port: u16, scheme: &str)
+    fn connect(&self, host: &str, port: u16, scheme: &str)
         -> ::Result<Box<NetworkStream + Send>> {
         Ok(try!(self.0.connect(host, port, scheme)).into())
     }
@@ -170,7 +170,7 @@ impl NetworkConnector for Connector {
 /// One of these will be built for you if you use one of the convenience
 /// methods, such as `get()`, `post()`, etc.
 pub struct RequestBuilder<'a, U: IntoUrl> {
-    client: &'a mut Client,
+    client: &'a Client,
     url: U,
     headers: Option<Headers>,
     method: Method,
@@ -225,7 +225,7 @@ impl<'a, U: IntoUrl> RequestBuilder<'a, U> {
         };
 
         loop {
-            let mut req = try!(Request::with_connector(method.clone(), url.clone(), &mut client.connector));
+            let mut req = try!(Request::with_connector(method.clone(), url.clone(), &client.connector));
             headers.as_ref().map(|headers| req.headers_mut().extend(headers.iter()));
 
             match (can_have_body, body.as_ref()) {
