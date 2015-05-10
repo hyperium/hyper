@@ -104,6 +104,7 @@ impl<C: NetworkConnector<Stream=S>, S: NetworkStream + Send> NetworkConnector fo
         let mut should_remove = false;
         let conn = match locked.conns.get_mut(&key) {
             Some(ref mut vec) => {
+                trace!("Pool had connection, using");
                 should_remove = vec.len() == 1;
                 vec.pop().unwrap()
             }

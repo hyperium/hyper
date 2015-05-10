@@ -53,11 +53,13 @@ impl<R: Read> BufReader<R> {
     pub fn read_into_buf(&mut self) -> io::Result<usize> {
         self.maybe_reserve();
         let v = &mut self.buf;
+        trace!("read_into_buf pos={}, cap={}", self.cap, v.capacity());
         if self.cap < v.capacity() {
             let nread = try!(self.inner.read(&mut v[self.cap..]));
             self.cap += nread;
             Ok(nread)
         } else {
+            trace!("read_into_buf at full capacity");
             Ok(0)
         }
     }

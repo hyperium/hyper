@@ -32,6 +32,7 @@ impl Response {
 
     /// Creates a new response from a server.
     pub fn new(stream: Box<NetworkStream + Send>) -> ::Result<Response> {
+        trace!("Response::new");
         let mut stream = BufReader::new(stream);
 
         let head = try!(http::parse_response(&mut stream));

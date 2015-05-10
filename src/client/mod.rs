@@ -237,7 +237,7 @@ impl<'a, U: IntoUrl> RequestBuilder<'a, U> {
             if res.status.class() != Redirection {
                 return Ok(res)
             }
-            debug!("redirect code {:?} for {:?}", res.status, url);
+            debug!("redirect code {:?} for {}", res.status, url);
 
             let loc = {
                 // punching borrowck here
@@ -257,9 +257,7 @@ impl<'a, U: IntoUrl> RequestBuilder<'a, U> {
                 }
             };
             url = match loc {
-                Ok(u) => {
-                    inspect!("Location", u)
-                },
+                Ok(u) => u,
                 Err(e) => {
                     debug!("Location header had invalid URI: {:?}", e);
                     return Ok(res);
