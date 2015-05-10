@@ -1,7 +1,6 @@
 //! Client Requests
 use std::marker::PhantomData;
 use std::io::{self, Write, BufWriter};
-use std::net::Shutdown;
 
 use url::Url;
 
@@ -9,7 +8,7 @@ use method::{self, Method};
 use header::Headers;
 use header::{self, Host};
 use net::{NetworkStream, NetworkConnector, HttpConnector, Fresh, Streaming};
-use http::{self, HttpWriter, LINE_ENDING};
+use http::{HttpWriter, LINE_ENDING};
 use http::HttpWriter::{ThroughWriter, ChunkedWriter, SizedWriter, EmptyWriter};
 use version;
 use client::{Response, get_host_and_port};
@@ -154,10 +153,7 @@ impl Request<Streaming> {
     ///
     /// Consumes the Request.
     pub fn send(self) -> ::Result<Response> {
-        let mut raw = try!(self.body.end()).into_inner().unwrap(); // end() already flushes
-        if !http::should_keep_alive(self.version, &self.headers) {
-            try!(raw.close(Shutdown::Write));
-        }
+        let raw = try!(self.body.end()).into_inner().unwrap(); // end() already flushes
         Response::new(raw)
     }
 }

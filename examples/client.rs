@@ -7,6 +7,8 @@ use std::env;
 use std::io;
 
 use hyper::Client;
+use hyper::header::Connection;
+use hyper::header::ConnectionOption::Close;
 
 fn main() {
     env_logger::init().unwrap();
@@ -21,10 +23,9 @@ fn main() {
 
     let mut client = Client::new();
 
-    let mut res = match client.get(&*url).send() {
-        Ok(res) => res,
-        Err(err) => panic!("Failed to connect: {:?}", err)
-    };
+    let mut res = client.get(&*url)
+        .header(Connection(vec![Close]))
+        .send().unwrap();
 
     println!("Response: {}", res.status);
     println!("Headers:\n{}", res.headers);
