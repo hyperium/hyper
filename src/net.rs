@@ -70,6 +70,9 @@ pub trait NetworkConnector {
     type Stream: Into<Box<NetworkStream + Send>>;
     /// Connect to a remote address.
     fn connect(&mut self, host: &str, port: u16, scheme: &str) -> ::Result<Self::Stream>;
+    /// Sets the given `ContextVerifier` to be used when verifying the SSL context
+    /// on the establishment of a new connection.
+    fn set_ssl_verifier(&mut self, verifier: ContextVerifier);
 }
 
 impl<T: NetworkStream + Send> From<T> for Box<NetworkStream + Send> {
@@ -344,12 +347,15 @@ impl NetworkConnector for HttpConnector {
             }
         }))
     }
+    fn set_ssl_verifier(&mut self, verifier: ContextVerifier) {
+        self.0 = Some(verifier);
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use mock::MockStream;
-    use super::NetworkStream;
+    use super::{NetworkStream, HttpConnector, NetworkConnector};
 
     #[test]
     fn test_downcast_box_stream() {
@@ -371,4 +377,12 @@ mod tests {
 
     }
 
+    #[test]
+    fn test_http_connector_set_ssl_verifier() {
+        let mut connector = HttpConnector(None);
+
+        connector.set_ssl_verifier(Box::new(|_| {}));
+
+        assert!(connector.0.is_some());
+    }
 }

@@ -1,8 +1,9 @@
 use std::fmt;
 use std::io::{self, Read, Write, Cursor};
 use std::net::SocketAddr;
+use std::sync::mpsc::Sender;
 
-use net::{NetworkStream, NetworkConnector};
+use net::{NetworkStream, NetworkConnector, ContextVerifier};
 
 pub struct MockStream {
     pub read: Cursor<Vec<u8>>,
@@ -76,6 +77,39 @@ impl NetworkConnector for MockConnector {
     fn connect(&mut self, _host: &str, _port: u16, _scheme: &str) -> ::Result<MockStream> {
         Ok(MockStream::new())
     }
+
+    fn set_ssl_verifier(&mut self, _verifier: ContextVerifier) {
+        // pass
+    }
+}
+
+/// A mock implementation of the `NetworkConnector` trait that keeps track of all calls to its
+/// methods by sending corresponding messages onto a channel.
+///
+/// Otherwise, it behaves the same as `MockConnector`.
+pub struct ChannelMockConnector {
+    calls: Sender<String>,
+}
+
+impl ChannelMockConnector {
+    pub fn new(calls: Sender<String>) -> ChannelMockConnector {
+        ChannelMockConnector { calls: calls }
+    }
+}
+
+impl NetworkConnector for ChannelMockConnector {
+    type Stream = MockStream;
+    #[inline]
+    fn connect(&mut self, _host: &str, _port: u16, _scheme: &str)
+            -> ::Result<MockStream> {
+        self.calls.send("connect".into()).unwrap();
+        Ok(MockStream::new())
+    }
+
+    #[inline]
+    fn set_ssl_verifier(&mut self, _verifier: ContextVerifier) {
+        self.calls.send("set_ssl_verifier".into()).unwrap();
+    }
 }
 
 /// new connectors must be created if you wish to intercept requests.
@@ -107,6 +141,9 @@ macro_rules! mock_connector (
                 }
             }
 
+            fn set_ssl_verifier(&mut self, _verifier: ::net::ContextVerifier) {
+                // pass
+            }
         }
 
     )

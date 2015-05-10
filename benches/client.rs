@@ -8,7 +8,7 @@ use std::fmt;
 use std::io::{self, Read, Write, Cursor};
 use std::net::SocketAddr;
 
-use hyper::net;
+use hyper::net::{self, ContextVerifier};
 
 static README: &'static [u8] = include_bytes!("../README.md");
 
@@ -83,6 +83,9 @@ impl net::NetworkConnector for MockConnector {
         Ok(MockStream::new())
     }
 
+    fn set_ssl_verifier(&mut self, _verifier: ContextVerifier) {
+        // pass
+    }
 }
 
 #[bench]
