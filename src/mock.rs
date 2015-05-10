@@ -100,7 +100,7 @@ impl ChannelMockConnector {
 impl NetworkConnector for ChannelMockConnector {
     type Stream = MockStream;
     #[inline]
-    fn connect(&mut self, _host: &str, _port: u16, _scheme: &str)
+    fn connect(&self, _host: &str, _port: u16, _scheme: &str)
             -> ::Result<MockStream> {
         self.calls.send("connect".into()).unwrap();
         Ok(MockStream::new())
