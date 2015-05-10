@@ -103,8 +103,8 @@ impl Display for Charset {
 }
 
 impl FromStr for Charset {
-    type Err = ();
-    fn from_str(s: &str) -> Result<Charset, ()> {
+    type Err = ::Error;
+    fn from_str(s: &str) -> ::Result<Charset> {
         Ok(match s.to_ascii_uppercase().as_ref() {
             "US-ASCII" => Us_Ascii,
             "ISO-8859-1" => Iso_8859_1,

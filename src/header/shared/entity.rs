@@ -107,13 +107,13 @@ impl Display for EntityTag {
 }
 
 impl FromStr for EntityTag {
-    type Err = ();
-    fn from_str(s: &str) -> Result<EntityTag, ()> {
+    type Err = ::Error;
+    fn from_str(s: &str) -> ::Result<EntityTag> {
         let length: usize = s.len();
         let slice = &s[..];
         // Early exits if it doesn't terminate in a DQUOTE.
         if !slice.ends_with('"') {
-            return Err(());
+            return Err(::Error::Header);
         }
         // The etag is weak if its first char is not a DQUOTE.
         if slice.starts_with('"') && check_slice_validity(&slice[1..length-1]) {
@@ -123,7 +123,7 @@ impl FromStr for EntityTag {
         } else if slice.starts_with("W/\"") && check_slice_validity(&slice[3..length-1]) {
             return Ok(EntityTag { weak: true, tag: slice[3..length-1].to_owned() });
         }
-        Err(())
+        Err(::Error::Header)
     }
 }
 
@@ -144,12 +144,12 @@ mod tests {
     #[test]
     fn test_etag_parse_failures() {
         // Expected failures
-        assert_eq!("no-dquotes".parse::<EntityTag>(), Err(()));
-        assert_eq!("w/\"the-first-w-is-case-sensitive\"".parse::<EntityTag>(), Err(()));
-        assert_eq!("".parse::<EntityTag>(), Err(()));
-        assert_eq!("\"unmatched-dquotes1".parse::<EntityTag>(), Err(()));
-        assert_eq!("unmatched-dquotes2\"".parse::<EntityTag>(), Err(()));
-        assert_eq!("matched-\"dquotes\"".parse::<EntityTag>(), Err(()));
+        assert!("no-dquotes".parse::<EntityTag>().is_err());
+        assert!("w/\"the-first-w-is-case-sensitive\"".parse::<EntityTag>().is_err());
+        assert!("".parse::<EntityTag>().is_err());
+        assert!("\"unmatched-dquotes1".parse::<EntityTag>().is_err());
+        assert!("unmatched-dquotes2\"".parse::<EntityTag>().is_err());
+        assert!("matched-\"dquotes\"".parse::<EntityTag>().is_err());
     }
 
     #[test]

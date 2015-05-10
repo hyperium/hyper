@@ -15,8 +15,8 @@ pub struct Language {
 }
 
 impl FromStr for Language {
-    type Err = ();
-    fn from_str(s: &str) -> Result<Language, ()> {
+    type Err = ::Error;
+    fn from_str(s: &str) -> ::Result<Language> {
         let mut i = s.split("-");
         let p = i.next();
         let s = i.next();
@@ -29,7 +29,7 @@ impl FromStr for Language {
                 primary: p.to_owned(),
                 sub: None
                 }),
-            _ => Err(())
+            _ => Err(::Error::Header)
         }
     }
 }
