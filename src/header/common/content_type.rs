@@ -34,4 +34,30 @@ header! {
     }
 }
 
+impl ContentType {
+    /// A constructor  to easily create a `Content-Type: application/json; charset=utf-8` header.
+    pub fn json() -> ContentType {
+        ContentType(mime!(Application/Json; Charset=Utf8))
+    }
+
+    /// A constructor  to easily create a `Content-Type: text/plain; charset=utf-8` header.
+    pub fn plaintext() -> ContentType {
+        ContentType(mime!(Text/Plain; Charset=Utf8))
+    }
+
+    /// A constructor  to easily create a `Content-Type: text/html; charset=utf-8` header.
+    pub fn html() -> ContentType {
+        ContentType(mime!(Text/Html; Charset=Utf8))
+    }
+
+    /// A constructor  to easily create a `Content-Type: image/jpeg` header.
+    pub fn jpeg() -> ContentType {
+        ContentType(mime!(Image/Jpeg))
+    }
+
+    /// A constructor  to easily create a `Content-Type: image/png` header.
+    pub fn png() -> ContentType {
+        ContentType(mime!(Image/Png))
+    }
+}
 bench_header!(bench, ContentType, { vec![b"application/json; charset=utf-8".to_vec()] });

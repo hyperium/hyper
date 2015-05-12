@@ -140,13 +140,15 @@ extern crate traitobject;
 extern crate typeable;
 
 #[macro_use]
+extern crate mime as mime_crate;
+
+#[macro_use]
 extern crate log;
 
 #[cfg(all(test, feature = "nightly"))]
 extern crate test;
 
 
-pub use mimewrapper::mime;
 pub use url::Url;
 pub use client::Client;
 pub use error::{Result, Error};
@@ -185,9 +187,9 @@ pub mod uri;
 pub mod version;
 
 
-mod mimewrapper {
-    /// Re-exporting the mime crate, for convenience.
-    extern crate mime;
+/// Re-exporting the mime crate, for convenience.
+pub mod mime {
+    pub use mime_crate::*;
 }
 
 #[allow(unconditional_recursion)]
