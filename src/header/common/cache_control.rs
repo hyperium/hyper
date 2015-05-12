@@ -23,7 +23,7 @@ use header::parsing::{from_one_comma_delimited, fmt_comma_delimited};
 #[derive(PartialEq, Clone, Debug)]
 pub struct CacheControl(pub Vec<CacheDirective>);
 
-deref!(CacheControl => Vec<CacheDirective>);
+__hyper__deref!(CacheControl => Vec<CacheDirective>);
 
 impl Header for CacheControl {
     fn header_name() -> &'static str {

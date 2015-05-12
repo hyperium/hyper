@@ -80,7 +80,7 @@ macro_rules! bench_header(
 );
 
 #[macro_export]
-macro_rules! deref(
+macro_rules! __hyper__deref {
     ($from:ty => $to:ty) => {
         impl ::std::ops::Deref for $from {
             type Target = $to;
@@ -96,7 +96,7 @@ macro_rules! deref(
             }
         }
     }
-);
+}
 
 #[macro_export]
 macro_rules! __hyper__tm {
@@ -166,7 +166,7 @@ macro_rules! header {
         $(#[$a])*
         #[derive(Clone, Debug, PartialEq)]
         pub struct $id(pub Vec<$item>);
-        deref!($id => Vec<$item>);
+        __hyper__deref!($id => Vec<$item>);
         impl $crate::header::Header for $id {
             fn header_name() -> &'static str {
                 $n
@@ -192,7 +192,7 @@ macro_rules! header {
         $(#[$a])*
         #[derive(Clone, Debug, PartialEq)]
         pub struct $id(pub Vec<$item>);
-        deref!($id => Vec<$item>);
+        __hyper__deref!($id => Vec<$item>);
         impl $crate::header::Header for $id {
             fn header_name() -> &'static str {
                 $n
@@ -218,7 +218,7 @@ macro_rules! header {
         $(#[$a])*
         #[derive(Clone, Debug, PartialEq)]
         pub struct $id(pub $value);
-        deref!($id => $value);
+        __hyper__deref!($id => $value);
         impl $crate::header::Header for $id {
             fn header_name() -> &'static str {
                 $n
