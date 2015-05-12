@@ -71,6 +71,18 @@ header! {
     }
 }
 
+impl Connection {
+    /// A constructor to easily create a `Connection: close` header.
+    pub fn close() -> Connection {
+        Connection(vec![ConnectionOption::Close])
+    }
+
+    /// A constructor to easily create a `Connection: keep-alive` header.
+    pub fn keep_alive() -> Connection {
+        Connection(vec![ConnectionOption::KeepAlive])
+    }
+}
+
 bench_header!(close, Connection, { vec![b"close".to_vec()] });
 bench_header!(keep_alive, Connection, { vec![b"keep-alive".to_vec()] });
 bench_header!(header, Connection, { vec![b"authorization".to_vec()] });

@@ -56,7 +56,6 @@ use std::io::Read;
 
 use hyper::Client;
 use hyper::header::Connection;
-use hyper::header::ConnectionOption;
 
 fn main() {
     // Create a client.
@@ -65,7 +64,7 @@ fn main() {
     // Creating an outgoing request.
     let mut res = client.get("http://www.gooogle.com/")
         // set a header
-        .header(Connection(vec![ConnectionOption::Close]))
+        .header(Connection::close())
         // let 'er go!
         .send().unwrap();
 
