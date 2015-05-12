@@ -98,7 +98,8 @@ macro_rules! deref(
     }
 );
 
-macro_rules! tm {
+#[macro_export]
+macro_rules! __hyper__tm {
     ($id:ident, $tm:ident{$($tf:item)*}) => {
         #[allow(unused_imports)]
         mod $tm{
@@ -285,7 +286,7 @@ macro_rules! header {
             ($id, $n) => ($item)*
         }
 
-        tm! { $id, $tm { $($tf)* }}
+        __hyper__tm! { $id, $tm { $($tf)* }}
     };
     ($(#[$a:meta])*($id:ident, $n:expr) => ($item:ty)+ $tm:ident{$($tf:item)*}) => {
         header! {
@@ -293,7 +294,7 @@ macro_rules! header {
             ($id, $n) => ($item)+
         }
 
-        tm! { $id, $tm { $($tf)* }}
+        __hyper__tm! { $id, $tm { $($tf)* }}
     };
     ($(#[$a:meta])*($id:ident, $n:expr) => [$item:ty] $tm:ident{$($tf:item)*}) => {
         header! {
@@ -301,7 +302,7 @@ macro_rules! header {
             ($id, $n) => [$item]
         }
 
-        tm! { $id, $tm { $($tf)* }}
+        __hyper__tm! { $id, $tm { $($tf)* }}
     };
     ($(#[$a:meta])*($id:ident, $n:expr) => {Any / ($item:ty)+} $tm:ident{$($tf:item)*}) => {
         header! {
@@ -309,7 +310,7 @@ macro_rules! header {
             ($id, $n) => {Any / ($item)+}
         }
 
-        tm! { $id, $tm { $($tf)* }}
+        __hyper__tm! { $id, $tm { $($tf)* }}
     };
 }
 
