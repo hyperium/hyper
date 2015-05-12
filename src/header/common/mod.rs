@@ -80,7 +80,7 @@ macro_rules! bench_header(
 );
 
 #[macro_export]
-macro_rules! deref(
+macro_rules! __hyper__deref {
     ($from:ty => $to:ty) => {
         impl ::std::ops::Deref for $from {
             type Target = $to;
@@ -96,9 +96,10 @@ macro_rules! deref(
             }
         }
     }
-);
+}
 
-macro_rules! tm {
+#[macro_export]
+macro_rules! __hyper__tm {
     ($id:ident, $tm:ident{$($tf:item)*}) => {
         #[allow(unused_imports)]
         mod $tm{
@@ -165,7 +166,7 @@ macro_rules! header {
         $(#[$a])*
         #[derive(Clone, Debug, PartialEq)]
         pub struct $id(pub Vec<$item>);
-        deref!($id => Vec<$item>);
+        __hyper__deref!($id => Vec<$item>);
         impl $crate::header::Header for $id {
             fn header_name() -> &'static str {
                 $n
@@ -191,7 +192,7 @@ macro_rules! header {
         $(#[$a])*
         #[derive(Clone, Debug, PartialEq)]
         pub struct $id(pub Vec<$item>);
-        deref!($id => Vec<$item>);
+        __hyper__deref!($id => Vec<$item>);
         impl $crate::header::Header for $id {
             fn header_name() -> &'static str {
                 $n
@@ -217,7 +218,7 @@ macro_rules! header {
         $(#[$a])*
         #[derive(Clone, Debug, PartialEq)]
         pub struct $id(pub $value);
-        deref!($id => $value);
+        __hyper__deref!($id => $value);
         impl $crate::header::Header for $id {
             fn header_name() -> &'static str {
                 $n
@@ -285,7 +286,7 @@ macro_rules! header {
             ($id, $n) => ($item)*
         }
 
-        tm! { $id, $tm { $($tf)* }}
+        __hyper__tm! { $id, $tm { $($tf)* }}
     };
     ($(#[$a:meta])*($id:ident, $n:expr) => ($item:ty)+ $tm:ident{$($tf:item)*}) => {
         header! {
@@ -293,7 +294,7 @@ macro_rules! header {
             ($id, $n) => ($item)+
         }
 
-        tm! { $id, $tm { $($tf)* }}
+        __hyper__tm! { $id, $tm { $($tf)* }}
     };
     ($(#[$a:meta])*($id:ident, $n:expr) => [$item:ty] $tm:ident{$($tf:item)*}) => {
         header! {
@@ -301,7 +302,7 @@ macro_rules! header {
             ($id, $n) => [$item]
         }
 
-        tm! { $id, $tm { $($tf)* }}
+        __hyper__tm! { $id, $tm { $($tf)* }}
     };
     ($(#[$a:meta])*($id:ident, $n:expr) => {Any / ($item:ty)+} $tm:ident{$($tf:item)*}) => {
         header! {
@@ -309,7 +310,7 @@ macro_rules! header {
             ($id, $n) => {Any / ($item)+}
         }
 
-        tm! { $id, $tm { $($tf)* }}
+        __hyper__tm! { $id, $tm { $($tf)* }}
     };
 }
 

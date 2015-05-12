@@ -20,7 +20,7 @@ use cookie::CookieJar;
 #[derive(Clone, PartialEq, Debug)]
 pub struct Cookie(pub Vec<CookiePair>);
 
-deref!(Cookie => Vec<CookiePair>);
+__hyper__deref!(Cookie => Vec<CookiePair>);
 
 impl Header for Cookie {
     fn header_name() -> &'static str {

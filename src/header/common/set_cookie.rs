@@ -57,7 +57,7 @@ use cookie::CookieJar;
 #[derive(Clone, PartialEq, Debug)]
 pub struct SetCookie(pub Vec<Cookie>);
 
-deref!(SetCookie => Vec<Cookie>);
+__hyper__deref!(SetCookie => Vec<Cookie>);
 
 impl Header for SetCookie {
     fn header_name() -> &'static str {
