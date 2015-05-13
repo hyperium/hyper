@@ -1,3 +1,50 @@
+## v0.5.0 (2015-05-12)
+
+
+#### Bug Fixes
+
+* **client:**
+  * dont call close() inside Request ([3334fca2](https://github.com/hyperium/hyper/commit/3334fca278e662b2755e41045ce641238514bea9), closes [#519](https://github.com/hyperium/hyper/issues/519))
+  * keep the underlying connector when setting an SSL verifier ([f4556d55](https://github.com/hyperium/hyper/commit/f4556d554faa2a1170fec0af5b4076c31e7c3600), closes [#495](https://github.com/hyperium/hyper/issues/495))
+* **mock:** adjust ChannelMockConnector connect method to compile ([085d7b07](https://github.com/hyperium/hyper/commit/085d7b0752d7fc0134e99e9eec2a67cc66b319b3))
+
+
+#### Features
+
+* **header:**
+  * add ContentType::json(), plaintext(), html(), jpeg(), and png() constructors ([b6114ecd](https://github.com/hyperium/hyper/commit/b6114ecd2e65bd59e79a67a45913adaf0f1552f0))
+  * add Connection::close() and ::keep_alive() constructors ([c2938fb4](https://github.com/hyperium/hyper/commit/c2938fb45f9c1fff2a1235d82b7741531de21445))
+  * export __hyper__tm! macro so test modules work with header! ([f64fb10b](https://github.com/hyperium/hyper/commit/f64fb10bc87bb4b5a5291d09364ad6c725a842d8))
+* **net:**
+  * remove mut requirement for NetworkConnector.connect() ([1b318724](https://github.com/hyperium/hyper/commit/1b318724a5fd425366daddf15c5964d7c3cbc240))
+  * add `set_ssl_verifier` method to `NetworkConnector` trait ([a5d632b6](https://github.com/hyperium/hyper/commit/a5d632b6ea53d0988d6383dd734d0b5e6245ba2b))
+* **server:** check Response headers for Connection: close in keep_alive loop ([49b5b8fd](https://github.com/hyperium/hyper/commit/49b5b8fdfe256ead8f3aa3d489bc4b299c190a9a))
+
+
+#### Breaking Changes
+
+* Usage of Response.deconstruct() and construct() now use
+  a &mut Headers, instead of the struct proper.
+
+ ([49b5b8fd](https://github.com/hyperium/hyper/commit/49b5b8fdfe256ead8f3aa3d489bc4b299c190a9a))
+* If you use deref! from the header module, you'll need
+  to switch to using __hyper__deref!.
+
+ ([62d96adc](https://github.com/hyperium/hyper/commit/62d96adc6b852b3836b47fc2e154bbdbab9ad7f6))
+* Any custom Connectors will need to change to &self in
+  the connect method. Any Connectors that needed the mutablity need to
+  figure out a synchronization strategy.
+
+  Request::with_connector() takes a &NetworkConnector instead of &mut.
+  Any uses of with_connector will need to change to passing &C.
+
+ ([1b318724](https://github.com/hyperium/hyper/commit/1b318724a5fd425366daddf15c5964d7c3cbc240))
+* Adding a new required method to a public trait is a
+breaking change.
+
+ ([a5d632b6](https://github.com/hyperium/hyper/commit/a5d632b6ea53d0988d6383dd734d0b5e6245ba2b))
+
+
 ## v0.4.0 (2015-05-07)
 
 
