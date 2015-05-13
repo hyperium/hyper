@@ -19,9 +19,6 @@ complex web applications written entirely in Rust.
 
 The documentation is located at [http://hyperium.github.io/hyper](http://hyperium.github.io/hyper).
 
-__WARNING: Hyper is still under active development. The API is still changing
-in non-backwards-compatible ways without warning.__
-
 ## Example
 
 Hello World Server:
