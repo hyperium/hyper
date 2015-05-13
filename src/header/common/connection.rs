@@ -73,11 +73,13 @@ header! {
 
 impl Connection {
     /// A constructor to easily create a `Connection: close` header.
+    #[inline]
     pub fn close() -> Connection {
         Connection(vec![ConnectionOption::Close])
     }
 
     /// A constructor to easily create a `Connection: keep-alive` header.
+    #[inline]
     pub fn keep_alive() -> Connection {
         Connection(vec![ConnectionOption::KeepAlive])
     }
