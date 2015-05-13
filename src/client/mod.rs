@@ -430,7 +430,7 @@ mod tests {
         client.set_redirect_policy(RedirectPolicy::FollowAll);
 
         let res = client.get("http://127.0.0.1").send().unwrap();
-        assert_eq!(res.headers.get(), Some(&Server("mock3".to_string())));
+        assert_eq!(res.headers.get(), Some(&Server("mock3".to_owned())));
     }
 
     #[test]
@@ -438,7 +438,7 @@ mod tests {
         let mut client = Client::with_connector(MockRedirectPolicy);
         client.set_redirect_policy(RedirectPolicy::FollowNone);
         let res = client.get("http://127.0.0.1").send().unwrap();
-        assert_eq!(res.headers.get(), Some(&Server("mock1".to_string())));
+        assert_eq!(res.headers.get(), Some(&Server("mock1".to_owned())));
     }
 
     #[test]
@@ -449,7 +449,7 @@ mod tests {
         let mut client = Client::with_connector(MockRedirectPolicy);
         client.set_redirect_policy(RedirectPolicy::FollowIf(follow_if));
         let res = client.get("http://127.0.0.1").send().unwrap();
-        assert_eq!(res.headers.get(), Some(&Server("mock2".to_string())));
+        assert_eq!(res.headers.get(), Some(&Server("mock2".to_owned())));
     }
 
     /// Tests that the `Client::set_ssl_verifier` method does not drop the

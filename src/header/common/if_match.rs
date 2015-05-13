@@ -31,14 +31,14 @@ header! {
             test1,
             vec![b"\"xyzzy\""],
             Some(HeaderField::Items(
-                vec![EntityTag::new(false, "xyzzy".to_string())])));
+                vec![EntityTag::new(false, "xyzzy".to_owned())])));
         test_header!(
             test2,
             vec![b"\"xyzzy\", \"r2d2xxxx\", \"c3piozzzz\""],
             Some(HeaderField::Items(
-                vec![EntityTag::new(false, "xyzzy".to_string()),
-                     EntityTag::new(false, "r2d2xxxx".to_string()),
-                     EntityTag::new(false, "c3piozzzz".to_string())])));
+                vec![EntityTag::new(false, "xyzzy".to_owned()),
+                     EntityTag::new(false, "r2d2xxxx".to_owned()),
+                     EntityTag::new(false, "c3piozzzz".to_owned())])));
         test_header!(test3, vec![b"*"], Some(IfMatch::Any));
     }
 }

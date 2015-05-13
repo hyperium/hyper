@@ -128,12 +128,12 @@ macro_rules! test_header {
             let result_cmp: Vec<String> = result
                 .to_ascii_lowercase()
                 .split(' ')
-                .map(|x| x.to_string())
+                .map(|x| x.to_owned())
                 .collect();
             let expected_cmp: Vec<String> = expected
                 .to_ascii_lowercase()
                 .split(' ')
-                .map(|x| x.to_string())
+                .map(|x| x.to_owned())
                 .collect();
             assert_eq!(result_cmp.concat(), expected_cmp.concat());
         }

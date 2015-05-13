@@ -119,9 +119,9 @@ impl FromStr for EntityTag {
         if slice.starts_with('"') && check_slice_validity(&slice[1..length-1]) {
             // No need to check if the last char is a DQUOTE,
             // we already did that above.
-            return Ok(EntityTag { weak: false, tag: slice[1..length-1].to_string() });
+            return Ok(EntityTag { weak: false, tag: slice[1..length-1].to_owned() });
         } else if slice.starts_with("W/\"") && check_slice_validity(&slice[3..length-1]) {
-            return Ok(EntityTag { weak: true, tag: slice[3..length-1].to_string() });
+            return Ok(EntityTag { weak: true, tag: slice[3..length-1].to_owned() });
         }
         Err(())
     }
@@ -134,11 +134,11 @@ mod tests {
     #[test]
     fn test_etag_parse_success() {
         // Expected success
-        assert_eq!("\"foobar\"".parse::<EntityTag>().unwrap(), EntityTag::new(false, "foobar".to_string()));
-        assert_eq!("\"\"".parse::<EntityTag>().unwrap(), EntityTag::new(false, "".to_string()));
-        assert_eq!("W/\"weaktag\"".parse::<EntityTag>().unwrap(), EntityTag::new(true, "weaktag".to_string()));
-        assert_eq!("W/\"\x65\x62\"".parse::<EntityTag>().unwrap(), EntityTag::new(true, "\x65\x62".to_string()));
-        assert_eq!("W/\"\"".parse::<EntityTag>().unwrap(), EntityTag::new(true, "".to_string()));
+        assert_eq!("\"foobar\"".parse::<EntityTag>().unwrap(), EntityTag::new(false, "foobar".to_owned()));
+        assert_eq!("\"\"".parse::<EntityTag>().unwrap(), EntityTag::new(false, "".to_owned()));
+        assert_eq!("W/\"weaktag\"".parse::<EntityTag>().unwrap(), EntityTag::new(true, "weaktag".to_owned()));
+        assert_eq!("W/\"\x65\x62\"".parse::<EntityTag>().unwrap(), EntityTag::new(true, "\x65\x62".to_owned()));
+        assert_eq!("W/\"\"".parse::<EntityTag>().unwrap(), EntityTag::new(true, "".to_owned()));
     }
 
     #[test]
@@ -154,11 +154,11 @@ mod tests {
 
     #[test]
     fn test_etag_fmt() {
-        assert_eq!(format!("{}", EntityTag::new(false, "foobar".to_string())), "\"foobar\"");
-        assert_eq!(format!("{}", EntityTag::new(false, "".to_string())), "\"\"");
-        assert_eq!(format!("{}", EntityTag::new(true, "weak-etag".to_string())), "W/\"weak-etag\"");
-        assert_eq!(format!("{}", EntityTag::new(true, "\u{0065}".to_string())), "W/\"\x65\"");
-        assert_eq!(format!("{}", EntityTag::new(true, "".to_string())), "W/\"\"");
+        assert_eq!(format!("{}", EntityTag::new(false, "foobar".to_owned())), "\"foobar\"");
+        assert_eq!(format!("{}", EntityTag::new(false, "".to_owned())), "\"\"");
+        assert_eq!(format!("{}", EntityTag::new(true, "weak-etag".to_owned())), "W/\"weak-etag\"");
+        assert_eq!(format!("{}", EntityTag::new(true, "\u{0065}".to_owned())), "W/\"\x65\"");
+        assert_eq!(format!("{}", EntityTag::new(true, "".to_owned())), "W/\"\"");
     }
 
     #[test]
@@ -169,29 +169,29 @@ mod tests {
         // | `W/"1"` | `W/"2"` | no match          | no match        |
         // | `W/"1"` | `"1"`   | no match          | match           |
         // | `"1"`   | `"1"`   | match             | match           |
-        let mut etag1 = EntityTag::new(true, "1".to_string());
-        let mut etag2 = EntityTag::new(true, "1".to_string());
+        let mut etag1 = EntityTag::new(true, "1".to_owned());
+        let mut etag2 = EntityTag::new(true, "1".to_owned());
         assert_eq!(etag1.strong_eq(&etag2), false);
         assert_eq!(etag1.weak_eq(&etag2), true);
         assert_eq!(etag1.strong_ne(&etag2), true);
         assert_eq!(etag1.weak_ne(&etag2), false);
 
-        etag1 = EntityTag::new(true, "1".to_string());
-        etag2 = EntityTag::new(true, "2".to_string());
+        etag1 = EntityTag::new(true, "1".to_owned());
+        etag2 = EntityTag::new(true, "2".to_owned());
         assert_eq!(etag1.strong_eq(&etag2), false);
         assert_eq!(etag1.weak_eq(&etag2), false);
         assert_eq!(etag1.strong_ne(&etag2), true);
         assert_eq!(etag1.weak_ne(&etag2), true);
 
-        etag1 = EntityTag::new(true, "1".to_string());
-        etag2 = EntityTag::new(false, "1".to_string());
+        etag1 = EntityTag::new(true, "1".to_owned());
+        etag2 = EntityTag::new(false, "1".to_owned());
         assert_eq!(etag1.strong_eq(&etag2), false);
         assert_eq!(etag1.weak_eq(&etag2), true);
         assert_eq!(etag1.strong_ne(&etag2), true);
         assert_eq!(etag1.weak_ne(&etag2), false);
 
-        etag1 = EntityTag::new(false, "1".to_string());
-        etag2 = EntityTag::new(false, "1".to_string());
+        etag1 = EntityTag::new(false, "1".to_owned());
+        etag2 = EntityTag::new(false, "1".to_owned());
         assert_eq!(etag1.strong_eq(&etag2), true);
         assert_eq!(etag1.weak_eq(&etag2), true);
         assert_eq!(etag1.strong_ne(&etag2), false);

@@ -40,7 +40,7 @@ header! {
         //    vec![b"audio/*; q=0.2, audio/basic"],
         //    Some(HeaderField(vec![
         //        QualityItem::new(Mime(TopLevel::Audio, SubLevel::Star, vec![]), Quality(200)),
-        //        qitem(Mime(TopLevel::Audio, SubLevel::Ext("basic".to_string()), vec![])),
+        //        qitem(Mime(TopLevel::Audio, SubLevel::Ext("basic".to_owned()), vec![])),
         //        ])));
         test_header!(
             test2,
@@ -49,9 +49,9 @@ header! {
                 QualityItem::new(Mime(TopLevel::Text, SubLevel::Plain, vec![]), Quality(500)),
                 qitem(Mime(TopLevel::Text, SubLevel::Html, vec![])),
                 QualityItem::new(
-                    Mime(TopLevel::Text, SubLevel::Ext("x-dvi".to_string()), vec![]),
+                    Mime(TopLevel::Text, SubLevel::Ext("x-dvi".to_owned()), vec![]),
                     Quality(800)),
-                qitem(Mime(TopLevel::Text, SubLevel::Ext("x-c".to_string()), vec![])),
+                qitem(Mime(TopLevel::Text, SubLevel::Ext("x-c".to_owned()), vec![])),
                 ])));
         // Custom tests
         test_header!(

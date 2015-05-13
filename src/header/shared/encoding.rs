@@ -45,7 +45,7 @@ impl str::FromStr for Encoding {
             "gzip" => Ok(Gzip),
             "compress" => Ok(Compress),
             "identity" => Ok(Identity),
-            _ => Ok(EncodingExt(s.to_string()))
+            _ => Ok(EncodingExt(s.to_owned()))
         }
     }
 }

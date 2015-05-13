@@ -26,9 +26,9 @@ header! {
         test_header!(
             test2, vec![b"en-us, en; q=0.5, fr"],
             Some(AcceptLanguage(vec![
-                qitem(Language {primary: "en".to_string(), sub: Some("us".to_string())}),
-                QualityItem::new(Language{primary: "en".to_string(), sub: None}, Quality(500)),
-                qitem(Language {primary: "fr".to_string(), sub: None}),
+                qitem(Language {primary: "en".to_owned(), sub: Some("us".to_owned())}),
+                QualityItem::new(Language{primary: "en".to_owned(), sub: None}, Quality(500)),
+                qitem(Language {primary: "fr".to_owned(), sub: None}),
         ])));
     }
 }

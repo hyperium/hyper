@@ -59,15 +59,15 @@ impl FromStr for RequestUri {
         } else if bytes == b"*" {
             Ok(RequestUri::Star)
         } else if bytes.starts_with(b"/") {
-            Ok(RequestUri::AbsolutePath(s.to_string()))
+            Ok(RequestUri::AbsolutePath(s.to_owned()))
         } else if bytes.contains(&b'/') {
             Ok(RequestUri::AbsoluteUri(try!(Url::parse(s))))
         } else {
-            let mut temp = "http://".to_string();
+            let mut temp = "http://".to_owned();
             temp.push_str(s);
             try!(Url::parse(&temp[..]));
             todo!("compare vs u.authority()");
-            Ok(RequestUri::Authority(s.to_string()))
+            Ok(RequestUri::Authority(s.to_owned()))
         }
     }
 }
@@ -80,8 +80,8 @@ fn test_uri_fromstr() {
 
     read("*", RequestUri::Star);
     read("http://hyper.rs/", RequestUri::AbsoluteUri(Url::parse("http://hyper.rs/").unwrap()));
-    read("hyper.rs", RequestUri::Authority("hyper.rs".to_string()));
-    read("/", RequestUri::AbsolutePath("/".to_string()));
+    read("hyper.rs", RequestUri::Authority("hyper.rs".to_owned()));
+    read("/", RequestUri::AbsolutePath("/".to_owned()));
 }
 
 

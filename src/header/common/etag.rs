@@ -28,29 +28,29 @@ header! {
         // From the RFC
         test_header!(test1,
             vec![b"\"xyzzy\""],
-            Some(ETag(EntityTag::new(false, "xyzzy".to_string()))));
+            Some(ETag(EntityTag::new(false, "xyzzy".to_owned()))));
         test_header!(test2,
             vec![b"W/\"xyzzy\""],
-            Some(ETag(EntityTag::new(true, "xyzzy".to_string()))));
+            Some(ETag(EntityTag::new(true, "xyzzy".to_owned()))));
         test_header!(test3,
             vec![b"\"\""],
-            Some(ETag(EntityTag::new(false, "".to_string()))));
+            Some(ETag(EntityTag::new(false, "".to_owned()))));
         // Own tests
         test_header!(test4,
             vec![b"\"foobar\""],
-            Some(ETag(EntityTag::new(false, "foobar".to_string()))));
+            Some(ETag(EntityTag::new(false, "foobar".to_owned()))));
         test_header!(test5,
             vec![b"\"\""],
-            Some(ETag(EntityTag::new(false, "".to_string()))));
+            Some(ETag(EntityTag::new(false, "".to_owned()))));
         test_header!(test6,
             vec![b"W/\"weak-etag\""],
-            Some(ETag(EntityTag::new(true, "weak-etag".to_string()))));
+            Some(ETag(EntityTag::new(true, "weak-etag".to_owned()))));
         test_header!(test7,
             vec![b"W/\"\x65\x62\""],
-            Some(ETag(EntityTag::new(true, "\u{0065}\u{0062}".to_string()))));
+            Some(ETag(EntityTag::new(true, "\u{0065}\u{0062}".to_owned()))));
         test_header!(test8,
             vec![b"W/\"\""],
-            Some(ETag(EntityTag::new(true, "".to_string()))));
+            Some(ETag(EntityTag::new(true, "".to_owned()))));
         test_header!(test9,
             vec![b"no-dquotes"],
             None::<ETag>);

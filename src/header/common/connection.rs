@@ -28,7 +28,7 @@ impl FromStr for ConnectionOption {
         match s {
             "keep-alive" => Ok(KeepAlive),
             "close" => Ok(Close),
-            s => Ok(ConnectionHeader(UniCase(s.to_string())))
+            s => Ok(ConnectionHeader(UniCase(s.to_owned())))
         }
     }
 }

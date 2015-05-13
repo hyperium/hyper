@@ -86,8 +86,8 @@ impl Cookie {
 #[test]
 fn test_parse() {
     let h = Header::parse_header(&[b"foo=bar; baz=quux".to_vec()][..]);
-    let c1 = CookiePair::new("foo".to_string(), "bar".to_string());
-    let c2 = CookiePair::new("baz".to_string(), "quux".to_string());
+    let c1 = CookiePair::new("foo".to_owned(), "bar".to_owned());
+    let c2 = CookiePair::new("baz".to_owned(), "quux".to_owned());
     assert_eq!(h, Some(Cookie(vec![c1, c2])));
 }
 
@@ -95,12 +95,12 @@ fn test_parse() {
 fn test_fmt() {
     use header::Headers;
 
-    let mut cookie_pair = CookiePair::new("foo".to_string(), "bar".to_string());
+    let mut cookie_pair = CookiePair::new("foo".to_owned(), "bar".to_owned());
     cookie_pair.httponly = true;
-    cookie_pair.path = Some("/p".to_string());
+    cookie_pair.path = Some("/p".to_owned());
     let cookie_header = Cookie(vec![
         cookie_pair,
-        CookiePair::new("baz".to_string(),"quux".to_string())]);
+        CookiePair::new("baz".to_owned(),"quux".to_owned())]);
     let mut headers = Headers::new();
     headers.set(cookie_header);
 
@@ -109,7 +109,7 @@ fn test_fmt() {
 
 #[test]
 fn cookie_jar() {
-    let cookie_pair = CookiePair::new("foo".to_string(), "bar".to_string());
+    let cookie_pair = CookiePair::new("foo".to_owned(), "bar".to_owned());
     let cookie_header = Cookie(vec![cookie_pair]);
     let jar = cookie_header.to_cookie_jar(&[]);
     let new_cookie_header = Cookie::from_cookie_jar(&jar);
