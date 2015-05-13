@@ -28,7 +28,7 @@ pub struct Response<'a, W: Any = Fresh> {
     // The status code for the request.
     status: status::StatusCode,
     // The outgoing headers on this response.
-    headers: header::Headers,
+    headers: &'a mut header::Headers,
 
     _writing: PhantomData<W>
 }
@@ -39,13 +39,13 @@ impl<'a, W: Any> Response<'a, W> {
     pub fn status(&self) -> status::StatusCode { self.status }
 
     /// The headers of this response.
-    pub fn headers(&self) -> &header::Headers { &self.headers }
+    pub fn headers(&self) -> &header::Headers { &*self.headers }
 
     /// Construct a Response from its constituent parts.
     pub fn construct(version: version::HttpVersion,
                      body: HttpWriter<&'a mut (Write + 'a)>,
                      status: status::StatusCode,
-                     headers: header::Headers) -> Response<'a, Fresh> {
+                     headers: &'a mut header::Headers) -> Response<'a, Fresh> {
         Response {
             status: status,
             version: version,
@@ -57,7 +57,7 @@ impl<'a, W: Any> Response<'a, W> {
 
     /// Deconstruct this Response into its constituent parts.
     pub fn deconstruct(self) -> (version::HttpVersion, HttpWriter<&'a mut (Write + 'a)>,
-                                 status::StatusCode, header::Headers) {
+                                 status::StatusCode, &'a mut header::Headers) {
         unsafe {
             let parts = (
                 self.version,
@@ -114,11 +114,11 @@ impl<'a, W: Any> Response<'a, W> {
 impl<'a> Response<'a, Fresh> {
     /// Creates a new Response that can be used to write to a network stream.
     #[inline]
-    pub fn new(stream: &'a mut (Write + 'a)) -> Response<'a, Fresh> {
+    pub fn new(stream: &'a mut (Write + 'a), headers: &'a mut header::Headers) -> Response<'a, Fresh> {
         Response {
             status: status::StatusCode::Ok,
             version: version::HttpVersion::Http11,
-            headers: header::Headers::new(),
+            headers: headers,
             body: ThroughWriter(stream),
             _writing: PhantomData,
         }
@@ -165,7 +165,7 @@ impl<'a> Response<'a, Fresh> {
 
     /// Get a mutable reference to the Headers.
     #[inline]
-    pub fn headers_mut(&mut self) -> &mut header::Headers { &mut self.headers }
+    pub fn headers_mut(&mut self) -> &mut header::Headers { self.headers }
 }
 
 
@@ -231,6 +231,7 @@ impl<'a, T: Any> Drop for Response<'a, T> {
 
 #[cfg(test)]
 mod tests {
+    use header::Headers;
     use mock::MockStream;
     use super::Response;
 
@@ -252,9 +253,10 @@ mod tests {
 
     #[test]
     fn test_fresh_start() {
+        let mut headers = Headers::new();
         let mut stream = MockStream::new();
         {
-            let res = Response::new(&mut stream);
+            let res = Response::new(&mut stream, &mut headers);
             res.start().unwrap().deconstruct();
         }
 
@@ -268,9 +270,10 @@ mod tests {
 
     #[test]
     fn test_streaming_end() {
+        let mut headers = Headers::new();
         let mut stream = MockStream::new();
         {
-            let res = Response::new(&mut stream);
+            let res = Response::new(&mut stream, &mut headers);
             res.start().unwrap().end().unwrap();
         }
 
@@ -287,9 +290,10 @@ mod tests {
     #[test]
     fn test_fresh_drop() {
         use status::StatusCode;
+        let mut headers = Headers::new();
         let mut stream = MockStream::new();
         {
-            let mut res = Response::new(&mut stream);
+            let mut res = Response::new(&mut stream, &mut headers);
             *res.status_mut() = StatusCode::NotFound;
         }
 
@@ -307,9 +311,10 @@ mod tests {
     fn test_streaming_drop() {
         use std::io::Write;
         use status::StatusCode;
+        let mut headers = Headers::new();
         let mut stream = MockStream::new();
         {
-            let mut res = Response::new(&mut stream);
+            let mut res = Response::new(&mut stream, &mut headers);
             *res.status_mut() = StatusCode::NotFound;
             let mut stream = res.start().unwrap();
             stream.write_all(b"foo").unwrap();
