@@ -102,7 +102,7 @@ impl FromStr for Method {
                 "TRACE" => Trace,
                 "CONNECT" => Connect,
                 "PATCH" => Patch,
-                _ => Extension(s.to_string())
+                _ => Extension(s.to_owned())
             })
         }
     }
@@ -149,7 +149,7 @@ mod tests {
     #[test]
     fn test_from_str() {
         assert_eq!(Get, FromStr::from_str("GET").unwrap());
-        assert_eq!(Extension("MOVE".to_string()),
+        assert_eq!(Extension("MOVE".to_owned()),
                    FromStr::from_str("MOVE").unwrap());
         let x: Result<Method, _> = FromStr::from_str("");
         if let Err(Error::Method) = x {
@@ -160,9 +160,9 @@ mod tests {
 
     #[test]
     fn test_fmt() {
-        assert_eq!("GET".to_string(), format!("{}", Get));
-        assert_eq!("MOVE".to_string(),
-                   format!("{}", Extension("MOVE".to_string())));
+        assert_eq!("GET".to_owned(), format!("{}", Get));
+        assert_eq!("MOVE".to_owned(),
+                   format!("{}", Extension("MOVE".to_owned())));
     }
 
     #[test]
@@ -177,6 +177,6 @@ mod tests {
         assert_eq!(Get.as_ref(), "GET");
         assert_eq!(Post.as_ref(), "POST");
         assert_eq!(Put.as_ref(), "PUT");
-        assert_eq!(Extension("MOVE".to_string()).as_ref(), "MOVE");
+        assert_eq!(Extension("MOVE".to_owned()).as_ref(), "MOVE");
     }
 }

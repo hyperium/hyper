@@ -83,14 +83,14 @@ mod tests {
     fn test_host() {
         let host = Header::parse_header([b"foo.com".to_vec()].as_ref());
         assert_eq!(host, Some(Host {
-            hostname: "foo.com".to_string(),
+            hostname: "foo.com".to_owned(),
             port: None
         }));
 
 
         let host = Header::parse_header([b"foo.com:8080".to_vec()].as_ref());
         assert_eq!(host, Some(Host {
-            hostname: "foo.com".to_string(),
+            hostname: "foo.com".to_owned(),
             port: Some(8080)
         }));
     }

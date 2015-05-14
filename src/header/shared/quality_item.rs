@@ -147,7 +147,7 @@ mod tests {
     fn test_quality_item_show3() {
         // Custom value
         let x = QualityItem{
-            item: EncodingExt("identity".to_string()),
+            item: EncodingExt("identity".to_owned()),
             quality: Quality(500),
         };
         assert_eq!(format!("{}", x), "identity; q=0.5");

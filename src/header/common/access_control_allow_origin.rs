@@ -41,7 +41,7 @@ impl Header for AccessControlAllowOrigin {
                 b"*" => Some(AccessControlAllowOrigin::Any),
                 b"null" => Some(AccessControlAllowOrigin::Null),
                 r => if let Ok(s) = str::from_utf8(r) {
-                    Url::parse(s).ok().map(|url| AccessControlAllowOrigin::Value(url))
+                    Url::parse(s).ok().map(AccessControlAllowOrigin::Value)
                 } else { None }
             }
         } else { None }

@@ -58,7 +58,7 @@ impl FromStr for RangeUnit {
             "bytes" => Ok(RangeUnit::Bytes),
             "none" => Ok(RangeUnit::None),
             // FIXME: Check if s is really a Token
-            _ => Ok(RangeUnit::Unregistered(s.to_string())),
+            _ => Ok(RangeUnit::Unregistered(s.to_owned())),
         }
     }
 }

@@ -30,7 +30,7 @@ header! {
             Some(HeaderField(Mime(
                 TopLevel::Text,
                 SubLevel::Html,
-                vec![(Attr::Charset, Value::Ext("iso-8859-4".to_string()))]))));
+                vec![(Attr::Charset, Value::Ext("iso-8859-4".to_owned()))]))));
     }
 }
 

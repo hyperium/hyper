@@ -133,9 +133,9 @@ macro_rules! mock_connector (
                 let key = format!("{}://{}", scheme, host);
                 // ignore port for now
                 match map.get(&*key) {
-                    Some(res) => Ok($crate::mock::MockStream {
+                    Some(&res) => Ok($crate::mock::MockStream {
                         write: vec![],
-                        read: Cursor::new(res.to_string().into_bytes()),
+                        read: Cursor::new(res.to_owned().into_bytes()),
                     }),
                     None => panic!("{:?} doesn't know url {}", stringify!($name), key)
                 }

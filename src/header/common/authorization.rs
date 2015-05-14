@@ -128,11 +128,11 @@ impl FromStr for Basic {
                 Ok(text) => {
                     let mut parts = &mut text.split(':');
                     let user = match parts.next() {
-                        Some(part) => part.to_string(),
+                        Some(part) => part.to_owned(),
                         None => return Err(())
                     };
                     let password = match parts.next() {
-                        Some(part) => Some(part.to_string()),
+                        Some(part) => Some(part.to_owned()),
                         None => None
                     };
                     Ok(Basic {
@@ -161,8 +161,8 @@ mod tests {
     #[test]
     fn test_raw_auth() {
         let mut headers = Headers::new();
-        headers.set(Authorization("foo bar baz".to_string()));
-        assert_eq!(headers.to_string(), "Authorization: foo bar baz\r\n".to_string());
+        headers.set(Authorization("foo bar baz".to_owned()));
+        assert_eq!(headers.to_string(), "Authorization: foo bar baz\r\n".to_owned());
     }
 
     #[test]
@@ -176,17 +176,17 @@ mod tests {
     fn test_basic_auth() {
         let mut headers = Headers::new();
         headers.set(Authorization(
-            Basic { username: "Aladdin".to_string(), password: Some("open sesame".to_string()) }));
+            Basic { username: "Aladdin".to_owned(), password: Some("open sesame".to_owned()) }));
         assert_eq!(
             headers.to_string(),
-            "Authorization: Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==\r\n".to_string());
+            "Authorization: Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==\r\n".to_owned());
     }
 
     #[test]
     fn test_basic_auth_no_password() {
         let mut headers = Headers::new();
-        headers.set(Authorization(Basic { username: "Aladdin".to_string(), password: None }));
-        assert_eq!(headers.to_string(), "Authorization: Basic QWxhZGRpbjo=\r\n".to_string());
+        headers.set(Authorization(Basic { username: "Aladdin".to_owned(), password: None }));
+        assert_eq!(headers.to_string(), "Authorization: Basic QWxhZGRpbjo=\r\n".to_owned());
     }
 
     #[test]
@@ -194,7 +194,7 @@ mod tests {
         let auth: Authorization<Basic> = Header::parse_header(
             &[b"Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==".to_vec()]).unwrap();
         assert_eq!(auth.0.username, "Aladdin");
-        assert_eq!(auth.0.password, Some("open sesame".to_string()));
+        assert_eq!(auth.0.password, Some("open sesame".to_owned()));
     }
 
     #[test]
@@ -202,7 +202,7 @@ mod tests {
         let auth: Authorization<Basic> = Header::parse_header(
             &[b"Basic QWxhZGRpbjo=".to_vec()]).unwrap();
         assert_eq!(auth.0.username, "Aladdin");
-        assert_eq!(auth.0.password, Some("".to_string()));
+        assert_eq!(auth.0.password, Some("".to_owned()));
     }
 
 }

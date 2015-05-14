@@ -126,15 +126,15 @@ impl FromStr for CacheDirective {
             "proxy-revalidate" => Ok(ProxyRevalidate),
             "" => Err(None),
             _ => match s.find('=') {
-                Some(idx) if idx+1 < s.len() => match (&s[..idx], &s[idx+1..].trim_matches('"')) {
-                    ("max-age" , secs) => secs.parse().map(MaxAge).map_err(|x| Some(x)),
-                    ("max-stale", secs) => secs.parse().map(MaxStale).map_err(|x| Some(x)),
-                    ("min-fresh", secs) => secs.parse().map(MinFresh).map_err(|x| Some(x)),
-                    ("s-maxage", secs) => secs.parse().map(SMaxAge).map_err(|x| Some(x)),
-                    (left, right) => Ok(Extension(left.to_string(), Some(right.to_string())))
+                Some(idx) if idx+1 < s.len() => match (&s[..idx], (&s[idx+1..]).trim_matches('"')) {
+                    ("max-age" , secs) => secs.parse().map(MaxAge).map_err(Some),
+                    ("max-stale", secs) => secs.parse().map(MaxStale).map_err(Some),
+                    ("min-fresh", secs) => secs.parse().map(MinFresh).map_err(Some),
+                    ("s-maxage", secs) => secs.parse().map(SMaxAge).map_err(Some),
+                    (left, right) => Ok(Extension(left.to_owned(), Some(right.to_owned())))
                 },
                 Some(_) => Err(None),
-                None => Ok(Extension(s.to_string(), None))
+                None => Ok(Extension(s.to_owned(), None))
             }
         }
     }
@@ -169,8 +169,8 @@ mod tests {
     fn test_parse_extension() {
         let cache = Header::parse_header(&[b"foo, bar=baz".to_vec()]);
         assert_eq!(cache, Some(CacheControl(vec![
-            CacheDirective::Extension("foo".to_string(), None),
-            CacheDirective::Extension("bar".to_string(), Some("baz".to_string()))])))
+            CacheDirective::Extension("foo".to_owned(), None),
+            CacheDirective::Extension("bar".to_owned(), Some("baz".to_owned()))])))
     }
 
     #[test]

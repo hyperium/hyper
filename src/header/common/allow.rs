@@ -39,7 +39,7 @@ header! {
                 Method::Trace,
                 Method::Connect,
                 Method::Patch,
-                Method::Extension("fOObAr".to_string())])));
+                Method::Extension("fOObAr".to_owned())])));
         test_header!(
             test3,
             vec![b""],

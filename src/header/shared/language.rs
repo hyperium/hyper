@@ -22,11 +22,11 @@ impl FromStr for Language {
         let s = i.next();
         match (p, s) {
             (Some(p), Some(s)) => Ok(Language {
-                primary: p.to_string(),
-                sub: Some(s.to_string())
+                primary: p.to_owned(),
+                sub: Some(s.to_owned())
                 }),
             (Some(p), _) => Ok(Language {
-                primary: p.to_string(),
+                primary: p.to_owned(),
                 sub: None
                 }),
             _ => Err(())

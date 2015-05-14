@@ -503,7 +503,7 @@ mod tests {
     fn test_headers_show() {
         let mut headers = Headers::new();
         headers.set(ContentLength(15));
-        headers.set(Host { hostname: "foo.bar".to_string(), port: None });
+        headers.set(Host { hostname: "foo.bar".to_owned(), port: None });
 
         let s = headers.to_string();
         // hashmap's iterators have arbitrary order, so we must sort first
@@ -567,7 +567,7 @@ mod tests {
             assert!(header.is::<ContentLength>());
             assert_eq!(header.name(), <ContentLength as Header>::header_name());
             assert_eq!(header.value(), Some(&ContentLength(11)));
-            assert_eq!(header.value_string(), "11".to_string());
+            assert_eq!(header.value_string(), "11".to_owned());
         }
     }
 

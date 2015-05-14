@@ -34,10 +34,10 @@ header! {
             test1,
             vec![b"HTTP/2.0, SHTTP/1.3, IRC/6.9, RTA/x11"],
             Some(Upgrade(vec![
-                Protocol::new(ProtocolName::Http, Some("2.0".to_string())),
-                Protocol::new(ProtocolName::Unregistered("SHTTP".to_string()), Some("1.3".to_string())),
-                Protocol::new(ProtocolName::Unregistered("IRC".to_string()), Some("6.9".to_string())),
-                Protocol::new(ProtocolName::Unregistered("RTA".to_string()), Some("x11".to_string())),
+                Protocol::new(ProtocolName::Http, Some("2.0".to_owned())),
+                Protocol::new(ProtocolName::Unregistered("SHTTP".to_owned()), Some("1.3".to_owned())),
+                Protocol::new(ProtocolName::Unregistered("IRC".to_owned()), Some("6.9".to_owned())),
+                Protocol::new(ProtocolName::Unregistered("RTA".to_owned()), Some("x11".to_owned())),
                 ])));
         // Own tests
         test_header!(
@@ -79,7 +79,7 @@ impl FromStr for ProtocolName {
                 if UniCase(s) == UniCase("websocket") {
                     ProtocolName::WebSocket
                 } else {
-                    ProtocolName::Unregistered(s.to_string())
+                    ProtocolName::Unregistered(s.to_owned())
                 }
             }
         })
@@ -118,7 +118,7 @@ impl FromStr for Protocol {
     type Err =();
     fn from_str(s: &str) -> Result<Protocol, ()> {
         let mut parts = s.splitn(2, '/');
-        Ok(Protocol::new(try!(parts.next().unwrap().parse()), parts.next().map(|x| x.to_string())))
+        Ok(Protocol::new(try!(parts.next().unwrap().parse()), parts.next().map(|x| x.to_owned())))
     }
 }
 

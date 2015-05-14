@@ -172,7 +172,7 @@ mod tests {
             None => panic!("Transfer-Encoding: chunked expected!"),
         };
         // The body is correct?
-        assert_eq!(read_to_string(res).unwrap(), "qwert".to_string());
+        assert_eq!(read_to_string(res).unwrap(), "qwert".to_owned());
     }
 
     /// Tests that when a chunk size is not a valid radix-16 number, an error
@@ -229,6 +229,6 @@ mod tests {
 
         let res = Response::new(Box::new(stream)).unwrap();
 
-        assert_eq!(read_to_string(res).unwrap(), "1".to_string());
+        assert_eq!(read_to_string(res).unwrap(), "1".to_owned());
     }
 }
