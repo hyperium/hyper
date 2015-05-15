@@ -212,7 +212,7 @@ impl NetworkListener for HttpListener {
 }
 
 #[doc(hidden)]
-pub struct CloneTcpStream(TcpStream);
+pub struct CloneTcpStream(pub TcpStream);
 
 impl Clone for CloneTcpStream{
     #[inline]
