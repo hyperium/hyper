@@ -135,6 +135,10 @@ fn with_connector<C: NetworkConnector<Stream=S> + Send + 'static, S: NetworkStre
     Connector(Box::new(ConnAdapter(c)))
 }
 
+impl Default for Client {
+    fn default() -> Client { Client::new() }
+}
+
 struct ConnAdapter<C: NetworkConnector + Send>(C);
 
 impl<C: NetworkConnector<Stream=S> + Send, S: NetworkStream + Send> NetworkConnector for ConnAdapter<C> {
@@ -372,7 +376,7 @@ pub enum RedirectPolicy {
     FollowIf(fn(&Url) -> bool),
 }
 
-// This is a hack because of upstream typesystem issues. 
+// This is a hack because of upstream typesystem issues.
 impl Clone for RedirectPolicy {
     fn clone(&self) -> RedirectPolicy {
         *self
