@@ -53,6 +53,11 @@ impl ContentType {
         ContentType(mime!(Text/Html; Charset=Utf8))
     }
 
+    /// A constructor  to easily create a `Content-Type: application/www-form-url-encoded` header.
+    #[inline]
+    pub fn form_url_encoded() -> ContentType {
+        ContentType(mime!(Application/WwwFormUrlEncoded))
+    }
     /// A constructor  to easily create a `Content-Type: image/jpeg` header.
     #[inline]
     pub fn jpeg() -> ContentType {
@@ -65,4 +70,5 @@ impl ContentType {
         ContentType(mime!(Image/Png))
     }
 }
+
 bench_header!(bench, ContentType, { vec![b"application/json; charset=utf-8".to_vec()] });
