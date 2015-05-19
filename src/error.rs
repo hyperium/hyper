@@ -53,11 +53,11 @@ impl StdError for Error {
     fn description(&self) -> &str {
         match *self {
             Method => "Invalid Method specified",
-            Uri(_) => "Invalid Request URI specified",
             Version => "Invalid HTTP version specified",
             Header => "Invalid Header provided",
             TooLarge => "Message head is too large",
             Status => "Invalid Status provided",
+            Uri(ref e) => e.description(),
             Io(ref e) => e.description(),
             Ssl(ref e) => e.description(),
         }
@@ -105,5 +105,53 @@ impl From<httparse::Error> for Error {
             httparse::Error::TooManyHeaders => TooLarge,
             httparse::Error::Version => Version,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::error::Error as StdError;
+    use std::io;
+    use httparse;
+    use openssl::ssl::error::SslError;
+    use url;
+    use super::Error;
+    use super::Error::*;
+
+    #[test]
+    fn test_cause() {
+        let orig = io::Error::new(io::ErrorKind::Other, "other");
+        let desc = orig.description().to_owned();
+        let e = Io(orig);
+        assert_eq!(e.cause().unwrap().description(), desc);
+    }
+
+    macro_rules! from {
+        ($from:expr => $error:pat) => {
+            match Error::from($from) {
+                $error => (),
+                _ => panic!("{:?}", $from)
+            }
+        }
+    }
+
+    #[test]
+    fn test_from() {
+
+        from!(io::Error::new(io::ErrorKind::Other, "other") => Io(..));
+        from!(url::ParseError::EmptyHost => Uri(..));
+
+        from!(SslError::StreamError(io::Error::new(io::ErrorKind::Other, "ssl")) => Io(..));
+        from!(SslError::SslSessionClosed => Ssl(..));
+
+
+        from!(httparse::Error::HeaderName => Header);
+        from!(httparse::Error::HeaderName => Header);
+        from!(httparse::Error::HeaderValue => Header);
+        from!(httparse::Error::NewLine => Header);
+        from!(httparse::Error::Status => Status);
+        from!(httparse::Error::Token => Header);
+        from!(httparse::Error::TooManyHeaders => TooLarge);
+        from!(httparse::Error::Version => Version);
     }
 }
