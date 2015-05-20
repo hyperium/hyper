@@ -1,5 +1,3 @@
-//! Provides an Encoding enum.
-
 use std::fmt;
 use std::str;
 
@@ -37,8 +35,8 @@ impl fmt::Display for Encoding {
 }
 
 impl str::FromStr for Encoding {
-    type Err = ();
-    fn from_str(s: &str) -> Result<Encoding, ()> {
+    type Err = ::Error;
+    fn from_str(s: &str) -> ::Result<Encoding> {
         match s {
             "chunked" => Ok(Chunked),
             "deflate" => Ok(Deflate),

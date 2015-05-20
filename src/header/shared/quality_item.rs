@@ -1,8 +1,3 @@
-//! Provides a struct for quality values.
-//!
-//! [RFC7231 Section 5.3.1](https://tools.ietf.org/html/rfc7231#section-5.3.1)
-//! gives more information on quality values in HTTP header fields.
-
 use std::cmp;
 use std::default::Default;
 use std::fmt;
@@ -19,6 +14,9 @@ use std::str;
 /// floating point data type (`f32`) consumes four bytes, hyper uses an `u16` value to store the
 /// quality internally. For performance reasons you may set quality directly to a value between
 /// 0 and 1000 e.g. `Quality(532)` matches the quality `q=0.532`.
+///
+/// [RFC7231 Section 5.3.1](https://tools.ietf.org/html/rfc7231#section-5.3.1)
+/// gives more information on quality values in HTTP header fields.
 #[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Quality(pub u16);
 
@@ -73,8 +71,8 @@ impl<T: fmt::Display> fmt::Display for QualityItem<T> {
 }
 
 impl<T: str::FromStr> str::FromStr for QualityItem<T> {
-    type Err = ();
-    fn from_str(s: &str) -> Result<Self, ()> {
+    type Err = ::Error;
+    fn from_str(s: &str) -> ::Result<QualityItem<T>> {
         // Set defaults used if parsing fails.
         let mut raw_item = s;
         let mut quality = 1f32;
@@ -85,7 +83,7 @@ impl<T: str::FromStr> str::FromStr for QualityItem<T> {
             if start == "q=" || start == "Q=" {
                 let q_part = &parts[0][2..parts[0].len()];
                 if q_part.len() > 5 {
-                    return Err(());
+                    return Err(::Error::Header);
                 }
                 match q_part.parse::<f32>() {
                     Ok(q_value) => {
@@ -93,17 +91,17 @@ impl<T: str::FromStr> str::FromStr for QualityItem<T> {
                             quality = q_value;
                             raw_item = parts[1];
                             } else {
-                                return Err(());
+                                return Err(::Error::Header);
                             }
                         },
-                    Err(_) => return Err(()),
+                    Err(_) => return Err(::Error::Header),
                 }
             }
         }
         match raw_item.parse::<T>() {
             // we already checked above that the quality is within range
             Ok(item) => Ok(QualityItem::new(item, from_f32(quality))),
-            Err(_) => return Err(()),
+            Err(_) => return Err(::Error::Header),
         }
     }
 }
@@ -155,40 +153,40 @@ mod tests {
 
     #[test]
     fn test_quality_item_from_str1() {
-        let x: Result<QualityItem<Encoding>, ()> = "chunked".parse();
+        let x: ::Result<QualityItem<Encoding>> = "chunked".parse();
         assert_eq!(x.unwrap(), QualityItem{ item: Chunked, quality: Quality(1000), });
     }
     #[test]
     fn test_quality_item_from_str2() {
-        let x: Result<QualityItem<Encoding>, ()> = "chunked; q=1".parse();
+        let x: ::Result<QualityItem<Encoding>> = "chunked; q=1".parse();
         assert_eq!(x.unwrap(), QualityItem{ item: Chunked, quality: Quality(1000), });
     }
     #[test]
     fn test_quality_item_from_str3() {
-        let x: Result<QualityItem<Encoding>, ()> = "gzip; q=0.5".parse();
+        let x: ::Result<QualityItem<Encoding>> = "gzip; q=0.5".parse();
         assert_eq!(x.unwrap(), QualityItem{ item: Gzip, quality: Quality(500), });
     }
     #[test]
     fn test_quality_item_from_str4() {
-        let x: Result<QualityItem<Encoding>, ()> = "gzip; q=0.273".parse();
+        let x: ::Result<QualityItem<Encoding>> = "gzip; q=0.273".parse();
         assert_eq!(x.unwrap(), QualityItem{ item: Gzip, quality: Quality(273), });
     }
     #[test]
     fn test_quality_item_from_str5() {
-        let x: Result<QualityItem<Encoding>, ()> = "gzip; q=0.2739999".parse();
-        assert_eq!(x, Err(()));
+        let x: ::Result<QualityItem<Encoding>> = "gzip; q=0.2739999".parse();
+        assert!(x.is_err());
     }
     #[test]
     fn test_quality_item_from_str6() {
-        let x: Result<QualityItem<Encoding>, ()> = "gzip; q=2".parse();
-        assert_eq!(x, Err(()));
+        let x: ::Result<QualityItem<Encoding>> = "gzip; q=2".parse();
+        assert!(x.is_err());
     }
     #[test]
     fn test_quality_item_ordering() {
         let x: QualityItem<Encoding> = "gzip; q=0.5".parse().ok().unwrap();
         let y: QualityItem<Encoding> = "gzip; q=0.273".parse().ok().unwrap();
         let comparision_result: bool = x.gt(&y);
-        assert_eq!(comparision_result, true)
+        assert!(comparision_result)
     }
 
     #[test]
