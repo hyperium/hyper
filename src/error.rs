@@ -4,19 +4,11 @@ use std::fmt;
 use std::io::Error as IoError;
 
 use httparse;
+#[cfg(feature = "openssl")]
 use openssl::ssl::error::SslError;
 use url;
 
-use self::Error::{
-    Method,
-    Uri,
-    Version,
-    Header,
-    Status,
-    Io,
-    Ssl,
-    TooLarge
-};
+use self::Error::*;
 
 
 /// Result type often returned from methods that can have hyper `Error`s.
@@ -40,6 +32,7 @@ pub enum Error {
     /// An `io::Error` that occurred while trying to read or write to a network stream.
     Io(IoError),
     /// An error from the `openssl` library.
+    #[cfg(feature = "openssl")]
     Ssl(SslError)
 }
 
@@ -59,6 +52,7 @@ impl StdError for Error {
             Status => "Invalid Status provided",
             Uri(ref e) => e.description(),
             Io(ref e) => e.description(),
+            #[cfg(feature = "openssl")]
             Ssl(ref e) => e.description(),
         }
     }
@@ -66,6 +60,7 @@ impl StdError for Error {
     fn cause(&self) -> Option<&StdError> {
         match *self {
             Io(ref error) => Some(error),
+            #[cfg(feature = "openssl")]
             Ssl(ref error) => Some(error),
             Uri(ref error) => Some(error),
             _ => None,
@@ -85,6 +80,7 @@ impl From<url::ParseError> for Error {
     }
 }
 
+#[cfg(feature = "openssl")]
 impl From<SslError> for Error {
     fn from(err: SslError) -> Error {
         match err {

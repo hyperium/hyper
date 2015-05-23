@@ -25,6 +25,7 @@ pub use self::content_length::ContentLength;
 pub use self::content_encoding::ContentEncoding;
 pub use self::content_language::ContentLanguage;
 pub use self::content_type::ContentType;
+#[cfg(feature = "cookie")]
 pub use self::cookie::Cookie;
 pub use self::date::Date;
 pub use self::etag::ETag;
@@ -42,6 +43,7 @@ pub use self::location::Location;
 pub use self::pragma::Pragma;
 pub use self::referer::Referer;
 pub use self::server::Server;
+#[cfg(feature = "cookie")]
 pub use self::set_cookie::SetCookie;
 pub use self::transfer_encoding::TransferEncoding;
 pub use self::upgrade::{Upgrade, Protocol, ProtocolName};
@@ -329,6 +331,7 @@ mod accept_ranges;
 mod allow;
 mod authorization;
 mod cache_control;
+#[cfg(feature = "cookie")]
 mod cookie;
 mod connection;
 mod content_encoding;
@@ -351,6 +354,7 @@ mod location;
 mod pragma;
 mod referer;
 mod server;
+#[cfg(feature = "cookie")]
 mod set_cookie;
 mod transfer_encoding;
 mod upgrade;

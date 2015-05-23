@@ -20,10 +20,12 @@ use std::fmt;
 use std::io::{ErrorKind, BufWriter, Write};
 use std::marker::PhantomData;
 use std::net::{SocketAddr, ToSocketAddrs};
+#[cfg(feature = "openssl")]
 use std::path::Path;
 use std::thread::{self, JoinHandle};
 
 use num_cpus;
+#[cfg(feature = "openssl")]
 use openssl::ssl::SslContext;
 
 pub use self::request::Request;
@@ -49,10 +51,13 @@ pub mod response;
 mod listener;
 
 #[derive(Debug)]
+#[cfg(feature = "openssl")]
 enum SslConfig<'a> {
     CertAndKey(&'a Path, &'a Path),
     Context(SslContext),
 }
+#[cfg(not(feature = "openssl"))]
+type SslConfig<'a> = PhantomData<&'a ()>;
 
 /// A server can listen on a TCP socket.
 ///
@@ -91,6 +96,7 @@ impl<'a, H: Handler + 'static> Server<'a, H, HttpListener> {
         Server::new(handler)
     }
     /// Creates a new server that will handler `HttpStreams`s using a TLS connection.
+    #[cfg(feature = "openssl")]
     pub fn https(handler: H, cert: &'a Path, key: &'a Path) -> Server<'a, H, HttpListener> {
         Server {
             handler: handler,
@@ -99,6 +105,7 @@ impl<'a, H: Handler + 'static> Server<'a, H, HttpListener> {
         }
     }
     /// Creates a new server that will handler `HttpStreams`s using a TLS connection defined by an SslContext.
+    #[cfg(feature = "openssl")]
     pub fn https_with_context(handler: H, ssl_context: SslContext) -> Server<'a, H, HttpListener> {
         Server {
             handler: handler,
@@ -112,8 +119,12 @@ impl<'a, H: Handler + 'static> Server<'a, H, HttpListener> {
     /// Binds to a socket, and starts handling connections using a task pool.
     pub fn listen_threads<T: ToSocketAddrs>(self, addr: T, threads: usize) -> ::Result<Listening> {
         let listener = try!(match self.ssl {
+            #[cfg(feature = "openssl")]
             Some(SslConfig::CertAndKey(cert, key)) => HttpListener::https(addr, cert, key),
+            #[cfg(feature = "openssl")]
             Some(SslConfig::Context(ssl_context)) => HttpListener::https_with_context(addr, ssl_context),
+            #[cfg(not(feature = "openssl"))]
+            Some(_) => panic!("Internal error - we have an SSL config even though SSL is disabled"),
             None => HttpListener::http(addr)
         });
         with_listener(self.handler, listener, threads)
