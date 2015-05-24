@@ -349,7 +349,7 @@ impl StatusCode {
             StatusCode::NotExtended => 510,
             StatusCode::NetworkAuthenticationRequired => 511,
             StatusCode::Unregistered(n) => n,
-        } 
+        }
     }
 
     /// Get the standardised `reason-phrase` for this status code.
@@ -636,5 +636,92 @@ impl StatusClass {
             StatusClass::ServerError => StatusCode::InternalServerError,
             StatusClass::NoClass => StatusCode::Ok,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::StatusCode::*;
+
+    // Check that the following entities are properly inter-connected:
+    //   - numerical code
+    //   - status code
+    //   - default code (for the given status code)
+    //   - canonical reason
+    fn validate(num: u16, status_code: StatusCode, default_code: StatusCode, reason: Option<&str>) {
+        assert_eq!(StatusCode::from_u16(num), status_code);
+        assert_eq!(status_code.to_u16(), num);
+        assert_eq!(status_code.class().default_code(), default_code);
+        assert_eq!(status_code.canonical_reason(), reason);
+    }
+
+    #[test]
+    fn test_status_code() {
+        validate(99, Unregistered(99), Ok, None);
+
+        validate(100, Continue, Continue, Some("Continue"));
+        validate(101, SwitchingProtocols, Continue, Some("Switching Protocols"));
+        validate(102, Processing, Continue, Some("Processing"));
+
+        validate(200, Ok, Ok, Some("OK"));
+        validate(201, Created, Ok, Some("Created"));
+        validate(202, Accepted, Ok, Some("Accepted"));
+        validate(203, NonAuthoritativeInformation, Ok, Some("Non-Authoritative Information"));
+        validate(204, NoContent, Ok, Some("No Content"));
+        validate(205, ResetContent, Ok, Some("Reset Content"));
+        validate(206, PartialContent, Ok, Some("Partial Content"));
+        validate(207, MultiStatus, Ok, Some("Multi-Status"));
+        validate(208, AlreadyReported, Ok, Some("Already Reported"));
+        validate(226, ImUsed, Ok, Some("IM Used"));
+
+        validate(300, MultipleChoices, MultipleChoices, Some("Multiple Choices"));
+        validate(301, MovedPermanently, MultipleChoices, Some("Moved Permanently"));
+        validate(302, Found, MultipleChoices, Some("Found"));
+        validate(303, SeeOther, MultipleChoices, Some("See Other"));
+        validate(304, NotModified, MultipleChoices, Some("Not Modified"));
+        validate(305, UseProxy, MultipleChoices, Some("Use Proxy"));
+        validate(307, TemporaryRedirect, MultipleChoices, Some("Temporary Redirect"));
+        validate(308, PermanentRedirect, MultipleChoices, Some("Permanent Redirect"));
+
+        validate(400, BadRequest, BadRequest, Some("Bad Request"));
+        validate(401, Unauthorized, BadRequest, Some("Unauthorized"));
+        validate(402, PaymentRequired, BadRequest, Some("Payment Required"));
+        validate(403, Forbidden, BadRequest, Some("Forbidden"));
+        validate(404, NotFound, BadRequest, Some("Not Found"));
+        validate(405, MethodNotAllowed, BadRequest, Some("Method Not Allowed"));
+        validate(406, NotAcceptable, BadRequest, Some("Not Acceptable"));
+        validate(407, ProxyAuthenticationRequired, BadRequest, Some("Proxy Authentication Required"));
+        validate(408, RequestTimeout, BadRequest, Some("Request Timeout"));
+        validate(409, Conflict, BadRequest, Some("Conflict"));
+        validate(410, Gone, BadRequest, Some("Gone"));
+        validate(411, LengthRequired, BadRequest, Some("Length Required"));
+        validate(412, PreconditionFailed, BadRequest, Some("Precondition Failed"));
+        validate(413, PayloadTooLarge, BadRequest, Some("Payload Too Large"));
+        validate(414, UriTooLong, BadRequest, Some("URI Too Long"));
+        validate(415, UnsupportedMediaType, BadRequest, Some("Unsupported Media Type"));
+        validate(416, RangeNotSatisfiable, BadRequest, Some("Range Not Satisfiable"));
+        validate(417, ExpectationFailed, BadRequest, Some("Expectation Failed"));
+        validate(418, ImATeapot, BadRequest, Some("I'm a teapot"));
+        validate(422, UnprocessableEntity, BadRequest, Some("Unprocessable Entity"));
+        validate(423, Locked, BadRequest, Some("Locked"));
+        validate(424, FailedDependency, BadRequest, Some("Failed Dependency"));
+        validate(426, UpgradeRequired, BadRequest, Some("Upgrade Required"));
+        validate(428, PreconditionRequired, BadRequest, Some("Precondition Required"));
+        validate(429, TooManyRequests, BadRequest, Some("Too Many Requests"));
+        validate(431, RequestHeaderFieldsTooLarge, BadRequest, Some("Request Header Fields Too Large"));
+
+        validate(500, InternalServerError, InternalServerError, Some("Internal Server Error"));
+        validate(501, NotImplemented, InternalServerError, Some("Not Implemented"));
+        validate(502, BadGateway, InternalServerError, Some("Bad Gateway"));
+        validate(503, ServiceUnavailable, InternalServerError, Some("Service Unavailable"));
+        validate(504, GatewayTimeout, InternalServerError, Some("Gateway Timeout"));
+        validate(505, HttpVersionNotSupported, InternalServerError, Some("HTTP Version Not Supported"));
+        validate(506, VariantAlsoNegotiates, InternalServerError, Some("Variant Also Negotiates"));
+        validate(507, InsufficientStorage, InternalServerError, Some("Insufficient Storage"));
+        validate(508, LoopDetected, InternalServerError, Some("Loop Detected"));
+        validate(510, NotExtended, InternalServerError, Some("Not Extended"));
+        validate(511, NetworkAuthenticationRequired, InternalServerError, Some("Network Authentication Required"));
+
     }
 }
