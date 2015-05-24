@@ -59,6 +59,16 @@ impl<R: Read> HttpReader<R> {
             EmptyReader(r) => r,
         }
     }
+
+    /// Gets a mutable reference to the underlying Reader.
+    pub fn get_mut(&mut self) -> &mut R {
+        match *self {
+            SizedReader(ref mut r, _) => r,
+            ChunkedReader(ref mut r, _) => r,
+            EofReader(ref mut r) => r,
+            EmptyReader(ref mut r) => r,
+        }
+    }
 }
 
 impl<R> fmt::Debug for HttpReader<R> {
@@ -121,7 +131,9 @@ impl<R: Read> Read for HttpReader<R> {
                 Ok(count as usize)
             },
             EofReader(ref mut body) => {
-                body.read(buf)
+                let r = body.read(buf);
+                trace!("eofread: {:?}", r);
+                r
             },
             EmptyReader(_) => Ok(0)
         }

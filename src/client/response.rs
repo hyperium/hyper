@@ -43,9 +43,6 @@ impl Response {
         debug!("version={:?}, status={:?}", head.version, status);
         debug!("headers={:?}", headers);
 
-        if !http::should_keep_alive(head.version, &headers) {
-            try!(stream.get_mut().close(Shutdown::Write));
-        }
 
         let body = if headers.has::<TransferEncoding>() {
             match headers.get::<TransferEncoding>() {
@@ -97,7 +94,15 @@ impl Response {
 impl Read for Response {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.body.read(buf)
+        let count = try!(self.body.read(buf));
+
+        if count == 0 {
+            if !http::should_keep_alive(self.version, &self.headers) {
+                try!(self.body.get_mut().get_mut().close(Shutdown::Both));
+            }
+        }
+
+        Ok(count)
     }
 }
 
