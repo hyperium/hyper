@@ -1,3 +1,27 @@
+### v0.5.1 (2015-05-25)
+
+
+#### Bug Fixes
+
+* **client:** don't close stream until EOF ([a5e6174e](https://github.com/hyperium/hyper/commit/a5e6174efd57afb1df7113c64f4e7718a3a94187), closes [#543](https://github.com/hyperium/hyper/issues/543))
+
+
+#### Features
+
+* **client:** implement Default trait for client ([be041d91](https://github.com/hyperium/hyper/commit/be041d915a55fa1b5088e112b81727b864949976))
+* **header:** add ContentType::form_url_encoded() constructor ([2c99d4e9](https://github.com/hyperium/hyper/commit/2c99d4e9068b30ecb6d4eac4d364924fb253fdcd))
+* **headers:** return hyper::Error instead of () from header components ([5d669399](https://github.com/hyperium/hyper/commit/5d669399b6ca5ec7d0f01b9d30513cd1cc4cc47b))
+* **http:** add get_mut method to HttpReader ([e64ce8c0](https://github.com/hyperium/hyper/commit/e64ce8c05e847b2396e4b7e2bb656240e9806ed8))
+
+
+#### Breaking Changes
+
+* Error enum extended. Return type of header/shared/
+types changed.
+
+ ([5d669399](https://github.com/hyperium/hyper/commit/5d669399b6ca5ec7d0f01b9d30513cd1cc4cc47b))
+
+
 ## v0.5.0 (2015-05-12)
 
 
