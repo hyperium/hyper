@@ -15,6 +15,7 @@ use client::{Response, get_host_and_port};
 
 
 /// A client request to a remote server.
+/// The W type tracks the state of the request, Fresh vs Streaming.
 pub struct Request<W> {
     /// The target URI for this request.
     pub url: Url,
@@ -76,7 +77,6 @@ impl Request<Fresh> {
     /// returning a Streaming Request.
     pub fn start(mut self) -> ::Result<Request<Streaming>> {
         let mut uri = self.url.serialize_path().unwrap();
-        //TODO: this needs a test
         if let Some(ref q) = self.url.query {
             uri.push('?');
             uri.push_str(&q[..]);
@@ -174,22 +174,33 @@ impl Write for Request<Streaming> {
 mod tests {
     use std::str::from_utf8;
     use url::Url;
-    use method::Method::{Get, Head};
+    use method::Method::{Get, Head, Post};
     use mock::{MockStream, MockConnector};
+    use net::Fresh;
+    use header::{ContentLength,TransferEncoding,Encoding};
+    use url::form_urlencoded;
     use super::Request;
+
+    fn run_request(req: Request<Fresh>) -> Vec<u8> {
+        let req = req.start().unwrap();
+        let stream = *req.body.end().unwrap()
+            .into_inner().unwrap().downcast::<MockStream>().ok().unwrap();
+        stream.write
+    }
+
+    fn assert_no_body(s: &str) {
+        assert!(!s.contains("Content-Length:"));
+        assert!(!s.contains("Transfer-Encoding:"));
+    }
 
     #[test]
     fn test_get_empty_body() {
         let req = Request::with_connector(
             Get, Url::parse("http://example.dom").unwrap(), &mut MockConnector
         ).unwrap();
-        let req = req.start().unwrap();
-        let stream = *req.body.end().unwrap()
-            .into_inner().unwrap().downcast::<MockStream>().ok().unwrap();
-        let bytes = stream.write;
+        let bytes = run_request(req);
         let s = from_utf8(&bytes[..]).unwrap();
-        assert!(!s.contains("Content-Length:"));
-        assert!(!s.contains("Transfer-Encoding:"));
+        assert_no_body(s);
     }
 
     #[test]
@@ -197,12 +208,56 @@ mod tests {
         let req = Request::with_connector(
             Head, Url::parse("http://example.dom").unwrap(), &mut MockConnector
         ).unwrap();
-        let req = req.start().unwrap();
-        let stream = *req.body.end().unwrap()
-            .into_inner().unwrap().downcast::<MockStream>().ok().unwrap();
-        let bytes = stream.write;
+        let bytes = run_request(req);
+        let s = from_utf8(&bytes[..]).unwrap();
+        assert_no_body(s);
+    }
+
+    #[test]
+    fn test_url_query() {
+        let url = Url::parse("http://example.dom?q=value").unwrap();
+        let req = Request::with_connector(
+            Get, url, &mut MockConnector
+        ).unwrap();
+        let bytes = run_request(req);
+        let s = from_utf8(&bytes[..]).unwrap();
+        assert!(s.contains("?q=value"));
+    }
+
+    #[test]
+    fn test_post_content_length() {
+        let url = Url::parse("http://example.dom").unwrap();
+        let mut req = Request::with_connector(
+            Post, url, &mut MockConnector
+        ).unwrap();
+        let body = form_urlencoded::serialize(vec!(("q","value")).into_iter());
+        req.headers_mut().set(ContentLength(body.len() as u64));
+        let bytes = run_request(req);
+        let s = from_utf8(&bytes[..]).unwrap();
+        assert!(s.contains("Content-Length:"));
+    }
+
+    #[test]
+    fn test_post_chunked() {
+        let url = Url::parse("http://example.dom").unwrap();
+        let req = Request::with_connector(
+            Post, url, &mut MockConnector
+        ).unwrap();
+        let bytes = run_request(req);
         let s = from_utf8(&bytes[..]).unwrap();
         assert!(!s.contains("Content-Length:"));
-        assert!(!s.contains("Transfer-Encoding:"));
+    }
+
+    #[test]
+    fn test_post_chunked_with_encoding() {
+        let url = Url::parse("http://example.dom").unwrap();
+        let mut req = Request::with_connector(
+            Post, url, &mut MockConnector
+        ).unwrap();
+        req.headers_mut().set(TransferEncoding(vec![Encoding::Chunked]));
+        let bytes = run_request(req);
+        let s = from_utf8(&bytes[..]).unwrap();
+        assert!(!s.contains("Content-Length:"));
+        assert!(s.contains("Transfer-Encoding:"));
     }
 }
