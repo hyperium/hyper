@@ -88,3 +88,23 @@ impl Connection {
 bench_header!(close, Connection, { vec![b"close".to_vec()] });
 bench_header!(keep_alive, Connection, { vec![b"keep-alive".to_vec()] });
 bench_header!(header, Connection, { vec![b"authorization".to_vec()] });
+
+#[cfg(test)]
+mod tests {
+    use super::{Connection,ConnectionHeader};
+    use header::Header;
+    use unicase::UniCase;
+
+    fn parse_option(header: Vec<u8>) -> Connection {
+        let val = vec![header];
+        let connection: Connection = Header::parse_header(&val[..]).unwrap();
+        connection
+    }
+
+    #[test]
+    fn test_parse() {
+        assert_eq!(Connection::close(),parse_option(b"close".to_vec()));
+        assert_eq!(Connection::keep_alive(),parse_option(b"keep-alive".to_vec()));
+        assert_eq!(Connection(vec![ConnectionHeader(UniCase("upgrade".to_owned()))]),parse_option(b"upgrade".to_vec()));
+    }
+}
