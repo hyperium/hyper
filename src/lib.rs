@@ -186,6 +186,7 @@ pub mod status;
 pub mod uri;
 pub mod version;
 pub mod message;
+pub mod http11;
 
 
 /// Re-exporting the mime crate, for convenience.
