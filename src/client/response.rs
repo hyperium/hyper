@@ -1,21 +1,17 @@
 //! Client Responses
 use std::io::{self, Read};
-use std::marker::PhantomData;
-use std::net::Shutdown;
 
-use buffer::BufReader;
 use header;
-use header::{ContentLength, TransferEncoding};
-use header::Encoding::Chunked;
-use net::{NetworkStream, HttpStream};
-use http::{self, HttpReader, RawStatus};
-use http::HttpReader::{SizedReader, ChunkedReader, EofReader};
+use net::NetworkStream;
+use http::{self, RawStatus};
 use status;
 use version;
+use message::{ResponseHead, HttpMessage};
+use http11::Http11Message;
 
 /// A response for a client request to a remote server.
 #[derive(Debug)]
-pub struct Response<S = HttpStream> {
+pub struct Response {
     /// The status from the server.
     pub status: status::StatusCode,
     /// The headers from the server.
@@ -23,9 +19,7 @@ pub struct Response<S = HttpStream> {
     /// The HTTP version of this response from the server.
     pub version: version::HttpVersion,
     status_raw: RawStatus,
-    body: HttpReader<BufReader<Box<NetworkStream + Send>>>,
-
-    _marker: PhantomData<S>,
+    message: Box<HttpMessage>,
 }
 
 impl Response {
@@ -33,50 +27,23 @@ impl Response {
     /// Creates a new response from a server.
     pub fn new(stream: Box<NetworkStream + Send>) -> ::Result<Response> {
         trace!("Response::new");
-        let mut stream = BufReader::new(stream);
+        Response::with_message(Box::new(Http11Message::with_stream(stream)))
+    }
 
-        let head = try!(http::parse_response(&mut stream));
-        let raw_status = head.subject;
-        let headers = head.headers;
-
+    /// Creates a new response received from the server on the given `HttpMessage`.
+    pub fn with_message(mut message: Box<HttpMessage>) -> ::Result<Response> {
+        trace!("Response::with_message");
+        let ResponseHead { headers, raw_status, version } = try!(message.get_incoming());
         let status = status::StatusCode::from_u16(raw_status.0);
-        debug!("version={:?}, status={:?}", head.version, status);
+        debug!("version={:?}, status={:?}", version, status);
         debug!("headers={:?}", headers);
-
-
-        let body = if headers.has::<TransferEncoding>() {
-            match headers.get::<TransferEncoding>() {
-                Some(&TransferEncoding(ref codings)) => {
-                    if codings.len() > 1 {
-                        trace!("TODO: #2 handle other codings: {:?}", codings);
-                    };
-
-                    if codings.contains(&Chunked) {
-                        ChunkedReader(stream, None)
-                    } else {
-                        trace!("not chuncked. read till eof");
-                        EofReader(stream)
-                    }
-                }
-                None => unreachable!()
-            }
-        } else if headers.has::<ContentLength>() {
-            match headers.get::<ContentLength>() {
-                Some(&ContentLength(len)) => SizedReader(stream, len),
-                None => unreachable!()
-            }
-        } else {
-            trace!("neither Transfer-Encoding nor Content-Length");
-            EofReader(stream)
-        };
 
         Ok(Response {
             status: status,
-            version: head.version,
+            version: version,
             headers: headers,
-            body: body,
+            message: message,
             status_raw: raw_status,
-            _marker: PhantomData,
         })
     }
 
@@ -84,21 +51,18 @@ impl Response {
     pub fn status_raw(&self) -> &RawStatus {
         &self.status_raw
     }
-
-    /// Consumes the Request to return the NetworkStream underneath.
-    pub fn into_inner(self) -> Box<NetworkStream + Send> {
-        self.body.into_inner().into_inner()
-    }
 }
 
 impl Read for Response {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let count = try!(self.body.read(buf));
+        let count = try!(self.message.read(buf));
 
         if count == 0 {
             if !http::should_keep_alive(self.version, &self.headers) {
-                try!(self.body.get_mut().get_mut().close(Shutdown::Both));
+                try!(self.message.close_connection()
+                                 .map_err(|_| io::Error::new(io::ErrorKind::Other,
+                                                             "Error closing connection")));
             }
         }
 
@@ -110,17 +74,15 @@ impl Read for Response {
 mod tests {
     use std::borrow::Cow::Borrowed;
     use std::io::{self, Read};
-    use std::marker::PhantomData;
 
-    use buffer::BufReader;
     use header::Headers;
     use header::TransferEncoding;
     use header::Encoding;
-    use http::HttpReader::EofReader;
     use http::RawStatus;
     use mock::MockStream;
     use status;
     use version;
+    use http11::Http11Message;
 
     use super::Response;
 
@@ -137,12 +99,12 @@ mod tests {
             status: status::StatusCode::Ok,
             headers: Headers::new(),
             version: version::HttpVersion::Http11,
-            body: EofReader(BufReader::new(Box::new(MockStream::new()))),
+            message: Box::new(Http11Message::with_stream(Box::new(MockStream::new()))),
             status_raw: RawStatus(200, Borrowed("OK")),
-            _marker: PhantomData,
         };
 
-        let b = res.into_inner().downcast::<MockStream>().ok().unwrap();
+        let message = res.message.downcast::<Http11Message>().ok().unwrap();
+        let b = message.into_inner().downcast::<MockStream>().ok().unwrap();
         assert_eq!(b, Box::new(MockStream::new()));
 
     }
