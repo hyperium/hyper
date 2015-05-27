@@ -129,7 +129,9 @@ mod tests {
     macro_rules! from {
         ($from:expr => $error:pat) => {
             match Error::from($from) {
-                $error => (),
+                e @ $error => {
+                    assert!(e.description().len() > 5);
+                } ,
                 _ => panic!("{:?}", $from)
             }
         }
@@ -155,7 +157,7 @@ mod tests {
         from_and_cause!(url::ParseError::EmptyHost => Uri(..));
         from_and_cause!(SslError::SslSessionClosed => Ssl(..));
 
-        from!(SslError::StreamError(io::Error::new(io::ErrorKind::Other, "ssl")) => Io(..));
+        from!(SslError::StreamError(io::Error::new(io::ErrorKind::Other, "ssl negotiation")) => Io(..));
 
 
         from!(httparse::Error::HeaderName => Header);
