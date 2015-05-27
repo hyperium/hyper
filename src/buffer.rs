@@ -67,7 +67,7 @@ impl<R: Read> BufReader<R> {
     #[inline]
     fn maybe_reserve(&mut self) {
         let cap = self.buf.capacity();
-        if self.cap == cap {
+        if self.cap == cap && cap < MAX_BUFFER_SIZE {
             self.buf.reserve(cmp::min(cap * 4, MAX_BUFFER_SIZE) - cap);
             let new = self.buf.capacity() - self.buf.len();
             trace!("reserved {}", new);
