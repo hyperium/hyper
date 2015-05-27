@@ -135,14 +135,27 @@ mod tests {
         }
     }
 
+    macro_rules! from_and_cause {
+        ($from:expr => $error:pat) => {
+            match Error::from($from) {
+                e @ $error => {
+                    let desc = e.cause().unwrap().description();
+                    assert_eq!(desc, $from.description().to_owned());
+                    assert_eq!(desc, e.description());
+                },
+                _ => panic!("{:?}", $from)
+            }
+        }
+    }
+
     #[test]
     fn test_from() {
 
-        from!(io::Error::new(io::ErrorKind::Other, "other") => Io(..));
-        from!(url::ParseError::EmptyHost => Uri(..));
+        from_and_cause!(io::Error::new(io::ErrorKind::Other, "other") => Io(..));
+        from_and_cause!(url::ParseError::EmptyHost => Uri(..));
+        from_and_cause!(SslError::SslSessionClosed => Ssl(..));
 
         from!(SslError::StreamError(io::Error::new(io::ErrorKind::Other, "ssl")) => Io(..));
-        from!(SslError::SslSessionClosed => Ssl(..));
 
 
         from!(httparse::Error::HeaderName => Header);
