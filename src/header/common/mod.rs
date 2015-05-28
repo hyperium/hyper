@@ -16,7 +16,7 @@ pub use self::access_control_request_method::AccessControlRequestMethod;
 pub use self::accept_charset::AcceptCharset;
 pub use self::accept_encoding::AcceptEncoding;
 pub use self::accept_language::AcceptLanguage;
-pub use self::accept_ranges::AcceptRanges;
+pub use self::accept_ranges::{AcceptRanges, RangeUnit};
 pub use self::allow::Allow;
 pub use self::authorization::{Authorization, Scheme, Basic};
 pub use self::cache_control::{CacheControl, CacheDirective};
