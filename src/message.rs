@@ -16,6 +16,16 @@ use url::Url;
 use method;
 use version;
 use traitobject;
+use net::ContextVerifier;
+
+/// The trait provides an API for creating new `HttpMessage`s depending on the underlying HTTP
+/// protocol.
+pub trait Protocol {
+    /// Creates a fresh `HttpMessage` bound to the given host, based on the given protocol scheme.
+    fn new_message(&self, host: &str, port: u16, scheme: &str) -> ::Result<Box<HttpMessage>>;
+    /// Sets the SSL verifier that should be used when establishing TLS-protected connections.
+    fn set_ssl_verifier(&mut self, verifier: ContextVerifier);
+}
 
 /// Describes a request.
 #[derive(Clone, Debug)]
