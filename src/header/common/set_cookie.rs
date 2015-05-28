@@ -54,6 +54,31 @@ use cookie::CookieJar;
 /// * `lang=en-US; Expires=Wed, 09 Jun 2021 10:18:14 GMT`
 /// * `lang=; Expires=Sun, 06 Nov 1994 08:49:37 GMT`
 /// * `lang=en-US; Path=/; Domain=example.com`
+///
+/// # Example
+/// ```
+/// # extern crate hyper;
+/// # extern crate cookie;
+/// # fn main() {
+/// // extern crate cookie;
+/// 
+/// use hyper::header::{Headers, SetCookie};
+/// use cookie::Cookie as CookiePair;
+///
+/// let mut headers = Headers::new();
+/// let mut cookie = CookiePair::new("foo".to_owned(), "bar".to_owned());
+///
+/// cookie.path = Some("/path".to_owned());
+/// cookie.domain = Some("example.com".to_owned());
+///
+/// headers.set(
+///     SetCookie(vec![
+///         cookie,
+///         CookiePair::new("baz".to_owned(), "quux".to_owned()),
+///     ])
+/// );
+/// # }
+/// ```
 #[derive(Clone, PartialEq, Debug)]
 pub struct SetCookie(pub Vec<Cookie>);
 

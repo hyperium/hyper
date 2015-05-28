@@ -16,6 +16,20 @@ use header::{Header, HeaderFormat, parsing};
 /// > specification deprecates such extensions to improve interoperability.
 ///
 /// Spec: https://tools.ietf.org/html/rfc7234#section-5.4
+///
+/// # Examples
+/// ```
+/// use hyper::header::{Headers, Pragma};
+///
+/// let mut headers = Headers::new();
+/// headers.set(Pragma::NoCache);
+/// ```
+/// ```
+/// use hyper::header::{Headers, Pragma};
+///
+/// let mut headers = Headers::new();
+/// headers.set(Pragma::Ext("foobar".to_owned()));
+/// ```
 #[derive(Clone, PartialEq, Debug)]
 pub enum Pragma {
     /// Corresponds to the `no-cache` value.

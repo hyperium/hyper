@@ -9,6 +9,14 @@ header! {
     #[doc="From    = mailbox"]
     #[doc="mailbox = <mailbox, see [RFC5322], Section 3.4>"]
     #[doc="```"]
+    #[doc=""]
+    #[doc="# Example"]
+    #[doc="```"]
+    #[doc="use hyper::header::{Headers, From};"]
+    #[doc=""]
+    #[doc="let mut headers = Headers::new();"]
+    #[doc="headers.set(From(\"webmaster@example.org\".to_owned()));"]
+    #[doc="```"]
     // FIXME: Maybe use mailbox?
     (From, "From") => [String]
 

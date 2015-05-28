@@ -18,6 +18,14 @@ header! {
     #[doc=""]
     #[doc="# Example values"]
     #[doc="* `3495`"]
+    #[doc=""]
+    #[doc="# Example"]
+    #[doc="```"]
+    #[doc="use hyper::header::{Headers, ContentLength};"]
+    #[doc=""]
+    #[doc="let mut headers = Headers::new();"]
+    #[doc="headers.set(ContentLength(1024u64));"]
+    #[doc="```"]
     (ContentLength, "Content-Length") => [u64]
 
     test_content_length {

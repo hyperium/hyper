@@ -12,6 +12,14 @@ header! {
     #[doc=""]
     #[doc="# Example values"]
     #[doc="* `531`"]
+    #[doc=""]
+    #[doc="# Examples"]
+    #[doc="```"]
+    #[doc="use hyper::header::{Headers, AccessControlMaxAge};"]
+    #[doc=""]
+    #[doc="let mut headers = Headers::new();"]
+    #[doc="headers.set(AccessControlMaxAge(1728000u32));"]
+    #[doc="```"]
     (AccessControlMaxAge, "Access-Control-Max-Age") => [u32]
 
     test_access_control_max_age {

@@ -13,6 +13,13 @@ use header::{Header, HeaderFormat};
 /// > defined by this specification is 100-continue.
 /// >
 /// >    Expect  = "100-continue"
+///
+/// # Example
+/// ```
+/// use hyper::header::{Headers, Expect};
+/// let mut headers = Headers::new();
+/// headers.set(Expect::Continue);
+/// ```
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum Expect {
     /// The value `100-continue`.
