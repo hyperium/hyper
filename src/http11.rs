@@ -5,6 +5,8 @@ use std::net::Shutdown;
 use method::{Method};
 use header::{ContentLength, TransferEncoding};
 use header::Encoding::Chunked;
+
+use net::{NetworkConnector, NetworkStream, ContextVerifier};
 use http::{HttpWriter, LINE_ENDING};
 use http::HttpReader::{SizedReader, ChunkedReader, EofReader};
 use http::HttpWriter::{ChunkedWriter, SizedWriter, EmptyWriter};
@@ -12,11 +14,11 @@ use buffer::BufReader;
 use http::{self, HttpReader};
 
 use message::{
+    Protocol,
     HttpMessage,
     RequestHead,
     ResponseHead,
 };
-use net::NetworkStream;
 use header;
 use version;
 
@@ -239,5 +241,65 @@ impl Http11Message {
         self.stream = Some(raw);
 
         Ok(())
+    }
+}
+
+/// The `Protocol` implementation provides HTTP/1.1 messages.
+pub struct Http11Protocol {
+    connector: Connector,
+}
+
+impl Protocol for Http11Protocol {
+    fn new_message(&self, host: &str, port: u16, scheme: &str) -> ::Result<Box<HttpMessage>> {
+        let stream = try!(self.connector.connect(host, port, scheme)).into();
+
+        Ok(Box::new(Http11Message::with_stream(stream)))
+    }
+
+    #[inline]
+    fn set_ssl_verifier(&mut self, verifier: ContextVerifier) {
+        self.connector.set_ssl_verifier(verifier);
+    }
+}
+
+impl Http11Protocol {
+    /// Creates a new `Http11Protocol` instance that will use the given `NetworkConnector` for
+    /// establishing HTTP connections.
+    pub fn with_connector<C, S>(c: C) -> Http11Protocol
+            where C: NetworkConnector<Stream=S> + Send + 'static,
+                  S: NetworkStream + Send {
+        Http11Protocol {
+            connector: Connector(Box::new(ConnAdapter(c))),
+        }
+    }
+}
+
+struct ConnAdapter<C: NetworkConnector + Send>(C);
+
+impl<C: NetworkConnector<Stream=S> + Send, S: NetworkStream + Send> NetworkConnector for ConnAdapter<C> {
+    type Stream = Box<NetworkStream + Send>;
+    #[inline]
+    fn connect(&self, host: &str, port: u16, scheme: &str)
+        -> ::Result<Box<NetworkStream + Send>> {
+        Ok(try!(self.0.connect(host, port, scheme)).into())
+    }
+    #[inline]
+    fn set_ssl_verifier(&mut self, verifier: ContextVerifier) {
+        self.0.set_ssl_verifier(verifier);
+    }
+}
+
+struct Connector(Box<NetworkConnector<Stream=Box<NetworkStream + Send>> + Send>);
+
+impl NetworkConnector for Connector {
+    type Stream = Box<NetworkStream + Send>;
+    #[inline]
+    fn connect(&self, host: &str, port: u16, scheme: &str)
+        -> ::Result<Box<NetworkStream + Send>> {
+        Ok(try!(self.0.connect(host, port, scheme)).into())
+    }
+    #[inline]
+    fn set_ssl_verifier(&mut self, verifier: ContextVerifier) {
+        self.0.set_ssl_verifier(verifier);
     }
 }
