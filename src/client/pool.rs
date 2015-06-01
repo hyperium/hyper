@@ -5,7 +5,9 @@ use std::io::{self, Read, Write};
 use std::net::{SocketAddr, Shutdown};
 use std::sync::{Arc, Mutex};
 
-use net::{NetworkConnector, NetworkStream, HttpConnector, ContextVerifier};
+use net::{NetworkConnector, NetworkStream, HttpConnector};
+#[cfg(feature = "openssl")]
+use net::ContextVerifier;
 
 /// The `NetworkConnector` that behaves as a connection pool used by hyper's `Client`.
 pub struct Pool<C: NetworkConnector> {
@@ -121,6 +123,7 @@ impl<C: NetworkConnector<Stream=S>, S: NetworkStream + Send> NetworkConnector fo
         })
     }
     #[inline]
+    #[cfg(feature = "openssl")]
     fn set_ssl_verifier(&mut self, verifier: ContextVerifier) {
         self.connector.set_ssl_verifier(verifier);
     }

@@ -4,12 +4,18 @@ use std::fmt;
 use std::io::{self, ErrorKind, Read, Write};
 use std::net::{SocketAddr, ToSocketAddrs, TcpStream, TcpListener, Shutdown};
 use std::mem;
+#[cfg(feature = "openssl")]
 use std::path::Path;
+#[cfg(feature = "openssl")]
 use std::sync::Arc;
 
+#[cfg(feature = "openssl")]
 use openssl::ssl::{Ssl, SslStream, SslContext, SSL_VERIFY_NONE};
+#[cfg(feature = "openssl")]
 use openssl::ssl::SslMethod::Sslv23;
+#[cfg(feature = "openssl")]
 use openssl::ssl::error::StreamError as SslIoError;
+#[cfg(feature = "openssl")]
 use openssl::x509::X509FileType;
 
 use typeable::Typeable;
@@ -72,6 +78,7 @@ pub trait NetworkConnector {
     fn connect(&self, host: &str, port: u16, scheme: &str) -> ::Result<Self::Stream>;
     /// Sets the given `ContextVerifier` to be used when verifying the SSL context
     /// on the establishment of a new connection.
+    #[cfg(feature = "openssl")]
     fn set_ssl_verifier(&mut self, verifier: ContextVerifier);
 }
 
@@ -147,6 +154,7 @@ pub enum HttpListener {
     /// Http variant.
     Http(TcpListener),
     /// Https variant. The two paths point to the certificate and key PEM files, in that order.
+    #[cfg(feature = "openssl")]
     Https(TcpListener, Arc<SslContext>)
 }
 
@@ -154,6 +162,7 @@ impl Clone for HttpListener {
     fn clone(&self) -> HttpListener {
         match *self {
             HttpListener::Http(ref tcp) => HttpListener::Http(tcp.try_clone().unwrap()),
+            #[cfg(feature = "openssl")]
             HttpListener::Https(ref tcp, ref ssl) => HttpListener::Https(tcp.try_clone().unwrap(), ssl.clone()),
         }
     }
@@ -167,6 +176,7 @@ impl HttpListener {
     }
 
     /// Start listening to an address over HTTPS.
+    #[cfg(feature = "openssl")]
     pub fn https<To: ToSocketAddrs>(addr: To, cert: &Path, key: &Path) -> ::Result<HttpListener> {
         let mut ssl_context = try!(SslContext::new(Sslv23));
         try!(ssl_context.set_cipher_list("DEFAULT"));
@@ -177,6 +187,7 @@ impl HttpListener {
     }
 
     /// Start listening to an address of HTTPS using the given SslContext
+    #[cfg(feature = "openssl")]
     pub fn https_with_context<To: ToSocketAddrs>(addr: To, ssl_context: SslContext) -> ::Result<HttpListener> {
         Ok(HttpListener::Https(try!(TcpListener::bind(addr)), Arc::new(ssl_context)))
     }
@@ -189,6 +200,7 @@ impl NetworkListener for HttpListener {
     fn accept(&mut self) -> ::Result<HttpStream> {
         match *self {
             HttpListener::Http(ref mut tcp) => Ok(HttpStream::Http(CloneTcpStream(try!(tcp.accept()).0))),
+            #[cfg(feature = "openssl")]
             HttpListener::Https(ref mut tcp, ref ssl_context) => {
                 let stream = CloneTcpStream(try!(tcp.accept()).0);
                 match SslStream::new_server(&**ssl_context, stream) {
@@ -206,6 +218,7 @@ impl NetworkListener for HttpListener {
     fn local_addr(&mut self) -> io::Result<SocketAddr> {
         match *self {
             HttpListener::Http(ref mut tcp) => tcp.local_addr(),
+            #[cfg(feature = "openssl")]
             HttpListener::Https(ref mut tcp, _) => tcp.local_addr(),
         }
     }
@@ -245,6 +258,7 @@ pub enum HttpStream {
     /// A stream over the HTTP protocol.
     Http(CloneTcpStream),
     /// A stream over the HTTP protocol, protected by SSL.
+    #[cfg(feature = "openssl")]
     Https(SslStream<CloneTcpStream>),
 }
 
@@ -252,6 +266,7 @@ impl fmt::Debug for HttpStream {
   fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
     match *self {
       HttpStream::Http(_) => write!(fmt, "Http HttpStream"),
+      #[cfg(feature = "openssl")]
       HttpStream::Https(_) => write!(fmt, "Https HttpStream"),
     }
   }
@@ -262,6 +277,7 @@ impl Read for HttpStream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match *self {
             HttpStream::Http(ref mut inner) => inner.read(buf),
+            #[cfg(feature = "openssl")]
             HttpStream::Https(ref mut inner) => inner.read(buf)
         }
     }
@@ -272,6 +288,7 @@ impl Write for HttpStream {
     fn write(&mut self, msg: &[u8]) -> io::Result<usize> {
         match *self {
             HttpStream::Http(ref mut inner) => inner.write(msg),
+            #[cfg(feature = "openssl")]
             HttpStream::Https(ref mut inner) => inner.write(msg)
         }
     }
@@ -279,6 +296,7 @@ impl Write for HttpStream {
     fn flush(&mut self) -> io::Result<()> {
         match *self {
             HttpStream::Http(ref mut inner) => inner.flush(),
+            #[cfg(feature = "openssl")]
             HttpStream::Https(ref mut inner) => inner.flush(),
         }
     }
@@ -289,6 +307,7 @@ impl NetworkStream for HttpStream {
     fn peer_addr(&mut self) -> io::Result<SocketAddr> {
         match *self {
             HttpStream::Http(ref mut inner) => inner.0.peer_addr(),
+            #[cfg(feature = "openssl")]
             HttpStream::Https(ref mut inner) => inner.get_mut().0.peer_addr()
         }
     }
@@ -307,16 +326,22 @@ impl NetworkStream for HttpStream {
 
         match *self {
             HttpStream::Http(ref mut inner) => shutdown(&mut inner.0, how),
+            #[cfg(feature = "openssl")]
             HttpStream::Https(ref mut inner) => shutdown(&mut inner.get_mut().0, how)
         }
 
     }
 }
 
+#[cfg(feature = "openssl")]
 /// A connector that will produce HttpStreams.
 pub struct HttpConnector(pub Option<ContextVerifier>);
+#[cfg(not(feature = "openssl"))]
+/// A connector that will produce HttpStreams.
+pub struct HttpConnector(pub Option<()>);
 
 /// A method that can set verification methods on an SSL context
+#[cfg(feature = "openssl")]
 pub type ContextVerifier = Box<Fn(&mut SslContext) -> () + Send>;
 
 impl NetworkConnector for HttpConnector {
@@ -329,6 +354,7 @@ impl NetworkConnector for HttpConnector {
                 debug!("http scheme");
                 Ok(HttpStream::Http(CloneTcpStream(try!(TcpStream::connect(addr)))))
             },
+            #[cfg(feature = "openssl")]
             "https" => {
                 debug!("https scheme");
                 let stream = CloneTcpStream(try!(TcpStream::connect(addr)));
@@ -341,12 +367,13 @@ impl NetworkConnector for HttpConnector {
                 let stream = try!(SslStream::new(&context, stream));
                 Ok(HttpStream::Https(stream))
             },
-            _ => {
+            x => {
                 Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                "Invalid scheme for Http"))
+                                format!("Invalid scheme for Http: {}", x)))
             }
         }))
     }
+    #[cfg(feature = "openssl")]
     fn set_ssl_verifier(&mut self, verifier: ContextVerifier) {
         self.0 = Some(verifier);
     }

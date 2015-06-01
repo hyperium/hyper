@@ -41,7 +41,9 @@ use url::ParseError as UrlError;
 use header::{Headers, Header, HeaderFormat};
 use header::{ContentLength, Location};
 use method::Method;
-use net::{NetworkConnector, NetworkStream, ContextVerifier};
+use net::{NetworkConnector, NetworkStream};
+#[cfg(feature = "openssl")]
+use net::ContextVerifier;
 use status::StatusClass::Redirection;
 use {Url};
 use Error;
@@ -84,6 +86,7 @@ impl Client {
     }
 
     /// Set the SSL verifier callback for use with OpenSSL.
+    #[cfg(feature = "openssl")]
     pub fn set_ssl_verifier(&mut self, verifier: ContextVerifier) {
         self.connector.set_ssl_verifier(verifier);
     }
@@ -149,6 +152,7 @@ impl<C: NetworkConnector<Stream=S> + Send, S: NetworkStream + Send> NetworkConne
         Ok(try!(self.0.connect(host, port, scheme)).into())
     }
     #[inline]
+    #[cfg(feature = "openssl")]
     fn set_ssl_verifier(&mut self, verifier: ContextVerifier) {
         self.0.set_ssl_verifier(verifier);
     }
@@ -164,6 +168,7 @@ impl NetworkConnector for Connector {
         Ok(try!(self.0.connect(host, port, scheme)).into())
     }
     #[inline]
+    #[cfg(feature = "openssl")]
     fn set_ssl_verifier(&mut self, verifier: ContextVerifier) {
         self.0.set_ssl_verifier(verifier);
     }

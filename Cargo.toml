@@ -12,12 +12,10 @@ authors = ["Sean McArthur <sean.monstar@gmail.com>",
 keywords = ["http", "hyper", "hyperium"]
 
 [dependencies]
-cookie = "0.1"
 httparse = "0.1"
 log = "0.3"
 mime = "0.0.11"
 num_cpus = "0.2"
-openssl = "0.6"
 rustc-serialize = "0.3"
 time = "0.1"
 unicase = "0.1"
@@ -29,4 +27,17 @@ typeable = "0.1"
 env_logger = "*"
 
 [features]
+default = ["ssl"]
+# These are grouped together b/c it doesn't really make sense to
+# enable one w/o the other
+ssl = ["openssl", "cookie"]
 nightly = []
+
+
+[dependencies.cookie]
+version = "0.1"
+optional = true
+
+[dependencies.openssl]
+version = "0.6"
+optional = true
