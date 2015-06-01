@@ -5,9 +5,6 @@ matrix:
         - rust: nightly
           env: FEATURES="--features nightly"
           sudo: false
-        - rust: nightly
-          env: FEATURES="--features nightly" BENCH=true
-          sudo: false
         - rust: beta
           sudo: false
         - rust: stable
@@ -17,7 +14,9 @@ cache:
     directories:
         - target
 
-script: ./.travis.sh
+script:
+  - cargo build --verbose $FEATURES
+  - cargo test --verbose $FEATURES
 
 after_success: |
     [ $TRAVIS_RUST_VERSION = stable ] &&
@@ -29,7 +28,7 @@ after_success: |
     [ $TRAVIS_BRANCH = master ] &&
     [ $TRAVIS_PULL_REQUEST = false ] &&
     [ $TRAVIS_RUST_VERSION = stable ] &&
-    cargo doc  &&
+    cargo doc --no-deps &&
     echo '<meta http-equiv=refresh content=0;url=hyper/index.html>' > target/doc/index.html &&
     pip install --user ghp-import &&
     /home/travis/.local/bin/ghp-import -n target/doc &&
