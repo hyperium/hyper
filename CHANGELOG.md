@@ -1,3 +1,11 @@
+### v0.5.2 (2015-06-01)
+
+
+#### Bug Fixes
+
+* **buffer:** check capacity before resizing ([b1686d1b](https://github.com/hyperium/hyper/commit/b1686d1b22aa95a17088f99054d577bbb2aef9dc))
+
+
 ### v0.5.1 (2015-05-25)
 
 
