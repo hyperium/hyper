@@ -5,16 +5,16 @@ use std::net::Shutdown;
 use std::ascii::AsciiExt;
 use std::mem;
 
-use message::{
+use http::{
     Protocol,
     HttpMessage,
     RequestHead,
     ResponseHead,
+    RawStatus,
 };
 use net::{NetworkStream, NetworkConnector, ContextVerifier};
 use net::{HttpConnector, HttpStream};
 use url::Url;
-use http::RawStatus;
 use header::Headers;
 
 use header;
@@ -397,7 +397,7 @@ mod tests {
     use std::io::{Read};
 
     use mock::{MockHttp2Connector, MockStream};
-    use message::{RequestHead, ResponseHead, Protocol};
+    use http::{RequestHead, ResponseHead, Protocol};
 
     use header::Headers;
     use header;

@@ -11,8 +11,8 @@ use std::ptr;
 use time::now_utc;
 
 use header;
-use http::{CR, LF, LINE_ENDING, HttpWriter};
-use http::HttpWriter::{ThroughWriter, ChunkedWriter, SizedWriter};
+use http::h1::{CR, LF, LINE_ENDING, HttpWriter};
+use http::h1::HttpWriter::{ThroughWriter, ChunkedWriter, SizedWriter};
 use status;
 use net::{Fresh, Streaming};
 use version;

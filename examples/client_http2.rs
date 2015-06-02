@@ -8,7 +8,7 @@ use std::io;
 
 use hyper::Client;
 use hyper::header::Connection;
-use hyper::http2;
+use hyper::http::h2;
 
 fn main() {
     env_logger::init().unwrap();
@@ -21,7 +21,7 @@ fn main() {
         }
     };
 
-    let mut client = Client::with_protocol(http2::new_protocol());
+    let mut client = Client::with_protocol(h2::new_protocol());
 
     // `Connection: Close` is not a valid header for HTTP/2, but the client handles it gracefully.
     let mut res = client.get(&*url)
