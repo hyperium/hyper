@@ -45,6 +45,18 @@ pub enum Error {
     Ssl(SslError),
     /// An HTTP/2-specific error, coming from the `solicit` library.
     Http2(Http2Error),
+
+    #[doc(hidden)]
+    __Nonexhaustive(Void)
+}
+
+#[doc(hidden)]
+pub enum Void {}
+
+impl fmt::Debug for Void {
+    fn fmt(&self, _: &mut fmt::Formatter) -> fmt::Result {
+        match *self {}
+    }
 }
 
 impl fmt::Display for Error {
@@ -65,6 +77,7 @@ impl StdError for Error {
             Io(ref e) => e.description(),
             Ssl(ref e) => e.description(),
             Http2(ref e) => e.description(),
+            Error::__Nonexhaustive(ref void) =>  match *void {}
         }
     }
 
