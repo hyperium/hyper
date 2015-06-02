@@ -54,11 +54,14 @@ pub mod pool;
 pub mod request;
 pub mod response;
 
+use message::Protocol;
+use http11::Http11Protocol;
+
 /// A Client to use additional features with Requests.
 ///
 /// Clients can handle things such as: redirect policy, connection pooling.
 pub struct Client {
-    connector: Connector,
+    protocol: Box<Protocol + Send>,
     redirect_policy: RedirectPolicy,
 }
 
@@ -77,15 +80,20 @@ impl Client {
     /// Create a new client with a specific connector.
     pub fn with_connector<C, S>(connector: C) -> Client
     where C: NetworkConnector<Stream=S> + Send + 'static, S: NetworkStream + Send {
+        Client::with_protocol(Http11Protocol::with_connector(connector))
+    }
+
+    /// Create a new client with a specific `Protocol`.
+    pub fn with_protocol<P: Protocol + Send + 'static>(protocol: P) -> Client {
         Client {
-            connector: with_connector(connector),
+            protocol: Box::new(protocol),
             redirect_policy: Default::default()
         }
     }
 
     /// Set the SSL verifier callback for use with OpenSSL.
     pub fn set_ssl_verifier(&mut self, verifier: ContextVerifier) {
-        self.connector.set_ssl_verifier(verifier);
+        self.protocol.set_ssl_verifier(verifier);
     }
 
     /// Set the RedirectPolicy.
@@ -131,42 +139,8 @@ impl Client {
     }
 }
 
-fn with_connector<C: NetworkConnector<Stream=S> + Send + 'static, S: NetworkStream + Send>(c: C) -> Connector {
-    Connector(Box::new(ConnAdapter(c)))
-}
-
 impl Default for Client {
     fn default() -> Client { Client::new() }
-}
-
-struct ConnAdapter<C: NetworkConnector + Send>(C);
-
-impl<C: NetworkConnector<Stream=S> + Send, S: NetworkStream + Send> NetworkConnector for ConnAdapter<C> {
-    type Stream = Box<NetworkStream + Send>;
-    #[inline]
-    fn connect(&self, host: &str, port: u16, scheme: &str)
-        -> ::Result<Box<NetworkStream + Send>> {
-        Ok(try!(self.0.connect(host, port, scheme)).into())
-    }
-    #[inline]
-    fn set_ssl_verifier(&mut self, verifier: ContextVerifier) {
-        self.0.set_ssl_verifier(verifier);
-    }
-}
-
-struct Connector(Box<NetworkConnector<Stream=Box<NetworkStream + Send>> + Send>);
-
-impl NetworkConnector for Connector {
-    type Stream = Box<NetworkStream + Send>;
-    #[inline]
-    fn connect(&self, host: &str, port: u16, scheme: &str)
-        -> ::Result<Box<NetworkStream + Send>> {
-        Ok(try!(self.0.connect(host, port, scheme)).into())
-    }
-    #[inline]
-    fn set_ssl_verifier(&mut self, verifier: ContextVerifier) {
-        self.0.set_ssl_verifier(verifier);
-    }
 }
 
 /// Options for an individual Request.
@@ -229,7 +203,11 @@ impl<'a, U: IntoUrl> RequestBuilder<'a, U> {
         };
 
         loop {
-            let mut req = try!(Request::with_connector(method.clone(), url.clone(), &client.connector));
+            let message = {
+                let (host, port) = try!(get_host_and_port(&url));
+                try!(client.protocol.new_message(&host, port, &*url.scheme))
+            };
+            let mut req = try!(Request::with_message(method.clone(), url.clone(), message));
             headers.as_ref().map(|headers| req.headers_mut().extend(headers.iter()));
 
             match (can_have_body, body.as_ref()) {

@@ -138,6 +138,7 @@ extern crate httparse;
 extern crate num_cpus;
 extern crate traitobject;
 extern crate typeable;
+extern crate solicit;
 
 #[macro_use]
 extern crate mime as mime_crate;
@@ -185,6 +186,9 @@ pub mod server;
 pub mod status;
 pub mod uri;
 pub mod version;
+pub mod message;
+pub mod http11;
+pub mod http2;
 
 
 /// Re-exporting the mime crate, for convenience.
