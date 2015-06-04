@@ -10,8 +10,8 @@ use net::NetworkStream;
 use version::{HttpVersion};
 use method::Method::{self, Get, Head};
 use header::{Headers, ContentLength, TransferEncoding};
-use http::{self, Incoming, HttpReader};
-use http::HttpReader::{SizedReader, ChunkedReader, EmptyReader};
+use http::h1::{self, Incoming, HttpReader};
+use http::h1::HttpReader::{SizedReader, ChunkedReader, EmptyReader};
 use uri::RequestUri;
 
 /// A request bundles several parts of an incoming `NetworkStream`, given to a `Handler`.
@@ -36,7 +36,7 @@ impl<'a, 'b: 'a> Request<'a, 'b> {
     pub fn new(mut stream: &'a mut BufReader<&'b mut NetworkStream>, addr: SocketAddr)
         -> ::Result<Request<'a, 'b>> {
 
-        let Incoming { version, subject: (method, uri), headers } = try!(http::parse_request(stream));
+        let Incoming { version, subject: (method, uri), headers } = try!(h1::parse_request(stream));
         debug!("Request Line: {:?} {:?} {:?}", method, uri, version);
         debug!("{:?}", headers);
 

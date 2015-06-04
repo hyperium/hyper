@@ -11,8 +11,8 @@ use net::{NetworkStream, NetworkConnector, HttpConnector, Fresh, Streaming};
 use version;
 use client::{Response, get_host_and_port};
 
-use message::{HttpMessage, RequestHead};
-use http11::Http11Message;
+use http::{HttpMessage, RequestHead};
+use http::h1::Http11Message;
 
 
 /// A client request to a remote server.
@@ -136,7 +136,7 @@ mod tests {
     use header::{ContentLength,TransferEncoding,Encoding};
     use url::form_urlencoded;
     use super::Request;
-    use http11::Http11Message;
+    use http::h1::Http11Message;
 
     fn run_request(req: Request<Fresh>) -> Vec<u8> {
         let req = req.start().unwrap();

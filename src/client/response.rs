@@ -3,11 +3,10 @@ use std::io::{self, Read};
 
 use header;
 use net::NetworkStream;
-use http::{self, RawStatus};
+use http::{self, RawStatus, ResponseHead, HttpMessage};
 use status;
 use version;
-use message::{ResponseHead, HttpMessage};
-use http11::Http11Message;
+use http::h1::Http11Message;
 
 /// A response for a client request to a remote server.
 #[derive(Debug)]
@@ -82,7 +81,7 @@ mod tests {
     use mock::MockStream;
     use status;
     use version;
-    use http11::Http11Message;
+    use http::h1::Http11Message;
 
     use super::Response;
 

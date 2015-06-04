@@ -54,8 +54,8 @@ pub mod pool;
 pub mod request;
 pub mod response;
 
-use message::Protocol;
-use http11::Http11Protocol;
+use http::Protocol;
+use http::h1::Http11Protocol;
 
 /// A Client to use additional features with Requests.
 ///
