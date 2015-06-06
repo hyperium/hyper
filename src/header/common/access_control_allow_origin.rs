@@ -35,16 +35,14 @@ impl Header for AccessControlAllowOrigin {
         "Access-Control-Allow-Origin"
     }
 
-    fn parse_header(raw: &[Vec<u8>]) -> Option<AccessControlAllowOrigin> {
+    fn parse_header(raw: &[Vec<u8>]) -> ::Result<AccessControlAllowOrigin> {
         if raw.len() == 1 {
             match unsafe { &raw.get_unchecked(0)[..] } {
-                b"*" => Some(AccessControlAllowOrigin::Any),
-                b"null" => Some(AccessControlAllowOrigin::Null),
-                r => if let Ok(s) = str::from_utf8(r) {
-                    Url::parse(s).ok().map(AccessControlAllowOrigin::Value)
-                } else { None }
+                b"*" => Ok(AccessControlAllowOrigin::Any),
+                b"null" => Ok(AccessControlAllowOrigin::Null),
+                r => Ok(AccessControlAllowOrigin::Value(try!(Url::parse(try!(str::from_utf8(r))))))
             }
-        } else { None }
+        } else { Err(::Error::Header) }
     }
 }
 

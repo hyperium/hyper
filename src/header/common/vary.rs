@@ -24,15 +24,15 @@ header! {
 
         #[test]
         fn test2() {
-            let mut vary: Option<Vary>;
+            let mut vary: ::Result<Vary>;
 
             vary = Header::parse_header([b"*".to_vec()].as_ref());
-            assert_eq!(vary, Some(Vary::Any));
+            assert_eq!(vary.ok(), Some(Vary::Any));
 
             vary = Header::parse_header([b"etag,cookie,allow".to_vec()].as_ref());
-            assert_eq!(vary, Some(Vary::Items(vec!["eTag".parse().unwrap(),
-                                                    "cookIE".parse().unwrap(),
-                                                    "AlLOw".parse().unwrap(),])));
+            assert_eq!(vary.ok(), Some(Vary::Items(vec!["eTag".parse().unwrap(),
+                                                        "cookIE".parse().unwrap(),
+                                                        "AlLOw".parse().unwrap(),])));
         }
     }
 }

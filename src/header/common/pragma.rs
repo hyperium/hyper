@@ -29,12 +29,12 @@ impl Header for Pragma {
         "Pragma"
     }
 
-    fn parse_header(raw: &[Vec<u8>]) -> Option<Pragma> {
+    fn parse_header(raw: &[Vec<u8>]) -> ::Result<Pragma> {
         parsing::from_one_raw_str(raw).and_then(|s: String| {
             let slice = &s.to_ascii_lowercase()[..];
             match slice {
-                "no-cache" => Some(Pragma::NoCache),
-                _ => Some(Pragma::Ext(s)),
+                "no-cache" => Ok(Pragma::NoCache),
+                _ => Ok(Pragma::Ext(s)),
             }
         })
     }
@@ -57,6 +57,6 @@ fn test_parse_header() {
     let c: Pragma = Header::parse_header([b"FoObar".to_vec()].as_ref()).unwrap();
     let d = Pragma::Ext("FoObar".to_owned());
     assert_eq!(c, d);
-    let e: Option<Pragma> = Header::parse_header([b"".to_vec()].as_ref());
-    assert_eq!(e, None);
+    let e: ::Result<Pragma> = Header::parse_header([b"".to_vec()].as_ref());
+    assert_eq!(e.ok(), None);
 }

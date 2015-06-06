@@ -2,6 +2,7 @@
 use std::error::Error as StdError;
 use std::fmt;
 use std::io::Error as IoError;
+use std::str::Utf8Error;
 
 use httparse;
 use openssl::ssl::error::SslError;
@@ -18,6 +19,7 @@ use self::Error::{
     Ssl,
     TooLarge,
     Http2,
+    Utf8
 };
 
 
@@ -45,6 +47,8 @@ pub enum Error {
     Ssl(SslError),
     /// An HTTP/2-specific error, coming from the `solicit` library.
     Http2(Http2Error),
+    /// Parsing a field as string failed
+    Utf8(Utf8Error),
 
     #[doc(hidden)]
     __Nonexhaustive(Void)
@@ -77,6 +81,7 @@ impl StdError for Error {
             Io(ref e) => e.description(),
             Ssl(ref e) => e.description(),
             Http2(ref e) => e.description(),
+            Utf8(ref e) => e.description(),
             Error::__Nonexhaustive(ref void) =>  match *void {}
         }
     }
@@ -110,6 +115,12 @@ impl From<SslError> for Error {
             SslError::StreamError(err) => Io(err),
             err => Ssl(err),
         }
+    }
+}
+
+impl From<Utf8Error> for Error {
+    fn from(err: Utf8Error) -> Error {
+        Utf8(err)
     }
 }
 

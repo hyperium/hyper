@@ -64,7 +64,7 @@ impl Header for SetCookie {
         "Set-Cookie"
     }
 
-    fn parse_header(raw: &[Vec<u8>]) -> Option<SetCookie> {
+    fn parse_header(raw: &[Vec<u8>]) -> ::Result<SetCookie> {
         let mut set_cookies = Vec::with_capacity(raw.len());
         for set_cookies_raw in raw {
             if let Ok(s) = from_utf8(&set_cookies_raw[..]) {
@@ -75,9 +75,9 @@ impl Header for SetCookie {
         }
 
         if !set_cookies.is_empty() {
-            Some(SetCookie(set_cookies))
+            Ok(SetCookie(set_cookies))
         } else {
-            None
+            Err(::Error::Header)
         }
     }
 
@@ -120,7 +120,7 @@ fn test_parse() {
     let mut c1 = Cookie::new("foo".to_owned(), "bar".to_owned());
     c1.httponly = true;
 
-    assert_eq!(h, Some(SetCookie(vec![c1])));
+    assert_eq!(h.ok(), Some(SetCookie(vec![c1])));
 }
 
 #[test]

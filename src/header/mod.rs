@@ -44,7 +44,7 @@ pub trait Header: Clone + Any + Send + Sync {
     /// it's not necessarily the case that a Header is *allowed* to have more
     /// than one field value. If that's the case, you **should** return `None`
     /// if `raw.len() > 1`.
-    fn parse_header(raw: &[Vec<u8>]) -> Option<Self>;
+    fn parse_header(raw: &[Vec<u8>]) -> ::Result<Self>;
 
 }
 
@@ -420,7 +420,7 @@ mod tests {
     #[test]
     fn test_content_type() {
         let content_type = Header::parse_header([b"text/plain".to_vec()].as_ref());
-        assert_eq!(content_type, Some(ContentType(Mime(Text, Plain, vec![]))));
+        assert_eq!(content_type.ok(), Some(ContentType(Mime(Text, Plain, vec![]))));
     }
 
     #[test]
@@ -429,10 +429,10 @@ mod tests {
         let application_vendor = "application/vnd.github.v3.full+json; q=0.5".parse().unwrap();
 
         let accept = Header::parse_header([b"text/plain".to_vec()].as_ref());
-        assert_eq!(accept, Some(Accept(vec![text_plain.clone()])));
+        assert_eq!(accept.ok(), Some(Accept(vec![text_plain.clone()])));
 
         let accept = Header::parse_header([b"application/vnd.github.v3.full+json; q=0.5, text/plain".to_vec()].as_ref());
-        assert_eq!(accept, Some(Accept(vec![application_vendor, text_plain])));
+        assert_eq!(accept.ok(), Some(Accept(vec![application_vendor, text_plain])));
     }
 
     #[derive(Clone, PartialEq, Debug)]
@@ -442,18 +442,21 @@ mod tests {
         fn header_name() -> &'static str {
             "content-length"
         }
-        fn parse_header(raw: &[Vec<u8>]) -> Option<CrazyLength> {
+        fn parse_header(raw: &[Vec<u8>]) -> ::Result<CrazyLength> {
             use std::str::from_utf8;
             use std::str::FromStr;
 
             if raw.len() != 1 {
-                return None;
+                return Err(::Error::Header);
             }
             // we JUST checked that raw.len() == 1, so raw[0] WILL exist.
-            match from_utf8(unsafe { &raw.get_unchecked(0)[..] }) {
+            match match from_utf8(unsafe { &raw.get_unchecked(0)[..] }) {
                 Ok(s) => FromStr::from_str(s).ok(),
                 Err(_) => None
-            }.map(|u| CrazyLength(Some(false), u))
+            }.map(|u| CrazyLength(Some(false), u)) {
+                Some(x) => Ok(x),
+                None => Err(::Error::Header),
+            }
         }
     }
 
