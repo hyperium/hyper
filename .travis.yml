@@ -4,27 +4,35 @@ matrix:
     include:
         - rust: nightly
           env: FEATURES="--features nightly"
-          sudo: false
         - rust: beta
-          sudo: false
         - rust: stable
-          sudo: true
+
+sudo: false
 
 cache:
+    apt: true
     directories:
-        - target
+        - target/debug/deps
+        - target/debug/build
 
 script:
   - cargo build --verbose $FEATURES
   - cargo test --verbose $FEATURES
 
+addons:
+  apt:
+    packages:
+      - libcurl4-openssl-dev
+      - libelf-dev
+      - libdw-dev
+
+
 after_success: |
     [ $TRAVIS_RUST_VERSION = stable ] &&
-    sudo apt-get install libcurl4-openssl-dev libelf-dev libdw-dev &&
     wget https://github.com/SimonKagstrom/kcov/archive/master.tar.gz &&
-    tar xzf master.tar.gz && mkdir kcov-master/build && cd kcov-master/build && cmake .. && make &&
-    sudo make install && cd ../.. &&
-    kcov --coveralls-id=$TRAVIS_JOB_ID --exclude-pattern=/.cargo target/kcov target/debug/hyper-*
+    tar xzf master.tar.gz && mkdir kcov-master/build && cd kcov-master/build && cmake .. && make && make install DESTDIR=../tmp && cd ../.. &&
+    ls target/debug &&
+    ./kcov-master/tmp/usr/local/bin/kcov --coveralls-id=$TRAVIS_JOB_ID --exclude-pattern=/.cargo target/kcov target/debug/hyper-* &&
     [ $TRAVIS_BRANCH = master ] &&
     [ $TRAVIS_PULL_REQUEST = false ] &&
     [ $TRAVIS_RUST_VERSION = stable ] &&
