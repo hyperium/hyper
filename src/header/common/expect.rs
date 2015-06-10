@@ -26,7 +26,7 @@ impl Header for Expect {
         "Expect"
     }
 
-    fn parse_header(raw: &[Vec<u8>]) -> Option<Expect> {
+    fn parse_header(raw: &[Vec<u8>]) -> ::Result<Expect> {
         if raw.len() == 1 {
             let text = unsafe {
                 // safe because:
@@ -38,12 +38,12 @@ impl Header for Expect {
                 str::from_utf8_unchecked(raw.get_unchecked(0))
             };
             if UniCase(text) == EXPECT_CONTINUE {
-                Some(Expect::Continue)
+                Ok(Expect::Continue)
             } else {
-                None
+                Err(::Error::Header)
             }
         } else {
-            None
+            Err(::Error::Header)
         }
     }
 }

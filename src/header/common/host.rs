@@ -22,7 +22,7 @@ impl Header for Host {
         "Host"
     }
 
-    fn parse_header(raw: &[Vec<u8>]) -> Option<Host> {
+    fn parse_header(raw: &[Vec<u8>]) -> ::Result<Host> {
         from_one_raw_str(raw).and_then(|mut s: String| {
             // FIXME: use rust-url to parse this
             // https://github.com/servo/rust-url/issues/42
@@ -39,7 +39,7 @@ impl Header for Host {
                                 None
                             }
                         }
-                        None => return None // this is a bad ipv6 address...
+                        None => return Err(::Error::Header) // this is a bad ipv6 address...
                     }
                 } else {
                     slice.rfind(':')
@@ -56,7 +56,7 @@ impl Header for Host {
                 None => ()
             }
 
-            Some(Host {
+            Ok(Host {
                 hostname: s,
                 port: port
             })
@@ -82,14 +82,14 @@ mod tests {
     #[test]
     fn test_host() {
         let host = Header::parse_header([b"foo.com".to_vec()].as_ref());
-        assert_eq!(host, Some(Host {
+        assert_eq!(host.ok(), Some(Host {
             hostname: "foo.com".to_owned(),
             port: None
         }));
 
 
         let host = Header::parse_header([b"foo.com:8080".to_vec()].as_ref());
-        assert_eq!(host, Some(Host {
+        assert_eq!(host.ok(), Some(Host {
             hostname: "foo.com".to_owned(),
             port: Some(8080)
         }));

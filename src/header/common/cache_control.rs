@@ -30,15 +30,15 @@ impl Header for CacheControl {
         "Cache-Control"
     }
 
-    fn parse_header(raw: &[Vec<u8>]) -> Option<CacheControl> {
+    fn parse_header(raw: &[Vec<u8>]) -> ::Result<CacheControl> {
         let directives = raw.iter()
-            .filter_map(|line| from_one_comma_delimited(&line[..]))
+            .filter_map(|line| from_one_comma_delimited(&line[..]).ok())
             .collect::<Vec<Vec<CacheDirective>>>()
             .concat();
         if !directives.is_empty() {
-            Some(CacheControl(directives))
+            Ok(CacheControl(directives))
         } else {
-            None
+            Err(::Error::Header)
         }
     }
 }
@@ -148,35 +148,35 @@ mod tests {
     #[test]
     fn test_parse_multiple_headers() {
         let cache = Header::parse_header(&[b"no-cache".to_vec(), b"private".to_vec()]);
-        assert_eq!(cache, Some(CacheControl(vec![CacheDirective::NoCache,
+        assert_eq!(cache.ok(), Some(CacheControl(vec![CacheDirective::NoCache,
                                                  CacheDirective::Private])))
     }
 
     #[test]
     fn test_parse_argument() {
         let cache = Header::parse_header(&[b"max-age=100, private".to_vec()]);
-        assert_eq!(cache, Some(CacheControl(vec![CacheDirective::MaxAge(100),
+        assert_eq!(cache.ok(), Some(CacheControl(vec![CacheDirective::MaxAge(100),
                                                  CacheDirective::Private])))
     }
 
     #[test]
     fn test_parse_quote_form() {
         let cache = Header::parse_header(&[b"max-age=\"200\"".to_vec()]);
-        assert_eq!(cache, Some(CacheControl(vec![CacheDirective::MaxAge(200)])))
+        assert_eq!(cache.ok(), Some(CacheControl(vec![CacheDirective::MaxAge(200)])))
     }
 
     #[test]
     fn test_parse_extension() {
         let cache = Header::parse_header(&[b"foo, bar=baz".to_vec()]);
-        assert_eq!(cache, Some(CacheControl(vec![
+        assert_eq!(cache.ok(), Some(CacheControl(vec![
             CacheDirective::Extension("foo".to_owned(), None),
             CacheDirective::Extension("bar".to_owned(), Some("baz".to_owned()))])))
     }
 
     #[test]
     fn test_parse_bad_syntax() {
-        let cache: Option<CacheControl> = Header::parse_header(&[b"foo=".to_vec()]);
-        assert_eq!(cache, None)
+        let cache: ::Result<CacheControl> = Header::parse_header(&[b"foo=".to_vec()]);
+        assert_eq!(cache.ok(), None)
     }
 }
 

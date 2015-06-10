@@ -45,10 +45,10 @@ mod tests {
 
     #[test]
     fn test_if_none_match() {
-        let mut if_none_match: Option<IfNoneMatch>;
+        let mut if_none_match: ::Result<IfNoneMatch>;
 
         if_none_match = Header::parse_header([b"*".to_vec()].as_ref());
-        assert_eq!(if_none_match, Some(IfNoneMatch::Any));
+        assert_eq!(if_none_match.ok(), Some(IfNoneMatch::Any));
 
         if_none_match = Header::parse_header([b"\"foobar\", W/\"weak-etag\"".to_vec()].as_ref());
         let mut entities: Vec<EntityTag> = Vec::new();
@@ -56,7 +56,7 @@ mod tests {
         let weak_etag = EntityTag::new(true, "weak-etag".to_owned());
         entities.push(foobar_etag);
         entities.push(weak_etag);
-        assert_eq!(if_none_match, Some(IfNoneMatch::Items(entities)));
+        assert_eq!(if_none_match.ok(), Some(IfNoneMatch::Items(entities)));
     }
 }
 

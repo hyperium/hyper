@@ -42,18 +42,25 @@ impl<S: Scheme + Any> Header for Authorization<S> where <S as FromStr>::Err: 'st
         "Authorization"
     }
 
-    fn parse_header(raw: &[Vec<u8>]) -> Option<Authorization<S>> {
-        if raw.len() == 1 {
-            match (from_utf8(unsafe { &raw.get_unchecked(0)[..] }), <S as Scheme>::scheme()) {
-                (Ok(header), Some(scheme))
-                    if header.starts_with(scheme) && header.len() > scheme.len() + 1 => {
-                    header[scheme.len() + 1..].parse::<S>().map(Authorization).ok()
-                },
-                (Ok(header), None) => header.parse::<S>().map(Authorization).ok(),
-                _ => None
+    fn parse_header(raw: &[Vec<u8>]) -> ::Result<Authorization<S>> {
+        if raw.len() != 1 {
+            return Err(::Error::Header);
+        }
+        let header = try!(from_utf8(unsafe { &raw.get_unchecked(0)[..] }));
+        return if let Some(scheme) = <S as Scheme>::scheme() {
+            if header.starts_with(scheme) && header.len() > scheme.len() + 1 {
+                match header[scheme.len() + 1..].parse::<S>().map(Authorization) {
+                    Ok(h) => Ok(h),
+                    Err(_) => Err(::Error::Header)
+                }
+            } else {
+                Err(::Error::Header)
             }
         } else {
-            None
+            match header.parse::<S>().map(Authorization) {
+                Ok(h) => Ok(h),
+                Err(_) => Err(::Error::Header)
+            }
         }
     }
 }
@@ -121,15 +128,15 @@ impl Scheme for Basic {
 }
 
 impl FromStr for Basic {
-    type Err = ();
-    fn from_str(s: &str) -> Result<Basic, ()> {
+    type Err = ::Error;
+    fn from_str(s: &str) -> ::Result<Basic> {
         match s.from_base64() {
             Ok(decoded) => match String::from_utf8(decoded) {
                 Ok(text) => {
                     let mut parts = &mut text.split(':');
                     let user = match parts.next() {
                         Some(part) => part.to_owned(),
-                        None => return Err(())
+                        None => return Err(::Error::Header)
                     };
                     let password = match parts.next() {
                         Some(part) => Some(part.to_owned()),
@@ -142,12 +149,12 @@ impl FromStr for Basic {
                 },
                 Err(e) => {
                     debug!("Basic::from_utf8 error={:?}", e);
-                    Err(())
+                    Err(::Error::Header)
                 }
             },
             Err(e) => {
                 debug!("Basic::from_base64 error={:?}", e);
-                Err(())
+                Err(::Error::Header)
             }
         }
     }

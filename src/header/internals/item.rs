@@ -60,11 +60,11 @@ impl Item {
             Some(val) => Some(val),
             None => {
                 match parse::<H>(self.raw.as_ref().expect("item.raw must exist")) {
-                    Some(typed) => {
+                    Ok(typed) => {
                         unsafe { self.typed.insert(tid, typed); }
                         self.typed.get(tid)
                     },
-                    None => None
+                    Err(_) => None
                 }
             }
         }.map(|typed| unsafe { typed.downcast_ref_unchecked() })
@@ -74,10 +74,10 @@ impl Item {
         let tid = TypeId::of::<H>();
         if self.typed.get_mut(tid).is_none() {
             match parse::<H>(self.raw.as_ref().expect("item.raw must exist")) {
-                Some(typed) => {
+                Ok(typed) => {
                     unsafe { self.typed.insert(tid, typed); }
                 },
-                None => ()
+                Err(_) => ()
             }
         }
         self.typed.get_mut(tid).map(|typed| unsafe { typed.downcast_mut_unchecked() })
@@ -85,7 +85,7 @@ impl Item {
 }
 
 #[inline]
-fn parse<H: Header + HeaderFormat>(raw: &Vec<Vec<u8>>) -> Option<Box<HeaderFormat + Send + Sync>> {
+fn parse<H: Header + HeaderFormat>(raw: &Vec<Vec<u8>>) -> ::Result<Box<HeaderFormat + Send + Sync>> {
     Header::parse_header(&raw[..]).map(|h: H| {
         // FIXME: Use Type ascription
         let h: Box<HeaderFormat + Send + Sync> = Box::new(h);

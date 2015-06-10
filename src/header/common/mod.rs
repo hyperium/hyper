@@ -144,7 +144,7 @@ macro_rules! test_header {
             let a: Vec<Vec<u8>> = $raw.iter().map(|x| x.to_vec()).collect();
             let val = HeaderField::parse_header(&a[..]);
             // Test parsing
-            assert_eq!(val, $typed);
+            assert_eq!(val.ok(), $typed);
             // Test formatting
             if $typed != None {
                 let res: &str = str::from_utf8($raw[0]).unwrap();
@@ -171,7 +171,7 @@ macro_rules! header {
             fn header_name() -> &'static str {
                 $n
             }
-            fn parse_header(raw: &[Vec<u8>]) -> Option<Self> {
+            fn parse_header(raw: &[Vec<u8>]) -> $crate::Result<Self> {
                 $crate::header::parsing::from_comma_delimited(raw).map($id)
             }
         }
@@ -197,7 +197,7 @@ macro_rules! header {
             fn header_name() -> &'static str {
                 $n
             }
-            fn parse_header(raw: &[Vec<u8>]) -> Option<Self> {
+            fn parse_header(raw: &[Vec<u8>]) -> $crate::Result<Self> {
                 $crate::header::parsing::from_comma_delimited(raw).map($id)
             }
         }
@@ -223,7 +223,7 @@ macro_rules! header {
             fn header_name() -> &'static str {
                 $n
             }
-            fn parse_header(raw: &[Vec<u8>]) -> Option<Self> {
+            fn parse_header(raw: &[Vec<u8>]) -> $crate::Result<Self> {
                 $crate::header::parsing::from_one_raw_str(raw).map($id)
             }
         }
@@ -252,11 +252,11 @@ macro_rules! header {
             fn header_name() -> &'static str {
                 $n
             }
-            fn parse_header(raw: &[Vec<u8>]) -> Option<Self> {
+            fn parse_header(raw: &[Vec<u8>]) -> $crate::Result<Self> {
                 // FIXME: Return None if no item is in $id::Only
                 if raw.len() == 1 {
                     if raw[0] == b"*" {
-                        return Some($id::Any)
+                        return Ok($id::Any)
                     }
                 }
                 $crate::header::parsing::from_comma_delimited(raw).map(|vec| $id::Items(vec))

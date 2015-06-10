@@ -36,16 +36,16 @@ impl Header for IfRange {
     fn header_name() -> &'static str {
         "If-Range"
     }
-    fn parse_header(raw: &[Vec<u8>]) -> Option<IfRange> {
-        let etag: Option<EntityTag> = header::parsing::from_one_raw_str(raw);
-        if etag != None {
-            return Some(IfRange::EntityTag(etag.unwrap()));
+    fn parse_header(raw: &[Vec<u8>]) -> ::Result<IfRange> {
+        let etag: ::Result<EntityTag> = header::parsing::from_one_raw_str(raw);
+        if etag.is_ok() {
+            return Ok(IfRange::EntityTag(etag.unwrap()));
         }
-        let date: Option<HttpDate> = header::parsing::from_one_raw_str(raw);
-        if date != None {
-            return Some(IfRange::Date(date.unwrap()));
+        let date: ::Result<HttpDate> = header::parsing::from_one_raw_str(raw);
+        if date.is_ok() {
+            return Ok(IfRange::Date(date.unwrap()));
         }
-        None
+        Err(::Error::Header)
     }
 }
 

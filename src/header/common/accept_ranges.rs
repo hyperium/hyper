@@ -52,8 +52,8 @@ pub enum RangeUnit {
 
 
 impl FromStr for RangeUnit {
-    type Err = ();
-    fn from_str(s: &str) -> Result<Self, ()> {
+    type Err = ::Error;
+    fn from_str(s: &str) -> ::Result<Self> {
         match s {
             "bytes" => Ok(RangeUnit::Bytes),
             "none" => Ok(RangeUnit::None),

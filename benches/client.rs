@@ -58,8 +58,8 @@ impl hyper::header::Header for Foo {
     fn header_name() -> &'static str {
         "x-foo"
     }
-    fn parse_header(_: &[Vec<u8>]) -> Option<Foo> {
-        None
+    fn parse_header(_: &[Vec<u8>]) -> hyper::Result<Foo> {
+        Err(hyper::Error::Header)
     }
 }
 
@@ -104,4 +104,3 @@ fn bench_mock_hyper(b: &mut test::Bencher) {
             .read_to_string(&mut s).unwrap()
     });
 }
-
