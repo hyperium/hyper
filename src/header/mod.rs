@@ -4,6 +4,80 @@
 //! why we're using Rust in the first place. To set or get any header, an object
 //! must implement the `Header` trait from this module. Several common headers
 //! are already provided, such as `Host`, `ContentType`, `UserAgent`, and others.
+//!
+//! # Why Typed?
+//!
+//! Or, why not stringly-typed? Types give the following advantages:
+//!
+//! - More difficult to typo, since typos in types should be caught by the compiler
+//! - Parsing to a proper type by default\
+//!
+//! # Defining Custom Headers
+//!
+//! Hyper provides a large amount of the most common headers used in HTTP. If
+//! you need to define a custom header, it's easy to do while still taking
+//! advantage of the type system. Hyper includes a `header!` macro for defining
+//! many wrapper-style headers.
+//!
+//! ```
+//! #[macro_use] extern crate hyper;
+//! use hyper::header::Headers;
+//! header! { (XRequestGuid, "X-Request-Guid") => [String] }
+//!
+//! fn main () {
+//!     let mut headers = Headers::new();
+//!
+//!     headers.set(XRequestGuid("a proper guid".to_owned()))
+//! }
+//! ```
+//!
+//! This works well for simiple "string" headers. But the header system
+//! actually invovles 2 parts: parsing, and formatting. If you need to
+//! customize either part, you can do so.
+//!
+//! ## `Header` and `HeaderFormat`
+//!
+//! Consider a Do Not Track header. It can be true or false, but it represents
+//! that via the numerals `1` and `0`.
+//!
+//! ```
+//! use std::fmt;
+//! use hyper::header::{Header, HeaderFormat};
+//!
+//! #[derive(Debug, Clone, Copy)]
+//! struct Dnt(bool);
+//!
+//! impl Header for Dnt {
+//!     fn header_name() -> &'static str {
+//!         "DNT"
+//!     }
+//!
+//!     fn parse_header(raw: &[Vec<u8>]) -> hyper::Result<Dnt> {
+//!         if raw.len() == 1 {
+//!             let line = &raw[0];
+//!             if line.len() == 1 {
+//!                 let byte = line[0];
+//!                 match byte {
+//!                     b'0' => return Ok(Dnt(true)),
+//!                     b'1' => return Ok(Dnt(false)),
+//!                     _ => ()
+//!                 }
+//!             }
+//!         }
+//!         Err(hyper::Error::Header)
+//!     }
+//! }
+//!
+//! impl HeaderFormat for Dnt {
+//!     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//!         if self.0 {
+//!             f.write_str("1")
+//!         } else {
+//!             f.write_str("0")
+//!         }
+//!     }
+//! }
+//! ```
 use std::any::Any;
 use std::borrow::{Cow, ToOwned};
 use std::collections::HashMap;
