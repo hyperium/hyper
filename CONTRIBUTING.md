@@ -1,6 +1,11 @@
 # Contributing to Hyper
 
-You want to contribute? You're awesome! When submitting a Pull Request, please have your commits follow these guidelines:
+You want to contribute? You're awesome! Don't know where to start? Check the [easy tag][].
+
+[easy tag]: https://github.com/hyperium/hyper/issues/labels/easy
+
+When submitting a Pull Request, please have your commits follow these guidelines:
+
 
 ## Git Commit Guidelines
 
