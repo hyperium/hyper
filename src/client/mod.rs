@@ -9,7 +9,7 @@
 //!
 //! ```no_run
 //! # use hyper::Client;
-//! let mut client = Client::new();
+//! let client = Client::new();
 //!
 //! let res = client.get("http://example.domain").send().unwrap();
 //! assert_eq!(res.status, hyper::Ok);
@@ -23,13 +23,37 @@
 //!
 //! ```no_run
 //! # use hyper::Client;
-//! let mut client = Client::new();
+//! let client = Client::new();
 //!
 //! let res = client.post("http://example.domain")
 //!     .body("foo=bar")
 //!     .send()
 //!     .unwrap();
 //! assert_eq!(res.status, hyper::Ok);
+//! ```
+//!
+//! # Sync
+//!
+//! The `Client` implements `Sync`, so you can share it among multiple threads
+//! and make multiple requests simultaneously.
+//!
+//! ```no_run
+//! # use hyper::Client;
+//! use std::sync::Arc;
+//! use std::thread;
+//!
+//! // Note: an Arc is used here because `thread::spawn` creates threads that 
+//! // can outlive the main thread, so we must use reference counting to keep
+//! // the Client alive long enough. Scoped threads could skip the Arc.
+//! let client = Arc::new(Client::new());
+//! let clone1 = client.clone();
+//! let clone2 = client.clone();
+//! thread::spawn(move || {
+//!     clone1.get("http://example.domain").send().unwrap();
+//! });
+//! thread::spawn(move || {
+//!     clone2.post("http://example.domain/post").body("foo=bar").send().unwrap();
+//! });
 //! ```
 use std::default::Default;
 use std::io::{self, copy, Read};
@@ -61,7 +85,7 @@ use http::h1::Http11Protocol;
 ///
 /// Clients can handle things such as: redirect policy, connection pooling.
 pub struct Client {
-    protocol: Box<Protocol + Send>,
+    protocol: Box<Protocol + Send + Sync>,
     redirect_policy: RedirectPolicy,
 }
 
@@ -79,12 +103,12 @@ impl Client {
 
     /// Create a new client with a specific connector.
     pub fn with_connector<C, S>(connector: C) -> Client
-    where C: NetworkConnector<Stream=S> + Send + 'static, S: NetworkStream + Send {
+    where C: NetworkConnector<Stream=S> + Send + Sync + 'static, S: NetworkStream + Send {
         Client::with_protocol(Http11Protocol::with_connector(connector))
     }
 
     /// Create a new client with a specific `Protocol`.
-    pub fn with_protocol<P: Protocol + Send + 'static>(protocol: P) -> Client {
+    pub fn with_protocol<P: Protocol + Send + Sync + 'static>(protocol: P) -> Client {
         Client {
             protocol: Box::new(protocol),
             redirect_policy: Default::default()
@@ -102,33 +126,33 @@ impl Client {
     }
 
     /// Build a Get request.
-    pub fn get<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U> {
+    pub fn get<U: IntoUrl>(&self, url: U) -> RequestBuilder<U> {
         self.request(Method::Get, url)
     }
 
     /// Build a Head request.
-    pub fn head<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U> {
+    pub fn head<U: IntoUrl>(&self, url: U) -> RequestBuilder<U> {
         self.request(Method::Head, url)
     }
 
     /// Build a Post request.
-    pub fn post<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U> {
+    pub fn post<U: IntoUrl>(&self, url: U) -> RequestBuilder<U> {
         self.request(Method::Post, url)
     }
 
     /// Build a Put request.
-    pub fn put<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U> {
+    pub fn put<U: IntoUrl>(&self, url: U) -> RequestBuilder<U> {
         self.request(Method::Put, url)
     }
 
     /// Build a Delete request.
-    pub fn delete<U: IntoUrl>(&mut self, url: U) -> RequestBuilder<U> {
+    pub fn delete<U: IntoUrl>(&self, url: U) -> RequestBuilder<U> {
         self.request(Method::Delete, url)
     }
 
 
     /// Build a new request using this Client.
-    pub fn request<U: IntoUrl>(&mut self, method: Method, url: U) -> RequestBuilder<U> {
+    pub fn request<U: IntoUrl>(&self, method: Method, url: U) -> RequestBuilder<U> {
         RequestBuilder {
             client: self,
             method: method,

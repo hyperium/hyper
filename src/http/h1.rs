@@ -275,7 +275,7 @@ impl Http11Protocol {
     /// Creates a new `Http11Protocol` instance that will use the given `NetworkConnector` for
     /// establishing HTTP connections.
     pub fn with_connector<C, S>(c: C) -> Http11Protocol
-            where C: NetworkConnector<Stream=S> + Send + 'static,
+            where C: NetworkConnector<Stream=S> + Send + Sync + 'static,
                   S: NetworkStream + Send {
         Http11Protocol {
             connector: Connector(Box::new(ConnAdapter(c))),
@@ -283,9 +283,9 @@ impl Http11Protocol {
     }
 }
 
-struct ConnAdapter<C: NetworkConnector + Send>(C);
+struct ConnAdapter<C: NetworkConnector + Send + Sync>(C);
 
-impl<C: NetworkConnector<Stream=S> + Send, S: NetworkStream + Send> NetworkConnector for ConnAdapter<C> {
+impl<C: NetworkConnector<Stream=S> + Send + Sync, S: NetworkStream + Send> NetworkConnector for ConnAdapter<C> {
     type Stream = Box<NetworkStream + Send>;
     #[inline]
     fn connect(&self, host: &str, port: u16, scheme: &str)
@@ -298,7 +298,7 @@ impl<C: NetworkConnector<Stream=S> + Send, S: NetworkStream + Send> NetworkConne
     }
 }
 
-struct Connector(Box<NetworkConnector<Stream=Box<NetworkStream + Send>> + Send>);
+struct Connector(Box<NetworkConnector<Stream=Box<NetworkStream + Send>> + Send + Sync>);
 
 impl NetworkConnector for Connector {
     type Stream = Box<NetworkStream + Send>;

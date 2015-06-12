@@ -144,12 +144,12 @@ impl NetworkConnector for MockConnector {
 ///
 /// Otherwise, it behaves the same as `MockConnector`.
 pub struct ChannelMockConnector {
-    calls: Sender<String>,
+    calls: Mutex<Sender<String>>,
 }
 
 impl ChannelMockConnector {
     pub fn new(calls: Sender<String>) -> ChannelMockConnector {
-        ChannelMockConnector { calls: calls }
+        ChannelMockConnector { calls: Mutex::new(calls) }
     }
 }
 
@@ -158,13 +158,13 @@ impl NetworkConnector for ChannelMockConnector {
     #[inline]
     fn connect(&self, _host: &str, _port: u16, _scheme: &str)
             -> ::Result<MockStream> {
-        self.calls.send("connect".into()).unwrap();
+        self.calls.lock().unwrap().send("connect".into()).unwrap();
         Ok(MockStream::new())
     }
 
     #[inline]
     fn set_ssl_verifier(&mut self, _verifier: ContextVerifier) {
-        self.calls.send("set_ssl_verifier".into()).unwrap();
+        self.calls.lock().unwrap().send("set_ssl_verifier".into()).unwrap();
     }
 }
 
