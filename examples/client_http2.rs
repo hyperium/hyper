@@ -21,7 +21,7 @@ fn main() {
         }
     };
 
-    let mut client = Client::with_protocol(h2::new_protocol());
+    let client = Client::with_protocol(h2::new_protocol());
 
     // `Connection: Close` is not a valid header for HTTP/2, but the client handles it gracefully.
     let mut res = client.get(&*url)

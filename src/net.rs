@@ -317,7 +317,7 @@ impl NetworkStream for HttpStream {
 pub struct HttpConnector(pub Option<ContextVerifier>);
 
 /// A method that can set verification methods on an SSL context
-pub type ContextVerifier = Box<Fn(&mut SslContext) -> () + Send>;
+pub type ContextVerifier = Box<Fn(&mut SslContext) -> () + Send + Sync>;
 
 impl NetworkConnector for HttpConnector {
     type Stream = HttpStream;

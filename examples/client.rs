@@ -20,7 +20,7 @@ fn main() {
         }
     };
 
-    let mut client = Client::new();
+    let client = Client::new();
 
     let mut res = client.get(&*url)
         .header(Connection::close())
