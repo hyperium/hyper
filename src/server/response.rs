@@ -19,6 +19,12 @@ use version;
 
 
 /// The outgoing half for a Tcp connection, created by a `Server` and given to a `Handler`.
+///
+/// The default `StatusCode` for a `Response` is `200 OK`.
+///
+/// There is a `Drop` implementation for `Response` that will automatically
+/// write the head and flush the body, if the handler has not already done so,
+/// so that the server doesn't accidentally leave dangling requests.
 #[derive(Debug)]
 pub struct Response<'a, W: Any = Fresh> {
     /// The HTTP version of this response.
@@ -39,9 +45,11 @@ impl<'a, W: Any> Response<'a, W> {
     pub fn status(&self) -> status::StatusCode { self.status }
 
     /// The headers of this response.
+    #[inline]
     pub fn headers(&self) -> &header::Headers { &*self.headers }
 
     /// Construct a Response from its constituent parts.
+    #[inline]
     pub fn construct(version: version::HttpVersion,
                      body: HttpWriter<&'a mut (Write + 'a)>,
                      status: status::StatusCode,
@@ -56,6 +64,7 @@ impl<'a, W: Any> Response<'a, W> {
     }
 
     /// Deconstruct this Response into its constituent parts.
+    #[inline]
     pub fn deconstruct(self) -> (version::HttpVersion, HttpWriter<&'a mut (Write + 'a)>,
                                  status::StatusCode, &'a mut header::Headers) {
         unsafe {
@@ -126,6 +135,9 @@ impl<'a> Response<'a, Fresh> {
 
     /// Writes the body and ends the response.
     ///
+    /// This is a shortcut method for when you have a response with a fixed
+    /// size, and would only need a single `write` call normally.
+    ///
     /// # Example
     ///
     /// ```
@@ -134,6 +146,21 @@ impl<'a> Response<'a, Fresh> {
     ///     res.send(b"Hello World!").unwrap();
     /// }
     /// ```
+    ///
+    /// The above is the same, but shorter, than the longer:
+    ///
+    /// ```
+    /// # use hyper::server::Response;
+    /// use std::io::Write;
+    /// use hyper::header::ContentLength;
+    /// fn handler(mut res: Response) {
+    ///     let body = b"Hello World!";
+    ///     res.headers_mut().set(ContentLength(body.len() as u64));
+    ///     let mut res = res.start().unwrap();
+    ///     res.write_all(body).unwrap();
+    /// }
+    /// ```
+    #[inline]
     pub fn send(mut self, body: &[u8]) -> io::Result<()> {
         self.headers.set(header::ContentLength(body.len() as u64));
         let mut stream = try!(self.start());

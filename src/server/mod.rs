@@ -1,6 +1,112 @@
 //! HTTP Server
 //!
-//! # Example
+//! # Server
+//!
+//! A `Server` is created to listen on port, parse HTTP requests, and hand
+//! them off to a `Handler`. By default, the Server will listen across multiple
+//! threads, but that can be configured to a single thread if preferred.
+//!
+//! # Handling requests
+//!
+//! You must pass a `Handler` to the Server that will handle requests. There is
+//! a default implementation for `fn`s and closures, allowing you pass one of
+//! those easily.
+//!
+//!
+//! ```no_run
+//! use hyper::server::{Server, Request, Response};
+//!
+//! fn hello(req: Request, res: Response) {
+//!     // handle things here
+//! }
+//!
+//! Server::http(hello).listen("0.0.0.0:0").unwrap();
+//! ```
+//!
+//! As with any trait, you can also define a struct and implement `Handler`
+//! directly on your own type, and pass that to the `Server` instead.
+//!
+//! ```no_run
+//! use std::sync::Mutex;
+//! use std::sync::mpsc::{channel, Sender};
+//! use hyper::server::{Handler, Server, Request, Response};
+//!
+//! struct SenderHandler {
+//!     sender: Mutex<Sender<&'static str>>
+//! }
+//!
+//! impl Handler for SenderHandler {
+//!     fn handle(&self, req: Request, res: Response) {
+//!         self.sender.lock().unwrap().send("start").unwrap();
+//!     }
+//! }
+//!
+//!
+//! let (tx, rx) = channel();
+//! Server::http(SenderHandler {
+//!     sender: Mutex::new(tx)
+//! }).listen("0.0.0.0:0").unwrap();
+//! ```
+//!
+//! Since the `Server` will be listening on multiple threads, the `Handler`
+//! must implement `Sync`: any mutable state must be synchronized.
+//!
+//! ```no_run
+//! use std::sync::atomic::{AtomicUsize, Ordering};
+//! use hyper::server::{Server, Request, Response};
+//!
+//! let counter = AtomicUsize::new(0);
+//! Server::http(move |req: Request, res: Response| {
+//!     counter.fetch_add(1, Ordering::Relaxed);
+//! }).listen("0.0.0.0:0").unwrap();
+//! ```
+//!
+//! # The `Request` and `Response` pair
+//!
+//! A `Handler` receives a pair of arguments, a `Request` and a `Response`. The
+//! `Request` includes access to the `method`, `uri`, and `headers` of the
+//! incoming HTTP request. It also implements `std::io::Read`, in order to
+//! read any body, such as with `POST` or `PUT` messages.
+//!
+//! Likewise, the `Response` includes ways to set the `status` and `headers`,
+//! and implements `std::io::Write` to allow writing the response body.
+//!
+//! ```no_run
+//! use std::io;
+//! use hyper::server::{Server, Request, Response};
+//! use hyper::status::StatusCode;
+//!
+//! Server::http(|mut req: Request, mut res: Response| {
+//!     match req.method {
+//!         hyper::Post => {
+//!             io::copy(&mut req, &mut res.start().unwrap()).unwrap();
+//!         },
+//!         _ => *res.status_mut() = StatusCode::MethodNotAllowed
+//!     }
+//! }).listen("0.0.0.0:0").unwrap();
+//! ```
+//!
+//! ## An aside: Write Status
+//!
+//! The `Response` uses a phantom type parameter to determine its write status.
+//! What does that mean? In short, it ensures you never write a body before
+//! adding all headers, and never add a header after writing some of the body.
+//!
+//! This is often done in most implementations by include a boolean property
+//! on the response, such as `headers_written`, checking that each time the
+//! body has something to write, so as to make sure the headers are sent once,
+//! and only once. But this has 2 downsides:
+//!
+//! 1. You are typically never notified that your late header is doing nothing.
+//! 2. There's a runtime cost to checking on every write.
+//!
+//! Instead, hyper handles this statically, or at compile-time. A
+//! `Response<Fresh>` includes a `headers_mut()` method, allowing you add more
+//! headers. It also does not implement `Write`, so you can't accidentally
+//! write early. Once the "head" of the response is correct, you can "send" it
+//! out by calling `start` on the `Request<Fresh>`. This will return a new
+//! `Request<Streaming>` object, that no longer has `headers_mut()`, but does
+//! implement `Write`.
 //!
 //! ```no_run
 //! use hyper::server::{Server, Request, Response};

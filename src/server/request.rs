@@ -65,6 +65,7 @@ impl<'a, 'b: 'a> Request<'a, 'b> {
     }
 
     /// Deconstruct a Request into its constituent parts.
+    #[inline]
     pub fn deconstruct(self) -> (SocketAddr, Method, Headers,
                                  RequestUri, HttpVersion,
                                  HttpReader<&'a mut BufReader<&'b mut NetworkStream>>) {
@@ -74,6 +75,7 @@ impl<'a, 'b: 'a> Request<'a, 'b> {
 }
 
 impl<'a, 'b> Read for Request<'a, 'b> {
+    #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.body.read(buf)
     }
