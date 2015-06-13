@@ -10,11 +10,11 @@
 //! Or, why not stringly-typed? Types give the following advantages:
 //!
 //! - More difficult to typo, since typos in types should be caught by the compiler
-//! - Parsing to a proper type by default\
+//! - Parsing to a proper type by default
 //!
 //! # Defining Custom Headers
 //!
-//! Hyper provides a large amount of the most common headers used in HTTP. If
+//! Hyper provides many of the most commonly used headers in HTTP. If
 //! you need to define a custom header, it's easy to do while still taking
 //! advantage of the type system. Hyper includes a `header!` macro for defining
 //! many wrapper-style headers.
@@ -31,8 +31,8 @@
 //! }
 //! ```
 //!
-//! This works well for simiple "string" headers. But the header system
-//! actually invovles 2 parts: parsing, and formatting. If you need to
+//! This works well for simple "string" headers. But the header system
+//! actually involves 2 parts: parsing, and formatting. If you need to
 //! customize either part, you can do so.
 //!
 //! ## `Header` and `HeaderFormat`
