@@ -13,6 +13,15 @@ header! {
     #[doc=""]
     #[doc="# Example values"]
     #[doc="* `GET`"]
+    #[doc=""]
+    #[doc="# Examples"]
+    #[doc="```"]
+    #[doc="use hyper::header::{Headers, AccessControlRequestMethod};"]
+    #[doc="use hyper::method::Method;"]
+    #[doc=""]
+    #[doc="let mut headers = Headers::new();"]
+    #[doc="headers.set(AccessControlRequestMethod(Method::Get));"]
+    #[doc="```"]
     (AccessControlRequestMethod, "Access-Control-Request-Method") => [Method]
 
     test_access_control_request_method {

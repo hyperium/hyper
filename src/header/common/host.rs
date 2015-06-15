@@ -9,6 +9,30 @@ use header::parsing::from_one_raw_str;
 ///
 /// Currently is just a String, but it should probably become a better type,
 /// like url::Host or something.
+///
+/// # Examples
+/// ```
+/// use hyper::header::{Headers, Host};
+///
+/// let mut headers = Headers::new();
+/// headers.set(
+///     Host{
+///         hostname: "hyper.rs".to_owned(),
+///         port: None,
+///     }
+/// );
+/// ```
+/// ```
+/// use hyper::header::{Headers, Host};
+///
+/// let mut headers = Headers::new();
+/// headers.set(
+///     Host{
+///         hostname: "hyper.rs".to_owned(),
+///         port: Some(8080),
+///     }
+/// );
+/// ```
 #[derive(Clone, PartialEq, Debug)]
 pub struct Host {
     /// The hostname, such a example.domain.

@@ -16,6 +16,14 @@ header! {
     #[doc=""]
     #[doc="# Example values"]
     #[doc="* `CERN/3.0 libwww/2.17`"]
+    #[doc=""]
+    #[doc="# Example"]
+    #[doc="```"]
+    #[doc="use hyper::header::{Headers, Server};"]
+    #[doc=""]
+    #[doc="let mut headers = Headers::new();"]
+    #[doc="headers.set(Server(\"hyper/0.5.2\".to_owned()));"]
+    #[doc="```"]
     // TODO: Maybe parse as defined in the spec?
     (Server, "Server") => [String]
 

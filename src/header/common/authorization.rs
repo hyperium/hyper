@@ -20,6 +20,27 @@ use header::{Header, HeaderFormat};
 ///
 /// # Example values
 /// * `Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==`
+/// 
+/// # Examples
+/// ```
+/// use hyper::header::{Headers, Authorization};
+///
+/// let mut headers = Headers::new();
+/// headers.set(Authorization("let me in".to_owned()));
+/// ```
+/// ```
+/// use hyper::header::{Headers, Authorization, Basic};
+///
+/// let mut headers = Headers::new();
+/// headers.set(
+///    Authorization(
+///        Basic {
+///            username: "Aladdin".to_owned(),
+///            password: Some("open sesame".to_owned())
+///        }
+///    )
+/// );
+/// ```
 #[derive(Clone, PartialEq, Debug)]
 pub struct Authorization<S: Scheme>(pub S);
 

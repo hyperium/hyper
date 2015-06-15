@@ -20,6 +20,30 @@ use header::parsing::{from_one_comma_delimited, fmt_comma_delimited};
 /// * `no-cache`
 /// * `private, community="UCI"`
 /// * `max-age=30`
+///
+/// # Examples
+/// ```
+/// use hyper::header::{Headers, CacheControl, CacheDirective};
+///
+/// let mut headers = Headers::new();
+/// headers.set(
+///     CacheControl(vec![CacheDirective::MaxAge(86400u32)])
+/// );
+/// ```
+/// ```
+/// use hyper::header::{Headers, CacheControl, CacheDirective};
+///
+/// let mut headers = Headers::new();
+/// headers.set(
+///     CacheControl(vec![
+///         CacheDirective::NoCache,
+///         CacheDirective::Private,
+///         CacheDirective::MaxAge(360u32),
+///         CacheDirective::Extension("foo".to_owned(),
+///                                   Some("bar".to_owned())),
+///     ])
+/// );
+/// ```
 #[derive(PartialEq, Clone, Debug)]
 pub struct CacheControl(pub Vec<CacheDirective>);
 

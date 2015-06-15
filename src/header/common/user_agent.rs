@@ -23,6 +23,14 @@ header! {
     #[doc=""]
     #[doc="# Notes"]
     #[doc="* The parser does not split the value"]
+    #[doc=""]
+    #[doc="# Example"]
+    #[doc="```"]
+    #[doc="use hyper::header::{Headers, UserAgent};"]
+    #[doc=""]
+    #[doc="let mut headers = Headers::new();"]
+    #[doc="headers.set(UserAgent(\"hyper/0.5.2\".to_owned()));"]
+    #[doc="```"]
     (UserAgent, "User-Agent") => [String]
 
     test_user_agent {

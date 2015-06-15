@@ -20,6 +20,33 @@ use header::{Header, HeaderFormat};
 /// * `null`
 /// * `*`
 /// * `http://google.com/`
+/// 
+/// # Examples
+/// ```
+/// use hyper::header::{Headers, AccessControlAllowOrigin};
+///
+/// let mut headers = Headers::new();
+/// headers.set(
+///     AccessControlAllowOrigin::Any
+/// );
+/// ```
+/// ```
+/// use hyper::header::{Headers, AccessControlAllowOrigin};
+///
+/// let mut headers = Headers::new();
+/// headers.set(
+///     AccessControlAllowOrigin::Null,
+/// );
+/// ```
+/// ```
+/// use hyper::header::{Headers, AccessControlAllowOrigin};
+/// use hyper::Url;
+///
+/// let mut headers = Headers::new();
+/// headers.set(
+///     AccessControlAllowOrigin::Value(Url::parse("http://hyper.rs").unwrap())
+/// );
+/// ```
 #[derive(Clone, PartialEq, Debug)]
 pub enum AccessControlAllowOrigin {
     /// Allow all origins

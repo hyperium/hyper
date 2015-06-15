@@ -16,6 +16,19 @@ header! {
     #[doc=""]
     #[doc="# Example values"]
     #[doc="* `gzip, chunked`"]
+    #[doc=""]
+    #[doc="# Example"]
+    #[doc="```"]
+    #[doc="use hyper::header::{Headers, TransferEncoding, Encoding};"]
+    #[doc=""]
+    #[doc="let mut headers = Headers::new();"]
+    #[doc="headers.set("]
+    #[doc="    TransferEncoding(vec!["]
+    #[doc="        Encoding::Gzip,"]
+    #[doc="        Encoding::Chunked,"]
+    #[doc="    ])"]
+    #[doc=");"]
+    #[doc="```"]
     (TransferEncoding, "Transfer-Encoding") => (Encoding)+
 
     transfer_encoding {

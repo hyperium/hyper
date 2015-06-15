@@ -17,6 +17,24 @@ use cookie::CookieJar;
 /// # Example values
 /// * `SID=31d4d96e407aad42`
 /// * `SID=31d4d96e407aad42; lang=en-US`
+/// 
+/// # Example
+/// ```
+/// # extern crate hyper;
+/// # extern crate cookie;
+/// # fn main() {
+/// use hyper::header::{Headers, Cookie};
+/// use cookie::Cookie as CookiePair;
+///
+/// let mut headers = Headers::new();
+///
+/// headers.set(
+///    Cookie(vec![
+///        CookiePair::new("foo".to_owned(), "bar".to_owned())
+///    ])
+/// );
+/// # }
+/// ```
 #[derive(Clone, PartialEq, Debug)]
 pub struct Cookie(pub Vec<CookiePair>);
 

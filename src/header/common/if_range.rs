@@ -24,6 +24,27 @@ use header::{self, Header, HeaderFormat, EntityTag, HttpDate};
 /// # Example values
 /// * `Sat, 29 Oct 1994 19:43:31 GMT`
 /// * `\"xyzzy\"`
+///
+/// # Examples
+/// ```
+/// use hyper::header::{Headers, IfRange, EntityTag};
+///
+/// let mut headers = Headers::new();
+/// headers.set(IfRange::EntityTag(EntityTag::new(false, "xyzzy".to_owned())));
+/// ```
+/// ```
+/// # extern crate hyper;
+/// # extern crate time;
+/// # fn main() {
+/// // extern crate time;
+///
+/// use hyper::header::{Headers, IfRange, HttpDate};
+/// use time::{self, Duration};
+///
+/// let mut headers = Headers::new();
+/// headers.set(IfRange::Date(HttpDate(time::now() - Duration::days(1))));
+/// # }
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub enum IfRange {
     /// The entity-tag the client has of the resource
