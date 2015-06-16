@@ -5,6 +5,9 @@ use std::io::{self, Read, Write};
 use std::net::{SocketAddr, Shutdown};
 use std::sync::{Arc, Mutex};
 
+#[cfg(feature = "timeouts")]
+use std::time::Duration;
+
 use net::{NetworkConnector, NetworkStream, DefaultConnector};
 
 /// The `NetworkConnector` that behaves as a connection pool used by hyper's `Client`.
@@ -151,6 +154,18 @@ impl<S: NetworkStream> NetworkStream for PooledStream<S> {
     #[inline]
     fn peer_addr(&mut self) -> io::Result<SocketAddr> {
         self.inner.as_mut().unwrap().1.peer_addr()
+    }
+
+    #[cfg(feature = "timeouts")]
+    #[inline]
+    fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
+        self.inner.as_ref().unwrap().1.set_read_timeout(dur)
+    }
+
+    #[cfg(feature = "timeouts")]
+    #[inline]
+    fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
+        self.inner.as_ref().unwrap().1.set_write_timeout(dur)
     }
 
     #[inline]
