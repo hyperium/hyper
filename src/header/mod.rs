@@ -206,6 +206,7 @@ impl Headers {
     ///
     /// The field is determined by the type of the value being set.
     pub fn set<H: Header + HeaderFormat>(&mut self, value: H) {
+        trace!("Headers.set( {:?}, {:?} )", header_name::<H>(), value);
         self.data.insert(UniCase(CowStr(Cow::Borrowed(header_name::<H>()))),
                          Item::new_typed(Box::new(value)));
     }
@@ -236,12 +237,14 @@ impl Headers {
     /// # let mut headers = Headers::new();
     /// headers.set_raw("content-length", vec![b"5".to_vec()]);
     /// ```
-    pub fn set_raw<K: Into<Cow<'static, str>>>(&mut self, name: K, value: Vec<Vec<u8>>) {
+    pub fn set_raw<K: Into<Cow<'static, str>> + fmt::Debug>(&mut self, name: K, value: Vec<Vec<u8>>) {
+        trace!("Headers.set_raw( {:?}, {:?} )", name, value);
         self.data.insert(UniCase(CowStr(name.into())), Item::new_raw(value));
     }
 
     /// Remove a header set by set_raw
     pub fn remove_raw(&mut self, name: &str) {
+        trace!("Headers.remove_raw( {:?} )", name);
         self.data.remove(
             &UniCase(CowStr(Cow::Borrowed(unsafe { mem::transmute::<&str, &str>(name) })))
         );
@@ -274,6 +277,7 @@ impl Headers {
     /// Removes a header from the map, if one existed.
     /// Returns true if a header has been removed.
     pub fn remove<H: Header + HeaderFormat>(&mut self) -> bool {
+        trace!("Headers.remove( {:?} )", header_name::<H>());
         self.data.remove(&UniCase(CowStr(Cow::Borrowed(header_name::<H>())))).is_some()
     }
 
