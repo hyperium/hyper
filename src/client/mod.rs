@@ -66,7 +66,6 @@ use header::{Headers, Header, HeaderFormat};
 use header::{ContentLength, Location};
 use method::Method;
 use net::{NetworkConnector, NetworkStream, ContextVerifier};
-use status::StatusClass::Redirection;
 use {Url};
 use Error;
 
@@ -87,6 +86,8 @@ use http::h1::Http11Protocol;
 pub struct Client {
     protocol: Box<Protocol + Send + Sync>,
     redirect_policy: RedirectPolicy,
+    #[cfg(feature = "timeouts")]
+    read_timeout: Option<Duration>
 }
 
 impl Client {
@@ -123,6 +124,12 @@ impl Client {
     /// Set the RedirectPolicy.
     pub fn set_redirect_policy(&mut self, policy: RedirectPolicy) {
         self.redirect_policy = policy;
+    }
+
+    /// Set the read timeout value for all requests.
+    #[cfg(feature = "timeouts")]
+    pub fn set_read_timeout(&mut self, dur: Option<Duration>) {
+        self.read_timeout = dur;
     }
 
     /// Build a Get request.
@@ -245,7 +252,7 @@ impl<'a, U: IntoUrl> RequestBuilder<'a, U> {
             let mut streaming = try!(req.start());
             body.take().map(|mut rdr| copy(&mut rdr, &mut streaming));
             let res = try!(streaming.send());
-            if res.status.class() != Redirection {
+            if !res.status.is_redirection() {
                 return Ok(res)
             }
             debug!("redirect code {:?} for {}", res.status, url);
