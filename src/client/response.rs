@@ -19,6 +19,7 @@ pub struct Response {
     pub version: version::HttpVersion,
     status_raw: RawStatus,
     message: Box<HttpMessage>,
+    is_drained: bool,
 }
 
 impl Response {
@@ -43,6 +44,7 @@ impl Response {
             headers: headers,
             message: message,
             status_raw: raw_status,
+            is_drained: false,
         })
     }
 
@@ -50,34 +52,46 @@ impl Response {
     pub fn status_raw(&self) -> &RawStatus {
         &self.status_raw
     }
+
 }
 
 impl Read for Response {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let count = try!(self.message.read(buf));
+        match self.message.read(buf) {
+            Ok(0) => {
+                self.is_drained = true;
+                Ok(0)
+            },
+            r => r
+        }
+    }
+}
 
-        if count == 0 {
-            if !http::should_keep_alive(self.version, &self.headers) {
-                try!(self.message.close_connection()
-                                 .map_err(|_| io::Error::new(io::ErrorKind::Other,
-                                                             "Error closing connection")));
+impl Drop for Response {
+    fn drop(&mut self) {
+        // if not drained, theres old bits in the Reader. we can't reuse this,
+        // since those old bits would end up in new Responses
+        //
+        // otherwise, the response has been drained. we should check that the
+        // server has agreed to keep the connection open
+        trace!("Response.is_drained = {:?}", self.is_drained);
+        if !(self.is_drained && http::should_keep_alive(self.version, &self.headers)) {
+            trace!("closing connection");
+            if let Err(e) = self.message.close_connection() {
+                error!("error closing connection: {}", e);
             }
         }
-
-        Ok(count)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::borrow::Cow::Borrowed;
     use std::io::{self, Read};
 
-    use header::Headers;
     use header::TransferEncoding;
     use header::Encoding;
-    use http::RawStatus;
+    use http::HttpMessage;
     use mock::MockStream;
     use status;
     use version;
@@ -94,18 +108,10 @@ mod tests {
 
     #[test]
     fn test_into_inner() {
-        let res = Response {
-            status: status::StatusCode::Ok,
-            headers: Headers::new(),
-            version: version::HttpVersion::Http11,
-            message: Box::new(Http11Message::with_stream(Box::new(MockStream::new()))),
-            status_raw: RawStatus(200, Borrowed("OK")),
-        };
-
-        let message = res.message.downcast::<Http11Message>().ok().unwrap();
+        let message: Box<HttpMessage> = Box::new(Http11Message::with_stream(Box::new(MockStream::new())));
+        let message = message.downcast::<Http11Message>().ok().unwrap();
         let b = message.into_inner().downcast::<MockStream>().ok().unwrap();
         assert_eq!(b, Box::new(MockStream::new()));
-
     }
 
     #[test]

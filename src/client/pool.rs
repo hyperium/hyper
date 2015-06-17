@@ -116,7 +116,6 @@ impl<C: NetworkConnector<Stream=S>, S: NetworkStream + Send> NetworkConnector fo
         Ok(PooledStream {
             inner: Some((key, conn)),
             is_closed: false,
-            is_drained: false,
             pool: self.inner.clone()
         })
     }
@@ -130,20 +129,13 @@ impl<C: NetworkConnector<Stream=S>, S: NetworkStream + Send> NetworkConnector fo
 pub struct PooledStream<S> {
     inner: Option<(Key, S)>,
     is_closed: bool,
-    is_drained: bool,
     pool: Arc<Mutex<PoolImpl<S>>>
 }
 
 impl<S: NetworkStream> Read for PooledStream<S> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        match self.inner.as_mut().unwrap().1.read(buf) {
-            Ok(0) => {
-                self.is_drained = true;
-                Ok(0)
-            }
-            r => r
-        }
+        self.inner.as_mut().unwrap().1.read(buf)
     }
 }
 
@@ -174,8 +166,8 @@ impl<S: NetworkStream> NetworkStream for PooledStream<S> {
 
 impl<S> Drop for PooledStream<S> {
     fn drop(&mut self) {
-        trace!("PooledStream.drop, is_closed={}, is_drained={}", self.is_closed, self.is_drained);
-        if !self.is_closed && self.is_drained {
+        trace!("PooledStream.drop, is_closed={}", self.is_closed);
+        if !self.is_closed {
             self.inner.take().map(|(key, conn)| {
                 if let Ok(mut pool) = self.pool.lock() {
                     pool.reuse(key, conn);
@@ -205,13 +197,13 @@ mod tests {
     fn test_connect_and_drop() {
         let pool = mocked!();
         let key = key("127.0.0.1", 3000, "http");
-        pool.connect("127.0.0.1", 3000, "http").unwrap().is_drained = true;
+        pool.connect("127.0.0.1", 3000, "http").unwrap();
         {
             let locked = pool.inner.lock().unwrap();
             assert_eq!(locked.conns.len(), 1);
             assert_eq!(locked.conns.get(&key).unwrap().len(), 1);
         }
-        pool.connect("127.0.0.1", 3000, "http").unwrap().is_drained = true; //reused
+        pool.connect("127.0.0.1", 3000, "http").unwrap(); //reused
         {
             let locked = pool.inner.lock().unwrap();
             assert_eq!(locked.conns.len(), 1);

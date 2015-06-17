@@ -20,6 +20,7 @@ pub struct RawStatus(pub u16, pub Cow<'static, str>);
 /// Checks if a connection should be kept alive.
 #[inline]
 pub fn should_keep_alive(version: HttpVersion, headers: &Headers) -> bool {
+    trace!("should_keep_alive( {:?}, {:?} )", version, headers.get::<Connection>());
     match (version, headers.get::<Connection>()) {
         (Http10, Some(conn)) if !conn.contains(&KeepAlive) => false,
         (Http11, Some(conn)) if conn.contains(&Close)  => false,
