@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://hyperium.github.io/hyper/hyper/index.html")]
+#![doc(html_root_url = "https://hyperium.github.io/hyper/")]
 #![deny(missing_docs)]
 #![cfg_attr(test, deny(warnings))]
 #![cfg_attr(all(test, feature = "nightly"), feature(test))]
