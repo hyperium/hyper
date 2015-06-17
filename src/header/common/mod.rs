@@ -18,7 +18,7 @@ pub use self::accept_encoding::AcceptEncoding;
 pub use self::accept_language::AcceptLanguage;
 pub use self::accept_ranges::{AcceptRanges, RangeUnit};
 pub use self::allow::Allow;
-pub use self::authorization::{Authorization, Scheme, Basic};
+pub use self::authorization::{Authorization, Scheme, Basic, Bearer};
 pub use self::cache_control::{CacheControl, CacheDirective};
 pub use self::connection::{Connection, ConnectionOption};
 pub use self::content_length::ContentLength;
