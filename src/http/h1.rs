@@ -12,7 +12,7 @@ use Error;
 use header::{Headers, ContentLength, TransferEncoding};
 use header::Encoding::Chunked;
 use method::{Method};
-use net::{NetworkConnector, NetworkStream, ContextVerifier};
+use net::{NetworkConnector, NetworkStream};
 use status::StatusCode;
 use version::HttpVersion;
 use version::HttpVersion::{Http10, Http11};
@@ -264,11 +264,6 @@ impl Protocol for Http11Protocol {
 
         Ok(Box::new(Http11Message::with_stream(stream)))
     }
-
-    #[inline]
-    fn set_ssl_verifier(&mut self, verifier: ContextVerifier) {
-        self.connector.set_ssl_verifier(verifier);
-    }
 }
 
 impl Http11Protocol {
@@ -292,10 +287,6 @@ impl<C: NetworkConnector<Stream=S> + Send + Sync, S: NetworkStream + Send> Netwo
         -> ::Result<Box<NetworkStream + Send>> {
         Ok(try!(self.0.connect(host, port, scheme)).into())
     }
-    #[inline]
-    fn set_ssl_verifier(&mut self, verifier: ContextVerifier) {
-        self.0.set_ssl_verifier(verifier);
-    }
 }
 
 struct Connector(Box<NetworkConnector<Stream=Box<NetworkStream + Send>> + Send + Sync>);
@@ -306,10 +297,6 @@ impl NetworkConnector for Connector {
     fn connect(&self, host: &str, port: u16, scheme: &str)
         -> ::Result<Box<NetworkStream + Send>> {
         Ok(try!(self.0.connect(host, port, scheme)).into())
-    }
-    #[inline]
-    fn set_ssl_verifier(&mut self, verifier: ContextVerifier) {
-        self.0.set_ssl_verifier(verifier);
     }
 }
 

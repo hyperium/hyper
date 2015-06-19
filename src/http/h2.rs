@@ -12,7 +12,7 @@ use http::{
     ResponseHead,
     RawStatus,
 };
-use net::{NetworkStream, NetworkConnector, ContextVerifier};
+use net::{NetworkStream, NetworkConnector};
 use net::{HttpConnector, HttpStream};
 use url::Url;
 use header::Headers;
@@ -132,11 +132,6 @@ impl<C, S> Protocol for Http2Protocol<C, S> where C: NetworkConnector<Stream=S> 
         let client = try!(self.new_client(stream, host.into(), scheme));
 
         Ok(Box::new(Http2Message::with_client(client)))
-    }
-
-    #[inline]
-    fn set_ssl_verifier(&mut self, verifier: ContextVerifier) {
-        self.connector.set_ssl_verifier(verifier)
     }
 }
 
@@ -387,7 +382,7 @@ impl<S> HttpMessage for Http2Message<S> where S: CloneableStream {
 /// (which produces an `HttpStream` for the underlying transport layer).
 #[inline]
 pub fn new_protocol() -> Http2Protocol<HttpConnector, HttpStream> {
-    Http2Protocol::with_connector(HttpConnector(None))
+    Http2Protocol::with_connector(HttpConnector)
 }
 
 #[cfg(test)]

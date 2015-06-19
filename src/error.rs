@@ -5,9 +5,11 @@ use std::io::Error as IoError;
 use std::str::Utf8Error;
 
 use httparse;
-use openssl::ssl::error::SslError;
 use url;
 use solicit::http::HttpError as Http2Error;
+
+#[cfg(feature = "openssl")]
+use openssl::ssl::error::SslError;
 
 use self::Error::{
     Method,
@@ -43,8 +45,8 @@ pub enum Error {
     Status,
     /// An `io::Error` that occurred while trying to read or write to a network stream.
     Io(IoError),
-    /// An error from the `openssl` library.
-    Ssl(SslError),
+    /// An error from a SSL library.
+    Ssl(Box<StdError + Send + Sync>),
     /// An HTTP/2-specific error, coming from the `solicit` library.
     Http2(Http2Error),
     /// Parsing a field as string failed
@@ -89,7 +91,7 @@ impl StdError for Error {
     fn cause(&self) -> Option<&StdError> {
         match *self {
             Io(ref error) => Some(error),
-            Ssl(ref error) => Some(error),
+            Ssl(ref error) => Some(&**error),
             Uri(ref error) => Some(error),
             Http2(ref error) => Some(error),
             _ => None,
@@ -109,11 +111,12 @@ impl From<url::ParseError> for Error {
     }
 }
 
+#[cfg(feature = "openssl")]
 impl From<SslError> for Error {
     fn from(err: SslError) -> Error {
         match err {
             SslError::StreamError(err) => Io(err),
-            err => Ssl(err),
+            err => Ssl(Box::new(err)),
         }
     }
 }
@@ -149,7 +152,6 @@ mod tests {
     use std::error::Error as StdError;
     use std::io;
     use httparse;
-    use openssl::ssl::error::SslError;
     use solicit::http::HttpError as Http2Error;
     use url;
     use super::Error;
@@ -192,11 +194,7 @@ mod tests {
 
         from_and_cause!(io::Error::new(io::ErrorKind::Other, "other") => Io(..));
         from_and_cause!(url::ParseError::EmptyHost => Uri(..));
-        from_and_cause!(SslError::SslSessionClosed => Ssl(..));
         from_and_cause!(Http2Error::UnknownStreamId => Http2(..));
-
-        from!(SslError::StreamError(io::Error::new(io::ErrorKind::Other, "ssl negotiation")) => Io(..));
-
 
         from!(httparse::Error::HeaderName => Header);
         from!(httparse::Error::HeaderName => Header);
@@ -206,5 +204,14 @@ mod tests {
         from!(httparse::Error::Token => Header);
         from!(httparse::Error::TooManyHeaders => TooLarge);
         from!(httparse::Error::Version => Version);
+    }
+
+    #[cfg(feature = "openssl")]
+    #[test]
+    fn test_from_ssl() {
+        use openssl::ssl::error::SslError;
+
+        from!(SslError::StreamError(io::Error::new(io::ErrorKind::Other, "ssl negotiation")) => Io(..));
+        from_and_cause!(SslError::SslSessionClosed => Ssl(..));
     }
 }

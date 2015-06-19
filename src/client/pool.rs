@@ -5,7 +5,7 @@ use std::io::{self, Read, Write};
 use std::net::{SocketAddr, Shutdown};
 use std::sync::{Arc, Mutex};
 
-use net::{NetworkConnector, NetworkStream, HttpConnector, ContextVerifier};
+use net::{NetworkConnector, NetworkStream, DefaultConnector};
 
 /// The `NetworkConnector` that behaves as a connection pool used by hyper's `Client`.
 pub struct Pool<C: NetworkConnector> {
@@ -58,11 +58,11 @@ impl<'a> From<&'a str> for Scheme {
     }
 }
 
-impl Pool<HttpConnector> {
-    /// Creates a `Pool` with an `HttpConnector`.
+impl Pool<DefaultConnector> {
+    /// Creates a `Pool` with a `DefaultConnector`.
     #[inline]
-    pub fn new(config: Config) -> Pool<HttpConnector> {
-        Pool::with_connector(config, HttpConnector(None))
+    pub fn new(config: Config) -> Pool<DefaultConnector> {
+        Pool::with_connector(config, DefaultConnector::default())
     }
 }
 
@@ -118,10 +118,6 @@ impl<C: NetworkConnector<Stream=S>, S: NetworkStream + Send> NetworkConnector fo
             is_closed: false,
             pool: self.inner.clone()
         })
-    }
-    #[inline]
-    fn set_ssl_verifier(&mut self, verifier: ContextVerifier) {
-        self.connector.set_ssl_verifier(verifier);
     }
 }
 
@@ -181,9 +177,8 @@ impl<S> Drop for PooledStream<S> {
 #[cfg(test)]
 mod tests {
     use std::net::Shutdown;
-    use mock::{MockConnector, ChannelMockConnector};
+    use mock::{MockConnector};
     use net::{NetworkConnector, NetworkStream};
-    use std::sync::mpsc;
 
     use super::{Pool, key};
 
@@ -219,21 +214,5 @@ mod tests {
         drop(stream);
         let locked = pool.inner.lock().unwrap();
         assert_eq!(locked.conns.len(), 0);
-    }
-
-    /// Tests that the `Pool::set_ssl_verifier` method sets the SSL verifier of
-    /// the underlying `Connector` instance that it uses.
-    #[test]
-    fn test_set_ssl_verifier_delegates_to_connector() {
-        let (tx, rx) = mpsc::channel();
-        let mut pool = Pool::with_connector(
-            Default::default(), ChannelMockConnector::new(tx));
-
-        pool.set_ssl_verifier(Box::new(|_| { }));
-
-        match rx.try_recv() {
-            Ok(meth) => assert_eq!(meth, "set_ssl_verifier"),
-            _ => panic!("Expected a call to `set_ssl_verifier`"),
-        };
     }
 }
