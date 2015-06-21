@@ -41,7 +41,7 @@ fn hello(_: Request, res: Response<Fresh>) {
 }
 
 fn main() {
-    Server::http(hello).listen("127.0.0.1:3000").unwrap();
+    Server::http("127.0.0.1:3000").unwrap().handle(hello);
 }
 ```
 

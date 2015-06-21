@@ -7,7 +7,7 @@ use url::Url;
 use method::{self, Method};
 use header::Headers;
 use header::Host;
-use net::{NetworkStream, NetworkConnector, HttpConnector, Fresh, Streaming};
+use net::{NetworkStream, NetworkConnector, DefaultConnector, Fresh, Streaming};
 use version;
 use client::{Response, get_host_and_port};
 
@@ -66,7 +66,7 @@ impl Request<Fresh> {
 
     /// Create a new client request.
     pub fn new(method: method::Method, url: Url) -> ::Result<Request<Fresh>> {
-        let mut conn = HttpConnector(None);
+        let mut conn = DefaultConnector::default();
         Request::with_connector(method, url, &mut conn)
     }
 

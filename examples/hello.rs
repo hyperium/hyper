@@ -12,7 +12,7 @@ fn hello(_: Request, res: Response) {
 
 fn main() {
     env_logger::init().unwrap();
-    let _listening = hyper::Server::http(hello)
-        .listen("127.0.0.1:3000").unwrap();
+    let _listening = hyper::Server::http("127.0.0.1:3000").unwrap()
+        .handle(hello);
     println!("Listening on http://127.0.0.1:3000");
 }

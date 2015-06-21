@@ -3,7 +3,6 @@ use std::ascii::AsciiExt;
 use std::io::{self, Read, Write, Cursor};
 use std::cell::RefCell;
 use std::net::SocketAddr;
-use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 
 use solicit::http::HttpScheme;
@@ -12,7 +11,7 @@ use solicit::http::frame::{SettingsFrame, Frame};
 use solicit::http::connection::{HttpConnection, EndStream, DataChunk};
 
 use header::Headers;
-use net::{NetworkStream, NetworkConnector, ContextVerifier};
+use net::{NetworkStream, NetworkConnector};
 
 pub struct MockStream {
     pub read: Cursor<Vec<u8>>,
@@ -133,39 +132,6 @@ impl NetworkConnector for MockConnector {
     fn connect(&self, _host: &str, _port: u16, _scheme: &str) -> ::Result<MockStream> {
         Ok(MockStream::new())
     }
-
-    fn set_ssl_verifier(&mut self, _verifier: ContextVerifier) {
-        // pass
-    }
-}
-
-/// A mock implementation of the `NetworkConnector` trait that keeps track of all calls to its
-/// methods by sending corresponding messages onto a channel.
-///
-/// Otherwise, it behaves the same as `MockConnector`.
-pub struct ChannelMockConnector {
-    calls: Mutex<Sender<String>>,
-}
-
-impl ChannelMockConnector {
-    pub fn new(calls: Sender<String>) -> ChannelMockConnector {
-        ChannelMockConnector { calls: Mutex::new(calls) }
-    }
-}
-
-impl NetworkConnector for ChannelMockConnector {
-    type Stream = MockStream;
-    #[inline]
-    fn connect(&self, _host: &str, _port: u16, _scheme: &str)
-            -> ::Result<MockStream> {
-        self.calls.lock().unwrap().send("connect".into()).unwrap();
-        Ok(MockStream::new())
-    }
-
-    #[inline]
-    fn set_ssl_verifier(&mut self, _verifier: ContextVerifier) {
-        self.calls.lock().unwrap().send("set_ssl_verifier".into()).unwrap();
-    }
 }
 
 /// new connectors must be created if you wish to intercept requests.
@@ -195,10 +161,6 @@ macro_rules! mock_connector (
                     }),
                     None => panic!("{:?} doesn't know url {}", stringify!($name), key)
                 }
-            }
-
-            fn set_ssl_verifier(&mut self, _verifier: ::net::ContextVerifier) {
-                // pass
             }
         }
 
@@ -295,10 +257,5 @@ impl NetworkConnector for MockHttp2Connector {
     fn connect(&self, _host: &str, _port: u16, _scheme: &str)
             -> ::Result<CloneableMockStream> {
         Ok(self.streams.borrow_mut().remove(0))
-    }
-
-    #[inline]
-    fn set_ssl_verifier(&mut self, _verifier: ContextVerifier) {
-        // pass
     }
 }
