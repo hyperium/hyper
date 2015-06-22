@@ -40,7 +40,7 @@ pub use self::if_range::IfRange;
 pub use self::last_modified::LastModified;
 pub use self::location::Location;
 pub use self::pragma::Pragma;
-pub use self::range::{Range, RangeSpec};
+pub use self::range::{Range, ByteRangeSpec};
 pub use self::referer::Referer;
 pub use self::server::Server;
 pub use self::set_cookie::SetCookie;

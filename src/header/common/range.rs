@@ -1,7 +1,7 @@
 use std::fmt::{self, Display};
 use std::str::FromStr;
 
-use header::{Header, HeaderFormat, RangeUnit};
+use header::{Header, HeaderFormat};
 use header::parsing::{from_one_raw_str, from_one_comma_delimited};
 
 /// `Range` header, defined in [RFC7233](https://tools.ietf.org/html/rfc7233#section-3.1)
@@ -16,43 +16,58 @@ use header::parsing::{from_one_raw_str, from_one_comma_delimited};
 /// Range =	byte-ranges-specifier / other-ranges-specifier
 /// other-ranges-specifier = other-range-unit "=" other-range-set
 /// other-range-set = 1*VCHAR
+///
+/// bytes-unit = "bytes"
+///
+/// byte-ranges-specifier = bytes-unit "=" byte-range-set
+/// byte-range-set = 1#(byte-range-spec / suffix-byte-range-spec)
+/// byte-range-spec = first-byte-pos "-" [last-byte-pos]
+/// first-byte-pos = 1*DIGIT
+/// last-byte-pos = 1*DIGIT
 /// ```
 ///
 /// # Example values
 /// * `bytes=1000-`
 /// * `bytes=-2000`
 /// * `bytes=0-1,30-40`
-/// * `custom_unit=0-123,-200`
+/// * `bytes=0-10,20-90,-100`
+/// * `custom_unit=0-123`
+/// * `custom_unit=xxx-yyy`
 ///
 /// # Examples
 /// ```
-/// use hyper::header::{Headers, Range, RangeSpec, RangeUnit};
+/// use hyper::header::{Headers, Range, ByteRangeSpec};
 ///
 /// let mut headers = Headers::new();
+/// headers.set(Range::Bytes(
+///     vec![ByteRangeSpec::FromTo(1, 100), ByteRangeSpec::AllFrom(200)]
+/// ));
 ///
-/// headers.set(Range {
-///     unit: RangeUnit::Bytes,
-///     ranges: vec![RangeSpec::FromTo(1, 100), RangeSpec::AllFrom(200)]
-/// });
+/// headers.clear();
+/// headers.set(Range::Unregistered("letters".to_owned(), "a-f".to_owned()));
 /// ```
 /// ```
 /// use hyper::header::{Headers, Range};
 ///
 /// let mut headers = Headers::new();
 /// headers.set(Range::bytes(1, 100));
+///
+/// headers.clear();
+/// headers.set(Range::bytes_multi(vec![(1, 100), (200, 300)]));
 /// ```
 #[derive(PartialEq, Clone, Debug)]
-pub struct Range {
-    /// Unit of the Range i.e. bytes
-    pub unit: RangeUnit,
-    /// Set of ranges as defined in the HTTP spec
-    pub ranges: Vec<RangeSpec>,
+pub enum Range {
+    /// Byte range
+    Bytes(Vec<ByteRangeSpec>),
+    /// Custom range, with unit not registered at IANA
+    /// (`other-range-unit`: String , `other-range-set`: String)
+    Unregistered(String, String)
 }
 
-/// Each 'Range' header can contain one or more RangeSpecs.
-/// Each RangeSpec defines a range of units to fetch
+/// Each Range::Bytes header can contain one or more ByteRangeSpecs.
+/// Each ByteRangeSpec defines a range of bytes to fetch
 #[derive(PartialEq, Clone, Debug)]
-pub enum RangeSpec {
+pub enum ByteRangeSpec {
     /// Get all bytes between x and y ("x-y")
     FromTo(u64, u64),
     /// Get all bytes starting from x ("x-")
@@ -64,20 +79,23 @@ pub enum RangeSpec {
 impl Range {
     /// Get the most common byte range header ("bytes=from-to")
     pub fn bytes(from: u64, to: u64) -> Range {
-        Range {
-            unit: RangeUnit::Bytes,
-            ranges: vec![RangeSpec::FromTo(from, to)],
-        }
+        Range::Bytes(vec![ByteRangeSpec::FromTo(from, to)])
+    }
+
+    /// Get byte range header with multiple subranges
+    /// ("bytes=from1-to1,from2-to2,fromX-toX")
+    pub fn bytes_multi(ranges: Vec<(u64, u64)>) -> Range {
+        Range::Bytes(ranges.iter().map(|r| ByteRangeSpec::FromTo(r.0, r.1)).collect())
     }
 }
 
 
-impl fmt::Display for RangeSpec {
+impl fmt::Display for ByteRangeSpec {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            RangeSpec::FromTo(from, to) => write!(f, "{}-{}", from, to),
-            RangeSpec::Last(pos) => write!(f, "-{}", pos),
-            RangeSpec::AllFrom(pos) => write!(f, "{}-", pos),
+            ByteRangeSpec::FromTo(from, to) => write!(f, "{}-{}", from, to),
+            ByteRangeSpec::Last(pos) => write!(f, "-{}", pos),
+            ByteRangeSpec::AllFrom(pos) => write!(f, "{}-", pos),
         }
     }
 }
@@ -85,15 +103,22 @@ impl fmt::Display for RangeSpec {
 
 impl fmt::Display for Range {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        try!(write!(f, "{}=", self.unit));
+        match *self {
+            Range::Bytes(ref ranges) => {
+                try!(write!(f, "bytes="));
 
-        for (i, range) in self.ranges.iter().enumerate() {
-            if i != 0 {
-                try!(f.write_str(","));
-            }
-            try!(Display::fmt(range, f));
+                for (i, range) in ranges.iter().enumerate() {
+                    if i != 0 {
+                        try!(f.write_str(","));
+                    }
+                    try!(Display::fmt(range, f));
+                }
+                Ok(())
+            },
+            Range::Unregistered(ref unit, ref range_str) => {
+                write!(f, "{}={}", unit, range_str)
+            },
         }
-        Ok(())
     }
 }
 
@@ -104,38 +129,42 @@ impl FromStr for Range {
         let mut iter = s.splitn(2, "=");
 
         match (iter.next(), iter.next()) {
-            (Some(unit), Some(ranges)) => {
-                match (RangeUnit::from_str(unit), from_one_comma_delimited(ranges.as_bytes())) {
-                    (Ok(unit), Ok(ranges)) => {
+            (Some("bytes"), Some(ranges)) => {
+                match from_one_comma_delimited(ranges.as_bytes()) {
+                    Ok(ranges) => {
                         if ranges.is_empty() {
                             return Err(::Error::Header);
                         }
-                        Ok(Range{unit: unit, ranges: ranges})
+                        Ok(Range::Bytes(ranges))
                     },
-                    _ => Err(::Error::Header)
+                    Err(_) => Err(::Error::Header)
                 }
             }
+            (Some(unit), Some(range_str)) if unit != "" && range_str != "" => {
+                Ok(Range::Unregistered(unit.to_owned(), range_str.to_owned()))
+
+            },
             _ => Err(::Error::Header)
         }
     }
 }
 
-impl FromStr for RangeSpec {
+impl FromStr for ByteRangeSpec {
     type Err = ::Error;
 
-    fn from_str(s: &str) -> ::Result<RangeSpec> {
+    fn from_str(s: &str) -> ::Result<ByteRangeSpec> {
         let mut parts = s.splitn(2, "-");
 
         match (parts.next(), parts.next()) {
             (Some(""), Some(end)) => {
-                end.parse().or(Err(::Error::Header)).map(|end| RangeSpec::Last(end))
+                end.parse().or(Err(::Error::Header)).map(|end| ByteRangeSpec::Last(end))
             },
             (Some(start), Some("")) => {
-                start.parse().or(Err(::Error::Header)).map(|start| RangeSpec::AllFrom(start))
+                start.parse().or(Err(::Error::Header)).map(|start| ByteRangeSpec::AllFrom(start))
             },
             (Some(start), Some(end)) => {
                 match (start.parse(), end.parse()) {
-                    (Ok(start), Ok(end)) if start <= end => Ok(RangeSpec::FromTo(start, end)),
+                    (Ok(start), Ok(end)) if start <= end => Ok(ByteRangeSpec::FromTo(start, end)),
                     _ => Err(::Error::Header)
                 }
             },
@@ -164,7 +193,7 @@ impl HeaderFormat for Range {
 }
 
 #[test]
-fn test_parse_valid() {
+fn test_parse_bytes_range_valid() {
     let r: Range = Header::parse_header(&[b"bytes=1-100".to_vec()]).unwrap();
     let r2: Range = Header::parse_header(&[b"bytes=1-100,-".to_vec()]).unwrap();
     let r3 =  Range::bytes(1, 100);
@@ -173,21 +202,39 @@ fn test_parse_valid() {
 
     let r: Range = Header::parse_header(&[b"bytes=1-100,200-".to_vec()]).unwrap();
     let r2: Range = Header::parse_header(&[b"bytes= 1-100 , 101-xxx,  200- ".to_vec()]).unwrap();
-    let r3 =  Range {
-        unit: RangeUnit::Bytes,
-        ranges: vec![RangeSpec::FromTo(1, 100), RangeSpec::AllFrom(200)]
-    };
+    let r3 =  Range::Bytes(
+        vec![ByteRangeSpec::FromTo(1, 100), ByteRangeSpec::AllFrom(200)]
+    );
+    assert_eq!(r, r2);
+    assert_eq!(r2, r3);
+
+    let r: Range = Header::parse_header(&[b"bytes=1-100,-100".to_vec()]).unwrap();
+    let r2: Range = Header::parse_header(&[b"bytes=1-100, ,,-100".to_vec()]).unwrap();
+    let r3 =  Range::Bytes(
+        vec![ByteRangeSpec::FromTo(1, 100), ByteRangeSpec::Last(100)]
+    );
     assert_eq!(r, r2);
     assert_eq!(r2, r3);
 
     let r: Range = Header::parse_header(&[b"custom=1-100,-100".to_vec()]).unwrap();
-    let r2: Range = Header::parse_header(&[b"custom=1-100, ,,-100".to_vec()]).unwrap();
-    let r3 =  Range {
-        unit: RangeUnit::Unregistered("custom".to_owned()),
-        ranges: vec![RangeSpec::FromTo(1, 100), RangeSpec::Last(100)]
-    };
+    let r2 =  Range::Unregistered("custom".to_owned(), "1-100,-100".to_owned());
     assert_eq!(r, r2);
-    assert_eq!(r2, r3);
+
+}
+
+#[test]
+fn test_parse_unregistered_range_valid() {
+    let r: Range = Header::parse_header(&[b"custom=1-100,-100".to_vec()]).unwrap();
+    let r2 =  Range::Unregistered("custom".to_owned(), "1-100,-100".to_owned());
+    assert_eq!(r, r2);
+
+    let r: Range = Header::parse_header(&[b"custom=abcd".to_vec()]).unwrap();
+    let r2 =  Range::Unregistered("custom".to_owned(), "abcd".to_owned());
+    assert_eq!(r, r2);
+
+    let r: Range = Header::parse_header(&[b"custom=xxx-yyy".to_vec()]).unwrap();
+    let r2 =  Range::Unregistered("custom".to_owned(), "xxx-yyy".to_owned());
+    assert_eq!(r, r2);
 }
 
 #[test]
@@ -206,26 +253,36 @@ fn test_parse_invalid() {
 
     let r: ::Result<Range> = Header::parse_header(&[b"bytes=".to_vec()]);
     assert_eq!(r.ok(), None);
+
+    let r: ::Result<Range> = Header::parse_header(&[b"custom=".to_vec()]);
+    assert_eq!(r.ok(), None);
+
+    let r: ::Result<Range> = Header::parse_header(&[b"=1-100".to_vec()]);
+    assert_eq!(r.ok(), None);
 }
 
 #[test]
 fn test_fmt() {
     use header::Headers;
 
-    let range_header = Range {
-        unit: RangeUnit::Bytes,
-        ranges: vec![RangeSpec::FromTo(0, 1000), RangeSpec::AllFrom(2000)],
-    };
     let mut headers = Headers::new();
-    headers.set(range_header);
 
+    headers.set(
+        Range::Bytes(
+            vec![ByteRangeSpec::FromTo(0, 1000), ByteRangeSpec::AllFrom(2000)]
+    ));
     assert_eq!(&headers.to_string(), "Range: bytes=0-1000,2000-\r\n");
 
     headers.clear();
-    headers.set(Range {unit: RangeUnit::Bytes, ranges: vec![]});
+    headers.set(Range::Bytes(vec![]));
 
     assert_eq!(&headers.to_string(), "Range: bytes=\r\n");
+
+    headers.clear();
+    headers.set(Range::Unregistered("custom".to_owned(), "1-xxx".to_owned()));
+
+    assert_eq!(&headers.to_string(), "Range: custom=1-xxx\r\n");
 }
 
 bench_header!(bytes_multi, Range, { vec![b"bytes=1-1001,2001-3001,10001-".to_vec()]});
-bench_header!(custom_unit, Range, { vec![b"custom_unit=0-100000".to_vec()]});
+bench_header!(custom_unit, Range, { vec![b"other=0-100000".to_vec()]});
