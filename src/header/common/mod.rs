@@ -103,10 +103,12 @@ macro_rules! __hyper__deref {
 macro_rules! __hyper__tm {
     ($id:ident, $tm:ident{$($tf:item)*}) => {
         #[allow(unused_imports)]
+        #[cfg(test)]
         mod $tm{
             use std::str;
             use $crate::header::*;
             use $crate::mime::*;
+            use $crate::language_tags::*;
             use $crate::method::Method;
             use super::$id as HeaderField;
             $($tf)*
