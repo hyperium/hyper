@@ -13,6 +13,7 @@ keywords = ["http", "hyper", "hyperium"]
 
 [dependencies]
 httparse = "0.1"
+language-tags = "0.0.7"
 log = "0.3"
 mime = "0.0.12"
 num_cpus = "0.2"
