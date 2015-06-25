@@ -1,3 +1,65 @@
+## v0.6.0 (2015-06-24)
+
+
+#### Bug Fixes
+
+* **client:** check for drained stream in Response::drop ([e689f203](https://github.com/hyperium/hyper/commit/e689f20376d3e078f5d380902d39f8ae9c043486))
+
+
+#### Features
+
+* **client:**
+  * impl Sync for Client ([64e47b4b](https://github.com/hyperium/hyper/commit/64e47b4bbd0433065a059804adeb2b4a2d72f327), closes [#254](https://github.com/hyperium/hyper/issues/254))
+  * implement Protocol trait for HTTP/1.1 ([dccdf8d6](https://github.com/hyperium/hyper/commit/dccdf8d65a9b900daec34555d3b97c2c3c678067))
+  * add `Protocol` trait ([3417303a](https://github.com/hyperium/hyper/commit/3417303a4a9aa4809729d53f0d018338e876da51))
+  * implement HttpMessage for HTTP/1.1 ([ecb713f8](https://github.com/hyperium/hyper/commit/ecb713f8494b13bdba91258b1507e8f7ce62b8d9))
+  * add `HttpMessage` trait ([289fd02b](https://github.com/hyperium/hyper/commit/289fd02b55a42748cbce8de428939208713a765d))
+* **error:** add private __Nonexhaustive variant to Error ([7c0421e3](https://github.com/hyperium/hyper/commit/7c0421e3fc1d5a8b4868b57acca87abd685f3430))
+* **headers:**
+  * add bearer token support ([edf6ac20](https://github.com/hyperium/hyper/commit/edf6ac2074d11694ded275807a66df3a8a8e33a6))
+  * add `Range` header ([05c31998](https://github.com/hyperium/hyper/commit/05c319984630b31d18dfbfa9b7567f6c7613d7f8))
+* **http2:**
+  * implement message API for HTTP/2 ([f0fe2c5a](https://github.com/hyperium/hyper/commit/f0fe2c5a83bd4e654a4ff684f75a1b602f8f38fc))
+  * add new error variant for HTTP/2 ([48e9ca2f](https://github.com/hyperium/hyper/commit/48e9ca2f70f6c6475f1579ae9212af7b4ca87e88))
+  * add dependency on `solicit` ([3122ffef](https://github.com/hyperium/hyper/commit/3122ffefc2d56ffc03a6fcc264086df0c9d74083))
+* **langtags:** use true language tags in headers ([99ff7e62](https://github.com/hyperium/hyper/commit/99ff7e62573865a1fc431db26b6a18c43b9127de))
+* **ssl:** redesign SSL usage ([53bba6eb](https://github.com/hyperium/hyper/commit/53bba6eb7f34e61e5c8a835281d625436532de8f))
+
+
+#### Breaking Changes
+
+* AcceptLanguage and ContentLanguage use LanguageTag now,
+Language removed from Hyper.
+
+ ([99ff7e62](https://github.com/hyperium/hyper/commit/99ff7e62573865a1fc431db26b6a18c43b9127de))
+* Server::https was changed to allow any implementation
+  of Ssl. Server in general was also changed. HttpConnector no longer
+  uses SSL; using HttpsConnector instead.
+
+ ([53bba6eb](https://github.com/hyperium/hyper/commit/53bba6eb7f34e61e5c8a835281d625436532de8f))
+* Connectors and Protocols passed to the `Client` must
+  now also have a `Sync` bounds, but this shouldn't break default usage.
+
+ ([64e47b4b](https://github.com/hyperium/hyper/commit/64e47b4bbd0433065a059804adeb2b4a2d72f327))
+* parse_header returns Result instead of Option, related
+code did also change
+
+ ([195a89fa](https://github.com/hyperium/hyper/commit/195a89fa918a83c9dcab47a4b09edb464d4e8006))
+* Adds a new variant to public Error enum. The proper fix
+  is to stop matching exhaustively on `hyper::Error`.
+
+ ([7c0421e3](https://github.com/hyperium/hyper/commit/7c0421e3fc1d5a8b4868b57acca87abd685f3430))
+* A new variant `Http2` added to a public enum
+`hyper::Error`.
+
+ ([48e9ca2f](https://github.com/hyperium/hyper/commit/48e9ca2f70f6c6475f1579ae9212af7b4ca87e88))
+* `hyper::client::request::Response` is no longer generic
+over `NetworkStream` types. It no longer requires a generic type
+parameter at all.
+
+ ([aa297f45](https://github.com/hyperium/hyper/commit/aa297f45322d66980bb2b51c413b15dfd51533ea))
+
+
 ### v0.5.2 (2015-06-01)
 
 
