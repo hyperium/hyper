@@ -24,7 +24,7 @@ use solicit::http::Header as Http2Header;
 use solicit::http::HttpScheme;
 use solicit::http::HttpError as Http2Error;
 use solicit::http::transport::TransportStream;
-use solicit::http::client::{ClientStream, HttpConnect, write_preface};
+use solicit::http::client::{ClientStream, HttpConnect, HttpConnectError, write_preface};
 use solicit::client::SimpleClient;
 
 use httparse;
@@ -75,13 +75,38 @@ struct Http2Connector<S> where S: CloneableStream {
     host: String,
 }
 
+#[derive(Debug)]
+struct Http2ConnectError(io::Error);
+
+impl ::std::fmt::Display for Http2ConnectError {
+    fn fmt(&self, fmt: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(fmt, "HTTP/2 connect error: {}", (self as &::std::error::Error).description())
+    }
+}
+
+impl ::std::error::Error for Http2ConnectError {
+    fn description(&self) -> &str {
+        self.0.description()
+    }
+
+    fn cause(&self) -> Option<&::std::error::Error> {
+        self.0.cause()
+    }
+}
+
+impl HttpConnectError for Http2ConnectError {}
+
+impl From<io::Error> for Http2ConnectError {
+    fn from(e: io::Error) -> Http2ConnectError { Http2ConnectError(e) }
+}
+
 impl<S> HttpConnect for Http2Connector<S> where S: CloneableStream {
     /// The type of the underlying transport stream that the `HttpConnection`s
     /// produced by this `HttpConnect` implementation will be based on.
     type Stream = Http2Stream<S>;
     /// The type of the error that can be produced by trying to establish the
     /// connection (i.e. calling the `connect` method).
-    type Err = ::Error;
+    type Err = Http2ConnectError;
 
     /// Establishes a network connection that can be used by HTTP/2 connections.
     fn connect(mut self) -> Result<ClientStream<Self::Stream>, Self::Err> {
