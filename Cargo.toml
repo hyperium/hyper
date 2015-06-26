@@ -41,5 +41,5 @@ env_logger = "*"
 
 [features]
 default = ["ssl"]
-ssl = ["openssl", "cookie/secure", "solicit/openssl"]
+ssl = ["openssl", "cookie/secure"]
 nightly = []
