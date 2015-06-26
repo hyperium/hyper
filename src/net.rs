@@ -444,7 +444,7 @@ mod openssl {
             //}
             let ssl = try!(Ssl::new(&self.context));
             try!(ssl.set_hostname(host));
-            SslStream::new(&self.context, stream).map_err(From::from)
+            SslStream::new_from(ssl, stream).map_err(From::from)
         }
 
         fn wrap_server(&self, stream: HttpStream) -> ::Result<Self::Stream> {
