@@ -202,9 +202,11 @@ fn _assert_send<T: Send>() {
     _assert_send::<Client>();
     _assert_send::<client::Request<net::Fresh>>();
     _assert_send::<client::Response>();
+    _assert_send::<error::Error>();
 }
 
 #[allow(unconditional_recursion)]
 fn _assert_sync<T: Sync>() {
     _assert_sync::<Client>();
+    _assert_sync::<error::Error>();
 }
