@@ -61,7 +61,7 @@ use cookie::CookieJar;
 /// # extern crate cookie;
 /// # fn main() {
 /// // extern crate cookie;
-/// 
+///
 /// use hyper::header::{Headers, SetCookie};
 /// use cookie::Cookie as CookiePair;
 ///

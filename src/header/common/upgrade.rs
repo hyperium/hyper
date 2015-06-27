@@ -41,9 +41,10 @@ header! {
     #[doc="headers.set("]
     #[doc="    Upgrade(vec!["]
     #[doc="        Protocol::new(ProtocolName::Http, Some(\"2.0\".to_owned())),"]
-    #[doc="        Protocol::new(ProtocolName::Unregistered(\"SHTTP\".to_owned()), Some(\"1.3\".to_owned())),"]
-    #[doc="        Protocol::new(ProtocolName::Unregistered(\"IRC\".to_owned()), Some(\"6.9\".to_owned())),"]
-    #[doc="        Protocol::new(ProtocolName::Unregistered(\"RTA\".to_owned()), Some(\"x11\".to_owned())),"]
+    #[doc="        Protocol::new(ProtocolName::Unregistered(\"SHTTP\".to_owned()),"]
+    #[doc="            Some(\"1.3\".to_owned())),"]
+    #[doc="        Protocol::new(ProtocolName::Unregistered(\"IRC\".to_owned()),"]
+    #[doc="            Some(\"6.9\".to_owned())),"]
     #[doc="    ])"]
     #[doc=");"]
     #[doc="```"]
@@ -56,7 +57,8 @@ header! {
             vec![b"HTTP/2.0, SHTTP/1.3, IRC/6.9, RTA/x11"],
             Some(Upgrade(vec![
                 Protocol::new(ProtocolName::Http, Some("2.0".to_owned())),
-                Protocol::new(ProtocolName::Unregistered("SHTTP".to_owned()), Some("1.3".to_owned())),
+                Protocol::new(ProtocolName::Unregistered("SHTTP".to_owned()),
+                    Some("1.3".to_owned())),
                 Protocol::new(ProtocolName::Unregistered("IRC".to_owned()), Some("6.9".to_owned())),
                 Protocol::new(ProtocolName::Unregistered("RTA".to_owned()), Some("x11".to_owned())),
                 ])));

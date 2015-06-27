@@ -83,5 +83,3 @@ fn test_uri_fromstr() {
     read("hyper.rs", RequestUri::Authority("hyper.rs".to_owned()));
     read("/", RequestUri::AbsolutePath("/".to_owned()));
 }
-
-

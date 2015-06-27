@@ -42,7 +42,7 @@
 //! use std::sync::Arc;
 //! use std::thread;
 //!
-//! // Note: an Arc is used here because `thread::spawn` creates threads that 
+//! // Note: an Arc is used here because `thread::spawn` creates threads that
 //! // can outlive the main thread, so we must use reference counting to keep
 //! // the Client alive long enough. Scoped threads could skip the Arc.
 //! let client = Arc::new(Client::new());

@@ -21,7 +21,7 @@ use header::{Header, HeaderFormat};
 /// # Example values
 /// * `Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==`
 /// * `Bearer fpKL54jvWmEGVoRdCNjG`
-/// 
+///
 /// # Examples
 /// ```
 /// use hyper::header::{Headers, Authorization};

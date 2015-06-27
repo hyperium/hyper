@@ -131,6 +131,7 @@ mod tests {
     fn test_parse() {
         assert_eq!(Connection::close(),parse_option(b"close".to_vec()));
         assert_eq!(Connection::keep_alive(),parse_option(b"keep-alive".to_vec()));
-        assert_eq!(Connection(vec![ConnectionHeader(UniCase("upgrade".to_owned()))]),parse_option(b"upgrade".to_vec()));
+        assert_eq!(Connection(vec![ConnectionHeader(UniCase("upgrade".to_owned()))]),
+            parse_option(b"upgrade".to_vec()));
     }
 }

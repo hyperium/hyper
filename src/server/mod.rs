@@ -187,7 +187,8 @@ impl<L: NetworkListener + Send + 'static> Server<L> {
     }
     /// Binds to a socket and starts handling connections with the provided
     /// number of threads.
-    pub fn handle_threads<H: Handler + 'static>(self, handler: H, threads: usize) -> ::Result<Listening> {
+    pub fn handle_threads<H: Handler + 'static>(self, handler: H,
+            threads: usize) -> ::Result<Listening> {
         with_listener(handler, self.listener, threads)
     }
 }
@@ -232,7 +233,8 @@ impl<'a, H: Handler + 'static> Worker<'a, H> {
         debug!("keep_alive loop ending for {}", addr);
     }
 
-    fn keep_alive_loop<W: Write>(&self, mut rdr: BufReader<&mut NetworkStream>, mut wrt: W, addr: SocketAddr) {
+    fn keep_alive_loop<W: Write>(&self, mut rdr: BufReader<&mut NetworkStream>,
+            mut wrt: W, addr: SocketAddr) {
         let mut keep_alive = true;
         while keep_alive {
             let req = match Request::new(&mut rdr, addr) {
@@ -277,7 +279,7 @@ impl<'a, H: Handler + 'static> Worker<'a, H> {
 
             debug!("keep_alive = {:?} for {}", keep_alive, addr);
         }
- 
+
     }
 
     fn handle_expect<W: Write>(&self, req: &Request, wrt: &mut W) -> bool {

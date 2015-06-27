@@ -81,7 +81,8 @@ impl<'a, W: Any> Response<'a, W> {
 
     fn write_head(&mut self) -> io::Result<Body> {
         debug!("writing head: {:?} {:?}", self.version, self.status);
-        try!(write!(&mut self.body, "{} {}{}{}", self.version, self.status, CR as char, LF as char));
+        try!(write!(&mut self.body, "{} {}{}{}", self.version, self.status,
+            CR as char, LF as char));
 
         if !self.headers.has::<header::Date>() {
             self.headers.set(header::Date(header::HttpDate(now_utc())));
@@ -123,7 +124,8 @@ impl<'a, W: Any> Response<'a, W> {
 impl<'a> Response<'a, Fresh> {
     /// Creates a new Response that can be used to write to a network stream.
     #[inline]
-    pub fn new(stream: &'a mut (Write + 'a), headers: &'a mut header::Headers) -> Response<'a, Fresh> {
+    pub fn new(stream: &'a mut (Write + 'a), headers: &'a mut header::Headers) ->
+            Response<'a, Fresh> {
         Response {
             status: status::StatusCode::Ok,
             version: version::HttpVersion::Http11,
@@ -168,7 +170,8 @@ impl<'a> Response<'a, Fresh> {
         stream.end()
     }
 
-    /// Consume this Response<Fresh>, writing the Headers and Status and creating a Response<Streaming>
+    /// Consume this Response<Fresh>, writing the Headers and Status and
+    /// creating a Response<Streaming>
     pub fn start(mut self) -> io::Result<Response<'a, Streaming>> {
         let body_type = try!(self.write_head());
         let (version, body, status, headers) = self.deconstruct();

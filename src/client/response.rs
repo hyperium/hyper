@@ -108,7 +108,8 @@ mod tests {
 
     #[test]
     fn test_into_inner() {
-        let message: Box<HttpMessage> = Box::new(Http11Message::with_stream(Box::new(MockStream::new())));
+        let message: Box<HttpMessage> = Box::new(
+            Http11Message::with_stream(Box::new(MockStream::new())));
         let message = message.downcast::<Http11Message>().ok().unwrap();
         let b = message.into_inner().downcast::<MockStream>().ok().unwrap();
         assert_eq!(b, Box::new(MockStream::new()));

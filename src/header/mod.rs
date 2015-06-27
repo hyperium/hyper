@@ -237,7 +237,8 @@ impl Headers {
     /// # let mut headers = Headers::new();
     /// headers.set_raw("content-length", vec![b"5".to_vec()]);
     /// ```
-    pub fn set_raw<K: Into<Cow<'static, str>> + fmt::Debug>(&mut self, name: K, value: Vec<Vec<u8>>) {
+    pub fn set_raw<K: Into<Cow<'static, str>> + fmt::Debug>(&mut self, name: K,
+            value: Vec<Vec<u8>>) {
         trace!("Headers.set_raw( {:?}, {:?} )", name, value);
         self.data.insert(UniCase(CowStr(name.into())), Item::new_raw(value));
     }
@@ -252,12 +253,14 @@ impl Headers {
 
     /// Get a reference to the header field's value, if it exists.
     pub fn get<H: Header + HeaderFormat>(&self) -> Option<&H> {
-        self.data.get(&UniCase(CowStr(Cow::Borrowed(header_name::<H>())))).and_then(Item::typed::<H>)
+        self.data.get(&UniCase(CowStr(Cow::Borrowed(header_name::<H>()))))
+        .and_then(Item::typed::<H>)
     }
 
     /// Get a mutable reference to the header field's value, if it exists.
     pub fn get_mut<H: Header + HeaderFormat>(&mut self) -> Option<&mut H> {
-        self.data.get_mut(&UniCase(CowStr(Cow::Borrowed(header_name::<H>())))).and_then(Item::typed_mut::<H>)
+        self.data.get_mut(&UniCase(CowStr(Cow::Borrowed(header_name::<H>()))))
+        .and_then(Item::typed_mut::<H>)
     }
 
     /// Returns a boolean of whether a certain header is in the map.
@@ -509,7 +512,8 @@ mod tests {
         let accept = Header::parse_header([b"text/plain".to_vec()].as_ref());
         assert_eq!(accept.ok(), Some(Accept(vec![text_plain.clone()])));
 
-        let accept = Header::parse_header([b"application/vnd.github.v3.full+json; q=0.5, text/plain".to_vec()].as_ref());
+        let bytevec = [b"application/vnd.github.v3.full+json; q=0.5, text/plain".to_vec()];
+        let accept = Header::parse_header(bytevec.as_ref());
         assert_eq!(accept.ok(), Some(Accept(vec![application_vendor, text_plain])));
     }
 
@@ -568,7 +572,8 @@ mod tests {
 
     #[test]
     fn test_different_reads() {
-        let headers = Headers::from_raw(&raw!(b"Content-Length: 10", b"Content-Type: text/plain")).unwrap();
+        let headers = Headers::from_raw(
+            &raw!(b"Content-Length: 10", b"Content-Type: text/plain")).unwrap();
         let ContentLength(_) = *headers.get::<ContentLength>().unwrap();
         let ContentType(_) = *headers.get::<ContentType>().unwrap();
     }

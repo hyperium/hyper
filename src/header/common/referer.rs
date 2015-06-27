@@ -29,7 +29,7 @@ header! {
     #[doc="let mut headers = Headers::new();"]
     #[doc="headers.set(Referer(\"http://www.example.com/index.html\".to_owned()));"]
     #[doc="```"]
-    // TODO: Use URL
+    // TODO Use URL
     (Referer, "Referer") => [String]
 
     test_referer {

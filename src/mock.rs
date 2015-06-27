@@ -144,7 +144,8 @@ macro_rules! mock_connector (
 
         impl ::net::NetworkConnector for $name {
             type Stream = ::mock::MockStream;
-            fn connect(&self, host: &str, port: u16, scheme: &str) -> $crate::Result<::mock::MockStream> {
+            fn connect(&self, host: &str, port: u16, scheme: &str)
+                    -> $crate::Result<::mock::MockStream> {
                 use std::collections::HashMap;
                 use std::io::Cursor;
                 debug!("MockStream::connect({:?}, {:?}, {:?})", host, port, scheme);

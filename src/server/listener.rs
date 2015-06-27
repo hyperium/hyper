@@ -77,4 +77,3 @@ impl<T: Send + 'static> Drop for Sentinel<T> {
         let _ = self.supervisor.send(self.value.take().unwrap());
     }
 }
-

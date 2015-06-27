@@ -29,4 +29,3 @@ impl fmt::Display for HttpVersion {
         })
     }
 }
-
