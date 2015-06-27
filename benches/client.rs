@@ -1,5 +1,5 @@
 #![deny(warnings)]
-#![feature(collections, test)]
+#![feature(vec_push_all, test)]
 extern crate hyper;
 
 extern crate test;
@@ -8,7 +8,7 @@ use std::fmt;
 use std::io::{self, Read, Write, Cursor};
 use std::net::SocketAddr;
 
-use hyper::net::{self, ContextVerifier};
+use hyper::net;
 
 static README: &'static [u8] = include_bytes!("../README.md");
 
@@ -81,10 +81,6 @@ impl net::NetworkConnector for MockConnector {
     type Stream = MockStream;
     fn connect(&self, _: &str, _: u16, _: &str) -> hyper::Result<MockStream> {
         Ok(MockStream::new())
-    }
-
-    fn set_ssl_verifier(&mut self, _verifier: ContextVerifier) {
-        // pass
     }
 }
 
