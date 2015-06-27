@@ -1,3 +1,13 @@
+### v0.6.1 (2015-06-26)
+
+
+#### Bug Fixes
+
+* **benches:** adjust to missing `set_ssl_verifier` ([eb38a11b](https://github.com/hyperium/hyper/commit/eb38a11b9ab401d6b909077f92507fa872349d13))
+* **cargo:** fix linking on OSX 10.10 ([9af2b66f](https://github.com/hyperium/hyper/commit/9af2b66fe4003706517d95ed94013af9cd365b24))
+* **client:** use Ssl instance in creation of SslStream ([1a490e25](https://github.com/hyperium/hyper/commit/1a490e25c321bdd173d47ed7a7a704039746fb29))
+
+
 ## v0.6.0 (2015-06-24)
 
 
@@ -14,7 +24,7 @@
   * add `Protocol` trait ([3417303a](https://github.com/hyperium/hyper/commit/3417303a4a9aa4809729d53f0d018338e876da51))
   * implement HttpMessage for HTTP/1.1 ([ecb713f8](https://github.com/hyperium/hyper/commit/ecb713f8494b13bdba91258b1507e8f7ce62b8d9))
   * add `HttpMessage` trait ([289fd02b](https://github.com/hyperium/hyper/commit/289fd02b55a42748cbce8de428939208713a765d))
-* **error:** add private __Nonexhaustive variant to Error ([7c0421e3](https://github.com/hyperium/hyper/commit/7c0421e3fc1d5a8b4868b57acca87abd685f3430))
+* **error:** add private `__Nonexhaustive` variant to Error ([7c0421e3](https://github.com/hyperium/hyper/commit/7c0421e3fc1d5a8b4868b57acca87abd685f3430))
 * **headers:**
   * add bearer token support ([edf6ac20](https://github.com/hyperium/hyper/commit/edf6ac2074d11694ded275807a66df3a8a8e33a6))
   * add `Range` header ([05c31998](https://github.com/hyperium/hyper/commit/05c319984630b31d18dfbfa9b7567f6c7613d7f8))
