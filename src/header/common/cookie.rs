@@ -17,7 +17,7 @@ use cookie::CookieJar;
 /// # Example values
 /// * `SID=31d4d96e407aad42`
 /// * `SID=31d4d96e407aad42; lang=en-US`
-/// 
+///
 /// # Example
 /// ```
 /// # extern crate hyper;

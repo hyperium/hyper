@@ -20,7 +20,7 @@ use header::{Header, HeaderFormat};
 /// * `null`
 /// * `*`
 /// * `http://google.com/`
-/// 
+///
 /// # Examples
 /// ```
 /// use hyper::header::{Headers, AccessControlAllowOrigin};

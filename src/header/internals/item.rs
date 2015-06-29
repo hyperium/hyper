@@ -85,7 +85,8 @@ impl Item {
 }
 
 #[inline]
-fn parse<H: Header + HeaderFormat>(raw: &Vec<Vec<u8>>) -> ::Result<Box<HeaderFormat + Send + Sync>> {
+fn parse<H: Header + HeaderFormat>(raw: &Vec<Vec<u8>>) ->
+        ::Result<Box<HeaderFormat + Send + Sync>> {
     Header::parse_header(&raw[..]).map(|h: H| {
         // FIXME: Use Type ascription
         let h: Box<HeaderFormat + Send + Sync> = Box::new(h);
@@ -101,7 +102,8 @@ impl fmt::Display for Item {
                     match from_utf8(&part[..]) {
                         Ok(s) => try!(f.write_str(s)),
                         Err(e) => {
-                            error!("raw header value is not utf8. header={:?}, error={:?}", part, e);
+                            error!("raw header value is not utf8. header={:?}, error={:?}",
+                                part, e);
                             return Err(fmt::Error);
                         }
                     }

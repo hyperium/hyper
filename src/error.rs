@@ -211,7 +211,8 @@ mod tests {
     fn test_from_ssl() {
         use openssl::ssl::error::SslError;
 
-        from!(SslError::StreamError(io::Error::new(io::ErrorKind::Other, "ssl negotiation")) => Io(..));
+        from!(SslError::StreamError(
+            io::Error::new(io::ErrorKind::Other, "ssl negotiation")) => Io(..));
         from_and_cause!(SslError::SslSessionClosed => Ssl(..));
     }
 }

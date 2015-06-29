@@ -280,7 +280,8 @@ impl Http11Protocol {
 
 struct ConnAdapter<C: NetworkConnector + Send + Sync>(C);
 
-impl<C: NetworkConnector<Stream=S> + Send + Sync, S: NetworkStream + Send> NetworkConnector for ConnAdapter<C> {
+impl<C: NetworkConnector<Stream=S> + Send + Sync, S: NetworkStream + Send>
+        NetworkConnector for ConnAdapter<C> {
     type Stream = Box<NetworkStream + Send>;
     #[inline]
     fn connect(&self, host: &str, port: u16, scheme: &str)
@@ -668,7 +669,8 @@ fn try_parse<R: Read, T: TryParse<Subject=I>, I>(rdr: &mut BufReader<R>) -> TryP
 #[doc(hidden)]
 trait TryParse {
     type Subject;
-    fn try_parse<'a>(headers: &'a mut [httparse::Header<'a>], buf: &'a [u8]) -> TryParseResult<Self::Subject>;
+    fn try_parse<'a>(headers: &'a mut [httparse::Header<'a>], buf: &'a [u8]) ->
+        TryParseResult<Self::Subject>;
 }
 
 type TryParseResult<T> = Result<httparse::Status<(Incoming<T>, usize)>, Error>;
@@ -676,7 +678,8 @@ type TryParseResult<T> = Result<httparse::Status<(Incoming<T>, usize)>, Error>;
 impl<'a> TryParse for httparse::Request<'a, 'a> {
     type Subject = (Method, RequestUri);
 
-    fn try_parse<'b>(headers: &'b mut [httparse::Header<'b>], buf: &'b [u8]) -> TryParseResult<(Method, RequestUri)> {
+    fn try_parse<'b>(headers: &'b mut [httparse::Header<'b>], buf: &'b [u8]) ->
+            TryParseResult<(Method, RequestUri)> {
         let mut req = httparse::Request::new(headers);
         Ok(match try!(req.parse(buf)) {
             httparse::Status::Complete(len) => {
@@ -697,7 +700,8 @@ impl<'a> TryParse for httparse::Request<'a, 'a> {
 impl<'a> TryParse for httparse::Response<'a, 'a> {
     type Subject = RawStatus;
 
-    fn try_parse<'b>(headers: &'b mut [httparse::Header<'b>], buf: &'b [u8]) -> TryParseResult<RawStatus> {
+    fn try_parse<'b>(headers: &'b mut [httparse::Header<'b>], buf: &'b [u8]) ->
+            TryParseResult<RawStatus> {
         let mut res = httparse::Response::new(headers);
         Ok(match try!(res.parse(buf)) {
             httparse::Status::Complete(len) => {
@@ -773,7 +777,8 @@ mod tests {
         }
 
         fn read_err(s: &str) {
-            assert_eq!(read_chunk_size(&mut s.as_bytes()).unwrap_err().kind(), io::ErrorKind::InvalidInput);
+            assert_eq!(read_chunk_size(&mut s.as_bytes()).unwrap_err().kind(),
+                io::ErrorKind::InvalidInput);
         }
 
         read("1\r\n", 1);

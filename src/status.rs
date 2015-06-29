@@ -691,7 +691,8 @@ mod tests {
         validate(404, NotFound, BadRequest, Some("Not Found"));
         validate(405, MethodNotAllowed, BadRequest, Some("Method Not Allowed"));
         validate(406, NotAcceptable, BadRequest, Some("Not Acceptable"));
-        validate(407, ProxyAuthenticationRequired, BadRequest, Some("Proxy Authentication Required"));
+        validate(407, ProxyAuthenticationRequired, BadRequest,
+            Some("Proxy Authentication Required"));
         validate(408, RequestTimeout, BadRequest, Some("Request Timeout"));
         validate(409, Conflict, BadRequest, Some("Conflict"));
         validate(410, Gone, BadRequest, Some("Gone"));
@@ -709,19 +710,22 @@ mod tests {
         validate(426, UpgradeRequired, BadRequest, Some("Upgrade Required"));
         validate(428, PreconditionRequired, BadRequest, Some("Precondition Required"));
         validate(429, TooManyRequests, BadRequest, Some("Too Many Requests"));
-        validate(431, RequestHeaderFieldsTooLarge, BadRequest, Some("Request Header Fields Too Large"));
+        validate(431, RequestHeaderFieldsTooLarge, BadRequest,
+            Some("Request Header Fields Too Large"));
 
         validate(500, InternalServerError, InternalServerError, Some("Internal Server Error"));
         validate(501, NotImplemented, InternalServerError, Some("Not Implemented"));
         validate(502, BadGateway, InternalServerError, Some("Bad Gateway"));
         validate(503, ServiceUnavailable, InternalServerError, Some("Service Unavailable"));
         validate(504, GatewayTimeout, InternalServerError, Some("Gateway Timeout"));
-        validate(505, HttpVersionNotSupported, InternalServerError, Some("HTTP Version Not Supported"));
+        validate(505, HttpVersionNotSupported, InternalServerError,
+            Some("HTTP Version Not Supported"));
         validate(506, VariantAlsoNegotiates, InternalServerError, Some("Variant Also Negotiates"));
         validate(507, InsufficientStorage, InternalServerError, Some("Insufficient Storage"));
         validate(508, LoopDetected, InternalServerError, Some("Loop Detected"));
         validate(510, NotExtended, InternalServerError, Some("Not Extended"));
-        validate(511, NetworkAuthenticationRequired, InternalServerError, Some("Network Authentication Required"));
+        validate(511, NetworkAuthenticationRequired, InternalServerError,
+            Some("Network Authentication Required"));
 
     }
 }
