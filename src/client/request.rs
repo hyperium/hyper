@@ -110,7 +110,7 @@ impl Request<Streaming> {
     ///
     /// Consumes the Request.
     pub fn send(self) -> ::Result<Response> {
-        Response::with_message(self.message)
+        Response::with_message(self.url, self.message)
     }
 }
 

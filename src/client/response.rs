@@ -1,12 +1,14 @@
 //! Client Responses
 use std::io::{self, Read};
 
+use url::Url;
+
 use header;
 use net::NetworkStream;
 use http::{self, RawStatus, ResponseHead, HttpMessage};
+use http::h1::Http11Message;
 use status;
 use version;
-use http::h1::Http11Message;
 
 /// A response for a client request to a remote server.
 #[derive(Debug)]
@@ -17,6 +19,8 @@ pub struct Response {
     pub headers: header::Headers,
     /// The HTTP version of this response from the server.
     pub version: version::HttpVersion,
+    /// The final URL of this response.
+    pub url: Url,
     status_raw: RawStatus,
     message: Box<HttpMessage>,
     is_drained: bool,
@@ -25,13 +29,13 @@ pub struct Response {
 impl Response {
 
     /// Creates a new response from a server.
-    pub fn new(stream: Box<NetworkStream + Send>) -> ::Result<Response> {
+    pub fn new(url: Url, stream: Box<NetworkStream + Send>) -> ::Result<Response> {
         trace!("Response::new");
-        Response::with_message(Box::new(Http11Message::with_stream(stream)))
+        Response::with_message(url, Box::new(Http11Message::with_stream(stream)))
     }
 
     /// Creates a new response received from the server on the given `HttpMessage`.
-    pub fn with_message(mut message: Box<HttpMessage>) -> ::Result<Response> {
+    pub fn with_message(url: Url, mut message: Box<HttpMessage>) -> ::Result<Response> {
         trace!("Response::with_message");
         let ResponseHead { headers, raw_status, version } = try!(message.get_incoming());
         let status = status::StatusCode::from_u16(raw_status.0);
@@ -42,6 +46,7 @@ impl Response {
             status: status,
             version: version,
             headers: headers,
+            url: url,
             message: message,
             status_raw: raw_status,
             is_drained: false,
@@ -89,6 +94,8 @@ impl Drop for Response {
 mod tests {
     use std::io::{self, Read};
 
+    use url::Url;
+
     use header::TransferEncoding;
     use header::Encoding;
     use http::HttpMessage;
@@ -131,7 +138,8 @@ mod tests {
             \r\n"
         );
 
-        let res = Response::new(Box::new(stream)).unwrap();
+        let url = Url::parse("http://hyper.rs").unwrap();
+        let res = Response::new(url, Box::new(stream)).unwrap();
 
         // The status line is correct?
         assert_eq!(res.status, status::StatusCode::Ok);
@@ -162,7 +170,8 @@ mod tests {
             \r\n"
         );
 
-        let res = Response::new(Box::new(stream)).unwrap();
+        let url = Url::parse("http://hyper.rs").unwrap();
+        let res = Response::new(url, Box::new(stream)).unwrap();
 
         assert!(read_to_string(res).is_err());
     }
@@ -181,7 +190,8 @@ mod tests {
             \r\n"
         );
 
-        let res = Response::new(Box::new(stream)).unwrap();
+        let url = Url::parse("http://hyper.rs").unwrap();
+        let res = Response::new(url, Box::new(stream)).unwrap();
 
         assert!(read_to_string(res).is_err());
     }
@@ -200,7 +210,8 @@ mod tests {
             \r\n"
         );
 
-        let res = Response::new(Box::new(stream)).unwrap();
+        let url = Url::parse("http://hyper.rs").unwrap();
+        let res = Response::new(url, Box::new(stream)).unwrap();
 
         assert_eq!(read_to_string(res).unwrap(), "1".to_owned());
     }
