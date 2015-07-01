@@ -1,5 +1,7 @@
 use header::{Header, HeaderFormat};
 use std::fmt::{self};
+use std::str::{from_utf8};
+use std::ascii::AsciiExt;
 
 /// `StrictTransportSecurity` header, defined in [RFC6797](https://tools.ietf.org/html/rfc6797)
 ///
@@ -10,6 +12,17 @@ use std::fmt::{self};
 /// Transport Security (HSTS).  The policy is declared by web sites via the
 /// Strict-Transport-Security HTTP response header field and/or by other means,
 /// such as user agent configuration, for example.
+///
+/// # ABNF
+///
+/// ```plain
+///      [ directive ]  *( ";" [ directive ] )
+/// 
+///      directive                 = directive-name [ "=" directive-value ]
+///      directive-name            = token
+///      directive-value           = token | quoted-string
+/// 
+/// ```
 ///
 /// # Example values
 /// * `max-age=31536000`
@@ -24,24 +37,51 @@ use std::fmt::{self};
 /// let mut headers = Headers::new();
 ///
 /// headers.set(
-///    StrictTransportSecurity(true, 31536000u64)
+///    StrictTransportSecurity::including_subdomains(31536000u64)
 /// );
 /// # }
 /// ```
 #[derive(Clone, PartialEq, Debug)]
-pub struct StrictTransportSecurity(pub bool, pub u64);
+pub struct StrictTransportSecurity {
+    /// Signals the UA that the HSTS Policy applies to this HSTS Host as well as
+    /// any subdomains of the host's domain name.
+    pub include_subdomains: bool,
+
+    /// Specifies the number of seconds, after the reception of the STS header
+    /// field, during which the UA regards the host (from whom the message was
+    /// received) as a Known HSTS Host.
+    pub max_age: u64
+}
+
+impl StrictTransportSecurity {
+    /// Create an STS header that includes subdomains
+    pub fn including_subdomains(max_age: u64) -> StrictTransportSecurity {
+        StrictTransportSecurity {
+            max_age: max_age,
+            include_subdomains: true
+        }
+    }
+
+    /// Create an STS header that excludes subdomains
+    pub fn excluding_subdomains(max_age: u64) -> StrictTransportSecurity {
+        StrictTransportSecurity {
+            max_age: max_age,
+            include_subdomains: false
+        }
+    }
+}
 
 enum StsDirective {
     IncludeSubdomains(bool),
     MaxAge(u64)
 }
 
-struct StsParser {
+struct StsParser<'a> {
     pos: usize,
-    input: Vec<u8>
+    input: &'a Vec<u8>
 }
 
-impl StsParser {
+impl<'a> StsParser<'a> {
     fn peek(&self) -> char {
         *self.input[self.pos..].iter().next().unwrap() as char
     }
@@ -56,13 +96,13 @@ impl StsParser {
         c
     }
 
-    fn pop_while<F>(&mut self, test: F) -> String where F: Fn(char) -> bool {
-        let mut result = String::new();
+    fn pop_while<F>(&mut self, test: F) -> &str where F: Fn(char) -> bool {
+        let start = self.pos;
         while !self.eof() && test(self.peek()) {
-            result.push(self.pop());
+            self.pos += 1;
         }
 
-        result
+        from_utf8(&self.input[start..self.pos]).unwrap()
     }
 
     fn pop_whitespace(&mut self) {
@@ -70,15 +110,15 @@ impl StsParser {
     }
 
     fn pop_to_sep(&mut self) {
-        self.pop_while(|c| c != ';');
+        { self.pop_while(|c| c != ';'); }
 
         if !self.eof() {
             self.pop();
         }
     }
 
-    fn parse_tokens(&mut self) -> String {
-        self.pop_whitespace();
+    fn parse_tokens(&mut self) -> &str {
+        { self.pop_whitespace(); }
 
         let result = self.pop_while(|c| match c {
             '(' | ')' | '<' | '>' | '@' | ',' | ';' | ':' | '\\' |
@@ -86,46 +126,49 @@ impl StsParser {
             _ => true
         });
 
-        self.pop_whitespace();
-
         result
     }
 
-    fn parse_directive_name(&mut self) -> String {
+    fn parse_directive_name(&mut self) -> &str {
         self.parse_tokens()
     }
 
-    fn parse_value(&mut self) -> String {
+    fn parse_value(&mut self) -> &str {
         self.parse_tokens()
     }
 
-    fn parse_quoted_string(&mut self) -> String {
-        let mut result = String::new();
+    fn parse_quoted_string(&mut self) -> &str {
         self.pop();
-
+        let start = self.pos;
+        let mut end = self.pos;
+        let mut is_escaped = false;
         loop {
-            let next = match self.pop() {
-                '\\' => self.pop(),
-                '"' => break,
-                c @ _ => c
-            };
-
-            result.push(next)
+            if self.eof() {
+                break
+            } else if is_escaped {
+                is_escaped = false;
+                self.pos += 1;
+            } else if self.peek() == '"' {
+                end = self.pos;
+                self.pop();
+                break;
+            } else {
+                is_escaped = self.peek() == '\\';
+                self.pos += 1;
+            }
         }
 
-        self.pop_whitespace();
-
-        result
+        from_utf8(&self.input[start..end]).unwrap()
     }
 
-    fn parse_directive_value(&mut self) -> Option<String> {
+    fn parse_directive_value(&mut self) -> Option<&str> {
         self.pop_whitespace();
         if self.eof() { return None }
 
         match self.peek() {
             '=' => {
                 self.pop();
-                self.pop_whitespace();
+                { self.pop_whitespace(); }
 
                 if self.eof() { return None }
 
@@ -134,39 +177,43 @@ impl StsParser {
                     _ => Some(self.parse_value())
                 };
 
-                self.pop_to_sep();
-
                 result
             }
             _ => {
-                self.pop_to_sep();
-
                 None
             }
         }
     }
 
     fn parse_directive(&mut self) -> Option<StsDirective> {
-        let directive_name = self.parse_directive_name().to_lowercase();
+        let directive_name = self.parse_directive_name().to_owned();
+        let max_age = "max-age";
+        let include_subdomains = "includesubdomains";
 
-        match &*directive_name {
-            "max-age" => {
-                match self.parse_directive_value() {
-                    Some(max_age_val) => {
-                        match max_age_val.parse::<u64>() {
-                            Ok(max_age) => Some(StsDirective::MaxAge(max_age)),
-                            _ => None
-                        }
-                    },
-                    None => None
-                }
+        let result = if directive_name.eq_ignore_ascii_case(max_age) {
+            match self.parse_directive_value() {
+                Some(max_age_val) => {
+                    match max_age_val.parse::<u64>() {
+                        Ok(max_age) => Some(StsDirective::MaxAge(max_age)),
+                        _ => None
+                    }
+                },
+                None => None
             }
-            "includesubdomains" => Some(StsDirective::IncludeSubdomains(true)),
-            _ => None
-        }
+        } else if directive_name.eq_ignore_ascii_case(include_subdomains) {
+            Some(StsDirective::IncludeSubdomains(true))
+        } else {
+            None
+        };
+
+
+        self.pop_whitespace();
+        self.pop_to_sep();
+
+        result
     }
 
-    fn parse(input: Vec<u8>) -> ::Result<StrictTransportSecurity> {
+    fn parse(input: &Vec<u8>) -> ::Result<StrictTransportSecurity> {
         let mut parser = StsParser { pos: 0, input: input };
         let mut directives = Vec::new();
 
@@ -181,8 +228,8 @@ impl StsParser {
         });
 
         match (include_subdomains, max_age) {
-            (Some(_), Some(max_age)) => Ok(StrictTransportSecurity(true, max_age)),
-            (None, Some(max_age)) => Ok(StrictTransportSecurity(false, max_age)),
+            (Some(_), Some(max_age)) => Ok(StrictTransportSecurity { include_subdomains: true, max_age: max_age }),
+            (None, Some(max_age)) => Ok(StrictTransportSecurity { include_subdomains: false, max_age: max_age }),
             _ => Err(::Error::Header)
         }
     }
@@ -195,7 +242,7 @@ impl Header for StrictTransportSecurity {
 
     fn parse_header(raw: &[Vec<u8>]) -> ::Result<StrictTransportSecurity> {
         if let Some(first_header_raw) = raw.iter().nth(0) {
-            StsParser::parse(first_header_raw.clone())
+            StsParser::parse(&first_header_raw)
         } else {
             Err(::Error::Header)
         }
@@ -204,12 +251,10 @@ impl Header for StrictTransportSecurity {
 
 impl HeaderFormat for StrictTransportSecurity {
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let &StrictTransportSecurity(include_subdomains, max_age) = self;
-
-        if include_subdomains {
-            write!(f, "max-age={}; includeSubdomains", max_age)
+        if self.include_subdomains {
+            write!(f, "max-age={}; includeSubdomains", self.max_age)
         } else {
-            write!(f, "max-age={}", max_age)
+            write!(f, "max-age={}", self.max_age)
         }
     }
 }
@@ -217,7 +262,7 @@ impl HeaderFormat for StrictTransportSecurity {
 #[test]
 fn test_parse_max_age() {
     let h = Header::parse_header(&[b"max-age=31536000".to_vec()][..]);
-    assert_eq!(h.ok(), Some(StrictTransportSecurity(false, 31536000u64)));
+    assert_eq!(h.ok(), Some(StrictTransportSecurity { include_subdomains: false, max_age: 31536000u64 }));
 }
 
 #[test]
@@ -229,19 +274,19 @@ fn test_parse_max_age_no_value() {
 #[test]
 fn test_parse_quoted_max_age() {
     let h = Header::parse_header(&[b"max-age=\"31536000\"".to_vec()][..]);
-    assert_eq!(h.ok(), Some(StrictTransportSecurity(false, 31536000u64)));
+    assert_eq!(h.ok(), Some(StrictTransportSecurity { include_subdomains: false, max_age: 31536000u64 }));
 }
 
 #[test]
 fn test_parse_spaces_max_age() {
     let h = Header::parse_header(&[b"max-age = 31536000".to_vec()][..]);
-    assert_eq!(h.ok(), Some(StrictTransportSecurity(false, 31536000u64)));
+    assert_eq!(h.ok(), Some(StrictTransportSecurity { include_subdomains: false, max_age: 31536000u64 }));
 }
 
 #[test]
 fn test_parse_include_subdomains() {
     let h = Header::parse_header(&[b"max-age=15768000 ; includeSubDomains".to_vec()][..]);
-    assert_eq!(h.ok(), Some(StrictTransportSecurity(true, 15768000u64)));
+    assert_eq!(h.ok(), Some(StrictTransportSecurity { include_subdomains: true, max_age: 15768000u64 }));
 }
 
 #[test]
