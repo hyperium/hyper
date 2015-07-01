@@ -96,7 +96,7 @@ impl<'a> StsParser<'a> {
         c
     }
 
-    fn pop_while<F>(&mut self, test: F) -> &str where F: Fn(char) -> bool {
+    fn pop_while<F>(&mut self, test: F) -> &'a str where F: Fn(char) -> bool {
         let start = self.pos;
         while !self.eof() && test(self.peek()) {
             self.pos += 1;
@@ -117,7 +117,7 @@ impl<'a> StsParser<'a> {
         }
     }
 
-    fn parse_tokens(&mut self) -> &str {
+    fn parse_tokens(&mut self) -> &'a str {
         { self.pop_whitespace(); }
 
         let result = self.pop_while(|c| match c {
@@ -129,7 +129,7 @@ impl<'a> StsParser<'a> {
         result
     }
 
-    fn parse_directive_name(&mut self) -> &str {
+    fn parse_directive_name(&mut self) -> &'a str {
         self.parse_tokens()
     }
 
@@ -186,7 +186,7 @@ impl<'a> StsParser<'a> {
     }
 
     fn parse_directive(&mut self) -> Option<StsDirective> {
-        let directive_name = self.parse_directive_name().to_owned();
+        let directive_name = self.parse_directive_name();
         let max_age = "max-age";
         let include_subdomains = "includesubdomains";
 
