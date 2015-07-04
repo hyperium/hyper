@@ -3,6 +3,7 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::io::Error as IoError;
 use std::str::Utf8Error;
+use std::string::FromUtf8Error;
 
 use httparse;
 use url;
@@ -124,6 +125,12 @@ impl From<SslError> for Error {
 impl From<Utf8Error> for Error {
     fn from(err: Utf8Error) -> Error {
         Utf8(err)
+    }
+}
+
+impl From<FromUtf8Error> for Error {
+    fn from(err: FromUtf8Error) -> Error {
+        Utf8(err.utf8_error())
     }
 }
 
