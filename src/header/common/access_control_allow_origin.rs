@@ -1,7 +1,5 @@
 use std::fmt::{self, Display};
-use std::str;
 
-use url::Url;
 use header::{Header, HeaderFormat};
 
 /// The `Access-Control-Allow-Origin` response header,
@@ -40,11 +38,10 @@ use header::{Header, HeaderFormat};
 /// ```
 /// ```
 /// use hyper::header::{Headers, AccessControlAllowOrigin};
-/// use hyper::Url;
 ///
 /// let mut headers = Headers::new();
 /// headers.set(
-///     AccessControlAllowOrigin::Value(Url::parse("http://hyper.rs").unwrap())
+///     AccessControlAllowOrigin::Value("http://hyper.rs".to_owned())
 /// );
 /// ```
 #[derive(Clone, PartialEq, Debug)]
@@ -54,7 +51,7 @@ pub enum AccessControlAllowOrigin {
     /// A hidden origin
     Null,
     /// Allow one particular origin
-    Value(Url),
+    Value(String),
 }
 
 impl Header for AccessControlAllowOrigin {
@@ -63,13 +60,15 @@ impl Header for AccessControlAllowOrigin {
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> ::Result<AccessControlAllowOrigin> {
-        if raw.len() == 1 {
-            match unsafe { &raw.get_unchecked(0)[..] } {
-                b"*" => Ok(AccessControlAllowOrigin::Any),
-                b"null" => Ok(AccessControlAllowOrigin::Null),
-                r => Ok(AccessControlAllowOrigin::Value(try!(Url::parse(try!(str::from_utf8(r))))))
-            }
-        } else { Err(::Error::Header) }
+        if raw.len() != 1 {
+            return Err(::Error::Header)
+        }
+        let value = unsafe { raw.get_unchecked(0) };
+        Ok(match &value[..] {
+            b"*" => AccessControlAllowOrigin::Any,
+            b"null" => AccessControlAllowOrigin::Null,
+            _ => AccessControlAllowOrigin::Value(try!(String::from_utf8(value.clone())))
+        })
     }
 }
 
