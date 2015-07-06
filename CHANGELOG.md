@@ -1,3 +1,31 @@
+### v0.6.2 (2015-07-06)
+
+
+#### Bug Fixes
+
+* **http:** no longer keep alive for Http1.0 if no Connection header ([ddecb262](https://github.com/hyperium/hyper/commit/ddecb262b39b90e594a95ba16c4dc8085930677e), closes [#596](https://github.com/hyperium/hyper/issues/596))
+
+
+#### Features
+
+* **client:** add url property Response ([82ed9092](https://github.com/hyperium/hyper/commit/82ed9092e30385de004912582a7838e037497c82))
+* **headers:** add strict-transport-security header ([7c2e5124](https://github.com/hyperium/hyper/commit/7c2e5124e6678a5806f980902031e6f01652d218), closes [#589](https://github.com/hyperium/hyper/issues/589))
+
+
+#### Breaking Changes
+
+* Access-Control-Allow-Origin does no longer use Url
+
+ ([ed458628](https://github.com/hyperium/hyper/commit/ed458628e54bd241b45f50fb0cf55a84ffb12205))
+* Technically a break, since `Response::new()` takes an
+  additional argument. In practice, the only place that should have been
+  creating Responses directly is inside the Client, so it shouldn't
+  break anyone. If you were creating Responses manually, you'll need to
+  pass a Url argument.
+
+ ([82ed9092](https://github.com/hyperium/hyper/commit/82ed9092e30385de004912582a7838e037497c82))
+
+
 ### v0.6.1 (2015-06-26)
 
 
