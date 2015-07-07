@@ -2,7 +2,7 @@
 
 You want to contribute? You're awesome! Don't know where to start? Check the [easy tag][].
 
-[easy tag]: https://github.com/hyperium/hyper/issues/labels/easy
+[easy tag]: https://github.com/hyperium/hyper/issues?q=label%3Aeasy+is%3Aopen
 
 When submitting a Pull Request, please have your commits follow these guidelines:
 
