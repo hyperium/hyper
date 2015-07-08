@@ -1,5 +1,4 @@
 use std::cmp;
-use std::iter;
 use std::io::{self, Read, BufRead};
 
 pub struct BufReader<R> {
@@ -21,7 +20,9 @@ impl<R: Read> BufReader<R> {
     #[inline]
     pub fn with_capacity(rdr: R, cap: usize) -> BufReader<R> {
         let mut buf = Vec::with_capacity(cap);
-        buf.extend(iter::repeat(0).take(cap));
+        unsafe {
+            grow_zerofill(&mut buf, cap);
+        }
         BufReader {
             inner: rdr,
             buf: buf,
@@ -71,9 +72,17 @@ impl<R: Read> BufReader<R> {
             self.buf.reserve(cmp::min(cap * 4, MAX_BUFFER_SIZE) - cap);
             let new = self.buf.capacity() - self.buf.len();
             trace!("reserved {}", new);
-            self.buf.extend(iter::repeat(0).take(new));
+            unsafe { grow_zerofill(&mut self.buf, new) }
         }
     }
+}
+
+#[inline]
+unsafe fn grow_zerofill(buf: &mut Vec<u8>, additional: usize) {
+    use std::ptr;
+    let len = buf.len();
+    buf.set_len(len + additional);
+    ptr::write_bytes(buf.as_mut_ptr(), 0, buf.len());
 }
 
 impl<R: Read> Read for BufReader<R> {
