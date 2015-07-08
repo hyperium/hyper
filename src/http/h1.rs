@@ -732,10 +732,11 @@ pub struct Incoming<S> {
     pub headers: Headers
 }
 
-pub const SP: u8 = b' ';
+/// The `\r` byte.
 pub const CR: u8 = b'\r';
+/// The `\n` byte.
 pub const LF: u8 = b'\n';
-pub const STAR: u8 = b'*';
+/// The bytes `\r\n`.
 pub const LINE_ENDING: &'static str = "\r\n";
 
 #[cfg(test)]
