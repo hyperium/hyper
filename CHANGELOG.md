@@ -1,3 +1,11 @@
+### v0.6.3 (2015-07-08)
+
+
+#### Bug Fixes
+
+* **lint:** change deny(missing_docs) to only apply for tests ([5994a6f8](https://github.com/hyperium/hyper/commit/5994a6f8b4e48c9ab766e425dba210bdac59b00b), closes [#600](https://github.com/hyperium/hyper/issues/600))
+
+
 ### v0.6.2 (2015-07-06)
 
 
