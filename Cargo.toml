@@ -36,10 +36,16 @@ optional = true
 version = "0.4"
 default-features = false
 
+[dependencies.serde]
+version = "*"
+optional = true
+
 [dev-dependencies]
 env_logger = "*"
 
 [features]
 default = ["ssl"]
 ssl = ["openssl", "cookie/secure"]
+serde-serialization = ["serde"]
 nightly = []
+
