@@ -6,110 +6,172 @@ header! {
     #[doc="[RFC7233](http://tools.ietf.org/html/rfc7233#section-4.2)"]
     (ContentRange, "Content-Range") => [ContentRangeSpec]
 
-    test_range {
-        test_header!(test1, vec![b"bytes 0-499/500"],
-            Some(ContentRange(ContentRangeSpec {
+    test_content_range {
+        test_header!(test_bytes,
+            vec![b"bytes 0-499/500"],
+            Some(ContentRange(ContentRangeSpec::Bytes {
                 range: Some((0, 499)),
                 instance_length: Some(500)
             })));
-        test_header!(test2, vec![b"bytes 0-499/*"],
-            Some(ContentRange(ContentRangeSpec {
+
+        test_header!(test_bytes_unknown_len,
+            vec![b"bytes 0-499/*"],
+            Some(ContentRange(ContentRangeSpec::Bytes {
                 range: Some((0, 499)),
                 instance_length: None
             })));
-        test_header!(test3, vec![b"bytes */500"],
-            Some(ContentRange(ContentRangeSpec {
+
+        test_header!(test_bytes_unknown_range,
+            vec![b"bytes */500"],
+            Some(ContentRange(ContentRangeSpec::Bytes {
                 range: None,
                 instance_length: Some(500)
             })));
-        test_header!(test4, vec![b"bytes 0-499"], None::<ContentRange>);
-        test_header!(test5, vec![b"bytes"], None::<ContentRange>);
-        test_header!(test6, vec![b"bytes 499-0/500"], None::<ContentRange>);
-        test_header!(test7, vec![b""], None::<ContentRange>);
+
+        test_header!(test_unregistered,
+            vec![b"seconds 1-2"],
+            Some(ContentRange(ContentRangeSpec::Unregistered {
+                unit: "seconds".to_string(),
+                resp: "1-2".to_string()
+            })));
+
+        test_header!(test_no_len,
+            vec![b"bytes 0-499"],
+            None::<ContentRange>);
+
+        test_header!(test_only_unit,
+            vec![b"bytes"],
+            None::<ContentRange>);
+
+        test_header!(test_end_less_than_start,
+            vec![b"bytes 499-0/500"],
+            None::<ContentRange>);
+
+        test_header!(test_blank,
+            vec![b""],
+            None::<ContentRange>);
     }
 }
 
 
-/// Content Range, described in [RFC7233](https://tools.ietf.org/html/rfc7233#section-4.2)
+/// Content-Range, described in [RFC7233](https://tools.ietf.org/html/rfc7233#section-4.2)
 ///
 /// # ABNF
 /// ```plain
-/// Range = "Content-Range" ":" content-range-spec
-/// content-range-spec      = byte-content-range-spec
-/// byte-content-range-spec = bytes-unit SP
-///                           byte-range-resp-spec "/"
-///                           ( instance-length | "*" )
-/// byte-range-resp-spec = (first-byte-pos "-" last-byte-pos)
-///                                | "*"
-/// instance-length           = 1*DIGIT
+/// Content-Range       = byte-content-range
+///                     / other-content-range
+///
+/// byte-content-range  = bytes-unit SP
+///                       ( byte-range-resp / unsatisfied-range )
+///
+/// byte-range-resp     = byte-range "/" ( complete-length / "*" )
+/// byte-range          = first-byte-pos "-" last-byte-pos
+/// unsatisfied-range   = "*/" complete-length
+///
+/// complete-length     = 1*DIGIT
+///
+/// other-content-range = other-range-unit SP other-range-resp
+/// other-range-resp    = *CHAR
 /// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ContentRangeSpec {
-    /// First and last bytes of the range
-    pub range: Option<(u64, u64)>,
+#[derive(PartialEq, Clone, Debug)]
+pub enum ContentRangeSpec {
+    /// Byte range
+    Bytes {
+        /// First and last bytes of the range, omitted if request could not be
+        /// satisfied
+        range: Option<(u64, u64)>,
 
-    /// Total length of the instance, can be omitted if unknown
-    pub instance_length: Option<u64>,
+        /// Total length of the instance, can be omitted if unknown
+        instance_length: Option<u64>
+    },
+
+    /// Custom range, with unit not registered at IANA
+    Unregistered {
+        /// other-range-unit
+        unit: String,
+
+        /// other-range-resp
+        resp: String
+    }
 }
 
 impl FromStr for ContentRangeSpec {
-    type Err = ();
-    fn from_str(s: &str) -> Result<Self, ()> {
-        let prefix = "bytes ";
-        if !s.starts_with(prefix) {
-            return Err(());
-        }
-        let s = &s[prefix.len()..];
+    type Err = ::Error;
 
-        let parts = s.split('/').collect::<Vec<_>>();
-        if parts.len() != 2 {
-            return Err(());
-        }
+    fn from_str(s: &str) -> ::Result<Self> {
+        let mut iter = s.splitn(2, ' ');
+        let res = match (iter.next(), iter.next()) {
+            (Some("bytes"), Some(resp)) => {
+                let mut iter = resp.split('/');
+                let (range, instance_length) = match (iter.next(), iter.next()) {
+                    (Some(a), Some(b)) => (a, b),
+                    _ => return Err(::Error::Header)
+                };
 
-        let instance_length = if parts[1] == "*" {
-            None
-        } else {
-            Some(try!(parts[1].parse().map_err(|_| ())))
-        };
+                let instance_length = if instance_length == "*" {
+                    None
+                } else {
+                    Some(try!(instance_length.parse().map_err(|_| ::Error::Header)))
+                };
 
-        let range = if parts[0] == "*" {
-            None
-        } else {
-            let range = parts[0].split('-').collect::<Vec<_>>();
-            if range.len() != 2 {
-                return Err(());
+                let range = if range == "*" {
+                    None
+                } else {
+                    let mut iter = range.split('-');
+                    let (first_byte, last_byte) = match (iter.next(), iter.next()) {
+                        (Some(a), Some(b)) => (a, b),
+                        _ => return Err(::Error::Header)
+                    };
+                    let first_byte = try!(first_byte.parse().map_err(|_| ::Error::Header));
+                    let last_byte = try!(last_byte.parse().map_err(|_| ::Error::Header));
+                    if last_byte < first_byte {
+                        return Err(::Error::Header);
+                    }
+                    Some((first_byte, last_byte))
+                };
+
+                ContentRangeSpec::Bytes {
+                    range: range,
+                    instance_length: instance_length
+                }
             }
-            let first_byte = try!(range[0].parse().map_err(|_| ()));
-            let last_byte = try!(range[1].parse().map_err(|_| ()));
-            if last_byte < first_byte {
-                return Err(());
+            (Some(unit), Some(resp)) => {
+                ContentRangeSpec::Unregistered {
+                    unit: unit.to_string(),
+                    resp: resp.to_string()
+                }
             }
-            Some((first_byte, last_byte))
+            _ => return Err(::Error::Header)
         };
-
-        Ok(ContentRangeSpec {
-            range: range,
-            instance_length: instance_length
-        })
+        Ok(res)
     }
 }
 
 impl Display for ContentRangeSpec {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-	try!(f.write_str("bytes "));
-        match self.range {
-            Some((first_byte, last_byte)) => {
-                try!(f.write_fmt(format_args!("{}-{}", first_byte, last_byte)));
-            },
-            None => {
-                try!(f.write_str("*"));
+        match *self {
+            ContentRangeSpec::Bytes { range, instance_length } => {
+	        try!(f.write_str("bytes "));
+                match range {
+                    Some((first_byte, last_byte)) => {
+                        try!(f.write_fmt(format_args!("{}-{}", first_byte, last_byte)));
+                    },
+                    None => {
+                        try!(f.write_str("*"));
+                    }
+                };
+	        try!(f.write_str("/"));
+	        if let Some(v) = instance_length {
+	            f.write_fmt(format_args!("{}", v))
+	        } else {
+	            f.write_str("*")
+	        }
             }
-        };
-	try!(f.write_str("/"));
-	if let Some(v) = self.instance_length {
-	    f.write_fmt(format_args!("{}", v))
-	} else {
-	    f.write_str("*")
-	}
+            ContentRangeSpec::Unregistered { ref unit, ref resp } => {
+                try!(f.write_str(&unit));
+                try!(f.write_str(" "));
+                f.write_str(&resp)
+            }
+        }
     }
 }
