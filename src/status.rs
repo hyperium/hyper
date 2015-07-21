@@ -1,6 +1,7 @@
 //! HTTP status codes
 use std::fmt;
 use std::cmp::Ordering;
+use std::hash::{Hash, Hasher};
 
 // shamelessly lifted from Teepee. I tried a few schemes, this really
 // does seem like the best. Improved scheme to support arbitrary status codes.
@@ -530,6 +531,12 @@ impl Ord for StatusCode {
         } else {
             Ordering::Equal
         }
+    }
+}
+
+impl Hash for StatusCode {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.to_u16().hash(state);
     }
 }
 
