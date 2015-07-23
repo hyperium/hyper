@@ -1,3 +1,26 @@
+### v0.6.5 (2015-07-23)
+
+
+#### Bug Fixes
+
+* **tests:** iter.connect() is now iter.join() ([d2e8b5dc](https://github.com/hyperium/hyper/commit/d2e8b5dc3d2e6f0386656f4a5926acb848d4a61d))
+
+
+#### Features
+
+* **status:**
+  * implement `Hash` for `StatusCode` ([d84f291a](https://github.com/hyperium/hyper/commit/d84f291abc0a64e270143eee943a76a7aebec029))
+  * implement `Hash` for `StatusCode` ([aa85f609](https://github.com/hyperium/hyper/commit/aa85f609b5136cb2a9b23408a2b125c6a8a20f37))
+
+
+### v0.6.4 (2015-07-23)
+
+
+#### Features
+
+* **http:** add optional serialization of common types via `serde` ([87de1b77](https://github.com/hyperium/hyper/commit/87de1b77bcd5533c70a6ab9379121001acc5d366))
+
+
 ### v0.6.3 (2015-07-08)
 
 
