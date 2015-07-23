@@ -128,6 +128,7 @@
 //! implement `Reader` and can be read to get the data out of a `Response`.
 //!
 
+extern crate net2;
 extern crate rustc_serialize as serialize;
 extern crate time;
 extern crate url;

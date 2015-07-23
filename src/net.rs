@@ -5,6 +5,8 @@ use std::io::{self, ErrorKind, Read, Write};
 use std::net::{SocketAddr, ToSocketAddrs, TcpStream, TcpListener, Shutdown};
 use std::mem;
 
+use net2::TcpBuilder;
+
 #[cfg(feature = "openssl")]
 pub use self::openssl::Openssl;
 
@@ -149,9 +151,12 @@ impl HttpListener {
 
     /// Start listening to an address over HTTP.
     pub fn new<To: ToSocketAddrs>(addr: To) -> ::Result<HttpListener> {
-        Ok(HttpListener(try!(TcpListener::bind(addr))))
+        HttpListener::from_builder(try!(try!(TcpBuilder::new_v4()).bind(addr)))
     }
 
+    pub fn from_builder(builder: &TcpBuilder) -> ::Result<HttpListener> {
+        Ok(HttpListener(try!(builder.listen(128))))
+    }
 }
 
 impl NetworkListener for HttpListener {
@@ -241,11 +246,59 @@ impl NetworkConnector for HttpConnector {
     type Stream = HttpStream;
 
     fn connect(&self, host: &str, port: u16, scheme: &str) -> ::Result<HttpStream> {
-        let addr = &(host, port);
+        TcpBuilderConnector::default().connect(host, port, scheme)
+    }
+}
+
+impl<F> NetworkConnector for F where F: Fn(&str, u16, &str) -> ::Result<HttpStream> {
+    type Stream = HttpStream;
+
+    fn connect(&self, host: &str, port: u16, scheme: &str) -> ::Result<HttpStream> {
+        (*self)(host, port, scheme)
+    }
+}
+
+pub struct TcpBuilderConnector<F: Fn(&TcpBuilder) -> io::Result<()>> {
+    ipv6: bool,
+    pub callback: F
+}
+
+impl<F: Fn(&TcpBuilder) -> io::Result<()>> TcpBuilderConnector<F> {
+    pub fn new_v4(f: F) -> Self {
+        TcpBuilderConnector{ ipv6: false, callback: f }
+    }
+
+    pub fn new_v6(f: F) -> Self {
+        TcpBuilderConnector{ ipv6: true, callback: f }
+    }
+}
+
+fn default_callback(_: &TcpBuilder) -> io::Result<()> { Ok(())}
+
+impl Default for TcpBuilderConnector<fn(&TcpBuilder) -> io::Result<()>> {
+    fn default() -> Self {
+        TcpBuilderConnector {
+            ipv6: false,
+            callback: default_callback as fn(&TcpBuilder) -> io::Result<()>
+        }
+    }
+}
+
+impl<F: Fn(&TcpBuilder) -> io::Result<()>> NetworkConnector for TcpBuilderConnector<F> {
+    type Stream = HttpStream;
+
+    fn connect(&self, host: &str, port: u16, scheme: &str) -> ::Result<HttpStream> {
+        let remote_addr = &(host, port);
         Ok(try!(match scheme {
             "http" => {
                 debug!("http scheme");
-                Ok(HttpStream(try!(TcpStream::connect(addr))))
+                let builder = if self.ipv6 {
+                    try!(TcpBuilder::new_v6())
+                } else {
+                    try!(TcpBuilder::new_v4())
+                };
+                try!((self.callback)(&builder));
+                Ok(HttpStream(try!(builder.connect(remote_addr))))
             },
             _ => {
                 Err(io::Error::new(io::ErrorKind::InvalidInput,
@@ -254,7 +307,6 @@ impl NetworkConnector for HttpConnector {
         }))
     }
 }
-
 
 /// An abstraction to allow any SSL implementation to be used with HttpsStreams.
 pub trait Ssl {
