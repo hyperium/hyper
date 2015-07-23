@@ -202,6 +202,20 @@ impl Write for HttpStream {
     }
 }
 
+#[cfg(windows)]
+impl ::std::os::windows::io::AsRawSocket for HttpStream {
+    fn as_raw_socket(&self) -> ::std::os::windows::io::RawSocket {
+        self.0.as_raw_socket()
+    }
+}
+
+#[cfg(unix)]
+impl ::std::os::unix::io::AsRawFd for HttpStream {
+    fn as_raw_fd(&self) -> i32 {
+        self.0.as_raw_fd()
+    }
+}
+
 impl NetworkStream for HttpStream {
     #[inline]
     fn peer_addr(&mut self) -> io::Result<SocketAddr> {
@@ -439,16 +453,13 @@ mod openssl {
         type Stream = SslStream<HttpStream>;
 
         fn wrap_client(&self, stream: HttpStream, host: &str) -> ::Result<Self::Stream> {
-            //if let Some(ref verifier) = self.verifier {
-            //    verifier(&mut context);
-            //}
             let ssl = try!(Ssl::new(&self.context));
             try!(ssl.set_hostname(host));
-            SslStream::new_from(ssl, stream).map_err(From::from)
+            SslStream::connect(ssl, stream).map_err(From::from)
         }
 
         fn wrap_server(&self, stream: HttpStream) -> ::Result<Self::Stream> {
-            match SslStream::new_server(&self.context, stream) {
+            match SslStream::accept(&*self.context, stream) {
                 Ok(ssl_stream) => Ok(ssl_stream),
                 Err(SslIoError(e)) => {
                     Err(io::Error::new(io::ErrorKind::ConnectionAborted, e).into())
