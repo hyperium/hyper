@@ -661,9 +661,10 @@ mod tests {
         // hashmap's iterators have arbitrary order, so we must sort first
         let mut pieces = s.split("\r\n").collect::<Vec<&str>>();
         pieces.sort();
-        assert_eq!(pieces.len(), 2);
+        assert_eq!(pieces.len(), 3);
         assert_eq!(pieces[0], "Host: foo.bar");
         assert_eq!(pieces[1], "Content-Length: 15");
+        assert_eq!(pieces[2], ""); // trailing \r\n
     }
 
     #[test]
