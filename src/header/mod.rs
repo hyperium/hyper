@@ -382,9 +382,7 @@ impl Deserialize for Headers {
             }
         }
 
-        let result = Headers::new();
-        try!(deserializer.visit_map(HeadersVisitor));
-        Ok(result)
+        deserializer.visit_map(HeadersVisitor)
     }
 }
 
