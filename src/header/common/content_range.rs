@@ -50,6 +50,19 @@ header! {
         test_header!(test_blank,
             vec![b""],
             None::<ContentRange>);
+
+        test_header!(test_bytes_many_spaces,
+            vec![b"bytes 1-2/500 3"],
+            None::<ContentRange>);
+
+        test_header!(test_bytes_many_slashes,
+            vec![b"bytes 1-2/500/600"],
+            None::<ContentRange>);
+
+        test_header!(test_bytes_many_dashes,
+            vec![b"bytes 1-2-3/500"],
+            None::<ContentRange>);
+
     }
 }
 
@@ -95,18 +108,21 @@ pub enum ContentRangeSpec {
     }
 }
 
+fn split_in_two<'a>(s: &'a str, separator: char) -> Option<(&'a str, &'a str)> {
+    let mut iter = s.splitn(2, separator);
+    match (iter.next(), iter.next()) {
+        (Some(a), Some(b)) => Some((a, b)),
+        _ => None
+    }
+}
+
 impl FromStr for ContentRangeSpec {
     type Err = ::Error;
 
     fn from_str(s: &str) -> ::Result<Self> {
-        let mut iter = s.splitn(2, ' ');
-        let res = match (iter.next(), iter.next()) {
-            (Some("bytes"), Some(resp)) => {
-                let mut iter = resp.split('/');
-                let (range, instance_length) = match (iter.next(), iter.next()) {
-                    (Some(a), Some(b)) => (a, b),
-                    _ => return Err(::Error::Header)
-                };
+        let res = match split_in_two(s, ' ') {
+            Some(("bytes", resp)) => {
+                let (range, instance_length) = try!(split_in_two(resp, '/').ok_or(::Error::Header));
 
                 let instance_length = if instance_length == "*" {
                     None
@@ -117,11 +133,7 @@ impl FromStr for ContentRangeSpec {
                 let range = if range == "*" {
                     None
                 } else {
-                    let mut iter = range.split('-');
-                    let (first_byte, last_byte) = match (iter.next(), iter.next()) {
-                        (Some(a), Some(b)) => (a, b),
-                        _ => return Err(::Error::Header)
-                    };
+                    let (first_byte, last_byte) = try!(split_in_two(range, '-').ok_or(::Error::Header));
                     let first_byte = try!(first_byte.parse().map_err(|_| ::Error::Header));
                     let last_byte = try!(last_byte.parse().map_err(|_| ::Error::Header));
                     if last_byte < first_byte {
@@ -135,7 +147,7 @@ impl FromStr for ContentRangeSpec {
                     instance_length: instance_length
                 }
             }
-            (Some(unit), Some(resp)) => {
+            Some((unit, resp)) => {
                 ContentRangeSpec::Unregistered {
                     unit: unit.to_string(),
                     resp: resp.to_string()
