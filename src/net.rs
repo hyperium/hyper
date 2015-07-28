@@ -255,6 +255,34 @@ impl NetworkConnector for HttpConnector {
     }
 }
 
+/// A closure as a connector used to generate TcpStreams per request
+///
+/// # Example
+/// 
+/// Basic example:
+/// 
+/// ```norun
+/// Client::with_connector(|addr: &str, port: u16, scheme: &str| {
+///     TcpStream::connect(&(addr, port))
+/// });
+/// ```
+/// 
+/// Example using TcpBuilder from the net2 crate if you want to configure your source socket:
+/// 
+/// ```norun
+/// Client::with_connector(|addr: &str, port: u16, scheme: &str| {
+///     let b = try!(TcpBuilder::new_v4());
+///     try!(b.bind("127.0.0.1:0"));
+///     b.connect(&(addr, port))
+/// });
+/// ```
+impl<F> NetworkConnector for F where F: Fn(&str, u16, &str) -> io::Result<TcpStream> {
+    type Stream = HttpStream;
+
+    fn connect(&self, host: &str, port: u16, scheme: &str) -> ::Result<HttpStream> {
+        Ok(HttpStream(try!((*self)(host, port, scheme))))
+    }
+}
 
 /// An abstraction to allow any SSL implementation to be used with HttpsStreams.
 pub trait Ssl {
