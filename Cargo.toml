@@ -47,5 +47,5 @@ env_logger = "*"
 default = ["ssl"]
 ssl = ["openssl", "cookie/secure"]
 serde-serialization = ["serde"]
-nightly = []
-
+timeouts = []
+nightly = ["timeouts"]

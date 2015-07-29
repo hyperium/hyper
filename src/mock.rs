@@ -4,6 +4,10 @@ use std::io::{self, Read, Write, Cursor};
 use std::cell::RefCell;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
+#[cfg(feature = "timeouts")]
+use std::time::Duration;
+#[cfg(feature = "timeouts")]
+use std::cell::Cell;
 
 use solicit::http::HttpScheme;
 use solicit::http::transport::TransportStream;
@@ -13,18 +17,14 @@ use solicit::http::connection::{HttpConnection, EndStream, DataChunk};
 use header::Headers;
 use net::{NetworkStream, NetworkConnector};
 
+#[derive(Clone)]
 pub struct MockStream {
     pub read: Cursor<Vec<u8>>,
     pub write: Vec<u8>,
-}
-
-impl Clone for MockStream {
-    fn clone(&self) -> MockStream {
-        MockStream {
-            read: Cursor::new(self.read.get_ref().clone()),
-            write: self.write.clone()
-        }
-    }
+    #[cfg(feature = "timeouts")]
+    pub read_timeout: Cell<Option<Duration>>,
+    #[cfg(feature = "timeouts")]
+    pub write_timeout: Cell<Option<Duration>>
 }
 
 impl fmt::Debug for MockStream {
@@ -41,16 +41,24 @@ impl PartialEq for MockStream {
 
 impl MockStream {
     pub fn new() -> MockStream {
-        MockStream {
-            read: Cursor::new(vec![]),
-            write: vec![],
-        }
+        MockStream::with_input(b"")
     }
 
+    #[cfg(not(feature = "timeouts"))]
     pub fn with_input(input: &[u8]) -> MockStream {
         MockStream {
             read: Cursor::new(input.to_vec()),
             write: vec![]
+        }
+    }
+
+    #[cfg(feature = "timeouts")]
+    pub fn with_input(input: &[u8]) -> MockStream {
+        MockStream {
+            read: Cursor::new(input.to_vec()),
+            write: vec![],
+            read_timeout: Cell::new(None),
+            write_timeout: Cell::new(None),
         }
     }
 }
@@ -74,6 +82,18 @@ impl Write for MockStream {
 impl NetworkStream for MockStream {
     fn peer_addr(&mut self) -> io::Result<SocketAddr> {
         Ok("127.0.0.1:1337".parse().unwrap())
+    }
+
+    #[cfg(feature = "timeouts")]
+    fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
+        self.read_timeout.set(dur);
+        Ok(())
+    }
+
+    #[cfg(feature = "timeouts")]
+    fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
+        self.write_timeout.set(dur);
+        Ok(())
     }
 }
 
@@ -114,6 +134,16 @@ impl NetworkStream for CloneableMockStream {
     fn peer_addr(&mut self) -> io::Result<SocketAddr> {
         self.inner.lock().unwrap().peer_addr()
     }
+
+    #[cfg(feature = "timeouts")]
+    fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
+        self.inner.lock().unwrap().set_read_timeout(dur)
+    }
+
+    #[cfg(feature = "timeouts")]
+    fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
+        self.inner.lock().unwrap().set_write_timeout(dur)
+    }
 }
 
 impl CloneableMockStream {
@@ -147,7 +177,6 @@ macro_rules! mock_connector (
             fn connect(&self, host: &str, port: u16, scheme: &str)
                     -> $crate::Result<::mock::MockStream> {
                 use std::collections::HashMap;
-                use std::io::Cursor;
                 debug!("MockStream::connect({:?}, {:?}, {:?})", host, port, scheme);
                 let mut map = HashMap::new();
                 $(map.insert($url, $res);)*
@@ -156,10 +185,7 @@ macro_rules! mock_connector (
                 let key = format!("{}://{}", scheme, host);
                 // ignore port for now
                 match map.get(&*key) {
-                    Some(&res) => Ok($crate::mock::MockStream {
-                        write: vec![],
-                        read: Cursor::new(res.to_owned().into_bytes()),
-                    }),
+                    Some(&res) => Ok($crate::mock::MockStream::with_input(res.as_bytes())),
                     None => panic!("{:?} doesn't know url {}", stringify!($name), key)
                 }
             }

@@ -4,6 +4,8 @@ use std::io::{self, Write, Read, Cursor};
 use std::net::Shutdown;
 use std::ascii::AsciiExt;
 use std::mem;
+#[cfg(feature = "timeouts")]
+use std::time::Duration;
 
 use http::{
     Protocol,
@@ -398,6 +400,19 @@ impl<S> HttpMessage for Http2Message<S> where S: CloneableStream {
         Ok(head)
     }
 
+    #[cfg(feature = "timeouts")]
+    #[inline]
+    fn set_read_timeout(&self, _dur: Option<Duration>) -> io::Result<()> {
+        Ok(())
+    }
+
+    #[cfg(feature = "timeouts")]
+    #[inline]
+    fn set_write_timeout(&self, _dur: Option<Duration>) -> io::Result<()> {
+        Ok(())
+    }
+
+    #[inline]
     fn close_connection(&mut self) -> ::Result<()> {
         Ok(())
     }

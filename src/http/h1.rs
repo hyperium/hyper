@@ -4,6 +4,8 @@ use std::cmp::min;
 use std::fmt;
 use std::io::{self, Write, BufWriter, BufRead, Read};
 use std::net::Shutdown;
+#[cfg(feature = "timeouts")]
+use std::time::Duration;
 
 use httparse;
 
@@ -192,6 +194,19 @@ impl HttpMessage for Http11Message {
         })
     }
 
+    #[cfg(feature = "timeouts")]
+    #[inline]
+    fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
+        self.get_ref().set_read_timeout(dur)
+    }
+
+    #[cfg(feature = "timeouts")]
+    #[inline]
+    fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
+        self.get_ref().set_write_timeout(dur)
+    }
+
+    #[inline]
     fn close_connection(&mut self) -> ::Result<()> {
         try!(self.get_mut().close(Shutdown::Both));
         Ok(())
@@ -214,13 +229,27 @@ impl Http11Message {
 
     /// Gets a mutable reference to the underlying `NetworkStream`, regardless of the state of the
     /// `Http11Message`.
-    pub fn get_mut(&mut self) -> &mut Box<NetworkStream + Send> {
+    pub fn get_ref(&self) -> &(NetworkStream + Send) {
         if self.stream.is_some() {
-            self.stream.as_mut().unwrap()
+            &**self.stream.as_ref().unwrap()
         } else if self.writer.is_some() {
-            self.writer.as_mut().unwrap().get_mut().get_mut()
+            &**self.writer.as_ref().unwrap().get_ref().get_ref()
         } else if self.reader.is_some() {
-            self.reader.as_mut().unwrap().get_mut().get_mut()
+            &**self.reader.as_ref().unwrap().get_ref().get_ref()
+        } else {
+            panic!("Http11Message lost its underlying stream somehow");
+        }
+    }
+
+    /// Gets a mutable reference to the underlying `NetworkStream`, regardless of the state of the
+    /// `Http11Message`.
+    pub fn get_mut(&mut self) -> &mut (NetworkStream + Send) {
+        if self.stream.is_some() {
+            &mut **self.stream.as_mut().unwrap()
+        } else if self.writer.is_some() {
+            &mut **self.writer.as_mut().unwrap().get_mut().get_mut()
+        } else if self.reader.is_some() {
+            &mut **self.reader.as_mut().unwrap().get_mut().get_mut()
         } else {
             panic!("Http11Message lost its underlying stream somehow");
         }
@@ -341,6 +370,16 @@ impl<R: Read> HttpReader<R> {
             ChunkedReader(r, _) => r,
             EofReader(r) => r,
             EmptyReader(r) => r,
+        }
+    }
+
+    /// Gets a borrowed reference to the underlying Reader.
+    pub fn get_ref(&self) -> &R {
+        match *self {
+            SizedReader(ref r, _) => r,
+            ChunkedReader(ref r, _) => r,
+            EofReader(ref r) => r,
+            EmptyReader(ref r) => r,
         }
     }
 

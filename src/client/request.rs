@@ -2,6 +2,9 @@
 use std::marker::PhantomData;
 use std::io::{self, Write};
 
+#[cfg(feature = "timeouts")]
+use std::time::Duration;
+
 use url::Url;
 
 use method::{self, Method};
@@ -39,6 +42,20 @@ impl<W> Request<W> {
     /// Read the Request method.
     #[inline]
     pub fn method(&self) -> method::Method { self.method.clone() }
+
+    /// Set the write timeout.
+    #[cfg(feature = "timeouts")]
+    #[inline]
+    pub fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
+        self.message.set_write_timeout(dur)
+    }
+
+    /// Set the read timeout.
+    #[cfg(feature = "timeouts")]
+    #[inline]
+    pub fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
+        self.message.set_read_timeout(dur)
+    }
 }
 
 impl Request<Fresh> {

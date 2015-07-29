@@ -8,6 +8,9 @@ use std::mem;
 #[cfg(feature = "openssl")]
 pub use self::openssl::Openssl;
 
+#[cfg(feature = "timeouts")]
+use std::time::Duration;
+
 use typeable::Typeable;
 use traitobject;
 
@@ -21,17 +24,12 @@ pub enum Streaming {}
 pub trait NetworkListener: Clone {
     /// The stream produced for each connection.
     type Stream: NetworkStream + Send + Clone;
-    /// Listens on a socket.
-    //fn listen<To: ToSocketAddrs>(&mut self, addr: To) -> io::Result<Self::Acceptor>;
 
     /// Returns an iterator of streams.
     fn accept(&mut self) -> ::Result<Self::Stream>;
 
     /// Get the address this Listener ended up listening on.
     fn local_addr(&mut self) -> io::Result<SocketAddr>;
-
-    /// Closes the Acceptor, so no more incoming connections will be handled.
-//    fn close(&mut self) -> io::Result<()>;
 
     /// Returns an iterator over incoming connections.
     fn incoming(&mut self) -> NetworkConnections<Self> {
@@ -53,6 +51,12 @@ impl<'a, N: NetworkListener + 'a> Iterator for NetworkConnections<'a, N> {
 pub trait NetworkStream: Read + Write + Any + Send + Typeable {
     /// Get the remote address of the underlying connection.
     fn peer_addr(&mut self) -> io::Result<SocketAddr>;
+    /// Set the maximum time to wait for a read to complete.
+    #[cfg(feature = "timeouts")]
+    fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()>;
+    /// Set the maximum time to wait for a write to complete.
+    #[cfg(feature = "timeouts")]
+    fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()>;
     /// This will be called when Stream should no longer be kept alive.
     #[inline]
     fn close(&mut self, _how: Shutdown) -> io::Result<()> {
@@ -222,6 +226,18 @@ impl NetworkStream for HttpStream {
             self.0.peer_addr()
     }
 
+    #[cfg(feature = "timeouts")]
+    #[inline]
+    fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
+        self.0.set_read_timeout(dur)
+    }
+
+    #[cfg(feature = "timeouts")]
+    #[inline]
+    fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
+        self.0.set_write_timeout(dur)
+    }
+
     #[inline]
     fn close(&mut self, how: Shutdown) -> io::Result<()> {
         match self.0.shutdown(how) {
@@ -340,6 +356,24 @@ impl<S: NetworkStream> NetworkStream for HttpsStream<S> {
         }
     }
 
+    #[cfg(feature = "timeouts")]
+    #[inline]
+    fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
+        match *self {
+            HttpsStream::Http(ref inner) => inner.0.set_read_timeout(dur),
+            HttpsStream::Https(ref inner) => inner.set_read_timeout(dur)
+        }
+    }
+
+    #[cfg(feature = "timeouts")]
+    #[inline]
+    fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
+        match *self {
+            HttpsStream::Http(ref inner) => inner.0.set_read_timeout(dur),
+            HttpsStream::Https(ref inner) => inner.set_read_timeout(dur)
+        }
+    }
+
     #[inline]
     fn close(&mut self, how: Shutdown) -> io::Result<()> {
         match *self {
@@ -425,6 +459,9 @@ mod openssl {
     use std::net::{SocketAddr, Shutdown};
     use std::path::Path;
     use std::sync::Arc;
+    #[cfg(feature = "timeouts")]
+    use std::time::Duration;
+
     use openssl::ssl::{Ssl, SslContext, SslStream, SslMethod, SSL_VERIFY_NONE};
     use openssl::ssl::error::StreamError as SslIoError;
     use openssl::ssl::error::SslError;
@@ -501,6 +538,18 @@ mod openssl {
         #[inline]
         fn peer_addr(&mut self) -> io::Result<SocketAddr> {
             self.get_mut().peer_addr()
+        }
+
+        #[cfg(feature = "timeouts")]
+        #[inline]
+        fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
+            self.get_ref().set_read_timeout(dur)
+        }
+
+        #[cfg(feature = "timeouts")]
+        #[inline]
+        fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
+            self.get_ref().set_write_timeout(dur)
         }
 
         fn close(&mut self, how: Shutdown) -> io::Result<()> {

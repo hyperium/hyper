@@ -1,11 +1,15 @@
 //! Defines the `HttpMessage` trait that serves to encapsulate the operations of a single
 //! request-response cycle on any HTTP connection.
 
-use std::fmt::Debug;
 use std::any::{Any, TypeId};
+use std::fmt::Debug;
 use std::io::{Read, Write};
-
 use std::mem;
+
+#[cfg(feature = "timeouts")]
+use std::io;
+#[cfg(feature = "timeouts")]
+use std::time::Duration;
 
 use typeable::Typeable;
 
@@ -62,7 +66,10 @@ pub trait HttpMessage: Write + Read + Send + Any + Typeable + Debug {
     fn get_incoming(&mut self) -> ::Result<ResponseHead>;
     /// Set the read timeout duration for this message.
     #[cfg(feature = "timeouts")]
-    fn set_read_timeout(&self, dur: Option<Duration>) -> ::Result<()>;
+    fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()>;
+    /// Set the write timeout duration for this message.
+    #[cfg(feature = "timeouts")]
+    fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()>;
     /// Closes the underlying HTTP connection.
     fn close_connection(&mut self) -> ::Result<()>;
 }
