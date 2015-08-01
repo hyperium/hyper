@@ -172,6 +172,34 @@ impl NetworkListener for HttpListener {
     }
 }
 
+#[cfg(windows)]
+impl ::std::os::windows::io::AsRawSocket for HttpListener {
+    fn as_raw_socket(&self) -> ::std::os::windows::io::RawSocket {
+        self.0.as_raw_socket()
+    }
+}
+
+#[cfg(windows)]
+impl ::std::os::windows::io::FromRawSocket for HttpListener {
+    unsafe fn from_raw_socket(sock: ::std::os::windows::io::RawSocket) -> HttpListener {
+        HttpListener(TcpListener::from_raw_socket(sock))
+    }
+}
+
+#[cfg(unix)]
+impl ::std::os::unix::io::AsRawFd for HttpListener {
+    fn as_raw_fd(&self) -> ::std::os::unix::io::RawFd {
+        self.0.as_raw_fd()
+    }
+}
+
+#[cfg(unix)]
+impl ::std::os::unix::io::FromRawFd for HttpListener {
+    unsafe fn from_raw_fd(fd: ::std::os::unix::io::RawFd) -> HttpListener {
+        HttpListener(TcpListener::from_raw_fd(fd))
+    }
+}
+
 /// A wrapper around a TcpStream.
 pub struct HttpStream(pub TcpStream);
 
@@ -213,10 +241,24 @@ impl ::std::os::windows::io::AsRawSocket for HttpStream {
     }
 }
 
+#[cfg(windows)]
+impl ::std::os::windows::io::FromRawSocket for HttpStream {
+    unsafe fn from_raw_socket(sock: ::std::os::windows::io::RawSocket) -> HttpStream {
+        HttpStream(TcpStream::from_raw_socket(sock))
+    }
+}
+
 #[cfg(unix)]
 impl ::std::os::unix::io::AsRawFd for HttpStream {
-    fn as_raw_fd(&self) -> i32 {
+    fn as_raw_fd(&self) -> ::std::os::unix::io::RawFd {
         self.0.as_raw_fd()
+    }
+}
+
+#[cfg(unix)]
+impl ::std::os::unix::io::FromRawFd for HttpStream {
+    unsafe fn from_raw_fd(fd: ::std::os::unix::io::RawFd) -> HttpStream {
+        HttpStream(TcpStream::from_raw_fd(fd))
     }
 }
 
