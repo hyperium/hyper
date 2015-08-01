@@ -174,7 +174,7 @@ impl NetworkListener for HttpListener {
 
 #[cfg(windows)]
 impl ::std::os::windows::io::AsRawSocket for HttpListener {
-    fn as_raw_socket(&self) -> ::std::io::windows::io::RawSocket {
+    fn as_raw_socket(&self) -> ::std::os::windows::io::RawSocket {
         self.0.as_raw_socket()
     }
 }
