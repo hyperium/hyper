@@ -163,21 +163,21 @@ impl Display for ContentRangeSpec {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             ContentRangeSpec::Bytes { range, instance_length } => {
-	        try!(f.write_str("bytes "));
+                try!(f.write_str("bytes "));
                 match range {
                     Some((first_byte, last_byte)) => {
-                        try!(f.write_fmt(format_args!("{}-{}", first_byte, last_byte)));
+                        try!(write!(f, "{}-{}", first_byte, last_byte));
                     },
                     None => {
                         try!(f.write_str("*"));
                     }
                 };
-	        try!(f.write_str("/"));
-	        if let Some(v) = instance_length {
-	            f.write_fmt(format_args!("{}", v))
-	        } else {
-	            f.write_str("*")
-	        }
+                try!(f.write_str("/"));
+                if let Some(v) = instance_length {
+                    write!(f, "{}", v)
+                } else {
+                    f.write_str("*")
+                }
             }
             ContentRangeSpec::Unregistered { ref unit, ref resp } => {
                 try!(f.write_str(&unit));
