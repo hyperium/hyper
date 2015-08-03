@@ -23,7 +23,7 @@ The documentation is located at [http://hyperium.github.io/hyper](http://hyperiu
 
 ## Example
 
-Hello World Server:
+### Hello World Server:
 
 ```rust
 extern crate hyper;
@@ -36,9 +36,7 @@ use hyper::server::Response;
 use hyper::net::Fresh;
 
 fn hello(_: Request, res: Response<Fresh>) {
-    let mut res = res.start().unwrap();
-    res.write_all(b"Hello World!").unwrap();
-    res.end().unwrap();
+    res.send(b"Hello World!").unwrap();
 }
 
 fn main() {
@@ -46,7 +44,7 @@ fn main() {
 }
 ```
 
-Client:
+### Client:
 
 ```rust
 extern crate hyper;
@@ -61,7 +59,7 @@ fn main() {
     let mut client = Client::new();
 
     // Creating an outgoing request.
-    let mut res = client.get("http://www.gooogle.com/")
+    let mut res = client.get("http://rust-lang.org/")
         // set a header
         .header(Connection::close())
         // let 'er go!
