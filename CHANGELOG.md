@@ -1,3 +1,11 @@
+### v0.6.8 (2015-08-03)
+
+
+#### Features
+
+* **raw-fd:** implement FromRawFd/FromRawSocket ([664bde58](https://github.com/hyperium/hyper/commit/664bde58d8a6b2d6ce5624ed96b8d6d68214a782))
+
+
 ### v0.6.7 (2015-08-03)
 
 
