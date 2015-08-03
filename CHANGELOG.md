@@ -1,3 +1,30 @@
+### v0.6.7 (2015-08-03)
+
+
+#### Bug Fixes
+
+* **headers:** fix broken deserialization of headers ([f5f5e1cb](https://github.com/hyperium/hyper/commit/f5f5e1cb2d01a22f170432e73b9c5757380cc18b))
+
+
+#### Features
+
+* **net:**
+  * Implement NetworkConnector for closure to be more flexible ([abdd4c5d](https://github.com/hyperium/hyper/commit/abdd4c5d632059ebef9bbee95032c9500620212e))
+  * add socket timeouts to Server and Client ([7d1f154c](https://github.com/hyperium/hyper/commit/7d1f154cb7b4db4a029b52857c377000a3f23419), closes [#315](https://github.com/hyperium/hyper/issues/315))
+
+
+#### Breaking Changes
+
+* Any custom implementation of NetworkStream must now
+  implement `set_read_timeout` and `set_write_timeout`, so those will
+  break. Most users who only use the provided streams should work with
+  no changes needed.
+
+Closes #315
+
+ ([7d1f154c](https://github.com/hyperium/hyper/commit/7d1f154cb7b4db4a029b52857c377000a3f23419))
+
+
 ### v0.6.5 (2015-07-23)
 
 
