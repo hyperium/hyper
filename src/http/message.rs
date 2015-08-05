@@ -72,6 +72,8 @@ pub trait HttpMessage: Write + Read + Send + Any + Typeable + Debug {
     fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()>;
     /// Closes the underlying HTTP connection.
     fn close_connection(&mut self) -> ::Result<()>;
+    /// Returns whether the incoming message has a body.
+    fn has_body(&self) -> bool;
 }
 
 impl HttpMessage {

@@ -203,6 +203,13 @@ impl HttpMessage for Http11Message {
         })
     }
 
+    fn has_body(&self) -> bool {
+        match self.reader {
+            Some(EmptyReader(..)) => false,
+            _ => true
+        }
+    }
+
     #[cfg(feature = "timeouts")]
     #[inline]
     fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {

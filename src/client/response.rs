@@ -47,9 +47,9 @@ impl Response {
             version: version,
             headers: headers,
             url: url,
-            message: message,
             status_raw: raw_status,
-            is_drained: false,
+            is_drained: !message.has_body(),
+            message: message,
         })
     }
 
