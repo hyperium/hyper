@@ -36,6 +36,7 @@ use version;
 /// An implementation of the `HttpMessage` trait for HTTP/1.1.
 #[derive(Debug)]
 pub struct Http11Message {
+    method: Option<Method>,
     stream: Option<Box<NetworkStream + Send>>,
     writer: Option<HttpWriter<BufWriter<Box<NetworkStream + Send>>>>,
     reader: Option<HttpReader<BufReader<Box<NetworkStream + Send>>>>,
@@ -91,8 +92,8 @@ impl HttpMessage for Http11Message {
         try!(write!(&mut stream, "{} {} {}{}",
                     head.method, uri, version, LINE_ENDING));
 
-        let stream = match head.method {
-            Method::Get | Method::Head => {
+        let stream = match &head.method {
+            &Method::Get | &Method::Head => {
                 debug!("headers={:?}", head.headers);
                 try!(write!(&mut stream, "{}{}", head.headers, LINE_ENDING));
                 EmptyWriter(stream)
@@ -137,6 +138,7 @@ impl HttpMessage for Http11Message {
             }
         };
 
+        self.method = Some(head.method.clone());
         self.writer = Some(stream);
 
         Ok(head)
@@ -159,30 +161,37 @@ impl HttpMessage for Http11Message {
         let raw_status = head.subject;
         let headers = head.headers;
 
-        let body = if headers.has::<TransferEncoding>() {
-            match headers.get::<TransferEncoding>() {
-                Some(&TransferEncoding(ref codings)) => {
-                    if codings.len() > 1 {
-                        trace!("TODO: #2 handle other codings: {:?}", codings);
-                    };
-
-                    if codings.contains(&Chunked) {
+        let method = self.method.take().unwrap_or(Method::Get);
+        // According to https://tools.ietf.org/html/rfc7230#section-3.3.3
+        // 1. HEAD reponses, and Status 1xx, 204, and 304 cannot have a body.
+        // 2. Status 2xx to a CONNECT cannot have a body.
+        // 3. Transfer-Encoding: chunked has a chunked body.
+        // 4. If multiple differing Content-Length headers or invalid, close connection.
+        // 5. Content-Length header has a sized body.
+        // 6. Not Client.
+        // 7. Read till EOF.
+        let body = match (method, raw_status.0) {
+            (Method::Head, _) => EmptyReader(stream),
+            (_, 100...199) | (_, 204) | (_, 304) => EmptyReader(stream),
+            (Method::Connect, 200...299) => EmptyReader(stream),
+            _ => {
+                 if let Some(&TransferEncoding(ref codings)) = headers.get() {
+                    if codings.last() == Some(&Chunked) {
                         ChunkedReader(stream, None)
                     } else {
                         trace!("not chuncked. read till eof");
                         EofReader(stream)
                     }
+                } else if let Some(&ContentLength(len)) =  headers.get() {
+                    SizedReader(stream, len)
+                } else if headers.has::<ContentLength>() {
+                    trace!("illegal Content-Length: {:?}", headers.get_raw("Content-Length"));
+                    return Err(Error::Header);
+                } else {
+                    trace!("neither Transfer-Encoding nor Content-Length");
+                    EofReader(stream)
                 }
-                None => unreachable!()
             }
-        } else if headers.has::<ContentLength>() {
-            match headers.get::<ContentLength>() {
-                Some(&ContentLength(len)) => SizedReader(stream, len),
-                None => unreachable!()
-            }
-        } else {
-            trace!("neither Transfer-Encoding nor Content-Length");
-            EofReader(stream)
         };
 
         self.reader = Some(body);
@@ -192,6 +201,13 @@ impl HttpMessage for Http11Message {
             raw_status: raw_status,
             version: head.version,
         })
+    }
+
+    fn has_body(&self) -> bool {
+        match self.reader {
+            Some(EmptyReader(..)) => false,
+            _ => true
+        }
     }
 
     #[cfg(feature = "timeouts")]
@@ -259,6 +275,7 @@ impl Http11Message {
     /// the peer.
     pub fn with_stream(stream: Box<NetworkStream + Send>) -> Http11Message {
         Http11Message {
+            method: None,
             stream: Some(stream),
             writer: None,
             reader: None,

@@ -148,12 +148,13 @@ macro_rules! test_header {
         fn $id() {
             let a: Vec<Vec<u8>> = $raw.iter().map(|x| x.to_vec()).collect();
             let val = HeaderField::parse_header(&a[..]);
+            let typed: Option<HeaderField> = $typed;
             // Test parsing
-            assert_eq!(val.ok(), $typed);
+            assert_eq!(val.ok(), typed);
             // Test formatting
-            if $typed != None {
+            if typed.is_some() {
                 let res: &str = str::from_utf8($raw[0]).unwrap();
-                assert_eq!(format!("{}", $typed.unwrap()), res);
+                assert_eq!(format!("{}", typed.unwrap()), res);
             }
         }
     }

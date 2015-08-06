@@ -400,6 +400,10 @@ impl<S> HttpMessage for Http2Message<S> where S: CloneableStream {
         Ok(head)
     }
 
+    fn has_body(&self) -> bool {
+        true
+    }
+
     #[cfg(feature = "timeouts")]
     #[inline]
     fn set_read_timeout(&self, _dur: Option<Duration>) -> io::Result<()> {
