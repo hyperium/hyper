@@ -84,6 +84,61 @@ impl fmt::Debug for Box<NetworkStream + Send> {
     }
 }
 
+impl NetworkStream {
+    unsafe fn downcast_ref_unchecked<T: 'static>(&self) -> &T {
+        mem::transmute(traitobject::data(self))
+    }
+
+    unsafe fn downcast_mut_unchecked<T: 'static>(&mut self) -> &mut T {
+        mem::transmute(traitobject::data_mut(self))
+    }
+
+    unsafe fn downcast_unchecked<T: 'static>(self: Box<NetworkStream>) -> Box<T>  {
+        let raw: *mut NetworkStream = mem::transmute(self);
+        mem::transmute(traitobject::data_mut(raw))
+    }
+}
+
+impl NetworkStream {
+    /// Is the underlying type in this trait object a T?
+    #[inline]
+    pub fn is<T: Any>(&self) -> bool {
+        (*self).get_type() == TypeId::of::<T>()
+    }
+
+    /// If the underlying type is T, get a reference to the contained data.
+    #[inline]
+    pub fn downcast_ref<T: Any>(&self) -> Option<&T> {
+        if self.is::<T>() {
+            Some(unsafe { self.downcast_ref_unchecked() })
+        } else {
+            None
+        }
+    }
+
+    /// If the underlying type is T, get a mutable reference to the contained
+    /// data.
+    #[inline]
+    pub fn downcast_mut<T: Any>(&mut self) -> Option<&mut T> {
+        if self.is::<T>() {
+            Some(unsafe { self.downcast_mut_unchecked() })
+        } else {
+            None
+        }
+    }
+
+    /// If the underlying type is T, extract it.
+    #[inline]
+    pub fn downcast<T: Any>(self: Box<NetworkStream>)
+            -> Result<Box<T>, Box<NetworkStream>> {
+        if self.is::<T>() {
+            Ok(unsafe { self.downcast_unchecked() })
+        } else {
+            Err(self)
+        }
+    }
+}
+
 impl NetworkStream + Send {
     unsafe fn downcast_ref_unchecked<T: 'static>(&self) -> &T {
         mem::transmute(traitobject::data(self))
