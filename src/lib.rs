@@ -2,7 +2,7 @@
 #![cfg_attr(test, deny(missing_docs))]
 #![cfg_attr(test, deny(warnings))]
 #![cfg_attr(all(test, feature = "nightly"), feature(test))]
-#![cfg_attr(feature = "timeouts", feature(duration, socket_timeout))]
+#![cfg_attr(feature = "timeouts", feature(socket_timeout))]
 
 //! # Hyper
 //!
