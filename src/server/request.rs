@@ -64,6 +64,38 @@ impl<'a, 'b: 'a> Request<'a, 'b> {
         })
     }
 
+    /// Get a reference to the underlying `NetworkStream`.
+    #[inline]
+    pub fn downcast_ref<T: NetworkStream>(&self) -> Option<&T> {
+        self.body.get_ref().get_ref().downcast_ref()
+    }
+
+    /// Get a reference to the underlying Ssl stream, if connected
+    /// over HTTPS.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # extern crate hyper;
+    /// # #[cfg(feature = "openssl")]
+    /// extern crate openssl;
+    /// # #[cfg(feature = "openssl")]
+    /// use openssl::ssl::SslStream;
+    /// # fn main() {}
+    /// # #[cfg(feature = "openssl")]
+    /// # fn doc_ssl(req: hyper::server::Request) {
+    /// let maybe_ssl = req.ssl::<SslStream>();
+    /// # }
+    /// ```
+    #[inline]
+    pub fn ssl<T: NetworkStream>(&self) -> Option<&T> {
+        use ::net::HttpsStream;
+        match self.downcast_ref() {
+            Some(&HttpsStream::Https(ref s)) => Some(s),
+            _ => None
+        }
+    }
+
     /// Deconstruct a Request into its constituent parts.
     #[inline]
     pub fn deconstruct(self) -> (SocketAddr, Method, Headers,
