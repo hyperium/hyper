@@ -1,3 +1,21 @@
+### v0.6.9 (2015-08-13)
+
+
+#### Bug Fixes
+
+* **client:**
+  * improve keep-alive of bodyless Responses ([67c284a9](https://github.com/hyperium/hyper/commit/67c284a96a006f888f43d8af929516465de76dea))
+  * improve HttpReader selection for client Responses ([31f117ea](https://github.com/hyperium/hyper/commit/31f117ea08c01889016fd45e7084e9a049c53f7a), closes [#436](https://github.com/hyperium/hyper/issues/436))
+* **nightly:** remove feature flag for duration ([0455663a](https://github.com/hyperium/hyper/commit/0455663a98d7969c23d64d0b775799342507ef8e))
+
+
+#### Features
+
+* **headers:** Content-Range header ([af062ac9](https://github.com/hyperium/hyper/commit/af062ac954d5b90275138880ce2f5013d6664b5a))
+* **net:** impl downcast methods for NetworkStream (without + Send) ([1a91835a](https://github.com/hyperium/hyper/commit/1a91835abaa804aabf2e9bb45e9ab087274b8a18), closes [#521](https://github.com/hyperium/hyper/issues/521))
+* **server:** add Request.ssl() to get underlying ssl stream ([7909829f](https://github.com/hyperium/hyper/commit/7909829f98bd9a2f454430f89b6143b977aedb35), closes [#627](https://github.com/hyperium/hyper/issues/627))
+
+
 ### v0.6.8 (2015-08-03)
 
 
