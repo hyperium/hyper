@@ -2,7 +2,7 @@ use std::fmt;
 use std::ascii::AsciiExt;
 use std::io::{self, Read, Write, Cursor};
 use std::cell::RefCell;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, Shutdown};
 use std::sync::{Arc, Mutex};
 #[cfg(feature = "timeouts")]
 use std::time::Duration;
@@ -21,10 +21,13 @@ use net::{NetworkStream, NetworkConnector};
 pub struct MockStream {
     pub read: Cursor<Vec<u8>>,
     pub write: Vec<u8>,
+    pub is_closed: bool,
+    pub error_on_write: bool,
+    pub error_on_read: bool,
     #[cfg(feature = "timeouts")]
     pub read_timeout: Cell<Option<Duration>>,
     #[cfg(feature = "timeouts")]
-    pub write_timeout: Cell<Option<Duration>>
+    pub write_timeout: Cell<Option<Duration>>,
 }
 
 impl fmt::Debug for MockStream {
@@ -48,7 +51,10 @@ impl MockStream {
     pub fn with_input(input: &[u8]) -> MockStream {
         MockStream {
             read: Cursor::new(input.to_vec()),
-            write: vec![]
+            write: vec![],
+            is_closed: false,
+            error_on_write: false,
+            error_on_read: false,
         }
     }
 
@@ -57,6 +63,9 @@ impl MockStream {
         MockStream {
             read: Cursor::new(input.to_vec()),
             write: vec![],
+            is_closed: false,
+            error_on_write: false,
+            error_on_read: false,
             read_timeout: Cell::new(None),
             write_timeout: Cell::new(None),
         }
@@ -65,13 +74,21 @@ impl MockStream {
 
 impl Read for MockStream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.read.read(buf)
+        if self.error_on_read {
+            Err(io::Error::new(io::ErrorKind::Other, "mock error"))
+        } else {
+            self.read.read(buf)
+        }
     }
 }
 
 impl Write for MockStream {
     fn write(&mut self, msg: &[u8]) -> io::Result<usize> {
-        Write::write(&mut self.write, msg)
+        if self.error_on_write {
+            Err(io::Error::new(io::ErrorKind::Other, "mock error"))
+        } else {
+            Write::write(&mut self.write, msg)
+        }
     }
 
     fn flush(&mut self) -> io::Result<()> {
@@ -93,6 +110,11 @@ impl NetworkStream for MockStream {
     #[cfg(feature = "timeouts")]
     fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
         self.write_timeout.set(dur);
+        Ok(())
+    }
+
+    fn close(&mut self, _how: Shutdown) -> io::Result<()> {
+        self.is_closed = true;
         Ok(())
     }
 }
@@ -143,6 +165,10 @@ impl NetworkStream for CloneableMockStream {
     #[cfg(feature = "timeouts")]
     fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
         self.inner.lock().unwrap().set_write_timeout(dur)
+    }
+
+    fn close(&mut self, how: Shutdown) -> io::Result<()> {
+        NetworkStream::close(&mut *self.inner.lock().unwrap(), how)
     }
 }
 

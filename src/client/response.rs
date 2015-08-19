@@ -37,7 +37,13 @@ impl Response {
     /// Creates a new response received from the server on the given `HttpMessage`.
     pub fn with_message(url: Url, mut message: Box<HttpMessage>) -> ::Result<Response> {
         trace!("Response::with_message");
-        let ResponseHead { headers, raw_status, version } = try!(message.get_incoming());
+        let ResponseHead { headers, raw_status, version } = match message.get_incoming() {
+            Ok(head) => head,
+            Err(e) => {
+                let _ = message.close_connection();
+                return Err(From::from(e));
+            }
+        };
         let status = status::StatusCode::from_u16(raw_status.0);
         debug!("version={:?}, status={:?}", version, status);
         debug!("headers={:?}", headers);
@@ -54,6 +60,7 @@ impl Response {
     }
 
     /// Get the raw status code and reason.
+    #[inline]
     pub fn status_raw(&self) -> &RawStatus {
         &self.status_raw
     }
@@ -68,6 +75,10 @@ impl Read for Response {
                 self.is_drained = true;
                 Ok(0)
             },
+            Err(e) => {
+                let _ = self.message.close_connection();
+                Err(e)
+            }
             r => r
         }
     }

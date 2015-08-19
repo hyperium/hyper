@@ -101,11 +101,17 @@ impl Request<Fresh> {
     /// Consume a Fresh Request, writing the headers and method,
     /// returning a Streaming Request.
     pub fn start(mut self) -> ::Result<Request<Streaming>> {
-        let head = try!(self.message.set_outgoing(RequestHead {
+        let head = match self.message.set_outgoing(RequestHead {
             headers: self.headers,
             method: self.method,
             url: self.url,
-        }));
+        }) {
+            Ok(head) => head,
+            Err(e) => {
+                let _ = self.message.close_connection();
+                return Err(From::from(e));
+            }
+        };
 
         Ok(Request {
             method: head.method,
@@ -134,17 +140,30 @@ impl Request<Streaming> {
 impl Write for Request<Streaming> {
     #[inline]
     fn write(&mut self, msg: &[u8]) -> io::Result<usize> {
-        self.message.write(msg)
+        match self.message.write(msg) {
+            Ok(n) => Ok(n),
+            Err(e) => {
+                let _ = self.message.close_connection();
+                Err(e)
+            }
+        }
     }
 
     #[inline]
     fn flush(&mut self) -> io::Result<()> {
-        self.message.flush()
+        match self.message.flush() {
+            Ok(r) => Ok(r),
+            Err(e) => {
+                let _ = self.message.close_connection();
+                Err(e)
+            }
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::io::Write;
     use std::str::from_utf8;
     use url::Url;
     use method::Method::{Get, Head, Post};
@@ -236,5 +255,25 @@ mod tests {
         let s = from_utf8(&bytes[..]).unwrap();
         assert!(!s.contains("Content-Length:"));
         assert!(s.contains("Transfer-Encoding:"));
+    }
+
+    #[test]
+    fn test_write_error_closes() {
+        let url = Url::parse("http://hyper.rs").unwrap();
+        let req = Request::with_connector(
+            Get, url, &mut MockConnector
+        ).unwrap();
+        let mut req = req.start().unwrap();
+
+        req.message.downcast_mut::<Http11Message>().unwrap()
+            .get_mut().downcast_mut::<MockStream>().unwrap()
+            .error_on_write = true;
+
+        req.write(b"foo").unwrap();
+        assert!(req.flush().is_err());
+
+        assert!(req.message.downcast_ref::<Http11Message>().unwrap()
+            .get_ref().downcast_ref::<MockStream>().unwrap()
+            .is_closed);
     }
 }
