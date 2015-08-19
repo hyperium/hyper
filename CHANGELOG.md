@@ -1,3 +1,16 @@
+### v0.6.10 (2015-08-19)
+
+
+#### Bug Fixes
+
+* **client:** close connection when there is an Error ([d32d35bb](https://github.com/hyperium/hyper/commit/d32d35bbea947172224082e1f9b711022ce75e30))
+
+
+#### Features
+
+* **uri:** implement fmt::Display for RequestUri () ([80931cf4](https://github.com/hyperium/hyper/commit/80931cf4c31d291125700ed3f9be5b3cb015d797), closes [#629](https://github.com/hyperium/hyper/issues/629))
+
+
 ### v0.6.9 (2015-08-13)
 
 
