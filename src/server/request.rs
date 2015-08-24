@@ -81,10 +81,11 @@ impl<'a, 'b: 'a> Request<'a, 'b> {
     /// extern crate openssl;
     /// # #[cfg(feature = "openssl")]
     /// use openssl::ssl::SslStream;
+    /// use hyper::net::HttpStream;
     /// # fn main() {}
     /// # #[cfg(feature = "openssl")]
     /// # fn doc_ssl(req: hyper::server::Request) {
-    /// let maybe_ssl = req.ssl::<SslStream>();
+    /// let maybe_ssl = req.ssl::<SslStream<HttpStream>>();
     /// # }
     /// ```
     #[inline]
