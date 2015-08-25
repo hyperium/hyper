@@ -120,7 +120,7 @@ pub fn qitem<T>(item: T) -> QualityItem<T> {
     QualityItem::new(item, Default::default())
 }
 
-/// Convenience function to create a `Quality` fromt a float.
+/// Convenience function to create a `Quality` from a float.
 pub fn q(f: f32) -> Quality {
     assert!(f >= 0f32 && f <= 1f32, "q value must be between 0.0 and 1.0");
     from_f32(f)
