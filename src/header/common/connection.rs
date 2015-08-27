@@ -4,6 +4,9 @@ use unicase::UniCase;
 
 pub use self::ConnectionOption::{KeepAlive, Close, ConnectionHeader};
 
+const KEEP_ALIVE: UniCase<&'static str> = UniCase("keep-alive");
+const CLOSE: UniCase<&'static str> = UniCase("close");
+
 /// Values that can be in the `Connection` header.
 #[derive(Clone, PartialEq, Debug)]
 pub enum ConnectionOption {
@@ -25,10 +28,12 @@ pub enum ConnectionOption {
 impl FromStr for ConnectionOption {
     type Err = ();
     fn from_str(s: &str) -> Result<ConnectionOption, ()> {
-        match s {
-            "keep-alive" => Ok(KeepAlive),
-            "close" => Ok(Close),
-            s => Ok(ConnectionHeader(UniCase(s.to_owned())))
+        if UniCase(s) == KEEP_ALIVE {
+            Ok(KeepAlive)
+        } else if UniCase(s) == CLOSE {
+            Ok(Close)
+        } else {
+            Ok(ConnectionHeader(UniCase(s.to_owned())))
         }
     }
 }
@@ -131,6 +136,7 @@ mod tests {
     fn test_parse() {
         assert_eq!(Connection::close(),parse_option(b"close".to_vec()));
         assert_eq!(Connection::keep_alive(),parse_option(b"keep-alive".to_vec()));
+        assert_eq!(Connection::keep_alive(),parse_option(b"Keep-Alive".to_vec()));
         assert_eq!(Connection(vec![ConnectionHeader(UniCase("upgrade".to_owned()))]),
             parse_option(b"upgrade".to_vec()));
     }
