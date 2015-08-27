@@ -74,12 +74,15 @@ impl Read for Http11Message {
 
 impl HttpMessage for Http11Message {
     fn set_outgoing(&mut self, mut head: RequestHead) -> ::Result<RequestHead> {
-        if self.stream.is_none() {
-            return Err(From::from(io::Error::new(
-                        io::ErrorKind::Other,
-                        "Message not idle, cannot start new outgoing")));
-        }
-        let mut stream = BufWriter::new(self.stream.take().unwrap());
+        let stream = match self.stream.take() {
+            Some(stream) => stream,
+            None => {
+                return Err(From::from(io::Error::new(
+                            io::ErrorKind::Other,
+                            "Message not idle, cannot start new outgoing")));
+            }
+        };
+        let mut stream = BufWriter::new(stream);
 
         let mut uri = head.url.serialize_path().unwrap();
         if let Some(ref q) = head.url.query {
@@ -92,72 +95,89 @@ impl HttpMessage for Http11Message {
         try!(write!(&mut stream, "{} {} {}{}",
                     head.method, uri, version, LINE_ENDING));
 
-        let stream = match &head.method {
-            &Method::Get | &Method::Head => {
+        let stream = {
+            let mut write_headers = |mut stream: BufWriter<Box<NetworkStream + Send>>, head: &RequestHead| {
                 debug!("headers={:?}", head.headers);
-                try!(write!(&mut stream, "{}{}", head.headers, LINE_ENDING));
-                EmptyWriter(stream)
-            },
-            _ => {
-                let mut chunked = true;
-                let mut len = 0;
-
-                match head.headers.get::<header::ContentLength>() {
-                    Some(cl) => {
-                        chunked = false;
-                        len = **cl;
-                    },
-                    None => ()
-                };
-
-                // can't do in match above, thanks borrowck
-                if chunked {
-                    let encodings = match head.headers.get_mut::<header::TransferEncoding>() {
-                        Some(&mut header::TransferEncoding(ref mut encodings)) => {
-                            //TODO: check if chunked is already in encodings. use HashSet?
-                            encodings.push(header::Encoding::Chunked);
-                            false
-                        },
-                        None => true
-                    };
-
-                    if encodings {
-                        head.headers.set::<header::TransferEncoding>(
-                            header::TransferEncoding(vec![header::Encoding::Chunked]))
+                match write!(&mut stream, "{}{}", head.headers, LINE_ENDING) {
+                    Ok(_) => Ok(stream),
+                    Err(e) => {
+                        self.stream = Some(stream.into_inner().unwrap());
+                        Err(e)
                     }
                 }
+            };
+            match &head.method {
+                &Method::Get | &Method::Head => {
+                    EmptyWriter(try!(write_headers(stream, &head)))
+                },
+                _ => {
+                    let mut chunked = true;
+                    let mut len = 0;
 
-                debug!("headers={:?}", head.headers);
-                try!(write!(&mut stream, "{}{}", head.headers, LINE_ENDING));
+                    match head.headers.get::<header::ContentLength>() {
+                        Some(cl) => {
+                            chunked = false;
+                            len = **cl;
+                        },
+                        None => ()
+                    };
 
-                if chunked {
-                    ChunkedWriter(stream)
-                } else {
-                    SizedWriter(stream, len)
+                    // can't do in match above, thanks borrowck
+                    if chunked {
+                        let encodings = match head.headers.get_mut::<header::TransferEncoding>() {
+                            Some(encodings) => {
+                                //TODO: check if chunked is already in encodings. use HashSet?
+                                encodings.push(header::Encoding::Chunked);
+                                false
+                            },
+                            None => true
+                        };
+
+                        if encodings {
+                            head.headers.set(
+                                header::TransferEncoding(vec![header::Encoding::Chunked]))
+                        }
+                    }
+
+                    let stream = try!(write_headers(stream, &head));
+
+                    if chunked {
+                        ChunkedWriter(stream)
+                    } else {
+                        SizedWriter(stream, len)
+                    }
                 }
             }
         };
 
-        self.method = Some(head.method.clone());
         self.writer = Some(stream);
+        self.method = Some(head.method.clone());
 
         Ok(head)
     }
 
     fn get_incoming(&mut self) -> ::Result<ResponseHead> {
         try!(self.flush_outgoing());
-        if self.stream.is_none() {
-            // The message was already in the reading state...
-            // TODO Decide what happens in case we try to get a new incoming at that point
-            return Err(From::from(
-                    io::Error::new(io::ErrorKind::Other,
-                    "Read already in progress")));
-        }
+        let stream = match self.stream.take() {
+            Some(stream) => stream,
+            None => {
+                // The message was already in the reading state...
+                // TODO Decide what happens in case we try to get a new incoming at that point
+                return Err(From::from(
+                        io::Error::new(io::ErrorKind::Other,
+                        "Read already in progress")));
+            }
+        };
 
-        let stream = self.stream.take().unwrap();
         let mut stream = BufReader::new(stream);
 
-        let head = try!(parse_response(&mut stream));
+        let head = match parse_response(&mut stream) {
+            Ok(head) => head,
+            Err(e) => {
+                self.stream = Some(stream.into_inner());
+                return Err(e);
+            }
+        };
         let raw_status = head.subject;
         let headers = head.headers;
 
@@ -170,7 +190,7 @@ impl HttpMessage for Http11Message {
         // 5. Content-Length header has a sized body.
         // 6. Not Client.
         // 7. Read till EOF.
-        let body = match (method, raw_status.0) {
+        self.reader = Some(match (method, raw_status.0) {
             (Method::Head, _) => EmptyReader(stream),
             (_, 100...199) | (_, 204) | (_, 304) => EmptyReader(stream),
             (Method::Connect, 200...299) => EmptyReader(stream),
@@ -192,9 +212,8 @@ impl HttpMessage for Http11Message {
                     EofReader(stream)
                 }
             }
-        };
+        });
 
-        self.reader = Some(body);
 
         Ok(ResponseHead {
             headers: headers,
@@ -292,9 +311,15 @@ impl Http11Message {
         };
 
         let writer = self.writer.take().unwrap();
-        let raw = try!(writer.end()).into_inner().unwrap(); // end() already flushes
+         // end() already flushes
+        let raw = match writer.end() {
+            Ok(buf) => buf.into_inner().unwrap(),
+            Err(e) => {
+                self.writer = Some(e.1);
+                return Err(From::from(e.0));
+            }
+        };
         self.stream = Some(raw);
-
         Ok(())
     }
 }
@@ -617,10 +642,25 @@ impl<W: Write> HttpWriter<W> {
     /// A final `write_all()` is called with an empty message, and then flushed.
     /// The ChunkedWriter variant will use this to write the 0-sized last-chunk.
     #[inline]
-    pub fn end(mut self) -> io::Result<W> {
-        try!(self.write(&[]));
-        try!(self.flush());
-        Ok(self.into_inner())
+    pub fn end(mut self) -> Result<W, EndError<W>> {
+        fn inner<W: Write>(w: &mut W) -> io::Result<()> {
+            try!(w.write(&[]));
+            w.flush()
+        }
+
+        match inner(&mut self) {
+            Ok(..) => Ok(self.into_inner()),
+            Err(e) => Err(EndError(e, self))
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct EndError<W: Write>(io::Error, HttpWriter<W>);
+
+impl<W: Write> From<EndError<W>> for io::Error {
+    fn from(e: EndError<W>) -> io::Error {
+        e.0
     }
 }
 

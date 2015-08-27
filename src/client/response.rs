@@ -226,4 +226,14 @@ mod tests {
 
         assert_eq!(read_to_string(res).unwrap(), "1".to_owned());
     }
+
+    #[test]
+    fn test_parse_error_closes() {
+        let url = Url::parse("http://hyper.rs").unwrap();
+        let stream = MockStream::with_input(b"\
+            definitely not http
+        ");
+
+        assert!(Response::new(url, Box::new(stream)).is_err());
+    }
 }
