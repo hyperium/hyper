@@ -1,4 +1,3 @@
-use std::fmt;
 use std::ascii::AsciiExt;
 use std::io::{self, Read, Write, Cursor};
 use std::cell::RefCell;
@@ -17,7 +16,7 @@ use solicit::http::connection::{HttpConnection, EndStream, DataChunk};
 use header::Headers;
 use net::{NetworkStream, NetworkConnector};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MockStream {
     pub read: Cursor<Vec<u8>>,
     pub write: Vec<u8>,
@@ -28,12 +27,6 @@ pub struct MockStream {
     pub read_timeout: Cell<Option<Duration>>,
     #[cfg(feature = "timeouts")]
     pub write_timeout: Cell<Option<Duration>>,
-}
-
-impl fmt::Debug for MockStream {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "MockStream {{ read: {:?}, write: {:?} }}", self.read.get_ref(), self.write)
-    }
 }
 
 impl PartialEq for MockStream {
