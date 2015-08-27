@@ -1,3 +1,25 @@
+### v0.6.11 (2015-08-27)
+
+
+#### Bug Fixes
+
+* **client:** fix panics when some errors occured inside HttpMessage ([ef15257b](https://github.com/hyperium/hyper/commit/ef15257b733d40bc3a7c598f61918f91385585f9))
+* **headers:** case insensitive values for Connection header ([341f8eae](https://github.com/hyperium/hyper/commit/341f8eae6eb33e2242be09541807cdad9afc732e), closes [#635](https://github.com/hyperium/hyper/issues/635))
+
+
+#### Breaking Changes
+
+* This changes the signature of HttpWriter.end(),
+  returning a `EndError` that is similar to std::io::IntoInnerError,
+  allowing HttpMessage to retrieve the broken connections and not panic.
+
+  The breaking change isn't exposed in any usage of the `Client` API,
+  but for anyone using `HttpWriter` directly, since this was technically
+  a public method, that change is breaking.
+
+ ([ef15257b](https://github.com/hyperium/hyper/commit/ef15257b733d40bc3a7c598f61918f91385585f9))
+
+
 ### v0.6.10 (2015-08-19)
 
 
