@@ -214,6 +214,8 @@ impl HttpMessage for Http11Message {
             }
         });
 
+        trace!("Http11Message.reader = {:?}", self.reader);
+
 
         Ok(ResponseHead {
             headers: headers,
@@ -456,9 +458,13 @@ impl<R: Read> Read for HttpReader<R> {
                 if *remaining == 0 {
                     Ok(0)
                 } else {
-                    let num = try!(body.read(buf)) as u64;
+                    let to_read = min(*remaining as usize, buf.len());
+                    let num = try!(body.read(&mut buf[..to_read])) as u64;
+                    trace!("Sized read: {}", num);
                     if num > *remaining {
                         *remaining = 0;
+                    } else if num == 0 {
+                        return Err(io::Error::new(io::ErrorKind::Other, "early eof"));
                     } else {
                         *remaining -= num;
                     }
@@ -485,6 +491,11 @@ impl<R: Read> Read for HttpReader<R> {
 
                 let to_read = min(rem as usize, buf.len());
                 let count = try!(body.read(&mut buf[..to_read])) as u64;
+
+                if count == 0 {
+                    *opt_remaining = Some(0);
+                    return Err(io::Error::new(io::ErrorKind::Other, "early eof"));
+                }
 
                 rem -= count;
                 *opt_remaining = if rem > 0 {
@@ -759,7 +770,12 @@ fn parse<R: Read, T: TryParse<Subject=I>, I>(rdr: &mut BufReader<R>) -> ::Result
 
 fn try_parse<R: Read, T: TryParse<Subject=I>, I>(rdr: &mut BufReader<R>) -> TryParseResult<I> {
     let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
-    <T as TryParse>::try_parse(&mut headers, rdr.get_buf())
+    let buf = rdr.get_buf();
+    if buf.len() == 0 {
+        return Ok(httparse::Status::Partial);
+    }
+    trace!("try_parse({:?})", buf);
+    <T as TryParse>::try_parse(&mut headers, buf)
 }
 
 #[doc(hidden)]
@@ -776,9 +792,11 @@ impl<'a> TryParse for httparse::Request<'a, 'a> {
 
     fn try_parse<'b>(headers: &'b mut [httparse::Header<'b>], buf: &'b [u8]) ->
             TryParseResult<(Method, RequestUri)> {
+        trace!("Request.try_parse([Header; {}], [u8; {}])", headers.len(), buf.len());
         let mut req = httparse::Request::new(headers);
         Ok(match try!(req.parse(buf)) {
             httparse::Status::Complete(len) => {
+                trace!("Request.try_parse Complete({})", len);
                 httparse::Status::Complete((Incoming {
                     version: if req.version.unwrap() == 1 { Http11 } else { Http10 },
                     subject: (
@@ -798,9 +816,11 @@ impl<'a> TryParse for httparse::Response<'a, 'a> {
 
     fn try_parse<'b>(headers: &'b mut [httparse::Header<'b>], buf: &'b [u8]) ->
             TryParseResult<RawStatus> {
+        trace!("Response.try_parse([Header; {}], [u8; {}])", headers.len(), buf.len());
         let mut res = httparse::Response::new(headers);
         Ok(match try!(res.parse(buf)) {
             httparse::Status::Complete(len) => {
+                trace!("Response.try_parse Complete({})", len);
                 let code = res.code.unwrap();
                 let reason = match StatusCode::from_u16(code).canonical_reason() {
                     Some(reason) if reason == res.reason.unwrap() => Cow::Borrowed(reason),
@@ -837,7 +857,8 @@ pub const LINE_ENDING: &'static str = "\r\n";
 
 #[cfg(test)]
 mod tests {
-    use std::io::{self, Write};
+    use std::error::Error;
+    use std::io::{self, Read, Write};
 
     use buffer::BufReader;
     use mock::MockStream;
@@ -907,6 +928,30 @@ mod tests {
         read_err("1 invalid extension\r\n");
         read_err("1 A\r\n");
         read_err("1;no CRLF");
+    }
+
+    #[test]
+    fn test_read_sized_early_eof() {
+        let mut r = super::HttpReader::SizedReader(MockStream::with_input(b"foo bar"), 10);
+        let mut buf = [0u8; 10];
+        assert_eq!(r.read(&mut buf).unwrap(), 7);
+        let e = r.read(&mut buf).unwrap_err();
+        assert_eq!(e.kind(), io::ErrorKind::Other);
+        assert_eq!(e.description(), "early eof");
+    }
+
+    #[test]
+    fn test_read_chunked_early_eof() {
+        let mut r = super::HttpReader::ChunkedReader(MockStream::with_input(b"\
+            9\r\n\
+            foo bar\
+        "), None);
+
+        let mut buf = [0u8; 10];
+        assert_eq!(r.read(&mut buf).unwrap(), 7);
+        let e = r.read(&mut buf).unwrap_err();
+        assert_eq!(e.kind(), io::ErrorKind::Other);
+        assert_eq!(e.description(), "early eof");
     }
 
     #[test]
