@@ -19,13 +19,9 @@ impl<R: Read> BufReader<R> {
 
     #[inline]
     pub fn with_capacity(rdr: R, cap: usize) -> BufReader<R> {
-        let mut buf = Vec::with_capacity(cap);
-        unsafe {
-            grow_zerofill(&mut buf, cap);
-        }
         BufReader {
             inner: rdr,
-            buf: buf,
+            buf: vec![0; cap],
             pos: 0,
             cap: 0,
         }
@@ -40,9 +36,10 @@ impl<R: Read> BufReader<R> {
     #[inline]
     pub fn get_buf(&self) -> &[u8] {
         if self.pos < self.cap {
-            trace!("slicing {:?}", (self.pos, self.cap, self.buf.len()));
+            trace!("get_buf [u8; {}][{}..{}]", self.buf.len(), self.pos, self.cap);
             &self.buf[self.pos..self.cap]
         } else {
+            trace!("get_buf []");
             &[]
         }
     }
@@ -54,7 +51,7 @@ impl<R: Read> BufReader<R> {
     pub fn read_into_buf(&mut self) -> io::Result<usize> {
         self.maybe_reserve();
         let v = &mut self.buf;
-        trace!("read_into_buf pos={}, cap={}", self.cap, v.capacity());
+        trace!("read_into_buf buf[{}..{}]", self.cap, v.len());
         if self.cap < v.capacity() {
             let nread = try!(self.inner.read(&mut v[self.cap..]));
             self.cap += nread;
