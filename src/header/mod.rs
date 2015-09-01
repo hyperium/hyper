@@ -332,33 +332,10 @@ impl fmt::Debug for Headers {
 #[cfg(feature = "serde-serialization")]
 impl Serialize for Headers {
     fn serialize<S>(&self, serializer: &mut S) -> Result<(), S::Error> where S: Serializer {
-        struct HeadersVisitor<'a> {
-            iter: HeadersItems<'a>,
-            len: usize,
-        }
-
-        impl<'a> ser::MapVisitor for HeadersVisitor<'a> {
-            fn visit<S>(&mut self, serializer: &mut S) -> Result<Option<()>, S::Error>
-                        where S: Serializer {
-                match self.iter.next() {
-                    Some(header_item) => {
-                        try!(serializer.visit_map_elt(header_item.name(),
-                                                      header_item.value_string()));
-                        Ok(Some(()))
-                    }
-                    None => Ok(None),
-                }
-            }
-
-            fn len(&self) -> Option<usize> {
-                Some(self.len)
-            }
-        }
-
-        serializer.visit_map(HeadersVisitor {
-            iter: self.iter(),
-            len: self.len(),
-        })
+        serializer.visit_map(ser::impls::MapIteratorVisitor::new(
+            self.iter().map(|header| (header.name(), header.value_string())),
+            Some(self.len()),
+        ))
     }
 }
 

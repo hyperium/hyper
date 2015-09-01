@@ -23,7 +23,7 @@ pub struct RawStatus(pub u16, pub Cow<'static, str>);
 #[cfg(feature = "serde-serialization")]
 impl Serialize for RawStatus {
     fn serialize<S>(&self, serializer: &mut S) -> Result<(), S::Error> where S: Serializer {
-        (self.0, self.1.clone().into_owned()).serialize(serializer)
+        (self.0, &self.1).serialize(serializer)
     }
 }
 
