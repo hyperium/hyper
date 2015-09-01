@@ -64,7 +64,6 @@ impl Response {
     pub fn status_raw(&self) -> &RawStatus {
         &self.status_raw
     }
-
 }
 
 impl Read for Response {
@@ -91,11 +90,11 @@ impl Drop for Response {
         //
         // otherwise, the response has been drained. we should check that the
         // server has agreed to keep the connection open
-        trace!("Response.is_drained = {:?}", self.is_drained);
+        trace!("Response.drop is_drained={}", self.is_drained);
         if !(self.is_drained && http::should_keep_alive(self.version, &self.headers)) {
-            trace!("closing connection");
+            trace!("Response.drop closing connection");
             if let Err(e) = self.message.close_connection() {
-                error!("error closing connection: {}", e);
+                error!("Response.drop error closing connection: {}", e);
             }
         }
     }
