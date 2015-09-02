@@ -62,6 +62,17 @@ pub trait NetworkStream: Read + Write + Any + Send + Typeable {
     fn close(&mut self, _how: Shutdown) -> io::Result<()> {
         Ok(())
     }
+
+    // Unsure about name and implementation...
+
+    #[doc(hidden)]
+    fn set_previous_response_expected_no_content(&mut self, _expected: bool) {
+    
+    }
+    #[doc(hidden)]
+    fn previous_response_expected_no_content(&self) -> bool {
+        false
+    }
 }
 
 /// A connector creates a NetworkStream.

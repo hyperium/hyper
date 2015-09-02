@@ -446,8 +446,10 @@ fn get_host_and_port(url: &Url) -> ::Result<(String, u16)> {
 
 #[cfg(test)]
 mod tests {
+    use std::io::Read;
     use header::Server;
     use super::{Client, RedirectPolicy};
+    use super::pool::Pool;
     use url::Url;
 
     mock_connector!(MockRedirectPolicy {
@@ -493,5 +495,32 @@ mod tests {
         client.set_redirect_policy(RedirectPolicy::FollowIf(follow_if));
         let res = client.get("http://127.0.0.1").send().unwrap();
         assert_eq!(res.headers.get(), Some(&Server("mock2".to_owned())));
+    }
+
+    mock_connector!(Issue640Connector {
+        b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\n",
+        b"GET",
+        b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\n",
+        b"HEAD",
+        b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\n",
+        b"POST"
+    });
+
+    // see issue #640
+    #[test]
+    fn test_head_response_body_keep_alive() {
+        let client = Client::with_connector(Pool::with_connector(Default::default(), Issue640Connector));
+
+        let mut s = String::new();
+        client.get("http://127.0.0.1").send().unwrap().read_to_string(&mut s).unwrap();
+        assert_eq!(s, "GET");
+
+        let mut s = String::new();
+        client.head("http://127.0.0.1").send().unwrap().read_to_string(&mut s).unwrap();
+        assert_eq!(s, "");
+
+        let mut s = String::new();
+        client.post("http://127.0.0.1").send().unwrap().read_to_string(&mut s).unwrap();
+        assert_eq!(s, "POST");
     }
 }

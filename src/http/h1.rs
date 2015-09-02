@@ -33,6 +33,8 @@ use http::{
 use header;
 use version;
 
+const MAX_INVALID_RESPONSE_BYTES: usize = 1024 * 128;
+
 /// An implementation of the `HttpMessage` trait for HTTP/1.1.
 #[derive(Debug)]
 pub struct Http11Message {
@@ -169,19 +171,38 @@ impl HttpMessage for Http11Message {
             }
         };
 
+        let expected_no_content = stream.previous_response_expected_no_content();
+        trace!("previous_response_expected_no_content = {}", expected_no_content);
+
         let mut stream = BufReader::new(stream);
 
-        let head = match parse_response(&mut stream) {
-            Ok(head) => head,
-            Err(e) => {
-                self.stream = Some(stream.into_inner());
-                return Err(e);
-            }
-        };
+        let mut invalid_bytes_read = 0;
+        let head;
+        loop {
+            head = match parse_response(&mut stream) {
+                Ok(head) => head,
+                Err(::Error::Version)
+                if expected_no_content && invalid_bytes_read < MAX_INVALID_RESPONSE_BYTES => {
+                    trace!("expected_no_content, found content");
+                    invalid_bytes_read += 1;
+                    stream.consume(1);
+                    continue;
+                }
+                Err(e) => {
+                    self.stream = Some(stream.into_inner());
+                    return Err(e);
+                }
+            };
+            break;
+        }
+
         let raw_status = head.subject;
         let headers = head.headers;
 
         let method = self.method.take().unwrap_or(Method::Get);
+
+        let is_empty = !should_have_response_body(&method, raw_status.0);
+        stream.get_mut().set_previous_response_expected_no_content(is_empty);
         // According to https://tools.ietf.org/html/rfc7230#section-3.3.3
         // 1. HEAD reponses, and Status 1xx, 204, and 304 cannot have a body.
         // 2. Status 2xx to a CONNECT cannot have a body.
@@ -190,27 +211,24 @@ impl HttpMessage for Http11Message {
         // 5. Content-Length header has a sized body.
         // 6. Not Client.
         // 7. Read till EOF.
-        self.reader = Some(match (method, raw_status.0) {
-            (Method::Head, _) => EmptyReader(stream),
-            (_, 100...199) | (_, 204) | (_, 304) => EmptyReader(stream),
-            (Method::Connect, 200...299) => EmptyReader(stream),
-            _ => {
-                 if let Some(&TransferEncoding(ref codings)) = headers.get() {
-                    if codings.last() == Some(&Chunked) {
-                        ChunkedReader(stream, None)
-                    } else {
-                        trace!("not chuncked. read till eof");
-                        EofReader(stream)
-                    }
-                } else if let Some(&ContentLength(len)) =  headers.get() {
-                    SizedReader(stream, len)
-                } else if headers.has::<ContentLength>() {
-                    trace!("illegal Content-Length: {:?}", headers.get_raw("Content-Length"));
-                    return Err(Error::Header);
+        self.reader = Some(if is_empty {
+            EmptyReader(stream)
+        } else {
+             if let Some(&TransferEncoding(ref codings)) = headers.get() {
+                if codings.last() == Some(&Chunked) {
+                    ChunkedReader(stream, None)
                 } else {
-                    trace!("neither Transfer-Encoding nor Content-Length");
+                    trace!("not chuncked. read till eof");
                     EofReader(stream)
                 }
+            } else if let Some(&ContentLength(len)) =  headers.get() {
+                SizedReader(stream, len)
+            } else if headers.has::<ContentLength>() {
+                trace!("illegal Content-Length: {:?}", headers.get_raw("Content-Length"));
+                return Err(Error::Header);
+            } else {
+                trace!("neither Transfer-Encoding nor Content-Length");
+                EofReader(stream)
             }
         });
 
@@ -226,7 +244,9 @@ impl HttpMessage for Http11Message {
 
     fn has_body(&self) -> bool {
         match self.reader {
-            Some(EmptyReader(..)) => false,
+            Some(EmptyReader(..)) |
+            Some(SizedReader(_, 0)) |
+            Some(ChunkedReader(_, Some(0))) => false,
             _ => true
         }
     }
@@ -595,6 +615,18 @@ fn read_chunk_size<R: Read>(rdr: &mut R) -> io::Result<u64> {
     }
     trace!("chunk size={:?}", size);
     Ok(size)
+}
+
+fn should_have_response_body(method: &Method, status: u16) -> bool {
+    trace!("should_have_response_body({:?}, {})", method, status);
+    match (method, status) {
+        (&Method::Head, _) |
+        (_, 100...199) |
+        (_, 204) |
+        (_, 304) |
+        (&Method::Connect, 200...299) => false,
+        _ => true
+    }
 }
 
 /// Writers to handle different Transfer-Encodings.

@@ -19,6 +19,7 @@ use net::{NetworkStream, NetworkConnector};
 #[derive(Clone, Debug)]
 pub struct MockStream {
     pub read: Cursor<Vec<u8>>,
+    next_reads: Vec<Vec<u8>>,
     pub write: Vec<u8>,
     pub is_closed: bool,
     pub error_on_write: bool,
@@ -40,27 +41,33 @@ impl MockStream {
         MockStream::with_input(b"")
     }
 
-    #[cfg(not(feature = "timeouts"))]
     pub fn with_input(input: &[u8]) -> MockStream {
-        MockStream {
-            read: Cursor::new(input.to_vec()),
-            write: vec![],
-            is_closed: false,
-            error_on_write: false,
-            error_on_read: false,
-        }
+        MockStream::with_responses(vec![input])
     }
 
     #[cfg(feature = "timeouts")]
-    pub fn with_input(input: &[u8]) -> MockStream {
+    pub fn with_responses(mut responses: Vec<&[u8]>) -> MockStream {
         MockStream {
-            read: Cursor::new(input.to_vec()),
+            read: Cursor::new(responses.remove(0).to_vec()),
+            next_reads: responses.into_iter().map(|arr| arr.to_vec()).collect(),
             write: vec![],
             is_closed: false,
             error_on_write: false,
             error_on_read: false,
             read_timeout: Cell::new(None),
             write_timeout: Cell::new(None),
+        }
+    }
+
+    #[cfg(not(feature = "timeouts"))]
+    pub fn with_responses(mut responses: Vec<&[u8]>) -> MockStream {
+        MockStream {
+            read: Cursor::new(responses.remove(0).to_vec()),
+            next_reads: responses.into_iter().map(|arr| arr.to_vec()).collect(),
+            write: vec![],
+            is_closed: false,
+            error_on_write: false,
+            error_on_read: false,
         }
     }
 }
@@ -70,7 +77,17 @@ impl Read for MockStream {
         if self.error_on_read {
             Err(io::Error::new(io::ErrorKind::Other, "mock error"))
         } else {
-            self.read.read(buf)
+            match self.read.read(buf) {
+                Ok(n) => {
+                    if self.read.position() as usize == self.read.get_ref().len() {
+                        if self.next_reads.len() > 0 {
+                            self.read = Cursor::new(self.next_reads.remove(0));
+                        }
+                    }
+                    Ok(n)
+                },
+                r => r
+            }
         }
     }
 }
@@ -191,7 +208,7 @@ macro_rules! mock_connector (
 
         struct $name;
 
-        impl ::net::NetworkConnector for $name {
+        impl $crate::net::NetworkConnector for $name {
             type Stream = ::mock::MockStream;
             fn connect(&self, host: &str, port: u16, scheme: &str)
                     -> $crate::Result<::mock::MockStream> {
@@ -210,7 +227,21 @@ macro_rules! mock_connector (
             }
         }
 
-    )
+    );
+
+    ($name:ident { $($response:expr),+ }) => (
+        struct $name;
+
+        impl $crate::net::NetworkConnector for $name {
+            type Stream = $crate::mock::MockStream;
+            fn connect(&self, _: &str, _: u16, _: &str)
+                    -> $crate::Result<$crate::mock::MockStream> {
+                Ok($crate::mock::MockStream::with_responses(vec![
+                    $($response),+
+                ]))
+            }
+        }
+    );
 );
 
 impl TransportStream for MockStream {

@@ -34,7 +34,7 @@ impl Default for Config {
 
 #[derive(Debug)]
 struct PoolImpl<S> {
-    conns: HashMap<Key, Vec<S>>,
+    conns: HashMap<Key, Vec<PooledStreamInner<S>>>,
     config: Config,
 }
 
@@ -90,7 +90,7 @@ impl<C: NetworkConnector> Pool<C> {
 }
 
 impl<S> PoolImpl<S> {
-    fn reuse(&mut self, key: Key, conn: S) {
+    fn reuse(&mut self, key: Key, conn: PooledStreamInner<S>) {
         trace!("reuse {:?}", key);
         let conns = self.conns.entry(key).or_insert(vec![]);
         if conns.len() < self.config.max_idle {
@@ -105,73 +105,97 @@ impl<C: NetworkConnector<Stream=S>, S: NetworkStream + Send> NetworkConnector fo
         let key = key(host, port, scheme);
         let mut locked = self.inner.lock().unwrap();
         let mut should_remove = false;
-        let conn = match locked.conns.get_mut(&key) {
+        let inner = match locked.conns.get_mut(&key) {
             Some(ref mut vec) => {
                 trace!("Pool had connection, using");
                 should_remove = vec.len() == 1;
                 vec.pop().unwrap()
             }
-            _ => try!(self.connector.connect(host, port, scheme))
+            _ => PooledStreamInner {
+                key: key.clone(),
+                stream: try!(self.connector.connect(host, port, scheme)),
+                previous_response_expected_no_content: false,
+            }
         };
         if should_remove {
             locked.conns.remove(&key);
         }
         Ok(PooledStream {
-            inner: Some((key, conn)),
+            inner: Some(inner),
             is_closed: false,
-            pool: self.inner.clone()
+            pool: self.inner.clone(),
         })
     }
 }
 
 /// A Stream that will try to be returned to the Pool when dropped.
 pub struct PooledStream<S> {
-    inner: Option<(Key, S)>,
+    inner: Option<PooledStreamInner<S>>,
     is_closed: bool,
-    pool: Arc<Mutex<PoolImpl<S>>>
+    pool: Arc<Mutex<PoolImpl<S>>>,
+}
+
+#[derive(Debug)]
+struct PooledStreamInner<S> {
+    key: Key,
+    stream: S,
+    previous_response_expected_no_content: bool,
 }
 
 impl<S: NetworkStream> Read for PooledStream<S> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.inner.as_mut().unwrap().1.read(buf)
+        self.inner.as_mut().unwrap().stream.read(buf)
     }
 }
 
 impl<S: NetworkStream> Write for PooledStream<S> {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.inner.as_mut().unwrap().1.write(buf)
+        self.inner.as_mut().unwrap().stream.write(buf)
     }
 
     #[inline]
     fn flush(&mut self) -> io::Result<()> {
-        self.inner.as_mut().unwrap().1.flush()
+        self.inner.as_mut().unwrap().stream.flush()
     }
 }
 
 impl<S: NetworkStream> NetworkStream for PooledStream<S> {
     #[inline]
     fn peer_addr(&mut self) -> io::Result<SocketAddr> {
-        self.inner.as_mut().unwrap().1.peer_addr()
+        self.inner.as_mut().unwrap().stream.peer_addr()
     }
 
     #[cfg(feature = "timeouts")]
     #[inline]
     fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
-        self.inner.as_ref().unwrap().1.set_read_timeout(dur)
+        self.inner.as_ref().unwrap().stream.set_read_timeout(dur)
     }
 
     #[cfg(feature = "timeouts")]
     #[inline]
     fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
-        self.inner.as_ref().unwrap().1.set_write_timeout(dur)
+        self.inner.as_ref().unwrap().stream.set_write_timeout(dur)
     }
 
     #[inline]
     fn close(&mut self, how: Shutdown) -> io::Result<()> {
         self.is_closed = true;
-        self.inner.as_mut().unwrap().1.close(how)
+        self.inner.as_mut().unwrap().stream.close(how)
+    }
+
+    #[inline]
+    fn set_previous_response_expected_no_content(&mut self, expected: bool) {
+        trace!("set_previous_response_expected_no_content {}", expected);
+        self.inner.as_mut().unwrap().previous_response_expected_no_content = expected;
+    }
+
+    #[inline]
+    fn previous_response_expected_no_content(&self) -> bool {
+        let answer = self.inner.as_ref().unwrap().previous_response_expected_no_content;
+        trace!("previous_response_expected_no_content {}", answer);
+        answer
     }
 }
 
@@ -179,9 +203,9 @@ impl<S> Drop for PooledStream<S> {
     fn drop(&mut self) {
         trace!("PooledStream.drop, is_closed={}", self.is_closed);
         if !self.is_closed {
-            self.inner.take().map(|(key, conn)| {
+            self.inner.take().map(|inner| {
                 if let Ok(mut pool) = self.pool.lock() {
-                    pool.reuse(key, conn);
+                    pool.reuse(inner.key.clone(), inner);
                 }
                 // else poisoned, give up
             });
