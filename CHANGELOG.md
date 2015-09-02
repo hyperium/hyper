@@ -1,3 +1,11 @@
+### v0.6.13 (2015-09-02)
+
+
+#### Bug Fixes
+
+* **client:** EofReader by nature means the connection is closed ([32e09a04](https://github.com/hyperium/hyper/commit/32e09a04292b0247456a8fb9003a75a6abaa998e))
+
+
 ### v0.6.12 (2015-09-01)
 
 
