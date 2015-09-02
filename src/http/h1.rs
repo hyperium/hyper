@@ -247,6 +247,7 @@ impl HttpMessage for Http11Message {
             Some(EmptyReader(..)) |
             Some(SizedReader(_, 0)) |
             Some(ChunkedReader(_, Some(0))) => false,
+            // specifically EofReader is always true
             _ => true
         }
     }

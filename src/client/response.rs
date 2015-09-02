@@ -23,7 +23,6 @@ pub struct Response {
     pub url: Url,
     status_raw: RawStatus,
     message: Box<HttpMessage>,
-    is_drained: bool,
 }
 
 impl Response {
@@ -54,7 +53,6 @@ impl Response {
             headers: headers,
             url: url,
             status_raw: raw_status,
-            is_drained: !message.has_body(),
             message: message,
         })
     }
@@ -70,10 +68,6 @@ impl Read for Response {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match self.message.read(buf) {
-            Ok(0) => {
-                self.is_drained = true;
-                Ok(0)
-            },
             Err(e) => {
                 let _ = self.message.close_connection();
                 Err(e)
@@ -90,8 +84,9 @@ impl Drop for Response {
         //
         // otherwise, the response has been drained. we should check that the
         // server has agreed to keep the connection open
-        trace!("Response.drop is_drained={}", self.is_drained);
-        if !(self.is_drained && http::should_keep_alive(self.version, &self.headers)) {
+        let is_drained = !self.message.has_body();
+        trace!("Response.drop is_drained={}", is_drained);
+        if !(is_drained && http::should_keep_alive(self.version, &self.headers)) {
             trace!("Response.drop closing connection");
             if let Err(e) = self.message.close_connection() {
                 error!("Response.drop error closing connection: {}", e);

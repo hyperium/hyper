@@ -145,7 +145,16 @@ struct PooledStreamInner<S> {
 impl<S: NetworkStream> Read for PooledStream<S> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.inner.as_mut().unwrap().stream.read(buf)
+        match self.inner.as_mut().unwrap().stream.read(buf) {
+            Ok(0) => {
+                // if the wrapped stream returns EOF (Ok(0)), that means the
+                // server has closed the stream. we must be sure this stream
+                // is dropped and not put back into the pool.
+                self.is_closed = true;
+                Ok(0)
+            },
+            r => r
+        }
     }
 }
 
@@ -216,6 +225,7 @@ impl<S> Drop for PooledStream<S> {
 #[cfg(test)]
 mod tests {
     use std::net::Shutdown;
+    use std::io::Read;
     use mock::{MockConnector};
     use net::{NetworkConnector, NetworkStream};
 
@@ -250,6 +260,17 @@ mod tests {
         let pool = mocked!();
         let mut stream = pool.connect("127.0.0.1", 3000, "http").unwrap();
         stream.close(Shutdown::Both).unwrap();
+        drop(stream);
+        let locked = pool.inner.lock().unwrap();
+        assert_eq!(locked.conns.len(), 0);
+    }
+
+    #[test]
+    fn test_eof_closes() {
+        let pool = mocked!();
+
+        let mut stream = pool.connect("127.0.0.1", 3000, "http").unwrap();
+        assert_eq!(stream.read(&mut [0]).unwrap(), 0);
         drop(stream);
         let locked = pool.inner.lock().unwrap();
         assert_eq!(locked.conns.len(), 0);
