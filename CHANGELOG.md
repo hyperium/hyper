@@ -1,3 +1,18 @@
+### v0.6.12 (2015-09-01)
+
+
+#### Bug Fixes
+
+* **client:** be resilient to invalid response bodies ([75c71170](https://github.com/hyperium/hyper/commit/75c71170206db3119d9b298ea5cf3ee860803124), closes [#640](https://github.com/hyperium/hyper/issues/640))
+* **examples:** "cargo test --features serde-serialization" ([63608c49](https://github.com/hyperium/hyper/commit/63608c49c0168634238a119eb64ea1074df1b7e6))
+* **http:** fix several cases in HttpReader ([5c7195ab](https://github.com/hyperium/hyper/commit/5c7195ab4a213bf0016f2185a63a6341e4cef4de))
+
+
+#### Features
+
+* **server:** Add Handler per-connection hooks ([6b6182e8](https://github.com/hyperium/hyper/commit/6b6182e8c4c81f634becebe7b45dc21bff59a286))
+
+
 ### v0.6.11 (2015-08-27)
 
 
