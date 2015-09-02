@@ -256,6 +256,8 @@ impl<H: Handler + 'static> Worker<H> {
     fn handle_connection<S>(&self, mut stream: &mut S) where S: NetworkStream + Clone {
         debug!("Incoming stream");
 
+        self.handler.on_connection_start();
+
         if let Err(e) = self.set_timeouts(stream) {
             error!("set_timeouts error: {:?}", e);
             return;
@@ -275,6 +277,9 @@ impl<H: Handler + 'static> Worker<H> {
         let wrt = BufWriter::new(stream);
 
         self.keep_alive_loop(rdr, wrt, addr);
+
+        self.handler.on_connection_end();
+
         debug!("keep_alive loop ending for {}", addr);
     }
 
@@ -335,7 +340,6 @@ impl<H: Handler + 'static> Worker<H> {
 
             debug!("keep_alive = {:?} for {}", keep_alive, addr);
         }
-
     }
 
     fn handle_expect<W: Write>(&self, req: &Request, wrt: &mut W) -> bool {
@@ -401,6 +405,16 @@ pub trait Handler: Sync + Send {
     fn check_continue(&self, _: (&Method, &RequestUri, &Headers)) -> StatusCode {
         StatusCode::Continue
     }
+
+    /// This is run after a connection is received, on a per-connection basis (not a
+    /// per-request basis, as a connection with keep-alive may handle multiple
+    /// requests)
+    fn on_connection_start(&self) { }
+
+    /// This is run before a connection is closed, on a per-connection basis (not a
+    /// per-request basis, as a connection with keep-alive may handle multiple
+    /// requests)
+    fn on_connection_end(&self) { }
 }
 
 impl<F> Handler for F where F: Fn(Request, Response<Fresh>), F: Sync + Send {
