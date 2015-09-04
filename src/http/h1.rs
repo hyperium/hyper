@@ -225,6 +225,7 @@ impl HttpMessage for Http11Message {
                 SizedReader(stream, len)
             } else if headers.has::<ContentLength>() {
                 trace!("illegal Content-Length: {:?}", headers.get_raw("Content-Length"));
+                self.stream = Some(stream.into_inner());
                 return Err(Error::Header);
             } else {
                 trace!("neither Transfer-Encoding nor Content-Length");
@@ -893,10 +894,12 @@ mod tests {
     use std::error::Error;
     use std::io::{self, Read, Write};
 
+
     use buffer::BufReader;
     use mock::MockStream;
+    use http::HttpMessage;
 
-    use super::{read_chunk_size, parse_request, parse_response};
+    use super::{read_chunk_size, parse_request, parse_response, Http11Message};
 
     #[test]
     fn test_write_chunked() {
@@ -985,6 +988,15 @@ mod tests {
         let e = r.read(&mut buf).unwrap_err();
         assert_eq!(e.kind(), io::ErrorKind::Other);
         assert_eq!(e.description(), "early eof");
+    }
+
+    #[test]
+    fn test_message_get_incoming_invalid_content_length() {
+        let raw = MockStream::with_input(
+            b"HTTP/1.1 200 OK\r\nContent-Length: asdf\r\n\r\n");
+        let mut msg = Http11Message::with_stream(Box::new(raw));
+        assert!(msg.get_incoming().is_err());
+        assert!(msg.close_connection().is_ok());
     }
 
     #[test]
