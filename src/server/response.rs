@@ -12,7 +12,7 @@ use time::now_utc;
 
 use header;
 use http::h1::{CR, LF, LINE_ENDING, HttpWriter};
-use http::h1::HttpWriter::{ThroughWriter, ChunkedWriter, SizedWriter};
+use http::h1::HttpWriter::{ThroughWriter, ChunkedWriter, SizedWriter, EmptyWriter};
 use status;
 use net::{Fresh, Streaming};
 use version;
@@ -88,11 +88,14 @@ impl<'a, W: Any> Response<'a, W> {
             self.headers.set(header::Date(header::HttpDate(now_utc())));
         }
 
-
-        let mut body_type = Body::Chunked;
-
-        if let Some(cl) = self.headers.get::<header::ContentLength>() {
-            body_type = Body::Sized(**cl);
+        let body_type = match self.status {
+            status::StatusCode::NoContent | status::StatusCode::NotModified => Body::Empty,
+            c if c.class() == status::StatusClass::Informational => Body::Empty,
+            _ => if let Some(cl) = self.headers.get::<header::ContentLength>() {
+                Body::Sized(**cl)
+            } else {
+                Body::Chunked
+            }
         };
 
         // can't do in match above, thanks borrowck
@@ -177,7 +180,8 @@ impl<'a> Response<'a, Fresh> {
         let (version, body, status, headers) = self.deconstruct();
         let stream = match body_type {
             Body::Chunked => ChunkedWriter(body.into_inner()),
-            Body::Sized(len) => SizedWriter(body.into_inner(), len)
+            Body::Sized(len) => SizedWriter(body.into_inner(), len),
+            Body::Empty => EmptyWriter(body.into_inner()),
         };
 
         // "copy" to change the phantom type
@@ -227,6 +231,7 @@ impl<'a> Write for Response<'a, Streaming> {
 enum Body {
     Chunked,
     Sized(u64),
+    Empty,
 }
 
 impl<'a, T: Any> Drop for Response<'a, T> {
@@ -235,6 +240,7 @@ impl<'a, T: Any> Drop for Response<'a, T> {
             let mut body = match self.write_head() {
                 Ok(Body::Chunked) => ChunkedWriter(self.body.get_mut()),
                 Ok(Body::Sized(len)) => SizedWriter(self.body.get_mut(), len),
+                Ok(Body::Empty) => EmptyWriter(self.body.get_mut()),
                 Err(e) => {
                     debug!("error dropping request: {:?}", e);
                     return;
@@ -359,6 +365,25 @@ mod tests {
             "foo",
             "0",
             "" // empty zero body
+        }
+    }
+
+    #[test]
+    fn test_no_content() {
+        use std::io::Write;
+        use status::StatusCode;
+        let mut headers = Headers::new();
+        let mut stream = MockStream::new();
+        {
+            let mut res = Response::new(&mut stream, &mut headers);
+            *res.status_mut() = StatusCode::NoContent;
+            res.start().unwrap();
+        }
+
+        lines! { stream =
+            "HTTP/1.1 204 No Content",
+            _date,
+            ""
         }
     }
 }
