@@ -200,13 +200,15 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic] // FIXME - 32-bit msvc unwinding broken
+    #[cfg_attr(all(target_arch="x86", target_env="msvc"), ignore)]
     fn test_quality_invalid() {
         q(-1.0);
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic] // FIXME - 32-bit msvc unwinding broken
+    #[cfg_attr(all(target_arch="x86", target_env="msvc"), ignore)]
     fn test_quality_invalid2() {
         q(2.0);
     }
