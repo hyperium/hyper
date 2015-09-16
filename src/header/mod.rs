@@ -309,6 +309,22 @@ impl Headers {
     }
 }
 
+impl PartialEq for Headers {
+    fn eq(&self, other: &Headers) -> bool {
+        if self.len() != other.len() {
+            return false;
+        }
+
+        for header in self.iter() {
+            match other.get_raw(header.name()) {
+                Some(val) if val == self.get_raw(header.name()).unwrap() => {},
+                _ => { return false; }
+            }
+        }
+        return true;
+    }
+}
+
 impl fmt::Display for Headers {
    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for header in self.iter() {
@@ -693,6 +709,36 @@ mod tests {
             assert_eq!(header.value(), Some(&ContentLength(11)));
             assert_eq!(header.value_string(), "11".to_owned());
         }
+    }
+
+    #[test]
+    fn test_eq() {
+        let mut headers1 = Headers::new();
+        let mut headers2 = Headers::new();
+
+        assert_eq!(headers1, headers2);
+
+        headers1.set(ContentLength(11));
+        headers2.set(Host {hostname: "foo.bar".to_owned(), port: None});
+        assert!(headers1 != headers2);
+
+        headers1 = Headers::new();
+        headers2 = Headers::new();
+
+        headers1.set(ContentLength(11));
+        headers2.set(ContentLength(11));
+        assert_eq!(headers1, headers2);
+
+        headers1.set(ContentLength(10));
+        assert!(headers1 != headers2);
+
+        headers1 = Headers::new();
+        headers2 = Headers::new();
+
+        headers1.set(Host { hostname: "foo.bar".to_owned(), port: None });
+        headers1.set(ContentLength(11));
+        headers2.set(ContentLength(11));
+        assert!(headers1 != headers2);
     }
 
     #[cfg(feature = "nightly")]
