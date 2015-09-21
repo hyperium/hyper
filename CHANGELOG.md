@@ -1,3 +1,20 @@
+### v0.6.14 (2015-09-21)
+
+
+#### Bug Fixes
+
+* **http:**
+  * Add a stream enum that makes it impossible to lose a stream ([be4e7181](https://github.com/hyperium/hyper/commit/be4e7181456844180963d0e5234656c319ce92a6))
+  * Make sure not to lose the stream when CL is invalid ([a36e44af](https://github.com/hyperium/hyper/commit/a36e44af7d4e665a122c1498011ff10035f7376f))
+* **server:** use EmptyWriter for status codes that have no body ([9b2998bd](https://github.com/hyperium/hyper/commit/9b2998bddc3c033e4fc4e6a9b7d18504339ded3f))
+* **timeouts:** remove rust #![feature] for socket timeouts ([b8729698](https://github.com/hyperium/hyper/commit/b872969880be502b681def26d6b9780cc90ac74b))
+
+
+#### Features
+
+* **headers:** add PartialEq impl for Headers struct ([76cbf384](https://github.com/hyperium/hyper/commit/76cbf384231e602d888e49932bf9c4fafdd88051))
+
+
 ### v0.6.13 (2015-09-02)
 
 
