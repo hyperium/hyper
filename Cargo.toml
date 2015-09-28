@@ -12,7 +12,7 @@ authors = ["Sean McArthur <sean.monstar@gmail.com>",
 keywords = ["http", "hyper", "hyperium"]
 
 [dependencies]
-httparse = "0.1"
+httparse = "1.0"
 language-tags = "0.0.7"
 log = "0.3"
 mime = "0.1"
