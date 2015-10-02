@@ -160,6 +160,11 @@ impl Client {
         self.request(Method::Head, url)
     }
 
+    /// Build a Patch request.
+    pub fn patch<U: IntoUrl>(&self, url: U) -> RequestBuilder<U> {
+        self.request(Method::Patch, url)
+    }
+
     /// Build a Post request.
     pub fn post<U: IntoUrl>(&self, url: U) -> RequestBuilder<U> {
         self.request(Method::Post, url)
