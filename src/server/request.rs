@@ -4,6 +4,7 @@
 //! target URI, headers, and message body.
 use std::io::{self, Read};
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use buffer::BufReader;
 use net::NetworkStream;
@@ -64,6 +65,19 @@ impl<'a, 'b: 'a> Request<'a, 'b> {
         })
     }
 
+    /// Set the read timeout of the underlying NetworkStream.
+    #[cfg(feature = "timeouts")]
+    #[inline]
+    pub fn set_read_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
+        self.body.get_ref().get_ref().set_read_timeout(timeout)
+    }
+
+    /// Set the read timeout of the underlying NetworkStream.
+    #[cfg(not(feature = "timeouts"))]
+    #[inline]
+    pub fn set_read_timeout(&self, _timeout: Option<Duration>) -> io::Result<()> {
+        Ok(())
+    }
     /// Get a reference to the underlying `NetworkStream`.
     #[inline]
     pub fn downcast_ref<T: NetworkStream>(&self) -> Option<&T> {
