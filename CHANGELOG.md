@@ -1,3 +1,16 @@
+### v0.6.15 (2015-10-09)
+
+
+#### Bug Fixes
+
+* **server:** use a timeout for Server keep-alive ([cdaa2547](https://github.com/hyperium/hyper/commit/cdaa2547ed18dfb0e3b8ed2ca15cfda1f98fa9fc), closes [#368](https://github.com/hyperium/hyper/issues/368))
+
+
+#### Features
+
+* **client:** add patch method to Client builder interface ([03827c31](https://github.com/hyperium/hyper/commit/03827c3156b5c0a7c865c5846aca2c1ce7a9f4ce))
+
+
 ### v0.6.14 (2015-09-21)
 
 
