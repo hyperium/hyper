@@ -42,6 +42,7 @@ fn main() {
     /*
      * the Request was handled by the HTTP server.
      *
+     * Next steps:
      * Check res.status to find out if it was successful.
      * Inspect the headers to see what data type was returned and then
      * parse the response data stored in `contents`.
