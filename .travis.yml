@@ -20,7 +20,7 @@ cache:
 script:
   - cargo build --verbose $FEATURES
   - cargo test --verbose $FEATURES
-  - '[ $TRAVIS_RUST_VERSION = nightly ] && cargo bench --no-run || :'
+  - 'if [ $TRAVIS_RUST_VERSION = nightly ]; then cargo bench --no-run; fi'
 
 addons:
   apt:
