@@ -27,7 +27,7 @@ impl<A: NetworkListener + Send + 'static> ListenerPool<A> {
         let work = Arc::new(work);
 
         // Begin work.
-        for _ in (0..threads) {
+        for _ in 0..threads {
             spawn_with(super_tx.clone(), work.clone(), self.acceptor.clone())
         }
 
