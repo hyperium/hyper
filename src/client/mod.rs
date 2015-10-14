@@ -151,42 +151,42 @@ impl Client {
     }
 
     /// Build a Get request.
-    pub fn get<U: IntoUrl>(&self, url: U) -> RequestBuilder<U> {
+    pub fn get<U: IntoUrl>(&self, url: U) -> RequestBuilder {
         self.request(Method::Get, url)
     }
 
     /// Build a Head request.
-    pub fn head<U: IntoUrl>(&self, url: U) -> RequestBuilder<U> {
+    pub fn head<U: IntoUrl>(&self, url: U) -> RequestBuilder {
         self.request(Method::Head, url)
     }
 
     /// Build a Patch request.
-    pub fn patch<U: IntoUrl>(&self, url: U) -> RequestBuilder<U> {
+    pub fn patch<U: IntoUrl>(&self, url: U) -> RequestBuilder {
         self.request(Method::Patch, url)
     }
 
     /// Build a Post request.
-    pub fn post<U: IntoUrl>(&self, url: U) -> RequestBuilder<U> {
+    pub fn post<U: IntoUrl>(&self, url: U) -> RequestBuilder {
         self.request(Method::Post, url)
     }
 
     /// Build a Put request.
-    pub fn put<U: IntoUrl>(&self, url: U) -> RequestBuilder<U> {
+    pub fn put<U: IntoUrl>(&self, url: U) -> RequestBuilder {
         self.request(Method::Put, url)
     }
 
     /// Build a Delete request.
-    pub fn delete<U: IntoUrl>(&self, url: U) -> RequestBuilder<U> {
+    pub fn delete<U: IntoUrl>(&self, url: U) -> RequestBuilder {
         self.request(Method::Delete, url)
     }
 
 
     /// Build a new request using this Client.
-    pub fn request<U: IntoUrl>(&self, method: Method, url: U) -> RequestBuilder<U> {
+    pub fn request<U: IntoUrl>(&self, method: Method, url: U) -> RequestBuilder {
         RequestBuilder {
             client: self,
             method: method,
-            url: url,
+            url: url.into_url(),
             body: None,
             headers: None,
         }
@@ -201,30 +201,39 @@ impl Default for Client {
 ///
 /// One of these will be built for you if you use one of the convenience
 /// methods, such as `get()`, `post()`, etc.
-pub struct RequestBuilder<'a, U: IntoUrl> {
+pub struct RequestBuilder<'a> {
     client: &'a Client,
-    url: U,
+    // We store a result here because it's good to keep RequestBuilder
+    // from being generic, but it is a nicer API to report the error
+    // from `send` (when other errors may be happening, so it already
+    // returns a `Result`). Why's it good to keep it non-generic? It
+    // stops downstream crates having to remonomorphise and recompile
+    // the code, which can take a while, since `send` is fairly large.
+    // (For an extreme example, a tiny crate containing
+    // `hyper::Client::new().get("x").send().unwrap();` took ~4s to
+    // compile with a generic RequestBuilder, but 2s with this scheme,)
+    url: Result<Url, UrlError>,
     headers: Option<Headers>,
     method: Method,
     body: Option<Body<'a>>,
 }
 
-impl<'a, U: IntoUrl> RequestBuilder<'a, U> {
+impl<'a> RequestBuilder<'a> {
 
     /// Set a request body to be sent.
-    pub fn body<B: Into<Body<'a>>>(mut self, body: B) -> RequestBuilder<'a, U> {
+    pub fn body<B: Into<Body<'a>>>(mut self, body: B) -> RequestBuilder<'a> {
         self.body = Some(body.into());
         self
     }
 
     /// Add additional headers to the request.
-    pub fn headers(mut self, headers: Headers) -> RequestBuilder<'a, U> {
+    pub fn headers(mut self, headers: Headers) -> RequestBuilder<'a> {
         self.headers = Some(headers);
         self
     }
 
     /// Add an individual new header to the request.
-    pub fn header<H: Header + HeaderFormat>(mut self, header: H) -> RequestBuilder<'a, U> {
+    pub fn header<H: Header + HeaderFormat>(mut self, header: H) -> RequestBuilder<'a> {
         {
             let mut headers = match self.headers {
                 Some(ref mut h) => h,
@@ -242,7 +251,7 @@ impl<'a, U: IntoUrl> RequestBuilder<'a, U> {
     /// Execute this request and receive a Response back.
     pub fn send(self) -> ::Result<Response> {
         let RequestBuilder { client, method, url, headers, body } = self;
-        let mut url = try!(url.into_url());
+        let mut url = try!(url);
         trace!("send {:?} {:?}", method, url);
 
         let can_have_body = match &method {
