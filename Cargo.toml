@@ -13,9 +13,10 @@ keywords = ["http", "hyper", "hyperium"]
 
 [dependencies]
 httparse = "1.0"
-language-tags = "0.0.7"
+language-tags = "0.2.0"
+charsets = "0.1.1"
+media-types = "0.1.2"
 log = "0.3"
-mime = "0.1"
 num_cpus = "0.2"
 rustc-serialize = "0.3"
 time = "0.1"

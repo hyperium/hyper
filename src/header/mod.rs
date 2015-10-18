@@ -99,6 +99,8 @@ use serde::de;
 #[cfg(feature = "serde-serialization")]
 use serde::ser;
 
+pub use charsets::Charset;
+pub use media_types::{self, MediaType};
 pub use self::shared::*;
 pub use self::common::*;
 
@@ -516,11 +518,8 @@ impl AsRef<str> for CowStr {
 #[cfg(test)]
 mod tests {
     use std::fmt;
-    use mime::Mime;
-    use mime::TopLevel::Text;
-    use mime::SubLevel::Plain;
     use super::{Headers, Header, HeaderFormat, ContentLength, ContentType,
-                Accept, Host, qitem};
+                Accept, Host, qitem, MediaType};
     use httparse;
 
     #[cfg(feature = "nightly")]
@@ -556,14 +555,8 @@ mod tests {
     }
 
     #[test]
-    fn test_content_type() {
-        let content_type = Header::parse_header([b"text/plain".to_vec()].as_ref());
-        assert_eq!(content_type.ok(), Some(ContentType(Mime(Text, Plain, vec![]))));
-    }
-
-    #[test]
     fn test_accept() {
-        let text_plain = qitem(Mime(Text, Plain, vec![]));
+        let text_plain = qitem(MediaType::new(Some("text"), None, Some("plain"), None));
         let application_vendor = "application/vnd.github.v3.full+json; q=0.5".parse().unwrap();
 
         let accept = Header::parse_header([b"text/plain".to_vec()].as_ref());
@@ -682,7 +675,7 @@ mod tests {
         let mut headers = Headers::new();
         headers.set(ContentLength(10));
         assert_eq!(headers.len(), 1);
-        headers.set(ContentType(Mime(Text, Plain, vec![])));
+        headers.set(ContentType(MediaType::new(Some("text"), None, Some("plain"), None)));
         assert_eq!(headers.len(), 2);
         // Redundant, should not increase count.
         headers.set(ContentLength(20));
@@ -693,7 +686,7 @@ mod tests {
     fn test_clear() {
         let mut headers = Headers::new();
         headers.set(ContentLength(10));
-        headers.set(ContentType(Mime(Text, Plain, vec![])));
+        headers.set(ContentType(MediaType::new(Some("text"), None, Some("plain"), None)));
         assert_eq!(headers.len(), 2);
         headers.clear();
         assert_eq!(headers.len(), 0);
