@@ -372,7 +372,7 @@ impl<S> HttpMessage for Http2Message<S> where S: CloneableStream {
             },
             Some(req) => req,
         };
-        let (RequestHead { headers, method, url }, body) = (request.head, request.body);
+        let (RequestHead { headers, method, url, .. }, body) = (request.head, request.body);
 
         let method = method.as_ref().as_bytes();
         let path = prepare_path(url);
@@ -426,7 +426,7 @@ impl<S> HttpMessage for Http2Message<S> where S: CloneableStream {
 /// (which produces an `HttpStream` for the underlying transport layer).
 #[inline]
 pub fn new_protocol() -> Http2Protocol<HttpConnector, HttpStream> {
-    Http2Protocol::with_connector(HttpConnector)
+    Http2Protocol::with_connector(HttpConnector{proxy: None})
 }
 
 #[cfg(test)]
@@ -441,11 +441,22 @@ mod tests {
     use header::Headers;
     use header;
     use url::Url;
+    use uri::RequestUri;
     use method;
     use cookie;
     use version;
 
     use solicit::http::connection::{HttpFrame, ReceiveFrame};
+
+    fn build_request_head() -> RequestHead {
+        let loc = "http://127.0.0.1/hello";
+        RequestHead {
+            headers: Headers::new(),
+            method: method::Method::Get,
+            url: Url::parse(loc).unwrap(),
+            request_uri: RequestUri::AbsolutePath(loc.to_string())
+        }
+    }
 
     /// Tests that the `Http2Message` correctly reads a response with no body.
     #[test]
@@ -455,11 +466,7 @@ mod tests {
         let protocol = Http2Protocol::with_connector(mock_connector);
 
         let mut message = protocol.new_message("127.0.0.1", 1337, "http").unwrap();
-        message.set_outgoing(RequestHead {
-            headers: Headers::new(),
-            method: method::Method::Get,
-            url: Url::parse("http://127.0.0.1/hello").unwrap(),
-        }).unwrap();
+        message.set_outgoing(build_request_head()).unwrap();
         let resp = message.get_incoming().unwrap();
 
         assert_eq!(resp.raw_status.0, 200);
@@ -476,11 +483,7 @@ mod tests {
         let protocol = Http2Protocol::with_connector(mock_connector);
 
         let mut message = protocol.new_message("127.0.0.1", 1337, "http").unwrap();
-        message.set_outgoing(RequestHead {
-            headers: Headers::new(),
-            method: method::Method::Get,
-            url: Url::parse("http://127.0.0.1/hello").unwrap(),
-        }).unwrap();
+        message.set_outgoing(build_request_head()).unwrap();
         let resp = message.get_incoming().unwrap();
 
         assert_eq!(resp.raw_status.0, 200);
@@ -497,11 +500,7 @@ mod tests {
         let protocol = Http2Protocol::with_connector(mock_connector);
 
         let mut message = protocol.new_message("127.0.0.1", 1337, "http").unwrap();
-        message.set_outgoing(RequestHead {
-            headers: Headers::new(),
-            method: method::Method::Get,
-            url: Url::parse("http://127.0.0.1/hello").unwrap(),
-        }).unwrap();
+        message.set_outgoing(build_request_head()).unwrap();
         let resp = message.get_incoming().unwrap();
 
         assert_eq!(resp.raw_status.0, 200);
@@ -521,11 +520,7 @@ mod tests {
         let protocol = Http2Protocol::with_connector(mock_connector);
 
         let mut message = protocol.new_message("127.0.0.1", 1337, "http").unwrap();
-        message.set_outgoing(RequestHead {
-            headers: Headers::new(),
-            method: method::Method::Get,
-            url: Url::parse("http://127.0.0.1/hello").unwrap(),
-        }).unwrap();
+        message.set_outgoing(build_request_head()).unwrap();
         let resp = message.get_incoming().unwrap();
 
         assert_eq!(resp.raw_status.0, 200);
@@ -558,11 +553,7 @@ mod tests {
         let protocol = Http2Protocol::with_connector(mock_connector);
 
         let mut message = protocol.new_message("127.0.0.1", 1337, "http").unwrap();
-        message.set_outgoing(RequestHead {
-            headers: Headers::new(),
-            method: method::Method::Get,
-            url: Url::parse("http://127.0.0.1/hello").unwrap(),
-        }).unwrap();
+        message.set_outgoing(build_request_head()).unwrap();
         let _ = message.get_incoming().unwrap();
         // Writes are invalid now
         assert!(message.write(&[1]).is_err());
@@ -593,11 +584,7 @@ mod tests {
         let protocol = Http2Protocol::with_connector(mock_connector);
 
         let mut message = protocol.new_message("127.0.0.1", 1337, "http").unwrap();
-        message.set_outgoing(RequestHead {
-            headers: Headers::new(),
-            method: method::Method::Get,
-            url: Url::parse("http://127.0.0.1/hello").unwrap(),
-        }).unwrap();
+        message.set_outgoing(build_request_head()).unwrap();
         let _ = message.get_incoming().unwrap();
 
         let stream = stream.inner.lock().unwrap();
@@ -621,11 +608,7 @@ mod tests {
         let protocol = Http2Protocol::with_connector(mock_connector);
 
         let mut message = protocol.new_message("127.0.0.1", 1337, "http").unwrap();
-        message.set_outgoing(RequestHead {
-            headers: Headers::new(),
-            method: method::Method::Get,
-            url: Url::parse("http://127.0.0.1/hello").unwrap(),
-        }).unwrap();
+        message.set_outgoing(build_request_head()).unwrap();
         // Write a few things to the request in multiple writes.
         message.write(&[1]).unwrap();
         message.write(&[2, 3]).unwrap();

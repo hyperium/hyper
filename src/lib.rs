@@ -189,6 +189,7 @@ pub mod method;
 pub mod header;
 pub mod http;
 pub mod net;
+pub mod proxy;
 pub mod server;
 pub mod status;
 pub mod uri;

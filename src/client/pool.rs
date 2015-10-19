@@ -206,6 +206,7 @@ impl<S: NetworkStream> NetworkStream for PooledStream<S> {
         trace!("previous_response_expected_no_content {}", answer);
         answer
     }
+
 }
 
 impl<S> Drop for PooledStream<S> {

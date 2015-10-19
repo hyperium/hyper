@@ -64,11 +64,13 @@ use std::time::Duration;
 
 use url::UrlParser;
 use url::ParseError as UrlError;
+use uri::RequestUri;
 
 use header::{Headers, Header, HeaderFormat};
 use header::{ContentLength, Location};
 use method::Method;
-use net::{NetworkConnector, NetworkStream, Fresh};
+use net::{NetworkConnector, NetworkStream, Fresh, DefaultConnector};
+use proxy;
 use {Url};
 use Error;
 
@@ -93,6 +95,7 @@ pub struct Client {
     read_timeout: Option<Duration>,
     #[cfg(feature = "timeouts")]
     write_timeout: Option<Duration>,
+    proxies: Vec<proxy::Proxy>
 }
 
 impl Client {
@@ -107,10 +110,19 @@ impl Client {
         Client::with_connector(Pool::new(config))
     }
 
+    pub fn with_proxy_config(config: proxy::Config) -> Client {
+        Client::with_connector(DefaultConnector::with_proxy(proxy::Proxy::new(config)))
+    }
+
     /// Create a new client with a specific connector.
     pub fn with_connector<C, S>(connector: C) -> Client
     where C: NetworkConnector<Stream=S> + Send + Sync + 'static, S: NetworkStream + Send {
         Client::with_protocol(Http11Protocol::with_connector(connector))
+    }
+
+    pub fn add_proxy(& mut self, config: proxy::Config) {
+        let proxy = proxy::Proxy::new(config);
+        self.proxies.push(proxy);
     }
 
     #[cfg(not(feature = "timeouts"))]
@@ -119,6 +131,7 @@ impl Client {
         Client {
             protocol: Box::new(protocol),
             redirect_policy: Default::default(),
+            proxies: Vec::new(),
         }
     }
 
@@ -130,6 +143,7 @@ impl Client {
             redirect_policy: Default::default(),
             read_timeout: None,
             write_timeout: None,
+            proxies: Vec::new(),
         }
     }
 
@@ -180,13 +194,25 @@ impl Client {
         self.request(Method::Delete, url)
     }
 
+    fn active_proxy(&self, url: &Url) -> Option<&proxy::Proxy> {
+        self.proxies.iter().find(|&x| x.can_handle(url))
+    }
 
     /// Build a new request using this Client.
     pub fn request<U: IntoUrl>(&self, method: Method, url: U) -> RequestBuilder {
+        let resolved_url = url.into_url();
+        let request_uri:Option<RequestUri> = match resolved_url {
+            Ok(ref real_url) => {
+                let proxy = self.active_proxy(real_url);
+                Some(Request::<Fresh>::build_request_uri(&method, real_url, proxy.is_some()))
+            },
+            Err(_) => None
+        };
         RequestBuilder {
             client: self,
             method: method,
-            url: url.into_url(),
+            url: resolved_url,
+            request_uri: request_uri,
             body: None,
             headers: None,
         }
@@ -213,6 +239,7 @@ pub struct RequestBuilder<'a> {
     // `hyper::Client::new().get("x").send().unwrap();` took ~4s to
     // compile with a generic RequestBuilder, but 2s with this scheme,)
     url: Result<Url, UrlError>,
+    request_uri: Option<RequestUri>,
     headers: Option<Headers>,
     method: Method,
     body: Option<Body<'a>>,
@@ -250,8 +277,10 @@ impl<'a> RequestBuilder<'a> {
 
     /// Execute this request and receive a Response back.
     pub fn send(self) -> ::Result<Response> {
-        let RequestBuilder { client, method, url, headers, body } = self;
+        let RequestBuilder { client, method, url, request_uri, headers, body } = self;
         let mut url = try!(url);
+        // if url is ok request_uri should also be ok
+        let request_uri = request_uri.unwrap();
         trace!("send {:?} {:?}", method, url);
 
         let can_have_body = match &method {
@@ -270,7 +299,7 @@ impl<'a> RequestBuilder<'a> {
                 let (host, port) = try!(get_host_and_port(&url));
                 try!(client.protocol.new_message(&host, port, &*url.scheme))
             };
-            let mut req = try!(Request::with_message(method.clone(), url.clone(), message));
+            let mut req = try!(Request::with_message(method.clone(), url.clone(), request_uri.clone(), message));
             headers.as_ref().map(|headers| req.headers_mut().extend(headers.iter()));
 
             #[cfg(not(feature = "timeouts"))]

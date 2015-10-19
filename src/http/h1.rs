@@ -142,17 +142,10 @@ impl HttpMessage for Http11Message {
                 },
             };
             let mut stream = BufWriter::new(stream);
-
-            let mut uri = head.url.serialize_path().unwrap();
-            if let Some(ref q) = head.url.query {
-                uri.push('?');
-                uri.push_str(&q[..]);
-            }
-
             let version = version::HttpVersion::Http11;
-            debug!("request line: {:?} {:?} {:?}", head.method, uri, version);
+            debug!("request line: {:?} {:?} {:?}", head.method, head.request_uri, version);
             match write!(&mut stream, "{} {} {}{}",
-                         head.method, uri, version, LINE_ENDING) {
+                         head.method, head.request_uri, version, LINE_ENDING) {
                              Err(e) => {
                                  res = Err(From::from(e));
                                  // TODO What should we do if the BufWriter doesn't wanna
@@ -424,6 +417,7 @@ impl Http11Message {
         });
         res
     }
+
 }
 
 /// The `Protocol` implementation provides HTTP/1.1 messages.
