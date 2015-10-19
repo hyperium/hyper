@@ -51,12 +51,15 @@ impl<'a, N: NetworkListener + 'a> Iterator for NetworkConnections<'a, N> {
 pub trait NetworkStream: Read + Write + Any + Send + Typeable {
     /// Get the remote address of the underlying connection.
     fn peer_addr(&mut self) -> io::Result<SocketAddr>;
+
     /// Set the maximum time to wait for a read to complete.
     #[cfg(feature = "timeouts")]
     fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()>;
+
     /// Set the maximum time to wait for a write to complete.
     #[cfg(feature = "timeouts")]
     fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()>;
+
     /// This will be called when Stream should no longer be kept alive.
     #[inline]
     fn close(&mut self, _how: Shutdown) -> io::Result<()> {
@@ -66,9 +69,8 @@ pub trait NetworkStream: Read + Write + Any + Send + Typeable {
     // Unsure about name and implementation...
 
     #[doc(hidden)]
-    fn set_previous_response_expected_no_content(&mut self, _expected: bool) {
-    
-    }
+    fn set_previous_response_expected_no_content(&mut self, _expected: bool) { }
+
     #[doc(hidden)]
     fn previous_response_expected_no_content(&self) -> bool {
         false
@@ -79,6 +81,7 @@ pub trait NetworkStream: Read + Write + Any + Send + Typeable {
 pub trait NetworkConnector {
     /// Type of Stream to create
     type Stream: Into<Box<NetworkStream + Send>>;
+
     /// Connect to a remote address.
     fn connect(&self, host: &str, port: u16, scheme: &str) -> ::Result<Self::Stream>;
 }
@@ -215,13 +218,17 @@ impl Clone for HttpListener {
     }
 }
 
-impl HttpListener {
+impl From<TcpListener> for HttpListener {
+    fn from(listener: TcpListener) -> HttpListener {
+        HttpListener(listener)
+    }
+}
 
+impl HttpListener {
     /// Start listening to an address over HTTP.
     pub fn new<To: ToSocketAddrs>(addr: To) -> ::Result<HttpListener> {
         Ok(HttpListener(try!(TcpListener::bind(addr))))
     }
-
 }
 
 impl NetworkListener for HttpListener {
@@ -382,17 +389,17 @@ impl NetworkConnector for HttpConnector {
 /// A closure as a connector used to generate TcpStreams per request
 ///
 /// # Example
-/// 
+///
 /// Basic example:
-/// 
+///
 /// ```norun
 /// Client::with_connector(|addr: &str, port: u16, scheme: &str| {
 ///     TcpStream::connect(&(addr, port))
 /// });
 /// ```
-/// 
+///
 /// Example using TcpBuilder from the net2 crate if you want to configure your source socket:
-/// 
+///
 /// ```norun
 /// Client::with_connector(|addr: &str, port: u16, scheme: &str| {
 ///     let b = try!(TcpBuilder::new_v4());
@@ -499,7 +506,6 @@ pub struct HttpsListener<S: Ssl> {
 }
 
 impl<S: Ssl> HttpsListener<S> {
-
     /// Start listening to an address over HTTPS.
     pub fn new<To: ToSocketAddrs>(addr: To, ssl: S) -> ::Result<HttpsListener<S>> {
         HttpListener::new(addr).map(|l| HttpsListener {
@@ -508,6 +514,13 @@ impl<S: Ssl> HttpsListener<S> {
         })
     }
 
+    /// Construct an HttpsListener from a bound `TcpListener`.
+    pub fn with_listener(listener: HttpListener, ssl: S) -> HttpsListener<S> {
+        HttpsListener {
+            listener: listener,
+            ssl: ssl
+        }
+    }
 }
 
 impl<S: Ssl + Clone> NetworkListener for HttpsListener<S> {
@@ -575,7 +588,6 @@ mod openssl {
     use openssl::ssl::error::SslError;
     use openssl::x509::X509FileType;
     use super::{NetworkStream, HttpStream};
-
 
     /// An implementation of `Ssl` for OpenSSL.
     ///
@@ -678,7 +690,6 @@ mod tests {
 
         let mock = stream.downcast::<MockStream>().ok().unwrap();
         assert_eq!(mock, Box::new(MockStream::new()));
-
     }
 
     #[test]
@@ -688,6 +699,6 @@ mod tests {
 
         let mock = unsafe { stream.downcast_unchecked::<MockStream>() };
         assert_eq!(mock, Box::new(MockStream::new()));
-
     }
 }
+

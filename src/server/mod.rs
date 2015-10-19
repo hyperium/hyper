@@ -194,8 +194,6 @@ impl<L: NetworkListener> Server<L> {
     pub fn set_write_timeout(&mut self, dur: Option<Duration>) {
         self.timeouts.write = dur;
     }
-
-
 }
 
 impl Server<HttpListener> {
@@ -219,6 +217,7 @@ impl<L: NetworkListener + Send + 'static> Server<L> {
     pub fn handle<H: Handler + 'static>(self, handler: H) -> ::Result<Listening> {
         self.handle_threads(handler, num_cpus::get() * 5 / 4)
     }
+
     /// Binds to a socket and starts handling connections with the provided
     /// number of threads.
     pub fn handle_threads<H: Handler + 'static>(self, handler: H,
@@ -228,8 +227,7 @@ impl<L: NetworkListener + Send + 'static> Server<L> {
 }
 
 fn handle<H, L>(mut server: Server<L>, handler: H, threads: usize) -> ::Result<Listening>
-where H: Handler + 'static,
-L: NetworkListener + Send + 'static {
+where H: Handler + 'static, L: NetworkListener + Send + 'static {
     let socket = try!(server.listener.local_addr());
 
     debug!("threads = {:?}", threads);
@@ -251,7 +249,6 @@ struct Worker<H: Handler + 'static> {
 }
 
 impl<H: Handler + 'static> Worker<H> {
-
     fn new(handler: H, timeouts: Timeouts) -> Worker<H> {
         Worker {
             handler: handler,
@@ -299,7 +296,6 @@ impl<H: Handler + 'static> Worker<H> {
         self.set_write_timeout(s, self.timeouts.write)
     }
 
-
     #[cfg(not(feature = "timeouts"))]
     fn set_write_timeout(&self, _s: &NetworkStream, _timeout: Option<Duration>) -> io::Result<()> {
         Ok(())
@@ -338,7 +334,6 @@ impl<H: Handler + 'static> Worker<H> {
                 return false;
             }
         };
-
 
         if !self.handle_expect(&req, wrt) {
             return false;
