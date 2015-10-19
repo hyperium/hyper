@@ -42,7 +42,6 @@ impl<A: NetworkListener + Send + 'static> ListenerPool<A> {
 fn spawn_with<A, F>(supervisor: mpsc::Sender<()>, work: Arc<F>, mut acceptor: A)
 where A: NetworkListener + Send + 'static,
       F: Fn(<A as NetworkListener>::Stream) + Send + Sync + 'static {
-
     thread::spawn(move || {
         let _sentinel = Sentinel::new(supervisor, ());
 
@@ -77,3 +76,4 @@ impl<T: Send + 'static> Drop for Sentinel<T> {
         let _ = self.supervisor.send(self.value.take().unwrap());
     }
 }
+
