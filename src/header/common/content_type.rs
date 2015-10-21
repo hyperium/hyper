@@ -1,4 +1,5 @@
-use mime::Mime;
+use header::MediaType;
+use header::media_types::type_::{APPLICATION, IMAGE, TEXT};
 
 header! {
     #[doc="`Content-Type` header, defined in"]
@@ -22,75 +23,75 @@ header! {
     #[doc=""]
     #[doc="# Examples"]
     #[doc="```"]
-    #[doc="use hyper::header::{Headers, ContentType};"]
-    #[doc="use hyper::mime::{Mime, TopLevel, SubLevel};"]
+    #[doc="use hyper::header::{Headers, ContentType, MediaType};"]
     #[doc=""]
     #[doc="let mut headers = Headers::new();"]
     #[doc=""]
     #[doc="headers.set("]
-    #[doc="    ContentType(Mime(TopLevel::Text, SubLevel::Html, vec![]))"]
+    #[doc="    ContentType(MediaType::new(Some(\"text\"), None, Some(\"html\"), None))"]
     #[doc=");"]
     #[doc="```"]
     #[doc="```"]
     #[doc="use hyper::header::{Headers, ContentType};"]
-    #[doc="use hyper::mime::{Mime, TopLevel, SubLevel, Attr, Value};"]
     #[doc=""]
     #[doc="let mut headers = Headers::new();"]
     #[doc=""]
-    #[doc="headers.set("]
-    #[doc="    ContentType(Mime(TopLevel::Application, SubLevel::Json,"]
-    #[doc="                     vec![(Attr::Charset, Value::Utf8)]))"]
-    #[doc=");"]
+    #[doc="headers.set(ContentType::json());"]
     #[doc="```"]
-    (ContentType, "Content-Type") => [Mime]
+    #[doc="```"]
+    #[doc="use hyper::header::{ContentType, MediaType, Charset};"]
+    #[doc=""]
+    #[doc="let mut media_type = MediaType::new(Some(\"text\"), None, Some(\"html\"), None);"]
+    #[doc="media_type.set_charset(Charset::Iso88594);"]
+    #[doc="assert_eq!(media_type.to_string(), \"text/html; charset=ISO-8859-4\");"]
+    #[doc="```"]
+    (ContentType, "Content-Type") => [MediaType]
 
-    test_content_type {
-        test_header!(
-            test1,
-            // FIXME: Should be b"text/html; charset=ISO-8859-4" but mime crate lowercases
-            // the whole value so parsing and formatting the value gives a different result
-            vec![b"text/html; charset=iso-8859-4"],
-            Some(HeaderField(Mime(
-                TopLevel::Text,
-                SubLevel::Html,
-                vec![(Attr::Charset, Value::Ext("iso-8859-4".to_owned()))]))));
-    }
+    test_content_type {}
 }
 
 impl ContentType {
     /// A constructor  to easily create a `Content-Type: application/json; charset=utf-8` header.
     #[inline]
     pub fn json() -> ContentType {
-        ContentType(mime!(Application/Json; Charset=Utf8))
+        let mut tag = MediaType::new(APPLICATION, None, Some("json"), None);
+        tag.set_charset_utf8();
+        ContentType(tag)
     }
 
     /// A constructor  to easily create a `Content-Type: text/plain; charset=utf-8` header.
     #[inline]
     pub fn plaintext() -> ContentType {
-        ContentType(mime!(Text/Plain; Charset=Utf8))
+        let mut tag = MediaType::new(TEXT, None, Some("plain"), None);
+        tag.set_charset_utf8();
+        ContentType(tag)
     }
 
     /// A constructor  to easily create a `Content-Type: text/html; charset=utf-8` header.
     #[inline]
     pub fn html() -> ContentType {
-        ContentType(mime!(Text/Html; Charset=Utf8))
+        let mut tag = MediaType::new(TEXT, None, Some("html"), None);
+        tag.set_charset_utf8();
+        ContentType(tag)
     }
 
     /// A constructor  to easily create a `Content-Type: application/www-form-url-encoded` header.
     #[inline]
     pub fn form_url_encoded() -> ContentType {
-        ContentType(mime!(Application/WwwFormUrlEncoded))
+        let mut tag = MediaType::new(APPLICATION, None, Some("www-form-url-encoded"), None);
+        tag.set_charset_utf8();
+        ContentType(tag)
     }
     /// A constructor  to easily create a `Content-Type: image/jpeg` header.
     #[inline]
     pub fn jpeg() -> ContentType {
-        ContentType(mime!(Image/Jpeg))
+        ContentType(MediaType::new(IMAGE, None, Some("jpeg"), None))
     }
 
     /// A constructor  to easily create a `Content-Type: image/png` header.
     #[inline]
     pub fn png() -> ContentType {
-        ContentType(mime!(Image/Png))
+        ContentType(MediaType::new(IMAGE, None, Some("png"), None))
     }
 }
 

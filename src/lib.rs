@@ -142,12 +142,11 @@ extern crate num_cpus;
 extern crate traitobject;
 extern crate typeable;
 extern crate solicit;
+extern crate charsets;
+extern crate media_types;
 
 #[macro_use]
 extern crate language_tags;
-
-#[macro_use]
-extern crate mime as mime_crate;
 
 #[macro_use]
 extern crate log;
@@ -193,11 +192,6 @@ pub mod server;
 pub mod status;
 pub mod uri;
 pub mod version;
-
-/// Re-exporting the mime crate, for convenience.
-pub mod mime {
-    pub use mime_crate::*;
-}
 
 #[allow(unconditional_recursion)]
 fn _assert_send<T: Send>() {
