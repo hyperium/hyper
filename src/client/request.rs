@@ -61,7 +61,7 @@ impl<W> Request<W> {
         self.message.set_read_timeout(dur)
     }
 
-    /// Build the request uri depending on the route type.
+    /// Build the request uri depending on the proxy type.
     pub fn build_request_uri(method: &Method, url: &Url, is_proxy: bool) -> RequestUri {
         match method {
             &Method::Connect =>

@@ -303,7 +303,6 @@ impl Read for HttpStream {
 impl Write for HttpStream {
     #[inline]
     fn write(&mut self, msg: &[u8]) -> io::Result<usize> {
-        info!("write http: {}", str::from_utf8(msg).unwrap_or("-"));
         self.0.write(msg)
     }
     #[inline]
@@ -322,7 +321,7 @@ impl ::std::os::windows::io::AsRawSocket for HttpStream {
 #[cfg(windows)]
 impl ::std::os::windows::io::FromRawSocket for HttpStream {
     unsafe fn from_raw_socket(sock: ::std::os::windows::io::RawSocket) -> HttpStream {
-        HttpStream(TcpStream::from_raw_socket(sock), Route::DirectRoute)
+        HttpStream(TcpStream::from_raw_socket(sock))
     }
 }
 

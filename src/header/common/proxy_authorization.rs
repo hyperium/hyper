@@ -1,4 +1,3 @@
-use header:
 
 header! {
     #[doc="`Proxy-Authorization` header, defined in [RFC7235](http://tools.ietf.org/html/rfc7235#section-4.4)"]
