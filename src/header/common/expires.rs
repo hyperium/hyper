@@ -1,37 +1,37 @@
 use header::HttpDate;
 
 header! {
-    #[doc="`Expires` header, defined in [RFC7234](http://tools.ietf.org/html/rfc7234#section-5.3)"]
-    #[doc=""]
-    #[doc="The `Expires` header field gives the date/time after which the"]
-    #[doc="response is considered stale."]
-    #[doc=""]
-    #[doc="The presence of an Expires field does not imply that the original"]
-    #[doc="resource will change or cease to exist at, before, or after that"]
-    #[doc="time."]
-    #[doc=""]
-    #[doc="# ABNF"]
-    #[doc="```plain"]
-    #[doc="Expires = HTTP-date"]
-    #[doc="```"]
-    #[doc=""]
-    #[doc="# Example values"]
-    #[doc="* `Thu, 01 Dec 1994 16:00:00 GMT`"]
-    #[doc=""]
-    #[doc="# Example"]
-    #[doc="```"]
-    #[doc="# extern crate hyper;"]
-    #[doc="# extern crate time;"]
-    #[doc="# fn main() {"]
-    #[doc="// extern crate time;"]
-    #[doc=""]
-    #[doc="use hyper::header::{Headers, Expires, HttpDate};"]
-    #[doc="use time::{self, Duration};"]
-    #[doc=""]
-    #[doc="let mut headers = Headers::new();"]
-    #[doc="headers.set(Expires(HttpDate(time::now() + Duration::days(1))));"]
-    #[doc="# }"]
-    #[doc="```"]
+    /// `Expires` header, defined in [RFC7234](http://tools.ietf.org/html/rfc7234#section-5.3)
+    /// 
+    /// The `Expires` header field gives the date/time after which the
+    /// response is considered stale.
+    /// 
+    /// The presence of an Expires field does not imply that the original
+    /// resource will change or cease to exist at, before, or after that
+    /// time.
+    /// 
+    /// # ABNF
+    /// ```plain
+    /// Expires = HTTP-date
+    /// ```
+    /// 
+    /// # Example values
+    /// * `Thu, 01 Dec 1994 16:00:00 GMT`
+    /// 
+    /// # Example
+    /// ```
+    /// # extern crate hyper;
+    /// # extern crate time;
+    /// # fn main() {
+    /// // extern crate time;
+    /// 
+    /// use hyper::header::{Headers, Expires, HttpDate};
+    /// use time::{self, Duration};
+    /// 
+    /// let mut headers = Headers::new();
+    /// headers.set(Expires(HttpDate(time::now() + Duration::days(1))));
+    /// # }
+    /// ```
     (Expires, "Expires") => [HttpDate]
 
     test_expires {

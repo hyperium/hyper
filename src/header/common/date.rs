@@ -1,33 +1,33 @@
 use header::HttpDate;
 
 header! {
-    #[doc="`Date` header, defined in [RFC7231](http://tools.ietf.org/html/rfc7231#section-7.1.1.2)"]
-    #[doc=""]
-    #[doc="The `Date` header field represents the date and time at which the"]
-    #[doc="message was originated."]
-    #[doc=""]
-    #[doc="# ABNF"]
-    #[doc="```plain"]
-    #[doc="Date = HTTP-date"]
-    #[doc="```"]
-    #[doc=""]
-    #[doc="# Example values"]
-    #[doc="* `Tue, 15 Nov 1994 08:12:31 GMT`"]
-    #[doc=""]
-    #[doc="# Example"]
-    #[doc="```"]
-    #[doc="# extern crate time;"]
-    #[doc="# extern crate hyper;"]
-    #[doc="# fn main() {"]
-    #[doc="// extern crate time;"]
-    #[doc=""]
-    #[doc="use hyper::header::{Headers, Date, HttpDate};"]
-    #[doc="use time;"]
-    #[doc=""]
-    #[doc="let mut headers = Headers::new();"]
-    #[doc="headers.set(Date(HttpDate(time::now())));"]
-    #[doc="# }"]
-    #[doc="```"]
+    /// `Date` header, defined in [RFC7231](http://tools.ietf.org/html/rfc7231#section-7.1.1.2)
+    /// 
+    /// The `Date` header field represents the date and time at which the
+    /// message was originated.
+    /// 
+    /// # ABNF
+    /// ```plain
+    /// Date = HTTP-date
+    /// ```
+    /// 
+    /// # Example values
+    /// * `Tue, 15 Nov 1994 08:12:31 GMT`
+    /// 
+    /// # Example
+    /// ```
+    /// # extern crate time;
+    /// # extern crate hyper;
+    /// # fn main() {
+    /// // extern crate time;
+    /// 
+    /// use hyper::header::{Headers, Date, HttpDate};
+    /// use time;
+    /// 
+    /// let mut headers = Headers::new();
+    /// headers.set(Date(HttpDate(time::now())));
+    /// # }
+    /// ```
     (Date, "Date") => [HttpDate]
 
     test_date {

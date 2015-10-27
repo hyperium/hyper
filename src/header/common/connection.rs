@@ -49,50 +49,50 @@ impl Display for ConnectionOption {
 }
 
 header! {
-    #[doc="`Connection` header, defined in"]
-    #[doc="[RFC7230](http://tools.ietf.org/html/rfc7230#section-6.1)"]
-    #[doc=""]
-    #[doc="The `Connection` header field allows the sender to indicate desired"]
-    #[doc="control options for the current connection.  In order to avoid"]
-    #[doc="confusing downstream recipients, a proxy or gateway MUST remove or"]
-    #[doc="replace any received connection options before forwarding the"]
-    #[doc="message."]
-    #[doc=""]
-    #[doc="# ABNF"]
-    #[doc="```plain"]
-    #[doc="Connection        = 1#connection-option"]
-    #[doc="connection-option = token"]
-    #[doc=""]
-    #[doc="# Example values"]
-    #[doc="* `close`"]
-    #[doc="* `keep-alive`"]
-    #[doc="* `upgrade`"]
-    #[doc="```"]
-    #[doc=""]
-    #[doc="# Examples"]
-    #[doc="```"]
-    #[doc="use hyper::header::{Headers, Connection};"]
-    #[doc=""]
-    #[doc="let mut headers = Headers::new();"]
-    #[doc="headers.set(Connection::keep_alive());"]
-    #[doc="```"]
-    #[doc="```"]
-    #[doc="# extern crate hyper;"]
-    #[doc="# extern crate unicase;"]
-    #[doc="# fn main() {"]
-    #[doc="// extern crate unicase;"]
-    #[doc=""]
-    #[doc="use hyper::header::{Headers, Connection, ConnectionOption};"]
-    #[doc="use unicase::UniCase;"]
-    #[doc=""]
-    #[doc="let mut headers = Headers::new();"]
-    #[doc="headers.set("]
-    #[doc="    Connection(vec!["]
-    #[doc="        ConnectionOption::ConnectionHeader(UniCase(\"upgrade\".to_owned())),"]
-    #[doc="    ])"]
-    #[doc=");"]
-    #[doc="# }"]
-    #[doc="```"]
+    /// `Connection` header, defined in
+    /// [RFC7230](http://tools.ietf.org/html/rfc7230#section-6.1)
+    ///
+    /// The `Connection` header field allows the sender to indicate desired
+    /// control options for the current connection.  In order to avoid
+    /// confusing downstream recipients, a proxy or gateway MUST remove or
+    /// replace any received connection options before forwarding the
+    /// message.
+    ///
+    /// # ABNF
+    /// ```plain
+    /// Connection        = 1#connection-option
+    /// connection-option = token
+    ///
+    /// # Example values
+    /// * `close`
+    /// * `keep-alive`
+    /// * `upgrade`
+    /// ```
+    ///
+    /// # Examples
+    /// ```
+    /// use hyper::header::{Headers, Connection};
+    ///
+    /// let mut headers = Headers::new();
+    /// headers.set(Connection::keep_alive());
+    /// ```
+    /// ```
+    /// # extern crate hyper;
+    /// # extern crate unicase;
+    /// # fn main() {
+    /// // extern crate unicase;
+    ///
+    /// use hyper::header::{Headers, Connection, ConnectionOption};
+    /// use unicase::UniCase;
+    ///
+    /// let mut headers = Headers::new();
+    /// headers.set(
+    ///     Connection(vec![
+    ///         ConnectionOption::ConnectionHeader(UniCase("upgrade".to_owned())),
+    ///     ])
+    /// );
+    /// # }
+    /// ```
     (Connection, "Connection") => (ConnectionOption)+
 
     test_connection {

@@ -1,61 +1,61 @@
 use header::{Encoding, QualityItem};
 
 header! {
-    #[doc="`Accept-Encoding` header, defined in"]
-    #[doc="[RFC7231](http://tools.ietf.org/html/rfc7231#section-5.3.4)"]
-    #[doc=""]
-    #[doc="The `Accept-Encoding` header field can be used by user agents to"]
-    #[doc="indicate what response content-codings are"]
-    #[doc="acceptable in the response.  An  `identity` token is used as a synonym"]
-    #[doc="for \"no encoding\" in order to communicate when no encoding is"]
-    #[doc="preferred."]
-    #[doc=""]
-    #[doc="# ABNF"]
-    #[doc="```plain"]
-    #[doc="Accept-Encoding  = #( codings [ weight ] )"]
-    #[doc="codings          = content-coding / \"identity\" / \"*\""]
-    #[doc="```"]
-    #[doc=""]
-    #[doc="# Example values"]
-    #[doc="* `compress, gzip`"]
-    #[doc="* ``"]
-    #[doc="* `*`"]
-    #[doc="* `compress;q=0.5, gzip;q=1`"]
-    #[doc="* `gzip;q=1.0, identity; q=0.5, *;q=0`"]
-    #[doc=""]
-    #[doc="# Examples"]
-    #[doc="```"]
-    #[doc="use hyper::header::{Headers, AcceptEncoding, Encoding, qitem};"]
-    #[doc=""]
-    #[doc="let mut headers = Headers::new();"]
-    #[doc="headers.set("]
-    #[doc="    AcceptEncoding(vec![qitem(Encoding::Chunked)])"]
-    #[doc=");"]
-    #[doc="```"]
-    #[doc="```"]
-    #[doc="use hyper::header::{Headers, AcceptEncoding, Encoding, qitem};"]
-    #[doc=" "]
-    #[doc="let mut headers = Headers::new();"]
-    #[doc="headers.set("]
-    #[doc="    AcceptEncoding(vec!["]
-    #[doc="        qitem(Encoding::Chunked),"]
-    #[doc="        qitem(Encoding::Gzip),"]
-    #[doc="        qitem(Encoding::Deflate),"]
-    #[doc="    ])"]
-    #[doc=");"]
-    #[doc="```"]
-    #[doc="```"]
-    #[doc="use hyper::header::{Headers, AcceptEncoding, Encoding, QualityItem, Quality, qitem};"]
-    #[doc=" "]
-    #[doc="let mut headers = Headers::new();"]
-    #[doc="headers.set("]
-    #[doc="    AcceptEncoding(vec!["]
-    #[doc="        qitem(Encoding::Chunked),"]
-    #[doc="        QualityItem::new(Encoding::Gzip, Quality(600)),"]
-    #[doc="        QualityItem::new(Encoding::EncodingExt(\"*\".to_owned()), Quality(0)),"]
-    #[doc="    ])"]
-    #[doc=");"]
-    #[doc="```"]
+    /// `Accept-Encoding` header, defined in
+    /// [RFC7231](http://tools.ietf.org/html/rfc7231#section-5.3.4)
+    ///
+    /// The `Accept-Encoding` header field can be used by user agents to
+    /// indicate what response content-codings are
+    /// acceptable in the response.  An  `identity` token is used as a synonym
+    /// for "no encoding" in order to communicate when no encoding is
+    /// preferred.
+    ///
+    /// # ABNF
+    /// ```plain
+    /// Accept-Encoding  = #( codings [ weight ] )
+    /// codings          = content-coding / "identity" / "*"
+    /// ```
+    ///
+    /// # Example values
+    /// * `compress, gzip`
+    /// * ``
+    /// * `*`
+    /// * `compress;q=0.5, gzip;q=1`
+    /// * `gzip;q=1.0, identity; q=0.5, *;q=0`
+    ///
+    /// # Examples
+    /// ```
+    /// use hyper::header::{Headers, AcceptEncoding, Encoding, qitem};
+    ///
+    /// let mut headers = Headers::new();
+    /// headers.set(
+    ///     AcceptEncoding(vec![qitem(Encoding::Chunked)])
+    /// );
+    /// ```
+    /// ```
+    /// use hyper::header::{Headers, AcceptEncoding, Encoding, qitem};
+    ///
+    /// let mut headers = Headers::new();
+    /// headers.set(
+    ///     AcceptEncoding(vec![
+    ///         qitem(Encoding::Chunked),
+    ///         qitem(Encoding::Gzip),
+    ///         qitem(Encoding::Deflate),
+    ///     ])
+    /// );
+    /// ```
+    /// ```
+    /// use hyper::header::{Headers, AcceptEncoding, Encoding, QualityItem, Quality, qitem};
+    ///
+    /// let mut headers = Headers::new();
+    /// headers.set(
+    ///     AcceptEncoding(vec![
+    ///         qitem(Encoding::Chunked),
+    ///         QualityItem::new(Encoding::Gzip, Quality(600)),
+    ///         QualityItem::new(Encoding::EncodingExt("*".to_owned()), Quality(0)),
+    ///     ])
+    /// );
+    /// ```
     (AcceptEncoding, "Accept-Encoding") => (QualityItem<Encoding>)*
 
     test_accept_encoding {

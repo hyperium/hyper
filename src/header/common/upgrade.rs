@@ -3,51 +3,51 @@ use std::str::FromStr;
 use unicase::UniCase;
 
 header! {
-    #[doc="`Upgrade` header, defined in [RFC7230](http://tools.ietf.org/html/rfc7230#section-6.7)"]
-    #[doc=""]
-    #[doc="The `Upgrade` header field is intended to provide a simple mechanism"]
-    #[doc="for transitioning from HTTP/1.1 to some other protocol on the same"]
-    #[doc="connection.  A client MAY send a list of protocols in the Upgrade"]
-    #[doc="header field of a request to invite the server to switch to one or"]
-    #[doc="more of those protocols, in order of descending preference, before"]
-    #[doc="sending the final response.  A server MAY ignore a received Upgrade"]
-    #[doc="header field if it wishes to continue using the current protocol on"]
-    #[doc="that connection.  Upgrade cannot be used to insist on a protocol"]
-    #[doc="change."]
-    #[doc=""]
-    #[doc="# ABNF"]
-    #[doc="```plain"]
-    #[doc="Upgrade          = 1#protocol"]
-    #[doc=""]
-    #[doc="protocol         = protocol-name [\"/\" protocol-version]"]
-    #[doc="protocol-name    = token"]
-    #[doc="protocol-version = token"]
-    #[doc="```"]
-    #[doc=""]
-    #[doc="# Example values"]
-    #[doc="* `HTTP/2.0, SHTTP/1.3, IRC/6.9, RTA/x11`"]
-    #[doc=""]
-    #[doc="# Examples"]
-    #[doc="```"]
-    #[doc="use hyper::header::{Headers, Upgrade, Protocol, ProtocolName};"]
-    #[doc=""]
-    #[doc="let mut headers = Headers::new();"]
-    #[doc="headers.set(Upgrade(vec![Protocol::new(ProtocolName::WebSocket, None)]));"]
-    #[doc="```"]
-    #[doc="```"]
-    #[doc="use hyper::header::{Headers, Upgrade, Protocol, ProtocolName};"]
-    #[doc=""]
-    #[doc="let mut headers = Headers::new();"]
-    #[doc="headers.set("]
-    #[doc="    Upgrade(vec!["]
-    #[doc="        Protocol::new(ProtocolName::Http, Some(\"2.0\".to_owned())),"]
-    #[doc="        Protocol::new(ProtocolName::Unregistered(\"SHTTP\".to_owned()),"]
-    #[doc="            Some(\"1.3\".to_owned())),"]
-    #[doc="        Protocol::new(ProtocolName::Unregistered(\"IRC\".to_owned()),"]
-    #[doc="            Some(\"6.9\".to_owned())),"]
-    #[doc="    ])"]
-    #[doc=");"]
-    #[doc="```"]
+    /// `Upgrade` header, defined in [RFC7230](http://tools.ietf.org/html/rfc7230#section-6.7)
+    ///
+    /// The `Upgrade` header field is intended to provide a simple mechanism
+    /// for transitioning from HTTP/1.1 to some other protocol on the same
+    /// connection.  A client MAY send a list of protocols in the Upgrade
+    /// header field of a request to invite the server to switch to one or
+    /// more of those protocols, in order of descending preference, before
+    /// sending the final response.  A server MAY ignore a received Upgrade
+    /// header field if it wishes to continue using the current protocol on
+    /// that connection.  Upgrade cannot be used to insist on a protocol
+    /// change.
+    ///
+    /// # ABNF
+    /// ```plain
+    /// Upgrade          = 1#protocol
+    ///
+    /// protocol         = protocol-name ["/" protocol-version]
+    /// protocol-name    = token
+    /// protocol-version = token
+    /// ```
+    ///
+    /// # Example values
+    /// * `HTTP/2.0, SHTTP/1.3, IRC/6.9, RTA/x11`
+    ///
+    /// # Examples
+    /// ```
+    /// use hyper::header::{Headers, Upgrade, Protocol, ProtocolName};
+    ///
+    /// let mut headers = Headers::new();
+    /// headers.set(Upgrade(vec![Protocol::new(ProtocolName::WebSocket, None)]));
+    /// ```
+    /// ```
+    /// use hyper::header::{Headers, Upgrade, Protocol, ProtocolName};
+    ///
+    /// let mut headers = Headers::new();
+    /// headers.set(
+    ///     Upgrade(vec![
+    ///         Protocol::new(ProtocolName::Http, Some("2.0".to_owned())),
+    ///         Protocol::new(ProtocolName::Unregistered("SHTTP".to_owned()),
+    ///             Some("1.3".to_owned())),
+    ///         Protocol::new(ProtocolName::Unregistered("IRC".to_owned()),
+    ///             Some("6.9".to_owned())),
+    ///     ])
+    /// );
+    /// ```
     (Upgrade, "Upgrade") => (Protocol)+
 
     test_upgrade {

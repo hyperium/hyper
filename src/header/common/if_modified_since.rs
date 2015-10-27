@@ -1,37 +1,37 @@
 use header::HttpDate;
 
 header! {
-    #[doc="`If-Modified-Since` header, defined in"]
-    #[doc="[RFC7232](http://tools.ietf.org/html/rfc7232#section-3.3)"]
-    #[doc=""]
-    #[doc="The `If-Modified-Since` header field makes a GET or HEAD request"]
-    #[doc="method conditional on the selected representation's modification date"]
-    #[doc="being more recent than the date provided in the field-value."]
-    #[doc="Transfer of the selected representation's data is avoided if that"]
-    #[doc="data has not changed."]
-    #[doc=""]
-    #[doc="# ABNF"]
-    #[doc="```plain"]
-    #[doc="If-Unmodified-Since = HTTP-date"]
-    #[doc="```"]
-    #[doc=""]
-    #[doc="# Example values"]
-    #[doc="* `Sat, 29 Oct 1994 19:43:31 GMT`"]
-    #[doc=""]
-    #[doc="# Example"]
-    #[doc="```"]
-    #[doc="# extern crate hyper;"]
-    #[doc="# extern crate time;"]
-    #[doc="# fn main() {"]
-    #[doc="// extern crate time;"]
-    #[doc=""]
-    #[doc="use hyper::header::{Headers, IfModifiedSince, HttpDate};"]
-    #[doc="use time::{self, Duration};"]
-    #[doc=""]
-    #[doc="let mut headers = Headers::new();"]
-    #[doc="headers.set(IfModifiedSince(HttpDate(time::now() - Duration::days(1))));"]
-    #[doc="# }"]
-    #[doc="```"]
+    /// `If-Modified-Since` header, defined in
+    /// [RFC7232](http://tools.ietf.org/html/rfc7232#section-3.3)
+    /// 
+    /// The `If-Modified-Since` header field makes a GET or HEAD request
+    /// method conditional on the selected representation's modification date
+    /// being more recent than the date provided in the field-value.
+    /// Transfer of the selected representation's data is avoided if that
+    /// data has not changed.
+    /// 
+    /// # ABNF
+    /// ```plain
+    /// If-Unmodified-Since = HTTP-date
+    /// ```
+    /// 
+    /// # Example values
+    /// * `Sat, 29 Oct 1994 19:43:31 GMT`
+    /// 
+    /// # Example
+    /// ```
+    /// # extern crate hyper;
+    /// # extern crate time;
+    /// # fn main() {
+    /// // extern crate time;
+    /// 
+    /// use hyper::header::{Headers, IfModifiedSince, HttpDate};
+    /// use time::{self, Duration};
+    /// 
+    /// let mut headers = Headers::new();
+    /// headers.set(IfModifiedSince(HttpDate(time::now() - Duration::days(1))));
+    /// # }
+    /// ```
     (IfModifiedSince, "If-Modified-Since") => [HttpDate]
 
     test_if_modified_since {

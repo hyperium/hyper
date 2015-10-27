@@ -3,79 +3,79 @@ use mime::Mime;
 use header::QualityItem;
 
 header! {
-    #[doc="`Accept` header, defined in [RFC7231](http://tools.ietf.org/html/rfc7231#section-5.3.2)"]
-    #[doc=""]
-    #[doc="The `Accept` header field can be used by user agents to specify"]
-    #[doc="response media types that are acceptable.  Accept header fields can"]
-    #[doc="be used to indicate that the request is specifically limited to a"]
-    #[doc="small set of desired types, as in the case of a request for an"]
-    #[doc="in-line image"]
-    #[doc=""]
-    #[doc="# ABNF"]
-    #[doc="```plain"]
-    #[doc="Accept = #( media-range [ accept-params ] )"]
-    #[doc=""]
-    #[doc="media-range    = ( \"*/*\""]
-    #[doc="                 / ( type \"/\" \"*\" )"]
-    #[doc="                 / ( type \"/\" subtype )"]
-    #[doc="                 ) *( OWS \";\" OWS parameter )"]
-    #[doc="accept-params  = weight *( accept-ext )"]
-    #[doc="accept-ext = OWS \";\" OWS token [ \"=\" ( token / quoted-string ) ]"]
-    #[doc="```"]
-    #[doc=""]
-    #[doc="# Example values"]
-    #[doc="* `audio/*; q=0.2, audio/basic` (`*` value won't parse correctly)"]
-    #[doc="* `text/plain; q=0.5, text/html, text/x-dvi; q=0.8, text/x-c`"]
-    #[doc=""]
-    #[doc="# Examples"]
-    #[doc="```"]
-    #[doc="use hyper::header::{Headers, Accept, qitem};"]
-    #[doc="use hyper::mime::{Mime, TopLevel, SubLevel};"]
-    #[doc=""]
-    #[doc="let mut headers = Headers::new();"]
-    #[doc=""]
-    #[doc="headers.set("]
-    #[doc="    Accept(vec!["]
-    #[doc="        qitem(Mime(TopLevel::Text, SubLevel::Html, vec![])),"]
-    #[doc="    ])"]
-    #[doc=");"]
-    #[doc="```"]
-    #[doc="```"]
-    #[doc="use hyper::header::{Headers, Accept, qitem};"]
-    #[doc="use hyper::mime::{Mime, TopLevel, SubLevel, Attr, Value};"]
-    #[doc=""]
-    #[doc="let mut headers = Headers::new();"]
-    #[doc="headers.set("]
-    #[doc="    Accept(vec!["]
-    #[doc="        qitem(Mime(TopLevel::Application, SubLevel::Json,"]
-    #[doc="                   vec![(Attr::Charset, Value::Utf8)])),"]
-    #[doc="    ])"]
-    #[doc=");"]
-    #[doc="```"]
-    #[doc="```"]
-    #[doc="use hyper::header::{Headers, Accept, QualityItem, Quality, qitem};"]
-    #[doc="use hyper::mime::{Mime, TopLevel, SubLevel};"]
-    #[doc=""]
-    #[doc="let mut headers = Headers::new();"]
-    #[doc=""]
-    #[doc="headers.set("]
-    #[doc="    Accept(vec!["]
-    #[doc="        qitem(Mime(TopLevel::Text, SubLevel::Html, vec![])),"]
-    #[doc="        qitem(Mime(TopLevel::Application,"]
-    #[doc="                   SubLevel::Ext(\"xhtml+xml\".to_owned()), vec![])),"]
-    #[doc="        QualityItem::new(Mime(TopLevel::Application, SubLevel::Xml, vec![]),"]
-    #[doc="                         Quality(900)),"]
-    #[doc="                         qitem(Mime(TopLevel::Image,"]
-    #[doc="                                    SubLevel::Ext(\"webp\".to_owned()), vec![])),"]
-    #[doc="                         QualityItem::new(Mime(TopLevel::Star, SubLevel::Star, vec![]),"]
-    #[doc="                                          Quality(800))"]
-    #[doc="    ])"]
-    #[doc=");"]
-    #[doc="```"]
-    #[doc=""]
-    #[doc="# Notes"]
-    #[doc="* Using always Mime types to represent `media-range` differs from the ABNF."]
-    #[doc="* **FIXME**: `accept-ext` is not supported."]
+    /// `Accept` header, defined in [RFC7231](http://tools.ietf.org/html/rfc7231#section-5.3.2)
+    ///
+    /// The `Accept` header field can be used by user agents to specify
+    /// response media types that are acceptable.  Accept header fields can
+    /// be used to indicate that the request is specifically limited to a
+    /// small set of desired types, as in the case of a request for an
+    /// in-line image
+    ///
+    /// # ABNF
+    /// ```plain
+    /// Accept = #( media-range [ accept-params ] )
+    ///
+    /// media-range    = ( "*/*"
+    ///                  / ( type "/" "*" )
+    ///                  / ( type "/" subtype )
+    ///                  ) *( OWS ";" OWS parameter )
+    /// accept-params  = weight *( accept-ext )
+    /// accept-ext = OWS ";" OWS token [ "=" ( token / quoted-string ) ]
+    /// ```
+    ///
+    /// # Example values
+    /// * `audio/*; q=0.2, audio/basic` (`*` value won't parse correctly)
+    /// * `text/plain; q=0.5, text/html, text/x-dvi; q=0.8, text/x-c`
+    ///
+    /// # Examples
+    /// ```
+    /// use hyper::header::{Headers, Accept, qitem};
+    /// use hyper::mime::{Mime, TopLevel, SubLevel};
+    ///
+    /// let mut headers = Headers::new();
+    ///
+    /// headers.set(
+    ///     Accept(vec![
+    ///         qitem(Mime(TopLevel::Text, SubLevel::Html, vec![])),
+    ///     ])
+    /// );
+    /// ```
+    /// ```
+    /// use hyper::header::{Headers, Accept, qitem};
+    /// use hyper::mime::{Mime, TopLevel, SubLevel, Attr, Value};
+    ///
+    /// let mut headers = Headers::new();
+    /// headers.set(
+    ///     Accept(vec![
+    ///         qitem(Mime(TopLevel::Application, SubLevel::Json,
+    ///                    vec![(Attr::Charset, Value::Utf8)])),
+    ///     ])
+    /// );
+    /// ```
+    /// ```
+    /// use hyper::header::{Headers, Accept, QualityItem, Quality, qitem};
+    /// use hyper::mime::{Mime, TopLevel, SubLevel};
+    ///
+    /// let mut headers = Headers::new();
+    ///
+    /// headers.set(
+    ///     Accept(vec![
+    ///         qitem(Mime(TopLevel::Text, SubLevel::Html, vec![])),
+    ///         qitem(Mime(TopLevel::Application,
+    ///                    SubLevel::Ext("xhtml+xml".to_owned()), vec![])),
+    ///         QualityItem::new(Mime(TopLevel::Application, SubLevel::Xml, vec![]),
+    ///                          Quality(900)),
+    ///                          qitem(Mime(TopLevel::Image,
+    ///                                     SubLevel::Ext("webp".to_owned()), vec![])),
+    ///                          QualityItem::new(Mime(TopLevel::Star, SubLevel::Star, vec![]),
+    ///                                           Quality(800))
+    ///     ])
+    /// );
+    /// ```
+    ///
+    /// # Notes
+    /// * Using always Mime types to represent `media-range` differs from the ABNF.
+    /// * **FIXME**: `accept-ext` is not supported.
     (Accept, "Accept") => (QualityItem<Mime>)+
 
     test_accept {
