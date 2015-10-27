@@ -2,8 +2,8 @@ use std::fmt::{self, Display};
 use std::str::FromStr;
 
 header! {
-    #[doc="`Content-Range` header, defined in"]
-    #[doc="[RFC7233](http://tools.ietf.org/html/rfc7233#section-4.2)"]
+    /// `Content-Range` header, defined in
+    /// [RFC7233](http://tools.ietf.org/html/rfc7233#section-4.2)
     (ContentRange, "Content-Range") => [ContentRangeSpec]
 
     test_content_range {

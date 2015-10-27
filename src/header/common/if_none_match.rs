@@ -1,51 +1,51 @@
 use header::EntityTag;
 
 header! {
-    #[doc="`If-None-Match` header, defined in"]
-    #[doc="[RFC7232](https://tools.ietf.org/html/rfc7232#section-3.2)"]
-    #[doc=""]
-    #[doc="The `If-None-Match` header field makes the request method conditional"]
-    #[doc="on a recipient cache or origin server either not having any current"]
-    #[doc="representation of the target resource, when the field-value is \"*\","]
-    #[doc="or having a selected representation with an entity-tag that does not"]
-    #[doc="match any of those listed in the field-value."]
-    #[doc=""]
-    #[doc="A recipient MUST use the weak comparison function when comparing"]
-    #[doc="entity-tags for If-None-Match (Section 2.3.2), since weak entity-tags"]
-    #[doc="can be used for cache validation even if there have been changes to"]
-    #[doc="the representation data."]
-    #[doc=""]
-    #[doc="# ABNF"]
-    #[doc="```plain"]
-    #[doc="If-None-Match = \"*\" / 1#entity-tag"]
-    #[doc="```"]
-    #[doc=""]
-    #[doc="# Example values"]
-    #[doc="* `\"xyzzy\"`"]
-    #[doc="* `W/\"xyzzy\"`"]
-    #[doc="* `\"xyzzy\", \"r2d2xxxx\", \"c3piozzzz\"`"]
-    #[doc="* `W/\"xyzzy\", W/\"r2d2xxxx\", W/\"c3piozzzz\"`"]
-    #[doc="* `*`"]
-    #[doc=""]
-    #[doc="# Examples"]
-    #[doc="```"]
-    #[doc="use hyper::header::{Headers, IfNoneMatch};"]
-    #[doc=""]
-    #[doc="let mut headers = Headers::new();"]
-    #[doc="headers.set(IfNoneMatch::Any);"]
-    #[doc="```"]
-    #[doc="```"]
-    #[doc="use hyper::header::{Headers, IfNoneMatch, EntityTag};"]
-    #[doc=""]
-    #[doc="let mut headers = Headers::new();"]
-    #[doc="headers.set("]
-    #[doc="    IfNoneMatch::Items(vec!["]
-    #[doc="        EntityTag::new(false, \"xyzzy\".to_owned()),"]
-    #[doc="        EntityTag::new(false, \"foobar\".to_owned()),"]
-    #[doc="        EntityTag::new(false, \"bazquux\".to_owned()),"]
-    #[doc="    ])"]
-    #[doc=");"]
-    #[doc="```"]
+    /// `If-None-Match` header, defined in
+    /// [RFC7232](https://tools.ietf.org/html/rfc7232#section-3.2)
+    ///
+    /// The `If-None-Match` header field makes the request method conditional
+    /// on a recipient cache or origin server either not having any current
+    /// representation of the target resource, when the field-value is "*",
+    /// or having a selected representation with an entity-tag that does not
+    /// match any of those listed in the field-value.
+    ///
+    /// A recipient MUST use the weak comparison function when comparing
+    /// entity-tags for If-None-Match (Section 2.3.2), since weak entity-tags
+    /// can be used for cache validation even if there have been changes to
+    /// the representation data.
+    ///
+    /// # ABNF
+    /// ```plain
+    /// If-None-Match = "*" / 1#entity-tag
+    /// ```
+    ///
+    /// # Example values
+    /// * `"xyzzy"`
+    /// * `W/"xyzzy"`
+    /// * `"xyzzy", "r2d2xxxx", "c3piozzzz"`
+    /// * `W/"xyzzy", W/"r2d2xxxx", W/"c3piozzzz"`
+    /// * `*`
+    ///
+    /// # Examples
+    /// ```
+    /// use hyper::header::{Headers, IfNoneMatch};
+    ///
+    /// let mut headers = Headers::new();
+    /// headers.set(IfNoneMatch::Any);
+    /// ```
+    /// ```
+    /// use hyper::header::{Headers, IfNoneMatch, EntityTag};
+    ///
+    /// let mut headers = Headers::new();
+    /// headers.set(
+    ///     IfNoneMatch::Items(vec![
+    ///         EntityTag::new(false, "xyzzy".to_owned()),
+    ///         EntityTag::new(false, "foobar".to_owned()),
+    ///         EntityTag::new(false, "bazquux".to_owned()),
+    ///     ])
+    /// );
+    /// ```
     (IfNoneMatch, "If-None-Match") => {Any / (EntityTag)+}
 
     test_if_none_match {

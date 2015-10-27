@@ -2,49 +2,49 @@ use std::fmt::{self, Display};
 use std::str::FromStr;
 
 header! {
-    #[doc="`Accept-Ranges` header, defined in"]
-    #[doc="[RFC7233](http://tools.ietf.org/html/rfc7233#section-2.3)"]
-    #[doc=""]
-    #[doc="The `Accept-Ranges` header field allows a server to indicate that it"]
-    #[doc="supports range requests for the target resource."]
-    #[doc=""]
-    #[doc="# ABNF"]
-    #[doc="```plain"]
-    #[doc="Accept-Ranges     = acceptable-ranges"]
-    #[doc="acceptable-ranges = 1#range-unit / \"none\""]
-    #[doc=""]
-    #[doc="# Example values"]
-    #[doc="* `bytes`"]
-    #[doc="* `none`"]
-    #[doc="* `unknown-unit`"]
-    #[doc="```"]
-    #[doc=""]
-    #[doc="# Examples"]
-    #[doc="```"]
-    #[doc="use hyper::header::{Headers, AcceptRanges, RangeUnit};"]
-    #[doc=""]
-    #[doc="let mut headers = Headers::new();"]
-    #[doc="headers.set(AcceptRanges(vec![RangeUnit::Bytes]));"]
-    #[doc="```"]
-    #[doc="```"]
-    #[doc="use hyper::header::{Headers, AcceptRanges, RangeUnit};"]
-    #[doc=""]
-    #[doc="let mut headers = Headers::new();"]
-    #[doc="headers.set(AcceptRanges(vec![RangeUnit::None]));"]
-    #[doc="```"]
-    #[doc="```"]
-    #[doc="use hyper::header::{Headers, AcceptRanges, RangeUnit};"]
-    #[doc=""]
-    #[doc="let mut headers = Headers::new();"]
-    #[doc="headers.set("]
-    #[doc="    AcceptRanges(vec!["]
-    #[doc="        RangeUnit::Unregistered(\"nibbles\".to_owned()),"]
-    #[doc="        RangeUnit::Bytes,"]
-    #[doc="        RangeUnit::Unregistered(\"doublets\".to_owned()),"]
-    #[doc="        RangeUnit::Unregistered(\"quadlets\".to_owned()),"]
-    #[doc="    ])"]
-    #[doc=");"]
-    #[doc="```"]
+    /// `Accept-Ranges` header, defined in
+    /// [RFC7233](http://tools.ietf.org/html/rfc7233#section-2.3)
+    ///
+    /// The `Accept-Ranges` header field allows a server to indicate that it
+    /// supports range requests for the target resource.
+    ///
+    /// # ABNF
+    /// ```plain
+    /// Accept-Ranges     = acceptable-ranges
+    /// acceptable-ranges = 1#range-unit / \"none\"
+    ///
+    /// # Example values
+    /// * `bytes`
+    /// * `none`
+    /// * `unknown-unit`
+    /// ```
+    ///
+    /// # Examples
+    /// ```
+    /// use hyper::header::{Headers, AcceptRanges, RangeUnit};
+    ///
+    /// let mut headers = Headers::new();
+    /// headers.set(AcceptRanges(vec![RangeUnit::Bytes]));
+    /// ```
+    /// ```
+    /// use hyper::header::{Headers, AcceptRanges, RangeUnit};
+    ///
+    /// let mut headers = Headers::new();
+    /// headers.set(AcceptRanges(vec![RangeUnit::None]));
+    /// ```
+    /// ```
+    /// use hyper::header::{Headers, AcceptRanges, RangeUnit};
+    ///
+    /// let mut headers = Headers::new();
+    /// headers.set(
+    ///     AcceptRanges(vec![
+    ///         RangeUnit::Unregistered("nibbles".to_owned()),
+    ///         RangeUnit::Bytes,
+    ///         RangeUnit::Unregistered("doublets".to_owned()),
+    ///         RangeUnit::Unregistered("quadlets".to_owned()),
+    ///     ])
+    /// );
+    /// ```
     (AcceptRanges, "Accept-Ranges") => (RangeUnit)+
 
     test_acccept_ranges {

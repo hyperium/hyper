@@ -1,55 +1,55 @@
 use unicase::UniCase;
 
 header! {
-    #[doc="`Access-Control-Request-Headers` header, part of"]
-    #[doc="[CORS](http://www.w3.org/TR/cors/#access-control-request-headers-request-header)"]
-    #[doc=""]
-    #[doc="The `Access-Control-Request-Headers` header indicates which headers will"]
-    #[doc="be used in the actual request as part of the preflight request."]
-    #[doc="during the actual request."]
-    #[doc=""]
-    #[doc="# ABNF"]
-    #[doc="```plain"]
-    #[doc="Access-Control-Allow-Headers: \"Access-Control-Allow-Headers\" \":\" #field-name"]
-    #[doc="```"]
-    #[doc=""]
-    #[doc="# Example values"]
-    #[doc="* `accept-language, date`"]
-    #[doc=""]
-    #[doc="# Examples"]
-    #[doc="```"]
-    #[doc="# extern crate hyper;"]
-    #[doc="# extern crate unicase;"]
-    #[doc="# fn main() {"]
-    #[doc="// extern crate unicase;"]
-    #[doc=""]
-    #[doc="use hyper::header::{Headers, AccessControlRequestHeaders};"]
-    #[doc="use unicase::UniCase;"]
-    #[doc=""]
-    #[doc="let mut headers = Headers::new();"]
-    #[doc="headers.set("]
-    #[doc="    AccessControlRequestHeaders(vec![UniCase(\"date\".to_owned())])"]
-    #[doc=");"]
-    #[doc="# }"]
-    #[doc="```"]
-    #[doc="```"]
-    #[doc="# extern crate hyper;"]
-    #[doc="# extern crate unicase;"]
-    #[doc="# fn main() {"]
-    #[doc="// extern crate unicase;"]
-    #[doc=""]
-    #[doc="use hyper::header::{Headers, AccessControlRequestHeaders};"]
-    #[doc="use unicase::UniCase;"]
-    #[doc=""]
-    #[doc="let mut headers = Headers::new();"]
-    #[doc="headers.set("]
-    #[doc="    AccessControlRequestHeaders(vec!["]
-    #[doc="        UniCase(\"accept-language\".to_owned()),"]
-    #[doc="        UniCase(\"date\".to_owned()),"]
-    #[doc="    ])"]
-    #[doc=");"]
-    #[doc="# }"]
-    #[doc="```"]
+    /// `Access-Control-Request-Headers` header, part of
+    /// [CORS](http://www.w3.org/TR/cors/#access-control-request-headers-request-header)
+    ///
+    /// The `Access-Control-Request-Headers` header indicates which headers will
+    /// be used in the actual request as part of the preflight request.
+    /// during the actual request.
+    ///
+    /// # ABNF
+    /// ```plain
+    /// Access-Control-Allow-Headers: "Access-Control-Allow-Headers" ":" #field-name
+    /// ```
+    ///
+    /// # Example values
+    /// * `accept-language, date`
+    ///
+    /// # Examples
+    /// ```
+    /// # extern crate hyper;
+    /// # extern crate unicase;
+    /// # fn main() {
+    /// // extern crate unicase;
+    ///
+    /// use hyper::header::{Headers, AccessControlRequestHeaders};
+    /// use unicase::UniCase;
+    ///
+    /// let mut headers = Headers::new();
+    /// headers.set(
+    ///     AccessControlRequestHeaders(vec![UniCase("date".to_owned())])
+    /// );
+    /// # }
+    /// ```
+    /// ```
+    /// # extern crate hyper;
+    /// # extern crate unicase;
+    /// # fn main() {
+    /// // extern crate unicase;
+    ///
+    /// use hyper::header::{Headers, AccessControlRequestHeaders};
+    /// use unicase::UniCase;
+    ///
+    /// let mut headers = Headers::new();
+    /// headers.set(
+    ///     AccessControlRequestHeaders(vec![
+    ///         UniCase("accept-language".to_owned()),
+    ///         UniCase("date".to_owned()),
+    ///     ])
+    /// );
+    /// # }
+    /// ```
     (AccessControlRequestHeaders, "Access-Control-Request-Headers") => (UniCase<String>)*
 
     test_access_control_request_headers {
