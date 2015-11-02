@@ -7,6 +7,7 @@ use std::marker::PhantomData;
 use std::mem;
 use std::io::{self, Write};
 use std::ptr;
+use std::thread;
 
 use time::now_utc;
 
@@ -237,6 +238,10 @@ enum Body {
 impl<'a, T: Any> Drop for Response<'a, T> {
     fn drop(&mut self) {
         if TypeId::of::<T>() == TypeId::of::<Fresh>() {
+            if thread::panicking() {
+                self.status = status::StatusCode::InternalServerError;
+            }
+
             let mut body = match self.write_head() {
                 Ok(Body::Chunked) => ChunkedWriter(self.body.get_mut()),
                 Ok(Body::Sized(len)) => SizedWriter(self.body.get_mut(), len),
@@ -342,6 +347,43 @@ mod tests {
             "" // empty zero body
         }
     }
+
+    #[test]
+    fn test_fresh_drop_panicing() {
+        use std::thread;
+        use std::sync::{Arc, Mutex};
+
+        use status::StatusCode;
+
+        let stream = MockStream::new();
+        let stream = Arc::new(Mutex::new(stream));
+        let inner_stream = stream.clone();
+        let join_handle = thread::spawn(move || {
+            let mut headers = Headers::new();
+            let mut stream = inner_stream.lock().unwrap();
+            let mut res = Response::new(&mut *stream, &mut headers);
+            *res.status_mut() = StatusCode::NotFound;
+
+            panic!("inside")
+        });
+
+        assert!(join_handle.join().is_err());
+
+        let stream = match stream.lock() {
+            Err(poisoned) => poisoned.into_inner().clone(),
+            Ok(_) => unreachable!()
+        };
+
+        lines! { stream =
+            "HTTP/1.1 500 Internal Server Error",
+            _date,
+            _transfer_encoding,
+            "",
+            "0",
+            "" // empty zero body
+        }
+    }
+
 
     #[test]
     fn test_streaming_drop() {
