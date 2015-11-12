@@ -104,8 +104,8 @@
 //! `Response<Fresh>` includes a `headers_mut()` method, allowing you add more
 //! headers. It also does not implement `Write`, so you can't accidentally
 //! write early. Once the "head" of the response is correct, you can "send" it
-//! out by calling `start` on the `Request<Fresh>`. This will return a new
-//! `Request<Streaming>` object, that no longer has `headers_mut()`, but does
+//! out by calling `start` on the `Response<Fresh>`. This will return a new
+//! `Response<Streaming>` object, that no longer has `headers_mut()`, but does
 //! implement `Write`.
 use std::fmt;
 use std::io::{self, ErrorKind, BufWriter, Write};
