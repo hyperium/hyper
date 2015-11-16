@@ -1,3 +1,24 @@
+### v0.6.16 (2015-11-16)
+
+
+#### Bug Fixes
+
+* **response:** respond with a 500 if a handler panics ([63c6762c](https://github.com/hyperium/hyper/commit/63c6762c15ec790f54391a71794315599ae0ced8))
+
+
+#### Features
+
+* **headers:** Add Access-Control-Expose-Headers ([f783e991](https://github.com/hyperium/hyper/commit/f783e9913b988f3d5c28707e2291145999756dbe))
+* **server:** Add hooks for HttpListener and HttpsListener to be started from existing listene ([fa0848d4](https://github.com/hyperium/hyper/commit/fa0848d4216aa81e7b7619b7ce0a650356ee7ab7))
+
+
+#### Breaking Changes
+
+* `RequestBuilder<U>` should be replaced by `RequestBuilder`.
+
+ ([ff4a6070](https://github.com/hyperium/hyper/commit/ff4a6070573955d1623d51a3d5302a17eed8f8d6))
+
+
 ### v0.6.15 (2015-10-09)
 
 
