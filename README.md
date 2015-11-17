@@ -28,14 +28,11 @@ The documentation is located at [http://hyperium.github.io/hyper](http://hyperiu
 ```rust
 extern crate hyper;
 
-use std::io::Write;
-
 use hyper::Server;
 use hyper::server::Request;
 use hyper::server::Response;
-use hyper::net::Fresh;
 
-fn hello(_: Request, res: Response<Fresh>) {
+fn hello(_: Request, res: Response) {
     res.send(b"Hello World!").unwrap();
 }
 
