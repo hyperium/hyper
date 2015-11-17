@@ -28,7 +28,6 @@ The documentation is located at [http://hyperium.github.io/hyper](http://hyperiu
 ```rust
 extern crate hyper;
 
-use std::io::Write;
 
 use hyper::Server;
 use hyper::server::Request;
