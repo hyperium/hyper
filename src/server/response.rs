@@ -348,6 +348,9 @@ mod tests {
         }
     }
 
+    // x86 windows msvc does not support unwinding
+    // See https://github.com/rust-lang/rust/issues/25869
+    #[cfg(not(all(windows, target_arch="x86", target_env="msvc")))]
     #[test]
     fn test_fresh_drop_panicing() {
         use std::thread;
