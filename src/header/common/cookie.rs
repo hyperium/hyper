@@ -1,9 +1,6 @@
-use header::{Header, HeaderFormat};
+use header::{Header, HeaderFormat, CookiePair, CookieJar};
 use std::fmt::{self, Display};
 use std::str::from_utf8;
-
-use cookie::Cookie as CookiePair;
-use cookie::CookieJar;
 
 /// `Cookie` header, defined in [RFC6265](http://tools.ietf.org/html/rfc6265#section-5.4)
 ///

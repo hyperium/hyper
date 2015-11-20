@@ -1,4 +1,6 @@
 pub use self::charset::Charset;
+pub use cookie::Cookie as CookiePair;
+pub use cookie::CookieJar;
 pub use self::encoding::Encoding;
 pub use self::entity::EntityTag;
 pub use self::httpdate::HttpDate;
