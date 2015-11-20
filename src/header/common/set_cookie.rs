@@ -161,7 +161,7 @@ fn test_fmt() {
 
     assert_eq!(
         &headers.to_string()[..],
-        "Set-Cookie: foo=bar; HttpOnly; Path=/p\r\nSet-Cookie: baz=quux; Path=/\r\n");
+        "Set-Cookie: foo=bar; HttpOnly; Path=/p\r\nSet-Cookie: baz=quux\r\n");
 }
 
 #[test]
