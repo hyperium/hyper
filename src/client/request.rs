@@ -6,11 +6,12 @@ use std::io::{self, Write};
 use std::time::Duration;
 
 use url::Url;
+use uri::RequestUri;
 
 use method::{self, Method};
 use header::Headers;
 use header::Host;
-use net::{NetworkStream, NetworkConnector, DefaultConnector, Fresh, Streaming};
+use net::{NetworkConnector, NetworkStream, Fresh, Streaming};
 use version;
 use client::{Response, get_host_and_port};
 
@@ -23,6 +24,9 @@ use http::h1::Http11Message;
 pub struct Request<W> {
     /// The target URI for this request.
     pub url: Url,
+
+    /// The target RequestUri for this request.
+    pub request_uri: RequestUri,
 
     /// The HTTP version of this request.
     pub version: version::HttpVersion,
@@ -56,13 +60,35 @@ impl<W> Request<W> {
     pub fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
         self.message.set_read_timeout(dur)
     }
+
+    /// Build the request uri depending on the proxy type.
+    pub fn build_request_uri(method: &Method, url: &Url, is_proxy: bool) -> RequestUri {
+        match method {
+            &Method::Connect =>
+                RequestUri::Authority(format!("{}:{}", url.host().unwrap(), url.port_or_default().unwrap())),
+            _ =>
+            match is_proxy {
+                true => RequestUri::AbsoluteUri(url.to_owned()),
+                false =>  {
+                    let mut uri = url.serialize_path().unwrap();
+                    if let Some(ref q) = url.query {
+                        uri.push('?');
+                        uri.push_str(&q[..]);
+                    }
+                    RequestUri::AbsolutePath(uri)
+                }
+            }
+        }
+    }
+
 }
 
 impl Request<Fresh> {
     /// Create a new `Request<Fresh>` that will use the given `HttpMessage` for its communication
     /// with the server. This implies that the given `HttpMessage` instance has already been
     /// properly initialized by the caller (e.g. a TCP connection's already established).
-    pub fn with_message(method: method::Method, url: Url, message: Box<HttpMessage>)
+
+    pub fn with_message(method: method::Method, url: Url, request_uri: RequestUri, message: Box<HttpMessage>)
             -> ::Result<Request<Fresh>> {
         let (host, port) = try!(get_host_and_port(&url));
         let mut headers = Headers::new();
@@ -75,27 +101,22 @@ impl Request<Fresh> {
             method: method,
             headers: headers,
             url: url,
+            request_uri: request_uri,
             version: version::HttpVersion::Http11,
             message: message,
             _marker: PhantomData,
         })
     }
 
-    /// Create a new client request.
-    pub fn new(method: method::Method, url: Url) -> ::Result<Request<Fresh>> {
-        let mut conn = DefaultConnector::default();
-        Request::with_connector(method, url, &mut conn)
-    }
-
     /// Create a new client request with a specific underlying NetworkStream.
-    pub fn with_connector<C, S>(method: method::Method, url: Url, connector: &C)
+    pub fn with_connector<C, S>(method: method::Method, url: Url, uri: RequestUri, connector: &C)
         -> ::Result<Request<Fresh>> where
         C: NetworkConnector<Stream=S>,
         S: Into<Box<NetworkStream + Send>> {
         let (host, port) = try!(get_host_and_port(&url));
         let stream = try!(connector.connect(&*host, port, &*url.scheme)).into();
 
-        Request::with_message(method, url, Box::new(Http11Message::with_stream(stream)))
+        Request::with_message(method, url, uri, Box::new(Http11Message::with_stream(stream)))
     }
 
     /// Consume a Fresh Request, writing the headers and method,
@@ -104,6 +125,7 @@ impl Request<Fresh> {
         let head = match self.message.set_outgoing(RequestHead {
             headers: self.headers,
             method: self.method,
+            request_uri: self.request_uri,
             url: self.url,
         }) {
             Ok(head) => head,
@@ -119,6 +141,7 @@ impl Request<Fresh> {
             url: head.url,
             version: self.version,
             message: self.message,
+            request_uri: head.request_uri,
             _marker: PhantomData,
         })
     }
@@ -166,7 +189,7 @@ mod tests {
     use std::io::Write;
     use std::str::from_utf8;
     use url::Url;
-    use method::Method::{Get, Head, Post};
+    use method::Method::{self, Get, Head, Post};
     use mock::{MockStream, MockConnector};
     use net::Fresh;
     use header::{ContentLength,TransferEncoding,Encoding};
@@ -189,11 +212,16 @@ mod tests {
         assert!(!s.contains("Transfer-Encoding:"));
     }
 
+    fn request_with_mock_connector(method: Method, url: Url) -> Request<Fresh> {
+        let request_uri = Request::<Fresh>::build_request_uri( &method, &url, false);
+        Request::with_connector( method, url, request_uri, &mut MockConnector).unwrap()
+    }
+
     #[test]
     fn test_get_empty_body() {
-        let req = Request::with_connector(
-            Get, Url::parse("http://example.dom").unwrap(), &mut MockConnector
-        ).unwrap();
+        let req = request_with_mock_connector(
+            Get, Url::parse("http://example.dom").unwrap()
+        );
         let bytes = run_request(req);
         let s = from_utf8(&bytes[..]).unwrap();
         assert_no_body(s);
@@ -201,9 +229,9 @@ mod tests {
 
     #[test]
     fn test_head_empty_body() {
-        let req = Request::with_connector(
-            Head, Url::parse("http://example.dom").unwrap(), &mut MockConnector
-        ).unwrap();
+        let req = request_with_mock_connector(
+            Head, Url::parse("http://example.dom").unwrap()
+        );
         let bytes = run_request(req);
         let s = from_utf8(&bytes[..]).unwrap();
         assert_no_body(s);
@@ -212,9 +240,9 @@ mod tests {
     #[test]
     fn test_url_query() {
         let url = Url::parse("http://example.dom?q=value").unwrap();
-        let req = Request::with_connector(
-            Get, url, &mut MockConnector
-        ).unwrap();
+        let req = request_with_mock_connector(
+            Get, url
+        );
         let bytes = run_request(req);
         let s = from_utf8(&bytes[..]).unwrap();
         assert!(s.contains("?q=value"));
@@ -223,9 +251,9 @@ mod tests {
     #[test]
     fn test_post_content_length() {
         let url = Url::parse("http://example.dom").unwrap();
-        let mut req = Request::with_connector(
-            Post, url, &mut MockConnector
-        ).unwrap();
+        let mut req = request_with_mock_connector(
+            Post, url
+        );
         let body = form_urlencoded::serialize(vec!(("q","value")).into_iter());
         req.headers_mut().set(ContentLength(body.len() as u64));
         let bytes = run_request(req);
@@ -236,9 +264,9 @@ mod tests {
     #[test]
     fn test_post_chunked() {
         let url = Url::parse("http://example.dom").unwrap();
-        let req = Request::with_connector(
-            Post, url, &mut MockConnector
-        ).unwrap();
+        let req = request_with_mock_connector(
+            Post, url
+        );
         let bytes = run_request(req);
         let s = from_utf8(&bytes[..]).unwrap();
         assert!(!s.contains("Content-Length:"));
@@ -247,9 +275,9 @@ mod tests {
     #[test]
     fn test_post_chunked_with_encoding() {
         let url = Url::parse("http://example.dom").unwrap();
-        let mut req = Request::with_connector(
-            Post, url, &mut MockConnector
-        ).unwrap();
+        let mut req = request_with_mock_connector(
+            Post, url
+        );
         req.headers_mut().set(TransferEncoding(vec![Encoding::Chunked]));
         let bytes = run_request(req);
         let s = from_utf8(&bytes[..]).unwrap();
@@ -260,9 +288,9 @@ mod tests {
     #[test]
     fn test_write_error_closes() {
         let url = Url::parse("http://hyper.rs").unwrap();
-        let req = Request::with_connector(
-            Get, url, &mut MockConnector
-        ).unwrap();
+        let req = request_with_mock_connector(
+            Get, url
+        );
         let mut req = req.start().unwrap();
 
         req.message.downcast_mut::<Http11Message>().unwrap()

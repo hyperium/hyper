@@ -127,6 +127,7 @@ impl NetworkStream for MockStream {
         self.is_closed = true;
         Ok(())
     }
+
 }
 
 /// A wrapper around a `MockStream` that allows one to clone it and keep an independent copy to the
@@ -180,12 +181,13 @@ impl NetworkStream for CloneableMockStream {
     fn close(&mut self, how: Shutdown) -> io::Result<()> {
         NetworkStream::close(&mut *self.inner.lock().unwrap(), how)
     }
+
 }
 
 impl CloneableMockStream {
     pub fn with_stream(stream: MockStream) -> CloneableMockStream {
         CloneableMockStream {
-            inner: Arc::new(Mutex::new(stream)),
+            inner: Arc::new(Mutex::new(stream))
         }
     }
 }

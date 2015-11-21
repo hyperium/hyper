@@ -4,6 +4,7 @@ use std::fmt;
 use std::io::{self, ErrorKind, Read, Write};
 use std::net::{SocketAddr, ToSocketAddrs, TcpStream, TcpListener, Shutdown};
 use std::mem;
+use std::str;
 
 #[cfg(feature = "openssl")]
 pub use self::openssl::Openssl;
@@ -13,6 +14,8 @@ use std::time::Duration;
 
 use typeable::Typeable;
 use traitobject;
+
+use proxy::Proxy;
 
 /// The write-status indicating headers have not been written.
 pub enum Fresh {}
@@ -75,6 +78,7 @@ pub trait NetworkStream: Read + Write + Any + Send + Typeable {
     fn previous_response_expected_no_content(&self) -> bool {
         false
     }
+
 }
 
 /// A connector creates a NetworkStream.
@@ -366,7 +370,16 @@ impl NetworkStream for HttpStream {
 
 /// A connector that will produce HttpStreams.
 #[derive(Debug, Clone, Default)]
-pub struct HttpConnector;
+pub struct HttpConnector {
+    pub proxy: Option<Proxy>
+}
+
+impl HttpConnector {
+    pub fn with_proxy(proxy:Proxy) -> HttpConnector {
+        HttpConnector {proxy: Some(proxy)}
+    }
+}
+
 
 impl NetworkConnector for HttpConnector {
     type Stream = HttpStream;
@@ -376,7 +389,10 @@ impl NetworkConnector for HttpConnector {
         Ok(try!(match scheme {
             "http" => {
                 debug!("http scheme");
-                Ok(HttpStream(try!(TcpStream::connect(addr))))
+                Ok(HttpStream(try!(match self.proxy {
+                    Some(ref proxy) => proxy.connect( host, port, scheme),
+                    None => TcpStream::connect(addr)
+                })))
             },
             _ => {
                 Err(io::Error::new(io::ErrorKind::InvalidInput,
@@ -437,16 +453,21 @@ pub enum HttpsStream<S: NetworkStream> {
 impl<S: NetworkStream> Read for HttpsStream<S> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        match *self {
+        let result = match *self {
             HttpsStream::Http(ref mut s) => s.read(buf),
             HttpsStream::Https(ref mut s) => s.read(buf)
-        }
+        };
+        result.map( |o| {
+            info!("read: {}", o);
+            o
+        })
     }
 }
 
 impl<S: NetworkStream> Write for HttpsStream<S> {
     #[inline]
     fn write(&mut self, msg: &[u8]) -> io::Result<usize> {
+        info!("write: {}", str::from_utf8(msg).unwrap_or("-"));
         match *self {
             HttpsStream::Http(ref mut s) => s.write(msg),
             HttpsStream::Https(ref mut s) => s.write(msg)
@@ -496,6 +517,7 @@ impl<S: NetworkStream> NetworkStream for HttpsStream<S> {
             HttpsStream::Https(ref mut s) => s.close(how)
         }
     }
+
 }
 
 /// A Http Listener over SSL.
@@ -540,13 +562,15 @@ impl<S: Ssl + Clone> NetworkListener for HttpsListener<S> {
 /// A connector that can protect HTTP streams using SSL.
 #[derive(Debug, Default)]
 pub struct HttpsConnector<S: Ssl> {
-    ssl: S
+    ssl: S,
+    proxy: Option<Proxy>
+
 }
 
 impl<S: Ssl> HttpsConnector<S> {
     /// Create a new connector using the provided SSL implementation.
     pub fn new(s: S) -> HttpsConnector<S> {
-        HttpsConnector { ssl: s }
+        HttpsConnector { ssl: s, proxy: None }
     }
 }
 
@@ -555,12 +579,15 @@ impl<S: Ssl> NetworkConnector for HttpsConnector<S> {
 
     fn connect(&self, host: &str, port: u16, scheme: &str) -> ::Result<Self::Stream> {
         let addr = &(host, port);
+        let stream = HttpStream(match self.proxy {
+            Some(ref proxy) => try!(proxy.connect( host, port, scheme)),
+            None => try!(TcpStream::connect(addr))
+        });
         if scheme == "https" {
             debug!("https scheme");
-            let stream = HttpStream(try!(TcpStream::connect(addr)));
             self.ssl.wrap_client(stream, host).map(HttpsStream::Https)
         } else {
-            HttpConnector.connect(host, port, scheme).map(HttpsStream::Http)
+            Ok(HttpsStream::Http(stream))
         }
     }
 }
@@ -573,6 +600,13 @@ pub type DefaultConnector = HttpConnector;
 #[cfg(feature = "openssl")]
 #[doc(hidden)]
 pub type DefaultConnector = HttpsConnector<self::openssl::Openssl>;
+
+#[cfg(feature = "openssl")]
+impl HttpsConnector<self::openssl::Openssl> {
+    pub fn with_proxy( proxy: Proxy) -> HttpsConnector<self::openssl::Openssl> {
+        HttpsConnector { ssl: self::openssl::Openssl::default(), proxy: Some(proxy),  }
+    }
+}
 
 #[cfg(feature = "openssl")]
 mod openssl {
@@ -701,4 +735,3 @@ mod tests {
         assert_eq!(mock, Box::new(MockStream::new()));
     }
 }
-

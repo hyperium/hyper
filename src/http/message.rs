@@ -16,6 +16,8 @@ use typeable::Typeable;
 use header::Headers;
 use http::RawStatus;
 use url::Url;
+use uri::RequestUri;
+
 
 use method;
 use version;
@@ -37,6 +39,8 @@ pub struct RequestHead {
     pub method: method::Method,
     /// The URL of the request
     pub url: Url,
+    /// The request uri of the request
+    pub request_uri: RequestUri
 }
 
 /// Describes a response.
