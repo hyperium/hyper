@@ -1,9 +1,7 @@
-use header::{Header, HeaderFormat};
+use header::{Header, HeaderFormat, CookiePair, CookieJar};
 use std::fmt::{self, Display};
 use std::str::from_utf8;
 
-use cookie::Cookie;
-use cookie::CookieJar;
 
 /// `Set-Cookie` header, defined [RFC6265](http://tools.ietf.org/html/rfc6265#section-4.1)
 ///
@@ -80,9 +78,9 @@ use cookie::CookieJar;
 /// # }
 /// ```
 #[derive(Clone, PartialEq, Debug)]
-pub struct SetCookie(pub Vec<Cookie>);
+pub struct SetCookie(pub Vec<CookiePair>);
 
-__hyper__deref!(SetCookie => Vec<Cookie>);
+__hyper__deref!(SetCookie => Vec<CookiePair>);
 
 impl Header for SetCookie {
     fn header_name() -> &'static str {
@@ -142,7 +140,7 @@ impl SetCookie {
 #[test]
 fn test_parse() {
     let h = Header::parse_header(&[b"foo=bar; HttpOnly".to_vec()][..]);
-    let mut c1 = Cookie::new("foo".to_owned(), "bar".to_owned());
+    let mut c1 = CookiePair::new("foo".to_owned(), "bar".to_owned());
     c1.httponly = true;
 
     assert_eq!(h.ok(), Some(SetCookie(vec![c1])));
@@ -152,22 +150,22 @@ fn test_parse() {
 fn test_fmt() {
     use header::Headers;
 
-    let mut cookie = Cookie::new("foo".to_owned(), "bar".to_owned());
+    let mut cookie = CookiePair::new("foo".to_owned(), "bar".to_owned());
     cookie.httponly = true;
     cookie.path = Some("/p".to_owned());
-    let cookies = SetCookie(vec![cookie, Cookie::new("baz".to_owned(), "quux".to_owned())]);
+    let cookies = SetCookie(vec![cookie, CookiePair::new("baz".to_owned(), "quux".to_owned())]);
     let mut headers = Headers::new();
     headers.set(cookies);
 
     assert_eq!(
         &headers.to_string()[..],
-        "Set-Cookie: foo=bar; HttpOnly; Path=/p\r\nSet-Cookie: baz=quux; Path=/\r\n");
+        "Set-Cookie: foo=bar; HttpOnly; Path=/p\r\nSet-Cookie: baz=quux\r\n");
 }
 
 #[test]
 fn cookie_jar() {
     let jar = CookieJar::new(b"secret");
-    let cookie = Cookie::new("foo".to_owned(), "bar".to_owned());
+    let cookie = CookiePair::new("foo".to_owned(), "bar".to_owned());
     jar.add(cookie);
 
     let cookies = SetCookie::from_cookie_jar(&jar);
@@ -176,5 +174,5 @@ fn cookie_jar() {
     cookies.apply_to_cookie_jar(&mut new_jar);
 
     assert_eq!(jar.find("foo"), new_jar.find("foo"));
-    assert_eq!(jar.iter().collect::<Vec<Cookie>>(), new_jar.iter().collect::<Vec<Cookie>>());
+    assert_eq!(jar.iter().collect::<Vec<CookiePair>>(), new_jar.iter().collect::<Vec<CookiePair>>());
 }

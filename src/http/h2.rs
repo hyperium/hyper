@@ -661,8 +661,8 @@ mod tests {
         let h2headers = prepare_headers(headers);
 
         assert_eq!(vec![
-            (b"set-cookie".to_vec(), b"foo=bar; Path=/".to_vec()),
-            (b"set-cookie".to_vec(), b"baz=quux; Path=/".to_vec()),
+            (b"set-cookie".to_vec(), b"foo=bar".to_vec()),
+            (b"set-cookie".to_vec(), b"baz=quux".to_vec()),
         ], h2headers);
     }
 
@@ -700,8 +700,8 @@ mod tests {
     #[test]
     fn test_http2_parse_headers_with_set_cookie() {
         let h2headers = vec![
-            (b"set-cookie".to_vec(), b"foo=bar; Path=/".to_vec()),
-            (b"set-cookie".to_vec(), b"baz=quux; Path=/".to_vec()),
+            (b"set-cookie".to_vec(), b"foo=bar".to_vec()),
+            (b"set-cookie".to_vec(), b"baz=quux".to_vec()),
         ];
         let expected = header::SetCookie(vec![
             cookie::Cookie::new("foo".to_owned(), "bar".to_owned()),

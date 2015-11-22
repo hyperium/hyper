@@ -25,11 +25,11 @@ unicase = "1.0"
 url = "0.2"
 
 [dependencies.cookie]
-version = "0.1"
+version = "0.2"
 default-features = false
 
 [dependencies.openssl]
-version = "0.6.4"
+version = "0.7"
 optional = true
 
 [dependencies.solicit]
