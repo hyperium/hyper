@@ -193,6 +193,8 @@ pub mod server;
 pub mod status;
 pub mod uri;
 pub mod version;
+pub mod into_url;
+
 
 /// Re-exporting the mime crate, for convenience.
 pub mod mime {
