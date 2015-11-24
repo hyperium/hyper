@@ -8,7 +8,6 @@ use std::mem;
 #[cfg(feature = "openssl")]
 pub use self::openssl::Openssl;
 
-#[cfg(feature = "timeouts")]
 use std::time::Duration;
 
 use typeable::Typeable;
@@ -53,11 +52,9 @@ pub trait NetworkStream: Read + Write + Any + Send + Typeable {
     fn peer_addr(&mut self) -> io::Result<SocketAddr>;
 
     /// Set the maximum time to wait for a read to complete.
-    #[cfg(feature = "timeouts")]
     fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()>;
 
     /// Set the maximum time to wait for a write to complete.
-    #[cfg(feature = "timeouts")]
     fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()>;
 
     /// This will be called when Stream should no longer be kept alive.
@@ -341,13 +338,11 @@ impl NetworkStream for HttpStream {
             self.0.peer_addr()
     }
 
-    #[cfg(feature = "timeouts")]
     #[inline]
     fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
         self.0.set_read_timeout(dur)
     }
 
-    #[cfg(feature = "timeouts")]
     #[inline]
     fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
         self.0.set_write_timeout(dur)
@@ -471,7 +466,6 @@ impl<S: NetworkStream> NetworkStream for HttpsStream<S> {
         }
     }
 
-    #[cfg(feature = "timeouts")]
     #[inline]
     fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
         match *self {
@@ -480,7 +474,6 @@ impl<S: NetworkStream> NetworkStream for HttpsStream<S> {
         }
     }
 
-    #[cfg(feature = "timeouts")]
     #[inline]
     fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
         match *self {
@@ -580,7 +573,6 @@ mod openssl {
     use std::net::{SocketAddr, Shutdown};
     use std::path::Path;
     use std::sync::Arc;
-    #[cfg(feature = "timeouts")]
     use std::time::Duration;
 
     use openssl::ssl::{Ssl, SslContext, SslStream, SslMethod, SSL_VERIFY_NONE};
@@ -660,13 +652,11 @@ mod openssl {
             self.get_mut().peer_addr()
         }
 
-        #[cfg(feature = "timeouts")]
         #[inline]
         fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
             self.get_ref().set_read_timeout(dur)
         }
 
-        #[cfg(feature = "timeouts")]
         #[inline]
         fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
             self.get_ref().set_write_timeout(dur)

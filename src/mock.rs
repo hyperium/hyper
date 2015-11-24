@@ -3,9 +3,7 @@ use std::io::{self, Read, Write, Cursor};
 use std::cell::RefCell;
 use std::net::{SocketAddr, Shutdown};
 use std::sync::{Arc, Mutex};
-#[cfg(feature = "timeouts")]
 use std::time::Duration;
-#[cfg(feature = "timeouts")]
 use std::cell::Cell;
 
 use solicit::http::HttpScheme;
@@ -24,9 +22,7 @@ pub struct MockStream {
     pub is_closed: bool,
     pub error_on_write: bool,
     pub error_on_read: bool,
-    #[cfg(feature = "timeouts")]
     pub read_timeout: Cell<Option<Duration>>,
-    #[cfg(feature = "timeouts")]
     pub write_timeout: Cell<Option<Duration>>,
 }
 
@@ -45,7 +41,6 @@ impl MockStream {
         MockStream::with_responses(vec![input])
     }
 
-    #[cfg(feature = "timeouts")]
     pub fn with_responses(mut responses: Vec<&[u8]>) -> MockStream {
         MockStream {
             read: Cursor::new(responses.remove(0).to_vec()),
@@ -56,18 +51,6 @@ impl MockStream {
             error_on_read: false,
             read_timeout: Cell::new(None),
             write_timeout: Cell::new(None),
-        }
-    }
-
-    #[cfg(not(feature = "timeouts"))]
-    pub fn with_responses(mut responses: Vec<&[u8]>) -> MockStream {
-        MockStream {
-            read: Cursor::new(responses.remove(0).to_vec()),
-            next_reads: responses.into_iter().map(|arr| arr.to_vec()).collect(),
-            write: vec![],
-            is_closed: false,
-            error_on_write: false,
-            error_on_read: false,
         }
     }
 }
@@ -111,13 +94,11 @@ impl NetworkStream for MockStream {
         Ok("127.0.0.1:1337".parse().unwrap())
     }
 
-    #[cfg(feature = "timeouts")]
     fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
         self.read_timeout.set(dur);
         Ok(())
     }
 
-    #[cfg(feature = "timeouts")]
     fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
         self.write_timeout.set(dur);
         Ok(())
@@ -167,12 +148,10 @@ impl NetworkStream for CloneableMockStream {
         self.inner.lock().unwrap().peer_addr()
     }
 
-    #[cfg(feature = "timeouts")]
     fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
         self.inner.lock().unwrap().set_read_timeout(dur)
     }
 
-    #[cfg(feature = "timeouts")]
     fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
         self.inner.lock().unwrap().set_write_timeout(dur)
     }
