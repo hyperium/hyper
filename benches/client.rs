@@ -7,7 +7,6 @@ extern crate test;
 use std::fmt;
 use std::io::{self, Read, Write, Cursor};
 use std::net::SocketAddr;
-#[cfg(feature = "timeouts")]
 use std::time::Duration;
 
 use hyper::net;
@@ -75,12 +74,10 @@ impl net::NetworkStream for MockStream {
     fn peer_addr(&mut self) -> io::Result<SocketAddr> {
         Ok("127.0.0.1:1337".parse().unwrap())
     }
-    #[cfg(feature = "timeouts")]
     fn set_read_timeout(&self, _: Option<Duration>) -> io::Result<()> {
         // can't time out
         Ok(())
     }
-    #[cfg(feature = "timeouts")]
     fn set_write_timeout(&self, _: Option<Duration>) -> io::Result<()> {
         // can't time out
         Ok(())

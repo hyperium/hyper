@@ -147,11 +147,21 @@ pub struct Server<L = HttpListener> {
     timeouts: Timeouts,
 }
 
-#[derive(Clone, Copy, Default, Debug)]
+#[derive(Clone, Copy, Debug)]
 struct Timeouts {
     read: Option<Duration>,
     write: Option<Duration>,
     keep_alive: Option<Duration>,
+}
+
+impl Default for Timeouts {
+    fn default() -> Timeouts {
+        Timeouts {
+            read: None,
+            write: None,
+            keep_alive: Some(Duration::from_secs(5))
+        }
+    }
 }
 
 macro_rules! try_option(
@@ -169,28 +179,29 @@ impl<L: NetworkListener> Server<L> {
     pub fn new(listener: L) -> Server<L> {
         Server {
             listener: listener,
-            timeouts: Timeouts::default(),
+            timeouts: Timeouts::default()
         }
     }
 
-    /// Enables keep-alive for this server.
+    /// Controls keep-alive for this server.
     ///
     /// The timeout duration passed will be used to determine how long
     /// to keep the connection alive before dropping it.
     ///
-    /// **NOTE**: The timeout will only be used when the `timeouts` feature
-    /// is enabled for hyper, and rustc is 1.4 or greater.
+    /// Passing `None` will disable keep-alive.
+    ///
+    /// Default is enabled with a 5 second timeout.
     #[inline]
-    pub fn keep_alive(&mut self, timeout: Duration) {
-        self.timeouts.keep_alive = Some(timeout);
+    pub fn keep_alive(&mut self, timeout: Option<Duration>) {
+        self.timeouts.keep_alive = timeout;
     }
 
-    #[cfg(feature = "timeouts")]
+    /// Sets the read timeout for all Request reads.
     pub fn set_read_timeout(&mut self, dur: Option<Duration>) {
         self.timeouts.read = dur;
     }
 
-    #[cfg(feature = "timeouts")]
+    /// Sets the write timeout for all Response writes.
     pub fn set_write_timeout(&mut self, dur: Option<Duration>) {
         self.timeouts.write = dur;
     }
@@ -296,22 +307,10 @@ impl<H: Handler + 'static> Worker<H> {
         self.set_write_timeout(s, self.timeouts.write)
     }
 
-    #[cfg(not(feature = "timeouts"))]
-    fn set_write_timeout(&self, _s: &NetworkStream, _timeout: Option<Duration>) -> io::Result<()> {
-        Ok(())
-    }
-
-    #[cfg(feature = "timeouts")]
     fn set_write_timeout(&self, s: &NetworkStream, timeout: Option<Duration>) -> io::Result<()> {
         s.set_write_timeout(timeout)
     }
 
-    #[cfg(not(feature = "timeouts"))]
-    fn set_read_timeout(&self, _s: &NetworkStream, _timeout: Option<Duration>) -> io::Result<()> {
-        Ok(())
-    }
-
-    #[cfg(feature = "timeouts")]
     fn set_read_timeout(&self, s: &NetworkStream, timeout: Option<Duration>) -> io::Result<()> {
         s.set_read_timeout(timeout)
     }

@@ -4,7 +4,6 @@ use std::cmp::min;
 use std::fmt;
 use std::io::{self, Write, BufWriter, BufRead, Read};
 use std::net::Shutdown;
-#[cfg(feature = "timeouts")]
 use std::time::Duration;
 
 use httparse;
@@ -341,13 +340,11 @@ impl HttpMessage for Http11Message {
         }
     }
 
-    #[cfg(feature = "timeouts")]
     #[inline]
     fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
         self.get_ref().set_read_timeout(dur)
     }
 
-    #[cfg(feature = "timeouts")]
     #[inline]
     fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
         self.get_ref().set_write_timeout(dur)

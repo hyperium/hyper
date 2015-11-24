@@ -6,9 +6,7 @@ use std::fmt::Debug;
 use std::io::{Read, Write};
 use std::mem;
 
-#[cfg(feature = "timeouts")]
 use std::io;
-#[cfg(feature = "timeouts")]
 use std::time::Duration;
 
 use typeable::Typeable;
@@ -65,10 +63,8 @@ pub trait HttpMessage: Write + Read + Send + Any + Typeable + Debug {
     /// the response body.
     fn get_incoming(&mut self) -> ::Result<ResponseHead>;
     /// Set the read timeout duration for this message.
-    #[cfg(feature = "timeouts")]
     fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()>;
     /// Set the write timeout duration for this message.
-    #[cfg(feature = "timeouts")]
     fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()>;
     /// Closes the underlying HTTP connection.
     fn close_connection(&mut self) -> ::Result<()>;

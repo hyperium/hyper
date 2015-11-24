@@ -5,7 +5,6 @@ use std::io::{self, Read, Write};
 use std::net::{SocketAddr, Shutdown};
 use std::sync::{Arc, Mutex};
 
-#[cfg(feature = "timeouts")]
 use std::time::Duration;
 
 use net::{NetworkConnector, NetworkStream, DefaultConnector};
@@ -176,13 +175,11 @@ impl<S: NetworkStream> NetworkStream for PooledStream<S> {
         self.inner.as_mut().unwrap().stream.peer_addr()
     }
 
-    #[cfg(feature = "timeouts")]
     #[inline]
     fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
         self.inner.as_ref().unwrap().stream.set_read_timeout(dur)
     }
 
-    #[cfg(feature = "timeouts")]
     #[inline]
     fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
         self.inner.as_ref().unwrap().stream.set_write_timeout(dur)

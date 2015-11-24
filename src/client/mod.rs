@@ -59,7 +59,6 @@ use std::default::Default;
 use std::io::{self, copy, Read};
 use std::iter::Extend;
 
-#[cfg(feature = "timeouts")]
 use std::time::Duration;
 
 use url::UrlParser;
@@ -68,7 +67,7 @@ use url::ParseError as UrlError;
 use header::{Headers, Header, HeaderFormat};
 use header::{ContentLength, Location};
 use method::Method;
-use net::{NetworkConnector, NetworkStream, Fresh};
+use net::{NetworkConnector, NetworkStream};
 use {Url};
 use Error;
 
@@ -89,9 +88,7 @@ use http::h1::Http11Protocol;
 pub struct Client {
     protocol: Box<Protocol + Send + Sync>,
     redirect_policy: RedirectPolicy,
-    #[cfg(feature = "timeouts")]
     read_timeout: Option<Duration>,
-    #[cfg(feature = "timeouts")]
     write_timeout: Option<Duration>,
 }
 
@@ -113,16 +110,6 @@ impl Client {
         Client::with_protocol(Http11Protocol::with_connector(connector))
     }
 
-    #[cfg(not(feature = "timeouts"))]
-    /// Create a new client with a specific `Protocol`.
-    pub fn with_protocol<P: Protocol + Send + Sync + 'static>(protocol: P) -> Client {
-        Client {
-            protocol: Box::new(protocol),
-            redirect_policy: Default::default(),
-        }
-    }
-
-    #[cfg(feature = "timeouts")]
     /// Create a new client with a specific `Protocol`.
     pub fn with_protocol<P: Protocol + Send + Sync + 'static>(protocol: P) -> Client {
         Client {
@@ -139,13 +126,11 @@ impl Client {
     }
 
     /// Set the read timeout value for all requests.
-    #[cfg(feature = "timeouts")]
     pub fn set_read_timeout(&mut self, dur: Option<Duration>) {
         self.read_timeout = dur;
     }
 
     /// Set the write timeout value for all requests.
-    #[cfg(feature = "timeouts")]
     pub fn set_write_timeout(&mut self, dur: Option<Duration>) {
         self.write_timeout = dur;
     }
@@ -273,19 +258,8 @@ impl<'a> RequestBuilder<'a> {
             let mut req = try!(Request::with_message(method.clone(), url.clone(), message));
             headers.as_ref().map(|headers| req.headers_mut().extend(headers.iter()));
 
-            #[cfg(not(feature = "timeouts"))]
-            fn set_timeouts(_req: &mut Request<Fresh>, _client: &Client) -> ::Result<()> {
-                Ok(())
-            }
-
-            #[cfg(feature = "timeouts")]
-            fn set_timeouts(req: &mut Request<Fresh>, client: &Client) -> ::Result<()> {
-                try!(req.set_write_timeout(client.write_timeout));
-                try!(req.set_read_timeout(client.read_timeout));
-                Ok(())
-            }
-
-            try!(set_timeouts(&mut req, &client));
+            try!(req.set_write_timeout(client.write_timeout));
+            try!(req.set_read_timeout(client.read_timeout));
 
             match (can_have_body, body.as_ref()) {
                 (true, Some(body)) => match body.size() {
