@@ -1,3 +1,27 @@
+## v0.7.0 (2015-11-24)
+
+
+#### Features
+
+* **all:** add socket timeouts ([fec6e3e8](https://github.com/hyperium/hyper/commit/fec6e3e873eb79bd17d1c072d2ca3c7b91624f9c))
+* **headers:**
+  * Add Content-Disposition header ([7623ecc2](https://github.com/hyperium/hyper/commit/7623ecc26466e2e072eb2b03afc5e6c16d8e9bc9), closes [#561](https://github.com/hyperium/hyper/issues/561))
+  * Add Access-Control-Allow-Credentials header ([19348b89](https://github.com/hyperium/hyper/commit/19348b892be4687e2c0e48b3d01562562340aa1f), closes [#655](https://github.com/hyperium/hyper/issues/655))
+  * re-export CookiePair and CookieJar ([799698ca](https://github.com/hyperium/hyper/commit/799698ca87bc8f2f5446e9cb1301e5976657db6b))
+
+
+#### Breaking Changes
+
+* This adds 2 required methods to the `NetworkStream`
+  trait, `set_read_timeout` and `set_write_timeout`. Any local
+  implementations will need to add them.
+
+ ([fec6e3e8](https://github.com/hyperium/hyper/commit/fec6e3e873eb79bd17d1c072d2ca3c7b91624f9c))
+* LanguageTags api is changed.
+
+ ([c747f99d](https://github.com/hyperium/hyper/commit/c747f99d2137e03b5f4393ee3731f6ebeab9ee6e))
+
+
 ### v0.6.16 (2015-11-16)
 
 
