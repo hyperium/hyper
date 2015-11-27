@@ -147,11 +147,14 @@ pub struct Server<L = HttpListener> {
     timeouts: Timeouts,
 }
 
+/// A set of durations representing the various timeouts to be set on a server.
+///
+/// Note: more fields may be added in the future.
 #[derive(Clone, Copy, Debug)]
-struct Timeouts {
-    read: Option<Duration>,
-    write: Option<Duration>,
-    keep_alive: Option<Duration>,
+pub struct Timeouts {
+    pub read: Option<Duration>,
+    pub write: Option<Duration>,
+    pub keep_alive: Option<Duration>,
 }
 
 impl Default for Timeouts {
@@ -181,6 +184,14 @@ impl<L: NetworkListener> Server<L> {
             listener: listener,
             timeouts: Timeouts::default()
         }
+    }
+
+    /// Set all of the timeouts for this server.
+    ///
+    /// Note: setting a timeout for keep-alive will also enable keep-alive.
+    #[inline]
+    pub fn set_timeouts(&mut self, timeouts: Timeouts) {
+         self.timeouts = timeouts;
     }
 
     /// Controls keep-alive for this server.
