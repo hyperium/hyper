@@ -9,7 +9,7 @@ use std::time::Duration;
 use buffer::BufReader;
 use net::NetworkStream;
 use version::{HttpVersion};
-use method::Method::{self, Get, Head};
+use method::Method;
 use header::{Headers, ContentLength, TransferEncoding};
 use http::h1::{self, Incoming, HttpReader};
 use http::h1::HttpReader::{SizedReader, ChunkedReader, EmptyReader};
@@ -41,9 +41,7 @@ impl<'a, 'b: 'a> Request<'a, 'b> {
         debug!("Request Line: {:?} {:?} {:?}", method, uri, version);
         debug!("{:?}", headers);
 
-        let body = if method == Get || method == Head {
-            EmptyReader(stream)
-        } else if headers.has::<ContentLength>() {
+        let body = if headers.has::<ContentLength>() {
             match headers.get::<ContentLength>() {
                 Some(&ContentLength(len)) => SizedReader(stream, len),
                 None => unreachable!()
