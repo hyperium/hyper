@@ -158,6 +158,24 @@ mod tests {
     }
 
     #[test]
+    fn test_get_with_body() {
+        let mut mock = MockStream::with_input(b"\
+            GET / HTTP/1.1\r\n\
+            Host: example.domain\r\n\
+            Content-Length: 19\r\n\
+            \r\n\
+            I'm a good request.\r\n\
+        ");
+
+        // FIXME: Use Type ascription
+        let mock: &mut NetworkStream = &mut mock;
+        let mut stream = BufReader::new(mock);
+
+        let req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
+        assert_eq!(read_to_string(req).unwrap(), "I'm a good request.".to_owned());
+    }
+
+    #[test]
     fn test_head_empty_body() {
         let mut mock = MockStream::with_input(b"\
             HEAD / HTTP/1.1\r\n\
