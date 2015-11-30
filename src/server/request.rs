@@ -9,7 +9,7 @@ use std::time::Duration;
 use buffer::BufReader;
 use net::NetworkStream;
 use version::{HttpVersion};
-use method::Method::{self, Get, Head};
+use method::Method;
 use header::{Headers, ContentLength, TransferEncoding};
 use http::h1::{self, Incoming, HttpReader};
 use http::h1::HttpReader::{SizedReader, ChunkedReader, EmptyReader};
@@ -41,9 +41,7 @@ impl<'a, 'b: 'a> Request<'a, 'b> {
         debug!("Request Line: {:?} {:?} {:?}", method, uri, version);
         debug!("{:?}", headers);
 
-        let body = if method == Get || method == Head {
-            EmptyReader(stream)
-        } else if headers.has::<ContentLength>() {
+        let body = if headers.has::<ContentLength>() {
             match headers.get::<ContentLength>() {
                 Some(&ContentLength(len)) => SizedReader(stream, len),
                 None => unreachable!()
@@ -157,6 +155,24 @@ mod tests {
 
         let req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
         assert_eq!(read_to_string(req).unwrap(), "".to_owned());
+    }
+
+    #[test]
+    fn test_get_with_body() {
+        let mut mock = MockStream::with_input(b"\
+            GET / HTTP/1.1\r\n\
+            Host: example.domain\r\n\
+            Content-Length: 19\r\n\
+            \r\n\
+            I'm a good request.\r\n\
+        ");
+
+        // FIXME: Use Type ascription
+        let mock: &mut NetworkStream = &mut mock;
+        let mut stream = BufReader::new(mock);
+
+        let req = Request::new(&mut stream, sock("127.0.0.1:80")).unwrap();
+        assert_eq!(read_to_string(req).unwrap(), "I'm a good request.".to_owned());
     }
 
     #[test]
