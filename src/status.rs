@@ -3,7 +3,65 @@ use std::fmt;
 use std::cmp::Ordering;
 
 macro_rules! status_codes {
-    ($($(#[$doc:meta])+ ($code:expr, $name:ident, $reason:expr)),+$(,)*) => (
+    ($(#[$class_doc:meta] $class:ident {
+        $($(#[$doc:meta])+ ($code:expr, $name:ident, $reason:expr)),+$(,)*
+    })+) => (
+        /// The scoped module provides `StatusCode`s grouped by their class.
+        ///
+        /// This enables you to accept a subset of `StatusCode`s in your API.
+        ///
+        /// # Examples
+        /// ```rust
+        /// use hyper::status::StatusCode;
+        /// use hyper::status::scoped;
+        ///
+        /// trait HttpError {}
+        /// impl HttpError for scoped::ClientError {}
+        /// impl HttpError for scoped::ServerError {}
+        ///
+        /// fn only_accept_errors<E: HttpError + Into<StatusCode>>(error: E) {
+        ///     let _status_code: StatusCode = error.into();
+        ///     // ... use status code here ...
+        /// }
+        ///
+        /// // Will not compile
+        /// // only_accept_errors(scoped::Informational::Continue);
+        ///
+        /// // These work fine!
+        /// only_accept_errors(scoped::ClientError::BadRequest);
+        /// only_accept_errors(scoped::ServerError::InternalServerError);
+        /// ```
+        pub mod scoped {
+            use super::StatusCode;
+
+            $(
+                #[$class_doc]
+                #[derive(Debug, Hash, Copy, Clone, PartialEq, Eq)]
+                pub enum $class {
+                    $(
+                        $(#[$doc])+
+                        $name,
+                    )+
+                }
+
+                impl From<$class> for StatusCode {
+                    fn from(code: $class) -> StatusCode {
+                        match code {
+                            $($class::$name => StatusCode::$name,)+
+                        }
+                    }
+                }
+
+                impl PartialEq<StatusCode> for $class {
+                    #[inline]
+                    fn eq(&self, other: &StatusCode) -> bool {
+                        StatusCode::from(*self) == *other
+                    }
+                }
+            )*
+
+        }
+
         // shamelessly lifted from Teepee. I tried a few schemes, this really
         // does seem like the best. Improved scheme to support arbitrary status codes.
 
@@ -32,10 +90,10 @@ macro_rules! status_codes {
         /// inexplicably not in the register).
         #[derive(Debug, Hash)]
         pub enum StatusCode {
-            $(
+            $($(
                 $(#[$doc])+
                 $name,
-            )+
+            )+)+
 
             /// A status code not in the IANA HTTP status code registry or very well known
             // `ImATeapot` is not registered.
@@ -45,7 +103,7 @@ macro_rules! status_codes {
             #[doc(hidden)]
             pub fn from_u16(n: u16) -> StatusCode {
                 match n {
-                    $($code => StatusCode::$name,)+
+                    $($($code => StatusCode::$name,)+)+
                     _ => StatusCode::Unregistered(n),
                 }
             }
@@ -53,7 +111,7 @@ macro_rules! status_codes {
             #[doc(hidden)]
             pub fn to_u16(&self) -> u16 {
                 match *self {
-                    $(StatusCode::$name => $code,)+
+                    $($(StatusCode::$name => $code,)+)+
                     StatusCode::Unregistered(n) => n,
                 }
             }
@@ -70,7 +128,7 @@ macro_rules! status_codes {
             /// this canonical reason phrase really is the only reason phrase you’ll find.
             pub fn canonical_reason(&self) -> Option<&'static str> {
                 match *self {
-                    $(StatusCode::$name => Some($reason),)+
+                    $($(StatusCode::$name => Some($reason),)+)+
                     StatusCode::Unregistered(..) => None
                 }
             }
@@ -79,190 +137,205 @@ macro_rules! status_codes {
 }
 
 status_codes! {
-    /// 100 Continue
-    /// [[RFC7231, Section 6.2.1](https://tools.ietf.org/html/rfc7231#section-6.2.1)]
-    (100, Continue, "Continue"),
-    /// 101 Switching Protocols
-    /// [[RFC7231, Section 6.2.2](https://tools.ietf.org/html/rfc7231#section-6.2.2)]
-    (101, SwitchingProtocols, "Switching Protocols"),
-    /// 102 Processing
-    /// [[RFC2518](https://tools.ietf.org/html/rfc2518)]
-    (102, Processing, "Processing"),
+    /// 1xx (Informational): The request was received, continuing process
+    Informational {
+        /// 100 Continue
+        /// [[RFC7231, Section 6.2.1](https://tools.ietf.org/html/rfc7231#section-6.2.1)]
+        (100, Continue, "Continue"),
+        /// 101 Switching Protocols
+        /// [[RFC7231, Section 6.2.2](https://tools.ietf.org/html/rfc7231#section-6.2.2)]
+        (101, SwitchingProtocols, "Switching Protocols"),
+        /// 102 Processing
+        /// [[RFC2518](https://tools.ietf.org/html/rfc2518)]
+        (102, Processing, "Processing"),
+    }
 
-    /// 200 OK
-    /// [[RFC7231, Section 6.3.1](https://tools.ietf.org/html/rfc7231#section-6.3.1)]
-    (200, Ok, "OK"),
-    /// 201 Created
-    /// [[RFC7231, Section 6.3.2](https://tools.ietf.org/html/rfc7231#section-6.3.2)]
-    (201, Created, "Created"),
-    /// 202 Accepted
-    /// [[RFC7231, Section 6.3.3](https://tools.ietf.org/html/rfc7231#section-6.3.3)]
-    (202, Accepted, "Accepted"),
-    /// 203 Non-Authoritative Information
-    /// [[RFC7231, Section 6.3.4](https://tools.ietf.org/html/rfc7231#section-6.3.4)]
-    (203, NonAuthoritativeInformation, "Non-Authoritative Information"),
-    /// 204 No Content
-    /// [[RFC7231, Section 6.3.5](https://tools.ietf.org/html/rfc7231#section-6.3.5)]
-    (204, NoContent, "No Content"),
-    /// 205 Reset Content
-    /// [[RFC7231, Section 6.3.6](https://tools.ietf.org/html/rfc7231#section-6.3.6)]
-    (205, ResetContent, "Reset Content"),
-    /// 206 Partial Content
-    /// [[RFC7233, Section 4.1](https://tools.ietf.org/html/rfc7233#section-4.1)]
-    (206, PartialContent, "Partial Content"),
-    /// 207 Multi-Status
-    /// [[RFC4918](https://tools.ietf.org/html/rfc4918)]
-    (207, MultiStatus, "Multi-Status"),
-    /// 208 Already Reported
-    /// [[RFC5842](https://tools.ietf.org/html/rfc5842)]
-    (208, AlreadyReported, "Already Reported"),
+    /// 2xx (Success): The request was successfully received, understood, and accepted
+    Success {
+        /// 200 OK
+        /// [[RFC7231, Section 6.3.1](https://tools.ietf.org/html/rfc7231#section-6.3.1)]
+        (200, Ok, "OK"),
+        /// 201 Created
+        /// [[RFC7231, Section 6.3.2](https://tools.ietf.org/html/rfc7231#section-6.3.2)]
+        (201, Created, "Created"),
+        /// 202 Accepted
+        /// [[RFC7231, Section 6.3.3](https://tools.ietf.org/html/rfc7231#section-6.3.3)]
+        (202, Accepted, "Accepted"),
+        /// 203 Non-Authoritative Information
+        /// [[RFC7231, Section 6.3.4](https://tools.ietf.org/html/rfc7231#section-6.3.4)]
+        (203, NonAuthoritativeInformation, "Non-Authoritative Information"),
+        /// 204 No Content
+        /// [[RFC7231, Section 6.3.5](https://tools.ietf.org/html/rfc7231#section-6.3.5)]
+        (204, NoContent, "No Content"),
+        /// 205 Reset Content
+        /// [[RFC7231, Section 6.3.6](https://tools.ietf.org/html/rfc7231#section-6.3.6)]
+        (205, ResetContent, "Reset Content"),
+        /// 206 Partial Content
+        /// [[RFC7233, Section 4.1](https://tools.ietf.org/html/rfc7233#section-4.1)]
+        (206, PartialContent, "Partial Content"),
+        /// 207 Multi-Status
+        /// [[RFC4918](https://tools.ietf.org/html/rfc4918)]
+        (207, MultiStatus, "Multi-Status"),
+        /// 208 Already Reported
+        /// [[RFC5842](https://tools.ietf.org/html/rfc5842)]
+        (208, AlreadyReported, "Already Reported"),
 
-    /// 226 IM Used
-    /// [[RFC3229](https://tools.ietf.org/html/rfc3229)]
-    (226, ImUsed, "IM Used"),
+        /// 226 IM Used
+        /// [[RFC3229](https://tools.ietf.org/html/rfc3229)]
+        (226, ImUsed, "IM Used"),
+    }
 
-    /// 300 Multiple Choices
-    /// [[RFC7231, Section 6.4.1](https://tools.ietf.org/html/rfc7231#section-6.4.1)]
-    (300, MultipleChoices, "Multiple Choices"),
-    /// 301 Moved Permanently
-    /// [[RFC7231, Section 6.4.2](https://tools.ietf.org/html/rfc7231#section-6.4.2)]
-    (301, MovedPermanently, "Moved Permanently"),
-    /// 302 Found
-    /// [[RFC7231, Section 6.4.3](https://tools.ietf.org/html/rfc7231#section-6.4.3)]
-    (302, Found, "Found"),
-    /// 303 See Other
-    /// [[RFC7231, Section 6.4.4](https://tools.ietf.org/html/rfc7231#section-6.4.4)]
-    (303, SeeOther, "See Other"),
-    /// 304 Not Modified
-    /// [[RFC7232, Section 4.1](https://tools.ietf.org/html/rfc7232#section-4.1)]
-    (304, NotModified, "Not Modified"),
-    /// 305 Use Proxy
-    /// [[RFC7231, Section 6.4.5](https://tools.ietf.org/html/rfc7231#section-6.4.5)]
-    (305, UseProxy, "Use Proxy"),
-    /// 307 Temporary Redirect
-    /// [[RFC7231, Section 6.4.7](https://tools.ietf.org/html/rfc7231#section-6.4.7)]
-    (307, TemporaryRedirect, "Temporary Redirect"),
-    /// 308 Permanent Redirect
-    /// [[RFC7238](https://tools.ietf.org/html/rfc7238)]
-    (308, PermanentRedirect, "Permanent Redirect"),
+    /// 3xx (Redirection): Further action needs to be taken in order to complete the request
+    Redirection {
+        /// 300 Multiple Choices
+        /// [[RFC7231, Section 6.4.1](https://tools.ietf.org/html/rfc7231#section-6.4.1)]
+        (300, MultipleChoices, "Multiple Choices"),
+        /// 301 Moved Permanently
+        /// [[RFC7231, Section 6.4.2](https://tools.ietf.org/html/rfc7231#section-6.4.2)]
+        (301, MovedPermanently, "Moved Permanently"),
+        /// 302 Found
+        /// [[RFC7231, Section 6.4.3](https://tools.ietf.org/html/rfc7231#section-6.4.3)]
+        (302, Found, "Found"),
+        /// 303 See Other
+        /// [[RFC7231, Section 6.4.4](https://tools.ietf.org/html/rfc7231#section-6.4.4)]
+        (303, SeeOther, "See Other"),
+        /// 304 Not Modified
+        /// [[RFC7232, Section 4.1](https://tools.ietf.org/html/rfc7232#section-4.1)]
+        (304, NotModified, "Not Modified"),
+        /// 305 Use Proxy
+        /// [[RFC7231, Section 6.4.5](https://tools.ietf.org/html/rfc7231#section-6.4.5)]
+        (305, UseProxy, "Use Proxy"),
+        /// 307 Temporary Redirect
+        /// [[RFC7231, Section 6.4.7](https://tools.ietf.org/html/rfc7231#section-6.4.7)]
+        (307, TemporaryRedirect, "Temporary Redirect"),
+        /// 308 Permanent Redirect
+        /// [[RFC7238](https://tools.ietf.org/html/rfc7238)]
+        (308, PermanentRedirect, "Permanent Redirect"),
+    }
 
-    /// 400 Bad Request
-    /// [[RFC7231, Section 6.5.1](https://tools.ietf.org/html/rfc7231#section-6.5.1)]
-    (400, BadRequest, "Bad Request"),
-    /// 401 Unauthorized
-    /// [[RFC7235, Section 3.1](https://tools.ietf.org/html/rfc7235#section-3.1)]
-    (401, Unauthorized, "Unauthorized"),
-    /// 402 Payment Required
-    /// [[RFC7231, Section 6.5.2](https://tools.ietf.org/html/rfc7231#section-6.5.2)]
-    (402, PaymentRequired, "Payment Required"),
-    /// 403 Forbidden
-    /// [[RFC7231, Section 6.5.3](https://tools.ietf.org/html/rfc7231#section-6.5.3)]
-    (403, Forbidden, "Forbidden"),
-    /// 404 Not Found
-    /// [[RFC7231, Section 6.5.4](https://tools.ietf.org/html/rfc7231#section-6.5.4)]
-    (404, NotFound, "Not Found"),
-    /// 405 Method Not Allowed
-    /// [[RFC7231, Section 6.5.5](https://tools.ietf.org/html/rfc7231#section-6.5.5)]
-    (405, MethodNotAllowed, "Method Not Allowed"),
-    /// 406 Not Acceptable
-    /// [[RFC7231, Section 6.5.6](https://tools.ietf.org/html/rfc7231#section-6.5.6)]
-    (406, NotAcceptable, "Not Acceptable"),
-    /// 407 Proxy Authentication Required
-    /// [[RFC7235, Section 3.2](https://tools.ietf.org/html/rfc7235#section-3.2)]
-    (407, ProxyAuthenticationRequired, "Proxy Authentication Required"),
-    /// 408 Request Timeout
-    /// [[RFC7231, Section 6.5.7](https://tools.ietf.org/html/rfc7231#section-6.5.7)]
-    (408, RequestTimeout, "Request Timeout"),
-    /// 409 Conflict
-    /// [[RFC7231, Section 6.5.8](https://tools.ietf.org/html/rfc7231#section-6.5.8)]
-    (409, Conflict, "Conflict"),
-    /// 410 Gone
-    /// [[RFC7231, Section 6.5.9](https://tools.ietf.org/html/rfc7231#section-6.5.9)]
-    (410, Gone, "Gone"),
-    /// 411 Length Required
-    /// [[RFC7231, Section 6.5.10](https://tools.ietf.org/html/rfc7231#section-6.5.10)]
-    (411, LengthRequired, "Length Required"),
-    /// 412 Precondition Failed
-    /// [[RFC7232, Section 4.2](https://tools.ietf.org/html/rfc7232#section-4.2)]
-    (412, PreconditionFailed, "Precondition Failed"),
-    /// 413 Payload Too Large
-    /// [[RFC7231, Section 6.5.11](https://tools.ietf.org/html/rfc7231#section-6.5.11)]
-    (413, PayloadTooLarge, "Payload Too Large"),
-    /// 414 URI Too Long
-    /// [[RFC7231, Section 6.5.12](https://tools.ietf.org/html/rfc7231#section-6.5.12)]
-    (414, UriTooLong, "URI Too Long"),
-    /// 415 Unsupported Media Type
-    /// [[RFC7231, Section 6.5.13](https://tools.ietf.org/html/rfc7231#section-6.5.13)]
-    (415, UnsupportedMediaType, "Unsupported Media Type"),
-    /// 416 Range Not Satisfiable
-    /// [[RFC7233, Section 4.4](https://tools.ietf.org/html/rfc7233#section-4.4)]
-    (416, RangeNotSatisfiable, "Range Not Satisfiable"),
-    /// 417 Expectation Failed
-    /// [[RFC7231, Section 6.5.14](https://tools.ietf.org/html/rfc7231#section-6.5.14)]
-    (417, ExpectationFailed, "Expectation Failed"),
-    /// 418 I'm a teapot
-    /// [curiously, not registered by IANA, but [RFC2324](https://tools.ietf.org/html/rfc2324)]
-    (418, ImATeapot, "I'm a teapot"),
+    /// 4xx (Client Error): The request contains bad syntax or cannot be fulfilled
+    ClientError {
+        /// 400 Bad Request
+        /// [[RFC7231, Section 6.5.1](https://tools.ietf.org/html/rfc7231#section-6.5.1)]
+        (400, BadRequest, "Bad Request"),
+        /// 401 Unauthorized
+        /// [[RFC7235, Section 3.1](https://tools.ietf.org/html/rfc7235#section-3.1)]
+        (401, Unauthorized, "Unauthorized"),
+        /// 402 Payment Required
+        /// [[RFC7231, Section 6.5.2](https://tools.ietf.org/html/rfc7231#section-6.5.2)]
+        (402, PaymentRequired, "Payment Required"),
+        /// 403 Forbidden
+        /// [[RFC7231, Section 6.5.3](https://tools.ietf.org/html/rfc7231#section-6.5.3)]
+        (403, Forbidden, "Forbidden"),
+        /// 404 Not Found
+        /// [[RFC7231, Section 6.5.4](https://tools.ietf.org/html/rfc7231#section-6.5.4)]
+        (404, NotFound, "Not Found"),
+        /// 405 Method Not Allowed
+        /// [[RFC7231, Section 6.5.5](https://tools.ietf.org/html/rfc7231#section-6.5.5)]
+        (405, MethodNotAllowed, "Method Not Allowed"),
+        /// 406 Not Acceptable
+        /// [[RFC7231, Section 6.5.6](https://tools.ietf.org/html/rfc7231#section-6.5.6)]
+        (406, NotAcceptable, "Not Acceptable"),
+        /// 407 Proxy Authentication Required
+        /// [[RFC7235, Section 3.2](https://tools.ietf.org/html/rfc7235#section-3.2)]
+        (407, ProxyAuthenticationRequired, "Proxy Authentication Required"),
+        /// 408 Request Timeout
+        /// [[RFC7231, Section 6.5.7](https://tools.ietf.org/html/rfc7231#section-6.5.7)]
+        (408, RequestTimeout, "Request Timeout"),
+        /// 409 Conflict
+        /// [[RFC7231, Section 6.5.8](https://tools.ietf.org/html/rfc7231#section-6.5.8)]
+        (409, Conflict, "Conflict"),
+        /// 410 Gone
+        /// [[RFC7231, Section 6.5.9](https://tools.ietf.org/html/rfc7231#section-6.5.9)]
+        (410, Gone, "Gone"),
+        /// 411 Length Required
+        /// [[RFC7231, Section 6.5.10](https://tools.ietf.org/html/rfc7231#section-6.5.10)]
+        (411, LengthRequired, "Length Required"),
+        /// 412 Precondition Failed
+        /// [[RFC7232, Section 4.2](https://tools.ietf.org/html/rfc7232#section-4.2)]
+        (412, PreconditionFailed, "Precondition Failed"),
+        /// 413 Payload Too Large
+        /// [[RFC7231, Section 6.5.11](https://tools.ietf.org/html/rfc7231#section-6.5.11)]
+        (413, PayloadTooLarge, "Payload Too Large"),
+        /// 414 URI Too Long
+        /// [[RFC7231, Section 6.5.12](https://tools.ietf.org/html/rfc7231#section-6.5.12)]
+        (414, UriTooLong, "URI Too Long"),
+        /// 415 Unsupported Media Type
+        /// [[RFC7231, Section 6.5.13](https://tools.ietf.org/html/rfc7231#section-6.5.13)]
+        (415, UnsupportedMediaType, "Unsupported Media Type"),
+        /// 416 Range Not Satisfiable
+        /// [[RFC7233, Section 4.4](https://tools.ietf.org/html/rfc7233#section-4.4)]
+        (416, RangeNotSatisfiable, "Range Not Satisfiable"),
+        /// 417 Expectation Failed
+        /// [[RFC7231, Section 6.5.14](https://tools.ietf.org/html/rfc7231#section-6.5.14)]
+        (417, ExpectationFailed, "Expectation Failed"),
+        /// 418 I'm a teapot
+        /// [curiously, not registered by IANA, but [RFC2324](https://tools.ietf.org/html/rfc2324)]
+        (418, ImATeapot, "I'm a teapot"),
 
-    /// 422 Unprocessable Entity
-    /// [[RFC4918](https://tools.ietf.org/html/rfc4918)]
-    (422, UnprocessableEntity, "Unprocessable Entity"),
-    /// 423 Locked
-    /// [[RFC4918](https://tools.ietf.org/html/rfc4918)]
-    (423, Locked, "Locked"),
-    /// 424 Failed Dependency
-    /// [[RFC4918](https://tools.ietf.org/html/rfc4918)]
-    (424, FailedDependency, "Failed Dependency"),
+        /// 422 Unprocessable Entity
+        /// [[RFC4918](https://tools.ietf.org/html/rfc4918)]
+        (422, UnprocessableEntity, "Unprocessable Entity"),
+        /// 423 Locked
+        /// [[RFC4918](https://tools.ietf.org/html/rfc4918)]
+        (423, Locked, "Locked"),
+        /// 424 Failed Dependency
+        /// [[RFC4918](https://tools.ietf.org/html/rfc4918)]
+        (424, FailedDependency, "Failed Dependency"),
 
-    /// 426 Upgrade Required
-    /// [[RFC7231, Section 6.5.15](https://tools.ietf.org/html/rfc7231#section-6.5.15)]
-    (426, UpgradeRequired, "Upgrade Required"),
+        /// 426 Upgrade Required
+        /// [[RFC7231, Section 6.5.15](https://tools.ietf.org/html/rfc7231#section-6.5.15)]
+        (426, UpgradeRequired, "Upgrade Required"),
 
-    /// 428 Precondition Required
-    /// [[RFC6585](https://tools.ietf.org/html/rfc6585)]
-    (428, PreconditionRequired, "Precondition Required"),
-    /// 429 Too Many Requests
-    /// [[RFC6585](https://tools.ietf.org/html/rfc6585)]
-    (429, TooManyRequests, "Too Many Requests"),
+        /// 428 Precondition Required
+        /// [[RFC6585](https://tools.ietf.org/html/rfc6585)]
+        (428, PreconditionRequired, "Precondition Required"),
+        /// 429 Too Many Requests
+        /// [[RFC6585](https://tools.ietf.org/html/rfc6585)]
+        (429, TooManyRequests, "Too Many Requests"),
 
-    /// 431 Request Header Fields Too Large
-    /// [[RFC6585](https://tools.ietf.org/html/rfc6585)]
-    (431, RequestHeaderFieldsTooLarge, "Request Header Fields Too Large"),
+        /// 431 Request Header Fields Too Large
+        /// [[RFC6585](https://tools.ietf.org/html/rfc6585)]
+        (431, RequestHeaderFieldsTooLarge, "Request Header Fields Too Large"),
+    }
 
-    /// 500 Internal Server Error
-    /// [[RFC7231, Section 6.6.1](https://tools.ietf.org/html/rfc7231#section-6.6.1)]
-    (500, InternalServerError, "Internal Server Error"),
-    /// 501 Not Implemented
-    /// [[RFC7231, Section 6.6.2](https://tools.ietf.org/html/rfc7231#section-6.6.2)]
-    (501, NotImplemented, "Not Implemented"),
-    /// 502 Bad Gateway
-    /// [[RFC7231, Section 6.6.3](https://tools.ietf.org/html/rfc7231#section-6.6.3)]
-    (502, BadGateway, "Bad Gateway"),
-    /// 503 Service Unavailable
-    /// [[RFC7231, Section 6.6.4](https://tools.ietf.org/html/rfc7231#section-6.6.4)]
-    (503, ServiceUnavailable, "Service Unavailable"),
-    /// 504 Gateway Timeout
-    /// [[RFC7231, Section 6.6.5](https://tools.ietf.org/html/rfc7231#section-6.6.5)]
-    (504, GatewayTimeout, "Gateway Timeout"),
-    /// 505 HTTP Version Not Supported
-    /// [[RFC7231, Section 6.6.6](https://tools.ietf.org/html/rfc7231#section-6.6.6)]
-    (505, HttpVersionNotSupported, "HTTP Version Not Supported"),
-    /// 506 Variant Also Negotiates
-    /// [[RFC2295](https://tools.ietf.org/html/rfc2295)]
-    (506, VariantAlsoNegotiates, "Variant Also Negotiates"),
-    /// 507 Insufficient Storage
-    /// [[RFC4918](https://tools.ietf.org/html/rfc4918)]
-    (507, InsufficientStorage, "Insufficient Storage"),
-    /// 508 Loop Detected
-    /// [[RFC5842](https://tools.ietf.org/html/rfc5842)]
-    (508, LoopDetected, "Loop Detected"),
+    /// 5xx (Server Error): The server failed to fulfill an apparently valid request
+    ServerError {
+        /// 500 Internal Server Error
+        /// [[RFC7231, Section 6.6.1](https://tools.ietf.org/html/rfc7231#section-6.6.1)]
+        (500, InternalServerError, "Internal Server Error"),
+        /// 501 Not Implemented
+        /// [[RFC7231, Section 6.6.2](https://tools.ietf.org/html/rfc7231#section-6.6.2)]
+        (501, NotImplemented, "Not Implemented"),
+        /// 502 Bad Gateway
+        /// [[RFC7231, Section 6.6.3](https://tools.ietf.org/html/rfc7231#section-6.6.3)]
+        (502, BadGateway, "Bad Gateway"),
+        /// 503 Service Unavailable
+        /// [[RFC7231, Section 6.6.4](https://tools.ietf.org/html/rfc7231#section-6.6.4)]
+        (503, ServiceUnavailable, "Service Unavailable"),
+        /// 504 Gateway Timeout
+        /// [[RFC7231, Section 6.6.5](https://tools.ietf.org/html/rfc7231#section-6.6.5)]
+        (504, GatewayTimeout, "Gateway Timeout"),
+        /// 505 HTTP Version Not Supported
+        /// [[RFC7231, Section 6.6.6](https://tools.ietf.org/html/rfc7231#section-6.6.6)]
+        (505, HttpVersionNotSupported, "HTTP Version Not Supported"),
+        /// 506 Variant Also Negotiates
+        /// [[RFC2295](https://tools.ietf.org/html/rfc2295)]
+        (506, VariantAlsoNegotiates, "Variant Also Negotiates"),
+        /// 507 Insufficient Storage
+        /// [[RFC4918](https://tools.ietf.org/html/rfc4918)]
+        (507, InsufficientStorage, "Insufficient Storage"),
+        /// 508 Loop Detected
+        /// [[RFC5842](https://tools.ietf.org/html/rfc5842)]
+        (508, LoopDetected, "Loop Detected"),
 
-    /// 510 Not Extended
-    /// [[RFC2774](https://tools.ietf.org/html/rfc2774)]
-    (510, NotExtended, "Not Extended"),
-    /// 511 Network Authentication Required
-    /// [[RFC6585](https://tools.ietf.org/html/rfc6585)]
-    (511, NetworkAuthenticationRequired, "Network Authentication Required"),
+        /// 510 Not Extended
+        /// [[RFC2774](https://tools.ietf.org/html/rfc2774)]
+        (510, NotExtended, "Not Extended"),
+        /// 511 Network Authentication Required
+        /// [[RFC6585](https://tools.ietf.org/html/rfc6585)]
+        (511, NetworkAuthenticationRequired, "Network Authentication Required"),
+    }
 }
 
 impl StatusCode {
@@ -556,5 +629,22 @@ mod tests {
         validate(511, NetworkAuthenticationRequired, InternalServerError,
             Some("Network Authentication Required"));
 
+    }
+
+    #[test]
+    fn test_scoped_conversion() {
+        // Check that into works, and equality works before and after conversion
+        fn test<T>(t: T, other: StatusCode)
+        where T: Into<StatusCode> + PartialEq + PartialEq<StatusCode> + ::std::fmt::Debug {
+            assert_eq!(t, t);
+            assert_eq!(t, other);
+            assert_eq!(t.into(), other)
+        }
+
+        test(scoped::Informational::Continue, StatusCode::Continue);
+        test(scoped::Success::Ok, StatusCode::Ok);
+        test(scoped::Redirection::MultipleChoices, StatusCode::MultipleChoices);
+        test(scoped::ClientError::BadRequest, StatusCode::BadRequest);
+        test(scoped::ServerError::InternalServerError, StatusCode::InternalServerError);
     }
 }
