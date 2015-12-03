@@ -6,6 +6,42 @@ macro_rules! status_codes {
     ($(#[$class_doc:meta] $class:ident {
         $($(#[$doc:meta])+ ($code:expr, $name:ident, $reason:expr)),+$(,)*
     })+) => (
+        /// The class of an HTTP `status-code`.
+        ///
+        /// [RFC 7231, section 6 (Response Status Codes)](https://tools.ietf.org/html/rfc7231#section-6):
+        ///
+        /// > The first digit of the status-code defines the class of response.
+        /// > The last two digits do not have any categorization role.
+        ///
+        /// And:
+        ///
+        /// > HTTP status codes are extensible.  HTTP clients are not required to
+        /// > understand the meaning of all registered status codes, though such
+        /// > understanding is obviously desirable.  However, a client MUST
+        /// > understand the class of any status code, as indicated by the first
+        /// > digit, and treat an unrecognized status code as being equivalent to
+        /// > the x00 status code of that class, with the exception that a
+        /// > recipient MUST NOT cache a response with an unrecognized status code.
+        /// >
+        /// > For example, if an unrecognized status code of 471 is received by a
+        /// > client, the client can assume that there was something wrong with its
+        /// > request and treat the response as if it had received a 400 (Bad
+        /// > Request) status code.  The response message will usually contain a
+        /// > representation that explains the status.
+        ///
+        /// This can be used in cases where a status code’s meaning is unknown, also,
+        /// to get the appropriate *category* of status.
+        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy)]
+        pub enum StatusClass {
+            $(
+                #[$class_doc]
+                $class,
+            )+
+
+            /// A status code lower than 100 or higher than 599. These codes do no belong to any class.
+            NoClass,
+        }
+
         /// The scoped module provides `StatusCode`s grouped by their class.
         ///
         /// This enables you to accept a subset of `StatusCode`s in your API.
@@ -99,6 +135,7 @@ macro_rules! status_codes {
             // `ImATeapot` is not registered.
             Unregistered(u16),
         }
+
         impl StatusCode {
             #[doc(hidden)]
             pub fn from_u16(n: u16) -> StatusCode {
@@ -433,52 +470,6 @@ impl Ord for StatusCode {
             Ordering::Equal
         }
     }
-}
-
-/// The class of an HTTP `status-code`.
-///
-/// [RFC 7231, section 6 (Response Status Codes)](https://tools.ietf.org/html/rfc7231#section-6):
-///
-/// > The first digit of the status-code defines the class of response.
-/// > The last two digits do not have any categorization role.
-///
-/// And:
-///
-/// > HTTP status codes are extensible.  HTTP clients are not required to
-/// > understand the meaning of all registered status codes, though such
-/// > understanding is obviously desirable.  However, a client MUST
-/// > understand the class of any status code, as indicated by the first
-/// > digit, and treat an unrecognized status code as being equivalent to
-/// > the x00 status code of that class, with the exception that a
-/// > recipient MUST NOT cache a response with an unrecognized status code.
-/// >
-/// > For example, if an unrecognized status code of 471 is received by a
-/// > client, the client can assume that there was something wrong with its
-/// > request and treat the response as if it had received a 400 (Bad
-/// > Request) status code.  The response message will usually contain a
-/// > representation that explains the status.
-///
-/// This can be used in cases where a status code’s meaning is unknown, also,
-/// to get the appropriate *category* of status.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy)]
-pub enum StatusClass {
-    /// 1xx (Informational): The request was received, continuing process
-    Informational,
-
-    /// 2xx (Success): The request was successfully received, understood, and accepted
-    Success,
-
-    /// 3xx (Redirection): Further action needs to be taken in order to complete the request
-    Redirection,
-
-    /// 4xx (Client Error): The request contains bad syntax or cannot be fulfilled
-    ClientError,
-
-    /// 5xx (Server Error): The server failed to fulfill an apparently valid request
-    ServerError,
-
-    /// A status code lower than 100 or higher than 599. These codes do no belong to any class.
-    NoClass,
 }
 
 impl StatusClass {
