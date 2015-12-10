@@ -1,5 +1,5 @@
 #![deny(warnings)]
-#![feature(vec_push_all, test)]
+#![feature(test)]
 extern crate hyper;
 
 extern crate test;
@@ -21,7 +21,7 @@ impl MockStream {
     fn new() -> MockStream {
         let head = b"HTTP/1.1 200 OK\r\nServer: Mock\r\n\r\n";
         let mut res = head.to_vec();
-        res.push_all(README);
+        res.extend_from_slice(README);
         MockStream {
             read: Cursor::new(res)
         }
