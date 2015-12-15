@@ -8,11 +8,11 @@
 
 use language_tags::LanguageTag;
 use std::fmt;
-use std::str::FromStr;
 use unicase::UniCase;
 use url::percent_encoding;
 
 use header::{Header, HeaderFormat, parsing};
+use header::parsing::parse_extended_value;
 use header::shared::Charset;
 
 /// The implied disposition of the content of the HTTP body
@@ -133,8 +133,8 @@ impl Header for ContentDisposition {
                             Charset::Ext("UTF-8".to_owned()), None,
                             val.trim_matches('"').as_bytes().to_owned())
                     } else if UniCase(&*key) == UniCase("filename*") {
-                        let (charset, opt_language, value) = try!(parse_ext_value(val));
-                        DispositionParam::Filename(charset, opt_language, value)
+                        let extended_value = try!(parse_extended_value(val));
+                        DispositionParam::Filename(extended_value.charset, extended_value.language_tag, extended_value.value)
                     } else {
                         DispositionParam::Ext(key.to_owned(), val.trim_matches('"').to_owned())
                     }
@@ -193,68 +193,6 @@ impl fmt::Display for ContentDisposition {
         }
         Ok(())
     }
-}
-
-/// Parsing of `ext-value`
-/// https://tools.ietf.org/html/rfc5987#section-3.2
-///
-/// # ABNF
-/// ```plain
-/// ext-value     = charset  "'" [ language ] "'" value-chars
-///               ; like RFC 2231's <extended-initial-value>
-///               ; (see [RFC2231], Section 7)
-///
-/// charset       = "UTF-8" / "ISO-8859-1" / mime-charset
-///
-/// mime-charset  = 1*mime-charsetc
-/// mime-charsetc = ALPHA / DIGIT
-///               / "!" / "#" / "$" / "%" / "&"
-///               / "+" / "-" / "^" / "_" / "`"
-///               / "{" / "}" / "~"
-///               ; as <mime-charset> in Section 2.3 of [RFC2978]
-///               ; except that the single quote is not included
-///               ; SHOULD be registered in the IANA charset registry
-///
-/// language      = <Language-Tag, defined in [RFC5646], Section 2.1>
-///
-/// value-chars   = *( pct-encoded / attr-char )
-///
-/// pct-encoded   = "%" HEXDIG HEXDIG
-///               ; see [RFC3986], Section 2.1
-///
-/// attr-char     = ALPHA / DIGIT
-///               / "!" / "#" / "$" / "&" / "+" / "-" / "."
-///               / "^" / "_" / "`" / "|" / "~"
-///               ; token except ( "*" / "'" / "%" )
-/// ```
-fn parse_ext_value(val: &str) -> ::Result<(Charset, Option<LanguageTag>, Vec<u8>)> {
-
-    // Break into three pieces separated by the single-quote character
-    let mut parts = val.splitn(3,'\'');
-
-    // Interpret the first piece as a Charset
-    let charset: Charset = match parts.next() {
-        None => return Err(::Error::Header),
-        Some(n) => try!(FromStr::from_str(n)),
-    };
-
-    // Interpret the second piece as a language tag
-    let lang: Option<LanguageTag> = match parts.next() {
-        None => return Err(::Error::Header),
-        Some("") => None,
-        Some(s) => match s.parse() {
-            Ok(lt) => Some(lt),
-            Err(_) => return Err(::Error::Header),
-        }
-    };
-
-    // Interpret the third piece as a sequence of value characters
-    let value: Vec<u8> = match parts.next() {
-        None => return Err(::Error::Header),
-        Some(v) => percent_encoding::percent_decode(v.as_bytes()),
-    };
-
-    Ok( (charset, lang, value) )
 }
 
 #[cfg(test)]
