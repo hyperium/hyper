@@ -369,7 +369,7 @@ impl<H: Handler + 'static> Worker<H> {
     fn handle_expect<W: Write>(&self, req: &Request, wrt: &mut W) -> bool {
          if req.version == Http11 && req.headers.get() == Some(&Expect::Continue) {
             let status = self.handler.check_continue((&req.method, &req.uri, &req.headers));
-            match write!(wrt, "{} {}\r\n\r\n", Http11, status) {
+            match write!(wrt, "{} {}\r\n\r\n", Http11, status).and_then(|_| wrt.flush()) {
                 Ok(..) => (),
                 Err(e) => {
                     error!("error writing 100-continue: {:?}", e);
