@@ -37,11 +37,11 @@ version = "0.4"
 default-features = false
 
 [dependencies.serde]
-version = "*"
+version = "0.6"
 optional = true
 
 [dev-dependencies]
-env_logger = "*"
+env_logger = "0.3"
 
 [features]
 default = ["ssl"]
