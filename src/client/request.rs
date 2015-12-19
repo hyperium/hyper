@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use url::Url;
 
-use method::{self, Method};
+use method::Method;
 use header::Headers;
 use header::Host;
 use net::{NetworkStream, NetworkConnector, DefaultConnector, Fresh, Streaming};
@@ -28,7 +28,7 @@ pub struct Request<W> {
 
     message: Box<HttpMessage>,
     headers: Headers,
-    method: method::Method,
+    method: Method,
 
     _marker: PhantomData<W>,
 }
@@ -40,7 +40,7 @@ impl<W> Request<W> {
 
     /// Read the Request method.
     #[inline]
-    pub fn method(&self) -> method::Method { self.method.clone() }
+    pub fn method(&self) -> Method { self.method.clone() }
 
     /// Set the write timeout.
     #[inline]
@@ -59,7 +59,7 @@ impl Request<Fresh> {
     /// Create a new `Request<Fresh>` that will use the given `HttpMessage` for its communication
     /// with the server. This implies that the given `HttpMessage` instance has already been
     /// properly initialized by the caller (e.g. a TCP connection's already established).
-    pub fn with_message(method: method::Method, url: Url, message: Box<HttpMessage>)
+    pub fn with_message(method: Method, url: Url, message: Box<HttpMessage>)
             -> ::Result<Request<Fresh>> {
         let (host, port) = try!(get_host_and_port(&url));
         let mut headers = Headers::new();
@@ -79,13 +79,13 @@ impl Request<Fresh> {
     }
 
     /// Create a new client request.
-    pub fn new(method: method::Method, url: Url) -> ::Result<Request<Fresh>> {
+    pub fn new(method: Method, url: Url) -> ::Result<Request<Fresh>> {
         let mut conn = DefaultConnector::default();
         Request::with_connector(method, url, &mut conn)
     }
 
     /// Create a new client request with a specific underlying NetworkStream.
-    pub fn with_connector<C, S>(method: method::Method, url: Url, connector: &C)
+    pub fn with_connector<C, S>(method: Method, url: Url, connector: &C)
         -> ::Result<Request<Fresh>> where
         C: NetworkConnector<Stream=S>,
         S: Into<Box<NetworkStream + Send>> {
