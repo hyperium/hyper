@@ -1,3 +1,19 @@
+### v0.7.1 (2015-12-19)
+
+
+#### Bug Fixes
+
+* **cargo:** remove * dependendies for serde and env_logger ([4a05bee9](https://github.com/hyperium/hyper/commit/4a05bee9abdc426bbd904fe356b771e492dc8f43))
+* **server:**
+  * Flush 100-continue messages ([92ff50f2](https://github.com/hyperium/hyper/commit/92ff50f2e57fa2cb8a55b3d6d9fa43ef9a1b5526), closes [#704](https://github.com/hyperium/hyper/issues/704))
+  * Removed check for GET/HEAD request when parsing body ([0b05c590](https://github.com/hyperium/hyper/commit/0b05c5903e86327cc9cb4cac39217e496851fce3), closes [#698](https://github.com/hyperium/hyper/issues/698))
+
+
+#### Features
+
+* **headers:** add extended parameter parser to the public API ([402fb76b](https://github.com/hyperium/hyper/commit/402fb76bb2f3dab101509e4703743ab075ae41be))
+
+
 ## v0.7.0 (2015-11-24)
 
 
