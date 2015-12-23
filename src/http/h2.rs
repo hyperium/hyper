@@ -302,7 +302,7 @@ fn prepare_headers(mut headers: Headers) -> Vec<Http2Header> {
 /// A helper function that prepares the body for sending in an HTTP/2 request.
 #[inline]
 fn prepare_body(body: Vec<u8>) -> Option<Vec<u8>> {
-    if body.len() == 0 {
+    if body.is_empty() {
         None
     } else {
         Some(body)
@@ -322,7 +322,7 @@ fn parse_headers(http2_headers: Vec<Http2Header>) -> ::Result<Headers> {
     }
 
     let mut raw_headers = Vec::new();
-    for &(ref name, ref value) in headers.iter() {
+    for &(ref name, ref value) in &headers {
         raw_headers.push(httparse::Header { name: &name, value: &value });
     }
 

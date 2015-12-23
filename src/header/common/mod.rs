@@ -91,13 +91,13 @@ macro_rules! __hyper__deref {
         impl ::std::ops::Deref for $from {
             type Target = $to;
 
-            fn deref<'a>(&'a self) -> &'a $to {
+            fn deref(&self) -> &$to {
                 &self.0
             }
         }
 
         impl ::std::ops::DerefMut for $from {
-            fn deref_mut<'a>(&'a mut self) -> &'a mut $to {
+            fn deref_mut(&mut self) -> &mut $to {
                 &mut self.0
             }
         }
@@ -297,7 +297,7 @@ macro_rules! header {
                         return Ok($id::Any)
                     }
                 }
-                $crate::header::parsing::from_comma_delimited(raw).map(|vec| $id::Items(vec))
+                $crate::header::parsing::from_comma_delimited(raw).map($id::Items)
             }
         }
         impl $crate::header::HeaderFormat for $id {

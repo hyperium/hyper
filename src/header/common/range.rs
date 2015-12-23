@@ -157,10 +157,10 @@ impl FromStr for ByteRangeSpec {
 
         match (parts.next(), parts.next()) {
             (Some(""), Some(end)) => {
-                end.parse().or(Err(::Error::Header)).map(|end| ByteRangeSpec::Last(end))
+                end.parse().or(Err(::Error::Header)).map(ByteRangeSpec::Last)
             },
             (Some(start), Some("")) => {
-                start.parse().or(Err(::Error::Header)).map(|start| ByteRangeSpec::AllFrom(start))
+                start.parse().or(Err(::Error::Header)).map(ByteRangeSpec::AllFrom)
             },
             (Some(start), Some(end)) => {
                 match (start.parse(), end.parse()) {

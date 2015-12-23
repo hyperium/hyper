@@ -109,9 +109,10 @@ impl EntityTag {
 
 impl Display for EntityTag {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.weak {
-            true => write!(f, "W/\"{}\"", self.tag),
-            false => write!(f, "\"{}\"", self.tag),
+        if self.weak {
+            write!(f, "W/\"{}\"", self.tag)
+        } else {
+            write!(f, "\"{}\"", self.tag)
         }
     }
 }

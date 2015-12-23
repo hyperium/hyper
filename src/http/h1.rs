@@ -171,8 +171,8 @@ impl HttpMessage for Http11Message {
                         }
                     }
                 };
-                match &head.method {
-                    &Method::Get | &Method::Head => {
+                match head.method {
+                    Method::Get | Method::Head => {
                         let writer = match write_headers(stream, &head) {
                             Ok(w) => w,
                             Err(e) => {
@@ -734,7 +734,7 @@ impl<W: Write> HttpWriter<W> {
 
     /// Access the inner Writer.
     #[inline]
-    pub fn get_ref<'a>(&'a self) -> &'a W {
+    pub fn get_ref(&self) -> &W {
         match *self {
             ThroughWriter(ref w) => w,
             ChunkedWriter(ref w) => w,
@@ -748,7 +748,7 @@ impl<W: Write> HttpWriter<W> {
     /// Warning: You should not write to this directly, as you can corrupt
     /// the state.
     #[inline]
-    pub fn get_mut<'a>(&'a mut self) -> &'a mut W {
+    pub fn get_mut(&mut self) -> &mut W {
         match *self {
             ThroughWriter(ref mut w) => w,
             ChunkedWriter(ref mut w) => w,

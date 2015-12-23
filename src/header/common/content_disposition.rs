@@ -160,9 +160,9 @@ impl fmt::Display for ContentDisposition {
             DispositionType::Attachment => try!(write!(f, "attachment")),
             DispositionType::Ext(ref s) => try!(write!(f, "{}", s)),
         }
-        for param in self.parameters.iter() {
-            match param {
-                &DispositionParam::Filename(ref charset, ref opt_lang, ref bytes) => {
+        for param in &self.parameters {
+            match *param {
+                DispositionParam::Filename(ref charset, ref opt_lang, ref bytes) => {
                     let mut use_simple_format: bool = false;
                     if opt_lang.is_none() {
                         if let Charset::Ext(ref ext) = *charset {
@@ -188,7 +188,7 @@ impl fmt::Display for ContentDisposition {
                                 bytes, percent_encoding::HTTP_VALUE_ENCODE_SET)))
                     }
                 },
-                &DispositionParam::Ext(ref k, ref v) => try!(write!(f, "; {}=\"{}\"", k, v)),
+                DispositionParam::Ext(ref k, ref v) => try!(write!(f, "; {}=\"{}\"", k, v)),
             }
         }
         Ok(())
