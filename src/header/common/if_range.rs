@@ -72,9 +72,9 @@ impl Header for IfRange {
 
 impl HeaderFormat for IfRange {
     fn fmt_header(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        match self {
-            &IfRange::EntityTag(ref x) => Display::fmt(x, f),
-            &IfRange::Date(ref x) => Display::fmt(x, f),
+        match *self {
+            IfRange::EntityTag(ref x) => Display::fmt(x, f),
+            IfRange::Date(ref x) => Display::fmt(x, f),
         }
     }
 }

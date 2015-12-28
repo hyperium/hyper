@@ -80,8 +80,8 @@ impl Request<Fresh> {
 
     /// Create a new client request.
     pub fn new(method: Method, url: Url) -> ::Result<Request<Fresh>> {
-        let mut conn = DefaultConnector::default();
-        Request::with_connector(method, url, &mut conn)
+        let conn = DefaultConnector::default();
+        Request::with_connector(method, url, &conn)
     }
 
     /// Create a new client request with a specific underlying NetworkStream.

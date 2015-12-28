@@ -60,13 +60,13 @@ pub struct Authorization<S: Scheme>(pub S);
 impl<S: Scheme> Deref for Authorization<S> {
     type Target = S;
 
-    fn deref<'a>(&'a self) -> &'a S {
+    fn deref(&self) -> &S {
         &self.0
     }
 }
 
 impl<S: Scheme> DerefMut for Authorization<S> {
-    fn deref_mut<'a>(&'a mut self) -> &'a mut S {
+    fn deref_mut(&mut self) -> &mut S {
         &mut self.0
     }
 }
@@ -81,7 +81,7 @@ impl<S: Scheme + Any> Header for Authorization<S> where <S as FromStr>::Err: 'st
             return Err(::Error::Header);
         }
         let header = try!(from_utf8(unsafe { &raw.get_unchecked(0)[..] }));
-        return if let Some(scheme) = <S as Scheme>::scheme() {
+        if let Some(scheme) = <S as Scheme>::scheme() {
             if header.starts_with(scheme) && header.len() > scheme.len() + 1 {
                 match header[scheme.len() + 1..].parse::<S>().map(Authorization) {
                     Ok(h) => Ok(h),

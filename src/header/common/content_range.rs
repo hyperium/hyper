@@ -31,8 +31,8 @@ header! {
         test_header!(test_unregistered,
             vec![b"seconds 1-2"],
             Some(ContentRange(ContentRangeSpec::Unregistered {
-                unit: "seconds".to_string(),
-                resp: "1-2".to_string()
+                unit: "seconds".to_owned(),
+                resp: "1-2".to_owned()
             })));
 
         test_header!(test_no_len,
@@ -108,7 +108,7 @@ pub enum ContentRangeSpec {
     }
 }
 
-fn split_in_two<'a>(s: &'a str, separator: char) -> Option<(&'a str, &'a str)> {
+fn split_in_two(s: &str, separator: char) -> Option<(&str, &str)> {
     let mut iter = s.splitn(2, separator);
     match (iter.next(), iter.next()) {
         (Some(a), Some(b)) => Some((a, b)),
@@ -149,8 +149,8 @@ impl FromStr for ContentRangeSpec {
             }
             Some((unit, resp)) => {
                 ContentRangeSpec::Unregistered {
-                    unit: unit.to_string(),
-                    resp: resp.to_string()
+                    unit: unit.to_owned(),
+                    resp: resp.to_owned()
                 }
             }
             _ => return Err(::Error::Header)

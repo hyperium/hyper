@@ -239,8 +239,8 @@ impl<'a> RequestBuilder<'a> {
         let mut url = try!(url);
         trace!("send {:?} {:?}", method, url);
 
-        let can_have_body = match &method {
-            &Method::Get | &Method::Head => false,
+        let can_have_body = match method {
+            Method::Get | Method::Head => false,
             _ => true
         };
 

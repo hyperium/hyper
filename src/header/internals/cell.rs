@@ -32,7 +32,7 @@ impl<T> OptCell<T> {
 impl<T> Deref for OptCell<T> {
     type Target = Option<T>;
     #[inline]
-    fn deref<'a>(&'a self) -> &'a Option<T> {
+    fn deref(&self) -> &Option<T> {
         unsafe { &*self.0.get() }
     }
 }

@@ -193,7 +193,7 @@ impl Headers {
     }
 
     #[doc(hidden)]
-    pub fn from_raw<'a>(raw: &[httparse::Header<'a>]) -> ::Result<Headers> {
+    pub fn from_raw(raw: &[httparse::Header]) -> ::Result<Headers> {
         let mut headers = Headers::new();
         for header in raw {
             trace!("raw header: {:?}={:?}", header.name, &header.value[..]);
@@ -292,7 +292,7 @@ impl Headers {
     }
 
     /// Returns an iterator over the header fields.
-    pub fn iter<'a>(&'a self) -> HeadersItems<'a> {
+    pub fn iter(&self) -> HeadersItems {
         HeadersItems {
             inner: self.data.iter()
         }
@@ -321,7 +321,7 @@ impl PartialEq for Headers {
                 _ => { return false; }
             }
         }
-        return true;
+        true
     }
 }
 

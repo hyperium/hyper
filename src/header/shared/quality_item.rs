@@ -101,7 +101,7 @@ impl<T: str::FromStr> str::FromStr for QualityItem<T> {
         match raw_item.parse::<T>() {
             // we already checked above that the quality is within range
             Ok(item) => Ok(QualityItem::new(item, from_f32(quality))),
-            Err(_) => return Err(::Error::Header),
+            Err(_) => Err(::Error::Header),
         }
     }
 }
