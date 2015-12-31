@@ -58,8 +58,11 @@ pub fn fmt_comma_delimited<T: Display>(f: &mut fmt::Formatter, parts: &[T]) -> f
 /// a language), as defined in [RFC 5987](https://tools.ietf.org/html/rfc5987#section-3.2).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExtendedValue {
+    /// The character set that is used to encode the `value` to a string.
     pub charset: Charset,
+    /// The human language details of the `value`, if available.
     pub language_tag: Option<LanguageTag>,
+    /// The parameter value, as expressed in octets.
     pub value: Vec<u8>,
 }
 
