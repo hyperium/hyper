@@ -56,6 +56,7 @@ pub fn fmt_comma_delimited<T: Display>(f: &mut fmt::Formatter, parts: &[T]) -> f
 
 /// An extended header parameter value (i.e., tagged with a character set and optionally,
 /// a language), as defined in [RFC 5987](https://tools.ietf.org/html/rfc5987#section-3.2).
+#[derive(Clone, Debug, PartialEq)]
 pub struct ExtendedValue {
     pub charset: Charset,
     pub language_tag: Option<LanguageTag>,
@@ -130,10 +131,23 @@ pub fn parse_extended_value(val: &str) -> ::Result<ExtendedValue> {
     })
 }
 
+impl Display for ExtendedValue {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let encoded_value =
+            percent_encoding::percent_encode(&self.value[..],
+                                             percent_encoding::HTTP_VALUE_ENCODE_SET);
+        if let Some(ref lang) = self.language_tag {
+            write!(f, "{}'{}'{}", self.charset, lang, encoded_value)
+        } else {
+            write!(f, "{}''{}", self.charset, encoded_value)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use header::shared::Charset;
-    use super::parse_extended_value;
+    use super::{ExtendedValue, parse_extended_value};
 
     #[test]
     fn test_parse_extended_value_with_encoding_and_language_tag() {
@@ -179,5 +193,27 @@ mod tests {
     fn test_parse_extended_value_partially_formatted_blank() {
         let result = parse_extended_value("blank second part'");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_fmt_extended_value_with_encoding_and_language_tag() {
+        let extended_value = ExtendedValue {
+            charset: Charset::Iso_8859_1,
+            language_tag: Some("en".parse().expect("Could not parse language tag")),
+            value: vec![163, b' ', b'r', b'a', b't', b'e', b's'],
+        };
+        assert_eq!("ISO-8859-1'en'%A3%20rates", format!("{}", extended_value));
+    }
+
+    #[test]
+    fn test_fmt_extended_value_with_encoding() {
+        let extended_value = ExtendedValue {
+            charset: Charset::Ext("UTF-8".to_string()),
+            language_tag: None,
+            value: vec![194, 163, b' ', b'a', b'n', b'd', b' ', 226, 130, 172, b' ', b'r', b'a',
+                        b't', b'e', b's'],
+        };
+        assert_eq!("UTF-8''%C2%A3%20and%20%E2%82%AC%20rates",
+                   format!("{}", extended_value));
     }
 }
