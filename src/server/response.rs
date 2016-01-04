@@ -112,7 +112,7 @@ impl<'a, W: Any> Response<'a, W> {
 
             if encodings {
                 self.headers.set::<header::TransferEncoding>(
-                    header::TransferEncoding(vec![header::Encoding::Chunked]))
+                    header::TransferEncoding(vec![header::Encoding::Chunked]));
             }
         }
 

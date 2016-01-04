@@ -263,10 +263,14 @@ impl<'a> RequestBuilder<'a> {
 
             match (can_have_body, body.as_ref()) {
                 (true, Some(body)) => match body.size() {
-                    Some(size) => req.headers_mut().set(ContentLength(size)),
+                    Some(size) => {
+                        req.headers_mut().set(ContentLength(size));
+                    },
                     None => (), // chunked, Request will add it automatically
                 },
-                (true, None) => req.headers_mut().set(ContentLength(0)),
+                (true, None) => {
+                    req.headers_mut().set(ContentLength(0));
+                },
                 _ => () // neither
             }
             let mut streaming = try!(req.start());
