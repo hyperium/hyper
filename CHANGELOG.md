@@ -1,3 +1,16 @@
+### v0.7.2 (2016-01-04)
+
+
+#### Bug Fixes
+
+* **buffer:** fix incorrect resizing of BufReader ([3a18e72b](https://github.com/hyperium/hyper/commit/3a18e72be67152834f6967c6d208f214288178ee), closes [#715](https://github.com/hyperium/hyper/issues/715))
+
+
+#### Features
+
+* **headers:** allow ExtendedValue structs to be formatted and used as struct members ([da0abe89](https://github.com/hyperium/hyper/commit/da0abe8988a61281b447a554b65ea8fd5d54f81b))
+
+
 ### v0.7.1 (2015-12-19)
 
 
