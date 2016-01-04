@@ -79,7 +79,7 @@ unsafe fn grow_zerofill(buf: &mut Vec<u8>, additional: usize) {
     use std::ptr;
     let len = buf.len();
     buf.set_len(len + additional);
-    ptr::write_bytes(buf.as_mut_ptr(), 0, buf.len());
+    ptr::write_bytes(buf.as_mut_ptr().offset(len as isize), 0, buf.len());
 }
 
 impl<R: Read> Read for BufReader<R> {
@@ -150,5 +150,15 @@ mod tests {
         assert_eq!(rdr.get_buf(), b"");
         assert_eq!(rdr.pos, 0);
         assert_eq!(rdr.cap, 0);
+    }
+
+    #[test]
+    fn test_resize() {
+        let raw = b"hello world";
+        let mut rdr = BufReader::with_capacity(&raw[..], 5);
+        rdr.read_into_buf().unwrap();
+        assert_eq!(rdr.get_buf(), b"hello");
+        rdr.read_into_buf().unwrap();
+        assert_eq!(rdr.get_buf(), b"hello world");
     }
 }
