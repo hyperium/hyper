@@ -795,7 +795,7 @@ mod tests {
     #[bench]
     fn bench_headers_set(b: &mut Bencher) {
         let mut headers = Headers::new();
-        b.iter(|| headers.set(ContentLength(12)))
+        b.iter(|| { headers.set(ContentLength(12)); })
     }
 
     #[cfg(feature = "nightly")]
