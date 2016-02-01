@@ -18,6 +18,7 @@ pub mod message;
 
 /// The raw status code and reason-phrase.
 #[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub struct RawStatus(pub u16, pub Cow<'static, str>);
 
 #[cfg(feature = "serde-serialization")]

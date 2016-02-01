@@ -40,6 +40,7 @@ fn check_slice_validity(slice: &str) -> bool {
 /// | `W/"1"` | `"1"`   | no match          | match           |
 /// | `"1"`   | `"1"`   | match             | match           |
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub struct EntityTag {
     /// Weakness indicator for the tag
     pub weak: bool,

@@ -45,6 +45,7 @@ use header::parsing::{from_one_comma_delimited, fmt_comma_delimited};
 /// );
 /// ```
 #[derive(PartialEq, Clone, Debug)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub struct CacheControl(pub Vec<CacheDirective>);
 
 __hyper__deref!(CacheControl => Vec<CacheDirective>);
@@ -75,6 +76,7 @@ impl HeaderFormat for CacheControl {
 
 /// CacheControl contains a list of these directives.
 #[derive(PartialEq, Clone, Debug)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub enum CacheDirective {
     /// "no-cache"
     NoCache,

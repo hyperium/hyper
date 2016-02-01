@@ -10,6 +10,7 @@ use self::Charset::*;
 ///
 /// See http://www.iana.org/assignments/character-sets/character-sets.xhtml
 #[derive(Clone,Debug,PartialEq)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 #[allow(non_camel_case_types)]
 pub enum Charset{
     /// US ASCII

@@ -44,6 +44,7 @@ use header::{Header, HeaderFormat, parsing};
 /// # }
 /// ```
 #[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub struct StrictTransportSecurity {
     /// Signals the UA that the HSTS Policy applies to this HSTS Host as well as
     /// any subdomains of the host's domain name.

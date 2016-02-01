@@ -28,7 +28,11 @@ use time;
 //   HTTP-date, the sender MUST generate those timestamps in the
 //   IMF-fixdate format.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct HttpDate(pub time::Tm);
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
+pub struct HttpDate(
+    #[cfg_attr(feature = "heap_size", ignore_heap_size_of = "Defined in time")]
+    pub time::Tm
+);
 
 impl FromStr for HttpDate {
     type Err = ::Error;

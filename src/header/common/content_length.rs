@@ -30,6 +30,7 @@ use header::{HeaderFormat, Header, parsing};
 /// headers.set(ContentLength(1024u64));
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub struct ContentLength(pub u64);
 
 impl Header for ContentLength {

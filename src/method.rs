@@ -19,6 +19,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 /// It may make sense to grow this to include all variants currently
 /// registered with IANA, if they are at all common to use.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub enum Method {
     /// OPTIONS
     Options,

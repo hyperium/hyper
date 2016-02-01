@@ -68,6 +68,7 @@ header! {
 /// other-range-unit = token
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub enum RangeUnit {
     /// Indicating byte-range requests are supported.
     Bytes,

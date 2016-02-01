@@ -45,6 +45,7 @@ use header::{Header, HeaderFormat};
 /// );
 /// ```
 #[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub enum AccessControlAllowOrigin {
     /// Allow all origins
     Any,

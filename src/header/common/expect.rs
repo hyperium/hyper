@@ -21,6 +21,7 @@ use header::{Header, HeaderFormat};
 /// headers.set(Expect::Continue);
 /// ```
 #[derive(Copy, Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub enum Expect {
     /// The value `100-continue`.
     Continue

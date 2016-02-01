@@ -478,6 +478,7 @@ impl<'a, H: HeaderFormat> fmt::Debug for HeaderFormatter<'a, H> {
 }
 
 #[derive(Clone, Hash, Eq, PartialEq, PartialOrd, Ord)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 struct CowStr(Cow<'static, str>);
 
 impl Deref for CowStr {

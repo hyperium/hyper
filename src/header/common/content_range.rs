@@ -87,6 +87,7 @@ header! {
 /// other-range-resp    = *CHAR
 /// ```
 #[derive(PartialEq, Clone, Debug)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub enum ContentRangeSpec {
     /// Byte range
     Bytes {

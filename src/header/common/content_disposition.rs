@@ -17,6 +17,7 @@ use header::shared::Charset;
 
 /// The implied disposition of the content of the HTTP body
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub enum DispositionType {
     /// Inline implies default processing
     Inline,
@@ -29,6 +30,7 @@ pub enum DispositionType {
 
 /// A parameter to the disposition type
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub enum DispositionParam {
     /// A Filename consisting of a Charset, an optional LanguageTag, and finally a sequence of
     /// bytes representing the filename
@@ -81,6 +83,7 @@ pub enum DispositionParam {
 /// });
 /// ```
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub struct ContentDisposition {
     /// The disposition
     pub disposition: DispositionType,

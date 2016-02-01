@@ -31,6 +31,7 @@ use header::{Header, HeaderFormat, parsing};
 /// headers.set(Pragma::Ext("foobar".to_owned()));
 /// ```
 #[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub enum Pragma {
     /// Corresponds to the `no-cache` value.
     NoCache,
