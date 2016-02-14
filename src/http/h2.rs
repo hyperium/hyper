@@ -344,7 +344,7 @@ fn parse_response(response: ::solicit::http::Response) -> ::Result<(ResponseHead
 }
 
 impl<S> HttpMessage for Http2Message<S> where S: CloneableStream {
-    fn set_outgoing(&mut self, head: RequestHead) -> ::Result<RequestHead> {
+    fn set_outgoing(&mut self, mut head: RequestHead) -> ::Result<RequestHead> {
         match self.state {
             MessageState::Writing(_) | MessageState::Reading(_) => {
                 return Err(From::from(Http2Error::from(
@@ -353,6 +353,10 @@ impl<S> HttpMessage for Http2Message<S> where S: CloneableStream {
             },
             MessageState::Idle => {},
         };
+        // Set basic authentication headers if the url contains credentials
+        if let Some(basic) = header::Basic::from_url(&head.url) {
+            head.headers.set(header::Authorization(basic));
+        }
         self.state = MessageState::Writing(Http2Request {
             head: head.clone(),
             body: Vec::new(),
