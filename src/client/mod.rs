@@ -58,6 +58,7 @@
 use std::default::Default;
 use std::io::{self, copy, Read};
 use std::iter::Extend;
+use std::fmt;
 
 use std::time::Duration;
 
@@ -90,6 +91,16 @@ pub struct Client {
     redirect_policy: RedirectPolicy,
     read_timeout: Option<Duration>,
     write_timeout: Option<Duration>,
+}
+
+impl fmt::Debug for Client {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("Client")
+           .field("redirect_policy", &self.redirect_policy)
+           .field("read_timeout", &self.read_timeout)
+           .field("write_timeout", &self.write_timeout)
+           .finish()
+    }
 }
 
 impl Client {
@@ -403,6 +414,16 @@ pub enum RedirectPolicy {
     FollowAll,
     /// Follow a redirect if the contained function returns true.
     FollowIf(fn(&Url) -> bool),
+}
+
+impl fmt::Debug for RedirectPolicy {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            RedirectPolicy::FollowNone => fmt.write_str("FollowNone"),
+            RedirectPolicy::FollowAll => fmt.write_str("FollowAll"),
+            RedirectPolicy::FollowIf(_) => fmt.write_str("FollowIf"),
+        }
+    }
 }
 
 // This is a hack because of upstream typesystem issues.
