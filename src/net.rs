@@ -477,8 +477,8 @@ impl<S: NetworkStream> NetworkStream for HttpsStream<S> {
     #[inline]
     fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
         match *self {
-            HttpsStream::Http(ref inner) => inner.0.set_read_timeout(dur),
-            HttpsStream::Https(ref inner) => inner.set_read_timeout(dur)
+            HttpsStream::Http(ref inner) => inner.0.set_write_timeout(dur),
+            HttpsStream::Https(ref inner) => inner.set_write_timeout(dur)
         }
     }
 
