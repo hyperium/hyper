@@ -87,6 +87,7 @@ use std::ops::{Deref, DerefMut};
 use std::{mem, fmt};
 
 use {httparse, traitobject};
+use mime;
 use typeable::Typeable;
 use unicase::UniCase;
 
@@ -306,6 +307,13 @@ impl Headers {
     /// Remove all headers from the map.
     pub fn clear(&mut self) {
         self.data.clear()
+    }
+
+    /// Return the `charset` parameter of a `Content-Type` header, if any.
+    pub fn content_type_charset(&self) -> Option<&str> {
+        self.get::<ContentType>()
+            .and_then(|content_type| content_type.get_param(mime::Attr::Charset))
+            .map(|value| value.as_str())
     }
 }
 
@@ -739,6 +747,21 @@ mod tests {
         headers1.set(ContentLength(11));
         headers2.set(ContentLength(11));
         assert!(headers1 != headers2);
+    }
+
+    #[test]
+    fn test_content_type_charset() {
+        let headers = Headers::from_raw(
+            &raw!(b"ContentType: text/html; charset=utf-8")).unwrap();
+        assert_eq!(headers.content_type_charset(), None);
+
+        let headers = Headers::from_raw(
+            &raw!(b"Content-Type: text/html; chrst=utf-8")).unwrap();
+        assert_eq!(headers.content_type_charset(), None);
+
+        let headers = Headers::from_raw(
+            &raw!(b"Content-Type: text/html; charset=utf-8")).unwrap();
+        assert_eq!(headers.content_type_charset(), Some("utf-8"));
     }
 
     #[cfg(feature = "nightly")]
