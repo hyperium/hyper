@@ -407,6 +407,9 @@ impl Drop for Listening {
 }
 
 impl Listening {
+    /// Warning: This function doesn't work. The server remains listening after you called
+    /// it. See https://github.com/hyperium/hyper/issues/338 for more details.
+    ///
     /// Stop the server from listening to its socket address.
     pub fn close(&mut self) -> ::Result<()> {
         let _ = self._guard.take();
