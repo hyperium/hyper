@@ -36,6 +36,7 @@ fn hello(_: Request, res: Response) {
     res.send(b"Hello World!").unwrap();
 }
 
+#[allow(unused_must_use)]
 fn main() {
     Server::http("127.0.0.1:3000").unwrap().handle(hello);
 }
