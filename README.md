@@ -37,7 +37,8 @@ fn hello(_: Request, res: Response) {
 }
 
 fn main() {
-    Server::http("127.0.0.1:3000").unwrap().handle(hello);
+    Server::http("127.0.0.1:3000").unwrap()
+        .handle(hello).unwrap();
 }
 ```
 
