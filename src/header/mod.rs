@@ -348,7 +348,7 @@ impl fmt::Debug for Headers {
 #[cfg(feature = "serde-serialization")]
 impl Serialize for Headers {
     fn serialize<S>(&self, serializer: &mut S) -> Result<(), S::Error> where S: Serializer {
-        serializer.visit_map(ser::impls::MapIteratorVisitor::new(
+        serializer.serialize_map(ser::impls::MapIteratorVisitor::new(
             self.iter().map(|header| (header.name(), header.value_string())),
             Some(self.len()),
         ))
@@ -375,7 +375,7 @@ impl Deserialize for Headers {
             }
         }
 
-        deserializer.visit_map(HeadersVisitor)
+        deserializer.deserialize_map(HeadersVisitor)
     }
 }
 
