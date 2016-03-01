@@ -2,17 +2,38 @@
 extern crate hyper;
 extern crate env_logger;
 
-use hyper::server::{Request, Response};
+use std::io::Write;
+
+use hyper::{Decoder, Encoder, Next};
+use hyper::net::HttpStream;
+use hyper::server::{Server, Handler, Request, Response};
 
 static PHRASE: &'static [u8] = b"Hello World!";
 
-fn hello(_: Request, res: Response) {
-    res.send(PHRASE).unwrap();
+struct Hello;
+
+impl Handler<HttpStream> for Hello {
+    fn on_request(&mut self, _: Request) -> Next {
+        Next::write()
+    }
+    fn on_request_readable(&mut self, _: &mut Decoder<HttpStream>) -> Next {
+        Next::write()
+    }
+    fn on_response(&mut self, response: &mut Response) -> Next {
+        use hyper::header::ContentLength;
+        response.headers_mut().set(ContentLength(PHRASE.len() as u64));
+        Next::write()
+    }
+    fn on_response_writable(&mut self, encoder: &mut Encoder<HttpStream>) -> Next {
+        let n = encoder.write(PHRASE).unwrap();
+        debug_assert_eq!(n, PHRASE.len());
+        Next::end()
+    }
 }
 
 fn main() {
     env_logger::init().unwrap();
-    let _listening = hyper::Server::http("127.0.0.1:3000").unwrap()
-        .handle(hello);
+    let _listening = Server::http(&"127.0.0.1:3000".parse().unwrap()).unwrap()
+        .handle(|_| Hello).unwrap();
     println!("Listening on http://127.0.0.1:3000");
 }

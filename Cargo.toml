@@ -1,7 +1,7 @@
 [package]
 
 name = "hyper"
-version = "0.7.2"
+version = "0.9.0-mio"
 description = "A modern HTTP library."
 readme = "README.md"
 documentation = "http://hyperium.github.io/hyper/hyper/index.html"
@@ -16,13 +16,15 @@ httparse = "1.0"
 language-tags = "0.2"
 log = "0.3"
 mime = "0.1"
-num_cpus = "0.2"
+mio = "0.5"
+rotor = "0.6"
 rustc-serialize = "0.3"
 time = "0.1"
 traitobject = "0.0.1"
 typeable = "0.1"
 unicase = "1.0"
 url = "0.5"
+vecio = "0.1"
 
 [dependencies.cookie]
 version = "0.2"
@@ -31,10 +33,6 @@ default-features = false
 [dependencies.openssl]
 version = "0.7"
 optional = true
-
-[dependencies.solicit]
-version = "0.4"
-default-features = false
 
 [dependencies.serde]
 version = "0.6"

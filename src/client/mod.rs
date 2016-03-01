@@ -1,420 +1,319 @@
 //! HTTP Client
-//!
-//! # Usage
-//!
-//! The `Client` API is designed for most people to make HTTP requests.
-//! It utilizes the lower level `Request` API.
-//!
-//! ## GET
-//!
-//! ```no_run
-//! # use hyper::Client;
-//! let client = Client::new();
-//!
-//! let res = client.get("http://example.domain").send().unwrap();
-//! assert_eq!(res.status, hyper::Ok);
-//! ```
-//!
-//! The returned value is a `Response`, which provides easy access to
-//! the `status`, the `headers`, and the response body via the `Read`
-//! trait.
-//!
-//! ## POST
-//!
-//! ```no_run
-//! # use hyper::Client;
-//! let client = Client::new();
-//!
-//! let res = client.post("http://example.domain")
-//!     .body("foo=bar")
-//!     .send()
-//!     .unwrap();
-//! assert_eq!(res.status, hyper::Ok);
-//! ```
-//!
-//! # Sync
-//!
-//! The `Client` implements `Sync`, so you can share it among multiple threads
-//! and make multiple requests simultaneously.
-//!
-//! ```no_run
-//! # use hyper::Client;
-//! use std::sync::Arc;
-//! use std::thread;
-//!
-//! // Note: an Arc is used here because `thread::spawn` creates threads that
-//! // can outlive the main thread, so we must use reference counting to keep
-//! // the Client alive long enough. Scoped threads could skip the Arc.
-//! let client = Arc::new(Client::new());
-//! let clone1 = client.clone();
-//! let clone2 = client.clone();
-//! thread::spawn(move || {
-//!     clone1.get("http://example.domain").send().unwrap();
-//! });
-//! thread::spawn(move || {
-//!     clone2.post("http://example.domain/post").body("foo=bar").send().unwrap();
-//! });
-//! ```
 use std::default::Default;
-use std::io::{self, copy, Read};
-use std::iter::Extend;
+use std::fmt;
+use std::io::{Read};
+use std::marker::PhantomData;
+use std::sync::mpsc;
+use std::thread;
 
-use std::time::Duration;
+use rotor::{self, Scope, EventSet, PollOpt};
 
-use url::UrlParser;
 use url::ParseError as UrlError;
 
-use header::{Headers, Header, HeaderFormat};
-use header::{ContentLength, Location};
-use method::Method;
-use net::{NetworkConnector, NetworkStream};
+use header::Host;
+use http::{self, Next, RequestHead};
+use net::{Transport, Connect, DefaultConnector};
+use uri::RequestUri;
 use {Url};
 use Error;
 
-pub use self::pool::Pool;
 pub use self::request::Request;
 pub use self::response::Response;
 
-pub mod pool;
-pub mod request;
-pub mod response;
-
-use http::Protocol;
-use http::h1::Http11Protocol;
+//mod pool;
+mod request;
+mod response;
 
 /// A Client to use additional features with Requests.
 ///
 /// Clients can handle things such as: redirect policy, connection pooling.
-pub struct Client {
-    protocol: Box<Protocol + Send + Sync>,
-    redirect_policy: RedirectPolicy,
-    read_timeout: Option<Duration>,
-    write_timeout: Option<Duration>,
+pub struct Client<H> {
+    //handle: Option<thread::JoinHandle<()>>,
+    notifier: (rotor::Notifier, mpsc::Sender<Notify<H>>),
 }
 
-impl Client {
-
-    /// Create a new Client.
-    pub fn new() -> Client {
-        Client::with_pool_config(Default::default())
-    }
-
-    /// Create a new Client with a configured Pool Config.
-    pub fn with_pool_config(config: pool::Config) -> Client {
-        Client::with_connector(Pool::new(config))
-    }
-
-    /// Create a new client with a specific connector.
-    pub fn with_connector<C, S>(connector: C) -> Client
-    where C: NetworkConnector<Stream=S> + Send + Sync + 'static, S: NetworkStream + Send {
-        Client::with_protocol(Http11Protocol::with_connector(connector))
-    }
-
-    /// Create a new client with a specific `Protocol`.
-    pub fn with_protocol<P: Protocol + Send + Sync + 'static>(protocol: P) -> Client {
+impl<H> Clone for Client<H> {
+    fn clone(&self) -> Client<H> {
         Client {
-            protocol: Box::new(protocol),
-            redirect_policy: Default::default(),
-            read_timeout: None,
-            write_timeout: None,
+            notifier: self.notifier.clone()
         }
     }
+}
 
-    /// Set the RedirectPolicy.
-    pub fn set_redirect_policy(&mut self, policy: RedirectPolicy) {
-        self.redirect_policy = policy;
+impl<H> fmt::Debug for Client<H> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.pad("Client")
     }
+}
 
-    /// Set the read timeout value for all requests.
-    pub fn set_read_timeout(&mut self, dur: Option<Duration>) {
-        self.read_timeout = dur;
+impl<H: Handler<<DefaultConnector as Connect>::Output>> Client<H> {
+    /// Create a new Client.
+    pub fn new() -> ::Result<Client<H>> {
+        Client::with_connector(DefaultConnector::default())
     }
+}
 
-    /// Set the write timeout value for all requests.
-    pub fn set_write_timeout(&mut self, dur: Option<Duration>) {
-        self.write_timeout = dur;
+impl<H> Client<H> {
+    /// Create a new client with a specific connector.
+    pub fn with_connector<T, C>(connector: C) -> ::Result<Client<H>>
+    where H: Handler<T>,
+          T: Transport + Send,
+          C: Connect<Output=T> + Send + 'static {
+          //C::Output: Transport + Send + 'static {
+        let mut loop_ = try!(rotor::Loop::new(&rotor::Config::new()));
+        let (tx, rx) = mpsc::channel();
+        let mut notifier = None;
+        {
+            let not = &mut notifier;
+            loop_.add_machine_with(move |scope| {
+                *not = Some(scope.notifier());
+                rotor::Response::ok(ClientFsm::Connector(connector, rx))
+            }).unwrap();
+        }
+
+        let notifier = notifier.expect("loop.add_machine_with failed");
+        let _handle = try!(thread::Builder::new().name("hyper-client".to_owned()).spawn(move || {
+            loop_.run(Context {
+                queue: Vec::new(),
+                _marker: PhantomData,
+            }).unwrap()
+        }));
+
+        Ok(Client {
+            //handle: Some(handle),
+            notifier: (notifier, tx),
+        })
     }
-
-    /// Build a Get request.
-    pub fn get<U: IntoUrl>(&self, url: U) -> RequestBuilder {
-        self.request(Method::Get, url)
-    }
-
-    /// Build a Head request.
-    pub fn head<U: IntoUrl>(&self, url: U) -> RequestBuilder {
-        self.request(Method::Head, url)
-    }
-
-    /// Build a Patch request.
-    pub fn patch<U: IntoUrl>(&self, url: U) -> RequestBuilder {
-        self.request(Method::Patch, url)
-    }
-
-    /// Build a Post request.
-    pub fn post<U: IntoUrl>(&self, url: U) -> RequestBuilder {
-        self.request(Method::Post, url)
-    }
-
-    /// Build a Put request.
-    pub fn put<U: IntoUrl>(&self, url: U) -> RequestBuilder {
-        self.request(Method::Put, url)
-    }
-
-    /// Build a Delete request.
-    pub fn delete<U: IntoUrl>(&self, url: U) -> RequestBuilder {
-        self.request(Method::Delete, url)
-    }
-
 
     /// Build a new request using this Client.
-    pub fn request<U: IntoUrl>(&self, method: Method, url: U) -> RequestBuilder {
-        RequestBuilder {
-            client: self,
-            method: method,
-            url: url.into_url(),
-            body: None,
-            headers: None,
-        }
+    pub fn request(&self, url: Url, handler: H) {
+        self.notifier.1.send(Notify::Connect(url, handler))
+            .expect("event loop has panicked");
+        self.notifier.0.wakeup()
+            .expect("event loop notify queue is full, cannot recover");
+    }
+
+    /// Close the Client loop.
+    pub fn close(self) {
+        // Most errors mean that the Receivers are already dead, which would
+        // imply the EventLoop panicked.
+        let _ = self.notifier.1.send(Notify::Shutdown);
+        let _ = self.notifier.0.wakeup();
     }
 }
 
-impl Default for Client {
-    fn default() -> Client { Client::new() }
+/*
+impl Drop for Client {
+    fn drop(&mut self) {
+        self.handle.take().map(|handle| handle.join());
+    }
 }
+*/
 
-/// Options for an individual Request.
+/// A trait to react to client events that happen for each message.
 ///
-/// One of these will be built for you if you use one of the convenience
-/// methods, such as `get()`, `post()`, etc.
-pub struct RequestBuilder<'a> {
-    client: &'a Client,
-    // We store a result here because it's good to keep RequestBuilder
-    // from being generic, but it is a nicer API to report the error
-    // from `send` (when other errors may be happening, so it already
-    // returns a `Result`). Why's it good to keep it non-generic? It
-    // stops downstream crates having to remonomorphise and recompile
-    // the code, which can take a while, since `send` is fairly large.
-    // (For an extreme example, a tiny crate containing
-    // `hyper::Client::new().get("x").send().unwrap();` took ~4s to
-    // compile with a generic RequestBuilder, but 2s with this scheme,)
-    url: Result<Url, UrlError>,
-    headers: Option<Headers>,
-    method: Method,
-    body: Option<Body<'a>>,
+/// Each event handler returns it's desired `Next` action.
+pub trait Handler<T: Transport>: Send + 'static {
+    /// This event occurs first, triggering when a `Request` head can be written..
+    fn on_request(&mut self, request: &mut Request) -> http::Next;
+    /// This event occurs each time the `Request` is ready to be written to.
+    fn on_request_writable(&mut self, request: &mut http::Encoder<T>) -> http::Next;
+    /// This event occurs after the first time this handler signals `Next::read()`,
+    /// and a Response has been parsed.
+    fn on_response(&mut self, response: Response) -> http::Next;
+    /// This event occurs each time the `Response` is ready to be read from.
+    fn on_response_readable(&mut self, response: &mut http::Decoder<T>) -> http::Next;
+
+    /// This event occurs whenever an `Error` occurs outside of the other events.
+    ///
+    /// This could IO errors while waiting for events, or a timeout, etc.
+    fn on_error(&mut self, err: ::Error) -> http::Next {
+        debug!("default Handler.on_error({:?})", err);
+        http::Next::remove()
+    }
+
+    /// Receive a `Control` to manage waiting for this request.
+    fn on_control(&mut self, _: http::Control) {
+        debug!("default Handler.on_control()");
+    }
 }
 
-impl<'a> RequestBuilder<'a> {
+struct UrlParts {
+    host: String,
+    port: u16,
+    path: RequestUri,
+}
 
-    /// Set a request body to be sent.
-    pub fn body<B: Into<Body<'a>>>(mut self, body: B) -> RequestBuilder<'a> {
-        self.body = Some(body.into());
-        self
+struct Message<H: Handler<T>, T: Transport> {
+    handler: H,
+    url: Option<UrlParts>,
+    _marker: PhantomData<T>,
+}
+
+impl<H: Handler<T>, T: Transport> http::MessageHandler<T> for Message<H, T> {
+    type Message = http::ClientMessage;
+
+    fn on_outgoing(&mut self, head: &mut RequestHead) -> Next {
+        let url = self.url.take().expect("Message.url is missing");
+        head.headers.set(Host {
+            hostname: url.host,
+            port: Some(url.port),
+        });
+        head.subject.1 = url.path;
+        let mut req = self::request::new(head);
+        self.handler.on_request(&mut req)
     }
 
-    /// Add additional headers to the request.
-    pub fn headers(mut self, headers: Headers) -> RequestBuilder<'a> {
-        self.headers = Some(headers);
-        self
+    fn on_encode(&mut self, transport: &mut http::Encoder<T>) -> Next {
+        self.handler.on_request_writable(transport)
     }
 
-    /// Add an individual new header to the request.
-    pub fn header<H: Header + HeaderFormat>(mut self, header: H) -> RequestBuilder<'a> {
-        {
-            let mut headers = match self.headers {
-                Some(ref mut h) => h,
-                None => {
-                    self.headers = Some(Headers::new());
-                    self.headers.as_mut().unwrap()
-                }
-            };
+    fn on_incoming(&mut self, head: http::ResponseHead) -> Next {
+        trace!("on_incoming {:?}", head);
+        let resp = response::new(head);
+        self.handler.on_response(resp)
+    }
 
-            headers.set(header);
+    fn on_decode(&mut self, transport: &mut http::Decoder<T>) -> Next {
+        self.handler.on_response_readable(transport)
+    }
+
+    fn on_error(&mut self, error: ::Error) -> Next {
+        self.handler.on_error(error)
+    }
+}
+
+struct Context<H: Handler<T>,T: Transport> {
+    queue: Vec<(UrlParts, H)>,
+    _marker: PhantomData<T>,
+}
+
+impl<H: Handler<T>, T: Transport> http::MessageHandlerFactory<T> for Context<H, T> {
+    type Output = Message<H, T>;
+
+    fn create(&mut self, ctrl: http::Control) -> Self::Output {
+        let (url, mut handler) = self.queue.remove(0);
+        handler.on_control(ctrl);
+        Message {
+            handler: handler,
+            url: Some(url),
+            _marker: PhantomData,
         }
-        self
+    }
+}
+
+enum Notify<T> {
+    Connect(Url, T),
+    Shutdown,
+}
+
+enum ClientFsm<C, H>
+where C: Connect,
+      C::Output: Transport,
+      H: Handler<C::Output> {
+    Connector(C, mpsc::Receiver<Notify<H>>),
+    Socket(http::Conn<C::Output, Message<H, C::Output>>)
+}
+
+impl<C, H> rotor::Machine for ClientFsm<C, H>
+where C: Connect,
+      C::Output: Transport,
+      H: Handler<C::Output> {
+    type Context = Context<H, C::Output>;
+    type Seed = C::Output;
+
+    fn create(seed: Self::Seed, scope: &mut Scope<Self::Context>) -> rotor::Response<Self, rotor::Void> {
+        rotor_try!(scope.register(&seed, EventSet::writable(), PollOpt::level()));
+        rotor::Response::ok(ClientFsm::Socket(http::Conn::new(seed)))
     }
 
-    /// Execute this request and receive a Response back.
-    pub fn send(self) -> ::Result<Response> {
-        let RequestBuilder { client, method, url, headers, body } = self;
-        let mut url = try!(url);
-        trace!("send {:?} {:?}", method, url);
-
-        let can_have_body = match method {
-            Method::Get | Method::Head => false,
-            _ => true
-        };
-
-        let mut body = if can_have_body {
-            body
-        } else {
-            None
-        };
-
-        loop {
-            let message = {
-                let (host, port) = try!(get_host_and_port(&url));
-                try!(client.protocol.new_message(&host, port, &*url.scheme))
-            };
-            let mut req = try!(Request::with_message(method.clone(), url.clone(), message));
-            headers.as_ref().map(|headers| req.headers_mut().extend(headers.iter()));
-
-            try!(req.set_write_timeout(client.write_timeout));
-            try!(req.set_read_timeout(client.read_timeout));
-
-            match (can_have_body, body.as_ref()) {
-                (true, Some(body)) => match body.size() {
-                    Some(size) => req.headers_mut().set(ContentLength(size)),
-                    None => (), // chunked, Request will add it automatically
-                },
-                (true, None) => req.headers_mut().set(ContentLength(0)),
-                _ => () // neither
-            }
-            let mut streaming = try!(req.start());
-            body.take().map(|mut rdr| copy(&mut rdr, &mut streaming));
-            let res = try!(streaming.send());
-            if !res.status.is_redirection() {
-                return Ok(res)
-            }
-            debug!("redirect code {:?} for {}", res.status, url);
-
-            let loc = {
-                // punching borrowck here
-                let loc = match res.headers.get::<Location>() {
-                    Some(&Location(ref loc)) => {
-                        Some(UrlParser::new().base_url(&url).parse(&loc[..]))
+    fn ready(self, events: EventSet, scope: &mut Scope<Self::Context>) -> rotor::Response<Self, Self::Seed> {
+        match self {
+            ClientFsm::Connector(..) => {
+                unreachable!()
+            },
+            ClientFsm::Socket(conn) => {
+                match conn.ready(events, scope) {
+                    Some((conn, None)) => rotor::Response::ok(ClientFsm::Socket(conn)),
+                    Some((conn, Some(dur))) => {
+                        rotor::Response::ok(ClientFsm::Socket(conn))
+                            .deadline(scope.now() + dur)
                     }
-                    None => {
-                        debug!("no Location header");
-                        // could be 304 Not Modified?
-                        None
-                    }
-                };
-                match loc {
-                    Some(r) => r,
-                    None => return Ok(res)
+                    None => rotor::Response::done()
                 }
-            };
-            url = match loc {
-                Ok(u) => u,
-                Err(e) => {
-                    debug!("Location header had invalid URI: {:?}", e);
-                    return Ok(res);
-                }
-            };
-            match client.redirect_policy {
-                // separate branches because they can't be one
-                RedirectPolicy::FollowAll => (), //continue
-                RedirectPolicy::FollowIf(cond) if cond(&url) => (), //continue
-                _ => return Ok(res),
             }
         }
     }
-}
 
-/// An enum of possible body types for a Request.
-pub enum Body<'a> {
-    /// A Reader does not necessarily know it's size, so it is chunked.
-    ChunkedBody(&'a mut (Read + 'a)),
-    /// For Readers that can know their size, like a `File`.
-    SizedBody(&'a mut (Read + 'a), u64),
-    /// A String has a size, and uses Content-Length.
-    BufBody(&'a [u8] , usize),
-}
+    fn spawned(self, _: &mut Scope<Self::Context>) -> rotor::Response<Self, Self::Seed> {
+        rotor::Response::ok(self)
+    }
 
-impl<'a> Body<'a> {
-    fn size(&self) -> Option<u64> {
-        match *self {
-            Body::SizedBody(_, len) => Some(len),
-            Body::BufBody(_, len) => Some(len as u64),
-            _ => None
+    fn timeout(self, scope: &mut Scope<Self::Context>) -> rotor::Response<Self, Self::Seed> {
+        match self {
+            ClientFsm::Connector(..) => unimplemented!("ClientFsm::Connector ontimeout"),
+            ClientFsm::Socket(conn) => {
+                match conn.timeout(scope) {
+                    Some((conn, None)) => rotor::Response::ok(ClientFsm::Socket(conn)),
+                    Some((conn, Some(dur))) => {
+                        rotor::Response::ok(ClientFsm::Socket(conn))
+                            .deadline(scope.now() + dur)
+                    }
+                    None => rotor::Response::done()
+                }
+            }
         }
     }
-}
 
-impl<'a> Read for Body<'a> {
-    #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        match *self {
-            Body::ChunkedBody(ref mut r) => r.read(buf),
-            Body::SizedBody(ref mut r, _) => r.read(buf),
-            Body::BufBody(ref mut r, _) => Read::read(r, buf),
+    fn wakeup(self, scope: &mut Scope<Self::Context>) -> rotor::Response<Self, Self::Seed> {
+        match self {
+            ClientFsm::Connector(connector, rx) => {
+                match rx.try_recv() {
+                    Ok(Notify::Connect(url, mut handler)) => {
+                        // TODO: check pool for sockets to this domain
+                        let (host, port) = match get_host_and_port(&url) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                let _todo = handler.on_error(e.into());
+                                return rotor::Response::ok(ClientFsm::Connector(connector, rx));
+                            }
+                        };
+                        let socket = match connector.connect(&host, port, &url.scheme) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                let _todo = handler.on_error(e.into());
+                                return rotor::Response::ok(ClientFsm::Connector(connector, rx));
+                            }
+                        };
+                        scope.queue.push((UrlParts {
+                            host: host,
+                            port: port,
+                            path: RequestUri::AbsolutePath(url.serialize_path().unwrap())
+                        }, handler));
+                        rotor::Response::spawn(ClientFsm::Connector(connector, rx), socket)
+                    }
+                    Ok(Notify::Shutdown) => {
+                        scope.shutdown_loop();
+                        rotor::Response::done()
+                    },
+                    Err(mpsc::TryRecvError::Disconnected) => {
+                        unimplemented!("Connector notifier disconnected");
+                    }
+                    Err(mpsc::TryRecvError::Empty) => {
+                        // spurious wakeup
+                        rotor::Response::ok(ClientFsm::Connector(connector, rx))
+                    }
+                }
+            },
+            ClientFsm::Socket(conn) => match conn.wakeup(scope) {
+                Some((conn, None)) => rotor::Response::ok(ClientFsm::Socket(conn)),
+                Some((conn, Some(dur))) => {
+                    rotor::Response::ok(ClientFsm::Socket(conn))
+                        .deadline(scope.now() + dur)
+                }
+                None => rotor::Response::done()
+            }
         }
-    }
-}
-
-impl<'a> Into<Body<'a>> for &'a [u8] {
-    #[inline]
-    fn into(self) -> Body<'a> {
-        Body::BufBody(self, self.len())
-    }
-}
-
-impl<'a> Into<Body<'a>> for &'a str {
-    #[inline]
-    fn into(self) -> Body<'a> {
-        self.as_bytes().into()
-    }
-}
-
-impl<'a> Into<Body<'a>> for &'a String {
-    #[inline]
-    fn into(self) -> Body<'a> {
-        self.as_bytes().into()
-    }
-}
-
-impl<'a, R: Read> From<&'a mut R> for Body<'a> {
-    #[inline]
-    fn from(r: &'a mut R) -> Body<'a> {
-        Body::ChunkedBody(r)
-    }
-}
-
-/// A helper trait to convert common objects into a Url.
-pub trait IntoUrl {
-    /// Consumes the object, trying to return a Url.
-    fn into_url(self) -> Result<Url, UrlError>;
-}
-
-impl IntoUrl for Url {
-    fn into_url(self) -> Result<Url, UrlError> {
-        Ok(self)
-    }
-}
-
-impl<'a> IntoUrl for &'a str {
-    fn into_url(self) -> Result<Url, UrlError> {
-        Url::parse(self)
-    }
-}
-
-impl<'a> IntoUrl for &'a String {
-    fn into_url(self) -> Result<Url, UrlError> {
-        Url::parse(self)
-    }
-}
-
-/// Behavior regarding how to handle redirects within a Client.
-#[derive(Copy)]
-pub enum RedirectPolicy {
-    /// Don't follow any redirects.
-    FollowNone,
-    /// Follow all redirects.
-    FollowAll,
-    /// Follow a redirect if the contained function returns true.
-    FollowIf(fn(&Url) -> bool),
-}
-
-// This is a hack because of upstream typesystem issues.
-impl Clone for RedirectPolicy {
-    fn clone(&self) -> RedirectPolicy {
-        *self
-    }
-}
-
-impl Default for RedirectPolicy {
-    fn default() -> RedirectPolicy {
-        RedirectPolicy::FollowAll
     }
 }
 
@@ -434,56 +333,12 @@ fn get_host_and_port(url: &Url) -> ::Result<(String, u16)> {
 
 #[cfg(test)]
 mod tests {
+    /*
     use std::io::Read;
     use header::Server;
-    use super::{Client, RedirectPolicy};
+    use super::{Client};
     use super::pool::Pool;
     use url::Url;
-
-    mock_connector!(MockRedirectPolicy {
-        "http://127.0.0.1" =>       "HTTP/1.1 301 Redirect\r\n\
-                                     Location: http://127.0.0.2\r\n\
-                                     Server: mock1\r\n\
-                                     \r\n\
-                                    "
-        "http://127.0.0.2" =>       "HTTP/1.1 302 Found\r\n\
-                                     Location: https://127.0.0.3\r\n\
-                                     Server: mock2\r\n\
-                                     \r\n\
-                                    "
-        "https://127.0.0.3" =>      "HTTP/1.1 200 OK\r\n\
-                                     Server: mock3\r\n\
-                                     \r\n\
-                                    "
-    });
-
-    #[test]
-    fn test_redirect_followall() {
-        let mut client = Client::with_connector(MockRedirectPolicy);
-        client.set_redirect_policy(RedirectPolicy::FollowAll);
-
-        let res = client.get("http://127.0.0.1").send().unwrap();
-        assert_eq!(res.headers.get(), Some(&Server("mock3".to_owned())));
-    }
-
-    #[test]
-    fn test_redirect_dontfollow() {
-        let mut client = Client::with_connector(MockRedirectPolicy);
-        client.set_redirect_policy(RedirectPolicy::FollowNone);
-        let res = client.get("http://127.0.0.1").send().unwrap();
-        assert_eq!(res.headers.get(), Some(&Server("mock1".to_owned())));
-    }
-
-    #[test]
-    fn test_redirect_followif() {
-        fn follow_if(url: &Url) -> bool {
-            !url.serialize().contains("127.0.0.3")
-        }
-        let mut client = Client::with_connector(MockRedirectPolicy);
-        client.set_redirect_policy(RedirectPolicy::FollowIf(follow_if));
-        let res = client.get("http://127.0.0.1").send().unwrap();
-        assert_eq!(res.headers.get(), Some(&Server("mock2".to_owned())));
-    }
 
     mock_connector!(Issue640Connector {
         b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\n",
@@ -511,4 +366,5 @@ mod tests {
         client.post("http://127.0.0.1").send().unwrap().read_to_string(&mut s).unwrap();
         assert_eq!(s, "POST");
     }
+    */
 }

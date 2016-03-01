@@ -183,6 +183,12 @@ pub struct Headers {
     data: HashMap<HeaderName, Item>
 }
 
+impl Default for Headers {
+    fn default() -> Headers {
+        Headers::new()
+    }
+}
+
 impl Headers {
 
     /// Creates a new, empty headers map.
@@ -380,6 +386,7 @@ impl Deserialize for Headers {
 }
 
 /// An `Iterator` over the fields in a `Headers` map.
+#[allow(missing_debug_implementations)]
 pub struct HeadersItems<'a> {
     inner: Iter<'a, HeaderName, Item>
 }

@@ -50,6 +50,12 @@ pub enum RequestUri {
     Star,
 }
 
+impl Default for RequestUri {
+    fn default() -> RequestUri {
+        RequestUri::Star
+    }
+}
+
 impl FromStr for RequestUri {
     type Err = Error;
 

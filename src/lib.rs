@@ -1,6 +1,8 @@
 #![doc(html_root_url = "https://hyperium.github.io/hyper/")]
-#![cfg_attr(test, deny(missing_docs))]
-#![cfg_attr(test, deny(warnings))]
+//#![cfg_attr(test, deny(missing_docs))]
+#![deny(missing_docs)]
+#![deny(warnings)]
+#![deny(missing_debug_implementations)]
 #![cfg_attr(all(test, feature = "nightly"), feature(test))]
 
 //! # Hyper
@@ -53,81 +55,6 @@
 //! Headers are then parsed from the string representation lazily when the typed
 //! representation of a header is requested and formatted back into their string
 //! representation when headers are written back to the client.
-//!
-//! #### NetworkStream and NetworkAcceptor
-//!
-//! These are found in `src/net.rs` and define the interface that acceptors and
-//! streams must fulfill for them to be used within Hyper. They are by and large
-//! internal tools and you should only need to mess around with them if you want to
-//! mock or replace `TcpStream` and `TcpAcceptor`.
-//!
-//! ### Server
-//!
-//! Server-specific functionality, such as `Request` and `Response`
-//! representations, are found in in `src/server`.
-//!
-//! #### Handler + Server
-//!
-//! A `Handler` in Hyper accepts a `Request` and `Response`. This is where
-//! user-code can handle each connection. The server accepts connections in a
-//! task pool with a customizable number of threads, and passes the Request /
-//! Response to the handler.
-//!
-//! #### Request
-//!
-//! An incoming HTTP Request is represented as a struct containing
-//! a `Reader` over a `NetworkStream`, which represents the body, headers, a remote
-//! address, an HTTP version, and a `Method` - relatively standard stuff.
-//!
-//! `Request` implements `Reader` itself, meaning that you can ergonomically get
-//! the body out of a `Request` using standard `Reader` methods and helpers.
-//!
-//! #### Response
-//!
-//! An outgoing HTTP Response is also represented as a struct containing a `Writer`
-//! over a `NetworkStream` which represents the Response body in addition to
-//! standard items such as the `StatusCode` and HTTP version. `Response`'s `Writer`
-//! implementation provides a streaming interface for sending data over to the
-//! client.
-//!
-//! One of the traditional problems with representing outgoing HTTP Responses is
-//! tracking the write-status of the Response - have we written the status-line,
-//! the headers, the body, etc.? Hyper tracks this information statically using the
-//! type system and prevents you, using the type system, from writing headers after
-//! you have started writing to the body or vice versa.
-//!
-//! Hyper does this through a phantom type parameter in the definition of Response,
-//! which tracks whether you are allowed to write to the headers or the body. This
-//! phantom type can have two values `Fresh` or `Streaming`, with `Fresh`
-//! indicating that you can write the headers and `Streaming` indicating that you
-//! may write to the body, but not the headers.
-//!
-//! ### Client
-//!
-//! Client-specific functionality, such as `Request` and `Response`
-//! representations, are found in `src/client`.
-//!
-//! #### Request
-//!
-//! An outgoing HTTP Request is represented as a struct containing a `Writer` over
-//! a `NetworkStream` which represents the Request body in addition to the standard
-//! information such as headers and the request method.
-//!
-//! Outgoing Requests track their write-status in almost exactly the same way as
-//! outgoing HTTP Responses do on the Server, so we will defer to the explanation
-//! in the documentation for server Response.
-//!
-//! Requests expose an efficient streaming interface instead of a builder pattern,
-//! but they also provide the needed interface for creating a builder pattern over
-//! the API exposed by core Hyper.
-//!
-//! #### Response
-//!
-//! Incoming HTTP Responses are represented as a struct containing a `Reader` over
-//! a `NetworkStream` and contain headers, a status, and an http version. They
-//! implement `Reader` and can be read to get the data out of a `Response`.
-//!
-
 extern crate rustc_serialize as serialize;
 extern crate time;
 extern crate url;
@@ -138,10 +65,11 @@ extern crate serde;
 extern crate cookie;
 extern crate unicase;
 extern crate httparse;
-extern crate num_cpus;
+extern crate mio;
+extern crate rotor;
 extern crate traitobject;
 extern crate typeable;
-extern crate solicit;
+extern crate vecio;
 
 #[macro_use]
 extern crate language_tags;
@@ -159,10 +87,30 @@ extern crate test;
 pub use url::Url;
 pub use client::Client;
 pub use error::{Result, Error};
-pub use method::Method::{Get, Head, Post, Delete};
-pub use status::StatusCode::{Ok, BadRequest, NotFound};
+pub use http::{Next, Encoder, Decoder, Control};
+pub use header::Headers;
+pub use method::Method::{self, Get, Head, Post, Delete};
+pub use status::StatusCode::{self, Ok, BadRequest, NotFound};
 pub use server::Server;
+pub use uri::RequestUri;
+pub use version::HttpVersion;
 pub use language_tags::LanguageTag;
+
+macro_rules! unimplemented {
+    () => (unimplemented!(""));
+    ($($arg:tt)*) => ({
+        panic!("unimplemented: {}", format_args!($($arg)*))
+    })
+}
+
+macro_rules! rotor_try {
+    ($e:expr) => ({
+        match $e {
+            Ok(v) => v,
+            Err(e) => return ::rotor::Response::error(e.into())
+        }
+    });
+}
 
 macro_rules! todo(
     ($($arg:tt)*) => (if cfg!(not(ndebug)) {
@@ -171,6 +119,9 @@ macro_rules! todo(
 );
 
 macro_rules! inspect(
+    ($value:expr) => ({
+        inspect!(stringify!($value), $value)
+    });
     ($name:expr, $value:expr) => ({
         let v = $value;
         trace!("inspect: {:?} = {:?}", $name, v);
@@ -179,15 +130,12 @@ macro_rules! inspect(
 );
 
 #[cfg(test)]
-#[macro_use]
 mod mock;
-#[doc(hidden)]
-pub mod buffer;
 pub mod client;
 pub mod error;
 pub mod method;
 pub mod header;
-pub mod http;
+mod http;
 pub mod net;
 pub mod server;
 pub mod status;
@@ -199,6 +147,7 @@ pub mod mime {
     pub use mime_crate::*;
 }
 
+/*
 #[allow(unconditional_recursion)]
 fn _assert_send<T: Send>() {
     _assert_send::<Client>();
@@ -212,3 +161,4 @@ fn _assert_sync<T: Sync>() {
     _assert_sync::<Client>();
     _assert_sync::<error::Error>();
 }
+*/

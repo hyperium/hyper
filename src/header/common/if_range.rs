@@ -59,12 +59,12 @@ impl Header for IfRange {
     }
     fn parse_header(raw: &[Vec<u8>]) -> ::Result<IfRange> {
         let etag: ::Result<EntityTag> = header::parsing::from_one_raw_str(raw);
-        if etag.is_ok() {
-            return Ok(IfRange::EntityTag(etag.unwrap()));
+        if let Ok(etag) = etag {
+            return Ok(IfRange::EntityTag(etag));
         }
         let date: ::Result<HttpDate> = header::parsing::from_one_raw_str(raw);
-        if date.is_ok() {
-            return Ok(IfRange::Date(date.unwrap()));
+        if let Ok(date) = date {
+            return Ok(IfRange::Date(date));
         }
         Err(::Error::Header)
     }

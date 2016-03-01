@@ -52,9 +52,7 @@ impl Header for Host {
             // https://github.com/servo/rust-url/issues/42
             let idx = {
                 let slice = &s[..];
-                let mut chars = slice.chars();
-                chars.next();
-                if chars.next().unwrap() == '[' {
+                if slice.starts_with('[') {
                     match slice.rfind(']') {
                         Some(idx) => {
                             if slice.len() > idx + 2 {

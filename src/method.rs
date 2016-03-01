@@ -128,6 +128,12 @@ impl fmt::Display for Method {
     }
 }
 
+impl Default for Method {
+    fn default() -> Method {
+        Method::Get
+    }
+}
+
 #[cfg(feature = "serde-serialization")]
 impl Serialize for Method {
     fn serialize<S>(&self, serializer: &mut S) -> Result<(), S::Error> where S: Serializer {
