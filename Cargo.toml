@@ -22,7 +22,7 @@ time = "0.1"
 traitobject = "0.0.1"
 typeable = "0.1"
 unicase = "1.0"
-url = "0.5"
+url = "1.0"
 
 [dependencies.cookie]
 version = "0.2"

@@ -62,14 +62,13 @@ use std::fmt;
 
 use std::time::Duration;
 
-use url::UrlParser;
+use url::Url;
 use url::ParseError as UrlError;
 
 use header::{Headers, Header, HeaderFormat};
 use header::{ContentLength, Location};
 use method::Method;
 use net::{NetworkConnector, NetworkStream};
-use {Url};
 use Error;
 
 pub use self::pool::Pool;
@@ -264,7 +263,7 @@ impl<'a> RequestBuilder<'a> {
         loop {
             let message = {
                 let (host, port) = try!(get_host_and_port(&url));
-                try!(client.protocol.new_message(&host, port, &*url.scheme))
+                try!(client.protocol.new_message(&host, port, url.scheme()))
             };
             let mut req = try!(Request::with_message(method.clone(), url.clone(), message));
             headers.as_ref().map(|headers| req.headers_mut().extend(headers.iter()));
@@ -292,7 +291,7 @@ impl<'a> RequestBuilder<'a> {
                 // punching borrowck here
                 let loc = match res.headers.get::<Location>() {
                     Some(&Location(ref loc)) => {
-                        Some(UrlParser::new().base_url(&url).parse(&loc[..]))
+                        Some(url.join(loc))
                     }
                     None => {
                         debug!("no Location header");
@@ -439,13 +438,13 @@ impl Default for RedirectPolicy {
     }
 }
 
-fn get_host_and_port(url: &Url) -> ::Result<(String, u16)> {
-    let host = match url.serialize_host() {
+fn get_host_and_port(url: &Url) -> ::Result<(&str, u16)> {
+    let host = match url.host_str() {
         Some(host) => host,
         None => return Err(Error::Uri(UrlError::EmptyHost))
     };
     trace!("host={:?}", host);
-    let port = match url.port_or_default() {
+    let port = match url.port_or_known_default() {
         Some(port) => port,
         None => return Err(Error::Uri(UrlError::InvalidPort))
     };
@@ -498,7 +497,7 @@ mod tests {
     #[test]
     fn test_redirect_followif() {
         fn follow_if(url: &Url) -> bool {
-            !url.serialize().contains("127.0.0.3")
+            !url.as_str().contains("127.0.0.3")
         }
         let mut client = Client::with_connector(MockRedirectPolicy);
         client.set_redirect_policy(RedirectPolicy::FollowIf(follow_if));
