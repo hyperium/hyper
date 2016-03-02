@@ -79,7 +79,7 @@ unsafe fn grow_zerofill(buf: &mut Vec<u8>, additional: usize) {
     use std::ptr;
     let len = buf.len();
     buf.set_len(len + additional);
-    ptr::write_bytes(buf.as_mut_ptr().offset(len as isize), 0, buf.len());
+    ptr::write_bytes(buf.as_mut_ptr().offset(len as isize), 0, additional);
 }
 
 impl<R: Read> Read for BufReader<R> {
