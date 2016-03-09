@@ -15,7 +15,7 @@ keywords = ["http", "hyper", "hyperium"]
 httparse = "1.0"
 language-tags = "0.2"
 log = "0.3"
-mime = "0.1"
+mime = "0.2"
 num_cpus = "0.2"
 rustc-serialize = "0.3"
 time = "0.1"
@@ -46,5 +46,5 @@ env_logger = "0.3"
 [features]
 default = ["ssl"]
 ssl = ["openssl", "cookie/secure"]
-serde-serialization = ["serde"]
+serde-serialization = ["serde", "mime/serde"]
 nightly = []
