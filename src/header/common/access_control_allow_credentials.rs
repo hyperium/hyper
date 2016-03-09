@@ -36,6 +36,7 @@ use header::{Header, HeaderFormat};
 /// # }
 /// ```
 #[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub struct AccessControlAllowCredentials;
 
 const ACCESS_CONTROL_ALLOW_CREDENTIALS_TRUE: UniCase<&'static str> = UniCase("true");

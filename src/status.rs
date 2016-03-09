@@ -29,6 +29,7 @@ use std::cmp::Ordering;
 /// the source for this enum (with one exception, 418 I'm a teapot, which is
 /// inexplicably not in the register).
 #[derive(Debug, Hash)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub enum StatusCode {
     /// 100 Continue
     /// [[RFC7231, Section 6.2.1](https://tools.ietf.org/html/rfc7231#section-6.2.1)]
@@ -559,6 +560,7 @@ impl Ord for StatusCode {
 /// This can be used in cases where a status code’s meaning is unknown, also,
 /// to get the appropriate *category* of status.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub enum StatusClass {
     /// 1xx (Informational): The request was received, continuing process
     Informational,

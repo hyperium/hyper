@@ -8,6 +8,7 @@ use self::HttpVersion::{Http09, Http10, Http11, Http20};
 
 /// Represents a version of the HTTP spec.
 #[derive(PartialEq, PartialOrd, Copy, Clone, Eq, Ord, Hash, Debug)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub enum HttpVersion {
     /// `HTTP/0.9`
     Http09,

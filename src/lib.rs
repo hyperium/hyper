@@ -2,6 +2,8 @@
 #![cfg_attr(test, deny(missing_docs))]
 #![cfg_attr(test, deny(warnings))]
 #![cfg_attr(all(test, feature = "nightly"), feature(test))]
+#![cfg_attr(feature = "heap_size", feature(custom_attribute, custom_derive, plugin))]
+#![cfg_attr(feature = "heap_size", plugin(heapsize_plugin))]
 
 //! # Hyper
 //!
@@ -128,6 +130,8 @@
 //! implement `Reader` and can be read to get the data out of a `Response`.
 //!
 
+#[cfg(feature = "heap_size")]
+extern crate heapsize;
 extern crate rustc_serialize as serialize;
 extern crate time;
 extern crate url;

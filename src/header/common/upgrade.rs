@@ -77,6 +77,7 @@ header! {
 /// A protocol name used to identify a spefic protocol. Names are case-sensitive
 /// except for the `WebSocket` value.
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub enum ProtocolName {
     /// `HTTP` value, Hypertext Transfer Protocol
     Http,
@@ -123,6 +124,7 @@ impl Display for ProtocolName {
 
 /// Protocols that appear in the `Upgrade` header field
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub struct Protocol {
     /// The protocol identifier
     pub name: ProtocolName,

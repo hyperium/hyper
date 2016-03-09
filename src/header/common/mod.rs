@@ -220,7 +220,12 @@ macro_rules! header {
                 self.fmt_header(f)
             }
         }
-
+        #[cfg(feature = "heap_size")]
+        impl ::heapsize::HeapSizeOf for $id {
+            fn heap_size_of_children(&self) -> usize {
+                ::heapsize::HeapSizeOf::heap_size_of_children(&self.0)
+            }
+        }
         __hyper_generate_header_serialization!($id);
     };
     // List header, one or more items
@@ -248,6 +253,12 @@ macro_rules! header {
                 self.fmt_header(f)
             }
         }
+        #[cfg(feature = "heap_size")]
+        impl ::heapsize::HeapSizeOf for $id {
+            fn heap_size_of_children(&self) -> usize {
+                ::heapsize::HeapSizeOf::heap_size_of_children(&self.0)
+            }
+        }
         __hyper_generate_header_serialization!($id);
     };
     // Single value header
@@ -272,6 +283,12 @@ macro_rules! header {
         impl ::std::fmt::Display for $id {
             fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
                 ::std::fmt::Display::fmt(&**self, f)
+            }
+        }
+        #[cfg(feature = "heap_size")]
+        impl ::heapsize::HeapSizeOf for $id {
+            fn heap_size_of_children(&self) -> usize {
+                ::heapsize::HeapSizeOf::heap_size_of_children(&self.0)
             }
         }
         __hyper_generate_header_serialization!($id);
@@ -313,6 +330,17 @@ macro_rules! header {
             fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
                 use $crate::header::HeaderFormat;
                 self.fmt_header(f)
+            }
+        }
+        #[cfg(feature = "heap_size")]
+        impl ::heapsize::HeapSizeOf for $id {
+            fn heap_size_of_children(&self) -> usize {
+                match *self {
+                    $id::Any => 0,
+                    $id::Items(ref fields) => {
+                        ::heapsize::HeapSizeOf::heap_size_of_children(fields)
+                    }
+                }
             }
         }
         __hyper_generate_header_serialization!($id);

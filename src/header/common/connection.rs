@@ -9,6 +9,7 @@ const CLOSE: UniCase<&'static str> = UniCase("close");
 
 /// Values that can be in the `Connection` header.
 #[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub enum ConnectionOption {
     /// The `keep-alive` connection value.
     KeepAlive,

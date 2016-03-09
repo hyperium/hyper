@@ -55,6 +55,7 @@ use header::{Header, HeaderFormat};
 /// );
 /// ```
 #[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub struct Authorization<S: Scheme>(pub S);
 
 impl<S: Scheme> Deref for Authorization<S> {
@@ -130,6 +131,7 @@ impl Scheme for String {
 
 /// Credential holder for Basic Authentication
 #[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub struct Basic {
     /// The username as a possibly empty string
     pub username: String,
@@ -195,6 +197,7 @@ impl FromStr for Basic {
 }
 
 #[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 ///Token holder for Bearer Authentication, most often seen with oauth
 pub struct Bearer {
 	///Actual bearer token as a string

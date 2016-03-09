@@ -56,6 +56,7 @@ use header::parsing::{from_one_raw_str, from_one_comma_delimited};
 /// headers.set(Range::bytes_multi(vec![(1, 100), (200, 300)]));
 /// ```
 #[derive(PartialEq, Clone, Debug)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub enum Range {
     /// Byte range
     Bytes(Vec<ByteRangeSpec>),
@@ -67,6 +68,7 @@ pub enum Range {
 /// Each Range::Bytes header can contain one or more ByteRangeSpecs.
 /// Each ByteRangeSpec defines a range of bytes to fetch
 #[derive(PartialEq, Clone, Debug)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub enum ByteRangeSpec {
     /// Get all bytes between x and y ("x-y")
     FromTo(u64, u64),

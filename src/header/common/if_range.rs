@@ -46,6 +46,7 @@ use header::{self, Header, HeaderFormat, EntityTag, HttpDate};
 /// # }
 /// ```
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub enum IfRange {
     /// The entity-tag the client has of the resource
     EntityTag(EntityTag),

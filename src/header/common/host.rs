@@ -34,6 +34,7 @@ use header::parsing::from_one_raw_str;
 /// );
 /// ```
 #[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub struct Host {
     /// The hostname, such a example.domain.
     pub hostname: String,

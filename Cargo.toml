@@ -13,20 +13,28 @@ keywords = ["http", "hyper", "hyperium"]
 
 [dependencies]
 httparse = "1.0"
-language-tags = "0.2"
+language-tags = "0.2.2"
 log = "0.3"
-mime = "0.1"
+mime = "0.1.2"
 num_cpus = "0.2"
 rustc-serialize = "0.3"
 time = "0.1"
 traitobject = "0.0.1"
 typeable = "0.1"
-unicase = "1.0"
+unicase = "1.2.0"
 url = "0.5"
 
 [dependencies.cookie]
 version = "0.2"
 default-features = false
+
+[dependencies.heapsize]
+version = "0.3"
+optional = true
+
+[dependencies.heapsize_plugin]
+version = "0.1.2"
+optional = true
 
 [dependencies.openssl]
 version = "0.7"
@@ -45,6 +53,10 @@ env_logger = "0.3"
 
 [features]
 default = ["ssl"]
+heap_size = [
+	"heapsize", "heapsize_plugin", "mime/heap_size", "language-tags/heap_size",
+	"unicase/heap_size"
+]
 ssl = ["openssl", "cookie/secure"]
 serde-serialization = ["serde"]
 nightly = []

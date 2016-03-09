@@ -18,6 +18,7 @@ use std::str;
 /// [RFC7231 Section 5.3.1](https://tools.ietf.org/html/rfc7231#section-5.3.1)
 /// gives more information on quality values in HTTP header fields.
 #[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub struct Quality(pub u16);
 
 impl fmt::Display for Quality {
@@ -39,6 +40,7 @@ impl Default for Quality {
 /// Represents an item with a quality value as defined in
 /// [RFC7231](https://tools.ietf.org/html/rfc7231#section-5.3.1).
 #[derive(Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "heap_size", derive(HeapSizeOf))]
 pub struct QualityItem<T> {
     /// The actual contents of the field.
     pub item: T,
