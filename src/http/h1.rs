@@ -129,6 +129,10 @@ impl HttpMessage for Http11Message {
         let mut res = Err(Error::from(io::Error::new(
                             io::ErrorKind::Other,
                             "")));
+        // Set basic authentication headers if the url contains credentials
+        if let Some(basic) = header::Basic::from_url(&head.url) {
+            head.headers.set(header::Authorization(basic));
+        }
         let mut method = None;
         self.stream.map_in_place(|stream: Stream| -> Stream {
             let stream = match stream {

@@ -4,6 +4,7 @@ use std::str::{FromStr, from_utf8};
 use std::ops::{Deref, DerefMut};
 use serialize::base64::{ToBase64, FromBase64, Standard, Config, Newline};
 use header::{Header, HeaderFormat};
+use url::Url;
 
 /// `Authorization` header, defined in [RFC7235](https://tools.ietf.org/html/rfc7235#section-4.2)
 ///
@@ -191,6 +192,20 @@ impl FromStr for Basic {
                 Err(::Error::Header)
             }
         }
+    }
+}
+
+impl Basic {
+    pub fn from_url(url: &Url) -> Option<Basic> {
+        if let Some(scheme) = url.relative_scheme_data() {
+            if scheme.username != "" {
+                return Some(Basic {
+                    username: scheme.username.clone(),
+                    password: scheme.password.clone(),
+                });
+            }
+        }
+        None
     }
 }
 
