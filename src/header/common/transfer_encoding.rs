@@ -38,6 +38,13 @@ header! {
             Some(HeaderField(
                 vec![Encoding::Gzip, Encoding::Chunked]
                 )));
+        // Issue: #683
+        test_header!(
+            test2,
+            vec![b"chunked", b"chunked"],
+            Some(HeaderField(
+                vec![Encoding::Chunked, Encoding::Chunked]
+            )));
 
     }
 }
