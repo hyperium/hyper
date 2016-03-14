@@ -1,3 +1,26 @@
+## v0.8.0 (2016-03-14)
+
+
+#### Bug Fixes
+
+* **headers:** remove charset from `ContentType::json()` convenience method ([ec568e9a](https://github.com/hyperium/hyper/commit/ec568e9a551018b3353b6754eb2fcd729c7ea3c6))
+* **net:** fix the typo in `set_write_timeout` ([7c76fff3](https://github.com/hyperium/hyper/commit/7c76fff3aaf0f0a300e76622acb56eaf1e2cb474))
+
+
+#### Features
+
+* **client:** Implement Debug for Client ([8c7ef7fd](https://github.com/hyperium/hyper/commit/8c7ef7fd937616798780d43f80a6b46507bc3433))
+* **status:** add HTTP statuses 421 and 451 ([93fd5a87](https://github.com/hyperium/hyper/commit/93fd5a87bddc5bfe29f35f86d44d3f46c81ff5fa))
+
+
+#### Breaking Changes
+
+* mime 0.2 depends on serde 0.7, so any instances of
+  using older versions of serde will need to upgrade.
+
+ ([146df53c](https://github.com/hyperium/hyper/commit/146df53caf2a70cd15f97710738ba8d350040c12))
+
+
 ### v0.7.2 (2016-01-04)
 
 
