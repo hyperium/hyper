@@ -155,6 +155,9 @@ pub enum StatusCode {
     /// [curiously, not registered by IANA, but [RFC2324](https://tools.ietf.org/html/rfc2324)]
     ImATeapot,
 
+    /// 421 Misdirected Request
+    /// [RFC7540, Section 9.1.2](http://tools.ietf.org/html/rfc7540#section-9.1.2)
+    MisdirectedRequest,
     /// 422 Unprocessable Entity
     /// [[RFC4918](https://tools.ietf.org/html/rfc4918)]
     UnprocessableEntity,
@@ -179,6 +182,10 @@ pub enum StatusCode {
     /// 431 Request Header Fields Too Large
     /// [[RFC6585](https://tools.ietf.org/html/rfc6585)]
     RequestHeaderFieldsTooLarge,
+
+    /// 451 Unavailable For Legal Reasons
+    /// [[RFC7725](http://tools.ietf.org/html/rfc7725)]
+    UnavailableForLegalReasons,
 
     /// 500 Internal Server Error
     /// [[RFC7231, Section 6.6.1](https://tools.ietf.org/html/rfc7231#section-6.6.1)]
@@ -265,6 +272,7 @@ impl StatusCode {
             416 => StatusCode::RangeNotSatisfiable,
             417 => StatusCode::ExpectationFailed,
             418 => StatusCode::ImATeapot,
+            421 => StatusCode::MisdirectedRequest,
             422 => StatusCode::UnprocessableEntity,
             423 => StatusCode::Locked,
             424 => StatusCode::FailedDependency,
@@ -272,6 +280,7 @@ impl StatusCode {
             428 => StatusCode::PreconditionRequired,
             429 => StatusCode::TooManyRequests,
             431 => StatusCode::RequestHeaderFieldsTooLarge,
+            451 => StatusCode::UnavailableForLegalReasons,
             500 => StatusCode::InternalServerError,
             501 => StatusCode::NotImplemented,
             502 => StatusCode::BadGateway,
@@ -330,6 +339,7 @@ impl StatusCode {
             StatusCode::RangeNotSatisfiable => 416,
             StatusCode::ExpectationFailed => 417,
             StatusCode::ImATeapot => 418,
+            StatusCode::MisdirectedRequest => 421,
             StatusCode::UnprocessableEntity => 422,
             StatusCode::Locked => 423,
             StatusCode::FailedDependency => 424,
@@ -337,6 +347,7 @@ impl StatusCode {
             StatusCode::PreconditionRequired => 428,
             StatusCode::TooManyRequests => 429,
             StatusCode::RequestHeaderFieldsTooLarge => 431,
+            StatusCode::UnavailableForLegalReasons => 451,
             StatusCode::InternalServerError => 500,
             StatusCode::NotImplemented => 501,
             StatusCode::BadGateway => 502,
@@ -410,6 +421,7 @@ impl StatusCode {
             StatusCode::ExpectationFailed => Some("Expectation Failed"),
             StatusCode::ImATeapot => Some("I'm a teapot"),
 
+            StatusCode::MisdirectedRequest => Some("Misdirected Request"),
             StatusCode::UnprocessableEntity => Some("Unprocessable Entity"),
             StatusCode::Locked => Some("Locked"),
             StatusCode::FailedDependency => Some("Failed Dependency"),
@@ -420,6 +432,8 @@ impl StatusCode {
             StatusCode::TooManyRequests => Some("Too Many Requests"),
 
             StatusCode::RequestHeaderFieldsTooLarge => Some("Request Header Fields Too Large"),
+
+            StatusCode::UnavailableForLegalReasons => Some("Unavailable For Legal Reasons"),
 
             StatusCode::InternalServerError => Some("Internal Server Error"),
             StatusCode::NotImplemented => Some("Not Implemented"),
@@ -704,6 +718,7 @@ mod tests {
         validate(416, RangeNotSatisfiable, BadRequest, Some("Range Not Satisfiable"));
         validate(417, ExpectationFailed, BadRequest, Some("Expectation Failed"));
         validate(418, ImATeapot, BadRequest, Some("I'm a teapot"));
+        validate(421, MisdirectedRequest, BadRequest, Some("Misdirected Request"));
         validate(422, UnprocessableEntity, BadRequest, Some("Unprocessable Entity"));
         validate(423, Locked, BadRequest, Some("Locked"));
         validate(424, FailedDependency, BadRequest, Some("Failed Dependency"));
@@ -712,6 +727,8 @@ mod tests {
         validate(429, TooManyRequests, BadRequest, Some("Too Many Requests"));
         validate(431, RequestHeaderFieldsTooLarge, BadRequest,
             Some("Request Header Fields Too Large"));
+        validate(451, UnavailableForLegalReasons, BadRequest,
+            Some("Unavailable For Legal Reasons"));
 
         validate(500, InternalServerError, InternalServerError, Some("Internal Server Error"));
         validate(501, NotImplemented, InternalServerError, Some("Not Implemented"));
