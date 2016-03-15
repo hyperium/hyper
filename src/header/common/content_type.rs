@@ -58,7 +58,7 @@ header! {
 }
 
 impl ContentType {
-    /// A constructor  to easily create a `Content-Type: application/json; charset=utf-8` header.
+    /// A constructor  to easily create a `Content-Type: application/json` header.
     #[inline]
     pub fn json() -> ContentType {
         ContentType(mime!(Application/Json))
