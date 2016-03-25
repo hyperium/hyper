@@ -23,24 +23,18 @@ pub fn from_raw_str<T: str::FromStr>(raw: &[u8]) -> ::Result<T> {
 
 /// Reads a comma-delimited raw header into a Vec.
 #[inline]
-pub fn from_comma_delimited<T: str::FromStr>(raw: &[Vec<u8>]) -> ::Result<Vec<T>> {
-    if raw.len() != 1 {
-        return Err(::Error::Header);
+pub fn from_comma_delimited<T: str::FromStr, S: AsRef<[u8]>>(raw: &[S]) -> ::Result<Vec<T>> {
+    let mut result = Vec::new();
+    for s in raw {
+        let s = try!(str::from_utf8(s.as_ref()));
+        result.extend(s.split(',')
+                      .filter_map(|x| match x.trim() {
+                          "" => None,
+                          y => Some(y)
+                      })
+                      .filter_map(|x| x.parse().ok()))
     }
-    // we JUST checked that raw.len() == 1, so raw[0] WILL exist.
-    from_one_comma_delimited(& unsafe { raw.get_unchecked(0) }[..])
-}
-
-/// Reads a comma-delimited raw string into a Vec.
-pub fn from_one_comma_delimited<T: str::FromStr>(raw: &[u8]) -> ::Result<Vec<T>> {
-    let s = try!(str::from_utf8(raw));
-    Ok(s.split(',')
-        .filter_map(|x| match x.trim() {
-            "" => None,
-            y => Some(y)
-        })
-        .filter_map(|x| x.parse().ok())
-        .collect())
+    Ok(result)
 }
 
 /// Format an array into a comma-delimited string.

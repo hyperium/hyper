@@ -79,7 +79,16 @@ __hyper__tm!(ContentLength, tests {
     test_header!(test1, vec![b"3495"], Some(HeaderField(3495)));
 
     test_header!(test_invalid, vec![b"34v95"], None);
-    test_header!(test_duplicates, vec![b"5", b"5"], Some(HeaderField(5)));
+
+    // Can't use the test_header macro because "5, 5" gets cleaned to "5".
+    #[test]
+    fn test_duplicates() {
+        let parsed = HeaderField::parse_header(&[b"5"[..].into(),
+                                                 b"5"[..].into()]).unwrap();
+        assert_eq!(parsed, HeaderField(5));
+        assert_eq!(format!("{}", parsed), "5");
+    }
+
     test_header!(test_duplicates_vary, vec![b"5", b"6", b"5"], None);
 });
 

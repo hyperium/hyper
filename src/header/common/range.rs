@@ -2,7 +2,7 @@ use std::fmt::{self, Display};
 use std::str::FromStr;
 
 use header::{Header, HeaderFormat};
-use header::parsing::{from_one_raw_str, from_one_comma_delimited};
+use header::parsing::{from_one_raw_str, from_comma_delimited};
 
 /// `Range` header, defined in [RFC7233](https://tools.ietf.org/html/rfc7233#section-3.1)
 ///
@@ -130,7 +130,7 @@ impl FromStr for Range {
 
         match (iter.next(), iter.next()) {
             (Some("bytes"), Some(ranges)) => {
-                match from_one_comma_delimited(ranges.as_bytes()) {
+                match from_comma_delimited(&[ranges]) {
                     Ok(ranges) => {
                         if ranges.is_empty() {
                             return Err(::Error::Header);

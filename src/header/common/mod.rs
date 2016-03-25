@@ -156,8 +156,15 @@ macro_rules! test_header {
             assert_eq!(val.ok(), typed);
             // Test formatting
             if typed.is_some() {
-                let res: &str = str::from_utf8($raw[0]).unwrap();
-                assert_eq!(format!("{}", typed.unwrap()), res);
+                let raw = &($raw)[..];
+                let mut iter = raw.iter().map(|b|str::from_utf8(&b[..]).unwrap());
+                let mut joined = String::new();
+                joined.push_str(iter.next().unwrap());
+                for s in iter {
+                    joined.push_str(", ");
+                    joined.push_str(s);
+                }
+                assert_eq!(format!("{}", typed.unwrap()), joined);
             }
         }
     }
