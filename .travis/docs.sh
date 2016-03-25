@@ -2,7 +2,7 @@
 
 set -o errexit
 
-git clone --branch gh-pages "https://$GH_TOKEN@github.com/${TRAVIS_REPO_SLUG}.git" deploy_docs
+git clone --branch gh-pages "https://$TOKEN@github.com/${TRAVIS_REPO_SLUG}.git" deploy_docs
 cd deploy_docs
 
 git config user.name "Sean McArthur"
@@ -27,4 +27,4 @@ fi
 
 git add -A .
 git commit -m "rebuild pages at ${TRAVIS_COMMIT}"
-git push --quiet
+git push --quiet origin gh-pages
