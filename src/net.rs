@@ -410,7 +410,9 @@ impl<F> NetworkConnector for F where F: Fn(&str, u16, &str) -> io::Result<TcpStr
     }
 }
 
-/// An abstraction to allow any SSL implementation to be used with HttpsStreams.
+/// Deprecated
+///
+/// Use `SslClient` and `SslServer` instead.
 pub trait Ssl {
     /// The protected stream.
     type Stream: NetworkStream + Send + Clone;
@@ -418,6 +420,38 @@ pub trait Ssl {
     fn wrap_client(&self, stream: HttpStream, host: &str) -> ::Result<Self::Stream>;
     /// Wrap a server stream with SSL.
     fn wrap_server(&self, stream: HttpStream) -> ::Result<Self::Stream>;
+}
+
+/// An abstraction to allow any SSL implementation to be used with client-side HttpsStreams.
+pub trait SslClient {
+    /// The protected stream.
+    type Stream: NetworkStream + Send + Clone;
+    /// Wrap a client stream with SSL.
+    fn wrap_client(&self, stream: HttpStream, host: &str) -> ::Result<Self::Stream>;
+}
+
+/// An abstraction to allow any SSL implementation to be used with server-side HttpsStreams.
+pub trait SslServer {
+    /// The protected stream.
+    type Stream: NetworkStream + Send + Clone;
+    /// Wrap a server stream with SSL.
+    fn wrap_server(&self, stream: HttpStream) -> ::Result<Self::Stream>;
+}
+
+impl<S: Ssl> SslClient for S {
+    type Stream = <S as Ssl>::Stream;
+
+    fn wrap_client(&self, stream: HttpStream, host: &str) -> ::Result<Self::Stream> {
+        Ssl::wrap_client(self, stream, host)
+    }
+}
+
+impl<S: Ssl> SslServer for S {
+    type Stream = <S as Ssl>::Stream;
+
+    fn wrap_server(&self, stream: HttpStream) -> ::Result<Self::Stream> {
+        Ssl::wrap_server(self, stream)
+    }
 }
 
 /// A stream over the HTTP protocol, possibly protected by SSL.
@@ -493,7 +527,7 @@ impl<S: NetworkStream> NetworkStream for HttpsStream<S> {
 
 /// A Http Listener over SSL.
 #[derive(Clone)]
-pub struct HttpsListener<S: Ssl> {
+pub struct HttpsListener<S: SslServer> {
     listener: HttpListener,
     ssl: S,
 }
@@ -516,7 +550,7 @@ impl<S: Ssl> HttpsListener<S> {
     }
 }
 
-impl<S: Ssl + Clone> NetworkListener for HttpsListener<S> {
+impl<S: SslServer + Clone> NetworkListener for HttpsListener<S> {
     type Stream = S::Stream;
 
     #[inline]
@@ -532,18 +566,18 @@ impl<S: Ssl + Clone> NetworkListener for HttpsListener<S> {
 
 /// A connector that can protect HTTP streams using SSL.
 #[derive(Debug, Default)]
-pub struct HttpsConnector<S: Ssl> {
+pub struct HttpsConnector<S: SslClient> {
     ssl: S
 }
 
-impl<S: Ssl> HttpsConnector<S> {
+impl<S: SslClient> HttpsConnector<S> {
     /// Create a new connector using the provided SSL implementation.
     pub fn new(s: S) -> HttpsConnector<S> {
         HttpsConnector { ssl: s }
     }
 }
 
-impl<S: Ssl> NetworkConnector for HttpsConnector<S> {
+impl<S: SslClient> NetworkConnector for HttpsConnector<S> {
     type Stream = HttpsStream<S::Stream>;
 
     fn connect(&self, host: &str, port: u16, scheme: &str) -> ::Result<Self::Stream> {
