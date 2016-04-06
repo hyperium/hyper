@@ -7,6 +7,7 @@ use std::sync::mpsc;
 use std::thread;
 
 use rotor::{self, Scope, EventSet, PollOpt};
+use rotor::WakeupError;
 
 use url::ParseError as UrlError;
 
@@ -23,6 +24,57 @@ pub use self::response::Response;
 //mod pool;
 mod request;
 mod response;
+
+/// An error occuring when submitting a request
+#[derive(Debug)]
+pub enum SubmitRequestError {
+    /// The client is unreachable (sending the request failed)
+    UnreachableSend,
+
+    /// The client is unreachable (waking the event loop failed)
+    UnreachableWake(WakeupError),
+}
+
+impl ::std::error::Error for SubmitRequestError {
+    fn cause(&self) -> Option<&::std::error::Error> {
+        match *self {
+            SubmitRequestError::UnreachableSend => None,
+            SubmitRequestError::UnreachableWake(ref err) => Some(err),
+        }
+    }
+
+    fn description(&self) -> &str {
+        match *self {
+            SubmitRequestError::UnreachableSend => "send failed; client gone",
+            SubmitRequestError::UnreachableWake(_) => "wake failed; client gone",
+        }
+    }
+}
+
+impl ::std::fmt::Display for SubmitRequestError {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            SubmitRequestError::UnreachableSend => {
+                write!(f, "Sending work to client failed; the client is gone.")
+            },
+            SubmitRequestError::UnreachableWake(ref err) => {
+                write!(f, "Waking the client failed: {}", err)
+            },
+        }
+    }
+}
+
+impl<H> From<mpsc::SendError<Notify<H>>> for SubmitRequestError {
+    fn from(_: mpsc::SendError<Notify<H>>) -> SubmitRequestError {
+        SubmitRequestError::UnreachableSend
+    }
+}
+
+impl From<WakeupError> for SubmitRequestError {
+    fn from(err: WakeupError) -> SubmitRequestError {
+        SubmitRequestError::UnreachableWake(err)
+    }
+}
 
 /// A Client to use additional features with Requests.
 ///
@@ -86,11 +138,20 @@ impl<H> Client<H> {
     }
 
     /// Build a new request using this Client.
-    pub fn request(&self, url: Url, handler: H) {
-        self.notifier.1.send(Notify::Connect(url, handler))
-            .expect("event loop has panicked");
-        self.notifier.0.wakeup()
-            .expect("event loop notify queue is full, cannot recover");
+    pub fn request(&self, url: Url, handler: H) -> Result<(), SubmitRequestError> {
+        try!(self.notifier.1.send(Notify::Connect(url, handler)));
+
+        loop {
+            match self.notifier.0.wakeup() {
+                Ok(_) => break,
+                Err(WakeupError::Full) => continue,
+                Err(err) => {
+                    return Err(::std::convert::From::from(err));
+                }
+            }
+        }
+
+        Ok(())
     }
 
     /// Close the Client loop.

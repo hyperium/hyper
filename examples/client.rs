@@ -70,7 +70,7 @@ fn main() {
 
     let (tx, rx) = mpsc::channel();
     let client = Client::new().expect("Failed to create a Client");
-    client.request(url.parse().unwrap(), Dump(tx));
+    client.request(url.parse().unwrap(), Dump(tx)).unwrap();
 
     let mut i =-0;
     loop {
