@@ -1,3 +1,17 @@
+### v0.8.1 (2016-04-13)
+
+
+#### Bug Fixes
+
+* **headers:** correctly handle repeated headers ([70c69142](https://github.com/hyperium/hyper/commit/70c6914217a9b48880e61b7fb59acd15c6e1421e), closes [#683](https://github.com/hyperium/hyper/issues/683))
+
+
+#### Features
+
+* **header:** add prefer and preference applied headers ([6f649301](https://github.com/hyperium/hyper/commit/6f6493010a9c190b29aceb3c10c65785923a85f5), closes [#747](https://github.com/hyperium/hyper/issues/747))
+* **net:** Split Ssl into SslClient and SslServer ([2c86e807](https://github.com/hyperium/hyper/commit/2c86e8078ec01db2283e1fee1461db4c7bf76d3f), closes [#756](https://github.com/hyperium/hyper/issues/756))
+
+
 ## v0.8.0 (2016-03-14)
 
 
