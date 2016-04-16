@@ -32,6 +32,10 @@ default-features = false
 version = "0.7"
 optional = true
 
+[dependencies.security-framework]
+version = "0.1.4"
+optional = true
+
 [dependencies.solicit]
 version = "0.4"
 default-features = false

@@ -133,6 +133,8 @@ extern crate time;
 extern crate url;
 #[cfg(feature = "openssl")]
 extern crate openssl;
+#[cfg(feature = "security-framework")]
+extern crate security_framework;
 #[cfg(feature = "serde-serialization")]
 extern crate serde;
 extern crate cookie;
