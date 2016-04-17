@@ -9,8 +9,6 @@ matrix:
         - rust: stable
           env: FEATURES="--no-default-features"
 
-sudo: false
-
 cache:
     apt: true
     directories:
