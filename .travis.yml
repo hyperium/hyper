@@ -17,6 +17,7 @@ cache:
         - target/debug/build
 
 script:
+  - ./.travis/readme.py
   - cargo build --verbose $FEATURES
   - cargo test --verbose $FEATURES
   - 'if [ $TRAVIS_RUST_VERSION = nightly ]; then cargo bench --no-run; fi'

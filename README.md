@@ -54,7 +54,7 @@ use hyper::header::Connection;
 
 fn main() {
     // Create a client.
-    let mut client = Client::new();
+    let client = Client::new();
 
     // Creating an outgoing request.
     let mut res = client.get("http://rust-lang.org/")
