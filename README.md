@@ -8,7 +8,10 @@
 
 A Modern HTTP library for Rust.
 
-[Documentation](http://hyperium.github.io/hyper)
+### Documentation
+
+- [Stable](http://hyperium.github.io/hyper)
+- [Master](http://hyperium.github.io/hyper/master)
 
 ## Overview
 
@@ -16,7 +19,7 @@ Hyper is a fast, modern HTTP implementation written in and for Rust. It
 is a low-level typesafe abstraction over raw HTTP, providing an elegant
 layer over "stringly-typed" HTTP.
 
-Hyper offers both an HTTP/S client and HTTP server which can be used to drive
+Hyper offers both an HTTP client and server which can be used to drive
 complex web applications written entirely in Rust.
 
 The documentation is located at [http://hyperium.github.io/hyper](http://hyperium.github.io/hyper).
