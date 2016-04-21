@@ -260,6 +260,8 @@ impl<'a> RequestBuilder<'a> {
             None
         };
 
+        let mut redirect_counter = 0;
+
         loop {
             let message = {
                 let (host, port) = try!(get_host_and_port(&url));
@@ -315,6 +317,7 @@ impl<'a> RequestBuilder<'a> {
                 // separate branches because they can't be one
                 RedirectPolicy::FollowAll => (), //continue
                 RedirectPolicy::FollowIf(cond) if cond(&url) => (), //continue
+                RedirectPolicy::FollowCount(i) if redirect_counter < i => { redirect_counter += 1 }, //continue
                 _ => return Ok(res),
             }
         }
@@ -413,6 +416,8 @@ pub enum RedirectPolicy {
     FollowAll,
     /// Follow a redirect if the contained function returns true.
     FollowIf(fn(&Url) -> bool),
+    /// Follow a redirect by the count
+    FollowCount(u8),
 }
 
 impl fmt::Debug for RedirectPolicy {
@@ -421,6 +426,7 @@ impl fmt::Debug for RedirectPolicy {
             RedirectPolicy::FollowNone => fmt.write_str("FollowNone"),
             RedirectPolicy::FollowAll => fmt.write_str("FollowAll"),
             RedirectPolicy::FollowIf(_) => fmt.write_str("FollowIf"),
+            RedirectPolicy::FollowCount(_) => fmt.write_str("FollowCount"),
         }
     }
 }
@@ -501,6 +507,24 @@ mod tests {
         }
         let mut client = Client::with_connector(MockRedirectPolicy);
         client.set_redirect_policy(RedirectPolicy::FollowIf(follow_if));
+        let res = client.get("http://127.0.0.1").send().unwrap();
+        assert_eq!(res.headers.get(), Some(&Server("mock2".to_owned())));
+    }
+
+    #[test]
+    fn test_redirect_followcount() {
+        let mut client = Client::with_connector(MockRedirectPolicy);
+        client.set_redirect_policy(RedirectPolicy::FollowCount(2));
+
+        let res = client.get("http://127.0.0.1").send().unwrap();
+        assert_eq!(res.headers.get(), Some(&Server("mock3".to_owned())));
+    }
+
+    #[test]
+    fn test_redirect_followcount_reaches_limit() {
+        let mut client = Client::with_connector(MockRedirectPolicy);
+        client.set_redirect_policy(RedirectPolicy::FollowCount(1));
+
         let res = client.get("http://127.0.0.1").send().unwrap();
         assert_eq!(res.headers.get(), Some(&Server("mock2".to_owned())));
     }
