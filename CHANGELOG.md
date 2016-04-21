@@ -1,3 +1,17 @@
+## v0.9.0 (2016-04-21)
+
+
+#### Features
+
+* **net:** Add Ssl impls for security-framework ([f37315b2](https://github.com/hyperium/hyper/commit/f37315b2708e092eaf5177a6960df9f7bf11eb5c))
+
+
+#### Breaking Changes
+
+* The re-exported Url type has breaking changes.
+ ([8fa7a989](https://github.com/hyperium/hyper/commit/8fa7a9896809ef2a24994993b91981105a520f26))
+
+
 ### v0.8.1 (2016-04-13)
 
 
