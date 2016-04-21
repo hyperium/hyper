@@ -7,6 +7,7 @@ use std::net::Shutdown;
 use std::time::Duration;
 
 use httparse;
+use url::Position as UrlPosition;
 
 use buffer::BufReader;
 use Error;
@@ -142,24 +143,22 @@ impl HttpMessage for Http11Message {
             };
             let mut stream = BufWriter::new(stream);
 
-            let mut uri = head.url.serialize_path().unwrap();
-            if let Some(ref q) = head.url.query {
-                uri.push('?');
-                uri.push_str(&q[..]);
-            }
+            {
+                let uri = &head.url[UrlPosition::BeforePath..UrlPosition::AfterQuery];
 
-            let version = version::HttpVersion::Http11;
-            debug!("request line: {:?} {:?} {:?}", head.method, uri, version);
-            match write!(&mut stream, "{} {} {}{}",
-                         head.method, uri, version, LINE_ENDING) {
-                             Err(e) => {
-                                 res = Err(From::from(e));
-                                 // TODO What should we do if the BufWriter doesn't wanna
-                                 // relinquish the stream?
-                                 return Stream::Idle(stream.into_inner().ok().unwrap());
-                             },
-                             Ok(_) => {},
-                         };
+                let version = version::HttpVersion::Http11;
+                debug!("request line: {:?} {:?} {:?}", head.method, uri, version);
+                match write!(&mut stream, "{} {} {}{}",
+                             head.method, uri, version, LINE_ENDING) {
+                                 Err(e) => {
+                                     res = Err(From::from(e));
+                                     // TODO What should we do if the BufWriter doesn't wanna
+                                     // relinquish the stream?
+                                     return Stream::Idle(stream.into_inner().ok().unwrap());
+                                 },
+                                 Ok(_) => {},
+                             };
+            }
 
             let stream = {
                 let write_headers = |mut stream: BufWriter<Box<NetworkStream + Send>>, head: &RequestHead| {

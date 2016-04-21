@@ -130,7 +130,7 @@
 
 extern crate rustc_serialize as serialize;
 extern crate time;
-extern crate url;
+#[macro_use] extern crate url;
 #[cfg(feature = "openssl")]
 extern crate openssl;
 #[cfg(feature = "security-framework")]

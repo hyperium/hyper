@@ -118,7 +118,7 @@ pub fn parse_extended_value(val: &str) -> ::Result<ExtendedValue> {
     // Interpret the third piece as a sequence of value characters
     let value: Vec<u8> = match parts.next() {
         None => return Err(::Error::Header),
-        Some(v) => percent_encoding::percent_decode(v.as_bytes()),
+        Some(v) => percent_encoding::percent_decode(v.as_bytes()).collect(),
     };
 
     Ok(ExtendedValue {
@@ -128,11 +128,19 @@ pub fn parse_extended_value(val: &str) -> ::Result<ExtendedValue> {
     })
 }
 
+define_encode_set! {
+    /// This encode set is used for HTTP header values and is defined at
+    /// https://tools.ietf.org/html/rfc5987#section-3.2
+    pub HTTP_VALUE = [percent_encoding::SIMPLE_ENCODE_SET] | {
+        ' ', '"', '%', '\'', '(', ')', '*', ',', '/', ':', ';', '<', '-', '>', '?',
+        '[', '\\', ']', '{', '}'
+    }
+}
+
 impl Display for ExtendedValue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let encoded_value =
-            percent_encoding::percent_encode(&self.value[..],
-                                             percent_encoding::HTTP_VALUE_ENCODE_SET);
+            percent_encoding::percent_encode(&self.value[..], HTTP_VALUE);
         if let Some(ref lang) = self.language_tag {
             write!(f, "{}'{}'{}", self.charset, lang, encoded_value)
         } else {

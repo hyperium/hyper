@@ -61,12 +61,14 @@ impl Request<Fresh> {
     /// properly initialized by the caller (e.g. a TCP connection's already established).
     pub fn with_message(method: Method, url: Url, message: Box<HttpMessage>)
             -> ::Result<Request<Fresh>> {
-        let (host, port) = try!(get_host_and_port(&url));
         let mut headers = Headers::new();
-        headers.set(Host {
-            hostname: host,
-            port: Some(port),
-        });
+        {
+            let (host, port) = try!(get_host_and_port(&url));
+            headers.set(Host {
+                hostname: host.to_owned(),
+                port: Some(port),
+            });
+        }
 
         Ok(Request {
             method: method,
@@ -89,8 +91,10 @@ impl Request<Fresh> {
         -> ::Result<Request<Fresh>> where
         C: NetworkConnector<Stream=S>,
         S: Into<Box<NetworkStream + Send>> {
-        let (host, port) = try!(get_host_and_port(&url));
-        let stream = try!(connector.connect(&*host, port, &*url.scheme)).into();
+        let stream = {
+            let (host, port) = try!(get_host_and_port(&url));
+            try!(connector.connect(host, port, url.scheme())).into()
+        };
 
         Request::with_message(method, url, Box::new(Http11Message::with_stream(stream)))
     }
@@ -223,7 +227,8 @@ mod tests {
         let mut req = Request::with_connector(
             Post, url, &mut MockConnector
         ).unwrap();
-        let body = form_urlencoded::serialize(vec!(("q","value")).into_iter());
+        let mut body = String::new();
+        form_urlencoded::Serializer::new(&mut body).append_pair("q", "value");
         req.headers_mut().set(ContentLength(body.len() as u64));
         let bytes = run_request(req);
         let s = from_utf8(&bytes[..]).unwrap();

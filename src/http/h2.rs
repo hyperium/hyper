@@ -15,7 +15,7 @@ use http::{
 };
 use net::{NetworkStream, NetworkConnector};
 use net::{HttpConnector, HttpStream};
-use url::Url;
+use url::Position as UrlPosition;
 use header::Headers;
 
 use header;
@@ -262,16 +262,6 @@ impl<S> Read for Http2Message<S> where S: CloneableStream {
     }
 }
 
-/// A helper function that prepares the path of a request by extracting it from the given `Url`.
-fn prepare_path(url: Url) -> Vec<u8> {
-    let mut uri = url.serialize_path().unwrap();
-    if let Some(ref q) = url.query {
-        uri.push('?');
-        uri.push_str(&q[..]);
-    }
-    uri.into_bytes()
-}
-
 /// A helper function that prepares the headers that should be sent in an HTTP/2 message.
 ///
 /// Adapts the `Headers` into a list of octet string pairs.
@@ -374,7 +364,7 @@ impl<S> HttpMessage for Http2Message<S> where S: CloneableStream {
         let (RequestHead { headers, method, url }, body) = (request.head, request.body);
 
         let method = method.as_ref().as_bytes();
-        let path = prepare_path(url);
+        let path = url[UrlPosition::BeforePath..UrlPosition::AfterQuery].as_bytes();
         let extra_headers = prepare_headers(headers);
         let body = prepare_body(body);
 

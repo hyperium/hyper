@@ -12,7 +12,7 @@ use unicase::UniCase;
 use url::percent_encoding;
 
 use header::{Header, HeaderFormat, parsing};
-use header::parsing::parse_extended_value;
+use header::parsing::{parse_extended_value, HTTP_VALUE};
 use header::shared::Charset;
 
 /// The implied disposition of the content of the HTTP body
@@ -184,8 +184,7 @@ impl fmt::Display for ContentDisposition {
                         };
                         try!(write!(f, "'"));
                         try!(f.write_str(
-                            &*percent_encoding::percent_encode(
-                                bytes, percent_encoding::HTTP_VALUE_ENCODE_SET)))
+                            &percent_encoding::percent_encode(bytes, HTTP_VALUE).to_string()))
                     }
                 },
                 DispositionParam::Ext(ref k, ref v) => try!(write!(f, "; {}=\"{}\"", k, v)),
