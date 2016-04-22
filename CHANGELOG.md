@@ -1,3 +1,11 @@
+### v0.9.1 (2016-04-21)
+
+
+#### Bug Fixes
+
+* **Cargo.toml:** update documentation link ([b783ddf4](https://github.com/hyperium/hyper/commit/b783ddf455ee93cc38510f3179ffe18733c797c1))
+
+
 ## v0.9.0 (2016-04-21)
 
 
