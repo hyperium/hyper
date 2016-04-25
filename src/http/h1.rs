@@ -11,7 +11,7 @@ use url::Position as UrlPosition;
 
 use buffer::BufReader;
 use Error;
-use header::{Headers, ContentLength, TransferEncoding};
+use header::{Headers, Host, ContentLength, TransferEncoding};
 use header::Encoding::Chunked;
 use method::{Method};
 use net::{NetworkConnector, NetworkStream};
@@ -144,7 +144,18 @@ impl HttpMessage for Http11Message {
             let mut stream = BufWriter::new(stream);
 
             {
-                let uri = &head.url[UrlPosition::BeforePath..UrlPosition::AfterQuery];
+                let uri = match head.headers.get::<Host>() {
+                    Some(host)
+                    if Some(&*host.hostname) == head.url.host_str()
+                    && host.port == head.url.port_or_known_default() => {
+                        &head.url[UrlPosition::BeforePath..UrlPosition::AfterQuery]
+                    },
+                    _ => {
+                        trace!("url and host header dont match, using absolute uri form");
+                        head.url.as_ref()
+                    }
+
+                };
 
                 let version = version::HttpVersion::Http11;
                 debug!("request line: {:?} {:?} {:?}", head.method, uri, version);

@@ -133,6 +133,13 @@ pub struct PooledStream<S> {
     pool: Arc<Mutex<PoolImpl<S>>>,
 }
 
+impl<S: NetworkStream> PooledStream<S> {
+    /// Take the wrapped stream out of the pool completely.
+    pub fn into_inner(mut self) -> S {
+        self.inner.take().expect("PooledStream lost its inner stream").stream
+    }
+}
+
 #[derive(Debug)]
 struct PooledStreamInner<S> {
     key: Key,
