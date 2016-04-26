@@ -55,9 +55,9 @@
 //!     clone2.post("http://example.domain/post").body("foo=bar").send().unwrap();
 //! });
 //! ```
+use std::borrow::Cow;
 use std::default::Default;
 use std::io::{self, copy, Read};
-use std::iter::Extend;
 use std::fmt;
 
 use std::time::Duration;
@@ -66,7 +66,7 @@ use url::Url;
 use url::ParseError as UrlError;
 
 use header::{Headers, Header, HeaderFormat};
-use header::{ContentLength, Location};
+use header::{ContentLength, Host, Location};
 use method::Method;
 use net::{NetworkConnector, NetworkStream};
 use Error;
@@ -90,6 +90,7 @@ pub struct Client {
     redirect_policy: RedirectPolicy,
     read_timeout: Option<Duration>,
     write_timeout: Option<Duration>,
+    proxy: Option<(Cow<'static, str>, Cow<'static, str>, u16)>
 }
 
 impl fmt::Debug for Client {
@@ -98,6 +99,7 @@ impl fmt::Debug for Client {
            .field("redirect_policy", &self.redirect_policy)
            .field("read_timeout", &self.read_timeout)
            .field("write_timeout", &self.write_timeout)
+           .field("proxy", &self.proxy)
            .finish()
     }
 }
@@ -127,6 +129,7 @@ impl Client {
             redirect_policy: Default::default(),
             read_timeout: None,
             write_timeout: None,
+            proxy: None,
         }
     }
 
@@ -143,6 +146,12 @@ impl Client {
     /// Set the write timeout value for all requests.
     pub fn set_write_timeout(&mut self, dur: Option<Duration>) {
         self.write_timeout = dur;
+    }
+
+    /// Set a proxy for requests of this Client.
+    pub fn set_proxy<S, H>(&mut self, scheme: S, host: H, port: u16)
+    where S: Into<Cow<'static, str>>, H: Into<Cow<'static, str>> {
+        self.proxy = Some((scheme.into(), host.into(), port));
     }
 
     /// Build a Get request.
@@ -247,7 +256,7 @@ impl<'a> RequestBuilder<'a> {
     pub fn send(self) -> ::Result<Response> {
         let RequestBuilder { client, method, url, headers, body } = self;
         let mut url = try!(url);
-        trace!("send {:?} {:?}", method, url);
+        trace!("send method={:?}, url={:?}, client={:?}", method, url, client);
 
         let can_have_body = match method {
             Method::Get | Method::Head => false,
@@ -261,12 +270,25 @@ impl<'a> RequestBuilder<'a> {
         };
 
         loop {
-            let message = {
-                let (host, port) = try!(get_host_and_port(&url));
-                try!(client.protocol.new_message(&host, port, url.scheme()))
+            let mut req = {
+                let (scheme, host, port) = match client.proxy {
+                    Some(ref proxy) => (proxy.0.as_ref(), proxy.1.as_ref(), proxy.2),
+                    None => {
+                        let hp = try!(get_host_and_port(&url));
+                        (url.scheme(), hp.0, hp.1)
+                    }
+                };
+                let mut headers = match headers {
+                    Some(ref headers) => headers.clone(),
+                    None => Headers::new(),
+                };
+                headers.set(Host {
+                    hostname: host.to_owned(),
+                    port: Some(port),
+                });
+                let message = try!(client.protocol.new_message(&host, port, scheme));
+                Request::with_headers_and_message(method.clone(), url.clone(), headers, message)
             };
-            let mut req = try!(Request::with_message(method.clone(), url.clone(), message));
-            headers.as_ref().map(|headers| req.headers_mut().extend(headers.iter()));
 
             try!(req.set_write_timeout(client.write_timeout));
             try!(req.set_read_timeout(client.read_timeout));
@@ -456,6 +478,8 @@ fn get_host_and_port(url: &Url) -> ::Result<(&str, u16)> {
 mod tests {
     use std::io::Read;
     use header::Server;
+    use http::h1::Http11Message;
+    use mock::{MockStream};
     use super::{Client, RedirectPolicy};
     use super::pool::Pool;
     use url::Url;
@@ -476,6 +500,30 @@ mod tests {
                                      \r\n\
                                     "
     });
+
+
+    #[test]
+    fn test_proxy() {
+        use super::pool::PooledStream;
+        mock_connector!(ProxyConnector {
+            b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
+        });
+        let mut client = Client::with_connector(Pool::with_connector(Default::default(), ProxyConnector));
+        client.set_proxy("http", "example.proxy", 8008);
+        let mut dump = vec![];
+        client.get("http://127.0.0.1/foo/bar").send().unwrap().read_to_end(&mut dump).unwrap();
+
+        {
+            let box_message = client.protocol.new_message("example.proxy", 8008, "http").unwrap();
+            let message = box_message.downcast::<Http11Message>().unwrap();
+            let stream =  message.into_inner().downcast::<PooledStream<MockStream>>().unwrap().into_inner();
+            let s = ::std::str::from_utf8(&stream.write).unwrap();
+            let request_line = "GET http://127.0.0.1/foo/bar HTTP/1.1\r\n";
+            assert_eq!(&s[..request_line.len()], request_line);
+            assert!(s.contains("Host: example.proxy:8008\r\n"));
+        }
+
+    }
 
     #[test]
     fn test_redirect_followall() {

@@ -70,14 +70,20 @@ impl Request<Fresh> {
             });
         }
 
-        Ok(Request {
+        Ok(Request::with_headers_and_message(method, url, headers, message))
+    }
+
+    #[doc(hidden)]
+    pub fn with_headers_and_message(method: Method, url: Url, headers: Headers,  message: Box<HttpMessage>)
+                -> Request<Fresh> {
+        Request {
             method: method,
             headers: headers,
             url: url,
             version: version::HttpVersion::Http11,
             message: message,
             _marker: PhantomData,
-        })
+        }
     }
 
     /// Create a new client request.
@@ -128,6 +134,8 @@ impl Request<Fresh> {
     #[inline]
     pub fn headers_mut(&mut self) -> &mut Headers { &mut self.headers }
 }
+
+
 
 impl Request<Streaming> {
     /// Completes writing the request, and returns a response to read from.
@@ -244,6 +252,32 @@ mod tests {
         let bytes = run_request(req);
         let s = from_utf8(&bytes[..]).unwrap();
         assert!(!s.contains("Content-Length:"));
+    }
+
+    #[test]
+    fn test_host_header() {
+        let url = Url::parse("http://example.dom").unwrap();
+        let req = Request::with_connector(
+            Get, url, &mut MockConnector
+        ).unwrap();
+        let bytes = run_request(req);
+        let s = from_utf8(&bytes[..]).unwrap();
+        assert!(s.contains("Host: example.dom"));
+    }
+
+    #[test]
+    fn test_proxy() {
+        let url = Url::parse("http://example.dom").unwrap();
+        let proxy_url = Url::parse("http://pro.xy").unwrap();
+        let mut req = Request::with_connector(
+            Get, proxy_url, &mut MockConnector
+        ).unwrap();
+        req.url = url;
+        let bytes = run_request(req);
+        let s = from_utf8(&bytes[..]).unwrap();
+        let request_line = "GET http://example.dom/ HTTP/1.1";
+        assert_eq!(&s[..request_line.len()], request_line);
+        assert!(s.contains("Host: pro.xy"));
     }
 
     #[test]
