@@ -11,7 +11,7 @@ use url::Position as UrlPosition;
 
 use buffer::BufReader;
 use Error;
-use header::{Headers, Host, ContentLength, TransferEncoding};
+use header::{Headers, ContentLength, TransferEncoding};
 use header::Encoding::Chunked;
 use method::{Method};
 use net::{NetworkConnector, NetworkStream};
@@ -91,6 +91,7 @@ impl Stream {
 /// An implementation of the `HttpMessage` trait for HTTP/1.1.
 #[derive(Debug)]
 pub struct Http11Message {
+    is_proxied: bool,
     method: Option<Method>,
     stream: Wrapper<Stream>,
 }
@@ -131,6 +132,7 @@ impl HttpMessage for Http11Message {
                             io::ErrorKind::Other,
                             "")));
         let mut method = None;
+        let is_proxied = self.is_proxied;
         self.stream.map_in_place(|stream: Stream| -> Stream {
             let stream = match stream {
                 Stream::Idle(stream) => stream,
@@ -144,17 +146,10 @@ impl HttpMessage for Http11Message {
             let mut stream = BufWriter::new(stream);
 
             {
-                let uri = match head.headers.get::<Host>() {
-                    Some(host)
-                    if Some(&*host.hostname) == head.url.host_str()
-                    && host.port == head.url.port_or_known_default() => {
-                        &head.url[UrlPosition::BeforePath..UrlPosition::AfterQuery]
-                    },
-                    _ => {
-                        trace!("url and host header dont match, using absolute uri form");
-                        head.url.as_ref()
-                    }
-
+                let uri = if is_proxied {
+                    head.url.as_ref()
+                } else {
+                    &head.url[UrlPosition::BeforePath..UrlPosition::AfterQuery]
                 };
 
                 let version = version::HttpVersion::Http11;
@@ -365,6 +360,11 @@ impl HttpMessage for Http11Message {
         try!(self.get_mut().close(Shutdown::Both));
         Ok(())
     }
+
+    #[inline]
+    fn set_proxied(&mut self, val: bool) {
+        self.is_proxied = val;
+    }
 }
 
 impl Http11Message {
@@ -401,6 +401,7 @@ impl Http11Message {
     /// the peer.
     pub fn with_stream(stream: Box<NetworkStream + Send>) -> Http11Message {
         Http11Message {
+            is_proxied: false,
             method: None,
             stream: Wrapper::new(Stream::new(stream)),
         }

@@ -70,6 +70,11 @@ pub trait HttpMessage: Write + Read + Send + Any + Typeable + Debug {
     fn close_connection(&mut self) -> ::Result<()>;
     /// Returns whether the incoming message has a body.
     fn has_body(&self) -> bool;
+    /// Called when the Client wishes to use a Proxy.
+    fn set_proxied(&mut self, val: bool) {
+        // default implementation so as to not be a breaking change.
+        warn!("default set_proxied({:?})", val);
+    }
 }
 
 impl HttpMessage {

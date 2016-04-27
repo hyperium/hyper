@@ -12,7 +12,7 @@ use solicit::http::frame::{SettingsFrame, Frame};
 use solicit::http::connection::{HttpConnection, EndStream, DataChunk};
 
 use header::Headers;
-use net::{NetworkStream, NetworkConnector};
+use net::{NetworkStream, NetworkConnector, SslClient};
 
 #[derive(Clone, Debug)]
 pub struct MockStream {
@@ -313,5 +313,15 @@ impl NetworkConnector for MockHttp2Connector {
     fn connect(&self, _host: &str, _port: u16, _scheme: &str)
             -> ::Result<CloneableMockStream> {
         Ok(self.streams.borrow_mut().remove(0))
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct MockSsl;
+
+impl<T: NetworkStream + Send + Clone> SslClient<T> for MockSsl {
+    type Stream = T;
+    fn wrap_client(&self, stream: T, _host: &str) -> ::Result<T> {
+        Ok(stream)
     }
 }

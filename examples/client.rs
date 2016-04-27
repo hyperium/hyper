@@ -20,7 +20,20 @@ fn main() {
         }
     };
 
-    let client = Client::new();
+    let client = match env::var("HTTP_PROXY") {
+        Ok(mut proxy) => {
+            // parse the proxy, message if it doesn't make sense
+            let mut port = 80;
+            if let Some(colon) = proxy.rfind(':') {
+                port = proxy[colon + 1..].parse().unwrap_or_else(|e| {
+                    panic!("HTTP_PROXY is malformed: {:?}, port parse error: {}", proxy, e);
+                });
+                proxy.truncate(colon);
+            }
+            Client::with_http_proxy(proxy, port)
+        },
+        _ => Client::new()
+    };
 
     let mut res = client.get(&*url)
         .header(Connection::close())

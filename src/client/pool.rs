@@ -127,6 +127,7 @@ impl<C: NetworkConnector<Stream=S>, S: NetworkStream + Send> NetworkConnector fo
 }
 
 /// A Stream that will try to be returned to the Pool when dropped.
+#[derive(Debug)]
 pub struct PooledStream<S> {
     inner: Option<PooledStreamInner<S>>,
     is_closed: bool,
