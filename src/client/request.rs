@@ -268,16 +268,15 @@ mod tests {
     #[test]
     fn test_proxy() {
         let url = Url::parse("http://example.dom").unwrap();
-        let proxy_url = Url::parse("http://pro.xy").unwrap();
         let mut req = Request::with_connector(
-            Get, proxy_url, &mut MockConnector
+            Get, url, &mut MockConnector
         ).unwrap();
-        req.url = url;
+        req.message.set_proxied(true);
         let bytes = run_request(req);
         let s = from_utf8(&bytes[..]).unwrap();
         let request_line = "GET http://example.dom/ HTTP/1.1";
         assert_eq!(&s[..request_line.len()], request_line);
-        assert!(s.contains("Host: pro.xy"));
+        assert!(s.contains("Host: example.dom"));
     }
 
     #[test]

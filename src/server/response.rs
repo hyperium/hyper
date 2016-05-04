@@ -12,7 +12,7 @@ use std::thread;
 use time::now_utc;
 
 use header;
-use http::h1::{CR, LF, LINE_ENDING, HttpWriter};
+use http::h1::{LINE_ENDING, HttpWriter};
 use http::h1::HttpWriter::{ThroughWriter, ChunkedWriter, SizedWriter, EmptyWriter};
 use status;
 use net::{Fresh, Streaming};
@@ -82,8 +82,7 @@ impl<'a, W: Any> Response<'a, W> {
 
     fn write_head(&mut self) -> io::Result<Body> {
         debug!("writing head: {:?} {:?}", self.version, self.status);
-        try!(write!(&mut self.body, "{} {}{}{}", self.version, self.status,
-            CR as char, LF as char));
+        try!(write!(&mut self.body, "{} {}\r\n", self.version, self.status));
 
         if !self.headers.has::<header::Date>() {
             self.headers.set(header::Date(header::HttpDate(now_utc())));
