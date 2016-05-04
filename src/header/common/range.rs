@@ -1,7 +1,7 @@
 use std::fmt::{self, Display};
 use std::str::FromStr;
 
-use header::{Header, HeaderFormat};
+use header::Header;
 use header::parsing::{from_one_raw_str, from_comma_delimited};
 
 /// `Range` header, defined in [RFC7233](https://tools.ietf.org/html/rfc7233#section-3.1)
@@ -182,9 +182,6 @@ impl Header for Range {
     fn parse_header(raw: &[Vec<u8>]) -> ::Result<Range> {
         from_one_raw_str(raw)
     }
-}
-
-impl HeaderFormat for Range {
 
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
         Display::fmt(self, f)

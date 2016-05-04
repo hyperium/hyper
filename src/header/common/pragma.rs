@@ -1,7 +1,7 @@
 use std::fmt;
 use std::ascii::AsciiExt;
 
-use header::{Header, HeaderFormat, parsing};
+use header::{Header, parsing};
 
 /// The `Pragma` header defined by HTTP/1.0.
 ///
@@ -52,9 +52,7 @@ impl Header for Pragma {
             }
         })
     }
-}
 
-impl HeaderFormat for Pragma {
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str(match *self {
             Pragma::NoCache => "no-cache",

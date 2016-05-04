@@ -3,7 +3,7 @@ use std::str;
 
 use unicase::UniCase;
 
-use header::{Header, HeaderFormat};
+use header::{Header};
 
 /// The `Expect` header.
 ///
@@ -53,9 +53,7 @@ impl Header for Expect {
             Err(::Error::Header)
         }
     }
-}
 
-impl HeaderFormat for Expect {
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str("100-continue")
     }

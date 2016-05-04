@@ -3,7 +3,7 @@ use std::str::{self, FromStr};
 
 use unicase::UniCase;
 
-use header::{Header, HeaderFormat, parsing};
+use header::{Header, parsing};
 
 /// `StrictTransportSecurity` header, defined in [RFC6797](https://tools.ietf.org/html/rfc6797)
 ///
@@ -127,9 +127,7 @@ impl Header for StrictTransportSecurity {
     fn parse_header(raw: &[Vec<u8>]) -> ::Result<StrictTransportSecurity> {
         parsing::from_one_raw_str(raw)
     }
-}
 
-impl HeaderFormat for StrictTransportSecurity {
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.include_subdomains {
             write!(f, "max-age={}; includeSubdomains", self.max_age)

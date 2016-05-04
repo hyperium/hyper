@@ -4,13 +4,13 @@ use std::fmt;
 use std::str::from_utf8;
 
 use super::cell::{OptCell, PtrMapCell};
-use header::{Header, HeaderFormat};
+use header::{Header};
 
 
 #[derive(Clone)]
 pub struct Item {
     raw: OptCell<Vec<Vec<u8>>>,
-    typed: PtrMapCell<HeaderFormat + Send + Sync>
+    typed: PtrMapCell<Header + Send + Sync>
 }
 
 impl Item {
@@ -23,7 +23,7 @@ impl Item {
     }
 
     #[inline]
-    pub fn new_typed(ty: Box<HeaderFormat + Send + Sync>) -> Item {
+    pub fn new_typed(ty: Box<Header + Send + Sync>) -> Item {
         let map = PtrMapCell::new();
         unsafe { map.insert((*ty).get_type(), ty); }
         Item {
@@ -52,7 +52,7 @@ impl Item {
         &raw[..]
     }
 
-    pub fn typed<H: Header + HeaderFormat + Any>(&self) -> Option<&H> {
+    pub fn typed<H: Header + Any>(&self) -> Option<&H> {
         let tid = TypeId::of::<H>();
         match self.typed.get(tid) {
             Some(val) => Some(val),
@@ -68,7 +68,7 @@ impl Item {
         }.map(|typed| unsafe { typed.downcast_ref_unchecked() })
     }
 
-    pub fn typed_mut<H: Header + HeaderFormat>(&mut self) -> Option<&mut H> {
+    pub fn typed_mut<H: Header>(&mut self) -> Option<&mut H> {
         let tid = TypeId::of::<H>();
         if self.typed.get_mut(tid).is_none() {
             match parse::<H>(self.raw.as_ref().expect("item.raw must exist")) {
@@ -83,11 +83,11 @@ impl Item {
 }
 
 #[inline]
-fn parse<H: Header + HeaderFormat>(raw: &Vec<Vec<u8>>) ->
-        ::Result<Box<HeaderFormat + Send + Sync>> {
+fn parse<H: Header>(raw: &Vec<Vec<u8>>) ->
+        ::Result<Box<Header + Send + Sync>> {
     Header::parse_header(&raw[..]).map(|h: H| {
         // FIXME: Use Type ascription
-        let h: Box<HeaderFormat + Send + Sync> = Box::new(h);
+        let h: Box<Header + Send + Sync> = Box::new(h);
         h
     })
 }

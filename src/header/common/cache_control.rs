@@ -1,6 +1,6 @@
 use std::fmt;
 use std::str::FromStr;
-use header::{Header, HeaderFormat};
+use header::Header;
 use header::parsing::{from_comma_delimited, fmt_comma_delimited};
 
 /// `Cache-Control` header, defined in [RFC7234](https://tools.ietf.org/html/rfc7234#section-5.2)
@@ -62,9 +62,7 @@ impl Header for CacheControl {
             Err(::Error::Header)
         }
     }
-}
 
-impl HeaderFormat for CacheControl {
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt_comma_delimited(f, &self[..])
     }

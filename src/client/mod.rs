@@ -1,599 +1,606 @@
 //! HTTP Client
 //!
-//! # Usage
-//!
-//! The `Client` API is designed for most people to make HTTP requests.
-//! It utilizes the lower level `Request` API.
-//!
-//! ## GET
-//!
-//! ```no_run
-//! # use hyper::Client;
-//! let client = Client::new();
-//!
-//! let res = client.get("http://example.domain").send().unwrap();
-//! assert_eq!(res.status, hyper::Ok);
-//! ```
-//!
-//! The returned value is a `Response`, which provides easy access to
-//! the `status`, the `headers`, and the response body via the `Read`
-//! trait.
-//!
-//! ## POST
-//!
-//! ```no_run
-//! # use hyper::Client;
-//! let client = Client::new();
-//!
-//! let res = client.post("http://example.domain")
-//!     .body("foo=bar")
-//!     .send()
-//!     .unwrap();
-//! assert_eq!(res.status, hyper::Ok);
-//! ```
-//!
-//! # Sync
-//!
-//! The `Client` implements `Sync`, so you can share it among multiple threads
-//! and make multiple requests simultaneously.
-//!
-//! ```no_run
-//! # use hyper::Client;
-//! use std::sync::Arc;
-//! use std::thread;
-//!
-//! // Note: an Arc is used here because `thread::spawn` creates threads that
-//! // can outlive the main thread, so we must use reference counting to keep
-//! // the Client alive long enough. Scoped threads could skip the Arc.
-//! let client = Arc::new(Client::new());
-//! let clone1 = client.clone();
-//! let clone2 = client.clone();
-//! thread::spawn(move || {
-//!     clone1.get("http://example.domain").send().unwrap();
-//! });
-//! thread::spawn(move || {
-//!     clone2.post("http://example.domain/post").body("foo=bar").send().unwrap();
-//! });
-//! ```
-use std::borrow::Cow;
-use std::default::Default;
-use std::io::{self, copy, Read};
-use std::fmt;
+//! The HTTP `Client` uses asynchronous IO, and utilizes the `Handler` trait
+//! to convey when IO events are available for a given request.
 
+use std::collections::HashMap;
+use std::fmt;
+use std::marker::PhantomData;
+use std::sync::mpsc;
+use std::thread;
 use std::time::Duration;
 
-use url::Url;
-use url::ParseError as UrlError;
+use rotor::{self, Scope, EventSet, PollOpt};
 
-use header::{Headers, Header, HeaderFormat};
-use header::{ContentLength, Host, Location};
-use method::Method;
-use net::{NetworkConnector, NetworkStream};
-use Error;
+use header::Host;
+use http::{self, Next, RequestHead};
+use net::Transport;
+use uri::RequestUri;
+use {Url};
 
-use self::proxy::tunnel;
-pub use self::pool::Pool;
+pub use self::connect::{Connect, DefaultConnector, HttpConnector, HttpsConnector, DefaultTransport};
 pub use self::request::Request;
 pub use self::response::Response;
 
-mod proxy;
-pub mod pool;
-pub mod request;
-pub mod response;
+mod connect;
+mod dns;
+//mod pool;
+mod request;
+mod response;
 
-use http::Protocol;
-use http::h1::Http11Protocol;
-
-/// A Client to use additional features with Requests.
-///
-/// Clients can handle things such as: redirect policy, connection pooling.
-pub struct Client {
-    protocol: Box<Protocol + Send + Sync>,
-    redirect_policy: RedirectPolicy,
-    read_timeout: Option<Duration>,
-    write_timeout: Option<Duration>,
-    proxy: Option<(Cow<'static, str>, u16)>
+/// A Client to make outgoing HTTP requests.
+pub struct Client<H> {
+    //handle: Option<thread::JoinHandle<()>>,
+    tx: http::channel::Sender<Notify<H>>,
 }
 
-impl fmt::Debug for Client {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("Client")
-           .field("redirect_policy", &self.redirect_policy)
-           .field("read_timeout", &self.read_timeout)
-           .field("write_timeout", &self.write_timeout)
-           .field("proxy", &self.proxy)
-           .finish()
-    }
-}
-
-impl Client {
-
-    /// Create a new Client.
-    pub fn new() -> Client {
-        Client::with_pool_config(Default::default())
-    }
-
-    /// Create a new Client with a configured Pool Config.
-    pub fn with_pool_config(config: pool::Config) -> Client {
-        Client::with_connector(Pool::new(config))
-    }
-
-    pub fn with_http_proxy<H>(host: H, port: u16) -> Client
-    where H: Into<Cow<'static, str>> {
-        let host = host.into();
-        let proxy = tunnel((host.clone(), port));
-        let mut client = Client::with_connector(Pool::with_connector(Default::default(), proxy));
-        client.proxy = Some((host, port));
-        client
-    }
-
-    /// Create a new client with a specific connector.
-    pub fn with_connector<C, S>(connector: C) -> Client
-    where C: NetworkConnector<Stream=S> + Send + Sync + 'static, S: NetworkStream + Send {
-        Client::with_protocol(Http11Protocol::with_connector(connector))
-    }
-
-    /// Create a new client with a specific `Protocol`.
-    pub fn with_protocol<P: Protocol + Send + Sync + 'static>(protocol: P) -> Client {
+impl<H> Clone for Client<H> {
+    fn clone(&self) -> Client<H> {
         Client {
-            protocol: Box::new(protocol),
-            redirect_policy: Default::default(),
-            read_timeout: None,
-            write_timeout: None,
-            proxy: None,
+            tx: self.tx.clone()
         }
     }
+}
 
-    /// Set the RedirectPolicy.
-    pub fn set_redirect_policy(&mut self, policy: RedirectPolicy) {
-        self.redirect_policy = policy;
+impl<H> fmt::Debug for Client<H> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.pad("Client")
+    }
+}
+
+impl<H> Client<H> {
+    /// Configure a Client.
+    ///
+    /// # Example
+    ///
+    /// ```dont_run
+    /// # use hyper::Client;
+    /// let client = Client::configure()
+    ///     .keep_alive(true)
+    ///     .max_sockets(10_000)
+    ///     .build().unwrap();
+    /// ```
+    #[inline]
+    pub fn configure() -> Config<DefaultConnector> {
+        Config::default()
     }
 
-    /// Set the read timeout value for all requests.
-    pub fn set_read_timeout(&mut self, dur: Option<Duration>) {
-        self.read_timeout = dur;
+    /*TODO
+    pub fn http() -> Config<HttpConnector> {
+    
     }
 
-    /// Set the write timeout value for all requests.
-    pub fn set_write_timeout(&mut self, dur: Option<Duration>) {
-        self.write_timeout = dur;
+    pub fn https() -> Config<HttpsConnector> {
+    
     }
+    */
+}
 
-    /// Build a Get request.
-    pub fn get<U: IntoUrl>(&self, url: U) -> RequestBuilder {
-        self.request(Method::Get, url)
+impl<H: Handler<<DefaultConnector as Connect>::Output>> Client<H> {
+    /// Create a new Client with the default config.
+    #[inline]
+    pub fn new() -> ::Result<Client<H>> {
+        Client::<H>::configure().build()
     }
+}
 
-    /// Build a Head request.
-    pub fn head<U: IntoUrl>(&self, url: U) -> RequestBuilder {
-        self.request(Method::Head, url)
+impl<H: Send> Client<H> {
+    /// Create a new client with a specific connector.
+    fn configured<T, C>(config: Config<C>) -> ::Result<Client<H>>
+    where H: Handler<T>,
+          T: Transport,
+          C: Connect<Output=T> + Send + 'static {
+        let mut rotor_config = rotor::Config::new();
+        rotor_config.slab_capacity(config.max_sockets);
+        rotor_config.mio().notify_capacity(config.max_sockets);
+        let keep_alive = config.keep_alive;
+        let connect_timeout = config.connect_timeout;
+        let mut loop_ = try!(rotor::Loop::new(&rotor_config));
+        let mut notifier = None;
+        let mut connector = config.connector;
+        {
+            let not = &mut notifier;
+            loop_.add_machine_with(move |scope| {
+                let (tx, rx) = http::channel::new(scope.notifier());
+                let (dns_tx, dns_rx) = http::channel::share(&tx);
+                *not = Some(tx);
+                connector.register(Registration {
+                    notify: (dns_tx, dns_rx),
+                });
+                rotor::Response::ok(ClientFsm::Connector(connector, rx))
+            }).unwrap();
+        }
+
+        let notifier = notifier.expect("loop.add_machine_with failed");
+        let _handle = try!(thread::Builder::new().name("hyper-client".to_owned()).spawn(move || {
+            loop_.run(Context {
+                connect_timeout: connect_timeout,
+                keep_alive: keep_alive,
+                queue: HashMap::new(),
+            }).unwrap()
+        }));
+
+        Ok(Client {
+            //handle: Some(handle),
+            tx: notifier,
+        })
     }
-
-    /// Build a Patch request.
-    pub fn patch<U: IntoUrl>(&self, url: U) -> RequestBuilder {
-        self.request(Method::Patch, url)
-    }
-
-    /// Build a Post request.
-    pub fn post<U: IntoUrl>(&self, url: U) -> RequestBuilder {
-        self.request(Method::Post, url)
-    }
-
-    /// Build a Put request.
-    pub fn put<U: IntoUrl>(&self, url: U) -> RequestBuilder {
-        self.request(Method::Put, url)
-    }
-
-    /// Build a Delete request.
-    pub fn delete<U: IntoUrl>(&self, url: U) -> RequestBuilder {
-        self.request(Method::Delete, url)
-    }
-
 
     /// Build a new request using this Client.
-    pub fn request<U: IntoUrl>(&self, method: Method, url: U) -> RequestBuilder {
-        RequestBuilder {
-            client: self,
-            method: method,
-            url: url.into_url(),
-            body: None,
-            headers: None,
+    ///
+    /// ## Error
+    ///
+    /// If the event loop thread has died, or the queue is full, a `ClientError`
+    /// will be returned.
+    pub fn request(&self, url: Url, handler: H) -> Result<(), ClientError<H>> {
+        self.tx.send(Notify::Connect(url, handler)).map_err(|e| {
+            match e.0 {
+                Some(Notify::Connect(url, handler)) => ClientError(Some((url, handler))),
+                _ => ClientError(None)
+            }
+        })
+    }
+
+    /// Close the Client loop.
+    pub fn close(self) {
+        // Most errors mean that the Receivers are already dead, which would
+        // imply the EventLoop panicked.
+        let _ = self.tx.send(Notify::Shutdown);
+    }
+}
+
+/// Configuration for a Client
+#[derive(Debug, Clone)]
+pub struct Config<C> {
+    connect_timeout: Duration,
+    connector: C,
+    keep_alive: bool,
+    max_idle: usize,
+    max_sockets: usize,
+}
+
+impl<C> Config<C> where C: Connect + Send + 'static {
+    /// Set the `Connect` type to be used.
+    #[inline]
+    pub fn connector<CC: Connect>(self, val: CC) -> Config<CC> {
+        Config {
+            connect_timeout: self.connect_timeout,
+            connector: val,
+            keep_alive: self.keep_alive,
+            max_idle: self.max_idle,
+            max_sockets: self.max_sockets,
+        }
+    }
+
+    /// Enable or disable keep-alive mechanics.
+    ///
+    /// Default is enabled.
+    #[inline]
+    pub fn keep_alive(mut self, val: bool) -> Config<C> {
+        self.keep_alive = val;
+        self
+    }
+
+    /// Set the max table size allocated for holding on to live sockets.
+    ///
+    /// Default is 1024.
+    #[inline]
+    pub fn max_sockets(mut self, val: usize) -> Config<C> {
+        self.max_sockets = val;
+        self
+    }
+
+    /// Set the timeout for connecting to a URL.
+    ///
+    /// Default is 10 seconds.
+    #[inline]
+    pub fn connect_timeout(mut self, val: Duration) -> Config<C> {
+        self.connect_timeout = val;
+        self
+    }
+
+    /// Construct the Client with this configuration.
+    #[inline]
+    pub fn build<H: Handler<C::Output>>(self) -> ::Result<Client<H>> {
+        Client::configured(self)
+    }
+}
+
+impl Default for Config<DefaultConnector> {
+    fn default() -> Config<DefaultConnector> {
+        Config {
+            connect_timeout: Duration::from_secs(10),
+            connector: DefaultConnector::default(),
+            keep_alive: true,
+            max_idle: 5,
+            max_sockets: 1024,
         }
     }
 }
 
-impl Default for Client {
-    fn default() -> Client { Client::new() }
+/// An error that can occur when trying to queue a request.
+#[derive(Debug)]
+pub struct ClientError<H>(Option<(Url, H)>);
+
+impl<H> ClientError<H> {
+    /// If the event loop was down, the `Url` and `Handler` can be recovered
+    /// from this method.
+    pub fn recover(self) -> Option<(Url, H)> {
+        self.0
+    }
 }
 
-/// Options for an individual Request.
+impl<H: fmt::Debug + ::std::any::Any> ::std::error::Error for ClientError<H> {
+    fn description(&self) -> &str {
+        "Cannot queue request"
+    }
+}
+
+impl<H> fmt::Display for ClientError<H> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("Cannot queue request")
+    }
+}
+
+/*
+impl Drop for Client {
+    fn drop(&mut self) {
+        self.handle.take().map(|handle| handle.join());
+    }
+}
+*/
+
+/// A trait to react to client events that happen for each message.
 ///
-/// One of these will be built for you if you use one of the convenience
-/// methods, such as `get()`, `post()`, etc.
-pub struct RequestBuilder<'a> {
-    client: &'a Client,
-    // We store a result here because it's good to keep RequestBuilder
-    // from being generic, but it is a nicer API to report the error
-    // from `send` (when other errors may be happening, so it already
-    // returns a `Result`). Why's it good to keep it non-generic? It
-    // stops downstream crates having to remonomorphise and recompile
-    // the code, which can take a while, since `send` is fairly large.
-    // (For an extreme example, a tiny crate containing
-    // `hyper::Client::new().get("x").send().unwrap();` took ~4s to
-    // compile with a generic RequestBuilder, but 2s with this scheme,)
-    url: Result<Url, UrlError>,
-    headers: Option<Headers>,
-    method: Method,
-    body: Option<Body<'a>>,
+/// Each event handler returns it's desired `Next` action.
+pub trait Handler<T: Transport>: Send + 'static {
+    /// This event occurs first, triggering when a `Request` head can be written..
+    fn on_request(&mut self, request: &mut Request) -> http::Next;
+    /// This event occurs each time the `Request` is ready to be written to.
+    fn on_request_writable(&mut self, request: &mut http::Encoder<T>) -> http::Next;
+    /// This event occurs after the first time this handler signals `Next::read()`,
+    /// and a Response has been parsed.
+    fn on_response(&mut self, response: Response) -> http::Next;
+    /// This event occurs each time the `Response` is ready to be read from.
+    fn on_response_readable(&mut self, response: &mut http::Decoder<T>) -> http::Next;
+
+    /// This event occurs whenever an `Error` occurs outside of the other events.
+    ///
+    /// This could IO errors while waiting for events, or a timeout, etc.
+    fn on_error(&mut self, err: ::Error) -> http::Next {
+        debug!("default Handler.on_error({:?})", err);
+        http::Next::remove()
+    }
+
+    /// This event occurs when this Handler has requested to remove the Transport.
+    fn on_remove(self, _transport: T) where Self: Sized {
+        debug!("default Handler.on_remove");
+    }
+
+    /// Receive a `Control` to manage waiting for this request.
+    fn on_control(&mut self, _: http::Control) {
+        debug!("default Handler.on_control()");
+    }
 }
 
-impl<'a> RequestBuilder<'a> {
+struct Message<H: Handler<T>, T: Transport> {
+    handler: H,
+    url: Option<Url>,
+    _marker: PhantomData<T>,
+}
 
-    /// Set a request body to be sent.
-    pub fn body<B: Into<Body<'a>>>(mut self, body: B) -> RequestBuilder<'a> {
-        self.body = Some(body.into());
-        self
-    }
+impl<H: Handler<T>, T: Transport> http::MessageHandler<T> for Message<H, T> {
+    type Message = http::ClientMessage;
 
-    /// Add additional headers to the request.
-    pub fn headers(mut self, headers: Headers) -> RequestBuilder<'a> {
-        self.headers = Some(headers);
-        self
-    }
-
-    /// Add an individual new header to the request.
-    pub fn header<H: Header + HeaderFormat>(mut self, header: H) -> RequestBuilder<'a> {
-        {
-            let mut headers = match self.headers {
-                Some(ref mut h) => h,
-                None => {
-                    self.headers = Some(Headers::new());
-                    self.headers.as_mut().unwrap()
-                }
-            };
-
-            headers.set(header);
+    fn on_outgoing(&mut self, head: &mut RequestHead) -> Next {
+        let url = self.url.take().expect("Message.url is missing");
+        if let Some(host) = url.host_str() {
+            head.headers.set(Host {
+                hostname: host.to_owned(),
+                port: url.port(),
+            });
         }
-        self
+        head.subject.1 = RequestUri::AbsolutePath(url.path().to_owned());
+        let mut req = self::request::new(head);
+        self.handler.on_request(&mut req)
     }
 
-    /// Execute this request and receive a Response back.
-    pub fn send(self) -> ::Result<Response> {
-        let RequestBuilder { client, method, url, headers, body } = self;
-        let mut url = try!(url);
-        trace!("send method={:?}, url={:?}, client={:?}", method, url, client);
+    fn on_encode(&mut self, transport: &mut http::Encoder<T>) -> Next {
+        self.handler.on_request_writable(transport)
+    }
 
-        let can_have_body = match method {
-            Method::Get | Method::Head => false,
-            _ => true
+    fn on_incoming(&mut self, head: http::ResponseHead) -> Next {
+        trace!("on_incoming {:?}", head);
+        let resp = response::new(head);
+        self.handler.on_response(resp)
+    }
+
+    fn on_decode(&mut self, transport: &mut http::Decoder<T>) -> Next {
+        self.handler.on_response_readable(transport)
+    }
+
+    fn on_error(&mut self, error: ::Error) -> Next {
+        self.handler.on_error(error)
+    }
+
+    fn on_remove(self, transport: T) {
+        self.handler.on_remove(transport);
+    }
+}
+
+struct Context<K, H> {
+    connect_timeout: Duration,
+    keep_alive: bool,
+    // idle: HashMap<K, Vec<Notify>>,
+    queue: HashMap<K, Vec<Queued<H>>>,
+}
+
+impl<K: http::Key, H> Context<K, H> {
+    fn pop_queue(&mut self, key: &K) -> Queued<H> {
+        let mut should_remove = false;
+        let queued = {
+            let mut vec = self.queue.get_mut(key).expect("handler not in queue for key");
+            let queued = vec.remove(0);
+            if vec.is_empty() {
+                should_remove = true;
+            }
+            queued
         };
+        if should_remove {
+            self.queue.remove(key);
+        }
+        queued
+    }
+}
 
-        let mut body = if can_have_body {
-            body
-        } else {
-            None
-        };
+impl<K: http::Key, H: Handler<T>, T: Transport> http::MessageHandlerFactory<K, T> for Context<K, H> {
+    type Output = Message<H, T>;
 
-        loop {
-            let mut req = {
-                let (host, port) = try!(get_host_and_port(&url));
-                let mut message = try!(client.protocol.new_message(&host, port, url.scheme()));
-                if url.scheme() == "http" && client.proxy.is_some() {
-                    message.set_proxied(true);
-                }
-
-                let mut headers = match headers {
-                    Some(ref headers) => headers.clone(),
-                    None => Headers::new(),
-                };
-                headers.set(Host {
-                    hostname: host.to_owned(),
-                    port: Some(port),
-                });
-                Request::with_headers_and_message(method.clone(), url.clone(), headers, message)
-            };
-
-            try!(req.set_write_timeout(client.write_timeout));
-            try!(req.set_read_timeout(client.read_timeout));
-
-            match (can_have_body, body.as_ref()) {
-                (true, Some(body)) => match body.size() {
-                    Some(size) => req.headers_mut().set(ContentLength(size)),
-                    None => (), // chunked, Request will add it automatically
-                },
-                (true, None) => req.headers_mut().set(ContentLength(0)),
-                _ => () // neither
-            }
-            let mut streaming = try!(req.start());
-            body.take().map(|mut rdr| copy(&mut rdr, &mut streaming));
-            let res = try!(streaming.send());
-            if !res.status.is_redirection() {
-                return Ok(res)
-            }
-            debug!("redirect code {:?} for {}", res.status, url);
-
-            let loc = {
-                // punching borrowck here
-                let loc = match res.headers.get::<Location>() {
-                    Some(&Location(ref loc)) => {
-                        Some(url.join(loc))
-                    }
-                    None => {
-                        debug!("no Location header");
-                        // could be 304 Not Modified?
-                        None
-                    }
-                };
-                match loc {
-                    Some(r) => r,
-                    None => return Ok(res)
-                }
-            };
-            url = match loc {
-                Ok(u) => u,
-                Err(e) => {
-                    debug!("Location header had invalid URI: {:?}", e);
-                    return Ok(res);
-                }
-            };
-            match client.redirect_policy {
-                // separate branches because they can't be one
-                RedirectPolicy::FollowAll => (), //continue
-                RedirectPolicy::FollowIf(cond) if cond(&url) => (), //continue
-                _ => return Ok(res),
-            }
+    fn create(&mut self, seed: http::Seed<K>) -> Self::Output {
+        let key = seed.key();
+        let queued = self.pop_queue(key);
+        let (url, mut handler) = (queued.url, queued.handler);
+        handler.on_control(seed.control());
+        Message {
+            handler: handler,
+            url: Some(url),
+            _marker: PhantomData,
         }
     }
 }
 
-/// An enum of possible body types for a Request.
-pub enum Body<'a> {
-    /// A Reader does not necessarily know it's size, so it is chunked.
-    ChunkedBody(&'a mut (Read + 'a)),
-    /// For Readers that can know their size, like a `File`.
-    SizedBody(&'a mut (Read + 'a), u64),
-    /// A String has a size, and uses Content-Length.
-    BufBody(&'a [u8] , usize),
+enum Notify<T> {
+    Connect(Url, T),
+    Shutdown,
 }
 
-impl<'a> Body<'a> {
-    fn size(&self) -> Option<u64> {
+enum ClientFsm<C, H>
+where C: Connect,
+      C::Output: Transport,
+      H: Handler<C::Output> {
+    Connector(C, http::channel::Receiver<Notify<H>>),
+    Socket(http::Conn<C::Key, C::Output, Message<H, C::Output>>)
+}
+
+unsafe impl<C, H> Send for ClientFsm<C, H>
+where
+    C: Connect + Send,
+    //C::Key, // Key doesn't need to be Send
+    C::Output: Transport, // Tranport doesn't need to be Send
+    H: Handler<C::Output> + Send
+{}
+
+impl<C, H> rotor::Machine for ClientFsm<C, H>
+where C: Connect,
+      C::Output: Transport,
+      H: Handler<C::Output> {
+    type Context = Context<C::Key, H>;
+    type Seed = (C::Key, C::Output);
+
+    fn create(seed: Self::Seed, scope: &mut Scope<Self::Context>) -> rotor::Response<Self, rotor::Void> {
+        rotor_try!(scope.register(&seed.1, EventSet::writable(), PollOpt::level()));
+        rotor::Response::ok(
+            ClientFsm::Socket(
+                http::Conn::new(seed.0, seed.1, scope.notifier())
+                    .keep_alive(scope.keep_alive)
+            )
+        )
+    }
+
+    fn ready(self, events: EventSet, scope: &mut Scope<Self::Context>) -> rotor::Response<Self, Self::Seed> {
+        match self {
+            ClientFsm::Connector(..) => {
+                unreachable!("Connector can never be ready")
+            },
+            ClientFsm::Socket(conn) => {
+                match conn.ready(events, scope) {
+                    Some((conn, None)) => rotor::Response::ok(ClientFsm::Socket(conn)),
+                    Some((conn, Some(dur))) => {
+                        rotor::Response::ok(ClientFsm::Socket(conn))
+                            .deadline(scope.now() + dur)
+                    }
+                    None => rotor::Response::done()
+                }
+            }
+        }
+    }
+
+    fn spawned(self, scope: &mut Scope<Self::Context>) -> rotor::Response<Self, Self::Seed> {
+        match self {
+            ClientFsm::Connector(..) => self.connect(scope),
+            other => rotor::Response::ok(other)
+        }
+    }
+
+    fn timeout(self, scope: &mut Scope<Self::Context>) -> rotor::Response<Self, Self::Seed> {
+        trace!("timeout now = {:?}", scope.now());
+        match self {
+            ClientFsm::Connector(..) => {
+                let now = scope.now();
+                let mut empty_keys = Vec::new();
+                {
+                for (key, mut vec) in scope.queue.iter_mut() {
+                    while !vec.is_empty() && vec[0].deadline <= now {
+                        let mut queued = vec.remove(0);
+                        let _ = queued.handler.on_error(::Error::Timeout);
+                    }
+                    if vec.is_empty() {
+                        empty_keys.push(key.clone());
+                    }
+                }
+                }
+                for key in &empty_keys {
+                    scope.queue.remove(key);
+                }
+                match self.deadline(scope) {
+                    Some(deadline) => {
+                        rotor::Response::ok(self).deadline(deadline)
+                    },
+                    None => rotor::Response::ok(self)
+                }
+            }
+            ClientFsm::Socket(conn) => {
+                match conn.timeout(scope) {
+                    Some((conn, None)) => rotor::Response::ok(ClientFsm::Socket(conn)),
+                    Some((conn, Some(dur))) => {
+                        rotor::Response::ok(ClientFsm::Socket(conn))
+                            .deadline(scope.now() + dur)
+                    }
+                    None => rotor::Response::done()
+                }
+            }
+        }
+    }
+
+    fn wakeup(self, scope: &mut Scope<Self::Context>) -> rotor::Response<Self, Self::Seed> {
+        match self {
+            ClientFsm::Connector(..) => {
+                self.connect(scope)
+            },
+            ClientFsm::Socket(conn) => match conn.wakeup(scope) {
+                Some((conn, None)) => rotor::Response::ok(ClientFsm::Socket(conn)),
+                Some((conn, Some(dur))) => {
+                    rotor::Response::ok(ClientFsm::Socket(conn))
+                        .deadline(scope.now() + dur)
+                }
+                None => rotor::Response::done()
+            }
+        }
+    }
+}
+
+impl<C, H> ClientFsm<C, H>
+where C: Connect,
+      C::Output: Transport,
+      H: Handler<C::Output> {
+    fn connect(self, scope: &mut rotor::Scope<<Self as rotor::Machine>::Context>) -> rotor::Response<Self, <Self as rotor::Machine>::Seed> {
+        match self {
+            ClientFsm::Connector(mut connector, rx) => {
+                if let Some((key, res)) = connector.connected() {
+                    match res {
+                        Ok(socket) => {
+                            trace!("connected");
+                            return rotor::Response::spawn(ClientFsm::Connector(connector, rx), (key, socket));
+                        },
+                        Err(e) => {
+                            trace!("connected error = {:?}", e);
+                            let mut queued = scope.pop_queue(&key);
+                            let _ = queued.handler.on_error(::Error::Io(e));
+                        }
+                    }
+                }
+                loop {
+                    match rx.try_recv() {
+                        Ok(Notify::Connect(url, mut handler)) => {
+                            // TODO: check pool for sockets to this domain
+                            match connector.connect(&url) {
+                                Ok(key) => {
+                                    let deadline = scope.now() + scope.connect_timeout;
+                                    scope.queue.entry(key).or_insert(Vec::new()).push(Queued {
+                                        deadline: deadline,
+                                        handler: handler,
+                                        url: url
+                                    });
+                                }
+                                Err(e) => {
+                                    let _todo = handler.on_error(e.into());
+                                    trace!("Connect error, next={:?}", _todo);
+                                    continue;
+                                }
+                            }
+                        }
+                        Ok(Notify::Shutdown) => {
+                            scope.shutdown_loop();
+                            return rotor::Response::done()
+                        },
+                        Err(mpsc::TryRecvError::Disconnected) => {
+                            // if there is no way to send additional requests,
+                            // what more can the loop do? i suppose we should
+                            // shutdown.
+                            scope.shutdown_loop();
+                            return rotor::Response::done()
+                        }
+                        Err(mpsc::TryRecvError::Empty) => {
+                            // spurious wakeup or loop is done
+                            let fsm = ClientFsm::Connector(connector, rx);
+                            return match fsm.deadline(scope) {
+                                Some(deadline) => {
+                                    rotor::Response::ok(fsm).deadline(deadline)
+                                },
+                                None => rotor::Response::ok(fsm)
+                            };
+                        }
+                    }
+                }
+            },
+            other => rotor::Response::ok(other)
+        }
+    }
+
+    fn deadline(&self, scope: &mut rotor::Scope<<Self as rotor::Machine>::Context>) -> Option<rotor::Time> {
         match *self {
-            Body::SizedBody(_, len) => Some(len),
-            Body::BufBody(_, len) => Some(len as u64),
+            ClientFsm::Connector(..) => {
+                let mut earliest = None;
+                for vec in scope.queue.values() {
+                    for queued in vec {
+                        match earliest {
+                            Some(ref mut earliest) => {
+                                if queued.deadline < *earliest {
+                                    *earliest = queued.deadline;
+                                }
+                            }
+                            None => earliest = Some(queued.deadline)
+                        }
+                    }
+                }
+                trace!("deadline = {:?}, now = {:?}", earliest, scope.now());
+                earliest
+            }
             _ => None
         }
     }
 }
 
-impl<'a> Read for Body<'a> {
-    #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        match *self {
-            Body::ChunkedBody(ref mut r) => r.read(buf),
-            Body::SizedBody(ref mut r, _) => r.read(buf),
-            Body::BufBody(ref mut r, _) => Read::read(r, buf),
-        }
-    }
+struct Queued<H> {
+    deadline: rotor::Time,
+    handler: H,
+    url: Url,
 }
 
-impl<'a> Into<Body<'a>> for &'a [u8] {
-    #[inline]
-    fn into(self) -> Body<'a> {
-        Body::BufBody(self, self.len())
-    }
-}
-
-impl<'a> Into<Body<'a>> for &'a str {
-    #[inline]
-    fn into(self) -> Body<'a> {
-        self.as_bytes().into()
-    }
-}
-
-impl<'a> Into<Body<'a>> for &'a String {
-    #[inline]
-    fn into(self) -> Body<'a> {
-        self.as_bytes().into()
-    }
-}
-
-impl<'a, R: Read> From<&'a mut R> for Body<'a> {
-    #[inline]
-    fn from(r: &'a mut R) -> Body<'a> {
-        Body::ChunkedBody(r)
-    }
-}
-
-/// A helper trait to convert common objects into a Url.
-pub trait IntoUrl {
-    /// Consumes the object, trying to return a Url.
-    fn into_url(self) -> Result<Url, UrlError>;
-}
-
-impl IntoUrl for Url {
-    fn into_url(self) -> Result<Url, UrlError> {
-        Ok(self)
-    }
-}
-
-impl<'a> IntoUrl for &'a str {
-    fn into_url(self) -> Result<Url, UrlError> {
-        Url::parse(self)
-    }
-}
-
-impl<'a> IntoUrl for &'a String {
-    fn into_url(self) -> Result<Url, UrlError> {
-        Url::parse(self)
-    }
-}
-
-/// Behavior regarding how to handle redirects within a Client.
-#[derive(Copy)]
-pub enum RedirectPolicy {
-    /// Don't follow any redirects.
-    FollowNone,
-    /// Follow all redirects.
-    FollowAll,
-    /// Follow a redirect if the contained function returns true.
-    FollowIf(fn(&Url) -> bool),
-}
-
-impl fmt::Debug for RedirectPolicy {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            RedirectPolicy::FollowNone => fmt.write_str("FollowNone"),
-            RedirectPolicy::FollowAll => fmt.write_str("FollowAll"),
-            RedirectPolicy::FollowIf(_) => fmt.write_str("FollowIf"),
-        }
-    }
-}
-
-// This is a hack because of upstream typesystem issues.
-impl Clone for RedirectPolicy {
-    fn clone(&self) -> RedirectPolicy {
-        *self
-    }
-}
-
-impl Default for RedirectPolicy {
-    fn default() -> RedirectPolicy {
-        RedirectPolicy::FollowAll
-    }
-}
-
-
-fn get_host_and_port(url: &Url) -> ::Result<(&str, u16)> {
-    let host = match url.host_str() {
-        Some(host) => host,
-        None => return Err(Error::Uri(UrlError::EmptyHost))
-    };
-    trace!("host={:?}", host);
-    let port = match url.port_or_known_default() {
-        Some(port) => port,
-        None => return Err(Error::Uri(UrlError::InvalidPort))
-    };
-    trace!("port={:?}", port);
-    Ok((host, port))
+#[doc(hidden)]
+#[allow(missing_debug_implementations)]
+pub struct Registration {
+    notify: (http::channel::Sender<self::dns::Answer>, http::channel::Receiver<self::dns::Answer>),
 }
 
 #[cfg(test)]
 mod tests {
+    /*
     use std::io::Read;
     use header::Server;
-    use http::h1::Http11Message;
-    use mock::{MockStream, MockSsl};
-    use super::{Client, RedirectPolicy};
-    use super::proxy::Proxy;
+    use super::{Client};
     use super::pool::Pool;
     use url::Url;
-
-    mock_connector!(MockRedirectPolicy {
-        "http://127.0.0.1" =>       "HTTP/1.1 301 Redirect\r\n\
-                                     Location: http://127.0.0.2\r\n\
-                                     Server: mock1\r\n\
-                                     \r\n\
-                                    "
-        "http://127.0.0.2" =>       "HTTP/1.1 302 Found\r\n\
-                                     Location: https://127.0.0.3\r\n\
-                                     Server: mock2\r\n\
-                                     \r\n\
-                                    "
-        "https://127.0.0.3" =>      "HTTP/1.1 200 OK\r\n\
-                                     Server: mock3\r\n\
-                                     \r\n\
-                                    "
-    });
-
-
-    #[test]
-    fn test_proxy() {
-        use super::pool::PooledStream;
-        type MessageStream = PooledStream<super::proxy::Proxied<MockStream, MockStream>>;
-        mock_connector!(ProxyConnector {
-            b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
-        });
-        let tunnel = Proxy {
-            connector: ProxyConnector,
-            proxy: ("example.proxy".into(), 8008),
-            ssl: MockSsl,
-        };
-        let mut client = Client::with_connector(Pool::with_connector(Default::default(), tunnel));
-        client.proxy = Some(("example.proxy".into(), 8008));
-        let mut dump = vec![];
-        client.get("http://127.0.0.1/foo/bar").send().unwrap().read_to_end(&mut dump).unwrap();
-
-        let box_message = client.protocol.new_message("127.0.0.1", 80, "http").unwrap();
-        let message = box_message.downcast::<Http11Message>().unwrap();
-        let stream =  message.into_inner().downcast::<MessageStream>().unwrap().into_inner().into_normal().unwrap();;
-
-        let s = ::std::str::from_utf8(&stream.write).unwrap();
-        let request_line = "GET http://127.0.0.1/foo/bar HTTP/1.1\r\n";
-        assert!(s.starts_with(request_line), "{:?} doesn't start with {:?}", s, request_line);
-        assert!(s.contains("Host: 127.0.0.1\r\n"));
-    }
-
-    #[test]
-    fn test_proxy_tunnel() {
-        use super::pool::PooledStream;
-        type MessageStream = PooledStream<super::proxy::Proxied<MockStream, MockStream>>;
-
-        mock_connector!(ProxyConnector {
-            b"HTTP/1.1 200 OK\r\n\r\n",
-            b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
-        });
-        let tunnel = Proxy {
-            connector: ProxyConnector,
-            proxy: ("example.proxy".into(), 8008),
-            ssl: MockSsl,
-        };
-        let mut client = Client::with_connector(Pool::with_connector(Default::default(), tunnel));
-        client.proxy = Some(("example.proxy".into(), 8008));
-        let mut dump = vec![];
-        client.get("https://127.0.0.1/foo/bar").send().unwrap().read_to_end(&mut dump).unwrap();
-
-        let box_message = client.protocol.new_message("127.0.0.1", 443, "https").unwrap();
-        let message = box_message.downcast::<Http11Message>().unwrap();
-        let stream = message.into_inner().downcast::<MessageStream>().unwrap().into_inner().into_tunneled().unwrap();
-
-        let s = ::std::str::from_utf8(&stream.write).unwrap();
-        let connect_line = "CONNECT 127.0.0.1:443 HTTP/1.1\r\nHost: 127.0.0.1:443\r\n\r\n";
-        assert_eq!(&s[..connect_line.len()], connect_line);
-
-        let s = &s[connect_line.len()..];
-        let request_line = "GET /foo/bar HTTP/1.1\r\n";
-        assert_eq!(&s[..request_line.len()], request_line);
-        assert!(s.contains("Host: 127.0.0.1\r\n"));
-    }
-
-    #[test]
-    fn test_redirect_followall() {
-        let mut client = Client::with_connector(MockRedirectPolicy);
-        client.set_redirect_policy(RedirectPolicy::FollowAll);
-
-        let res = client.get("http://127.0.0.1").send().unwrap();
-        assert_eq!(res.headers.get(), Some(&Server("mock3".to_owned())));
-    }
-
-    #[test]
-    fn test_redirect_dontfollow() {
-        let mut client = Client::with_connector(MockRedirectPolicy);
-        client.set_redirect_policy(RedirectPolicy::FollowNone);
-        let res = client.get("http://127.0.0.1").send().unwrap();
-        assert_eq!(res.headers.get(), Some(&Server("mock1".to_owned())));
-    }
-
-    #[test]
-    fn test_redirect_followif() {
-        fn follow_if(url: &Url) -> bool {
-            !url.as_str().contains("127.0.0.3")
-        }
-        let mut client = Client::with_connector(MockRedirectPolicy);
-        client.set_redirect_policy(RedirectPolicy::FollowIf(follow_if));
-        let res = client.get("http://127.0.0.1").send().unwrap();
-        assert_eq!(res.headers.get(), Some(&Server("mock2".to_owned())));
-    }
 
     mock_connector!(Issue640Connector {
         b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\n",
@@ -621,4 +628,5 @@ mod tests {
         client.post("http://127.0.0.1").send().unwrap().read_to_string(&mut s).unwrap();
         assert_eq!(s, "POST");
     }
+    */
 }

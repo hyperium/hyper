@@ -137,6 +137,12 @@ define_encode_set! {
     }
 }
 
+impl fmt::Debug for HTTP_VALUE {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.pad("HTTP_VALUE")
+    }
+}
+
 impl Display for ExtendedValue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let encoded_value =

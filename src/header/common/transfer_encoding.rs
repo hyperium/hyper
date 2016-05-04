@@ -49,5 +49,12 @@ header! {
     }
 }
 
+impl TransferEncoding {
+    /// Constructor for the most common Transfer-Encoding, `chunked`.
+    pub fn chunked() -> TransferEncoding {
+        TransferEncoding(vec![Encoding::Chunked])
+    }
+}
+
 bench_header!(normal, TransferEncoding, { vec![b"chunked, gzip".to_vec()] });
 bench_header!(ext, TransferEncoding, { vec![b"ext".to_vec()] });
