@@ -1,3 +1,17 @@
+### v0.9.2 (2016-05-04)
+
+
+#### Features
+
+* **client:**
+  *  proper proxy and tunneling in Client ([f36c6b25](f36c6b25), closes [#774](774))
+  *  add Proxy support ([25010fc1](25010fc1), closes [#531](531))
+
+#### Performance
+
+* **client:**  don't keep Pool mutex locked during getaddrinfo ([5fcc04a6](5fcc04a6))
+
+
 ### v0.9.1 (2016-04-21)
 
 
