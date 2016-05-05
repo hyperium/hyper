@@ -102,22 +102,31 @@ impl<C: NetworkConnector<Stream=S>, S: NetworkStream + Send> NetworkConnector fo
     type Stream = PooledStream<S>;
     fn connect(&self, host: &str, port: u16, scheme: &str) -> ::Result<PooledStream<S>> {
         let key = key(host, port, scheme);
-        let mut should_remove = false;
-        let inner = match self.inner.lock().unwrap().conns.get_mut(&key) {
-            Some(ref mut vec) => {
+
+        let inner = {
+            // keep the mutex locked only in this block
+            let mut locked = self.inner.lock().unwrap();
+            let mut should_remove = false;
+            let inner = locked.conns.get_mut(&key).map(|vec| {
                 trace!("Pool had connection, using");
                 should_remove = vec.len() == 1;
                 vec.pop().unwrap()
+            });
+            if should_remove {
+                locked.conns.remove(&key);
             }
+            inner
+        };
+
+        let inner = match inner {
+            Some(inner) => inner,
             None => PooledStreamInner {
                 key: key.clone(),
                 stream: try!(self.connector.connect(host, port, scheme)),
                 previous_response_expected_no_content: false,
             }
+
         };
-        if should_remove {
-            self.inner.lock().unwrap().conns.remove(&key);
-        }
         Ok(PooledStream {
             inner: Some(inner),
             is_closed: false,
