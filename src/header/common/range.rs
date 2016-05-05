@@ -64,8 +64,8 @@ pub enum Range {
     Unregistered(String, String)
 }
 
-/// Each Range::Bytes header can contain one or more ByteRangeSpecs.
-/// Each ByteRangeSpec defines a range of bytes to fetch
+/// Each `Range::Bytes` header can contain one or more `ByteRangeSpecs`.
+/// Each `ByteRangeSpec` defines a range of bytes to fetch
 #[derive(PartialEq, Clone, Debug)]
 pub enum ByteRangeSpec {
     /// Get all bytes between x and y ("x-y")
