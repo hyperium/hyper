@@ -36,7 +36,7 @@ pub trait NetworkListener: Clone {
     }
 }
 
-/// An iterator wrapper over a NetworkAcceptor.
+/// An iterator wrapper over a `NetworkAcceptor`.
 pub struct NetworkConnections<'a, N: NetworkListener + 'a>(&'a mut N);
 
 impl<'a, N: NetworkListener + 'a> Iterator for NetworkConnections<'a, N> {
@@ -46,7 +46,7 @@ impl<'a, N: NetworkListener + 'a> Iterator for NetworkConnections<'a, N> {
     }
 }
 
-/// An abstraction over streams that a Server can utilize.
+/// An abstraction over streams that a `Server` can utilize.
 pub trait NetworkStream: Read + Write + Any + Send + Typeable {
     /// Get the remote address of the underlying connection.
     fn peer_addr(&mut self) -> io::Result<SocketAddr>;
@@ -76,7 +76,7 @@ pub trait NetworkStream: Read + Write + Any + Send + Typeable {
 
 /// A connector creates a NetworkStream.
 pub trait NetworkConnector {
-    /// Type of Stream to create
+    /// Type of `Stream` to create
     type Stream: Into<Box<NetworkStream + Send>>;
 
     /// Connect to a remote address.
@@ -111,13 +111,13 @@ impl NetworkStream {
 }
 
 impl NetworkStream {
-    /// Is the underlying type in this trait object a T?
+    /// Is the underlying type in this trait object a `T`?
     #[inline]
     pub fn is<T: Any>(&self) -> bool {
         (*self).get_type() == TypeId::of::<T>()
     }
 
-    /// If the underlying type is T, get a reference to the contained data.
+    /// If the underlying type is `T`, get a reference to the contained data.
     #[inline]
     pub fn downcast_ref<T: Any>(&self) -> Option<&T> {
         if self.is::<T>() {
@@ -127,7 +127,7 @@ impl NetworkStream {
         }
     }
 
-    /// If the underlying type is T, get a mutable reference to the contained
+    /// If the underlying type is `T`, get a mutable reference to the contained
     /// data.
     #[inline]
     pub fn downcast_mut<T: Any>(&mut self) -> Option<&mut T> {
@@ -138,7 +138,7 @@ impl NetworkStream {
         }
     }
 
-    /// If the underlying type is T, extract it.
+    /// If the underlying type is `T`, extract it.
     #[inline]
     pub fn downcast<T: Any>(self: Box<NetworkStream>)
             -> Result<Box<T>, Box<NetworkStream>> {
@@ -166,13 +166,13 @@ impl NetworkStream + Send {
 }
 
 impl NetworkStream + Send {
-    /// Is the underlying type in this trait object a T?
+    /// Is the underlying type in this trait object a `T`?
     #[inline]
     pub fn is<T: Any>(&self) -> bool {
         (*self).get_type() == TypeId::of::<T>()
     }
 
-    /// If the underlying type is T, get a reference to the contained data.
+    /// If the underlying type is `T`, get a reference to the contained data.
     #[inline]
     pub fn downcast_ref<T: Any>(&self) -> Option<&T> {
         if self.is::<T>() {
@@ -182,7 +182,7 @@ impl NetworkStream + Send {
         }
     }
 
-    /// If the underlying type is T, get a mutable reference to the contained
+    /// If the underlying type is `T`, get a mutable reference to the contained
     /// data.
     #[inline]
     pub fn downcast_mut<T: Any>(&mut self) -> Option<&mut T> {
@@ -193,7 +193,7 @@ impl NetworkStream + Send {
         }
     }
 
-    /// If the underlying type is T, extract it.
+    /// If the underlying type is `T`, extract it.
     #[inline]
     pub fn downcast<T: Any>(self: Box<NetworkStream + Send>)
             -> Result<Box<T>, Box<NetworkStream + Send>> {
@@ -270,7 +270,7 @@ impl ::std::os::unix::io::FromRawFd for HttpListener {
     }
 }
 
-/// A wrapper around a TcpStream.
+/// A wrapper around a `TcpStream`.
 pub struct HttpStream(pub TcpStream);
 
 impl Clone for HttpStream {
@@ -381,7 +381,7 @@ impl NetworkConnector for HttpConnector {
     }
 }
 
-/// A closure as a connector used to generate TcpStreams per request
+/// A closure as a connector used to generate `TcpStream`s per request
 ///
 /// # Example
 ///
@@ -393,7 +393,7 @@ impl NetworkConnector for HttpConnector {
 /// });
 /// ```
 ///
-/// Example using TcpBuilder from the net2 crate if you want to configure your source socket:
+/// Example using `TcpBuilder` from the net2 crate if you want to configure your source socket:
 ///
 /// ```norun
 /// Client::with_connector(|addr: &str, port: u16, scheme: &str| {

@@ -131,7 +131,7 @@ pub trait Header: Clone + Any + Send + Sync {
 
 /// A trait for any object that will represent a header field and value.
 ///
-/// This trait represents the formatting of a Header for output to a TcpStream.
+/// This trait represents the formatting of a `Header` for output to a TcpStream.
 pub trait HeaderFormat: fmt::Debug + HeaderClone + Any + Typeable + Send + Sync {
     /// Format a header to be output into a TcpStream.
     ///
@@ -460,7 +460,7 @@ impl<'a> fmt::Display for &'a (HeaderFormat + Send + Sync) {
 ///
 /// This can be used like so: `format!("{}", HeaderFormatter(&header))` to
 /// get the representation of a Header which will be written to an
-/// outgoing TcpStream.
+/// outgoing `TcpStream`.
 pub struct HeaderFormatter<'a, H: HeaderFormat>(pub &'a H);
 
 impl<'a, H: HeaderFormat> fmt::Display for HeaderFormatter<'a, H> {

@@ -8,7 +8,7 @@ use header::parsing::from_one_raw_str;
 /// client requests add one automatically.
 ///
 /// Currently is just a String, but it should probably become a better type,
-/// like url::Host or something.
+/// like `url::Host` or something.
 ///
 /// # Examples
 /// ```

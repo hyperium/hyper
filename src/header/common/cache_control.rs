@@ -70,7 +70,7 @@ impl HeaderFormat for CacheControl {
     }
 }
 
-/// CacheControl contains a list of these directives.
+/// `CacheControl` contains a list of these directives.
 #[derive(PartialEq, Clone, Debug)]
 pub enum CacheDirective {
     /// "no-cache"
