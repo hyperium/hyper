@@ -212,7 +212,7 @@ impl HttpMessage for Http11Message {
 
                             if encodings {
                                 head.headers.set(
-                                    header::TransferEncoding(vec![header::Encoding::Chunked]))
+                                    header::TransferEncoding(vec![header::Encoding::Chunked]));
                             }
                         }
 

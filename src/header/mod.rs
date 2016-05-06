@@ -27,7 +27,7 @@
 //! fn main () {
 //!     let mut headers = Headers::new();
 //!
-//!     headers.set(XRequestGuid("a proper guid".to_owned()))
+//!     headers.set(XRequestGuid("a proper guid".to_owned()));
 //! }
 //! ```
 //!
@@ -212,10 +212,11 @@ impl Headers {
     /// Set a header field to the corresponding value.
     ///
     /// The field is determined by the type of the value being set.
-    pub fn set<H: Header + HeaderFormat>(&mut self, value: H) {
+    pub fn set<H: Header + HeaderFormat>(&mut self, value: H) -> &mut Headers {
         trace!("Headers.set( {:?}, {:?} )", header_name::<H>(), value);
         self.data.insert(UniCase(CowStr(Cow::Borrowed(header_name::<H>()))),
                          Item::new_typed(Box::new(value)));
+        self
     }
 
     /// Access the raw value of a header.
@@ -245,9 +246,10 @@ impl Headers {
     /// headers.set_raw("content-length", vec![b"5".to_vec()]);
     /// ```
     pub fn set_raw<K: Into<Cow<'static, str>> + fmt::Debug>(&mut self, name: K,
-            value: Vec<Vec<u8>>) {
+            value: Vec<Vec<u8>>) -> &mut Headers {
         trace!("Headers.set_raw( {:?}, {:?} )", name, value);
         self.data.insert(UniCase(CowStr(name.into())), Item::new_raw(value));
+        self
     }
 
     /// Remove a header set by set_raw
@@ -670,6 +672,22 @@ mod tests {
     }
 
     #[test]
+    fn test_chained_set_raw() {
+        let mut headers = Headers::new();
+        headers.set(ContentLength(10)).set_raw("content-LENGTH", vec![b"20".to_vec()]);
+        assert_eq!(headers.get_raw("Content-length").unwrap(), &[b"20".to_vec()][..]);
+        assert_eq!(headers.get(), Some(&ContentLength(20)));
+    }
+
+    #[test]
+    fn test_chained_set() {
+        let mut headers = Headers::new();
+        headers.set(ContentLength(10)).set(ContentLength(20));
+        assert_eq!(headers.get_raw("Content-length").unwrap(), &[b"20".to_vec()][..]);
+        assert_eq!(headers.get(), Some(&ContentLength(20)));
+    }
+
+    #[test]
     fn test_remove_raw() {
         let mut headers = Headers::new();
         headers.set_raw("content-LENGTH", vec![b"20".to_vec()]);
@@ -777,7 +795,7 @@ mod tests {
     #[bench]
     fn bench_headers_set(b: &mut Bencher) {
         let mut headers = Headers::new();
-        b.iter(|| headers.set(ContentLength(12)))
+        b.iter(|| { headers.set(ContentLength(12)); })
     }
 
     #[cfg(feature = "nightly")]
