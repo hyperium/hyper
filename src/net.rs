@@ -619,7 +619,7 @@ mod openssl {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use openssl::ssl::{Ssl, SslContext, SslStream, SslMethod, SSL_VERIFY_NONE};
+    use openssl::ssl::{Ssl, SslContext, SslStream, SslMethod, SSL_VERIFY_NONE, SSL_VERIFY_PEER, SSL_OP_NO_SSLV2, SSL_OP_NO_SSLV3};
     use openssl::ssl::error::StreamError as SslIoError;
     use openssl::ssl::error::SslError;
     use openssl::x509::X509FileType;
@@ -651,11 +651,10 @@ mod openssl {
 
     impl Default for OpensslClient {
         fn default() -> OpensslClient {
-            OpensslClient(SslContext::new(SslMethod::Sslv23).unwrap_or_else(|e| {
-                // if we cannot create a SslContext, that's because of a
-                // serious problem. just crash.
-                panic!("{}", e)
-            }))
+            let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
+            ctx.set_default_verify_paths().unwrap();
+            ctx.set_options(SSL_OP_NO_SSLV2 | SSL_OP_NO_SSLV3);
+            OpensslClient(ctx)
         }
     }
 
@@ -664,8 +663,10 @@ mod openssl {
         type Stream = SslStream<T>;
 
         fn wrap_client(&self, stream: T, host: &str) -> ::Result<Self::Stream> {
-            let ssl = try!(Ssl::new(&self.0));
+            let mut ssl = try!(Ssl::new(&self.0));
             try!(ssl.set_hostname(host));
+            let host = host.to_owned();
+            ssl.set_verify_callback(SSL_VERIFY_PEER, move |p, x| ::openssl_verify::verify_callback(&host, p, x));
             SslStream::connect(ssl, stream).map_err(From::from)
         }
     }
