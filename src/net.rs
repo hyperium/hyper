@@ -606,7 +606,7 @@ pub type DefaultConnector = HttpConnector;
 
 #[cfg(feature = "openssl")]
 #[doc(hidden)]
-pub type DefaultConnector = HttpsConnector<self::openssl::Openssl>;
+pub type DefaultConnector = HttpsConnector<self::openssl::OpensslClient>;
 
 #[cfg(all(feature = "security-framework", not(feature = "openssl")))]
 pub type DefaultConnector = HttpsConnector<self::security_framework::ClientWrapper>;
@@ -619,7 +619,7 @@ mod openssl {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use openssl::ssl::{Ssl, SslContext, SslStream, SslMethod, SSL_VERIFY_NONE, SSL_VERIFY_PEER, SSL_OP_NO_SSLV2, SSL_OP_NO_SSLV3};
+    use openssl::ssl::{Ssl, SslContext, SslStream, SslMethod, SSL_VERIFY_NONE, SSL_VERIFY_PEER, SSL_OP_NO_SSLV2, SSL_OP_NO_SSLV3, SSL_OP_NO_COMPRESSION};
     use openssl::ssl::error::StreamError as SslIoError;
     use openssl::ssl::error::SslError;
     use openssl::x509::X509FileType;
@@ -653,7 +653,10 @@ mod openssl {
         fn default() -> OpensslClient {
             let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
             ctx.set_default_verify_paths().unwrap();
-            ctx.set_options(SSL_OP_NO_SSLV2 | SSL_OP_NO_SSLV3);
+            ctx.set_options(SSL_OP_NO_SSLV2 | SSL_OP_NO_SSLV3 | SSL_OP_NO_COMPRESSION);
+            // cipher list taken from curl:
+            // https://github.com/curl/curl/blob/5bf5f6ebfcede78ef7c2b16daa41c4b7ba266087/lib/vtls/openssl.h#L120
+            ctx.set_cipher_list("ALL!EXPORT!EXPORT40!EXPORT56!aNULL!LOW!RC4@STRENGTH").unwrap();
             OpensslClient(ctx)
         }
     }
