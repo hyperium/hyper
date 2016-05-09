@@ -3,8 +3,6 @@ use std::any::TypeId;
 use std::fmt;
 use std::str::from_utf8;
 
-use typeable::Typeable;
-
 use super::cell::{OptCell, PtrMapCell};
 use header::{Header, HeaderFormat};
 
