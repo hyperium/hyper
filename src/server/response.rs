@@ -414,7 +414,6 @@ mod tests {
 
     #[test]
     fn test_no_content() {
-        use std::io::Write;
         use status::StatusCode;
         let mut headers = Headers::new();
         let mut stream = MockStream::new();
