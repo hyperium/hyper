@@ -21,7 +21,7 @@ use Error;
 /// >                / authority-form
 /// >                / asterisk-form
 /// > ```
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum RequestUri {
     /// The most common request target, an absolute path and optional query.
     ///
