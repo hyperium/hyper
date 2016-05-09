@@ -1,15 +1,37 @@
+### v0.9.4 (2016-05-09)
+
+
+#### Bug Fixes
+
+* **warnings:** remove unused_code warnings from newest nightlies ([e7229480](https://github.com/hyperium/hyper/commit/e7229480ea669bbe62fe644e312ba06cdca45b1c))
+
+
+#### Features
+
+* **ssl:**
+  * enable hostname verification by default for OpenSSL ([01160abd](https://github.com/hyperium/hyper/commit/01160abd92956e5f995cc45790df7a2b86c8989f), closes [#472](https://github.com/hyperium/hyper/issues/472))
+  * use secure ciphers by default in openssl ([54bf6ade](https://github.com/hyperium/hyper/commit/54bf6adeee1c3a231925f3efa7e38f875bc2d4d5))
+
+### v0.9.3 (2016-05-09)
+
+
+#### Bug Fixes
+
+* **client:** fix panic in Pool::connect ([e51bafe2](https://github.com/hyperium/hyper/commit/e51bafe2e4f2a1efc36790232bef488c91131d0b), closes [#780](https://github.com/hyperium/hyper/issues/780))
+
+
 ### v0.9.2 (2016-05-04)
 
 
 #### Features
 
 * **client:**
-  *  proper proxy and tunneling in Client ([f36c6b25](f36c6b25), closes [#774](774))
-  *  add Proxy support ([25010fc1](25010fc1), closes [#531](531))
+  *  proper proxy and tunneling in Client ([f36c6b25](https://github.com/hyperium/hyper/commit/f36c6b25), closes [#774](https://github.com/hyperium/hyper/issues/774))
+  *  add Proxy support ([25010fc1](https://github.com/hyperium/hyper/commit/25010fc1), closes [#531](https://github.com/hyperium/hyper/issues/531))
 
 #### Performance
 
-* **client:**  don't keep Pool mutex locked during getaddrinfo ([5fcc04a6](5fcc04a6))
+* **client:**  don't keep Pool mutex locked during getaddrinfo ([5fcc04a6](https://github.com/hyperium/hyper/commit/5fcc04a6))
 
 
 ### v0.9.1 (2016-04-21)
