@@ -5,9 +5,61 @@ extern crate env_logger;
 
 use std::env;
 use std::io;
+use std::sync::mpsc;
+use std::time::Duration;
 
-use hyper::Client;
+use hyper::client::{Client, Request, Response, DefaultTransport as HttpStream};
 use hyper::header::Connection;
+use hyper::{Decoder, Encoder, Next};
+
+#[derive(Debug)]
+struct Dump(mpsc::Sender<()>);
+
+impl Drop for Dump {
+    fn drop(&mut self) {
+        let _ = self.0.send(());
+    }
+}
+
+fn read() -> Next {
+    Next::read().timeout(Duration::from_secs(10))
+}
+
+impl hyper::client::Handler<HttpStream> for Dump {
+    fn on_request(&mut self, req: &mut Request) -> Next {
+        req.headers_mut().set(Connection::close());
+        read()
+    }
+
+    fn on_request_writable(&mut self, _encoder: &mut Encoder<HttpStream>) -> Next {
+        read()
+    }
+
+    fn on_response(&mut self, res: Response) -> Next {
+        println!("Response: {}", res.status());
+        println!("Headers:\n{}", res.headers());
+        read()
+    }
+
+    fn on_response_readable(&mut self, decoder: &mut Decoder<HttpStream>) -> Next {
+        match io::copy(decoder, &mut io::stdout()) {
+            Ok(0) => Next::end(),
+            Ok(_) => read(),
+            Err(e) => match e.kind() {
+                io::ErrorKind::WouldBlock => Next::read(),
+                _ => {
+                    println!("ERROR: {}", e);
+                    Next::end()
+                }
+            }
+        }
+    }
+
+    fn on_error(&mut self, err: hyper::Error) -> Next {
+        println!("ERROR: {}", err);
+        Next::remove()
+    }
+}
 
 fn main() {
     env_logger::init().unwrap();
@@ -20,26 +72,11 @@ fn main() {
         }
     };
 
-    let client = match env::var("HTTP_PROXY") {
-        Ok(mut proxy) => {
-            // parse the proxy, message if it doesn't make sense
-            let mut port = 80;
-            if let Some(colon) = proxy.rfind(':') {
-                port = proxy[colon + 1..].parse().unwrap_or_else(|e| {
-                    panic!("HTTP_PROXY is malformed: {:?}, port parse error: {}", proxy, e);
-                });
-                proxy.truncate(colon);
-            }
-            Client::with_http_proxy(proxy, port)
-        },
-        _ => Client::new()
-    };
+    let (tx, rx) = mpsc::channel();
+    let client = Client::new().expect("Failed to create a Client");
+    client.request(url.parse().unwrap(), Dump(tx)).unwrap();
 
-    let mut res = client.get(&*url)
-        .header(Connection::close())
-        .send().unwrap();
-
-    println!("Response: {}", res.status);
-    println!("Headers:\n{}", res.headers);
-    io::copy(&mut res, &mut io::stdout()).unwrap();
+    // wait till done
+    let _  = rx.recv();
+    client.close();
 }

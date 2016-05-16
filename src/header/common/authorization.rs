@@ -3,7 +3,7 @@ use std::fmt::{self, Display};
 use std::str::{FromStr, from_utf8};
 use std::ops::{Deref, DerefMut};
 use serialize::base64::{ToBase64, FromBase64, Standard, Config, Newline};
-use header::{Header, HeaderFormat};
+use header::{Header};
 
 /// `Authorization` header, defined in [RFC7235](https://tools.ietf.org/html/rfc7235#section-4.2)
 ///
@@ -97,9 +97,7 @@ impl<S: Scheme + Any> Header for Authorization<S> where <S as FromStr>::Err: 'st
             }
         }
     }
-}
 
-impl<S: Scheme + Any> HeaderFormat for Authorization<S> where <S as FromStr>::Err: 'static {
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(scheme) = <S as Scheme>::scheme() {
             try!(write!(f, "{} ", scheme))

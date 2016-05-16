@@ -1,6 +1,6 @@
 use std::fmt;
 
-use header::{HeaderFormat, Header, parsing};
+use header::{Header, parsing};
 
 /// `Content-Length` header, defined in
 /// [RFC7230](http://tools.ietf.org/html/rfc7230#section-3.3.2)
@@ -55,9 +55,7 @@ impl Header for ContentLength {
             .unwrap_or(Err(::Error::Header))
             .map(ContentLength)
     }
-}
 
-impl HeaderFormat for ContentLength {
     #[inline]
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Display::fmt(&self.0, f)

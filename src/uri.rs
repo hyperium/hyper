@@ -21,7 +21,7 @@ use Error;
 /// >                / authority-form
 /// >                / asterisk-form
 /// > ```
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum RequestUri {
     /// The most common request target, an absolute path and optional query.
     ///
@@ -50,6 +50,12 @@ pub enum RequestUri {
     Star,
 }
 
+impl Default for RequestUri {
+    fn default() -> RequestUri {
+        RequestUri::Star
+    }
+}
+
 impl FromStr for RequestUri {
     type Err = Error;
 
@@ -67,7 +73,7 @@ impl FromStr for RequestUri {
             let mut temp = "http://".to_owned();
             temp.push_str(s);
             try!(Url::parse(&temp[..]));
-            todo!("compare vs u.authority()");
+            //TODO: compare vs u.authority()?
             Ok(RequestUri::Authority(s.to_owned()))
         }
     }

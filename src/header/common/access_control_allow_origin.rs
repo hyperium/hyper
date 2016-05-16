@@ -1,6 +1,6 @@
 use std::fmt::{self, Display};
 
-use header::{Header, HeaderFormat};
+use header::{Header};
 
 /// The `Access-Control-Allow-Origin` response header,
 /// part of [CORS](http://www.w3.org/TR/cors/#access-control-allow-origin-response-header)
@@ -70,9 +70,7 @@ impl Header for AccessControlAllowOrigin {
             _ => AccessControlAllowOrigin::Value(try!(String::from_utf8(value.clone())))
         })
     }
-}
 
-impl HeaderFormat for AccessControlAllowOrigin {
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             AccessControlAllowOrigin::Any => f.write_str("*"),

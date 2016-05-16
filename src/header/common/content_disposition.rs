@@ -11,7 +11,7 @@ use std::fmt;
 use unicase::UniCase;
 use url::percent_encoding;
 
-use header::{Header, HeaderFormat, parsing};
+use header::{Header, parsing};
 use header::parsing::{parse_extended_value, HTTP_VALUE};
 use header::shared::Charset;
 
@@ -144,9 +144,7 @@ impl Header for ContentDisposition {
             Ok(cd)
         })
     }
-}
 
-impl HeaderFormat for ContentDisposition {
     #[inline]
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Display::fmt(&self, f)

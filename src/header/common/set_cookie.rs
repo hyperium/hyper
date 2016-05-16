@@ -1,4 +1,4 @@
-use header::{Header, HeaderFormat, CookiePair, CookieJar};
+use header::{Header, CookiePair, CookieJar};
 use std::fmt::{self, Display};
 use std::str::from_utf8;
 
@@ -103,10 +103,6 @@ impl Header for SetCookie {
             Err(::Error::Header)
         }
     }
-
-}
-
-impl HeaderFormat for SetCookie {
 
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for (i, cookie) in self.0.iter().enumerate() {

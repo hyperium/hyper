@@ -1,7 +1,6 @@
 use std::any::{Any, TypeId};
 use std::cell::UnsafeCell;
 use std::collections::HashMap;
-use std::fmt;
 use std::mem;
 use std::ops::Deref;
 
@@ -53,7 +52,7 @@ enum PtrMap<T> {
     Many(HashMap<TypeId, T>)
 }
 
-impl<V: ?Sized + fmt::Debug + Any + 'static> PtrMapCell<V> {
+impl<V: ?Sized + Any + 'static> PtrMapCell<V> {
     #[inline]
     pub fn new() -> PtrMapCell<V> {
         PtrMapCell(UnsafeCell::new(PtrMap::Empty))
@@ -114,12 +113,12 @@ impl<V: ?Sized + fmt::Debug + Any + 'static> PtrMapCell<V> {
         let map = &*self.0.get();
         match *map {
             PtrMap::One(_, ref one) => one,
-            _ => panic!("not PtrMap::One value, {:?}", *map)
+            _ => panic!("not PtrMap::One value")
         }
     }
 }
 
-impl<V: ?Sized + fmt::Debug + Any + 'static> Clone for PtrMapCell<V> where Box<V>: Clone {
+impl<V: ?Sized + Any + 'static> Clone for PtrMapCell<V> where Box<V>: Clone {
     #[inline]
     fn clone(&self) -> PtrMapCell<V> {
         let cell = PtrMapCell::new();

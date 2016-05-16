@@ -1,177 +1,52 @@
 //! Client Requests
-use std::marker::PhantomData;
-use std::io::{self, Write};
 
-use std::time::Duration;
-
-use url::Url;
-
-use method::Method;
 use header::Headers;
-use header::Host;
-use net::{NetworkStream, NetworkConnector, DefaultConnector, Fresh, Streaming};
-use version;
-use client::{Response, get_host_and_port};
+use http::RequestHead;
+use method::Method;
+use uri::RequestUri;
+use version::HttpVersion;
 
-use http::{HttpMessage, RequestHead};
-use http::h1::Http11Message;
 
 
 /// A client request to a remote server.
-/// The W type tracks the state of the request, Fresh vs Streaming.
-pub struct Request<W> {
-    /// The target URI for this request.
-    pub url: Url,
-
-    /// The HTTP version of this request.
-    pub version: version::HttpVersion,
-
-    message: Box<HttpMessage>,
-    headers: Headers,
-    method: Method,
-
-    _marker: PhantomData<W>,
+#[derive(Debug)]
+pub struct Request<'a> {
+    head: &'a mut RequestHead
 }
 
-impl<W> Request<W> {
+impl<'a> Request<'a> {
+    /// Read the Request Url.
+    #[inline]
+    pub fn uri(&self) -> &RequestUri { &self.head.subject.1 }
+
+    /// Readthe Request Version.
+    #[inline]
+    pub fn version(&self) -> &HttpVersion { &self.head.version }
+
     /// Read the Request headers.
     #[inline]
-    pub fn headers(&self) -> &Headers { &self.headers }
+    pub fn headers(&self) -> &Headers { &self.head.headers }
 
     /// Read the Request method.
     #[inline]
-    pub fn method(&self) -> Method { self.method.clone() }
+    pub fn method(&self) -> &Method { &self.head.subject.0 }
 
-    /// Set the write timeout.
+    /// Set the Method of this request.
     #[inline]
-    pub fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
-        self.message.set_write_timeout(dur)
-    }
-
-    /// Set the read timeout.
-    #[inline]
-    pub fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
-        self.message.set_read_timeout(dur)
-    }
-}
-
-impl Request<Fresh> {
-    /// Create a new `Request<Fresh>` that will use the given `HttpMessage` for its communication
-    /// with the server. This implies that the given `HttpMessage` instance has already been
-    /// properly initialized by the caller (e.g. a TCP connection's already established).
-    pub fn with_message(method: Method, url: Url, message: Box<HttpMessage>)
-            -> ::Result<Request<Fresh>> {
-        let mut headers = Headers::new();
-        {
-            let (host, port) = try!(get_host_and_port(&url));
-            headers.set(Host {
-                hostname: host.to_owned(),
-                port: Some(port),
-            });
-        }
-
-        Ok(Request::with_headers_and_message(method, url, headers, message))
-    }
-
-    #[doc(hidden)]
-    pub fn with_headers_and_message(method: Method, url: Url, headers: Headers,  message: Box<HttpMessage>)
-                -> Request<Fresh> {
-        Request {
-            method: method,
-            headers: headers,
-            url: url,
-            version: version::HttpVersion::Http11,
-            message: message,
-            _marker: PhantomData,
-        }
-    }
-
-    /// Create a new client request.
-    pub fn new(method: Method, url: Url) -> ::Result<Request<Fresh>> {
-        let conn = DefaultConnector::default();
-        Request::with_connector(method, url, &conn)
-    }
-
-    /// Create a new client request with a specific underlying NetworkStream.
-    pub fn with_connector<C, S>(method: Method, url: Url, connector: &C)
-        -> ::Result<Request<Fresh>> where
-        C: NetworkConnector<Stream=S>,
-        S: Into<Box<NetworkStream + Send>> {
-        let stream = {
-            let (host, port) = try!(get_host_and_port(&url));
-            try!(connector.connect(host, port, url.scheme())).into()
-        };
-
-        Request::with_message(method, url, Box::new(Http11Message::with_stream(stream)))
-    }
-
-    /// Consume a Fresh Request, writing the headers and method,
-    /// returning a Streaming Request.
-    pub fn start(mut self) -> ::Result<Request<Streaming>> {
-        let head = match self.message.set_outgoing(RequestHead {
-            headers: self.headers,
-            method: self.method,
-            url: self.url,
-        }) {
-            Ok(head) => head,
-            Err(e) => {
-                let _ = self.message.close_connection();
-                return Err(From::from(e));
-            }
-        };
-
-        Ok(Request {
-            method: head.method,
-            headers: head.headers,
-            url: head.url,
-            version: self.version,
-            message: self.message,
-            _marker: PhantomData,
-        })
-    }
+    pub fn set_method(&mut self, method: Method) { self.head.subject.0 = method; }
 
     /// Get a mutable reference to the Request headers.
     #[inline]
-    pub fn headers_mut(&mut self) -> &mut Headers { &mut self.headers }
+    pub fn headers_mut(&mut self) -> &mut Headers { &mut self.head.headers }
 }
 
-
-
-impl Request<Streaming> {
-    /// Completes writing the request, and returns a response to read from.
-    ///
-    /// Consumes the Request.
-    pub fn send(self) -> ::Result<Response> {
-        Response::with_message(self.url, self.message)
-    }
-}
-
-impl Write for Request<Streaming> {
-    #[inline]
-    fn write(&mut self, msg: &[u8]) -> io::Result<usize> {
-        match self.message.write(msg) {
-            Ok(n) => Ok(n),
-            Err(e) => {
-                let _ = self.message.close_connection();
-                Err(e)
-            }
-        }
-    }
-
-    #[inline]
-    fn flush(&mut self) -> io::Result<()> {
-        match self.message.flush() {
-            Ok(r) => Ok(r),
-            Err(e) => {
-                let _ = self.message.close_connection();
-                Err(e)
-            }
-        }
-    }
+pub fn new(head: &mut RequestHead) -> Request {
+    Request { head: head }
 }
 
 #[cfg(test)]
 mod tests {
+    /*
     use std::io::Write;
     use std::str::from_utf8;
     use url::Url;
@@ -311,4 +186,5 @@ mod tests {
             .get_ref().downcast_ref::<MockStream>().unwrap()
             .is_closed);
     }
+    */
 }

@@ -1,5 +1,5 @@
 use std::fmt;
-use header::{Header, HeaderFormat, Preference};
+use header::{Header, Preference};
 use header::parsing::{from_comma_delimited, fmt_comma_delimited};
 
 /// `Preference-Applied` header, defined in [RFC7240](http://tools.ietf.org/html/rfc7240)
@@ -61,9 +61,7 @@ impl Header for PreferenceApplied {
             Err(::Error::Header)
         }
     }
-}
 
-impl HeaderFormat for PreferenceApplied {
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let preferences: Vec<_> = self.0.iter().map(|pref| match pref {
             // The spec ignores parameters in `Preferences-Applied`
@@ -80,7 +78,7 @@ impl HeaderFormat for PreferenceApplied {
 
 #[cfg(test)]
 mod tests {
-    use header::{HeaderFormat, Preference};
+    use header::{Header, Preference};
     use super::*;
 
     #[test]
@@ -90,7 +88,7 @@ mod tests {
                 "foo".to_owned(),
                 "bar".to_owned(),
                 vec![("bar".to_owned(), "foo".to_owned()), ("buz".to_owned(), "".to_owned())]
-            )]) as &(HeaderFormat + Send + Sync)),
+            )]) as &(Header + Send + Sync)),
             "foo=bar".to_owned()
         );
     }

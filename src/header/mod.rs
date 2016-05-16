@@ -31,18 +31,17 @@
 //! }
 //! ```
 //!
-//! This works well for simple "string" headers. But the header system
-//! actually involves 2 parts: parsing, and formatting. If you need to
-//! customize either part, you can do so.
+//! This works well for simple "string" headers.  If you need more control,
+//! you can implement the trait directly.
 //!
-//! ## `Header` and `HeaderFormat`
+//! ## Implementing the `Header` trait
 //!
 //! Consider a Do Not Track header. It can be true or false, but it represents
 //! that via the numerals `1` and `0`.
 //!
 //! ```
 //! use std::fmt;
-//! use hyper::header::{Header, HeaderFormat};
+//! use hyper::header::Header;
 //!
 //! #[derive(Debug, Clone, Copy)]
 //! struct Dnt(bool);
@@ -66,9 +65,7 @@
 //!         }
 //!         Err(hyper::Error::Header)
 //!     }
-//! }
 //!
-//! impl HeaderFormat for Dnt {
 //!     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
 //!         if self.0 {
 //!             f.write_str("1")
@@ -113,11 +110,11 @@ type HeaderName = UniCase<CowStr>;
 ///
 /// This trait represents the construction and identification of headers,
 /// and contains trait-object unsafe methods.
-pub trait Header: Clone + Any + Send + Sync {
+pub trait Header: HeaderClone + Any + Typeable + Send + Sync {
     /// Returns the name of the header field this belongs to.
     ///
     /// This will become an associated constant once available.
-    fn header_name() -> &'static str;
+    fn header_name() -> &'static str where Self: Sized;
     /// Parse a header from a raw stream of bytes.
     ///
     /// It's possible that a request can include a header field more than once,
@@ -125,35 +122,27 @@ pub trait Header: Clone + Any + Send + Sync {
     /// it's not necessarily the case that a Header is *allowed* to have more
     /// than one field value. If that's the case, you **should** return `None`
     /// if `raw.len() > 1`.
-    fn parse_header(raw: &[Vec<u8>]) -> ::Result<Self>;
-
-}
-
-/// A trait for any object that will represent a header field and value.
-///
-/// This trait represents the formatting of a `Header` for output to a TcpStream.
-pub trait HeaderFormat: fmt::Debug + HeaderClone + Any + Typeable + Send + Sync {
+    fn parse_header(raw: &[Vec<u8>]) -> ::Result<Self> where Self: Sized;
     /// Format a header to be output into a TcpStream.
     ///
     /// This method is not allowed to introduce an Err not produced
     /// by the passed-in Formatter.
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result;
-
 }
 
 #[doc(hidden)]
 pub trait HeaderClone {
-    fn clone_box(&self) -> Box<HeaderFormat + Send + Sync>;
+    fn clone_box(&self) -> Box<Header + Send + Sync>;
 }
 
-impl<T: HeaderFormat + Clone> HeaderClone for T {
+impl<T: Header + Clone> HeaderClone for T {
     #[inline]
-    fn clone_box(&self) -> Box<HeaderFormat + Send + Sync> {
+    fn clone_box(&self) -> Box<Header + Send + Sync> {
         Box::new(self.clone())
     }
 }
 
-impl HeaderFormat + Send + Sync {
+impl Header + Send + Sync {
     #[inline]
     unsafe fn downcast_ref_unchecked<T: 'static>(&self) -> &T {
         mem::transmute(traitobject::data(self))
@@ -165,9 +154,9 @@ impl HeaderFormat + Send + Sync {
     }
 }
 
-impl Clone for Box<HeaderFormat + Send + Sync> {
+impl Clone for Box<Header + Send + Sync> {
     #[inline]
-    fn clone(&self) -> Box<HeaderFormat + Send + Sync> {
+    fn clone(&self) -> Box<Header + Send + Sync> {
         self.clone_box()
     }
 }
@@ -181,6 +170,12 @@ fn header_name<T: Header>() -> &'static str {
 #[derive(Clone)]
 pub struct Headers {
     data: HashMap<HeaderName, Item>
+}
+
+impl Default for Headers {
+    fn default() -> Headers {
+        Headers::new()
+    }
 }
 
 impl Headers {
@@ -212,8 +207,8 @@ impl Headers {
     /// Set a header field to the corresponding value.
     ///
     /// The field is determined by the type of the value being set.
-    pub fn set<H: Header + HeaderFormat>(&mut self, value: H) {
-        trace!("Headers.set( {:?}, {:?} )", header_name::<H>(), value);
+    pub fn set<H: Header>(&mut self, value: H) {
+        trace!("Headers.set( {:?}, {:?} )", header_name::<H>(), HeaderFormatter(&value));
         self.data.insert(UniCase(CowStr(Cow::Borrowed(header_name::<H>()))),
                          Item::new_typed(Box::new(value)));
     }
@@ -259,13 +254,13 @@ impl Headers {
     }
 
     /// Get a reference to the header field's value, if it exists.
-    pub fn get<H: Header + HeaderFormat>(&self) -> Option<&H> {
+    pub fn get<H: Header>(&self) -> Option<&H> {
         self.data.get(&UniCase(CowStr(Cow::Borrowed(header_name::<H>()))))
         .and_then(Item::typed::<H>)
     }
 
     /// Get a mutable reference to the header field's value, if it exists.
-    pub fn get_mut<H: Header + HeaderFormat>(&mut self) -> Option<&mut H> {
+    pub fn get_mut<H: Header>(&mut self) -> Option<&mut H> {
         self.data.get_mut(&UniCase(CowStr(Cow::Borrowed(header_name::<H>()))))
         .and_then(Item::typed_mut::<H>)
     }
@@ -280,13 +275,13 @@ impl Headers {
     /// # let mut headers = Headers::new();
     /// let has_type = headers.has::<ContentType>();
     /// ```
-    pub fn has<H: Header + HeaderFormat>(&self) -> bool {
+    pub fn has<H: Header>(&self) -> bool {
         self.data.contains_key(&UniCase(CowStr(Cow::Borrowed(header_name::<H>()))))
     }
 
     /// Removes a header from the map, if one existed.
     /// Returns true if a header has been removed.
-    pub fn remove<H: Header + HeaderFormat>(&mut self) -> bool {
+    pub fn remove<H: Header>(&mut self) -> bool {
         trace!("Headers.remove( {:?} )", header_name::<H>());
         self.data.remove(&UniCase(CowStr(Cow::Borrowed(header_name::<H>())))).is_some()
     }
@@ -380,6 +375,7 @@ impl Deserialize for Headers {
 }
 
 /// An `Iterator` over the fields in a `Headers` map.
+#[allow(missing_debug_implementations)]
 pub struct HeadersItems<'a> {
     inner: Iter<'a, HeaderName, Item>
 }
@@ -410,7 +406,7 @@ impl<'a> HeaderView<'a> {
 
     /// Cast the value to a certain Header type.
     #[inline]
-    pub fn value<H: Header + HeaderFormat>(&self) -> Option<&'a H> {
+    pub fn value<H: Header>(&self) -> Option<&'a H> {
         self.1.typed::<H>()
     }
 
@@ -449,7 +445,7 @@ impl<'a> FromIterator<HeaderView<'a>> for Headers {
     }
 }
 
-impl<'a> fmt::Display for &'a (HeaderFormat + Send + Sync) {
+impl<'a> fmt::Display for &'a (Header + Send + Sync) {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         (**self).fmt_header(f)
@@ -461,16 +457,16 @@ impl<'a> fmt::Display for &'a (HeaderFormat + Send + Sync) {
 /// This can be used like so: `format!("{}", HeaderFormatter(&header))` to
 /// get the representation of a Header which will be written to an
 /// outgoing `TcpStream`.
-pub struct HeaderFormatter<'a, H: HeaderFormat>(pub &'a H);
+pub struct HeaderFormatter<'a, H: Header>(pub &'a H);
 
-impl<'a, H: HeaderFormat> fmt::Display for HeaderFormatter<'a, H> {
+impl<'a, H: Header> fmt::Display for HeaderFormatter<'a, H> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt_header(f)
     }
 }
 
-impl<'a, H: HeaderFormat> fmt::Debug for HeaderFormatter<'a, H> {
+impl<'a, H: Header> fmt::Debug for HeaderFormatter<'a, H> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt_header(f)
@@ -519,7 +515,7 @@ mod tests {
     use mime::Mime;
     use mime::TopLevel::Text;
     use mime::SubLevel::Plain;
-    use super::{Headers, Header, HeaderFormat, ContentLength, ContentType,
+    use super::{Headers, Header, ContentLength, ContentType,
                 Accept, Host, qitem};
     use httparse;
 
@@ -597,9 +593,7 @@ mod tests {
                 None => Err(::Error::Header),
             }
         }
-    }
 
-    impl HeaderFormat for CrazyLength {
         fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
             let CrazyLength(ref opt, ref value) = *self;
             write!(f, "{:?}, {:?}", opt, value)

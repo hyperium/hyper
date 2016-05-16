@@ -4,7 +4,7 @@
 //! the `HttpVersion` enum.
 use std::fmt;
 
-use self::HttpVersion::{Http09, Http10, Http11, Http20};
+use self::HttpVersion::{Http09, Http10, Http11, H2, H2c};
 
 /// Represents a version of the HTTP spec.
 #[derive(PartialEq, PartialOrd, Copy, Clone, Eq, Ord, Hash, Debug)]
@@ -15,8 +15,10 @@ pub enum HttpVersion {
     Http10,
     /// `HTTP/1.1`
     Http11,
-    /// `HTTP/2.0`
-    Http20
+    /// `HTTP/2.0` over TLS
+    H2,
+    /// `HTTP/2.0` over cleartext
+    H2c,
 }
 
 impl fmt::Display for HttpVersion {
@@ -25,7 +27,14 @@ impl fmt::Display for HttpVersion {
             Http09 => "HTTP/0.9",
             Http10 => "HTTP/1.0",
             Http11 => "HTTP/1.1",
-            Http20 => "HTTP/2.0",
+            H2 => "h2",
+            H2c => "h2c",
         })
+    }
+}
+
+impl Default for HttpVersion {
+    fn default() -> HttpVersion {
+        Http11
     }
 }

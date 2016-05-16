@@ -547,6 +547,12 @@ impl Ord for StatusCode {
     }
 }
 
+impl Default for StatusCode {
+    fn default() -> StatusCode {
+        StatusCode::Ok
+    }
+}
+
 /// The class of an HTTP `status-code`.
 ///
 /// [RFC 7231, section 6 (Response Status Codes)](https://tools.ietf.org/html/rfc7231#section-6):

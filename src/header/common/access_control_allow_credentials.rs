@@ -1,7 +1,7 @@
 use std::fmt::{self, Display};
 use std::str;
 use unicase::UniCase;
-use header::{Header, HeaderFormat};
+use header::{Header};
 
 /// `Access-Control-Allow-Credentials` header, part of
 /// [CORS](http://www.w3.org/TR/cors/#access-control-allow-headers-response-header)
@@ -62,9 +62,7 @@ impl Header for AccessControlAllowCredentials {
         }
         Err(::Error::Header)
     }
-}
 
-impl HeaderFormat for AccessControlAllowCredentials {
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str("true")
     }
