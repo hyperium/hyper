@@ -471,11 +471,22 @@ mod openssl {
     impl super::SslClient for OpensslClient {
         type Stream = OpensslStream<HttpStream>;
 
+        #[cfg(not(windows))]
         fn wrap_client(&self, stream: HttpStream, host: &str) -> ::Result<Self::Stream> {
             let mut ssl = try!(Ssl::new(&self.0));
             try!(ssl.set_hostname(host));
             let host = host.to_owned();
             ssl.set_verify_callback(SSL_VERIFY_PEER, move |p, x| ::openssl_verify::verify_callback(&host, p, x));
+            SslStream::connect(ssl, stream)
+                .map(openssl_stream)
+                .map_err(From::from)
+        }
+
+
+        #[cfg(windows)]
+        fn wrap_client(&self, stream: HttpStream, host: &str) -> ::Result<Self::Stream> {
+            let mut ssl = try!(Ssl::new(&self.0));
+            try!(ssl.set_hostname(host));
             SslStream::connect(ssl, stream)
                 .map(openssl_stream)
                 .map_err(From::from)
