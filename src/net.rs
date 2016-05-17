@@ -671,11 +671,20 @@ mod openssl {
     impl<T: NetworkStream + Send + Clone> super::SslClient<T> for OpensslClient {
         type Stream = SslStream<T>;
 
+        #[cfg(not(windows))]
         fn wrap_client(&self, stream: T, host: &str) -> ::Result<Self::Stream> {
             let mut ssl = try!(Ssl::new(&self.0));
             try!(ssl.set_hostname(host));
             let host = host.to_owned();
             ssl.set_verify_callback(SSL_VERIFY_PEER, move |p, x| ::openssl_verify::verify_callback(&host, p, x));
+            SslStream::connect(ssl, stream).map_err(From::from)
+        }
+
+
+        #[cfg(windows)]
+        fn wrap_client(&self, stream: T, host: &str) -> ::Result<Self::Stream> {
+            let mut ssl = try!(Ssl::new(&self.0));
+            try!(ssl.set_hostname(host));
             SslStream::connect(ssl, stream).map_err(From::from)
         }
     }
