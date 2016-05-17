@@ -77,8 +77,8 @@
 //! ```
 use std::any::Any;
 use std::borrow::{Cow, ToOwned};
-use std::collections::HashMap;
-use std::collections::hash_map::{Iter, Entry};
+//use std::collections::HashMap;
+//use std::collections::hash_map::{Iter, Entry};
 use std::iter::{FromIterator, IntoIterator};
 use std::ops::{Deref, DerefMut};
 use std::{mem, fmt};
@@ -87,7 +87,7 @@ use {httparse, traitobject};
 use typeable::Typeable;
 use unicase::UniCase;
 
-use self::internals::Item;
+use self::internals::{Item, VecMap, Entry};
 
 #[cfg(feature = "serde-serialization")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -169,7 +169,8 @@ fn header_name<T: Header>() -> &'static str {
 /// A map of header fields on requests and responses.
 #[derive(Clone)]
 pub struct Headers {
-    data: HashMap<HeaderName, Item>
+    //data: HashMap<HeaderName, Item>
+    data: VecMap<HeaderName, Item>,
 }
 
 impl Default for Headers {
@@ -183,7 +184,7 @@ impl Headers {
     /// Creates a new, empty headers map.
     pub fn new() -> Headers {
         Headers {
-            data: HashMap::new()
+            data: VecMap::new()
         }
     }
 
@@ -377,14 +378,14 @@ impl Deserialize for Headers {
 /// An `Iterator` over the fields in a `Headers` map.
 #[allow(missing_debug_implementations)]
 pub struct HeadersItems<'a> {
-    inner: Iter<'a, HeaderName, Item>
+    inner: ::std::slice::Iter<'a, (HeaderName, Item)>
 }
 
 impl<'a> Iterator for HeadersItems<'a> {
     type Item = HeaderView<'a>;
 
     fn next(&mut self) -> Option<HeaderView<'a>> {
-        self.inner.next().map(|(k, v)| HeaderView(k, v))
+        self.inner.next().map(|&(ref k, ref v)| HeaderView(k, v))
     }
 }
 
