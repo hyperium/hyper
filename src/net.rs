@@ -457,10 +457,16 @@ mod openssl {
             // cipher list taken from curl:
             // https://github.com/curl/curl/blob/5bf5f6ebfcede78ef7c2b16daa41c4b7ba266087/lib/vtls/openssl.h#L120
             ctx.set_cipher_list("ALL!EXPORT!EXPORT40!EXPORT56!aNULL!LOW!RC4@STRENGTH").unwrap();
-            OpensslClient(ctx)
+            OpensslClient::new(ctx)
         }
     }
 
+    impl OpensslClient {
+        /// Creates a new OpensslClient with a custom SslContext
+        pub fn new(ctx: SslContext) -> OpensslClient {
+            OpensslClient(ctx)
+        }
+    }
 
     impl super::SslClient for OpensslClient {
         type Stream = OpensslStream<HttpStream>;
