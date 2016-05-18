@@ -1,3 +1,16 @@
+### v0.9.5 (2016-05-18)
+
+
+#### Bug Fixes
+
+* **windows:** disable openssl cert validation for Windows ([c89aca81](https://github.com/hyperium/hyper/commit/c89aca812bf863aadb52326f534a65c1d3cf31d6), closes [#794](https://github.com/hyperium/hyper/issues/794))
+
+
+#### Features
+
+* **net:** Add OpensslClient constructor ([3c0e1050](https://github.com/hyperium/hyper/commit/3c0e105011fc8a4fc639370836aa6a2e576b6f0e))
+
+
 ### v0.9.4 (2016-05-09)
 
 
