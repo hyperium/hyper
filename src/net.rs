@@ -532,7 +532,7 @@ pub struct HttpsListener<S: SslServer> {
     ssl: S,
 }
 
-impl<S: Ssl> HttpsListener<S> {
+impl<S: SslServer> HttpsListener<S> {
     /// Start listening to an address over HTTPS.
     pub fn new<To: ToSocketAddrs>(addr: To, ssl: S) -> ::Result<HttpsListener<S>> {
         HttpListener::new(addr).map(|l| HttpsListener {
