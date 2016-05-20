@@ -179,7 +179,7 @@ pub trait Ssl {
     fn wrap_server(&self, stream: HttpStream) -> ::Result<Self::Stream>;
 }
 
-/// An abstraction to allow any SSL implementation to be used with client-side HttpsStreams.
+/// An abstraction to allow any SSL implementation to be used with client-side `HttpsStream`s.
 pub trait SslClient {
     /// The protected stream.
     type Stream: Transport;
@@ -187,7 +187,7 @@ pub trait SslClient {
     fn wrap_client(&self, stream: HttpStream, host: &str) -> ::Result<Self::Stream>;
 }
 
-/// An abstraction to allow any SSL implementation to be used with server-side HttpsStreams.
+/// An abstraction to allow any SSL implementation to be used with server-side `HttpsStream`s.
 pub trait SslServer {
     /// The protected stream.
     type Stream: Transport;
@@ -323,7 +323,7 @@ impl<S: Transport> Transport for HttpsStream<S> {
     }
 }
 
-/// A Http Listener over SSL.
+/// An `HttpListener` over SSL.
 #[derive(Debug)]
 pub struct HttpsListener<S: SslServer> {
     listener: TcpListener,
@@ -340,7 +340,7 @@ impl<S: SslServer> HttpsListener<S> {
         })
     }
 
-    /// Construct an HttpsListener from a bound `TcpListener`.
+    /// Construct an `HttpsListener` from a bound `TcpListener`.
     pub fn with_listener(listener: TcpListener, ssl: S) -> HttpsListener<S> {
         HttpsListener {
             listener: listener,

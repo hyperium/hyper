@@ -73,7 +73,7 @@ impl Method {
     }
 
     /// Whether a method is considered "idempotent", meaning the request has
-    /// the same result is executed multiple times.
+    /// the same result if executed multiple times.
     ///
     /// See [the spec](https://tools.ietf.org/html/rfc7231#section-4.2.2) for
     /// more words.
