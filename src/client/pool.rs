@@ -1,6 +1,7 @@
 //! Client Connection Pooling
 use std::borrow::ToOwned;
 use std::collections::HashMap;
+use std::fmt;
 use std::io::{self, Read, Write};
 use std::net::{SocketAddr, Shutdown};
 use std::sync::{Arc, Mutex};
@@ -136,11 +137,21 @@ impl<C: NetworkConnector<Stream=S>, S: NetworkStream + Send> NetworkConnector fo
 }
 
 /// A Stream that will try to be returned to the Pool when dropped.
-#[derive(Debug)]
 pub struct PooledStream<S> {
     inner: Option<PooledStreamInner<S>>,
     is_closed: bool,
     pool: Arc<Mutex<PoolImpl<S>>>,
+}
+
+// manual impl to add the 'static bound for 1.7 compat
+impl<S> fmt::Debug for PooledStream<S> where S: fmt::Debug + 'static {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("PooledStream")
+           .field("inner", &self.inner)
+           .field("is_closed", &self.is_closed)
+           .field("pool", &self.pool)
+           .finish()
+    }
 }
 
 impl<S: NetworkStream> PooledStream<S> {
