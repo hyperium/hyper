@@ -125,7 +125,7 @@ use buffer::BufReader;
 use header::{Headers, Expect, Connection};
 use http;
 use method::Method;
-use net::{NetworkListener, NetworkStream, HttpListener, HttpsListener, Ssl};
+use net::{NetworkListener, NetworkStream, HttpListener, HttpsListener, SslServer};
 use status::StatusCode;
 use uri::RequestUri;
 use version::HttpVersion::Http11;
@@ -214,7 +214,7 @@ impl Server<HttpListener> {
     }
 }
 
-impl<S: Ssl + Clone + Send> Server<HttpsListener<S>> {
+impl<S: SslServer + Clone + Send> Server<HttpsListener<S>> {
     /// Creates a new server that will handle `HttpStream`s over SSL.
     ///
     /// You can use any SSL implementation, as long as implements `hyper::net::Ssl`.
