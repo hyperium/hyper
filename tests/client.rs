@@ -7,7 +7,6 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 use hyper::client::{Handler, Request, Response, HttpConnector};
-use hyper::header;
 use hyper::{Method, StatusCode, Next, Encoder, Decoder};
 use hyper::net::HttpStream;
 
@@ -158,33 +157,91 @@ fn client() -> Client {
     }
 }
 
+macro_rules! test {
+    (
+        name: $name:ident,
+        server:
+            expected: $server_expected:expr,
+            reply: $server_reply:expr,
+        client:
+            request:
+                method: $client_method:ident,
+                url: $client_url:expr,
+            response:
+                status: $client_status:ident,
+                headers: [ $($client_headers:expr,)* ],
+                body: $client_body:expr
+    ) => (
+        #[test]
+        fn $name() {
+            let server = TcpListener::bind("127.0.0.1:0").unwrap();
+            let addr = server.local_addr().unwrap();
+            let client = client();
+            let res = client.request(format!($client_url, addr=addr), opts().method(Method::$client_method));
 
-#[test]
-fn client_get() {
-    let server = TcpListener::bind("127.0.0.1:0").unwrap();
-    let addr = server.local_addr().unwrap();
-    let client = client();
-    let res = client.request(format!("http://{}/", addr), opts().method(Method::Get));
+            let mut inc = server.accept().unwrap().0;
+            inc.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            inc.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let mut buf = [0; 4096];
+            let n = inc.read(&mut buf).unwrap();
+            let expected = format!($server_expected, addr=addr);
+            assert_eq!(s(&buf[..n]), expected);
 
-    let mut inc = server.accept().unwrap().0;
-    inc.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
-    inc.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
-    let mut buf = [0; 4096];
-    let n = inc.read(&mut buf).unwrap();
-    let expected = format!("GET / HTTP/1.1\r\nHost: {}\r\n\r\n", addr);
-    assert_eq!(s(&buf[..n]), expected);
+            inc.write_all($server_reply.as_ref()).unwrap();
 
-    inc.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").unwrap();
+            if let Msg::Head(head) = res.recv().unwrap() {
+                use hyper::header::*;
+                assert_eq!(head.status(), &StatusCode::$client_status);
+                $(
+                    assert_eq!(head.headers().get(), Some(&$client_headers));
+                )*
+            } else {
+                panic!("we lost the head!");
+            }
+            //drop(inc);
 
-    if let Msg::Head(head) = res.recv().unwrap() {
-        assert_eq!(head.status(), &StatusCode::Ok);
-        assert_eq!(head.headers().get(), Some(&header::ContentLength(0)));
-    } else {
-        panic!("we lost the head!");
-    }
-    //drop(inc);
+            assert!(res.recv().is_err());
+        }
+    );
+}
 
-    assert!(res.recv().is_err());
+test! {
+    name: client_get,
+
+    server:
+        expected: "GET / HTTP/1.1\r\nHost: {addr}\r\n\r\n",
+        reply: "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n",
+
+    client:
+        request:
+            method: Get,
+            url: "http://{addr}/",
+        response:
+            status: Ok,
+            headers: [
+                ContentLength(0),
+            ],
+            body: None
+}
+
+test! {
+    name: client_get_query,
+
+    server:
+        expected: "GET /foo?key=val HTTP/1.1\r\nHost: {addr}\r\n\r\n",
+        reply: "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n",
+
+    client:
+        request:
+            method: Get,
+            url: "http://{addr}/foo?key=val#dont_send_me",
+        response:
+            status: Ok,
+            headers: [
+                ContentLength(0),
+            ],
+            body: None
+
 }
 
 #[test]
