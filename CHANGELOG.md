@@ -1,3 +1,12 @@
+### v0.9.6 (2016-05-23)
+
+
+#### Bug Fixes
+
+* **client:** Manually impl Debug for PooledStream ([aa692236](https://github.com/hyperium/hyper/commit/aa692236a851d29abec63b6a0d61d957cea5fd26))
+* **server:** Switch Ssl to SslServer in bounds ([470bc8ec](https://github.com/hyperium/hyper/commit/470bc8ec396bfc9ead6782f72e6de58268767a5a))
+
+
 ### v0.9.5 (2016-05-18)
 
 
