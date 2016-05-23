@@ -5,9 +5,8 @@ use header::parsing::{from_comma_delimited, fmt_comma_delimited};
 
 /// `Prefer` header, defined in [RFC7240](http://tools.ietf.org/html/rfc7240)
 ///
-/// The `Prefer` header field is HTTP header field that can be used by a
-/// client to request that certain behaviors be employed by a server
-/// while processing a request.
+/// The `Prefer` header field can be used by a client to request that certain
+/// behaviors be employed by a server while processing a request.
 ///
 /// # ABNF
 /// ```plain

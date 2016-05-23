@@ -1,6 +1,6 @@
 //! HTTP Server
 //!
-//! A `Server` is created to listen on port, parse HTTP requests, and hand
+//! A `Server` is created to listen on a port, parse HTTP requests, and hand
 //! them off to a `Handler`.
 use std::fmt;
 use std::net::SocketAddr;
