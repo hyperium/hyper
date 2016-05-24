@@ -38,6 +38,14 @@ impl<'a> Request<'a> {
     /// Get a mutable reference to the Request headers.
     #[inline]
     pub fn headers_mut(&mut self) -> &mut Headers { &mut self.head.headers }
+
+    /// Set the `RequestUri` of this request.
+    #[inline]
+    pub fn set_uri(&mut self, uri: RequestUri) { self.head.subject.1 = uri; }
+
+    /// Set the `HttpVersion` of this request.
+    #[inline]
+    pub fn set_version(&mut self, version: HttpVersion) { self.head.version = version; }
 }
 
 pub fn new(head: &mut RequestHead) -> Request {
