@@ -78,6 +78,8 @@ impl<'a, 'b: 'a> Request<'a, 'b> {
     /// Get a reference to the underlying Ssl stream, if connected
     /// over HTTPS.
     ///
+    /// This is actually just an alias for `downcast_ref`.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -95,11 +97,7 @@ impl<'a, 'b: 'a> Request<'a, 'b> {
     /// ```
     #[inline]
     pub fn ssl<T: NetworkStream>(&self) -> Option<&T> {
-        use ::net::HttpsStream;
-        match self.downcast_ref() {
-            Some(&HttpsStream::Https(ref s)) => Some(s),
-            _ => None
-        }
+        self.downcast_ref()
     }
 
     /// Deconstruct a Request into its constituent parts.
