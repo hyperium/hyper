@@ -42,7 +42,7 @@ fn main() {
         let listener = listener.try_clone().unwrap();
         handles.push(::std::thread::spawn(move || {
             Server::new(listener)
-                .handle(|_| Hello).unwrap()
+                .handle(|_| Hello).unwrap();
         }));
     }
     println!("Listening on http://127.0.0.1:3000");
