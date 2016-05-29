@@ -64,6 +64,7 @@ impl Response {
     }
 }
 
+/// Read the response body.
 impl Read for Response {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
