@@ -440,15 +440,15 @@ where C: Connect,
                 let now = scope.now();
                 let mut empty_keys = Vec::new();
                 {
-                for (key, mut vec) in scope.queue.iter_mut() {
-                    while !vec.is_empty() && vec[0].deadline <= now {
-                        let mut queued = vec.remove(0);
-                        let _ = queued.handler.on_error(::Error::Timeout);
+                    for (key, mut vec) in scope.queue.iter_mut() {
+                        while !vec.is_empty() && vec[0].deadline <= now {
+                            let mut queued = vec.remove(0);
+                            let _ = queued.handler.on_error(::Error::Timeout);
+                        }
+                        if vec.is_empty() {
+                            empty_keys.push(key.clone());
+                        }
                     }
-                    if vec.is_empty() {
-                        empty_keys.push(key.clone());
-                    }
-                }
                 }
                 for key in &empty_keys {
                     scope.queue.remove(key);
