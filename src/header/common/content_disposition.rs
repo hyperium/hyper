@@ -90,7 +90,8 @@ pub struct ContentDisposition {
 
 impl Header for ContentDisposition {
     fn header_name() -> &'static str {
-        "Content-Disposition"
+        static NAME: &'static str = "Content-Disposition";
+        NAME
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> ::Result<ContentDisposition> {

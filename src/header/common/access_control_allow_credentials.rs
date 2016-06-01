@@ -42,7 +42,8 @@ const ACCESS_CONTROL_ALLOW_CREDENTIALS_TRUE: UniCase<&'static str> = UniCase("tr
 
 impl Header for AccessControlAllowCredentials {
     fn header_name() -> &'static str {
-        "Access-Control-Allow-Credentials"
+        static NAME: &'static str = "Access-Control-Allow-Credentials";
+        NAME
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> ::Result<AccessControlAllowCredentials> {

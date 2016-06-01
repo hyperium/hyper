@@ -43,7 +43,8 @@ pub struct Host {
 
 impl Header for Host {
     fn header_name() -> &'static str {
-        "Host"
+        static NAME: &'static str = "Host";
+        NAME
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> ::Result<Host> {

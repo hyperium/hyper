@@ -30,7 +30,8 @@ const EXPECT_CONTINUE: UniCase<&'static str> = UniCase("100-continue");
 
 impl Header for Expect {
     fn header_name() -> &'static str {
-        "Expect"
+        static NAME: &'static str = "Expect";
+        NAME
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> ::Result<Expect> {

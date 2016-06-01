@@ -217,7 +217,8 @@ macro_rules! header {
         __hyper__deref!($id => Vec<$item>);
         impl $crate::header::Header for $id {
             fn header_name() -> &'static str {
-                $n
+                static NAME: &'static str = $n;
+                NAME
             }
             fn parse_header(raw: &[Vec<u8>]) -> $crate::Result<Self> {
                 $crate::header::parsing::from_comma_delimited(raw).map($id)
@@ -243,7 +244,8 @@ macro_rules! header {
         __hyper__deref!($id => Vec<$item>);
         impl $crate::header::Header for $id {
             fn header_name() -> &'static str {
-                $n
+                static NAME: &'static str = $n;
+                NAME
             }
             fn parse_header(raw: &[Vec<u8>]) -> $crate::Result<Self> {
                 $crate::header::parsing::from_comma_delimited(raw).map($id)
@@ -268,7 +270,8 @@ macro_rules! header {
         __hyper__deref!($id => $value);
         impl $crate::header::Header for $id {
             fn header_name() -> &'static str {
-                $n
+                static NAME: &'static str = $n;
+                NAME
             }
             fn parse_header(raw: &[Vec<u8>]) -> $crate::Result<Self> {
                 $crate::header::parsing::from_one_raw_str(raw).map($id)
@@ -296,7 +299,8 @@ macro_rules! header {
         }
         impl $crate::header::Header for $id {
             fn header_name() -> &'static str {
-                $n
+                static NAME: &'static str = $n;
+                NAME
             }
             fn parse_header(raw: &[Vec<u8>]) -> $crate::Result<Self> {
                 // FIXME: Return None if no item is in $id::Only

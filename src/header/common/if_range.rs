@@ -55,7 +55,8 @@ pub enum IfRange {
 
 impl Header for IfRange {
     fn header_name() -> &'static str {
-        "If-Range"
+        static NAME: &'static str = "If-Range";
+        NAME
     }
     fn parse_header(raw: &[Vec<u8>]) -> ::Result<IfRange> {
         let etag: ::Result<EntityTag> = header::parsing::from_one_raw_str(raw);

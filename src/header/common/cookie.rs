@@ -39,7 +39,8 @@ __hyper__deref!(Cookie => Vec<CookiePair>);
 
 impl Header for Cookie {
     fn header_name() -> &'static str {
-        "Cookie"
+        static NAME: &'static str = "Cookie";
+        NAME
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> ::Result<Cookie> {
