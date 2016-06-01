@@ -121,7 +121,8 @@ impl FromStr for StrictTransportSecurity {
 
 impl Header for StrictTransportSecurity {
     fn header_name() -> &'static str {
-        "Strict-Transport-Security"
+        static NAME: &'static str = "Strict-Transport-Security";
+        NAME
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> ::Result<StrictTransportSecurity> {

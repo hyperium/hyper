@@ -51,7 +51,8 @@ __hyper__deref!(CacheControl => Vec<CacheDirective>);
 
 impl Header for CacheControl {
     fn header_name() -> &'static str {
-        "Cache-Control"
+        static NAME: &'static str = "Cache-Control";
+        NAME
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> ::Result<CacheControl> {

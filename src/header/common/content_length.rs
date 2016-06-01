@@ -32,10 +32,13 @@ use header::{Header, parsing};
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ContentLength(pub u64);
 
+//static NAME: &'static str = "Content-Length";
+
 impl Header for ContentLength {
     #[inline]
     fn header_name() -> &'static str {
-        "Content-Length"
+        static NAME: &'static str = "Content-Length";
+        NAME
     }
     fn parse_header(raw: &[Vec<u8>]) -> ::Result<ContentLength> {
         // If multiple Content-Length headers were sent, everything can still

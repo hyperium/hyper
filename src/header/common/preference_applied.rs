@@ -50,7 +50,8 @@ __hyper__deref!(PreferenceApplied => Vec<Preference>);
 
 impl Header for PreferenceApplied {
     fn header_name() -> &'static str {
-        "Preference-Applied"
+        static NAME: &'static str = "Preference-Applied";
+        NAME
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> ::Result<PreferenceApplied> {

@@ -40,7 +40,8 @@ pub enum Pragma {
 
 impl Header for Pragma {
     fn header_name() -> &'static str {
-        "Pragma"
+        static NAME: &'static str = "Pragma";
+        NAME
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> ::Result<Pragma> {

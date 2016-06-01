@@ -73,7 +73,8 @@ impl<S: Scheme> DerefMut for Authorization<S> {
 
 impl<S: Scheme + Any> Header for Authorization<S> where <S as FromStr>::Err: 'static {
     fn header_name() -> &'static str {
-        "Authorization"
+        static NAME: &'static str = "Authorization";
+        NAME
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> ::Result<Authorization<S>> {

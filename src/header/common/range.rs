@@ -176,7 +176,8 @@ impl FromStr for ByteRangeSpec {
 impl Header for Range {
 
     fn header_name() -> &'static str {
-        "Range"
+        static NAME: &'static str = "Range";
+        NAME
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> ::Result<Range> {
