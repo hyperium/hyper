@@ -255,7 +255,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> Conn<K, T, H> {
                         },
                         Err(e) => {
                             //TODO: send proper error codes depending on error
-                            trace!("parse eror: {:?}", e);
+                            trace!("parse error: {:?}", e);
                             return State::Closed;
                         }
                     },
@@ -274,11 +274,10 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> Conn<K, T, H> {
                     }
                 };
                 let mut s = State::Http1(http1);
-                trace!("h1 read completed, next = {:?}", next);
                 if let Some(next) = next {
                     s.update(next);
                 }
-                trace!("h1 read completed, state = {:?}", s);
+                trace!("Conn.on_readable State::Http1 completed, new state = {:?}", s);
 
                 let again = match s {
                     State::Http1(Http1 { reading: Reading::Body(ref encoder), .. }) => encoder.is_eof(),
@@ -292,10 +291,9 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> Conn<K, T, H> {
                 }
             },
             State::Closed => {
-                error!("on_readable State::Closed");
+                trace!("on_readable State::Closed");
                 State::Closed
             }
-
         }
     }
 
@@ -509,7 +507,8 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> Conn<K, T, H> {
                 Some((self, timeout))
             },
             Err(e) => {
-                error!("error reregistering: {:?}", e);
+                trace!("error reregistering: {:?}", e);
+                let _ = self.on_error(e.into());
                 None
             }
         }
@@ -682,7 +681,10 @@ impl<H: MessageHandler<T>, T: Transport> State<H, T> {
                     _ => Writing::Closed,
                 };
                 match (reading, writing) {
-                    (Reading::KeepAlive, Writing::KeepAlive) => State::Init,
+                    (Reading::KeepAlive, Writing::KeepAlive) => {
+                        //http1.handler.on_keep_alive();
+                        State::Init
+                    },
                     (reading, Writing::Chunk(chunk)) => {
                         State::Http1(Http1 {
                             reading: reading,
