@@ -95,7 +95,7 @@ impl Display for RangeUnit {
         match *self {
             RangeUnit::Bytes => f.write_str("bytes"),
             RangeUnit::None => f.write_str("none"),
-            RangeUnit::Unregistered(ref x) => f.write_str(&x),
+            RangeUnit::Unregistered(ref x) => f.write_str(x),
         }
     }
 }

@@ -126,7 +126,7 @@ impl FromStr for Range {
     type Err = ::Error;
 
     fn from_str(s: &str) -> ::Result<Range> {
-        let mut iter = s.splitn(2, "=");
+        let mut iter = s.splitn(2, '=');
 
         match (iter.next(), iter.next()) {
             (Some("bytes"), Some(ranges)) => {
@@ -153,7 +153,7 @@ impl FromStr for ByteRangeSpec {
     type Err = ::Error;
 
     fn from_str(s: &str) -> ::Result<ByteRangeSpec> {
-        let mut parts = s.splitn(2, "-");
+        let mut parts = s.splitn(2, '-');
 
         match (parts.next(), parts.next()) {
             (Some(""), Some(end)) => {

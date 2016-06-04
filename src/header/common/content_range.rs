@@ -182,7 +182,7 @@ impl Display for ContentRangeSpec {
             ContentRangeSpec::Unregistered { ref unit, ref resp } => {
                 try!(f.write_str(&unit));
                 try!(f.write_str(" "));
-                f.write_str(&resp)
+                f.write_str(resp)
             }
         }
     }

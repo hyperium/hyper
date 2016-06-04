@@ -106,7 +106,7 @@ impl fmt::Display for Preference {
             Extension(ref name, ref value, ref params) => {
                 try!(write!(f, "{}", name));
                 if value != "" { try!(write!(f, "={}", value)); }
-                if params.len() > 0 {
+                if !params.is_empty() {
                     for &(ref name, ref value) in params {
                         try!(write!(f, "; {}", name));
                         if value != "" { try!(write!(f, "={}", value)); }
@@ -138,12 +138,12 @@ impl FromStr for Preference {
             Some(param) => {
                 let rest: Vec<(String, String)> = params.map(|(l, r)| (l.to_owned(), r.to_owned())).collect();
                 match param {
-                    ("respond-async", "") => if rest.len() == 0 { Ok(RespondAsync) } else { Err(None) },
-                    ("return", "representation") => if rest.len() == 0 { Ok(ReturnRepresentation) } else { Err(None) },
-                    ("return", "minimal") => if rest.len() == 0 { Ok(ReturnMinimal) } else { Err(None) },
-                    ("handling", "strict") => if rest.len() == 0 { Ok(HandlingStrict) } else { Err(None) },
-                    ("handling", "leniant") => if rest.len() == 0 { Ok(HandlingLeniant) } else { Err(None) },
-                    ("wait", secs) => if rest.len() == 0 { secs.parse().map(Wait).map_err(Some) } else { Err(None) },
+                    ("respond-async", "") => if rest.is_empty() { Ok(RespondAsync) } else { Err(None) },
+                    ("return", "representation") => if rest.is_empty() { Ok(ReturnRepresentation) } else { Err(None) },
+                    ("return", "minimal") => if rest.is_empty() { Ok(ReturnMinimal) } else { Err(None) },
+                    ("handling", "strict") => if rest.is_empty() { Ok(HandlingStrict) } else { Err(None) },
+                    ("handling", "leniant") => if rest.is_empty() { Ok(HandlingLeniant) } else { Err(None) },
+                    ("wait", secs) => if rest.is_empty() { secs.parse().map(Wait).map_err(Some) } else { Err(None) },
                     (left, right) => Ok(Extension(left.to_owned(), right.to_owned(), rest))
                 }
             },

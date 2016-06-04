@@ -6,7 +6,7 @@ use std::ptr;
 const INIT_BUFFER_SIZE: usize = 4096;
 const MAX_BUFFER_SIZE: usize = 8192 + 4096 * 100;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Buffer {
     vec: Vec<u8>,
     read_pos: usize,
@@ -15,11 +15,7 @@ pub struct Buffer {
 
 impl Buffer {
     pub fn new() -> Buffer {
-        Buffer {
-            vec: Vec::new(),
-            read_pos: 0,
-            write_pos: 0,
-        }
+        Buffer::default()
     }
 
     pub fn reset(&mut self) {

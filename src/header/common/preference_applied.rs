@@ -71,7 +71,7 @@ impl Header for PreferenceApplied {
               value.to_owned(),
               vec![]
             ),
-            preference @ _ => preference.clone()
+            preference => preference.clone()
         }).collect();
         fmt_comma_delimited(f, &preferences)
     }

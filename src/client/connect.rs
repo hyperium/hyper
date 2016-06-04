@@ -88,7 +88,7 @@ impl Connect for HttpConnector {
         if let Some(key) = self.key(url) {
             let host = url.host_str().expect("http scheme must have a host");
             self.dns.as_ref().expect("dns workers lost").resolve(host);
-            self.resolving.entry(host.to_owned()).or_insert(Vec::new()).push(key.clone());
+            self.resolving.entry(host.to_owned()).or_insert_with(Vec::new).push(key.clone());
             Ok(key)
         } else {
             Err(io::Error::new(io::ErrorKind::InvalidInput, "scheme must be http"))
@@ -101,25 +101,18 @@ impl Connect for HttpConnector {
             Err(_) => return None
         };
         debug!("Http::resolved <- ({:?}, {:?})", host, addr);
-        match self.resolving.entry(host) {
-            Entry::Occupied(mut entry) => {
-                let resolved = entry.get_mut().remove(0);
-                if entry.get().is_empty() {
-                    entry.remove();
-                }
-                let port = resolved.2;
-                match addr {
-                    Ok(addr) => {
-                        Some((resolved, TcpStream::connect(&SocketAddr::new(addr, port))
-                            .map(HttpStream)))
-                    },
-                    Err(e) => Some((resolved, Err(e)))
-                }
+        if let Entry::Occupied(mut entry) = self.resolving.entry(host) {
+            let resolved = entry.get_mut().remove(0);
+            if entry.get().is_empty() {
+                entry.remove();
             }
-            _ => {
-                trace!("^--  resolved but not in hashmap?");
-                return None
-            }
+            let port = resolved.2;
+            Some((resolved, addr.and_then(|addr| TcpStream::connect(&SocketAddr::new(addr, port))
+                                                            .map(HttpStream))
+                ))
+        } else {
+            trace!("^--  resolved but not in hashmap?");
+            None
         }
     }
 
@@ -167,7 +160,7 @@ impl<S: SslClient> Connect for HttpsConnector<S> {
         if let Some(key) = self.key(url) {
             let host = url.host_str().expect("http scheme must have a host");
             self.http.dns.as_ref().expect("dns workers lost").resolve(host);
-            self.http.resolving.entry(host.to_owned()).or_insert(Vec::new()).push(key.clone());
+            self.http.resolving.entry(host.to_owned()).or_insert_with(Vec::new).push(key.clone());
             Ok(key)
         } else {
             Err(io::Error::new(io::ErrorKind::InvalidInput, "scheme must be http or https"))
