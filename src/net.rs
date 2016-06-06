@@ -8,6 +8,9 @@ use std::mem;
 #[cfg(feature = "openssl")]
 pub use self::openssl::{Openssl, OpensslClient};
 
+#[cfg(feature = "security-framework")]
+pub use self::security_framework::ClientWrapper;
+
 use std::time::Duration;
 
 use typeable::Typeable;
