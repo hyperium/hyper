@@ -1,3 +1,12 @@
+### v0.9.7 (2016-06-09)
+
+
+#### Bug Fixes
+
+* **proxy:** fix the 0.9.x build with `--no-default-features --features=security-framework` ([6caffe9f](https://github.com/hyperium/hyper/commit/6caffe9fb302da99ce8cf0c8027c06b8c6de782d), closes [#819](https://github.com/hyperium/hyper/issues/819))
+* **server:** Request.ssl() works ([ce0b62ea](https://github.com/hyperium/hyper/commit/ce0b62eae7688987b722599be8e8b2ff6764b224))
+
+
 ### v0.9.6 (2016-05-23)
 
 
