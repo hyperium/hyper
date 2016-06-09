@@ -16,7 +16,7 @@ pub fn tunnel(proxy: (Cow<'static, str>, u16)) -> Proxy<HttpConnector, ::net::Op
 }
 
 #[cfg(feature = "security-framework")]
-pub fn tunnel(proxy: (Cow<'static, str>, u16)) -> Proxy<HttpConnector, ::net::Openssl> {
+pub fn tunnel(proxy: (Cow<'static, str>, u16)) -> Proxy<HttpConnector, ::net::ClientWrapper> {
     Proxy {
         connector: HttpConnector,
         proxy: proxy,
