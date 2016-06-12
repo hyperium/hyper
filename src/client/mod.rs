@@ -68,10 +68,10 @@ use url::ParseError as UrlError;
 use header::{Headers, Header, HeaderFormat};
 use header::{ContentLength, Host, Location};
 use method::Method;
-use net::{NetworkConnector, NetworkStream};
+use net::{HttpConnector, NetworkConnector, NetworkStream, SslClient};
 use Error;
 
-use self::proxy::tunnel;
+use self::proxy::{Proxy, tunnel};
 pub use self::pool::Pool;
 pub use self::request::Request;
 pub use self::response::Response;
@@ -83,6 +83,11 @@ pub mod response;
 
 use http::Protocol;
 use http::h1::Http11Protocol;
+
+/// Proxy server configuration with a custom TLS wrapper.
+pub struct ProxyConfig<H, S>(pub H, pub u16, pub S)
+where H: Into<Cow<'static, str>>,
+      S: SslClient<<HttpConnector as NetworkConnector>::Stream> + Send + Sync + 'static;
 
 /// A Client to use additional features with Requests.
 ///
@@ -122,6 +127,21 @@ impl Client {
     where H: Into<Cow<'static, str>> {
         let host = host.into();
         let proxy = tunnel((host.clone(), port));
+        let mut client = Client::with_connector(Pool::with_connector(Default::default(), proxy));
+        client.proxy = Some((host, port));
+        client
+    }
+
+    pub fn with_proxy_config<H, S>(proxy_config: ProxyConfig<H, S>) -> Client
+    where H: Into<Cow<'static, str>>,
+          S: SslClient<<HttpConnector as NetworkConnector>::Stream> + Send + Sync + 'static {
+        let host = proxy_config.0.into();
+        let port = proxy_config.1;
+        let proxy = Proxy {
+            connector: HttpConnector,
+            proxy: (host.clone(), port),
+            ssl: proxy_config.2
+        };
         let mut client = Client::with_connector(Pool::with_connector(Default::default(), proxy));
         client.proxy = Some((host, port));
         client
