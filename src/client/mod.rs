@@ -67,11 +67,11 @@ impl<H> Client<H> {
 
     /*TODO
     pub fn http() -> Config<HttpConnector> {
-    
+
     }
 
     pub fn https() -> Config<HttpsConnector> {
-    
+
     }
     */
 }
@@ -440,7 +440,7 @@ where C: Connect,
                 let now = scope.now();
                 let mut empty_keys = Vec::new();
                 {
-                    for (key, mut vec) in scope.queue.iter_mut() {
+                    for (key, mut vec) in &mut scope.queue {
                         while !vec.is_empty() && vec[0].deadline <= now {
                             let mut queued = vec.remove(0);
                             let _ = queued.handler.on_error(::Error::Timeout);
@@ -517,7 +517,7 @@ where C: Connect,
                             match connector.connect(&url) {
                                 Ok(key) => {
                                     let deadline = scope.now() + scope.connect_timeout;
-                                    scope.queue.entry(key).or_insert(Vec::new()).push(Queued {
+                                    scope.queue.entry(key).or_insert_with(Vec::new).push(Queued {
                                         deadline: deadline,
                                         handler: handler,
                                         url: url

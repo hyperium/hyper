@@ -143,12 +143,12 @@ impl<T: Header + Clone> HeaderClone for T {
 impl Header + Send + Sync {
     #[inline]
     unsafe fn downcast_ref_unchecked<T: 'static>(&self) -> &T {
-        mem::transmute(traitobject::data(self))
+        &*(traitobject::data(self) as *const T)
     }
 
     #[inline]
     unsafe fn downcast_mut_unchecked<T: 'static>(&mut self) -> &mut T {
-        mem::transmute(traitobject::data_mut(self))
+        &mut *(traitobject::data_mut(self) as *mut T)
     }
 }
 
@@ -497,7 +497,7 @@ impl<'a> fmt::Display for &'a (Header + Send + Sync) {
     }
 }
 
-/// A wrapper around any Header with a Display impl that calls fmt_header.
+/// A wrapper around any Header with a Display impl that calls `fmt_header`.
 ///
 /// This can be used like so: `format!("{}", HeaderFormatter(&header))` to
 /// get the representation of a Header which will be written to an

@@ -43,7 +43,7 @@ impl<'a> Response<'a> {
 }
 
 /// Creates a new Response that can be used to write to a network stream.
-pub fn new<'a>(head: &'a mut http::MessageHead<StatusCode>) -> Response<'a> {
+pub fn new(head: &mut http::MessageHead<StatusCode>) -> Response {
     Response {
         head: head
     }

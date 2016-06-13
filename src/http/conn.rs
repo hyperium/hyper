@@ -508,7 +508,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> Conn<K, T, H> {
             },
             Err(e) => {
                 trace!("error reregistering: {:?}", e);
-                let _ = self.on_error(e.into());
+                self.on_error(e.into());
                 None
             }
         }
@@ -516,14 +516,9 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> Conn<K, T, H> {
 
     pub fn wakeup<F>(mut self, scope: &mut Scope<F>) -> Option<(Self, Option<Duration>)>
     where F: MessageHandlerFactory<K, T, Output=H> {
-        loop {
-            match self.ctrl.1.try_recv() {
-                Ok(next) => {
-                    trace!("woke up with {:?}", next);
-                    self.state.update(next);
-                },
-                Err(_) => break
-            }
+        while let Ok(next) = self.ctrl.1.try_recv() {
+            trace!("woke up with {:?}", next);
+            self.state.update(next);
         }
         self.ready(EventSet::readable() | EventSet::writable(), scope)
     }
@@ -872,7 +867,7 @@ impl<'a, K: Key + 'a> Seed<'a, K> {
     }
 
     pub fn key(&self) -> &K {
-        &self.0
+        self.0
     }
 }
 

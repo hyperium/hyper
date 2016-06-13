@@ -91,7 +91,7 @@ impl Charset {
             Gb2312 => "GB2312",
             Big5 => "5",
             Koi8_R => "KOI8-R",
-            Ext(ref s) => &s
+            Ext(ref s) => s
         }
     }
 }

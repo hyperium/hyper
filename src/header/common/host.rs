@@ -69,14 +69,10 @@ impl Header for Host {
                 }
             };
 
-            let port = match idx {
-                Some(idx) => s[idx + 1..].parse().ok(),
-                None => None
-            };
+            let port = idx.and_then(|idx| s[idx + 1..].parse().ok());
 
-            match idx {
-                Some(idx) => s.truncate(idx),
-                None => ()
+            if let Some(idx) = idx {
+                s.truncate(idx)
             }
 
             Ok(Host {

@@ -6,10 +6,10 @@ use net::Transport;
 
 use super::{Handler, request, response};
 
-/// A MessageHandler for a Server.
+/// A `MessageHandler` for a Server.
 ///
-/// This should be really thin glue between http::MessageHandler and
-/// server::Handler, but largely just providing the proper types one
+/// This should be really thin glue between `http::MessageHandler` and
+/// `server::Handler`, but largely just providing the proper types one
 /// would expect in a Server Handler.
 pub struct Message<H: Handler<T>, T: Transport> {
     handler: H,
@@ -55,4 +55,3 @@ impl<H: Handler<T>, T: Transport> http::MessageHandler<T> for Message<H, T> {
         self.handler.on_remove(transport);
     }
 }
-
