@@ -1,3 +1,11 @@
+### v0.9.8 (2016-06-14)
+
+
+#### Features
+
+* **client:** enable use of custom TLS wrapper for proxied connections ([0476196c](https://github.com/hyperium/hyper/commit/0476196c320765a66f730c56048998980b173caf), closes [#824](https://github.com/hyperium/hyper/issues/824))
+
+
 ### v0.9.7 (2016-06-09)
 
 
