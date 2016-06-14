@@ -53,11 +53,6 @@ pub enum Blocked {
     Write,
 }
 
-impl Transport for HttpStream {
-    fn take_socket_error(&mut self) -> io::Result<()> {
-        self.0.take_socket_error()
-    }
-}
 
 /// Accepts sockets asynchronously.
 pub trait Accept: Evented {
@@ -72,6 +67,12 @@ pub trait Accept: Evented {
 /// An alias to `mio::tcp::TcpStream`.
 #[derive(Debug)]
 pub struct HttpStream(pub TcpStream);
+
+impl Transport for HttpStream {
+    fn take_socket_error(&mut self) -> io::Result<()> {
+        self.0.take_socket_error()
+    }
+}
 
 impl Read for HttpStream {
     #[inline]

@@ -44,6 +44,15 @@ enum Trans<'a, T: Read + 'a> {
     Buf(self::buffer::BufReader<'a, T>)
 }
 
+impl<'a, T: Read + 'a> Trans<'a, T> {
+    fn get_ref(&self) -> &T {
+        match *self {
+            Trans::Port(ref t) => &*t,
+            Trans::Buf(ref buf) => buf.get_ref()
+        }
+    }
+}
+
 impl<'a, T: Read + 'a> Read for Trans<'a, T> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match *self {
@@ -62,11 +71,26 @@ impl<'a, T: Read> Decoder<'a, T> {
     fn h1(decoder: &'a mut h1::Decoder, transport: Trans<'a, T>) -> Decoder<'a, T> {
         Decoder(DecoderImpl::H1(decoder, transport))
     }
+
+    /// Get a reference to the transport.
+    pub fn get_ref(&self) -> &T {
+        match self.0 {
+            DecoderImpl::H1(_, ref transport) => transport.get_ref()
+        }
+    }
 }
 
 impl<'a, T: Transport> Encoder<'a, T> {
     fn h1(encoder: &'a mut h1::Encoder, transport: &'a mut T) -> Encoder<'a, T> {
         Encoder(EncoderImpl::H1(encoder, transport))
+    }
+
+
+    /// Get a reference to the transport.
+    pub fn get_ref(&self) -> &T {
+        match self.0 {
+            EncoderImpl::H1(_, ref transport) => &*transport
+        }
     }
 }
 

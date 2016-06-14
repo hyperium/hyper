@@ -98,6 +98,12 @@ pub struct BufReader<'a, R: io::Read + 'a> {
     reader: &'a mut R
 }
 
+impl<'a, R: io::Read + 'a> BufReader<'a, R> {
+    pub fn get_ref(&self) -> &R {
+        self.reader
+    }
+}
+
 impl<'a, R: io::Read> Read for BufReader<'a, R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         trace!("BufReader.read self={}, buf={}", self.buf.len(), buf.len());
