@@ -2,7 +2,6 @@
 //!
 //! These are requests that a `hyper::Server` receives, and include its method,
 //! target URI, headers, and message body.
-//use std::net::SocketAddr;
 
 use version::HttpVersion;
 use method::Method;
@@ -16,7 +15,6 @@ pub fn new(incoming: RequestHead) -> Request {
     debug!("{:#?}", headers);
 
     Request {
-        //remote_addr: addr,
         method: method,
         uri: uri,
         headers: headers,
