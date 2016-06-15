@@ -49,7 +49,7 @@ extern crate test;
 pub use url::Url;
 pub use client::Client;
 pub use error::{Result, Error};
-pub use http::{Next, Encoder, Decoder, Control};
+pub use http::{Next, Encoder, Decoder, Control, ControlError};
 pub use header::Headers;
 pub use method::Method::{self, Get, Head, Post, Delete};
 pub use status::StatusCode::{self, Ok, BadRequest, NotFound};
