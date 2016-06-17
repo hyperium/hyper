@@ -72,6 +72,7 @@ impl<'a, T: Read> Decoder<'a, T> {
         Decoder(DecoderImpl::H1(decoder, transport))
     }
 
+
     /// Get a reference to the transport.
     pub fn get_ref(&self) -> &T {
         match self.0 {
@@ -85,6 +86,17 @@ impl<'a, T: Transport> Encoder<'a, T> {
         Encoder(EncoderImpl::H1(encoder, transport))
     }
 
+    /// Closes an encoder, signaling that no more writing will occur.
+    ///
+    /// This is needed for encodings that don't know length of the content
+    /// beforehand. Most common instance would be usage of
+    /// `Transfer-Enciding: chunked`. You would call `close()` to signal
+    /// the `Encoder` should write the end chunk, or `0\r\n\r\n`.
+    pub fn close(&mut self) {
+        match self.0 {
+            EncoderImpl::H1(ref mut encoder, _) => encoder.close()
+        }
+    }
 
     /// Get a reference to the transport.
     pub fn get_ref(&self) -> &T {
@@ -113,7 +125,11 @@ impl<'a, T: Transport> Write for Encoder<'a, T> {
         }
         match self.0 {
             EncoderImpl::H1(ref mut encoder, ref mut transport) => {
-                encoder.encode(*transport, data)
+                if encoder.is_closed() {
+                    Ok(0)
+                } else {
+                    encoder.encode(*transport, data)
+                }
             }
         }
     }

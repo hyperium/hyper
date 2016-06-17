@@ -8,7 +8,8 @@ use http::internal::{AtomicWrite, WriteBuf};
 #[derive(Debug, Clone)]
 pub struct Encoder {
     kind: Kind,
-    prefix: Prefix, //Option<WriteBuf<Vec<u8>>>
+    prefix: Prefix,
+    is_closed: bool,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -25,14 +26,16 @@ impl Encoder {
     pub fn chunked() -> Encoder {
         Encoder {
             kind: Kind::Chunked(Chunked::Init),
-            prefix: Prefix(None)
+            prefix: Prefix(None),
+            is_closed: false,
         }
     }
 
     pub fn length(len: u64) -> Encoder {
         Encoder {
             kind: Kind::Length(len),
-            prefix: Prefix(None)
+            prefix: Prefix(None),
+            is_closed: false,
         }
     }
 
@@ -51,7 +54,16 @@ impl Encoder {
         }
     }
 
-    pub fn end(self) -> Option<WriteBuf<Cow<'static, [u8]>>> {
+    /// User has called `encoder.close()` in a `Handler`.
+    pub fn is_closed(&self) -> bool {
+        self.is_closed
+    }
+
+    pub fn close(&mut self) {
+        self.is_closed = true;
+    }
+
+    pub fn finish(self) -> Option<WriteBuf<Cow<'static, [u8]>>> {
         let trailer = self.trailer();
         let buf = self.prefix.0;
 
@@ -335,7 +347,7 @@ mod tests {
     use mock::{Async, Buf};
 
     #[test]
-    fn test_write_chunked_sync() {
+    fn test_chunked_encode_sync() {
         let mut dst = Buf::new();
         let mut encoder = Encoder::chunked();
 
@@ -346,7 +358,7 @@ mod tests {
     }
 
     #[test]
-    fn test_write_chunked_async() {
+    fn test_chunked_encode_async() {
         let mut dst = Async::new(Buf::new(), 7);
         let mut encoder = Encoder::chunked();
 
@@ -360,7 +372,7 @@ mod tests {
     }
 
     #[test]
-    fn test_write_sized() {
+    fn test_sized_encode() {
         let mut dst = Buf::new();
         let mut encoder = Encoder::length(8);
         encoder.encode(&mut dst, b"foo bar").unwrap();

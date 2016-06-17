@@ -188,8 +188,9 @@ impl Http1Message for ClientMessage {
             body = Encoder::chunked();
             let encodings = match head.headers.get_mut::<TransferEncoding>() {
                 Some(encodings) => {
-                    //TODO: check if Chunked already exists
-                    encodings.push(header::Encoding::Chunked);
+                    if !encodings.contains(&header::Encoding::Chunked) {
+                        encodings.push(header::Encoding::Chunked);
+                    }
                     true
                 },
                 None => false

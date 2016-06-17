@@ -646,13 +646,6 @@ impl<H: MessageHandler<T>, T: Transport> State<H, T> {
                     _ => Reading::Closed,
                 };
                 let writing = match http1.writing {
-                    Writing::Ready(ref encoder) if encoder.is_eof() => {
-                        if http1.keep_alive {
-                            Writing::KeepAlive
-                        } else {
-                            Writing::Closed
-                        }
-                    },
                     Writing::Ready(encoder) => {
                         if encoder.is_eof() {
                             if http1.keep_alive {
@@ -660,7 +653,7 @@ impl<H: MessageHandler<T>, T: Transport> State<H, T> {
                             } else {
                                 Writing::Closed
                             }
-                        } else if let Some(buf) = encoder.end() {
+                        } else if let Some(buf) = encoder.finish() {
                             Writing::Chunk(Chunk {
                                 buf: buf.bytes,
                                 pos: buf.pos,
@@ -680,7 +673,7 @@ impl<H: MessageHandler<T>, T: Transport> State<H, T> {
                                 } else {
                                     Writing::Closed
                                 }
-                            } else if let Some(buf) = encoder.end() {
+                            } else if let Some(buf) = encoder.finish() {
                                 Writing::Chunk(Chunk {
                                     buf: buf.bytes,
                                     pos: buf.pos,
@@ -719,14 +712,26 @@ impl<H: MessageHandler<T>, T: Transport> State<H, T> {
                 };
 
                 http1.writing = match http1.writing {
-                    Writing::Ready(encoder) => if encoder.is_eof() {
-                        if http1.keep_alive {
-                            Writing::KeepAlive
+                    Writing::Ready(encoder) => {
+                        if encoder.is_eof() {
+                            if http1.keep_alive {
+                                Writing::KeepAlive
+                            } else {
+                                Writing::Closed
+                            }
+                        } else if encoder.is_closed() {
+                            if let Some(buf) = encoder.finish() {
+                                Writing::Chunk(Chunk {
+                                    buf: buf.bytes,
+                                    pos: buf.pos,
+                                    next: (h1::Encoder::length(0), Next::wait())
+                                })
+                            } else {
+                                Writing::Closed
+                            }
                         } else {
-                            Writing::Closed
+                            Writing::Wait(encoder)
                         }
-                    } else {
-                        Writing::Wait(encoder)
                     },
                     Writing::Chunk(chunk) => if chunk.is_written() {
                         Writing::Wait(chunk.next.0)
