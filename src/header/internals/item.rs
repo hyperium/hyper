@@ -78,6 +78,9 @@ impl Item {
                 Err(_) => ()
             }
         }
+        if self.raw.is_some() && self.typed.get_mut(tid).is_some() {
+            self.raw = OptCell::new(None);
+        }
         self.typed.get_mut(tid).map(|typed| unsafe { typed.downcast_mut_unchecked() })
     }
 }
