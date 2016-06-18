@@ -70,7 +70,13 @@ impl fmt::Debug for Void {
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(self.description())
+        match *self {
+            Uri(ref e) => fmt::Display::fmt(e, f),
+            Io(ref e) => fmt::Display::fmt(e, f),
+            Ssl(ref e) => fmt::Display::fmt(e, f),
+            Utf8(ref e) => fmt::Display::fmt(e, f),
+            ref e => f.write_str(e.description()),
+        }
     }
 }
 
