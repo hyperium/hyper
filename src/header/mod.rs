@@ -670,6 +670,7 @@ mod tests {
     fn test_get_mutable() {
         let mut headers = Headers::from_raw(&raw!(b"Content-Length: 10")).unwrap();
         *headers.get_mut::<ContentLength>().unwrap() = ContentLength(20);
+        assert_eq!(headers.get_raw("content-length").unwrap(), &[b"20".to_vec()][..]);
         assert_eq!(*headers.get::<ContentLength>().unwrap(), ContentLength(20));
     }
 
