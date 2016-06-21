@@ -1,3 +1,16 @@
+### v0.9.9 (2016-06-21)
+
+
+#### Bug Fixes
+
+* **headers:** Remove raw part when getting mutable reference to typed header ([63b61524](https://github.com/hyperium/hyper/commit/63b615249443b8f897018f21473c2f1f8e43663c), closes [#821](https://github.com/hyperium/hyper/issues/821))
+
+
+#### Features
+
+* **error:** Display for Error shows better info ([5620fbf9](https://github.com/hyperium/hyper/commit/5620fbf98f1fd43482a9ffa3c98f2f38b42fd4b0), closes [#694](https://github.com/hyperium/hyper/issues/694))
+
+
 ### v0.9.8 (2016-06-14)
 
 
