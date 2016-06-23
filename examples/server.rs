@@ -46,7 +46,7 @@ impl Echo {
 }
 
 impl Handler<HttpStream> for Echo {
-    fn on_request(&mut self, req: Request) -> Next {
+    fn on_request(&mut self, req: Request<HttpStream>) -> Next {
         match *req.uri() {
             RequestUri::AbsolutePath(ref path) => match (req.method(), &path[..]) {
                 (&Get, "/") | (&Get, "/echo") => {
