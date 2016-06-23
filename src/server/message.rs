@@ -28,9 +28,9 @@ impl<H: Handler<T>, T: Transport> Message<H, T> {
 impl<H: Handler<T>, T: Transport> http::MessageHandler<T> for Message<H, T> {
     type Message = http::ServerMessage;
 
-    fn on_incoming(&mut self, head: http::RequestHead) -> Next {
+    fn on_incoming(&mut self, head: http::RequestHead, transport: &T) -> Next {
         trace!("on_incoming {:?}", head);
-        let req = request::new(head);
+        let req = request::new(head, transport);
         self.handler.on_request(req)
     }
 

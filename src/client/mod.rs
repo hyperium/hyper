@@ -310,7 +310,7 @@ impl<H: Handler<T>, T: Transport> http::MessageHandler<T> for Message<H, T> {
         self.handler.on_request_writable(transport)
     }
 
-    fn on_incoming(&mut self, head: http::ResponseHead) -> Next {
+    fn on_incoming(&mut self, head: http::ResponseHead, _: &T) -> Next {
         trace!("on_incoming {:?}", head);
         let resp = response::new(head);
         self.handler.on_response(resp)

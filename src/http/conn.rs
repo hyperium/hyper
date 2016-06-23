@@ -164,7 +164,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
                         trace!("decoder = {:?}", decoder);
                         let keep_alive = self.keep_alive_enabled && head.should_keep_alive();
                         let mut handler = scope.create(Seed(&self.key, &self.ctrl.0));
-                        let next = handler.on_incoming(head);
+                        let next = handler.on_incoming(head, &self.transport);
                         trace!("handler.on_incoming() -> {:?}", next);
 
                         match next.interest {
@@ -231,7 +231,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
                                 if http1.keep_alive {
                                     http1.keep_alive = head.should_keep_alive();
                                 }
-                                let next = http1.handler.on_incoming(head);
+                                let next = http1.handler.on_incoming(head, &self.transport);
                                 http1.reading = Reading::Wait(decoder);
                                 trace!("handler.on_incoming() -> {:?}", next);
                                 Some(next)
@@ -874,7 +874,7 @@ impl Chunk {
 
 pub trait MessageHandler<T: Transport> {
     type Message: Http1Message;
-    fn on_incoming(&mut self, head: http::MessageHead<<Self::Message as Http1Message>::Incoming>) -> Next;
+    fn on_incoming(&mut self, head: http::MessageHead<<Self::Message as Http1Message>::Incoming>, transport: &T) -> Next;
     fn on_outgoing(&mut self, head: &mut http::MessageHead<<Self::Message as Http1Message>::Outgoing>) -> Next;
     fn on_decode(&mut self, &mut http::Decoder<T>) -> Next;
     fn on_encode(&mut self, &mut http::Encoder<T>) -> Next;

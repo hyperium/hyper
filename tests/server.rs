@@ -99,7 +99,7 @@ impl TestHandler {
 }
 
 impl Handler<HttpStream> for TestHandler {
-    fn on_request(&mut self, _req: Request) -> Next {
+    fn on_request(&mut self, _req: Request<HttpStream>) -> Next {
         //self.tx.send(Msg::Head(req)).unwrap();
         self.next(Next::read())
     }

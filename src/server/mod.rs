@@ -324,7 +324,7 @@ impl Listening {
 /// Each event handler returns it's desired `Next` action.
 pub trait Handler<T: Transport> {
     /// This event occurs first, triggering when a `Request` has been parsed.
-    fn on_request(&mut self, request: Request) -> Next;
+    fn on_request(&mut self, request: Request<T>) -> Next;
     /// This event occurs each time the `Request` is ready to be read from.
     fn on_request_readable(&mut self, request: &mut http::Decoder<T>) -> Next;
     /// This event occurs after the first time this handled signals `Next::write()`.

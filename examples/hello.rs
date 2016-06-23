@@ -14,7 +14,7 @@ static PHRASE: &'static [u8] = b"Hello World!";
 struct Hello;
 
 impl Handler<HttpStream> for Hello {
-    fn on_request(&mut self, _: Request) -> Next {
+    fn on_request(&mut self, _: Request<HttpStream>) -> Next {
         Next::write()
     }
     fn on_request_readable(&mut self, _: &mut Decoder<HttpStream>) -> Next {
