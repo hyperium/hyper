@@ -42,7 +42,7 @@ pub enum Error {
     Header,
     /// A message head is too large to be reasonable.
     TooLarge,
-    /// A message reached EOF before being a complete message.
+    /// A message reached EOF, but is not complete.
     Incomplete,
     /// An invalid `Status`, such as `1337 ELITE`.
     Status,
