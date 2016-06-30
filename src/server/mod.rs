@@ -94,7 +94,7 @@ impl Server<HttpListener> { //<H: HandlerFactory<<HttpListener as Accept>::Outpu
 impl<S: SslServer> Server<HttpsListener<S>> {
     /// Creates a new server config that will handle `HttpStream`s over SSL.
     ///
-    /// You can use any SSL implementation, as long as implements `hyper::net::Ssl`.
+    /// You can use any SSL implementation, as long as it implements `hyper::net::Ssl`.
     pub fn https(addr: &SocketAddr, ssl: S) -> ::Result<Server<HttpsListener<S>>> {
         HttpsListener::new(addr, ssl)
             .map(Server::new)
@@ -321,7 +321,7 @@ impl Listening {
 
 /// A trait to react to server events that happen for each message.
 ///
-/// Each event handler returns it's desired `Next` action.
+/// Each event handler returns its desired `Next` action.
 pub trait Handler<T: Transport> {
     /// This event occurs first, triggering when a `Request` has been parsed.
     fn on_request(&mut self, request: Request<T>) -> Next;
