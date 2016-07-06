@@ -1,6 +1,8 @@
 use header::{Header};
 use std::fmt;
+use std::str::FromStr;
 use header::parsing::from_one_raw_str;
+use url::idna::domain_to_unicode;
 
 /// The `Host` header.
 ///
@@ -48,38 +50,7 @@ impl Header for Host {
     }
 
     fn parse_header(raw: &[Vec<u8>]) -> ::Result<Host> {
-        from_one_raw_str(raw).and_then(|mut s: String| {
-            // FIXME: use rust-url to parse this
-            // https://github.com/servo/rust-url/issues/42
-            let idx = {
-                let slice = &s[..];
-                if slice.starts_with('[') {
-                    match slice.rfind(']') {
-                        Some(idx) => {
-                            if slice.len() > idx + 2 {
-                                Some(idx + 1)
-                            } else {
-                                None
-                            }
-                        }
-                        None => return Err(::Error::Header) // this is a bad ipv6 address...
-                    }
-                } else {
-                    slice.rfind(':')
-                }
-            };
-
-            let port = idx.and_then(|idx| s[idx + 1..].parse().ok());
-
-            if let Some(idx) = idx {
-                s.truncate(idx)
-            }
-
-            Ok(Host {
-                hostname: s,
-                port: port
-            })
-        })
+       from_one_raw_str(raw)
     }
 
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -87,6 +58,35 @@ impl Header for Host {
             None | Some(80) | Some(443) => f.write_str(&self.hostname[..]),
             Some(port) => write!(f, "{}:{}", self.hostname, port)
         }
+    }
+}
+
+impl fmt::Display for Host {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.fmt_header(f)
+    }
+}
+
+impl FromStr for Host {
+    type Err = ::Error;
+
+    fn from_str(s: &str) -> ::Result<Host> {
+        let (host_port, res) = domain_to_unicode(s);
+        if res.is_err() {
+            return Err(::Error::Header)
+        }
+        let idx = host_port.rfind(':');
+        let port = idx.and_then(
+            |idx| s[idx + 1..].parse().ok()
+        );
+        let hostname = match idx {
+            None => host_port,
+            Some(idx) => host_port[..idx].to_owned()
+        };
+        Ok(Host {
+            hostname: hostname,
+            port: port
+        })
     }
 }
 
