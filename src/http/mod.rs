@@ -249,14 +249,16 @@ impl Deserialize for RawStatus {
 /// Checks if a connection should be kept alive.
 #[inline]
 pub fn should_keep_alive(version: HttpVersion, headers: &Headers) -> bool {
-    trace!("should_keep_alive( {:?}, {:?} )", version, headers.get::<Connection>());
-    match (version, headers.get::<Connection>()) {
+    let ret = match (version, headers.get::<Connection>()) {
         (Http10, None) => false,
         (Http10, Some(conn)) if !conn.contains(&KeepAlive) => false,
         (Http11, Some(conn)) if conn.contains(&Close)  => false,
         _ => true
-    }
+    };
+    trace!("should_keep_alive(version={:?}, header={:?}) = {:?}", version, headers.get::<Connection>(), ret);
+    ret
 }
+
 pub type ParseResult<T> = ::Result<Option<(MessageHead<T>, usize)>>;
 
 pub fn parse<T: Http1Message<Incoming=I>, I>(rdr: &[u8]) -> ParseResult<I> {
@@ -280,6 +282,7 @@ pub trait Http1Message {
     type Outgoing: Default;
     //TODO: replace with associated const when stable
     fn initial_interest() -> Next;
+    fn keep_alive_interest() -> Next;
     fn parse(bytes: &[u8]) -> ParseResult<Self::Incoming>;
     fn decoder(head: &MessageHead<Self::Incoming>) -> ::Result<h1::Decoder>;
     fn encode(head: MessageHead<Self::Outgoing>, dst: &mut Vec<u8>) -> h1::Encoder;
@@ -304,6 +307,7 @@ impl fmt::Debug for Next {
     }
 }
 
+// Internal enum for `Next`
 #[derive(Debug, Clone, Copy)]
 enum Next_ {
     Read,
@@ -314,6 +318,8 @@ enum Next_ {
     Remove,
 }
 
+// An enum representing all the possible actions to taken when registering
+// with the event loop.
 #[derive(Debug, Clone, Copy)]
 enum Reg {
     Read,
@@ -361,16 +367,11 @@ impl Next {
         }
     }
 
-    fn interest(&self) -> Reg {
-        match self.interest {
-            Next_::Read => Reg::Read,
-            Next_::Write => Reg::Write,
-            Next_::ReadWrite => Reg::ReadWrite,
-            Next_::Wait => Reg::Wait,
-            Next_::End => Reg::Remove,
-            Next_::Remove => Reg::Remove,
-        }
+    /*
+    fn reg(&self) -> Reg {
+        self.interest.register()
     }
+    */
 
     /// Signals the desire to read from the transport.
     pub fn read() -> Next {
@@ -407,6 +408,19 @@ impl Next {
     pub fn timeout(mut self, dur: Duration) -> Next {
         self.timeout = Some(dur);
         self
+    }
+}
+
+impl Next_ {
+    fn register(&self) -> Reg {
+        match *self {
+            Next_::Read => Reg::Read,
+            Next_::Write => Reg::Write,
+            Next_::ReadWrite => Reg::ReadWrite,
+            Next_::Wait => Reg::Wait,
+            Next_::End => Reg::Remove,
+            Next_::Remove => Reg::Remove,
+        }
     }
 }
 

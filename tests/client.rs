@@ -363,3 +363,28 @@ fn client_read_timeout() {
         other => panic!("expected timeout, actual: {:?}", other)
     }
 }
+
+#[test]
+fn client_keep_alive() {
+    let server = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = server.local_addr().unwrap();
+    let client = client();
+    let res = client.request(format!("http://{}/a", addr), opts());
+
+    let mut sock = server.accept().unwrap().0;
+    sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+    sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+    let mut buf = [0; 4096];
+    sock.read(&mut buf).expect("read 1");
+    sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").expect("write 1");
+
+    while let Ok(_) = res.recv() {}
+
+    let res = client.request(format!("http://{}/b", addr), opts());
+    sock.read(&mut buf).expect("read 2");
+    let second_get = b"GET /b HTTP/1.1\r\n";
+    assert_eq!(&buf[..second_get.len()], second_get);
+    sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").expect("write 2");
+
+    while let Ok(_) = res.recv() {}
+}
