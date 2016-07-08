@@ -63,8 +63,8 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
     fn interest(&self) -> Reg {
         match self.state {
             State::Closed => Reg::Remove,
-            State::Init => {
-                <H as MessageHandler>::Message::initial_interest().interest()
+            State::Init { interest, .. } => {
+                interest.register()
             }
             State::Http1(Http1 { reading: Reading::Closed, writing: Writing::Closed, .. }) => {
                 Reg::Remove
@@ -142,12 +142,12 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
 
     fn read<F: MessageHandlerFactory<K, T, Output=H>>(&mut self, scope: &mut Scope<F>, state: State<H, T>) -> State<H, T> {
          match state {
-            State::Init => {
+            State::Init { interest: Next_::Read, .. } => {
                 let head = match self.parse() {
                     Ok(head) => head,
                     Err(::Error::Io(e)) => match e.kind() {
                         io::ErrorKind::WouldBlock |
-                        io::ErrorKind::Interrupted => return State::Init,
+                        io::ErrorKind::Interrupted => return state,
                         _ => {
                             debug!("io error trying to parse {:?}", e);
                             return State::Closed;
@@ -219,6 +219,10 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
                     }
                 }
             },
+            State::Init { .. } => {
+                trace!("on_readable State::{:?}", state);
+                state
+            },
             State::Http1(mut http1) => {
                 let next = match http1.reading {
                     Reading::Init => None,
@@ -274,7 +278,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
                 if let Some(next) = next {
                     s.update(next);
                 }
-                trace!("Conn.on_readable State::Http1 completed, new state = {:?}", s);
+                trace!("Conn.on_readable State::Http1 completed, new state = State::{:?}", s);
 
                 let again = match s {
                     State::Http1(Http1 { reading: Reading::Body(ref encoder), .. }) => encoder.is_eof(),
@@ -296,7 +300,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
 
     fn write<F: MessageHandlerFactory<K, T, Output=H>>(&mut self, scope: &mut Scope<F>, mut state: State<H, T>) -> State<H, T> {
         let next = match state {
-            State::Init => {
+            State::Init { interest: Next_::Write, .. } => {
                 // this could be a Client request, which writes first, so pay
                 // attention to the version written here, which will adjust
                 // our internal state to Http1 or Http2
@@ -335,6 +339,10 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
                     })
                 }
                 Some(interest)
+            }
+            State::Init { .. } => {
+                trace!("Conn.on_writable State::{:?}", state);
+                None
             }
             State::Http1(Http1 { ref mut handler, ref mut writing, ref mut keep_alive, .. }) => {
                 match *writing {
@@ -426,7 +434,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
 
     fn can_read_more(&self) -> bool {
         match self.state {
-            State::Init => false,
+            State::Init { .. } => false,
             _ => !self.buf.is_empty()
         }
     }
@@ -435,7 +443,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
         debug!("on_error err = {:?}", err);
         trace!("on_error state = {:?}", self.state);
         let next = match self.state {
-            State::Init => Next::remove(),
+            State::Init { .. } => Next::remove(),
             State::Http1(ref mut http1) => http1.handler.on_error(err),
             State::Closed => Next::remove(),
         };
@@ -461,7 +469,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
     fn on_remove(self) {
         debug!("on_remove");
         match self.state {
-            State::Init | State::Closed => (),
+            State::Init { .. } | State::Closed => (),
             State::Http1(http1) => http1.handler.on_remove(self.transport),
         }
     }
@@ -475,7 +483,10 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> Conn<K, T, H> {
             ctrl: channel::new(notify),
             keep_alive_enabled: true,
             key: key,
-            state: State::Init,
+            state: State::Init {
+                interest: H::Message::initial_interest().interest,
+                timeout: None,
+            },
             transport: transport,
         }))
     }
@@ -585,10 +596,30 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> Conn<K, T, H> {
         self.0.on_remove()
     }
 
+    pub fn key(&self) -> &K {
+        &self.0.key
+    }
+
+    pub fn control(&self) -> Control {
+        Control {
+            tx: self.0.ctrl.0.clone(),
+        }
+    }
+
+    pub fn is_idle(&self) -> bool {
+        if let State::Init { interest: Next_::Wait, .. } = self.0.state {
+            true
+        } else {
+            false
+        }
+    }
 }
 
 enum State<H: MessageHandler<T>, T: Transport> {
-    Init,
+    Init {
+        interest: Next_,
+        timeout: Option<Duration>,
+    },
     /// Http1 will only ever use a connection to send and receive a single
     /// message at a time. Once a H1 status has been determined, we will either
     /// be reading or writing an H1 message, and optionally multiple if
@@ -606,7 +637,7 @@ enum State<H: MessageHandler<T>, T: Transport> {
 impl<H: MessageHandler<T>, T: Transport> State<H, T> {
     fn timeout(&self) -> Option<Duration> {
         match *self {
-            State::Init => None,
+            State::Init { timeout, .. } => timeout,
             State::Http1(ref http1) => http1.timeout,
             State::Closed => None,
         }
@@ -616,7 +647,10 @@ impl<H: MessageHandler<T>, T: Transport> State<H, T> {
 impl<H: MessageHandler<T>, T: Transport> fmt::Debug for State<H, T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            State::Init => f.write_str("Init"),
+            State::Init { interest, timeout } => f.debug_struct("Init")
+                .field("interest", &interest)
+                .field("timeout", &timeout)
+                .finish(),
             State::Http1(ref h1) => f.debug_tuple("Http1")
                 .field(h1)
                 .finish(),
@@ -632,10 +666,14 @@ impl<H: MessageHandler<T>, T: Transport> State<H, T> {
         let new_state = match (state, next.interest) {
             (_, Next_::Remove) => State::Closed,
             (State::Closed, _) => State::Closed,
-            (State::Init, _) => State::Init,
+            (State::Init { timeout, .. }, e) => State::Init {
+                interest: e,
+                timeout: timeout,
+            },
             (State::Http1(http1), Next_::End) => {
                 let reading = match http1.reading {
-                    Reading::Body(ref decoder) if decoder.is_eof() => {
+                    Reading::Body(ref decoder) |
+                    Reading::Wait(ref decoder) if decoder.is_eof() => {
                         if http1.keep_alive {
                             Reading::KeepAlive
                         } else {
@@ -646,6 +684,7 @@ impl<H: MessageHandler<T>, T: Transport> State<H, T> {
                     _ => Reading::Closed,
                 };
                 let writing = match http1.writing {
+                    Writing::Wait(encoder) |
                     Writing::Ready(encoder) => {
                         if encoder.is_eof() {
                             if http1.keep_alive {
@@ -691,8 +730,11 @@ impl<H: MessageHandler<T>, T: Transport> State<H, T> {
                 };
                 match (reading, writing) {
                     (Reading::KeepAlive, Writing::KeepAlive) => {
-                        //http1.handler.on_keep_alive();
-                        State::Init
+                        //XXX keepalive
+                        State::Init {
+                        interest: H::Message::keep_alive_interest().interest,
+                            timeout: None,
+                        }
                     },
                     (reading, Writing::Chunk(chunk)) => {
                         State::Http1(Http1 {

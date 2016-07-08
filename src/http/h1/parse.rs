@@ -31,6 +31,10 @@ impl Http1Message for ServerMessage {
         Next::new(Next_::Read)
     }
 
+    fn keep_alive_interest() -> Next {
+        Next::new(Next_::Read)
+    }
+
     fn parse(buf: &[u8]) -> ParseResult<RequestLine> {
         let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
         trace!("Request.parse([Header; {}], [u8; {}])", headers.len(), buf.len());
@@ -112,6 +116,10 @@ impl Http1Message for ClientMessage {
 
     fn initial_interest() -> Next {
         Next::new(Next_::Write)
+    }
+
+    fn keep_alive_interest() -> Next {
+        Next::new(Next_::Wait)
     }
 
     fn parse(buf: &[u8]) -> ParseResult<RawStatus> {
