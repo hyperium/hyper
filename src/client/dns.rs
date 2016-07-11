@@ -1,6 +1,7 @@
 use std::io;
-use std::net::{IpAddr, ToSocketAddrs};
+use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::thread;
+use std::vec;
 
 use ::spmc;
 
@@ -11,7 +12,19 @@ pub struct Dns {
     rx: channel::Receiver<Answer>,
 }
 
-pub type Answer = (String, io::Result<IpAddr>);
+pub type Answer = (String, io::Result<IpAddrs>);
+
+pub struct IpAddrs {
+    iter: vec::IntoIter<SocketAddr>,
+}
+
+impl Iterator for IpAddrs {
+    type Item = IpAddr;
+    #[inline]
+    fn next(&mut self) -> Option<IpAddr> {
+        self.iter.next().map(|addr| addr.ip())
+    }
+}
 
 impl Dns {
     pub fn new(notify: (channel::Sender<Answer>, channel::Receiver<Answer>), threads: usize) -> Dns {
@@ -26,7 +39,7 @@ impl Dns {
     }
 
     pub fn resolve<T: Into<String>>(&self, hostname: T) {
-        self.tx.send(hostname.into()).expect("Workers all died horribly");
+        self.tx.send(hostname.into()).expect("DNS workers all died unexpectedly");
     }
 
     pub fn resolved(&self) -> Result<Answer, channel::TryRecvError> {
@@ -41,9 +54,8 @@ fn work(rx: spmc::Receiver<String>, notify: channel::Sender<Answer>) {
         let notify = worker.notify.as_ref().expect("Worker lost notify");
         while let Ok(host) = rx.recv() {
             debug!("resolve {:?}", host);
-            let res = match (&*host, 80).to_socket_addrs().map(|mut i| i.next()) {
-                Ok(Some(addr)) => (host, Ok(addr.ip())),
-                Ok(None) => (host, Err(io::Error::new(io::ErrorKind::Other, "no addresses found"))),
+            let res = match (&*host, 80).to_socket_addrs().map(|i| IpAddrs{ iter: i }) {
+                Ok(addrs) => (host, Ok(addrs)),
                 Err(e) => (host, Err(e))
             };
 

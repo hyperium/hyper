@@ -167,8 +167,12 @@ struct Context<F> {
 impl<F: HandlerFactory<T>, T: Transport> http::MessageHandlerFactory<(), T> for Context<F> {
     type Output = message::Message<F::Output, T>;
 
-    fn create(&mut self, seed: http::Seed<()>) -> Self::Output {
-        message::Message::new(self.factory.create(seed.control()))
+    fn create(&mut self, seed: http::Seed<()>) -> Option<Self::Output> {
+        Some(message::Message::new(self.factory.create(seed.control())))
+    }
+
+    fn keep_alive_interest(&self) -> Next {
+        Next::read()
     }
 }
 
@@ -191,7 +195,7 @@ where A: Accept,
         rotor_try!(scope.register(&seed, EventSet::readable(), PollOpt::level()));
         rotor::Response::ok(
             ServerFsm::Conn(
-                http::Conn::new((), seed, scope.notifier())
+                http::Conn::new((), seed, Next::read(), scope.notifier())
                     .keep_alive(scope.keep_alive)
             )
         )

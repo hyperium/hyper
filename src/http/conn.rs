@@ -163,7 +163,10 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
                     Ok(decoder) => {
                         trace!("decoder = {:?}", decoder);
                         let keep_alive = self.keep_alive_enabled && head.should_keep_alive();
-                        let mut handler = scope.create(Seed(&self.key, &self.ctrl.0));
+                        let mut handler = match scope.create(Seed(&self.key, &self.ctrl.0)) {
+                            Some(handler) => handler,
+                            None => unreachable!()
+                        };
                         let next = handler.on_incoming(head, &self.transport);
                         trace!("handler.on_incoming() -> {:?}", next);
 
@@ -276,7 +279,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
                 };
                 let mut s = State::Http1(http1);
                 if let Some(next) = next {
-                    s.update(next);
+                    s.update(next, &**scope);
                 }
                 trace!("Conn.on_readable State::Http1 completed, new state = State::{:?}", s);
 
@@ -304,7 +307,13 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
                 // this could be a Client request, which writes first, so pay
                 // attention to the version written here, which will adjust
                 // our internal state to Http1 or Http2
-                let mut handler = scope.create(Seed(&self.key, &self.ctrl.0));
+                let mut handler = match scope.create(Seed(&self.key, &self.ctrl.0)) {
+                    Some(handler) => handler,
+                    None => {
+                        trace!("could not create handler {:?}", self.key);
+                        return State::Closed;
+                    }
+                };
                 let mut head = http::MessageHead::default();
                 let interest = handler.on_outgoing(&mut head);
                 if head.version == HttpVersion::Http11 {
@@ -427,7 +436,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
         };
 
         if let Some(next) = next {
-            state.update(next);
+            state.update(next, &**scope);
         }
         state
     }
@@ -439,7 +448,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
         }
     }
 
-    fn on_error(&mut self, err: ::Error) {
+    fn on_error<F>(&mut self, err: ::Error, factory: &F) where F: MessageHandlerFactory<K, T> {
         debug!("on_error err = {:?}", err);
         trace!("on_error state = {:?}", self.state);
         let next = match self.state {
@@ -447,7 +456,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
             State::Http1(ref mut http1) => http1.handler.on_error(err),
             State::Closed => Next::remove(),
         };
-        self.state.update(next);
+        self.state.update(next, factory);
     }
 
     fn on_readable<F>(&mut self, scope: &mut Scope<F>)
@@ -477,15 +486,15 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
 }
 
 impl<K: Key, T: Transport, H: MessageHandler<T>> Conn<K, T, H> {
-    pub fn new(key: K, transport: T, notify: rotor::Notifier) -> Conn<K, T, H> {
+    pub fn new(key: K, transport: T, next: Next, notify: rotor::Notifier) -> Conn<K, T, H> {
         Conn(Box::new(ConnInner {
             buf: Buffer::new(),
             ctrl: channel::new(notify),
             keep_alive_enabled: true,
             key: key,
             state: State::Init {
-                interest: H::Message::initial_interest().interest,
-                timeout: None,
+                interest: next.interest,
+                timeout: next.timeout,
             },
             transport: transport,
         }))
@@ -506,7 +515,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> Conn<K, T, H> {
                     trace!("is_error, but not socket error");
                     // spurious?
                 },
-                Err(e) => self.0.on_error(e.into())
+                Err(e) => self.0.on_error(e.into(), &**scope)
             }
         }
 
@@ -570,7 +579,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> Conn<K, T, H> {
             },
             Err(e) => {
                 trace!("error reregistering: {:?}", e);
-                self.0.on_error(e.into());
+                self.0.on_error(e.into(), &**scope);
                 None
             }
         }
@@ -580,7 +589,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> Conn<K, T, H> {
     where F: MessageHandlerFactory<K, T, Output=H> {
         while let Ok(next) = self.0.ctrl.1.try_recv() {
             trace!("woke up with {:?}", next);
-            self.0.state.update(next);
+            self.0.state.update(next, &**scope);
         }
         self.ready(EventSet::readable() | EventSet::writable(), scope)
     }
@@ -588,7 +597,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> Conn<K, T, H> {
     pub fn timeout<F>(mut self, scope: &mut Scope<F>) -> Option<(Self, Option<Duration>)>
     where F: MessageHandlerFactory<K, T, Output=H> {
         //TODO: check if this was a spurious timeout?
-        self.0.on_error(::Error::Timeout);
+        self.0.on_error(::Error::Timeout, &**scope);
         self.ready(EventSet::none(), scope)
     }
 
@@ -660,7 +669,7 @@ impl<H: MessageHandler<T>, T: Transport> fmt::Debug for State<H, T> {
 }
 
 impl<H: MessageHandler<T>, T: Transport> State<H, T> {
-    fn update(&mut self, next: Next) {
+    fn update<F, K>(&mut self, next: Next, factory: &F) where F: MessageHandlerFactory<K, T>, K: Key {
         let timeout = next.timeout;
         let state = mem::replace(self, State::Closed);
         let new_state = match (state, next.interest) {
@@ -730,10 +739,10 @@ impl<H: MessageHandler<T>, T: Transport> State<H, T> {
                 };
                 match (reading, writing) {
                     (Reading::KeepAlive, Writing::KeepAlive) => {
-                        //XXX keepalive
+                        let next = factory.keep_alive_interest();
                         State::Init {
-                        interest: H::Message::keep_alive_interest().interest,
-                            timeout: None,
+                            interest: next.interest,
+                            timeout: next.timeout,
                         }
                     },
                     (reading, Writing::Chunk(chunk)) => {
@@ -848,6 +857,10 @@ impl<H: MessageHandler<T>, T: Transport> State<H, T> {
             }
         };
         let new_state = match new_state {
+            State::Init { interest, .. } => State::Init {
+                timeout: timeout,
+                interest: interest,
+            },
             State::Http1(mut http1) => {
                 http1.timeout = timeout;
                 State::Http1(http1)
@@ -943,22 +956,13 @@ impl<'a, K: Key + 'a> Seed<'a, K> {
 pub trait MessageHandlerFactory<K: Key, T: Transport> {
     type Output: MessageHandler<T>;
 
-    fn create(&mut self, seed: Seed<K>) -> Self::Output;
+    fn create(&mut self, seed: Seed<K>) -> Option<Self::Output>;
+
+    fn keep_alive_interest(&self) -> Next;
 }
 
-impl<F, K, H, T> MessageHandlerFactory<K, T> for F
-where F: FnMut(Seed<K>) -> H,
-      K: Key,
-      H: MessageHandler<T>,
-      T: Transport {
-    type Output = H;
-    fn create(&mut self, seed: Seed<K>) -> H {
-        self(seed)
-    }
-}
-
-pub trait Key: Eq + Hash + Clone {}
-impl<T: Eq + Hash + Clone> Key for T {}
+pub trait Key: Eq + Hash + Clone + fmt::Debug {}
+impl<T: Eq + Hash + Clone + fmt::Debug> Key for T {}
 
 #[cfg(test)]
 mod tests {

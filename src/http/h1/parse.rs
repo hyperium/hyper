@@ -4,7 +4,7 @@ use std::io::Write;
 use httparse;
 
 use header::{self, Headers, ContentLength, TransferEncoding};
-use http::{MessageHead, RawStatus, Http1Message, ParseResult, Next, ServerMessage, ClientMessage, Next_, RequestLine};
+use http::{MessageHead, RawStatus, Http1Message, ParseResult, ServerMessage, ClientMessage, RequestLine};
 use http::h1::{Encoder, Decoder};
 use method::Method;
 use status::StatusCode;
@@ -26,14 +26,6 @@ pub fn parse<T: Http1Message<Incoming=I>, I>(buf: &[u8]) -> ParseResult<I> {
 impl Http1Message for ServerMessage {
     type Incoming = RequestLine;
     type Outgoing = StatusCode;
-
-    fn initial_interest() -> Next {
-        Next::new(Next_::Read)
-    }
-
-    fn keep_alive_interest() -> Next {
-        Next::new(Next_::Read)
-    }
 
     fn parse(buf: &[u8]) -> ParseResult<RequestLine> {
         let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
@@ -112,15 +104,6 @@ impl Http1Message for ServerMessage {
 impl Http1Message for ClientMessage {
     type Incoming = RawStatus;
     type Outgoing = RequestLine;
-
-
-    fn initial_interest() -> Next {
-        Next::new(Next_::Write)
-    }
-
-    fn keep_alive_interest() -> Next {
-        Next::new(Next_::Wait)
-    }
 
     fn parse(buf: &[u8]) -> ParseResult<RawStatus> {
         let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
