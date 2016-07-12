@@ -1,3 +1,13 @@
+### v0.9.10 (2016-07-11)
+
+
+#### Features
+
+* **headers:**
+  * add origin header ([64881ae0](https://github.com/hyperium/hyper/commit/64881ae05458f06261b2e7d0f790184678cc42b9))
+  * Add Referrer-Policy header ([b76a02cc](https://github.com/hyperium/hyper/commit/b76a02cc446f2a3935006035fd73f5f7a47ec428))
+
+
 ### v0.9.9 (2016-06-21)
 
 
