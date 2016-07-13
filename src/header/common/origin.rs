@@ -39,6 +39,7 @@ pub struct Origin {
 }
 
 impl Origin {
+    /// Creates a new `Origin` header.
     pub fn new<S: Into<String>, H: Into<String>>(scheme: S, hostname: H, port: Option<u16>) -> Origin{
         Origin {
             scheme: scheme.into(),
