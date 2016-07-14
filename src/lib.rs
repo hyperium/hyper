@@ -29,8 +29,6 @@ extern crate unicase;
 extern crate httparse;
 extern crate rotor;
 extern crate spmc;
-extern crate traitobject;
-extern crate typeable;
 extern crate vecio;
 
 #[macro_use]

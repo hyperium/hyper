@@ -75,15 +75,12 @@
 //!     }
 //! }
 //! ```
-use std::any::Any;
+use std::any::{Any, TypeId};
 use std::borrow::{Cow, ToOwned};
-//use std::collections::HashMap;
-//use std::collections::hash_map::{Iter, Entry};
 use std::iter::{FromIterator, IntoIterator};
 use std::{mem, fmt};
 
-use {httparse, traitobject};
-use typeable::Typeable;
+use httparse;
 use unicase::UniCase;
 
 use self::internals::{Item, VecMap, Entry};
@@ -108,7 +105,7 @@ pub mod parsing;
 ///
 /// This trait represents the construction and identification of headers,
 /// and contains trait-object unsafe methods.
-pub trait Header: HeaderClone + Any + Typeable + Send + Sync {
+pub trait Header: HeaderClone + Any + GetType + Send + Sync {
     /// Returns the name of the header field this belongs to.
     ///
     /// This will become an associated constant once available.
@@ -129,6 +126,33 @@ pub trait Header: HeaderClone + Any + Typeable + Send + Sync {
 }
 
 #[doc(hidden)]
+pub trait GetType: Any {
+    #[inline(always)]
+    fn get_type(&self) -> TypeId {
+        TypeId::of::<Self>()
+    }
+}
+
+impl<T: Any> GetType for T {}
+
+#[test]
+fn test_get_type() {
+    use ::header::{ContentLength, UserAgent};
+
+    let len = ContentLength(5);
+    let agent = UserAgent("hyper".to_owned());
+
+    assert_eq!(TypeId::of::<ContentLength>(), len.get_type());
+    assert_eq!(TypeId::of::<UserAgent>(), agent.get_type());
+
+    let len: Box<Header + Send + Sync> = Box::new(len);
+    let agent: Box<Header + Send + Sync> = Box::new(agent);
+
+    assert_eq!(TypeId::of::<ContentLength>(), (*len).get_type());
+    assert_eq!(TypeId::of::<UserAgent>(), (*agent).get_type());
+}
+
+#[doc(hidden)]
 pub trait HeaderClone {
     fn clone_box(&self) -> Box<Header + Send + Sync>;
 }
@@ -141,14 +165,22 @@ impl<T: Header + Clone> HeaderClone for T {
 }
 
 impl Header + Send + Sync {
+    // A trait object looks like this:
+    //
+    // TraitObject { data: *mut (), vtable: *mut () }
+    //
+    // So, we transmute &Trait into a (*mut (), *mut ()). This depends on the
+    // order the compiler has chosen to represent a TraitObject.
+    //
+    // It has been assured that this order will be stable.
     #[inline]
     unsafe fn downcast_ref_unchecked<T: 'static>(&self) -> &T {
-        &*(traitobject::data(self) as *const T)
+        &*(mem::transmute::<*const _, (*const (), *const ())>(self).0 as *const T)
     }
 
     #[inline]
     unsafe fn downcast_mut_unchecked<T: 'static>(&mut self) -> &mut T {
-        &mut *(traitobject::data_mut(self) as *mut T)
+        &mut *(mem::transmute::<*mut _, (*mut (), *mut ())>(self).0 as *mut T)
     }
 }
 
