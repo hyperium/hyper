@@ -120,7 +120,6 @@ macro_rules! __hyper__tm {
             use std::str;
             use $crate::header::*;
             use $crate::mime::*;
-            use $crate::language_tags::*;
             use $crate::method::Method;
             use super::$id as HeaderField;
             $($tf)*

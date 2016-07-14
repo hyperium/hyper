@@ -15,7 +15,9 @@ pub use self::request::Request;
 pub use self::response::Response;
 
 use http::{self, Next};
-use net::{Accept, HttpListener, HttpsListener, SslServer, Transport};
+
+pub use net::{Accept, HttpListener, HttpsListener};
+use net::{SslServer, Transport};
 
 
 mod request;
