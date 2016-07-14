@@ -21,8 +21,7 @@ header! {
     ///
     /// # Examples
     /// ```
-    /// use hyper::LanguageTag;
-    /// use hyper::header::{Headers, AcceptLanguage, qitem};
+    /// use hyper::header::{Headers, AcceptLanguage, LanguageTag, qitem};
     ///
     /// let mut headers = Headers::new();
     /// let mut langtag: LanguageTag = Default::default();

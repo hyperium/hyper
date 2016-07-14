@@ -72,6 +72,31 @@ impl<'a, T: Read> Decoder<'a, T> {
         Decoder(DecoderImpl::H1(decoder, transport))
     }
 
+    /// Read from the `Transport`.
+    #[inline]
+    pub fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match self.0 {
+            DecoderImpl::H1(ref mut decoder, ref mut transport) => {
+                decoder.decode(transport, buf)
+            }
+        }
+    }
+
+    /// Try to read from the `Transport`.
+    ///
+    /// This method looks for the `WouldBlock` error. If the read did not block,
+    /// a return value would be `Ok(Some(x))`. If the read would block,
+    /// this method would return `Ok(None)`.
+    #[inline]
+    pub fn try_read(&mut self, buf: &mut [u8]) -> io::Result<Option<usize>> {
+        match self.read(buf) {
+            Ok(n) => Ok(Some(n)),
+            Err(e) => match e.kind() {
+                io::ErrorKind::WouldBlock => Ok(None),
+                _ => Err(e)
+            }
+        }
+    }
 
     /// Get a reference to the transport.
     pub fn get_ref(&self) -> &T {
@@ -86,9 +111,42 @@ impl<'a, T: Transport> Encoder<'a, T> {
         Encoder(EncoderImpl::H1(encoder, transport))
     }
 
+    /// Write to the `Transport`.
+    #[inline]
+    pub fn write(&mut self, data: &[u8]) -> io::Result<usize> {
+        if data.is_empty() {
+            return Ok(0);
+        }
+        match self.0 {
+            EncoderImpl::H1(ref mut encoder, ref mut transport) => {
+                if encoder.is_closed() {
+                    Ok(0)
+                } else {
+                    encoder.encode(*transport, data)
+                }
+            }
+        }
+    }
+
+    /// Try to write to the `Transport`.
+    ///
+    /// This method looks for the `WouldBlock` error. If the write did not block,
+    /// a return value would be `Ok(Some(x))`. If the write would block,
+    /// this method would return `Ok(None)`.
+    #[inline]
+    pub fn try_write(&mut self, data: &[u8]) -> io::Result<Option<usize>> {
+        match self.write(data) {
+            Ok(n) => Ok(Some(n)),
+            Err(e) => match e.kind() {
+                io::ErrorKind::WouldBlock => Ok(None),
+                _ => Err(e)
+            }
+        }
+    }
+
     /// Closes an encoder, signaling that no more writing will occur.
     ///
-    /// This is needed for encodings that don't know length of the content
+    /// This is needed for encodings that don't know the length of the content
     /// beforehand. Most common instance would be usage of
     /// `Transfer-Enciding: chunked`. You would call `close()` to signal
     /// the `Encoder` should write the end chunk, or `0\r\n\r\n`.
@@ -109,29 +167,14 @@ impl<'a, T: Transport> Encoder<'a, T> {
 impl<'a, T: Read> Read for Decoder<'a, T> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        match self.0 {
-            DecoderImpl::H1(ref mut decoder, ref mut transport) => {
-                decoder.decode(transport, buf)
-            }
-        }
+        self.read(buf)
     }
 }
 
 impl<'a, T: Transport> Write for Encoder<'a, T> {
     #[inline]
     fn write(&mut self, data: &[u8]) -> io::Result<usize> {
-        if data.is_empty() {
-            return Ok(0);
-        }
-        match self.0 {
-            EncoderImpl::H1(ref mut encoder, ref mut transport) => {
-                if encoder.is_closed() {
-                    Ok(0)
-                } else {
-                    encoder.encode(*transport, data)
-                }
-            }
-        }
+        self.write(data)
     }
 
     #[inline]
