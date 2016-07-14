@@ -48,7 +48,7 @@ impl hyper::client::Handler<HttpStream> for Dump {
             Err(e) => match e.kind() {
                 io::ErrorKind::WouldBlock => Next::read(),
                 _ => {
-                    println!("ERROR: {}", e);
+                    println!("ERROR:example: {}", e);
                     Next::end()
                 }
             }
@@ -56,7 +56,7 @@ impl hyper::client::Handler<HttpStream> for Dump {
     }
 
     fn on_error(&mut self, err: hyper::Error) -> Next {
-        println!("ERROR: {}", err);
+        println!("ERROR:example: {}", err);
         Next::remove()
     }
 }

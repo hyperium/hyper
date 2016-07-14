@@ -280,13 +280,9 @@ pub enum ClientMessage {}
 pub trait Http1Message {
     type Incoming;
     type Outgoing: Default;
-    //TODO: replace with associated const when stable
-    fn initial_interest() -> Next;
-    fn keep_alive_interest() -> Next;
     fn parse(bytes: &[u8]) -> ParseResult<Self::Incoming>;
     fn decoder(head: &MessageHead<Self::Incoming>) -> ::Result<h1::Decoder>;
     fn encode(head: MessageHead<Self::Outgoing>, dst: &mut Vec<u8>) -> h1::Encoder;
-
 }
 
 /// Used to signal desired events when working with asynchronous IO.
