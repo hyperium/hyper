@@ -3,11 +3,8 @@ extern crate hyper;
 extern crate env_logger;
 extern crate num_cpus;
 
-use std::io::Write;
-
-use hyper::{Decoder, Encoder, Next};
-use hyper::net::{HttpStream, HttpListener};
-use hyper::server::{Server, Handler, Request, Response};
+use hyper::{Decoder, Encoder, Next, HttpStream};
+use hyper::server::{Server, Handler, Request, Response, HttpListener};
 
 static PHRASE: &'static [u8] = b"Hello World!";
 

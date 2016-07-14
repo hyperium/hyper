@@ -4,11 +4,8 @@ extern crate env_logger;
 #[macro_use]
 extern crate log;
 
-use std::io::{self, Read, Write};
-
-use hyper::{Get, Post, StatusCode, RequestUri, Decoder, Encoder, Next};
+use hyper::{Get, Post, StatusCode, RequestUri, Decoder, Encoder, HttpStream, Next};
 use hyper::header::ContentLength;
-use hyper::net::HttpStream;
 use hyper::server::{Server, Handler, Request, Response};
 
 struct Echo {
@@ -78,13 +75,13 @@ impl Handler<HttpStream> for Echo {
         match self.route {
             Route::Echo(ref body) => {
                 if self.read_pos < self.buf.len() {
-                    match transport.read(&mut self.buf[self.read_pos..]) {
-                        Ok(0) => {
+                    match transport.try_read(&mut self.buf[self.read_pos..]) {
+                        Ok(Some(0)) => {
                             debug!("Read 0, eof");
                             self.eof = true;
                             Next::write()
                         },
-                        Ok(n) => {
+                        Ok(Some(n)) => {
                             self.read_pos += n;
                             match *body {
                                 Body::Len(max) if max <= self.read_pos as u64 => {
@@ -94,12 +91,10 @@ impl Handler<HttpStream> for Echo {
                                 _ => Next::read_and_write()
                             }
                         }
-                        Err(e) => match e.kind() {
-                            io::ErrorKind::WouldBlock => Next::read_and_write(),
-                            _ => {
-                                println!("read error {:?}", e);
-                                Next::end()
-                            }
+                        Ok(None) => Next::read_and_write(),
+                        Err(e) => {
+                            println!("read error {:?}", e);
+                            Next::end()
                         }
                     }
                 } else {
@@ -137,18 +132,16 @@ impl Handler<HttpStream> for Echo {
             }
             Route::Echo(..) => {
                 if self.write_pos < self.read_pos {
-                    match transport.write(&self.buf[self.write_pos..self.read_pos]) {
-                        Ok(0) => panic!("write ZERO"),
-                        Ok(n) => {
+                    match transport.try_write(&self.buf[self.write_pos..self.read_pos]) {
+                        Ok(Some(0)) => panic!("write ZERO"),
+                        Ok(Some(n)) => {
                             self.write_pos += n;
                             Next::write()
                         }
-                        Err(e) => match e.kind() {
-                            io::ErrorKind::WouldBlock => Next::write(),
-                            _ => {
-                                println!("write error {:?}", e);
-                                Next::end()
-                            }
+                        Ok(None) => Next::write(),
+                        Err(e) => {
+                            println!("write error {:?}", e);
+                            Next::end()
                         }
                     }
                 } else if !self.eof {
