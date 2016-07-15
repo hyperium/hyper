@@ -145,6 +145,8 @@ pub struct Config<C> {
     connect_timeout: Duration,
     connector: C,
     keep_alive: bool,
+    keep_alive_timeout: Option<Duration>,
+    //TODO: make use of max_idle config
     max_idle: usize,
     max_sockets: usize,
 }
@@ -157,6 +159,7 @@ impl<C> Config<C> where C: Connect + Send + 'static {
             connect_timeout: self.connect_timeout,
             connector: val,
             keep_alive: self.keep_alive,
+            keep_alive_timeout: Some(Duration::from_secs(60 * 2)),
             max_idle: self.max_idle,
             max_sockets: self.max_sockets,
         }
@@ -168,6 +171,17 @@ impl<C> Config<C> where C: Connect + Send + 'static {
     #[inline]
     pub fn keep_alive(mut self, val: bool) -> Config<C> {
         self.keep_alive = val;
+        self
+    }
+
+    /// Set an optional timeout for idle sockets being kept-alive.
+    ///
+    /// Pass `None` to disable timeout.
+    ///
+    /// Default is 2 minutes.
+    #[inline]
+    pub fn keep_alive_timeout(mut self, val: Option<Duration>) -> Config<C> {
+        self.keep_alive_timeout = val;
         self
     }
 
@@ -202,6 +216,7 @@ impl Default for Config<DefaultConnector> {
             connect_timeout: Duration::from_secs(10),
             connector: DefaultConnector::default(),
             keep_alive: true,
+            keep_alive_timeout: Some(Duration::from_secs(60 * 2)),
             max_idle: 5,
             max_sockets: 1024,
         }

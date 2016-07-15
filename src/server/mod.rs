@@ -40,7 +40,7 @@ impl<A: Accept, H: HandlerFactory<A::Output>> fmt::Debug for ServerLoop<A, H> {
 pub struct Server<T: Accept> {
     listener: T,
     keep_alive: bool,
-    idle_timeout: Duration,
+    idle_timeout: Option<Duration>,
     max_sockets: usize,
 }
 
@@ -51,7 +51,7 @@ impl<T> Server<T> where T: Accept, T::Output: Transport {
         Server {
             listener: listener,
             keep_alive: true,
-            idle_timeout: Duration::from_secs(10),
+            idle_timeout: Some(Duration::from_secs(10)),
             max_sockets: 4096,
         }
     }
@@ -67,7 +67,7 @@ impl<T> Server<T> where T: Accept, T::Output: Transport {
     /// Sets how long an idle connection will be kept before closing.
     ///
     /// Default is 10 seconds.
-    pub fn idle_timeout(mut self, val: Duration) -> Server<T> {
+    pub fn idle_timeout(mut self, val: Option<Duration>) -> Server<T> {
         self.idle_timeout = val;
         self
     }
