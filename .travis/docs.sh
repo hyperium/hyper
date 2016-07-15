@@ -2,6 +2,16 @@
 
 set -o errexit
 
+shopt -s globstar
+
+cargo doc --no-deps
+
+for f in ./doc/**/*.md; do
+    rustdoc $f -L ./target/debug -L ./target/debug/deps -o "$(dirname $f)";
+done
+
+cp --parent ./doc/**/*.md ./target
+
 git clone --branch gh-pages "https://$TOKEN@github.com/${TRAVIS_REPO_SLUG}.git" deploy_docs
 cd deploy_docs
 
