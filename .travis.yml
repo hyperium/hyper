@@ -22,7 +22,7 @@ script:
   - ./.travis/readme.py
   - cargo build --verbose $FEATURES
   - cargo test --verbose $FEATURES
-  - 'if [ $TRAVIS_RUST_VERSION = nightly ]; then cargo bench --no-run; fi'
+  - 'for f in ./doc/**/*.md; do rustdoc --test $f; done'
 
 addons:
   apt:
@@ -40,7 +40,6 @@ after_success: |
     ./kcov-master/tmp/usr/local/bin/kcov --coveralls-id=$TRAVIS_JOB_ID --exclude-pattern=/.cargo target/kcov target/debug/hyper-* &&
     [ $TRAVIS_PULL_REQUEST = false ] &&
     { [ "$TRAVIS_TAG" != "" ] || [ "$TRAVIS_BRANCH" == "master" ]; } &&
-    cargo doc --no-deps &&
     ./.travis/docs.sh &&
     echo "\nDocs published.\n"
 
