@@ -40,7 +40,7 @@ impl<A: Accept, H: HandlerFactory<A::Output>> fmt::Debug for ServerLoop<A, H> {
 pub struct Server<T: Accept> {
     listener: T,
     keep_alive: bool,
-    idle_timeout: Duration,
+    idle_timeout: Option<Duration>,
     max_sockets: usize,
 }
 
@@ -51,7 +51,7 @@ impl<T> Server<T> where T: Accept, T::Output: Transport {
         Server {
             listener: listener,
             keep_alive: true,
-            idle_timeout: Duration::from_secs(10),
+            idle_timeout: Some(Duration::from_secs(10)),
             max_sockets: 4096,
         }
     }
@@ -67,7 +67,7 @@ impl<T> Server<T> where T: Accept, T::Output: Transport {
     /// Sets how long an idle connection will be kept before closing.
     ///
     /// Default is 10 seconds.
-    pub fn idle_timeout(mut self, val: Duration) -> Server<T> {
+    pub fn idle_timeout(mut self, val: Option<Duration>) -> Server<T> {
         self.idle_timeout = val;
         self
     }
@@ -117,6 +117,7 @@ impl<A: Accept> Server<A> where A::Output: Transport  {
         config.slab_capacity(self.max_sockets);
         config.mio().notify_capacity(self.max_sockets);
         let keep_alive = self.keep_alive;
+        let idle_timeout = self.idle_timeout;
         let mut loop_ = rotor::Loop::new(&config).unwrap();
         let mut notifier = None;
         {
@@ -135,8 +136,9 @@ impl<A: Accept> Server<A> where A::Output: Transport  {
         };
         let server = ServerLoop {
             inner: Some((loop_, Context {
+                factory: factory,
+                idle_timeout: idle_timeout,
                 keep_alive: keep_alive,
-                factory: factory
             }))
         };
         Ok((listening, server))
@@ -162,8 +164,9 @@ impl<A: Accept, H: HandlerFactory<A::Output>> Drop for ServerLoop<A, H> {
 }
 
 struct Context<F> {
-    keep_alive: bool,
     factory: F,
+    idle_timeout: Option<Duration>,
+    keep_alive: bool,
 }
 
 impl<F: HandlerFactory<T>, T: Transport> http::MessageHandlerFactory<(), T> for Context<F> {
@@ -174,7 +177,11 @@ impl<F: HandlerFactory<T>, T: Transport> http::MessageHandlerFactory<(), T> for 
     }
 
     fn keep_alive_interest(&self) -> Next {
-        Next::read()
+        if let Some(dur) = self.idle_timeout {
+            Next::read().timeout(dur)
+        } else {
+            Next::read()
+        }
     }
 }
 
