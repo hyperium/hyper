@@ -1,6 +1,6 @@
 % Server Guide
 
-## The `Handler`
+# The `Handler`
 
 ```ignore,no_run
 extern crate hyper;
