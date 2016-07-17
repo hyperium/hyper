@@ -4,18 +4,18 @@ use std::fmt;
 use std::str::from_utf8;
 
 use super::cell::{OptCell, PtrMapCell};
-use header::{Header};
+use header::{Header, Raw};
 
 
 #[derive(Clone)]
 pub struct Item {
-    raw: OptCell<Vec<Vec<u8>>>,
+    raw: OptCell<Raw>,
     typed: PtrMapCell<Header + Send + Sync>
 }
 
 impl Item {
     #[inline]
-    pub fn new_raw(data: Vec<Vec<u8>>) -> Item {
+    pub fn new_raw(data: Raw) -> Item {
         Item {
             raw: OptCell::new(Some(data)),
             typed: PtrMapCell::new(),
@@ -33,23 +33,22 @@ impl Item {
     }
 
     #[inline]
-    pub fn mut_raw(&mut self) -> &mut Vec<Vec<u8>> {
+    pub fn mut_raw(&mut self) -> &mut Raw {
         self.typed = PtrMapCell::new();
         unsafe {
             self.raw.get_mut()
         }
     }
 
-    pub fn raw(&self) -> &[Vec<u8>] {
+    pub fn raw(&self) -> &Raw {
         if let Some(ref raw) = *self.raw {
-            return &raw[..];
+            return raw;
         }
 
-        let raw = vec![unsafe { self.typed.one() }.to_string().into_bytes()];
+        let raw = unsafe { self.typed.one() }.to_string().into_bytes().into();
         self.raw.set(raw);
 
-        let raw = self.raw.as_ref().unwrap();
-        &raw[..]
+        self.raw.as_ref().unwrap()
     }
 
     pub fn typed<H: Header + Any>(&self) -> Option<&H> {
@@ -86,10 +85,8 @@ impl Item {
 }
 
 #[inline]
-fn parse<H: Header>(raw: &Vec<Vec<u8>>) ->
-        ::Result<Box<Header + Send + Sync>> {
-    Header::parse_header(&raw[..]).map(|h: H| {
-        // FIXME: Use Type ascription
+fn parse<H: Header>(raw: &Raw) -> ::Result<Box<Header + Send + Sync>> {
+    H::parse_header(raw).map(|h| {
         let h: Box<Header + Send + Sync> = Box::new(h);
         h
     })

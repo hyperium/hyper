@@ -1,6 +1,7 @@
 use std::fmt::{self, Display};
+use std::str;
 
-use header::{Header};
+use header::{Header, Raw};
 
 /// The `Access-Control-Allow-Origin` response header,
 /// part of [CORS](http://www.w3.org/TR/cors/#access-control-allow-origin-response-header)
@@ -59,16 +60,16 @@ impl Header for AccessControlAllowOrigin {
         "Access-Control-Allow-Origin"
     }
 
-    fn parse_header(raw: &[Vec<u8>]) -> ::Result<AccessControlAllowOrigin> {
-        if raw.len() != 1 {
-            return Err(::Error::Header)
+    fn parse_header(raw: &Raw) -> ::Result<AccessControlAllowOrigin> {
+        if let Some(line) = raw.one() {
+            Ok(match line {
+                b"*" => AccessControlAllowOrigin::Any,
+                b"null" => AccessControlAllowOrigin::Null,
+                _ => AccessControlAllowOrigin::Value(try!(str::from_utf8(line)).into())
+            })
+        } else {
+            Err(::Error::Header)
         }
-        let value = unsafe { raw.get_unchecked(0) };
-        Ok(match &value[..] {
-            b"*" => AccessControlAllowOrigin::Any,
-            b"null" => AccessControlAllowOrigin::Null,
-            _ => AccessControlAllowOrigin::Value(try!(String::from_utf8(value.clone())))
-        })
     }
 
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {

@@ -72,15 +72,16 @@ macro_rules! bench_header(
 
             #[bench]
             fn bench_parse(b: &mut Bencher) {
-                let val = $value;
+                let val = $value.into();
                 b.iter(|| {
-                    let _: $ty = Header::parse_header(&val[..]).unwrap();
+                    let _: $ty = Header::parse_header(&val).unwrap();
                 });
             }
 
             #[bench]
             fn bench_format(b: &mut Bencher) {
-                let val: $ty = Header::parse_header(&$value[..]).unwrap();
+                let raw = $value.into();
+                let val: $ty = Header::parse_header(&raw).unwrap();
                 let fmt = ::header::HeaderFormatter(&val);
                 b.iter(|| {
                     format!("{}", fmt);
@@ -137,7 +138,8 @@ macro_rules! test_header {
             use std::ascii::AsciiExt;
             let raw = $raw;
             let a: Vec<Vec<u8>> = raw.iter().map(|x| x.to_vec()).collect();
-            let value = HeaderField::parse_header(&a[..]);
+            let a = a.into();
+            let value = HeaderField::parse_header(&a);
             let result = format!("{}", value.unwrap());
             let expected = String::from_utf8(raw[0].to_vec()).unwrap();
             let result_cmp: Vec<String> = result
@@ -157,7 +159,8 @@ macro_rules! test_header {
         #[test]
         fn $id() {
             let a: Vec<Vec<u8>> = $raw.iter().map(|x| x.to_vec()).collect();
-            let val = HeaderField::parse_header(&a[..]);
+            let a = a.into();
+            let val = HeaderField::parse_header(&a);
             let typed: Option<HeaderField> = $typed;
             // Test parsing
             assert_eq!(val.ok(), typed);
@@ -195,9 +198,8 @@ macro_rules! __hyper_generate_header_serialization {
                               where D: ::serde::Deserializer {
                 let string_representation: String =
                     try!(::serde::Deserialize::deserialize(deserializer));
-                Ok($crate::header::Header::parse_header(&[
-                    string_representation.into_bytes()
-                ]).unwrap())
+                let raw = string_representation.into_bytes().into();
+                Ok($crate::header::Header::parse_header(&raw).unwrap())
             }
         }
     }
@@ -221,7 +223,7 @@ macro_rules! header {
                 static NAME: &'static str = $n;
                 NAME
             }
-            fn parse_header(raw: &[Vec<u8>]) -> $crate::Result<Self> {
+            fn parse_header(raw: &$crate::header::Raw) -> $crate::Result<Self> {
                 $crate::header::parsing::from_comma_delimited(raw).map($id)
             }
             fn fmt_header(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
@@ -248,7 +250,7 @@ macro_rules! header {
                 static NAME: &'static str = $n;
                 NAME
             }
-            fn parse_header(raw: &[Vec<u8>]) -> $crate::Result<Self> {
+            fn parse_header(raw: &$crate::header::Raw) -> $crate::Result<Self> {
                 $crate::header::parsing::from_comma_delimited(raw).map($id)
             }
             fn fmt_header(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
@@ -274,7 +276,7 @@ macro_rules! header {
                 static NAME: &'static str = $n;
                 NAME
             }
-            fn parse_header(raw: &[Vec<u8>]) -> $crate::Result<Self> {
+            fn parse_header(raw: &$crate::header::Raw) -> $crate::Result<Self> {
                 $crate::header::parsing::from_one_raw_str(raw).map($id)
             }
             fn fmt_header(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
@@ -303,10 +305,10 @@ macro_rules! header {
                 static NAME: &'static str = $n;
                 NAME
             }
-            fn parse_header(raw: &[Vec<u8>]) -> $crate::Result<Self> {
+            fn parse_header(raw: &$crate::header::Raw) -> $crate::Result<Self> {
                 // FIXME: Return None if no item is in $id::Only
                 if raw.len() == 1 {
-                    if raw[0] == b"*" {
+                    if &raw[0] == b"*" {
                         return Ok($id::Any)
                     }
                 }

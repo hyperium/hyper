@@ -1,4 +1,4 @@
-use header::{Header};
+use header::{Header, Raw};
 use std::fmt;
 use std::str::FromStr;
 use header::parsing::from_one_raw_str;
@@ -49,7 +49,7 @@ impl Header for Host {
         NAME
     }
 
-    fn parse_header(raw: &[Vec<u8>]) -> ::Result<Host> {
+    fn parse_header(raw: &Raw) -> ::Result<Host> {
        from_one_raw_str(raw)
     }
 
@@ -98,14 +98,14 @@ mod tests {
 
     #[test]
     fn test_host() {
-        let host = Header::parse_header([b"foo.com".to_vec()].as_ref());
+        let host = Header::parse_header(&vec![b"foo.com".to_vec()].into());
         assert_eq!(host.ok(), Some(Host {
             hostname: "foo.com".to_owned(),
             port: None
         }));
 
 
-        let host = Header::parse_header([b"foo.com:8080".to_vec()].as_ref());
+        let host = Header::parse_header(&vec![b"foo.com:8080".to_vec()].into());
         assert_eq!(host.ok(), Some(Host {
             hostname: "foo.com".to_owned(),
             port: Some(8080)
