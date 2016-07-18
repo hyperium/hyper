@@ -38,7 +38,8 @@ impl<A: Accept, H: HandlerFactory<A::Output>> fmt::Debug for ServerLoop<A, H> {
 /// A Server that can accept incoming network requests.
 #[derive(Debug)]
 pub struct Server<A> {
-    listeners: Vec<A>,
+    lead_listener: A,
+    other_listeners: Vec<A>,
     keep_alive: bool,
     idle_timeout: Option<Duration>,
     max_sockets: usize,
@@ -49,14 +50,13 @@ impl<A: Accept> Server<A> {
     ///
     /// Panics if listeners is an empty iterator.
     pub fn new<I: IntoIterator<Item = A>>(listeners: I) -> Server<A> {
-        let listeners = listeners.into_iter().collect::<Vec<_>>();
-
-        if listeners.is_empty() {
-            panic!("Server::new passed zero listeners");
-        }
+        let mut listeners = listeners.into_iter();
+        let lead_listener = listeners.next().expect("Server::new requires at least 1 listener");
+        let other_listeners = listeners.collect::<Vec<_>>();
 
         Server {
-            listeners: listeners,
+            lead_listener: lead_listener,
+            other_listeners: other_listeners,
             keep_alive: true,
             idle_timeout: Some(Duration::from_secs(10)),
             max_sockets: 4096,
@@ -125,14 +125,13 @@ impl<A: Accept> Server<A> {
         let idle_timeout = self.idle_timeout;
         let mut loop_ = rotor::Loop::new(&config).unwrap();
 
-        let mut addrs = Vec::with_capacity(self.listeners.len());
-        let mut listeners = self.listeners.into_iter();
+        let mut addrs = Vec::with_capacity(1 + self.other_listeners.len());
 
-        // Add the first listener. This one handles shutdown messages.
+        // Add the lead listener. This one handles shutdown messages.
         let mut notifier = None;
         {
             let notifier = &mut notifier;
-            let listener = listeners.next().unwrap();
+            let listener = self.lead_listener;
             addrs.push(try!(listener.local_addr()));
             let shutdown_rx = shutdown.clone();
             loop_.add_machine_with(move |scope| {
@@ -143,8 +142,8 @@ impl<A: Accept> Server<A> {
         }
         let notifier = notifier.expect("loop.add_machine failed");
 
-        // Add the rest of the listeners.
-        for listener in listeners {
+        // Add the other listeners.
+        for listener in self.other_listeners {
             addrs.push(try!(listener.local_addr()));
             let shutdown_rx = shutdown.clone();
             loop_.add_machine_with(move |scope| {
@@ -337,7 +336,13 @@ impl fmt::Debug for Listening {
 
 impl fmt::Display for Listening {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Debug::fmt(&self.addrs, f)
+        for (i, addr) in self.addrs().iter().enumerate() {
+            if i > 1 {
+                try!(f.write_str(", "));
+            }
+            try!(fmt::Display::fmt(addr, f));
+        }
+        Ok(())
     }
 }
 
