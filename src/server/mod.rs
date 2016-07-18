@@ -37,19 +37,26 @@ impl<A: Accept, H: HandlerFactory<A::Output>> fmt::Debug for ServerLoop<A, H> {
 
 /// A Server that can accept incoming network requests.
 #[derive(Debug)]
-pub struct Server<T: Accept> {
-    listener: T,
+pub struct Server<A> {
+    listeners: Vec<A>,
     keep_alive: bool,
     idle_timeout: Option<Duration>,
     max_sockets: usize,
 }
 
-impl<T> Server<T> where T: Accept, T::Output: Transport {
-    /// Creates a new server with the provided Listener.
-    #[inline]
-    pub fn new(listener: T) -> Server<T> {
+impl<A: Accept> Server<A> {
+    /// Creates a new Server from one or more Listeners.
+    ///
+    /// Panics if listeners is an empty iterator.
+    pub fn new<I: IntoIterator<Item = A>>(listeners: I) -> Server<A> {
+        let listeners = listeners.into_iter().collect::<Vec<_>>();
+
+        if listeners.is_empty() {
+            panic!("Server::new passed zero listeners");
+        }
+
         Server {
-            listener: listener,
+            listeners: listeners,
             keep_alive: true,
             idle_timeout: Some(Duration::from_secs(10)),
             max_sockets: 4096,
@@ -59,7 +66,7 @@ impl<T> Server<T> where T: Accept, T::Output: Transport {
     /// Enables or disables HTTP keep-alive.
     ///
     /// Default is true.
-    pub fn keep_alive(mut self, val: bool) -> Server<T> {
+    pub fn keep_alive(mut self, val: bool) -> Server<A> {
         self.keep_alive = val;
         self
     }
@@ -67,7 +74,7 @@ impl<T> Server<T> where T: Accept, T::Output: Transport {
     /// Sets how long an idle connection will be kept before closing.
     ///
     /// Default is 10 seconds.
-    pub fn idle_timeout(mut self, val: Option<Duration>) -> Server<T> {
+    pub fn idle_timeout(mut self, val: Option<Duration>) -> Server<A> {
         self.idle_timeout = val;
         self
     }
@@ -75,7 +82,7 @@ impl<T> Server<T> where T: Accept, T::Output: Transport {
     /// Sets the maximum open sockets for this Server.
     ///
     /// Default is 4096, but most servers can handle much more than this.
-    pub fn max_sockets(mut self, val: usize) -> Server<T> {
+    pub fn max_sockets(mut self, val: usize) -> Server<A> {
         self.max_sockets = val;
         self
     }
@@ -105,33 +112,49 @@ impl<S: SslServer> Server<HttpsListener<S>> {
 }
 
 
-impl<A: Accept> Server<A> where A::Output: Transport  {
+impl<A: Accept> Server<A> {
     /// Binds to a socket and starts handling connections.
     pub fn handle<H>(self, factory: H) -> ::Result<(Listening, ServerLoop<A, H>)>
     where H: HandlerFactory<A::Output> {
-        let addr = try!(self.listener.local_addr());
         let shutdown = Arc::new(AtomicBool::new(false));
-        let shutdown_rx = shutdown.clone();
-
+        
         let mut config = rotor::Config::new();
         config.slab_capacity(self.max_sockets);
         config.mio().notify_capacity(self.max_sockets);
         let keep_alive = self.keep_alive;
         let idle_timeout = self.idle_timeout;
         let mut loop_ = rotor::Loop::new(&config).unwrap();
+
+        let mut addrs = Vec::with_capacity(self.listeners.len());
+        let mut listeners = self.listeners.into_iter();
+
+        // Add the first listener. This one handles shutdown messages.
         let mut notifier = None;
         {
             let notifier = &mut notifier;
+            let listener = listeners.next().unwrap();
+            addrs.push(try!(listener.local_addr()));
+            let shutdown_rx = shutdown.clone();
             loop_.add_machine_with(move |scope| {
                 *notifier = Some(scope.notifier());
-                rotor_try!(scope.register(&self.listener, EventSet::readable(), PollOpt::level()));
-                rotor::Response::ok(ServerFsm::Listener::<A, H>(self.listener, shutdown_rx))
+                rotor_try!(scope.register(&listener, EventSet::readable(), PollOpt::level()));
+                rotor::Response::ok(ServerFsm::Listener(listener, shutdown_rx))
             }).unwrap();
         }
         let notifier = notifier.expect("loop.add_machine failed");
 
+        // Add the rest of the listeners.
+        for listener in listeners {
+            addrs.push(try!(listener.local_addr()));
+            let shutdown_rx = shutdown.clone();
+            loop_.add_machine_with(move |scope| {
+                rotor_try!(scope.register(&listener, EventSet::readable(), PollOpt::level()));
+                rotor::Response::ok(ServerFsm::Listener(listener, shutdown_rx))
+            }).unwrap();
+        }
+
         let listening = Listening {
-            addr: addr,
+            addrs: addrs,
             shutdown: (shutdown, notifier),
         };
         let server = ServerLoop {
@@ -299,14 +322,14 @@ where A: Accept,
 
 /// A handle of the running server.
 pub struct Listening {
-    addr: SocketAddr,
+    addrs: Vec<SocketAddr>,
     shutdown: (Arc<AtomicBool>, rotor::Notifier),
 }
 
 impl fmt::Debug for Listening {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Listening")
-            .field("addr", &self.addr)
+            .field("addrs", &self.addrs)
             .field("closed", &self.shutdown.0.load(Ordering::Relaxed))
             .finish()
     }
@@ -314,14 +337,14 @@ impl fmt::Debug for Listening {
 
 impl fmt::Display for Listening {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(&self.addr, f)
+        fmt::Debug::fmt(&self.addrs, f)
     }
 }
 
 impl Listening {
-    /// The address this server is listening on.
-    pub fn addr(&self) -> &SocketAddr {
-        &self.addr
+    /// The addresses this server is listening on.
+    pub fn addrs(&self) -> &[SocketAddr] {
+        &self.addrs
     }
 
     /// Stop the server from listening to its socket address.
@@ -374,9 +397,4 @@ where F: FnMut(http::Control) -> H, H: Handler<T>, T: Transport {
     fn create(&mut self, ctrl: http::Control) -> H {
         self(ctrl)
     }
-}
-
-#[cfg(test)]
-mod tests {
-
 }
