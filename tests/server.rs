@@ -7,7 +7,7 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 use hyper::{Next, Encoder, Decoder};
-use hyper::net::HttpStream;
+use hyper::net::{HttpListener, HttpStream};
 use hyper::server::{Server, Handler, Request, Response};
 
 struct Serve {
@@ -17,8 +17,14 @@ struct Serve {
 }
 
 impl Serve {
+    fn addrs(&self) -> &[SocketAddr] {
+        self.listening.as_ref().unwrap().addrs()
+    }
+
     fn addr(&self) -> &SocketAddr {
-        self.listening.as_ref().unwrap().addr()
+        let addrs = self.addrs();
+        assert!(addrs.len() == 1);
+        &addrs[0]
     }
 
     /*
@@ -161,11 +167,22 @@ fn serve() -> Serve {
 }
 
 fn serve_with_timeout(dur: Option<Duration>) -> Serve {
+    serve_n_with_timeout(1, dur)
+}
+
+fn serve_n(n: u32) -> Serve {
+    serve_n_with_timeout(n, None)
+}
+
+fn serve_n_with_timeout(n: u32, dur: Option<Duration>) -> Serve {
     use std::thread;
 
     let (msg_tx, msg_rx) = mpsc::channel();
     let (reply_tx, reply_rx) = mpsc::channel();
-    let (listening, server) = Server::http(&"127.0.0.1:0".parse().unwrap()).unwrap()
+
+    let addr = "127.0.0.1:0".parse().unwrap();
+    let listeners = (0..n).map(|_| HttpListener::bind(&addr).unwrap());
+    let (listening, server) = Server::new(listeners)
         .handle(move |_| {
             let mut replies = Vec::new();
             while let Ok(reply) = reply_rx.try_recv() {
@@ -180,7 +197,7 @@ fn serve_with_timeout(dur: Option<Duration>) -> Serve {
         }).unwrap();
 
 
-    let thread_name = format!("test-server-{}: {:?}", listening.addr(), dur);
+    let thread_name = format!("test-server-{}: {:?}", listening, dur);
     thread::Builder::new().name(thread_name).spawn(move || {
         server.run();
     }).unwrap();
@@ -437,5 +454,28 @@ fn server_keep_alive() {
                 break;
             }
         }
+    }
+}
+
+#[test]
+fn server_get_with_body_three_listeners() {
+    let server = serve_n(3);
+    let addrs = server.addrs();
+    assert_eq!(addrs.len(), 3);
+
+    for (i, addr) in addrs.iter().enumerate() {
+        let mut req = TcpStream::connect(addr).unwrap();
+        write!(req, "\
+            GET / HTTP/1.1\r\n\
+            Host: example.domain\r\n\
+            Content-Length: 17\r\n\
+            \r\n\
+            I'm sending to {}.\r\n\
+        ", i).unwrap();
+        req.read(&mut [0; 256]).unwrap();
+
+        // note: doesnt include trailing \r\n, cause Content-Length wasn't 19
+        let comparison = format!("I'm sending to {}.", i).into_bytes();
+        assert_eq!(server.body(), comparison);
     }
 }

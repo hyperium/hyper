@@ -1,6 +1,7 @@
 //! A collection of traits abstracting over Listeners and Streams.
 use std::io::{self, Read, Write};
 use std::net::{SocketAddr};
+use std::option;
 
 use rotor::mio::tcp::{TcpStream, TcpListener};
 use rotor::mio::{Selector, Token, Evented, EventSet, PollOpt, TryAccept};
@@ -165,6 +166,15 @@ impl Evented for HttpListener {
     #[inline]
     fn deregister(&self, selector: &mut Selector) -> io::Result<()> {
         self.0.deregister(selector)
+    }
+}
+
+impl IntoIterator for HttpListener {
+    type Item = Self;
+    type IntoIter = option::IntoIter<Self>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Some(self).into_iter()
     }
 }
 
@@ -387,6 +397,15 @@ impl<S: SslServer> Evented for HttpsListener<S> {
     #[inline]
     fn deregister(&self, selector: &mut Selector) -> io::Result<()> {
         self.listener.deregister(selector)
+    }
+}
+
+impl<S: SslServer> IntoIterator for HttpsListener<S> {
+    type Item = Self;
+    type IntoIter = option::IntoIter<Self>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Some(self).into_iter()
     }
 }
 
