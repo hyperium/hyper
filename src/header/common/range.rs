@@ -1,8 +1,8 @@
 use std::fmt::{self, Display};
 use std::str::FromStr;
 
-use header::Header;
-use header::parsing::{from_one_raw_str, from_comma_delimited};
+use header::{Header, Raw};
+use header::parsing::{from_one_raw_str};
 
 /// `Range` header, defined in [RFC7233](https://tools.ietf.org/html/rfc7233#section-3.1)
 ///
@@ -130,15 +130,11 @@ impl FromStr for Range {
 
         match (iter.next(), iter.next()) {
             (Some("bytes"), Some(ranges)) => {
-                match from_comma_delimited(&[ranges]) {
-                    Ok(ranges) => {
-                        if ranges.is_empty() {
-                            return Err(::Error::Header);
-                        }
-                        Ok(Range::Bytes(ranges))
-                    },
-                    Err(_) => Err(::Error::Header)
+                let ranges = from_comma_delimited(ranges);
+                if ranges.is_empty() {
+                    return Err(::Error::Header);
                 }
+                Ok(Range::Bytes(ranges))
             }
             (Some(unit), Some(range_str)) if unit != "" && range_str != "" => {
                 Ok(Range::Unregistered(unit.to_owned(), range_str.to_owned()))
@@ -173,6 +169,16 @@ impl FromStr for ByteRangeSpec {
     }
 }
 
+fn from_comma_delimited<T: FromStr>(s: &str) -> Vec<T> {
+    s.split(',')
+        .filter_map(|x| match x.trim() {
+            "" => None,
+            y => Some(y)
+        })
+        .filter_map(|x| x.parse().ok())
+        .collect()
+}
+
 impl Header for Range {
 
     fn header_name() -> &'static str {
@@ -180,7 +186,7 @@ impl Header for Range {
         NAME
     }
 
-    fn parse_header(raw: &[Vec<u8>]) -> ::Result<Range> {
+    fn parse_header(raw: &Raw) -> ::Result<Range> {
         from_one_raw_str(raw)
     }
 
@@ -192,29 +198,29 @@ impl Header for Range {
 
 #[test]
 fn test_parse_bytes_range_valid() {
-    let r: Range = Header::parse_header(&[b"bytes=1-100".to_vec()]).unwrap();
-    let r2: Range = Header::parse_header(&[b"bytes=1-100,-".to_vec()]).unwrap();
+    let r: Range = Header::parse_header(&"bytes=1-100".into()).unwrap();
+    let r2: Range = Header::parse_header(&"bytes=1-100,-".into()).unwrap();
     let r3 =  Range::bytes(1, 100);
     assert_eq!(r, r2);
     assert_eq!(r2, r3);
 
-    let r: Range = Header::parse_header(&[b"bytes=1-100,200-".to_vec()]).unwrap();
-    let r2: Range = Header::parse_header(&[b"bytes= 1-100 , 101-xxx,  200- ".to_vec()]).unwrap();
+    let r: Range = Header::parse_header(&"bytes=1-100,200-".into()).unwrap();
+    let r2: Range = Header::parse_header(&"bytes= 1-100 , 101-xxx,  200- ".into()).unwrap();
     let r3 =  Range::Bytes(
         vec![ByteRangeSpec::FromTo(1, 100), ByteRangeSpec::AllFrom(200)]
     );
     assert_eq!(r, r2);
     assert_eq!(r2, r3);
 
-    let r: Range = Header::parse_header(&[b"bytes=1-100,-100".to_vec()]).unwrap();
-    let r2: Range = Header::parse_header(&[b"bytes=1-100, ,,-100".to_vec()]).unwrap();
+    let r: Range = Header::parse_header(&"bytes=1-100,-100".into()).unwrap();
+    let r2: Range = Header::parse_header(&"bytes=1-100, ,,-100".into()).unwrap();
     let r3 =  Range::Bytes(
         vec![ByteRangeSpec::FromTo(1, 100), ByteRangeSpec::Last(100)]
     );
     assert_eq!(r, r2);
     assert_eq!(r2, r3);
 
-    let r: Range = Header::parse_header(&[b"custom=1-100,-100".to_vec()]).unwrap();
+    let r: Range = Header::parse_header(&"custom=1-100,-100".into()).unwrap();
     let r2 =  Range::Unregistered("custom".to_owned(), "1-100,-100".to_owned());
     assert_eq!(r, r2);
 
@@ -222,40 +228,40 @@ fn test_parse_bytes_range_valid() {
 
 #[test]
 fn test_parse_unregistered_range_valid() {
-    let r: Range = Header::parse_header(&[b"custom=1-100,-100".to_vec()]).unwrap();
+    let r: Range = Header::parse_header(&"custom=1-100,-100".into()).unwrap();
     let r2 =  Range::Unregistered("custom".to_owned(), "1-100,-100".to_owned());
     assert_eq!(r, r2);
 
-    let r: Range = Header::parse_header(&[b"custom=abcd".to_vec()]).unwrap();
+    let r: Range = Header::parse_header(&"custom=abcd".into()).unwrap();
     let r2 =  Range::Unregistered("custom".to_owned(), "abcd".to_owned());
     assert_eq!(r, r2);
 
-    let r: Range = Header::parse_header(&[b"custom=xxx-yyy".to_vec()]).unwrap();
+    let r: Range = Header::parse_header(&"custom=xxx-yyy".into()).unwrap();
     let r2 =  Range::Unregistered("custom".to_owned(), "xxx-yyy".to_owned());
     assert_eq!(r, r2);
 }
 
 #[test]
 fn test_parse_invalid() {
-    let r: ::Result<Range> = Header::parse_header(&[b"bytes=1-a,-".to_vec()]);
+    let r: ::Result<Range> = Header::parse_header(&"bytes=1-a,-".into());
     assert_eq!(r.ok(), None);
 
-    let r: ::Result<Range> = Header::parse_header(&[b"bytes=1-2-3".to_vec()]);
+    let r: ::Result<Range> = Header::parse_header(&"bytes=1-2-3".into());
     assert_eq!(r.ok(), None);
 
-    let r: ::Result<Range> = Header::parse_header(&[b"abc".to_vec()]);
+    let r: ::Result<Range> = Header::parse_header(&"abc".into());
     assert_eq!(r.ok(), None);
 
-    let r: ::Result<Range> = Header::parse_header(&[b"bytes=1-100=".to_vec()]);
+    let r: ::Result<Range> = Header::parse_header(&"bytes=1-100=".into());
     assert_eq!(r.ok(), None);
 
-    let r: ::Result<Range> = Header::parse_header(&[b"bytes=".to_vec()]);
+    let r: ::Result<Range> = Header::parse_header(&"bytes=".into());
     assert_eq!(r.ok(), None);
 
-    let r: ::Result<Range> = Header::parse_header(&[b"custom=".to_vec()]);
+    let r: ::Result<Range> = Header::parse_header(&"custom=".into());
     assert_eq!(r.ok(), None);
 
-    let r: ::Result<Range> = Header::parse_header(&[b"=1-100".to_vec()]);
+    let r: ::Result<Range> = Header::parse_header(&"=1-100".into());
     assert_eq!(r.ok(), None);
 }
 

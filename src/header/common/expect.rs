@@ -3,7 +3,7 @@ use std::str;
 
 use unicase::UniCase;
 
-use header::{Header};
+use header::{Header, Raw};
 
 /// The `Expect` header.
 ///
@@ -34,16 +34,15 @@ impl Header for Expect {
         NAME
     }
 
-    fn parse_header(raw: &[Vec<u8>]) -> ::Result<Expect> {
-        if raw.len() == 1 {
+    fn parse_header(raw: &Raw) -> ::Result<Expect> {
+        if let Some(line) = raw.one() {
             let text = unsafe {
                 // safe because:
-                // 1. we just checked raw.len == 1
-                // 2. we don't actually care if it's utf8, we just want to
+                // 1. we don't actually care if it's utf8, we just want to
                 //    compare the bytes with the "case" normalized. If it's not
                 //    utf8, then the byte comparison will fail, and we'll return
                 //    None. No big deal.
-                str::from_utf8_unchecked(raw.get_unchecked(0))
+                str::from_utf8_unchecked(line)
             };
             if UniCase(text) == EXPECT_CONTINUE {
                 Ok(Expect::Continue)

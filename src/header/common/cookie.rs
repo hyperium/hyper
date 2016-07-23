@@ -1,4 +1,4 @@
-use header::{Header, CookiePair, CookieJar};
+use header::{Header, Raw, CookiePair, CookieJar};
 use std::fmt::{self, Display};
 use std::str::from_utf8;
 
@@ -43,7 +43,7 @@ impl Header for Cookie {
         NAME
     }
 
-    fn parse_header(raw: &[Vec<u8>]) -> ::Result<Cookie> {
+    fn parse_header(raw: &Raw) -> ::Result<Cookie> {
         let mut cookies = Vec::with_capacity(raw.len());
         for cookies_raw in raw.iter() {
             let cookies_str = try!(from_utf8(&cookies_raw[..]));
@@ -96,7 +96,7 @@ impl Cookie {
 
 #[test]
 fn test_parse() {
-    let h = Header::parse_header(&[b"foo=bar; baz=quux".to_vec()][..]);
+    let h = Header::parse_header(&b"foo=bar; baz=quux".as_ref().into());
     let c1 = CookiePair::new("foo".to_owned(), "bar".to_owned());
     let c2 = CookiePair::new("baz".to_owned(), "quux".to_owned());
     assert_eq!(h.ok(), Some(Cookie(vec![c1, c2])));

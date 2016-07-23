@@ -1,4 +1,4 @@
-use header::{Header, Host};
+use header::{Header, Raw, Host};
 use std::fmt;
 use std::str::FromStr;
 use header::parsing::from_one_raw_str;
@@ -57,7 +57,7 @@ impl Header for Origin {
         NAME
     }
 
-    fn parse_header(raw: &[Vec<u8>]) -> ::Result<Origin> {
+    fn parse_header(raw: &Raw) -> ::Result<Origin> {
         from_one_raw_str(raw)
     }
 
@@ -100,10 +100,10 @@ mod tests {
 
     #[test]
     fn test_origin() {
-        let origin = Header::parse_header([b"http://foo.com".to_vec()].as_ref());
+        let origin = Header::parse_header(&vec![b"http://foo.com".to_vec()].into());
         assert_eq!(origin.ok(), Some(Origin::new("http", "foo.com", None)));
 
-        let origin = Header::parse_header([b"https://foo.com:443".to_vec()].as_ref());
+        let origin = Header::parse_header(&vec![b"https://foo.com:443".to_vec()].into());
         assert_eq!(origin.ok(), Some(Origin::new("https", "foo.com", Some(443))));
     }
 }

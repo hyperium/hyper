@@ -1,4 +1,4 @@
-use header::{Header, CookiePair, CookieJar};
+use header::{Header, Raw, CookiePair, CookieJar};
 use std::fmt::{self, Display};
 use std::str::from_utf8;
 
@@ -88,7 +88,7 @@ impl Header for SetCookie {
         NAME
     }
 
-    fn parse_header(raw: &[Vec<u8>]) -> ::Result<SetCookie> {
+    fn parse_header(raw: &Raw) -> ::Result<SetCookie> {
         let mut set_cookies = Vec::with_capacity(raw.len());
         for set_cookies_raw in raw {
             if let Ok(s) = from_utf8(&set_cookies_raw[..]) {
@@ -136,7 +136,7 @@ impl SetCookie {
 
 #[test]
 fn test_parse() {
-    let h = Header::parse_header(&[b"foo=bar; HttpOnly".to_vec()][..]);
+    let h = Header::parse_header(&"foo=bar; HttpOnly".into());
     let mut c1 = CookiePair::new("foo".to_owned(), "bar".to_owned());
     c1.httponly = true;
 

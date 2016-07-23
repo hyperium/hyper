@@ -1,7 +1,7 @@
 use std::fmt;
 use std::ascii::AsciiExt;
 
-use header::{Header, parsing};
+use header::{Header, Raw, parsing};
 
 /// `Referrer-Policy` header, part of
 /// [Referrer Policy](https://www.w3.org/TR/referrer-policy/#referrer-policy-header)
@@ -52,7 +52,7 @@ impl Header for ReferrerPolicy {
         NAME
     }
 
-    fn parse_header(raw: &[Vec<u8>]) -> ::Result<ReferrerPolicy> {
+    fn parse_header(raw: &Raw) -> ::Result<ReferrerPolicy> {
         use self::ReferrerPolicy::*;
         parsing::from_one_raw_str(raw).and_then(|s: String| {
             let slice = &s.to_ascii_lowercase()[..];
@@ -84,9 +84,9 @@ impl Header for ReferrerPolicy {
 
 #[test]
 fn test_parse_header() {
-    let a: ReferrerPolicy = Header::parse_header([b"origin".to_vec()].as_ref()).unwrap();
+    let a: ReferrerPolicy = Header::parse_header(&"origin".into()).unwrap();
     let b = ReferrerPolicy::Origin;
     assert_eq!(a, b);
-    let e: ::Result<ReferrerPolicy> = Header::parse_header([b"foobar".to_vec()].as_ref());
+    let e: ::Result<ReferrerPolicy> = Header::parse_header(&"foobar".into());
     assert!(e.is_err());
 }

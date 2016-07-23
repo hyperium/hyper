@@ -1,6 +1,6 @@
 use std::fmt;
 
-use header::{Header, parsing};
+use header::{Header, Raw, parsing};
 
 /// `Content-Length` header, defined in
 /// [RFC7230](http://tools.ietf.org/html/rfc7230#section-3.3.2)
@@ -40,12 +40,11 @@ impl Header for ContentLength {
         static NAME: &'static str = "Content-Length";
         NAME
     }
-    fn parse_header(raw: &[Vec<u8>]) -> ::Result<ContentLength> {
+    fn parse_header(raw: &Raw) -> ::Result<ContentLength> {
         // If multiple Content-Length headers were sent, everything can still
         // be alright if they all contain the same value, and all parse
         // correctly. If not, then it's an error.
         raw.iter()
-            .map(::std::ops::Deref::deref)
             .map(parsing::from_raw_str)
             .fold(None, |prev, x| {
                 match (prev, x) {
@@ -84,8 +83,8 @@ __hyper__tm!(ContentLength, tests {
     // Can't use the test_header macro because "5, 5" gets cleaned to "5".
     #[test]
     fn test_duplicates() {
-        let parsed = HeaderField::parse_header(&[b"5"[..].into(),
-                                                 b"5"[..].into()]).unwrap();
+        let parsed = HeaderField::parse_header(&vec![b"5".to_vec(),
+                                                 b"5".to_vec()].into()).unwrap();
         assert_eq!(parsed, HeaderField(5));
         assert_eq!(format!("{}", parsed), "5");
     }
