@@ -22,7 +22,7 @@ script:
   - ./.travis/readme.py
   - cargo build --verbose $FEATURES
   - cargo test --verbose $FEATURES
-  - 'for f in ./doc/**/*.md; do rustdoc --test $f; done'
+  - 'for f in ./doc/**/*.md; do rustdoc -L ./target/debug -L ./target/debug/deps --test $f;  done'
 
 addons:
   apt:

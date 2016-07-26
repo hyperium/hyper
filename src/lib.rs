@@ -13,6 +13,8 @@
 //! Hyper provides both a [Client](client/index.html) and a
 //! [Server](server/index.html), along with a
 //! [typed Headers system](header/index.html).
+//!
+//! If just getting started, consider looking over the [Server Guide](./guide/server.html).
 extern crate rustc_serialize as serialize;
 extern crate time;
 #[macro_use] extern crate url;
