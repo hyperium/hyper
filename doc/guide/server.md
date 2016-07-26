@@ -48,7 +48,8 @@ There is quite a few concepts here, so let's tackle them one by one.
 ## Handler
 
 The [`Handler`][Handler] is how you define what should happen during the lifetime
-of an HTTP message.
+of an HTTP message. We've implemented it for the `Text`, defining what should
+happen at each event during an HTTP message.
 
 ## Next
 
