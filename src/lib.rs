@@ -14,7 +14,7 @@
 //! [Server](server/index.html), along with a
 //! [typed Headers system](header/index.html).
 //!
-//! If just getting started, consider looking over the [Server Guide](./guide/server.html).
+//! If just getting started, consider looking over the **[Guide](../guide/)**.
 extern crate rustc_serialize as serialize;
 extern crate time;
 #[macro_use] extern crate url;
