@@ -672,49 +672,29 @@ impl<H: MessageHandler<T>, T: Transport> State<H, T> {
     fn update<F, K>(&mut self, next: Next, factory: &F) where F: MessageHandlerFactory<K, T>, K: Key {
         let timeout = next.timeout;
         let state = mem::replace(self, State::Closed);
-        let new_state = match (state, next.interest) {
-            (_, Next_::Remove) => State::Closed,
-            (State::Closed, _) => State::Closed,
-            (State::Init { timeout, .. }, e) => State::Init {
-                interest: e,
-                timeout: timeout,
-            },
-            (State::Http1(http1), Next_::End) => {
-                let reading = match http1.reading {
-                    Reading::Body(ref decoder) |
-                    Reading::Wait(ref decoder) if decoder.is_eof() => {
-                        if http1.keep_alive {
-                            Reading::KeepAlive
-                        } else {
-                            Reading::Closed
-                        }
-                    },
-                    Reading::KeepAlive => http1.reading,
-                    _ => Reading::Closed,
-                };
-                let writing = match http1.writing {
-                    Writing::Wait(encoder) |
-                    Writing::Ready(encoder) => {
-                        if encoder.is_eof() {
-                            if http1.keep_alive {
-                                Writing::KeepAlive
-                            } else {
-                                Writing::Closed
-                            }
-                        } else if let Some(buf) = encoder.finish() {
-                            Writing::Chunk(Chunk {
-                                buf: buf.bytes,
-                                pos: buf.pos,
-                                next: (h1::Encoder::length(0), Next::end())
-                            })
-                        } else {
-                            Writing::Closed
-                        }
-                    }
-                    Writing::Chunk(mut chunk) => {
-                        if chunk.is_written() {
-                            let encoder = chunk.next.0;
-                            //TODO: de-dupe this code and from  Writing::Ready
+        match (state, next.interest) {
+            (_, Next_::Remove) | (State::Closed, _) => return, // Keep State::Closed.
+            (State::Init { .. }, e) =>
+            { mem::replace(self, State::Init { interest: e, timeout: timeout} ); },
+            (State::Http1(mut http1), next_) => {
+                match next_ {
+                    Next_::Remove => unreachable!(), // Covered in (_, Next_::Remove) case above.
+                    Next_::End => {
+                        let reading = match http1.reading {
+                            Reading::Body(ref decoder) |
+                            Reading::Wait(ref decoder) if decoder.is_eof() => {
+                                if http1.keep_alive {
+                                    Reading::KeepAlive
+                                } else {
+                                    Reading::Closed
+                                }
+                            },
+                            Reading::KeepAlive => http1.reading,
+                            _ => Reading::Closed,
+                        };
+                        let writing = match http1.writing {
+                        Writing::Wait(encoder) |
+                        Writing::Ready(encoder) => {
                             if encoder.is_eof() {
                                 if http1.keep_alive {
                                     Writing::KeepAlive
@@ -730,32 +710,50 @@ impl<H: MessageHandler<T>, T: Transport> State<H, T> {
                             } else {
                                 Writing::Closed
                             }
-                        } else {
-                            chunk.next.1 = next;
-                            Writing::Chunk(chunk)
                         }
-                    },
-                    _ => Writing::Closed,
-                };
-                match (reading, writing) {
-                    (Reading::KeepAlive, Writing::KeepAlive) => {
-                        let next = factory.keep_alive_interest();
-                        State::Init {
-                            interest: next.interest,
-                            timeout: next.timeout,
+                        Writing::Chunk(mut chunk) => {
+                            if chunk.is_written() {
+                                let encoder = chunk.next.0;
+                                //TODO: de-dupe this code and from  Writing::Ready
+                                if encoder.is_eof() {
+                                    if http1.keep_alive {
+                                        Writing::KeepAlive
+                                    } else {
+                                        Writing::Closed
+                                    }
+                                } else if let Some(buf) = encoder.finish() {
+                                    Writing::Chunk(Chunk {
+                                        buf: buf.bytes,
+                                        pos: buf.pos,
+                                        next: (h1::Encoder::length(0), Next::end())
+                                    })
+                                } else {
+                                    Writing::Closed
+                                }
+                            } else {
+                                chunk.next.1 = next;
+                                Writing::Chunk(chunk)
+                            }
+                        },
+                        _ => return, // Keep State::Closed.
+                        };
+                    match (reading, writing) {
+                        (Reading::KeepAlive, Writing::KeepAlive) => {
+                            let next = factory.keep_alive_interest();
+                            mem::replace(self, State::Init {
+                                interest: next.interest,
+                                timeout: next.timeout,
+                            });
+                            return;
+                        },
+                        (reading, Writing::Chunk(chunk)) => {
+                            http1.reading = reading;
+                            http1.writing = Writing::Chunk(chunk);
                         }
-                    },
-                    (reading, Writing::Chunk(chunk)) => {
-                        State::Http1(Http1 {
-                            reading: reading,
-                            writing: Writing::Chunk(chunk),
-                            .. http1
-                        })
+                        _ => return // Keep State::Closed.
                     }
-                    _ => State::Closed
-                }
-            },
-            (State::Http1(mut http1), Next_::Read) => {
+                },
+            Next_::Read => {
                 http1.reading = match http1.reading {
                     Reading::Init => Reading::Parse,
                     Reading::Wait(decoder) => Reading::Body(decoder),
@@ -791,10 +789,8 @@ impl<H: MessageHandler<T>, T: Transport> State<H, T> {
                     },
                     same => same
                 };
-
-                State::Http1(http1)
             },
-            (State::Http1(mut http1), Next_::Write) => {
+            Next_::Write => {
                 http1.writing = match http1.writing {
                     Writing::Wait(encoder) => Writing::Ready(encoder),
                     Writing::Init => Writing::Head,
@@ -818,9 +814,8 @@ impl<H: MessageHandler<T>, T: Transport> State<H, T> {
                     },
                     same => same
                 };
-                State::Http1(http1)
             },
-            (State::Http1(mut http1), Next_::ReadWrite) => {
+            Next_::ReadWrite => {
                 http1.reading = match http1.reading {
                     Reading::Init => Reading::Parse,
                     Reading::Wait(decoder) => Reading::Body(decoder),
@@ -836,9 +831,8 @@ impl<H: MessageHandler<T>, T: Transport> State<H, T> {
                     },
                     same => same
                 };
-                State::Http1(http1)
             },
-            (State::Http1(mut http1), Next_::Wait) => {
+            Next_::Wait => {
                 http1.reading = match http1.reading {
                     Reading::Body(decoder) => Reading::Wait(decoder),
                     same => same
@@ -853,21 +847,12 @@ impl<H: MessageHandler<T>, T: Transport> State<H, T> {
                     },
                     same => same
                 };
-                State::Http1(http1)
             }
-        };
-        let new_state = match new_state {
-            State::Init { interest, .. } => State::Init {
-                timeout: timeout,
-                interest: interest,
-            },
-            State::Http1(mut http1) => {
-                http1.timeout = timeout;
-                State::Http1(http1)
-            }
-            other => other
-        };
-        mem::replace(self, new_state);
+        }
+        http1.timeout = timeout;
+        mem::replace(self, State::Http1(http1));
+        }
+    };
     }
 }
 
