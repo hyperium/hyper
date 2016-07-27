@@ -669,172 +669,195 @@ impl<H: MessageHandler<T>, T: Transport> fmt::Debug for State<H, T> {
 }
 
 impl<H: MessageHandler<T>, T: Transport> State<H, T> {
-    fn update<F, K>(&mut self, next: Next, factory: &F) where F: MessageHandlerFactory<K, T>, K: Key {
-        let timeout = next.timeout;
-        let state = mem::replace(self, State::Closed);
-        match (state, next.interest) {
-            (_, Next_::Remove) | (State::Closed, _) => return, // Keep State::Closed.
-            (State::Init { .. }, e) =>
-            { mem::replace(self, State::Init { interest: e, timeout: timeout} ); },
-            (State::Http1(mut http1), next_) => {
-                match next_ {
-                    Next_::Remove => unreachable!(), // Covered in (_, Next_::Remove) case above.
-                    Next_::End => {
-                        let reading = match http1.reading {
-                            Reading::Body(ref decoder) |
-                            Reading::Wait(ref decoder) if decoder.is_eof() => {
-                                if http1.keep_alive {
-                                    Reading::KeepAlive
-                                } else {
-                                    Reading::Closed
+    fn update<F, K>(&mut self, next: Next, factory: &F)
+            where F: MessageHandlerFactory<K, T>,
+                  K: Key
+        {
+            let timeout = next.timeout;
+            let state = mem::replace(self, State::Closed);
+            match (state, next.interest) {
+                (_, Next_::Remove) |
+                (State::Closed, _) => return, // Keep State::Closed.
+                (State::Init { .. }, e) => {
+                    mem::replace(self,
+                                 State::Init {
+                                     interest: e,
+                                     timeout: timeout,
+                                 });
+                }
+                (State::Http1(mut http1), next_) => {
+                    match next_ {
+                        Next_::Remove => unreachable!(), // Covered in (_, Next_::Remove) case above.
+                        Next_::End => {
+                            let reading = match http1.reading {
+                                Reading::Body(ref decoder) |
+                                Reading::Wait(ref decoder) if decoder.is_eof() => {
+                                    if http1.keep_alive {
+                                        Reading::KeepAlive
+                                    } else {
+                                        Reading::Closed
+                                    }
                                 }
-                            },
-                            Reading::KeepAlive => http1.reading,
-                            _ => Reading::Closed,
-                        };
-                        let mut writing = Writing::Closed;
-                        let encoder = match http1.writing {
-                            Writing::Wait(enc) | Writing::Ready(enc) => Some(enc),
-                            Writing::Chunk(mut chunk) => {
-                                if chunk.is_written() {
-                                    Some(chunk.next.0)
-                                } else {
-                                    chunk.next.1 = next;
-                                    writing = Writing::Chunk(chunk);
-                                    None
+                                Reading::KeepAlive => http1.reading,
+                                _ => Reading::Closed,
+                            };
+                            let mut writing = Writing::Closed;
+                            let encoder = match http1.writing {
+                                Writing::Wait(enc) |
+                                Writing::Ready(enc) => Some(enc),
+                                Writing::Chunk(mut chunk) => {
+                                    if chunk.is_written() {
+                                        Some(chunk.next.0)
+                                    } else {
+                                        chunk.next.1 = next;
+                                        writing = Writing::Chunk(chunk);
+                                        None
+                                    }
                                 }
-                            },
-                            _ => return // Keep State::Closed.
-                        };
-                        if let Some(encoder) = encoder {
-                            if encoder.is_eof() {
-                                if http1.keep_alive { writing = Writing::KeepAlive }
-                            } else if let Some(buf) = encoder.finish() {
-                                writing = Writing::Chunk(Chunk {
-                                    buf: buf.bytes,
-                                    pos: buf.pos,
-                                    next: (h1::Encoder::length(0), Next::end())
-                                })
-                            }
-                        };
+                                _ => return, // Keep State::Closed.
+                            };
+                            if let Some(encoder) = encoder {
+                                if encoder.is_eof() {
+                                    if http1.keep_alive {
+                                        writing = Writing::KeepAlive
+                                    }
+                                } else if let Some(buf) = encoder.finish() {
+                                    writing = Writing::Chunk(Chunk {
+                                        buf: buf.bytes,
+                                        pos: buf.pos,
+                                        next: (h1::Encoder::length(0), Next::end()),
+                                    })
+                                }
+                            };
 
-                        match (reading, writing) {
-                            (Reading::KeepAlive, Writing::KeepAlive) => {
-                                let next = factory.keep_alive_interest();
-                                mem::replace(self, State::Init {
-                                    interest: next.interest,
-                                    timeout: next.timeout,
-                                });
-                                return;
-                            },
-                            (reading, Writing::Chunk(chunk)) => {
-                                http1.reading = reading;
-                                http1.writing = Writing::Chunk(chunk);
+                            match (reading, writing) {
+                                (Reading::KeepAlive, Writing::KeepAlive) => {
+                                    let next = factory.keep_alive_interest();
+                                    mem::replace(self,
+                                                 State::Init {
+                                                     interest: next.interest,
+                                                     timeout: next.timeout,
+                                                 });
+                                    return;
+                                }
+                                (reading, Writing::Chunk(chunk)) => {
+                                    http1.reading = reading;
+                                    http1.writing = Writing::Chunk(chunk);
+                                }
+                                _ => return, // Keep State::Closed.
                             }
-                            _ => return // Keep State::Closed.
                         }
-                },
-                Next_::Read => {
-                http1.reading = match http1.reading {
-                    Reading::Init => Reading::Parse,
-                    Reading::Wait(decoder) => Reading::Body(decoder),
-                    same => same
-                };
+                        Next_::Read => {
+                            http1.reading = match http1.reading {
+                                Reading::Init => Reading::Parse,
+                                Reading::Wait(decoder) => Reading::Body(decoder),
+                                same => same,
+                            };
 
-                http1.writing = match http1.writing {
-                    Writing::Ready(encoder) => {
-                        if encoder.is_eof() {
-                            if http1.keep_alive {
-                                Writing::KeepAlive
-                            } else {
-                                Writing::Closed
-                            }
-                        } else if encoder.is_closed() {
-                            if let Some(buf) = encoder.finish() {
-                                Writing::Chunk(Chunk {
-                                    buf: buf.bytes,
-                                    pos: buf.pos,
-                                    next: (h1::Encoder::length(0), Next::wait())
-                                })
-                            } else {
-                                Writing::Closed
-                            }
-                        } else {
-                            Writing::Wait(encoder)
+                            http1.writing = match http1.writing {
+                                Writing::Ready(encoder) => {
+                                    if encoder.is_eof() {
+                                        if http1.keep_alive {
+                                            Writing::KeepAlive
+                                        } else {
+                                            Writing::Closed
+                                        }
+                                    } else if encoder.is_closed() {
+                                        if let Some(buf) = encoder.finish() {
+                                            Writing::Chunk(Chunk {
+                                                buf: buf.bytes,
+                                                pos: buf.pos,
+                                                next: (h1::Encoder::length(0), Next::wait()),
+                                            })
+                                        } else {
+                                            Writing::Closed
+                                        }
+                                    } else {
+                                        Writing::Wait(encoder)
+                                    }
+                                }
+                                Writing::Chunk(chunk) => {
+                                    if chunk.is_written() {
+                                        Writing::Wait(chunk.next.0)
+                                    } else {
+                                        Writing::Chunk(chunk)
+                                    }
+                                }
+                                same => same,
+                            };
                         }
-                    },
-                    Writing::Chunk(chunk) => if chunk.is_written() {
-                        Writing::Wait(chunk.next.0)
-                    } else {
-                        Writing::Chunk(chunk)
-                    },
-                    same => same
-                };
-            },
-            Next_::Write => {
-                http1.writing = match http1.writing {
-                    Writing::Wait(encoder) => Writing::Ready(encoder),
-                    Writing::Init => Writing::Head,
-                    Writing::Chunk(chunk) => if chunk.is_written() {
-                        Writing::Ready(chunk.next.0)
-                    } else {
-                        Writing::Chunk(chunk)
-                    },
-                    same => same
-                };
+                        Next_::Write => {
+                            http1.writing = match http1.writing {
+                                Writing::Wait(encoder) => Writing::Ready(encoder),
+                                Writing::Init => Writing::Head,
+                                Writing::Chunk(chunk) => {
+                                    if chunk.is_written() {
+                                        Writing::Ready(chunk.next.0)
+                                    } else {
+                                        Writing::Chunk(chunk)
+                                    }
+                                }
+                                same => same,
+                            };
 
-                http1.reading = match http1.reading {
-                    Reading::Body(decoder) => if decoder.is_eof() {
-                        if http1.keep_alive {
-                            Reading::KeepAlive
-                        } else {
-                            Reading::Closed
+                            http1.reading = match http1.reading {
+                                Reading::Body(decoder) => {
+                                    if decoder.is_eof() {
+                                        if http1.keep_alive {
+                                            Reading::KeepAlive
+                                        } else {
+                                            Reading::Closed
+                                        }
+                                    } else {
+                                        Reading::Wait(decoder)
+                                    }
+                                }
+                                same => same,
+                            };
                         }
-                    } else {
-                        Reading::Wait(decoder)
-                    },
-                    same => same
-                };
-            },
-            Next_::ReadWrite => {
-                http1.reading = match http1.reading {
-                    Reading::Init => Reading::Parse,
-                    Reading::Wait(decoder) => Reading::Body(decoder),
-                    same => same
-                };
-                http1.writing = match http1.writing {
-                    Writing::Wait(encoder) => Writing::Ready(encoder),
-                    Writing::Init => Writing::Head,
-                    Writing::Chunk(chunk) => if chunk.is_written() {
-                        Writing::Ready(chunk.next.0)
-                    } else {
-                        Writing::Chunk(chunk)
-                    },
-                    same => same
-                };
-            },
-            Next_::Wait => {
-                http1.reading = match http1.reading {
-                    Reading::Body(decoder) => Reading::Wait(decoder),
-                    same => same
-                };
+                        Next_::ReadWrite => {
+                            http1.reading = match http1.reading {
+                                Reading::Init => Reading::Parse,
+                                Reading::Wait(decoder) => Reading::Body(decoder),
+                                same => same,
+                            };
+                            http1.writing = match http1.writing {
+                                Writing::Wait(encoder) => Writing::Ready(encoder),
+                                Writing::Init => Writing::Head,
+                                Writing::Chunk(chunk) => {
+                                    if chunk.is_written() {
+                                        Writing::Ready(chunk.next.0)
+                                    } else {
+                                        Writing::Chunk(chunk)
+                                    }
+                                }
+                                same => same,
+                            };
+                        }
+                        Next_::Wait => {
+                            http1.reading = match http1.reading {
+                                Reading::Body(decoder) => Reading::Wait(decoder),
+                                same => same,
+                            };
 
-                http1.writing = match http1.writing {
-                    Writing::Ready(encoder) => Writing::Wait(encoder),
-                    Writing::Chunk(chunk) => if chunk.is_written() {
-                        Writing::Wait(chunk.next.0)
-                    } else {
-                        Writing::Chunk(chunk)
-                    },
-                    same => same
-                };
-            }
+                            http1.writing = match http1.writing {
+                                Writing::Ready(encoder) => Writing::Wait(encoder),
+                                Writing::Chunk(chunk) => {
+                                    if chunk.is_written() {
+                                        Writing::Wait(chunk.next.0)
+                                    } else {
+                                        Writing::Chunk(chunk)
+                                    }
+                                }
+                                same => same,
+                            };
+                        }
+                    }
+                    http1.timeout = timeout;
+                    mem::replace(self, State::Http1(http1));
+                }
+            };
         }
-        http1.timeout = timeout;
-        mem::replace(self, State::Http1(http1));
-        }
-    };
-    }
 }
 
 // These Reading and Writing stuff should probably get moved into h1/message.rs
