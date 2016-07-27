@@ -692,68 +692,49 @@ impl<H: MessageHandler<T>, T: Transport> State<H, T> {
                             Reading::KeepAlive => http1.reading,
                             _ => Reading::Closed,
                         };
-                        let writing = match http1.writing {
-                        Writing::Wait(encoder) |
-                        Writing::Ready(encoder) => {
-                            if encoder.is_eof() {
-                                if http1.keep_alive {
-                                    Writing::KeepAlive
+                        let mut writing = Writing::Closed;
+                        let encoder = match http1.writing {
+                            Writing::Wait(enc) | Writing::Ready(enc) => Some(enc),
+                            Writing::Chunk(mut chunk) => {
+                                if chunk.is_written() {
+                                    Some(chunk.next.0)
                                 } else {
-                                    Writing::Closed
+                                    chunk.next.1 = next;
+                                    writing = Writing::Chunk(chunk);
+                                    None
                                 }
+                            },
+                            _ => return // Keep State::Closed.
+                        };
+                        if let Some(encoder) = encoder {
+                            if encoder.is_eof() {
+                                if http1.keep_alive { writing = Writing::KeepAlive }
                             } else if let Some(buf) = encoder.finish() {
-                                Writing::Chunk(Chunk {
+                                writing = Writing::Chunk(Chunk {
                                     buf: buf.bytes,
                                     pos: buf.pos,
                                     next: (h1::Encoder::length(0), Next::end())
                                 })
-                            } else {
-                                Writing::Closed
                             }
-                        }
-                        Writing::Chunk(mut chunk) => {
-                            if chunk.is_written() {
-                                let encoder = chunk.next.0;
-                                //TODO: de-dupe this code and from  Writing::Ready
-                                if encoder.is_eof() {
-                                    if http1.keep_alive {
-                                        Writing::KeepAlive
-                                    } else {
-                                        Writing::Closed
-                                    }
-                                } else if let Some(buf) = encoder.finish() {
-                                    Writing::Chunk(Chunk {
-                                        buf: buf.bytes,
-                                        pos: buf.pos,
-                                        next: (h1::Encoder::length(0), Next::end())
-                                    })
-                                } else {
-                                    Writing::Closed
-                                }
-                            } else {
-                                chunk.next.1 = next;
-                                Writing::Chunk(chunk)
-                            }
-                        },
-                        _ => return, // Keep State::Closed.
                         };
-                    match (reading, writing) {
-                        (Reading::KeepAlive, Writing::KeepAlive) => {
-                            let next = factory.keep_alive_interest();
-                            mem::replace(self, State::Init {
-                                interest: next.interest,
-                                timeout: next.timeout,
-                            });
-                            return;
-                        },
-                        (reading, Writing::Chunk(chunk)) => {
-                            http1.reading = reading;
-                            http1.writing = Writing::Chunk(chunk);
+
+                        match (reading, writing) {
+                            (Reading::KeepAlive, Writing::KeepAlive) => {
+                                let next = factory.keep_alive_interest();
+                                mem::replace(self, State::Init {
+                                    interest: next.interest,
+                                    timeout: next.timeout,
+                                });
+                                return;
+                            },
+                            (reading, Writing::Chunk(chunk)) => {
+                                http1.reading = reading;
+                                http1.writing = Writing::Chunk(chunk);
+                            }
+                            _ => return // Keep State::Closed.
                         }
-                        _ => return // Keep State::Closed.
-                    }
                 },
-            Next_::Read => {
+                Next_::Read => {
                 http1.reading = match http1.reading {
                     Reading::Init => Reading::Parse,
                     Reading::Wait(decoder) => Reading::Body(decoder),
