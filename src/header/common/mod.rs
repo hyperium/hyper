@@ -27,6 +27,7 @@ pub use self::content_disposition::{ContentDisposition, DispositionType, Disposi
 pub use self::content_length::ContentLength;
 pub use self::content_encoding::ContentEncoding;
 pub use self::content_language::ContentLanguage;
+pub use self::content_location::ContentLocation;
 pub use self::content_range::{ContentRange, ContentRangeSpec};
 pub use self::content_type::ContentType;
 pub use self::cookie::Cookie;
@@ -389,6 +390,7 @@ mod content_disposition;
 mod content_encoding;
 mod content_language;
 mod content_length;
+mod content_location;
 mod content_range;
 mod content_type;
 mod date;

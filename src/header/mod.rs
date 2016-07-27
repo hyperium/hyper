@@ -251,6 +251,7 @@ literals! {
     13 => Authorization<String>, CacheControl, LastModified, IfNoneMatch, AcceptRanges, ContentRange;
     14 => ContentLength, AcceptCharset;
     15 => AcceptEncoding, AcceptLanguage;
+    16 => ContentLocation;
     17 => TransferEncoding;
     25 => StrictTransportSecurity;
     27 => AccessControlAllowOrigin;
