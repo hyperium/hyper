@@ -159,14 +159,14 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
                         return State::Closed;
                     }
                 };
-                match <<H as MessageHandler<T>>::Message as Http1Message>::decoder(&head) {
+                let mut handler = match scope.create(Seed(&self.key, &self.ctrl.0)) {
+                    Some(handler) => handler,
+                    None => unreachable!()
+                };
+                match H::Message::decoder(&head) {
                     Ok(decoder) => {
                         trace!("decoder = {:?}", decoder);
                         let keep_alive = self.keep_alive_enabled && head.should_keep_alive();
-                        let mut handler = match scope.create(Seed(&self.key, &self.ctrl.0)) {
-                            Some(handler) => handler,
-                            None => unreachable!()
-                        };
                         let next = handler.on_incoming(head, &self.transport);
                         trace!("handler.on_incoming() -> {:?}", next);
 
@@ -217,7 +217,10 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
                     },
                     Err(e) => {
                         debug!("error creating decoder: {:?}", e);
-                        //TODO: respond with 400
+                        //TODO: update state from returned Next
+                        //this would allow a Server to respond with a proper
+                        //4xx code
+                        let _ = handler.on_error(e);
                         State::Closed
                     }
                 }
@@ -230,7 +233,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
                 let next = match http1.reading {
                     Reading::Init => None,
                     Reading::Parse => match self.parse() {
-                        Ok(head) => match <<H as MessageHandler<T>>::Message as Http1Message>::decoder(&head) {
+                        Ok(head) => match H::Message::decoder(&head) {
                             Ok(decoder) => {
                                 trace!("decoder = {:?}", decoder);
                                 // if client request asked for keep alive,
@@ -258,8 +261,8 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
                             }
                         },
                         Err(e) => {
-                            //TODO: send proper error codes depending on error
                             trace!("parse error: {:?}", e);
+                            let _ = http1.handler.on_error(e);
                             return State::Closed;
                         }
                     },
@@ -304,7 +307,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
     fn write<F: MessageHandlerFactory<K, T, Output=H>>(&mut self, scope: &mut Scope<F>, mut state: State<H, T>) -> State<H, T> {
         let next = match state {
             State::Init { interest: Next_::Write, .. } => {
-                // this could be a Client request, which writes first, so pay
+                // this is a Client request, which writes first, so pay
                 // attention to the version written here, which will adjust
                 // our internal state to Http1 or Http2
                 let mut handler = match scope.create(Seed(&self.key, &self.ctrl.0)) {
