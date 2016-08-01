@@ -314,7 +314,9 @@ impl Handler<Http> for Text {
             "/question" => {
                 let (tx, rx) = mpsc::channel();
                 // queue work on our worker
-                self.worker_tx.send((self.control.take().unwrap(), tx));
+                self.worker_tx.send((self.control.take().unwrap(), tx)).unwrap();
+                // save receive channel for response handling
+                self.worker_rx = Some(rx);
                 // tell hyper we need to wait until we can continue
                 return Next::wait();
             }
