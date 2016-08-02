@@ -41,7 +41,7 @@ version = "0.1.4"
 optional = true
 
 [dependencies.serde]
-version = "0.7"
+version = "0.8"
 optional = true
 
 [dev-dependencies]

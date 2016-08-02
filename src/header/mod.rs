@@ -89,8 +89,6 @@ use self::internals::{Item, VecMap, Entry};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 #[cfg(feature = "serde-serialization")]
 use serde::de;
-#[cfg(feature = "serde-serialization")]
-use serde::ser;
 
 pub use self::shared::*;
 pub use self::common::*;
@@ -432,11 +430,15 @@ impl fmt::Debug for Headers {
 
 #[cfg(feature = "serde-serialization")]
 impl Serialize for Headers {
-    fn serialize<S>(&self, serializer: &mut S) -> Result<(), S::Error> where S: Serializer {
-        serializer.serialize_map(ser::impls::MapIteratorVisitor::new(
-            self.iter().map(|header| (header.name(), header.value_string())),
-            Some(self.len()),
-        ))
+    fn serialize<S>(&self, serializer: &mut S) -> Result<(), S::Error>
+        where S: Serializer
+    {
+        let mut state = try!(serializer.serialize_map(Some(self.len())));
+        for header in self.iter() {
+            try!(serializer.serialize_map_key(&mut state, header.name()));
+            try!(serializer.serialize_map_value(&mut state, header.value_string()));
+        }
+        serializer.serialize_map_end(state)
     }
 }
 
