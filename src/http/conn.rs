@@ -324,7 +324,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
                     }
                 };
                 let mut head = http::MessageHead::default();
-                let interest = handler.on_outgoing(&mut head);
+                let mut interest = handler.on_outgoing(&mut head);
                 if head.version == HttpVersion::Http11 {
                     let mut buf = Vec::new();
                     let keep_alive = self.keep_alive_enabled && head.should_keep_alive();
@@ -339,6 +339,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
                                 bytes: buf,
                                 pos: 0
                             });
+                            interest = handler.on_encode(&mut Encoder::h1(&mut encoder, &mut self.transport));
                             Writing::Ready(encoder)
                         },
                         _ => Writing::Chunk(Chunk {
@@ -370,7 +371,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
                     }
                     Writing::Head => {
                         let mut head = http::MessageHead::default();
-                        let interest = handler.on_outgoing(&mut head);
+                        let mut interest = handler.on_outgoing(&mut head);
                         // if the request wants to close, server cannot stop it
                         if *keep_alive {
                             // if the request wants to stay alive, then it depends
@@ -389,6 +390,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
                                     bytes: buf,
                                     pos: 0
                                 });
+                                interest = handler.on_encode(&mut Encoder::h1(&mut encoder, &mut self.transport));
                                 Writing::Ready(encoder)
                             },
                             _ => Writing::Chunk(Chunk {
