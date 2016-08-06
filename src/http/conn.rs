@@ -117,10 +117,16 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
     }
 
     fn parse(&mut self) -> ::Result<http::MessageHead<<<H as MessageHandler<T>>::Message as Http1Message>::Incoming>> {
-        let n = try!(self.buf.read_from(&mut self.transport));
-        if n == 0 {
-            trace!("parse eof");
-            return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "parse eof").into());
+        match self.buf.read_from(&mut self.transport) {
+            Ok(0) => {
+                trace!("parse eof");
+                return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "parse eof").into());
+            }
+            Ok(_) => {},
+            Err(e) => match e.kind() {
+                io::ErrorKind::WouldBlock => {},
+                _ => return Err(e.into())
+            }
         }
         match try!(http::parse::<<H as MessageHandler<T>>::Message, _>(self.buf.bytes())) {
             Some((head, len)) => {
@@ -318,7 +324,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
                     }
                 };
                 let mut head = http::MessageHead::default();
-                let interest = handler.on_outgoing(&mut head);
+                let mut interest = handler.on_outgoing(&mut head);
                 if head.version == HttpVersion::Http11 {
                     let mut buf = Vec::new();
                     let keep_alive = self.keep_alive_enabled && head.should_keep_alive();
@@ -333,6 +339,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
                                 bytes: buf,
                                 pos: 0
                             });
+                            interest = handler.on_encode(&mut Encoder::h1(&mut encoder, &mut self.transport));
                             Writing::Ready(encoder)
                         },
                         _ => Writing::Chunk(Chunk {
@@ -364,7 +371,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
                     }
                     Writing::Head => {
                         let mut head = http::MessageHead::default();
-                        let interest = handler.on_outgoing(&mut head);
+                        let mut interest = handler.on_outgoing(&mut head);
                         // if the request wants to close, server cannot stop it
                         if *keep_alive {
                             // if the request wants to stay alive, then it depends
@@ -383,6 +390,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
                                     bytes: buf,
                                     pos: 0
                                 });
+                                interest = handler.on_encode(&mut Encoder::h1(&mut encoder, &mut self.transport));
                                 Writing::Ready(encoder)
                             },
                             _ => Writing::Chunk(Chunk {
@@ -444,9 +452,9 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
         state
     }
 
-    fn can_read_more(&self) -> bool {
+    fn can_read_more(&self, was_init: bool) -> bool {
         match self.state {
-            State::Init { .. } => false,
+            State::Init { .. } => !was_init && !self.buf.is_empty(),
             _ => !self.buf.is_empty()
         }
     }
@@ -549,6 +557,11 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> Conn<K, T, H> {
             events
         };
 
+        let was_init = match self.0.state {
+            State::Init { .. } => true,
+            _ => false
+        };
+
         if events.is_readable() {
             self.0.on_readable(scope);
         }
@@ -570,7 +583,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> Conn<K, T, H> {
             },
         };
 
-        if events.is_readable() && self.0.can_read_more() {
+        if events.is_readable() && self.0.can_read_more(was_init) {
             return self.ready(events, scope);
         }
 
