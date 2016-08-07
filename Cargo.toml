@@ -25,7 +25,7 @@ url = "1.0"
 vecio = "0.1"
 
 [dependencies.cookie]
-version = "0.2"
+version = "0.3"
 default-features = false
 
 [dependencies.openssl]
