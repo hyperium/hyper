@@ -22,4 +22,9 @@ layer over "stringly-typed" HTTP.
 Hyper offers both an HTTP client and server which can be used to drive
 complex web applications written entirely in Rust.
 
+Be aware that hyper is still actively evolving towards 1.0, and is likely
+to experience breaking changes before stabilising. The current area of
+change is the movement towards async IO and refining the design around
+that. You can also see the [1.0 issue milestone](https://github.com/hyperium/hyper/milestone/1).
+
 The documentation is located at [http://hyperium.github.io/hyper](http://hyperium.github.io/hyper).
