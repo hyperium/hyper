@@ -82,6 +82,14 @@ impl Item {
         }
         self.typed.get_mut(tid).map(|typed| unsafe { typed.downcast_mut_unchecked() })
     }
+
+    pub fn into_typed<H: Header>(self) -> Option<H> {
+        let tid = TypeId::of::<H>();
+        match self.typed.into_value(tid) {
+            Some(val) => Some(val),
+            None => parse::<H>(self.raw.as_ref().expect("item.raw must exist")).ok()
+        }.map(|typed| unsafe { typed.downcast_unchecked() })
+    }
 }
 
 #[inline]
