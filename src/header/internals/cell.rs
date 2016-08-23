@@ -87,6 +87,20 @@ impl<V: ?Sized + Any + 'static> PtrMapCell<V> {
     }
 
     #[inline]
+    pub fn into_value(self, key: TypeId) -> Option<Box<V>> {
+        let map = unsafe { self.0.into_inner() };
+        match map {
+            PtrMap::Empty => None,
+            PtrMap::One(id, v) => if id == key {
+                Some(v)
+            } else {
+                None
+            },
+            PtrMap::Many(mut hm) => hm.remove(&key)
+        }
+    }
+
+    #[inline]
     pub unsafe fn insert(&self, key: TypeId, val: Box<V>) {
         let mut map = &mut *self.0.get();
         match *map {

@@ -182,6 +182,11 @@ impl Header + Send + Sync {
     unsafe fn downcast_mut_unchecked<T: 'static>(&mut self) -> &mut T {
         &mut *(mem::transmute::<*mut _, (*mut (), *mut ())>(self).0 as *mut T)
     }
+
+    #[inline]
+    unsafe fn downcast_unchecked<T: 'static>(self: Box<Self>) -> T {
+        *Box::from_raw(mem::transmute::<*mut _, (*mut (), *mut ())>(Box::into_raw(self)).0 as *mut T)
+    }
 }
 
 impl Clone for Box<Header + Send + Sync> {
@@ -320,10 +325,14 @@ impl Headers {
     }
 
     /// Removes a header from the map, if one existed.
-    /// Returns true if a header has been removed.
-    pub fn remove<H: Header>(&mut self) -> bool {
+    /// Returns the header, if one has been removed and could be parsed.
+    ///
+    /// Note that this function may return `None` even though a header was removed. If you want to
+    /// know whether a header exists, rather rely on `has`.
+    pub fn remove<H: Header>(&mut self) -> Option<H> {
         trace!("Headers.remove( {:?} )", header_name::<H>());
-        self.data.remove(&HeaderName(UniCase(Cow::Borrowed(header_name::<H>())))).is_some()
+        self.data.remove(&HeaderName(UniCase(Cow::Borrowed(header_name::<H>()))))
+            .and_then(Item::into_typed::<H>)
     }
 
     /// Returns an iterator over the header fields.
@@ -749,6 +758,13 @@ mod tests {
         headers.set_raw("content-LENGTH", vec![b"20".to_vec()]);
         headers.remove_raw("content-LENGTH");
         assert_eq!(headers.get_raw("Content-length"), None);
+    }
+
+    #[test]
+    fn test_remove() {
+        let mut headers = Headers::new();
+        headers.set(ContentLength(10));
+        assert_eq!(headers.remove(), Some(ContentLength(10)));
     }
 
     #[test]
