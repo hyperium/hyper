@@ -290,7 +290,6 @@ impl<H: Handler<T>, T: Transport> http::MessageHandler<T> for Message<H, T> {
     type Message = http::ClientMessage;
 
     fn on_outgoing(&mut self, head: &mut RequestHead) -> Next {
-        use ::url::Position;
         let url = self.url.take().expect("Message.url is missing");
         if let Some(host) = url.host_str() {
             head.headers.set(Host {
@@ -298,7 +297,10 @@ impl<H: Handler<T>, T: Transport> http::MessageHandler<T> for Message<H, T> {
                 port: url.port(),
             });
         }
-        head.subject.1 = RequestUri::AbsolutePath(url[Position::BeforePath..Position::AfterQuery].to_owned());
+        head.subject.1 = RequestUri::AbsolutePath {
+            path: url.path().to_owned(),
+            query: url.query().map(|q| q.to_owned()),
+        };
         let mut req = self::request::new(head);
         self.handler.on_request(&mut req)
     }

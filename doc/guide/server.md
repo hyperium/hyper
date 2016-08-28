@@ -165,7 +165,7 @@ impl Handler<Http> for Text {
     fn on_request(&mut self, req: Request<Http>) -> Next {
         use hyper::RequestUri;
         let path = match *req.uri() {
-            RequestUri::AbsolutePath(ref p) => p,
+            RequestUri::AbsolutePath { path: ref p, .. } => p,
             RequestUri::AbsoluteUri(ref url) => url.path(),
             // other 2 forms are for CONNECT and OPTIONS methods
             _ => ""
@@ -299,7 +299,7 @@ impl Handler<Http> for Text {
     fn on_request(&mut self, req: Request<Http>) -> Next {
         use hyper::RequestUri;
         let path = match *req.uri() {
-            RequestUri::AbsolutePath(ref p) => p,
+            RequestUri::AbsolutePath { path: ref p, .. } => p,
             RequestUri::AbsoluteUri(ref url) => url.path(),
             _ => ""
         };

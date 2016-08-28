@@ -45,7 +45,7 @@ impl Echo {
 impl Handler<HttpStream> for Echo {
     fn on_request(&mut self, req: Request<HttpStream>) -> Next {
         match *req.uri() {
-            RequestUri::AbsolutePath(ref path) => match (req.method(), &path[..]) {
+            RequestUri::AbsolutePath { ref path, .. } => match (req.method(), &path[..]) {
                 (&Get, "/") | (&Get, "/echo") => {
                     info!("GET Index");
                     self.route = Route::Index;
