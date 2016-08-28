@@ -46,7 +46,7 @@ optional = true
 
 [dev-dependencies]
 env_logger = "0.3"
-num_cpus = "0.2"
+num_cpus = "1.0"
 
 [features]
 default = ["ssl"]
