@@ -26,8 +26,13 @@ pub enum RequestUri {
     /// The most common request target, an absolute path and optional query.
     ///
     /// For example, the line `GET /where?q=now HTTP/1.1` would parse the URI
-    /// as `AbsolutePath("/where?q=now".to_string())`.
-    AbsolutePath(String),
+    /// as `AbsolutePath { path: "/where".to_string(), query: Some("q=now".to_string()) }`.
+    AbsolutePath {
+        /// The path part of the request uri.
+        path: String,
+        /// The query part of the request uri.
+        query: Option<String>,
+    },
 
     /// An absolute URI. Used in conjunction with proxies.
     ///
@@ -66,13 +71,22 @@ impl FromStr for RequestUri {
         } else if bytes == b"*" {
             Ok(RequestUri::Star)
         } else if bytes.starts_with(b"/") {
-            Ok(RequestUri::AbsolutePath(s.to_owned()))
+            let mut temp = "http://example.com".to_owned();
+            temp.push_str(s);
+            let url = try!(Url::parse(&temp));
+            Ok(RequestUri::AbsolutePath {
+                path: url.path().to_owned(),
+                query: url.query().map(|q| q.to_owned()),
+            })
         } else if bytes.contains(&b'/') {
             Ok(RequestUri::AbsoluteUri(try!(Url::parse(s))))
         } else {
             let mut temp = "http://".to_owned();
             temp.push_str(s);
-            try!(Url::parse(&temp[..]));
+            let url = try!(Url::parse(&temp));
+            if url.query().is_some() {
+                return Err(Error::Uri(UrlError::RelativeUrlWithoutBase));
+            }
             //TODO: compare vs u.authority()?
             Ok(RequestUri::Authority(s.to_owned()))
         }
@@ -82,7 +96,13 @@ impl FromStr for RequestUri {
 impl Display for RequestUri {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            RequestUri::AbsolutePath(ref path) => f.write_str(path),
+            RequestUri::AbsolutePath { ref path, ref query } => {
+                try!(f.write_str(path));
+                match *query {
+                    Some(ref q) => write!(f, "?{}", q),
+                    None => Ok(()),
+                }
+            }
             RequestUri::AbsoluteUri(ref url) => write!(f, "{}", url),
             RequestUri::Authority(ref path) => f.write_str(path),
             RequestUri::Star => f.write_str("*")
@@ -92,14 +112,20 @@ impl Display for RequestUri {
 
 #[test]
 fn test_uri_fromstr() {
-    fn read(s: &str, result: RequestUri) {
+    fn parse(s: &str, result: RequestUri) {
         assert_eq!(s.parse::<RequestUri>().unwrap(), result);
     }
+    fn parse_err(s: &str) {
+        assert!(s.parse::<RequestUri>().is_err());
+    }
 
-    read("*", RequestUri::Star);
-    read("http://hyper.rs/", RequestUri::AbsoluteUri(Url::parse("http://hyper.rs/").unwrap()));
-    read("hyper.rs", RequestUri::Authority("hyper.rs".to_owned()));
-    read("/", RequestUri::AbsolutePath("/".to_owned()));
+    parse("*", RequestUri::Star);
+    parse("**", RequestUri::Authority("**".to_owned()));
+    parse("http://hyper.rs/", RequestUri::AbsoluteUri(Url::parse("http://hyper.rs/").unwrap()));
+    parse("hyper.rs", RequestUri::Authority("hyper.rs".to_owned()));
+    parse_err("hyper.rs?key=value");
+    parse_err("hyper.rs/");
+    parse("/", RequestUri::AbsolutePath { path: "/".to_owned(), query: None });
 }
 
 #[test]
@@ -111,6 +137,9 @@ fn test_uri_display() {
     assert_display("*", RequestUri::Star);
     assert_display("http://hyper.rs/", RequestUri::AbsoluteUri(Url::parse("http://hyper.rs/").unwrap()));
     assert_display("hyper.rs", RequestUri::Authority("hyper.rs".to_owned()));
-    assert_display("/", RequestUri::AbsolutePath("/".to_owned()));
-
+    assert_display("/", RequestUri::AbsolutePath { path: "/".to_owned(), query: None });
+    assert_display("/where?key=value", RequestUri::AbsolutePath {
+        path: "/where".to_owned(),
+        query: Some("key=value".to_owned()),
+    });
 }

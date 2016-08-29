@@ -66,17 +66,25 @@ impl<'a, T> Request<'a, T> {
     #[inline]
     pub fn version(&self) -> &HttpVersion { &self.version }
 
-    /*
     /// The target path of this Request.
     #[inline]
     pub fn path(&self) -> Option<&str> {
-        match *self.uri {
-            RequestUri::AbsolutePath(ref s) => Some(s),
-            RequestUri::AbsoluteUri(ref url) => Some(&url[::url::Position::BeforePath..]),
-            _ => None
+        match self.uri {
+            RequestUri::AbsolutePath { path: ref p, .. } => Some(p.as_str()),
+            RequestUri::AbsoluteUri(ref url) => Some(url.path()),
+            _ => None,
         }
     }
-    */
+
+    /// The query string of this Request.
+    #[inline]
+    pub fn query(&self) -> Option<&str> {
+        match self.uri {
+            RequestUri::AbsolutePath { query: ref q, .. } => q.as_ref().map(|x| x.as_str()),
+            RequestUri::AbsoluteUri(ref url) => url.query(),
+            _ => None,
+        }
+    }
 
     /// Deconstruct this Request into its pieces.
     ///
