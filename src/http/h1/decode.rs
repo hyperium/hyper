@@ -329,50 +329,42 @@ mod tests {
         String::from_utf8(outs).expect("decode String")
     }
 
-    // TODO too much repetition in the async tests
-    #[test]
-    fn test_read_length_async() {
-        let content = b"foobar";
+    fn all_async_cases(content: &str, expected: &str, decoder: Decoder) {
         let content_len = content.len();
         for block_at in 0..content_len {
             for read_buffer_size in 1..content_len {
-                assert_eq!("foobar", &read_async(
-                    Decoder::length(content_len as u64),
-                    content,
+                let actual = read_async(
+                    decoder.clone(),
+                    content.as_bytes(),
                     block_at,
-                    read_buffer_size),
-                "Failed blocking at {} with read buffer size {}", block_at, read_buffer_size);
+                    read_buffer_size);
+                assert_eq!(expected,
+                    &actual,
+                    "Failed async. Blocking at {} with read buffer size {}",
+                    block_at,
+                    read_buffer_size);
             }
         }
+    }
+
+    #[test]
+    fn test_read_length_async() {
+        let content = "foobar";
+        all_async_cases(content, content, Decoder::length(content.len() as u64));
     }
 
     #[ignore] // TODO remove ignore
     #[test]
     fn test_read_chunked_async() {
-        let content = b"3\r\nfoo\r\n3\r\nbar\r\n0\r\n";
-        let content_len = content.len();
-        for block_at in 0..content_len {
-            for read_buffer_size in 1..content_len {
-                assert_eq!("foobar", &read_async(Decoder::chunked(), content, block_at, read_buffer_size),
-                    "Failed blocking at {} with read buffer size {}", block_at, read_buffer_size);
-            }
-        }
+        let content = "3\r\nfoo\r\n3\r\nbar\r\n0\r\n";
+        let expected = "foobar";
+        all_async_cases(content, expected, Decoder::chunked());
     }
 
     #[test]
     fn test_read_eof_async() {
-        let content = b"foobar";
-        let content_len = content.len();
-        for block_at in 0..content_len {
-            for read_buffer_size in 1..content_len {
-                assert_eq!("foobar", &read_async(
-                    Decoder::eof(),
-                    content,
-                    block_at,
-                    read_buffer_size),
-                "Failed blocking at {} with read buffer size {}", block_at, read_buffer_size);
-            }
-        }
+        let content = "foobar";
+        all_async_cases(content, content, Decoder::eof());
     }
 
 }
