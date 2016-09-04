@@ -296,11 +296,10 @@ mod tests {
         assert_eq!(e.description(), "early eof");
     }
 
-    fn read_chunked_async(content: &[u8], block_at: usize, read_buffer_size: usize) -> String {
+    fn read_async(mut decoder: Decoder, content: &[u8], block_at: usize, read_buffer_size: usize) -> String {
         let content_len = content.len();
         let mock_buf = io::Cursor::new(content.clone());
         let mut ins = Async::new(mock_buf, block_at);
-        let mut decoder = Decoder::chunked();
         let mut outs = vec![];
         loop {
             let mut buf = vec![0; read_buffer_size];
@@ -319,14 +318,48 @@ mod tests {
         String::from_utf8(outs).expect("decode String")
     }
 
+    // TODO too much repetition in the async tests
+    #[test]
+    fn test_read_length_async() {
+        let content = b"foobar";
+        let content_len = content.len();
+        for block_at in 0..content_len {
+            for read_buffer_size in 1..content_len {
+                assert_eq!("foobar", &read_async(
+                    Decoder::length(content_len as u64),
+                    content,
+                    block_at,
+                    read_buffer_size),
+                "Failed blocking at {} with read buffer size {}", block_at, read_buffer_size);
+            }
+        }
+    }
+
+    #[ignore] // TODO remove ignore
     #[test]
     fn test_read_chunked_async() {
         let content = b"3\r\nfoo\r\n3\r\nbar\r\n0\r\n";
         let content_len = content.len();
         for block_at in 0..content_len {
             for read_buffer_size in 1..content_len {
-                assert_eq!("foobar", &read_chunked_async(content, block_at, read_buffer_size),
+                assert_eq!("foobar", &read_async(Decoder::chunked(), content, block_at, read_buffer_size),
                     "Failed blocking at {} with read buffer size {}", block_at, read_buffer_size);
+            }
+        }
+    }
+
+    #[test]
+    fn test_read_eof_async() {
+        let content = b"foobar";
+        let content_len = content.len();
+        for block_at in 0..content_len {
+            for read_buffer_size in 1..content_len {
+                assert_eq!("foobar", &read_async(
+                    Decoder::eof(),
+                    content,
+                    block_at,
+                    read_buffer_size),
+                "Failed blocking at {} with read buffer size {}", block_at, read_buffer_size);
             }
         }
     }
