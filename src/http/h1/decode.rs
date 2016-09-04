@@ -222,7 +222,9 @@ fn read_chunk_size<R: Read>(rdr: &mut R) -> io::Result<u64> {
 mod tests {
     use std::error::Error;
     use std::io;
+    use std::io::Write;
     use super::{Decoder, read_chunk_size};
+    use mock::Async;
 
     #[test]
     fn test_read_chunk_size() {
@@ -290,4 +292,40 @@ mod tests {
         assert_eq!(e.kind(), io::ErrorKind::Other);
         assert_eq!(e.description(), "early eof");
     }
+
+    fn read_chunked_async(content: &[u8], block_at: usize, read_buffer_size: usize) -> String {
+        let content_len = content.len();
+        let mock_buf = io::Cursor::new(content.clone());
+        let mut ins = Async::new(mock_buf, block_at);
+        let mut decoder = Decoder::chunked();
+        let mut outs = vec![];
+        loop {
+            let mut buf = vec![0; read_buffer_size];
+            match decoder.decode(&mut ins, buf.as_mut_slice()) {
+                Ok(0) => break,
+                Ok(i) => outs.write(&buf[0..i]).expect("write buffer"),
+                Err(e) => {
+                    if e.kind() != io::ErrorKind::WouldBlock {
+                        break;
+                    }
+                    ins.block_in(content_len); // we only block once
+                    0 as usize
+                }
+            };
+        }
+        String::from_utf8(outs).expect("decode String")
+    }
+
+    #[test]
+    fn test_read_chunked_async() {
+        let content = b"3\r\nfoo\r\n3\r\nbar\r\n0\r\n";
+        let content_len = content.len();
+        for block_at in 0..content_len {
+            for read_buffer_size in 1..content_len {
+                assert_eq!("foobar", &read_chunked_async(content, block_at, read_buffer_size),
+                    "Failed blocking at {} with read buffer size {}", block_at, read_buffer_size);
+            }
+        }
+    }
+
 }
