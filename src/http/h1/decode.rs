@@ -1,14 +1,39 @@
 use std::cmp;
 use std::io::{self, Read};
 
-use self::Decoder::{Length, Chunked, Eof};
+use self::Kind::{Length, Chunked, Eof};
 
 /// Decoders to handle different Transfer-Encodings.
 ///
 /// If a message body does not include a Transfer-Encoding, it *should*
 /// include a Content-Length header.
 #[derive(Debug, Clone)]
-pub enum Decoder {
+pub struct Decoder {
+    kind: Kind,
+}
+
+impl Decoder {
+    pub fn length(x: u64) -> Decoder {
+        Decoder {
+            kind: Kind::Length(x)
+        }
+    }
+
+    pub fn chunked() -> Decoder {
+        Decoder {
+            kind: Kind::Chunked(None)
+        }
+    }
+
+    pub fn eof() -> Decoder {
+        Decoder {
+            kind: Kind::Eof(false)
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+enum Kind {
     /// A Reader used when a Content-Length header is passed with a positive integer.
     Length(u64),
     /// A Reader used when Transfer-Encoding is `chunked`.
@@ -30,20 +55,6 @@ pub enum Decoder {
     Eof(bool),
 }
 
-impl Decoder {
-    pub fn length(x: u64) -> Decoder {
-        Decoder::Length(x)
-    }
-
-    pub fn chunked() -> Decoder {
-        Decoder::Chunked(None)
-    }
-
-    pub fn eof() -> Decoder {
-        Decoder::Eof(false)
-    }
-}
-
 #[allow(warnings)]
 // TODO Replace Chunked(Option<u64>) with Chunked(ChunkedState)
 #[derive(Debug, PartialEq, Clone)]
@@ -61,7 +72,7 @@ enum ChunkedState {
 impl Decoder {
     pub fn is_eof(&self) -> bool {
         trace!("is_eof? {:?}", self);
-        match *self {
+        match self.kind {
             Length(0) |
             Chunked(Some(0)) |
             Eof(true) => true,
@@ -72,7 +83,7 @@ impl Decoder {
 
 impl Decoder {
     pub fn decode<R: Read>(&mut self, body: &mut R, buf: &mut [u8]) -> io::Result<usize> {
-        match *self {
+        match self.kind {
             Length(ref mut remaining) => {
                 trace!("Sized read, remaining={:?}", remaining);
                 if *remaining == 0 {
