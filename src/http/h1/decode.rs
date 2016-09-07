@@ -365,6 +365,8 @@ mod tests {
         assert_eq!("1234567890abcdef", &result);
     }
 
+    // perform an async read using a custom buffer size and causing a blocking
+    // read at the specified byte
     fn read_async(mut decoder: Decoder, content: &[u8], block_at: usize, read_buffer_size: usize) -> String {
         let content_len = content.len();
         let mock_buf = io::Cursor::new(content.clone());
@@ -387,6 +389,9 @@ mod tests {
         String::from_utf8(outs).expect("decode String")
     }
 
+    // iterate over the different ways that this async read could go.
+    // tests every combination of buffer size that is passed in, with a blocking
+    // read at each byte along the content - The shotgun approach
     fn all_async_cases(content: &str, expected: &str, decoder: Decoder) {
         let content_len = content.len();
         for block_at in 0..content_len {
