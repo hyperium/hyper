@@ -1,4 +1,4 @@
-use std::cmp;
+use std::{cmp, usize};
 use std::io::{self, Read};
 
 use self::Kind::{Length, Chunked, Eof};
@@ -37,7 +37,7 @@ enum Kind {
     /// A Reader used when a Content-Length header is passed with a positive integer.
     Length(u64),
     /// A Reader used when Transfer-Encoding is `chunked`.
-    Chunked(ChunkedState, usize),
+    Chunked(ChunkedState, u64),
     /// A Reader used for responses that don't indicate a length or chunked.
     ///
     /// Note: This should only used for `Response`s. It is illegal for a
@@ -141,7 +141,7 @@ impl ChunkedState {
     fn step<R: Read>(
             &self,
             body: &mut R,
-            size: &mut usize,
+            size: &mut u64,
             buf: &mut [u8],
             read: &mut usize) -> io::Result<ChunkedState> {
         Ok(match *self {
@@ -154,21 +154,21 @@ impl ChunkedState {
             ChunkedState::End => panic!("Calling step on End state"),
         })
     }
-    fn read_size<R: Read>(rdr: &mut R, size: &mut usize) -> io::Result<ChunkedState> {
+    fn read_size<R: Read>(rdr: &mut R, size: &mut u64) -> io::Result<ChunkedState> {
         trace!("Read size");
         let radix = 16;
         match byte!(rdr) {
             b@b'0'...b'9' => {
                 *size *= radix;
-                *size += (b - b'0') as usize;
+                *size += (b - b'0') as u64;
             },
             b@b'a'...b'f' => {
                 *size *= radix;
-                *size += (b + 10 - b'a') as usize;
+                *size += (b + 10 - b'a') as u64;
             },
             b@b'A'...b'F' => {
                 *size *= radix;
-                *size += (b + 10 - b'A') as usize;
+                *size += (b + 10 - b'A') as u64;
             },
             b'\t' | b' ' => return Ok(ChunkedState::SizeLws),
             b'\r' => return Ok(ChunkedState::SizeLf),
@@ -189,7 +189,7 @@ impl ChunkedState {
                                            "Invalid chunk size linear white space")),
         }
     }
-    fn read_size_lf<R: Read>(rdr: &mut R, size: &mut usize) -> io::Result<ChunkedState> {
+    fn read_size_lf<R: Read>(rdr: &mut R, size: &mut u64) -> io::Result<ChunkedState> {
         trace!("Chunk size is {:?}", size);
         match byte!(rdr) {
             b'\n' if *size > 0 => Ok(ChunkedState::Body),
@@ -198,11 +198,17 @@ impl ChunkedState {
                                            "Invalid chunk size LF")),
         }
     }
-    fn read_body<R: Read>(rdr: &mut R, rem: &mut usize, buf: &mut [u8], read: &mut usize)
+    fn read_body<R: Read>(rdr: &mut R, rem: &mut u64, buf: &mut [u8], read: &mut usize)
             -> io::Result<ChunkedState> {
         trace!("Chunked read, remaining={:?}", rem);
 
-        let to_read = cmp::min(*rem, buf.len());
+        // cap remaining bytes at the max capacity of usize
+        let rem_cap = match *rem {
+            r if r > usize::MAX as u64 => usize::MAX,
+            r => r as usize,
+        };
+
+        let to_read = cmp::min(rem_cap, buf.len());
         let count = try!(rdr.read(&mut buf[..to_read]));
 
         trace!("to_read = {}", to_read);
@@ -213,7 +219,7 @@ impl ChunkedState {
             return Err(io::Error::new(io::ErrorKind::Other, "early eof"));
         }
 
-        *rem -= count;
+        *rem -= count as u64;
         *read = count;
 
         if *rem > 0 {
@@ -249,7 +255,7 @@ mod tests {
 
     #[test]
     fn test_read_chunk_size() {
-        fn read(s: &str) -> usize {
+        fn read(s: &str) -> u64 {
             let mut state = ChunkedState::Size;
             let mut rdr = &mut s.as_bytes();
             let mut size = 0;
