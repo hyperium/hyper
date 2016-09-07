@@ -216,7 +216,7 @@ impl ChunkedState {
 
         if count == 0 {
             *rem = 0;
-            return Err(io::Error::new(io::ErrorKind::Other, "early eof"));
+            return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "early eof"));
         }
 
         *rem -= count as u64;
@@ -350,7 +350,7 @@ mod tests {
         let mut buf = [0u8; 10];
         assert_eq!(decoder.decode(&mut bytes, &mut buf).unwrap(), 7);
         let e = decoder.decode(&mut bytes, &mut buf).unwrap_err();
-        assert_eq!(e.kind(), io::ErrorKind::Other);
+        assert_eq!(e.kind(), io::ErrorKind::UnexpectedEof);
         assert_eq!(e.description(), "early eof");
     }
 
