@@ -151,7 +151,7 @@ impl ChunkedState {
             ChunkedState::Body => try!(ChunkedState::read_body(body, size, buf, read)),
             ChunkedState::BodyCr => try!(ChunkedState::read_body_cr(body)),
             ChunkedState::BodyLf => try!(ChunkedState::read_body_lf(body)),
-            ChunkedState::End => panic!("Calling step on End state"),
+            ChunkedState::End => ChunkedState::End,
         })
     }
     fn read_size<R: Read>(rdr: &mut R, size: &mut u64) -> io::Result<ChunkedState> {
@@ -363,6 +363,28 @@ mod tests {
         assert_eq!(16, count);
         let result = String::from_utf8(buf.to_vec()).expect("decode String");
         assert_eq!("1234567890abcdef", &result);
+    }
+
+    #[test]
+    fn test_read_chunked_after_eof() {
+        let content = b"10\r\n1234567890abcdef\r\n0\r\n";
+        let mut mock_buf = io::Cursor::new(content);
+        let mut buf = [0u8; 50];
+        let mut decoder = Decoder::chunked();
+
+        // normal read
+        let count = decoder.decode(&mut mock_buf, &mut buf).expect("decode");
+        assert_eq!(16, count);
+        let result = String::from_utf8(buf[0..count].to_vec()).expect("decode String");
+        assert_eq!("1234567890abcdef", &result);
+
+        // eof read
+        let count = decoder.decode(&mut mock_buf, &mut buf).expect("decode");
+        assert_eq!(0, count);
+
+        // ensure read after eof also returns eof
+        let count = decoder.decode(&mut mock_buf, &mut buf).expect("decode");
+        assert_eq!(0, count);
     }
 
     // perform an async read using a custom buffer size and causing a blocking
