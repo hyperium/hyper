@@ -48,6 +48,8 @@ pub enum Error {
     Status,
     /// A timeout occurred waiting for an IO event.
     Timeout,
+    /// Event loop is full and cannot process request
+    Full,
     /// An `io::Error` that occurred while trying to read or write to a network stream.
     Io(IoError),
     /// An error from a SSL library.
@@ -90,6 +92,7 @@ impl StdError for Error {
             Status => "Invalid Status provided",
             Incomplete => "Message is incomplete",
             Timeout => "Timeout",
+            Error::Full => "Event loop is full",
             Uri(ref e) => e.description(),
             Io(ref e) => e.description(),
             Ssl(ref e) => e.description(),
