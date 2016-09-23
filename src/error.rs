@@ -25,6 +25,7 @@ use self::Error::{
     Utf8
 };
 
+pub use url::ParseError;
 
 /// Result type often returned from methods that can have hyper `Error`s.
 pub type Result<T> = ::std::result::Result<T, Error>;
