@@ -48,7 +48,7 @@ impl Dns {
 }
 
 fn work(rx: spmc::Receiver<String>, notify: channel::Sender<Answer>) {
-    thread::spawn(move || {
+    thread::Builder::new().name(String::from("hyper-dns")).spawn(move || {
         let mut worker = Worker::new(rx, notify);
         let rx = worker.rx.as_ref().expect("Worker lost rx");
         let notify = worker.notify.as_ref().expect("Worker lost notify");
@@ -64,7 +64,7 @@ fn work(rx: spmc::Receiver<String>, notify: channel::Sender<Answer>) {
             }
         }
         worker.shutdown = true;
-    });
+    }).expect("spawn dns thread");
 }
 
 struct Worker {
