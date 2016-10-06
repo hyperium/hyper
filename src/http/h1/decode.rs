@@ -14,21 +14,15 @@ pub struct Decoder {
 
 impl Decoder {
     pub fn length(x: u64) -> Decoder {
-        Decoder {
-            kind: Kind::Length(x)
-        }
+        Decoder { kind: Kind::Length(x) }
     }
 
     pub fn chunked() -> Decoder {
-        Decoder {
-            kind: Kind::Chunked(ChunkedState::Size, 0)
-        }
+        Decoder { kind: Kind::Chunked(ChunkedState::Size, 0) }
     }
 
     pub fn eof() -> Decoder {
-        Decoder {
-            kind: Kind::Eof(false)
-        }
+        Decoder { kind: Kind::Eof(false) }
     }
 }
 
@@ -59,6 +53,7 @@ enum Kind {
 enum ChunkedState {
     Size,
     SizeLws,
+    Extension,
     SizeLf,
     Body,
     BodyCr,
@@ -73,7 +68,7 @@ impl Decoder {
             Length(0) |
             Chunked(ChunkedState::End, _) |
             Eof(true) => true,
-            _ => false
+            _ => false,
         }
     }
 }
@@ -98,7 +93,7 @@ impl Decoder {
                     }
                     Ok(num as usize)
                 }
-            },
+            }
             Chunked(ref mut state, ref mut size) => {
                 loop {
                     let mut read = 0;
@@ -112,16 +107,16 @@ impl Decoder {
                         return Ok(read);
                     }
                 }
-            },
+            }
             Eof(ref mut is_eof) => {
                 match body.read(buf) {
                     Ok(0) => {
                         *is_eof = true;
                         Ok(0)
                     }
-                    other => other
+                    other => other,
                 }
-            },
+            }
         }
     }
 }
@@ -131,46 +126,49 @@ macro_rules! byte (
         let mut buf = [0];
         match try!($rdr.read(&mut buf)) {
             1 => buf[0],
-            _ => return Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                                "Invalid chunk size line")),
+            _ => return Err(io::Error::new(io::ErrorKind::UnexpectedEof,
+                                           "Unexpected eof during chunk size line")),
         }
     })
 );
 
 impl ChunkedState {
-    fn step<R: Read>(
-            &self,
-            body: &mut R,
-            size: &mut u64,
-            buf: &mut [u8],
-            read: &mut usize) -> io::Result<ChunkedState> {
+    fn step<R: Read>(&self,
+                     body: &mut R,
+                     size: &mut u64,
+                     buf: &mut [u8],
+                     read: &mut usize)
+                     -> io::Result<ChunkedState> {
+        use self::ChunkedState::*;
         Ok(match *self {
-            ChunkedState::Size => try!(ChunkedState::read_size(body, size)),
-            ChunkedState::SizeLws => try!(ChunkedState::read_size_lws(body)),
-            ChunkedState::SizeLf => try!(ChunkedState::read_size_lf(body, size)),
-            ChunkedState::Body => try!(ChunkedState::read_body(body, size, buf, read)),
-            ChunkedState::BodyCr => try!(ChunkedState::read_body_cr(body)),
-            ChunkedState::BodyLf => try!(ChunkedState::read_body_lf(body)),
-            ChunkedState::End => ChunkedState::End,
+            Size => try!(ChunkedState::read_size(body, size)),
+            SizeLws => try!(ChunkedState::read_size_lws(body)),
+            Extension => try!(ChunkedState::read_extension(body)),
+            SizeLf => try!(ChunkedState::read_size_lf(body, size)),
+            Body => try!(ChunkedState::read_body(body, size, buf, read)),
+            BodyCr => try!(ChunkedState::read_body_cr(body)),
+            BodyLf => try!(ChunkedState::read_body_lf(body)),
+            End => ChunkedState::End,
         })
     }
     fn read_size<R: Read>(rdr: &mut R, size: &mut u64) -> io::Result<ChunkedState> {
         trace!("Read size");
         let radix = 16;
         match byte!(rdr) {
-            b@b'0'...b'9' => {
+            b @ b'0'...b'9' => {
                 *size *= radix;
                 *size += (b - b'0') as u64;
-            },
-            b@b'a'...b'f' => {
+            }
+            b @ b'a'...b'f' => {
                 *size *= radix;
                 *size += (b + 10 - b'a') as u64;
-            },
-            b@b'A'...b'F' => {
+            }
+            b @ b'A'...b'F' => {
                 *size *= radix;
                 *size += (b + 10 - b'A') as u64;
-            },
+            }
             b'\t' | b' ' => return Ok(ChunkedState::SizeLws),
+            b';' => return Ok(ChunkedState::Extension),
             b'\r' => return Ok(ChunkedState::SizeLf),
             _ => {
                 return Err(io::Error::new(io::ErrorKind::InvalidInput,
@@ -184,9 +182,19 @@ impl ChunkedState {
         match byte!(rdr) {
             // LWS can follow the chunk size, but no more digits can come
             b'\t' | b' ' => Ok(ChunkedState::SizeLws),
+            b';' => Ok(ChunkedState::Extension),
             b'\r' => return Ok(ChunkedState::SizeLf),
-            _ => Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                           "Invalid chunk size linear white space")),
+            _ => {
+                Err(io::Error::new(io::ErrorKind::InvalidInput,
+                                   "Invalid chunk size linear white space"))
+            }
+        }
+    }
+    fn read_extension<R: Read>(rdr: &mut R) -> io::Result<ChunkedState> {
+        trace!("read_extension");
+        match byte!(rdr) {
+            b'\r' => return Ok(ChunkedState::SizeLf),
+            _ => return Ok(ChunkedState::Extension), // no supported extensions
         }
     }
     fn read_size_lf<R: Read>(rdr: &mut R, size: &mut u64) -> io::Result<ChunkedState> {
@@ -194,12 +202,14 @@ impl ChunkedState {
         match byte!(rdr) {
             b'\n' if *size > 0 => Ok(ChunkedState::Body),
             b'\n' if *size == 0 => Ok(ChunkedState::End),
-            _ => Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                           "Invalid chunk size LF")),
+            _ => Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk size LF")),
         }
     }
-    fn read_body<R: Read>(rdr: &mut R, rem: &mut u64, buf: &mut [u8], read: &mut usize)
-            -> io::Result<ChunkedState> {
+    fn read_body<R: Read>(rdr: &mut R,
+                          rem: &mut u64,
+                          buf: &mut [u8],
+                          read: &mut usize)
+                          -> io::Result<ChunkedState> {
         trace!("Chunked read, remaining={:?}", rem);
 
         // cap remaining bytes at the max capacity of usize
@@ -231,15 +241,13 @@ impl ChunkedState {
     fn read_body_cr<R: Read>(rdr: &mut R) -> io::Result<ChunkedState> {
         match byte!(rdr) {
             b'\r' => Ok(ChunkedState::BodyLf),
-            _ => Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                           "Invalid chunk body CR")),
+            _ => Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk body CR")),
         }
     }
     fn read_body_lf<R: Read>(rdr: &mut R) -> io::Result<ChunkedState> {
         match byte!(rdr) {
             b'\n' => Ok(ChunkedState::Size),
-            _ => Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                           "Invalid chunk body LF")),
+            _ => Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk body LF")),
         }
     }
 }
@@ -255,6 +263,8 @@ mod tests {
 
     #[test]
     fn test_read_chunk_size() {
+        use std::io::ErrorKind::{UnexpectedEof, InvalidInput};
+
         fn read(s: &str) -> u64 {
             let mut state = ChunkedState::Size;
             let mut rdr = &mut s.as_bytes();
@@ -273,7 +283,7 @@ mod tests {
             size
         }
 
-        fn read_err(s: &str) {
+        fn read_err(s: &str, expected_err: io::ErrorKind) {
             let mut state = ChunkedState::Size;
             let mut rdr = &mut s.as_bytes();
             let mut size = 0;
@@ -284,9 +294,10 @@ mod tests {
                 state = match result {
                     Ok(s) => s,
                     Err(e) => {
-                        assert_eq!(io::ErrorKind::InvalidInput, e.kind());
+                        assert!(expected_err == e.kind(), "Reading {:?}, expected {:?}, but got {:?}",
+                                                          s, expected_err, e.kind());
                         return;
-                    },
+                    }
                 };
                 trace!("State {:?}", state);
                 if state == ChunkedState::Body || state == ChunkedState::End {
@@ -304,16 +315,14 @@ mod tests {
         assert_eq!(255, read("Ff\r\n"));
         assert_eq!(255, read("Ff   \r\n"));
         // Missing LF or CRLF
-        read_err("F\rF");
-        read_err("F");
+        read_err("F\rF", InvalidInput);
+        read_err("F", UnexpectedEof);
         // Invalid hex digit
-        read_err("X\r\n");
-        read_err("1X\r\n");
-        read_err("-\r\n");
-        read_err("-1\r\n");
-        // TODO Extensions for Chuncked Encoding
+        read_err("X\r\n", InvalidInput);
+        read_err("1X\r\n", InvalidInput);
+        read_err("-\r\n", InvalidInput);
+        read_err("-1\r\n", InvalidInput);
         // Acceptable (if not fully valid) extensions do not influence the size
-        /*
         assert_eq!(1, read("1;extension\r\n"));
         assert_eq!(10, read("a;ext name=value\r\n"));
         assert_eq!(1, read("1;extension;extension2\r\n"));
@@ -323,10 +332,9 @@ mod tests {
         assert_eq!(3, read("3   ;\r\n"));
         assert_eq!(3, read("3   ;   \r\n"));
         // Invalid extensions cause an error
-        read_err("1 invalid extension\r\n");
-        read_err("1 A\r\n");
-        read_err("1;no CRLF");
-        */
+        read_err("1 invalid extension\r\n", InvalidInput);
+        read_err("1 A\r\n", InvalidInput);
+        read_err("1;no CRLF", UnexpectedEof);
     }
 
     #[test]
@@ -389,7 +397,11 @@ mod tests {
 
     // perform an async read using a custom buffer size and causing a blocking
     // read at the specified byte
-    fn read_async(mut decoder: Decoder, content: &[u8], block_at: usize, read_buffer_size: usize) -> String {
+    fn read_async(mut decoder: Decoder,
+                  content: &[u8],
+                  block_at: usize,
+                  read_buffer_size: usize)
+                  -> String {
         let content_len = content.len();
         let mock_buf = io::Cursor::new(content.clone());
         let mut ins = Async::new(mock_buf, block_at);
@@ -418,11 +430,10 @@ mod tests {
         let content_len = content.len();
         for block_at in 0..content_len {
             for read_buffer_size in 1..content_len {
-                let actual = read_async(
-                    decoder.clone(),
-                    content.as_bytes(),
-                    block_at,
-                    read_buffer_size);
+                let actual = read_async(decoder.clone(),
+                                        content.as_bytes(),
+                                        block_at,
+                                        read_buffer_size);
                 assert_eq!(expected,
                     &actual,
                     "Failed async. Blocking at {} with read buffer size {}",
