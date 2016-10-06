@@ -54,19 +54,23 @@ impl Header for ReferrerPolicy {
 
     fn parse_header(raw: &Raw) -> ::Result<ReferrerPolicy> {
         use self::ReferrerPolicy::*;
-        parsing::from_one_raw_str(raw).and_then(|s: String| {
-            let slice = &s.to_ascii_lowercase()[..];
-            // See https://www.w3.org/TR/referrer-policy/#determine-policy-for-token
+        // See https://www.w3.org/TR/referrer-policy/#determine-policy-for-token
+        let headers: Vec<String> = try!(parsing::from_comma_delimited(raw));
+
+        for h in headers.iter().rev() {
+            let slice = &h.to_ascii_lowercase()[..];
             match slice {
-                "no-referrer" | "never" => Ok(NoReferrer),
-                "no-referrer-when-downgrade" | "default" => Ok(NoReferrerWhenDowngrade),
-                "same-origin" => Ok(SameOrigin),
-                "origin" => Ok(Origin),
-                "origin-when-cross-origin" => Ok(OriginWhenCrossOrigin),
-                "unsafe-url" | "always" => Ok(UnsafeUrl),
-                _ => Err(::Error::Header),
+                "no-referrer" | "never" => return Ok(NoReferrer),
+                "no-referrer-when-downgrade" | "default" => return Ok(NoReferrerWhenDowngrade),
+                "same-origin" => return Ok(SameOrigin),
+                "origin" => return Ok(Origin),
+                "origin-when-cross-origin" => return Ok(OriginWhenCrossOrigin),
+                "unsafe-url" | "always" => return Ok(UnsafeUrl),
+                _ => continue,
             }
-        })
+        }
+
+        Err(::Error::Header)
     }
 
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -89,4 +93,11 @@ fn test_parse_header() {
     assert_eq!(a, b);
     let e: ::Result<ReferrerPolicy> = Header::parse_header(&"foobar".into());
     assert!(e.is_err());
+}
+
+#[test]
+fn test_rightmost_header() {
+    let a: ReferrerPolicy = Header::parse_header(&"same-origin, origin, foobar".into()).unwrap();
+    let b = ReferrerPolicy::Origin;
+    assert_eq!(a, b);
 }
