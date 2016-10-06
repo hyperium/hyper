@@ -87,6 +87,7 @@ impl<H: Send> Client<H> {
         let mut loop_ = try!(rotor::Loop::new(&rotor_config));
         let mut notifier = None;
         let mut connector = config.connector;
+        connector.dns_workers(config.dns_workers);
         {
             let not = &mut notifier;
             loop_.add_machine_with(move |scope| {
@@ -150,6 +151,7 @@ pub struct Config<C> {
     //TODO: make use of max_idle config
     max_idle: usize,
     max_sockets: usize,
+    dns_workers: usize,
 }
 
 impl<C> Config<C> where C: Connect + Send + 'static {
@@ -163,6 +165,7 @@ impl<C> Config<C> where C: Connect + Send + 'static {
             keep_alive_timeout: Some(Duration::from_secs(60 * 2)),
             max_idle: self.max_idle,
             max_sockets: self.max_sockets,
+            dns_workers: self.dns_workers,
         }
     }
 
@@ -204,6 +207,15 @@ impl<C> Config<C> where C: Connect + Send + 'static {
         self
     }
 
+    /// Set number of Dns workers to use for this client
+    ///
+    /// Default is 4
+    #[inline]
+    pub fn dns_workers(mut self, workers: usize) -> Config<C> {
+        self.dns_workers = workers;
+        self
+    }
+
     /// Construct the Client with this configuration.
     #[inline]
     pub fn build<H: Handler<C::Output>>(self) -> ::Result<Client<H>> {
@@ -220,6 +232,7 @@ impl Default for Config<DefaultConnector> {
             keep_alive_timeout: Some(Duration::from_secs(60 * 2)),
             max_idle: 5,
             max_sockets: 1024,
+            dns_workers: 4,
         }
     }
 }
