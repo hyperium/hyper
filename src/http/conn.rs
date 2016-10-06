@@ -691,6 +691,7 @@ impl<H: MessageHandler<T>, T: Transport> State<H, T> {
         {
             let timeout = next.timeout;
             let state = mem::replace(self, State::Closed);
+            trace!("State::update state={:?}, interest={:?}", state, next.interest);
             match (state, next.interest) {
                 (_, Next_::Remove) |
                 (State::Closed, _) => return, // Keep State::Closed.
@@ -730,6 +731,10 @@ impl<H: MessageHandler<T>, T: Transport> State<H, T> {
                                         None
                                     }
                                 }
+                                Writing::KeepAlive => {
+                                    writing = Writing::KeepAlive;
+                                    None
+                                }
                                 _ => return, // Keep State::Closed.
                             };
                             if let Some(encoder) = encoder {
@@ -746,6 +751,7 @@ impl<H: MessageHandler<T>, T: Transport> State<H, T> {
                                 }
                             };
 
+                            trace!("(reading, writing) -> {:?}", (&reading, &writing));
                             match (reading, writing) {
                                 (Reading::KeepAlive, Writing::KeepAlive) => {
                                     let next = factory.keep_alive_interest();
