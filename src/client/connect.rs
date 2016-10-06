@@ -24,6 +24,9 @@ pub trait Connect {
     /// Returns a connected socket and associated host.
     fn connected(&mut self) -> Option<(Self::Key, io::Result<Self::Output>)>;
     #[doc(hidden)]
+    /// Configure number of dns workers to use.
+    fn dns_workers(&mut self, usize);
+    #[doc(hidden)]
     fn register(&mut self, Registration);
 }
 
@@ -70,6 +73,10 @@ impl fmt::Debug for HttpConnector {
 impl Connect for HttpConnector {
     type Output = HttpStream;
     type Key = (&'static str, String, u16);
+
+    fn dns_workers(&mut self, count: usize) {
+        self.threads = count;
+    }
 
     fn key(&self, url: &Url) -> Option<Self::Key> {
         if url.scheme() == "http" {
@@ -119,7 +126,7 @@ impl Connect for HttpConnector {
     }
 
     fn register(&mut self, reg: Registration) {
-        self.dns = Some(Dns::new(reg.notify, 4));
+        self.dns = Some(Dns::new(reg.notify, self.threads));
     }
 }
 
@@ -143,6 +150,10 @@ impl<S: SslClient> HttpsConnector<S> {
 impl<S: SslClient> Connect for HttpsConnector<S> {
     type Output = HttpsStream<S::Stream>;
     type Key = (&'static str, String, u16);
+
+    fn dns_workers(&mut self, count: usize) {
+        self.http.dns_workers(count)
+    }
 
     fn key(&self, url: &Url) -> Option<Self::Key> {
         let scheme = match url.scheme() {
