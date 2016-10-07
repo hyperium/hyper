@@ -14,7 +14,7 @@ use std::time::Duration;
 use rotor::{self, Scope, EventSet, PollOpt};
 
 use header::Host;
-use http::{self, Next, RequestHead};
+use http::{self, Next, RequestHead, ReadyResult};
 use net::Transport;
 use uri::RequestUri;
 use {Url};
@@ -467,9 +467,16 @@ where C: Connect,
     fn ready(self, events: EventSet, scope: &mut Scope<Self::Context>) -> rotor::Response<Self, Self::Seed> {
         match self {
             ClientFsm::Socket(conn) => {
-                let res = conn.ready(events, scope);
-                let now = scope.now();
-                conn_response!(scope, res, now)
+                let mut conn = Some(conn);
+                loop {
+                    match conn.take().unwrap().ready(events, scope) {
+                        ReadyResult::Done(res) => {
+                            let now = scope.now();
+                            return conn_response!(scope, res, now);
+                        },
+                        ReadyResult::Continue(c) => conn = Some(c),
+                    }
+                }
             },
             ClientFsm::Connecting(mut seed) => {
                 if events.is_error() || events.is_hup() {
