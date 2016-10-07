@@ -14,7 +14,7 @@ use rotor::{self, Scope};
 pub use self::request::Request;
 pub use self::response::Response;
 
-use http::{self, Next};
+use http::{self, Next, ReadyResult};
 
 pub use net::{Accept, HttpListener, HttpsListener};
 use net::{SslServer, Transport};
@@ -248,13 +248,21 @@ where A: Accept,
                 }
             },
             ServerFsm::Conn(conn) => {
-                match conn.ready(events, scope) {
-                    Some((conn, None)) => rotor::Response::ok(ServerFsm::Conn(conn)),
-                    Some((conn, Some(dur))) => {
-                        rotor::Response::ok(ServerFsm::Conn(conn))
-                            .deadline(scope.now() + dur)
+                let mut conn = Some(conn);
+                loop {
+                    match conn.take().unwrap().ready(events, scope) {
+                        ReadyResult::Continue(c) => conn = Some(c),
+                        ReadyResult::Done(res) => {
+                            return match res {
+                                Some((conn, None)) => rotor::Response::ok(ServerFsm::Conn(conn)),
+                                Some((conn, Some(dur))) => {
+                                    rotor::Response::ok(ServerFsm::Conn(conn))
+                                        .deadline(scope.now() + dur)
+                                }
+                                None => rotor::Response::done()
+                            };
+                        }
                     }
-                    None => rotor::Response::done()
                 }
             }
         }

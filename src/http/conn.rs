@@ -496,6 +496,11 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
 
 }
 
+pub enum ReadyResult<C> {
+    Continue(C),
+    Done(Option<(C, Option<Duration>)>)
+}
+
 impl<K: Key, T: Transport, H: MessageHandler<T>> Conn<K, T, H> {
     pub fn new(key: K, transport: T, next: Next, notify: rotor::Notifier) -> Conn<K, T, H> {
         Conn(Box::new(ConnInner {
@@ -516,8 +521,13 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> Conn<K, T, H> {
         self
     }
 
-    pub fn ready<F>(mut self, events: EventSet, scope: &mut Scope<F>) -> Option<(Self, Option<Duration>)>
-    where F: MessageHandlerFactory<K, T, Output=H> {
+    pub fn ready<F>(
+        mut self,
+        events: EventSet,
+        scope: &mut Scope<F>
+    ) -> ReadyResult<Self>
+        where F: MessageHandlerFactory<K, T, Output=H>
+    {
         trace!("Conn::ready events='{:?}', blocked={:?}", events, self.0.transport.blocked());
 
         if events.is_error() {
@@ -579,24 +589,24 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> Conn<K, T, H> {
                 trace!("removing transport");
                 let _ = scope.deregister(&self.0.transport);
                 self.on_remove();
-                return None;
+                return ReadyResult::Done(None);
             },
         };
 
         if events.is_readable() && self.0.can_read_more(was_init) {
-            return self.ready(events, scope);
+            return ReadyResult::Continue(self);
         }
 
         trace!("scope.reregister({:?})", events);
         match scope.reregister(&self.0.transport, events, PollOpt::level()) {
             Ok(..) => {
                 let timeout = self.0.state.timeout();
-                Some((self, timeout))
+                ReadyResult::Done(Some((self, timeout)))
             },
             Err(e) => {
                 trace!("error reregistering: {:?}", e);
                 self.0.on_error(e.into(), &**scope);
-                None
+                ReadyResult::Done(None)
             }
         }
     }
@@ -607,14 +617,27 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> Conn<K, T, H> {
             trace!("woke up with {:?}", next);
             self.0.state.update(next, &**scope);
         }
-        self.ready(EventSet::readable() | EventSet::writable(), scope)
+
+        let mut conn = Some(self);
+        loop {
+            match conn.take().unwrap().ready(EventSet::readable() | EventSet::writable(), scope) {
+                ReadyResult::Done(val) => return val,
+                ReadyResult::Continue(c) => conn = Some(c),
+            }
+        }
     }
 
     pub fn timeout<F>(mut self, scope: &mut Scope<F>) -> Option<(Self, Option<Duration>)>
     where F: MessageHandlerFactory<K, T, Output=H> {
         //TODO: check if this was a spurious timeout?
         self.0.on_error(::Error::Timeout, &**scope);
-        self.ready(EventSet::none(), scope)
+        let mut conn = Some(self);
+        loop {
+            match conn.take().unwrap().ready(EventSet::none(), scope) {
+                ReadyResult::Done(val) => return val,
+                ReadyResult::Continue(c) => conn = Some(c),
+            }
+        }
     }
 
     fn on_remove(self) {
