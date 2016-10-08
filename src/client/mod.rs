@@ -493,8 +493,13 @@ where C: Connect,
                         trace!("connected and writable {:?}", seed.0);
                         rotor::Response::ok(
                             ClientFsm::Socket(
-                                http::Conn::new(seed.0, seed.1, Next::write().timeout(scope.connect_timeout), scope.notifier())
-                                    .keep_alive(scope.keep_alive)
+                                http::Conn::new(
+                                    seed.0,
+                                    seed.1,
+                                    Next::write().timeout(scope.connect_timeout),
+                                    scope.notifier(),
+                                    scope.now()
+                                ).keep_alive(scope.keep_alive)
                             )
                         )
                     } else {

@@ -226,7 +226,7 @@ where A: Accept,
         rotor_try!(scope.register(&seed, EventSet::readable(), PollOpt::level()));
         rotor::Response::ok(
             ServerFsm::Conn(
-                http::Conn::new((), seed, Next::read(), scope.notifier())
+                http::Conn::new((), seed, Next::read(), scope.notifier(), scope.now())
                     .keep_alive(scope.keep_alive)
             )
         )
