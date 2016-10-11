@@ -483,11 +483,11 @@ where C: Connect,
                     if let Some(err) = seed.1.take_socket_error().err() {
                         debug!("error while connecting: {:?}", err);
                         scope.pop_queue(&seed.0).map(move |mut queued| queued.handler.on_error(::Error::Io(err)));
-                        rotor::Response::done()
                     } else {
                         trace!("connecting is_error, but no socket error");
-                        rotor::Response::ok(ClientFsm::Connecting(seed))
                     }
+
+                    rotor::Response::done()
                 } else if events.is_writable() {
                     if scope.queue.contains_key(&seed.0) {
                         trace!("connected and writable {:?}", seed.0);
