@@ -541,6 +541,7 @@ where C: Connect,
 
                 // Check all idle connections regardless of origin
                 for (key, idle) in scope.idle_conns.iter_mut() {
+                    // Pop from the front since those are lease recently used
                     while let Some(ctrl) = idle.pop_front() {
                         // Signal connection to close. An err here means the
                         // socket is already dead can should be tossed.
@@ -667,7 +668,9 @@ where C: Connect,
                                 let mut remove_idle = false;
                                 let mut woke_up = false;
                                 if let Some(mut idle) = scope.idle_conns.get_mut(&key) {
-                                    while let Some(ctrl) = idle.pop_front() {
+                                    // Pop from back since those are most recently used. Connections
+                                    // at the front are allowed to expire.
+                                    while let Some(ctrl) = idle.pop_back() {
                                         // err means the socket has since died
                                         if ctrl.ready(Next::write()).is_ok() {
                                             woke_up = true;
