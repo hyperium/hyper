@@ -236,6 +236,29 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
                     }
                 }
             },
+            State::Init { interest: Next_::Wait, .. } => {
+                match self.buf.read_from(&mut self.transport) {
+                    Ok(0) => {
+                        // End-of-file; connection was closed by peer
+                        State::Closed
+                    },
+                    Ok(n) => {
+                        // Didn't expect bytes here! Close the connection.
+                        warn!("read {} bytes in State::Init with Wait interest", n);
+                        State::Closed
+                    },
+                    Err(e) => match e.kind() {
+                        io::ErrorKind::WouldBlock => {
+                            // This is the expected case reading in this state
+                            state
+                        },
+                        _ => {
+                            warn!("socket error reading State::Init with Wait interest: {}", e);
+                            State::Closed
+                        }
+                    }
+                }
+            },
             State::Init { .. } => {
                 trace!("on_readable State::{:?}", state);
                 state
