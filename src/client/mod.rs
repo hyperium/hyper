@@ -372,7 +372,7 @@ macro_rules! conn_response {
             }
             None => {
                 if let Some((key, socket)) = $scope.awaiting_slot.pop_front() {
-                    rotor_try!($scope.register(&socket, EventSet::writable(), PollOpt::level()));
+                    rotor_try!($scope.register(&socket, EventSet::writable() | EventSet::hup(), PollOpt::level()));
                     rotor::Response::ok(ClientFsm::Connecting((key, socket)))
                 } else {
                     rotor::Response::done()
@@ -460,7 +460,7 @@ where C: Connect,
     type Seed = (C::Key, C::Output);
 
     fn create(seed: Self::Seed, scope: &mut Scope<Self::Context>) -> rotor::Response<Self, rotor::Void> {
-        rotor_try!(scope.register(&seed.1, EventSet::writable(), PollOpt::level()));
+        rotor_try!(scope.register(&seed.1, EventSet::writable() | EventSet::hup(), PollOpt::level()));
         rotor::Response::ok(ClientFsm::Connecting(seed))
     }
 
