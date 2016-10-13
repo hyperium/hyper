@@ -14,7 +14,7 @@ use std::str::from_utf8;
 ///
 /// # ABNF
 /// ```plain
-///  set-cookie-header = "Set-Cookie:" SP set-cookie-string
+/// set-cookie-header = "Set-Cookie:" SP set-cookie-string
 /// set-cookie-string = cookie-pair *( ";" SP cookie-av )
 /// cookie-pair       = cookie-name "=" cookie-value
 /// cookie-name       = token
