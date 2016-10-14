@@ -372,7 +372,7 @@ macro_rules! conn_response {
             }
             None => {
                 if let Some((key, socket)) = $scope.awaiting_slot.pop_front() {
-                    rotor_try!($scope.register(&socket, EventSet::writable(), PollOpt::level()));
+                    rotor_try!($scope.register(&socket, EventSet::writable() | EventSet::hup(), PollOpt::level()));
                     rotor::Response::ok(ClientFsm::Connecting((key, socket)))
                 } else {
                     rotor::Response::done()
@@ -460,7 +460,7 @@ where C: Connect,
     type Seed = (C::Key, C::Output);
 
     fn create(seed: Self::Seed, scope: &mut Scope<Self::Context>) -> rotor::Response<Self, rotor::Void> {
-        rotor_try!(scope.register(&seed.1, EventSet::writable(), PollOpt::level()));
+        rotor_try!(scope.register(&seed.1, EventSet::writable() | EventSet::hup(), PollOpt::level()));
         rotor::Response::ok(ClientFsm::Connecting(seed))
     }
 
@@ -483,11 +483,11 @@ where C: Connect,
                     if let Some(err) = seed.1.take_socket_error().err() {
                         debug!("error while connecting: {:?}", err);
                         scope.pop_queue(&seed.0).map(move |mut queued| queued.handler.on_error(::Error::Io(err)));
-                        rotor::Response::done()
                     } else {
                         trace!("connecting is_error, but no socket error");
-                        rotor::Response::ok(ClientFsm::Connecting(seed))
                     }
+
+                    rotor::Response::done()
                 } else if events.is_writable() {
                     if scope.queue.contains_key(&seed.0) {
                         trace!("connected and writable {:?}", seed.0);
@@ -541,6 +541,7 @@ where C: Connect,
 
                 // Check all idle connections regardless of origin
                 for (key, idle) in scope.idle_conns.iter_mut() {
+                    // Pop from the front since those are lease recently used
                     while let Some(ctrl) = idle.pop_front() {
                         // Signal connection to close. An err here means the
                         // socket is already dead can should be tossed.
@@ -667,7 +668,9 @@ where C: Connect,
                                 let mut remove_idle = false;
                                 let mut woke_up = false;
                                 if let Some(mut idle) = scope.idle_conns.get_mut(&key) {
-                                    while let Some(ctrl) = idle.pop_front() {
+                                    // Pop from back since those are most recently used. Connections
+                                    // at the front are allowed to expire.
+                                    while let Some(ctrl) = idle.pop_back() {
                                         // err means the socket has since died
                                         if ctrl.ready(Next::write()).is_ok() {
                                             woke_up = true;

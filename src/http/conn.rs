@@ -37,6 +37,10 @@ struct ConnInner<K: Key, T: Transport, H: MessageHandler<T>> {
     key: K,
     state: State<H, T>,
     transport: T,
+    /// Records a WouldBlock error when trying to read
+    ///
+    /// This flag is used to prevent busy looping
+    read_would_block: bool,
 }
 
 impl<K: Key, T: Transport, H: MessageHandler<T>> fmt::Debug for ConnInner<K, T, H> {
@@ -153,7 +157,10 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
                     Ok(head) => head,
                     Err(::Error::Io(e)) => match e.kind() {
                         io::ErrorKind::WouldBlock |
-                        io::ErrorKind::Interrupted => return state,
+                        io::ErrorKind::Interrupted => {
+                            self.read_would_block = true;
+                            return state;
+                        },
                         _ => {
                             debug!("io error trying to parse {:?}", e);
                             return State::Closed;
@@ -236,6 +243,30 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
                     }
                 }
             },
+            State::Init { interest: Next_::Wait, .. } => {
+                match self.buf.read_from(&mut self.transport) {
+                    Ok(0) => {
+                        // End-of-file; connection was closed by peer
+                        State::Closed
+                    },
+                    Ok(n) => {
+                        // Didn't expect bytes here! Close the connection.
+                        warn!("read {} bytes in State::Init with Wait interest", n);
+                        State::Closed
+                    },
+                    Err(e) => match e.kind() {
+                        io::ErrorKind::WouldBlock => {
+                            // This is the expected case reading in this state
+                            self.read_would_block = true;
+                            state
+                        },
+                        _ => {
+                            warn!("socket error reading State::Init with Wait interest: {}", e);
+                            State::Closed
+                        }
+                    }
+                }
+            },
             State::Init { .. } => {
                 trace!("on_readable State::{:?}", state);
                 state
@@ -265,7 +296,10 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
                         },
                         Err(::Error::Io(e)) => match e.kind() {
                             io::ErrorKind::WouldBlock |
-                            io::ErrorKind::Interrupted => None,
+                            io::ErrorKind::Interrupted => {
+                                self.read_would_block = true;
+                                None
+                            },
                             _ => {
                                 debug!("io error trying to parse {:?}", e);
                                 return State::Closed;
@@ -459,10 +493,15 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
     }
 
     fn can_read_more(&self, was_init: bool) -> bool {
-        match self.state {
+        let transport_blocked = self.transport.blocked().is_some();
+        let read_would_block = self.read_would_block;
+
+        let state_machine_ok = match self.state {
             State::Init { .. } => !was_init && !self.buf.is_empty(),
             _ => !self.buf.is_empty()
-        }
+        };
+
+        !transport_blocked && !read_would_block && state_machine_ok
     }
 
     fn on_error<F>(&mut self, err: ::Error, factory: &F) where F: MessageHandlerFactory<K, T> {
@@ -478,6 +517,8 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> ConnInner<K, T, H> {
 
     fn on_readable<F>(&mut self, scope: &mut Scope<F>)
     where F: MessageHandlerFactory<K, T, Output=H> {
+        // Clear would_block flag so state is clear going into read
+        self.read_would_block = false;
         trace!("on_readable -> {:?}", self.state);
         let state = mem::replace(&mut self.state, State::Closed);
         self.state = self.read(scope, state);
@@ -526,6 +567,7 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> Conn<K, T, H> {
                 timeout_start: Some(now),
             },
             transport: transport,
+            read_would_block: false,
         }))
     }
 
