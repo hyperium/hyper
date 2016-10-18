@@ -58,6 +58,8 @@ enum ChunkedState {
     Body,
     BodyCr,
     BodyLf,
+    EndCr,
+    EndLf,
     End,
 }
 
@@ -148,6 +150,8 @@ impl ChunkedState {
             Body => try!(ChunkedState::read_body(body, size, buf, read)),
             BodyCr => try!(ChunkedState::read_body_cr(body)),
             BodyLf => try!(ChunkedState::read_body_lf(body)),
+            EndCr => try!(ChunkedState::read_end_cr(body)),
+            EndLf => try!(ChunkedState::read_end_lf(body)),
             End => ChunkedState::End,
         })
     }
@@ -201,10 +205,11 @@ impl ChunkedState {
         trace!("Chunk size is {:?}", size);
         match byte!(rdr) {
             b'\n' if *size > 0 => Ok(ChunkedState::Body),
-            b'\n' if *size == 0 => Ok(ChunkedState::End),
+            b'\n' if *size == 0 => Ok(ChunkedState::EndCr),
             _ => Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk size LF")),
         }
     }
+
     fn read_body<R: Read>(rdr: &mut R,
                           rem: &mut u64,
                           buf: &mut [u8],
@@ -250,6 +255,19 @@ impl ChunkedState {
             _ => Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk body LF")),
         }
     }
+
+    fn read_end_cr<R: Read>(rdr: &mut R) -> io::Result<ChunkedState> {
+        match byte!(rdr) {
+            b'\r' => Ok(ChunkedState::EndLf),
+            _ => Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk end CR")),
+        }
+    }
+    fn read_end_lf<R: Read>(rdr: &mut R) -> io::Result<ChunkedState> {
+        match byte!(rdr) {
+            b'\n' => Ok(ChunkedState::End),
+            _ => Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk end LF")),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -276,7 +294,7 @@ mod tests {
                 let desc = format!("read_size failed for {:?}", s);
                 state = result.expect(desc.as_str());
                 trace!("State {:?}", state);
-                if state == ChunkedState::Body || state == ChunkedState::End {
+                if state == ChunkedState::Body || state == ChunkedState::EndCr {
                     break;
                 }
             }
@@ -375,7 +393,7 @@ mod tests {
 
     #[test]
     fn test_read_chunked_after_eof() {
-        let content = b"10\r\n1234567890abcdef\r\n0\r\n";
+        let content = b"10\r\n1234567890abcdef\r\n0\r\n\r\n";
         let mut mock_buf = io::Cursor::new(content);
         let mut buf = [0u8; 50];
         let mut decoder = Decoder::chunked();
