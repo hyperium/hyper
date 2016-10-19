@@ -636,6 +636,10 @@ mod openssl {
         fn take_socket_error(&mut self) -> io::Result<()> {
             self.stream.get_mut().take_socket_error()
         }
+
+        fn blocked(&self) -> Option<super::Blocked> {
+            self.blocked
+        }
     }
 }
 
