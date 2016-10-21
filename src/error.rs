@@ -9,7 +9,9 @@ use httparse;
 use url;
 
 #[cfg(feature = "openssl")]
-use openssl::ssl::error::SslError;
+use openssl::error::ErrorStack;
+#[cfg(feature = "openssl")]
+use openssl::ssl::{Error as OpensslError, HandshakeError};
 
 use self::Error::{
     Method,
@@ -125,12 +127,52 @@ impl From<url::ParseError> for Error {
 }
 
 #[cfg(feature = "openssl")]
-impl From<SslError> for Error {
-    fn from(err: SslError) -> Error {
+impl From<OpensslError> for Error {
+    fn from(err: OpensslError) -> Error {
         match err {
-            SslError::StreamError(err) => Io(err),
+            OpensslError::Stream(err) => Io(err),
             err => Ssl(Box::new(err)),
         }
+    }
+}
+
+#[cfg(feature = "openssl")]
+impl<S> From<HandshakeError<S>> for Error {
+    fn from(err: HandshakeError<S>) -> Error {
+        match err {
+            HandshakeError::Failure(err) => err.into(),
+            HandshakeError::Interrupted(stream) => stream.error().into(),
+        }
+    }
+}
+
+#[cfg(feature = "openssl")]
+impl<'a> From<&'a OpensslError> for Error {
+    fn from(err: &'a OpensslError) -> Error {
+        let err = match *err {
+            OpensslError::Ssl(ref e) => OpensslError::Ssl(e.clone()),
+            OpensslError::Stream(ref e) => OpensslError::Stream(clone_io_error(e)),
+            OpensslError::WantRead(ref e) => OpensslError::WantRead(clone_io_error(e)),
+            OpensslError::WantWrite(ref e) => OpensslError::WantWrite(clone_io_error(e)),
+            OpensslError::WantX509Lookup => OpensslError::WantX509Lookup,
+            OpensslError::ZeroReturn => OpensslError::ZeroReturn,
+        };
+
+        err.into()
+    }
+}
+
+#[cfg(feature = "openssl")]
+fn clone_io_error(e: &::std::io::Error) -> ::std::io::Error {
+    match e.raw_os_error() {
+        Some(code) => ::std::io::Error::from_raw_os_error(code),
+        None => ::std::io::Error::new(e.kind(), format!("io error: {}", e)),
+    }
+}
+
+impl From<ErrorStack> for Error {
+    fn from(err: ErrorStack) -> Error {
+        Ssl(Box::new(OpensslError::Ssl(err)))
     }
 }
 
@@ -220,10 +262,10 @@ mod tests {
     #[cfg(feature = "openssl")]
     #[test]
     fn test_from_ssl() {
-        use openssl::ssl::error::SslError;
+        use openssl::ssl::Error as OpensslError;
 
-        from!(SslError::StreamError(
+        from!(OpensslError::Stream(
             io::Error::new(io::ErrorKind::Other, "ssl negotiation")) => Io(..));
-        from_and_cause!(SslError::SslSessionClosed => Ssl(..));
+        from_and_cause!(OpensslError::ZeroReturn => Ssl(..));
     }
 }

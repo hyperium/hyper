@@ -29,11 +29,12 @@ version = "0.3"
 default-features = false
 
 [dependencies.openssl]
-version = "0.7"
+version = "0.8"
 optional = true
+features = ["ssl_context_clone"]
 
 [dependencies.openssl-verify]
-version = "0.1"
+version = "0.2"
 optional = true
 
 [dependencies.security-framework]
