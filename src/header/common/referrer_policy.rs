@@ -44,6 +44,10 @@ pub enum ReferrerPolicy {
     OriginWhenCrossOrigin,
     /// `unsafe-url`
     UnsafeUrl,
+     /// `strict-origin`
+    StrictOrigin,
+    ///`strict-origin-when-cross-origin`
+    StrictOriginWhenCrossOrigin,
 }
 
 impl Header for ReferrerPolicy {
@@ -65,6 +69,8 @@ impl Header for ReferrerPolicy {
                 "same-origin" => return Ok(SameOrigin),
                 "origin" => return Ok(Origin),
                 "origin-when-cross-origin" => return Ok(OriginWhenCrossOrigin),
+                "strict-origin" => return Ok(StrictOrigin),
+                "strict-origin-when-cross-origin" => return Ok(StrictOriginWhenCrossOrigin),
                 "unsafe-url" | "always" => return Ok(UnsafeUrl),
                 _ => continue,
             }
@@ -81,6 +87,8 @@ impl Header for ReferrerPolicy {
             SameOrigin => "same-origin",
             Origin => "origin",
             OriginWhenCrossOrigin => "origin-when-cross-origin",
+            StrictOrigin => "strict-origin",
+            StrictOriginWhenCrossOrigin => "strict-origin-when-cross-origin",
             UnsafeUrl => "unsafe-url",
         })
     }
