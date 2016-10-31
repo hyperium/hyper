@@ -71,18 +71,28 @@ impl FromStr for Host {
     type Err = ::Error;
 
     fn from_str(s: &str) -> ::Result<Host> {
-        let (host_port, res) = domain_to_unicode(s);
-        if res.is_err() {
-            return Err(::Error::Header)
-        }
-        let idx = host_port.rfind(':');
+        let idx = s.rfind(':');
         let port = idx.and_then(
             |idx| s[idx + 1..].parse().ok()
         );
-        let hostname = match idx {
-            None => host_port,
-            Some(idx) => host_port[..idx].to_owned()
+        let hostname_encoded = match port {
+            None => s,
+            Some(_) => &s[..idx.unwrap()]
         };
+
+        let hostname = if hostname_encoded.starts_with("[") {
+            if !hostname_encoded.ends_with("]") {
+                return Err(::Error::Header)
+            }
+            hostname_encoded.to_owned()
+        } else {
+            let (hostname, res) = domain_to_unicode(hostname_encoded);
+            if res.is_err() {
+                return Err(::Error::Header)
+            }
+            hostname
+        };
+
         Ok(Host {
             hostname: hostname,
             port: port
@@ -109,6 +119,24 @@ mod tests {
         assert_eq!(host.ok(), Some(Host {
             hostname: "foo.com".to_owned(),
             port: Some(8080)
+        }));
+
+        let host = Header::parse_header([b"foo.com".to_vec()].as_ref());
+        assert_eq!(host.ok(), Some(Host {
+            hostname: "foo.com".to_owned(),
+            port: None
+        }));
+
+        let host = Header::parse_header([b"[::1]:8080".to_vec()].as_ref());
+        assert_eq!(host.ok(), Some(Host {
+            hostname: "[::1]".to_owned(),
+            port: Some(8080)
+        }));
+
+        let host = Header::parse_header([b"[::1]".to_vec()].as_ref());
+        assert_eq!(host.ok(), Some(Host {
+            hostname: "[::1]".to_owned(),
+            port: None
         }));
     }
 }
