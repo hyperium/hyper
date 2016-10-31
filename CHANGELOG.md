@@ -1,3 +1,20 @@
+### v0.9.11 (2016-10-31)
+
+
+#### Bug Fixes
+
+* **headers:** Allow IPv6 Addresses in Host header ([20f177ab](https://github.com/hyperium/hyper/commit/20f177abec12397f23adf43f6b726daee1a731cf))
+
+
+#### Features
+
+* **headers:**
+  * Add strict-origin and strict-origin-when-cross-origin referer policy ([1be4e769](https://github.com/hyperium/hyper/commit/1be4e7693f7d27c049f35fefb9fffead2581b1f4))
+  * support multiple values for Referrer-Policy header ([dc476657](https://github.com/hyperium/hyper/commit/dc4766573af9bd31d57fede5b9ef0ffa56fe44ab), closes [#882](https://github.com/hyperium/hyper/issues/882))
+  * add last-event-id header ([2277987f](https://github.com/hyperium/hyper/commit/2277987f3c25380353db606ca7baaf0c854095cd))
+* **server:** accept combined certificate files ([eeb1f48e](https://github.com/hyperium/hyper/commit/eeb1f48e17f4c71162ce90f88bda3dc37b489cc7))
+
+
 ### v0.9.10 (2016-07-11)
 
 
