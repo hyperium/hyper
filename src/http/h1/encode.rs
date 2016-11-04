@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::cmp;
 use std::io::{self, Write};
 
-use http::internal::{AtomicWrite, WriteBuf};
+use http::{AtomicWrite, WriteBuf};
 
 /// Encoders to handle different Transfer-Encodings.
 #[derive(Debug, Clone)]
@@ -344,7 +344,7 @@ impl Prefix {
 #[cfg(test)]
 mod tests {
     use super::Encoder;
-    use mock::{Async, Buf};
+    use mock::{AsyncIo, Buf};
 
     #[test]
     fn test_chunked_encode_sync() {
@@ -359,7 +359,7 @@ mod tests {
 
     #[test]
     fn test_chunked_encode_async() {
-        let mut dst = Async::new(Buf::new(), 7);
+        let mut dst = AsyncIo::new(Buf::new(), 7);
         let mut encoder = Encoder::chunked();
 
         assert!(encoder.encode(&mut dst, b"foo bar").is_err());

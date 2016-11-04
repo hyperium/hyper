@@ -23,7 +23,7 @@ pub use self::parse::parse;
 
 mod decode;
 mod encode;
-mod parse;
+pub mod parse;
 
 /*
 fn should_have_response_body(method: &Method, status: u16) -> bool {

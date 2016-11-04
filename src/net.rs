@@ -3,60 +3,31 @@ use std::io::{self, Read, Write};
 use std::net::{SocketAddr};
 use std::option;
 
-use rotor::mio::tcp::{TcpStream, TcpListener};
-use rotor::mio::{Selector, Token, Evented, EventSet, PollOpt, TryAccept};
+use std::net::{TcpStream, TcpListener};
+//use mio::{Selector, Token, Evented, EventSet, PollOpt, TryAccept};
 
+/*
 #[cfg(feature = "openssl")]
 pub use self::openssl::{Openssl, OpensslStream};
 
 #[cfg(feature = "security-framework")]
 pub use self::security_framework::{SecureTransport, SecureTransportClient, SecureTransportServer};
+*/
 
 /// A trait representing a socket transport that can be used in a Client or Server.
-#[cfg(not(windows))]
-pub trait Transport: Read + Write + Evented + ::vecio::Writev {
-    /// Takes a socket error when event polling notices an `events.is_error()`.
-    fn take_socket_error(&mut self) -> io::Result<()>;
+//#[cfg(not(windows))]
+pub trait Transport: Read + Write /* + Evented + ::vecio::Writev*/ {}
 
-    /// Returns if the this transport is blocked on read or write.
-    ///
-    /// By default, the user will declare whether they wish to wait on read
-    /// or write events. However, some transports, such as those protected by
-    /// TLS, may be blocked on reading before it can write, or vice versa.
-    fn blocked(&self) -> Option<Blocked> {
-        None
-    }
-}
+impl<T: Read + Write /* + Evented*/> Transport for T {}
 
+/*
 /// A trait representing a socket transport that can be used in a Client or Server.
 #[cfg(windows)]
-pub trait Transport: Read + Write + Evented {
-    /// Takes a socket error when event polling notices an `events.is_error()`.
-    fn take_socket_error(&mut self) -> io::Result<()>;
-
-    /// Returns if the this transport is blocked on read or write.
-    ///
-    /// By default, the user will declare whether they wish to wait on read
-    /// or write events. However, some transports, such as those protected by
-    /// TLS, may be blocked on reading before it can write, or vice versa.
-    fn blocked(&self) -> Option<Blocked> {
-        None
-    }
-}
-
-/// Declares when a transport is blocked from any further action, until the
-/// corresponding event has occured.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Blocked {
-    /// Blocked on reading
-    Read,
-    /// blocked on writing
-    Write,
-}
-
+pub trait Transport: Read + Write + Evented {}
+*/
 
 /// Accepts sockets asynchronously.
-pub trait Accept: Evented {
+pub trait Accept/*: Evented*/ {
     /// The transport type that is accepted.
     type Output: Transport;
     /// Accept a socket from the listener, if it doesn not block.
@@ -66,14 +37,8 @@ pub trait Accept: Evented {
 }
 
 /// An alias to `mio::tcp::TcpStream`.
-#[derive(Debug)]
-pub struct HttpStream(pub TcpStream);
-
-impl Transport for HttpStream {
-    fn take_socket_error(&mut self) -> io::Result<()> {
-        self.0.take_socket_error()
-    }
-}
+//#[derive(Debug)]
+pub struct HttpStream(pub ::tokio::net::TcpStream);
 
 impl Read for HttpStream {
     #[inline]
@@ -94,6 +59,7 @@ impl Write for HttpStream {
     }
 }
 
+/*
 impl Evented for HttpStream {
     #[inline]
     fn register(&self, selector: &mut Selector, token: Token, interest: EventSet, opts: PollOpt) -> io::Result<()> {
@@ -119,6 +85,7 @@ impl ::vecio::Writev for HttpStream {
         self.0.writev(bufs)
     }
 }
+*/
 
 /// An alias to `mio::tcp::TcpListener`.
 #[derive(Debug)]
@@ -143,7 +110,8 @@ impl Accept for HttpListener {
 
     #[inline]
     fn accept(&self) -> io::Result<Option<HttpStream>> {
-        TryAccept::accept(&self.0).map(|ok| ok.map(HttpStream))
+        unimplemented!()
+        //self.0.accept().map(HttpStream)
     }
 
     #[inline]
@@ -152,6 +120,7 @@ impl Accept for HttpListener {
     }
 }
 
+/*
 impl Evented for HttpListener {
     #[inline]
     fn register(&self, selector: &mut Selector, token: Token, interest: EventSet, opts: PollOpt) -> io::Result<()> {
@@ -168,6 +137,7 @@ impl Evented for HttpListener {
         self.0.deregister(selector)
     }
 }
+*/
 
 impl IntoIterator for HttpListener {
     type Item = Self;
@@ -178,6 +148,7 @@ impl IntoIterator for HttpListener {
     }
 }
 
+/*
 /// Deprecated
 ///
 /// Use `SslClient` and `SslServer` instead.
@@ -259,6 +230,7 @@ impl<S: Transport> Write for HttpsStream<S> {
     }
 }
 
+/*
 #[cfg(not(windows))]
 impl<S: Transport> ::vecio::Writev for HttpsStream<S> {
     #[inline]
@@ -269,8 +241,10 @@ impl<S: Transport> ::vecio::Writev for HttpsStream<S> {
         }
     }
 }
+*/
 
 
+/*
 #[cfg(unix)]
 impl ::std::os::unix::io::AsRawFd for HttpStream {
     #[inline]
@@ -289,7 +263,9 @@ impl<S: Transport + ::std::os::unix::io::AsRawFd> ::std::os::unix::io::AsRawFd f
         }
     }
 }
+*/
 
+/*
 impl<S: Transport> Evented for HttpsStream<S> {
     #[inline]
     fn register(&self, selector: &mut Selector, token: Token, interest: EventSet, opts: PollOpt) -> io::Result<()> {
@@ -315,24 +291,7 @@ impl<S: Transport> Evented for HttpsStream<S> {
         }
     }
 }
-
-impl<S: Transport> Transport for HttpsStream<S> {
-    #[inline]
-    fn take_socket_error(&mut self) -> io::Result<()> {
-        match *self {
-            HttpsStream::Http(ref mut s) => s.take_socket_error(),
-            HttpsStream::Https(ref mut s) => s.take_socket_error(),
-        }
-    }
-
-    #[inline]
-    fn blocked(&self) -> Option<Blocked> {
-        match *self {
-            HttpsStream::Http(ref s) => s.blocked(),
-            HttpsStream::Https(ref s) => s.blocked(),
-        }
-    }
-}
+*/
 
 /// An `HttpListener` over SSL.
 #[derive(Debug)]
@@ -360,6 +319,7 @@ impl<S: SslServer> HttpsListener<S> {
     }
 }
 
+/*
 impl<S: SslServer> Accept for HttpsListener<S> {
     type Output = S::Stream;
 
@@ -382,7 +342,9 @@ impl<S: SslServer> Accept for HttpsListener<S> {
         self.listener.local_addr()
     }
 }
+*/
 
+/*
 impl<S: SslServer> Evented for HttpsListener<S> {
     #[inline]
     fn register(&self, selector: &mut Selector, token: Token, interest: EventSet, opts: PollOpt) -> io::Result<()> {
@@ -399,6 +361,7 @@ impl<S: SslServer> Evented for HttpsListener<S> {
         self.listener.deregister(selector)
     }
 }
+*/
 
 impl<S: SslServer> IntoIterator for HttpsListener<S> {
     type Item = Self;
@@ -430,6 +393,8 @@ pub type DefaultConnector = HttpsConnector<self::security_framework::ClientWrapp
 pub type DefaultTransport = <DefaultConnector as Connect>::Output;
 */
 
+*/
+/*
 #[cfg(feature = "openssl")]
 mod openssl {
     use std::io::{self, Write};
@@ -776,3 +741,4 @@ mod security_framework {
     }
 
 }
+*/

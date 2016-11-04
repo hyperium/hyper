@@ -8,44 +8,37 @@ use std::fmt;
 use version::HttpVersion;
 use method::Method;
 use header::Headers;
-use http::{RequestHead, MessageHead, RequestLine};
+use http::{RequestHead, MessageHead, RequestLine, Chunk};
 use uri::RequestUri;
 
-pub fn new<'a, T>(incoming: RequestHead, transport: &'a T) -> Request<'a, T> {
-    let MessageHead { version, subject: RequestLine(method, uri), headers } = incoming;
-    debug!("Request Line: {:?} {:?} {:?}", method, uri, version);
-    debug!("{:#?}", headers);
-
-    Request {
-        method: method,
-        uri: uri,
-        headers: headers,
-        version: version,
-        transport: transport,
-    }
-}
+type Body = ::tokio_proto::Body<Chunk, ::Error>;
 
 /// A request bundles several parts of an incoming `NetworkStream`, given to a `Handler`.
-pub struct Request<'a, T: 'a> {
+pub struct Request {
     method: Method,
     uri: RequestUri,
     version: HttpVersion,
     headers: Headers,
-    transport: &'a T,
+    body: Option<Body>,
 }
 
-impl<'a, T> fmt::Debug for Request<'a, T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Request")
-            .field("method", &self.method)
-            .field("uri", &self.uri)
-            .field("version", &self.version)
-            .field("headers", &self.headers)
-            .finish()
+impl Request {
+    /// Construct a new Request.
+    #[inline]
+    pub fn new(incoming: RequestHead, body: Option<Body>) -> Request {
+        let MessageHead { version, subject: RequestLine(method, uri), headers } = incoming;
+        debug!("Request Line: {:?} {:?} {:?}", method, uri, version);
+        debug!("{:#?}", headers);
+
+        Request {
+            method: method,
+            uri: uri,
+            headers: headers,
+            version: version,
+            body: body,
+        }
     }
-}
 
-impl<'a, T> Request<'a, T> {
     /// The `Method`, such as `Get`, `Post`, etc.
     #[inline]
     pub fn method(&self) -> &Method { &self.method }
@@ -53,10 +46,6 @@ impl<'a, T> Request<'a, T> {
     /// The headers of the incoming request.
     #[inline]
     pub fn headers(&self) -> &Headers { &self.headers }
-
-    /// The underlying `Transport` of this request.
-    #[inline]
-    pub fn transport(&self) -> &'a T { self.transport }
 
     /// The target request-uri for this request.
     #[inline]
@@ -84,6 +73,14 @@ impl<'a, T> Request<'a, T> {
             RequestUri::AbsoluteUri(ref url) => url.query(),
             _ => None,
         }
+    }
+
+    #[inline]
+    pub fn body(self) -> Body {
+        self.body.unwrap_or_else(|| {
+            trace!("Request::body empty");
+            ::tokio_proto::Body::empty()
+        })
     }
 
     /// Deconstruct this Request into its pieces.
