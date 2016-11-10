@@ -86,10 +86,6 @@ impl Service for HttpConnector {
         }
     }
 
-    fn poll_ready(&self) -> Async<()> {
-        //TODO: check Dns thread pool if ready?
-        Async::Ready(())
-    }
 }
 
 pub struct Connecting {

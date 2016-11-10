@@ -12,7 +12,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use bytes::buf::BlockBuf;
+use bytes_more::BlockBuf;
 
 use futures::{Future, Async, Map};
 use futures::stream::{Stream};
@@ -247,7 +247,4 @@ impl<T> Service for HttpService<T>
         self.inner.call(req).map(map_response_to_message)
     }
 
-    fn poll_ready(&self) -> Async<()> {
-        self.inner.poll_ready()
-    }
 }

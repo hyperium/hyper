@@ -127,10 +127,6 @@ impl Service for Client<DefaultConnector> {
         //self.connector.call(req.url()).and_then(do_stuff)
     }
 
-    fn poll_ready(&self) -> Async<()> {
-        //self.connector.poll_ready()
-        Async::Ready(())
-    }
 }
 
 /// Configuration for a Client
