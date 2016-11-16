@@ -50,6 +50,6 @@ num_cpus = "1.0"
 
 [features]
 default = ["ssl"]
-ssl = ["openssl", "openssl-verify", "cookie/secure"]
+ssl = ["openssl", "openssl-verify"]
 serde-serialization = ["serde", "mime/serde"]
 nightly = []

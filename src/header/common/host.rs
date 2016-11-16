@@ -121,19 +121,19 @@ mod tests {
             port: Some(8080)
         }));
 
-        let host = Header::parse_header([b"foo.com".to_vec()].as_ref());
+        let host = Header::parse_header(&vec![b"foo.com".to_vec()].into());
         assert_eq!(host.ok(), Some(Host {
             hostname: "foo.com".to_owned(),
             port: None
         }));
 
-        let host = Header::parse_header([b"[::1]:8080".to_vec()].as_ref());
+        let host = Header::parse_header(&vec![b"[::1]:8080".to_vec()].into());
         assert_eq!(host.ok(), Some(Host {
             hostname: "[::1]".to_owned(),
             port: Some(8080)
         }));
 
-        let host = Header::parse_header([b"[::1]".to_vec()].as_ref());
+        let host = Header::parse_header(&vec![b"[::1]".to_vec()].into());
         assert_eq!(host.ok(), Some(Host {
             hostname: "[::1]".to_owned(),
             port: None
