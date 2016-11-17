@@ -34,8 +34,8 @@ version = "0.9.1"
 optional = true
 
 [dependencies.openssl-verify]
-path = "/home/doronw/dev/rust-openssl-verify"
-version = "0.2"
+git = "https://github.com/sfackler/rust-openssl-verify"
+rev = "d11a7d34de72f3417e875edc90e5ca44d2b8f33a"
 optional = true
 
 [dependencies.security-framework]
