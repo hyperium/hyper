@@ -438,9 +438,9 @@ mod openssl {
     use rotor::mio::{Selector, Token, Evented, EventSet, PollOpt};
 
     use openssl::ssl::{Ssl, SslContext, SslStream, SslMethod, SSL_VERIFY_PEER, SSL_OP_NO_SSLV2, SSL_OP_NO_SSLV3, SSL_OP_NO_COMPRESSION};
-    use openssl::ssl::error::StreamError as SslIoError;
-    use openssl::ssl::error::SslError;
-    use openssl::ssl::error::Error as OpensslError;
+    use openssl::error::Error as SslIoError;
+    use openssl::error::Error as SslError;
+    use openssl::error::Error as OpensslError;
     use openssl::x509::X509FileType;
 
     use super::{HttpStream, Blocked};
@@ -471,12 +471,13 @@ mod openssl {
 
     impl Default for OpensslClient {
         fn default() -> OpensslClient {
-            let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
-            ctx.set_default_verify_paths().unwrap();
-            ctx.set_options(SSL_OP_NO_SSLV2 | SSL_OP_NO_SSLV3 | SSL_OP_NO_COMPRESSION);
+            let mut builder = SslContext::builder(SslMethod::tls()).unwrap();
+            builder.set_default_verify_paths().unwrap();
+            builder.set_options(SSL_OP_NO_SSLV2 | SSL_OP_NO_SSLV3 | SSL_OP_NO_COMPRESSION);
             // cipher list taken from curl:
             // https://github.com/curl/curl/blob/5bf5f6ebfcede78ef7c2b16daa41c4b7ba266087/lib/vtls/openssl.h#L120
-            ctx.set_cipher_list("ALL!EXPORT!EXPORT40!EXPORT56!aNULL!LOW!RC4@STRENGTH").unwrap();
+            builder.set_cipher_list("ALL!EXPORT!EXPORT40!EXPORT56!aNULL!LOW!RC4@STRENGTH").unwrap();
+            let ctx = builder.build();
             OpensslClient::new(ctx)
         }
     }
@@ -488,16 +489,26 @@ mod openssl {
         }
     }
 
+    macro_rules! try_ssl {
+        ($x:expr) => {
+            match $x {
+                Ok(ok) => ok,
+                Err(err) => { return Err(::Error::Ssl(Box::new(err))) }
+            }
+        }
+
+    }
+
     impl super::SslClient for OpensslClient {
         type Stream = OpensslStream<HttpStream>;
 
         #[cfg(not(windows))]
         fn wrap_client(&self, stream: HttpStream, host: &str) -> ::Result<Self::Stream> {
-            let mut ssl = try!(Ssl::new(&self.0));
-            try!(ssl.set_hostname(host));
+            let mut ssl = try_ssl!(Ssl::new(&self.0));
+            try_ssl!(ssl.set_hostname(host));
             let host = host.to_owned();
             ssl.set_verify_callback(SSL_VERIFY_PEER, move |p, x| ::openssl_verify::verify_callback(&host, p, x));
-            SslStream::connect(ssl, stream)
+            ssl.connect(stream)
                 .map(openssl_stream)
                 .map_err(From::from)
         }
@@ -505,8 +516,8 @@ mod openssl {
 
         #[cfg(windows)]
         fn wrap_client(&self, stream: HttpStream, host: &str) -> ::Result<Self::Stream> {
-            let mut ssl = try!(Ssl::new(&self.0));
-            try!(ssl.set_hostname(host));
+            let mut ssl = try_ssl!(Ssl::new(&self.0));
+            try_ssl!(ssl.set_hostname(host));
             SslStream::connect(ssl, stream)
                 .map(openssl_stream)
                 .map_err(From::from)

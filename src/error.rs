@@ -8,8 +8,13 @@ use std::string::FromUtf8Error;
 use httparse;
 use url;
 
+
 #[cfg(feature = "openssl")]
-use openssl::ssl::error::SslError;
+use openssl::ssl::HandshakeError;
+
+#[cfg(feature = "openssl")]
+use openssl::error::Error as SslError;
+
 
 use self::Error::{
     Method,
@@ -54,7 +59,8 @@ pub enum Error {
     /// An `io::Error` that occurred while trying to read or write to a network stream.
     Io(IoError),
     /// An error from a SSL library.
-    Ssl(Box<StdError + Send + Sync>),
+    //Ssl(Box<StdError + Send + Sync>),
+    Ssl(Box<StdError>),
     /// Parsing a field as string failed
     Utf8(Utf8Error),
 
@@ -125,14 +131,26 @@ impl From<url::ParseError> for Error {
 }
 
 #[cfg(feature = "openssl")]
-impl From<SslError> for Error {
-    fn from(err: SslError) -> Error {
-        match err {
-            SslError::StreamError(err) => Io(err),
-            err => Ssl(Box::new(err)),
-        }
+impl<S> From<HandshakeError<S>> for Error {
+    fn from(err : HandshakeError<S>) -> Error {
+        let ret : SslError = {
+            match err {
+                HandshakeError::SetupFailure(e) => SslError::from(e),
+                HandshakeError::Failure(e) | 
+                    HandshakeError::Interupted(e) => e.error
+            }
+        };
+        Ssl(Box::new(ret))
     }
 }
+
+#[cfg(feature = "openssl")]
+impl From<SslError> for Error {
+    fn from(err: SslError) -> Error {
+        Ssl(Box::new(err))
+    }
+}
+
 
 impl From<Utf8Error> for Error {
     fn from(err: Utf8Error) -> Error {

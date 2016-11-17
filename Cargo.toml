@@ -25,15 +25,17 @@ url = "1.0"
 vecio = "0.1"
 
 [dependencies.cookie]
+path = "/home/doronw/dev/cookie-rs"
 version = "0.3"
 default-features = false
 
 [dependencies.openssl]
-version = "0.7"
+version = "0.9.1"
 optional = true
 
 [dependencies.openssl-verify]
-version = "0.1"
+path = "/home/doronw/dev/rust-openssl-verify"
+version = "0.2"
 optional = true
 
 [dependencies.security-framework]
