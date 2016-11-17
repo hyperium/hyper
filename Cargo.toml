@@ -25,8 +25,8 @@ url = "1.0"
 vecio = "0.1"
 
 [dependencies.cookie]
-path = "/home/doronw/dev/cookie-rs"
-version = "0.3"
+git = "https://github.com/alexcrichton/cookie-rs"
+rev = "b9620ee28816ea5e2ab771fd69e5b031bece961c"
 default-features = false
 
 [dependencies.openssl]
