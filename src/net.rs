@@ -438,10 +438,9 @@ mod openssl {
     use rotor::mio::{Selector, Token, Evented, EventSet, PollOpt};
 
     use openssl::ssl::{Ssl, SslContext, SslStream, SslMethod, SSL_VERIFY_PEER, SSL_OP_NO_SSLV2, SSL_OP_NO_SSLV3, SSL_OP_NO_COMPRESSION};
-    use openssl::error::Error as SslIoError;
-    use openssl::error::Error as SslError;
-    use openssl::error::Error as OpensslError;
-    use openssl::x509::X509FileType;
+    use openssl::error::ErrorStack as SslErrorStack;
+    use openssl::ssl::Error as OpensslError;
+    use openssl::x509::X509_FILETYPE_PEM;
 
     use super::{HttpStream, Blocked};
 
@@ -518,7 +517,7 @@ mod openssl {
         fn wrap_client(&self, stream: HttpStream, host: &str) -> ::Result<Self::Stream> {
             let mut ssl = try_ssl!(Ssl::new(&self.0));
             try_ssl!(ssl.set_hostname(host));
-            SslStream::connect(ssl, stream)
+            ssl.connect(stream)
                 .map(openssl_stream)
                 .map_err(From::from)
         }
@@ -527,24 +526,24 @@ mod openssl {
     impl Default for Openssl {
         fn default() -> Openssl {
             Openssl {
-                context: SslContext::new(SslMethod::Sslv23).unwrap_or_else(|e| {
+                context: SslContext::builder(SslMethod::tls()).unwrap_or_else(|e| {
                     // if we cannot create a SslContext, that's because of a
                     // serious problem. just crash.
                     panic!("{}", e)
-                })
+                }).build()
             }
         }
     }
 
     impl Openssl {
         /// Ease creating an `Openssl` with a certificate and key.
-        pub fn with_cert_and_key<C, K>(cert: C, key: K) -> Result<Openssl, SslError>
+        pub fn with_cert_and_key<C, K>(cert: C, key: K) -> Result<Openssl, SslErrorStack>
         where C: AsRef<Path>, K: AsRef<Path> {
-            let mut ctx = try!(SslContext::new(SslMethod::Sslv23));
-            try!(ctx.set_cipher_list("ALL!EXPORT!EXPORT40!EXPORT56!aNULL!LOW!RC4@STRENGTH"));
-            try!(ctx.set_certificate_file(cert.as_ref(), X509FileType::PEM));
-            try!(ctx.set_private_key_file(key.as_ref(), X509FileType::PEM));
-            Ok(Openssl { context: ctx })
+            let mut builder = try!(SslContext::builder(SslMethod::tls()));
+            try!(builder.set_cipher_list("ALL!EXPORT!EXPORT40!EXPORT56!aNULL!LOW!RC4@STRENGTH"));
+            try!(builder.set_certificate_file(cert.as_ref(), X509_FILETYPE_PEM));
+            try!(builder.set_private_key_file(key.as_ref(), X509_FILETYPE_PEM));
+            Ok (Openssl { context : builder.build() } )
         }
     }
 
@@ -552,19 +551,20 @@ mod openssl {
         type Stream = OpensslStream<HttpStream>;
 
         fn wrap_client(&self, stream: HttpStream, host: &str) -> ::Result<Self::Stream> {
-            let ssl = try!(Ssl::new(&self.context));
-            try!(ssl.set_hostname(host));
-            SslStream::connect(ssl, stream)
+            let mut ssl = try_ssl!(Ssl::new(&self.context));
+            try_ssl!(ssl.set_hostname(host));
+            ssl.connect(stream)
                 .map(openssl_stream)
                 .map_err(From::from)
         }
 
         fn wrap_server(&self, stream: HttpStream) -> ::Result<Self::Stream> {
-            match SslStream::accept(&self.context, stream) {
+            let ssl = try_ssl!(Ssl::new(&self.context));
+            match ssl.accept(stream) {
                 Ok(ssl_stream) => Ok(openssl_stream(ssl_stream)),
-                Err(SslIoError(e)) => {
-                    Err(io::Error::new(io::ErrorKind::ConnectionAborted, e).into())
-                },
+                //Err(SslHandshakeError(e)) => {
+                //    Err(io::Error::new(io::ErrorKind::ConnectionAborted, e).into())
+                //},
                 Err(e) => Err(e.into())
             }
         }
@@ -588,7 +588,6 @@ mod openssl {
         fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
             self.blocked = None;
             self.stream.ssl_read(buf).or_else(|e| match e {
-                OpensslError::ZeroReturn => Ok(0),
                 OpensslError::WantWrite(e) => {
                     self.blocked = Some(Blocked::Write);
                     Err(e)
