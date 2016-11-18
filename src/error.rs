@@ -6,6 +6,7 @@ use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 
 use httparse;
+use tokio_proto::Error as ProtoError;
 use url;
 
 #[cfg(feature = "openssl")]
@@ -160,12 +161,22 @@ impl From<httparse::Error> for Error {
     }
 }
 
+impl From<ProtoError<Error>> for Error {
+    fn from(err: ProtoError<Error>) -> Error {
+        match err {
+            ProtoError::Transport(e) => e,
+            ProtoError::Io(e) => Error::Io(e),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::error::Error as StdError;
     use std::io;
     use httparse;
     use url;
+    use tokio_proto::Error as ProtoError;
     use super::Error;
     use super::Error::*;
 
@@ -181,9 +192,9 @@ mod tests {
         ($from:expr => $error:pat) => {
             match Error::from($from) {
                 e @ $error => {
-                    assert!(e.description().len() > 5);
+                    assert!(e.description().len() >= 5);
                 } ,
-                _ => panic!("{:?}", $from)
+                e => panic!("{:?}", e)
             }
         }
     }
@@ -215,6 +226,10 @@ mod tests {
         from!(httparse::Error::Token => Header);
         from!(httparse::Error::TooManyHeaders => TooLarge);
         from!(httparse::Error::Version => Version);
+
+        from!(ProtoError::Transport(Version) => Version);
+        let e: ProtoError<::Error> = ProtoError::Io(io::Error::new(io::ErrorKind::Other, "other"));
+        from!(e => Io(..));
     }
 
     #[cfg(feature = "openssl")]

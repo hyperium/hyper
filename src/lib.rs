@@ -1,7 +1,7 @@
 #![doc(html_root_url = "https://hyperium.github.io/hyper/")]
-#![deny(missing_docs)]
-#![deny(warnings)]
-#![deny(missing_debug_implementations)]
+#![allow(missing_docs)]
+#![allow(warnings)]
+#![allow(missing_debug_implementations)]
 #![cfg_attr(all(test, feature = "nightly"), feature(test))]
 
 //! # Hyper
@@ -15,32 +15,27 @@
 //! [typed Headers system](header/index.html).
 //!
 //! If just getting started, consider looking over the **[Guide](../guide/)**.
+
+extern crate bytes;
+extern crate cookie;
+extern crate futures;
+extern crate futures_cpupool;
+extern crate httparse;
+#[macro_use] extern crate language_tags;
+#[macro_use] extern crate log;
+#[macro_use] extern crate mime as mime_crate;
+extern crate mio;
 extern crate rustc_serialize as serialize;
-extern crate time;
-#[macro_use] extern crate url;
-#[cfg(feature = "openssl")]
-extern crate openssl;
-#[cfg(feature = "openssl-verify")]
-extern crate openssl_verify;
-#[cfg(feature = "security-framework")]
-extern crate security_framework;
 #[cfg(feature = "serde-serialization")]
 extern crate serde;
-extern crate cookie;
-extern crate unicase;
-extern crate httparse;
-extern crate rotor;
+extern crate time;
+#[macro_use] extern crate tokio_core as tokio;
+extern crate tokio_proto;
+extern crate tokio_service;
 extern crate spmc;
+extern crate unicase;
+#[macro_use] extern crate url;
 extern crate vecio;
-
-#[macro_use]
-extern crate language_tags;
-
-#[macro_use]
-extern crate mime as mime_crate;
-
-#[macro_use]
-extern crate log;
 
 #[cfg(all(test, feature = "nightly"))]
 extern crate test;
@@ -50,7 +45,6 @@ pub use url::Url;
 pub use client::Client;
 pub use error::{Result, Error};
 pub use header::Headers;
-pub use http::{Next, Encoder, Decoder, Control, ControlError};
 pub use method::Method::{self, Get, Head, Post, Delete};
 pub use net::{HttpStream, Transport};
 pub use status::StatusCode::{self, Ok, BadRequest, NotFound};
@@ -58,12 +52,15 @@ pub use server::Server;
 pub use uri::RequestUri;
 pub use version::HttpVersion;
 
-macro_rules! rotor_try {
-    ($e:expr) => ({
-        match $e {
-            Ok(v) => v,
-            Err(e) => return ::rotor::Response::error(e.into())
-        }
+macro_rules! unimplemented {
+    () => ({
+        panic!("unimplemented")
+    });
+    ($msg:expr) => ({
+        unimplemented!("{}", $msg)
+    });
+    ($fmt:expr, $($arg:tt)*) => ({
+        panic!(concat!("unimplemented: ", $fmt), $($arg)*)
     });
 }
 

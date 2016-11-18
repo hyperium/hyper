@@ -1,5 +1,7 @@
 //! Client Requests
 
+use Url;
+
 use header::Headers;
 use http::RequestHead;
 use method::Method;
@@ -10,11 +12,24 @@ use version::HttpVersion;
 
 /// A client request to a remote server.
 #[derive(Debug)]
-pub struct Request<'a> {
-    head: &'a mut RequestHead
+pub struct Request {
+    pub head: RequestHead,
+    body: Option<()>,
 }
 
-impl<'a> Request<'a> {
+impl Request {
+    #[inline]
+    pub fn new(method: Method, url: Url) -> Request {
+        Request {
+            head: RequestHead {
+                subject: ::http::RequestLine(method, RequestUri::AbsoluteUri(url)),
+                version: HttpVersion::default(),
+                headers: Headers::new(),
+            },
+            body: None,
+        }
+    }
+
     /// Read the Request Url.
     #[inline]
     pub fn uri(&self) -> &RequestUri { &self.head.subject.1 }
@@ -46,10 +61,6 @@ impl<'a> Request<'a> {
     /// Set the `HttpVersion` of this request.
     #[inline]
     pub fn set_version(&mut self, version: HttpVersion) { self.head.version = version; }
-}
-
-pub fn new(head: &mut RequestHead) -> Request {
-    Request { head: head }
 }
 
 #[cfg(test)]
