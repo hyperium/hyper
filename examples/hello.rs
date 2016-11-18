@@ -1,50 +1,39 @@
 #![deny(warnings)]
 extern crate hyper;
-extern crate env_logger;
-extern crate num_cpus;
+extern crate futures;
+extern crate pretty_env_logger;
+//extern crate num_cpus;
 
-use hyper::{Decoder, Encoder, Next, HttpStream};
-use hyper::server::{Server, Handler, Request, Response, HttpListener};
+use hyper::header::{ContentLength, ContentType};
+use hyper::server::{Server, Service, Request, Response};
 
 static PHRASE: &'static [u8] = b"Hello World!";
 
+#[derive(Clone, Copy)]
 struct Hello;
 
-impl Handler<HttpStream> for Hello {
-    fn on_request(&mut self, _: Request<HttpStream>) -> Next {
-        Next::write()
+impl Service for Hello {
+    type Request = Request;
+    type Response = Response;
+    type Error = hyper::Error;
+    type Future = ::futures::Finished<Response, hyper::Error>;
+    fn call(&self, _req: Request) -> Self::Future {
+        ::futures::finished(
+            Response::new()
+                .with_header(ContentLength(PHRASE.len() as u64))
+                .with_header(ContentType::plaintext())
+                .with_body(PHRASE)
+        )
     }
-    fn on_request_readable(&mut self, _: &mut Decoder<HttpStream>) -> Next {
-        Next::write()
-    }
-    fn on_response(&mut self, response: &mut Response) -> Next {
-        use hyper::header::ContentLength;
-        response.headers_mut().set(ContentLength(PHRASE.len() as u64));
-        Next::write()
-    }
-    fn on_response_writable(&mut self, encoder: &mut Encoder<HttpStream>) -> Next {
-        let n = encoder.write(PHRASE).unwrap();
-        debug_assert_eq!(n, PHRASE.len());
-        Next::end()
-    }
+
 }
 
 fn main() {
-    env_logger::init().unwrap();
- 
-    let listener = HttpListener::bind(&"127.0.0.1:3000".parse().unwrap()).unwrap();
-    let mut handles = Vec::new();
-
-    for _ in 0..num_cpus::get() {
-        let listener = listener.try_clone().unwrap();
-        handles.push(::std::thread::spawn(move || {
-            Server::new(listener)
-                .handle(|_| Hello).unwrap();
-        }));
-    }
-    println!("Listening on http://127.0.0.1:3000");
-
-    for handle in handles {
-        handle.join().unwrap();
-    }
+    pretty_env_logger::init().unwrap();
+    let addr = "127.0.0.1:3000".parse().unwrap();
+    let _server = Server::standalone(|tokio| {
+        Server::http(&addr, tokio)?
+            .handle(|| Ok(Hello), tokio)
+    }).unwrap();
+    println!("Listening on http://{}", addr);
 }

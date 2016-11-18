@@ -8,9 +8,6 @@ use std::string::FromUtf8Error;
 use httparse;
 use url;
 
-#[cfg(feature = "openssl")]
-use openssl::ssl::error::SslError;
-
 use self::Error::{
     Method,
     Uri,
@@ -19,7 +16,6 @@ use self::Error::{
     Status,
     Timeout,
     Io,
-    Ssl,
     TooLarge,
     Incomplete,
     Utf8
@@ -49,12 +45,8 @@ pub enum Error {
     Status,
     /// A timeout occurred waiting for an IO event.
     Timeout,
-    /// Event loop is full and cannot process request
-    Full,
     /// An `io::Error` that occurred while trying to read or write to a network stream.
     Io(IoError),
-    /// An error from a SSL library.
-    Ssl(Box<StdError + Send + Sync>),
     /// Parsing a field as string failed
     Utf8(Utf8Error),
 
@@ -76,7 +68,6 @@ impl fmt::Display for Error {
         match *self {
             Uri(ref e) => fmt::Display::fmt(e, f),
             Io(ref e) => fmt::Display::fmt(e, f),
-            Ssl(ref e) => fmt::Display::fmt(e, f),
             Utf8(ref e) => fmt::Display::fmt(e, f),
             ref e => f.write_str(e.description()),
         }
@@ -93,10 +84,8 @@ impl StdError for Error {
             Status => "Invalid Status provided",
             Incomplete => "Message is incomplete",
             Timeout => "Timeout",
-            Error::Full => "Event loop is full",
             Uri(ref e) => e.description(),
             Io(ref e) => e.description(),
-            Ssl(ref e) => e.description(),
             Utf8(ref e) => e.description(),
             Error::__Nonexhaustive(ref void) =>  match *void {}
         }
@@ -105,8 +94,9 @@ impl StdError for Error {
     fn cause(&self) -> Option<&StdError> {
         match *self {
             Io(ref error) => Some(error),
-            Ssl(ref error) => Some(&**error),
             Uri(ref error) => Some(error),
+            Utf8(ref error) => Some(error),
+            Error::__Nonexhaustive(ref void) =>  match *void {},
             _ => None,
         }
     }
@@ -121,16 +111,6 @@ impl From<IoError> for Error {
 impl From<url::ParseError> for Error {
     fn from(err: url::ParseError) -> Error {
         Uri(err)
-    }
-}
-
-#[cfg(feature = "openssl")]
-impl From<SslError> for Error {
-    fn from(err: SslError) -> Error {
-        match err {
-            SslError::StreamError(err) => Io(err),
-            err => Ssl(Box::new(err)),
-        }
     }
 }
 
@@ -181,9 +161,9 @@ mod tests {
         ($from:expr => $error:pat) => {
             match Error::from($from) {
                 e @ $error => {
-                    assert!(e.description().len() > 5);
+                    assert!(e.description().len() >= 5);
                 } ,
-                _ => panic!("{:?}", $from)
+                e => panic!("{:?}", e)
             }
         }
     }

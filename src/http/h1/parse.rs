@@ -4,7 +4,7 @@ use std::fmt::{self, Write};
 use httparse;
 
 use header::{self, Headers, ContentLength, TransferEncoding};
-use http::{MessageHead, RawStatus, Http1Message, ParseResult, ServerMessage, ClientMessage, RequestLine};
+use http::{MessageHead, RawStatus, Http1Transaction, ParseResult, ServerTransaction, ClientTransaction, RequestLine};
 use http::h1::{Encoder, Decoder};
 use method::Method;
 use status::StatusCode;
@@ -13,17 +13,15 @@ use version::HttpVersion::{Http10, Http11};
 const MAX_HEADERS: usize = 100;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
 
-pub fn parse<T: Http1Message<Incoming=I>, I>(buf: &[u8]) -> ParseResult<I> {
+pub fn parse<T: Http1Transaction<Incoming=I>, I>(buf: &[u8]) -> ParseResult<I> {
     if buf.len() == 0 {
         return Ok(None);
     }
     trace!("parse({:?})", buf);
-    <T as Http1Message>::parse(buf)
+    <T as Http1Transaction>::parse(buf)
 }
 
-
-
-impl Http1Message for ServerMessage {
+impl Http1Transaction for ServerTransaction {
     type Incoming = RequestLine;
     type Outgoing = StatusCode;
 
@@ -60,7 +58,7 @@ impl Http1Message for ServerMessage {
     }
 
 
-    fn encode(mut head: MessageHead<Self::Outgoing>, dst: &mut Vec<u8>) -> Encoder {
+    fn encode(head: &mut MessageHead<Self::Outgoing>, dst: &mut Vec<u8>) -> Encoder {
         use ::header;
         trace!("writing head: {:?}", head);
 
@@ -103,9 +101,14 @@ impl Http1Message for ServerMessage {
         }
         body
     }
+
+    fn should_set_length(_head: &MessageHead<Self::Outgoing>) -> bool {
+        //TODO: pass method, check if method == HEAD
+        true
+    }
 }
 
-impl Http1Message for ClientMessage {
+impl Http1Transaction for ClientTransaction {
     type Incoming = RawStatus;
     type Outgoing = RequestLine;
 
@@ -162,7 +165,7 @@ impl Http1Message for ClientMessage {
         }
     }
 
-    fn encode(mut head: MessageHead<Self::Outgoing>, dst: &mut Vec<u8>) -> Encoder {
+    fn encode(head: &mut MessageHead<Self::Outgoing>, dst: &mut Vec<u8>) -> Encoder {
         trace!("writing head: {:?}", head);
 
 
@@ -203,6 +206,14 @@ impl Http1Message for ClientMessage {
 
         body
     }
+
+
+    fn should_set_length(head: &MessageHead<Self::Outgoing>) -> bool {
+        match &head.subject.0 {
+            &Method::Get | &Method::Head => false,
+            _ => true
+        }
+    }
 }
 
 struct FastWrite<'a>(&'a mut Vec<u8>);
@@ -238,17 +249,17 @@ mod tests {
     #[test]
     fn test_parse_request() {
         let raw = b"GET /echo HTTP/1.1\r\nHost: hyper.rs\r\n\r\n";
-        parse::<http::ServerMessage, _>(raw).unwrap();
+        parse::<http::ServerTransaction, _>(raw).unwrap();
     }
 
     #[test]
     fn test_parse_raw_status() {
         let raw = b"HTTP/1.1 200 OK\r\n\r\n";
-        let (res, _) = parse::<http::ClientMessage, _>(raw).unwrap().unwrap();
+        let (res, _) = parse::<http::ClientTransaction, _>(raw).unwrap().unwrap();
         assert_eq!(res.subject.1, "OK");
 
         let raw = b"HTTP/1.1 200 Howdy\r\n\r\n";
-        let (res, _) = parse::<http::ClientMessage, _>(raw).unwrap().unwrap();
+        let (res, _) = parse::<http::ClientTransaction, _>(raw).unwrap().unwrap();
         assert_eq!(res.subject.1, "Howdy");
     }
 
@@ -260,7 +271,7 @@ mod tests {
     fn bench_parse_incoming(b: &mut Bencher) {
         let raw = b"GET /echo HTTP/1.1\r\nHost: hyper.rs\r\n\r\n";
         b.iter(|| {
-            parse::<http::ServerMessage, _>(raw).unwrap()
+            parse::<http::ServerTransaction, _>(raw).unwrap()
         });
     }
 

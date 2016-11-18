@@ -1,15 +1,12 @@
-use std::borrow::Cow;
 use std::cmp;
 use std::io::{self, Write};
 
-use http::internal::{AtomicWrite, WriteBuf};
+use http::io::AtomicWrite;
 
 /// Encoders to handle different Transfer-Encodings.
 #[derive(Debug, Clone)]
 pub struct Encoder {
     kind: Kind,
-    prefix: Prefix,
-    is_closed: bool,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -26,27 +23,16 @@ impl Encoder {
     pub fn chunked() -> Encoder {
         Encoder {
             kind: Kind::Chunked(Chunked::Init),
-            prefix: Prefix(None),
-            is_closed: false,
         }
     }
 
     pub fn length(len: u64) -> Encoder {
         Encoder {
             kind: Kind::Length(len),
-            prefix: Prefix(None),
-            is_closed: false,
         }
-    }
-
-    pub fn prefix(&mut self, prefix: WriteBuf<Vec<u8>>) {
-        self.prefix.0 = Some(prefix);
     }
 
     pub fn is_eof(&self) -> bool {
-        if self.prefix.0.is_some() {
-            return false;
-        }
         match self.kind {
             Kind::Length(0) |
             Kind::Chunked(Chunked::End) => true,
@@ -54,71 +40,26 @@ impl Encoder {
         }
     }
 
-    /// User has called `encoder.close()` in a `Handler`.
-    pub fn is_closed(&self) -> bool {
-        self.is_closed
-    }
-
-    pub fn close(&mut self) {
-        self.is_closed = true;
-    }
-
-    pub fn finish(self) -> Option<WriteBuf<Cow<'static, [u8]>>> {
-        let trailer = self.trailer();
-        let buf = self.prefix.0;
-
-        match (buf, trailer) {
-            (Some(mut buf), Some(trailer)) => {
-                buf.bytes.extend_from_slice(trailer);
-                Some(WriteBuf {
-                    bytes: Cow::Owned(buf.bytes),
-                    pos: buf.pos,
-                })
-            },
-            (Some(buf), None) => Some(WriteBuf {
-                bytes: Cow::Owned(buf.bytes),
-                pos: buf.pos
-            }),
-            (None, Some(trailer)) => {
-                Some(WriteBuf {
-                    bytes: Cow::Borrowed(trailer),
-                    pos: 0,
-                })
-            },
-            (None, None) => None
-        }
-    }
-
-    fn trailer(&self) -> Option<&'static [u8]> {
-        match self.kind {
-            Kind::Chunked(Chunked::Init) => {
-                Some(b"0\r\n\r\n")
-            }
-            _ => None
-        }
-    }
-
     pub fn encode<W: AtomicWrite>(&mut self, w: &mut W, msg: &[u8]) -> io::Result<usize> {
         match self.kind {
             Kind::Chunked(ref mut chunked) => {
-                chunked.encode(w, &mut self.prefix, msg)
+                chunked.encode(w, msg)
             },
             Kind::Length(ref mut remaining) => {
-                let mut n = {
+                let n = {
                     let max = cmp::min(*remaining as usize, msg.len());
+                    trace!("sized write, len = {}", max);
                     let slice = &msg[..max];
 
-                    let prefix = self.prefix.0.as_ref().map(|buf| &buf.bytes[buf.pos..]).unwrap_or(b"");
-
-                    try!(w.write_atomic(&[prefix, slice]))
+                    try!(w.write_atomic(&[slice]))
                 };
 
-                n = self.prefix.update(n);
                 if n == 0 {
                     return Err(io::Error::new(io::ErrorKind::WouldBlock, "would block"));
                 }
 
                 *remaining -= n as u64;
+                trace!("sized write complete, remaining = {}", remaining);
                 Ok(n)
             },
         }
@@ -138,7 +79,7 @@ enum Chunked {
 }
 
 impl Chunked {
-    fn encode<W: AtomicWrite>(&mut self, w: &mut W, prefix: &mut Prefix, msg: &[u8]) -> io::Result<usize> {
+    fn encode<W: AtomicWrite>(&mut self, w: &mut W, msg: &[u8]) -> io::Result<usize> {
         match *self {
             Chunked::Init => {
                 let mut size = ChunkSize {
@@ -158,7 +99,6 @@ impl Chunked {
             let pieces = match *self {
                 Chunked::Init => unreachable!("Chunked::Init should have become Chunked::Size"),
                 Chunked::Size(ref size) => [
-                    prefix.0.as_ref().map(|buf| &buf.bytes[buf.pos..]).unwrap_or(b""),
                     &size.bytes[size.pos.into() .. size.len.into()],
                     &b"\r\n"[..],
                     msg,
@@ -166,20 +106,17 @@ impl Chunked {
                 ],
                 Chunked::SizeCr => [
                     &b""[..],
-                    &b""[..],
                     &b"\r\n"[..],
                     msg,
                     &b"\r\n"[..],
                 ],
                 Chunked::SizeLf => [
                     &b""[..],
-                    &b""[..],
                     &b"\n"[..],
                     msg,
                     &b"\r\n"[..],
                 ],
                 Chunked::Body(pos) => [
-                    &b""[..],
                     &b""[..],
                     &b""[..],
                     &msg[pos..],
@@ -189,11 +126,9 @@ impl Chunked {
                     &b""[..],
                     &b""[..],
                     &b""[..],
-                    &b""[..],
                     &b"\r\n"[..],
                 ],
                 Chunked::BodyLf => [
-                    &b""[..],
                     &b""[..],
                     &b""[..],
                     &b""[..],
@@ -204,9 +139,6 @@ impl Chunked {
             try!(w.write_atomic(&pieces))
         };
 
-        if n > 0 {
-            n = prefix.update(n);
-        }
         while n > 0 {
             match *self {
                 Chunked::Init => unreachable!("Chunked::Init should have become Chunked::Size"),
@@ -321,30 +253,10 @@ impl io::Write for ChunkSize {
     }
 }
 
-#[derive(Debug, Clone)]
-struct Prefix(Option<WriteBuf<Vec<u8>>>);
-
-impl Prefix {
-    fn update(&mut self, n: usize) -> usize {
-        if let Some(mut buf) = self.0.take() {
-            if buf.bytes.len() - buf.pos > n {
-                buf.pos += n;
-                self.0 = Some(buf);
-                0
-            } else {
-                let nbuf = buf.bytes.len() - buf.pos;
-                n - nbuf
-            }
-        } else {
-            n
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::Encoder;
-    use mock::{Async, Buf};
+    use mock::{AsyncIo, Buf};
 
     #[test]
     fn test_chunked_encode_sync() {
@@ -359,7 +271,7 @@ mod tests {
 
     #[test]
     fn test_chunked_encode_async() {
-        let mut dst = Async::new(Buf::new(), 7);
+        let mut dst = AsyncIo::new(Buf::new(), 7);
         let mut encoder = Encoder::chunked();
 
         assert!(encoder.encode(&mut dst, b"foo bar").is_err());

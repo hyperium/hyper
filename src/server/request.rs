@@ -4,48 +4,25 @@
 //! target URI, headers, and message body.
 
 use std::fmt;
+use std::net::SocketAddr;
 
 use version::HttpVersion;
 use method::Method;
 use header::Headers;
-use http::{RequestHead, MessageHead, RequestLine};
+use http::{RequestHead, MessageHead, RequestLine, Body};
 use uri::RequestUri;
 
-pub fn new<'a, T>(incoming: RequestHead, transport: &'a T) -> Request<'a, T> {
-    let MessageHead { version, subject: RequestLine(method, uri), headers } = incoming;
-    debug!("Request Line: {:?} {:?} {:?}", method, uri, version);
-    debug!("{:#?}", headers);
-
-    Request {
-        method: method,
-        uri: uri,
-        headers: headers,
-        version: version,
-        transport: transport,
-    }
-}
-
 /// A request bundles several parts of an incoming `NetworkStream`, given to a `Handler`.
-pub struct Request<'a, T: 'a> {
+pub struct Request {
     method: Method,
     uri: RequestUri,
     version: HttpVersion,
     headers: Headers,
-    transport: &'a T,
+    remote_addr: SocketAddr,
+    body: Body,
 }
 
-impl<'a, T> fmt::Debug for Request<'a, T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Request")
-            .field("method", &self.method)
-            .field("uri", &self.uri)
-            .field("version", &self.version)
-            .field("headers", &self.headers)
-            .finish()
-    }
-}
-
-impl<'a, T> Request<'a, T> {
+impl Request {
     /// The `Method`, such as `Get`, `Post`, etc.
     #[inline]
     pub fn method(&self) -> &Method { &self.method }
@@ -54,10 +31,6 @@ impl<'a, T> Request<'a, T> {
     #[inline]
     pub fn headers(&self) -> &Headers { &self.headers }
 
-    /// The underlying `Transport` of this request.
-    #[inline]
-    pub fn transport(&self) -> &'a T { self.transport }
-
     /// The target request-uri for this request.
     #[inline]
     pub fn uri(&self) -> &RequestUri { &self.uri }
@@ -65,6 +38,10 @@ impl<'a, T> Request<'a, T> {
     /// The version of HTTP for this request.
     #[inline]
     pub fn version(&self) -> &HttpVersion { &self.version }
+
+    /// The remote socket address of this request
+    #[inline]
+    pub fn remote_addr(&self) -> &SocketAddr { &self.remote_addr }
 
     /// The target path of this Request.
     #[inline]
@@ -86,12 +63,44 @@ impl<'a, T> Request<'a, T> {
         }
     }
 
+    /// Take the `Body` of this `Request`.
+    #[inline]
+    pub fn body(self) -> Body {
+        self.body
+    }
+
     /// Deconstruct this Request into its pieces.
     ///
     /// Modifying these pieces will have no effect on how hyper behaves.
     #[inline]
-    pub fn deconstruct(self) -> (Method, RequestUri, HttpVersion, Headers) {
-        (self.method, self.uri, self.version, self.headers)
+    pub fn deconstruct(self) -> (Method, RequestUri, HttpVersion, Headers, Body) {
+        (self.method, self.uri, self.version, self.headers, self.body)
     }
+}
 
+impl fmt::Debug for Request {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Request")
+            .field("method", &self.method)
+            .field("uri", &self.uri)
+            .field("version", &self.version)
+            .field("remote_addr", &self.remote_addr)
+            .field("headers", &self.headers)
+            .finish()
+    }
+}
+
+pub fn new(addr: SocketAddr, incoming: RequestHead, body: Body) -> Request {
+    let MessageHead { version, subject: RequestLine(method, uri), headers } = incoming;
+    debug!("Request Line: {:?} {:?} {:?}", method, uri, version);
+    debug!("{:#?}", headers);
+
+    Request {
+        method: method,
+        uri: uri,
+        headers: headers,
+        version: version,
+        remote_addr: addr,
+        body: body,
+    }
 }

@@ -66,7 +66,7 @@ impl FromStr for RequestUri {
 
     fn from_str(s: &str) -> Result<RequestUri, Error> {
         let bytes = s.as_bytes();
-        if bytes == [] {
+        if bytes.len() == 0 {
             Err(Error::Uri(UrlError::RelativeUrlWithoutBase))
         } else if bytes == b"*" {
             Ok(RequestUri::Star)

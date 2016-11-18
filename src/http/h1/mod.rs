@@ -1,21 +1,3 @@
-/*
-use std::fmt;
-use std::io::{self, Write};
-use std::marker::PhantomData;
-use std::sync::mpsc;
-
-use url::Url;
-use tick;
-use time::now_utc;
-
-use header::{self, Headers};
-use http::{self, conn};
-use method::Method;
-use net::{Fresh, Streaming};
-use status::StatusCode;
-use version::HttpVersion;
-*/
-
 pub use self::decode::Decoder;
 pub use self::encode::Encoder;
 
@@ -23,7 +5,7 @@ pub use self::parse::parse;
 
 mod decode;
 mod encode;
-mod parse;
+pub mod parse;
 
 /*
 fn should_have_response_body(method: &Method, status: u16) -> bool {

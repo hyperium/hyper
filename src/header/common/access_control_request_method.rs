@@ -17,7 +17,7 @@ header! {
     /// # Examples
     /// ```
     /// use hyper::header::{Headers, AccessControlRequestMethod};
-    /// use hyper::method::Method;
+    /// use hyper::Method;
     /// 
     /// let mut headers = Headers::new();
     /// headers.set(AccessControlRequestMethod(Method::Get));

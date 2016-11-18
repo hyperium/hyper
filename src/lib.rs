@@ -13,34 +13,22 @@
 //! Hyper provides both a [Client](client/index.html) and a
 //! [Server](server/index.html), along with a
 //! [typed Headers system](header/index.html).
-//!
-//! If just getting started, consider looking over the **[Guide](../guide/)**.
+
+extern crate cookie;
+extern crate futures;
+extern crate futures_cpupool;
+extern crate httparse;
+#[macro_use] extern crate language_tags;
+#[macro_use] extern crate log;
+#[macro_use] pub extern crate mime;
+extern crate relay;
 extern crate rustc_serialize as serialize;
 extern crate time;
-#[macro_use] extern crate url;
-#[cfg(feature = "openssl")]
-extern crate openssl;
-#[cfg(feature = "openssl-verify")]
-extern crate openssl_verify;
-#[cfg(feature = "security-framework")]
-extern crate security_framework;
-#[cfg(feature = "serde-serialization")]
-extern crate serde;
-extern crate cookie;
+#[macro_use] extern crate tokio_core as tokio;
+extern crate tokio_proto;
+extern crate tokio_service;
 extern crate unicase;
-extern crate httparse;
-extern crate rotor;
-extern crate spmc;
-extern crate vecio;
-
-#[macro_use]
-extern crate language_tags;
-
-#[macro_use]
-extern crate mime as mime_crate;
-
-#[macro_use]
-extern crate log;
+#[macro_use] extern crate url;
 
 #[cfg(all(test, feature = "nightly"))]
 extern crate test;
@@ -50,20 +38,22 @@ pub use url::Url;
 pub use client::Client;
 pub use error::{Result, Error};
 pub use header::Headers;
-pub use http::{Next, Encoder, Decoder, Control, ControlError};
+pub use http::{Body, Chunk};
 pub use method::Method::{self, Get, Head, Post, Delete};
-pub use net::{HttpStream, Transport};
 pub use status::StatusCode::{self, Ok, BadRequest, NotFound};
 pub use server::Server;
 pub use uri::RequestUri;
 pub use version::HttpVersion;
 
-macro_rules! rotor_try {
-    ($e:expr) => ({
-        match $e {
-            Ok(v) => v,
-            Err(e) => return ::rotor::Response::error(e.into())
-        }
+macro_rules! unimplemented {
+    () => ({
+        panic!("unimplemented")
+    });
+    ($msg:expr) => ({
+        unimplemented!("{}", $msg)
+    });
+    ($fmt:expr, $($arg:tt)*) => ({
+        panic!(concat!("unimplemented: ", $fmt), $($arg)*)
     });
 }
 
@@ -71,32 +61,10 @@ macro_rules! rotor_try {
 mod mock;
 pub mod client;
 pub mod error;
-pub mod method;
+mod method;
 pub mod header;
 mod http;
-pub mod net;
 pub mod server;
 pub mod status;
-pub mod uri;
-pub mod version;
-
-/// Re-exporting the mime crate, for convenience.
-pub mod mime {
-    pub use mime_crate::*;
-}
-
-/*
-#[allow(unconditional_recursion)]
-fn _assert_send<T: Send>() {
-    _assert_send::<Client>();
-    _assert_send::<client::Request<net::Fresh>>();
-    _assert_send::<client::Response>();
-    _assert_send::<error::Error>();
-}
-
-#[allow(unconditional_recursion)]
-fn _assert_sync<T: Sync>() {
-    _assert_sync::<Client>();
-    _assert_sync::<error::Error>();
-}
-*/
+mod uri;
+mod version;

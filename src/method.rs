@@ -7,8 +7,6 @@ use error::Error;
 use self::Method::{Options, Get, Post, Put, Delete, Head, Trace, Connect, Patch,
                    Extension};
 
-#[cfg(feature = "serde-serialization")]
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// The Request Method (VERB)
 ///
@@ -133,21 +131,6 @@ impl Default for Method {
         Method::Get
     }
 }
-
-#[cfg(feature = "serde-serialization")]
-impl Serialize for Method {
-    fn serialize<S>(&self, serializer: &mut S) -> Result<(), S::Error> where S: Serializer {
-        format!("{}", self).serialize(serializer)
-    }
-}
-
-#[cfg(feature = "serde-serialization")]
-impl Deserialize for Method {
-    fn deserialize<D>(deserializer: &mut D) -> Result<Method, D::Error> where D: Deserializer {
-        let string_representation: String = try!(Deserialize::deserialize(deserializer));
-        Ok(FromStr::from_str(&string_representation[..]).unwrap())
-    }
-} 
 
 #[cfg(test)]
 mod tests {

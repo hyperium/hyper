@@ -1,59 +1,59 @@
-use std::collections::hash_map::{HashMap, Entry};
-use std::hash::Hash;
 use std::fmt;
 use std::io;
-use std::net::SocketAddr;
+//use std::net::SocketAddr;
 
-use rotor::mio::tcp::TcpStream;
+use futures::{Future, Poll, Async};
+use tokio::io::Io;
+use tokio::reactor::Handle;
+use tokio::net::{TcpStream, TcpStreamNew};
+use tokio_service::Service;
 use url::Url;
 
-use net::{HttpStream, HttpsStream, Transport, SslClient};
-use super::dns::Dns;
-use super::Registration;
+use super::dns;
 
-/// A connector creates a Transport to a remote address..
-pub trait Connect {
-    /// Type of Transport to create
-    type Output: Transport;
-    /// The key used to determine if an existing socket can be used.
-    type Key: Eq + Hash + Clone + fmt::Debug;
-    /// Returns the key based off the Url.
-    fn key(&self, &Url) -> Option<Self::Key>;
+/// A connector creates an Io to a remote address..
+///
+/// This trait is not implemented directly, and only exists to make
+/// the intent clearer. A connector should implement `Service` with
+/// `Request=Url` and `Response: Io` instead.
+pub trait Connect: Service<Request=Url, Error=io::Error> + 'static {
+    /// The connected Io Stream.
+    type Output: Io + 'static;
+    /// A Future that will resolve to the connected Stream.
+    type Future: Future<Item=Self::Output, Error=io::Error> + 'static;
     /// Connect to a remote address.
-    fn connect(&mut self, &Url) -> io::Result<Self::Key>;
-    /// Returns a connected socket and associated host.
-    fn connected(&mut self) -> Option<(Self::Key, io::Result<Self::Output>)>;
-    #[doc(hidden)]
-    /// Configure number of dns workers to use.
-    fn dns_workers(&mut self, usize);
-    #[doc(hidden)]
-    fn register(&mut self, Registration);
+    fn connect(&self, Url) -> <Self as Connect>::Future;
 }
 
-/// A connector for the `http` scheme.
-pub struct HttpConnector {
-    dns: Option<Dns>,
-    threads: usize,
-    resolving: HashMap<String, Vec<(&'static str, String, u16)>>,
-}
+impl<T> Connect for T
+where T: Service<Request=Url, Error=io::Error> + 'static,
+      T::Response: Io,
+      T::Future: Future<Error=io::Error>,
+{
+    type Output = T::Response;
+    type Future = T::Future;
 
-impl HttpConnector {
-    /// Set the number of resolver threads.
-    ///
-    /// Default is 4.
-    pub fn threads(mut self, threads: usize) -> HttpConnector {
-        debug_assert!(self.dns.is_none(), "setting threads after Dns is created does nothing");
-        self.threads = threads;
-        self
+    fn connect(&self, url: Url) -> <Self as Connect>::Future {
+        self.call(url)
     }
 }
 
-impl Default for HttpConnector {
-    fn default() -> HttpConnector {
+/// A connector for the `http` scheme.
+#[derive(Clone)]
+pub struct HttpConnector {
+    dns: dns::Dns,
+    handle: Handle,
+}
+
+impl HttpConnector {
+
+    /// Construct a new HttpConnector.
+    ///
+    /// Takes number of DNS worker threads.
+    pub fn new(threads: usize, handle: &Handle) -> HttpConnector {
         HttpConnector {
-            dns: None,
-            threads: 4,
-            resolving: HashMap::new(),
+            dns: dns::Dns::new(threads),
+            handle: handle.clone(),
         }
     }
 }
@@ -61,79 +61,115 @@ impl Default for HttpConnector {
 impl fmt::Debug for HttpConnector {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("HttpConnector")
-            .field("threads", &self.threads)
-            .field("resolving", &self.resolving)
             .finish()
     }
 }
 
-impl Connect for HttpConnector {
-    type Output = HttpStream;
-    type Key = (&'static str, String, u16);
+impl Service for HttpConnector {
+    type Request = Url;
+    type Response = TcpStream;
+    type Error = io::Error;
+    type Future = HttpConnecting;
 
-    fn dns_workers(&mut self, count: usize) {
-        self.threads = count;
-    }
-
-    fn key(&self, url: &Url) -> Option<Self::Key> {
-        if url.scheme() == "http" {
-            Some((
-                "http",
-                url.host_str().expect("http scheme must have host").to_owned(),
-                url.port().unwrap_or(80),
-            ))
-        } else {
-            None
-        }
-    }
-
-    fn connect(&mut self, url: &Url) -> io::Result<Self::Key> {
+    fn call(&self, url: Url) -> Self::Future {
         debug!("Http::connect({:?})", url);
-        if let Some(key) = self.key(url) {
-            let host = url.host_str().expect("http scheme must have a host");
-            self.dns.as_ref().expect("dns workers lost").resolve(host);
-            self.resolving.entry(host.to_owned()).or_insert_with(Vec::new).push(key.clone());
-            Ok(key)
-        } else {
-            Err(io::Error::new(io::ErrorKind::InvalidInput, "scheme must be http"))
-        }
-    }
-
-    fn connected(&mut self) -> Option<(Self::Key, io::Result<HttpStream>)> {
-        let (host, addrs) = match self.dns.as_ref().expect("dns workers lost").resolved() {
-            Ok(res) => res,
-            Err(_) => return None
+        let host = match url.host_str() {
+            Some(s) => s,
+            None => return HttpConnecting {
+                state: State::Error(Some(io::Error::new(io::ErrorKind::InvalidInput, "invalid url"))),
+                handle: self.handle.clone(),
+            },
         };
-        //TODO: try all addrs
-        let addr = addrs.and_then(|mut addrs| Ok(addrs.next().unwrap()));
-        debug!("Http::resolved <- ({:?}, {:?})", host, addr);
-        if let Entry::Occupied(mut entry) = self.resolving.entry(host) {
-            let resolved = entry.get_mut().remove(0);
-            if entry.get().is_empty() {
-                entry.remove();
-            }
-            let port = resolved.2;
-            Some((resolved, addr.and_then(|addr| TcpStream::connect(&SocketAddr::new(addr, port))
-                                                            .map(HttpStream))
-                ))
-        } else {
-            trace!("^--  resolved but not in hashmap?");
-            None
+        let port = url.port_or_known_default().unwrap_or(80);
+
+        HttpConnecting {
+            state: State::Resolving(self.dns.resolve(host.into(), port)),
+            handle: self.handle.clone(),
         }
     }
 
-    fn register(&mut self, reg: Registration) {
-        self.dns = Some(Dns::new(reg.notify, self.threads));
+}
+
+/// A Future representing work to connect to a URL.
+pub struct HttpConnecting {
+    state: State,
+    handle: Handle,
+}
+
+enum State {
+    Resolving(dns::Query),
+    Connecting(ConnectingTcp),
+    Error(Option<io::Error>),
+}
+
+impl Future for HttpConnecting {
+    type Item = TcpStream;
+    type Error = io::Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        loop {
+            let state;
+            match self.state {
+                State::Resolving(ref mut query) => {
+                    match try!(query.poll()) {
+                        Async::NotReady => return Ok(Async::NotReady),
+                        Async::Ready(addrs) => {
+                            state = State::Connecting(ConnectingTcp {
+                                addrs: addrs,
+                                current: None,
+                            })
+                        }
+                    };
+                },
+                State::Connecting(ref mut c) => return c.poll(&self.handle).map_err(From::from),
+                State::Error(ref mut e) => return Err(e.take().expect("polled more than once")),
+            }
+            self.state = state;
+        }
     }
 }
 
-/// A connector that can protect HTTP streams using SSL.
-#[derive(Debug, Default)]
-pub struct HttpsConnector<S: SslClient> {
-    http: HttpConnector,
-    ssl: S
+impl fmt::Debug for HttpConnecting {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.pad("HttpConnecting")
+    }
 }
 
+struct ConnectingTcp {
+    addrs: dns::IpAddrs,
+    current: Option<TcpStreamNew>,
+}
+
+impl ConnectingTcp {
+    // not a Future, since passing a &Handle to poll
+    fn poll(&mut self, handle: &Handle) -> Poll<TcpStream, io::Error> {
+        let mut err = None;
+        loop {
+            if let Some(ref mut current) = self.current {
+                match current.poll() {
+                    Ok(ok) => return Ok(ok),
+                    Err(e) => {
+                        trace!("connect error {:?}", e);
+                        err = Some(e);
+                        if let Some(addr) = self.addrs.next() {
+                            debug!("connecting to {:?}", addr);
+                            *current = TcpStream::connect(&addr, handle);
+                            continue;
+                        }
+                    }
+                }
+            } else if let Some(addr) = self.addrs.next() {
+                debug!("connecting to {:?}", addr);
+                self.current = Some(TcpStream::connect(&addr, handle));
+                continue;
+            }
+
+            return Err(err.take().expect("missing connect error"));
+        }
+    }
+}
+
+/*
 impl<S: SslClient> HttpsConnector<S> {
     /// Create a new connector using the provided SSL implementation.
     pub fn new(s: S) -> HttpsConnector<S> {
@@ -143,80 +179,22 @@ impl<S: SslClient> HttpsConnector<S> {
         }
     }
 }
+*/
 
-impl<S: SslClient> Connect for HttpsConnector<S> {
-    type Output = HttpsStream<S::Stream>;
-    type Key = (&'static str, String, u16);
+#[cfg(test)]
+mod tests {
+    use std::io;
+    use tokio::reactor::Core;
+    use url::Url;
+    use super::{Connect, HttpConnector};
 
-    fn dns_workers(&mut self, count: usize) {
-        self.http.dns_workers(count)
+    #[test]
+    fn test_non_http_url() {
+        let mut core = Core::new().unwrap();
+        let url = Url::parse("file:///home/sean/foo.txt").unwrap();
+        let connector = HttpConnector::new(1, &core.handle());
+
+        assert_eq!(core.run(connector.connect(url)).unwrap_err().kind(), io::ErrorKind::InvalidInput);
     }
 
-    fn key(&self, url: &Url) -> Option<Self::Key> {
-        let scheme = match url.scheme() {
-            "http" => "http",
-            "https" => "https",
-            _ => return None
-        };
-        Some((
-            scheme,
-            url.host_str().expect("http scheme must have host").to_owned(),
-            url.port_or_known_default().expect("http scheme must have a port"),
-        ))
-    }
-
-    fn connect(&mut self, url: &Url) -> io::Result<Self::Key> {
-        debug!("Https::connect({:?})", url);
-        if let Some(key) = self.key(url) {
-            let host = url.host_str().expect("http scheme must have a host");
-            self.http.dns.as_ref().expect("dns workers lost").resolve(host);
-            self.http.resolving.entry(host.to_owned()).or_insert_with(Vec::new).push(key.clone());
-            Ok(key)
-        } else {
-            Err(io::Error::new(io::ErrorKind::InvalidInput, "scheme must be http or https"))
-        }
-    }
-
-    fn connected(&mut self) -> Option<(Self::Key, io::Result<Self::Output>)> {
-        self.http.connected().map(|(key, res)| {
-            let res = res.and_then(|http| {
-                if key.0 == "https" {
-                    self.ssl.wrap_client(http, &key.1)
-                        .map(HttpsStream::Https)
-                        .map_err(|e| match e {
-                            ::Error::Io(e) => e,
-                            e => io::Error::new(io::ErrorKind::Other, e)
-                        })
-                } else {
-                    Ok(HttpsStream::Http(http))
-                }
-            });
-            (key, res)
-        })
-    }
-
-    fn register(&mut self, reg: Registration) {
-        self.http.register(reg);
-    }
-}
-
-#[cfg(not(any(feature = "openssl", feature = "security-framework")))]
-#[doc(hidden)]
-pub type DefaultConnector = HttpConnector;
-
-#[cfg(all(feature = "openssl", not(feature = "security-framework")))]
-#[doc(hidden)]
-pub type DefaultConnector = HttpsConnector<::net::Openssl>;
-
-#[cfg(feature = "security-framework")]
-#[doc(hidden)]
-pub type DefaultConnector = HttpsConnector<::net::SecureTransportClient>;
-
-#[doc(hidden)]
-pub type DefaultTransport = <DefaultConnector as Connect>::Output;
-
-fn _assert_defaults() {
-    fn _assert<T, U>() where T: Connect<Output=U>, U: Transport {}
-
-    _assert::<DefaultConnector, DefaultTransport>();
 }

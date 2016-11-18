@@ -1,30 +1,28 @@
 #![deny(warnings)]
 extern crate hyper;
+extern crate futures;
+extern crate spmc;
+
+use futures::Future;
+use futures::stream::Stream;
 
 use std::net::{TcpStream, SocketAddr};
-use std::io::{self, Read, Write};
+use std::io::{Read, Write};
 use std::sync::mpsc;
 use std::time::Duration;
 
-use hyper::{Next, Encoder, Decoder};
-use hyper::net::{HttpListener, HttpStream};
-use hyper::server::{Server, Handler, Request, Response};
+use hyper::server::{Server, Request, Response, Service, NewService};
 
 struct Serve {
     listening: Option<hyper::server::Listening>,
     msg_rx: mpsc::Receiver<Msg>,
-    reply_tx: mpsc::Sender<Reply>,
+    reply_tx: spmc::Sender<Reply>,
+    spawn_rx: mpsc::Receiver<()>,
 }
 
 impl Serve {
-    fn addrs(&self) -> &[SocketAddr] {
-        self.listening.as_ref().unwrap().addrs()
-    }
-
     fn addr(&self) -> &SocketAddr {
-        let addrs = self.addrs();
-        assert!(addrs.len() == 1);
-        &addrs[0]
+        self.listening.as_ref().unwrap().addr()
     }
 
     /*
@@ -49,7 +47,7 @@ impl Serve {
 }
 
 struct ReplyBuilder<'a> {
-    tx: &'a mpsc::Sender<Reply>,
+    tx: &'a spmc::Sender<Reply>,
 }
 
 impl<'a> ReplyBuilder<'a> {
@@ -73,16 +71,18 @@ impl<'a> ReplyBuilder<'a> {
 impl Drop for Serve {
     fn drop(&mut self) {
         self.listening.take().unwrap().close();
+        self.spawn_rx.recv().expect("server thread should shutdown cleanly");
     }
 }
 
-struct TestHandler {
+#[derive(Clone)]
+struct TestService {
     tx: mpsc::Sender<Msg>,
-    reply: Vec<Reply>,
-    peeked: Option<Vec<u8>>,
-    timeout: Option<Duration>,
+    reply: spmc::Receiver<Reply>,
+    _timeout: Option<Duration>,
 }
 
+#[derive(Clone, Debug)]
 enum Reply {
     Status(hyper::StatusCode),
     Headers(hyper::Headers),
@@ -94,72 +94,57 @@ enum Msg {
     Chunk(Vec<u8>),
 }
 
-impl TestHandler {
-    fn next(&self, next: Next) -> Next {
-        if let Some(dur) = self.timeout {
-            next.timeout(dur)
-        } else {
-            next
-        }
+impl NewService for TestService {
+    type Request = Request;
+    type Response = Response;
+    type Error = hyper::Error;
+ 
+    type Instance = TestService;
+
+    fn new_service(&self) -> std::io::Result<TestService> {
+        Ok(self.clone())
     }
+
+
 }
 
-impl Handler<HttpStream> for TestHandler {
-    fn on_request(&mut self, _req: Request<HttpStream>) -> Next {
-        //self.tx.send(Msg::Head(req)).unwrap();
-        self.next(Next::read())
+impl Service for TestService {
+    type Request = Request;
+    type Response = Response;
+    type Error = hyper::Error;
+    type Future = Box<Future<Item=Response, Error=hyper::Error>>;
+    fn call(&self, req: Request) -> Self::Future {
+        let tx = self.tx.clone();
+        let replies = self.reply.clone();
+        req.body().for_each(move |chunk| {
+            tx.send(Msg::Chunk(chunk.to_vec())).unwrap();
+            Ok(())
+        }).map(move |_| {
+            let mut res = Response::new();
+            while let Ok(reply) = replies.try_recv() {
+                match reply {
+                    Reply::Status(s) => {
+                        res.set_status(s);
+                    },
+                    Reply::Headers(headers) => {
+                        *res.headers_mut() = headers;
+                    },
+                    Reply::Body(body) => {
+                        res.set_body(body);
+                    },
+                }
+            }
+            res
+        }).boxed()
     }
 
-    fn on_request_readable(&mut self, decoder: &mut Decoder<HttpStream>) -> Next {
-        let mut vec = vec![0; 1024];
-        match decoder.read(&mut vec) {
-            Ok(0) => {
-                self.next(Next::write())
-            }
-            Ok(n) => {
-                vec.truncate(n);
-                self.tx.send(Msg::Chunk(vec)).unwrap();
-                self.next(Next::read())
-            }
-            Err(e) => match e.kind() {
-                io::ErrorKind::WouldBlock => self.next(Next::read()),
-                _ => panic!("test error: {}", e)
-            }
-        }
-    }
+}
 
-    fn on_response(&mut self, res: &mut Response) -> Next {
-        for reply in self.reply.drain(..) {
-            match reply {
-                Reply::Status(s) => {
-                    res.set_status(s);
-                },
-                Reply::Headers(headers) => {
-                    use std::iter::Extend;
-                    res.headers_mut().extend(headers.iter());
-                },
-                Reply::Body(body) => {
-                    self.peeked = Some(body);
-                },
-            }
-        }
-
-        if self.peeked.is_some() {
-            self.next(Next::write())
-        } else {
-            self.next(Next::end())
-        }
-    }
-
-    fn on_response_writable(&mut self, encoder: &mut Encoder<HttpStream>) -> Next {
-        match self.peeked {
-            Some(ref body) => {
-                encoder.write(body).unwrap();
-                self.next(Next::end())
-            },
-            None => self.next(Next::end())
-        }
-    }
+fn connect(addr: &SocketAddr) -> TcpStream {
+    let req = TcpStream::connect(addr).unwrap();
+    req.set_read_timeout(Some(Duration::from_secs(1))).unwrap();
+    req.set_write_timeout(Some(Duration::from_secs(1))).unwrap();
+    req
 }
 
 fn serve() -> Serve {
@@ -167,45 +152,37 @@ fn serve() -> Serve {
 }
 
 fn serve_with_timeout(dur: Option<Duration>) -> Serve {
-    serve_n_with_timeout(1, dur)
-}
-
-fn serve_n(n: u32) -> Serve {
-    serve_n_with_timeout(n, None)
-}
-
-fn serve_n_with_timeout(n: u32, dur: Option<Duration>) -> Serve {
     use std::thread;
 
+    let (thread_tx, thread_rx) = mpsc::channel();
+    let (spawn_tx, spawn_rx) = mpsc::channel();
     let (msg_tx, msg_rx) = mpsc::channel();
-    let (reply_tx, reply_rx) = mpsc::channel();
+    let (reply_tx, reply_rx) = spmc::channel();
 
     let addr = "127.0.0.1:0".parse().unwrap();
-    let listeners = (0..n).map(|_| HttpListener::bind(&addr).unwrap());
-    let (listening, server) = Server::new(listeners)
-        .handle(move |_| {
-            let mut replies = Vec::new();
-            while let Ok(reply) = reply_rx.try_recv() {
-                replies.push(reply);
-            }
-            TestHandler {
-                tx: msg_tx.clone(),
-                timeout: dur,
-                reply: replies,
-                peeked: None,
-            }
-        }).unwrap();
 
-
-    let thread_name = format!("test-server-{}: {:?}", listening, dur);
+    let thread_name = format!("test-server-{:?}", dur);
     thread::Builder::new().name(thread_name).spawn(move || {
+        let (listening, server) = Server::standalone(move |tokio| {
+            Server::http(&addr, tokio).unwrap()
+                .handle(TestService {
+                    tx: msg_tx.clone(),
+                    _timeout: dur,
+                    reply: reply_rx,
+                }, tokio)
+        }).unwrap();
+        thread_tx.send(listening).unwrap();
         server.run();
+        spawn_tx.send(()).unwrap();
     }).unwrap();
+
+    let listening = thread_rx.recv().unwrap();
 
     Serve {
         listening: Some(listening),
         msg_rx: msg_rx,
         reply_tx: reply_tx,
+        spawn_rx: spawn_rx,
     }
 }
 
@@ -213,10 +190,12 @@ fn serve_n_with_timeout(n: u32, dur: Option<Duration>) -> Serve {
 fn server_get_should_ignore_body() {
     let server = serve();
 
-    let mut req = TcpStream::connect(server.addr()).unwrap();
+    let mut req = connect(server.addr());
+    // Connection: close = don't try to parse the body as a new request
     req.write_all(b"\
         GET / HTTP/1.1\r\n\
         Host: example.domain\r\n\
+        Connection: close\r\n
         \r\n\
         I shouldn't be read.\r\n\
     ").unwrap();
@@ -228,7 +207,7 @@ fn server_get_should_ignore_body() {
 #[test]
 fn server_get_with_body() {
     let server = serve();
-    let mut req = TcpStream::connect(server.addr()).unwrap();
+    let mut req = connect(server.addr());
     req.write_all(b"\
         GET / HTTP/1.1\r\n\
         Host: example.domain\r\n\
@@ -244,17 +223,18 @@ fn server_get_with_body() {
 
 #[test]
 fn server_get_fixed_response() {
+
     let foo_bar = b"foo bar baz";
     let server = serve();
     server.reply()
         .status(hyper::Ok)
         .header(hyper::header::ContentLength(foo_bar.len() as u64))
         .body(foo_bar);
-    let mut req = TcpStream::connect(server.addr()).unwrap();
+    let mut req = connect(server.addr());
     req.write_all(b"\
         GET / HTTP/1.1\r\n\
         Host: example.domain\r\n\
-        Connection: close\r\n
+        Connection: close\r\n\
         \r\n\
     ").unwrap();
     let mut body = String::new();
@@ -272,7 +252,7 @@ fn server_get_chunked_response() {
         .status(hyper::Ok)
         .header(hyper::header::TransferEncoding::chunked())
         .body(foo_bar);
-    let mut req = TcpStream::connect(server.addr()).unwrap();
+    let mut req = connect(server.addr());
     req.write_all(b"\
         GET / HTTP/1.1\r\n\
         Host: example.domain\r\n\
@@ -287,9 +267,66 @@ fn server_get_chunked_response() {
 }
 
 #[test]
+fn server_get_chunked_response_with_ka() {
+    let foo_bar = b"foo bar baz";
+    let foo_bar_chunk = b"\r\nfoo bar baz\r\n0\r\n\r\n";
+    let server = serve();
+    server.reply()
+        .status(hyper::Ok)
+        .header(hyper::header::TransferEncoding::chunked())
+        .body(foo_bar);
+    let mut req = connect(server.addr());
+    req.write_all(b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: keep-alive\r\n\
+        \r\n\
+    ").expect("writing 1");
+
+    let mut buf = [0; 1024 * 4];
+    let mut ntotal = 0;
+    loop {
+        let n = req.read(&mut buf[ntotal..]).expect("reading 1");
+        ntotal = ntotal + n;
+        assert!(ntotal < buf.len());
+        if &buf[ntotal - foo_bar_chunk.len()..ntotal] == foo_bar_chunk {
+            break;
+        }
+    }
+
+
+    // try again!
+
+    let quux = b"zar quux";
+    server.reply()
+        .status(hyper::Ok)
+        .header(hyper::header::ContentLength(quux.len() as u64))
+        .body(quux);
+    req.write_all(b"\
+        GET /quux HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: close\r\n\
+        \r\n\
+    ").expect("writing 2");
+
+    let mut buf = [0; 1024 * 8];
+    loop {
+        let n = req.read(&mut buf[..]).expect("reading 2");
+        assert!(n > 0, "n = {}", n);
+        if n < buf.len() && n > 0  {
+            if &buf[n - quux.len()..n] == quux {
+                break;
+            }
+        }
+    }
+}
+
+
+
+#[test]
 fn server_post_with_chunked_body() {
     let server = serve();
-    let mut req = TcpStream::connect(server.addr()).unwrap();
+    let mut req = connect(server.addr());
     req.write_all(b"\
         POST / HTTP/1.1\r\n\
         Host: example.domain\r\n\
@@ -302,55 +339,30 @@ fn server_post_with_chunked_body() {
         2\r\n\
         rt\r\n\
         0\r\n\
-        \r\n
+        \r\n\
     ").unwrap();
     req.read(&mut [0; 256]).unwrap();
 
     assert_eq!(server.body(), b"qwert");
 }
 
-/*
-#[test]
-fn server_empty_response() {
-    let server = serve();
-    server.reply()
-        .status(hyper::Ok);
-    let mut req = TcpStream::connect(server.addr()).unwrap();
-    req.write_all(b"\
-        GET / HTTP/1.1\r\n\
-        Host: example.domain\r\n\
-        Connection: close\r\n
-        \r\n\
-    ").unwrap();
-
-    let mut response = String::new();
-    req.read_to_string(&mut response).unwrap();
-
-    assert_eq!(response, "foo");
-    assert!(!response.contains("Transfer-Encoding: chunked\r\n"));
-
-    let mut lines = response.lines();
-    assert_eq!(lines.next(), Some("HTTP/1.1 200 OK"));
-
-    let mut lines = lines.skip_while(|line| !line.is_empty());
-    assert_eq!(lines.next(), Some(""));
-    assert_eq!(lines.next(), None);
-}
-*/
-
 #[test]
 fn server_empty_response_chunked() {
     let server = serve();
+
     server.reply()
         .status(hyper::Ok)
         .body("");
-    let mut req = TcpStream::connect(server.addr()).unwrap();
+
+    let mut req = connect(server.addr());
     req.write_all(b"\
         GET / HTTP/1.1\r\n\
         Host: example.domain\r\n\
+        Content-Length: 0\r\n
         Connection: close\r\n
         \r\n\
     ").unwrap();
+
 
     let mut response = String::new();
     req.read_to_string(&mut response).unwrap();
@@ -369,49 +381,44 @@ fn server_empty_response_chunked() {
 }
 
 #[test]
-fn server_empty_response_chunked_without_calling_write() {
+fn server_empty_response_chunked_without_body_should_set_content_length() {
+    extern crate pretty_env_logger;
+    let _ = pretty_env_logger::init();
     let server = serve();
     server.reply()
         .status(hyper::Ok)
         .header(hyper::header::TransferEncoding::chunked());
-    let mut req = TcpStream::connect(server.addr()).unwrap();
+    let mut req = connect(server.addr());
     req.write_all(b"\
         GET / HTTP/1.1\r\n\
         Host: example.domain\r\n\
-        Connection: close\r\n
+        Connection: close\r\n\
         \r\n\
     ").unwrap();
 
     let mut response = String::new();
     req.read_to_string(&mut response).unwrap();
 
-    assert!(response.contains("Transfer-Encoding: chunked\r\n"));
+    assert!(!response.contains("Transfer-Encoding: chunked\r\n"));
+    assert!(response.contains("Content-Length: 0\r\n"));
 
     let mut lines = response.lines();
     assert_eq!(lines.next(), Some("HTTP/1.1 200 OK"));
 
     let mut lines = lines.skip_while(|line| !line.is_empty());
-    assert_eq!(lines.next(), Some(""));
-    // 0\r\n\r\n
-    assert_eq!(lines.next(), Some("0"));
     assert_eq!(lines.next(), Some(""));
     assert_eq!(lines.next(), None);
 }
 
 #[test]
 fn server_keep_alive() {
-    extern crate env_logger;
-    env_logger::init().unwrap();
-
     let foo_bar = b"foo bar baz";
     let server = serve();
     server.reply()
         .status(hyper::Ok)
         .header(hyper::header::ContentLength(foo_bar.len() as u64))
         .body(foo_bar);
-    let mut req = TcpStream::connect(server.addr()).unwrap();
-    req.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
-    req.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+    let mut req = connect(server.addr());
     req.write_all(b"\
         GET / HTTP/1.1\r\n\
         Host: example.domain\r\n\
@@ -426,7 +433,6 @@ fn server_keep_alive() {
             if &buf[n - foo_bar.len()..n] == foo_bar {
                 break;
             } else {
-                println!("{:?}", ::std::str::from_utf8(&buf[..n]));
             }
         }
     }
@@ -457,6 +463,7 @@ fn server_keep_alive() {
     }
 }
 
+/*
 #[test]
 fn server_get_with_body_three_listeners() {
     let server = serve_n(3);
@@ -479,3 +486,4 @@ fn server_get_with_body_three_listeners() {
         assert_eq!(server.body(), comparison);
     }
 }
+*/

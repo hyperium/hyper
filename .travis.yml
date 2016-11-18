@@ -2,15 +2,10 @@ language: rust
 matrix:
     fast_finish: true
     include:
-        - os: osx
-          rust: stable
-          env: FEATURES="--no-default-features --features security-framework"
         - rust: nightly
           env: FEATURES="--features nightly"
         - rust: beta
         - rust: stable
-        - rust: stable
-          env: FEATURES="--no-default-features"
 
 cache:
     apt: true

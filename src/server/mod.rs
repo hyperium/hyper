@@ -1,65 +1,55 @@
 //! HTTP Server
 //!
 //! A `Server` is created to listen on a port, parse HTTP requests, and hand
-//! them off to a `Handler`.
+//! them off to a `Service`.
 use std::fmt;
-use std::net::SocketAddr;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
+use std::io;
+use std::net::{SocketAddr, TcpListener as StdTcpListener};
 
-use rotor::mio::{EventSet, PollOpt};
-use rotor::{self, Scope};
+use futures::{Future, Map};
+use futures::stream::{Stream};
+use futures::sync::oneshot;
 
+use tokio::io::Io;
+use tokio::net::TcpListener;
+use tokio::reactor::{Core, Handle};
+use tokio_proto::BindServer;
+use tokio_proto::streaming::Message;
+use tokio_proto::streaming::pipeline::ServerProto;
+pub use tokio_service::{NewService, Service};
+
+pub use self::accept::Accept;
 pub use self::request::Request;
 pub use self::response::Response;
 
-use http::{self, Next, ReadyResult};
-
-pub use net::{Accept, HttpListener, HttpsListener};
-use net::{SslServer, Transport};
-
+use http;
 
 mod request;
 mod response;
-mod message;
 
-/// A configured `Server` ready to run.
-pub struct ServerLoop<A, H> where A: Accept, H: HandlerFactory<A::Output> {
-    inner: Option<(rotor::Loop<ServerFsm<A, H>>, Context<H>)>,
-}
-
-impl<A: Accept, H: HandlerFactory<A::Output>> fmt::Debug for ServerLoop<A, H> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.pad("ServerLoop")
-    }
-}
+type HttpIncoming = ::tokio::net::Incoming;
 
 /// A Server that can accept incoming network requests.
 #[derive(Debug)]
 pub struct Server<A> {
-    lead_listener: A,
-    other_listeners: Vec<A>,
+    accepter: A,
+    addr: SocketAddr,
     keep_alive: bool,
-    idle_timeout: Option<Duration>,
-    max_sockets: usize,
+    //idle_timeout: Option<Duration>,
+    //max_sockets: usize,
 }
 
 impl<A: Accept> Server<A> {
-    /// Creates a new Server from one or more Listeners.
+    /// Creates a new Server from a Stream of Ios.
     ///
-    /// Panics if listeners is an empty iterator.
-    pub fn new<I: IntoIterator<Item = A>>(listeners: I) -> Server<A> {
-        let mut listeners = listeners.into_iter();
-        let lead_listener = listeners.next().expect("Server::new requires at least 1 listener");
-        let other_listeners = listeners.collect::<Vec<_>>();
-
+    /// The addr is the socket address the accepter is listening on.
+    pub fn new(accepter: A, addr: SocketAddr) -> Server<A> {
         Server {
-            lead_listener: lead_listener,
-            other_listeners: other_listeners,
+            accepter: accepter,
+            addr: addr,
             keep_alive: true,
-            idle_timeout: Some(Duration::from_secs(10)),
-            max_sockets: 4096,
+            //idle_timeout: Some(Duration::from_secs(75)),
+            //max_sockets: 4096,
         }
     }
 
@@ -71,14 +61,17 @@ impl<A: Accept> Server<A> {
         self
     }
 
+    /*
     /// Sets how long an idle connection will be kept before closing.
     ///
-    /// Default is 10 seconds.
+    /// Default is 75 seconds.
     pub fn idle_timeout(mut self, val: Option<Duration>) -> Server<A> {
         self.idle_timeout = val;
         self
     }
+    */
 
+    /*
     /// Sets the maximum open sockets for this Server.
     ///
     /// Default is 4096, but most servers can handle much more than this.
@@ -86,20 +79,21 @@ impl<A: Accept> Server<A> {
         self.max_sockets = val;
         self
     }
+    */
 }
 
-impl Server<HttpListener> { //<H: HandlerFactory<<HttpListener as Accept>::Output>> Server<HttpListener, H> {
+impl Server<HttpIncoming> {
     /// Creates a new HTTP server config listening on the provided address.
-    pub fn http(addr: &SocketAddr) -> ::Result<Server<HttpListener>> {
-        use ::rotor::mio::tcp::TcpListener;
-        TcpListener::bind(addr)
-            .map(HttpListener)
-            .map(Server::new)
-            .map_err(From::from)
+    pub fn http(addr: &SocketAddr, handle: &Handle) -> ::Result<Server<HttpIncoming>> {
+        let listener = try!(StdTcpListener::bind(addr));
+        let addr = try!(listener.local_addr());
+        let listener = try!(TcpListener::from_listener(listener, &addr, handle));
+        Ok(Server::new(listener.incoming(), addr))
     }
 }
 
 
+/*
 impl<S: SslServer> Server<HttpsListener<S>> {
     /// Creates a new server config that will handle `HttpStream`s over SSL.
     ///
@@ -110,304 +104,227 @@ impl<S: SslServer> Server<HttpsListener<S>> {
             .map_err(From::from)
     }
 }
+*/
 
 
 impl<A: Accept> Server<A> {
     /// Binds to a socket and starts handling connections.
-    pub fn handle<H>(self, factory: H) -> ::Result<(Listening, ServerLoop<A, H>)>
-    where H: HandlerFactory<A::Output> {
-        let shutdown = Arc::new(AtomicBool::new(false));
-        
-        let mut config = rotor::Config::new();
-        config.slab_capacity(self.max_sockets);
-        config.mio().notify_capacity(self.max_sockets);
-        let keep_alive = self.keep_alive;
-        let idle_timeout = self.idle_timeout;
-        let mut loop_ = rotor::Loop::new(&config).unwrap();
-
-        let mut addrs = Vec::with_capacity(1 + self.other_listeners.len());
-
-        // Add the lead listener. This one handles shutdown messages.
-        let mut notifier = None;
-        {
-            let notifier = &mut notifier;
-            let listener = self.lead_listener;
-            addrs.push(try!(listener.local_addr()));
-            let shutdown_rx = shutdown.clone();
-            loop_.add_machine_with(move |scope| {
-                *notifier = Some(scope.notifier());
-                rotor_try!(scope.register(&listener, EventSet::readable(), PollOpt::level()));
-                rotor::Response::ok(ServerFsm::Listener(listener, shutdown_rx))
-            }).unwrap();
-        }
-        let notifier = notifier.expect("loop.add_machine failed");
-
-        // Add the other listeners.
-        for listener in self.other_listeners {
-            addrs.push(try!(listener.local_addr()));
-            let shutdown_rx = shutdown.clone();
-            loop_.add_machine_with(move |scope| {
-                rotor_try!(scope.register(&listener, EventSet::readable(), PollOpt::level()));
-                rotor::Response::ok(ServerFsm::Listener(listener, shutdown_rx))
-            }).unwrap();
-        }
-
-        let listening = Listening {
-            addrs: addrs,
-            shutdown: (shutdown, notifier),
+    pub fn handle<H>(self, factory: H, handle: &Handle) -> ::Result<SocketAddr>
+    where H: NewService<Request=Request, Response=Response, Error=::Error> + 'static {
+        let binder = HttpServer {
+            keep_alive: self.keep_alive,
         };
-        let server = ServerLoop {
-            inner: Some((loop_, Context {
-                factory: factory,
-                idle_timeout: idle_timeout,
-                keep_alive: keep_alive,
-            }))
-        };
-        Ok((listening, server))
+        let inner_handle = handle.clone();
+        handle.spawn(self.accepter.accept().for_each(move |(socket, remote_addr)| {
+            let service = HttpService {
+                inner: try!(factory.new_service()),
+                remote_addr: remote_addr,
+            };
+            binder.bind_server(&inner_handle, socket, service);
+            Ok(())
+        }).map_err(|e| {
+            error!("listener io error: {:?}", e);
+            ()
+        }));
+
+        Ok(self.addr)
     }
 }
 
+impl Server<()> {
+    /// Create a server that owns its event loop.
+    ///
+    /// The returned `ServerLoop` can be used to run the loop forever in the
+    /// thread. The returned `Listening` can be sent to another thread, and
+    /// used to shutdown the `ServerLoop`.
+    pub fn standalone<F>(closure: F) -> ::Result<(Listening, ServerLoop)>
+    where F: FnOnce(&Handle) -> ::Result<SocketAddr> {
+        let core = try!(Core::new());
+        let handle = core.handle();
+        let addr = try!(closure(&handle));
+        let (shutdown_tx, shutdown_rx) = oneshot::channel();
+        Ok((
+            Listening {
+                addr: addr,
+                shutdown: shutdown_tx,
+            },
+             ServerLoop {
+                inner: Some((core, shutdown_rx)),
+            }
+        ))
 
-impl<A: Accept, H: HandlerFactory<A::Output>> ServerLoop<A, H> {
+    }
+}
+
+/// A configured `Server` ready to run.
+pub struct ServerLoop {
+    inner: Option<(Core, oneshot::Receiver<()>)>,
+}
+
+impl fmt::Debug for ServerLoop {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.pad("ServerLoop")
+    }
+}
+
+impl ServerLoop {
     /// Runs the server forever in this loop.
     ///
     /// This will block the current thread.
     pub fn run(self) {
         // drop will take care of it.
+        trace!("ServerLoop::run()");
     }
 }
 
-impl<A: Accept, H: HandlerFactory<A::Output>> Drop for ServerLoop<A, H> {
+impl Drop for ServerLoop {
     fn drop(&mut self) {
-        self.inner.take().map(|(loop_, ctx)| {
-            let _ = loop_.run(ctx);
+        self.inner.take().map(|(mut loop_, shutdown)| {
+            debug!("ServerLoop::drop running");
+            let _ = loop_.run(shutdown.or_else(|_dropped| ::futures::future::empty::<(), oneshot::Canceled>()));
+            debug!("Server closed");
         });
-    }
-}
-
-struct Context<F> {
-    factory: F,
-    idle_timeout: Option<Duration>,
-    keep_alive: bool,
-}
-
-impl<F: HandlerFactory<T>, T: Transport> http::MessageHandlerFactory<(), T> for Context<F> {
-    type Output = message::Message<F::Output, T>;
-
-    fn create(&mut self, seed: http::Seed<()>) -> Option<Self::Output> {
-        Some(message::Message::new(self.factory.create(seed.control())))
-    }
-
-    fn keep_alive_interest(&self) -> Next {
-        if let Some(dur) = self.idle_timeout {
-            Next::read().timeout(dur)
-        } else {
-            Next::read()
-        }
-    }
-}
-
-enum ServerFsm<A, H>
-where A: Accept,
-      A::Output: Transport,
-      H: HandlerFactory<A::Output> {
-    Listener(A, Arc<AtomicBool>),
-    Conn(http::Conn<(), A::Output, message::Message<H::Output, A::Output>>)
-}
-
-impl<A, H> rotor::Machine for ServerFsm<A, H>
-where A: Accept,
-      A::Output: Transport,
-      H: HandlerFactory<A::Output> {
-    type Context = Context<H>;
-    type Seed = A::Output;
-
-    fn create(seed: Self::Seed, scope: &mut Scope<Self::Context>) -> rotor::Response<Self, rotor::Void> {
-        rotor_try!(scope.register(&seed, EventSet::readable(), PollOpt::level()));
-        rotor::Response::ok(
-            ServerFsm::Conn(
-                http::Conn::new((), seed, Next::read(), scope.notifier(), scope.now())
-                    .keep_alive(scope.keep_alive)
-            )
-        )
-    }
-
-    fn ready(self, events: EventSet, scope: &mut Scope<Self::Context>) -> rotor::Response<Self, Self::Seed> {
-        match self {
-            ServerFsm::Listener(listener, rx) => {
-                match listener.accept() {
-                    Ok(Some(conn)) => {
-                        rotor::Response::spawn(ServerFsm::Listener(listener, rx), conn)
-                    },
-                    Ok(None) => rotor::Response::ok(ServerFsm::Listener(listener, rx)),
-                    Err(e) => {
-                        error!("listener accept error {}", e);
-                        // usually fine, just keep listening
-                        rotor::Response::ok(ServerFsm::Listener(listener, rx))
-                    }
-                }
-            },
-            ServerFsm::Conn(conn) => {
-                let mut conn = Some(conn);
-                loop {
-                    match conn.take().unwrap().ready(events, scope) {
-                        ReadyResult::Continue(c) => conn = Some(c),
-                        ReadyResult::Done(res) => {
-                            return match res {
-                                Some((conn, None)) => rotor::Response::ok(ServerFsm::Conn(conn)),
-                                Some((conn, Some(dur))) => {
-                                    rotor::Response::ok(ServerFsm::Conn(conn))
-                                        .deadline(scope.now() + dur)
-                                }
-                                None => rotor::Response::done()
-                            };
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    fn spawned(self, _scope: &mut Scope<Self::Context>) -> rotor::Response<Self, Self::Seed> {
-        match self {
-            ServerFsm::Listener(listener, rx) => {
-                match listener.accept() {
-                    Ok(Some(conn)) => {
-                        rotor::Response::spawn(ServerFsm::Listener(listener, rx), conn)
-                    },
-                    Ok(None) => rotor::Response::ok(ServerFsm::Listener(listener, rx)),
-                    Err(e) => {
-                        error!("listener accept error {}", e);
-                        // usually fine, just keep listening
-                        rotor::Response::ok(ServerFsm::Listener(listener, rx))
-                    }
-                }
-            },
-            sock => rotor::Response::ok(sock)
-        }
-
-    }
-
-    fn timeout(self, scope: &mut Scope<Self::Context>) -> rotor::Response<Self, Self::Seed> {
-        match self {
-            ServerFsm::Listener(..) => unreachable!("Listener cannot timeout"),
-            ServerFsm::Conn(conn) => {
-                match conn.timeout(scope) {
-                    Some((conn, None)) => rotor::Response::ok(ServerFsm::Conn(conn)),
-                    Some((conn, Some(dur))) => {
-                        rotor::Response::ok(ServerFsm::Conn(conn))
-                            .deadline(scope.now() + dur)
-                    }
-                    None => rotor::Response::done()
-                }
-            }
-        }
-    }
-
-    fn wakeup(self, scope: &mut Scope<Self::Context>) -> rotor::Response<Self, Self::Seed> {
-        match self {
-            ServerFsm::Listener(lst, shutdown) => {
-                if shutdown.load(Ordering::Acquire) {
-                    let _ = scope.deregister(&lst);
-                    scope.shutdown_loop();
-                    rotor::Response::done()
-                } else {
-                    rotor::Response::ok(ServerFsm::Listener(lst, shutdown))
-                }
-            },
-            ServerFsm::Conn(conn) => match conn.wakeup(scope) {
-                Some((conn, None)) => rotor::Response::ok(ServerFsm::Conn(conn)),
-                Some((conn, Some(dur))) => {
-                    rotor::Response::ok(ServerFsm::Conn(conn))
-                        .deadline(scope.now() + dur)
-                }
-                None => rotor::Response::done()
-            }
-        }
     }
 }
 
 /// A handle of the running server.
 pub struct Listening {
-    addrs: Vec<SocketAddr>,
-    shutdown: (Arc<AtomicBool>, rotor::Notifier),
+    addr: SocketAddr,
+    shutdown: ::futures::sync::oneshot::Sender<()>,
 }
 
 impl fmt::Debug for Listening {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Listening")
-            .field("addrs", &self.addrs)
-            .field("closed", &self.shutdown.0.load(Ordering::Relaxed))
+            .field("addr", &self.addr)
             .finish()
     }
 }
 
 impl fmt::Display for Listening {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for (i, addr) in self.addrs().iter().enumerate() {
-            if i > 1 {
-                try!(f.write_str(", "));
-            }
-            try!(fmt::Display::fmt(addr, f));
-        }
-        Ok(())
+        fmt::Display::fmt(&self.addr, f)
     }
 }
 
 impl Listening {
     /// The addresses this server is listening on.
-    pub fn addrs(&self) -> &[SocketAddr] {
-        &self.addrs
+    pub fn addr(&self) -> &SocketAddr {
+        &self.addr
     }
 
     /// Stop the server from listening to its socket address.
     pub fn close(self) {
         debug!("closing server {}", self);
-        self.shutdown.0.store(true, Ordering::Release);
-        self.shutdown.1.wakeup().unwrap();
+        self.shutdown.complete(());
     }
 }
 
-/// A trait to react to server events that happen for each message.
-///
-/// Each event handler returns its desired `Next` action.
-pub trait Handler<T: Transport> {
-    /// This event occurs first, triggering when a `Request` has been parsed.
-    fn on_request(&mut self, request: Request<T>) -> Next;
-    /// This event occurs each time the `Request` is ready to be read from.
-    fn on_request_readable(&mut self, request: &mut http::Decoder<T>) -> Next;
-    /// This event occurs after the first time this handled signals `Next::write()`.
-    fn on_response(&mut self, response: &mut Response) -> Next;
-    /// This event occurs each time the `Response` is ready to be written to.
-    fn on_response_writable(&mut self, response: &mut http::Encoder<T>) -> Next;
+struct HttpServer {
+    keep_alive: bool,
+}
 
-    /// This event occurs whenever an `Error` occurs outside of the other events.
+impl<T: Io + 'static> ServerProto<T> for HttpServer {
+    type Request = http::RequestHead;
+    type RequestBody = http::Chunk;
+    type Response = ResponseHead;
+    type ResponseBody = http::Chunk;
+    type Error = ::Error;
+    type Transport = http::Conn<T, http::ServerTransaction>;
+    type BindTransport = io::Result<http::Conn<T, http::ServerTransaction>>;
+
+    fn bind_transport(&self, io: T) -> Self::BindTransport {
+        let ka = if self.keep_alive {
+            http::KA::Busy
+        } else {
+            http::KA::Disabled
+        };
+        Ok(http::Conn::new(io, ka))
+    }
+}
+
+struct HttpService<T> {
+    inner: T,
+    remote_addr: SocketAddr,
+}
+
+fn map_response_to_message(res: Response) -> Message<ResponseHead, http::TokioBody> {
+    let (head, body) = response::split(res);
+    if let Some(body) = body {
+        Message::WithBody(head, body.into())
+    } else {
+        Message::WithoutBody(head)
+    }
+}
+
+type ResponseHead = http::MessageHead<::StatusCode>;
+
+impl<T> Service for HttpService<T>
+    where T: Service<Request=Request, Response=Response, Error=::Error>,
+{
+    type Request = Message<http::RequestHead, http::TokioBody>;
+    type Response = Message<ResponseHead, http::TokioBody>;
+    type Error = ::Error;
+    type Future = Map<T::Future, fn(Response) -> Message<ResponseHead, http::TokioBody>>;
+
+    fn call(&self, message: Self::Request) -> Self::Future {
+        let (head, body) = match message {
+            Message::WithoutBody(head) => (head, http::Body::empty()),
+            Message::WithBody(head, body) => (head, body.into()),
+        };
+        let req = request::new(self.remote_addr, head, body);
+        self.inner.call(req).map(map_response_to_message)
+    }
+}
+
+//private so the `Acceptor` type can stay internal
+mod accept {
+    use std::io;
+    use std::net::SocketAddr;
+    use futures::{Stream, Poll};
+    use tokio::io::Io;
+
+    /// An Acceptor is an incoming Stream of Io.
     ///
-    /// This could IO errors while waiting for events, or a timeout, etc.
-    fn on_error(&mut self, err: ::Error) -> Next where Self: Sized {
-        debug!("default Handler.on_error({:?})", err);
-        http::Next::remove()
+    /// This trait is not implemented directly, and only exists to make the
+    /// intent clearer. A `Stream<Item=(Io, SocketAddr), Error=io::Error>`
+    /// should be implemented instead.
+    pub trait Accept: Stream<Error=io::Error> {
+        #[doc(hidden)]
+        type Output: Io + 'static;
+        #[doc(hidden)]
+        type Stream: Stream<Item=(Self::Output, SocketAddr), Error=io::Error> + 'static;
+
+        #[doc(hidden)]
+        fn accept(self) -> Accepter<Self::Stream, Self::Output>
+            where Self: Sized;
     }
 
-    /// This event occurs when this Handler has requested to remove the Transport.
-    fn on_remove(self, _transport: T) where Self: Sized {
-        debug!("default Handler.on_remove");
+    #[allow(missing_debug_implementations)]
+    pub struct Accepter<T: Stream<Item=(I, SocketAddr), Error=io::Error> + 'static, I: Io + 'static>(T, ::std::marker::PhantomData<I>);
+
+    impl<T, I> Stream for Accepter<T, I>
+    where T: Stream<Item=(I, SocketAddr), Error=io::Error>,
+          I: Io + 'static,
+    {
+        type Item = T::Item;
+        type Error = io::Error;
+
+        #[inline]
+        fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+            self.0.poll()
+        }
     }
-}
 
+    impl<T, I> Accept for T
+    where T: Stream<Item=(I, SocketAddr), Error=io::Error> + 'static,
+          I: Io + 'static,
+    {
+        type Output = I;
+        type Stream = T;
 
-/// Used to create a `Handler` when a new message is received by the server.
-pub trait HandlerFactory<T: Transport> {
-    /// The `Handler` to use for the incoming message.
-    type Output: Handler<T>;
-    /// Creates the associated `Handler`.
-    fn create(&mut self, ctrl: http::Control) -> Self::Output;
-}
-
-impl<F, H, T> HandlerFactory<T> for F
-where F: FnMut(http::Control) -> H, H: Handler<T>, T: Transport {
-    type Output = H;
-    fn create(&mut self, ctrl: http::Control) -> H {
-        self(ctrl)
+        fn accept(self) -> Accepter<Self, I> {
+            Accepter(self, ::std::marker::PhantomData)
+        }
     }
 }

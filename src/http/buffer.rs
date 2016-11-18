@@ -1,16 +1,16 @@
 use std::cmp;
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 use std::ptr;
 
 
 const INIT_BUFFER_SIZE: usize = 4096;
-const MAX_BUFFER_SIZE: usize = 8192 + 4096 * 100;
+pub const MAX_BUFFER_SIZE: usize = 8192 + 4096 * 100;
 
 #[derive(Debug, Default)]
 pub struct Buffer {
     vec: Vec<u8>,
-    read_pos: usize,
-    write_pos: usize,
+    tail: usize,
+    head: usize,
 }
 
 impl Buffer {
@@ -24,7 +24,17 @@ impl Buffer {
 
     #[inline]
     pub fn len(&self) -> usize {
-        self.read_pos - self.write_pos
+        self.tail - self.head
+    }
+
+    #[inline]
+    fn available(&self) -> usize {
+        self.vec.len() - self.tail
+    }
+
+    #[inline]
+    pub fn is_max_size(&self) -> bool {
+        self.len() >= MAX_BUFFER_SIZE
     }
 
     #[inline]
@@ -34,45 +44,88 @@ impl Buffer {
 
     #[inline]
     pub fn bytes(&self) -> &[u8] {
-        &self.vec[self.write_pos..self.read_pos]
+        &self.vec[self.head..self.tail]
     }
 
     #[inline]
     pub fn consume(&mut self, pos: usize) {
-        debug_assert!(self.read_pos >= self.write_pos + pos);
-        self.write_pos += pos;
-        if self.write_pos == self.read_pos {
-            self.write_pos = 0;
-            self.read_pos = 0;
+        debug_assert!(self.tail >= self.head + pos);
+        self.head += pos;
+        if self.head == self.tail {
+            self.head = 0;
+            self.tail = 0;
+        }
+    }
+
+    pub fn consume_leading_lines(&mut self) {
+        while !self.is_empty() {
+            match self.vec[self.head] {
+                b'\r' | b'\n' => {
+                    self.consume(1);
+                },
+                _ => return
+            }
         }
     }
 
     pub fn read_from<R: Read>(&mut self, r: &mut R) -> io::Result<usize> {
-        self.maybe_reserve();
-        let n = try!(r.read(&mut self.vec[self.read_pos..]));
-        self.read_pos += n;
+        self.maybe_reserve(1);
+        let n = try!(r.read(&mut self.vec[self.tail..]));
+        self.tail += n;
+        self.maybe_reset();
         Ok(n)
     }
 
+    pub fn write_into<W: Write>(&mut self, w: &mut W) -> io::Result<usize> {
+        if self.is_empty() {
+            Ok(0)
+        } else {
+            let n = try!(w.write(&mut self.vec[self.head..self.tail]));
+            self.head += n;
+            self.maybe_reset();
+            Ok(n)
+        }
+    }
+
+    pub fn write(&mut self, data: &[u8]) -> usize {
+        trace!("Buffer::write len = {:?}", data.len());
+        self.maybe_reserve(data.len());
+        let len = cmp::min(self.available(), data.len());
+        assert!(self.available() >= len);
+        unsafe {
+            // in rust 1.9, we could use slice::copy_from_slice
+            ptr::copy(
+                data.as_ptr(),
+                self.vec.as_mut_ptr().offset(self.tail as isize),
+                len
+            );
+        }
+        self.tail += len;
+        len
+    }
+
     #[inline]
-    fn maybe_reserve(&mut self) {
+    fn maybe_reserve(&mut self, needed: usize) {
         let cap = self.vec.len();
         if cap == 0 {
-            trace!("reserving initial {}", INIT_BUFFER_SIZE);
-            self.vec = vec![0; INIT_BUFFER_SIZE];
-        } else if self.write_pos > 0  && self.read_pos == cap {
-            let count = self.read_pos - self.write_pos;
+            // first reserve
+            let init = cmp::max(INIT_BUFFER_SIZE, needed);
+            trace!("reserving initial {}", init);
+            self.vec = vec![0; init];
+        } else if self.head > 0  && self.tail == cap && self.head >= needed {
+            // there is space to shift over
+            let count = self.tail - self.head;
             trace!("moving buffer bytes over by {}", count);
             unsafe {
                 ptr::copy(
-                    self.vec.as_ptr().offset(self.write_pos as isize),
+                    self.vec.as_ptr().offset(self.head as isize),
                     self.vec.as_mut_ptr(),
                     count
                 );
             }
-            self.read_pos -= count;
-            self.write_pos = 0;
-        } else if self.read_pos == cap && cap < MAX_BUFFER_SIZE {
+            self.tail -= count;
+            self.head = 0;
+        } else if self.tail == cap && cap < MAX_BUFFER_SIZE {
             self.vec.reserve(cmp::min(cap * 4, MAX_BUFFER_SIZE) - cap);
             let new = self.vec.capacity() - cap;
             trace!("reserved {}", new);
@@ -80,36 +133,11 @@ impl Buffer {
         }
     }
 
-    pub fn wrap<'a, 'b: 'a, R: io::Read>(&'a mut self, reader: &'b mut R) -> BufReader<'a, R> {
-        BufReader {
-            buf: self,
-            reader: reader
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct BufReader<'a, R: io::Read + 'a> {
-    buf: &'a mut Buffer,
-    reader: &'a mut R
-}
-
-impl<'a, R: io::Read + 'a> BufReader<'a, R> {
-    pub fn get_ref(&self) -> &R {
-        self.reader
-    }
-}
-
-impl<'a, R: io::Read> Read for BufReader<'a, R> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        trace!("BufReader.read self={}, buf={}", self.buf.len(), buf.len());
-        let n = try!(self.buf.bytes().read(buf));
-        self.buf.consume(n);
-        if n == 0 {
-            self.buf.reset();
-            self.reader.read(&mut buf[n..])
-        } else {
-            Ok(n)
+    #[inline]
+    fn maybe_reset(&mut self) {
+        if self.tail != 0 && self.tail == self.head {
+            self.tail = 0;
+            self.head = 0;
         }
     }
 }

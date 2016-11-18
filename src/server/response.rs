@@ -1,22 +1,26 @@
-//! Server Responses
-//!
-//! These are responses sent by a `hyper::Server` to clients, after
-//! receiving a request.
+use std::fmt;
+
 use header;
-use http;
+use http::{self, Body};
 use status::StatusCode;
 use version;
 
-
-/// The outgoing half for a Tcp connection, created by a `Server` and given to a `Handler`.
+/// The Response sent to a client after receiving a Request in a Service.
 ///
 /// The default `StatusCode` for a `Response` is `200 OK`.
-#[derive(Debug)]
-pub struct Response<'a> {
-    head: &'a mut http::MessageHead<StatusCode>,
+#[derive(Default)]
+pub struct Response {
+    head: http::MessageHead<StatusCode>,
+    body: Option<Body>,
 }
 
-impl<'a> Response<'a> {
+impl Response {
+    /// Create a new Response.
+    #[inline]
+    pub fn new() -> Response {
+        Response::default()
+    }
+
     /// The headers of this response.
     #[inline]
     pub fn headers(&self) -> &header::Headers { &self.head.headers }
@@ -35,16 +39,65 @@ impl<'a> Response<'a> {
     #[inline]
     pub fn headers_mut(&mut self) -> &mut header::Headers { &mut self.head.headers }
 
-    /// Set the status of this response.
+    /// Set the `StatusCode` for this response.
     #[inline]
     pub fn set_status(&mut self, status: StatusCode) {
         self.head.subject = status;
     }
+
+    /// Set the body.
+    #[inline]
+    pub fn set_body<T: Into<Body>>(&mut self, body: T) {
+        self.body = Some(body.into());
+    }
+
+    /// Set the status and move the Response.
+    ///
+    /// Useful for the "builder-style" pattern.
+    #[inline]
+    pub fn with_status(mut self, status: StatusCode) -> Self {
+        self.set_status(status);
+        self
+    }
+
+    /// Set a header and move the Response.
+    ///
+    /// Useful for the "builder-style" pattern.
+    #[inline]
+    pub fn with_header<H: header::Header>(mut self, header: H) -> Self {
+        self.head.headers.set(header);
+        self
+    }
+
+    /// Set the headers and move the Response.
+    ///
+    /// Useful for the "builder-style" pattern.
+    #[inline]
+    pub fn with_headers(mut self, headers: header::Headers) -> Self {
+        self.head.headers = headers;
+        self
+    }
+
+    /// Set the body and move the Response.
+    ///
+    /// Useful for the "builder-style" pattern.
+    #[inline]
+    pub fn with_body<T: Into<Body>>(mut self, body: T) -> Self {
+        self.set_body(body);
+        self
+    }
 }
 
-/// Creates a new Response that can be used to write to a network stream.
-pub fn new(head: &mut http::MessageHead<StatusCode>) -> Response {
-    Response {
-        head: head
+impl fmt::Debug for Response {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Response")
+            .field("status", &self.head.subject)
+            .field("version", &self.head.version)
+            .field("headers", &self.head.headers)
+            .finish()
     }
+}
+
+pub fn split(res: Response) -> (http::MessageHead<StatusCode>, Option<Body>) {
+    (res.head, res.body)
 }

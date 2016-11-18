@@ -1,55 +1,90 @@
-//! Client Requests
+use std::fmt;
+
+use Url;
 
 use header::Headers;
-use http::RequestHead;
+use http::{Body, RequestHead};
 use method::Method;
 use uri::RequestUri;
 use version::HttpVersion;
 
-
-
 /// A client request to a remote server.
-#[derive(Debug)]
-pub struct Request<'a> {
-    head: &'a mut RequestHead
+pub struct Request {
+    method: Method,
+    url: Url,
+    version: HttpVersion,
+    headers: Headers,
+    body: Option<Body>,
 }
 
-impl<'a> Request<'a> {
+impl Request {
+    /// Construct a new Request.
+    #[inline]
+    pub fn new(method: Method, url: Url) -> Request {
+        Request {
+            method: method,
+            url: url,
+            version: HttpVersion::default(),
+            headers: Headers::new(),
+            body: None,
+        }
+    }
+
     /// Read the Request Url.
     #[inline]
-    pub fn uri(&self) -> &RequestUri { &self.head.subject.1 }
+    pub fn url(&self) -> &Url { &self.url }
 
     /// Readthe Request Version.
     #[inline]
-    pub fn version(&self) -> &HttpVersion { &self.head.version }
+    pub fn version(&self) -> &HttpVersion { &self.version }
 
     /// Read the Request headers.
     #[inline]
-    pub fn headers(&self) -> &Headers { &self.head.headers }
+    pub fn headers(&self) -> &Headers { &self.headers }
 
     /// Read the Request method.
     #[inline]
-    pub fn method(&self) -> &Method { &self.head.subject.0 }
+    pub fn method(&self) -> &Method { &self.method }
 
     /// Set the Method of this request.
     #[inline]
-    pub fn set_method(&mut self, method: Method) { self.head.subject.0 = method; }
+    pub fn set_method(&mut self, method: Method) { self.method = method; }
 
     /// Get a mutable reference to the Request headers.
     #[inline]
-    pub fn headers_mut(&mut self) -> &mut Headers { &mut self.head.headers }
+    pub fn headers_mut(&mut self) -> &mut Headers { &mut self.headers }
 
-    /// Set the `RequestUri` of this request.
+    /// Set the `Url` of this request.
     #[inline]
-    pub fn set_uri(&mut self, uri: RequestUri) { self.head.subject.1 = uri; }
+    pub fn set_url(&mut self, url: Url) { self.url = url; }
 
     /// Set the `HttpVersion` of this request.
     #[inline]
-    pub fn set_version(&mut self, version: HttpVersion) { self.head.version = version; }
+    pub fn set_version(&mut self, version: HttpVersion) { self.version = version; }
+
+    /// Set the body of the request.
+    #[inline]
+    pub fn set_body<T: Into<Body>>(&mut self, body: T) { self.body = Some(body.into()); }
 }
 
-pub fn new(head: &mut RequestHead) -> Request {
-    Request { head: head }
+impl fmt::Debug for Request {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Request")
+            .field("method", &self.method)
+            .field("url", &self.url)
+            .field("version", &self.version)
+            .field("headers", &self.headers)
+            .finish()
+    }
+}
+
+pub fn split(req: Request) -> (RequestHead, Option<Body>) {
+    let head = RequestHead {
+        subject: ::http::RequestLine(req.method, RequestUri::AbsoluteUri(req.url)),
+        headers: req.headers,
+        version: req.version,
+    };
+    (head, req.body)
 }
 
 #[cfg(test)]
