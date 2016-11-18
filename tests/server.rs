@@ -11,7 +11,7 @@ use std::io::{Read, Write};
 use std::sync::mpsc;
 use std::time::Duration;
 
-use hyper::server::{Server, Request, Response, Service};
+use hyper::server::{Server, Request, Response, Service, NewService};
 
 struct Serve {
     listening: Option<hyper::server::Listening>,
@@ -94,6 +94,20 @@ enum Msg {
     Chunk(Vec<u8>),
 }
 
+impl NewService for TestService {
+    type Request = Request;
+    type Response = Response;
+    type Error = hyper::Error;
+ 
+    type Instance = TestService;
+
+    fn new_service(&self) -> std::io::Result<TestService> {
+        Ok(self.clone())
+    }
+
+
+}
+
 impl Service for TestService {
     type Request = Request;
     type Response = Response;
@@ -124,9 +138,6 @@ impl Service for TestService {
         }).boxed()
     }
 
-    fn poll_ready(&self) -> ::futures::Async<()> {
-        ::futures::Async::Ready(())
-    }
 }
 
 fn connect(addr: &SocketAddr) -> TcpStream {
