@@ -199,13 +199,22 @@ impl<I: Io, T: Http1Transaction> Conn<I, T> {
         let state = match self.state.writing {
             Writing::Body(ref mut encoder) => {
                 let mut is_done = true;
-                if let Some(chunk) = chunk {
-                    is_done = false;
-                    // TODO: this needs to check our write_buf can receive this
-                    // chunk, and if not, shove it into `self` and be NotReady
-                    // until we've flushed and fit the cached chunk
-                    try_nb!(encoder.encode(&mut self.io, &chunk));
+                match chunk {
+                    Some(chunk) => {
+                        is_done = false;
+                        // TODO: this needs to check our write_buf can receive this
+                        // chunk, and if not, shove it into `self` and be NotReady
+                        // until we've flushed and fit the cached chunk
+                        try_nb!(encoder.encode(&mut self.io, &chunk));
+                    }
+                    None => {
+                        // Encode a zero length chunk
+                        // the http1 encoder does the right thing
+                        // encoding either the final chunk or ignoring the input
+                         try_nb!(encoder.encode(&mut self.io, b""));
+                    }
                 }
+
                 if encoder.is_eof() {
                     Writing::KeepAlive
                 } else if is_done {

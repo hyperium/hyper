@@ -265,6 +265,66 @@ fn server_get_chunked_response() {
 }
 
 #[test]
+fn server_get_chunked_response_with_ka() {
+    let foo_bar = b"foo bar baz";
+    let foo_bar_chunk = b"\r\nfoo bar baz\r\n0\r\n\r\n";
+    let server = serve();
+    server.reply()
+        .status(hyper::Ok)
+        .header(hyper::header::TransferEncoding::chunked())
+        .body(foo_bar);
+    let mut req = connect(server.addr());
+    req.write_all(b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: keep-alive\r\n\
+        \r\n\
+    ").expect("writing 1");
+
+    let mut buf = [0; 1024 * 8];
+    let mut ntotal = 0;
+    loop {
+        let n = req.read(&mut buf[..]).expect("reading 1");
+        ntotal = ntotal + n;
+        if ntotal < buf.len() {
+            if &buf[ntotal - foo_bar_chunk.len()..ntotal] == foo_bar_chunk {
+                println!("ok n = {} total = {}", n, ntotal);
+                break;
+            } else {
+            }
+        }
+    }
+
+
+    // try again!
+
+    let quux = b"zar quux";
+    server.reply()
+        .status(hyper::Ok)
+        .header(hyper::header::ContentLength(quux.len() as u64))
+        .body(quux);
+    req.write_all(b"\
+        GET /quux HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: close\r\n\
+        \r\n\
+    ").expect("writing 2");
+
+    let mut buf = [0; 1024 * 8];
+    loop {
+        let n = req.read(&mut buf[..]).expect("reading 2");
+        assert!(n > 0, "n = {}", n);
+        if n < buf.len() && n > 0  {
+            if &buf[n - quux.len()..n] == quux {
+                break;
+            }
+        }
+    }
+}
+
+
+
+#[test]
 fn server_post_with_chunked_body() {
     let server = serve();
     let mut req = connect(server.addr());
