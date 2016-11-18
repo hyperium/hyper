@@ -7,19 +7,24 @@ readme = "README.md"
 documentation = "http://hyperium.github.io/hyper"
 repository = "https://github.com/hyperium/hyper"
 license = "MIT"
-authors = ["Sean McArthur <sean.monstar@gmail.com>",
-           "Jonathan Reem <jonathan.reem@gmail.com>"]
+authors = ["Sean McArthur <sean.monstar@gmail.com>"]
 keywords = ["http", "hyper", "hyperium"]
 
 [dependencies]
+bytes = {git = "https://github.com/carllerche/bytes"}
+futures = { git = "https://github.com/alexcrichton/futures-rs"}
+futures-cpupool = { git = "https://github.com/alexcrichton/futures-rs"}
 httparse = "1.0"
 language-tags = "0.2"
 log = "0.3"
 mime = "0.2"
-rotor = "0.6"
+mio = "0.6"
 rustc-serialize = "0.3"
 spmc = "0.2"
 time = "0.1"
+tokio-core =  {git = "https://github.com/tokio-rs/tokio-core"}
+tokio-proto = {git = "https://github.com/tokio-rs/tokio-proto"}
+tokio-service = {git = "https://github.com/tokio-rs/tokio-service"}
 unicase = "1.0"
 url = "1.0"
 vecio = "0.1"
@@ -28,28 +33,16 @@ vecio = "0.1"
 version = "0.3"
 default-features = false
 
-[dependencies.openssl]
-version = "0.7"
-optional = true
-
-[dependencies.openssl-verify]
-version = "0.1"
-optional = true
-
-[dependencies.security-framework]
-version = "0.1.4"
-optional = true
-
 [dependencies.serde]
 version = "0.8"
 optional = true
 
 [dev-dependencies]
-env_logger = "0.3"
 num_cpus = "1.0"
+#env_logger = "0.3"
+pretty_env_logger = { git = "https://github.com/seanmonstar/pretty-env-logger" }
 
 [features]
-default = ["ssl"]
-ssl = ["openssl", "openssl-verify", "cookie/secure"]
+default = []
 serde-serialization = ["serde", "mime/serde"]
 nightly = []

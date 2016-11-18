@@ -2,14 +2,14 @@ use std::borrow::Cow;
 use std::cmp;
 use std::io::{self, Write};
 
-use http::internal::{AtomicWrite, WriteBuf};
+use http::{AtomicWrite, WriteBuf};
 
 /// Encoders to handle different Transfer-Encodings.
 #[derive(Debug, Clone)]
 pub struct Encoder {
     kind: Kind,
+    //TODO: prefix can likely be removed, the logic is no longer required
     prefix: Prefix,
-    is_closed: bool,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -27,7 +27,6 @@ impl Encoder {
         Encoder {
             kind: Kind::Chunked(Chunked::Init),
             prefix: Prefix(None),
-            is_closed: false,
         }
     }
 
@@ -35,7 +34,6 @@ impl Encoder {
         Encoder {
             kind: Kind::Length(len),
             prefix: Prefix(None),
-            is_closed: false,
         }
     }
 
@@ -54,15 +52,7 @@ impl Encoder {
         }
     }
 
-    /// User has called `encoder.close()` in a `Handler`.
-    pub fn is_closed(&self) -> bool {
-        self.is_closed
-    }
-
-    pub fn close(&mut self) {
-        self.is_closed = true;
-    }
-
+    //TODO: can be removed
     pub fn finish(self) -> Option<WriteBuf<Cow<'static, [u8]>>> {
         let trailer = self.trailer();
         let buf = self.prefix.0;
@@ -344,7 +334,7 @@ impl Prefix {
 #[cfg(test)]
 mod tests {
     use super::Encoder;
-    use mock::{Async, Buf};
+    use mock::{AsyncIo, Buf};
 
     #[test]
     fn test_chunked_encode_sync() {
@@ -359,7 +349,7 @@ mod tests {
 
     #[test]
     fn test_chunked_encode_async() {
-        let mut dst = Async::new(Buf::new(), 7);
+        let mut dst = AsyncIo::new(Buf::new(), 7);
         let mut encoder = Encoder::chunked();
 
         assert!(encoder.encode(&mut dst, b"foo bar").is_err());

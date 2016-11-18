@@ -1,3 +1,4 @@
+/*
 #![deny(warnings)]
 extern crate hyper;
 
@@ -388,3 +389,4 @@ fn client_keep_alive() {
 
     while let Ok(_) = res.recv() {}
 }
+*/
