@@ -631,15 +631,15 @@ impl<K: Key, T: Transport, H: MessageHandler<T>> Conn<K, T, H> {
             self.0.on_readable(scope);
         }
 
-        if events.is_writable() {
-            self.0.on_writable(scope);
-        }
-
         if events.is_hup() {
             trace!("Conn::ready got hangup");
             let _ = scope.deregister(&self.0.transport);
             self.on_remove();
             return ReadyResult::Done(None);
+        }
+
+        if events.is_writable() {
+            self.0.on_writable(scope);
         }
 
         let mut events = match self.0.register() {
