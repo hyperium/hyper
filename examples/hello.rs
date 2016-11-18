@@ -26,9 +26,6 @@ impl Service for Hello {
         )
     }
 
-    fn poll_ready(&self) -> ::futures::Async<()> {
-        ::futures::Async::Ready(())
-    }
 }
 
 fn main() {
@@ -37,7 +34,7 @@ fn main() {
 
     println!("Listening on http://127.0.0.1:3000");
     Server::http(&"127.0.0.1:3000".parse().unwrap()).unwrap()
-        .standalone(Hello).unwrap();
+        .standalone(|| Ok(Hello)).unwrap();
 
     /*
     let listener = HttpListener::bind(&"127.0.0.1:3000".parse().unwrap()).unwrap();
