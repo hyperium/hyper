@@ -277,7 +277,7 @@ mod tests {
     use std::io::Write;
     use super::Decoder;
     use super::ChunkedState;
-    use mock::Async;
+    use mock::AsyncIo;
 
     #[test]
     fn test_read_chunk_size() {
@@ -422,7 +422,7 @@ mod tests {
                   -> String {
         let content_len = content.len();
         let mock_buf = io::Cursor::new(content.clone());
-        let mut ins = Async::new(mock_buf, block_at);
+        let mut ins = AsyncIo::new(mock_buf, block_at);
         let mut outs = vec![];
         loop {
             let mut buf = vec![0; read_buffer_size];

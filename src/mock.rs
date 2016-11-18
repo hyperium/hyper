@@ -1,6 +1,9 @@
 use std::cmp;
 use std::io::{self, Read, Write};
 
+use futures::Async;
+use tokio::io::Io;
+
 #[derive(Debug)]
 pub struct Buf {
     vec: Vec<u8>
@@ -8,8 +11,12 @@ pub struct Buf {
 
 impl Buf {
     pub fn new() -> Buf {
+        Buf::wrap(vec![])
+    }
+
+    pub fn wrap(vec: Vec<u8>) -> Buf {
         Buf {
-            vec: vec![]
+            vec: vec,
         }
     }
 }
@@ -58,14 +65,14 @@ impl ::vecio::Writev for Buf {
 }
 
 #[derive(Debug)]
-pub struct Async<T> {
+pub struct AsyncIo<T> {
     inner: T,
     bytes_until_block: usize,
 }
 
-impl<T> Async<T> {
-    pub fn new(inner: T, bytes: usize) -> Async<T> {
-        Async {
+impl<T> AsyncIo<T> {
+    pub fn new(inner: T, bytes: usize) -> AsyncIo<T> {
+        AsyncIo {
             inner: inner,
             bytes_until_block: bytes
         }
@@ -76,7 +83,13 @@ impl<T> Async<T> {
     }
 }
 
-impl<T: Read> Read for Async<T> {
+impl AsyncIo<Buf> {
+    pub fn new_buf<T: Into<Vec<u8>>>(buf: T, bytes: usize) -> AsyncIo<Buf> {
+        AsyncIo::new(Buf::wrap(buf.into()), bytes)
+    }
+}
+
+impl<T: Read> Read for AsyncIo<T> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if self.bytes_until_block == 0 {
             Err(io::Error::new(io::ErrorKind::WouldBlock, "mock block"))
@@ -89,7 +102,7 @@ impl<T: Read> Read for Async<T> {
     }
 }
 
-impl<T: Write> Write for Async<T> {
+impl<T: Write> Write for AsyncIo<T> {
     fn write(&mut self, data: &[u8]) -> io::Result<usize> {
         if self.bytes_until_block == 0 {
             Err(io::Error::new(io::ErrorKind::WouldBlock, "mock block"))
@@ -106,7 +119,25 @@ impl<T: Write> Write for Async<T> {
     }
 }
 
-impl<T: Write> ::vecio::Writev for Async<T> {
+impl<T: Read + Write> Io for AsyncIo<T> {
+    fn poll_read(&mut self) -> Async<()> {
+        if self.bytes_until_block == 0 {
+            Async::NotReady
+        } else {
+            Async::Ready(())
+        }
+    }
+
+    fn poll_write(&mut self) -> Async<()> {
+        if self.bytes_until_block == 0 {
+            Async::NotReady
+        } else {
+            Async::Ready(())
+        }
+    }
+}
+
+impl<T: Write> ::vecio::Writev for AsyncIo<T> {
     fn writev(&mut self, bufs: &[&[u8]]) -> io::Result<usize> {
         let cap = bufs.iter().map(|buf| buf.len()).fold(0, |total, next| total + next);
         let mut vec = Vec::with_capacity(cap);
@@ -118,7 +149,7 @@ impl<T: Write> ::vecio::Writev for Async<T> {
     }
 }
 
-impl ::std::ops::Deref for Async<Buf> {
+impl ::std::ops::Deref for AsyncIo<Buf> {
     type Target = [u8];
 
     fn deref(&self) -> &[u8] {

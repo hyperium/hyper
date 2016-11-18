@@ -1,11 +1,13 @@
 //! Client Responses
+
+use tokio_proto::Body;
+
 use header;
-//use net::NetworkStream;
-use http::{self, RawStatus};
+use http::{self, Chunk, RawStatus};
 use status;
 use version;
 
-pub fn new(incoming: http::ResponseHead) -> Response {
+pub fn new(incoming: http::ResponseHead, body: Option<Body<Chunk, ::Error>>) -> Response {
     trace!("Response::new");
     let status = status::StatusCode::from_u16(incoming.subject.0);
     debug!("version={:?}, status={:?}", incoming.version, status);
@@ -16,17 +18,19 @@ pub fn new(incoming: http::ResponseHead) -> Response {
         version: incoming.version,
         headers: incoming.headers,
         status_raw: incoming.subject,
+        body: body,
     }
 
 }
 
 /// A response for a client request to a remote server.
-#[derive(Debug)]
+//#[derive(Debug)]
 pub struct Response {
     status: status::StatusCode,
     headers: header::Headers,
     version: version::HttpVersion,
     status_raw: RawStatus,
+    body: Option<Body<Chunk, ::Error>>,
 }
 
 impl Response {
@@ -49,6 +53,10 @@ impl Response {
     /// Get the HTTP version of this response from the server.
     #[inline]
     pub fn version(&self) -> &version::HttpVersion { &self.version }
+
+    pub fn body(mut self) -> Body<::http::Chunk, ::Error> {
+        self.body.take().unwrap_or(Body::empty())
+    }
 }
 
 /*
