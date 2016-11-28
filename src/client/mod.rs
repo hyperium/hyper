@@ -302,14 +302,15 @@ impl<'a> RequestBuilder<'a> {
                     message.set_proxied(true);
                 }
 
-                let mut headers = match headers {
-                    Some(ref headers) => headers.clone(),
-                    None => Headers::new(),
-                };
-                headers.set(Host {
+                let mut h = Headers::new();
+                h.set(Host {
                     hostname: host.to_owned(),
                     port: Some(port),
                 });
+                if let Some(ref headers) = headers {
+                    h.extend(headers.iter());
+                }
+                let headers = h;
                 Request::with_headers_and_message(method.clone(), url.clone(), headers, message)
             };
 
