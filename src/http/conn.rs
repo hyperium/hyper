@@ -6,9 +6,9 @@ use std::marker::PhantomData;
 use std::mem;
 use std::time::Duration;
 
-use futures::{Poll, Async};
+use futures::{Poll, Async, AsyncSink, Stream, Sink, StartSend};
 use tokio::io::{Io, FramedIo};
-use tokio_proto::pipeline::Frame;
+use tokio_proto::streaming::pipeline::{Frame, Transport};
 
 use header::{ContentLength, TransferEncoding};
 use http::{self, h1, Http1Transaction, IoBuf, WriteBuf};
@@ -78,7 +78,7 @@ impl<I: Io, T: Http1Transaction> Conn<I, T> {
         }
     }
 
-    fn read_head(&mut self) -> Poll<Frame<http::MessageHead<T::Incoming>, http::Chunk, ::Error>, io::Error> {
+    fn read_head(&mut self) -> Poll<Option<Frame<http::MessageHead<T::Incoming>, http::Chunk, ::Error>>, io::Error> {
         debug_assert!(self.can_read_head());
         trace!("Conn::read_head");
 
@@ -90,10 +90,10 @@ impl<I: Io, T: Http1Transaction> Conn<I, T> {
                 self.io.read_buf.consume_leading_lines();
                 if !self.io.read_buf.is_empty() {
                     error!("parse error ({}) with bytes: {:?}", e, self.io.read_buf.bytes());
-                    return Ok(Async::Ready(Frame::Error { error: e }));
+                    return Ok(Async::Ready(Some(Frame::Error { error: e })));
                 } else {
                     trace!("parse error with 0 input, err = {:?}", e);
-                    return Ok(Async::Ready(Frame::Done));
+                    return Ok(Async::Ready(None));
                 }
             }
         };
@@ -105,7 +105,7 @@ impl<I: Io, T: Http1Transaction> Conn<I, T> {
                     Err(e) => {
                         error!("decoder error = {:?}", e);
                         self.state.close();
-                        return Ok(Async::Ready(Frame::Error { error: e }));
+                        return Ok(Async::Ready(Some(Frame::Error { error: e })));
                     }
                 };
                 let wants_keep_alive = http::should_keep_alive(version, &head.headers);
@@ -116,12 +116,12 @@ impl<I: Io, T: Http1Transaction> Conn<I, T> {
                     (true, Reading::Body(decoder))
                 };
                 self.state.reading = reading;
-                return Ok(Async::Ready(Frame::Message { message: head, body: body }));
+                return Ok(Async::Ready(Some(Frame::Message { message: head, body: body })));
             },
             _ => {
                 error!("unimplemented HTTP Version = {:?}", version);
                 self.state.close();
-                return Ok(Async::Ready(Frame::Error { error: ::Error::Version }));
+                return Ok(Async::Ready(Some(Frame::Error { error: ::Error::Version })));
             }
         }
     }
@@ -169,7 +169,7 @@ impl<I: Io, T: Http1Transaction> Conn<I, T> {
         }
     }
 
-    fn write_head(&mut self, mut head: http::MessageHead<T::Outgoing>, body: bool) -> Poll<(), io::Error> {
+    fn write_head(&mut self, mut head: http::MessageHead<T::Outgoing>, body: bool) -> StartSend<http::MessageHead<T::Outgoing>,io::Error> {
         debug_assert!(self.can_write_head());
         if !body {
             head.headers.remove::<TransferEncoding>();
@@ -190,10 +190,10 @@ impl<I: Io, T: Http1Transaction> Conn<I, T> {
             Writing::KeepAlive
         };
 
-        Ok(Async::Ready(()))
+        Ok(AsyncSink::Ready)
     }
 
-    fn write_body(&mut self, chunk: Option<http::Chunk>) -> Poll<(), io::Error> {
+    fn write_body(&mut self, chunk: Option<http::Chunk>) -> StartSend<Option<http::Chunk>, io::Error> {
         debug_assert!(self.can_write_body());
 
         let state = match self.state.writing {
@@ -205,13 +205,13 @@ impl<I: Io, T: Http1Transaction> Conn<I, T> {
                         // TODO: this needs to check our write_buf can receive this
                         // chunk, and if not, shove it into `self` and be NotReady
                         // until we've flushed and fit the cached chunk
-                        try_nb!(encoder.encode(&mut self.io, &chunk));
+                        encoder.encode(&mut self.io, &chunk).unwrap();
                     }
                     None => {
                         // Encode a zero length chunk
                         // the http1 encoder does the right thing
                         // encoding either the final chunk or ignoring the input
-                         try_nb!(encoder.encode(&mut self.io, b""));
+                         encoder.encode(&mut self.io, b"").unwrap();
                     }
                 }
 
@@ -220,99 +220,111 @@ impl<I: Io, T: Http1Transaction> Conn<I, T> {
                 } else if is_done {
                     Writing::Closed
                 } else {
-                    return Ok(Async::Ready(()));
+                    return Ok(AsyncSink::Ready);
                 }
             },
             Writing::Init | Writing::KeepAlive | Writing::Closed => unreachable!(),
         };
         self.state.writing = state;
-        Ok(Async::Ready(()))
+        Ok(AsyncSink::Ready)
     }
 
 }
 
-impl<I, T> FramedIo for Conn<I, T>
+impl<I, T> Stream for Conn<I, T>
 where I: Io,
       T: Http1Transaction,
       T::Outgoing: fmt::Debug {
-    type In = Frame<http::MessageHead<T::Outgoing>, http::Chunk, ::Error>;
-    type Out = Frame<http::MessageHead<T::Incoming>, http::Chunk, ::Error>;
+    type Item = Frame<http::MessageHead<T::Incoming>, http::Chunk, ::Error>;
+    type Error = io::Error;
 
-    fn poll_read(&mut self) -> Async<()> {
-        let ret = match self.state.reading {
-            Reading::Closed => Async::Ready(()),
-            Reading::KeepAlive => Async::NotReady,
-            _ => self.io.transport.poll_read()
-        };
-        trace!("Conn::poll_read = {:?}", ret);
-        ret
-    }
-
-    fn read(&mut self) -> Poll<Self::Out, io::Error> {
-        trace!("Conn::read");
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        trace!("Conn::poll()");
 
         if self.is_read_closed() {
-            trace!("Conn::read when closed");
-            Ok(Async::Ready(Frame::Done))
+            trace!("Conn::poll when closed");
+            Ok(Async::Ready(None))
         } else if self.can_read_head() {
             self.read_head()
         } else if self.can_read_body() {
-            self.read_body().map(|async| async.map(|chunk| Frame::Body { chunk: chunk }))
+            self.read_body()
+                .map(|async| async.map(|chunk| Some(Frame::Body {
+                    chunk: chunk
+                })))
         } else {
-            trace!("read when on keep-alive");
+            trace!("poll when on keep-alive");
             Ok(Async::NotReady)
         }
     }
+}
 
-    fn poll_write(&mut self) -> Async<()> {
-        trace!("Conn::poll_write");
-        //self.io.transport.poll_write()
-        Async::Ready(())
-    }
+impl<I, T> Sink for Conn<I, T>
+where I: Io,
+      T: Http1Transaction,
+      T::Outgoing: fmt::Debug {
+    type SinkItem = Frame<http::MessageHead<T::Outgoing>, http::Chunk, ::Error>;
+    type SinkError = io::Error;
 
-    fn write(&mut self, frame: Self::In) -> Poll<(), io::Error> {
-        trace!("Conn::write frame={:?}", frame);
+    fn start_send(&mut self, frame: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
+        trace!("Conn::start_send( frame={:?} )", frame);
 
-        let frame: Self::In = match frame {
+        let frame: Self::SinkItem = match frame {
             Frame::Message { message: head, body } => {
                 if self.can_write_head() {
-                    return self.write_head(head, body);
+                    return self.write_head(head, body)
+                        .map(|async| {
+                            match async {
+                                AsyncSink::Ready => AsyncSink::Ready,
+                                AsyncSink::NotReady(head) => {
+                                    AsyncSink::NotReady(Frame::Message {
+                                        message: head,
+                                        body: body,
+                                    })
+                                }
+                            }
+                        })
                 } else {
                     Frame::Message { message: head, body: body }
                 }
             },
             Frame::Body { chunk } => {
                 if self.can_write_body() {
-                    return self.write_body(chunk);
+                    return self.write_body(chunk)
+                        .map(|async| {
+                            match async {
+                                AsyncSink::Ready => AsyncSink::Ready,
+                                AsyncSink::NotReady(chunk) => AsyncSink::NotReady(Frame::Body {
+                                    chunk: chunk,
+                                })
+                            }
+                        });
                 } else if chunk.is_none() {
-                    return Ok(Async::Ready(()));
+                    return Ok(AsyncSink::Ready);
                 } else {
                     Frame::Body { chunk: chunk }
                 }
             },
             Frame::Error { error } => {
                 self.state.close();
-                return Ok(Async::Ready(()));
+                return Ok(AsyncSink::Ready);
             },
-            Frame::Done => {
-                self.state.writing = Writing::Closed;
-                return Ok(Async::Ready(()));
-            }
         };
 
         error!("writing illegal frame; state={:?}, frame={:?}", self.state.writing, frame);
         Err(io::Error::new(io::ErrorKind::InvalidInput, "illegal frame"))
+
     }
 
-    fn flush(&mut self) -> Poll<(), io::Error> {
+    fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
+        trace!("Conn::poll_complete()");
         let ret = match self.io.flush() {
             Ok(()) => {
                 self.state.try_keep_alive();
                 trace!("flushed {:?}", self.state);
                 if !self.is_read_closed() {
-                    if self.poll_read().is_ready() {
+                    //if self.poll_read().is_ready() {
                         ::futures::task::park().unpark();
-                    }
+                    //}
                 }
                 Ok(Async::Ready(()))
             },
@@ -325,6 +337,11 @@ where I: Io,
         ret
     }
 }
+
+impl<I, T> Transport for Conn<I, T>
+where I: Io + 'static,
+      T: Http1Transaction + 'static,
+      T::Outgoing: fmt::Debug {}
 
 impl<I, T> fmt::Debug for Conn<I, T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -438,10 +455,12 @@ mod tests {
         let mut conn = Conn::<_, ServerTransaction>::new(io);
         conn.state.close();
 
+        /*
         match conn.read().unwrap() {
             Async::Ready(Frame::Done) => {},
             other => panic!("frame is not Frame::Done: {:?}", other)
         }
+        */
     }
 
     #[test]

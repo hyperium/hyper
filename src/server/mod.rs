@@ -6,7 +6,7 @@ use std::cell::RefCell;
 use std::fmt;
 use std::io;
 use std::marker::PhantomData;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, TcpListener as StdTcpListener};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -15,10 +15,12 @@ use std::time::Duration;
 use futures::{Future, Async, Map};
 use futures::stream::{Stream};
 
+use tokio::io::Io;
+use tokio::net::TcpListener;
 use tokio::reactor::{Core, Handle};
-use tokio_proto::server::listen as tokio_listen;
-use tokio_proto::pipeline;
-use tokio_proto::{Message, Body};
+use tokio_proto::BindServer;
+use tokio_proto::streaming::{Message, Body};
+use tokio_proto::streaming::pipeline::ServerProto;
 pub use tokio_service::{NewService, Service};
 
 pub use self::request::Request;
@@ -124,13 +126,22 @@ impl/*<A: Accept>*/ Server<HttpListener> {
     /// Binds to a socket and starts handling connections.
     pub fn handle<H>(mut self, factory: H, handle: &Handle) -> ::Result<SocketAddr>
     where H: NewService<Request=Request, Response=Response, Error=::Error> + Send + 'static {
-        let addr = self.addr;
-        let h = try!(tokio_listen(&handle, addr, move |sock| {
+        let listener = try!(StdTcpListener::bind(&self.addr));
+        let addr = try!(listener.local_addr());
+        let listener = try!(TcpListener::from_listener(listener, &addr, handle));
+        let binder = HttpServer;
+
+        let inner_handle = handle.clone();
+        handle.spawn(listener.incoming().for_each(move |(socket, _)| {
             let service = HttpService { inner: try!(factory.new_service()) };
-            let conn = http::Conn::<_, http::ServerTransaction>::new(sock);
-            Ok(pipeline::Server::new(service, conn))
+            binder.bind_server(&inner_handle, socket, service);
+            Ok(())
+        }).map_err(|e| {
+            error!("listener io error: {:?}", e);
+            ()
         }));
-        Ok(h.local_addr().clone())
+
+        Ok(addr)
     }
 
     pub fn standalone<H>(mut self, factory: H) -> ::Result<(Listening, ServerLoop)>
@@ -211,6 +222,22 @@ impl Listening {
     pub fn close(self) {
         debug!("closing server {}", self);
         let _ = self.shutdown.send(());
+    }
+}
+
+struct HttpServer;
+
+impl<T: Io + 'static> ServerProto<T> for HttpServer {
+    type Request = http::RequestHead;
+    type RequestBody = http::Chunk;
+    type Response = ResponseHead;
+    type ResponseBody = http::Chunk;
+    type Error = ::Error;
+    type Transport = http::Conn<T, http::ServerTransaction>;
+    type BindTransport = io::Result<http::Conn<T, http::ServerTransaction>>;
+
+    fn bind_transport(&self, io: T) -> Self::BindTransport {
+        Ok(http::Conn::new(io))
     }
 }
 

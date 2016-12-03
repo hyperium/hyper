@@ -3,14 +3,14 @@
 //! These are responses sent by a `hyper::Server` to clients, after
 //! receiving a request.
 
-use futures::Future;
+use futures::{Future, Sink};
 
 use header;
 use http;
 use status::StatusCode;
 use version;
 
-type Body = ::tokio_proto::Body<http::Chunk, ::Error>;
+type Body = ::tokio_proto::streaming::Body<http::Chunk, ::Error>;
 
 /// The outgoing half for a Tcp connection, created by a `Server` and given to a `Handler`.
 ///
@@ -92,8 +92,9 @@ impl IntoBody for Body {
 
 impl IntoBody for Vec<u8> {
     fn into(self) -> Body {
-        let (tx, rx) = Body::pair();
-        tx.send(Ok(http::Chunk::from(self))).poll();
+        let (mut tx, rx) = Body::pair();
+        tx.start_send(Ok(http::Chunk::from(self)));
+        tx.poll_complete();
         rx
     }
 }

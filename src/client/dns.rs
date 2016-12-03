@@ -1,5 +1,5 @@
 use std::io;
-use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
+use std::net::{SocketAddr, ToSocketAddrs};
 use std::thread;
 use std::vec;
 
@@ -18,9 +18,8 @@ impl Dns {
         }
     }
 
-    pub fn resolve<S: Into<String>>(&self, hostname: S) -> Query {
-        let hostname = hostname.into();
-        Query(self.pool.spawn_fn(move || work(hostname)))
+    pub fn resolve(&self, host: String, port: u16) -> Query {
+        Query(self.pool.spawn_fn(move || work(host, port)))
     }
 }
 
@@ -40,16 +39,16 @@ pub struct IpAddrs {
 }
 
 impl Iterator for IpAddrs {
-    type Item = IpAddr;
+    type Item = SocketAddr;
     #[inline]
-    fn next(&mut self) -> Option<IpAddr> {
-        self.iter.next().map(|addr| addr.ip())
+    fn next(&mut self) -> Option<SocketAddr> {
+        self.iter.next()
     }
 }
 
 pub type Answer = io::Result<IpAddrs>;
 
-fn work(hostname: String) -> Answer {
-    debug!("resolve {:?}", hostname);
-    (&*hostname, 80).to_socket_addrs().map(|i| IpAddrs { iter: i })
+fn work(hostname: String, port: u16) -> Answer {
+    debug!("resolve {:?}:{:?}", hostname, port);
+    (&*hostname, port).to_socket_addrs().map(|i| IpAddrs { iter: i })
 }

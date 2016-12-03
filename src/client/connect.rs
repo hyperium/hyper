@@ -79,9 +79,10 @@ impl Service for HttpConnector {
     fn call(&self, url: Url) -> Self::Future {
         debug!("Http::connect({:?})", url);
         let host = url.host_str().expect("http scheme must have a host");
+        let port = url.port_or_known_default().unwrap_or(80);
 
         Connecting {
-            state: State::Resolving(self.dns.resolve(host)),
+            state: State::Resolving(self.dns.resolve(host.into(), port)),
             handle: self.handle.clone(),
         }
     }
@@ -142,16 +143,15 @@ impl ConnectingTcp {
                     Err(e) => {
                         trace!("connect error {:?}", e);
                         err = Some(e);
-                        if let Some(ip) = self.addrs.next() {
-                            let addr = SocketAddr::new(ip, 80);
+                        if let Some(addr) = self.addrs.next() {
+                            debug!("connecting to {:?}", addr);
                             *current = TcpStream::connect(&addr, handle);
                             continue;
                         }
                     }
                 }
-            } else if let Some(ip) = self.addrs.next() {
-                debug!("connecting to {}", ip);
-                let addr = SocketAddr::new(ip, 80);
+            } else if let Some(addr) = self.addrs.next() {
+                debug!("connecting to {:?}", addr);
                 self.current = Some(TcpStream::connect(&addr, handle));
                 continue;
             }

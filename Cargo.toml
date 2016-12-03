@@ -11,9 +11,8 @@ authors = ["Sean McArthur <sean.monstar@gmail.com>"]
 keywords = ["http", "hyper", "hyperium"]
 
 [dependencies]
-bytes = {git = "https://github.com/carllerche/bytes"}
-futures = { git = "https://github.com/alexcrichton/futures-rs"}
-futures-cpupool = { git = "https://github.com/alexcrichton/futures-rs"}
+futures = "0.1"
+futures-cpupool = "0.1"
 httparse = "1.0"
 language-tags = "0.2"
 log = "0.3"
@@ -22,7 +21,7 @@ mio = "0.6"
 rustc-serialize = "0.3"
 spmc = "0.2"
 time = "0.1"
-tokio-core =  {git = "https://github.com/tokio-rs/tokio-core"}
+tokio-core = "0.1"
 tokio-proto = {git = "https://github.com/tokio-rs/tokio-proto"}
 tokio-service = {git = "https://github.com/tokio-rs/tokio-service"}
 unicase = "1.0"

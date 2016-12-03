@@ -16,7 +16,6 @@
 //!
 //! If just getting started, consider looking over the **[Guide](../guide/)**.
 
-extern crate bytes;
 extern crate cookie;
 extern crate futures;
 extern crate futures_cpupool;
@@ -42,7 +41,7 @@ extern crate test;
 
 
 pub use url::Url;
-pub use client::Client;
+//pub use client::Client;
 pub use error::{Result, Error};
 pub use header::Headers;
 pub use method::Method::{self, Get, Head, Post, Delete};
@@ -66,16 +65,16 @@ macro_rules! unimplemented {
 
 #[cfg(test)]
 mod mock;
-pub mod client;
+//pub mod client;
 pub mod error;
-pub mod method;
+mod method;
 pub mod header;
 mod http;
 pub mod net;
 pub mod server;
 pub mod status;
-pub mod uri;
-pub mod version;
+mod uri;
+mod version;
 
 /// Re-exporting the mime crate, for convenience.
 pub mod mime {

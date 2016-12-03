@@ -32,10 +32,11 @@ fn main() {
     //env_logger::init().unwrap();
     pretty_env_logger::init();
 
-    println!("Listening on http://127.0.0.1:3000");
-    Server::http(&"127.0.0.1:3000".parse().unwrap()).unwrap()
+    let (listening, server) = Server::http(&"127.0.0.1:3000".parse().unwrap()).unwrap()
         .standalone(|| Ok(Hello)).unwrap();
 
+    println!("Listening on http://{}", listening);
+    server.run();
     /*
     let listener = HttpListener::bind(&"127.0.0.1:3000".parse().unwrap()).unwrap();
     let mut handles = Vec::new();

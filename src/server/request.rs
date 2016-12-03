@@ -11,7 +11,7 @@ use header::Headers;
 use http::{RequestHead, MessageHead, RequestLine, Chunk};
 use uri::RequestUri;
 
-type Body = ::tokio_proto::Body<Chunk, ::Error>;
+type Body = ::tokio_proto::streaming::Body<Chunk, ::Error>;
 
 /// A request bundles several parts of an incoming `NetworkStream`, given to a `Handler`.
 pub struct Request {
@@ -79,7 +79,7 @@ impl Request {
     pub fn body(self) -> Body {
         self.body.unwrap_or_else(|| {
             trace!("Request::body empty");
-            ::tokio_proto::Body::empty()
+            Body::empty()
         })
     }
 
