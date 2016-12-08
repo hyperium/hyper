@@ -13,9 +13,13 @@ use std::thread;
 use std::time::Duration;
 
 use futures::{Async, Poll, Future};
+use tokio::io::Io;
 use tokio::net::TcpStream;
 use tokio::reactor::Handle;
-use tokio_proto::{pipeline, Message, Body};
+use tokio_proto::BindClient;
+use tokio_proto::streaming::{Body, Message};
+use tokio_proto::streaming::pipeline::ClientProto;
+use tokio_proto::util::client_proxy::ClientProxy;
 pub use tokio_service::Service;
 
 use header::Host;
@@ -34,11 +38,12 @@ mod dns;
 mod request;
 mod response;
 
+type ClientBody = Body<http::Chunk, ::Error>;
+
 /// A Client to make outgoing HTTP requests.
 pub struct Client<C> {
     connector: C,
     handle: Handle,
-    sockets: RefCell<Vec<::tokio_proto::Client<http::MessageHead<http::RequestLine>, http::MessageHead<http::RawStatus>, ::futures::stream::Receiver<http::Chunk, ::Error>, Body<http::Chunk, ::Error>, ::Error>>>,
 }
 
 impl Client<DefaultConnector> {
@@ -67,7 +72,6 @@ impl Client<DefaultConnector> {
         Ok(Client {
             connector: HttpConnector::new(handle, 4),
             handle: handle.clone(),
-            sockets: RefCell::new(Vec::new()),
         })
     }
 }
@@ -88,7 +92,7 @@ impl Client<DefaultConnector> {
     }
 }
 
-pub struct FutureResponse(Box<Future<Item=Response, Error=::Error> + Send + 'static>);
+pub struct FutureResponse(Box<Future<Item=Response, Error=::Error> + 'static>);
 
 impl Future for FutureResponse {
     type Item = Response;
@@ -114,19 +118,47 @@ impl Service for Client<DefaultConnector> {
             hostname: url.host_str().unwrap().to_owned(),
             port: None,
         });
-        req.headers_mut().set(::header::ContentLength(0));
-        let client = pipeline::connect::<_, _, ::futures::stream::Receiver<::http::Chunk, ::Error>>(self.connector.call(url).map(Conn::<TcpStream, ClientTransaction>::new), &self.handle);
-        let req = client.call(Message::WithoutBody(req.head));
-        self.sockets.borrow_mut().push(client);
-        FutureResponse(req.map(|msg| {
+        let handle = self.handle.clone();
+        let client = self.connector.call(url)
+            .map(move |io| HttpClient.bind_client(&handle, io))
+            .map_err(|e| e.into());
+        let req = client.and_then(move |client| {
+            let (head, body) = request::split(req);
+            let msg = match body {
+                Some(body) => Message::WithBody(head, body),
+                None => Message::WithoutBody(head),
+            };
+            client.call(msg)
+        });
+        //self.sockets.borrow_mut().push(client);
+        FutureResponse(Box::new(req.map(|msg| {
             match msg {
                 Message::WithoutBody(head) => response::new(head, None),
                 Message::WithBody(head, body) => response::new(head, Some(body)),
             }
-        }).boxed())
-        //self.connector.call(req.url()).and_then(do_stuff)
+        })))
     }
 
+}
+
+struct HttpClient;
+struct Pool<C> {
+    connector: C,
+    connections: RefCell<Vec<ClientProxy<Message<http::RequestHead, ClientBody>, Message<http::ResponseHead, ClientBody>, ::Error>>>,
+}
+
+impl<T: Io + 'static> ClientProto<T> for HttpClient {
+    type Request = http::RequestHead;
+    type RequestBody = http::Chunk;
+    type Response = http::ResponseHead;
+    type ResponseBody = http::Chunk;
+    type Error = ::Error;
+    type Transport = http::Conn<T, http::ClientTransaction>;
+    type BindTransport = io::Result<http::Conn<T, http::ClientTransaction>>;
+
+    fn bind_transport(&self, io: T) -> Self::BindTransport {
+        Ok(http::Conn::new(io))
+    }
 }
 
 /// Configuration for a Client

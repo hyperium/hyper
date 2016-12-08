@@ -1,9 +1,11 @@
 //! Client Requests
 
+use tokio_proto::streaming::Body;
+
 use Url;
 
 use header::Headers;
-use http::RequestHead;
+use http::{RequestHead, Chunk};
 use method::Method;
 use uri::RequestUri;
 use version::HttpVersion;
@@ -13,8 +15,8 @@ use version::HttpVersion;
 /// A client request to a remote server.
 #[derive(Debug)]
 pub struct Request {
-    pub head: RequestHead,
-    body: Option<()>,
+    head: RequestHead,
+    body: Option<Body<Chunk, ::Error>>,
 }
 
 impl Request {
@@ -61,6 +63,11 @@ impl Request {
     /// Set the `HttpVersion` of this request.
     #[inline]
     pub fn set_version(&mut self, version: HttpVersion) { self.head.version = version; }
+}
+
+
+pub fn split(req: Request) -> (RequestHead, Option<Body<Chunk, ::Error>>) {
+    (req.head, req.body)
 }
 
 #[cfg(test)]

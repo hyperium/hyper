@@ -56,6 +56,15 @@ impl<I: Io, T: Http1Transaction> Conn<I, T> {
         self.io.parse::<T>()
     }
 
+    fn is_read_ready(&mut self) -> bool {
+        match self.state.reading {
+            Reading::Init |
+            Reading::Body(..) => self.io.transport.poll_read().is_ready(),
+            Reading::KeepAlive |
+            Reading::Closed => false,
+        }
+    }
+
     fn is_read_closed(&self) -> bool {
         self.state.is_read_closed()
     }
@@ -321,10 +330,8 @@ where I: Io,
             Ok(()) => {
                 self.state.try_keep_alive();
                 trace!("flushed {:?}", self.state);
-                if !self.is_read_closed() {
-                    //if self.poll_read().is_ready() {
-                        ::futures::task::park().unpark();
-                    //}
+                if self.is_read_ready() {
+                    ::futures::task::park().unpark();
                 }
                 Ok(Async::Ready(()))
             },
@@ -418,9 +425,9 @@ impl State {
 
 #[cfg(test)]
 mod tests {
-    use futures::Async;
+    use futures::{Async, AsyncSink, Stream, Sink};
     use tokio::io::FramedIo;
-    use tokio_proto::pipeline::Frame;
+    use tokio_proto::streaming::pipeline::Frame;
 
     use http::{MessageHead, ServerTransaction};
     use http::h1::Encoder;
@@ -435,8 +442,8 @@ mod tests {
         let io = AsyncIo::new_buf(good_message, len);
         let mut conn = Conn::<_, ServerTransaction>::new(io);
 
-        match conn.read().unwrap() {
-            Async::Ready(Frame::Message { message, body: false }) => {
+        match conn.poll().unwrap() {
+            Async::Ready(Some(Frame::Message { message, body: false })) => {
                 assert_eq!(message, MessageHead {
                     subject: ::http::RequestLine(::Get, ::RequestUri::AbsolutePath {
                         path: "/".to_string(),
@@ -455,12 +462,10 @@ mod tests {
         let mut conn = Conn::<_, ServerTransaction>::new(io);
         conn.state.close();
 
-        /*
-        match conn.read().unwrap() {
-            Async::Ready(Frame::Done) => {},
-            other => panic!("frame is not Frame::Done: {:?}", other)
+        match conn.poll().unwrap() {
+            Async::Ready(None) => {},
+            other => panic!("frame is not None: {:?}", other)
         }
-        */
     }
 
     #[test]
@@ -469,27 +474,22 @@ mod tests {
         let mut conn = Conn::<_, ServerTransaction>::new(io);
         conn.state.writing = Writing::Body(Encoder::length(1024 * 5));
 
-        match conn.write(Frame::Body { chunk: Some(vec![b'a'; 1024 * 4].into()) }) {
-            Ok(Async::Ready(())) => {},
+        match conn.start_send(Frame::Body { chunk: Some(vec![b'a'; 1024 * 4].into()) }) {
+            Ok(AsyncSink::Ready) => {},
             other => panic!("did not return Ready: {:?}", other)
         }
 
-        match conn.write(Frame::Body { chunk: Some(vec![b'b'; 1024 * 4].into()) }) {
-            Ok(Async::NotReady) => {},
+        match conn.start_send(Frame::Body { chunk: Some(vec![b'b'; 1024 * 4].into()) }) {
+            Ok(AsyncSink::NotReady(_)) => {},
             other => panic!("did not return NotReady: {:?}", other)
         }
 
-        assert!(conn.poll_write().is_not_ready(), "poll_write should not be ready");
-
         conn.io.transport.block_in(1024 * 3);
-        assert!(conn.flush().unwrap().is_not_ready());
-        assert!(conn.poll_write().is_not_ready(), "poll_write should not be ready");
+        assert!(conn.poll_complete().unwrap().is_not_ready());
         conn.io.transport.block_in(1024 * 3);
-        assert!(conn.flush().unwrap().is_not_ready());
-        assert!(conn.poll_write().is_not_ready(), "poll_write should not be ready");
+        assert!(conn.poll_complete().unwrap().is_not_ready());
         conn.io.transport.block_in(1024 * 3);
-        assert!(conn.flush().unwrap().is_ready());
-        assert!(conn.poll_write().is_ready(), "poll_write should be ready");
+        assert!(conn.poll_complete().unwrap().is_ready());
     }
 
     #[test]
@@ -498,7 +498,7 @@ mod tests {
         let mut conn = Conn::<_, ServerTransaction>::new(io);
         conn.state.close();
 
-        match conn.write(Frame::Body { chunk: Some(b"foobar".to_vec().into()) }) {
+        match conn.start_send(Frame::Body { chunk: Some(b"foobar".to_vec().into()) }) {
             Err(e) => {},
             other => panic!("did not return Err: {:?}", other)
         }
