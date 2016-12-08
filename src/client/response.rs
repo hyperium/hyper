@@ -1,6 +1,6 @@
 //! Client Responses
 
-use tokio_proto::Body;
+use tokio_proto::streaming::Body;
 
 use header;
 use http::{self, Chunk, RawStatus};
@@ -58,26 +58,6 @@ impl Response {
         self.body.take().unwrap_or(Body::empty())
     }
 }
-
-/*
-impl Drop for Response {
-    fn drop(&mut self) {
-        // if not drained, theres old bits in the Reader. we can't reuse this,
-        // since those old bits would end up in new Responses
-        //
-        // otherwise, the response has been drained. we should check that the
-        // server has agreed to keep the connection open
-        let is_drained = !self.message.has_body();
-        trace!("Response.drop is_drained={}", is_drained);
-        if !(is_drained && http::should_keep_alive(self.version, &self.headers)) {
-            trace!("Response.drop closing connection");
-            if let Err(e) = self.message.close_connection() {
-                error!("Response.drop error closing connection: {}", e);
-            }
-        }
-    }
-}
-*/
 
 #[cfg(test)]
 mod tests {

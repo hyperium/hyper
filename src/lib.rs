@@ -41,7 +41,7 @@ extern crate test;
 
 
 pub use url::Url;
-//pub use client::Client;
+pub use client::Client;
 pub use error::{Result, Error};
 pub use header::Headers;
 pub use method::Method::{self, Get, Head, Post, Delete};
@@ -65,7 +65,7 @@ macro_rules! unimplemented {
 
 #[cfg(test)]
 mod mock;
-//pub mod client;
+pub mod client;
 pub mod error;
 mod method;
 pub mod header;

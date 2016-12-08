@@ -28,22 +28,25 @@ impl Response {
         Response::default()
     }
 
+    #[inline]
     pub fn status(mut self, status: StatusCode) -> Self {
         self.head.subject = status;
         self
     }
 
+    #[inline]
     pub fn header<H: header::Header>(mut self, header: H) -> Self {
         self.head.headers.set(header);
         self
     }
 
+    #[inline]
     pub fn headers(mut self, headers: header::Headers) -> Self {
         self.head.headers = headers;
         self
     }
 
-    //pub fn body(mut self, buf: &'static [u8]) -> Self {
+    #[inline]
     pub fn body<T: IntoBody>(mut self, body: T) -> Self {
         self.body = Some(body.into());
         self
