@@ -45,6 +45,7 @@ pub use url::Url;
 pub use client::Client;
 pub use error::{Result, Error};
 pub use header::Headers;
+pub use http::Chunk;
 pub use method::Method::{self, Get, Head, Post, Delete};
 pub use net::{HttpStream, Transport};
 pub use status::StatusCode::{self, Ok, BadRequest, NotFound};
