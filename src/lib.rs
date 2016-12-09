@@ -29,6 +29,7 @@ extern crate rustc_serialize as serialize;
 extern crate serde;
 extern crate time;
 #[macro_use] extern crate tokio_core as tokio;
+extern crate tokio_tls;
 extern crate tokio_proto;
 extern crate tokio_service;
 extern crate spmc;

@@ -1,18 +1,21 @@
 use std::collections::hash_map::{HashMap, Entry};
 use std::hash::Hash;
 use std::fmt;
-use std::io;
+use std::io::{self, Read, Write};
 use std::net::SocketAddr;
 
 use futures::{Future, Poll, Async};
+use tokio::io::Io;
 use tokio::reactor::Handle;
 use tokio::net::{TcpStream, TcpStreamNew};
+use tokio_tls as tls;
 use tokio_service::Service;
 use url::Url;
 
 use super::dns;
 
-pub type DefaultConnector = HttpConnector;
+pub type DefaultConnector = HttpsConnector;
+pub type HttpsStream = tls::TlsStream<TcpStream>;
 
 /*
 /// A connector creates a Transport to a remote address..
@@ -38,7 +41,6 @@ type Port = u16;
 pub struct HttpConnector {
     dns: dns::Dns,
     handle: Handle,
-    //resolving: HashMap<String, Vec<(&'static str, String, u16)>>,
 }
 
 impl HttpConnector {
@@ -50,7 +52,6 @@ impl HttpConnector {
         HttpConnector {
             dns: dns::Dns::new(threads),
             handle: handle.clone(),
-            //resolving: HashMap::new(),
         }
     }
 }
@@ -88,6 +89,63 @@ impl Service for HttpConnector {
     }
 
 }
+
+pub struct HttpsConnector {
+    dns: dns::Dns,
+    handle: Handle,
+}
+
+impl HttpsConnector {
+
+    /// Construct a new HttpsConnector.
+    ///
+    /// Takes number of DNS worker threads.
+    pub fn new(handle: &Handle, threads: usize) -> HttpsConnector {
+        HttpsConnector {
+            dns: dns::Dns::new(threads),
+            handle: handle.clone(),
+        }
+    }
+}
+
+impl fmt::Debug for HttpsConnector {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("HttpsConnector")
+            .finish()
+    }
+}
+
+impl Service for HttpsConnector {
+    type Request = Url;
+    type Response = MaybeHttpsStream;
+    type Error = io::Error;
+    type Future = TlsConnecting;
+
+    fn call(&self, url: Url) -> Self::Future {
+        debug!("Https::connect({:?})", url);
+        let is_https = url.scheme() == "https";
+        let host = url.host_str().expect("http scheme must have a host");
+        let port = url.port_or_known_default().unwrap_or(80);
+
+        let host = host.to_owned();
+
+        let connecting = Connecting {
+            state: State::Resolving(self.dns.resolve(host.clone(), port)),
+            handle: self.handle.clone(),
+        };
+        if is_https {
+            Box::new(connecting.and_then(move |tcp| {
+                let ctx = tls::ClientContext::new().unwrap();
+                ctx.handshake(&host, tcp)
+            }).map(|tls| MaybeHttpsStream::Https(tls)))
+        } else {
+            Box::new(connecting.map(|tcp| MaybeHttpsStream::Http(tcp)))
+        }
+    }
+
+}
+
+pub type TlsConnecting = Box<Future<Item=MaybeHttpsStream, Error=io::Error>>;
 
 pub struct Connecting {
     state: State,
@@ -157,6 +215,53 @@ impl ConnectingTcp {
             }
 
             return Err(err.take().expect("missing connect error"));
+        }
+    }
+}
+
+pub enum MaybeHttpsStream {
+    Http(TcpStream),
+    Https(HttpsStream),
+}
+
+impl Read for MaybeHttpsStream {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match *self {
+            MaybeHttpsStream::Http(ref mut s) => s.read(buf),
+            MaybeHttpsStream::Https(ref mut s) => s.read(buf),
+        }
+    }
+}
+
+impl Write for MaybeHttpsStream {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match *self {
+            MaybeHttpsStream::Http(ref mut s) => s.write(buf),
+            MaybeHttpsStream::Https(ref mut s) => s.write(buf),
+        }
+    }
+
+
+    fn flush(&mut self) -> io::Result<()> {
+        match *self {
+            MaybeHttpsStream::Http(ref mut s) => s.flush(),
+            MaybeHttpsStream::Https(ref mut s) => s.flush(),
+        }
+    }
+}
+
+impl Io for MaybeHttpsStream {
+    fn poll_read(&mut self) -> Async<()> {
+        match *self {
+            MaybeHttpsStream::Http(ref mut s) => s.poll_read(),
+            MaybeHttpsStream::Https(ref mut s) => s.poll_read(),
+        }
+    }
+
+    fn poll_write(&mut self) -> Async<()> {
+        match *self {
+            MaybeHttpsStream::Http(ref mut s) => s.poll_write(),
+            MaybeHttpsStream::Https(ref mut s) => s.poll_write(),
         }
     }
 }

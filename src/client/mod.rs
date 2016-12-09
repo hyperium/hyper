@@ -70,7 +70,7 @@ impl Client<DefaultConnector> {
     pub fn new(handle: &Handle) -> ::Result<Client<DefaultConnector>> {
         //Client::configure().build()
         Ok(Client {
-            connector: HttpConnector::new(handle, 4),
+            connector: DefaultConnector::new(handle, 4),
             handle: handle.clone(),
         })
     }
