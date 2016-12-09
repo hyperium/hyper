@@ -185,7 +185,9 @@ impl<I: Io, T: Http1Transaction> Conn<I, T> {
             //TODO: check that this isn't a response to a HEAD
             //request, which could include the content-length
             //even if no body is to be written
-            head.headers.set(ContentLength(0));
+            if T::should_set_length(&head) {
+                head.headers.set(ContentLength(0));
+            }
         }
 
         let wants_keep_alive = http::should_keep_alive(head.version, &head.headers);

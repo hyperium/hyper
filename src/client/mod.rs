@@ -22,7 +22,7 @@ use tokio_proto::streaming::pipeline::ClientProto;
 use tokio_proto::util::client_proxy::ClientProxy;
 pub use tokio_service::Service;
 
-use header::Host;
+use header::{Headers, Host};
 use http::{self, Conn, RequestHead, ClientTransaction};
 use method::Method;
 use net::Transport;
@@ -114,23 +114,30 @@ impl Service for Client<DefaultConnector> {
             &::RequestUri::AbsoluteUri(ref u) => u.clone(),
             _ => unimplemented!("RequestUri::*")
         };
-        req.headers_mut().set(::header::Host {
+
+        let (mut head, body) = request::split(req);
+        let mut headers = Headers::new();
+        headers.set(Host {
             hostname: url.host_str().unwrap().to_owned(),
-            port: None,
+            port: url.port().or(None),
         });
+        headers.extend(head.headers.iter());
+        head.subject.1 = RequestUri::AbsolutePath {
+            path: url.path().to_owned(),
+            query: url.query().map(ToOwned::to_owned),
+        };
+        head.headers = headers;
         let handle = self.handle.clone();
         let client = self.connector.call(url)
             .map(move |io| HttpClient.bind_client(&handle, io))
             .map_err(|e| e.into());
         let req = client.and_then(move |client| {
-            let (head, body) = request::split(req);
             let msg = match body {
                 Some(body) => Message::WithBody(head, body),
                 None => Message::WithoutBody(head),
             };
             client.call(msg)
         });
-        //self.sockets.borrow_mut().push(client);
         FutureResponse(Box::new(req.map(|msg| {
             match msg {
                 Message::WithoutBody(head) => response::new(head, None),
