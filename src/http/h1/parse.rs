@@ -101,6 +101,11 @@ impl Http1Transaction for ServerTransaction {
         }
         body
     }
+
+    fn should_set_length(head: &MessageHead<Self::Outgoing>) -> bool {
+        //TODO: pass method, check if method == HEAD
+        true
+    }
 }
 
 impl Http1Transaction for ClientTransaction {
@@ -200,6 +205,14 @@ impl Http1Transaction for ClientTransaction {
         let _ = write!(FastWrite(dst), "{} {}\r\n{}\r\n", head.subject, head.version, head.headers);
 
         body
+    }
+
+
+    fn should_set_length(head: &MessageHead<Self::Outgoing>) -> bool {
+        match &head.subject.0 {
+            &Method::Get | &Method::Head => false,
+            _ => true
+        }
     }
 }
 

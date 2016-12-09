@@ -1,7 +1,6 @@
 //! Client Requests
 
-use tokio_proto::streaming::Body;
-
+use futures::{Future, Sink};
 use Url;
 
 use header::Headers;
@@ -10,13 +9,13 @@ use method::Method;
 use uri::RequestUri;
 use version::HttpVersion;
 
-
+type Body = ::tokio_proto::streaming::Body<Chunk, ::Error>;
 
 /// A client request to a remote server.
 #[derive(Debug)]
 pub struct Request {
     head: RequestHead,
-    body: Option<Body<Chunk, ::Error>>,
+    body: Option<Body>,
 }
 
 impl Request {
@@ -63,11 +62,47 @@ impl Request {
     /// Set the `HttpVersion` of this request.
     #[inline]
     pub fn set_version(&mut self, version: HttpVersion) { self.head.version = version; }
+
+    /// Set the body of the request.
+    #[inline]
+    pub fn set_body<T: IntoBody>(&mut self, body: T) { self.body = Some(body.into()); }
 }
 
 
-pub fn split(req: Request) -> (RequestHead, Option<Body<Chunk, ::Error>>) {
+pub fn split(req: Request) -> (RequestHead, Option<Body>) {
     (req.head, req.body)
+}
+
+pub trait IntoBody {
+    fn into(self) -> Body;
+}
+
+impl IntoBody for Body {
+    fn into(self) -> Self {
+        self
+    }
+}
+
+impl IntoBody for Vec<u8> {
+    fn into(self) -> Body {
+        let (mut tx, rx) = Body::pair();
+        ::futures::lazy(move || tx.start_send(Ok(Chunk::from(self)))).wait().unwrap();
+        rx
+    }
+}
+
+impl IntoBody for &'static [u8] {
+    fn into(self) -> Body {
+        let vec = self.to_vec();
+        IntoBody::into(vec)
+    }
+}
+
+impl IntoBody for &'static str {
+    fn into(self) -> Body {
+        let vec = self.as_bytes().to_vec();
+        IntoBody::into(vec)
+    }
 }
 
 #[cfg(test)]

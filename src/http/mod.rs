@@ -299,6 +299,7 @@ pub trait Http1Transaction {
     fn parse(bytes: &[u8]) -> ParseResult<Self::Incoming>;
     fn decoder(head: &MessageHead<Self::Incoming>) -> ::Result<h1::Decoder>;
     fn encode(head: &mut MessageHead<Self::Outgoing>, dst: &mut Vec<u8>) -> h1::Encoder;
+    fn should_set_length(head: &MessageHead<Self::Outgoing>) -> bool;
 }
 
 

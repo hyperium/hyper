@@ -1,28 +1,26 @@
-//#![deny(warnings)]
+#![deny(warnings)]
 extern crate hyper;
 extern crate futures;
 extern crate tokio_core;
 
 use std::io::{self, Read, Write};
 use std::net::TcpListener;
-use std::sync::mpsc;
 use std::time::Duration;
 
-use hyper::client::{Client, Request, Response, DefaultConnector};
+use hyper::client::{Client, Request, DefaultConnector};
 use hyper::{Method, StatusCode};
-use hyper::header::Headers;
 
 use futures::Future;
+use futures::sync::oneshot;
 
 use tokio_core::reactor::{Core, Handle};
 
-fn s(bytes: &[u8]) -> &str {
-    ::std::str::from_utf8(bytes.as_ref()).unwrap()
-}
-
-
 fn client(handle: &Handle) -> Client<DefaultConnector> {
     Client::new(handle).unwrap()
+}
+
+fn s(buf: &[u8]) -> &str {
+    ::std::str::from_utf8(buf).unwrap()
 }
 
 macro_rules! test {
@@ -45,7 +43,7 @@ macro_rules! test {
     ) => (
         #[test]
         fn $name() {
-            #[allow(unused)]
+            #![allow(unused)]
             use hyper::header::*;
             let server = TcpListener::bind("127.0.0.1:0").unwrap();
             let addr = server.local_addr().unwrap();
@@ -55,7 +53,14 @@ macro_rules! test {
             $(
                 req.headers_mut().set($request_headers);
             )*
+
+            if let Some(body) = $request_body {
+                let body: &'static str = body;
+                req.set_body(body);
+            }
             let res = client.request(req);
+
+            let (tx, rx) = oneshot::channel();
 
             ::std::thread::spawn(move || {
                 let mut inc = server.accept().unwrap().0;
@@ -67,17 +72,21 @@ macro_rules! test {
                 while n < buf.len() && n < expected.len() {
                     n += inc.read(&mut buf[n..]).unwrap();
                 }
-                //assert_eq!(s(&buf[..n]), expected);
+                assert_eq!(s(&buf[..n]), expected);
 
                 inc.write_all($server_reply.as_ref()).unwrap();
+                tx.complete(());
             });
 
-            let res = core.run(res).unwrap();
+            let rx = rx.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+
+            let work = res.join(rx).map(|r| r.0);
+
+            let res = core.run(work).unwrap();
             assert_eq!(res.status(), &StatusCode::$client_status);
             $(
                 assert_eq!(res.headers().get(), Some(&$response_headers));
             )*
-            //drop(inc);
         }
     );
 }
@@ -146,7 +155,7 @@ test! {
             headers: [
                 ContentLength(7),
             ],
-            body: Some(b"foo bar"),
+            body: Some("foo bar"),
         response:
             status: Ok,
             headers: [],
@@ -175,31 +184,12 @@ test! {
             headers: [
                 TransferEncoding::chunked(),
             ],
-            body: Some(b"foo bar baz"),
+            body: Some("foo bar baz"),
         response:
             status: Ok,
             headers: [],
             body: None,
 }
-
-/*
-#[test]
-fn client_read_timeout() {
-    let server = TcpListener::bind("127.0.0.1:0").unwrap();
-    let addr = server.local_addr().unwrap();
-    let client = client();
-    let res = client.request(format!("http://{}/", addr), opts().read_timeout(Duration::from_secs(3)));
-
-    let mut inc = server.accept().unwrap().0;
-    let mut buf = [0; 4096];
-    inc.read(&mut buf).unwrap();
-
-    match res.recv() {
-        Ok(Msg::Error(hyper::Error::Timeout)) => (),
-        other => panic!("expected timeout, actual: {:?}", other)
-    }
-}
-*/
 
 /*
 #[test]
