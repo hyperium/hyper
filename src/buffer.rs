@@ -44,6 +44,24 @@ impl<R: Read> BufReader<R> {
         }
     }
 
+    /// Extracts the buffer from this reader. Return the current cursor position
+    /// and the position of the last valid byte.
+    ///
+    /// This operation does not copy the buffer. Instead, it directly returns
+    /// the internal buffer. As a result, this reader will no longer have any
+    /// buffered contents and any subsequent read from this reader will not
+    /// include the returned buffered contents.
+    #[inline]
+    pub fn take_buf(&mut self) -> (Vec<u8>, usize, usize) {
+        let (pos, cap) = (self.pos, self.cap);
+        self.pos = 0;
+        self.cap = 0;
+
+        let mut output = vec![0; INIT_BUFFER_SIZE];
+        ::std::mem::swap(&mut self.buf, &mut output);
+        (output, pos, cap)
+    }
+
     #[inline]
     pub fn into_inner(self) -> R { self.inner }
 
