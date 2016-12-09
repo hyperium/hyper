@@ -153,7 +153,6 @@ test! {
             body: None,
 }
 
-/*
 test! {
     name: client_post_chunked,
 
@@ -182,7 +181,6 @@ test! {
             headers: [],
             body: None,
 }
-*/
 
 /*
 #[test]

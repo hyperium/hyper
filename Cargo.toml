@@ -22,6 +22,7 @@ rustc-serialize = "0.3"
 spmc = "0.2"
 time = "0.1"
 tokio-core = "0.1"
+tokio-tls = {git = "https://github.com/tokio-rs/tokio-tls"}
 tokio-proto = {git = "https://github.com/tokio-rs/tokio-proto"}
 tokio-service = {git = "https://github.com/tokio-rs/tokio-service"}
 unicase = "1.0"
