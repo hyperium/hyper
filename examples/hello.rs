@@ -20,9 +20,9 @@ impl Service for Hello {
     fn call(&self, _req: Request) -> Self::Future {
         ::futures::finished(
             Response::new()
-                .header(ContentLength(PHRASE.len() as u64))
-                .header(ContentType::plaintext())
-                .body(PHRASE)
+                .with_header(ContentLength(PHRASE.len() as u64))
+                .with_header(ContentType::plaintext())
+                .with_body(PHRASE)
         )
     }
 

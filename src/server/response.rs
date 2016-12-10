@@ -28,31 +28,6 @@ impl Response {
         Response::default()
     }
 
-    #[inline]
-    pub fn status(mut self, status: StatusCode) -> Self {
-        self.head.subject = status;
-        self
-    }
-
-    #[inline]
-    pub fn header<H: header::Header>(mut self, header: H) -> Self {
-        self.head.headers.set(header);
-        self
-    }
-
-    #[inline]
-    pub fn headers(mut self, headers: header::Headers) -> Self {
-        self.head.headers = headers;
-        self
-    }
-
-    #[inline]
-    pub fn body<T: IntoBody>(mut self, body: T) -> Self {
-        self.body = Some(body.into());
-        self
-    }
-
-    /*
     /// The headers of this response.
     #[inline]
     pub fn headers(&self) -> &header::Headers { &self.head.headers }
@@ -71,12 +46,53 @@ impl Response {
     #[inline]
     pub fn headers_mut(&mut self) -> &mut header::Headers { &mut self.head.headers }
 
-    /// Get a mutable reference to the status.
+    /// Set the `StatusCode` for this response.
     #[inline]
     pub fn set_status(&mut self, status: StatusCode) {
         self.head.subject = status;
     }
-    */
+
+    /// Set the body.
+    #[inline]
+    pub fn set_body<T: IntoBody>(&mut self, body: T) {
+        self.body = Some(body.into());
+    }
+
+    /// Set the status and move the Response.
+    ///
+    /// Useful for the "builder-style" pattern.
+    #[inline]
+    pub fn with_status(mut self, status: StatusCode) -> Self {
+        self.set_status(status);
+        self
+    }
+
+    /// Set a header and move the Response.
+    ///
+    /// Useful for the "builder-style" pattern.
+    #[inline]
+    pub fn with_header<H: header::Header>(mut self, header: H) -> Self {
+        self.head.headers.set(header);
+        self
+    }
+
+    /// Set the headers and move the Response.
+    ///
+    /// Useful for the "builder-style" pattern.
+    #[inline]
+    pub fn with_headers(mut self, headers: header::Headers) -> Self {
+        self.head.headers = headers;
+        self
+    }
+
+    /// Set the body and move the Response.
+    ///
+    /// Useful for the "builder-style" pattern.
+    #[inline]
+    pub fn with_body<T: IntoBody>(mut self, body: T) -> Self {
+        self.set_body(body);
+        self
+    }
 }
 
 pub fn split(res: Response) -> (http::MessageHead<StatusCode>, Option<Body>) {
