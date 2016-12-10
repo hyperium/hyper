@@ -135,9 +135,11 @@ impl Service for HttpsConnector {
         };
         if is_https {
             Box::new(connecting.and_then(move |tcp| {
-                let ctx = tls::ClientContext::new().unwrap();
-                ctx.handshake(&host, tcp)
-            }).map(|tls| MaybeHttpsStream::Https(tls)))
+                let ctx = try!(tls::ClientContext::new());
+                Ok(ctx.handshake(&host, tcp))
+            })
+                .and_then(|handshake| handshake)
+                .map(|tls| MaybeHttpsStream::Https(tls)))
         } else {
             Box::new(connecting.map(|tcp| MaybeHttpsStream::Http(tcp)))
         }
