@@ -1,6 +1,6 @@
 use mime::Mime;
 
-use header::QualityItem;
+use header::{QualityItem, qitem};
 
 header! {
     /// `Accept` header, defined in [RFC7231](http://tools.ietf.org/html/rfc7231#section-5.3.2)
@@ -116,5 +116,28 @@ header! {
             ])));
     }
 }
+
+impl Accept {
+    /// A constructor to easily create `Accept: */*`.
+    pub fn star() -> Accept {
+        Accept(vec![qitem(mime!(Star/Star))])
+    }
+
+    /// A constructor to easily create `Accept: application/json`.
+    pub fn json() -> Accept {
+        Accept(vec![qitem(mime!(Application/Json))])
+    }
+
+    /// A constructor to easily create `Accept: text/*`.
+    pub fn text() -> Accept {
+        Accept(vec![qitem(mime!(Text/Star))])
+    }
+
+    /// A constructor to easily create `Accept: image/*`.
+    pub fn image() -> Accept {
+        Accept(vec![qitem(mime!(Image/Star))])
+    }
+}
+
 
 bench_header!(bench, Accept, { vec![b"text/plain; q=0.5, text/html".to_vec()] });
