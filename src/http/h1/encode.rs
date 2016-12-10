@@ -96,6 +96,7 @@ impl Encoder {
             Kind::Length(ref mut remaining) => {
                 let mut n = {
                     let max = cmp::min(*remaining as usize, msg.len());
+                    trace!("sized write, len = {}", max);
                     let slice = &msg[..max];
 
                     let prefix = self.prefix.0.as_ref().map(|buf| &buf.bytes[buf.pos..]).unwrap_or(b"");
@@ -109,6 +110,7 @@ impl Encoder {
                 }
 
                 *remaining -= n as u64;
+                trace!("sized write complete, remaining = {}", remaining);
                 Ok(n)
             },
         }

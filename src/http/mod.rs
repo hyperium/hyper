@@ -36,7 +36,7 @@ macro_rules! nonblocking {
     });
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct WriteBuf<T: AsRef<[u8]>> {
     pub bytes: T,
     pub pos: usize,
@@ -51,6 +51,7 @@ impl<T: AsRef<[u8]>> WriteBuf<T> {
     }
 
     pub fn is_written(&self) -> bool {
+        trace!("WriteBuf::is_written pos = {}, len = {}", self.pos, self.bytes.as_ref().len());
         self.pos >= self.bytes.as_ref().len()
     }
 
@@ -59,6 +60,25 @@ impl<T: AsRef<[u8]>> WriteBuf<T> {
             self.pos += n;
             n
         })
+    }
+
+    #[inline]
+    pub fn buf(&self) -> &[u8] {
+        &self.bytes.as_ref()[self.pos..]
+    }
+
+    #[inline]
+    pub fn consume(&mut self, num: usize) {
+        trace!("WriteBuf::consume({})", num);
+        self.pos = ::std::cmp::min(self.bytes.as_ref().len(), self.pos + num);
+    }
+}
+
+impl<T: AsRef<[u8]>> fmt::Debug for WriteBuf<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let bytes = self.buf();
+        let reasonable_max = ::std::cmp::min(bytes.len(), 32);
+        write!(f, "WriteBuf({:?})", &bytes[..reasonable_max])
     }
 }
 
@@ -120,8 +140,7 @@ impl<T: Read> Read for IoBuf<T> {
 
 impl<T: Write> Write for IoBuf<T> {
     fn write(&mut self, data: &[u8]) -> io::Result<usize> {
-        self.write_buf.write(data);
-        Ok(data.len())
+        Ok(self.write_buf.write(data))
     }
 
     fn flush(&mut self) -> io::Result<()> {
@@ -258,6 +277,12 @@ impl ::std::ops::Deref for Chunk {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl AsRef<[u8]> for Chunk {
+    fn as_ref(&self) -> &[u8] {
         &self.0
     }
 }
