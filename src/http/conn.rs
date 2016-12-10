@@ -196,7 +196,7 @@ impl<I: Io, T: Http1Transaction> Conn<I, T> {
         let encoder = T::encode(&mut head, &mut buf);
         self.io.write(&buf).unwrap();
         self.state.writing = if body {
-            Writing::Body(encoder)
+            Writing::Body(encoder, None)
         } else {
             Writing::KeepAlive
         };
@@ -208,22 +208,32 @@ impl<I: Io, T: Http1Transaction> Conn<I, T> {
         debug_assert!(self.can_write_body());
 
         let state = match self.state.writing {
-            Writing::Body(ref mut encoder) => {
+            Writing::Body(ref mut encoder, ref mut queued) => {
+                if queued.is_some() {
+                    return Ok(AsyncSink::NotReady(chunk));
+                }
                 let mut is_done = true;
-                match chunk {
+                let mut wbuf = WriteBuf::new(match chunk {
                     Some(chunk) => {
                         is_done = false;
-                        // TODO: this needs to check our write_buf can receive this
-                        // chunk, and if not, shove it into `self` and be NotReady
-                        // until we've flushed and fit the cached chunk
-                        encoder.encode(&mut self.io, &chunk).unwrap();
+                        chunk
                     }
                     None => {
                         // Encode a zero length chunk
                         // the http1 encoder does the right thing
                         // encoding either the final chunk or ignoring the input
-                         encoder.encode(&mut self.io, b"").unwrap();
+                        http::Chunk::from(Vec::new())
                     }
+                });
+
+                // TODO: this needs to check our write_buf can receive this
+                // chunk, and if not, shove it into `self` and be NotReady
+                // until we've flushed and fit the cached chunk
+                let n = encoder.encode(&mut self.io, wbuf.buf()).unwrap();
+                wbuf.consume(n);
+
+                if !wbuf.is_written() {
+                    *queued = Some(wbuf);
                 }
 
                 if encoder.is_eof() {
@@ -240,6 +250,40 @@ impl<I: Io, T: Http1Transaction> Conn<I, T> {
         Ok(AsyncSink::Ready)
     }
 
+    fn write_queued(&mut self) -> Poll<(), io::Error> {
+        trace!("Conn::write_queued()");
+        match self.state.writing {
+            Writing::Body(ref mut encoder, ref mut queued) => {
+                let complete = if let Some(chunk) = queued.as_mut() {
+                    let n = try_nb!(encoder.encode(&mut self.io, chunk.buf()));
+                    chunk.consume(n);
+                    chunk.is_written()
+                } else {
+                    true
+                };
+                trace!("Conn::write_queued complete = {}", complete);
+                if complete {
+                    *queued = None;
+                    Ok(Async::NotReady)
+                } else {
+                    Ok(Async::Ready(()))
+                }
+            },
+            _ => Ok(Async::Ready(())),
+        }
+    }
+
+    fn flush(&mut self) -> Poll<(), io::Error> {
+        try_nb!(self.write_queued());
+        try_nb!(self.io.flush());
+        self.state.try_keep_alive();
+        trace!("flushed {:?}", self.state);
+        if self.is_read_ready() {
+            ::futures::task::park().unpark();
+        }
+        Ok(Async::Ready(()))
+
+    }
 }
 
 impl<I, T> Stream for Conn<I, T>
@@ -277,7 +321,7 @@ where I: Io,
     type SinkError = io::Error;
 
     fn start_send(&mut self, frame: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
-        trace!("Conn::start_send( frame={:?} )", frame);
+        trace!("Conn::start_send( frame={:?} )", DebugFrame(&frame));
 
         let frame: Self::SinkItem = match frame {
             Frame::Message { message: head, body } => {
@@ -328,20 +372,7 @@ where I: Io,
 
     fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
         trace!("Conn::poll_complete()");
-        let ret = match self.io.flush() {
-            Ok(()) => {
-                self.state.try_keep_alive();
-                trace!("flushed {:?}", self.state);
-                if self.is_read_ready() {
-                    ::futures::task::park().unpark();
-                }
-                Ok(Async::Ready(()))
-            },
-            Err(e) => match e.kind() {
-                io::ErrorKind::WouldBlock => Ok(Async::NotReady),
-                _ => Err(e)
-            }
-        };
+        let ret = self.flush();
         trace!("Conn::flush = {:?}", ret);
         ret
     }
@@ -380,7 +411,7 @@ enum Reading {
 #[derive(Debug)]
 enum Writing {
     Init,
-    Body(Encoder),
+    Body(Encoder, Option<WriteBuf<http::Chunk>>),
     KeepAlive,
     Closed,
 }
@@ -422,6 +453,48 @@ impl State {
             Writing::Closed => true,
             _ => false
         }
+    }
+}
+
+// The DebugFrame and DebugChunk are simple Debug implementations that allow
+// us to dump the frame into logs, wihtout logging the entirety of the bytes.
+struct DebugFrame<'a, T: fmt::Debug + 'a>(&'a Frame<http::MessageHead<T>, http::Chunk, ::Error>);
+
+impl<'a, T: fmt::Debug + 'a> fmt::Debug for DebugFrame<'a, T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self.0 {
+            Frame::Message { ref message, ref body } => {
+                f.debug_struct("Message")
+                    .field("message", message)
+                    .field("body", body)
+                    .finish()
+            },
+            Frame::Body { chunk: Some(ref chunk) } => {
+                f.debug_struct("Body")
+                    .field("chunk", &DebugChunk(chunk))
+                    .finish()
+            },
+            Frame::Body { chunk: None } => {
+                f.debug_struct("Body")
+                    .field("chunk", &"None")
+                    .finish()
+            },
+            Frame::Error { ref error } => {
+                f.debug_struct("Error")
+                    .field("error", error)
+                    .finish()
+            }
+        }
+    }
+}
+
+struct DebugChunk<'a>(&'a http::Chunk);
+
+impl<'a> fmt::Debug for DebugChunk<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("Chunk")
+            .field(&self.0.len())
+            .finish()
     }
 }
 
@@ -472,26 +545,40 @@ mod tests {
 
     #[test]
     fn test_conn_body_write() {
-        let io = AsyncIo::new_buf(vec![], 0);
-        let mut conn = Conn::<_, ServerTransaction>::new(io);
-        conn.state.writing = Writing::Body(Encoder::length(1024 * 5));
+        extern crate pretty_env_logger;
+        use ::futures::Future;
+        pretty_env_logger::init();
+        let _: Result<(), ()> = ::futures::lazy(|| {
+            let io = AsyncIo::new_buf(vec![], 0);
+            let mut conn = Conn::<_, ServerTransaction>::new(io);
+            let max = ::http::buffer::MAX_BUFFER_SIZE + 4096;
+            conn.state.writing = Writing::Body(Encoder::length(max as u64), None);
 
-        match conn.start_send(Frame::Body { chunk: Some(vec![b'a'; 1024 * 4].into()) }) {
-            Ok(AsyncSink::Ready) => {},
-            other => panic!("did not return Ready: {:?}", other)
-        }
+            assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'a'; 1024 * 4].into()) }).unwrap().is_ready());
+            match conn.state.writing {
+                Writing::Body(_, None) => {},
+                _ => panic!("writing did not queue chunk: {:?}", conn.state.writing),
+            }
 
-        match conn.start_send(Frame::Body { chunk: Some(vec![b'b'; 1024 * 4].into()) }) {
-            Ok(AsyncSink::NotReady(_)) => {},
-            other => panic!("did not return NotReady: {:?}", other)
-        }
+            assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'b'; max - 8192].into()) }).unwrap().is_ready());
 
-        conn.io.transport.block_in(1024 * 3);
-        assert!(conn.poll_complete().unwrap().is_not_ready());
-        conn.io.transport.block_in(1024 * 3);
-        assert!(conn.poll_complete().unwrap().is_not_ready());
-        conn.io.transport.block_in(1024 * 3);
-        assert!(conn.poll_complete().unwrap().is_ready());
+            match conn.state.writing {
+                Writing::Body(_, Some(_)) => {},
+                _ => panic!("writing did not queue chunk: {:?}", conn.state.writing),
+            }
+
+            assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'b'; 1024 * 4].into()) }).unwrap().is_not_ready());
+
+            conn.io.transport.block_in(1024 * 3);
+            assert!(conn.poll_complete().unwrap().is_not_ready());
+            conn.io.transport.block_in(1024 * 3);
+            assert!(conn.poll_complete().unwrap().is_not_ready());
+            conn.io.transport.block_in(max);
+            assert!(conn.poll_complete().unwrap().is_ready());
+
+            assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'c'; 1024 * 4].into()) }).unwrap().is_ready());
+            Ok(())
+        }).wait();
     }
 
     #[test]

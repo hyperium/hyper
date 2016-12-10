@@ -4,7 +4,7 @@ use std::ptr;
 
 
 const INIT_BUFFER_SIZE: usize = 4096;
-const MAX_BUFFER_SIZE: usize = 8192 + 4096 * 100;
+pub const MAX_BUFFER_SIZE: usize = 8192 + 4096 * 100;
 
 #[derive(Debug, Default)]
 pub struct Buffer {
@@ -83,18 +83,21 @@ impl Buffer {
         Ok(n)
     }
 
-    pub fn write(&mut self, data: &[u8]) {
+    pub fn write(&mut self, data: &[u8]) -> usize {
         trace!("Buffer::write len = {:?}", data.len());
         self.maybe_reserve(data.len());
-        assert!(self.available() > data.len());
+        let len = cmp::min(self.available(), data.len());
+        assert!(self.available() >= len);
         unsafe {
+            // in rust 1.9, we could use slice::copy_from_slice
             ptr::copy(
                 data.as_ptr(),
                 self.vec.as_mut_ptr().offset(self.tail as isize),
-                data.len()
+                len
             );
         }
-        self.tail += data.len();
+        self.tail += len;
+        len
     }
 
     #[inline]
@@ -105,7 +108,7 @@ impl Buffer {
             let init = cmp::max(INIT_BUFFER_SIZE, needed);
             trace!("reserving initial {}", init);
             self.vec = vec![0; init];
-        } else if self.head > 0  && self.tail == cap {
+        } else if self.head > 0  && self.tail == cap && self.head >= needed {
             // there is space to shift over
             let count = self.tail - self.head;
             trace!("moving buffer bytes over by {}", count);
