@@ -286,10 +286,9 @@ fn server_get_chunked_response_with_ka() {
     loop {
         let n = req.read(&mut buf[ntotal..]).expect("reading 1");
         ntotal = ntotal + n;
-        if ntotal < buf.len() {
-            if &buf[ntotal - foo_bar_chunk.len()..ntotal] == foo_bar_chunk {
-                break;
-            }
+        assert!(ntotal < buf.len());
+        if &buf[ntotal - foo_bar_chunk.len()..ntotal] == foo_bar_chunk {
+            break;
         }
     }
 
