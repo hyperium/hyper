@@ -5,6 +5,7 @@ extern crate tokio_core;
 
 use std::io::{self, Read, Write};
 use std::net::TcpListener;
+use std::thread;
 use std::time::Duration;
 
 use hyper::client::{Client, Request, DefaultConnector};
@@ -62,7 +63,7 @@ macro_rules! test {
 
             let (tx, rx) = oneshot::channel();
 
-            ::std::thread::spawn(move || {
+            thread::spawn(move || {
                 let mut inc = server.accept().unwrap().0;
                 inc.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
                 inc.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
@@ -191,29 +192,33 @@ test! {
             body: None,
 }
 
-/*
+//TODO: enable once client connection pooling is working
+#[ignore]
 #[test]
 fn client_keep_alive() {
     let server = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = server.local_addr().unwrap();
-    let client = client();
-    let res = client.request(format!("http://{}/a", addr), opts());
+    let mut core = Core::new().unwrap();
+    let client = client(&core.handle());
 
-    let mut sock = server.accept().unwrap().0;
-    sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
-    sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
-    let mut buf = [0; 4096];
-    sock.read(&mut buf).expect("read 1");
-    sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").expect("write 1");
 
-    while let Ok(_) = res.recv() {}
+    thread::spawn(move || {
+        let mut sock = server.accept().unwrap().0;
+        sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+        let mut buf = [0; 4096];
+        sock.read(&mut buf).expect("read 1");
+        sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").expect("write 1");
 
-    let res = client.request(format!("http://{}/b", addr), opts());
-    sock.read(&mut buf).expect("read 2");
-    let second_get = b"GET /b HTTP/1.1\r\n";
-    assert_eq!(&buf[..second_get.len()], second_get);
-    sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").expect("write 2");
+        sock.read(&mut buf).expect("read 2");
+        let second_get = b"GET /b HTTP/1.1\r\n";
+        assert_eq!(&buf[..second_get.len()], second_get);
+        sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").expect("write 2");
+    });
 
-    while let Ok(_) = res.recv() {}
+    let req = client.get(format!("http://{}/a", addr).parse().unwrap());
+    core.run(req).unwrap();
+
+    let req = client.get(format!("http://{}/b", addr).parse().unwrap());
+    core.run(req).unwrap();
 }
-*/
