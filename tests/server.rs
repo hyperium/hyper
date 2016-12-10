@@ -124,13 +124,13 @@ impl Service for TestService {
             while let Ok(reply) = replies.try_recv() {
                 match reply {
                     Reply::Status(s) => {
-                        res = res.status(s);
+                        res.set_status(s);
                     },
                     Reply::Headers(headers) => {
-                        res = res.headers(headers);
+                        *res.headers_mut() = headers;
                     },
                     Reply::Body(body) => {
-                        res = res.body(body);
+                        res.set_body(body);
                     },
                 }
             }
@@ -281,16 +281,14 @@ fn server_get_chunked_response_with_ka() {
         \r\n\
     ").expect("writing 1");
 
-    let mut buf = [0; 1024 * 8];
+    let mut buf = [0; 1024 * 4];
     let mut ntotal = 0;
     loop {
-        let n = req.read(&mut buf[..]).expect("reading 1");
+        let n = req.read(&mut buf[ntotal..]).expect("reading 1");
         ntotal = ntotal + n;
         if ntotal < buf.len() {
             if &buf[ntotal - foo_bar_chunk.len()..ntotal] == foo_bar_chunk {
-                println!("ok n = {} total = {}", n, ntotal);
                 break;
-            } else {
             }
         }
     }
@@ -411,8 +409,6 @@ fn server_empty_response_chunked_without_body_should_set_content_length() {
 
 #[test]
 fn server_keep_alive() {
-    extern crate pretty_env_logger;
-    pretty_env_logger::init();
     let foo_bar = b"foo bar baz";
     let server = serve();
     server.reply()
