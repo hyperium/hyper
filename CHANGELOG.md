@@ -1,3 +1,28 @@
+### v0.9.14 (2016-12-12)
+
+
+#### Features
+
+* **headers:** add star, json, text, image constructors to Accept ([a9fbbd7f](https://github.com/hyperium/hyper/commit/a9fbbd7fdbcbec51ef560e9882a8fefa64a93b54))
+* **server:** add 'take_buf' method to BufReader ([bbbce5fc](https://github.com/hyperium/hyper/commit/bbbce5fc8bca0bcc34df4a4a9223432085fba2ff))
+
+
+### v0.9.13 (2016-11-27)
+
+
+#### Bug Fixes
+
+* **client:** close Pooled streams on sockopt error ([d5ffee2e](https://github.com/hyperium/hyper/commit/d5ffee2ec801274ac271273289084b7251b4ce89))
+
+
+### v0.9.12 (2016-11-09)
+
+
+#### Features
+
+* **error:** re-export url::ParseError ([30e78ac2](https://github.com/hyperium/hyper/commit/30e78ac212ed3085a5217e8d7f641c2f161ddc87))
+
+
 ### v0.9.11 (2016-10-31)
 
 
