@@ -303,10 +303,12 @@ impl<'a> RequestBuilder<'a> {
                 }
 
                 let mut h = Headers::new();
-                h.set(Host {
-                    hostname: host.to_owned(),
-                    port: Some(port),
-                });
+                if !h.has::<Host>() {
+                    h.set(Host {
+                        hostname: host.to_owned(),
+                        port: Some(port),
+                    });
+                }
                 if let Some(ref headers) = headers {
                     h.extend(headers.iter());
                 }
