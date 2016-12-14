@@ -19,7 +19,7 @@ use tokio::io::Io;
 use tokio::net::TcpListener;
 use tokio::reactor::{Core, Handle};
 use tokio_proto::BindServer;
-use tokio_proto::streaming::{Message, Body};
+use tokio_proto::streaming::Message;
 use tokio_proto::streaming::pipeline::ServerProto;
 pub use tokio_service::{NewService, Service};
 
@@ -28,6 +28,7 @@ pub use self::response::Response;
 
 //use self::conn::Conn;
 
+use body::{Body, TokioBody};
 use http;
 
 pub use net::{Accept, HttpListener};
@@ -40,6 +41,8 @@ use net::{SslServer, Transport};
 //mod conn;
 mod request;
 mod response;
+
+type ServerBody = Body;
 
 /// A Server that can accept incoming network requests.
 #[derive(Debug)]
@@ -245,10 +248,10 @@ struct HttpService<T> {
     inner: T,
 }
 
-fn map_response_to_message(res: Response) -> Message<ResponseHead, Body<http::Chunk, ::Error>> {
+fn map_response_to_message(res: Response) -> Message<ResponseHead, TokioBody> {
     let (head, body) = response::split(res);
     if let Some(body) = body {
-        Message::WithBody(head, body)
+        Message::WithBody(head, body.into())
     } else {
         Message::WithoutBody(head)
     }
@@ -259,15 +262,15 @@ type ResponseHead = http::MessageHead<::StatusCode>;
 impl<T> Service for HttpService<T>
     where T: Service<Request=Request, Response=Response, Error=::Error>,
 {
-    type Request = Message<http::RequestHead, Body<http::Chunk, ::Error>>;
-    type Response = Message<ResponseHead, Body<http::Chunk, ::Error>>;
+    type Request = Message<http::RequestHead, TokioBody>;
+    type Response = Message<ResponseHead, TokioBody>;
     type Error = ::Error;
-    type Future = Map<T::Future, fn(Response) -> Message<ResponseHead, Body<http::Chunk, ::Error>>>;
+    type Future = Map<T::Future, fn(Response) -> Message<ResponseHead, TokioBody>>;
 
     fn call(&self, message: Self::Request) -> Self::Future {
         let req = match message {
             Message::WithoutBody(head) => Request::new(head, None),
-            Message::WithBody(head, body) => Request::new(head, Some(body)),
+            Message::WithBody(head, body) => Request::new(head, Some(body.into())),
         };
         self.inner.call(req).map(map_response_to_message)
     }

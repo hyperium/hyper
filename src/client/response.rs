@@ -1,13 +1,12 @@
 //! Client Responses
 
-use tokio_proto::streaming::Body;
-
+use body::Body;
 use header;
 use http::{self, Chunk, RawStatus};
 use status;
 use version;
 
-pub fn new(incoming: http::ResponseHead, body: Option<Body<Chunk, ::Error>>) -> Response {
+pub fn new(incoming: http::ResponseHead, body: Option<Body>) -> Response {
     trace!("Response::new");
     let status = status::StatusCode::from_u16(incoming.subject.0);
     debug!("version={:?}, status={:?}", incoming.version, status);
@@ -30,7 +29,7 @@ pub struct Response {
     headers: header::Headers,
     version: version::HttpVersion,
     status_raw: RawStatus,
-    body: Option<Body<Chunk, ::Error>>,
+    body: Option<Body>,
 }
 
 impl Response {
@@ -54,7 +53,7 @@ impl Response {
     #[inline]
     pub fn version(&self) -> &version::HttpVersion { &self.version }
 
-    pub fn body(mut self) -> Body<::http::Chunk, ::Error> {
+    pub fn body(mut self) -> Body {
         self.body.take().unwrap_or(Body::empty())
     }
 }
