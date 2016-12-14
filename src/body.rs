@@ -8,7 +8,7 @@ use std::convert::From;
 
 use tokio_proto;
 use http::Chunk;
-use futures::{Poll, Stream};
+use futures::{Poll, Stream, Sink};
 use futures::sync::mpsc;
 use futures::StartSend;
 
@@ -54,5 +54,28 @@ impl From<tokio_proto::streaming::Body<Chunk, ::Error>> for Body {
 impl From<mpsc::Receiver<Result<Chunk, ::Error>>> for Body {
     fn from(src: mpsc::Receiver<Result<Chunk, ::Error>>) -> Body {
         Body(src.into())
+    }
+}
+
+impl From<Vec<u8>> for Body {
+    fn from (vec: Vec<u8>) -> Body {
+        let (mut tx, rx) = Body::pair();
+        tx.start_send(Ok(Chunk::from(vec)));
+        tx.poll_complete();
+        rx
+    }
+}
+
+impl From<&'static [u8]> for Body {
+    fn from (static_u8: &'static [u8]) -> Body {
+        let vec = static_u8.to_vec();
+        Into::<Body>::into(vec)
+    }
+}
+
+impl From<&'static str> for Body {
+    fn from (static_str: &'static str) -> Body {
+        let vec = static_str.as_bytes().to_vec();
+        Into::<Body>::into(vec)
     }
 }

@@ -3,8 +3,6 @@
 //! These are responses sent by a `hyper::Server` to clients, after
 //! receiving a request.
 
-use futures::{Future, Sink};
-
 use body::Body;
 use header;
 use http;
@@ -53,7 +51,7 @@ impl Response {
 
     /// Set the body.
     #[inline]
-    pub fn set_body<T: IntoBody>(&mut self, body: T) {
+    pub fn set_body<T: Into<Body>>(&mut self, body: T) {
         self.body = Some(body.into());
     }
 
@@ -88,7 +86,7 @@ impl Response {
     ///
     /// Useful for the "builder-style" pattern.
     #[inline]
-    pub fn with_body<T: IntoBody>(mut self, body: T) -> Self {
+    pub fn with_body<T: Into<Body>>(mut self, body: T) -> Self {
         self.set_body(body);
         self
     }
@@ -96,30 +94,4 @@ impl Response {
 
 pub fn split(res: Response) -> (http::MessageHead<StatusCode>, Option<Body>) {
     (res.head, res.body)
-}
-
-pub trait IntoBody {
-    fn into(self) -> Body;
-}
-
-impl IntoBody for Body {
-    fn into(self) -> Self {
-        self
-    }
-}
-
-impl IntoBody for Vec<u8> {
-    fn into(self) -> Body {
-        let (mut tx, rx) = Body::pair();
-        tx.start_send(Ok(http::Chunk::from(self)));
-        tx.poll_complete();
-        rx
-    }
-}
-
-impl IntoBody for &'static [u8] {
-    fn into(self) -> Body {
-        let vec = self.to_vec();
-        IntoBody::into(vec)
-    }
 }
