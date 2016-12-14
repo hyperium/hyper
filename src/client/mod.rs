@@ -17,11 +17,12 @@ use tokio::io::Io;
 use tokio::net::TcpStream;
 use tokio::reactor::Handle;
 use tokio_proto::BindClient;
-use tokio_proto::streaming::{Body, Message};
+use tokio_proto::streaming::Message;
 use tokio_proto::streaming::pipeline::ClientProto;
 use tokio_proto::util::client_proxy::ClientProxy;
 pub use tokio_service::Service;
 
+use body::{Body, TokioBody};
 use header::{Headers, Host};
 use http::{self, Conn, RequestHead, ClientTransaction};
 use method::Method;
@@ -38,7 +39,7 @@ mod dns;
 mod request;
 mod response;
 
-type ClientBody = Body<http::Chunk, ::Error>;
+type ClientBody = Body;
 
 /// A Client to make outgoing HTTP requests.
 pub struct Client<C> {
@@ -133,7 +134,10 @@ impl Service for Client<DefaultConnector> {
             .map_err(|e| e.into());
         let req = client.and_then(move |client| {
             let msg = match body {
-                Some(body) => Message::WithBody(head, body),
+                Some(body) => {
+                    let body: TokioBody = body.into();
+                    Message::WithBody(head, body)
+                },
                 None => Message::WithoutBody(head),
             };
             client.call(msg)
@@ -141,7 +145,7 @@ impl Service for Client<DefaultConnector> {
         FutureResponse(Box::new(req.map(|msg| {
             match msg {
                 Message::WithoutBody(head) => response::new(head, None),
-                Message::WithBody(head, body) => response::new(head, Some(body)),
+                Message::WithBody(head, body) => response::new(head, Some(body.into())),
             }
         })))
     }
@@ -151,7 +155,7 @@ impl Service for Client<DefaultConnector> {
 struct HttpClient;
 struct Pool<C> {
     connector: C,
-    connections: RefCell<Vec<ClientProxy<Message<http::RequestHead, ClientBody>, Message<http::ResponseHead, ClientBody>, ::Error>>>,
+    connections: RefCell<Vec<ClientProxy<Message<http::RequestHead, TokioBody>, Message<http::ResponseHead, TokioBody>, ::Error>>>,
 }
 
 impl<T: Io + 'static> ClientProto<T> for HttpClient {
