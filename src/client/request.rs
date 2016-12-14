@@ -3,13 +3,12 @@
 use futures::{Future, Sink};
 use Url;
 
+use body::Body;
 use header::Headers;
 use http::{RequestHead, Chunk};
 use method::Method;
 use uri::RequestUri;
 use version::HttpVersion;
-
-type Body = ::tokio_proto::streaming::Body<Chunk, ::Error>;
 
 /// A client request to a remote server.
 #[derive(Debug)]

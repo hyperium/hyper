@@ -5,13 +5,12 @@
 
 use std::fmt;
 
+use body::Body;
 use version::HttpVersion;
 use method::Method;
 use header::Headers;
 use http::{RequestHead, MessageHead, RequestLine, Chunk};
 use uri::RequestUri;
-
-type Body = ::tokio_proto::streaming::Body<Chunk, ::Error>;
 
 /// A request bundles several parts of an incoming `NetworkStream`, given to a `Handler`.
 pub struct Request {

@@ -5,12 +5,11 @@
 
 use futures::{Future, Sink};
 
+use body::Body;
 use header;
 use http;
 use status::StatusCode;
 use version;
-
-type Body = ::tokio_proto::streaming::Body<http::Chunk, ::Error>;
 
 /// The outgoing half for a Tcp connection, created by a `Server` and given to a `Handler`.
 ///
