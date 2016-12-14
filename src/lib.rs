@@ -68,7 +68,7 @@ macro_rules! unimplemented {
 
 #[cfg(test)]
 mod mock;
-pub mod body;
+mod body;
 pub mod client;
 pub mod error;
 mod method;
