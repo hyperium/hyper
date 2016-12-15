@@ -26,11 +26,10 @@ use body::{Body, TokioBody};
 use header::{Headers, Host};
 use http::{self, Conn, RequestHead, ClientTransaction};
 use method::Method;
-use net::Transport;
 use uri::RequestUri;
 use {Url};
 
-pub use self::connect::{DefaultConnector, HttpConnector};
+pub use self::connect::{DefaultConnector, HttpConnector, Connect};
 pub use self::request::Request;
 pub use self::response::Response;
 
@@ -77,9 +76,9 @@ impl Client<DefaultConnector> {
     }
 }
 
-impl Client<DefaultConnector> {
+impl<C: Connect> Client<C> {
     /// Create a new client with a specific connector.
-    fn configured<C>(config: Config<C>) -> ::Result<Client<C>> {
+    fn configured(config: Config<C>) -> ::Result<Client<C>> {
         unimplemented!("Client::configured")
     }
 
@@ -104,7 +103,7 @@ impl Future for FutureResponse {
     }
 }
 
-impl Service for Client<DefaultConnector> {
+impl<C: Connect> Service for Client<C> {
     type Request = Request;
     type Response = Response;
     type Error = ::Error;
@@ -129,7 +128,7 @@ impl Service for Client<DefaultConnector> {
         };
         head.headers = headers;
         let handle = self.handle.clone();
-        let client = self.connector.call(url)
+        let client = self.connector.connect(url)
             .map(move |io| HttpClient.bind_client(&handle, io))
             .map_err(|e| e.into());
         let req = client.and_then(move |client| {
@@ -185,10 +184,10 @@ pub struct Config<C> {
     dns_workers: usize,
 }
 
-impl<C> Config<C> {
+impl<C: Connect> Config<C> {
     /// Set the `Connect` type to be used.
     #[inline]
-    pub fn connector<CC>(self, val: CC) -> Config<CC> {
+    pub fn connector<CC: Connect>(self, val: CC) -> Config<CC> {
         Config {
             connect_timeout: self.connect_timeout,
             connector: val,

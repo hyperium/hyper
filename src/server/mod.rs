@@ -31,18 +31,13 @@ pub use self::response::Response;
 use body::{Body, TokioBody};
 use http;
 
-pub use net::{Accept, HttpListener};
-use net::{HttpStream, Transport};
-/*
-pub use net::{Accept, HttpListener, HttpsListener};
-use net::{SslServer, Transport};
-*/
 
 //mod conn;
 mod request;
 mod response;
 
 type ServerBody = Body;
+type HttpListener = TcpListener;
 
 /// A Server that can accept incoming network requests.
 #[derive(Debug)]
@@ -274,5 +269,8 @@ impl<T> Service for HttpService<T>
         };
         self.inner.call(req).map(map_response_to_message)
     }
+}
+
+trait Accept: Stream {
 
 }

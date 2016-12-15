@@ -17,21 +17,26 @@ use super::dns;
 pub type DefaultConnector = HttpsConnector;
 pub type HttpsStream = tls::TlsStream<TcpStream>;
 
-/*
-/// A connector creates a Transport to a remote address..
-pub trait Connect {
-    /// Type of Transport to create
-    type Output: Transport;
-    /// dox
-    type Fut: Future<Item=Self::Output, Error=io::Error>;
-    /// The key used to determine if an existing socket can be used.
-    type Key: Eq + Hash + Clone + fmt::Debug;
-    /// Returns the key based off the Url.
-    fn key(&self, &Url) -> Option<Self::Key>;
+/// A connector creates an Io to a remote address..
+pub trait Connect: Service<Request=Url, Error=io::Error> + 'static {
+    type Output: Io + 'static;
+    type Future: Future<Item=Self::Output, Error=io::Error> + 'static;
     /// Connect to a remote address.
-    fn connect(&mut self, &Url) -> Self::Fut;
+    fn connect(&self, Url) -> <Self as Connect>::Future;
 }
-*/
+
+impl<T> Connect for T
+where T: Service<Request=Url, Error=io::Error> + 'static,
+      T::Response: Io,
+      T::Future: Future<Error=io::Error>,
+{
+    type Output = T::Response;
+    type Future = T::Future;
+
+    fn connect(&self, url: Url) -> <Self as Connect>::Future {
+        self.call(url)
+    }
+}
 
 type Scheme = String;
 type Port = u16;
