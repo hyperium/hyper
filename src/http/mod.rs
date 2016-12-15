@@ -8,7 +8,6 @@ use header::Connection;
 use header::ConnectionOption::{KeepAlive, Close};
 use header::Headers;
 use method::Method;
-use net::Transport;
 use status::StatusCode;
 use uri::RequestUri;
 use version::HttpVersion;
@@ -38,8 +37,8 @@ macro_rules! nonblocking {
 
 #[derive(Clone)]
 pub struct WriteBuf<T: AsRef<[u8]>> {
-    pub bytes: T,
-    pub pos: usize,
+    bytes: T,
+    pos: usize,
 }
 
 impl<T: AsRef<[u8]>> WriteBuf<T> {
