@@ -5,17 +5,18 @@ use std::io::{self, Read, Write};
 use std::net::SocketAddr;
 
 use futures::{Future, Poll, Async};
+use native_tls::TlsConnector;
 use tokio::io::Io;
 use tokio::reactor::Handle;
 use tokio::net::{TcpStream, TcpStreamNew};
-use tokio_tls as tls;
 use tokio_service::Service;
+use tokio_tls::{TlsStream, TlsConnectorExt};
 use url::Url;
 
 use super::dns;
 
 pub type DefaultConnector = HttpsConnector;
-pub type HttpsStream = tls::TlsStream<TcpStream>;
+pub type HttpsStream = TlsStream<TcpStream>;
 
 /// A connector creates an Io to a remote address..
 pub trait Connect: Service<Request=Url, Error=io::Error> + 'static {
@@ -140,11 +141,14 @@ impl Service for HttpsConnector {
         };
         if is_https {
             Box::new(connecting.and_then(move |tcp| {
-                let ctx = try!(tls::ClientContext::new());
-                Ok(ctx.handshake(&host, tcp))
-            })
-                .and_then(|handshake| handshake)
-                .map(|tls| MaybeHttpsStream::Https(tls)))
+                TlsConnector::builder()
+                    .and_then(|c| c.build())
+                    .map(|c| c.connect_async(&host, tcp))
+                    .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+            }).and_then(|maybe_tls| {
+                maybe_tls.map(|tls| MaybeHttpsStream::Https(tls))
+                    .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+            }))
         } else {
             Box::new(connecting.map(|tcp| MaybeHttpsStream::Http(tcp)))
         }
