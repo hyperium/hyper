@@ -24,6 +24,7 @@ extern crate httparse;
 #[macro_use] extern crate log;
 #[macro_use] extern crate mime as mime_crate;
 extern crate mio;
+extern crate native_tls;
 extern crate rustc_serialize as serialize;
 #[cfg(feature = "serde-serialization")]
 extern crate serde;

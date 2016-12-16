@@ -18,6 +18,7 @@ language-tags = "0.2"
 log = "0.3"
 mime = "0.2"
 mio = "0.6"
+native-tls = "0.1.0"
 rustc-serialize = "0.3"
 spmc = "0.2"
 time = "0.1"
@@ -44,6 +45,5 @@ pretty_env_logger = { git = "https://github.com/seanmonstar/pretty-env-logger" }
 
 [features]
 default = []
-force-openssl = ["tokio-tls/force-openssl"]
 serde-serialization = ["serde", "mime/serde"]
 nightly = []
