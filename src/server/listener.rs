@@ -7,7 +7,7 @@ pub struct ListenerPool<A: NetworkListener> {
     acceptor: A
 }
 
-impl<A: NetworkListener + Send + 'static> ListenerPool<A> {
+impl<A: NetworkListener + Send + Clone + 'static> ListenerPool<A> {
     /// Create a thread pool to manage the acceptor.
     pub fn new(acceptor: A) -> ListenerPool<A> {
         ListenerPool { acceptor: acceptor }

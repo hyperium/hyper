@@ -7,7 +7,7 @@ use method::Method;
 use net::{NetworkConnector, HttpConnector, NetworkStream, SslClient};
 
 #[cfg(all(feature = "openssl", not(feature = "security-framework")))]
-pub fn tunnel(proxy: (Cow<'static, str>, u16)) -> Proxy<HttpConnector, ::net::Openssl> {
+pub fn tunnel(proxy: (Cow<'static, str>, u16)) -> Proxy<HttpConnector, ::net::OpensslClient> {
     Proxy {
         connector: HttpConnector,
         proxy: proxy,

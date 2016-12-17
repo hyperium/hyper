@@ -25,15 +25,11 @@ unicase = "1.0"
 url = "1.0"
 
 [dependencies.cookie]
-version = "0.2"
+version = "0.4"
 default-features = false
 
 [dependencies.openssl]
-version = "0.7"
-optional = true
-
-[dependencies.openssl-verify]
-version = "0.1"
+version = "0.9"
 optional = true
 
 [dependencies.security-framework]
@@ -53,6 +49,6 @@ env_logger = "0.3"
 
 [features]
 default = ["ssl"]
-ssl = ["openssl", "openssl-verify", "cookie/secure"]
+ssl = ["openssl", "cookie/secure"]
 serde-serialization = ["serde", "mime/serde"]
 nightly = []

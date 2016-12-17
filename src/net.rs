@@ -23,7 +23,7 @@ pub enum Fresh {}
 pub enum Streaming {}
 
 /// An abstraction to listen for connections on a certain port.
-pub trait NetworkListener: Clone {
+pub trait NetworkListener: Sized {
     /// The stream produced for each connection.
     type Stream: NetworkStream + Send + Clone;
 
@@ -413,48 +413,20 @@ impl<F> NetworkConnector for F where F: Fn(&str, u16, &str) -> io::Result<TcpStr
     }
 }
 
-/// Deprecated
-///
-/// Use `SslClient` and `SslServer` instead.
-pub trait Ssl {
-    /// The protected stream.
-    type Stream: NetworkStream + Send + Clone;
-    /// Wrap a client stream with SSL.
-    fn wrap_client(&self, stream: HttpStream, host: &str) -> ::Result<Self::Stream>;
-    /// Wrap a server stream with SSL.
-    fn wrap_server(&self, stream: HttpStream) -> ::Result<Self::Stream>;
-}
-
 /// An abstraction to allow any SSL implementation to be used with client-side HttpsStreams.
-pub trait SslClient<T: NetworkStream + Send + Clone = HttpStream> {
+pub trait SslClient<T: NetworkStream + Send = HttpStream> {
     /// The protected stream.
-    type Stream: NetworkStream + Send + Clone;
+    type Stream: NetworkStream + Send;
     /// Wrap a client stream with SSL.
     fn wrap_client(&self, stream: T, host: &str) -> ::Result<Self::Stream>;
 }
 
 /// An abstraction to allow any SSL implementation to be used with server-side HttpsStreams.
-pub trait SslServer<T: NetworkStream + Send + Clone = HttpStream> {
+pub trait SslServer<T: NetworkStream + Send = HttpStream> {
     /// The protected stream.
     type Stream: NetworkStream + Send + Clone;
     /// Wrap a server stream with SSL.
     fn wrap_server(&self, stream: T) -> ::Result<Self::Stream>;
-}
-
-impl<S: Ssl> SslClient<HttpStream> for S {
-    type Stream = <S as Ssl>::Stream;
-
-    fn wrap_client(&self, stream: HttpStream, host: &str) -> ::Result<Self::Stream> {
-        Ssl::wrap_client(self, stream, host)
-    }
-}
-
-impl<S: Ssl> SslServer<HttpStream> for S {
-    type Stream = <S as Ssl>::Stream;
-
-    fn wrap_server(&self, stream: HttpStream) -> ::Result<Self::Stream> {
-        Ssl::wrap_server(self, stream)
-    }
 }
 
 /// A stream over the HTTP protocol, possibly protected by SSL.
@@ -553,7 +525,7 @@ impl<S: SslServer> HttpsListener<S> {
     }
 }
 
-impl<S: SslServer + Clone> NetworkListener for HttpsListener<S> {
+impl<S: SslServer> NetworkListener for HttpsListener<S> {
     type Stream = S::Stream;
 
     #[inline]
@@ -616,17 +588,20 @@ pub type DefaultConnector = HttpsConnector<self::security_framework::ClientWrapp
 
 #[cfg(feature = "openssl")]
 mod openssl {
-    use std::io;
+    use std::io::{self, Read};
+    use std::fs::File;
     use std::net::{SocketAddr, Shutdown};
     use std::path::Path;
     use std::sync::Arc;
     use std::time::Duration;
 
-    use openssl::ssl::{Ssl, SslContext, SslStream, SslMethod, SSL_VERIFY_NONE, SSL_VERIFY_PEER, SSL_OP_NO_SSLV2, SSL_OP_NO_SSLV3, SSL_OP_NO_COMPRESSION};
-    use openssl::ssl::error::StreamError as SslIoError;
-    use openssl::ssl::error::SslError;
-    use openssl::x509::X509FileType;
-    use super::{NetworkStream, HttpStream};
+    use openssl::ssl::{SslMethod, SslStream};
+    use openssl::ssl::{SslAcceptor, SslAcceptorBuilder};
+    use openssl::ssl::{SslConnector, SslConnectorBuilder};
+    use openssl::x509::X509;
+    use openssl::pkey::PKey;
+    use super::{NetworkStream, SslServer};
+    use error::Error;
 
     /// An implementation of `Ssl` for OpenSSL.
     ///
@@ -642,98 +617,85 @@ mod openssl {
     ///
     /// For complete control, create a `SslContext` with the options you desire
     /// and then create `Openssl { context: ctx }
-    #[derive(Debug, Clone)]
+    #[derive(Clone)]
     pub struct Openssl {
-        /// The `SslContext` from openssl crate.
-        pub context: Arc<SslContext>
-    }
-
-    /// A client-specific implementation of OpenSSL.
-    #[derive(Debug, Clone)]
-    pub struct OpensslClient(SslContext);
-
-    impl Default for OpensslClient {
-        fn default() -> OpensslClient {
-            let mut ctx = SslContext::new(SslMethod::Sslv23).unwrap();
-            ctx.set_default_verify_paths().unwrap();
-            ctx.set_options(SSL_OP_NO_SSLV2 | SSL_OP_NO_SSLV3 | SSL_OP_NO_COMPRESSION);
-            // cipher list taken from curl:
-            // https://github.com/curl/curl/blob/5bf5f6ebfcede78ef7c2b16daa41c4b7ba266087/lib/vtls/openssl.h#L120
-            ctx.set_cipher_list("ALL!EXPORT!EXPORT40!EXPORT56!aNULL!LOW!RC4@STRENGTH").unwrap();
-            OpensslClient::new(ctx)
-        }
-    }
-
-    impl OpensslClient {
-        /// Creates a new OpensslClient with a custom SslContext
-        pub fn new(ctx: SslContext) -> OpensslClient {
-            OpensslClient(ctx)
-        }
-    }
-
-    impl<T: NetworkStream + Send + Clone> super::SslClient<T> for OpensslClient {
-        type Stream = SslStream<T>;
-
-        #[cfg(not(windows))]
-        fn wrap_client(&self, stream: T, host: &str) -> ::Result<Self::Stream> {
-            let mut ssl = try!(Ssl::new(&self.0));
-            try!(ssl.set_hostname(host));
-            let host = host.to_owned();
-            ssl.set_verify_callback(SSL_VERIFY_PEER, move |p, x| ::openssl_verify::verify_callback(&host, p, x));
-            SslStream::connect(ssl, stream).map_err(From::from)
-        }
-
-
-        #[cfg(windows)]
-        fn wrap_client(&self, stream: T, host: &str) -> ::Result<Self::Stream> {
-            let mut ssl = try!(Ssl::new(&self.0));
-            try!(ssl.set_hostname(host));
-            SslStream::connect(ssl, stream).map_err(From::from)
-        }
-    }
-
-    impl Default for Openssl {
-        fn default() -> Openssl {
-            Openssl {
-                context: Arc::new(SslContext::new(SslMethod::Sslv23).unwrap_or_else(|e| {
-                    // if we cannot create a SslContext, that's because of a
-                    // serious problem. just crash.
-                    panic!("{}", e)
-                }))
-            }
-        }
+        /// The `SslAcceptor` from openssl crate.
+        pub acceptor: Arc<SslAcceptor>
     }
 
     impl Openssl {
         /// Ease creating an `Openssl` with a certificate and key.
-        pub fn with_cert_and_key<C, K>(cert: C, key: K) -> Result<Openssl, SslError>
-        where C: AsRef<Path>, K: AsRef<Path> {
-            let mut ctx = try!(SslContext::new(SslMethod::Sslv23));
-            try!(ctx.set_cipher_list("DEFAULT"));
-            try!(ctx.set_certificate_chain_file(cert.as_ref(), X509FileType::PEM));
-            try!(ctx.set_private_key_file(key.as_ref(), X509FileType::PEM));
-            ctx.set_verify(SSL_VERIFY_NONE, None);
-            Ok(Openssl { context: Arc::new(ctx) })
+        pub fn with_cert_and_key<C, K>(cert: C, key: K) -> ::Result<Openssl>
+            where C: AsRef<Path>, K: AsRef<Path>
+        {
+            // Read in certificate.
+            let mut x509_pem = vec![];
+			let mut file = try!(File::open(cert.as_ref()).map_err(Into::<Error>::into));
+			try!(file.read_to_end(&mut x509_pem).map_err(Into::<Error>::into));
+            let x509 = try!(X509::from_pem(&x509_pem).map_err(Into::<Error>::into));
+
+            // Read in private key.
+			let mut pkey_pem = vec![];
+			let mut file = try!(File::open(key.as_ref()).map_err(Into::<Error>::into));
+			try!(file.read_to_end(&mut pkey_pem).map_err(Into::<Error>::into));
+            let pkey = try!(PKey::private_key_from_pem(&pkey_pem).map_err(Into::<Error>::into));
+
+            // Create the ssl connection acceptor.
+            let builder = SslAcceptorBuilder::mozilla_intermediate(SslMethod::tls(),
+                &pkey, &x509, Vec::<X509>::new());
+
+            let acceptor = try!(builder.map_err(Into::<Error>::into)).build();
+            Ok(Openssl { acceptor: Arc::new(acceptor) })
         }
     }
 
-    impl super::Ssl for Openssl {
-        type Stream = SslStream<HttpStream>;
+    use std::sync::RwLock;
 
-        fn wrap_client(&self, stream: HttpStream, host: &str) -> ::Result<Self::Stream> {
-            let ssl = try!(Ssl::new(&self.context));
-            try!(ssl.set_hostname(host));
-            SslStream::connect(ssl, stream).map_err(From::from)
+    /// A shareable, thread-safe SSL stream.
+    #[derive(Clone)]
+    pub struct SharedSslStream<T: io::Read + io::Write>(Arc<RwLock<SslStream<T>>>);
+
+    impl<T: io::Read + io::Write> io::Read for SharedSslStream<T> {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            self.0.write().expect("ssl read:write lock").read(buf)
+        }
+    }
+
+    impl<T: io::Read + io::Write> io::Write for SharedSslStream<T> {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.0.write().expect("ssl write:write lock").write(buf)
         }
 
-        fn wrap_server(&self, stream: HttpStream) -> ::Result<Self::Stream> {
-            match SslStream::accept(&*self.context, stream) {
-                Ok(ssl_stream) => Ok(ssl_stream),
-                Err(SslIoError(e)) => {
-                    Err(io::Error::new(io::ErrorKind::ConnectionAborted, e).into())
-                },
-                Err(e) => Err(e.into())
-            }
+        fn flush(&mut self) -> io::Result<()> {
+            self.0.write().expect("ssl flush:write lock").flush()
+        }
+    }
+
+    impl<T: NetworkStream + Sync> NetworkStream for SharedSslStream<T> {
+        /// Get the remote address of the underlying connection.
+        fn peer_addr(&mut self) -> io::Result<SocketAddr> {
+            self.0.write().expect("ssl peer_addr:write lock").peer_addr()
+        }
+
+        /// Set the maximum time to wait for a read to complete.
+        fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
+            self.0.read().expect("ssl rto:read lock").set_read_timeout(dur)
+        }
+
+        /// Set the maximum time to wait for a write to complete.
+        fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
+            self.0.read().expect("ssl wto:read lock").set_write_timeout(dur)
+        }
+    }
+
+    impl<T: ::net::NetworkStream + Sync + Clone> SslServer<T> for Openssl {
+        type Stream = SharedSslStream<T>;
+
+        /// Wrap a server stream with SSL.
+        fn wrap_server(&self, stream: T) -> ::Result<Self::Stream> {
+            self.acceptor.accept(stream)
+                .map(|stream| SharedSslStream(Arc::new(RwLock::new(stream))))
+                .map_err(From::from)
         }
     }
 
@@ -757,6 +719,34 @@ mod openssl {
             self.get_mut().close(how)
         }
     }
+
+    /// A client-specific implementation of OpenSSL.
+    #[derive(Clone)]
+    pub struct OpensslClient(SslConnector);
+
+    impl Default for OpensslClient {
+        fn default() -> OpensslClient {
+            let connector = SslConnectorBuilder::new(SslMethod::tls())
+                .expect("ssl connector builder");
+            OpensslClient::new(connector.build())
+        }
+    }
+
+    impl OpensslClient {
+        /// Creates a new OpensslClient with a custom SslConnector
+        pub fn new(connector: SslConnector) -> OpensslClient {
+            OpensslClient(connector)
+        }
+    }
+
+    impl<T: NetworkStream + Send + Clone> super::SslClient<T> for OpensslClient {
+        type Stream = SslStream<T>;
+
+        fn wrap_client(&self, stream: T, host: &str) -> ::Result<Self::Stream> {
+            self.0.connect(host, stream).map_err(From::from)
+        }
+    }
+
 }
 
 #[cfg(feature = "security-framework")]
