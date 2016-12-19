@@ -18,26 +18,10 @@ pub struct Request {
     uri: RequestUri,
     version: HttpVersion,
     headers: Headers,
-    body: Option<Body>,
+    body: Body,
 }
 
 impl Request {
-    /// Construct a new Request.
-    #[inline]
-    pub fn new(incoming: RequestHead, body: Option<Body>) -> Request {
-        let MessageHead { version, subject: RequestLine(method, uri), headers } = incoming;
-        debug!("Request Line: {:?} {:?} {:?}", method, uri, version);
-        debug!("{:#?}", headers);
-
-        Request {
-            method: method,
-            uri: uri,
-            headers: headers,
-            version: version,
-            body: body,
-        }
-    }
-
     /// The `Method`, such as `Get`, `Post`, etc.
     #[inline]
     pub fn method(&self) -> &Method { &self.method }
@@ -74,20 +58,31 @@ impl Request {
         }
     }
 
+    /// Take the `Body` of this `Request`.
     #[inline]
     pub fn body(self) -> Body {
-        self.body.unwrap_or_else(|| {
-            trace!("Request::body empty");
-            Body::empty()
-        })
+        self.body
     }
 
     /// Deconstruct this Request into its pieces.
     ///
     /// Modifying these pieces will have no effect on how hyper behaves.
     #[inline]
-    pub fn deconstruct(self) -> (Method, RequestUri, HttpVersion, Headers) {
-        (self.method, self.uri, self.version, self.headers)
+    pub fn deconstruct(self) -> (Method, RequestUri, HttpVersion, Headers, Body) {
+        (self.method, self.uri, self.version, self.headers, self.body)
     }
+}
 
+pub fn new(incoming: RequestHead, body: Body) -> Request {
+    let MessageHead { version, subject: RequestLine(method, uri), headers } = incoming;
+    debug!("Request Line: {:?} {:?} {:?}", method, uri, version);
+    debug!("{:#?}", headers);
+
+    Request {
+        method: method,
+        uri: uri,
+        headers: headers,
+        version: version,
+        body: body,
+    }
 }

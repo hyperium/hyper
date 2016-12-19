@@ -263,10 +263,11 @@ impl<T> Service for HttpService<T>
     type Future = Map<T::Future, fn(Response) -> Message<ResponseHead, TokioBody>>;
 
     fn call(&self, message: Self::Request) -> Self::Future {
-        let req = match message {
-            Message::WithoutBody(head) => Request::new(head, None),
-            Message::WithBody(head, body) => Request::new(head, Some(body.into())),
+        let (head, body) = match message {
+            Message::WithoutBody(head) => (head, Body::empty()),
+            Message::WithBody(head, body) => (head, body.into()),
         };
+        let req = request::new(head, body);
         self.inner.call(req).map(map_response_to_message)
     }
 }
