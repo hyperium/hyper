@@ -145,6 +145,9 @@ impl<T: Write> Write for IoBuf<T> {
     }
 
     fn flush(&mut self) -> io::Result<()> {
+        if self.write_buf.len() == 0 {
+            return Ok(())
+        }
         self.write_buf.write_into(&mut self.transport).and_then(|_n| {
             if self.write_buf.is_empty() {
                 Ok(())
