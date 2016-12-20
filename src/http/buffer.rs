@@ -77,10 +77,14 @@ impl Buffer {
     }
 
     pub fn write_into<W: Write>(&mut self, w: &mut W) -> io::Result<usize> {
-        let n = try!(w.write(&mut self.vec[self.head..self.tail]));
-        self.head += n;
-        self.maybe_reset();
-        Ok(n)
+        if self.is_empty() {
+            Ok(0)
+        } else {
+            let n = try!(w.write(&mut self.vec[self.head..self.tail]));
+            self.head += n;
+            self.maybe_reset();
+            Ok(n)
+        }
     }
 
     pub fn write(&mut self, data: &[u8]) -> usize {
