@@ -130,8 +130,11 @@ impl/*<A: Accept>*/ Server<HttpListener> {
         let binder = HttpServer;
 
         let inner_handle = handle.clone();
-        handle.spawn(listener.incoming().for_each(move |(socket, _)| {
-            let service = HttpService { inner: try!(factory.new_service()) };
+        handle.spawn(listener.incoming().for_each(move |(socket, remote_addr)| {
+            let service = HttpService {
+                inner: try!(factory.new_service()),
+                remote_addr: remote_addr,
+            };
             binder.bind_server(&inner_handle, socket, service);
             Ok(())
         }).map_err(|e| {
@@ -241,6 +244,7 @@ impl<T: Io + 'static> ServerProto<T> for HttpServer {
 
 struct HttpService<T> {
     inner: T,
+    remote_addr: SocketAddr,
 }
 
 fn map_response_to_message(res: Response) -> Message<ResponseHead, TokioBody> {
@@ -267,7 +271,7 @@ impl<T> Service for HttpService<T>
             Message::WithoutBody(head) => (head, Body::empty()),
             Message::WithBody(head, body) => (head, body.into()),
         };
-        let req = request::new(head, body);
+        let req = request::new(self.remote_addr, head, body);
         self.inner.call(req).map(map_response_to_message)
     }
 }

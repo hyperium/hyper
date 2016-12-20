@@ -4,6 +4,7 @@
 //! target URI, headers, and message body.
 
 use std::fmt;
+use std::net::SocketAddr;
 
 use body::Body;
 use version::HttpVersion;
@@ -18,6 +19,7 @@ pub struct Request {
     uri: RequestUri,
     version: HttpVersion,
     headers: Headers,
+    remote_addr: SocketAddr,
     body: Body,
 }
 
@@ -37,6 +39,10 @@ impl Request {
     /// The version of HTTP for this request.
     #[inline]
     pub fn version(&self) -> &HttpVersion { &self.version }
+
+    /// The remote socket address of this request
+    #[inline]
+    pub fn remote_addr(&self) -> &SocketAddr { &self.remote_addr }
 
     /// The target path of this Request.
     #[inline]
@@ -73,7 +79,19 @@ impl Request {
     }
 }
 
-pub fn new(incoming: RequestHead, body: Body) -> Request {
+impl fmt::Debug for Request {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Request")
+            .field("method", &self.method)
+            .field("uri", &self.uri)
+            .field("version", &self.version)
+            .field("remote_addr", &self.remote_addr)
+            .field("headers", &self.headers)
+            .finish()
+    }
+}
+
+pub fn new(addr: SocketAddr, incoming: RequestHead, body: Body) -> Request {
     let MessageHead { version, subject: RequestLine(method, uri), headers } = incoming;
     debug!("Request Line: {:?} {:?} {:?}", method, uri, version);
     debug!("{:#?}", headers);
@@ -83,6 +101,7 @@ pub fn new(incoming: RequestHead, body: Body) -> Request {
         uri: uri,
         headers: headers,
         version: version,
+        remote_addr: addr,
         body: body,
     }
 }
