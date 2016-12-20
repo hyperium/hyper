@@ -16,9 +16,11 @@ use version::HttpVersion::{Http10, Http11};
 #[cfg(feature = "serde-serialization")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-pub use self::conn::{Conn};
+pub use self::conn::Conn;
+pub use self::chunk::Chunk;
 
 mod buffer;
+mod chunk;
 mod conn;
 pub mod h1;
 //mod h2;
@@ -260,35 +262,6 @@ impl From<MessageHead<::StatusCode>> for MessageHead<RawStatus> {
             version: head.version,
             headers: head.headers,
         }
-    }
-}
-
-/// A piece of a message body.
-pub struct Chunk(Vec<u8>);
-
-impl From<Vec<u8>> for Chunk {
-    fn from(v: Vec<u8>) -> Chunk {
-        Chunk(v)
-    }
-}
-
-impl ::std::ops::Deref for Chunk {
-    type Target = [u8];
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl AsRef<[u8]> for Chunk {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
-    }
-}
-
-impl fmt::Debug for Chunk {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Debug::fmt(&self.0, f)
     }
 }
 

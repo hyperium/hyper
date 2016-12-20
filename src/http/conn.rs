@@ -226,9 +226,6 @@ impl<I: Io, T: Http1Transaction> Conn<I, T> {
                     }
                 });
 
-                // TODO: this needs to check our write_buf can receive this
-                // chunk, and if not, shove it into `self` and be NotReady
-                // until we've flushed and fit the cached chunk
                 let n = encoder.encode(&mut self.io, wbuf.buf()).unwrap();
                 wbuf.consume(n);
 

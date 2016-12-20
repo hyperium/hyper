@@ -47,6 +47,3 @@ pretty_env_logger = { git = "https://github.com/seanmonstar/pretty-env-logger" }
 default = []
 serde-serialization = ["serde", "mime/serde"]
 nightly = []
-
-[profile.release]
-debug = true

@@ -65,15 +65,19 @@ impl From<Vec<u8>> for Body {
 }
 
 impl From<&'static [u8]> for Body {
-    fn from (static_u8: &'static [u8]) -> Body {
-        let vec = static_u8.to_vec();
-        Into::<Body>::into(vec)
+    fn from (slice: &'static [u8]) -> Body {
+        Body(TokioBody::from(Chunk::from(slice)))
+    }
+}
+
+impl From<String> for Body {
+    fn from (s: String) -> Body {
+        Body(TokioBody::from(Chunk::from(s.into_bytes())))
     }
 }
 
 impl From<&'static str> for Body {
-    fn from (static_str: &'static str) -> Body {
-        let vec = static_str.as_bytes().to_vec();
-        Into::<Body>::into(vec)
+    fn from (slice: &'static str) -> Body {
+        Body(TokioBody::from(Chunk::from(slice.as_bytes())))
     }
 }
