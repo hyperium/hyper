@@ -10,7 +10,7 @@ use body::Body;
 use version::HttpVersion;
 use method::Method;
 use header::Headers;
-use http::{RequestHead, MessageHead, RequestLine, Chunk};
+use http::{RequestHead, MessageHead, RequestLine};
 use uri::RequestUri;
 
 /// A request bundles several parts of an incoming `NetworkStream`, given to a `Handler`.

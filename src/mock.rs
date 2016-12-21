@@ -68,18 +68,24 @@ impl ::vecio::Writev for Buf {
 pub struct AsyncIo<T> {
     inner: T,
     bytes_until_block: usize,
+    error: Option<io::Error>,
 }
 
 impl<T> AsyncIo<T> {
     pub fn new(inner: T, bytes: usize) -> AsyncIo<T> {
         AsyncIo {
             inner: inner,
-            bytes_until_block: bytes
+            bytes_until_block: bytes,
+            error: None,
         }
     }
 
     pub fn block_in(&mut self, bytes: usize) {
         self.bytes_until_block = bytes;
+    }
+
+    pub fn error(&mut self, err: io::Error) {
+        self.error = Some(err);
     }
 }
 
@@ -91,7 +97,9 @@ impl AsyncIo<Buf> {
 
 impl<T: Read> Read for AsyncIo<T> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        if self.bytes_until_block == 0 {
+        if let Some(err) = self.error.take() {
+            Err(err)
+        } else if self.bytes_until_block == 0 {
             Err(io::Error::new(io::ErrorKind::WouldBlock, "mock block"))
         } else {
             let n = cmp::min(self.bytes_until_block, buf.len());
@@ -104,7 +112,9 @@ impl<T: Read> Read for AsyncIo<T> {
 
 impl<T: Write> Write for AsyncIo<T> {
     fn write(&mut self, data: &[u8]) -> io::Result<usize> {
-        if self.bytes_until_block == 0 {
+        if let Some(err) = self.error.take() {
+            Err(err)
+        } else if self.bytes_until_block == 0 {
             Err(io::Error::new(io::ErrorKind::WouldBlock, "mock block"))
         } else {
             let n = cmp::min(self.bytes_until_block, data.len());

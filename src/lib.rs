@@ -1,7 +1,7 @@
 #![doc(html_root_url = "https://hyperium.github.io/hyper/")]
 #![allow(missing_docs)]
-#![allow(warnings)]
-#![allow(missing_debug_implementations)]
+#![deny(warnings)]
+#![deny(missing_debug_implementations)]
 #![cfg_attr(all(test, feature = "nightly"), feature(test))]
 
 //! # Hyper

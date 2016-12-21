@@ -2,7 +2,6 @@
 use std::borrow::Cow;
 use std::fmt;
 use std::io::{self, Read, Write};
-use std::time::Duration;
 
 use header::Connection;
 use header::ConnectionOption::{KeepAlive, Close};
@@ -56,12 +55,14 @@ impl<T: AsRef<[u8]>> WriteBuf<T> {
         self.pos >= self.bytes.as_ref().len()
     }
 
+    /*
     pub fn write_to<W: Write>(&mut self, dst: &mut W) -> io::Result<usize> {
         dst.write(&self.bytes.as_ref()[self.pos..]).map(|n| {
             self.pos += n;
             n
         })
     }
+    */
 
     #[inline]
     pub fn buf(&self) -> &[u8] {
@@ -314,4 +315,23 @@ fn test_should_keep_alive() {
     headers.set(Connection::keep_alive());
     assert!(should_keep_alive(Http10, &headers));
     assert!(should_keep_alive(Http11, &headers));
+}
+
+#[test]
+fn test_iobuf_write_empty_slice() {
+    use mock::{AsyncIo, Buf};
+
+    let mut mock = AsyncIo::new(Buf::new(), 256);
+    mock.error(io::Error::new(io::ErrorKind::Other, "logic error"));
+
+    let mut io_buf = IoBuf {
+        write_buf: Default::default(),
+        read_buf: Default::default(),
+        transport: mock,
+    };
+
+    // underlying io will return the logic error upon write,
+    // so we are testing that the io_buf does not trigger a write
+    // when there is nothing to flush
+    io_buf.flush().expect("should short-circuit flush");
 }

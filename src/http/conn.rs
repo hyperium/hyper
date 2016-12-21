@@ -1,17 +1,13 @@
-use std::borrow::Cow;
 use std::fmt;
-use std::hash::Hash;
 use std::io::{self, Write};
 use std::marker::PhantomData;
-use std::mem;
-use std::time::Duration;
 
 use futures::{Poll, Async, AsyncSink, Stream, Sink, StartSend};
-use tokio::io::{Io, FramedIo};
+use tokio::io::Io;
 use tokio_proto::streaming::pipeline::{Frame, Transport};
 
 use header::{ContentLength, TransferEncoding};
-use http::{self, h1, Http1Transaction, IoBuf, WriteBuf};
+use http::{self, Http1Transaction, IoBuf, WriteBuf};
 use http::h1::{Encoder, Decoder};
 use http::buffer::Buffer;
 use version::HttpVersion;
@@ -69,6 +65,7 @@ impl<I: Io, T: Http1Transaction> Conn<I, T> {
         self.state.is_read_closed()
     }
 
+    #[allow(unused)]
     fn is_write_closed(&self) -> bool {
         self.state.is_write_closed()
     }
@@ -117,7 +114,7 @@ impl<I: Io, T: Http1Transaction> Conn<I, T> {
                         return Ok(Async::Ready(Some(Frame::Error { error: e })));
                     }
                 };
-                let wants_keep_alive = http::should_keep_alive(version, &head.headers);
+                let wants_keep_alive = head.should_keep_alive();
                 self.state.keep_alive &= wants_keep_alive;
                 let (body, reading) = if decoder.is_eof() {
                     (false, Reading::KeepAlive)
@@ -190,7 +187,7 @@ impl<I: Io, T: Http1Transaction> Conn<I, T> {
             }
         }
 
-        let wants_keep_alive = http::should_keep_alive(head.version, &head.headers);
+        let wants_keep_alive = head.should_keep_alive();
         self.state.keep_alive &= wants_keep_alive;
         let mut buf = Vec::new();
         let encoder = T::encode(&mut head, &mut buf);
@@ -357,6 +354,7 @@ where I: Io,
                 }
             },
             Frame::Error { error } => {
+                debug!("received error, closing: {:?}", error);
                 self.state.close();
                 return Ok(AsyncSink::Ready);
             },
@@ -445,6 +443,7 @@ impl State {
         }
     }
 
+    #[allow(unused)]
     fn is_write_closed(&self) -> bool {
         match self.writing {
             Writing::Closed => true,
@@ -498,7 +497,6 @@ impl<'a> fmt::Debug for DebugChunk<'a> {
 #[cfg(test)]
 mod tests {
     use futures::{Async, AsyncSink, Stream, Sink};
-    use tokio::io::FramedIo;
     use tokio_proto::streaming::pipeline::Frame;
 
     use http::{MessageHead, ServerTransaction};

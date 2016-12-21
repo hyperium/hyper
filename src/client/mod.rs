@@ -3,28 +3,22 @@
 //! The HTTP `Client` uses asynchronous IO, and utilizes the `Handler` trait
 //! to convey when IO events are available for a given request.
 
-use std::cell::RefCell;
-use std::collections::{VecDeque, HashMap};
 use std::fmt;
 use std::io;
-use std::marker::PhantomData;
-use std::sync::mpsc;
-use std::thread;
 use std::time::Duration;
 
-use futures::{Async, Poll, Future};
+use futures::{Poll, Future};
 use tokio::io::Io;
-use tokio::net::TcpStream;
 use tokio::reactor::Handle;
 use tokio_proto::BindClient;
 use tokio_proto::streaming::Message;
 use tokio_proto::streaming::pipeline::ClientProto;
-use tokio_proto::util::client_proxy::ClientProxy;
+//use tokio_proto::util::client_proxy::ClientProxy;
 pub use tokio_service::Service;
 
-use body::{Body, TokioBody};
+use body::TokioBody;
 use header::{Headers, Host};
-use http::{self, Conn, RequestHead, ClientTransaction};
+use http;
 use method::Method;
 use uri::RequestUri;
 use {Url};
@@ -37,8 +31,6 @@ mod connect;
 mod dns;
 mod request;
 mod response;
-
-type ClientBody = Body;
 
 /// A Client to make outgoing HTTP requests.
 pub struct Client<C> {
@@ -78,21 +70,28 @@ impl Client<DefaultConnector> {
 
 impl<C: Connect> Client<C> {
     /// Create a new client with a specific connector.
-    fn configured(config: Config<C>) -> ::Result<Client<C>> {
+    fn configured(_config: Config<C>) -> ::Result<Client<C>> {
         unimplemented!("Client::configured")
     }
 
+    /// Send a GET Request using this Client.
     pub fn get(&self, url: Url) -> FutureResponse {
         self.request(Request::new(Method::Get, url))
     }
 
-    /// Build a new request using this Client.
+    /// Send a constructed Request using this Client.
     pub fn request(&self, req: Request) -> FutureResponse {
         self.call(req)
     }
 }
 
 pub struct FutureResponse(Box<Future<Item=Response, Error=::Error> + 'static>);
+
+impl fmt::Debug for FutureResponse {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.pad("Future<Response>")
+    }
+}
 
 impl Future for FutureResponse {
     type Item = Response;
@@ -109,7 +108,7 @@ impl<C: Connect> Service for Client<C> {
     type Error = ::Error;
     type Future = FutureResponse;
 
-    fn call(&self, mut req: Request) -> Self::Future {
+    fn call(&self, req: Request) -> Self::Future {
         let url = match req.uri() {
             &::RequestUri::AbsoluteUri(ref u) => u.clone(),
             _ => unimplemented!("RequestUri::*")
@@ -151,11 +150,15 @@ impl<C: Connect> Service for Client<C> {
 
 }
 
-struct HttpClient;
-struct Pool<C> {
-    connector: C,
-    connections: RefCell<Vec<ClientProxy<Message<http::RequestHead, TokioBody>, Message<http::ResponseHead, TokioBody>, ::Error>>>,
+impl<C> fmt::Debug for Client<C> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.pad("Client")
+    }
 }
+
+//type TokioClient = ClientProxy<Message<http::RequestHead, TokioBody>, Message<http::ResponseHead, TokioBody>, ::Error>;
+
+struct HttpClient;
 
 impl<T: Io + 'static> ClientProto<T> for HttpClient {
     type Request = http::RequestHead;
@@ -269,37 +272,6 @@ impl Default for Config<DefaultConnector> {
         */
     }
 }
-
-/*
-/// An error that can occur when trying to queue a request.
-#[derive(Debug)]
-pub struct ClientError<H>(Option<(Url, H)>);
-
-impl<H> ClientError<H> {
-    /// If the event loop was down, the `Url` and `Handler` can be recovered
-    /// from this method.
-    pub fn recover(self) -> Option<(Url, H)> {
-        self.0
-    }
-}
-
-impl<H: fmt::Debug + ::std::any::Any> ::std::error::Error for ClientError<H> {
-    fn description(&self) -> &str {
-        "Cannot queue request"
-    }
-}
-
-impl<H> fmt::Display for ClientError<H> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str("Cannot queue request")
-    }
-}
-
-enum Notify<T> {
-    Connect(Url, T),
-    Shutdown,
-}
-*/
 
 #[cfg(test)]
 mod tests {

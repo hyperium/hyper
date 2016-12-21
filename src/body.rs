@@ -1,19 +1,13 @@
-//! The Hyper Body, which is a wrapper around the tokio_proto Body.
-//! This is used as the Body for a Server Request, Server Response,
-//! and also for a Client Request and Client Response.
-//! It is based on a tokio_proto::streaming::Body for now, but will be
-//! changed to tokio_proto::multiplex::Body int the future for SSL support.
-
 use std::convert::From;
 
 use tokio_proto;
 use http::Chunk;
-use futures::{Future, Poll, Stream, Sink};
+use futures::{Poll, Stream};
 use futures::sync::mpsc;
-use futures::StartSend;
 
 pub type TokioBody = tokio_proto::streaming::Body<Chunk, ::Error>;
 
+/// A `Stream` for `Chunk`s used in requests and responses.
 #[derive(Debug)]
 pub struct Body(TokioBody);
 

@@ -4,12 +4,10 @@ use Url;
 
 use body::Body;
 use header::Headers;
-use http::{RequestHead, Chunk};
+use http::{RequestHead};
 use method::Method;
 use uri::RequestUri;
 use version::HttpVersion;
-
-type RequestBody = Body;
 
 /// A client request to a remote server.
 #[derive(Debug)]
@@ -19,6 +17,7 @@ pub struct Request {
 }
 
 impl Request {
+    /// Construct a new Request.
     #[inline]
     pub fn new(method: Method, url: Url) -> Request {
         Request {

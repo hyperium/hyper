@@ -4,7 +4,7 @@ use std::fmt::{self, Write};
 use httparse;
 
 use header::{self, Headers, ContentLength, TransferEncoding};
-use http::{MessageHead, RawStatus, Http1Transaction, ParseResult, ServerTransaction, ClientTransaction, RequestLine, RequestHead};
+use http::{MessageHead, RawStatus, Http1Transaction, ParseResult, ServerTransaction, ClientTransaction, RequestLine};
 use http::h1::{Encoder, Decoder};
 use method::Method;
 use status::StatusCode;
@@ -102,7 +102,7 @@ impl Http1Transaction for ServerTransaction {
         body
     }
 
-    fn should_set_length(head: &MessageHead<Self::Outgoing>) -> bool {
+    fn should_set_length(_head: &MessageHead<Self::Outgoing>) -> bool {
         //TODO: pass method, check if method == HEAD
         true
     }

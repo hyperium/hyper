@@ -1,7 +1,4 @@
-//! Server Responses
-//!
-//! These are responses sent by a `hyper::Server` to clients, after
-//! receiving a request.
+use std::fmt;
 
 use body::Body;
 use header;
@@ -9,7 +6,7 @@ use http;
 use status::StatusCode;
 use version;
 
-/// The outgoing half for a Tcp connection, created by a `Server` and given to a `Handler`.
+/// The Response sent to a client after receiving a Request in a Service.
 ///
 /// The default `StatusCode` for a `Response` is `200 OK`.
 #[derive(Default)]
@@ -89,6 +86,16 @@ impl Response {
     pub fn with_body<T: Into<Body>>(mut self, body: T) -> Self {
         self.set_body(body);
         self
+    }
+}
+
+impl fmt::Debug for Response {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Response")
+            .field("status", &self.head.subject)
+            .field("version", &self.head.version)
+            .field("headers", &self.head.headers)
+            .finish()
     }
 }
 

@@ -1,6 +1,5 @@
 use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
-use std::thread;
 use std::vec;
 
 use ::futures::{Future, Poll};

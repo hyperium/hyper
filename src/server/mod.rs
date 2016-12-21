@@ -2,17 +2,13 @@
 //!
 //! A `Server` is created to listen on a port, parse HTTP requests, and hand
 //! them off to a `Handler`.
-use std::cell::RefCell;
 use std::fmt;
 use std::io;
 use std::marker::PhantomData;
 use std::net::{SocketAddr, TcpListener as StdTcpListener};
-use std::rc::Rc;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use futures::{Future, Async, Map};
+use futures::{Future, Map};
 use futures::stream::{Stream};
 
 use tokio::io::Io;
@@ -36,7 +32,6 @@ use http;
 mod request;
 mod response;
 
-type ServerBody = Body;
 type HttpListener = TcpListener;
 
 /// A Server that can accept incoming network requests.
@@ -122,7 +117,7 @@ impl<S: SslServer> Server<HttpsListener<S>> {
 
 impl/*<A: Accept>*/ Server<HttpListener> {
     /// Binds to a socket and starts handling connections.
-    pub fn handle<H>(mut self, factory: H, handle: &Handle) -> ::Result<SocketAddr>
+    pub fn handle<H>(self, factory: H, handle: &Handle) -> ::Result<SocketAddr>
     where H: NewService<Request=Request, Response=Response, Error=::Error> + Send + 'static {
         let listener = try!(StdTcpListener::bind(&self.addr));
         let addr = try!(listener.local_addr());
@@ -145,12 +140,17 @@ impl/*<A: Accept>*/ Server<HttpListener> {
         Ok(addr)
     }
 
-    pub fn standalone<H>(mut self, factory: H) -> ::Result<(Listening, ServerLoop)>
+    /// Create a server that owns its event loop.
+    ///
+    /// The returned `ServerLoop` can be used to run the loop forever in the
+    /// thread. The returned `Listening` can be sent to another thread, and
+    /// used to shutdown the `ServerLoop`.
+    pub fn standalone<H>(self, factory: H) -> ::Result<(Listening, ServerLoop)>
     where H: NewService<Request=Request, Response=Response, Error=::Error> + Send + 'static {
-        let mut core = try!(Core::new());
+        let core = try!(Core::new());
         let handle = core.handle();
         let addr = try!(self.handle(factory, &handle));
-        let (shutdown_tx, shutdown_rx) = try!(::tokio::channel::channel(&handle));
+        let (shutdown_tx, shutdown_rx) = ::futures::sync::oneshot::channel();
         Ok((
             Listening {
                 addr: addr,
@@ -166,7 +166,7 @@ impl/*<A: Accept>*/ Server<HttpListener> {
 
 /// A configured `Server` ready to run.
 pub struct ServerLoop {
-    inner: Option<(Core, ::tokio::channel::Receiver<()>)>,
+    inner: Option<(Core, ::futures::sync::oneshot::Receiver<()>)>,
 }
 
 impl fmt::Debug for ServerLoop {
@@ -186,8 +186,8 @@ impl ServerLoop {
 
 impl Drop for ServerLoop {
     fn drop(&mut self) {
-        self.inner.take().map(|(mut loop_, work)| {
-            let _ = loop_.run(work.into_future());
+        self.inner.take().map(|(mut loop_, shutdown)| {
+            let _ = loop_.run(shutdown);
             debug!("server closed");
         });
     }
@@ -196,7 +196,7 @@ impl Drop for ServerLoop {
 /// A handle of the running server.
 pub struct Listening {
     addr: SocketAddr,
-    shutdown: ::tokio::channel::Sender<()>,
+    shutdown: ::futures::sync::oneshot::Sender<()>,
 }
 
 impl fmt::Debug for Listening {
@@ -222,7 +222,7 @@ impl Listening {
     /// Stop the server from listening to its socket address.
     pub fn close(self) {
         debug!("closing server {}", self);
-        let _ = self.shutdown.send(());
+        self.shutdown.complete(());
     }
 }
 
@@ -276,6 +276,6 @@ impl<T> Service for HttpService<T>
     }
 }
 
-trait Accept: Stream {
+pub trait Accept: Stream {
 
 }

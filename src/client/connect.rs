@@ -1,8 +1,6 @@
-use std::collections::hash_map::{HashMap, Entry};
-use std::hash::Hash;
 use std::fmt;
 use std::io::{self, Read, Write};
-use std::net::SocketAddr;
+//use std::net::SocketAddr;
 
 use futures::{Future, Poll, Async};
 use native_tls::TlsConnector;
@@ -15,12 +13,20 @@ use url::Url;
 
 use super::dns;
 
+/// The default connector used by the Client.
 pub type DefaultConnector = HttpsConnector;
+/// A TCP stream protected by TLS.
 pub type HttpsStream = TlsStream<TcpStream>;
 
 /// A connector creates an Io to a remote address..
+///
+/// This trait is not implemented directly, and only exists to make
+/// the intent clearer. A connector should implement `Service` with
+/// `Request=Url` and `Response: Io` instead.
 pub trait Connect: Service<Request=Url, Error=io::Error> + 'static {
+    /// The connected Io Stream.
     type Output: Io + 'static;
+    /// A Future that will resolve to the connected Stream.
     type Future: Future<Item=Self::Output, Error=io::Error> + 'static;
     /// Connect to a remote address.
     fn connect(&self, Url) -> <Self as Connect>::Future;
@@ -38,9 +44,6 @@ where T: Service<Request=Url, Error=io::Error> + 'static,
         self.call(url)
     }
 }
-
-type Scheme = String;
-type Port = u16;
 
 /// A connector for the `http` scheme.
 #[derive(Clone)]
@@ -61,14 +64,6 @@ impl HttpConnector {
         }
     }
 }
-
-/*
-impl Default for HttpConnector {
-    fn default() -> HttpConnector {
-        HttpConnector::new(4)
-    }
-}
-*/
 
 impl fmt::Debug for HttpConnector {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -96,6 +91,7 @@ impl Service for HttpConnector {
 
 }
 
+/// A Connector for the `https` scheme.
 pub struct HttpsConnector {
     dns: dns::Dns,
     handle: Handle,
@@ -158,6 +154,7 @@ impl Service for HttpsConnector {
 
 pub type TlsConnecting = Box<Future<Item=MaybeHttpsStream, Error=io::Error>>;
 
+/// A Future representing work to connect to a URL.
 pub struct Connecting {
     state: State,
     handle: Handle,
@@ -166,7 +163,6 @@ pub struct Connecting {
 enum State {
     Resolving(dns::Query),
     Connecting(ConnectingTcp),
-    Error(Option<io::Error>)
 }
 
 impl Future for Connecting {
@@ -189,10 +185,15 @@ impl Future for Connecting {
                     };
                 },
                 State::Connecting(ref mut c) => return c.poll(&self.handle).map_err(From::from),
-                State::Error(ref mut err) => return Err(err.take().expect("polled Connecting too many times")),
             }
             self.state = state;
         }
+    }
+}
+
+impl fmt::Debug for Connecting {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.pad("Connecting")
     }
 }
 
@@ -230,12 +231,23 @@ impl ConnectingTcp {
     }
 }
 
+/// A stream that might be protected with TLS.
 pub enum MaybeHttpsStream {
     Http(TcpStream),
     Https(HttpsStream),
 }
 
+impl fmt::Debug for MaybeHttpsStream {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            MaybeHttpsStream::Http(..) => f.pad("Http(..)"),
+            MaybeHttpsStream::Https(..) => f.pad("Https(..)"),
+        }
+    }
+}
+
 impl Read for MaybeHttpsStream {
+    #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match *self {
             MaybeHttpsStream::Http(ref mut s) => s.read(buf),
@@ -245,6 +257,7 @@ impl Read for MaybeHttpsStream {
 }
 
 impl Write for MaybeHttpsStream {
+    #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         match *self {
             MaybeHttpsStream::Http(ref mut s) => s.write(buf),
@@ -252,7 +265,7 @@ impl Write for MaybeHttpsStream {
         }
     }
 
-
+    #[inline]
     fn flush(&mut self) -> io::Result<()> {
         match *self {
             MaybeHttpsStream::Http(ref mut s) => s.flush(),
@@ -262,6 +275,7 @@ impl Write for MaybeHttpsStream {
 }
 
 impl Io for MaybeHttpsStream {
+    #[inline]
     fn poll_read(&mut self) -> Async<()> {
         match *self {
             MaybeHttpsStream::Http(ref mut s) => s.poll_read(),
@@ -269,6 +283,7 @@ impl Io for MaybeHttpsStream {
         }
     }
 
+    #[inline]
     fn poll_write(&mut self) -> Async<()> {
         match *self {
             MaybeHttpsStream::Http(ref mut s) => s.poll_write(),
@@ -278,13 +293,6 @@ impl Io for MaybeHttpsStream {
 }
 
 /*
-/// A connector that can protect HTTP streams using SSL.
-#[derive(Debug, Default)]
-pub struct HttpsConnector<S: SslClient> {
-    http: HttpConnector,
-    ssl: S
-}
-
 impl<S: SslClient> HttpsConnector<S> {
     /// Create a new connector using the provided SSL implementation.
     pub fn new(s: S) -> HttpsConnector<S> {
