@@ -3,8 +3,7 @@ use std::borrow::Cow;
 use std::fmt;
 use std::io::{self, Read, Write};
 
-use header::Connection;
-use header::ConnectionOption::{KeepAlive, Close};
+use header::{Connection, ConnectionOption};
 use header::Headers;
 use method::Method;
 use status::StatusCode;
@@ -15,7 +14,7 @@ use version::HttpVersion::{Http10, Http11};
 #[cfg(feature = "serde-serialization")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-pub use self::conn::Conn;
+pub use self::conn::{Conn, KeepAlive};
 pub use self::chunk::Chunk;
 
 mod buffer;
@@ -271,8 +270,8 @@ impl From<MessageHead<::StatusCode>> for MessageHead<RawStatus> {
 pub fn should_keep_alive(version: HttpVersion, headers: &Headers) -> bool {
     let ret = match (version, headers.get::<Connection>()) {
         (Http10, None) => false,
-        (Http10, Some(conn)) if !conn.contains(&KeepAlive) => false,
-        (Http11, Some(conn)) if conn.contains(&Close)  => false,
+        (Http10, Some(conn)) if !conn.contains(&ConnectionOption::KeepAlive) => false,
+        (Http11, Some(conn)) if conn.contains(&ConnectionOption::Close)  => false,
         _ => true
     };
     trace!("should_keep_alive(version={:?}, header={:?}) = {:?}", version, headers.get::<Connection>(), ret);

@@ -113,7 +113,7 @@ impl Service for TestService {
     type Response = Response;
     type Error = hyper::Error;
     type Future = Box<Future<Item=Response, Error=hyper::Error>>;
-    fn call(&self, req: Request) -> Self::Future {
+    fn call(&mut self, req: Request) -> Self::Future {
         let tx = self.tx.clone();
         let replies = self.reply.clone();
         req.body().for_each(move |chunk| {

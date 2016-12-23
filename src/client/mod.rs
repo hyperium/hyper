@@ -5,21 +5,24 @@
 
 use std::fmt;
 use std::io;
+use std::rc::Rc;
 use std::time::Duration;
 
 use futures::{Poll, Future};
+use futures::future::Either;
 use tokio::io::Io;
 use tokio::reactor::Handle;
 use tokio_proto::BindClient;
 use tokio_proto::streaming::Message;
 use tokio_proto::streaming::pipeline::ClientProto;
-//use tokio_proto::util::client_proxy::ClientProxy;
+use tokio_proto::util::client_proxy::ClientProxy;
 pub use tokio_service::Service;
 
 use body::TokioBody;
 use header::{Headers, Host};
 use http;
 use method::Method;
+use self::pool::Pool;
 use uri::RequestUri;
 use {Url};
 
@@ -29,6 +32,7 @@ pub use self::response::Response;
 
 mod connect;
 mod dns;
+mod pool;
 mod request;
 mod response;
 
@@ -36,6 +40,7 @@ mod response;
 pub struct Client<C> {
     connector: C,
     handle: Handle,
+    pool: Pool<Rc<TokioClient>>,
 }
 
 impl Client<DefaultConnector> {
@@ -64,6 +69,7 @@ impl Client<DefaultConnector> {
         Ok(Client {
             connector: DefaultConnector::new(handle, 4),
             handle: handle.clone(),
+            pool: Pool::new(),
         })
     }
 }
@@ -75,12 +81,12 @@ impl<C: Connect> Client<C> {
     }
 
     /// Send a GET Request using this Client.
-    pub fn get(&self, url: Url) -> FutureResponse {
+    pub fn get(&mut self, url: Url) -> FutureResponse {
         self.request(Request::new(Method::Get, url))
     }
 
     /// Send a constructed Request using this Client.
-    pub fn request(&self, req: Request) -> FutureResponse {
+    pub fn request(&mut self, req: Request) -> FutureResponse {
         self.call(req)
     }
 }
@@ -108,7 +114,7 @@ impl<C: Connect> Service for Client<C> {
     type Error = ::Error;
     type Future = FutureResponse;
 
-    fn call(&self, req: Request) -> Self::Future {
+    fn call(&mut self, req: Request) -> Self::Future {
         let url = match req.uri() {
             &::RequestUri::AbsoluteUri(ref u) => u.clone(),
             _ => unimplemented!("RequestUri::*")
@@ -126,11 +132,24 @@ impl<C: Connect> Service for Client<C> {
             query: url.query().map(ToOwned::to_owned),
         };
         head.headers = headers;
+
+        /*
+        let client = if let Some(client) = self.pool.take(&url[..::url::Position::BeforePath]) {
+            Either::A(::futures::future::ok(client))
+        } else {
+            let handle = self.handle.clone();
+            let client = self.connector.connect(url)
+                .map(move |io| HttpClient.bind_client(&handle, io))
+                .map_err(|e| e.into());
+            Either::B(client)
+        };
+        */
         let handle = self.handle.clone();
         let client = self.connector.connect(url)
             .map(move |io| HttpClient.bind_client(&handle, io))
             .map_err(|e| e.into());
-        let req = client.and_then(move |client| {
+
+        let req = client.and_then(move |mut client| {
             let msg = match body {
                 Some(body) => {
                     let body: TokioBody = body.into();
@@ -156,7 +175,7 @@ impl<C> fmt::Debug for Client<C> {
     }
 }
 
-//type TokioClient = ClientProxy<Message<http::RequestHead, TokioBody>, Message<http::ResponseHead, TokioBody>, ::Error>;
+type TokioClient = ClientProxy<Message<http::RequestHead, TokioBody>, Message<http::ResponseHead, TokioBody>, ::Error>;
 
 struct HttpClient;
 

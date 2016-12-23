@@ -29,7 +29,7 @@ pub trait Connect: Service<Request=Url, Error=io::Error> + 'static {
     /// A Future that will resolve to the connected Stream.
     type Future: Future<Item=Self::Output, Error=io::Error> + 'static;
     /// Connect to a remote address.
-    fn connect(&self, Url) -> <Self as Connect>::Future;
+    fn connect(&mut self, Url) -> <Self as Connect>::Future;
 }
 
 impl<T> Connect for T
@@ -40,7 +40,7 @@ where T: Service<Request=Url, Error=io::Error> + 'static,
     type Output = T::Response;
     type Future = T::Future;
 
-    fn connect(&self, url: Url) -> <Self as Connect>::Future {
+    fn connect(&mut self, url: Url) -> <Self as Connect>::Future {
         self.call(url)
     }
 }
@@ -78,7 +78,7 @@ impl Service for HttpConnector {
     type Error = io::Error;
     type Future = Connecting;
 
-    fn call(&self, url: Url) -> Self::Future {
+    fn call(&mut self, url: Url) -> Self::Future {
         debug!("Http::connect({:?})", url);
         let host = url.host_str().expect("http scheme must have a host");
         let port = url.port_or_known_default().unwrap_or(80);
@@ -123,7 +123,7 @@ impl Service for HttpsConnector {
     type Error = io::Error;
     type Future = TlsConnecting;
 
-    fn call(&self, url: Url) -> Self::Future {
+    fn call(&mut self, url: Url) -> Self::Future {
         debug!("Https::connect({:?})", url);
         let is_https = url.scheme() == "https";
         let host = url.host_str().expect("http scheme must have a host");

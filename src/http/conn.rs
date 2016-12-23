@@ -1,6 +1,9 @@
+use std::cell::Cell;
 use std::fmt;
 use std::io::{self, Write};
 use std::marker::PhantomData;
+use std::rc::Rc;
+use std::time::Instant;
 
 use futures::{Poll, Async, AsyncSink, Stream, Sink, StartSend};
 use tokio::io::Io;
@@ -22,7 +25,6 @@ use version::HttpVersion;
 /// connection can be kept alive after the message, or if it is complete.
 pub struct Conn<I, T> {
     io: IoBuf<I>,
-    keep_alive_enabled: bool,
     state: State,
     _marker: PhantomData<T>
 }
@@ -35,14 +37,17 @@ impl<I, T> Conn<I, T> {
                 write_buf: Buffer::new(),
                 transport: transport,
             },
-            keep_alive_enabled: true,
             state: State {
                 reading: Reading::Init,
                 writing: Writing::Init,
-                keep_alive: true,
+                keep_alive: KeepAlive::new(),
             },
             _marker: PhantomData,
         }
+    }
+
+    pub fn keep_alive(&self) -> &KeepAlive {
+        &self.state.keep_alive
     }
 }
 
@@ -115,7 +120,7 @@ impl<I: Io, T: Http1Transaction> Conn<I, T> {
                     }
                 };
                 let wants_keep_alive = head.should_keep_alive();
-                self.state.keep_alive &= wants_keep_alive;
+                self.state.keep_alive.is_allowed &= wants_keep_alive;
                 let (body, reading) = if decoder.is_eof() {
                     (false, Reading::KeepAlive)
                 } else {
@@ -188,7 +193,7 @@ impl<I: Io, T: Http1Transaction> Conn<I, T> {
         }
 
         let wants_keep_alive = head.should_keep_alive();
-        self.state.keep_alive &= wants_keep_alive;
+        self.state.keep_alive.is_allowed &= wants_keep_alive;
         let mut buf = Vec::new();
         let encoder = T::encode(&mut head, &mut buf);
         self.io.write(&buf).unwrap();
@@ -381,7 +386,6 @@ where I: Io + 'static,
 impl<I, T> fmt::Debug for Conn<I, T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Conn")
-            .field("keep_alive_enabled", &self.keep_alive_enabled)
             .field("state", &self.state)
             .field("io", &self.io)
             .finish()
@@ -392,7 +396,7 @@ impl<I, T> fmt::Debug for Conn<I, T> {
 struct State {
     reading: Reading,
     writing: Writing,
-    keep_alive: bool,
+    keep_alive: KeepAlive,
 }
 
 #[derive(Debug)]
@@ -411,6 +415,34 @@ enum Writing {
     Closed,
 }
 
+#[derive(Debug)]
+pub struct KeepAlive {
+    is_allowed: bool,
+    started_at: Option<Instant>,
+}
+
+impl KeepAlive {
+    #[inline]
+    pub fn new() -> KeepAlive {
+        KeepAlive {
+            is_allowed: true,
+            started_at: None,
+        }
+    }
+
+    pub fn start(&mut self) {
+        self.started_at = Some(Instant::now());
+    }
+
+    pub fn started(&self) -> Option<Instant> {
+        self.started_at
+    }
+
+    pub fn reset(&mut self) {
+        self.started_at = None;
+    }
+}
+
 impl State {
     fn close(&mut self) {
         trace!("State::close");
@@ -421,9 +453,10 @@ impl State {
     fn try_keep_alive(&mut self) {
         match (&self.reading, &self.writing) {
             (&Reading::KeepAlive, &Writing::KeepAlive) => {
-                if self.keep_alive {
+                if self.keep_alive.is_allowed {
                     self.reading = Reading::Init;
                     self.writing = Writing::Init;
+                    self.keep_alive.started_at = Some(Instant::now());
                 } else {
                     self.close();
                 }

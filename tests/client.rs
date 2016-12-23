@@ -49,7 +49,7 @@ macro_rules! test {
             let server = TcpListener::bind("127.0.0.1:0").unwrap();
             let addr = server.local_addr().unwrap();
             let mut core = Core::new().unwrap();
-            let client = client(&core.handle());
+            let mut client = client(&core.handle());
             let mut req = Request::new(Method::$client_method, format!($client_url, addr=addr).parse().unwrap());
             $(
                 req.headers_mut().set($request_headers);
@@ -199,7 +199,7 @@ fn client_keep_alive() {
     let server = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = server.local_addr().unwrap();
     let mut core = Core::new().unwrap();
-    let client = client(&core.handle());
+    let mut client = client(&core.handle());
 
 
     thread::spawn(move || {

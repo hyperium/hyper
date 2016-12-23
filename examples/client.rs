@@ -25,7 +25,7 @@ fn main() {
     };
 
     let mut core = tokio_core::reactor::Core::new().unwrap();
-    let client = Client::new(&core.handle()).unwrap();
+    let mut client = Client::new(&core.handle()).unwrap();
 
     let work = client.get(url.parse().unwrap()).and_then(|res| {
         println!("Response: {}", res.status());
