@@ -46,7 +46,7 @@ impl Service for Echo {
 
 
 fn main() {
-    pretty_env_logger::init();
+    pretty_env_logger::init().unwrap();
     let server = Server::http(&"127.0.0.1:1337".parse().unwrap()).unwrap();
     let (listening, server) = server.standalone(|| Ok(Echo)).unwrap();
     println!("Listening on http://{}", listening);

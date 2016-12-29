@@ -3,13 +3,14 @@
 //! The HTTP `Client` uses asynchronous IO, and utilizes the `Handler` trait
 //! to convey when IO events are available for a given request.
 
+use std::cell::RefCell;
 use std::fmt;
 use std::io;
 use std::rc::Rc;
 use std::time::Duration;
 
-use futures::{Poll, Future};
-use futures::future::Either;
+use futures::{Poll, Async, Future};
+use futures::sync::oneshot;
 use tokio::io::Io;
 use tokio::reactor::Handle;
 use tokio_proto::BindClient;
@@ -22,7 +23,7 @@ use body::TokioBody;
 use header::{Headers, Host};
 use http;
 use method::Method;
-use self::pool::Pool;
+use self::pool::{Pool, Pooled};
 use uri::RequestUri;
 use {Url};
 
@@ -37,10 +38,12 @@ mod request;
 mod response;
 
 /// A Client to make outgoing HTTP requests.
+// If the Connector is clone, then the Client can be clone easily.
+#[derive(Clone)]
 pub struct Client<C> {
     connector: C,
     handle: Handle,
-    pool: Pool<Rc<TokioClient>>,
+    pool: Pool<TokioClient>,
 }
 
 impl Client<DefaultConnector> {
@@ -69,7 +72,7 @@ impl Client<DefaultConnector> {
         Ok(Client {
             connector: DefaultConnector::new(handle, 4),
             handle: handle.clone(),
-            pool: Pool::new(),
+            pool: Pool::new(Duration::from_secs(90)),
         })
     }
 }
@@ -133,23 +136,34 @@ impl<C: Connect> Service for Client<C> {
         };
         head.headers = headers;
 
-        /*
-        let client = if let Some(client) = self.pool.take(&url[..::url::Position::BeforePath]) {
-            Either::A(::futures::future::ok(client))
-        } else {
+        let checkout = self.pool.checkout(&url[..::url::Position::BeforePath]);
+        let connect = {
             let handle = self.handle.clone();
-            let client = self.connector.connect(url)
-                .map(move |io| HttpClient.bind_client(&handle, io))
-                .map_err(|e| e.into());
-            Either::B(client)
+            let pool = self.pool.clone();
+            let pool_key = Rc::new(url[..::url::Position::BeforePath].to_owned());
+            self.connector.connect(url)
+                .map(move |io| {
+                    let (tx, rx) = oneshot::channel();
+                    let client = HttpClient {
+                        client_rx: RefCell::new(Some(rx)),
+                    }.bind_client(&handle, io);
+                    let pooled = pool.pooled(pool_key, client);
+                    tx.complete(pooled.clone());
+                    pooled
+                })
         };
-        */
-        let handle = self.handle.clone();
-        let client = self.connector.connect(url)
-            .map(move |io| HttpClient.bind_client(&handle, io))
-            .map_err(|e| e.into());
 
-        let req = client.and_then(move |mut client| {
+        let race = checkout.select(connect)
+            .map(|(client, _work)| client)
+            .map_err(|(e, _work)| {
+                // the Pool Checkout cannot error, so the only error
+                // is from the Connector
+                // XXX: should wait on the Checkout? Problem is
+                // that if the connector is failing, it may be that we
+                // never had a pooled stream at all
+                e.into()
+            });
+        let req = race.and_then(move |mut client| {
             let msg = match body {
                 Some(body) => {
                     let body: TokioBody = body.into();
@@ -177,7 +191,9 @@ impl<C> fmt::Debug for Client<C> {
 
 type TokioClient = ClientProxy<Message<http::RequestHead, TokioBody>, Message<http::ResponseHead, TokioBody>, ::Error>;
 
-struct HttpClient;
+struct HttpClient {
+    client_rx: RefCell<Option<oneshot::Receiver<Pooled<TokioClient>>>>,
+}
 
 impl<T: Io + 'static> ClientProto<T> for HttpClient {
     type Request = http::RequestHead;
@@ -185,11 +201,34 @@ impl<T: Io + 'static> ClientProto<T> for HttpClient {
     type Response = http::ResponseHead;
     type ResponseBody = http::Chunk;
     type Error = ::Error;
-    type Transport = http::Conn<T, http::ClientTransaction>;
-    type BindTransport = io::Result<http::Conn<T, http::ClientTransaction>>;
+    type Transport = http::Conn<T, http::ClientTransaction, Pooled<TokioClient>>;
+    type BindTransport = BindingClient<T>;
 
     fn bind_transport(&self, io: T) -> Self::BindTransport {
-        Ok(http::Conn::new(io))
+        BindingClient {
+            rx: self.client_rx.borrow_mut().take().expect("client_rx was lost"),
+            io: Some(io),
+        }
+    }
+}
+
+struct BindingClient<T> {
+    rx: oneshot::Receiver<Pooled<TokioClient>>,
+    io: Option<T>,
+}
+
+impl<T: Io + 'static> Future for BindingClient<T> {
+    type Item = http::Conn<T, http::ClientTransaction, Pooled<TokioClient>>;
+    type Error = io::Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        match self.rx.poll() {
+            Ok(Async::Ready(client)) => Ok(Async::Ready(
+                    http::Conn::new(self.io.take().expect("binding client io lost"), client)
+            )),
+            Ok(Async::NotReady) => Ok(Async::NotReady),
+            Err(_canceled) => unreachable!(),
+        }
     }
 }
 

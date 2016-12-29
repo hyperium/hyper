@@ -380,6 +380,8 @@ fn server_empty_response_chunked() {
 
 #[test]
 fn server_empty_response_chunked_without_body_should_set_content_length() {
+    extern crate pretty_env_logger;
+    let _ = pretty_env_logger::init();
     let server = serve();
     server.reply()
         .status(hyper::Ok)
@@ -388,7 +390,7 @@ fn server_empty_response_chunked_without_body_should_set_content_length() {
     req.write_all(b"\
         GET / HTTP/1.1\r\n\
         Host: example.domain\r\n\
-        Connection: close\r\n
+        Connection: close\r\n\
         \r\n\
     ").unwrap();
 

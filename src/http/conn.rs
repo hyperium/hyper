@@ -16,21 +16,21 @@ use http::buffer::Buffer;
 use version::HttpVersion;
 
 
-/// This handles a connection, which will have been established over a
-/// Transport (like a socket), and will likely include multiple
+/// This handles a connection, which will have been established over an
+/// `Io` (like a socket), and will likely include multiple
 /// `Transaction`s over HTTP.
 ///
-/// The connection will determine when a message begins and ends, creating
-/// a new message `TransactionHandler` for each one, as well as determine if this
-/// connection can be kept alive after the message, or if it is complete.
-pub struct Conn<I, T> {
+/// The connection will determine when a message begins and ends as well as
+/// determine if this  connection can be kept alive after the message,
+/// or if it is complete.
+pub struct Conn<I, T, K = KA> {
     io: IoBuf<I>,
-    state: State,
+    state: State<K>,
     _marker: PhantomData<T>
 }
 
-impl<I, T> Conn<I, T> {
-    pub fn new(transport: I) -> Conn<I, T> {
+impl<I, T, K> Conn<I, T, K> {
+    pub fn new(transport: I, keep_alive: K) -> Conn<I, T, K> {
         Conn {
             io: IoBuf {
                 read_buf: Buffer::new(),
@@ -40,18 +40,14 @@ impl<I, T> Conn<I, T> {
             state: State {
                 reading: Reading::Init,
                 writing: Writing::Init,
-                keep_alive: KeepAlive::new(),
+                keep_alive: keep_alive,
             },
             _marker: PhantomData,
         }
     }
-
-    pub fn keep_alive(&self) -> &KeepAlive {
-        &self.state.keep_alive
-    }
 }
 
-impl<I: Io, T: Http1Transaction> Conn<I, T> {
+impl<I: Io, T: Http1Transaction, K: KeepAlive> Conn<I, T, K> {
 
     fn parse(&mut self) -> ::Result<Option<http::MessageHead<T::Incoming>>> {
         self.io.parse::<T>()
@@ -62,7 +58,7 @@ impl<I: Io, T: Http1Transaction> Conn<I, T> {
             Reading::Init |
             Reading::Body(..) => self.io.transport.poll_read().is_ready(),
             Reading::KeepAlive |
-            Reading::Closed => false,
+            Reading::Closed => true,
         }
     }
 
@@ -120,7 +116,7 @@ impl<I: Io, T: Http1Transaction> Conn<I, T> {
                     }
                 };
                 let wants_keep_alive = head.should_keep_alive();
-                self.state.keep_alive.is_allowed &= wants_keep_alive;
+                self.state.keep_alive &= wants_keep_alive;
                 let (body, reading) = if decoder.is_eof() {
                     (false, Reading::KeepAlive)
                 } else {
@@ -152,8 +148,7 @@ impl<I: Io, T: Http1Transaction> Conn<I, T> {
                     return Ok(Async::Ready(Some(http::Chunk::from(buf))));
                 } else {
                     if decoder.is_eof() {
-                        //TODO: should be Reading::KeepAlive
-                        (Reading::Closed, Ok(Async::Ready(None)))
+                        (Reading::KeepAlive, Ok(Async::Ready(None)))
                     } else {
                         (Reading::Closed, Ok(Async::Ready(None)))
                     }
@@ -193,7 +188,7 @@ impl<I: Io, T: Http1Transaction> Conn<I, T> {
         }
 
         let wants_keep_alive = head.should_keep_alive();
-        self.state.keep_alive.is_allowed &= wants_keep_alive;
+        self.state.keep_alive &= wants_keep_alive;
         let mut buf = Vec::new();
         let encoder = T::encode(&mut head, &mut buf);
         self.io.write(&buf).unwrap();
@@ -285,9 +280,10 @@ impl<I: Io, T: Http1Transaction> Conn<I, T> {
     }
 }
 
-impl<I, T> Stream for Conn<I, T>
+impl<I, T, K> Stream for Conn<I, T, K>
 where I: Io,
       T: Http1Transaction,
+      K: KeepAlive,
       T::Outgoing: fmt::Debug {
     type Item = Frame<http::MessageHead<T::Incoming>, http::Chunk, ::Error>;
     type Error = io::Error;
@@ -312,9 +308,10 @@ where I: Io,
     }
 }
 
-impl<I, T> Sink for Conn<I, T>
+impl<I, T, K> Sink for Conn<I, T, K>
 where I: Io,
       T: Http1Transaction,
+      K: KeepAlive,
       T::Outgoing: fmt::Debug {
     type SinkItem = Frame<http::MessageHead<T::Outgoing>, http::Chunk, ::Error>;
     type SinkError = io::Error;
@@ -378,12 +375,13 @@ where I: Io,
     }
 }
 
-impl<I, T> Transport for Conn<I, T>
+impl<I, T, K> Transport for Conn<I, T, K>
 where I: Io + 'static,
       T: Http1Transaction + 'static,
+      K: KeepAlive + 'static,
       T::Outgoing: fmt::Debug {}
 
-impl<I, T> fmt::Debug for Conn<I, T> {
+impl<I, T, K: fmt::Debug> fmt::Debug for Conn<I, T, K> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Conn")
             .field("state", &self.state)
@@ -393,10 +391,10 @@ impl<I, T> fmt::Debug for Conn<I, T> {
 }
 
 #[derive(Debug)]
-struct State {
+struct State<K> {
     reading: Reading,
     writing: Writing,
-    keep_alive: KeepAlive,
+    keep_alive: K,
 }
 
 #[derive(Debug)]
@@ -415,48 +413,67 @@ enum Writing {
     Closed,
 }
 
-#[derive(Debug)]
-pub struct KeepAlive {
-    is_allowed: bool,
-    started_at: Option<Instant>,
-}
-
-impl KeepAlive {
-    #[inline]
-    pub fn new() -> KeepAlive {
-        KeepAlive {
-            is_allowed: true,
-            started_at: None,
+impl ::std::ops::BitAndAssign<bool> for KA {
+    fn bitand_assign(&mut self, enabled: bool) {
+        if !enabled {
+            *self = KA::Disabled;
         }
     }
+}
 
-    pub fn start(&mut self) {
-        self.started_at = Some(Instant::now());
-    }
+pub trait KeepAlive: fmt::Debug + ::std::ops::BitAndAssign<bool> {
+    fn busy(&mut self);
+    fn disable(&mut self);
+    fn idle(&mut self);
+    fn status(&self) -> KA;
+}
 
-    pub fn started(&self) -> Option<Instant> {
-        self.started_at
-    }
+#[derive(Clone, Copy, Debug)]
+pub enum KA {
+    Idle(Instant),
+    Busy,
+    Disabled,
+}
 
-    pub fn reset(&mut self) {
-        self.started_at = None;
+impl Default for KA {
+    fn default() -> KA {
+        KA::Busy
     }
 }
 
-impl State {
+impl KeepAlive for KA {
+    fn idle(&mut self) {
+        *self = KA::Idle(Instant::now());
+    }
+
+    fn busy(&mut self) {
+        *self = KA::Busy;
+    }
+
+    fn disable(&mut self) {
+        *self = KA::Disabled;
+    }
+
+    fn status(&self) -> KA {
+        *self
+    }
+}
+
+impl<K: KeepAlive> State<K> {
     fn close(&mut self) {
         trace!("State::close");
         self.reading = Reading::Closed;
         self.writing = Writing::Closed;
+        self.keep_alive.disable();
     }
 
     fn try_keep_alive(&mut self) {
         match (&self.reading, &self.writing) {
             (&Reading::KeepAlive, &Writing::KeepAlive) => {
-                if self.keep_alive.is_allowed {
+                if let KA::Busy = self.keep_alive.status() {
                     self.reading = Reading::Init;
                     self.writing = Writing::Init;
-                    self.keep_alive.started_at = Some(Instant::now());
+                    self.keep_alive.idle();
                 } else {
                     self.close();
                 }
@@ -536,14 +553,14 @@ mod tests {
     use http::h1::Encoder;
     use mock::AsyncIo;
 
-    use super::{Conn, State, Writing};
+    use super::{Conn, State, Writing, KeepAlive};
 
     #[test]
     fn test_conn_init_read() {
         let good_message = b"GET / HTTP/1.1\r\n\r\n".to_vec();
         let len = good_message.len();
         let io = AsyncIo::new_buf(good_message, len);
-        let mut conn = Conn::<_, ServerTransaction>::new(io);
+        let mut conn = Conn::<_, ServerTransaction>::new(io, Default::default());
 
         match conn.poll().unwrap() {
             Async::Ready(Some(Frame::Message { message, body: false })) => {
@@ -562,7 +579,7 @@ mod tests {
     #[test]
     fn test_conn_closed_read() {
         let io = AsyncIo::new_buf(vec![], 0);
-        let mut conn = Conn::<_, ServerTransaction>::new(io);
+        let mut conn = Conn::<_, ServerTransaction>::new(io, Default::default());
         conn.state.close();
 
         match conn.poll().unwrap() {
@@ -578,7 +595,7 @@ mod tests {
         pretty_env_logger::init();
         let _: Result<(), ()> = ::futures::lazy(|| {
             let io = AsyncIo::new_buf(vec![], 0);
-            let mut conn = Conn::<_, ServerTransaction>::new(io);
+            let mut conn = Conn::<_, ServerTransaction>::new(io, Default::default());
             let max = ::http::buffer::MAX_BUFFER_SIZE + 4096;
             conn.state.writing = Writing::Body(Encoder::length(max as u64), None);
 
@@ -612,7 +629,7 @@ mod tests {
     #[test]
     fn test_conn_closed_write() {
         let io = AsyncIo::new_buf(vec![], 0);
-        let mut conn = Conn::<_, ServerTransaction>::new(io);
+        let mut conn = Conn::<_, ServerTransaction>::new(io, Default::default());
         conn.state.close();
 
         match conn.start_send(Frame::Body { chunk: Some(b"foobar".to_vec().into()) }) {

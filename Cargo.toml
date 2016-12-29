@@ -40,8 +40,7 @@ optional = true
 
 [dev-dependencies]
 num_cpus = "1.0"
-#env_logger = "0.3"
-pretty_env_logger = { git = "https://github.com/seanmonstar/pretty-env-logger" }
+pretty_env_logger = "0.1"
 
 [features]
 default = []

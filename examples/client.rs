@@ -14,7 +14,7 @@ use futures::stream::Stream;
 use hyper::Client;
 
 fn main() {
-    pretty_env_logger::init();
+    pretty_env_logger::init().unwrap();
 
     let url = match env::args().nth(1) {
         Some(url) => url,

@@ -29,8 +29,7 @@ impl Service for Hello {
 }
 
 fn main() {
-    //env_logger::init().unwrap();
-    pretty_env_logger::init();
+    pretty_env_logger::init().unwrap();
 
     let (listening, server) = Server::http(&"127.0.0.1:3000".parse().unwrap()).unwrap()
         .standalone(|| Ok(Hello)).unwrap();

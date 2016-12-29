@@ -92,6 +92,7 @@ impl Service for HttpConnector {
 }
 
 /// A Connector for the `https` scheme.
+#[derive(Clone)]
 pub struct HttpsConnector {
     dns: dns::Dns,
     handle: Handle,

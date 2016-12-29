@@ -192,8 +192,6 @@ test! {
             body: None,
 }
 
-//TODO: enable once client connection pooling is working
-#[ignore]
 #[test]
 fn client_keep_alive() {
     let server = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -202,6 +200,8 @@ fn client_keep_alive() {
     let mut client = client(&core.handle());
 
 
+    let (tx1, rx1) = oneshot::channel();
+    let (tx2, rx2) = oneshot::channel();
     thread::spawn(move || {
         let mut sock = server.accept().unwrap().0;
         sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
@@ -209,16 +209,62 @@ fn client_keep_alive() {
         let mut buf = [0; 4096];
         sock.read(&mut buf).expect("read 1");
         sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").expect("write 1");
+        tx1.complete(());
 
         sock.read(&mut buf).expect("read 2");
         let second_get = b"GET /b HTTP/1.1\r\n";
         assert_eq!(&buf[..second_get.len()], second_get);
         sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").expect("write 2");
+        tx2.complete(());
     });
 
-    let req = client.get(format!("http://{}/a", addr).parse().unwrap());
-    core.run(req).unwrap();
 
-    let req = client.get(format!("http://{}/b", addr).parse().unwrap());
-    core.run(req).unwrap();
+
+    let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+    let res = client.get(format!("http://{}/a", addr).parse().unwrap());
+    core.run(res.join(rx).map(|r| r.0)).unwrap();
+
+    let rx = rx2.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+    let res = client.get(format!("http://{}/b", addr).parse().unwrap());
+    core.run(res.join(rx).map(|r| r.0)).unwrap();
+}
+
+
+#[test]
+fn client_pooled_socket_disconnected() {
+    let server = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = server.local_addr().unwrap();
+    let mut core = Core::new().unwrap();
+    let mut client = client(&core.handle());
+
+
+    let (tx1, rx1) = oneshot::channel();
+    let (tx2, rx2) = oneshot::channel();
+    thread::spawn(move || {
+        let mut sock = server.accept().unwrap().0;
+        sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+        let mut buf = [0; 4096];
+        sock.read(&mut buf).expect("read 1");
+        sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").expect("write 1");
+        drop(sock);
+        tx1.complete(());
+
+        let mut sock = server.accept().unwrap().0;
+        sock.read(&mut buf).expect("read 2");
+        let second_get = b"GET /b HTTP/1.1\r\n";
+        assert_eq!(&buf[..second_get.len()], second_get);
+        sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").expect("write 2");
+        tx2.complete(());
+    });
+
+
+
+    let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+    let res = client.get(format!("http://{}/a", addr).parse().unwrap());
+    core.run(res.join(rx).map(|r| r.0)).unwrap();
+
+    let rx = rx2.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+    let res = client.get(format!("http://{}/b", addr).parse().unwrap());
+    core.run(res.join(rx).map(|r| r.0)).unwrap();
 }

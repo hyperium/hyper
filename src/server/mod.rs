@@ -238,7 +238,7 @@ impl<T: Io + 'static> ServerProto<T> for HttpServer {
     type BindTransport = io::Result<http::Conn<T, http::ServerTransaction>>;
 
     fn bind_transport(&self, io: T) -> Self::BindTransport {
-        Ok(http::Conn::new(io))
+        Ok(http::Conn::new(io, Default::default()))
     }
 }
 
