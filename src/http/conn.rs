@@ -1,8 +1,6 @@
-use std::cell::Cell;
 use std::fmt;
 use std::io::{self, Write};
 use std::marker::PhantomData;
-use std::rc::Rc;
 use std::time::Instant;
 
 use futures::{Poll, Async, AsyncSink, Stream, Sink, StartSend};

@@ -19,9 +19,8 @@ use tokio_proto::streaming::pipeline::ClientProto;
 use tokio_proto::util::client_proxy::ClientProxy;
 pub use tokio_service::Service;
 
-use body::TokioBody;
 use header::{Headers, Host};
-use http;
+use http::{self, TokioBody};
 use method::Method;
 use self::pool::{Pool, Pooled};
 use uri::RequestUri;
@@ -166,8 +165,7 @@ impl<C: Connect> Service for Client<C> {
         let req = race.and_then(move |mut client| {
             let msg = match body {
                 Some(body) => {
-                    let body: TokioBody = body.into();
-                    Message::WithBody(head, body)
+                    Message::WithBody(head, body.into())
                 },
                 None => Message::WithoutBody(head),
             };

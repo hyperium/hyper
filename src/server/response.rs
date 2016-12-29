@@ -1,8 +1,7 @@
 use std::fmt;
 
-use body::Body;
 use header;
-use http;
+use http::{self, Body};
 use status::StatusCode;
 use version;
 

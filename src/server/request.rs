@@ -6,11 +6,10 @@
 use std::fmt;
 use std::net::SocketAddr;
 
-use body::Body;
 use version::HttpVersion;
 use method::Method;
 use header::Headers;
-use http::{RequestHead, MessageHead, RequestLine};
+use http::{RequestHead, MessageHead, RequestLine, Body};
 use uri::RequestUri;
 
 /// A request bundles several parts of an incoming `NetworkStream`, given to a `Handler`.

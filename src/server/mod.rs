@@ -24,7 +24,6 @@ pub use self::response::Response;
 
 //use self::conn::Conn;
 
-use body::{Body, TokioBody};
 use http;
 
 
@@ -247,7 +246,7 @@ struct HttpService<T> {
     remote_addr: SocketAddr,
 }
 
-fn map_response_to_message(res: Response) -> Message<ResponseHead, TokioBody> {
+fn map_response_to_message(res: Response) -> Message<ResponseHead, http::TokioBody> {
     let (head, body) = response::split(res);
     if let Some(body) = body {
         Message::WithBody(head, body.into())
@@ -261,14 +260,14 @@ type ResponseHead = http::MessageHead<::StatusCode>;
 impl<T> Service for HttpService<T>
     where T: Service<Request=Request, Response=Response, Error=::Error>,
 {
-    type Request = Message<http::RequestHead, TokioBody>;
-    type Response = Message<ResponseHead, TokioBody>;
+    type Request = Message<http::RequestHead, http::TokioBody>;
+    type Response = Message<ResponseHead, http::TokioBody>;
     type Error = ::Error;
-    type Future = Map<T::Future, fn(Response) -> Message<ResponseHead, TokioBody>>;
+    type Future = Map<T::Future, fn(Response) -> Message<ResponseHead, http::TokioBody>>;
 
     fn call(&mut self, message: Self::Request) -> Self::Future {
         let (head, body) = match message {
-            Message::WithoutBody(head) => (head, Body::empty()),
+            Message::WithoutBody(head) => (head, http::Body::empty()),
             Message::WithBody(head, body) => (head, body.into()),
         };
         let req = request::new(self.remote_addr, head, body);

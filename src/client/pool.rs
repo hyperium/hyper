@@ -36,7 +36,7 @@ impl<T: Clone> Pool<T> {
         }
     }
 
-    pub fn put(&mut self, key: Rc<String>, entry: Entry<T>) {
+    fn put(&mut self, key: Rc<String>, entry: Entry<T>) {
         trace!("Pool::put {:?}", key);
         self.inner.borrow_mut()
             .idle.entry(key)

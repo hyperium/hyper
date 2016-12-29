@@ -11,12 +11,11 @@ use uri::RequestUri;
 use version::HttpVersion;
 use version::HttpVersion::{Http10, Http11};
 
-#[cfg(feature = "serde-serialization")]
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
 pub use self::conn::{Conn, KeepAlive, KA};
+pub use self::body::{Body, TokioBody};
 pub use self::chunk::Chunk;
 
+mod body;
 mod buffer;
 mod chunk;
 mod conn;
@@ -237,21 +236,6 @@ impl From<StatusCode> for RawStatus {
 impl Default for RawStatus {
     fn default() -> RawStatus {
         RawStatus(200, Cow::Borrowed("OK"))
-    }
-}
-
-#[cfg(feature = "serde-serialization")]
-impl Serialize for RawStatus {
-    fn serialize<S>(&self, serializer: &mut S) -> Result<(), S::Error> where S: Serializer {
-        (self.0, &self.1).serialize(serializer)
-    }
-}
-
-#[cfg(feature = "serde-serialization")]
-impl Deserialize for RawStatus {
-    fn deserialize<D>(deserializer: &mut D) -> Result<RawStatus, D::Error> where D: Deserializer {
-        let representation: (u16, String) = try!(Deserialize::deserialize(deserializer));
-        Ok(RawStatus(representation.0, Cow::Owned(representation.1)))
     }
 }
 

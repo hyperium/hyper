@@ -2,9 +2,8 @@
 
 use Url;
 
-use body::Body;
 use header::Headers;
-use http::{RequestHead};
+use http::{Body, RequestHead};
 use method::Method;
 use uri::RequestUri;
 use version::HttpVersion;
