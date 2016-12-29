@@ -19,6 +19,8 @@ pub enum HttpVersion {
     H2,
     /// `HTTP/2.0` over cleartext
     H2c,
+    #[doc(hidden)]
+    __DontMatchMe,
 }
 
 impl fmt::Display for HttpVersion {
@@ -29,6 +31,7 @@ impl fmt::Display for HttpVersion {
             Http11 => "HTTP/1.1",
             H2 => "h2",
             H2c => "h2c",
+            HttpVersion::__DontMatchMe => unreachable!(),
         })
     }
 }

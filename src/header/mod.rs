@@ -85,11 +85,6 @@ use unicase::UniCase;
 
 use self::internals::{Item, VecMap, Entry};
 
-#[cfg(feature = "serde-serialization")]
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-#[cfg(feature = "serde-serialization")]
-use serde::de;
-
 pub use self::shared::*;
 pub use self::common::*;
 pub use self::raw::Raw;
@@ -434,44 +429,6 @@ impl fmt::Debug for Headers {
         }
         try!(f.write_str("}"));
         Ok(())
-    }
-}
-
-#[cfg(feature = "serde-serialization")]
-impl Serialize for Headers {
-    fn serialize<S>(&self, serializer: &mut S) -> Result<(), S::Error>
-        where S: Serializer
-    {
-        let mut state = try!(serializer.serialize_map(Some(self.len())));
-        for header in self.iter() {
-            try!(serializer.serialize_map_key(&mut state, header.name()));
-            try!(serializer.serialize_map_value(&mut state, header.value_string()));
-        }
-        serializer.serialize_map_end(state)
-    }
-}
-
-#[cfg(feature = "serde-serialization")]
-impl Deserialize for Headers {
-    fn deserialize<D>(deserializer: &mut D) -> Result<Headers, D::Error> where D: Deserializer {
-        struct HeadersVisitor;
-
-        impl de::Visitor for HeadersVisitor {
-            type Value = Headers;
-
-            fn visit_map<V>(&mut self, mut visitor: V) -> Result<Headers, V::Error>
-                            where V: de::MapVisitor {
-                let mut result = Headers::new();
-                while let Some((key, value)) = try!(visitor.visit()) {
-                    let (key, value): (String, String) = (key, value);
-                    result.set_raw(key, vec![value.into_bytes()]);
-                }
-                try!(visitor.end());
-                Ok(result)
-            }
-        }
-
-        deserializer.deserialize_map(HeadersVisitor)
     }
 }
 
