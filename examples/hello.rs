@@ -1,11 +1,11 @@
-//#![deny(warnings)]
+#![deny(warnings)]
 extern crate hyper;
 extern crate futures;
 extern crate pretty_env_logger;
-extern crate num_cpus;
+//extern crate num_cpus;
 
 use hyper::header::{ContentLength, ContentType};
-use hyper::server::{Server, Service, Request, Response/*, HttpListener*/};
+use hyper::server::{Server, Service, Request, Response};
 
 static PHRASE: &'static [u8] = b"Hello World!";
 
@@ -30,27 +30,10 @@ impl Service for Hello {
 
 fn main() {
     pretty_env_logger::init().unwrap();
-
-    let (listening, server) = Server::http(&"127.0.0.1:3000".parse().unwrap()).unwrap()
-        .standalone(|| Ok(Hello)).unwrap();
-
-    println!("Listening on http://{}", listening);
-    server.run();
-    /*
-    let listener = HttpListener::bind(&"127.0.0.1:3000".parse().unwrap()).unwrap();
-    let mut handles = Vec::new();
-
-    for _ in 0..num_cpus::get() {
-        let listener = listener.try_clone().unwrap();
-        handles.push(::std::thread::spawn(move || {
-            Server::new(listener)
-                .handle(|| Hello).unwrap();
-        }));
-    }
-    println!("Listening on http://127.0.0.1:3000");
-
-    for handle in handles {
-        handle.join().unwrap();
-    }
-    */
+    let addr = "127.0.0.1:3000".parse().unwrap();
+    let _server = Server::standalone(|tokio| {
+        Server::http(&addr, tokio)?
+            .handle(|| Ok(Hello), tokio)
+    }).unwrap();
+    println!("Listening on http://{}", addr);
 }

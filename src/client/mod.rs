@@ -93,6 +93,7 @@ impl<C: Connect> Client<C> {
     }
 }
 
+/// A `Future` that will resolve to an HTTP Response.
 pub struct FutureResponse(Box<Future<Item=Response, Error=::Error> + 'static>);
 
 impl fmt::Debug for FutureResponse {

@@ -47,8 +47,11 @@ impl Service for Echo {
 
 fn main() {
     pretty_env_logger::init().unwrap();
-    let server = Server::http(&"127.0.0.1:1337".parse().unwrap()).unwrap();
-    let (listening, server) = server.standalone(|| Ok(Echo)).unwrap();
+    let addr = "127.0.0.1:1337".parse().unwrap();
+    let (listening, server) = Server::standalone(|tokio| {
+        Server::http(addr, tokio)?
+            .handle(|| Ok(Echo))
+    });
     println!("Listening on http://{}", listening);
     server.run();
 }

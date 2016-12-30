@@ -544,14 +544,14 @@ impl<'a> fmt::Debug for DebugChunk<'a> {
 
 #[cfg(test)]
 mod tests {
-    use futures::{Async, AsyncSink, Stream, Sink};
+    use futures::{Async, Stream, Sink};
     use tokio_proto::streaming::pipeline::Frame;
 
     use http::{MessageHead, ServerTransaction};
     use http::h1::Encoder;
     use mock::AsyncIo;
 
-    use super::{Conn, State, Writing, KeepAlive};
+    use super::{Conn, Writing};
 
     #[test]
     fn test_conn_init_read() {
@@ -588,9 +588,7 @@ mod tests {
 
     #[test]
     fn test_conn_body_write() {
-        extern crate pretty_env_logger;
         use ::futures::Future;
-        pretty_env_logger::init();
         let _: Result<(), ()> = ::futures::lazy(|| {
             let io = AsyncIo::new_buf(vec![], 0);
             let mut conn = Conn::<_, ServerTransaction>::new(io, Default::default());
@@ -631,7 +629,7 @@ mod tests {
         conn.state.close();
 
         match conn.start_send(Frame::Body { chunk: Some(b"foobar".to_vec().into()) }) {
-            Err(e) => {},
+            Err(_e) => {},
             other => panic!("did not return Err: {:?}", other)
         }
 

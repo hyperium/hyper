@@ -1,15 +1,14 @@
 //! HTTP Server
 //!
 //! A `Server` is created to listen on a port, parse HTTP requests, and hand
-//! them off to a `Handler`.
+//! them off to a `Service`.
 use std::fmt;
 use std::io;
-use std::marker::PhantomData;
 use std::net::{SocketAddr, TcpListener as StdTcpListener};
-use std::time::Duration;
 
 use futures::{Future, Map};
 use futures::stream::{Stream};
+use futures::sync::oneshot;
 
 use tokio::io::Io;
 use tokio::net::TcpListener;
@@ -19,47 +18,40 @@ use tokio_proto::streaming::Message;
 use tokio_proto::streaming::pipeline::ServerProto;
 pub use tokio_service::{NewService, Service};
 
+pub use self::accept::Accept;
 pub use self::request::Request;
 pub use self::response::Response;
 
-//use self::conn::Conn;
-
 use http;
 
-
-//mod conn;
 mod request;
 mod response;
 
-type HttpListener = TcpListener;
+type HttpIncoming = ::tokio::net::Incoming;
 
 /// A Server that can accept incoming network requests.
 #[derive(Debug)]
 pub struct Server<A> {
-    //listeners: Vec<A>,
-    _marker: PhantomData<A>,
+    accepter: A,
     addr: SocketAddr,
     keep_alive: bool,
-    idle_timeout: Option<Duration>,
-    max_sockets: usize,
+    //idle_timeout: Option<Duration>,
+    //max_sockets: usize,
 }
 
 impl<A: Accept> Server<A> {
-    /*
-    /// Creates a new Server from one or more Listeners.
+    /// Creates a new Server from a Stream of Ios.
     ///
-    /// Panics if listeners is an empty iterator.
-    pub fn new<I: IntoIterator<Item = A>>(listeners: I) -> Server<A> {
-        let listeners = listeners.into_iter().collect();
-
+    /// The addr is the socket address the accepter is listening on.
+    pub fn new(accepter: A, addr: SocketAddr) -> Server<A> {
         Server {
-            listeners: listeners,
+            accepter: accepter,
+            addr: addr,
             keep_alive: true,
-            idle_timeout: Some(Duration::from_secs(10)),
-            max_sockets: 4096,
+            //idle_timeout: Some(Duration::from_secs(75)),
+            //max_sockets: 4096,
         }
     }
-    */
 
     /// Enables or disables HTTP keep-alive.
     ///
@@ -69,14 +61,17 @@ impl<A: Accept> Server<A> {
         self
     }
 
+    /*
     /// Sets how long an idle connection will be kept before closing.
     ///
-    /// Default is 10 seconds.
+    /// Default is 75 seconds.
     pub fn idle_timeout(mut self, val: Option<Duration>) -> Server<A> {
         self.idle_timeout = val;
         self
     }
+    */
 
+    /*
     /// Sets the maximum open sockets for this Server.
     ///
     /// Default is 4096, but most servers can handle much more than this.
@@ -84,18 +79,16 @@ impl<A: Accept> Server<A> {
         self.max_sockets = val;
         self
     }
+    */
 }
 
-impl Server<HttpListener> { //<H: HandlerFactory<<HttpListener as Accept>::Output>> Server<HttpListener, H> {
+impl Server<HttpIncoming> {
     /// Creates a new HTTP server config listening on the provided address.
-    pub fn http(addr: &SocketAddr) -> ::Result<Server<HttpListener>> {
-        Ok(Server {
-            _marker: PhantomData,
-            addr: addr.clone(),
-            keep_alive: true,
-            idle_timeout: Some(Duration::from_secs(10)),
-            max_sockets: 4096,
-        })
+    pub fn http(addr: &SocketAddr, handle: &Handle) -> ::Result<Server<HttpIncoming>> {
+        let listener = try!(StdTcpListener::bind(addr));
+        let addr = try!(listener.local_addr());
+        let listener = try!(TcpListener::from_listener(listener, &addr, handle));
+        Ok(Server::new(listener.incoming(), addr))
     }
 }
 
@@ -114,17 +107,15 @@ impl<S: SslServer> Server<HttpsListener<S>> {
 */
 
 
-impl/*<A: Accept>*/ Server<HttpListener> {
+impl<A: Accept> Server<A> {
     /// Binds to a socket and starts handling connections.
     pub fn handle<H>(self, factory: H, handle: &Handle) -> ::Result<SocketAddr>
     where H: NewService<Request=Request, Response=Response, Error=::Error> + Send + 'static {
-        let listener = try!(StdTcpListener::bind(&self.addr));
-        let addr = try!(listener.local_addr());
-        let listener = try!(TcpListener::from_listener(listener, &addr, handle));
-        let binder = HttpServer;
-
+        let binder = HttpServer {
+            keep_alive: self.keep_alive,
+        };
         let inner_handle = handle.clone();
-        handle.spawn(listener.incoming().for_each(move |(socket, remote_addr)| {
+        handle.spawn(self.accepter.accept().for_each(move |(socket, remote_addr)| {
             let service = HttpService {
                 inner: try!(factory.new_service()),
                 remote_addr: remote_addr,
@@ -136,20 +127,22 @@ impl/*<A: Accept>*/ Server<HttpListener> {
             ()
         }));
 
-        Ok(addr)
+        Ok(self.addr)
     }
+}
 
+impl Server<()> {
     /// Create a server that owns its event loop.
     ///
     /// The returned `ServerLoop` can be used to run the loop forever in the
     /// thread. The returned `Listening` can be sent to another thread, and
     /// used to shutdown the `ServerLoop`.
-    pub fn standalone<H>(self, factory: H) -> ::Result<(Listening, ServerLoop)>
-    where H: NewService<Request=Request, Response=Response, Error=::Error> + Send + 'static {
+    pub fn standalone<F>(closure: F) -> ::Result<(Listening, ServerLoop)>
+    where F: FnOnce(&Handle) -> ::Result<SocketAddr> {
         let core = try!(Core::new());
         let handle = core.handle();
-        let addr = try!(self.handle(factory, &handle));
-        let (shutdown_tx, shutdown_rx) = ::futures::sync::oneshot::channel();
+        let addr = try!(closure(&handle));
+        let (shutdown_tx, shutdown_rx) = oneshot::channel();
         Ok((
             Listening {
                 addr: addr,
@@ -165,7 +158,7 @@ impl/*<A: Accept>*/ Server<HttpListener> {
 
 /// A configured `Server` ready to run.
 pub struct ServerLoop {
-    inner: Option<(Core, ::futures::sync::oneshot::Receiver<()>)>,
+    inner: Option<(Core, oneshot::Receiver<()>)>,
 }
 
 impl fmt::Debug for ServerLoop {
@@ -180,14 +173,16 @@ impl ServerLoop {
     /// This will block the current thread.
     pub fn run(self) {
         // drop will take care of it.
+        trace!("ServerLoop::run()");
     }
 }
 
 impl Drop for ServerLoop {
     fn drop(&mut self) {
         self.inner.take().map(|(mut loop_, shutdown)| {
-            let _ = loop_.run(shutdown);
-            debug!("server closed");
+            debug!("ServerLoop::drop running");
+            let _ = loop_.run(shutdown.or_else(|_dropped| ::futures::future::empty::<(), oneshot::Canceled>()));
+            debug!("Server closed");
         });
     }
 }
@@ -225,7 +220,9 @@ impl Listening {
     }
 }
 
-struct HttpServer;
+struct HttpServer {
+    keep_alive: bool,
+}
 
 impl<T: Io + 'static> ServerProto<T> for HttpServer {
     type Request = http::RequestHead;
@@ -237,7 +234,12 @@ impl<T: Io + 'static> ServerProto<T> for HttpServer {
     type BindTransport = io::Result<http::Conn<T, http::ServerTransaction>>;
 
     fn bind_transport(&self, io: T) -> Self::BindTransport {
-        Ok(http::Conn::new(io, Default::default()))
+        let ka = if self.keep_alive {
+            http::KA::Busy
+        } else {
+            http::KA::Disabled
+        };
+        Ok(http::Conn::new(io, ka))
     }
 }
 
@@ -275,6 +277,54 @@ impl<T> Service for HttpService<T>
     }
 }
 
-pub trait Accept: Stream {
+//private so the `Acceptor` type can stay internal
+mod accept {
+    use std::io;
+    use std::net::SocketAddr;
+    use futures::{Stream, Poll};
+    use tokio::io::Io;
 
+    /// An Acceptor is an incoming Stream of Io.
+    ///
+    /// This trait is not implemented directly, and only exists to make the
+    /// intent clearer. A `Stream<Item=(Io, SocketAddr), Error=io::Error>`
+    /// should be implemented instead.
+    pub trait Accept: Stream<Error=io::Error> {
+        #[doc(hidden)]
+        type Output: Io + 'static;
+        #[doc(hidden)]
+        type Stream: Stream<Item=(Self::Output, SocketAddr), Error=io::Error> + 'static;
+
+        #[doc(hidden)]
+        fn accept(self) -> Accepter<Self::Stream, Self::Output>
+            where Self: Sized;
+    }
+
+    #[allow(missing_debug_implementations)]
+    pub struct Accepter<T: Stream<Item=(I, SocketAddr), Error=io::Error> + 'static, I: Io + 'static>(T, ::std::marker::PhantomData<I>);
+
+    impl<T, I> Stream for Accepter<T, I>
+    where T: Stream<Item=(I, SocketAddr), Error=io::Error>,
+          I: Io + 'static,
+    {
+        type Item = T::Item;
+        type Error = io::Error;
+
+        #[inline]
+        fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+            self.0.poll()
+        }
+    }
+
+    impl<T, I> Accept for T
+    where T: Stream<Item=(I, SocketAddr), Error=io::Error> + 'static,
+          I: Io + 'static,
+    {
+        type Output = I;
+        type Stream = T;
+
+        fn accept(self) -> Accepter<Self, I> {
+            Accepter(self, ::std::marker::PhantomData)
+        }
+    }
 }
