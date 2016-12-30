@@ -76,14 +76,14 @@ impl Service for HttpConnector {
     type Request = Url;
     type Response = TcpStream;
     type Error = io::Error;
-    type Future = Connecting;
+    type Future = HttpConnecting;
 
     fn call(&mut self, url: Url) -> Self::Future {
         debug!("Http::connect({:?})", url);
         let host = url.host_str().expect("http scheme must have a host");
         let port = url.port_or_known_default().unwrap_or(80);
 
-        Connecting {
+        HttpConnecting {
             state: State::Resolving(self.dns.resolve(host.into(), port)),
             handle: self.handle.clone(),
         }
@@ -122,7 +122,7 @@ impl Service for HttpsConnector {
     type Request = Url;
     type Response = MaybeHttpsStream;
     type Error = io::Error;
-    type Future = TlsConnecting;
+    type Future = HttpsConnecting;
 
     fn call(&mut self, url: Url) -> Self::Future {
         debug!("Https::connect({:?})", url);
@@ -132,11 +132,11 @@ impl Service for HttpsConnector {
 
         let host = host.to_owned();
 
-        let connecting = Connecting {
+        let connecting = HttpConnecting {
             state: State::Resolving(self.dns.resolve(host.clone(), port)),
             handle: self.handle.clone(),
         };
-        if is_https {
+        HttpsConnecting(if is_https {
             Box::new(connecting.and_then(move |tcp| {
                 TlsConnector::builder()
                     .and_then(|c| c.build())
@@ -148,25 +148,27 @@ impl Service for HttpsConnector {
             }))
         } else {
             Box::new(connecting.map(|tcp| MaybeHttpsStream::Http(tcp)))
-        }
+        };
     }
 
 }
 
-pub type TlsConnecting = Box<Future<Item=MaybeHttpsStream, Error=io::Error>>;
 
 /// A Future representing work to connect to a URL.
-pub struct Connecting {
+pub struct HttpConnecting {
     state: State,
     handle: Handle,
 }
+
+/// A Future representing work to connect to a URL, and a TLS handshake.
+pub struct HttpsConnecting(Box<Future<Item=MaybeHttpsStream, Error=io::Error>>);
 
 enum State {
     Resolving(dns::Query),
     Connecting(ConnectingTcp),
 }
 
-impl Future for Connecting {
+impl Future for HttpConnecting {
     type Item = TcpStream;
     type Error = io::Error;
 
@@ -192,9 +194,24 @@ impl Future for Connecting {
     }
 }
 
-impl fmt::Debug for Connecting {
+impl fmt::Debug for HttpConnecting {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.pad("Connecting")
+        f.pad("HttpConnecting")
+    }
+}
+
+impl Future for HttpsConnecting {
+    type Item = MaybeHttpsStream;
+    type Error = io::Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        self.0.poll()
+    }
+}
+
+impl fmt::Debug for HttpsConnecting {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.pad("HttpsConnecting")
     }
 }
 
