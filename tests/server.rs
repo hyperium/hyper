@@ -163,12 +163,14 @@ fn serve_with_timeout(dur: Option<Duration>) -> Serve {
 
     let thread_name = format!("test-server-{:?}", dur);
     thread::Builder::new().name(thread_name).spawn(move || {
-        let (listening, server) = Server::http(&addr).unwrap()
-            .standalone(TestService {
-                tx: msg_tx.clone(),
-                _timeout: dur,
-                reply: reply_rx,
-            }).unwrap();
+        let (listening, server) = Server::standalone(move |tokio| {
+            Server::http(&addr, tokio).unwrap()
+                .handle(TestService {
+                    tx: msg_tx.clone(),
+                    _timeout: dur,
+                    reply: reply_rx,
+                }, tokio)
+        }).unwrap();
         thread_tx.send(listening).unwrap();
         server.run();
         spawn_tx.send(()).unwrap();

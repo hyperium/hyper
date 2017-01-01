@@ -19,6 +19,7 @@ log = "0.3"
 mime = "0.2"
 mio = "0.6"
 native-tls = "0.1.0"
+relay = "0.1"
 rustc-serialize = "0.3"
 time = "0.1"
 tokio-core = "0.1"
@@ -36,6 +37,7 @@ default-features = false
 [dev-dependencies]
 num_cpus = "1.0"
 pretty_env_logger = "0.1"
+spmc = "0.2"
 
 [features]
 default = []

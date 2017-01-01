@@ -13,8 +13,6 @@
 //! Hyper provides both a [Client](client/index.html) and a
 //! [Server](server/index.html), along with a
 //! [typed Headers system](header/index.html).
-//!
-//! If just getting started, consider looking over the **[Guide](../guide/)**.
 
 extern crate cookie;
 extern crate futures;
@@ -25,6 +23,7 @@ extern crate httparse;
 #[macro_use] pub extern crate mime;
 extern crate mio;
 extern crate native_tls;
+extern crate relay;
 extern crate rustc_serialize as serialize;
 extern crate time;
 #[macro_use] extern crate tokio_core as tokio;

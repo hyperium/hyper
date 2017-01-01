@@ -1,5 +1,5 @@
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::io;
 use std::ops::{Deref, DerefMut, BitAndAssign};
@@ -7,6 +7,7 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use futures::{Future, Async, Poll};
+use relay;
 
 use http::{KeepAlive, KA};
 
@@ -16,6 +17,7 @@ pub struct Pool<T> {
 
 struct PoolInner<T> {
     idle: HashMap<Rc<String>, Vec<Entry<T>>>,
+    parked: HashMap<Rc<String>, VecDeque<relay::Sender<Entry<T>>>>,
     timeout: Duration,
 }
 
@@ -24,6 +26,7 @@ impl<T: Clone> Pool<T> {
         Pool {
             inner: Rc::new(RefCell::new(PoolInner {
                 idle: HashMap::new(),
+                parked: HashMap::new(),
                 timeout: timeout,
             })),
         }
@@ -31,17 +34,40 @@ impl<T: Clone> Pool<T> {
 
     pub fn checkout(&mut self, key: &str) -> Checkout<T> {
         Checkout {
-            pool: self.clone(),
             key: Rc::new(key.to_owned()),
+            pool: self.clone(),
+            parked: None,
         }
     }
 
     fn put(&mut self, key: Rc<String>, entry: Entry<T>) {
         trace!("Pool::put {:?}", key);
-        self.inner.borrow_mut()
-            .idle.entry(key)
-            .or_insert(Vec::new())
-            .push(entry);
+        let mut remove_parked = false;
+        let tx = self.inner.borrow_mut().parked.get_mut(&key).and_then(|parked| {
+            let mut ret = None;
+            while let Some(tx) = parked.pop_front() {
+                if !tx.is_canceled() {
+                    ret = Some(tx);
+                    break;
+                }
+                trace!("Pool::put removing canceled parked {:?}", key);
+            }
+            remove_parked = parked.is_empty();
+            ret
+        });
+        if remove_parked {
+            self.inner.borrow_mut().parked.remove(&key);
+        }
+
+        if let Some(tx) = tx {
+            trace!("Pool::put found parked {:?}", key);
+            tx.complete(entry);
+        } else {
+            self.inner.borrow_mut()
+                .idle.entry(key)
+                .or_insert(Vec::new())
+                .push(entry);
+        }
     }
 
     pub fn pooled(&self, key: Rc<String>, value: T) -> Pooled<T> {
@@ -66,6 +92,14 @@ impl<T: Clone> Pool<T> {
             key: key,
             pool: self.clone(),
         }
+    }
+
+    fn park(&mut self, key: Rc<String>, tx: relay::Sender<Entry<T>>) {
+        trace!("Pool::park {:?}", key);
+        self.inner.borrow_mut()
+            .parked.entry(key)
+            .or_insert(VecDeque::new())
+            .push_back(tx);
     }
 }
 
@@ -107,7 +141,12 @@ impl<T: Clone> KeepAlive for Pooled<T> {
     }
 
     fn idle(&mut self) {
+        let previous = self.status();
         self.entry.status.set(KA::Idle(Instant::now()));
+        if let KA::Idle(..) = previous {
+            trace!("Pooled::idle already idle");
+            return;
+        }
         self.entry.is_reused = true;
         self.pool.put(self.key.clone(), self.entry.clone());
     }
@@ -142,8 +181,9 @@ struct Entry<T> {
 }
 
 pub struct Checkout<T> {
-    pool: Pool<T>,
     key: Rc<String>,
+    pool: Pool<T>,
+    parked: Option<relay::Receiver<Entry<T>>>,
 }
 
 impl<T: Clone> Future for Checkout<T> {
@@ -151,20 +191,36 @@ impl<T: Clone> Future for Checkout<T> {
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        trace!("Checkout::poll");
+        let mut drop_parked = false;
+        if let Some(ref mut rx) = self.parked {
+            match rx.poll() {
+                Ok(Async::Ready(entry)) => {
+                    trace!("Checkout::poll found client in relay for {:?}", self.key);
+                    return Ok(Async::Ready(self.pool.reuse(self.key.clone(), entry)));
+                },
+                Ok(Async::NotReady) => (),
+                Err(_canceled) => drop_parked = true,
+            }
+        }
+        if drop_parked {
+            self.parked.take();
+        }
         let expired = Instant::now() - self.pool.inner.borrow().timeout;
         let key = &self.key;
-        trace!("Pool::checkout url = {:?}, expiration = {:?}", key, expired);
+        trace!("Checkout::poll url = {:?}, expiration = {:?}", key, expired);
         let mut should_remove = false;
         let entry = self.pool.inner.borrow_mut().idle.get_mut(key).and_then(|list| {
-            trace!("Pool::checkout key found {:?}", key);
+            trace!("Checkout::poll key found {:?}", key);
             while let Some(entry) = list.pop() {
                 match entry.status.get() {
                     KA::Idle(idle_at) if idle_at > expired => {
-                        trace!("Pool::checkout found idle client for {:?}", key);
+                        trace!("Checkout::poll found idle client for {:?}", key);
                         should_remove = list.is_empty();
                         return Some(entry);
                     },
                     _ => {
+                        trace!("Checkout::poll removing unacceptable pooled {:?}", key);
                         // every other case the Entry should just be dropped
                         // 1. Idle but expired
                         // 2. Busy (something else somehow took it?)
@@ -181,7 +237,13 @@ impl<T: Clone> Future for Checkout<T> {
         }
         match entry {
             Some(entry) => Ok(Async::Ready(self.pool.reuse(self.key.clone(), entry))),
-            None => Ok(Async::NotReady),
+            None => {
+                let (tx, mut rx) = relay::channel();
+                let _ = rx.poll(); // park this task
+                self.pool.park(self.key.clone(), tx);
+                self.parked = Some(rx);
+                Ok(Async::NotReady)
+            },
         }
     }
 }
@@ -195,7 +257,7 @@ mod tests {
     use super::Pool;
 
     #[test]
-    fn test_pool_checkout() {
+    fn test_pool_checkout_smoke() {
         let mut pool = Pool::new(Duration::from_secs(5));
         let key = Rc::new("foo".to_string());
         let mut pooled = pool.pooled(key.clone(), 41);
@@ -209,35 +271,57 @@ mod tests {
 
     #[test]
     fn test_pool_checkout_returns_none_if_expired() {
-        let mut pool = Pool::new(Duration::from_secs(1));
-        let key = Rc::new("foo".to_string());
-        let mut pooled = pool.pooled(key.clone(), 41);
-        pooled.idle();
-        ::std::thread::sleep(pool.inner.borrow().timeout);
-        assert!(pool.checkout(&key).poll().unwrap().is_not_ready());
+        ::futures::lazy(|| {
+            let mut pool = Pool::new(Duration::from_secs(1));
+            let key = Rc::new("foo".to_string());
+            let mut pooled = pool.pooled(key.clone(), 41);
+            pooled.idle();
+            ::std::thread::sleep(pool.inner.borrow().timeout);
+            assert!(pool.checkout(&key).poll().unwrap().is_not_ready());
+            ::futures::future::ok::<(), ()>(())
+        }).wait().unwrap();
     }
 
-    /*
     #[test]
     fn test_pool_removes_expired() {
         let mut pool = Pool::new(Duration::from_secs(1));
+        let key = Rc::new("foo".to_string());
 
-        let mut keep_alive = KeepAlive::new();
-        keep_alive.idle();
-        pool.put("foo".to_string(), (keep_alive, 41));
+        let mut pooled1 = pool.pooled(key.clone(), 41);
+        pooled1.idle();
+        let mut pooled2 = pool.pooled(key.clone(), 5);
+        pooled2.idle();
+        let mut pooled3 = pool.pooled(key.clone(), 99);
+        pooled3.idle();
 
-        let mut keep_alive = KeepAlive::new();
-        keep_alive.busy();
-        pool.put("foo".to_string(), (keep_alive.clone(), 5));
 
-        assert_eq!(pool.inner.borrow().idle.get("foo").map(|entries| entries.len()), Some(2));
+        assert_eq!(pool.inner.borrow().idle.get(&key).map(|entries| entries.len()), Some(3));
         ::std::thread::sleep(pool.inner.borrow().timeout);
-        pool.checkout("foo");
-        assert_eq!(pool.inner.borrow().idle.get("foo").map(|entries| entries.len()), Some(1));
-        keep_alive.disable();
-        pool.checkout("foo");
-        assert!(pool.inner.borrow().idle.get("foo").is_none());
-    }
-    */
 
+        pooled1.idle();
+        pooled2.idle(); // idle after sleep, not expired
+        pool.checkout(&key).poll().unwrap();
+        assert_eq!(pool.inner.borrow().idle.get(&key).map(|entries| entries.len()), Some(1));
+        pool.checkout(&key).poll().unwrap();
+        assert!(pool.inner.borrow().idle.get(&key).is_none());
+    }
+
+    #[test]
+    fn test_pool_checkout_task_unparked() {
+        let mut pool = Pool::new(Duration::from_secs(10));
+        let key = Rc::new("foo".to_string());
+        let pooled1 = pool.pooled(key.clone(), 41);
+
+        let mut pooled = pooled1.clone();
+        let checkout = pool.checkout(&key).join(::futures::lazy(move || {
+            // the checkout future will park first,
+            // and then this lazy future will be polled, which will insert
+            // the pooled back into the pool
+            //
+            // this test makes sure that doing so will unpark the checkout
+            pooled.idle();
+            Ok(())
+        })).map(|(entry, _)| entry);
+        assert_eq!(*checkout.wait().unwrap(), *pooled1);
+    }
 }

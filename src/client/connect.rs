@@ -148,7 +148,7 @@ impl Service for HttpsConnector {
             }))
         } else {
             Box::new(connecting.map(|tcp| MaybeHttpsStream::Http(tcp)))
-        };
+        })
     }
 
 }

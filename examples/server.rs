@@ -49,9 +49,9 @@ fn main() {
     pretty_env_logger::init().unwrap();
     let addr = "127.0.0.1:1337".parse().unwrap();
     let (listening, server) = Server::standalone(|tokio| {
-        Server::http(addr, tokio)?
-            .handle(|| Ok(Echo))
-    });
+        Server::http(&addr, tokio)?
+            .handle(|| Ok(Echo), tokio)
+    }).unwrap();
     println!("Listening on http://{}", listening);
     server.run();
 }
