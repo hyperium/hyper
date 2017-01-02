@@ -5,7 +5,7 @@ pub use self::Encoding::{Chunked, Gzip, Deflate, Compress, Identity, EncodingExt
 
 /// A value to represent an encoding used in `Transfer-Encoding`
 /// or `Accept-Encoding` header.
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum Encoding {
     /// The `chunked` encoding.
     Chunked,
