@@ -57,7 +57,7 @@ impl HttpConnector {
     /// Construct a new HttpConnector.
     ///
     /// Takes number of DNS worker threads.
-    pub fn new(handle: &Handle, threads: usize) -> HttpConnector {
+    pub fn new(threads: usize, handle: &Handle) -> HttpConnector {
         HttpConnector {
             dns: dns::Dns::new(threads),
             handle: handle.clone(),
@@ -80,7 +80,13 @@ impl Service for HttpConnector {
 
     fn call(&mut self, url: Url) -> Self::Future {
         debug!("Http::connect({:?})", url);
-        let host = url.host_str().expect("http scheme must have a host");
+        let host = match url.host_str() {
+            Some(s) => s,
+            None => return HttpConnecting {
+                state: State::Error(Some(io::Error::new(io::ErrorKind::InvalidInput, "invalid url"))),
+                handle: self.handle.clone(),
+            },
+        };
         let port = url.port_or_known_default().unwrap_or(80);
 
         HttpConnecting {
@@ -103,7 +109,7 @@ impl HttpsConnector {
     /// Construct a new HttpsConnector.
     ///
     /// Takes number of DNS worker threads.
-    pub fn new(handle: &Handle, threads: usize) -> HttpsConnector {
+    pub fn new(threads: usize, handle: &Handle) -> HttpsConnector {
         HttpsConnector {
             dns: dns::Dns::new(threads),
             handle: handle.clone(),
@@ -127,7 +133,10 @@ impl Service for HttpsConnector {
     fn call(&mut self, url: Url) -> Self::Future {
         debug!("Https::connect({:?})", url);
         let is_https = url.scheme() == "https";
-        let host = url.host_str().expect("http scheme must have a host");
+        let host = match url.host_str() {
+            Some(s) => s,
+            None => return HttpsConnecting(Box::new(::futures::future::err(io::Error::new(io::ErrorKind::InvalidInput, "invalid url")))),
+        };
         let port = url.port_or_known_default().unwrap_or(80);
 
         let host = host.to_owned();
@@ -166,6 +175,7 @@ pub struct HttpsConnecting(Box<Future<Item=MaybeHttpsStream, Error=io::Error>>);
 enum State {
     Resolving(dns::Query),
     Connecting(ConnectingTcp),
+    Error(Option<io::Error>),
 }
 
 impl Future for HttpConnecting {
@@ -188,6 +198,7 @@ impl Future for HttpConnecting {
                     };
                 },
                 State::Connecting(ref mut c) => return c.poll(&self.handle).map_err(From::from),
+                State::Error(ref mut e) => return Err(e.take().expect("polled more than once")),
             }
             self.state = state;
         }
@@ -321,3 +332,21 @@ impl<S: SslClient> HttpsConnector<S> {
     }
 }
 */
+
+#[cfg(test)]
+mod tests {
+    use std::io;
+    use tokio::reactor::Core;
+    use url::Url;
+    use super::{Connect, HttpConnector};
+
+    #[test]
+    fn test_non_http_url() {
+        let mut core = Core::new().unwrap();
+        let url = Url::parse("file:///home/sean/foo.txt").unwrap();
+        let mut connector = HttpConnector::new(1, &core.handle());
+
+        assert_eq!(core.run(connector.connect(url)).unwrap_err().kind(), io::ErrorKind::InvalidInput);
+    }
+
+}

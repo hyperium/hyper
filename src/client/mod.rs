@@ -69,7 +69,7 @@ impl Client<DefaultConnector> {
     pub fn new(handle: &Handle) -> ::Result<Client<DefaultConnector>> {
         //Client::configure().build()
         Ok(Client {
-            connector: DefaultConnector::new(handle, 4),
+            connector: DefaultConnector::new(4, handle),
             handle: handle.clone(),
             pool: Pool::new(Duration::from_secs(90)),
         })

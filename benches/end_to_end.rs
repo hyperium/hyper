@@ -15,13 +15,15 @@ use hyper::server::{Service, Request, Response};
 
 #[bench]
 fn one_request_at_a_time(b: &mut test::Bencher) {
+    extern crate pretty_env_logger;
+    let _ = pretty_env_logger::init();
     let mut core = Core::new().unwrap();
     let handle = core.handle();
 
-    let addr = hyper::Server::http(&"127.0.0.1:0".parse().unwrap()).unwrap()
+    let addr = hyper::Server::http(&"127.0.0.1:0".parse().unwrap(), &handle).unwrap()
         .handle(|| Ok(Hello), &handle).unwrap();
 
-    let client = hyper::Client::new(&handle).unwrap();
+    let mut client = hyper::Client::new(&handle).unwrap();
 
     let url: hyper::Url = format!("http://{}/get", addr).parse().unwrap();
 

@@ -238,10 +238,12 @@ impl<T: Clone> Future for Checkout<T> {
         match entry {
             Some(entry) => Ok(Async::Ready(self.pool.reuse(self.key.clone(), entry))),
             None => {
-                let (tx, mut rx) = relay::channel();
-                let _ = rx.poll(); // park this task
-                self.pool.park(self.key.clone(), tx);
-                self.parked = Some(rx);
+                if self.parked.is_none() {
+                    let (tx, mut rx) = relay::channel();
+                    let _ = rx.poll(); // park this task
+                    self.pool.park(self.key.clone(), tx);
+                    self.parked = Some(rx);
+                }
                 Ok(Async::NotReady)
             },
         }
