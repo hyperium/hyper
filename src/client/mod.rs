@@ -68,10 +68,11 @@ use url::ParseError as UrlError;
 use header::{Headers, Header, HeaderFormat};
 use header::{ContentLength, Host, Location};
 use method::Method;
-use net::{HttpConnector, NetworkConnector, NetworkStream, SslClient};
+use net::{NetworkConnector, NetworkStream, SslClient};
 use Error;
 
 use self::proxy::{Proxy, tunnel};
+use self::scheme::Scheme;
 pub use self::pool::Pool;
 pub use self::request::Request;
 pub use self::response::Response;
@@ -84,10 +85,6 @@ pub mod response;
 use http::Protocol;
 use http::h1::Http11Protocol;
 
-/// Proxy server configuration with a custom TLS wrapper.
-pub struct ProxyConfig<H, S>(pub H, pub u16, pub S)
-where H: Into<Cow<'static, str>>,
-      S: SslClient<<HttpConnector as NetworkConnector>::Stream> + Send + Sync + 'static;
 
 /// A Client to use additional features with Requests.
 ///
@@ -97,7 +94,7 @@ pub struct Client {
     redirect_policy: RedirectPolicy,
     read_timeout: Option<Duration>,
     write_timeout: Option<Duration>,
-    proxy: Option<(Cow<'static, str>, u16)>
+    proxy: Option<(Scheme, Cow<'static, str>, u16)>
 }
 
 impl fmt::Debug for Client {
@@ -123,27 +120,36 @@ impl Client {
         Client::with_connector(Pool::new(config))
     }
 
+    /// Create a Client with an HTTP proxy to a (host, port).
     pub fn with_http_proxy<H>(host: H, port: u16) -> Client
     where H: Into<Cow<'static, str>> {
         let host = host.into();
-        let proxy = tunnel((host.clone(), port));
+        let proxy = tunnel((Scheme::Http, host.clone(), port));
         let mut client = Client::with_connector(Pool::with_connector(Default::default(), proxy));
-        client.proxy = Some((host, port));
+        client.proxy = Some((Scheme::Http, host, port));
         client
     }
 
-    pub fn with_proxy_config<H, S>(proxy_config: ProxyConfig<H, S>) -> Client
-    where H: Into<Cow<'static, str>>,
-          S: SslClient<<HttpConnector as NetworkConnector>::Stream> + Send + Sync + 'static {
-        let host = proxy_config.0.into();
-        let port = proxy_config.1;
+    /// Create a Client using a proxy with a custom connector and SSL client.
+    pub fn with_proxy_config<C, S>(proxy_config: ProxyConfig<C, S>) -> Client
+    where C: NetworkConnector + Send + Sync + 'static,
+          C::Stream: NetworkStream + Send + Clone,
+          S: SslClient<C::Stream> + Send + Sync + 'static {
+
+        let scheme = proxy_config.scheme;
+        let host = proxy_config.host;
+        let port = proxy_config.port;
         let proxy = Proxy {
-            connector: HttpConnector,
-            proxy: (host.clone(), port),
-            ssl: proxy_config.2
+            proxy: (scheme.clone(), host.clone(), port),
+            connector: proxy_config.connector,
+            ssl: proxy_config.ssl,
         };
-        let mut client = Client::with_connector(Pool::with_connector(Default::default(), proxy));
-        client.proxy = Some((host, port));
+
+        let mut client = match proxy_config.pool_config {
+            Some(pool_config) => Client::with_connector(Pool::with_connector(pool_config, proxy)),
+            None => Client::with_connector(proxy),
+        };
+        client.proxy = Some((scheme, host, port));
         client
     }
 
@@ -450,6 +456,47 @@ impl<'a> IntoUrl for &'a String {
     }
 }
 
+/// Proxy server configuration with a custom connector and TLS wrapper.
+pub struct ProxyConfig<C, S>
+where C: NetworkConnector + Send + Sync + 'static,
+      C::Stream: NetworkStream + Clone + Send,
+      S: SslClient<C::Stream> + Send + Sync + 'static {
+    scheme: Scheme,
+    host: Cow<'static, str>,
+    port: u16,
+    pool_config: Option<pool::Config>,
+    connector: C,
+    ssl: S,
+}
+
+impl<C, S> ProxyConfig<C, S>
+where C: NetworkConnector + Send + Sync + 'static,
+      C::Stream: NetworkStream + Clone + Send,
+      S: SslClient<C::Stream> + Send + Sync + 'static {
+
+    /// Create a new `ProxyConfig`.
+    #[inline]
+    pub fn new<H: Into<Cow<'static, str>>>(scheme: &str, host: H, port: u16, connector: C, ssl: S) -> ProxyConfig<C, S> {
+        ProxyConfig {
+            scheme: scheme.into(),
+            host: host.into(),
+            port: port,
+            pool_config: Some(pool::Config::default()),
+            connector: connector,
+            ssl: ssl,
+        }
+    }
+
+    /// Change the `pool::Config` for the proxy.
+    ///
+    /// Passing `None` disables the `Pool`.
+    ///
+    /// The default is enabled, with the default `pool::Config`.
+    pub fn set_pool_config(&mut self, pool_config: Option<pool::Config>) {
+        self.pool_config = pool_config;
+    }
+}
+
 /// Behavior regarding how to handle redirects within a Client.
 #[derive(Copy)]
 pub enum RedirectPolicy {
@@ -499,6 +546,37 @@ fn get_host_and_port(url: &Url) -> ::Result<(&str, u16)> {
     Ok((host, port))
 }
 
+mod scheme {
+
+    #[derive(Clone, PartialEq, Eq, Debug, Hash)]
+    pub enum Scheme {
+        Http,
+        Https,
+        Other(String)
+    }
+
+    impl<'a> From<&'a str> for Scheme {
+        fn from(s: &'a str) -> Scheme {
+            match s {
+                "http" => Scheme::Http,
+                "https" => Scheme::Https,
+                s => Scheme::Other(String::from(s))
+            }
+        }
+    }
+
+    impl AsRef<str> for Scheme {
+        fn as_ref(&self) -> &str {
+            match *self {
+                Scheme::Http => "http",
+                Scheme::Https => "https",
+                Scheme::Other(ref s) => s,
+            }
+        }
+    }
+
+}
+
 #[cfg(test)]
 mod tests {
     use std::io::Read;
@@ -506,6 +584,7 @@ mod tests {
     use http::h1::Http11Message;
     use mock::{MockStream, MockSsl};
     use super::{Client, RedirectPolicy};
+    use super::scheme::Scheme;
     use super::proxy::Proxy;
     use super::pool::Pool;
     use url::Url;
@@ -537,11 +616,11 @@ mod tests {
         });
         let tunnel = Proxy {
             connector: ProxyConnector,
-            proxy: ("example.proxy".into(), 8008),
+            proxy: (Scheme::Http, "example.proxy".into(), 8008),
             ssl: MockSsl,
         };
         let mut client = Client::with_connector(Pool::with_connector(Default::default(), tunnel));
-        client.proxy = Some(("example.proxy".into(), 8008));
+        client.proxy = Some((Scheme::Http, "example.proxy".into(), 8008));
         let mut dump = vec![];
         client.get("http://127.0.0.1/foo/bar").send().unwrap().read_to_end(&mut dump).unwrap();
 
@@ -566,11 +645,11 @@ mod tests {
         });
         let tunnel = Proxy {
             connector: ProxyConnector,
-            proxy: ("example.proxy".into(), 8008),
+            proxy: (Scheme::Http, "example.proxy".into(), 8008),
             ssl: MockSsl,
         };
         let mut client = Client::with_connector(Pool::with_connector(Default::default(), tunnel));
-        client.proxy = Some(("example.proxy".into(), 8008));
+        client.proxy = Some((Scheme::Http, "example.proxy".into(), 8008));
         let mut dump = vec![];
         client.get("https://127.0.0.1/foo/bar").send().unwrap().read_to_end(&mut dump).unwrap();
 

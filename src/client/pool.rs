@@ -10,6 +10,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use net::{NetworkConnector, NetworkStream, DefaultConnector};
+use client::scheme::Scheme;
 
 /// The `NetworkConnector` that behaves as a connection pool used by hyper's `Client`.
 pub struct Pool<C: NetworkConnector> {
@@ -43,23 +44,6 @@ type Key = (String, u16, Scheme);
 
 fn key<T: Into<Scheme>>(host: &str, port: u16, scheme: T) -> Key {
     (host.to_owned(), port, scheme.into())
-}
-
-#[derive(Clone, PartialEq, Eq, Debug, Hash)]
-enum Scheme {
-    Http,
-    Https,
-    Other(String)
-}
-
-impl<'a> From<&'a str> for Scheme {
-    fn from(s: &'a str) -> Scheme {
-        match s {
-            "http" => Scheme::Http,
-            "https" => Scheme::Https,
-            s => Scheme::Other(String::from(s))
-        }
-    }
 }
 
 impl Pool<DefaultConnector> {

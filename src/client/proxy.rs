@@ -3,11 +3,12 @@ use std::io;
 use std::net::{SocketAddr, Shutdown};
 use std::time::Duration;
 
+use client::scheme::Scheme;
 use method::Method;
 use net::{NetworkConnector, HttpConnector, NetworkStream, SslClient};
 
 #[cfg(all(feature = "openssl", not(feature = "security-framework")))]
-pub fn tunnel(proxy: (Cow<'static, str>, u16)) -> Proxy<HttpConnector, ::net::Openssl> {
+pub fn tunnel(proxy: (Scheme, Cow<'static, str>, u16)) -> Proxy<HttpConnector, ::net::Openssl> {
     Proxy {
         connector: HttpConnector,
         proxy: proxy,
@@ -16,7 +17,7 @@ pub fn tunnel(proxy: (Cow<'static, str>, u16)) -> Proxy<HttpConnector, ::net::Op
 }
 
 #[cfg(feature = "security-framework")]
-pub fn tunnel(proxy: (Cow<'static, str>, u16)) -> Proxy<HttpConnector, ::net::ClientWrapper> {
+pub fn tunnel(proxy: (Scheme, Cow<'static, str>, u16)) -> Proxy<HttpConnector, ::net::ClientWrapper> {
     Proxy {
         connector: HttpConnector,
         proxy: proxy,
@@ -25,7 +26,7 @@ pub fn tunnel(proxy: (Cow<'static, str>, u16)) -> Proxy<HttpConnector, ::net::Cl
 }
 
 #[cfg(not(any(feature = "openssl", feature = "security-framework")))]
-pub fn tunnel(proxy: (Cow<'static, str>, u16)) -> Proxy<HttpConnector, self::no_ssl::Plaintext> {
+pub fn tunnel(proxy: (Scheme, Cow<'static, str>, u16)) -> Proxy<HttpConnector, self::no_ssl::Plaintext> {
     Proxy {
         connector: HttpConnector,
         proxy: proxy,
@@ -39,10 +40,9 @@ where C: NetworkConnector + Send + Sync + 'static,
       C::Stream: NetworkStream + Send + Clone,
       S: SslClient<C::Stream> {
     pub connector: C,
-    pub proxy: (Cow<'static, str>, u16),
+    pub proxy: (Scheme, Cow<'static, str>, u16),
     pub ssl: S,
 }
-
 
 impl<C, S> NetworkConnector for Proxy<C, S>
 where C: NetworkConnector + Send + Sync + 'static,
@@ -57,11 +57,11 @@ where C: NetworkConnector + Send + Sync + 'static,
         trace!("{:?} proxy for '{}://{}:{}'", self.proxy, scheme, host, port);
         match scheme {
             "http" => {
-                self.connector.connect(self.proxy.0.as_ref(), self.proxy.1, "http")
+                self.connector.connect(self.proxy.1.as_ref(), self.proxy.2, self.proxy.0.as_ref())
                     .map(Proxied::Normal)
             },
             "https" => {
-                let mut stream = try!(self.connector.connect(self.proxy.0.as_ref(), self.proxy.1, "http"));
+                let mut stream = try!(self.connector.connect(self.proxy.1.as_ref(), self.proxy.2, self.proxy.0.as_ref()));
                 trace!("{:?} CONNECT {}:{}", self.proxy, host, port);
                 try!(write!(&mut stream, "{method} {host}:{port} {version}\r\nHost: {host}:{port}\r\n\r\n",
                             method=Method::Connect, host=host, port=port, version=Http11));
