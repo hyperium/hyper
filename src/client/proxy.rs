@@ -7,25 +7,6 @@ use client::scheme::Scheme;
 use method::Method;
 use net::{NetworkConnector, HttpConnector, NetworkStream, SslClient};
 
-#[cfg(all(feature = "openssl", not(feature = "security-framework")))]
-pub fn tunnel(proxy: (Scheme, Cow<'static, str>, u16)) -> Proxy<HttpConnector, ::net::Openssl> {
-    Proxy {
-        connector: HttpConnector,
-        proxy: proxy,
-        ssl: Default::default()
-    }
-}
-
-#[cfg(feature = "security-framework")]
-pub fn tunnel(proxy: (Scheme, Cow<'static, str>, u16)) -> Proxy<HttpConnector, ::net::ClientWrapper> {
-    Proxy {
-        connector: HttpConnector,
-        proxy: proxy,
-        ssl: Default::default()
-    }
-}
-
-#[cfg(not(any(feature = "openssl", feature = "security-framework")))]
 pub fn tunnel(proxy: (Scheme, Cow<'static, str>, u16)) -> Proxy<HttpConnector, self::no_ssl::Plaintext> {
     Proxy {
         connector: HttpConnector,
