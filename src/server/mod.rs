@@ -110,7 +110,7 @@ impl<S: SslServer> Server<HttpsListener<S>> {
 impl<A: Accept> Server<A> {
     /// Binds to a socket and starts handling connections.
     pub fn handle<H>(self, factory: H, handle: &Handle) -> ::Result<SocketAddr>
-    where H: NewService<Request=Request, Response=Response, Error=::Error> + Send + 'static {
+    where H: NewService<Request=Request, Response=Response, Error=::Error> + 'static {
         let binder = HttpServer {
             keep_alive: self.keep_alive,
         };
