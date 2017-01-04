@@ -16,15 +16,17 @@ pub struct Pool<T> {
 }
 
 struct PoolInner<T> {
+    enabled: bool,
     idle: HashMap<Rc<String>, Vec<Entry<T>>>,
     parked: HashMap<Rc<String>, VecDeque<relay::Sender<Entry<T>>>>,
-    timeout: Duration,
+    timeout: Option<Duration>,
 }
 
 impl<T: Clone> Pool<T> {
-    pub fn new(timeout: Duration) -> Pool<T> {
+    pub fn new(enabled: bool, timeout: Option<Duration>) -> Pool<T> {
         Pool {
             inner: Rc::new(RefCell::new(PoolInner {
+                enabled: enabled,
                 idle: HashMap::new(),
                 parked: HashMap::new(),
                 timeout: timeout,
@@ -81,6 +83,10 @@ impl<T: Clone> Pool<T> {
             key: key,
             pool: self.clone(),
         }
+    }
+
+    fn is_enabled(&self) -> bool {
+        self.inner.borrow().enabled
     }
 
     fn reuse(&self, key: Rc<String>, mut entry: Entry<T>) -> Pooled<T> {
@@ -148,7 +154,9 @@ impl<T: Clone> KeepAlive for Pooled<T> {
             return;
         }
         self.entry.is_reused = true;
-        self.pool.put(self.key.clone(), self.entry.clone());
+        if self.pool.is_enabled() {
+            self.pool.put(self.key.clone(), self.entry.clone());
+        }
     }
 
     fn status(&self) -> KA {
@@ -206,15 +214,15 @@ impl<T: Clone> Future for Checkout<T> {
         if drop_parked {
             self.parked.take();
         }
-        let expired = Instant::now() - self.pool.inner.borrow().timeout;
+        let expiration = Expiration::new(self.pool.inner.borrow().timeout);
         let key = &self.key;
-        trace!("Checkout::poll url = {:?}, expiration = {:?}", key, expired);
+        trace!("Checkout::poll url = {:?}, expiration = {:?}", key, expiration.0);
         let mut should_remove = false;
         let entry = self.pool.inner.borrow_mut().idle.get_mut(key).and_then(|list| {
             trace!("Checkout::poll key found {:?}", key);
             while let Some(entry) = list.pop() {
                 match entry.status.get() {
-                    KA::Idle(idle_at) if idle_at > expired => {
+                    KA::Idle(idle_at) if !expiration.expires(idle_at) => {
                         trace!("Checkout::poll found idle client for {:?}", key);
                         should_remove = list.is_empty();
                         return Some(entry);
@@ -249,6 +257,22 @@ impl<T: Clone> Future for Checkout<T> {
         }
     }
 }
+
+struct Expiration(Option<Instant>);
+
+impl Expiration {
+    fn new(dur: Option<Duration>) -> Expiration {
+        Expiration(dur.map(|dur| Instant::now() - dur))
+    }
+
+    fn expires(&self, instant: Instant) -> bool {
+        match self.0 {
+            Some(expire) => expire > instant,
+            None => false,
+        }
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

@@ -54,11 +54,10 @@ impl Client<DefaultConnector> {
     /// # use hyper::Client;
     /// let client = Client::configure()
     ///     .keep_alive(true)
-    ///     .max_sockets(10_000)
     ///     .build().unwrap();
     /// ```
     #[inline]
-    pub fn configure() -> Config<DefaultConnector> {
+    pub fn configure() -> Config<UseDefaultConnector> {
         Config::default()
     }
 }
@@ -66,28 +65,30 @@ impl Client<DefaultConnector> {
 impl Client<DefaultConnector> {
     /// Create a new Client with the default config.
     #[inline]
-    pub fn new(handle: &Handle) -> ::Result<Client<DefaultConnector>> {
-        //Client::configure().build()
-        Ok(Client {
-            connector: DefaultConnector::new(4, handle),
-            handle: handle.clone(),
-            pool: Pool::new(Duration::from_secs(90)),
-        })
+    pub fn new(handle: &Handle) -> Client<DefaultConnector> {
+        Client::configure().build(handle)
     }
 }
 
 impl<C: Connect> Client<C> {
     /// Create a new client with a specific connector.
-    fn configured(_config: Config<C>) -> ::Result<Client<C>> {
-        unimplemented!("Client::configured")
+    #[inline]
+    fn configured(config: Config<C>, handle: &Handle) -> Client<C> {
+        Client {
+            connector: config.connector,
+            handle: handle.clone(),
+            pool: Pool::new(config.keep_alive, config.keep_alive_timeout),
+        }
     }
 
     /// Send a GET Request using this Client.
+    #[inline]
     pub fn get(&mut self, url: Url) -> FutureResponse {
         self.request(Request::new(Method::Get, url))
     }
 
     /// Send a constructed Request using this Client.
+    #[inline]
     pub fn request(&mut self, req: Request) -> FutureResponse {
         self.call(req)
     }
@@ -234,28 +235,40 @@ impl<T: Io + 'static> Future for BindingClient<T> {
 /// Configuration for a Client
 #[derive(Debug, Clone)]
 pub struct Config<C> {
-    connect_timeout: Duration,
+    //connect_timeout: Duration,
     connector: C,
     keep_alive: bool,
     keep_alive_timeout: Option<Duration>,
     //TODO: make use of max_idle config
     max_idle: usize,
-    max_sockets: usize,
-    dns_workers: usize,
 }
 
-impl<C: Connect> Config<C> {
+/// Phantom type used to signal that `Config` should create a `DefaultConnector`.
+#[derive(Debug, Clone, Copy)]
+pub struct UseDefaultConnector(());
+
+impl Config<UseDefaultConnector> {
+    fn default() -> Config<UseDefaultConnector> {
+        Config {
+            //connect_timeout: Duration::from_secs(10),
+            connector: UseDefaultConnector(()),
+            keep_alive: true,
+            keep_alive_timeout: Some(Duration::from_secs(90)),
+            max_idle: 5,
+        }
+    }
+}
+
+impl<C> Config<C> {
     /// Set the `Connect` type to be used.
     #[inline]
     pub fn connector<CC: Connect>(self, val: CC) -> Config<CC> {
         Config {
-            connect_timeout: self.connect_timeout,
+            //connect_timeout: self.connect_timeout,
             connector: val,
             keep_alive: self.keep_alive,
-            keep_alive_timeout: Some(Duration::from_secs(60 * 2)),
+            keep_alive_timeout: self.keep_alive_timeout,
             max_idle: self.max_idle,
-            max_sockets: self.max_sockets,
-            dns_workers: self.dns_workers,
         }
     }
 
@@ -279,15 +292,7 @@ impl<C: Connect> Config<C> {
         self
     }
 
-    /// Set the max table size allocated for holding on to live sockets.
-    ///
-    /// Default is 1024.
-    #[inline]
-    pub fn max_sockets(mut self, val: usize) -> Config<C> {
-        self.max_sockets = val;
-        self
-    }
-
+    /*
     /// Set the timeout for connecting to a URL.
     ///
     /// Default is 10 seconds.
@@ -296,39 +301,25 @@ impl<C: Connect> Config<C> {
         self.connect_timeout = val;
         self
     }
+    */
+}
 
-    /// Set number of Dns workers to use for this client
-    ///
-    /// Default is 4
-    #[inline]
-    pub fn dns_workers(mut self, workers: usize) -> Config<C> {
-        self.dns_workers = workers;
-        self
-    }
-
+impl<C: Connect> Config<C> {
     /// Construct the Client with this configuration.
     #[inline]
-    pub fn build(self) -> ::Result<Client<C>> {
-        Client::configured(self)
+    pub fn build(self, handle: &Handle) -> Client<C> {
+        Client::configured(self, handle)
     }
 }
 
-impl Default for Config<DefaultConnector> {
-    fn default() -> Config<DefaultConnector> {
-        unimplemented!("Config::default")
-        /*
-        Config {
-            connect_timeout: Duration::from_secs(10),
-            connector: DefaultConnector::default(),
-            keep_alive: true,
-            keep_alive_timeout: Some(Duration::from_secs(60 * 2)),
-            max_idle: 5,
-            max_sockets: 1024,
-            dns_workers: 4,
-        }
-        */
+impl Config<UseDefaultConnector> {
+    /// Construct the Client with this configuration.
+    #[inline]
+    pub fn build(self, handle: &Handle) -> Client<DefaultConnector> {
+        self.connector(DefaultConnector::new(4, handle)).build(handle)
     }
 }
+
 
 #[cfg(test)]
 mod tests {
