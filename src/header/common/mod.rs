@@ -178,32 +178,6 @@ macro_rules! test_header {
     }
 }
 
-#[doc(hidden)]
-#[macro_export]
-macro_rules! __hyper_generate_header_serialization {
-    ($id:ident) => {
-        #[cfg(feature = "serde-serialization")]
-        impl ::serde::Serialize for $id {
-            fn serialize<S>(&self, serializer: &mut S) -> Result<(), S::Error>
-                            where S: ::serde::Serializer {
-                format!("{}", self).serialize(serializer)
-            }
-        }
-
-        #[cfg(feature = "serde-serialization")]
-        impl ::serde::Deserialize for $id {
-            fn deserialize<D>(deserializer: &mut D) -> Result<$id, D::Error>
-                              where D: ::serde::Deserializer {
-                let string_representation: String =
-                    try!(::serde::Deserialize::deserialize(deserializer));
-                Ok($crate::header::Header::parse_header(&[
-                    string_representation.into_bytes()
-                ]).unwrap())
-            }
-        }
-    }
-}
-
 #[macro_export]
 macro_rules! header {
     // $a:meta: Attributes associated with the header item (usually docs)
@@ -236,8 +210,6 @@ macro_rules! header {
                 self.fmt_header(f)
             }
         }
-
-        __hyper_generate_header_serialization!($id);
     };
     // List header, one or more items
     ($(#[$a:meta])*($id:ident, $n:expr) => ($item:ty)+) => {
@@ -264,7 +236,6 @@ macro_rules! header {
                 self.fmt_header(f)
             }
         }
-        __hyper_generate_header_serialization!($id);
     };
     // Single value header
     ($(#[$a:meta])*($id:ident, $n:expr) => [$value:ty]) => {
@@ -290,7 +261,6 @@ macro_rules! header {
                 ::std::fmt::Display::fmt(&**self, f)
             }
         }
-        __hyper_generate_header_serialization!($id);
     };
     // List header, one or more items with "*" option
     ($(#[$a:meta])*($id:ident, $n:expr) => {Any / ($item:ty)+}) => {
@@ -331,7 +301,6 @@ macro_rules! header {
                 self.fmt_header(f)
             }
         }
-        __hyper_generate_header_serialization!($id);
     };
 
     // optional test module

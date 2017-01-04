@@ -72,7 +72,6 @@ impl fmt::Display for ContentLength {
 }
 
 __hyper__deref!(ContentLength => u64);
-__hyper_generate_header_serialization!(ContentLength);
 
 __hyper__tm!(ContentLength, tests {
     // Testcase from RFC

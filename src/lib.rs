@@ -131,8 +131,6 @@
 extern crate rustc_serialize as serialize;
 extern crate time;
 #[macro_use] extern crate url;
-#[cfg(feature = "serde-serialization")]
-extern crate serde;
 extern crate cookie;
 extern crate unicase;
 extern crate httparse;
