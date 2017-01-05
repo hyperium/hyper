@@ -1,4 +1,4 @@
-use header::{Header, Raw, CookiePair, CookieJar};
+use header::{Header, Raw};
 use std::fmt::{self, Display};
 use std::str::from_utf8;
 
@@ -21,7 +21,6 @@ use std::str::from_utf8;
 /// # extern crate cookie;
 /// # fn main() {
 /// use hyper::header::{Headers, Cookie};
-/// use cookie::Cookie as CookiePair;
 ///
 /// let mut headers = Headers::new();
 ///
@@ -33,9 +32,9 @@ use std::str::from_utf8;
 /// # }
 /// ```
 #[derive(Clone, PartialEq, Debug)]
-pub struct Cookie(pub Vec<CookiePair>);
+pub struct Cookie(pub Vec<String>);
 
-__hyper__deref!(Cookie => Vec<CookiePair>);
+__hyper__deref!(Cookie => Vec<String>);
 
 impl Header for Cookie {
     fn header_name() -> &'static str {
@@ -48,11 +47,7 @@ impl Header for Cookie {
         for cookies_raw in raw.iter() {
             let cookies_str = try!(from_utf8(&cookies_raw[..]));
             for cookie_str in cookies_str.split(';') {
-                if let Ok(cookie) = cookie_str.trim().parse() {
-                    cookies.push(cookie);
-                } else {
-                    return Err(::Error::Header);
-                }
+                cookies.push(cookie_str.trim().to_owned())
             }
         }
 
@@ -69,64 +64,10 @@ impl Header for Cookie {
             if i != 0 {
                 try!(f.write_str("; "));
             }
-            try!(Display::fmt(&cookie.pair(), f));
+            try!(Display::fmt(&cookie, f));
         }
         Ok(())
     }
 }
-
-impl Cookie {
-    /// This method can be used to create CookieJar that can be used
-    /// to manipulate cookies and create a corresponding `SetCookie` header afterwards.
-    pub fn to_cookie_jar(&self, key: &[u8]) -> CookieJar<'static> {
-        let mut jar = CookieJar::new(key);
-        for cookie in self.iter() {
-            jar.add_original(cookie.clone());
-        }
-        jar
-    }
-
-    /// Extracts all cookies from `CookieJar` and creates Cookie header.
-    /// Useful for clients.
-    pub fn from_cookie_jar(jar: &CookieJar) -> Cookie {
-        Cookie(jar.iter().collect())
-    }
-}
-
-
-#[test]
-fn test_parse() {
-    let h = Header::parse_header(&b"foo=bar; baz=quux".as_ref().into());
-    let c1 = CookiePair::new("foo".to_owned(), "bar".to_owned());
-    let c2 = CookiePair::new("baz".to_owned(), "quux".to_owned());
-    assert_eq!(h.ok(), Some(Cookie(vec![c1, c2])));
-}
-
-#[test]
-fn test_fmt() {
-    use header::Headers;
-
-    let mut cookie_pair = CookiePair::new("foo".to_owned(), "bar".to_owned());
-    cookie_pair.httponly = true;
-    cookie_pair.path = Some("/p".to_owned());
-    let cookie_header = Cookie(vec![
-        cookie_pair,
-        CookiePair::new("baz".to_owned(),"quux".to_owned())]);
-    let mut headers = Headers::new();
-    headers.set(cookie_header);
-
-    assert_eq!(&headers.to_string()[..], "Cookie: foo=bar; baz=quux\r\n");
-}
-
-#[test]
-fn cookie_jar() {
-    let cookie_pair = CookiePair::new("foo".to_owned(), "bar".to_owned());
-    let cookie_header = Cookie(vec![cookie_pair]);
-    let jar = cookie_header.to_cookie_jar(&[]);
-    let new_cookie_header = Cookie::from_cookie_jar(&jar);
-
-    assert_eq!(cookie_header, new_cookie_header);
-}
-
 
 bench_header!(bench, Cookie, { vec![b"foo=bar; baz=quux".to_vec()] });

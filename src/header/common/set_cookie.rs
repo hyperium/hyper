@@ -1,4 +1,4 @@
-use header::{Header, Raw, CookiePair, CookieJar};
+use header::{Header, Raw};
 use std::fmt::{self, Display};
 use std::str::from_utf8;
 
@@ -61,26 +61,20 @@ use std::str::from_utf8;
 /// // extern crate cookie;
 ///
 /// use hyper::header::{Headers, SetCookie};
-/// use cookie::Cookie as CookiePair;
 ///
 /// let mut headers = Headers::new();
-/// let mut cookie = CookiePair::new("foo".to_owned(), "bar".to_owned());
-///
-/// cookie.path = Some("/path".to_owned());
-/// cookie.domain = Some("example.com".to_owned());
 ///
 /// headers.set(
 ///     SetCookie(vec![
-///         cookie,
-///         CookiePair::new("baz".to_owned(), "quux".to_owned()),
+///         String::from("foo=bar; Path=/path; Domain=example.com")
 ///     ])
 /// );
 /// # }
 /// ```
 #[derive(Clone, PartialEq, Debug)]
-pub struct SetCookie(pub Vec<CookiePair>);
+pub struct SetCookie(pub Vec<String>);
 
-__hyper__deref!(SetCookie => Vec<CookiePair>);
+__hyper__deref!(SetCookie => Vec<String>);
 
 impl Header for SetCookie {
     fn header_name() -> &'static str {
@@ -92,9 +86,7 @@ impl Header for SetCookie {
         let mut set_cookies = Vec::with_capacity(raw.len());
         for set_cookies_raw in raw {
             if let Ok(s) = from_utf8(&set_cookies_raw[..]) {
-                if let Ok(cookie) = s.parse() {
-                    set_cookies.push(cookie);
-                }
+                set_cookies.push(s.trim().to_owned());
             }
         }
 
@@ -114,62 +106,4 @@ impl Header for SetCookie {
         }
         Ok(())
     }
-}
-
-
-impl SetCookie {
-    /// Use this to create SetCookie header from CookieJar using
-    /// calculated delta.
-    pub fn from_cookie_jar(jar: &CookieJar) -> SetCookie {
-        SetCookie(jar.delta())
-    }
-
-    /// Use this on client to apply changes from SetCookie to CookieJar.
-    /// Note that this will `panic!` if `CookieJar` is not root.
-    pub fn apply_to_cookie_jar(&self, jar: &mut CookieJar) {
-        for cookie in self.iter() {
-            jar.add_original(cookie.clone())
-        }
-    }
-}
-
-
-#[test]
-fn test_parse() {
-    let h = Header::parse_header(&"foo=bar; HttpOnly".into());
-    let mut c1 = CookiePair::new("foo".to_owned(), "bar".to_owned());
-    c1.httponly = true;
-
-    assert_eq!(h.ok(), Some(SetCookie(vec![c1])));
-}
-
-#[test]
-fn test_fmt() {
-    use header::Headers;
-
-    let mut cookie = CookiePair::new("foo".to_owned(), "bar".to_owned());
-    cookie.httponly = true;
-    cookie.path = Some("/p".to_owned());
-    let cookies = SetCookie(vec![cookie, CookiePair::new("baz".to_owned(), "quux".to_owned())]);
-    let mut headers = Headers::new();
-    headers.set(cookies);
-
-    assert_eq!(
-        &headers.to_string()[..],
-        "Set-Cookie: foo=bar; HttpOnly; Path=/p\r\nSet-Cookie: baz=quux\r\n");
-}
-
-#[test]
-fn cookie_jar() {
-    let jar = CookieJar::new(b"secret");
-    let cookie = CookiePair::new("foo".to_owned(), "bar".to_owned());
-    jar.add(cookie);
-
-    let cookies = SetCookie::from_cookie_jar(&jar);
-
-    let mut new_jar = CookieJar::new(b"secret");
-    cookies.apply_to_cookie_jar(&mut new_jar);
-
-    assert_eq!(jar.find("foo"), new_jar.find("foo"));
-    assert_eq!(jar.iter().collect::<Vec<CookiePair>>(), new_jar.iter().collect::<Vec<CookiePair>>());
 }
