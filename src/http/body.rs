@@ -53,6 +53,12 @@ impl From<mpsc::Receiver<Result<Chunk, ::Error>>> for Body {
     }
 }
 
+impl From<Chunk> for Body {
+    fn from (chunk: Chunk) -> Body {
+        Body(TokioBody::from(chunk))
+    }
+}
+
 impl From<Vec<u8>> for Body {
     fn from (vec: Vec<u8>) -> Body {
         Body(TokioBody::from(Chunk::from(vec)))
@@ -81,4 +87,11 @@ impl From<&'static str> for Body {
     fn from (slice: &'static str) -> Body {
         Body(TokioBody::from(Chunk::from(slice.as_bytes())))
     }
+}
+
+fn _assert_send() {
+    fn _assert<T: Send>() {}
+
+    _assert::<Body>();
+    _assert::<Chunk>();
 }
