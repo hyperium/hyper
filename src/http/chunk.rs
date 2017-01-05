@@ -1,10 +1,13 @@
+use std::borrow::Borrow;
 use std::fmt;
+use std::sync::Arc;
 
 /// A piece of a message body.
 pub struct Chunk(Inner);
 
 enum Inner {
     Owned(Vec<u8>),
+    Referenced(Arc<Vec<u8>>),
     Static(&'static [u8]),
 }
 
@@ -12,6 +15,13 @@ impl From<Vec<u8>> for Chunk {
     #[inline]
     fn from(v: Vec<u8>) -> Chunk {
         Chunk(Inner::Owned(v))
+    }
+}
+
+impl From<Arc<Vec<u8>>> for Chunk {
+    #[inline]
+    fn from(v: Arc<Vec<u8>>) -> Chunk {
+        Chunk(Inner::Referenced(v))
     }
 }
 
@@ -36,6 +46,10 @@ impl AsRef<[u8]> for Chunk {
     fn as_ref(&self) -> &[u8] {
         match self.0 {
             Inner::Owned(ref vec) => vec,
+            Inner::Referenced(ref vec) => {
+                let v: &Vec<u8> = vec.borrow();
+                v.as_slice()
+            }
             Inner::Static(slice) => slice,
         }
     }

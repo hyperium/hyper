@@ -1,4 +1,5 @@
 use std::convert::From;
+use std::sync::Arc;
 
 use tokio_proto;
 use http::Chunk;
@@ -54,6 +55,12 @@ impl From<mpsc::Receiver<Result<Chunk, ::Error>>> for Body {
 
 impl From<Vec<u8>> for Body {
     fn from (vec: Vec<u8>) -> Body {
+        Body(TokioBody::from(Chunk::from(vec)))
+    }
+}
+
+impl From<Arc<Vec<u8>>> for Body {
+    fn from (vec: Arc<Vec<u8>>) -> Body {
         Body(TokioBody::from(Chunk::from(vec)))
     }
 }
