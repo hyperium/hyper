@@ -7,7 +7,6 @@ use std::string::FromUtf8Error;
 
 use httparse;
 use url;
-use solicit::http::HttpError as Http2Error;
 
 #[cfg(feature = "openssl")]
 use openssl::ssl::error::SslError;
@@ -21,7 +20,6 @@ use self::Error::{
     Io,
     Ssl,
     TooLarge,
-    Http2,
     Utf8
 };
 
@@ -49,8 +47,6 @@ pub enum Error {
     Io(IoError),
     /// An error from a SSL library.
     Ssl(Box<StdError + Send + Sync>),
-    /// An HTTP/2-specific error, coming from the `solicit` library.
-    Http2(Http2Error),
     /// Parsing a field as string failed
     Utf8(Utf8Error),
 
@@ -90,7 +86,6 @@ impl StdError for Error {
             Uri(ref e) => e.description(),
             Io(ref e) => e.description(),
             Ssl(ref e) => e.description(),
-            Http2(ref e) => e.description(),
             Utf8(ref e) => e.description(),
             Error::__Nonexhaustive(ref void) =>  match *void {}
         }
@@ -101,7 +96,6 @@ impl StdError for Error {
             Io(ref error) => Some(error),
             Ssl(ref error) => Some(&**error),
             Uri(ref error) => Some(error),
-            Http2(ref error) => Some(error),
             _ => None,
         }
     }
@@ -155,18 +149,11 @@ impl From<httparse::Error> for Error {
     }
 }
 
-impl From<Http2Error> for Error {
-    fn from(err: Http2Error) -> Error {
-        Error::Http2(err)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::error::Error as StdError;
     use std::io;
     use httparse;
-    use solicit::http::HttpError as Http2Error;
     use url;
     use super::Error;
     use super::Error::*;
@@ -208,7 +195,6 @@ mod tests {
 
         from_and_cause!(io::Error::new(io::ErrorKind::Other, "other") => Io(..));
         from_and_cause!(url::ParseError::EmptyHost => Uri(..));
-        from_and_cause!(Http2Error::UnknownStreamId => Http2(..));
 
         from!(httparse::Error::HeaderName => Header);
         from!(httparse::Error::HeaderName => Header);

@@ -11,7 +11,6 @@ use version::HttpVersion::{Http10, Http11};
 pub use self::message::{HttpMessage, RequestHead, ResponseHead, Protocol};
 
 pub mod h1;
-pub mod h2;
 pub mod message;
 
 /// The raw status code and reason-phrase.
