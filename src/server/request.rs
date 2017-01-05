@@ -79,22 +79,6 @@ impl<'a, 'b: 'a> Request<'a, 'b> {
     /// over HTTPS.
     ///
     /// This is actually just an alias for `downcast_ref`.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # extern crate hyper;
-    /// # #[cfg(feature = "openssl")]
-    /// extern crate openssl;
-    /// # #[cfg(feature = "openssl")]
-    /// use openssl::ssl::SslStream;
-    /// use hyper::net::HttpStream;
-    /// # fn main() {}
-    /// # #[cfg(feature = "openssl")]
-    /// # fn doc_ssl(req: hyper::server::Request) {
-    /// let maybe_ssl = req.ssl::<SslStream<HttpStream>>();
-    /// # }
-    /// ```
     #[inline]
     pub fn ssl<T: NetworkStream>(&self) -> Option<&T> {
         self.downcast_ref()
