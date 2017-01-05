@@ -14,7 +14,6 @@
 //! [Server](server/index.html), along with a
 //! [typed Headers system](header/index.html).
 
-extern crate cookie;
 extern crate futures;
 extern crate futures_cpupool;
 extern crate httparse;
@@ -30,6 +29,7 @@ extern crate time;
 extern crate tokio_tls;
 extern crate tokio_proto;
 extern crate tokio_service;
+#[macro_use] extern crate url;
 extern crate unicase;
 #[macro_use] extern crate url;
 extern crate vecio;
