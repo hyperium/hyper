@@ -23,7 +23,7 @@ fn one_request_at_a_time(b: &mut test::Bencher) {
     let addr = hyper::Server::http(&"127.0.0.1:0".parse().unwrap(), &handle).unwrap()
         .handle(|| Ok(Hello), &handle).unwrap();
 
-    let mut client = hyper::Client::new(&handle).unwrap();
+    let mut client = hyper::Client::new(&handle);
 
     let url: hyper::Url = format!("http://{}/get", addr).parse().unwrap();
 

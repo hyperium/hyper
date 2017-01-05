@@ -284,7 +284,7 @@ mod tests {
 
     #[test]
     fn test_pool_checkout_smoke() {
-        let mut pool = Pool::new(Duration::from_secs(5));
+        let mut pool = Pool::new(true, Some(Duration::from_secs(5)));
         let key = Rc::new("foo".to_string());
         let mut pooled = pool.pooled(key.clone(), 41);
         pooled.idle();
@@ -298,11 +298,11 @@ mod tests {
     #[test]
     fn test_pool_checkout_returns_none_if_expired() {
         ::futures::lazy(|| {
-            let mut pool = Pool::new(Duration::from_secs(1));
+            let mut pool = Pool::new(true, Some(Duration::from_secs(1)));
             let key = Rc::new("foo".to_string());
             let mut pooled = pool.pooled(key.clone(), 41);
             pooled.idle();
-            ::std::thread::sleep(pool.inner.borrow().timeout);
+            ::std::thread::sleep(pool.inner.borrow().timeout.unwrap());
             assert!(pool.checkout(&key).poll().unwrap().is_not_ready());
             ::futures::future::ok::<(), ()>(())
         }).wait().unwrap();
@@ -310,7 +310,7 @@ mod tests {
 
     #[test]
     fn test_pool_removes_expired() {
-        let mut pool = Pool::new(Duration::from_secs(1));
+        let mut pool = Pool::new(true, Some(Duration::from_secs(1)));
         let key = Rc::new("foo".to_string());
 
         let mut pooled1 = pool.pooled(key.clone(), 41);
@@ -322,7 +322,7 @@ mod tests {
 
 
         assert_eq!(pool.inner.borrow().idle.get(&key).map(|entries| entries.len()), Some(3));
-        ::std::thread::sleep(pool.inner.borrow().timeout);
+        ::std::thread::sleep(pool.inner.borrow().timeout.unwrap());
 
         pooled1.idle();
         pooled2.idle(); // idle after sleep, not expired
@@ -334,7 +334,7 @@ mod tests {
 
     #[test]
     fn test_pool_checkout_task_unparked() {
-        let mut pool = Pool::new(Duration::from_secs(10));
+        let mut pool = Pool::new(true, Some(Duration::from_secs(10)));
         let key = Rc::new("foo".to_string());
         let pooled1 = pool.pooled(key.clone(), 41);
 

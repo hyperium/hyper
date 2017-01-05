@@ -17,7 +17,7 @@ use futures::sync::oneshot;
 use tokio_core::reactor::{Core, Handle};
 
 fn client(handle: &Handle) -> Client<DefaultConnector> {
-    Client::new(handle).unwrap()
+    Client::new(handle)
 }
 
 fn s(buf: &[u8]) -> &str {
