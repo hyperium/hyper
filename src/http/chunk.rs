@@ -32,6 +32,20 @@ impl From<&'static [u8]> for Chunk {
     }
 }
 
+impl From<String> for Chunk {
+    #[inline]
+    fn from(s: String) -> Chunk {
+        s.into_bytes().into()
+    }
+}
+
+impl From<&'static str> for Chunk {
+    #[inline]
+    fn from(slice: &'static str) -> Chunk {
+        slice.as_bytes().into()
+    }
+}
+
 impl ::std::ops::Deref for Chunk {
     type Target = [u8];
 
