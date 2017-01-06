@@ -28,10 +28,6 @@ url = "1.0"
 version = "0.5"
 default-features = false
 
-[dependencies.solicit]
-version = "0.4"
-default-features = false
-
 [dev-dependencies]
 env_logger = "0.3"
 
