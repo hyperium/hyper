@@ -24,10 +24,6 @@ typeable = "0.1"
 unicase = "1.0"
 url = "1.0"
 
-[dependencies.cookie]
-version = "0.5"
-default-features = false
-
 [dev-dependencies]
 env_logger = "0.3"
 
