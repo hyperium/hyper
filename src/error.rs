@@ -55,11 +55,11 @@ pub enum Error {
 }
 
 #[doc(hidden)]
-pub enum Void {}
+pub struct Void(());
 
 impl fmt::Debug for Void {
     fn fmt(&self, _: &mut fmt::Formatter) -> fmt::Result {
-        match *self {}
+        unreachable!()
     }
 }
 
@@ -87,7 +87,7 @@ impl StdError for Error {
             Uri(ref e) => e.description(),
             Io(ref e) => e.description(),
             Utf8(ref e) => e.description(),
-            Error::__Nonexhaustive(ref void) =>  match *void {}
+            Error::__Nonexhaustive(..) =>  unreachable!(),
         }
     }
 
@@ -96,7 +96,7 @@ impl StdError for Error {
             Io(ref error) => Some(error),
             Uri(ref error) => Some(error),
             Utf8(ref error) => Some(error),
-            Error::__Nonexhaustive(ref void) =>  match *void {},
+            Error::__Nonexhaustive(..) =>  unreachable!(),
             _ => None,
         }
     }
