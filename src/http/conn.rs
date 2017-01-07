@@ -48,8 +48,7 @@ impl<I: Io, T: Http1Transaction, K: KeepAlive> Conn<I, T, K> {
         match self.state.reading {
             Reading::Init |
             Reading::Body(..) => self.io.poll_read().is_ready(),
-            Reading::KeepAlive |
-            Reading::Closed => true,
+            Reading::KeepAlive | Reading::Closed => true,
         }
     }
 
@@ -84,15 +83,24 @@ impl<I: Io, T: Http1Transaction, K: KeepAlive> Conn<I, T, K> {
             Ok(Some(head)) => (head.version, head),
             Ok(None) => return Ok(Async::NotReady),
             Err(e) => {
+                let must_respond_with_error = !self.state.was_idle();
                 self.state.close();
                 self.io.consume_leading_lines();
-                if !self.io.read_buf().is_empty() {
+                let ret = if !self.io.read_buf().is_empty() {
                     error!("parse error ({}) with bytes: {:?}", e, self.io.read_buf());
-                    return Ok(Async::Ready(Some(Frame::Error { error: e })));
+                    Ok(Async::Ready(Some(Frame::Error { error: e })))
                 } else {
                     trace!("parse error with 0 input, err = {:?}", e);
-                    return Ok(Async::Ready(None));
-                }
+                    if must_respond_with_error {
+                        match e {
+                            ::Error::Io(io) => Err(io),
+                            other => Err(io::Error::new(io::ErrorKind::UnexpectedEof, other)),
+                        }
+                    } else {
+                        Ok(Async::Ready(None))
+                    }
+                };
+                return ret;
             }
         };
 
@@ -106,6 +114,7 @@ impl<I: Io, T: Http1Transaction, K: KeepAlive> Conn<I, T, K> {
                         return Ok(Async::Ready(Some(Frame::Error { error: e })));
                     }
                 };
+                self.state.busy();
                 let wants_keep_alive = head.should_keep_alive();
                 self.state.keep_alive &= wants_keep_alive;
                 let (body, reading) = if decoder.is_eof() {
@@ -131,12 +140,9 @@ impl<I: Io, T: Http1Transaction, K: KeepAlive> Conn<I, T, K> {
 
         let (reading, ret) = match self.state.reading {
             Reading::Body(ref mut decoder) => {
-                //TODO use an appendbuf or something
-                let mut buf = vec![0; 1024 * 4];
-                let n = try_nb!(decoder.decode(&mut self.io, &mut buf));
-                if n > 0 {
-                    buf.truncate(n);
-                    return Ok(Async::Ready(Some(http::Chunk::from(buf))));
+                let slice = try_nb!(decoder.decode(&mut self.io));
+                if !slice.is_empty() {
+                    return Ok(Async::Ready(Some(http::Chunk::from(slice))));
                 } else {
                     if decoder.is_eof() {
                         (Reading::KeepAlive, Ok(Async::Ready(None)))
@@ -219,11 +225,13 @@ impl<I: Io, T: Http1Transaction, K: KeepAlive> Conn<I, T, K> {
                         wbuf.consume(n);
 
                         if !wbuf.is_written() {
+                            trace!("Conn::start_send frame not written, queued");
                             *queued = Some(wbuf);
                         }
                     },
                     Err(e) => match e.kind() {
                         io::ErrorKind::WouldBlock => {
+                            trace!("Conn::start_send frame not written, queued");
                             *queued = Some(wbuf);
                         },
                         _ => return Err(e)
@@ -258,9 +266,9 @@ impl<I: Io, T: Http1Transaction, K: KeepAlive> Conn<I, T, K> {
                 trace!("Conn::write_queued complete = {}", complete);
                 if complete {
                     *queued = None;
-                    Ok(Async::NotReady)
-                } else {
                     Ok(Async::Ready(()))
+                } else {
+                    Ok(Async::NotReady)
                 }
             },
             _ => Ok(Async::Ready(())),
@@ -268,14 +276,14 @@ impl<I: Io, T: Http1Transaction, K: KeepAlive> Conn<I, T, K> {
     }
 
     fn flush(&mut self) -> Poll<(), io::Error> {
-        try_nb!(self.write_queued());
+        let ret = try!(self.write_queued());
         try_nb!(self.io.flush());
         self.state.try_keep_alive();
         trace!("flushed {:?}", self.state);
         if self.is_read_ready() {
             ::futures::task::park().unpark();
         }
-        Ok(Async::Ready(()))
+        Ok(ret)
 
     }
 }
@@ -461,7 +469,7 @@ impl KeepAlive for KA {
 
 impl<K: KeepAlive> State<K> {
     fn close(&mut self) {
-        trace!("State::close");
+        trace!("State::close()");
         self.reading = Reading::Closed;
         self.writing = Writing::Closed;
         self.keep_alive.disable();
@@ -484,6 +492,18 @@ impl<K: KeepAlive> State<K> {
             }
             _ => ()
         }
+    }
+
+    fn was_idle(&self) -> bool {
+        if let KA::Idle(..) = self.keep_alive.status() {
+            true
+        } else {
+            false
+        }
+    }
+
+    fn busy(&mut self) {
+        self.keep_alive.busy();
     }
 
     fn is_read_closed(&self) -> bool {
@@ -522,7 +542,7 @@ impl<'a, T: fmt::Debug + 'a> fmt::Debug for DebugFrame<'a, T> {
             },
             Frame::Body { chunk: None } => {
                 f.debug_struct("Body")
-                    .field("chunk", &"None")
+                    .field("chunk", &None::<()>)
                     .finish()
             },
             Frame::Error { ref error } => {

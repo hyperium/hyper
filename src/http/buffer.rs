@@ -1,5 +1,5 @@
 use std::cmp;
-use std::io::{self, Read, Write};
+use std::io::{self, Write};
 use std::ptr;
 
 
@@ -18,10 +18,6 @@ impl Buffer {
         Buffer::default()
     }
 
-    pub fn reset(&mut self) {
-        *self = Buffer::new()
-    }
-
     #[inline]
     pub fn len(&self) -> usize {
         self.tail - self.head
@@ -33,47 +29,8 @@ impl Buffer {
     }
 
     #[inline]
-    pub fn is_max_size(&self) -> bool {
-        self.len() >= MAX_BUFFER_SIZE
-    }
-
-    #[inline]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
-    }
-
-    #[inline]
-    pub fn bytes(&self) -> &[u8] {
-        &self.vec[self.head..self.tail]
-    }
-
-    #[inline]
-    pub fn consume(&mut self, pos: usize) {
-        debug_assert!(self.tail >= self.head + pos);
-        self.head += pos;
-        if self.head == self.tail {
-            self.head = 0;
-            self.tail = 0;
-        }
-    }
-
-    pub fn consume_leading_lines(&mut self) {
-        while !self.is_empty() {
-            match self.vec[self.head] {
-                b'\r' | b'\n' => {
-                    self.consume(1);
-                },
-                _ => return
-            }
-        }
-    }
-
-    pub fn read_from<R: Read>(&mut self, r: &mut R) -> io::Result<usize> {
-        self.maybe_reserve(1);
-        let n = try!(r.read(&mut self.vec[self.tail..]));
-        self.tail += n;
-        self.maybe_reset();
-        Ok(n)
     }
 
     pub fn write_into<W: Write>(&mut self, w: &mut W) -> io::Result<usize> {
@@ -146,5 +103,5 @@ impl Buffer {
 unsafe fn grow_zerofill(buf: &mut Vec<u8>, additional: usize) {
     let len = buf.len();
     buf.set_len(len + additional);
-    ptr::write_bytes(buf.as_mut_ptr(), 0, buf.len());
+    ptr::write_bytes(buf.as_mut_ptr().offset(len as isize), 0, buf.len());
 }

@@ -92,8 +92,8 @@ impl fmt::Debug for Request {
 
 pub fn new(addr: SocketAddr, incoming: RequestHead, body: Body) -> Request {
     let MessageHead { version, subject: RequestLine(method, uri), headers } = incoming;
-    debug!("Request Line: {:?} {:?} {:?}", method, uri, version);
-    debug!("{:#?}", headers);
+    debug!("Request::new: addr={}, req=\"{} {} {}\"", addr, method, uri, version);
+    debug!("Request::new: headers={:?}", headers);
 
     Request {
         method: method,
