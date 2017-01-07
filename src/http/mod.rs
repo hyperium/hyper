@@ -15,7 +15,7 @@ pub use self::body::{Body, TokioBody};
 pub use self::chunk::Chunk;
 
 mod body;
-//mod buf;
+mod buf;
 mod buffer;
 mod chunk;
 mod conn;

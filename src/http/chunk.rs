@@ -1,6 +1,7 @@
-use std::borrow::Borrow;
 use std::fmt;
 use std::sync::Arc;
+
+use http::buf::MemSlice;
 
 /// A piece of a message body.
 pub struct Chunk(Inner);
@@ -8,6 +9,7 @@ pub struct Chunk(Inner);
 enum Inner {
     Owned(Vec<u8>),
     Referenced(Arc<Vec<u8>>),
+    Mem(MemSlice),
     Static(&'static [u8]),
 }
 
@@ -46,6 +48,12 @@ impl From<&'static str> for Chunk {
     }
 }
 
+impl From<MemSlice> for Chunk {
+    fn from(mem: MemSlice) -> Chunk {
+        Chunk(Inner::Mem(mem))
+    }
+}
+
 impl ::std::ops::Deref for Chunk {
     type Target = [u8];
 
@@ -60,10 +68,8 @@ impl AsRef<[u8]> for Chunk {
     fn as_ref(&self) -> &[u8] {
         match self.0 {
             Inner::Owned(ref vec) => vec,
-            Inner::Referenced(ref vec) => {
-                let v: &Vec<u8> = vec.borrow();
-                v.as_slice()
-            }
+            Inner::Referenced(ref vec) => vec,
+            Inner::Mem(ref slice) => slice,
             Inner::Static(slice) => slice,
         }
     }

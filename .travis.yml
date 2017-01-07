@@ -18,6 +18,7 @@ script:
   - cargo build --verbose $FEATURES
   - cargo test --verbose $FEATURES
   - 'for f in ./doc/**/*.md; do echo "Running rustdoc on $f"; rustdoc -L ./target/debug -L ./target/debug/deps --test $f;  done'
+  - 'if [ $TRAVIS_RUST_VERSION = nightly ]; then cargo bench $FEATURES; fi'
 
 addons:
   apt:
