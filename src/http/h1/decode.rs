@@ -1,5 +1,8 @@
-use std::{cmp, usize};
-use std::io::{self, Read};
+use std::usize;
+use std::io;
+
+use http::buf::MemSlice;
+use http::io::MemRead;
 
 use self::Kind::{Length, Chunked, Eof};
 
@@ -76,15 +79,16 @@ impl Decoder {
 }
 
 impl Decoder {
-    pub fn decode<R: Read>(&mut self, body: &mut R, buf: &mut [u8]) -> io::Result<usize> {
+    pub fn decode<R: MemRead>(&mut self, body: &mut R) -> io::Result<MemSlice> {
         match self.kind {
             Length(ref mut remaining) => {
                 trace!("Sized read, remaining={:?}", remaining);
                 if *remaining == 0 {
-                    Ok(0)
+                    Ok(MemSlice::empty())
                 } else {
-                    let to_read = cmp::min(*remaining as usize, buf.len());
-                    let num = try!(body.read(&mut buf[..to_read])) as u64;
+                    let to_read = *remaining as usize;
+                    let buf = try!(body.read_mem(to_read));
+                    let num = buf.len() as u64;
                     trace!("Length read: {}", num);
                     if num > *remaining {
                         *remaining = 0;
@@ -93,28 +97,28 @@ impl Decoder {
                     } else {
                         *remaining -= num;
                     }
-                    Ok(num as usize)
+                    Ok(buf)
                 }
             }
             Chunked(ref mut state, ref mut size) => {
                 loop {
-                    let mut read = 0;
+                    let mut buf = None;
                     // advances the chunked state
-                    *state = try!(state.step(body, size, buf, &mut read));
+                    *state = try!(state.step(body, size, &mut buf));
                     if *state == ChunkedState::End {
                         trace!("end of chunked");
-                        return Ok(0);
+                        return Ok(MemSlice::empty());
                     }
-                    if read > 0 {
-                        return Ok(read);
+                    if let Some(buf) = buf {
+                        return Ok(buf);
                     }
                 }
             }
             Eof(ref mut is_eof) => {
-                match body.read(buf) {
-                    Ok(0) => {
-                        *is_eof = true;
-                        Ok(0)
+                match body.read_mem(usize::MAX) {
+                    Ok(slice) => {
+                        *is_eof = slice.is_empty();
+                        Ok(slice)
                     }
                     other => other,
                 }
@@ -125,21 +129,21 @@ impl Decoder {
 
 macro_rules! byte (
     ($rdr:ident) => ({
-        let mut buf = [0];
-        match try!($rdr.read(&mut buf)) {
-            1 => buf[0],
-            _ => return Err(io::Error::new(io::ErrorKind::UnexpectedEof,
-                                           "Unexpected eof during chunk size line")),
+        let buf = try!($rdr.read_mem(1));
+        if !buf.is_empty() {
+            buf[0]
+        } else {
+            return Err(io::Error::new(io::ErrorKind::UnexpectedEof,
+                                      "Unexpected eof during chunk size line"));
         }
     })
 );
 
 impl ChunkedState {
-    fn step<R: Read>(&self,
+    fn step<R: MemRead>(&self,
                      body: &mut R,
                      size: &mut u64,
-                     buf: &mut [u8],
-                     read: &mut usize)
+                     buf: &mut Option<MemSlice>)
                      -> io::Result<ChunkedState> {
         use self::ChunkedState::*;
         Ok(match *self {
@@ -147,7 +151,7 @@ impl ChunkedState {
             SizeLws => try!(ChunkedState::read_size_lws(body)),
             Extension => try!(ChunkedState::read_extension(body)),
             SizeLf => try!(ChunkedState::read_size_lf(body, size)),
-            Body => try!(ChunkedState::read_body(body, size, buf, read)),
+            Body => try!(ChunkedState::read_body(body, size, buf)),
             BodyCr => try!(ChunkedState::read_body_cr(body)),
             BodyLf => try!(ChunkedState::read_body_lf(body)),
             EndCr => try!(ChunkedState::read_end_cr(body)),
@@ -155,7 +159,7 @@ impl ChunkedState {
             End => ChunkedState::End,
         })
     }
-    fn read_size<R: Read>(rdr: &mut R, size: &mut u64) -> io::Result<ChunkedState> {
+    fn read_size<R: MemRead>(rdr: &mut R, size: &mut u64) -> io::Result<ChunkedState> {
         trace!("Read size");
         let radix = 16;
         match byte!(rdr) {
@@ -181,7 +185,7 @@ impl ChunkedState {
         }
         Ok(ChunkedState::Size)
     }
-    fn read_size_lws<R: Read>(rdr: &mut R) -> io::Result<ChunkedState> {
+    fn read_size_lws<R: MemRead>(rdr: &mut R) -> io::Result<ChunkedState> {
         trace!("read_size_lws");
         match byte!(rdr) {
             // LWS can follow the chunk size, but no more digits can come
@@ -194,14 +198,14 @@ impl ChunkedState {
             }
         }
     }
-    fn read_extension<R: Read>(rdr: &mut R) -> io::Result<ChunkedState> {
+    fn read_extension<R: MemRead>(rdr: &mut R) -> io::Result<ChunkedState> {
         trace!("read_extension");
         match byte!(rdr) {
             b'\r' => return Ok(ChunkedState::SizeLf),
             _ => return Ok(ChunkedState::Extension), // no supported extensions
         }
     }
-    fn read_size_lf<R: Read>(rdr: &mut R, size: &mut u64) -> io::Result<ChunkedState> {
+    fn read_size_lf<R: MemRead>(rdr: &mut R, size: &mut u64) -> io::Result<ChunkedState> {
         trace!("Chunk size is {:?}", size);
         match byte!(rdr) {
             b'\n' if *size > 0 => Ok(ChunkedState::Body),
@@ -210,10 +214,9 @@ impl ChunkedState {
         }
     }
 
-    fn read_body<R: Read>(rdr: &mut R,
+    fn read_body<R: MemRead>(rdr: &mut R,
                           rem: &mut u64,
-                          buf: &mut [u8],
-                          read: &mut usize)
+                          buf: &mut Option<MemSlice>)
                           -> io::Result<ChunkedState> {
         trace!("Chunked read, remaining={:?}", rem);
 
@@ -223,8 +226,9 @@ impl ChunkedState {
             r => r as usize,
         };
 
-        let to_read = cmp::min(rem_cap, buf.len());
-        let count = try!(rdr.read(&mut buf[..to_read]));
+        let to_read = rem_cap;
+        let slice = try!(rdr.read_mem(to_read));
+        let count = slice.len();
 
         trace!("to_read = {}", to_read);
         trace!("count = {}", count);
@@ -233,9 +237,8 @@ impl ChunkedState {
             *rem = 0;
             return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "early eof"));
         }
-
+        *buf = Some(slice);
         *rem -= count as u64;
-        *read = count;
 
         if *rem > 0 {
             Ok(ChunkedState::Body)
@@ -243,26 +246,26 @@ impl ChunkedState {
             Ok(ChunkedState::BodyCr)
         }
     }
-    fn read_body_cr<R: Read>(rdr: &mut R) -> io::Result<ChunkedState> {
+    fn read_body_cr<R: MemRead>(rdr: &mut R) -> io::Result<ChunkedState> {
         match byte!(rdr) {
             b'\r' => Ok(ChunkedState::BodyLf),
             _ => Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk body CR")),
         }
     }
-    fn read_body_lf<R: Read>(rdr: &mut R) -> io::Result<ChunkedState> {
+    fn read_body_lf<R: MemRead>(rdr: &mut R) -> io::Result<ChunkedState> {
         match byte!(rdr) {
             b'\n' => Ok(ChunkedState::Size),
             _ => Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk body LF")),
         }
     }
 
-    fn read_end_cr<R: Read>(rdr: &mut R) -> io::Result<ChunkedState> {
+    fn read_end_cr<R: MemRead>(rdr: &mut R) -> io::Result<ChunkedState> {
         match byte!(rdr) {
             b'\r' => Ok(ChunkedState::EndLf),
             _ => Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk end CR")),
         }
     }
-    fn read_end_lf<R: Read>(rdr: &mut R) -> io::Result<ChunkedState> {
+    fn read_end_lf<R: MemRead>(rdr: &mut R) -> io::Result<ChunkedState> {
         match byte!(rdr) {
             b'\n' => Ok(ChunkedState::End),
             _ => Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk end LF")),

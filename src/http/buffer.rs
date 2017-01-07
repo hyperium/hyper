@@ -47,35 +47,6 @@ impl Buffer {
         &self.vec[self.head..self.tail]
     }
 
-    #[inline]
-    pub fn consume(&mut self, pos: usize) {
-        debug_assert!(self.tail >= self.head + pos);
-        self.head += pos;
-        if self.head == self.tail {
-            self.head = 0;
-            self.tail = 0;
-        }
-    }
-
-    pub fn consume_leading_lines(&mut self) {
-        while !self.is_empty() {
-            match self.vec[self.head] {
-                b'\r' | b'\n' => {
-                    self.consume(1);
-                },
-                _ => return
-            }
-        }
-    }
-
-    pub fn read_from<R: Read>(&mut self, r: &mut R) -> io::Result<usize> {
-        self.maybe_reserve(1);
-        let n = try!(r.read(&mut self.vec[self.tail..]));
-        self.tail += n;
-        self.maybe_reset();
-        Ok(n)
-    }
-
     pub fn write_into<W: Write>(&mut self, w: &mut W) -> io::Result<usize> {
         if self.is_empty() {
             Ok(0)

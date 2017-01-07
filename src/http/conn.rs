@@ -131,12 +131,9 @@ impl<I: Io, T: Http1Transaction, K: KeepAlive> Conn<I, T, K> {
 
         let (reading, ret) = match self.state.reading {
             Reading::Body(ref mut decoder) => {
-                //TODO use an appendbuf or something
-                let mut buf = vec![0; 1024 * 4];
-                let n = try_nb!(decoder.decode(&mut self.io, &mut buf));
-                if n > 0 {
-                    buf.truncate(n);
-                    return Ok(Async::Ready(Some(http::Chunk::from(buf))));
+                let slice = try_nb!(decoder.decode(&mut self.io));
+                if !slice.is_empty() {
+                    return Ok(Async::Ready(Some(http::Chunk::from(slice))));
                 } else {
                     if decoder.is_eof() {
                         (Reading::KeepAlive, Ok(Async::Ready(None)))
