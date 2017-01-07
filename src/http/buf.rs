@@ -2,6 +2,12 @@ use std::cell::UnsafeCell;
 use std::fmt;
 use std::io::{self, Read};
 use std::sync::Arc;
+#[cfg(test)]
+use http::io::MemRead;
+#[cfg(test)]
+use std::convert::AsRef;
+#[cfg(test)]
+use mock::AsyncIo;
 
 pub struct MemBuf {
     buf: Arc<UnsafeCell<Vec<u8>>>,
@@ -136,6 +142,76 @@ impl MemSlice {
             buf: Arc::new(UnsafeCell::new(Vec::new())),
             start: 0,
             end: 0,
+        }
+    }
+}
+
+#[cfg(test)]
+impl MemRead for [u8] {
+    fn read_mem(&mut self, len: usize) -> io::Result<MemSlice> {
+        if self.len() > 0 {
+            let n = ::std::cmp::min(len, self.len());
+            Ok(MemSlice {
+                buf: Arc::new(UnsafeCell::new(self[0..n].to_vec())),
+                start: 0,
+                end: n,
+            })
+        } else {
+            Ok(MemSlice::empty())
+        }
+    }
+}
+
+#[cfg(test)]
+impl<'a> MemRead for &'a [u8] {
+    fn read_mem(&mut self, len: usize) -> io::Result<MemSlice> {
+        if self.len() > 0 {
+            let n = ::std::cmp::min(len, self.len());
+            Ok(MemSlice {
+                buf: Arc::new(UnsafeCell::new(self[0..n].to_vec())),
+                start: 0,
+                end: n,
+            })
+        } else {
+            Ok(MemSlice::empty())
+        }
+    }
+}
+
+#[cfg(test)]
+impl<T: Read + AsRef<[u8]>> MemRead for ::std::io::Cursor<T> {
+    fn read_mem(&mut self, len: usize) -> io::Result<MemSlice> {
+        let mut v = vec![0; len];
+        match self.read(v.as_mut_slice()) {
+            Ok(count) => {
+                Ok(MemSlice {
+                    buf: Arc::new(UnsafeCell::new(v[0..count].to_vec())),
+                    start: 0,
+                    end: count,
+                })
+            }
+            _ => {
+                Ok(MemSlice::empty())
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+impl<T: Read> MemRead for AsyncIo<T> {
+    fn read_mem(&mut self, len: usize) -> io::Result<MemSlice> {
+        let mut v = vec![0; len];
+        match self.read(v.as_mut_slice()) {
+            Ok(count) => {
+                Ok(MemSlice {
+                    buf: Arc::new(UnsafeCell::new(v[0..count].to_vec())),
+                    start: 0,
+                    end: count,
+                })
+            }
+            _ => {
+                Ok(MemSlice::empty())
+            }
         }
     }
 }
