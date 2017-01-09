@@ -438,9 +438,7 @@ mod openssl {
     use rotor::mio::{Selector, Token, Evented, EventSet, PollOpt};
 
     use openssl::ssl::{Ssl, SslContext, SslStream, SslMethod, SSL_VERIFY_PEER, SSL_OP_NO_SSLV2, SSL_OP_NO_SSLV3, SSL_OP_NO_COMPRESSION};
-    use openssl::ssl::error::StreamError as SslIoError;
-    use openssl::ssl::error::SslError;
-    use openssl::ssl::error::Error as OpensslError;
+    use openssl::ssl::Error as OpensslError;
     use openssl::x509::X509FileType;
 
     use super::{HttpStream, Blocked};
@@ -527,7 +525,7 @@ mod openssl {
 
     impl Openssl {
         /// Ease creating an `Openssl` with a certificate and key.
-        pub fn with_cert_and_key<C, K>(cert: C, key: K) -> Result<Openssl, SslError>
+        pub fn with_cert_and_key<C, K>(cert: C, key: K) -> Result<Openssl, OpensslError>
         where C: AsRef<Path>, K: AsRef<Path> {
             let mut ctx = try!(SslContext::new(SslMethod::Sslv23));
             try!(ctx.set_cipher_list("ALL!EXPORT!EXPORT40!EXPORT56!aNULL!LOW!RC4@STRENGTH"));
@@ -541,7 +539,7 @@ mod openssl {
         type Stream = OpensslStream<HttpStream>;
 
         fn wrap_client(&self, stream: HttpStream, host: &str) -> ::Result<Self::Stream> {
-            let ssl = try!(Ssl::new(&self.context));
+            let mut ssl = try!(Ssl::new(&self.context));
             try!(ssl.set_hostname(host));
             SslStream::connect(ssl, stream)
                 .map(openssl_stream)
@@ -551,9 +549,6 @@ mod openssl {
         fn wrap_server(&self, stream: HttpStream) -> ::Result<Self::Stream> {
             match SslStream::accept(&self.context, stream) {
                 Ok(ssl_stream) => Ok(openssl_stream(ssl_stream)),
-                Err(SslIoError(e)) => {
-                    Err(io::Error::new(io::ErrorKind::ConnectionAborted, e).into())
-                },
                 Err(e) => Err(e.into())
             }
         }
