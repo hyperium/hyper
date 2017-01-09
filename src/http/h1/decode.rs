@@ -141,10 +141,10 @@ macro_rules! byte (
 
 impl ChunkedState {
     fn step<R: MemRead>(&self,
-                     body: &mut R,
-                     size: &mut u64,
-                     buf: &mut Option<MemSlice>)
-                     -> io::Result<ChunkedState> {
+                        body: &mut R,
+                        size: &mut u64,
+                        buf: &mut Option<MemSlice>)
+                        -> io::Result<ChunkedState> {
         use self::ChunkedState::*;
         Ok(match *self {
             Size => try!(ChunkedState::read_size(body, size)),
@@ -280,6 +280,7 @@ mod tests {
     use std::io::Write;
     use super::Decoder;
     use super::ChunkedState;
+    use super::MemRead;
     use mock::AsyncIo;
 
     #[test]
@@ -290,10 +291,9 @@ mod tests {
             let mut state = ChunkedState::Size;
             let mut rdr = &mut s.as_bytes();
             let mut size = 0;
-            let mut count = 0;
             loop {
-                let mut buf = [0u8; 10];
-                let result = state.step(&mut rdr, &mut size, &mut buf, &mut count);
+                let buf = [0u8; 10].read_mem(10).expect("read_mem failed on slice");
+                let result = state.step(rdr, &mut size, &mut Some(buf));
                 let desc = format!("read_size failed for {:?}", s);
                 state = result.expect(desc.as_str());
                 trace!("State {:?}", state);
@@ -308,10 +308,9 @@ mod tests {
             let mut state = ChunkedState::Size;
             let mut rdr = &mut s.as_bytes();
             let mut size = 0;
-            let mut count = 0;
             loop {
-                let mut buf = [0u8; 10];
-                let result = state.step(&mut rdr, &mut size, &mut buf, &mut count);
+                let buf = [0u8; 10].read_mem(10).expect("read_mem failed on slice");
+                let result = state.step(rdr, &mut size, &mut Some(buf));
                 state = match result {
                     Ok(s) => s,
                     Err(e) => {
@@ -362,9 +361,8 @@ mod tests {
     fn test_read_sized_early_eof() {
         let mut bytes = &b"foo bar"[..];
         let mut decoder = Decoder::length(10);
-        let mut buf = [0u8; 10];
-        assert_eq!(decoder.decode(&mut bytes, &mut buf).unwrap(), 7);
-        let e = decoder.decode(&mut bytes, &mut buf).unwrap_err();
+        assert_eq!(decoder.decode(&mut bytes).unwrap().len(), 7);
+        let e = decoder.decode(&mut bytes).unwrap_err();
         assert_eq!(e.kind(), io::ErrorKind::Other);
         assert_eq!(e.description(), "early eof");
     }
@@ -376,9 +374,8 @@ mod tests {
             foo bar\
         "[..];
         let mut decoder = Decoder::chunked();
-        let mut buf = [0u8; 10];
-        assert_eq!(decoder.decode(&mut bytes, &mut buf).unwrap(), 7);
-        let e = decoder.decode(&mut bytes, &mut buf).unwrap_err();
+        assert_eq!(decoder.decode(&mut bytes).unwrap().len(), 7);
+        let e = decoder.decode(&mut bytes).unwrap_err();
         assert_eq!(e.kind(), io::ErrorKind::UnexpectedEof);
         assert_eq!(e.description(), "early eof");
     }
@@ -386,10 +383,9 @@ mod tests {
     #[test]
     fn test_read_chunked_single_read() {
         let content = b"10\r\n1234567890abcdef\r\n0\r\n";
-        let mut mock_buf = io::Cursor::new(content);
-        let mut buf = [0u8; 16];
-        let count = Decoder::chunked().decode(&mut mock_buf, &mut buf).expect("decode");
-        assert_eq!(16, count);
+        let mut mock_buf = io::Cursor::new(content.as_ref());
+        let buf = Decoder::chunked().decode(&mut mock_buf).expect("decode");
+        assert_eq!(16, buf.len());
         let result = String::from_utf8(buf.to_vec()).expect("decode String");
         assert_eq!("1234567890abcdef", &result);
     }
@@ -397,23 +393,22 @@ mod tests {
     #[test]
     fn test_read_chunked_after_eof() {
         let content = b"10\r\n1234567890abcdef\r\n0\r\n\r\n";
-        let mut mock_buf = io::Cursor::new(content);
-        let mut buf = [0u8; 50];
+        let mut mock_buf = io::Cursor::new(content.as_ref());
         let mut decoder = Decoder::chunked();
 
         // normal read
-        let count = decoder.decode(&mut mock_buf, &mut buf).expect("decode");
-        assert_eq!(16, count);
-        let result = String::from_utf8(buf[0..count].to_vec()).expect("decode String");
+        let buf = decoder.decode(&mut mock_buf).expect("decode");
+        assert_eq!(16, buf.len());
+        let result = String::from_utf8(buf.to_vec()).expect("decode String");
         assert_eq!("1234567890abcdef", &result);
 
         // eof read
-        let count = decoder.decode(&mut mock_buf, &mut buf).expect("decode");
-        assert_eq!(0, count);
+        let buf = decoder.decode(&mut mock_buf).expect("decode");
+        assert_eq!(0, buf.len());
 
         // ensure read after eof also returns eof
-        let count = decoder.decode(&mut mock_buf, &mut buf).expect("decode");
-        assert_eq!(0, count);
+        let buf = decoder.decode(&mut mock_buf).expect("decode");
+        assert_eq!(0, buf.len());
     }
 
     // perform an async read using a custom buffer size and causing a blocking
@@ -428,10 +423,14 @@ mod tests {
         let mut ins = AsyncIo::new(mock_buf, block_at);
         let mut outs = vec![];
         loop {
-            let mut buf = vec![0; read_buffer_size];
-            match decoder.decode(&mut ins, buf.as_mut_slice()) {
-                Ok(0) => break,
-                Ok(i) => outs.write(&buf[0..i]).expect("write buffer"),
+            match decoder.decode(&mut ins) {
+                Ok(buf) => {
+                    if buf.len() == 0 {
+                        break
+                    } else {
+                        outs.write(&buf).expect("write buffer")
+                    }
+                }
                 Err(e) => {
                     if e.kind() != io::ErrorKind::WouldBlock {
                         break;
