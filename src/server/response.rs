@@ -35,7 +35,7 @@ impl<'a> Response<'a> {
     #[inline]
     pub fn headers_mut(&mut self) -> &mut header::Headers { &mut self.head.headers }
 
-    /// Get a mutable reference to the status.
+    /// Set the status of this response.
     #[inline]
     pub fn set_status(&mut self, status: StatusCode) {
         self.head.subject = status;
