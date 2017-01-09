@@ -25,15 +25,17 @@ url = "1.0"
 vecio = "0.1"
 
 [dependencies.cookie]
-version = "0.3"
+git = "https://github.com/alexcrichton/cookie-rs"
+rev = "b9620ee28816ea5e2ab771fd69e5b031bece961c"
 default-features = false
 
 [dependencies.openssl]
-version = "0.7"
+version = "0.9.1"
 optional = true
 
 [dependencies.openssl-verify]
-version = "0.1"
+git = "https://github.com/sfackler/rust-openssl-verify"
+rev = "d11a7d34de72f3417e875edc90e5ca44d2b8f33a"
 optional = true
 
 [dependencies.security-framework]
