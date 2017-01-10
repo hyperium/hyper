@@ -83,13 +83,13 @@ impl<C: Connect> Client<C> {
 
     /// Send a GET Request using this Client.
     #[inline]
-    pub fn get(&mut self, url: Url) -> FutureResponse {
+    pub fn get(&self, url: Url) -> FutureResponse {
         self.request(Request::new(Method::Get, url))
     }
 
     /// Send a constructed Request using this Client.
     #[inline]
-    pub fn request(&mut self, req: Request) -> FutureResponse {
+    pub fn request(&self, req: Request) -> FutureResponse {
         self.call(req)
     }
 }
