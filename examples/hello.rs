@@ -17,7 +17,7 @@ impl Service for Hello {
     type Response = Response;
     type Error = hyper::Error;
     type Future = ::futures::Finished<Response, hyper::Error>;
-    fn call(&mut self, _req: Request) -> Self::Future {
+    fn call(&self, _req: Request) -> Self::Future {
         ::futures::finished(
             Response::new()
                 .with_header(ContentLength(PHRASE.len() as u64))

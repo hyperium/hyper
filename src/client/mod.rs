@@ -118,7 +118,7 @@ impl<C: Connect> Service for Client<C> {
     type Error = ::Error;
     type Future = FutureResponse;
 
-    fn call(&mut self, req: Request) -> Self::Future {
+    fn call(&self, req: Request) -> Self::Future {
         let url = match req.uri() {
             &::RequestUri::AbsoluteUri(ref u) => u.clone(),
             _ => unimplemented!("RequestUri::*")
@@ -164,7 +164,7 @@ impl<C: Connect> Service for Client<C> {
                 // never had a pooled stream at all
                 e.into()
             });
-        let req = race.and_then(move |mut client| {
+        let req = race.and_then(move |client| {
             let msg = match body {
                 Some(body) => {
                     Message::WithBody(head, body.into())

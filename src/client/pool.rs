@@ -34,7 +34,7 @@ impl<T: Clone> Pool<T> {
         }
     }
 
-    pub fn checkout(&mut self, key: &str) -> Checkout<T> {
+    pub fn checkout(&self, key: &str) -> Checkout<T> {
         Checkout {
             key: Rc::new(key.to_owned()),
             pool: self.clone(),
@@ -284,7 +284,7 @@ mod tests {
 
     #[test]
     fn test_pool_checkout_smoke() {
-        let mut pool = Pool::new(true, Some(Duration::from_secs(5)));
+        let pool = Pool::new(true, Some(Duration::from_secs(5)));
         let key = Rc::new("foo".to_string());
         let mut pooled = pool.pooled(key.clone(), 41);
         pooled.idle();
@@ -298,7 +298,7 @@ mod tests {
     #[test]
     fn test_pool_checkout_returns_none_if_expired() {
         ::futures::lazy(|| {
-            let mut pool = Pool::new(true, Some(Duration::from_secs(1)));
+            let pool = Pool::new(true, Some(Duration::from_secs(1)));
             let key = Rc::new("foo".to_string());
             let mut pooled = pool.pooled(key.clone(), 41);
             pooled.idle();
@@ -310,7 +310,7 @@ mod tests {
 
     #[test]
     fn test_pool_removes_expired() {
-        let mut pool = Pool::new(true, Some(Duration::from_secs(1)));
+        let pool = Pool::new(true, Some(Duration::from_secs(1)));
         let key = Rc::new("foo".to_string());
 
         let mut pooled1 = pool.pooled(key.clone(), 41);
@@ -334,7 +334,7 @@ mod tests {
 
     #[test]
     fn test_pool_checkout_task_unparked() {
-        let mut pool = Pool::new(true, Some(Duration::from_secs(10)));
+        let pool = Pool::new(true, Some(Duration::from_secs(10)));
         let key = Rc::new("foo".to_string());
         let pooled1 = pool.pooled(key.clone(), 41);
 
