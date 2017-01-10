@@ -21,7 +21,7 @@ impl Service for Echo {
     type Error = hyper::Error;
     type Future = ::futures::Finished<Response, hyper::Error>;
 
-    fn call(&mut self, req: Request) -> Self::Future {
+    fn call(&self, req: Request) -> Self::Future {
         ::futures::finished(match (req.method(), req.path()) {
             (&Get, Some("/")) | (&Get, Some("/echo")) => {
                 Response::new()

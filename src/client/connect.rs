@@ -29,7 +29,7 @@ pub trait Connect: Service<Request=Url, Error=io::Error> + 'static {
     /// A Future that will resolve to the connected Stream.
     type Future: Future<Item=Self::Output, Error=io::Error> + 'static;
     /// Connect to a remote address.
-    fn connect(&mut self, Url) -> <Self as Connect>::Future;
+    fn connect(&self, Url) -> <Self as Connect>::Future;
 }
 
 impl<T> Connect for T
@@ -40,7 +40,7 @@ where T: Service<Request=Url, Error=io::Error> + 'static,
     type Output = T::Response;
     type Future = T::Future;
 
-    fn connect(&mut self, url: Url) -> <Self as Connect>::Future {
+    fn connect(&self, url: Url) -> <Self as Connect>::Future {
         self.call(url)
     }
 }
@@ -78,7 +78,7 @@ impl Service for HttpConnector {
     type Error = io::Error;
     type Future = HttpConnecting;
 
-    fn call(&mut self, url: Url) -> Self::Future {
+    fn call(&self, url: Url) -> Self::Future {
         debug!("Http::connect({:?})", url);
         let host = match url.host_str() {
             Some(s) => s,
@@ -130,7 +130,7 @@ impl Service for HttpsConnector {
     type Error = io::Error;
     type Future = HttpsConnecting;
 
-    fn call(&mut self, url: Url) -> Self::Future {
+    fn call(&self, url: Url) -> Self::Future {
         debug!("Https::connect({:?})", url);
         let is_https = url.scheme() == "https";
         let host = match url.host_str() {
@@ -344,7 +344,7 @@ mod tests {
     fn test_non_http_url() {
         let mut core = Core::new().unwrap();
         let url = Url::parse("file:///home/sean/foo.txt").unwrap();
-        let mut connector = HttpConnector::new(1, &core.handle());
+        let connector = HttpConnector::new(1, &core.handle());
 
         assert_eq!(core.run(connector.connect(url)).unwrap_err().kind(), io::ErrorKind::InvalidInput);
     }

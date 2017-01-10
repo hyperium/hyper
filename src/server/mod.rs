@@ -267,7 +267,7 @@ impl<T> Service for HttpService<T>
     type Error = ::Error;
     type Future = Map<T::Future, fn(Response) -> Message<ResponseHead, http::TokioBody>>;
 
-    fn call(&mut self, message: Self::Request) -> Self::Future {
+    fn call(&self, message: Self::Request) -> Self::Future {
         let (head, body) = match message {
             Message::WithoutBody(head) => (head, http::Body::empty()),
             Message::WithBody(head, body) => (head, body.into()),
