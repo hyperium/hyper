@@ -49,7 +49,7 @@ macro_rules! test {
             let server = TcpListener::bind("127.0.0.1:0").unwrap();
             let addr = server.local_addr().unwrap();
             let mut core = Core::new().unwrap();
-            let mut client = client(&core.handle());
+            let client = client(&core.handle());
             let mut req = Request::new(Method::$client_method, format!($client_url, addr=addr).parse().unwrap());
             $(
                 req.headers_mut().set($request_headers);
@@ -197,7 +197,7 @@ fn client_keep_alive() {
     let server = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = server.local_addr().unwrap();
     let mut core = Core::new().unwrap();
-    let mut client = client(&core.handle());
+    let client = client(&core.handle());
 
 
     let (tx1, rx1) = oneshot::channel();
@@ -235,7 +235,7 @@ fn client_pooled_socket_disconnected() {
     let server = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = server.local_addr().unwrap();
     let mut core = Core::new().unwrap();
-    let mut client = client(&core.handle());
+    let client = client(&core.handle());
 
 
     let (tx1, rx1) = oneshot::channel();
