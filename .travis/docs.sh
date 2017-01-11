@@ -15,8 +15,7 @@ if [ -d ./doc ]; then
     cp ./doc/guide.css ./target/doc/guide/guide.css
 fi
 
-git clone --branch gh-pages "git@github.com:${TRAVIS_REPO_SLUG}.git" deploy_docs > /dev/null 2>&1
-#git clone --branch gh-pages "https://$TOKEN@github.com/${TRAVIS_REPO_SLUG}.git" deploy_docs > /dev/null 2>&1
+git clone --branch gh-pages "https://$TOKEN@github.com/${TRAVIS_REPO_SLUG}.git" deploy_docs > /dev/null 2>&1
 cd deploy_docs
 
 git config user.name "Sean McArthur"
