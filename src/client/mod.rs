@@ -535,12 +535,12 @@ impl Default for RedirectPolicy {
 fn get_host_and_port(url: &Url) -> ::Result<(&str, u16)> {
     let host = match url.host_str() {
         Some(host) => host,
-        None => return Err(Error::Uri(UrlError::EmptyHost))
+        None => return Err(Error::Uri(UrlError::EmptyHost)),
     };
     trace!("host={:?}", host);
     let port = match url.port_or_known_default() {
         Some(port) => port,
-        None => return Err(Error::Uri(UrlError::InvalidPort))
+        None => return Err(Error::Uri(UrlError::InvalidPort)),
     };
     trace!("port={:?}", port);
     Ok((host, port))
@@ -552,7 +552,7 @@ mod scheme {
     pub enum Scheme {
         Http,
         Https,
-        Other(String)
+        Other(String),
     }
 
     impl<'a> From<&'a str> for Scheme {
@@ -560,7 +560,7 @@ mod scheme {
             match s {
                 "http" => Scheme::Http,
                 "https" => Scheme::Https,
-                s => Scheme::Other(String::from(s))
+                s => Scheme::Other(String::from(s)),
             }
         }
     }
@@ -626,7 +626,7 @@ mod tests {
 
         let box_message = client.protocol.new_message("127.0.0.1", 80, "http").unwrap();
         let message = box_message.downcast::<Http11Message>().unwrap();
-        let stream =  message.into_inner().downcast::<MessageStream>().unwrap().into_inner().into_normal().unwrap();;
+        let stream =  message.into_inner().downcast::<MessageStream>().unwrap().into_inner().into_normal().unwrap();
 
         let s = ::std::str::from_utf8(&stream.write).unwrap();
         let request_line = "GET http://127.0.0.1/foo/bar HTTP/1.1\r\n";
