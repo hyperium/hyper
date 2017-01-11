@@ -55,11 +55,6 @@ use std::str::from_utf8;
 ///
 /// # Example
 /// ```
-/// # extern crate hyper;
-/// # extern crate cookie;
-/// # fn main() {
-/// // extern crate cookie;
-///
 /// use hyper::header::{Headers, SetCookie};
 ///
 /// let mut headers = Headers::new();
@@ -69,7 +64,6 @@ use std::str::from_utf8;
 ///         String::from("foo=bar; Path=/path; Domain=example.com")
 ///     ])
 /// );
-/// # }
 /// ```
 #[derive(Clone, PartialEq, Debug)]
 pub struct SetCookie(pub Vec<String>);
