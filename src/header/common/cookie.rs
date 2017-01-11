@@ -17,19 +17,15 @@ use std::str::from_utf8;
 ///
 /// # Example
 /// ```
-/// # extern crate hyper;
-/// # extern crate cookie;
-/// # fn main() {
 /// use hyper::header::{Headers, Cookie};
 ///
 /// let mut headers = Headers::new();
 ///
 /// headers.set(
 ///    Cookie(vec![
-///        CookiePair::new("foo".to_owned(), "bar".to_owned())
+///        String::from("foo=bar")
 ///    ])
 /// );
-/// # }
 /// ```
 #[derive(Clone, PartialEq, Debug)]
 pub struct Cookie(pub Vec<String>);
