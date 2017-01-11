@@ -1,3 +1,46 @@
+## v0.10.0 (2017-01-10)
+
+#### Features
+
+* **client:**
+  * change ProxyConfig to allow HTTPS proxies ([14a4f1c2](https://github.com/hyperium/hyper/commit/14a4f1c2f735efe7b638e9078710ca32dc1e360a))
+  * remove experimental HTTP2 support ([d301c6a1](https://github.com/hyperium/hyper/commit/d301c6a1708c7d408b7f03ac46674a5f0edd3253))
+* **header:** remove `cookie` dependency ([f22701f7](https://github.com/hyperium/hyper/commit/f22701f7e7258ad4a26645eba47a3d374e452e86))
+* **lib:**
+  * remove SSL dependencies ([2f48612c](https://github.com/hyperium/hyper/commit/2f48612c7e141a9d612d7cb9d524b2f460561f56))
+  * remove `serde-serialization` feature ([7b9817ed](https://github.com/hyperium/hyper/commit/7b9817edcf4451bd033e55467c75577031bfe740))
+
+
+#### Breaking Changes
+
+* There is no more `hyper::http::h2`.
+
+  ([d301c6a1](https://github.com/hyperium/hyper/commit/d301c6a1708c7d408b7f03ac46674a5f0edd3253))
+* The `Cookie` and `SetCookie` headers no longer use the
+  cookie crate. New headers can be written for any header, or the ones
+  provided in hyper can be accessed as strings.
+
+  ([f22701f7](https://github.com/hyperium/hyper/commit/f22701f7e7258ad4a26645eba47a3d374e452e86))
+* There is no longer a `serde-serialization` feature.
+  Look at external crates, like `hyper-serde`, to fulfill this feature.
+
+  ([7b9817ed](https://github.com/hyperium/hyper/commit/7b9817edcf4451bd033e55467c75577031bfe740))
+* hyper will no longer provide OpenSSL support out of the
+  box. The `hyper::net::Openssl` and related types are gone. The `Client`
+  now uses an `HttpConnector` by default, which will error trying to
+  access HTTPS URLs.
+
+  TLS support should be added in from other crates, such as
+  hyper-openssl, or similar using different TLS implementations.
+
+  ([2f48612c](https://github.com/hyperium/hyper/commit/2f48612c7e141a9d612d7cb9d524b2f460561f56))
+* Usage of `with_proxy_config` will need to change to
+  provide a network connector. For the same functionality, a
+  `hyper::net::HttpConnector` can be easily created and passed.
+
+  ([14a4f1c2](https://github.com/hyperium/hyper/commit/14a4f1c2f735efe7b638e9078710ca32dc1e360a))
+
+
 ### v0.9.14 (2016-12-12)
 
 
