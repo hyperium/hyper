@@ -8,7 +8,7 @@ use std::net::TcpListener;
 use std::thread;
 use std::time::Duration;
 
-use hyper::client::{Client, Request, DefaultConnector};
+use hyper::client::{Client, Request, HttpConnector};
 use hyper::{Method, StatusCode};
 
 use futures::Future;
@@ -16,7 +16,7 @@ use futures::sync::oneshot;
 
 use tokio_core::reactor::{Core, Handle};
 
-fn client(handle: &Handle) -> Client<DefaultConnector> {
+fn client(handle: &Handle) -> Client<HttpConnector> {
     Client::new(handle)
 }
 

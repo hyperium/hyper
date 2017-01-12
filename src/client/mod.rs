@@ -26,7 +26,7 @@ use self::pool::{Pool, Pooled};
 use uri::RequestUri;
 use {Url};
 
-pub use self::connect::{DefaultConnector, HttpConnector, Connect};
+pub use self::connect::{HttpConnector, Connect};
 pub use self::request::Request;
 pub use self::response::Response;
 
@@ -45,7 +45,7 @@ pub struct Client<C> {
     pool: Pool<TokioClient>,
 }
 
-impl Client<DefaultConnector> {
+impl Client<HttpConnector> {
     /// Configure a Client.
     ///
     /// # Example
@@ -62,10 +62,10 @@ impl Client<DefaultConnector> {
     }
 }
 
-impl Client<DefaultConnector> {
+impl Client<HttpConnector> {
     /// Create a new Client with the default config.
     #[inline]
-    pub fn new(handle: &Handle) -> Client<DefaultConnector> {
+    pub fn new(handle: &Handle) -> Client<HttpConnector> {
         Client::configure().build(handle)
     }
 }
@@ -243,7 +243,7 @@ pub struct Config<C> {
     max_idle: usize,
 }
 
-/// Phantom type used to signal that `Config` should create a `DefaultConnector`.
+/// Phantom type used to signal that `Config` should create a `HttpConnector`.
 #[derive(Debug, Clone, Copy)]
 pub struct UseDefaultConnector(());
 
@@ -315,8 +315,8 @@ impl<C: Connect> Config<C> {
 impl Config<UseDefaultConnector> {
     /// Construct the Client with this configuration.
     #[inline]
-    pub fn build(self, handle: &Handle) -> Client<DefaultConnector> {
-        self.connector(DefaultConnector::new(4, handle)).build(handle)
+    pub fn build(self, handle: &Handle) -> Client<HttpConnector> {
+        self.connector(HttpConnector::new(4, handle)).build(handle)
     }
 }
 

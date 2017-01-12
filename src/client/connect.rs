@@ -1,22 +1,15 @@
 use std::fmt;
-use std::io::{self, Read, Write};
+use std::io;
 //use std::net::SocketAddr;
 
 use futures::{Future, Poll, Async};
-use native_tls::TlsConnector;
 use tokio::io::Io;
 use tokio::reactor::Handle;
 use tokio::net::{TcpStream, TcpStreamNew};
 use tokio_service::Service;
-use tokio_tls::{TlsStream, TlsConnectorExt};
 use url::Url;
 
 use super::dns;
-
-/// The default connector used by the Client.
-pub type DefaultConnector = HttpsConnector;
-/// A TCP stream protected by TLS.
-pub type HttpsStream = TlsStream<TcpStream>;
 
 /// A connector creates an Io to a remote address..
 ///
@@ -97,80 +90,11 @@ impl Service for HttpConnector {
 
 }
 
-/// A Connector for the `https` scheme.
-#[derive(Clone)]
-pub struct HttpsConnector {
-    dns: dns::Dns,
-    handle: Handle,
-}
-
-impl HttpsConnector {
-
-    /// Construct a new HttpsConnector.
-    ///
-    /// Takes number of DNS worker threads.
-    pub fn new(threads: usize, handle: &Handle) -> HttpsConnector {
-        HttpsConnector {
-            dns: dns::Dns::new(threads),
-            handle: handle.clone(),
-        }
-    }
-}
-
-impl fmt::Debug for HttpsConnector {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("HttpsConnector")
-            .finish()
-    }
-}
-
-impl Service for HttpsConnector {
-    type Request = Url;
-    type Response = MaybeHttpsStream;
-    type Error = io::Error;
-    type Future = HttpsConnecting;
-
-    fn call(&self, url: Url) -> Self::Future {
-        debug!("Https::connect({:?})", url);
-        let is_https = url.scheme() == "https";
-        let host = match url.host_str() {
-            Some(s) => s,
-            None => return HttpsConnecting(Box::new(::futures::future::err(io::Error::new(io::ErrorKind::InvalidInput, "invalid url")))),
-        };
-        let port = url.port_or_known_default().unwrap_or(80);
-
-        let host = host.to_owned();
-
-        let connecting = HttpConnecting {
-            state: State::Resolving(self.dns.resolve(host.clone(), port)),
-            handle: self.handle.clone(),
-        };
-        HttpsConnecting(if is_https {
-            Box::new(connecting.and_then(move |tcp| {
-                TlsConnector::builder()
-                    .and_then(|c| c.build())
-                    .map(|c| c.connect_async(&host, tcp))
-                    .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
-            }).and_then(|maybe_tls| {
-                maybe_tls.map(|tls| MaybeHttpsStream::Https(tls))
-                    .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
-            }))
-        } else {
-            Box::new(connecting.map(|tcp| MaybeHttpsStream::Http(tcp)))
-        })
-    }
-
-}
-
-
 /// A Future representing work to connect to a URL.
 pub struct HttpConnecting {
     state: State,
     handle: Handle,
 }
-
-/// A Future representing work to connect to a URL, and a TLS handshake.
-pub struct HttpsConnecting(Box<Future<Item=MaybeHttpsStream, Error=io::Error>>);
 
 enum State {
     Resolving(dns::Query),
@@ -211,21 +135,6 @@ impl fmt::Debug for HttpConnecting {
     }
 }
 
-impl Future for HttpsConnecting {
-    type Item = MaybeHttpsStream;
-    type Error = io::Error;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        self.0.poll()
-    }
-}
-
-impl fmt::Debug for HttpsConnecting {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.pad("HttpsConnecting")
-    }
-}
-
 struct ConnectingTcp {
     addrs: dns::IpAddrs,
     current: Option<TcpStreamNew>,
@@ -256,67 +165,6 @@ impl ConnectingTcp {
             }
 
             return Err(err.take().expect("missing connect error"));
-        }
-    }
-}
-
-/// A stream that might be protected with TLS.
-pub enum MaybeHttpsStream {
-    Http(TcpStream),
-    Https(HttpsStream),
-}
-
-impl fmt::Debug for MaybeHttpsStream {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            MaybeHttpsStream::Http(..) => f.pad("Http(..)"),
-            MaybeHttpsStream::Https(..) => f.pad("Https(..)"),
-        }
-    }
-}
-
-impl Read for MaybeHttpsStream {
-    #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        match *self {
-            MaybeHttpsStream::Http(ref mut s) => s.read(buf),
-            MaybeHttpsStream::Https(ref mut s) => s.read(buf),
-        }
-    }
-}
-
-impl Write for MaybeHttpsStream {
-    #[inline]
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        match *self {
-            MaybeHttpsStream::Http(ref mut s) => s.write(buf),
-            MaybeHttpsStream::Https(ref mut s) => s.write(buf),
-        }
-    }
-
-    #[inline]
-    fn flush(&mut self) -> io::Result<()> {
-        match *self {
-            MaybeHttpsStream::Http(ref mut s) => s.flush(),
-            MaybeHttpsStream::Https(ref mut s) => s.flush(),
-        }
-    }
-}
-
-impl Io for MaybeHttpsStream {
-    #[inline]
-    fn poll_read(&mut self) -> Async<()> {
-        match *self {
-            MaybeHttpsStream::Http(ref mut s) => s.poll_read(),
-            MaybeHttpsStream::Https(ref mut s) => s.poll_read(),
-        }
-    }
-
-    #[inline]
-    fn poll_write(&mut self) -> Async<()> {
-        match *self {
-            MaybeHttpsStream::Http(ref mut s) => s.poll_write(),
-            MaybeHttpsStream::Https(ref mut s) => s.poll_write(),
         }
     }
 }

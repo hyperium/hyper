@@ -1,6 +1,7 @@
 #![deny(warnings)]
 extern crate futures;
 extern crate hyper;
+extern crate hyper_tls;
 extern crate tokio_core;
 
 extern crate pretty_env_logger;
@@ -25,7 +26,10 @@ fn main() {
     };
 
     let mut core = tokio_core::reactor::Core::new().unwrap();
-    let client = Client::new(&core.handle());
+    let handle = core.handle();
+    let client = Client::configure()
+        .connector(hyper_tls::HttpsConnector::new(4, &handle))
+        .build(&handle);
 
     let work = client.get(url.parse().unwrap()).and_then(|res| {
         println!("Response: {}", res.status());

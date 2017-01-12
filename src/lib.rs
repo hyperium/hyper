@@ -20,19 +20,14 @@ extern crate httparse;
 #[macro_use] extern crate language_tags;
 #[macro_use] extern crate log;
 #[macro_use] pub extern crate mime;
-extern crate mio;
-extern crate native_tls;
 extern crate relay;
 extern crate rustc_serialize as serialize;
 extern crate time;
 #[macro_use] extern crate tokio_core as tokio;
-extern crate tokio_tls;
 extern crate tokio_proto;
 extern crate tokio_service;
-#[macro_use] extern crate url;
 extern crate unicase;
 #[macro_use] extern crate url;
-extern crate vecio;
 
 #[cfg(all(test, feature = "nightly"))]
 extern crate test;

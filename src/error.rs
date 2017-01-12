@@ -7,7 +7,6 @@ use std::string::FromUtf8Error;
 
 use httparse;
 use url;
-use native_tls::Error as TlsError;
 
 use self::Error::{
     Method,
@@ -17,7 +16,6 @@ use self::Error::{
     Status,
     Timeout,
     Io,
-    Tls,
     TooLarge,
     Incomplete,
     Utf8
@@ -49,8 +47,6 @@ pub enum Error {
     Timeout,
     /// An `io::Error` that occurred while trying to read or write to a network stream.
     Io(IoError),
-    /// An error from a SSL library.
-    Tls(TlsError),
     /// Parsing a field as string failed
     Utf8(Utf8Error),
 
@@ -72,7 +68,6 @@ impl fmt::Display for Error {
         match *self {
             Uri(ref e) => fmt::Display::fmt(e, f),
             Io(ref e) => fmt::Display::fmt(e, f),
-            Tls(ref e) => fmt::Display::fmt(e, f),
             Utf8(ref e) => fmt::Display::fmt(e, f),
             ref e => f.write_str(e.description()),
         }
@@ -91,7 +86,6 @@ impl StdError for Error {
             Timeout => "Timeout",
             Uri(ref e) => e.description(),
             Io(ref e) => e.description(),
-            Tls(ref e) => e.description(),
             Utf8(ref e) => e.description(),
             Error::__Nonexhaustive(..) =>  unreachable!(),
         }
@@ -100,7 +94,6 @@ impl StdError for Error {
     fn cause(&self) -> Option<&StdError> {
         match *self {
             Io(ref error) => Some(error),
-            Tls(ref error) => Some(error),
             Uri(ref error) => Some(error),
             Utf8(ref error) => Some(error),
             Error::__Nonexhaustive(..) =>  unreachable!(),
@@ -118,12 +111,6 @@ impl From<IoError> for Error {
 impl From<url::ParseError> for Error {
     fn from(err: url::ParseError) -> Error {
         Uri(err)
-    }
-}
-
-impl From<TlsError> for Error {
-    fn from(err: TlsError) -> Error {
-        Tls(err)
     }
 }
 
