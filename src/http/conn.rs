@@ -48,8 +48,7 @@ impl<I: Io, T: Http1Transaction, K: KeepAlive> Conn<I, T, K> {
         match self.state.reading {
             Reading::Init |
             Reading::Body(..) => self.io.poll_read().is_ready(),
-            Reading::KeepAlive => true,
-            Reading::Closed => false,
+            Reading::KeepAlive | Reading::Closed => true,
         }
     }
 
@@ -115,6 +114,7 @@ impl<I: Io, T: Http1Transaction, K: KeepAlive> Conn<I, T, K> {
                         return Ok(Async::Ready(Some(Frame::Error { error: e })));
                     }
                 };
+                self.state.busy();
                 let wants_keep_alive = head.should_keep_alive();
                 self.state.keep_alive &= wants_keep_alive;
                 let (body, reading) = if decoder.is_eof() {
@@ -122,7 +122,6 @@ impl<I: Io, T: Http1Transaction, K: KeepAlive> Conn<I, T, K> {
                 } else {
                     (true, Reading::Body(decoder))
                 };
-                self.state.busy();
                 self.state.reading = reading;
                 return Ok(Async::Ready(Some(Frame::Message { message: head, body: body })));
             },
@@ -470,7 +469,7 @@ impl KeepAlive for KA {
 
 impl<K: KeepAlive> State<K> {
     fn close(&mut self) {
-        trace!("State::close");
+        trace!("State::close()");
         self.reading = Reading::Closed;
         self.writing = Writing::Closed;
         self.keep_alive.disable();

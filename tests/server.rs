@@ -2,6 +2,7 @@
 extern crate hyper;
 extern crate futures;
 extern crate spmc;
+extern crate pretty_env_logger;
 
 use futures::Future;
 use futures::stream::Stream;
@@ -9,6 +10,7 @@ use futures::stream::Stream;
 use std::net::{TcpStream, SocketAddr};
 use std::io::{Read, Write};
 use std::sync::mpsc;
+use std::thread;
 use std::time::Duration;
 
 use hyper::server::{Server, Request, Response, Service, NewService};
@@ -24,12 +26,6 @@ impl Serve {
     fn addr(&self) -> &SocketAddr {
         self.listening.as_ref().unwrap().addr()
     }
-
-    /*
-    fn head(&self) -> Request {
-        unimplemented!()
-    }
-    */
 
     fn body(&self) -> Vec<u8> {
         let mut buf = vec![];
@@ -152,7 +148,7 @@ fn serve() -> Serve {
 }
 
 fn serve_with_timeout(dur: Option<Duration>) -> Serve {
-    use std::thread;
+    let _ = pretty_env_logger::init();
 
     let (thread_tx, thread_rx) = mpsc::channel();
     let (spawn_tx, spawn_rx) = mpsc::channel();
@@ -195,7 +191,7 @@ fn server_get_should_ignore_body() {
     req.write_all(b"\
         GET / HTTP/1.1\r\n\
         Host: example.domain\r\n\
-        Connection: close\r\n
+        Connection: close\r\n\
         \r\n\
         I shouldn't be read.\r\n\
     ").unwrap();
@@ -223,7 +219,6 @@ fn server_get_with_body() {
 
 #[test]
 fn server_get_fixed_response() {
-
     let foo_bar = b"foo bar baz";
     let server = serve();
     server.reply()
@@ -256,7 +251,7 @@ fn server_get_chunked_response() {
     req.write_all(b"\
         GET / HTTP/1.1\r\n\
         Host: example.domain\r\n\
-        Connection: close\r\n
+        Connection: close\r\n\
         \r\n\
     ").unwrap();
     let mut body = String::new();
@@ -358,8 +353,8 @@ fn server_empty_response_chunked() {
     req.write_all(b"\
         GET / HTTP/1.1\r\n\
         Host: example.domain\r\n\
-        Content-Length: 0\r\n
-        Connection: close\r\n
+        Content-Length: 0\r\n\
+        Connection: close\r\n\
         \r\n\
     ").unwrap();
 
@@ -462,28 +457,3 @@ fn server_keep_alive() {
         }
     }
 }
-
-/*
-#[test]
-fn server_get_with_body_three_listeners() {
-    let server = serve_n(3);
-    let addrs = server.addrs();
-    assert_eq!(addrs.len(), 3);
-
-    for (i, addr) in addrs.iter().enumerate() {
-        let mut req = TcpStream::connect(addr).unwrap();
-        write!(req, "\
-            GET / HTTP/1.1\r\n\
-            Host: example.domain\r\n\
-            Content-Length: 17\r\n\
-            \r\n\
-            I'm sending to {}.\r\n\
-        ", i).unwrap();
-        req.read(&mut [0; 256]).unwrap();
-
-        // note: doesnt include trailing \r\n, cause Content-Length wasn't 19
-        let comparison = format!("I'm sending to {}.", i).into_bytes();
-        assert_eq!(server.body(), comparison);
-    }
-}
-*/
