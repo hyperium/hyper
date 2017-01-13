@@ -31,6 +31,22 @@ pub trait NetworkListener: Clone {
     fn incoming(&mut self) -> NetworkConnections<Self> {
         NetworkConnections(self)
     }
+
+    /// Sets the read timeout for all streams that are accepted
+    fn set_read_timeout(&mut self, _: Option<Duration>) {
+        // This default implementation is only here to prevent the addition of
+        // these methods from being a breaking change. They should be removed
+        // when the next breaking release is made.
+        warn!("Ignoring read timeout");
+    }
+
+    /// Sets the write timeout for all streams that are accepted
+    fn set_write_timeout(&mut self, _: Option<Duration>) {
+        // This default implementation is only here to prevent the addition of
+        // these methods from being a breaking change. They should be removed
+        // when the next breaking release is made.
+        warn!("Ignoring write timeout");
+    }
 }
 
 /// An iterator wrapper over a `NetworkAcceptor`.
@@ -205,6 +221,9 @@ impl NetworkStream + Send {
 /// A `NetworkListener` for `HttpStream`s.
 pub struct HttpListener {
     listener: TcpListener,
+
+    read_timeout : Option<Duration>,
+    write_timeout: Option<Duration>,
 }
 
 impl Clone for HttpListener {
@@ -212,6 +231,9 @@ impl Clone for HttpListener {
     fn clone(&self) -> HttpListener {
         HttpListener {
             listener: self.listener.try_clone().unwrap(),
+
+            read_timeout : self.read_timeout.clone(),
+            write_timeout: self.write_timeout.clone(),
         }
     }
 }
@@ -220,6 +242,9 @@ impl From<TcpListener> for HttpListener {
     fn from(listener: TcpListener) -> HttpListener {
         HttpListener {
             listener: listener,
+
+            read_timeout : None,
+            write_timeout: None,
         }
     }
 }
@@ -236,12 +261,23 @@ impl NetworkListener for HttpListener {
 
     #[inline]
     fn accept(&mut self) -> ::Result<HttpStream> {
-        Ok(HttpStream(try!(self.listener.accept()).0))
+        let stream = HttpStream(try!(self.listener.accept()).0);
+        try!(stream.set_read_timeout(self.read_timeout));
+        try!(stream.set_write_timeout(self.write_timeout));
+        Ok(stream)
     }
 
     #[inline]
     fn local_addr(&mut self) -> io::Result<SocketAddr> {
         self.listener.local_addr()
+    }
+
+    fn set_read_timeout(&mut self, duration: Option<Duration>) {
+        self.read_timeout = duration;
+    }
+
+    fn set_write_timeout(&mut self, duration: Option<Duration>) {
+        self.write_timeout = duration;
     }
 }
 
@@ -536,6 +572,14 @@ impl<S: SslServer + Clone> NetworkListener for HttpsListener<S> {
     #[inline]
     fn local_addr(&mut self) -> io::Result<SocketAddr> {
         self.listener.local_addr()
+    }
+
+    fn set_read_timeout(&mut self, duration: Option<Duration>) {
+        self.listener.set_read_timeout(duration)
+    }
+
+    fn set_write_timeout(&mut self, duration: Option<Duration>) {
+        self.listener.set_write_timeout(duration)
     }
 }
 

@@ -198,11 +198,13 @@ impl<L: NetworkListener> Server<L> {
 
     /// Sets the read timeout for all Request reads.
     pub fn set_read_timeout(&mut self, dur: Option<Duration>) {
+        self.listener.set_read_timeout(dur);
         self.timeouts.read = dur;
     }
 
     /// Sets the write timeout for all Response writes.
     pub fn set_write_timeout(&mut self, dur: Option<Duration>) {
+        self.listener.set_write_timeout(dur);
         self.timeouts.write = dur;
     }
 }
