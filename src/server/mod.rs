@@ -150,7 +150,6 @@ pub struct Server<L = HttpListener> {
 #[derive(Clone, Copy, Debug)]
 struct Timeouts {
     read: Option<Duration>,
-    write: Option<Duration>,
     keep_alive: Option<Duration>,
 }
 
@@ -158,7 +157,6 @@ impl Default for Timeouts {
     fn default() -> Timeouts {
         Timeouts {
             read: None,
-            write: None,
             keep_alive: Some(Duration::from_secs(5))
         }
     }
@@ -205,7 +203,6 @@ impl<L: NetworkListener> Server<L> {
     /// Sets the write timeout for all Response writes.
     pub fn set_write_timeout(&mut self, dur: Option<Duration>) {
         self.listener.set_write_timeout(dur);
-        self.timeouts.write = dur;
     }
 }
 
@@ -274,11 +271,6 @@ impl<H: Handler + 'static> Worker<H> {
 
         self.handler.on_connection_start();
 
-        if let Err(e) = self.set_timeouts(&*stream) {
-            error!("set_timeouts error: {:?}", e);
-            return;
-        }
-
         let addr = match stream.peer_addr() {
             Ok(addr) => addr,
             Err(e) => {
@@ -302,15 +294,6 @@ impl<H: Handler + 'static> Worker<H> {
         self.handler.on_connection_end();
 
         debug!("keep_alive loop ending for {}", addr);
-    }
-
-    fn set_timeouts(&self, s: &NetworkStream) -> io::Result<()> {
-        try!(self.set_read_timeout(s, self.timeouts.read));
-        self.set_write_timeout(s, self.timeouts.write)
-    }
-
-    fn set_write_timeout(&self, s: &NetworkStream, timeout: Option<Duration>) -> io::Result<()> {
-        s.set_write_timeout(timeout)
     }
 
     fn set_read_timeout(&self, s: &NetworkStream, timeout: Option<Duration>) -> io::Result<()> {
