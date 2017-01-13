@@ -52,18 +52,6 @@ impl Read for Buf {
     }
 }
 
-impl ::vecio::Writev for Buf {
-    fn writev(&mut self, bufs: &[&[u8]]) -> io::Result<usize> {
-        let cap = bufs.iter().map(|buf| buf.len()).fold(0, |total, next| total + next);
-        let mut vec = Vec::with_capacity(cap);
-        for &buf in bufs {
-            vec.extend(buf);
-        }
-
-        self.write(&vec)
-    }
-}
-
 #[derive(Debug)]
 pub struct AsyncIo<T> {
     inner: T,
@@ -144,18 +132,6 @@ impl<T: Read + Write> Io for AsyncIo<T> {
         } else {
             Async::Ready(())
         }
-    }
-}
-
-impl<T: Write> ::vecio::Writev for AsyncIo<T> {
-    fn writev(&mut self, bufs: &[&[u8]]) -> io::Result<usize> {
-        let cap = bufs.iter().map(|buf| buf.len()).fold(0, |total, next| total + next);
-        let mut vec = Vec::with_capacity(cap);
-        for &buf in bufs {
-            vec.extend(buf);
-        }
-
-        self.write(&vec)
     }
 }
 

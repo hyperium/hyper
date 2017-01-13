@@ -284,7 +284,7 @@ mod tests {
     use std::io::Write;
     use super::Decoder;
     use super::ChunkedState;
-    use super::MemRead;
+    use http::io::MemRead;
     use http::buf::{MemBuf, MemSlice};
     use mock::AsyncIo;
 
