@@ -118,7 +118,11 @@ impl<I: Io, T: Http1Transaction, K: KeepAlive> Conn<I, T, K> {
                 let wants_keep_alive = head.should_keep_alive();
                 self.state.keep_alive &= wants_keep_alive;
                 let (body, reading) = if decoder.is_eof() {
-                    (false, Reading::KeepAlive)
+                    if wants_keep_alive {
+                        (false, Reading::KeepAlive)
+                    } else {
+                        (false, Reading::Closed)
+                    }
                 } else {
                     (true, Reading::Body(decoder))
                 };
