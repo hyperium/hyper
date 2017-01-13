@@ -203,25 +203,31 @@ impl NetworkStream + Send {
 }
 
 /// A `NetworkListener` for `HttpStream`s.
-pub struct HttpListener(TcpListener);
+pub struct HttpListener {
+    listener: TcpListener,
+}
 
 impl Clone for HttpListener {
     #[inline]
     fn clone(&self) -> HttpListener {
-        HttpListener(self.0.try_clone().unwrap())
+        HttpListener {
+            listener: self.listener.try_clone().unwrap(),
+        }
     }
 }
 
 impl From<TcpListener> for HttpListener {
     fn from(listener: TcpListener) -> HttpListener {
-        HttpListener(listener)
+        HttpListener {
+            listener: listener,
+        }
     }
 }
 
 impl HttpListener {
     /// Start listening to an address over HTTP.
     pub fn new<To: ToSocketAddrs>(addr: To) -> ::Result<HttpListener> {
-        Ok(HttpListener(try!(TcpListener::bind(addr))))
+        Ok(HttpListener::from(try!(TcpListener::bind(addr))))
     }
 }
 
@@ -230,40 +236,40 @@ impl NetworkListener for HttpListener {
 
     #[inline]
     fn accept(&mut self) -> ::Result<HttpStream> {
-        Ok(HttpStream(try!(self.0.accept()).0))
+        Ok(HttpStream(try!(self.listener.accept()).0))
     }
 
     #[inline]
     fn local_addr(&mut self) -> io::Result<SocketAddr> {
-        self.0.local_addr()
+        self.listener.local_addr()
     }
 }
 
 #[cfg(windows)]
 impl ::std::os::windows::io::AsRawSocket for HttpListener {
     fn as_raw_socket(&self) -> ::std::os::windows::io::RawSocket {
-        self.0.as_raw_socket()
+        self.listener.as_raw_socket()
     }
 }
 
 #[cfg(windows)]
 impl ::std::os::windows::io::FromRawSocket for HttpListener {
     unsafe fn from_raw_socket(sock: ::std::os::windows::io::RawSocket) -> HttpListener {
-        HttpListener(TcpListener::from_raw_socket(sock))
+        HttpListener::from(TcpListener::from_raw_socket(sock))
     }
 }
 
 #[cfg(unix)]
 impl ::std::os::unix::io::AsRawFd for HttpListener {
     fn as_raw_fd(&self) -> ::std::os::unix::io::RawFd {
-        self.0.as_raw_fd()
+        self.listener.as_raw_fd()
     }
 }
 
 #[cfg(unix)]
 impl ::std::os::unix::io::FromRawFd for HttpListener {
     unsafe fn from_raw_fd(fd: ::std::os::unix::io::RawFd) -> HttpListener {
-        HttpListener(TcpListener::from_raw_fd(fd))
+        HttpListener::from(TcpListener::from_raw_fd(fd))
     }
 }
 
