@@ -26,7 +26,7 @@ fn get_one_at_a_time(b: &mut test::Bencher) {
     let addr = hyper::Server::http(&"127.0.0.1:0".parse().unwrap(), &handle).unwrap()
         .handle(|| Ok(Hello), &handle).unwrap();
 
-    let mut client = hyper::Client::new(&handle);
+    let client = hyper::Client::new(&handle);
 
     let url: hyper::Url = format!("http://{}/get", addr).parse().unwrap();
 
@@ -51,7 +51,7 @@ fn post_one_at_a_time(b: &mut test::Bencher) {
     let addr = hyper::Server::http(&"127.0.0.1:0".parse().unwrap(), &handle).unwrap()
         .handle(|| Ok(Hello), &handle).unwrap();
 
-    let mut client = hyper::Client::new(&handle);
+    let client = hyper::Client::new(&handle);
 
     let url: hyper::Url = format!("http://{}/get", addr).parse().unwrap();
 
@@ -82,7 +82,7 @@ impl Service for Hello {
     type Response = server::Response;
     type Error = hyper::Error;
     type Future = ::futures::Finished<Self::Response, hyper::Error>;
-    fn call(&mut self, _req: Self::Request) -> Self::Future {
+    fn call(&self, _req: Self::Request) -> Self::Future {
         ::futures::finished(
             server::Response::new()
                 .with_header(ContentLength(PHRASE.len() as u64))
