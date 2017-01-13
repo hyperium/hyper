@@ -224,9 +224,6 @@ impl<T: Write + ::vecio::Writev> AtomicWrite for T {
 */
 impl<T: Write> AtomicWrite for T {
     fn write_atomic(&mut self, bufs: &[&[u8]]) -> io::Result<usize> {
-        if cfg!(not(windows)) {
-            warn!("write_atomic not using writev");
-        }
         let vec = bufs.concat();
         self.write(&vec)
     }
