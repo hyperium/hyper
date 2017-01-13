@@ -683,10 +683,10 @@ mod tests {
     }
 
     #[test]
-    fn test_headers_show() {
+    fn test_headers_to_string() {
         let mut headers = Headers::new();
         headers.set(ContentLength(15));
-        headers.set(Host { hostname: "foo.bar".to_owned(), port: None });
+        headers.set(Host::new("foo.bar", None));
 
         let s = headers.to_string();
         assert!(s.contains("Host: foo.bar\r\n"));
@@ -694,7 +694,7 @@ mod tests {
     }
 
     #[test]
-    fn test_headers_show_raw() {
+    fn test_headers_to_string_raw() {
         let headers = Headers::from_raw(&raw!(b"Content-Length: 10")).unwrap();
         let s = headers.to_string();
         assert_eq!(s, "Content-Length: 10\r\n");
@@ -766,7 +766,7 @@ mod tests {
         assert_eq!(headers1, headers2);
 
         headers1.set(ContentLength(11));
-        headers2.set(Host {hostname: "foo.bar".to_owned(), port: None});
+        headers2.set(Host::new("foo.bar", None));
         assert!(headers1 != headers2);
 
         headers1 = Headers::new();
@@ -782,7 +782,7 @@ mod tests {
         headers1 = Headers::new();
         headers2 = Headers::new();
 
-        headers1.set(Host { hostname: "foo.bar".to_owned(), port: None });
+        headers1.set(Host::new("foo.bar", None));
         headers1.set(ContentLength(11));
         headers2.set(ContentLength(11));
         assert!(headers1 != headers2);

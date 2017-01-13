@@ -123,10 +123,7 @@ impl<C: Connect> Service for Client<C> {
 
         let (mut head, body) = request::split(req);
         let mut headers = Headers::new();
-        headers.set(Host {
-            hostname: url.host_str().unwrap().to_owned(),
-            port: url.port().or(None),
-        });
+        headers.set(Host::new(url.host_str().unwrap().to_owned(), url.port()));
         headers.extend(head.headers.iter());
         head.subject.1 = RequestUri::AbsolutePath {
             path: url.path().to_owned(),

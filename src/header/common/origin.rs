@@ -43,10 +43,7 @@ impl Origin {
     pub fn new<S: Into<String>, H: Into<String>>(scheme: S, hostname: H, port: Option<u16>) -> Origin{
         Origin {
             scheme: scheme.into(),
-            host: Host {
-                hostname: hostname.into(),
-                port: port
-            }
+            host: Host::new(hostname.into(), port),
         }
     }
 }
