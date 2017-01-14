@@ -119,10 +119,7 @@ impl<C: Connect> Service for Client<C> {
     type Future = FutureResponse;
 
     fn call(&self, req: Request) -> Self::Future {
-        let url = match req.uri() {
-            &::RequestUri::AbsoluteUri(ref u) => u.clone(),
-            _ => unimplemented!("RequestUri::*")
-        };
+        let url = req.url().clone();
 
         let (mut head, body) = request::split(req);
         let mut headers = Headers::new();
