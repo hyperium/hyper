@@ -10,7 +10,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use futures::{Poll, Async, Future};
-use futures::sync::oneshot;
+use relay;
 use tokio::io::Io;
 use tokio::reactor::Handle;
 use tokio_proto::BindClient;
@@ -138,7 +138,7 @@ impl<C: Connect> Service for Client<C> {
             let pool_key = Rc::new(url[..::url::Position::BeforePath].to_owned());
             self.connector.connect(url)
                 .map(move |io| {
-                    let (tx, rx) = oneshot::channel();
+                    let (tx, rx) = relay::channel();
                     let client = HttpClient {
                         client_rx: RefCell::new(Some(rx)),
                     }.bind_client(&handle, io);
@@ -186,7 +186,7 @@ impl<C> fmt::Debug for Client<C> {
 type TokioClient = ClientProxy<Message<http::RequestHead, TokioBody>, Message<http::ResponseHead, TokioBody>, ::Error>;
 
 struct HttpClient {
-    client_rx: RefCell<Option<oneshot::Receiver<Pooled<TokioClient>>>>,
+    client_rx: RefCell<Option<relay::Receiver<Pooled<TokioClient>>>>,
 }
 
 impl<T: Io + 'static> ClientProto<T> for HttpClient {
@@ -207,7 +207,7 @@ impl<T: Io + 'static> ClientProto<T> for HttpClient {
 }
 
 struct BindingClient<T> {
-    rx: oneshot::Receiver<Pooled<TokioClient>>,
+    rx: relay::Receiver<Pooled<TokioClient>>,
     io: Option<T>,
 }
 
