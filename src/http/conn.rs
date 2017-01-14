@@ -574,6 +574,7 @@ mod tests {
     use mock::AsyncIo;
 
     use super::{Conn, Writing};
+    use ::uri::Uri;
 
     #[test]
     fn test_conn_init_read() {
@@ -585,10 +586,7 @@ mod tests {
         match conn.poll().unwrap() {
             Async::Ready(Some(Frame::Message { message, body: false })) => {
                 assert_eq!(message, MessageHead {
-                    subject: ::http::RequestLine(::Get, ::RequestUri::AbsolutePath {
-                        path: "/".to_string(),
-                        query: None,
-                    }),
+                    subject: ::http::RequestLine(::Get, Uri::new("/").unwrap()),
                     .. MessageHead::default()
                 })
             },

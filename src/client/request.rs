@@ -5,7 +5,7 @@ use Url;
 use header::Headers;
 use http::{Body, RequestHead};
 use method::Method;
-use uri::RequestUri;
+use uri::Uri;
 use version::HttpVersion;
 
 /// A client request to a remote server.
@@ -79,8 +79,9 @@ impl fmt::Debug for Request {
 }
 
 pub fn split(req: Request) -> (RequestHead, Option<Body>) {
+    let uri = Uri::new(&req.url[::url::Position::BeforePath..::url::Position::AfterQuery]).expect("url is uri");
     let head = RequestHead {
-        subject: ::http::RequestLine(req.method, RequestUri::AbsoluteUri(req.url)),
+        subject: ::http::RequestLine(req.method, uri),
         headers: req.headers,
         version: req.version,
     };

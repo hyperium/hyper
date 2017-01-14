@@ -31,7 +31,7 @@ pub type Result<T> = ::std::result::Result<T, Error>;
 pub enum Error {
     /// An invalid `Method`, such as `GE,T`.
     Method,
-    /// An invalid `RequestUri`, such as `exam ple.domain`.
+    /// An invalid `Uri`, such as `exam ple.domain`.
     Uri(url::ParseError),
     /// An invalid `HttpVersion`, such as `HTP/1.1`
     Version,
