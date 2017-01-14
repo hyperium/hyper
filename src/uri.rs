@@ -1,10 +1,147 @@
 //! HTTP RequestUris
 use std::fmt::{Display, self};
 use std::str::FromStr;
-use url::Url;
+use url::{self, Url};
 use url::ParseError as UrlError;
 
 use Error;
+
+/// Uri explanations:
+///
+/// abc://username:password@example.com:123/path/data?key=value&key2=value2#fragid1
+/// |-|   |-------------------------------||--------| |-------------------| |-----|
+///  |                  |                       |               |              |
+/// scheme          authority                 path            query         fragment
+#[derive(Debug)]
+pub struct Uri {
+    source: String,
+    scheme_end: Option<usize>,
+    authority_end: Option<usize>,
+    query: Option<usize>,
+}
+
+impl Uri {
+    pub fn new(s: &str) -> Result<Uri, Error> {
+        let bytes = s.as_bytes();
+        if bytes.len() == 0 {
+            Err(Error::Uri(UrlError::RelativeUrlWithoutBase))
+        } else if bytes == b"*" {
+            Ok(Uri {
+                source: s.to_owned(),
+                scheme_end: None,
+                authority_end: None,
+                query: None,
+            })
+        } else if bytes.starts_with(b"/") {
+            let mut temp = "http://example.com".to_owned();
+            temp.push_str(s);
+            let url = try!(Url::parse(&temp));
+            let query_len = url.query().unwrap_or("").len();
+            Ok(Uri {
+                source: s.to_owned(),
+                scheme_end: None,
+                authority_end: None,
+                query: if query_len > 0 { Some(query_len) } else { None },
+            })
+        } else if bytes.contains(&b'/') {
+            let url = try!(Url::parse(s));
+            let query_len = url.query().unwrap_or("").len();
+            let authority_end = s.split(url.path()).next().unwrap_or("").len();
+            match url.origin() {
+                url::Origin::Opaque(_) => Err(Error::Method),
+                url::Origin::Tuple(scheme, host, port) => {
+                    Ok(Uri {
+                        source: s.to_owned(),
+                        scheme_end: Some(scheme.len()),
+                        authority_end: if authority_end > 0 { Some(authority_end) } else { None },
+                        query: if query_len > 0 { Some(query_len) } else { None },
+                    })
+                }
+            }
+        } else {
+            let mut temp = "http://".to_owned();
+            temp.push_str(s);
+            let url = try!(Url::parse(&temp));
+            if url.query().is_some() {
+                return Err(Error::Uri(UrlError::RelativeUrlWithoutBase));
+            }
+            let query_len = url.query().unwrap_or("").len();
+            let authority_end = s.split(url.path()).next().unwrap_or("").len();
+            match url.origin() {
+                url::Origin::Opaque(_) => Err(Error::Method),
+                url::Origin::Tuple(scheme, host, port) => {
+                    Ok(Uri {
+                        source: s.to_owned(),
+                        scheme_end: Some(scheme.len()),
+                        authority_end: if authority_end > 0 { Some(authority_end) } else { None },
+                        query: if query_len > 0 { Some(query_len) } else { None },
+                    })
+                }
+            }
+        }
+    }
+
+    pub fn path(&self) -> &str {
+        let index = self.authority_end.unwrap_or(self.scheme_end.unwrap_or(0));
+        let query_len = self.query.unwrap_or(0);
+        let end = self.source.len() - if query_len > 0 { query_len + 1 } else { 0 };
+        &self.source[index..end]
+    }
+
+    pub fn scheme(&self) -> Option<&str> {
+        if let Some(end) = self.scheme_end {
+            Some(&self.source[..end])
+        } else {
+            None
+        }
+    }
+
+    pub fn authority(&self) -> Option<&str> {
+        if let Some(end) = self.authority_end {
+            let index = self.scheme_end.map(|i| i + 3).unwrap_or(0);
+            Some(&self.source[index..end])
+        } else {
+            None
+        }
+    }
+
+    pub fn query(&self) -> Option<&str> {
+        if let Some(len) = self.query {
+            Some(&self.source[self.source.len() - len..])
+        } else {
+            None
+        }
+    }
+}
+
+impl FromStr for Uri {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Uri, Error> {
+        Uri::new(s)
+    }
+}
+
+impl Default for Uri {
+    fn default() -> Uri {
+        Uri::new("*").unwrap()
+    }
+}
+
+impl Display for Uri {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(&self.source)
+    }
+}
+
+#[test]
+fn test_uri() {
+    let uri = Uri::new("http://test.com/nazghul?test=3").expect("Uri::new failed");
+    assert_eq!(uri.path(), "/nazghul");
+    assert_eq!(uri.authority(), Some("test.com"));
+    assert_eq!(uri.scheme(), Some("http"));
+    assert_eq!(uri.query(), Some("test=3"));
+}
 
 /// The Request-URI of a Request's StartLine.
 ///
