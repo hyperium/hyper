@@ -28,12 +28,8 @@ vecio = "0.1"
 version = "0.3"
 default-features = false
 
-[dependencies.openssl]
-version = "0.7"
-optional = true
-
-[dependencies.openssl-verify]
-version = "0.1"
+[dependencies.hyper-openssl]
+version = "0.2"
 optional = true
 
 [dependencies.security-framework]
@@ -50,6 +46,6 @@ num_cpus = "1.0"
 
 [features]
 default = ["ssl"]
-ssl = ["openssl", "openssl-verify"]
+ssl = ["hyper-openssl"]
 serde-serialization = ["serde", "mime/serde"]
 nightly = []
