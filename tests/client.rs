@@ -73,7 +73,7 @@ macro_rules! test {
                 while n < buf.len() && n < expected.len() {
                     n += inc.read(&mut buf[n..]).unwrap();
                 }
-                assert_eq!(s(&buf[..n]), expected);
+                assert_eq!(s(&buf[..n]), expected, "expected is invalid");
 
                 inc.write_all($server_reply.as_ref()).unwrap();
                 tx.complete(());
@@ -84,9 +84,9 @@ macro_rules! test {
             let work = res.join(rx).map(|r| r.0);
 
             let res = core.run(work).unwrap();
-            assert_eq!(res.status(), &StatusCode::$client_status);
+            assert_eq!(res.status(), &StatusCode::$client_status, "status is invalid");
             $(
-                assert_eq!(res.headers().get(), Some(&$response_headers));
+                assert_eq!(res.headers().get(), Some(&$response_headers), "headers are invalid");
             )*
         }
     );

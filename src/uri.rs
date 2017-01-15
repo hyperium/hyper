@@ -47,7 +47,7 @@ impl Uri {
                 query: if query_len > 0 { Some(query_len) } else { None },
                 fragment: if fragment_len > 0 { Some(fragment_len) } else { None },
             })
-        } else if bytes.contains(&b'/') {
+        } else if s.contains("://") {
             let url = try!(Url::parse(s));
             let query_len = url.query().unwrap_or("").len();
             let v: Vec<&str> = s.split("://").collect();
@@ -70,27 +70,7 @@ impl Uri {
                 }
             }
         } else {
-            let mut temp = "http://".to_owned();
-            temp.push_str(s);
-            let url = try!(Url::parse(&temp));
-            if url.query().is_some() {
-                return Err(Error::Uri(UrlError::RelativeUrlWithoutBase));
-            }
-            let query_len = url.query().unwrap_or("").len();
-            let authority_end = s.split(url.path()).next().unwrap_or(s).len();
-            let fragment_len = url.fragment().unwrap_or("").len();
-            match url.origin() {
-                url::Origin::Opaque(_) => Err(Error::Method),
-                url::Origin::Tuple(scheme, _, _) => {
-                    Ok(Uri {
-                        source: s.to_owned(),
-                        scheme_end: Some(scheme.len()),
-                        authority_end: if authority_end > 0 { Some(authority_end) } else { None },
-                        query: if query_len > 0 { Some(query_len) } else { None },
-                        fragment: if fragment_len > 0 { Some(fragment_len) } else { None },
-                    })
-                }
-            }
+            Uri::new(&format!("http://{}", s))
         }
     }
 
@@ -178,30 +158,19 @@ impl FromStr for Uri {
 
 impl From<Url> for Uri {
     fn from(url: Url) -> Uri {
-        let query_len = url.query().unwrap_or("").len();
-        let fragment_len = url.fragment().unwrap_or("").len();
-        let s = url.as_str();
-        let authority_end = s.split(url.path()).next().unwrap_or("").len();
-        match url.origin() {
-            url::Origin::Opaque(_) => panic!("Invalid Opaque url received"),
-            url::Origin::Tuple(scheme, _, _) => {
-                let x = Uri {
-                    source: s.to_owned(),
-                    scheme_end: Some(scheme.len()),
-                    authority_end: if authority_end > 0 { Some(authority_end) } else { None },
-                    query: if query_len > 0 { Some(query_len) } else { None },
-                    fragment: if fragment_len > 0 { Some(fragment_len) } else { None },
-                };
-                //panic!("{:?}", x);
-                x
-            }
-        }
+        Uri::new(url.as_str()).expect("Uri::From<Url> failed")
     }
 }
 
 impl PartialEq for Uri {
     fn eq(&self, other: &Uri) -> bool {
         self.source == other.source
+    }
+}
+
+impl AsRef<str> for Uri {
+    fn as_ref(&self) -> &str {
+        &self.source
     }
 }
 
@@ -213,7 +182,7 @@ impl Default for Uri {
 
 impl Display for Uri {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(&self.source)
+        f.write_str(self.path())
     }
 }
 
@@ -227,7 +196,7 @@ fn test_uri() {
     assert_eq!(uri.host(), Some("test.com"));
     assert_eq!(uri.fragment(), Some("fragment"));
 
-    let uri = Uri::new("http://127.0.0.1:61761/chunks").expect("Uri::new failed");
+    let uri = Uri::new("http://127.0.0.1:61761/chunks").expect("Uri::new without fragment failed");
     assert_eq!(uri.path(), "/chunks");
     assert_eq!(uri.authority(), Some("127.0.0.1:61761"));
     assert_eq!(uri.scheme(), Some("http"));
@@ -235,13 +204,44 @@ fn test_uri() {
     assert_eq!(uri.host(), Some("127.0.0.1"));
     assert_eq!(uri.fragment(), None);
 
-    let uri = Uri::new("http://127.0.0.1:61761").expect("Uri::new failed");
-    println!("{:?}", uri);
+    let uri = Uri::new("http://127.0.0.1:61761").expect("Uri::new without path failed");
     assert_eq!(uri.path(), "/");
     assert_eq!(uri.authority(), Some("127.0.0.1:61761"));
     assert_eq!(uri.scheme(), Some("http"));
     assert_eq!(uri.query(), None);
     assert_eq!(uri.host(), Some("127.0.0.1"));
+    assert_eq!(uri.fragment(), None);
+
+    let uri = Uri::new("127.0.0.1:61761/").expect("Uri::new without scheme failed");
+    assert_eq!(uri.path(), "/");
+    assert_eq!(uri.authority(), Some("127.0.0.1:61761"));
+    assert_eq!(uri.scheme(), Some("http"));
+    assert_eq!(uri.query(), None);
+    assert_eq!(uri.host(), Some("127.0.0.1"));
+    assert_eq!(uri.fragment(), None);
+
+    let uri = Uri::new("127.0.0.1:61761").expect("Uri::new without scheme and path failed");
+    assert_eq!(uri.path(), "/");
+    assert_eq!(uri.authority(), Some("127.0.0.1:61761"));
+    assert_eq!(uri.scheme(), Some("http"));
+    assert_eq!(uri.query(), None);
+    assert_eq!(uri.host(), Some("127.0.0.1"));
+    assert_eq!(uri.fragment(), None);
+
+    let uri = Uri::new("/test").expect("Uri::new path only failed");
+    assert_eq!(uri.path(), "/test");
+    assert_eq!(uri.authority(), None);
+    assert_eq!(uri.scheme(), None);
+    assert_eq!(uri.query(), None);
+    assert_eq!(uri.host(), None);
+    assert_eq!(uri.fragment(), None);
+
+    let uri = Uri::new("*").expect("Uri::new star failed");
+    assert_eq!(uri.path(), "*");
+    assert_eq!(uri.authority(), None);
+    assert_eq!(uri.scheme(), None);
+    assert_eq!(uri.query(), None);
+    assert_eq!(uri.host(), None);
     assert_eq!(uri.fragment(), None);
 }
 
