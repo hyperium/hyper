@@ -23,7 +23,6 @@ use header::{Headers, Host};
 use http::{self, TokioBody};
 use method::Method;
 use self::pool::{Pool, Pooled};
-use uri::Uri;
 use {Url};
 
 pub use self::connect::{DefaultConnector, HttpConnector, Connect};
