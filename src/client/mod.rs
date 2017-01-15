@@ -23,7 +23,7 @@ use header::{Headers, Host};
 use http::{self, TokioBody};
 use method::Method;
 use self::pool::{Pool, Pooled};
-use uri::RequestUri;
+use uri::Uri;
 use {Url};
 
 pub use self::connect::{DefaultConnector, HttpConnector, Connect};
@@ -119,11 +119,8 @@ impl<C: Connect> Service for Client<C> {
     type Future = FutureResponse;
 
     fn call(&mut self, req: Request) -> Self::Future {
-        let url = match req.uri() {
-            &::RequestUri::AbsoluteUri(ref u) => u.clone(),
-            _ => unimplemented!("RequestUri::*")
-        };
-
+        let url = Url::parse(req.uri().uri()).unwrap();
+        let uri = req.uri().clone();
         let (mut head, body) = request::split(req);
         let mut headers = Headers::new();
         headers.set(Host {
@@ -131,10 +128,8 @@ impl<C: Connect> Service for Client<C> {
             port: url.port().or(None),
         });
         headers.extend(head.headers.iter());
-        head.subject.1 = RequestUri::AbsolutePath {
-            path: url.path().to_owned(),
-            query: url.query().map(ToOwned::to_owned),
-        };
+        head.subject.1 = uri;
+        let url = Url::parse(head.subject.1.uri()).unwrap();
         head.headers = headers;
 
         let checkout = self.pool.checkout(&url[..::url::Position::BeforePath]);

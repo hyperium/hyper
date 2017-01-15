@@ -5,7 +5,7 @@ use Url;
 use header::Headers;
 use http::{Body, RequestHead};
 use method::Method;
-use uri::RequestUri;
+use uri::Uri;
 use version::HttpVersion;
 
 /// A client request to a remote server.
@@ -21,7 +21,7 @@ impl Request {
     pub fn new(method: Method, url: Url) -> Request {
         Request {
             head: RequestHead {
-                subject: ::http::RequestLine(method, RequestUri::AbsoluteUri(url)),
+                subject: ::http::RequestLine(method, Uri::from(url)),
                 version: HttpVersion::default(),
                 headers: Headers::new(),
             },
@@ -31,7 +31,7 @@ impl Request {
 
     /// Read the Request Url.
     #[inline]
-    pub fn uri(&self) -> &RequestUri { &self.head.subject.1 }
+    pub fn uri(&self) -> &Uri { &self.head.subject.1 }
 
     /// Readthe Request Version.
     #[inline]
@@ -53,9 +53,9 @@ impl Request {
     #[inline]
     pub fn headers_mut(&mut self) -> &mut Headers { &mut self.head.headers }
 
-    /// Set the `RequestUri` of this request.
+    /// Set the `Uri` of this request.
     #[inline]
-    pub fn set_uri(&mut self, uri: RequestUri) { self.head.subject.1 = uri; }
+    pub fn set_uri(&mut self, uri: Uri) { self.head.subject.1 = uri; }
 
     /// Set the `HttpVersion` of this request.
     #[inline]
