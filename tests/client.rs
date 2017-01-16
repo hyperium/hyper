@@ -2,6 +2,7 @@
 extern crate hyper;
 extern crate futures;
 extern crate tokio_core;
+extern crate pretty_env_logger;
 
 use std::io::{self, Read, Write};
 use std::net::TcpListener;
@@ -11,10 +12,10 @@ use std::time::Duration;
 use hyper::client::{Client, Request, HttpConnector};
 use hyper::{Method, StatusCode};
 
-use futures::Future;
+use futures::{Future, Stream};
 use futures::sync::oneshot;
 
-use tokio_core::reactor::{Core, Handle};
+use tokio_core::reactor::{Core, Handle, Timeout};
 
 fn client(handle: &Handle) -> Client<HttpConnector> {
     Client::new(handle)
@@ -232,6 +233,7 @@ fn client_keep_alive() {
 
 #[test]
 fn client_pooled_socket_disconnected() {
+    let _ = pretty_env_logger::init();
     let server = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = server.local_addr().unwrap();
     let mut core = Core::new().unwrap();
@@ -246,7 +248,9 @@ fn client_pooled_socket_disconnected() {
         sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
         let mut buf = [0; 4096];
         sock.read(&mut buf).expect("read 1");
-        sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").expect("write 1");
+        let remote_addr = sock.peer_addr().unwrap().to_string();
+        let out = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}", remote_addr.len(), remote_addr);
+        sock.write_all(out.as_bytes()).expect("write 1");
         drop(sock);
         tx1.complete(());
 
@@ -254,17 +258,37 @@ fn client_pooled_socket_disconnected() {
         sock.read(&mut buf).expect("read 2");
         let second_get = b"GET /b HTTP/1.1\r\n";
         assert_eq!(&buf[..second_get.len()], second_get);
-        sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").expect("write 2");
+        let remote_addr = sock.peer_addr().unwrap().to_string();
+        let out = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}", remote_addr.len(), remote_addr);
+        sock.write_all(out.as_bytes()).expect("write 2");
         tx2.complete(());
     });
 
-
+    // spin shortly so we receive the hangup on the client socket
+    let sleep = Timeout::new(Duration::from_millis(500), &core.handle()).unwrap();
+    core.run(sleep).unwrap();
 
     let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
-    let res = client.get(format!("http://{}/a", addr).parse().unwrap());
-    core.run(res.join(rx).map(|r| r.0)).unwrap();
+    let res = client.get(format!("http://{}/a", addr).parse().unwrap())
+        .and_then(|res| {
+            res.body()
+                .map(|chunk| chunk.to_vec())
+                .collect()
+                .map(|vec| vec.concat())
+                .map(|vec| String::from_utf8(vec).unwrap())
+        });
+    let addr1 = core.run(res.join(rx).map(|r| r.0)).unwrap();
 
     let rx = rx2.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
-    let res = client.get(format!("http://{}/b", addr).parse().unwrap());
-    core.run(res.join(rx).map(|r| r.0)).unwrap();
+    let res = client.get(format!("http://{}/b", addr).parse().unwrap())
+        .and_then(|res| {
+            res.body()
+                .map(|chunk| chunk.to_vec())
+                .collect()
+                .map(|vec| vec.concat())
+                .map(|vec| String::from_utf8(vec).unwrap())
+        });
+    let addr2 = core.run(res.join(rx).map(|r| r.0)).unwrap();
+
+    assert_ne!(addr1, addr2);
 }
