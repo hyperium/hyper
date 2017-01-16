@@ -27,7 +27,6 @@ unicase = "1.0"
 url = "1.0"
 
 [dev-dependencies]
-hyper-tls = { git = "https://github.com/hyperium/hyper-tls" }
 num_cpus = "1.0"
 pretty_env_logger = "0.1"
 spmc = "0.2"

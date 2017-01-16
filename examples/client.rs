@@ -1,7 +1,6 @@
 #![deny(warnings)]
 extern crate futures;
 extern crate hyper;
-extern crate hyper_tls;
 extern crate tokio_core;
 
 extern crate pretty_env_logger;
@@ -25,13 +24,17 @@ fn main() {
         }
     };
 
+    let url = hyper::Url::parse(&url).unwrap();
+    if url.scheme() != "http" {
+        println!("This example only works with 'http' URLs.");
+        return;
+    }
+
     let mut core = tokio_core::reactor::Core::new().unwrap();
     let handle = core.handle();
-    let client = Client::configure()
-        .connector(hyper_tls::HttpsConnector::new(4, &handle))
-        .build(&handle);
+    let client = Client::new(&handle);
 
-    let work = client.get(url.parse().unwrap()).and_then(|res| {
+    let work = client.get(url).and_then(|res| {
         println!("Response: {}", res.status());
         println!("Headers: \n{}", res.headers());
 
