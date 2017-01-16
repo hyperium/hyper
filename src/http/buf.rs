@@ -141,7 +141,7 @@ impl MemBuf {
 unsafe fn grow_zerofill(buf: &mut Vec<u8>, additional: usize) {
     let len = buf.len();
     buf.set_len(len + additional);
-    ::std::ptr::write_bytes(buf.as_mut_ptr().offset(len as isize), 0, buf.len());
+    ::std::ptr::write_bytes(buf.as_mut_ptr().offset(len as isize), 0, additional);
 }
 
 impl fmt::Debug for MemBuf {
