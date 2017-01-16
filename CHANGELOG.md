@@ -1,3 +1,150 @@
+## v0.10.0 (2017-01-10)
+
+#### Features
+
+* **client:**
+  * change ProxyConfig to allow HTTPS proxies ([14a4f1c2](https://github.com/hyperium/hyper/commit/14a4f1c2f735efe7b638e9078710ca32dc1e360a))
+  * remove experimental HTTP2 support ([d301c6a1](https://github.com/hyperium/hyper/commit/d301c6a1708c7d408b7f03ac46674a5f0edd3253))
+* **header:** remove `cookie` dependency ([f22701f7](https://github.com/hyperium/hyper/commit/f22701f7e7258ad4a26645eba47a3d374e452e86))
+* **lib:**
+  * remove SSL dependencies ([2f48612c](https://github.com/hyperium/hyper/commit/2f48612c7e141a9d612d7cb9d524b2f460561f56))
+  * remove `serde-serialization` feature ([7b9817ed](https://github.com/hyperium/hyper/commit/7b9817edcf4451bd033e55467c75577031bfe740))
+
+
+#### Breaking Changes
+
+* There is no more `hyper::http::h2`.
+
+  ([d301c6a1](https://github.com/hyperium/hyper/commit/d301c6a1708c7d408b7f03ac46674a5f0edd3253))
+* The `Cookie` and `SetCookie` headers no longer use the
+  cookie crate. New headers can be written for any header, or the ones
+  provided in hyper can be accessed as strings.
+
+  ([f22701f7](https://github.com/hyperium/hyper/commit/f22701f7e7258ad4a26645eba47a3d374e452e86))
+* There is no longer a `serde-serialization` feature.
+  Look at external crates, like `hyper-serde`, to fulfill this feature.
+
+  ([7b9817ed](https://github.com/hyperium/hyper/commit/7b9817edcf4451bd033e55467c75577031bfe740))
+* hyper will no longer provide OpenSSL support out of the
+  box. The `hyper::net::Openssl` and related types are gone. The `Client`
+  now uses an `HttpConnector` by default, which will error trying to
+  access HTTPS URLs.
+
+  TLS support should be added in from other crates, such as
+  hyper-openssl, or similar using different TLS implementations.
+
+  ([2f48612c](https://github.com/hyperium/hyper/commit/2f48612c7e141a9d612d7cb9d524b2f460561f56))
+* Usage of `with_proxy_config` will need to change to
+  provide a network connector. For the same functionality, a
+  `hyper::net::HttpConnector` can be easily created and passed.
+
+  ([14a4f1c2](https://github.com/hyperium/hyper/commit/14a4f1c2f735efe7b638e9078710ca32dc1e360a))
+
+
+### v0.9.14 (2016-12-12)
+
+
+#### Features
+
+* **headers:** add star, json, text, image constructors to Accept ([a9fbbd7f](https://github.com/hyperium/hyper/commit/a9fbbd7fdbcbec51ef560e9882a8fefa64a93b54))
+* **server:** add 'take_buf' method to BufReader ([bbbce5fc](https://github.com/hyperium/hyper/commit/bbbce5fc8bca0bcc34df4a4a9223432085fba2ff))
+
+
+### v0.9.13 (2016-11-27)
+
+
+#### Bug Fixes
+
+* **client:** close Pooled streams on sockopt error ([d5ffee2e](https://github.com/hyperium/hyper/commit/d5ffee2ec801274ac271273289084b7251b4ce89))
+
+
+### v0.9.12 (2016-11-09)
+
+
+#### Features
+
+* **error:** re-export url::ParseError ([30e78ac2](https://github.com/hyperium/hyper/commit/30e78ac212ed3085a5217e8d7f641c2f161ddc87))
+
+
+### v0.9.11 (2016-10-31)
+
+
+#### Bug Fixes
+
+* **headers:** Allow IPv6 Addresses in Host header ([20f177ab](https://github.com/hyperium/hyper/commit/20f177abec12397f23adf43f6b726daee1a731cf))
+
+
+#### Features
+
+* **headers:**
+  * Add strict-origin and strict-origin-when-cross-origin referer policy ([1be4e769](https://github.com/hyperium/hyper/commit/1be4e7693f7d27c049f35fefb9fffead2581b1f4))
+  * support multiple values for Referrer-Policy header ([dc476657](https://github.com/hyperium/hyper/commit/dc4766573af9bd31d57fede5b9ef0ffa56fe44ab), closes [#882](https://github.com/hyperium/hyper/issues/882))
+  * add last-event-id header ([2277987f](https://github.com/hyperium/hyper/commit/2277987f3c25380353db606ca7baaf0c854095cd))
+* **server:** accept combined certificate files ([eeb1f48e](https://github.com/hyperium/hyper/commit/eeb1f48e17f4c71162ce90f88bda3dc37b489cc7))
+
+
+### v0.9.10 (2016-07-11)
+
+
+#### Features
+
+* **headers:**
+  * add origin header ([64881ae0](https://github.com/hyperium/hyper/commit/64881ae05458f06261b2e7d0f790184678cc42b9))
+  * Add Referrer-Policy header ([b76a02cc](https://github.com/hyperium/hyper/commit/b76a02cc446f2a3935006035fd73f5f7a47ec428))
+
+
+### v0.9.9 (2016-06-21)
+
+
+#### Bug Fixes
+
+* **headers:** Remove raw part when getting mutable reference to typed header ([63b61524](https://github.com/hyperium/hyper/commit/63b615249443b8f897018f21473c2f1f8e43663c), closes [#821](https://github.com/hyperium/hyper/issues/821))
+
+
+#### Features
+
+* **error:** Display for Error shows better info ([5620fbf9](https://github.com/hyperium/hyper/commit/5620fbf98f1fd43482a9ffa3c98f2f38b42fd4b0), closes [#694](https://github.com/hyperium/hyper/issues/694))
+
+
+### v0.9.8 (2016-06-14)
+
+
+#### Features
+
+* **client:** enable use of custom TLS wrapper for proxied connections ([0476196c](https://github.com/hyperium/hyper/commit/0476196c320765a66f730c56048998980b173caf), closes [#824](https://github.com/hyperium/hyper/issues/824))
+
+
+### v0.9.7 (2016-06-09)
+
+
+#### Bug Fixes
+
+* **proxy:** fix the 0.9.x build with `--no-default-features --features=security-framework` ([6caffe9f](https://github.com/hyperium/hyper/commit/6caffe9fb302da99ce8cf0c8027c06b8c6de782d), closes [#819](https://github.com/hyperium/hyper/issues/819))
+* **server:** Request.ssl() works ([ce0b62ea](https://github.com/hyperium/hyper/commit/ce0b62eae7688987b722599be8e8b2ff6764b224))
+
+
+### v0.9.6 (2016-05-23)
+
+
+#### Bug Fixes
+
+* **client:** Manually impl Debug for PooledStream ([aa692236](https://github.com/hyperium/hyper/commit/aa692236a851d29abec63b6a0d61d957cea5fd26))
+* **server:** Switch Ssl to SslServer in bounds ([470bc8ec](https://github.com/hyperium/hyper/commit/470bc8ec396bfc9ead6782f72e6de58268767a5a))
+
+
+### v0.9.5 (2016-05-18)
+
+
+#### Bug Fixes
+
+* **windows:** disable openssl cert validation for Windows ([c89aca81](https://github.com/hyperium/hyper/commit/c89aca812bf863aadb52326f534a65c1d3cf31d6), closes [#794](https://github.com/hyperium/hyper/issues/794))
+
+
+#### Features
+
+* **net:** Add OpensslClient constructor ([3c0e1050](https://github.com/hyperium/hyper/commit/3c0e105011fc8a4fc639370836aa6a2e576b6f0e))
+
+
 ### v0.9.4 (2016-05-09)
 
 
