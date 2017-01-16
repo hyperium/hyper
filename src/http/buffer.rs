@@ -103,5 +103,5 @@ impl Buffer {
 unsafe fn grow_zerofill(buf: &mut Vec<u8>, additional: usize) {
     let len = buf.len();
     buf.set_len(len + additional);
-    ptr::write_bytes(buf.as_mut_ptr().offset(len as isize), 0, buf.len());
+    ptr::write_bytes(buf.as_mut_ptr().offset(len as isize), 0, additional);
 }
