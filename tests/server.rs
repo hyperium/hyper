@@ -4,27 +4,29 @@ extern crate futures;
 extern crate spmc;
 extern crate pretty_env_logger;
 
-use futures::Future;
-use futures::stream::Stream;
+use futures::{Future, Stream};
+use futures::sync::oneshot;
 
 use std::net::{TcpStream, SocketAddr};
 use std::io::{Read, Write};
 use std::sync::mpsc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use hyper::server::{Server, Request, Response, Service, NewService};
+use hyper::server::{Http, Request, Response, Service, NewService};
 
 struct Serve {
-    listening: Option<hyper::server::Listening>,
+    addr: SocketAddr,
     msg_rx: mpsc::Receiver<Msg>,
     reply_tx: spmc::Sender<Reply>,
-    spawn_rx: mpsc::Receiver<()>,
+    shutdown_signal: Option<oneshot::Sender<()>>,
+    thread: Option<thread::JoinHandle<()>>,
 }
 
 impl Serve {
     fn addr(&self) -> &SocketAddr {
-        self.listening.as_ref().unwrap().addr()
+        &self.addr
     }
 
     fn body(&self) -> Vec<u8> {
@@ -66,14 +68,14 @@ impl<'a> ReplyBuilder<'a> {
 
 impl Drop for Serve {
     fn drop(&mut self) {
-        self.listening.take().unwrap().close();
-        self.spawn_rx.recv().expect("server thread should shutdown cleanly");
+        drop(self.shutdown_signal.take());
+        self.thread.take().unwrap().join().unwrap();
     }
 }
 
 #[derive(Clone)]
 struct TestService {
-    tx: mpsc::Sender<Msg>,
+    tx: Arc<Mutex<mpsc::Sender<Msg>>>,
     reply: spmc::Receiver<Reply>,
     _timeout: Option<Duration>,
 }
@@ -94,7 +96,7 @@ impl NewService for TestService {
     type Request = Request;
     type Response = Response;
     type Error = hyper::Error;
- 
+
     type Instance = TestService;
 
     fn new_service(&self) -> std::io::Result<TestService> {
@@ -113,7 +115,7 @@ impl Service for TestService {
         let tx = self.tx.clone();
         let replies = self.reply.clone();
         req.body().for_each(move |chunk| {
-            tx.send(Msg::Chunk(chunk.to_vec())).unwrap();
+            tx.lock().unwrap().send(Msg::Chunk(chunk.to_vec())).unwrap();
             Ok(())
         }).map(move |_| {
             let mut res = Response::new();
@@ -150,35 +152,32 @@ fn serve() -> Serve {
 fn serve_with_timeout(dur: Option<Duration>) -> Serve {
     let _ = pretty_env_logger::init();
 
-    let (thread_tx, thread_rx) = mpsc::channel();
-    let (spawn_tx, spawn_rx) = mpsc::channel();
+    let (addr_tx, addr_rx) = mpsc::channel();
     let (msg_tx, msg_rx) = mpsc::channel();
     let (reply_tx, reply_rx) = spmc::channel();
+    let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
     let addr = "127.0.0.1:0".parse().unwrap();
 
     let thread_name = format!("test-server-{:?}", dur);
-    thread::Builder::new().name(thread_name).spawn(move || {
-        let (listening, server) = Server::standalone(move |tokio| {
-            Server::http(&addr, tokio).unwrap()
-                .handle(TestService {
-                    tx: msg_tx.clone(),
-                    _timeout: dur,
-                    reply: reply_rx,
-                }, tokio)
+    let thread = thread::Builder::new().name(thread_name).spawn(move || {
+        let srv = Http::new().bind(&addr, TestService {
+            tx: Arc::new(Mutex::new(msg_tx.clone())),
+            _timeout: dur,
+            reply: reply_rx,
         }).unwrap();
-        thread_tx.send(listening).unwrap();
-        server.run();
-        spawn_tx.send(()).unwrap();
+        addr_tx.send(srv.local_addr().unwrap()).unwrap();
+        srv.run_until(shutdown_rx.then(|_| Ok(()))).unwrap();
     }).unwrap();
 
-    let listening = thread_rx.recv().unwrap();
+    let addr = addr_rx.recv().unwrap();
 
     Serve {
-        listening: Some(listening),
         msg_rx: msg_rx,
         reply_tx: reply_tx,
-        spawn_rx: spawn_rx,
+        addr: addr,
+        shutdown_signal: Some(shutdown_tx),
+        thread: Some(thread),
     }
 }
 
