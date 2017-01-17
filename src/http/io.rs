@@ -1,12 +1,13 @@
+use std::cmp;
 use std::fmt;
 use std::io::{self, Read, Write};
+use std::ptr;
 
 use futures::Async;
 use tokio::io::Io;
 
 use http::{Http1Transaction, h1, MessageHead, ParseResult};
 use http::buf::{MemBuf, MemSlice};
-use http::buffer::Buffer;
 
 const INIT_BUFFER_SIZE: usize = 4096;
 pub const MAX_BUFFER_SIZE: usize = 8192 + 4096 * 100;
@@ -14,7 +15,7 @@ pub const MAX_BUFFER_SIZE: usize = 8192 + 4096 * 100;
 pub struct Buffered<T> {
     io: T,
     read_buf: MemBuf,
-    write_buf: Buffer,
+    write_buf: WriteBuf,
 }
 
 impl<T> fmt::Debug for Buffered<T> {
@@ -31,7 +32,7 @@ impl<T: Io> Buffered<T> {
         Buffered {
             io: io,
             read_buf: MemBuf::new(),
-            write_buf: Buffer::new(),
+            write_buf: WriteBuf::new(),
         }
     }
 
@@ -91,7 +92,7 @@ impl<T: Io> Buffered<T> {
     }
 
     pub fn buffer<B: AsRef<[u8]>>(&mut self, buf: B) {
-        self.write_buf.write(buf.as_ref());
+        self.write_buf.buffer(buf.as_ref());
     }
 
     #[cfg(test)]
@@ -121,12 +122,12 @@ impl<T: Read> Read for Buffered<T> {
 
 impl<T: Write> Write for Buffered<T> {
     fn write(&mut self, data: &[u8]) -> io::Result<usize> {
-        Ok(self.write_buf.write(data))
+        Ok(self.write_buf.buffer(data))
     }
 
     fn flush(&mut self) -> io::Result<()> {
         self.write_buf.write_into(&mut self.io).and_then(|_n| {
-            if self.write_buf.is_empty() {
+            if self.write_buf.remaining() == 0 {
                 Ok(())
             } else {
                 Err(io::Error::new(io::ErrorKind::WouldBlock, "wouldblock"))
@@ -177,14 +178,20 @@ impl<T: AsRef<[u8]>> Cursor<T> {
         self.pos >= self.bytes.as_ref().len()
     }
 
-    /*
     pub fn write_to<W: Write>(&mut self, dst: &mut W) -> io::Result<usize> {
-        dst.write(&self.bytes.as_ref()[self.pos..]).map(|n| {
-            self.pos += n;
-            n
-        })
+        if self.remaining() == 0 {
+            Ok(0)
+        } else {
+            dst.write(&self.bytes.as_ref()[self.pos..]).map(|n| {
+                self.pos += n;
+                n
+            })
+        }
     }
-    */
+
+    fn remaining(&self) -> usize {
+        self.bytes.as_ref().len() - self.pos
+    }
 
     #[inline]
     pub fn buf(&self) -> &[u8] {
@@ -201,8 +208,15 @@ impl<T: AsRef<[u8]>> Cursor<T> {
 impl<T: AsRef<[u8]>> fmt::Debug for Cursor<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let bytes = self.buf();
-        let reasonable_max = ::std::cmp::min(bytes.len(), 32);
-        write!(f, "Cursor({:?})", &bytes[..reasonable_max])
+        if bytes.len() > 32 {
+            try!(f.write_str("Cursor(["));
+            for byte in &bytes[..32] {
+                try!(write!(f, "{:?}, ", byte));
+            }
+            write!(f, "... {}])", bytes.len())
+        } else {
+            write!(f, "Cursor({:?})", &bytes)
+        }
     }
 }
 
@@ -230,6 +244,66 @@ impl<T: Write> AtomicWrite for T {
 }
 //}
 
+// an internal buffer to collect writes before flushes
+#[derive(Debug)]
+struct WriteBuf(Cursor<Vec<u8>>);
+
+impl WriteBuf {
+    fn new() -> WriteBuf {
+        WriteBuf(Cursor::new(Vec::new()))
+    }
+
+    fn write_into<W: Write>(&mut self, w: &mut W) -> io::Result<usize> {
+        self.0.write_to(w)
+    }
+
+    fn buffer(&mut self, data: &[u8]) -> usize {
+        trace!("WriteBuf::buffer() len = {:?}", data.len());
+        self.maybe_reset();
+        self.maybe_reserve(data.len());
+        let mut vec = &mut self.0.bytes;
+        let len = cmp::min(vec.capacity() - vec.len(), data.len());
+        assert!(vec.capacity() - vec.len() >= len);
+        unsafe {
+            // in rust 1.9, we could use slice::copy_from_slice
+            ptr::copy(
+                data.as_ptr(),
+                vec.as_mut_ptr().offset(vec.len() as isize),
+                len
+            );
+            let new_len = vec.len() + len;
+            vec.set_len(new_len);
+        }
+        len
+    }
+
+    fn remaining(&self) -> usize {
+        self.0.remaining()
+    }
+
+    #[inline]
+    fn maybe_reserve(&mut self, needed: usize) {
+        let mut vec = &mut self.0.bytes;
+        let cap = vec.capacity();
+        if cap == 0 {
+            let init = cmp::max(INIT_BUFFER_SIZE, needed);
+            trace!("WriteBuf reserving initial {}", init);
+            vec.reserve(init);
+        } else if cap < MAX_BUFFER_SIZE {
+            vec.reserve(cmp::min(needed, MAX_BUFFER_SIZE - cap));
+            trace!("WriteBuf reserved {}", vec.capacity() - cap);
+        }
+    }
+
+    fn maybe_reset(&mut self) {
+        if self.0.pos != 0 && self.0.remaining() == 0 {
+            self.0.pos = 0;
+            unsafe {
+                self.0.bytes.set_len(0);
+            }
+        }
+    }
+}
 
 #[test]
 fn test_iobuf_write_empty_slice() {

@@ -85,9 +85,7 @@ impl MemBuf {
             trace!("MemBuf::reserve unique access, growing");
             unsafe {
                 let mut vec = &mut *self.buf.get();
-                vec.reserve(needed);
-                let new_cap = vec.capacity();
-                grow_zerofill(vec, new_cap - orig_cap);
+                grow_zerofill(vec, needed);
             }
         } else {
             // we need to allocate more space, but dont have unique
@@ -139,9 +137,32 @@ impl MemBuf {
 
 #[inline]
 unsafe fn grow_zerofill(buf: &mut Vec<u8>, additional: usize) {
-    let len = buf.len();
-    buf.set_len(len + additional);
-    ::std::ptr::write_bytes(buf.as_mut_ptr().offset(len as isize), 0, additional);
+    let orig_cap = buf.capacity();
+    buf.reserve(additional);
+    let new_cap = buf.capacity();
+    let reserved = new_cap - orig_cap;
+    let orig_len = buf.len();
+    zero(buf, orig_len, reserved);
+    buf.set_len(orig_len + reserved);
+
+
+    unsafe fn zero(buf: &mut Vec<u8>, offset: usize, len: usize) {
+        assert!(buf.capacity() >= len + offset,
+            "offset of {} with len of {} is bigger than capacity of {}",
+            offset, len, buf.capacity());
+        ptr::write_bytes(buf.as_mut_ptr().offset(offset as isize), 0, len);
+    }
+}
+
+#[test]
+fn test_grow_zerofill() {
+    for init in 0..100 {
+        for reserve in (0..100).rev() {
+            let mut vec = vec![0; init];
+            unsafe { grow_zerofill(&mut vec, reserve) }
+            assert_eq!(vec.len(), vec.capacity());
+        }
+    }
 }
 
 impl fmt::Debug for MemBuf {

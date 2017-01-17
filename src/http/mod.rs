@@ -16,7 +16,6 @@ pub use self::chunk::Chunk;
 
 mod body;
 mod buf;
-mod buffer;
 mod chunk;
 mod conn;
 mod io;

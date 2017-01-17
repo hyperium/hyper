@@ -610,12 +610,14 @@ mod tests {
 
     #[test]
     fn test_conn_body_write_length() {
+        extern crate pretty_env_logger;
         use ::futures::Future;
+        let _ = pretty_env_logger::init();
         let _: Result<(), ()> = ::futures::lazy(|| {
             let io = AsyncIo::new_buf(vec![], 0);
             let mut conn = Conn::<_, ServerTransaction>::new(io, Default::default());
-            let max = ::http::buffer::MAX_BUFFER_SIZE + 4096;
-            conn.state.writing = Writing::Body(Encoder::length(max as u64), None);
+            let max = ::http::io::MAX_BUFFER_SIZE + 4096;
+            conn.state.writing = Writing::Body(Encoder::length((max * 2) as u64), None);
 
             assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'a'; 1024 * 4].into()) }).unwrap().is_ready());
             match conn.state.writing {
@@ -623,7 +625,7 @@ mod tests {
                 _ => panic!("writing did not queue chunk: {:?}", conn.state.writing),
             }
 
-            assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'b'; max - 8192].into()) }).unwrap().is_ready());
+            assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'b'; max].into()) }).unwrap().is_ready());
 
             match conn.state.writing {
                 Writing::Body(_, Some(_)) => {},
@@ -636,7 +638,8 @@ mod tests {
             assert!(conn.poll_complete().unwrap().is_not_ready());
             conn.io.io_mut().block_in(1024 * 3);
             assert!(conn.poll_complete().unwrap().is_not_ready());
-            conn.io.io_mut().block_in(max);
+            conn.io.io_mut().block_in(max * 2);
+            assert!(conn.poll_complete().unwrap().is_not_ready());
             assert!(conn.poll_complete().unwrap().is_ready());
 
             assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'c'; 1024 * 4].into()) }).unwrap().is_ready());

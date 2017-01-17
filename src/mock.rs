@@ -105,6 +105,7 @@ impl<T: Write> Write for AsyncIo<T> {
         } else if self.bytes_until_block == 0 {
             Err(io::Error::new(io::ErrorKind::WouldBlock, "mock block"))
         } else {
+            trace!("AsyncIo::write() block_in = {}, data.len() = {}", self.bytes_until_block, data.len());
             let n = cmp::min(self.bytes_until_block, data.len());
             let n = try!(self.inner.write(&data[..n]));
             self.bytes_until_block -= n;
