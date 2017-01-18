@@ -10,12 +10,12 @@ use version::HttpVersion;
 use method::Method;
 use header::Headers;
 use http::{RequestHead, MessageHead, RequestLine, Body};
-use uri::RequestUri;
+use uri::Uri;
 
 /// A request bundles several parts of an incoming `NetworkStream`, given to a `Handler`.
 pub struct Request {
     method: Method,
-    uri: RequestUri,
+    uri: Uri,
     version: HttpVersion,
     headers: Headers,
     remote_addr: SocketAddr,
@@ -33,7 +33,7 @@ impl Request {
 
     /// The target request-uri for this request.
     #[inline]
-    pub fn uri(&self) -> &RequestUri { &self.uri }
+    pub fn uri(&self) -> &Uri { &self.uri }
 
     /// The version of HTTP for this request.
     #[inline]
@@ -45,22 +45,14 @@ impl Request {
 
     /// The target path of this Request.
     #[inline]
-    pub fn path(&self) -> Option<&str> {
-        match self.uri {
-            RequestUri::AbsolutePath { path: ref p, .. } => Some(p.as_str()),
-            RequestUri::AbsoluteUri(ref url) => Some(url.path()),
-            _ => None,
-        }
+    pub fn path(&self) -> &str {
+        self.uri.path()
     }
 
     /// The query string of this Request.
     #[inline]
     pub fn query(&self) -> Option<&str> {
-        match self.uri {
-            RequestUri::AbsolutePath { query: ref q, .. } => q.as_ref().map(|x| x.as_str()),
-            RequestUri::AbsoluteUri(ref url) => url.query(),
-            _ => None,
-        }
+        self.uri.query()
     }
 
     /// Take the `Body` of this `Request`.
@@ -73,7 +65,7 @@ impl Request {
     ///
     /// Modifying these pieces will have no effect on how hyper behaves.
     #[inline]
-    pub fn deconstruct(self) -> (Method, RequestUri, HttpVersion, Headers, Body) {
+    pub fn deconstruct(self) -> (Method, Uri, HttpVersion, Headers, Body) {
         (self.method, self.uri, self.version, self.headers, self.body)
     }
 }

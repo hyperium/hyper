@@ -6,7 +6,7 @@ use header::{Connection, ConnectionOption};
 use header::Headers;
 use method::Method;
 use status::StatusCode;
-use uri::RequestUri;
+use uri::Uri;
 use version::HttpVersion;
 use version::HttpVersion::{Http10, Http11};
 
@@ -51,7 +51,7 @@ pub struct MessageHead<S> {
 pub type RequestHead = MessageHead<RequestLine>;
 
 #[derive(Debug, Default, PartialEq)]
-pub struct RequestLine(pub Method, pub RequestUri);
+pub struct RequestLine(pub Method, pub Uri);
 
 impl fmt::Display for RequestLine {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

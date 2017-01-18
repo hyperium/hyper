@@ -23,12 +23,12 @@ impl Service for Echo {
 
     fn call(&self, req: Request) -> Self::Future {
         ::futures::finished(match (req.method(), req.path()) {
-            (&Get, Some("/")) | (&Get, Some("/echo")) => {
+            (&Get, "/") | (&Get, "/echo") => {
                 Response::new()
                     .with_header(ContentLength(INDEX.len() as u64))
                     .with_body(INDEX)
             },
-            (&Post, Some("/echo")) => {
+            (&Post, "/echo") => {
                 let mut res = Response::new();
                 if let Some(len) = req.headers().get::<ContentLength>() {
                     res.headers_mut().set(len.clone());

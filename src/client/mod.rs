@@ -23,7 +23,6 @@ use header::{Headers, Host};
 use http::{self, TokioBody};
 use method::Method;
 use self::pool::{Pool, Pooled};
-use uri::RequestUri;
 use {Url};
 
 pub use self::connect::{HttpConnector, Connect};
@@ -120,15 +119,10 @@ impl<C: Connect> Service for Client<C> {
 
     fn call(&self, req: Request) -> Self::Future {
         let url = req.url().clone();
-
         let (mut head, body) = request::split(req);
         let mut headers = Headers::new();
         headers.set(Host::new(url.host_str().unwrap().to_owned(), url.port()));
         headers.extend(head.headers.iter());
-        head.subject.1 = RequestUri::AbsolutePath {
-            path: url.path().to_owned(),
-            query: url.query().map(ToOwned::to_owned),
-        };
         head.headers = headers;
 
         let checkout = self.pool.checkout(&url[..::url::Position::BeforePath]);
