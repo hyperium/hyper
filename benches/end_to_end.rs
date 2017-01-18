@@ -3,13 +3,15 @@
 
 extern crate futures;
 extern crate hyper;
-extern crate tokio_core;
 extern crate pretty_env_logger;
-
 extern crate test;
+extern crate tokio_core;
+
+use std::net::SocketAddr;
 
 use futures::{Future, Stream};
-use tokio_core::reactor::Core;
+use tokio_core::reactor::{Core, Handle};
+use tokio_core::net::TcpListener;
 
 use hyper::client;
 use hyper::header::{ContentLength, ContentType};
@@ -22,9 +24,7 @@ fn get_one_at_a_time(b: &mut test::Bencher) {
     let _ = pretty_env_logger::init();
     let mut core = Core::new().unwrap();
     let handle = core.handle();
-
-    let addr = hyper::Server::http(&"127.0.0.1:0".parse().unwrap(), &handle).unwrap()
-        .handle(|| Ok(Hello), &handle).unwrap();
+    let addr = spawn_hello(&handle);
 
     let client = hyper::Client::new(&handle);
 
@@ -47,9 +47,7 @@ fn post_one_at_a_time(b: &mut test::Bencher) {
     let _ = pretty_env_logger::init();
     let mut core = Core::new().unwrap();
     let handle = core.handle();
-
-    let addr = hyper::Server::http(&"127.0.0.1:0".parse().unwrap(), &handle).unwrap()
-        .handle(|| Ok(Hello), &handle).unwrap();
+    let addr = spawn_hello(&handle);
 
     let client = hyper::Client::new(&handle);
 
@@ -91,4 +89,18 @@ impl Service for Hello {
         )
     }
 
+}
+
+fn spawn_hello(handle: &Handle) -> SocketAddr {
+    let addr = "127.0.0.1:0".parse().unwrap();
+    let listener = TcpListener::bind(&addr, handle).unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    let handle2 = handle.clone();
+    handle.spawn(listener.incoming().for_each(move |(socket, addr)| {
+        let http = hyper::server::Http::new();
+        http.bind_connection(&handle2, socket, addr, Hello);
+        Ok(())
+    }).then(|_| Ok(())));
+    return addr
 }

@@ -14,7 +14,7 @@
 //! [Server](server/index.html), along with a
 //! [typed Headers system](header/index.html).
 
-extern crate futures;
+#[macro_use] extern crate futures;
 extern crate futures_cpupool;
 extern crate httparse;
 #[macro_use] extern crate language_tags;
