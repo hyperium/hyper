@@ -118,6 +118,19 @@ pub trait Header: HeaderClone + Any + GetType + Send + Sync {
     /// This method is not allowed to introduce an Err not produced
     /// by the passed-in Formatter.
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result;
+    /// Formats a header over multiple lines.
+    ///
+    /// The main example here is `Set-Cookie`, which requires that every
+    /// cookie being set be specified in a separate line.
+    ///
+    /// The API here is still being explored, so this is hidden by default.
+    /// The passed in formatter doesn't have any public methods, so it would
+    /// be quite difficult to depend on this externally.
+    #[doc(hidden)]
+    #[inline]
+    fn fmt_multi_header(&self, f: &mut MultilineFormatter) -> fmt::Result {
+        f.fmt_line(&FmtHeader(self))
+    }
 }
 
 #[doc(hidden)]
@@ -145,6 +158,74 @@ fn test_get_type() {
 
     assert_eq!(TypeId::of::<ContentLength>(), (*len).get_type());
     assert_eq!(TypeId::of::<UserAgent>(), (*agent).get_type());
+}
+
+#[doc(hidden)]
+#[allow(missing_debug_implementations)]
+pub struct MultilineFormatter<'a, 'b: 'a>(Multi<'a, 'b>);
+
+enum Multi<'a, 'b: 'a> {
+    Line(&'a str, &'a mut fmt::Formatter<'b>),
+    Join(bool, &'a mut fmt::Formatter<'b>),
+}
+
+impl<'a, 'b> MultilineFormatter<'a, 'b> {
+    fn fmt_line(&mut self, line: &fmt::Display) -> fmt::Result {
+        use std::fmt::Write;
+        match self.0 {
+            Multi::Line(ref name, ref mut f) => {
+                try!(f.write_str(*name));
+                try!(f.write_str(": "));
+                try!(write!(NewlineReplacer(*f), "{}", line));
+                f.write_str("\r\n")
+            },
+            Multi::Join(ref mut first, ref mut f) => {
+                if !*first {
+                    try!(f.write_str(", "));
+                } else {
+                    *first = false;
+                }
+                write!(NewlineReplacer(*f), "{}", line)
+            }
+        }
+    }
+}
+
+// Internal helper to wrap fmt_header into a fmt::Display
+struct FmtHeader<'a, H: ?Sized + 'a>(&'a H);
+
+impl<'a, H: Header + ?Sized + 'a> fmt::Display for FmtHeader<'a, H> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt_header(f)
+    }
+}
+
+struct ValueString<'a>(&'a Item);
+
+impl<'a> fmt::Display for ValueString<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.write_h1(&mut MultilineFormatter(Multi::Join(true, f)))
+    }
+}
+
+struct NewlineReplacer<'a, 'b: 'a>(&'a mut fmt::Formatter<'b>);
+
+impl<'a, 'b> fmt::Write for NewlineReplacer<'a, 'b> {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        let mut since = 0;
+        for (i, &byte) in s.as_bytes().iter().enumerate() {
+            if byte == b'\r' || byte == b'\n' {
+                try!(self.0.write_str(&s[since..i]));
+                try!(self.0.write_str(" "));
+                since = i + 1;
+            }
+        }
+        if since < s.len() {
+            self.0.write_str(&s[since..])
+        } else {
+            Ok(())
+        }
+    }
 }
 
 #[doc(hidden)]
@@ -415,7 +496,7 @@ impl PartialEq for Headers {
 impl fmt::Display for Headers {
    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for header in self.iter() {
-            try!(write!(f, "{}\r\n", header));
+            try!(fmt::Display::fmt(&header, f));
         }
         Ok(())
     }
@@ -469,15 +550,20 @@ impl<'a> HeaderView<'a> {
     }
 
     /// Get just the header value as a String.
+    ///
+    /// This will join multiple values of this header with a `, `.
+    ///
+    /// **Warning:** This may not be the format that should be used to send
+    /// a Request or Response.
     #[inline]
     pub fn value_string(&self) -> String {
-        (*self.1).to_string()
+        ValueString(self.1).to_string()
     }
 }
 
 impl<'a> fmt::Display for HeaderView<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}: {}", self.0, *self.1)
+        self.1.write_h1(&mut MultilineFormatter(Multi::Line(self.0.as_ref(), f)))
     }
 }
 
@@ -572,7 +658,7 @@ mod tests {
     #[cfg(feature = "nightly")]
     use test::Bencher;
 
-    // Slice.position_elem is unstable
+    // Slice.position_elem was unstable
     fn index_of(slice: &[u8], byte: u8) -> Option<usize> {
         for (index, &b) in slice.iter().enumerate() {
             if b == byte {
@@ -695,9 +781,10 @@ mod tests {
 
     #[test]
     fn test_headers_to_string_raw() {
-        let headers = Headers::from_raw(&raw!(b"Content-Length: 10")).unwrap();
+        let mut headers = Headers::from_raw(&raw!(b"Content-Length: 10")).unwrap();
+        headers.set_raw("x-foo", vec![b"foo".to_vec(), b"bar".to_vec()]);
         let s = headers.to_string();
-        assert_eq!(s, "Content-Length: 10\r\n");
+        assert_eq!(s, "Content-Length: 10\r\nx-foo: foo\r\nx-foo: bar\r\n");
     }
 
     #[test]
@@ -755,6 +842,16 @@ mod tests {
             assert_eq!(header.name(), <ContentLength as Header>::header_name());
             assert_eq!(header.value(), Some(&ContentLength(11)));
             assert_eq!(header.value_string(), "11".to_owned());
+        }
+    }
+
+    #[test]
+    fn test_header_view_value_string() {
+        let mut headers = Headers::new();
+        headers.set_raw("foo", vec![b"one".to_vec(), b"two".to_vec()]);
+        for header in headers.iter() {
+            assert_eq!(header.name(), "foo");
+            assert_eq!(header.value_string(), "one, two");
         }
     }
 

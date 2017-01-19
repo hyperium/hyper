@@ -1,5 +1,5 @@
 use header::{Header, Raw};
-use std::fmt::{self, Display};
+use std::fmt;
 use std::str::from_utf8;
 
 
@@ -90,14 +90,26 @@ impl Header for SetCookie {
             Err(::Error::Header)
         }
     }
+    fn fmt_header(&self, _f: &mut fmt::Formatter) -> fmt::Result {
+        panic!("SetCookie cannot be used with fmt_header, must use fmt_multi_header");
+    }
 
-    fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for (i, cookie) in self.0.iter().enumerate() {
-            if i != 0 {
-                try!(f.write_str("\r\nSet-Cookie: "));
-            }
-            try!(Display::fmt(cookie, f));
+
+    fn fmt_multi_header(&self, f: &mut ::header::MultilineFormatter) -> fmt::Result {
+        for cookie in &self.0 {
+            try!(f.fmt_line(cookie));
         }
         Ok(())
     }
+}
+
+#[test]
+fn test_set_cookie_fmt() {
+    use ::header::Headers;
+    let mut headers = Headers::new();
+    headers.set(SetCookie(vec![
+        "foo=bar".into(),
+        "baz=quux".into(),
+    ]));
+    assert_eq!(headers.to_string(), "Set-Cookie: foo=bar\r\nSet-Cookie: baz=quux\r\n");
 }

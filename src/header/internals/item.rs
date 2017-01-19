@@ -4,7 +4,7 @@ use std::fmt;
 use std::str::from_utf8;
 
 use super::cell::{OptCell, PtrMapCell};
-use header::{Header, Raw};
+use header::{Header, MultilineFormatter, Raw};
 
 
 #[derive(Clone)]
@@ -90,6 +90,29 @@ impl Item {
             None => parse::<H>(self.raw.as_ref().expect("item.raw must exist")).ok()
         }.map(|typed| unsafe { typed.downcast_unchecked() })
     }
+
+    pub fn write_h1(&self, f: &mut MultilineFormatter) -> fmt::Result {
+        match *self.raw {
+            Some(ref raw) => {
+                for part in raw.iter() {
+                    match from_utf8(&part[..]) {
+                        Ok(s) => {
+                            try!(f.fmt_line(&s));
+                        },
+                        Err(_) => {
+                            error!("raw header value is not utf8, value={:?}", part);
+                            return Err(fmt::Error);
+                        }
+                    }
+                }
+                Ok(())
+            },
+            None => {
+                let typed = unsafe { self.typed.one() };
+                typed.fmt_multi_header(f)
+            }
+        }
+    }
 }
 
 #[inline]
@@ -98,25 +121,4 @@ fn parse<H: Header>(raw: &Raw) -> ::Result<Box<Header + Send + Sync>> {
         let h: Box<Header + Send + Sync> = Box::new(h);
         h
     })
-}
-
-impl fmt::Display for Item {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self.raw {
-            Some(ref raw) => {
-                for part in raw.iter() {
-                    match from_utf8(&part[..]) {
-                        Ok(s) => try!(f.write_str(s)),
-                        Err(e) => {
-                            error!("raw header value is not utf8. header={:?}, error={:?}",
-                                part, e);
-                            return Err(fmt::Error);
-                        }
-                    }
-                }
-                Ok(())
-            },
-            None => fmt::Display::fmt(&unsafe { self.typed.one() }, f)
-        }
-    }
 }
