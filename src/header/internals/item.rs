@@ -4,7 +4,7 @@ use std::fmt;
 use std::str::from_utf8;
 
 use super::cell::{OptCell, PtrMapCell};
-use header::{Header, HeaderFormat};
+use header::{Header, HeaderFormat, MultilineFormatter};
 
 
 #[derive(Clone)]
@@ -83,6 +83,29 @@ impl Item {
         }
         self.typed.get_mut(tid).map(|typed| unsafe { typed.downcast_mut_unchecked() })
     }
+
+    pub fn write_h1(&self, f: &mut MultilineFormatter) -> fmt::Result {
+        match *self.raw {
+            Some(ref raw) => {
+                for part in raw.iter() {
+                    match from_utf8(&part[..]) {
+                        Ok(s) => {
+                            try!(f.fmt_line(&s));
+                        },
+                        Err(_) => {
+                            error!("raw header value is not utf8, value={:?}", part);
+                            return Err(fmt::Error);
+                        }
+                    }
+                }
+                Ok(())
+            },
+            None => {
+                let typed = unsafe { self.typed.one() };
+                typed.fmt_multi_header(f)
+            }
+        }
+    }
 }
 
 #[inline]
@@ -95,23 +118,3 @@ fn parse<H: Header + HeaderFormat>(raw: &Vec<Vec<u8>>) ->
     })
 }
 
-impl fmt::Display for Item {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self.raw {
-            Some(ref raw) => {
-                for part in raw.iter() {
-                    match from_utf8(&part[..]) {
-                        Ok(s) => try!(f.write_str(s)),
-                        Err(e) => {
-                            error!("raw header value is not utf8. header={:?}, error={:?}",
-                                part, e);
-                            return Err(fmt::Error);
-                        }
-                    }
-                }
-                Ok(())
-            },
-            None => fmt::Display::fmt(&unsafe { self.typed.one() }, f)
-        }
-    }
-}
