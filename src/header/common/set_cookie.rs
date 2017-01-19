@@ -1,5 +1,5 @@
 use header::{Header, HeaderFormat, CookiePair, CookieJar};
-use std::fmt::{self, Display};
+use std::fmt;
 use std::str::from_utf8;
 
 
@@ -107,18 +107,18 @@ impl Header for SetCookie {
 }
 
 impl HeaderFormat for SetCookie {
+    fn fmt_header(&self, _f: &mut fmt::Formatter) -> fmt::Result {
+        panic!("SetCookie cannot be used with fmt_header, must use fmt_multi_header");
+    }
 
-    fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for (i, cookie) in self.0.iter().enumerate() {
-            if i != 0 {
-                try!(f.write_str("\r\nSet-Cookie: "));
-            }
-            try!(Display::fmt(cookie, f));
+    fn fmt_multi_header(&self, f: &mut ::header::MultilineFormatter) -> fmt::Result {
+        println!("setcookie fmt_multi_header");
+        for cookie in &self.0 {
+            try!(f.fmt_line(cookie));
         }
         Ok(())
     }
 }
-
 
 impl SetCookie {
     /// Use this to create SetCookie header from CookieJar using
