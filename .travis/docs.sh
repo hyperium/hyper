@@ -40,6 +40,9 @@ fi
 
 git add -A .
 git commit -m "rebuild pages at ${TRAVIS_COMMIT}"
+
+echo
+echo "Pushing docs..."
 git push --quiet origin gh-pages > /dev/null 2>&1
 echo
 echo "Docs published."
