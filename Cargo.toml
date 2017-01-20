@@ -11,6 +11,7 @@ license = "MIT"
 authors = ["Sean McArthur <sean.monstar@gmail.com>",
            "Jonathan Reem <jonathan.reem@gmail.com>"]
 keywords = ["http", "hyper", "hyperium"]
+categories = ["web-programming::http-client", "web-programming::http-server"]
 build = "build.rs"
 
 [dependencies]
