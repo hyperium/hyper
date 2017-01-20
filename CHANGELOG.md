@@ -1,3 +1,25 @@
+### v0.10.1 (2017-01-19)
+
+
+#### Bug Fixes
+
+* **header:** security fix for header values that include newlines ([2603d78f](https://github.com/hyperium/hyper/commit/2603d78f59d284953553b7ef48c3ea4baa085cd1))
+* **net:** set timeouts directly in `accept` ([f5d4d653](https://github.com/hyperium/hyper/commit/f5d4d653e35ed20bbbb0b13847b3b9f1cfe9575f))
+
+
+#### Breaking Changes
+
+* This technically will cause code that a calls
+  `SetCookie.fmt_header` to panic, as it is no longer to properly write
+  that method. Most people should not be doing this at all, and all
+  other ways of printing headers should work just fine.
+
+  The breaking change must occur in a patch version because of the
+  security nature of the fix.
+
+ ([2603d78f](https://github.com/hyperium/hyper/commit/2603d78f59d284953553b7ef48c3ea4baa085cd1))
+
+
 ## v0.10.0 (2017-01-10)
 
 #### Features
