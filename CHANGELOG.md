@@ -1,3 +1,24 @@
+### v0.9.15 (2017-01-19)
+
+
+#### Bug Fixes
+
+* **header:** security fix for header values that include newlines ([a5437373](https://github.com/hyperium/hyper/commit/a543737370f69bbadbb6fee0917b90541a2c78a0))
+
+
+#### Breaking Changes
+
+* This technically will cause code that a calls
+  `SetCookie.fmt_header` to panic, as it is no longer to properly write
+  that method. Most people should not be doing this at all, and all
+  other ways of printing headers should work just fine.
+
+  The breaking change must occur in a patch version because of the
+  security nature of the fix.
+
+ ([a5437373](https://github.com/hyperium/hyper/commit/a543737370f69bbadbb6fee0917b90541a2c78a0))
+
+
 ### v0.9.14 (2016-12-12)
 
 
