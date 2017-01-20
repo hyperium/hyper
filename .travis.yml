@@ -16,7 +16,7 @@ cache:
 script:
   - ./.travis/readme.py
   - cargo build --verbose $FEATURES
-  - RUST_LOG=hyper cargo test --verbose $FEATURES
+  - cargo test --verbose $FEATURES
   - 'for f in ./doc/**/*.md; do echo "Running rustdoc on $f"; rustdoc -L ./target/debug -L ./target/debug/deps --test $f;  done'
   - 'if [ $TRAVIS_RUST_VERSION = nightly ]; then for f in ./benches/*.rs; do cargo test --bench $(basename $f .rs) $FEATURES; done; fi'
 
@@ -28,16 +28,19 @@ addons:
       - libdw-dev
 
 
-after_success: |
-    [ $TRAVIS_RUST_VERSION = stable ] &&
+after_success:
+  - '[ $TRAVIS_RUST_VERSION = stable ] &&
     wget https://github.com/SimonKagstrom/kcov/archive/master.tar.gz &&
     tar xzf master.tar.gz && mkdir kcov-master/build && cd kcov-master/build && cmake .. && make && make install DESTDIR=../tmp && cd ../.. &&
     ls target/debug &&
-    ./kcov-master/tmp/usr/local/bin/kcov --coveralls-id=$TRAVIS_JOB_ID --exclude-pattern=/.cargo target/kcov target/debug/hyper-* &&
-    [ $TRAVIS_PULL_REQUEST = false ] &&
+    ./kcov-master/tmp/usr/local/bin/kcov --coveralls-id=$TRAVIS_JOB_ID --exclude-pattern=/.cargo target/kcov target/debug/hyper-*'
+  - echo "$TRAVIS_PULL_REQUEST"
+  - echo "$TRAVIS_TAG"
+  - echo "$TRAVIS_BRANCH"
+  - '[ $TRAVIS_PULL_REQUEST = false ] &&
     { [ "$TRAVIS_TAG" != "" ] || [ "$TRAVIS_BRANCH" == "master" ]; } &&
     ./.travis/docs.sh &&
-    echo "\nDocs published.\n"
+    echo "\nDocs published.\n"'
 
 env:
     global:
