@@ -69,18 +69,21 @@ impl Uri {
         } else if s.contains("://") {
             let url = try!(Url::parse(s));
             let query_len = url.query().unwrap_or("").len();
-            let v: Vec<&str> = s.split("://").collect();
-            let authority_end = v.last().unwrap()
-                                        .split(url.path())
-                                        .next()
-                                        .unwrap_or(s)
-                                        .len() + if v.len() == 2 { v[0].len() + 3 } else { 0 };
+            let new_s = url.to_string();
+            let authority_end = {
+                let v: Vec<&str> = new_s.split("://").collect();
+                v.last().unwrap()
+                        .split(url.path())
+                        .next()
+                        .unwrap_or(&new_s)
+                        .len() + if v.len() == 2 { v[0].len() + 3 } else { 0 }
+            };
             let fragment_len = url.fragment().unwrap_or("").len();
             match url.origin() {
                 url::Origin::Opaque(_) => Err(Error::Method),
                 url::Origin::Tuple(scheme, _, _) => {
                     Ok(Uri {
-                        source: url.to_string().into(),
+                        source: new_s.into(),
                         scheme_end: Some(scheme.len()),
                         authority_end: if authority_end > 0 { Some(authority_end) } else { None },
                         query: if query_len > 0 { Some(query_len) } else { None },
@@ -293,6 +296,28 @@ test_parse! {
     scheme = None,
     authority = Some("localhost:3000"),
     path = "",
+    query = None,
+    fragment = None,
+}
+
+test_parse! {
+    test_uri_parse_absolute_with_default_port_http,
+    "http://127.0.0.1:80",
+
+    scheme = Some("http"),
+    authority = Some("127.0.0.1"),
+    path = "/",
+    query = None,
+    fragment = None,
+}
+
+test_parse! {
+    test_uri_parse_absolute_with_default_port_https,
+    "https://127.0.0.1:443",
+
+    scheme = Some("https"),
+    authority = Some("127.0.0.1"),
+    path = "/",
     query = None,
     fragment = None,
 }
