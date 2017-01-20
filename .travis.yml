@@ -34,13 +34,9 @@ after_success:
     tar xzf master.tar.gz && mkdir kcov-master/build && cd kcov-master/build && cmake .. && make && make install DESTDIR=../tmp && cd ../.. &&
     ls target/debug &&
     ./kcov-master/tmp/usr/local/bin/kcov --coveralls-id=$TRAVIS_JOB_ID --exclude-pattern=/.cargo target/kcov target/debug/hyper-*'
-  - echo "$TRAVIS_PULL_REQUEST"
-  - echo "$TRAVIS_TAG"
-  - echo "$TRAVIS_BRANCH"
   - '[ $TRAVIS_PULL_REQUEST = false ] &&
     { [ "$TRAVIS_TAG" != "" ] || [ "$TRAVIS_BRANCH" == "master" ]; } &&
-    ./.travis/docs.sh &&
-    echo "\nDocs published.\n"'
+    ./.travis/docs.sh'
 
 env:
     global:
