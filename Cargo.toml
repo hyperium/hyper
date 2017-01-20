@@ -9,6 +9,7 @@ repository = "https://github.com/hyperium/hyper"
 license = "MIT"
 authors = ["Sean McArthur <sean.monstar@gmail.com>"]
 keywords = ["http", "hyper", "hyperium"]
+categories = ["web-programming::http-client", "web-programming::http-server"]
 
 [dependencies]
 futures = "0.1.7"
