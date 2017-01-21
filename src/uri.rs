@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::fmt::{Display, self};
 use std::str::FromStr;
-use url::{self, Url};
+use url::Url;
 use url::ParseError as UrlError;
 
 use Error;
@@ -54,43 +54,21 @@ impl Uri {
         } else if bytes == b"/" {
             Ok(Uri::default())
         } else if bytes.starts_with(b"/") {
-            let mut temp = "http://example.com".to_owned();
-            temp.push_str(s);
-            let url = try!(Url::parse(&temp));
-            let query_len = url.query().unwrap_or("").len();
-            let fragment_len = url.fragment().unwrap_or("").len();
             Ok(Uri {
                 source: s.to_owned().into(),
                 scheme_end: None,
                 authority_end: None,
-                query: if query_len > 0 { Some(query_len) } else { None },
-                fragment: if fragment_len > 0 { Some(fragment_len) } else { None },
+                query: parse_query(s),
+                fragment: parse_fragment(s),
             })
         } else if s.contains("://") {
-            let url = try!(Url::parse(s));
-            let query_len = url.query().unwrap_or("").len();
-            let new_s = url.to_string();
-            let authority_end = {
-                let v: Vec<&str> = new_s.split("://").collect();
-                v.last().unwrap()
-                        .split(url.path())
-                        .next()
-                        .unwrap_or(&new_s)
-                        .len() + if v.len() == 2 { v[0].len() + 3 } else { 0 }
-            };
-            let fragment_len = url.fragment().unwrap_or("").len();
-            match url.origin() {
-                url::Origin::Opaque(_) => Err(Error::Method),
-                url::Origin::Tuple(scheme, _, _) => {
-                    Ok(Uri {
-                        source: new_s.into(),
-                        scheme_end: Some(scheme.len()),
-                        authority_end: if authority_end > 0 { Some(authority_end) } else { None },
-                        query: if query_len > 0 { Some(query_len) } else { None },
-                        fragment: if fragment_len > 0 { Some(fragment_len) } else { None },
-                    })
-                }
-            }
+            Ok(Uri {
+                source: s.to_owned().into(),
+                scheme_end: parse_scheme(s),
+                authority_end: parse_authority(s),
+                query: parse_query(s),
+                fragment: parse_fragment(s),
+            })
         } else {
             Ok(Uri {
                 source: s.to_owned().into(),
@@ -176,6 +154,39 @@ impl Uri {
         } else {
             None
         }
+    }
+}
+
+fn parse_scheme(s: &str) -> Option<usize> {
+    s.find(':')
+}
+
+fn parse_authority(s: &str) -> Option<usize> {
+    let v: Vec<&str> = s.split("://").collect();
+    let auth = v.last().unwrap()
+        .split("/")
+        .next()
+        .unwrap_or(s)
+        .len() + if v.len() == 2 { v[0].len() + 3 } else { 0 };
+       
+    return Some(auth);
+}
+
+fn parse_query(s: &str) -> Option<usize> {
+    match s.find('?') {
+        Some(i) => {
+            let frag_pos = s.find('#').unwrap_or(s.len());
+
+            return Some(frag_pos - i - 1);
+        },
+        None => None,
+    }
+}
+
+fn parse_fragment(s: &str) -> Option<usize> {
+    match s.find('#') {
+        Some(i) => Some(s.len() - i - 1),
+        None => None,
     }
 }
 
