@@ -15,7 +15,8 @@ pub use self::body::{Body, TokioBody};
 pub use self::chunk::Chunk;
 
 mod body;
-mod buf;
+#[doc(hidden)]
+pub mod buf;
 mod chunk;
 mod conn;
 mod io;

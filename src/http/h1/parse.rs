@@ -40,8 +40,8 @@ impl Http1Transaction for ServerTransaction {
                     ),
                     headers: try!(Headers::from_raw(req.headers))
                 }, len))
-            },
-            httparse::Status::Partial => None
+            }
+            httparse::Status::Partial => None,
         })
     }
 
