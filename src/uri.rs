@@ -88,6 +88,9 @@ impl Uri {
         let end = self.source.len() - if query_len > 0 { query_len + 1 } else { 0 } -
             if fragment_len > 0 { fragment_len + 1 } else { 0 };
         if index >= end {
+            if self.scheme().is_some() {
+                return "/" // absolute-form MUST have path
+            }
             ""
         } else {
             &self.source[index..end]
@@ -317,7 +320,7 @@ test_parse! {
     "http://127.0.0.1:80",
 
     scheme = Some("http"),
-    authority = Some("127.0.0.1"),
+    authority = Some("127.0.0.1:80"),
     path = "/",
     query = None,
     fragment = None,
@@ -328,7 +331,7 @@ test_parse! {
     "https://127.0.0.1:443",
 
     scheme = Some("https"),
-    authority = Some("127.0.0.1"),
+    authority = Some("127.0.0.1:443"),
     path = "/",
     query = None,
     fragment = None,
