@@ -107,6 +107,7 @@ impl Uri {
     pub fn authority(&self) -> Option<&str> {
         if let Some(end) = self.authority_end {
             let index = self.scheme_end.map(|i| i + 3).unwrap_or(0);
+
             Some(&self.source[index..end])
         } else {
             None
