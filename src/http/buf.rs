@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::cell::UnsafeCell;
 use std::fmt;
 use std::io::{self, Read};
@@ -195,6 +196,11 @@ pub struct MemSlice {
 }
 
 impl MemSlice {
+    #[doc(hidden)]
+    pub fn get(&self) -> &[u8] {
+        unsafe { &(*self.buf.get())[self.start..self.end] }
+    }
+
     pub fn empty() -> MemSlice {
         MemSlice {
             buf: Arc::new(UnsafeCell::new(Vec::new())),
@@ -208,6 +214,11 @@ impl MemSlice {
     }
 }
 
+impl AsRef<[u8]> for MemSlice {
+    fn as_ref(&self) -> &[u8] {
+        self.get()
+    }
+}
 
 impl fmt::Debug for MemSlice {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -215,11 +226,90 @@ impl fmt::Debug for MemSlice {
     }
 }
 
-impl Deref for  MemSlice {
+impl Deref for MemSlice {
     type Target = [u8];
+
     fn deref(&self) -> &[u8] {
-        unsafe {
-            &(*self.buf.get())[self.start..self.end]
+        self.get()
+    }
+}
+
+impl<'a> From<&'a [u8]> for MemSlice {
+    fn from(v: &'a [u8]) -> MemSlice {
+        MemSlice {
+            buf: Arc::new(UnsafeCell::new(v.to_vec())),
+            start: 0,
+            end: v.len(),
+        }
+    }
+}
+
+impl From<Vec<u8>> for MemSlice {
+    fn from(v: Vec<u8>) -> MemSlice {
+        let len = v.len();
+        MemSlice {
+            buf: Arc::new(UnsafeCell::new(v)),
+            start: 0,
+            end: len,
+        }
+    }
+}
+
+impl<'a> From<&'a str> for MemSlice {
+    fn from(v: &'a str) -> MemSlice {
+        let v = v.as_bytes();
+        MemSlice {
+            buf: Arc::new(UnsafeCell::new(v.to_vec())),
+            start: 0,
+            end: v.len(),
+        }
+    }
+}
+
+impl<'a> From<Cow<'a, [u8]>> for MemSlice {
+    fn from(v: Cow<'a, [u8]>) -> MemSlice {
+        let v = v.into_owned();
+        let len = v.len();
+        MemSlice {
+            buf: Arc::new(UnsafeCell::new(v)),
+            start: 0,
+            end: len,
+        }
+    }
+}
+
+impl PartialEq for MemSlice {
+    fn eq(&self, other: &MemSlice) -> bool {
+        self.get() == other.get()
+    }
+}
+
+impl PartialEq<[u8]> for MemSlice {
+    fn eq(&self, other: &[u8]) -> bool {
+        self.get() == other
+    }
+}
+
+impl PartialEq<str> for MemSlice {
+    fn eq(&self, other: &str) -> bool {
+        self.get() == other.as_bytes()
+    }
+}
+
+impl PartialEq<Vec<u8>> for MemSlice {
+    fn eq(&self, other: &Vec<u8>) -> bool {
+        self.get() == other.as_slice()
+    }
+}
+
+impl Eq for MemSlice {}
+
+impl Clone for MemSlice {
+    fn clone(&self) -> MemSlice {
+        MemSlice {
+            buf: self.buf.clone(),
+            start: self.start,
+            end: self.end,
         }
     }
 }

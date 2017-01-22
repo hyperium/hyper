@@ -70,7 +70,7 @@ impl<T: Io> Buffered<T> {
                 _ => return Err(e.into())
             }
         }
-        match try!(parse::<S, _>(self.read_buf.bytes())) {
+        match try!(parse::<S, _>(MemSlice::from(self.read_buf.bytes()))) {
             Some((head, len)) => {
                 trace!("parsed {} bytes out of {}", len, self.read_buf.len());
                 self.read_buf.slice(len);
@@ -140,7 +140,7 @@ impl<T: Write> Write for Buffered<T> {
     }
 }
 
-fn parse<T: Http1Transaction<Incoming=I>, I>(rdr: &[u8]) -> ParseResult<I> {
+fn parse<T: Http1Transaction<Incoming=I>, I>(rdr: MemSlice) -> ParseResult<I> {
     h1::parse::<T, I>(rdr)
 }
 
