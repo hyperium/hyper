@@ -62,10 +62,24 @@ impl Uri {
                 fragment: parse_fragment(s),
             })
         } else if s.contains("://") {
+            let scheme = parse_scheme(s);
+            let auth = parse_authority(s);
+            if let Some(end) = scheme {
+                match &s[..end] {
+                    "ftp" | "gopher" | "http" | "https" | "ws" | "wss" => {},
+                    "blob" | "file" => return Err(Error::Method),
+                    _ => return Err(Error::Method),
+                }
+                if let Some(a) = auth {
+                    if (end + 3) == a {
+                        return Err(Error::Method);
+                    }
+                }
+            }
             Ok(Uri {
                 source: s.to_owned().into(),
-                scheme_end: parse_scheme(s),
-                authority_end: parse_authority(s),
+                scheme_end: scheme,
+                authority_end: auth,
                 query: parse_query(s),
                 fragment: parse_fragment(s),
             })
