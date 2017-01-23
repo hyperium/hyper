@@ -98,7 +98,6 @@ impl HeaderFormat for SetCookie {
     }
 
     fn fmt_multi_header(&self, f: &mut ::header::MultilineFormatter) -> fmt::Result {
-        println!("setcookie fmt_multi_header");
         for cookie in &self.0 {
             try!(f.fmt_line(cookie));
         }
