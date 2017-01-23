@@ -70,10 +70,13 @@ impl Uri {
                     "blob" | "file" => return Err(Error::Method),
                     _ => return Err(Error::Method),
                 }
-                if let Some(a) = auth {
-                    if (end + 3) == a {
-                        return Err(Error::Method);
-                    }
+                match auth {
+                    Some(a) => {
+                        if (end + 3) == a {
+                            return Err(Error::Method);
+                        }
+                    },
+                    None => return Err(Error::Method),
                 }
             }
             Ok(Uri {
@@ -181,13 +184,13 @@ fn parse_scheme(s: &str) -> Option<usize> {
 
 fn parse_authority(s: &str) -> Option<usize> {
     let v: Vec<&str> = s.split("://").collect();
-    let auth = v.last().unwrap()
-        .split("/")
-        .next()
-        .unwrap_or(s)
-        .len() + if v.len() == 2 { v[0].len() + 3 } else { 0 };
-       
-    return Some(auth);
+    match v.last() {
+        Some(auth) => Some(auth.split("/")
+                           .next()
+                           .unwrap_or(s)
+                           .len() + if v.len() == 2 { v[0].len() + 3 } else { 0 }),
+        None => None,
+    }
 }
 
 fn parse_query(s: &str) -> Option<usize> {
