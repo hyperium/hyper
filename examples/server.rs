@@ -1,9 +1,7 @@
-//#![deny(warnings)]
+#![deny(warnings)]
 extern crate futures;
 extern crate hyper;
 extern crate pretty_env_logger;
-#[macro_use]
-extern crate log;
 
 use hyper::{Get, Post, StatusCode};
 use hyper::header::ContentLength;
