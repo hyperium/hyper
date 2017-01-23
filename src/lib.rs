@@ -17,7 +17,7 @@
 #[macro_use] extern crate futures;
 extern crate futures_cpupool;
 extern crate httparse;
-#[macro_use] extern crate language_tags;
+#[cfg_attr(test, macro_use)] extern crate language_tags;
 #[macro_use] extern crate log;
 #[macro_use] pub extern crate mime;
 extern crate relay;
