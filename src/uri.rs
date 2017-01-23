@@ -145,16 +145,10 @@ impl Uri {
 
     /// Get the port of this `Uri.
     pub fn port(&self) -> Option<u16> {
-        if let Some(auth) = self.authority() {
-            let v: Vec<&str> = auth.split(":").collect();
-            if v.len() == 2 {
-                u16::from_str(v[1]).ok()
-            } else {
-                None
-            }
-        } else {
-            None
-        }
+        match self.authority() {
+            Some(auth) => auth.find(":").and_then(|i| u16::from_str(&auth[i+1..]).ok()),
+            None => None,
+       }
     }
 
     /// Get the query string of this `Uri`, starting after the `?`.
@@ -183,14 +177,12 @@ fn parse_scheme(s: &str) -> Option<usize> {
 }
 
 fn parse_authority(s: &str) -> Option<usize> {
-    let v: Vec<&str> = s.split("://").collect();
-    match v.last() {
-        Some(auth) => Some(auth.split("/")
-                           .next()
-                           .unwrap_or(s)
-                           .len() + if v.len() == 2 { v[0].len() + 3 } else { 0 }),
-        None => None,
-    }
+    let i = s.find("://").and_then(|p| Some(p + 3)).unwrap_or(0);
+    
+    Some(&s[i..].split("/")
+         .next()
+         .unwrap_or(s)
+         .len() + i)
 }
 
 fn parse_query(s: &str) -> Option<usize> {
@@ -297,6 +289,7 @@ test_parse! {
     path = "/chunks",
     query = None,
     fragment = None,
+    port = Some(61761),
 }
 
 test_parse! {
@@ -308,6 +301,7 @@ test_parse! {
     path = "/",
     query = None,
     fragment = None,
+    port = Some(61761),
 }
 
 test_parse! {
@@ -330,6 +324,7 @@ test_parse! {
     path = "",
     query = None,
     fragment = None,
+    port = Some(3000),
 }
 
 test_parse! {
@@ -341,6 +336,7 @@ test_parse! {
     path = "/",
     query = None,
     fragment = None,
+    port = Some(80),
 }
 
 test_parse! {
@@ -352,6 +348,7 @@ test_parse! {
     path = "/",
     query = None,
     fragment = None,
+    port = Some(443),
 }
 
 #[test]
