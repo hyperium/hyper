@@ -40,8 +40,8 @@ impl Http1Transaction for ServerTransaction {
                     ),
                     headers: try!(Headers::from_raw(req.headers))
                 }, len))
-            },
-            httparse::Status::Partial => None
+            }
+            httparse::Status::Partial => None,
         })
     }
 
@@ -269,10 +269,21 @@ mod tests {
     #[cfg(feature = "nightly")]
     #[bench]
     fn bench_parse_incoming(b: &mut Bencher) {
-        let raw = b"GET /echo HTTP/1.1\r\nHost: hyper.rs\r\n\r\n";
+        let raw = b"GET /super_long_uri/and_whatever?what_should_we_talk_about/I_wonder/Hard_\
+                    to_write_in_an_uri_after_all/you_have_to_make_up_the_punctuation_yourself/\
+                    how_fun_is_that?test=foo&test1=foo1&test2=foo2&test3=foo3&test4=foo4 \
+                    HTTP/1.1\r\nHost: hyper.rs\r\nAccept: a lot of things\r\nAccept-Charset: \
+                    utf8\r\nAccept-Encoding: *\r\nAccess-Control-Allow-Credentials: None\r\n\
+                    Access-Control-Allow-Origin: None\r\nAccess-Control-Allow-Methods: None\
+                    \r\nAccess-Control-Allow-Headers: None\r\nContent-Encoding: utf8\r\n\
+                    Content-Security-Policy: None\r\nContent-Type: text/html\r\nOrigin: hyper\
+                    \r\nSec-Websocket-Extensions: It looks super important!\r\nSec-Websocket-\
+                    Origin: hyper\r\nSec-Websocket-Version: 4.3\r\nStrict-Transport-Security: \
+                    None\r\nUser-Agent: hyper\r\nX-Content-Duration: None\r\nX-Content-\
+                    Security-Policy: None\r\nX-DNSPrefetch-Control: None\r\nX-Frame-Options: \
+                    Something important obviously\r\nX-Requested-With: Nothing\r\n\r\n";
         b.iter(|| {
             parse::<http::ServerTransaction, _>(raw).unwrap()
         });
     }
-
 }
