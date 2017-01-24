@@ -202,6 +202,14 @@ impl<'a, H: Header + ?Sized + 'a> fmt::Display for FmtHeader<'a, H> {
 
 struct ValueString<'a>(&'a Item);
 
+impl<'a> fmt::Debug for ValueString<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        try!(f.write_str("\""));
+        try!(self.0.write_h1(&mut MultilineFormatter(Multi::Join(true, f))));
+        f.write_str("\"")
+    }
+}
+
 impl<'a> fmt::Display for ValueString<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.write_h1(&mut MultilineFormatter(Multi::Join(true, f)))
@@ -504,12 +512,9 @@ impl fmt::Display for Headers {
 
 impl fmt::Debug for Headers {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        try!(f.write_str("Headers { "));
-        for header in self.iter() {
-            try!(write!(f, "{:?}, ", header));
-        }
-        try!(f.write_str("}"));
-        Ok(())
+        f.debug_map()
+            .entries(self.iter().map(|view| (view.0.as_ref(), ValueString(view.1))))
+            .finish()
     }
 }
 

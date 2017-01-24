@@ -92,7 +92,7 @@ impl Http1Transaction for ServerTransaction {
 
         let init_cap = 30 + head.headers.len() * AVERAGE_HEADER_SIZE;
         dst.reserve(init_cap);
-        debug!("writing {:#?}", head.headers);
+        debug!("writing headers = {:?}", head.headers);
         if head.version == ::HttpVersion::Http11 && head.subject == ::StatusCode::Ok {
             extend(dst, b"HTTP/1.1 200 OK\r\n");
             let _ = write!(FastWrite(dst), "{}\r\n", head.headers);
