@@ -12,6 +12,7 @@ keywords = ["http", "hyper", "hyperium"]
 categories = ["web-programming::http-client", "web-programming::http-server"]
 
 [dependencies]
+base64 = "0.3.0"
 futures = "0.1.7"
 futures-cpupool = "0.1"
 httparse = "1.0"
@@ -19,7 +20,6 @@ language-tags = "0.2"
 log = "0.3"
 mime = "0.2"
 relay = "0.1"
-rustc-serialize = "0.3"
 time = "0.1"
 tokio-core = "0.1"
 tokio-proto = "0.1"
