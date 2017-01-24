@@ -59,7 +59,8 @@ impl Encoder {
                 }
 
                 *remaining -= n as u64;
-                trace!("sized write complete, remaining = {}", remaining);
+                debug!("encoded {} bytes", n);
+                trace!("encode sized complete, remaining = {}", remaining);
                 Ok(n)
             },
         }

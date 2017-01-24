@@ -126,13 +126,18 @@ impl<T: Write> Write for Buffered<T> {
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        self.write_buf.write_into(&mut self.io).and_then(|_n| {
-            if self.write_buf.remaining() == 0 {
-                Ok(())
-            } else {
-                Err(io::Error::new(io::ErrorKind::WouldBlock, "wouldblock"))
-            }
-        })
+        if self.write_buf.remaining() == 0 {
+            Ok(())
+        } else {
+            self.write_buf.write_into(&mut self.io).and_then(|n| {
+                debug!("flushed {} bytes", n);
+                if self.write_buf.remaining() == 0 {
+                    Ok(())
+                } else {
+                    Err(io::Error::new(io::ErrorKind::WouldBlock, "wouldblock"))
+                }
+            })
+        }
     }
 }
 
@@ -290,6 +295,7 @@ impl WriteBuf {
             trace!("WriteBuf reserving initial {}", init);
             vec.reserve(init);
         } else if cap < MAX_BUFFER_SIZE {
+            trace!("maybe_reserve MAX={}, needed={}, cap={}", MAX_BUFFER_SIZE, needed, cap);
             vec.reserve(cmp::min(needed, MAX_BUFFER_SIZE - cap));
             trace!("WriteBuf reserved {}", vec.capacity() - cap);
         }

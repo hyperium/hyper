@@ -97,6 +97,7 @@ impl<I: Io, T: Http1Transaction, K: KeepAlive> Conn<I, T, K> {
                             other => Err(io::Error::new(io::ErrorKind::UnexpectedEof, other)),
                         }
                     } else {
+                        debug!("socket read eof");
                         Ok(Async::Ready(None))
                     }
                 };
