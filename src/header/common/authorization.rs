@@ -2,7 +2,7 @@ use std::any::Any;
 use std::fmt::{self, Display};
 use std::str::{FromStr, from_utf8};
 use std::ops::{Deref, DerefMut};
-use serialize::base64::{ToBase64, FromBase64, Standard, Config, Newline};
+use base64::{encode, decode};
 use header::{Header, Raw};
 
 /// `Authorization` header, defined in [RFC7235](https://tools.ietf.org/html/rfc7235#section-4.2)
@@ -152,19 +152,15 @@ impl Scheme for Basic {
         if let Some(ref pass) = self.password {
             text.push_str(&pass[..]);
         }
-        f.write_str(&text.as_bytes().to_base64(Config {
-            char_set: Standard,
-            newline: Newline::CRLF,
-            pad: true,
-            line_length: None
-        })[..])
+        
+        f.write_str(&encode(text.as_ref()))
     }
 }
 
 impl FromStr for Basic {
     type Err = ::Error;
     fn from_str(s: &str) -> ::Result<Basic> {
-        match s.from_base64() {
+        match decode(s) {
             Ok(decoded) => match String::from_utf8(decoded) {
                 Ok(text) => {
                     let mut parts = &mut text.split(':');

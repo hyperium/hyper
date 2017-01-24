@@ -21,7 +21,7 @@ extern crate httparse;
 #[macro_use] extern crate log;
 #[macro_use] pub extern crate mime;
 extern crate relay;
-extern crate rustc_serialize as serialize;
+extern crate base64;
 extern crate time;
 #[macro_use] extern crate tokio_core as tokio;
 extern crate tokio_proto;
