@@ -214,7 +214,7 @@ impl fmt::Debug for MemSlice {
     }
 }
 
-impl Deref for  MemSlice {
+impl Deref for MemSlice {
     type Target = [u8];
 
     fn deref(&self) -> &[u8] {
