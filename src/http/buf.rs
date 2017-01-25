@@ -176,6 +176,18 @@ impl fmt::Debug for MemBuf {
     }
 }
 
+impl From<Vec<u8>> for MemBuf {
+    fn from(mut vec: Vec<u8>) -> MemBuf {
+        let end = vec.iter().find(|&&x| x == 0).map(|&x| x as usize).unwrap_or(vec.len());
+        vec.shrink_to_fit();
+        MemBuf {
+            buf: Arc::new(UnsafeCell::new(vec)),
+            start: 0,
+            end: end,
+        }
+    }
+}
+
 pub struct MemSlice {
     buf: Arc<UnsafeCell<Vec<u8>>>,
     start: usize,
@@ -284,8 +296,7 @@ mod tests {
 
     #[test]
     fn test_mem_slice_slice() {
-        let mut buf = MemBuf::with_capacity(32);
-        buf.read_from(&mut &b"Hello World"[..]).unwrap();
+        let mut buf = MemBuf::from(b"Hello World".to_vec());
 
         let len = buf.len();
         let full = buf.slice(len);
