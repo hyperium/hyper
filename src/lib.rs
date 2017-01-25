@@ -38,7 +38,7 @@ pub use client::Client;
 pub use error::{Result, Error};
 pub use header::Headers;
 pub use http::{Body, Chunk};
-pub use method::Method::{self, Get, Head, Post, Delete};
+pub use method::Method::{self, Get, Head, Post, Put, Delete};
 pub use status::StatusCode::{self, Ok, BadRequest, NotFound};
 pub use server::Server;
 pub use version::HttpVersion;
