@@ -48,6 +48,20 @@ impl Raw {
             }
         }
     }
+
+    #[doc(hidden)]
+    pub fn push_slice(&mut self, val: MemSlice) {
+        let lines = ::std::mem::replace(&mut self.0, Lines::Many(Vec::new()));
+        match lines {
+            Lines::One(line) => {
+                self.0 = Lines::Many(vec![line, Line::Shared(val)]);
+            }
+            Lines::Many(mut lines) => {
+                lines.push(Line::Shared(val));
+                self.0 = Lines::Many(lines);
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -172,8 +186,8 @@ impl AsRef<[u8]> for Line {
     }
 }
 
-pub fn parsed(val: &[u8]) -> Raw {
-    Raw(Lines::One(From::from(maybe_literal(val.into()))))
+pub fn parsed(val: MemSlice) -> Raw {
+    Raw(Lines::One(From::from(val)))
 }
 
 impl fmt::Debug for Raw {
