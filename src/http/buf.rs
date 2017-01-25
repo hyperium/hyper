@@ -1,6 +1,7 @@
 use std::cell::UnsafeCell;
 use std::fmt;
 use std::io::{self, Read};
+use std::ops::{Deref, Range, RangeFrom, RangeTo, RangeFull};
 use std::ptr;
 use std::sync::Arc;
 
@@ -189,8 +190,79 @@ impl MemSlice {
             end: 0,
         }
     }
+
+    pub fn slice<S: Slice>(&self, range: S) -> MemSlice {
+        range.slice(self)
+    }
 }
 
+
+impl fmt::Debug for MemSlice {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(&**self, f)
+    }
+}
+
+impl Deref for  MemSlice {
+    type Target = [u8];
+    fn deref(&self) -> &[u8] {
+        unsafe {
+            &(*self.buf.get())[self.start..self.end]
+        }
+    }
+}
+
+pub trait Slice {
+    fn slice(self, subject: &MemSlice) -> MemSlice;
+}
+
+
+impl Slice for Range<usize> {
+    fn slice(self, subject: &MemSlice) -> MemSlice {
+        assert!(subject.start + self.start <= subject.end);
+        assert!(subject.start + self.end <= subject.end);
+        MemSlice {
+            buf: subject.buf.clone(),
+            start: subject.start + self.start,
+            end: subject.start + self.end,
+        }
+    }
+}
+
+impl Slice for RangeFrom<usize> {
+    fn slice(self, subject: &MemSlice) -> MemSlice {
+        assert!(subject.start + self.start <= subject.end);
+        MemSlice {
+            buf: subject.buf.clone(),
+            start: subject.start + self.start,
+            end: subject.end,
+        }
+    }
+}
+
+impl Slice for RangeTo<usize> {
+    fn slice(self, subject: &MemSlice) -> MemSlice {
+        assert!(subject.start + self.end <= subject.end);
+        MemSlice {
+            buf: subject.buf.clone(),
+            start: subject.start,
+            end: subject.start + self.end,
+        }
+    }
+}
+
+impl Slice for RangeFull {
+    fn slice(self, subject: &MemSlice) -> MemSlice {
+        MemSlice {
+            buf: subject.buf.clone(),
+            start: subject.start,
+            end: subject.end,
+        }
+    }
+}
+
+unsafe impl Send for MemBuf {}
+unsafe impl Send for MemSlice {}
 
 #[cfg(test)]
 impl<T: Read> ::http::io::MemRead for ::mock::AsyncIo<T> {
@@ -206,30 +278,26 @@ impl<T: Read> ::http::io::MemRead for ::mock::AsyncIo<T> {
     }
 }
 
-impl fmt::Debug for MemSlice {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Debug::fmt(&**self, f)
-    }
-}
-
-impl ::std::ops::Deref for  MemSlice {
-    type Target = [u8];
-    fn deref(&self) -> &[u8] {
-        unsafe {
-            &(*self.buf.get())[self.start..self.end]
-        }
-    }
-}
-
-unsafe impl Send for MemBuf {}
-unsafe impl Send for MemSlice {}
-
-/*
 #[cfg(test)]
 mod tests {
     use super::{MemBuf};
 
     #[test]
-    fn test_
+    fn test_mem_slice_slice() {
+        let mut buf = MemBuf::with_capacity(32);
+        buf.read_from(&mut &b"Hello World"[..]).unwrap();
+
+        let len = buf.len();
+        let full = buf.slice(len);
+
+        assert_eq!(&*full, b"Hello World");
+        assert_eq!(&*full.slice(6..), b"World");
+        assert_eq!(&*full.slice(..5), b"Hello");
+        assert_eq!(&*full.slice(..), b"Hello World");
+        for a in 0..len {
+            for b in a..len {
+                assert_eq!(&*full.slice(a..b), &b"Hello World"[a..b], "{}..{}", a, b);
+            }
+        }
+    }
 }
-*/
