@@ -216,6 +216,17 @@ impl<'a> fmt::Display for ValueString<'a> {
     }
 }
 
+struct HeaderValueString<'a, H: Header + 'a>(&'a H);
+
+impl<'a, H: Header> fmt::Debug for HeaderValueString<'a, H> {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        try!(f.write_str("\""));
+        try!(self.0.fmt_multi_header(&mut MultilineFormatter(Multi::Join(true, f))));
+        f.write_str("\"")
+    }
+}
+
 struct NewlineReplacer<'a, 'b: 'a>(&'a mut fmt::Formatter<'b>);
 
 impl<'a, 'b> fmt::Write for NewlineReplacer<'a, 'b> {
@@ -363,7 +374,7 @@ impl Headers {
     ///
     /// The field is determined by the type of the value being set.
     pub fn set<H: Header>(&mut self, value: H) {
-        trace!("Headers.set( {:?}, {:?} )", header_name::<H>(), HeaderFormatter(&value));
+        trace!("Headers.set( {:?}, {:?} )", header_name::<H>(), HeaderValueString(&value));
         self.data.insert(HeaderName(UniCase(Cow::Borrowed(header_name::<H>()))),
                          Item::new_typed(Box::new(value)));
     }
@@ -458,6 +469,33 @@ impl Headers {
         let value = value.into();
         trace!("Headers.set_raw( {:?}, {:?} )", name, value);
         self.data.insert(HeaderName(UniCase(name)), Item::new_raw(value));
+    }
+
+    /// Append a value to raw value of this header.
+    ///
+    /// If a header already contains a value, this will add another line to it.
+    ///
+    /// If a header doesnot exist for this name, a new one will be created with
+    /// the value.
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// # use hyper::header::Headers;
+    /// # let mut headers = Headers::new();
+    /// headers.append_raw("x-foo", b"bar".to_vec());
+    /// headers.append_raw("x-foo", b"quux".to_vec());
+    /// ```
+    pub fn append_raw<K: Into<Cow<'static, str>>, V: Into<Raw>>(&mut self, name: K, value: V) {
+        let name = name.into();
+        let value = value.into();
+        trace!("Headers.append_raw( {:?}, {:?} )", name, value);
+        let name = HeaderName(UniCase(name));
+        if let Some(item) = self.data.get_mut(&name) {
+            item.raw_mut().push(value);
+            return;
+        }
+        self.data.insert(name, Item::new_raw(value));
     }
 
     /// Remove a header by name.
@@ -583,7 +621,7 @@ impl<'a> Extend<(&'a str, MemSlice)> for Headers {
                     entry.insert(Item::new_raw(self::raw::parsed(value)));
                 }
                 Entry::Occupied(entry) => {
-                    self::raw::push(entry.into_mut().mut_raw(), value);
+                    self::raw::push(entry.into_mut().raw_mut(), value);
                 }
             };
         }
@@ -625,8 +663,7 @@ deprecated! {
 impl<'a, H: Header> fmt::Display for HeaderFormatter<'a, H> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut multi = MultilineFormatter(Multi::Join(true, f));
-        self.0.fmt_multi_header(&mut multi)
+        fmt::Debug::fmt(&HeaderValueString(self.0), f)
     }
 }
 
@@ -804,6 +841,16 @@ mod tests {
         headers.set_raw("content-LENGTH", vec![b"20".to_vec()]);
         assert_eq!(headers.get_raw("Content-length").unwrap(), &[b"20".to_vec()][..]);
         assert_eq!(headers.get(), Some(&ContentLength(20)));
+    }
+
+    #[test]
+    fn test_append_raw() {
+        let mut headers = Headers::new();
+        headers.set(ContentLength(10));
+        headers.append_raw("content-LENGTH", b"20".to_vec());
+        assert_eq!(headers.get_raw("Content-length").unwrap(), &[b"10".to_vec(), b"20".to_vec()][..]);
+        headers.append_raw("x-foo", "bar");
+        assert_eq!(headers.get_raw("x-foo").unwrap(), &[b"bar".to_vec()][..]);
     }
 
     #[test]

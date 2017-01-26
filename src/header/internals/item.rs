@@ -33,7 +33,8 @@ impl Item {
     }
 
     #[inline]
-    pub fn mut_raw(&mut self) -> &mut Raw {
+    pub fn raw_mut(&mut self) -> &mut Raw {
+        self.raw();
         self.typed = PtrMapCell::new();
         unsafe {
             self.raw.get_mut()

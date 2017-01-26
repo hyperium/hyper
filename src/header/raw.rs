@@ -36,8 +36,16 @@ impl Raw {
     }
 
     /// Append a line to this `Raw` header value.
-    pub fn push(&mut self, val: &[u8]) {
-        self.push_line(maybe_literal(val.into()));
+    pub fn push<V: Into<Raw>>(&mut self, val: V) {
+        let raw = val.into();
+        match raw.0 {
+            Lines::One(one) => self.push_line(one),
+            Lines::Many(lines) => {
+                for line in lines {
+                    self.push_line(line);
+                }
+            }
+        }
     }
 
     fn push_line(&mut self, line: Line) {
@@ -121,27 +129,26 @@ impl From<Vec<Vec<u8>>> for Raw {
 impl From<String> for Raw {
     #[inline]
     fn from(val: String) -> Raw {
-        let vec: Vec<u8> = val.into();
-        vec.into()
+        Raw::from(val.into_bytes())
     }
 }
 
 impl From<Vec<u8>> for Raw {
     #[inline]
     fn from(val: Vec<u8>) -> Raw {
-        Raw(Lines::One(Line::from(val)))
+        Raw(Lines::One(maybe_literal(val.into())))
     }
 }
 
-impl From<&'static str> for Raw {
-    fn from(val: &'static str) -> Raw {
-        Raw(Lines::One(Line::Static(val.as_bytes())))
+impl<'a> From<&'a str> for Raw {
+    fn from(val: &'a str) -> Raw {
+        Raw::from(val.as_bytes())
     }
 }
 
-impl From<&'static [u8]> for Raw {
-    fn from(val: &'static [u8]) -> Raw {
-        Raw(Lines::One(Line::Static(val)))
+impl<'a> From<&'a [u8]> for Raw {
+    fn from(val: &'a [u8]) -> Raw {
+        Raw(Lines::One(maybe_literal(val.into())))
     }
 }
 
