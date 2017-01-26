@@ -598,23 +598,30 @@ impl<'a> FromIterator<HeaderView<'a>> for Headers {
     }
 }
 
-impl<'a> fmt::Display for &'a (Header + Send + Sync) {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut multi = MultilineFormatter(Multi::Join(true, f));
-        self.fmt_multi_header(&mut multi)
+deprecated! {
+    #[deprecated(note="The semantics of formatting a HeaderFormat directly are not clear")]
+    impl<'a> fmt::Display for &'a (Header + Send + Sync) {
+        #[inline]
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            let mut multi = MultilineFormatter(Multi::Join(true, f));
+            self.fmt_multi_header(&mut multi)
+        }
     }
 }
 
-/// A wrapper around any Header with a Display impl that calls `fmt_header`.
-///
-/// This can be used like so: `format!("{}", HeaderFormatter(&header))` to
-/// get the 'value string' representation of this Header.
-///
-/// Note: This may not necessarily be the value written to stream, such
-/// as with the SetCookie header.
-pub struct HeaderFormatter<'a, H: Header>(pub &'a H);
+deprecated! {
+    #[deprecated(note="The semantics of formatting a HeaderFormat directly are not clear")]
+    /// A wrapper around any Header with a Display impl that calls `fmt_header`.
+    ///
+    /// This can be used like so: `format!("{}", HeaderFormatter(&header))` to
+    /// get the 'value string' representation of this Header.
+    ///
+    /// Note: This may not necessarily be the value written to stream, such
+    /// as with the SetCookie header.
+    pub struct HeaderFormatter<'a, H: Header>(pub &'a H);
+}
 
+#[allow(deprecated)]
 impl<'a, H: Header> fmt::Display for HeaderFormatter<'a, H> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -623,6 +630,7 @@ impl<'a, H: Header> fmt::Display for HeaderFormatter<'a, H> {
     }
 }
 
+#[allow(deprecated)]
 impl<'a, H: Header> fmt::Debug for HeaderFormatter<'a, H> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

@@ -10,6 +10,7 @@ license = "MIT"
 authors = ["Sean McArthur <sean.monstar@gmail.com>"]
 keywords = ["http", "hyper", "hyperium"]
 categories = ["web-programming::http-client", "web-programming::http-server"]
+build = "build.rs"
 
 [dependencies]
 base64 = "0.3.0"
@@ -31,6 +32,9 @@ url = "1.0"
 num_cpus = "1.0"
 pretty_env_logger = "0.1"
 spmc = "0.2"
+
+[build-dependencies]
+rustc_version = "0.1"
 
 [features]
 default = []

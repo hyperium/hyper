@@ -55,6 +55,13 @@ macro_rules! unimplemented {
     });
 }
 
+macro_rules! deprecated {
+    (#[$note:meta] $i:item) => (
+        #[cfg_attr(has_deprecated, $note)]
+        $i
+    );
+}
+
 #[cfg(test)]
 mod mock;
 pub mod client;
