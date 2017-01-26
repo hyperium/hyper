@@ -279,7 +279,7 @@ impl Headers {
             };
             let trim = header.value.iter().rev().take_while(|&&x| x == b' ').count();
             let value = &header.value[.. header.value.len() - trim];
-            item.mut_raw().push(value.to_vec());
+            item.raw_mut().push(value.to_vec());
         }
         Ok(headers)
     }
@@ -312,6 +312,9 @@ impl Headers {
 
     /// Set the raw value of a header, bypassing any typed headers.
     ///
+    /// Note: This will completely replace any current value for this
+    /// header name.
+    ///
     /// Example:
     ///
     /// ```
@@ -319,10 +322,37 @@ impl Headers {
     /// # let mut headers = Headers::new();
     /// headers.set_raw("content-length", vec![b"5".to_vec()]);
     /// ```
-    pub fn set_raw<K: Into<Cow<'static, str>> + fmt::Debug>(&mut self, name: K,
+    pub fn set_raw<K: Into<Cow<'static, str>>>(&mut self, name: K,
             value: Vec<Vec<u8>>) {
+        let name = name.into();
         trace!("Headers.set_raw( {:?}, {:?} )", name, value);
-        self.data.insert(UniCase(CowStr(name.into())), Item::new_raw(value));
+        self.data.insert(UniCase(CowStr(name)), Item::new_raw(value));
+    }
+
+    /// Append a value to raw value of this header.
+    ///
+    /// If a header already contains a value, this will add another line to it.
+    ///
+    /// If a header doesnot exist for this name, a new one will be created with
+    /// the value.
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// # use hyper::header::Headers;
+    /// # let mut headers = Headers::new();
+    /// headers.append_raw("x-foo", b"bar".to_vec());
+    /// headers.append_raw("x-foo", b"quux".to_vec());
+    /// ```
+    pub fn append_raw<K: Into<Cow<'static, str>>>(&mut self, name: K, value: Vec<u8>) {
+        let name = name.into();
+        trace!("Headers.append_raw( {:?}, {:?} )", name, value);
+        let name = UniCase(CowStr(name));
+        if let Some(item) = self.data.get_mut(&name) {
+            item.raw_mut().push(value);
+            return;
+        }
+        self.data.insert(name, Item::new_raw(vec![value]));
     }
 
     /// Remove a header set by set_raw
@@ -727,6 +757,16 @@ mod tests {
         headers.set_raw("content-LENGTH", vec![b"20".to_vec()]);
         assert_eq!(headers.get_raw("Content-length").unwrap(), &[b"20".to_vec()][..]);
         assert_eq!(headers.get(), Some(&ContentLength(20)));
+    }
+
+    #[test]
+    fn test_append_raw() {
+        let mut headers = Headers::new();
+        headers.set(ContentLength(10));
+        headers.append_raw("content-LENGTH", b"20".to_vec());
+        assert_eq!(headers.get_raw("Content-length").unwrap(), &[b"10".to_vec(), b"20".to_vec()][..]);
+        headers.append_raw("x-foo", b"bar".to_vec());
+        assert_eq!(headers.get_raw("x-foo"), Some(&[b"bar".to_vec()][..]));
     }
 
     #[test]
