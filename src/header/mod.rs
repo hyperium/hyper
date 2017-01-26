@@ -601,28 +601,32 @@ impl<'a> FromIterator<HeaderView<'a>> for Headers {
 impl<'a> fmt::Display for &'a (Header + Send + Sync) {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        (**self).fmt_header(f)
+        let mut multi = MultilineFormatter(Multi::Join(true, f));
+        self.fmt_multi_header(&mut multi)
     }
 }
 
 /// A wrapper around any Header with a Display impl that calls `fmt_header`.
 ///
 /// This can be used like so: `format!("{}", HeaderFormatter(&header))` to
-/// get the representation of a Header which will be written to an
-/// outgoing `TcpStream`.
+/// get the 'value string' representation of this Header.
+///
+/// Note: This may not necessarily be the value written to stream, such
+/// as with the SetCookie header.
 pub struct HeaderFormatter<'a, H: Header>(pub &'a H);
 
 impl<'a, H: Header> fmt::Display for HeaderFormatter<'a, H> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.0.fmt_header(f)
+        let mut multi = MultilineFormatter(Multi::Join(true, f));
+        self.0.fmt_multi_header(&mut multi)
     }
 }
 
 impl<'a, H: Header> fmt::Debug for HeaderFormatter<'a, H> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.0.fmt_header(f)
+        fmt::Display::fmt(self, f)
     }
 }
 
