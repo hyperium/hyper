@@ -37,27 +37,17 @@ impl Raw {
 
     /// Append a line to this `Raw` header value.
     pub fn push(&mut self, val: &[u8]) {
-        let lines = ::std::mem::replace(&mut self.0, Lines::Many(Vec::new()));
-        match lines {
-            Lines::One(line) => {
-                self.0 = Lines::Many(vec![line, maybe_literal(val.into())]);
-            }
-            Lines::Many(mut lines) => {
-                lines.push(maybe_literal(val.into()));
-                self.0 = Lines::Many(lines);
-            }
-        }
+        self.push_line(maybe_literal(val.into()));
     }
 
-    #[doc(hidden)]
-    pub fn push_slice(&mut self, val: MemSlice) {
+    fn push_line(&mut self, line: Line) {
         let lines = ::std::mem::replace(&mut self.0, Lines::Many(Vec::new()));
         match lines {
-            Lines::One(line) => {
-                self.0 = Lines::Many(vec![line, Line::Shared(val)]);
+            Lines::One(one) => {
+                self.0 = Lines::Many(vec![one, line]);
             }
             Lines::Many(mut lines) => {
-                lines.push(Line::Shared(val));
+                lines.push(line);
                 self.0 = Lines::Many(lines);
             }
         }
@@ -188,6 +178,10 @@ impl AsRef<[u8]> for Line {
 
 pub fn parsed(val: MemSlice) -> Raw {
     Raw(Lines::One(From::from(val)))
+}
+
+pub fn push(raw: &mut Raw, val: MemSlice) {
+    raw.push_line(Line::from(val));
 }
 
 impl fmt::Debug for Raw {

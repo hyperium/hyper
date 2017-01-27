@@ -88,7 +88,7 @@ impl Decoder {
                 } else {
                     let to_read = *remaining as usize;
                     let buf = try!(body.read_mem(to_read));
-                    let num = buf.len() as u64;
+                    let num = buf.as_ref().len() as u64;
                     trace!("Length read: {}", num);
                     if num > *remaining {
                         *remaining = 0;
@@ -399,7 +399,7 @@ mod tests {
         let mut mock_buf = &b"10\r\n1234567890abcdef\r\n0\r\n"[..];
         let buf = Decoder::chunked().decode(&mut mock_buf).expect("decode");
         assert_eq!(16, buf.len());
-        let result = String::from_utf8(buf.to_vec()).expect("decode String");
+        let result = String::from_utf8(buf.as_ref().to_vec()).expect("decode String");
         assert_eq!("1234567890abcdef", &result);
     }
 
@@ -411,7 +411,7 @@ mod tests {
         // normal read
         let buf = decoder.decode(&mut mock_buf).expect("decode");
         assert_eq!(16, buf.len());
-        let result = String::from_utf8(buf.to_vec()).expect("decode String");
+        let result = String::from_utf8(buf.as_ref().to_vec()).expect("decode String");
         assert_eq!("1234567890abcdef", &result);
 
         // eof read
@@ -438,7 +438,7 @@ mod tests {
                     if buf.is_empty() {
                         break; // eof
                     }
-                    outs.write(&buf).expect("write buffer");
+                    outs.write(buf.as_ref()).expect("write buffer");
                 }
                 Err(e) => match e.kind() {
                     io::ErrorKind::WouldBlock => {

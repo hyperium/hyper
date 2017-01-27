@@ -80,7 +80,6 @@ use std::borrow::{Cow, ToOwned};
 use std::iter::{FromIterator, IntoIterator};
 use std::{mem, fmt};
 
-use httparse;
 use unicase::UniCase;
 
 use self::internals::{Item, VecMap, Entry};
@@ -347,31 +346,17 @@ literals! {
 impl Headers {
 
     /// Creates a new, empty headers map.
+    #[inline]
     pub fn new() -> Headers {
-        Headers {
-            data: VecMap::new()
-        }
+        Headers::with_capacity(0)
     }
 
-    #[doc(hidden)]
-    pub fn from_raw(raw: &[httparse::Header], buf: MemSlice) -> ::Result<Headers> {
-        let mut headers = Headers::new();
-        for header in raw {
-            let name = HeaderName(UniCase(maybe_literal(header.name)));
-            let trim = header.value.iter().rev().take_while(|&&x| x == b' ').count();
-            let value_start = header.value.as_ptr() as usize - buf.get().as_ptr() as usize;
-            let value_end = value_start + header.value.len() - trim;
-
-            match headers.data.entry(name) {
-                Entry::Vacant(entry) => {
-                    entry.insert(Item::new_raw(self::raw::parsed(buf.slice(value_start..value_end))));
-                }
-                Entry::Occupied(entry) => {
-                    entry.into_mut().mut_raw().push_slice(buf.slice(value_start..value_end));
-                }
-            };
+    /// Creates a new `Headers` struct with space reserved for `len` headers.
+    #[inline]
+    pub fn with_capacity(len: usize) -> Headers {
+        Headers {
+            data: VecMap::with_capacity(len)
         }
-        Ok(headers)
     }
 
     /// Set a header field to the corresponding value.
@@ -587,6 +572,24 @@ impl<'a> Extend<HeaderView<'a>> for Headers {
     }
 }
 
+impl<'a> Extend<(&'a str, MemSlice)> for Headers {
+    fn extend<I: IntoIterator<Item=(&'a str, MemSlice)>>(&mut self, iter: I) {
+        for (name, value) in iter {
+            let name = HeaderName(UniCase(maybe_literal(name)));
+            //let trim = header.value.iter().rev().take_while(|&&x| x == b' ').count();
+
+            match self.data.entry(name) {
+                Entry::Vacant(entry) => {
+                    entry.insert(Item::new_raw(self::raw::parsed(value)));
+                }
+                Entry::Occupied(entry) => {
+                    self::raw::push(entry.into_mut().mut_raw(), value);
+                }
+            };
+        }
+    }
+}
+
 impl<'a> FromIterator<HeaderView<'a>> for Headers {
     fn from_iter<I: IntoIterator<Item=HeaderView<'a>>>(iter: I) -> Headers {
         let mut headers = Headers::new();
@@ -659,33 +662,22 @@ mod tests {
     use mime::SubLevel::Plain;
     use super::{Headers, Header, Raw, ContentLength, ContentType,
                 Accept, Host, qitem};
-    use httparse;
 
     #[cfg(feature = "nightly")]
     use test::Bencher;
 
-    macro_rules! raw {
-        ($($line:expr),*) => ({
-            [$({
-                // Slice.position_elem was unstable
-                fn index_of(slice: &MemSlice, byte: u8) -> Option<usize> {
-                    for (index, &b) in slice.as_ref().iter().enumerate() {
-                        if b == byte {
-                            return Some(index);
-                        }
-                    }
-                    None
-                }
-
-                let pos = index_of(&$line, b':').expect("raw splits on ':', not found");
-                httparse::Header {
-                    name: ::std::str::from_utf8(&$line[..pos]).unwrap(),
-                    value: &$line[pos + 2..]
-                }
-            }),*]
+    macro_rules! make_header {
+        ($name:expr, $value:expr) => ({
+            let mut headers = Headers::new();
+            headers.set_raw(String::from_utf8($name.to_vec()).unwrap(), $value.to_vec());
+            headers
+        });
+        ($text:expr) => ({
+            let bytes = $text;
+            let colon = bytes.iter().position(|&x| x == b':').unwrap();
+            make_header!(&bytes[..colon], &bytes[colon + 2..])
         })
     }
-
     #[test]
     fn test_from_raw() {
         let headers = make_header!(b"Content-Length", b"10");
@@ -759,7 +751,9 @@ mod tests {
 
     #[test]
     fn test_different_reads() {
-        let headers = make_header!(b"Content-Length: 10\r\nContent-Type: text/plain");
+        let mut headers = Headers::new();
+        headers.set_raw("Content-Length", "10");
+        headers.set_raw("Content-Type", "text/plain");
         let ContentLength(_) = *headers.get::<ContentLength>().unwrap();
         let ContentType(_) = *headers.get::<ContentType>().unwrap();
     }
@@ -897,17 +891,6 @@ mod tests {
             h.set(ContentLength(11));
             h
         })
-    }
-
-    #[cfg(feature = "nightly")]
-    #[bench]
-    fn bench_headers_from_raw(b: &mut Bencher) {
-        use ::http::buf::MemSlice;
-
-        let buf = MemSlice::from(b"Content-Length: 10" as &[u8]);
-        let buf_clone = buf.clone();
-        let raw = raw!(buf_clone);
-        b.iter(|| Headers::from_raw(&raw, buf.clone()).unwrap())
     }
 
     #[cfg(feature = "nightly")]
