@@ -56,6 +56,47 @@ macro_rules! unimplemented {
 }
 
 #[cfg(test)]
+macro_rules! make_header {
+    ($name:expr, $value:expr) => {{
+        use ::http::buf::MemSlice;
+
+        let mut headers = [httparse::EMPTY_HEADER; 100];
+        let mut req = httparse::Request::new(&mut headers);
+
+        let mut v: Vec<u8> = Vec::with_capacity($name.len() + $value.len() + 32);
+        v.extend_from_slice(b"GET /404 HTTP/1.1\r\n" as &[u8]);
+        v.extend_from_slice($name as &[u8]);
+        v.extend_from_slice(b": " as &[u8]);
+        v.extend_from_slice($value as &[u8]);
+        v.extend_from_slice(b"\r\n\r\n" as &[u8]);
+        let buf = MemSlice::from(v);
+        match req.parse(buf.clone().get()).expect("parse failed") {
+            _ => {
+                Headers::from_raw(req.headers, buf).expect("from_raw failed")
+            }
+        }
+    }};
+    ($name:expr) => {{
+        use ::http::buf::MemSlice;
+
+        let mut headers = [httparse::EMPTY_HEADER; 100];
+        let mut req = httparse::Request::new(&mut headers);
+
+        let mut v: Vec<u8> = Vec::with_capacity($name.len() + 25);
+        v.extend_from_slice(b"GET /404 HTTP/1.1\r\n" as &[u8]);
+        v.extend_from_slice($name as &[u8]);
+        v.extend_from_slice(b"\r\n\r\n" as &[u8]);
+        let buf = MemSlice::from(v);
+        match req.parse(buf.clone().get()).expect("parse failed") {
+            httparse::Status::Complete(_) => {
+                Headers::from_raw(req.headers, buf).expect("from_raw failed")
+            }
+            _ => panic!("got unexpected value"),
+        }
+    }}
+}
+
+#[cfg(test)]
 mod mock;
 pub mod client;
 pub mod error;

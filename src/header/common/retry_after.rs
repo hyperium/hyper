@@ -179,14 +179,14 @@ mod tests {
 
     #[test]
     fn hyper_headers_from_raw_delay() {
-        let headers = Headers::from_raw(&[httparse::Header { name: "Retry-After", value: b"300" }]).unwrap();
+        let headers = make_header!(b"Retry-After", b"300");
         let retry_after = headers.get::<RetryAfter>().unwrap();
         assert_eq!(retry_after, &RetryAfter::Delay(Duration::seconds(300)));
     }
 
     #[test]
     fn hyper_headers_from_raw_datetime() {
-        let headers = Headers::from_raw(&[httparse::Header { name: "Retry-After", value: b"Sun, 06 Nov 1994 08:49:37 GMT" }]).unwrap();
+        let headers = make_header!(b"Retry-After", b"Sun, 06 Nov 1994 08:49:37 GMT");
         let retry_after = headers.get::<RetryAfter>().unwrap();
         let expected = "Sun, 06 Nov 1994 08:49:37 GMT".parse::<HttpDate>().unwrap();
 

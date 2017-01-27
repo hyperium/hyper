@@ -13,9 +13,11 @@ use version::HttpVersion::{Http10, Http11};
 pub use self::conn::{Conn, KeepAlive, KA};
 pub use self::body::{Body, TokioBody};
 pub use self::chunk::Chunk;
+use self::buf::MemSlice;
 
 mod body;
-mod buf;
+#[doc(hidden)]
+pub mod buf;
 mod chunk;
 mod conn;
 mod io;
@@ -123,7 +125,7 @@ pub trait Http1Transaction {
     type Incoming;
     type Outgoing: Default;
     //type KeepAlive: KeepAlive;
-    fn parse(bytes: &[u8]) -> ParseResult<Self::Incoming>;
+    fn parse(bytes: MemSlice) -> ParseResult<Self::Incoming>;
     fn decoder(head: &MessageHead<Self::Incoming>) -> ::Result<h1::Decoder>;
     fn encode(head: &mut MessageHead<Self::Outgoing>, dst: &mut Vec<u8>) -> h1::Encoder;
     fn should_set_length(head: &MessageHead<Self::Outgoing>) -> bool;

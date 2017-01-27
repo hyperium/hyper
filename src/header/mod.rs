@@ -88,6 +88,7 @@ use self::internals::{Item, VecMap, Entry};
 pub use self::shared::*;
 pub use self::common::*;
 pub use self::raw::Raw;
+use http::buf::MemSlice;
 
 mod common;
 mod internals;
@@ -353,20 +354,20 @@ impl Headers {
     }
 
     #[doc(hidden)]
-    pub fn from_raw(raw: &[httparse::Header]) -> ::Result<Headers> {
+    pub fn from_raw(raw: &[httparse::Header], buf: MemSlice) -> ::Result<Headers> {
         let mut headers = Headers::new();
         for header in raw {
-            trace!("raw header: {:?}={:?}", header.name, &header.value[..]);
             let name = HeaderName(UniCase(maybe_literal(header.name)));
             let trim = header.value.iter().rev().take_while(|&&x| x == b' ').count();
-            let value = &header.value[.. header.value.len() - trim];
+            let value_start = header.value.as_ptr() as usize - buf.get().as_ptr() as usize;
+            let value_end = value_start + header.value.len() - trim;
 
             match headers.data.entry(name) {
                 Entry::Vacant(entry) => {
-                    entry.insert(Item::new_raw(self::raw::parsed(value)));
+                    entry.insert(Item::new_raw(self::raw::parsed(buf.slice(value_start..value_end))));
                 }
                 Entry::Occupied(entry) => {
-                    entry.into_mut().mut_raw().push(value);
+                    entry.into_mut().mut_raw().push_slice(buf.slice(value_start..value_end));
                 }
             };
         }
@@ -663,24 +664,23 @@ mod tests {
     #[cfg(feature = "nightly")]
     use test::Bencher;
 
-    // Slice.position_elem was unstable
-    fn index_of(slice: &[u8], byte: u8) -> Option<usize> {
-        for (index, &b) in slice.iter().enumerate() {
-            if b == byte {
-                return Some(index);
-            }
-        }
-        None
-    }
-
     macro_rules! raw {
         ($($line:expr),*) => ({
             [$({
-                let line = $line;
-                let pos = index_of(line, b':').expect("raw splits on ':', not found");
+                // Slice.position_elem was unstable
+                fn index_of(slice: &MemSlice, byte: u8) -> Option<usize> {
+                    for (index, &b) in slice.as_ref().iter().enumerate() {
+                        if b == byte {
+                            return Some(index);
+                        }
+                    }
+                    None
+                }
+
+                let pos = index_of(&$line, b':').expect("raw splits on ':', not found");
                 httparse::Header {
-                    name: ::std::str::from_utf8(&line[..pos]).unwrap(),
-                    value: &line[pos + 2..]
+                    name: ::std::str::from_utf8(&$line[..pos]).unwrap(),
+                    value: &$line[pos + 2..]
                 }
             }),*]
         })
@@ -688,7 +688,7 @@ mod tests {
 
     #[test]
     fn test_from_raw() {
-        let headers = Headers::from_raw(&raw!(b"Content-Length: 10")).unwrap();
+        let headers = make_header!(b"Content-Length", b"10");
         assert_eq!(headers.get(), Some(&ContentLength(10)));
     }
 
@@ -738,20 +738,20 @@ mod tests {
 
     #[test]
     fn test_different_structs_for_same_header() {
-        let headers = Headers::from_raw(&raw!(b"Content-Length: 10")).unwrap();
+        let headers = make_header!(b"Content-Length: 10");
         assert_eq!(headers.get::<ContentLength>(), Some(&ContentLength(10)));
         assert_eq!(headers.get::<CrazyLength>(), Some(&CrazyLength(Some(false), 10)));
     }
 
     #[test]
     fn test_trailing_whitespace() {
-        let headers = Headers::from_raw(&raw!(b"Content-Length: 10   ")).unwrap();
+        let headers = make_header!(b"Content-Length: 10   ");
         assert_eq!(headers.get::<ContentLength>(), Some(&ContentLength(10)));
     }
 
     #[test]
     fn test_multiple_reads() {
-        let headers = Headers::from_raw(&raw!(b"Content-Length: 10")).unwrap();
+        let headers = make_header!(b"Content-Length: 10");
         let ContentLength(one) = *headers.get::<ContentLength>().unwrap();
         let ContentLength(two) = *headers.get::<ContentLength>().unwrap();
         assert_eq!(one, two);
@@ -759,15 +759,14 @@ mod tests {
 
     #[test]
     fn test_different_reads() {
-        let headers = Headers::from_raw(
-            &raw!(b"Content-Length: 10", b"Content-Type: text/plain")).unwrap();
+        let headers = make_header!(b"Content-Length: 10\r\nContent-Type: text/plain");
         let ContentLength(_) = *headers.get::<ContentLength>().unwrap();
         let ContentType(_) = *headers.get::<ContentType>().unwrap();
     }
 
     #[test]
     fn test_get_mutable() {
-        let mut headers = Headers::from_raw(&raw!(b"Content-Length: 10")).unwrap();
+        let mut headers = make_header!(b"Content-Length: 10");
         *headers.get_mut::<ContentLength>().unwrap() = ContentLength(20);
         assert_eq!(headers.get_raw("content-length").unwrap(), &[b"20".to_vec()][..]);
         assert_eq!(*headers.get::<ContentLength>().unwrap(), ContentLength(20));
@@ -786,7 +785,7 @@ mod tests {
 
     #[test]
     fn test_headers_to_string_raw() {
-        let mut headers = Headers::from_raw(&raw!(b"Content-Length: 10")).unwrap();
+        let mut headers = make_header!(b"Content-Length: 10");
         headers.set_raw("x-foo", vec![b"foo".to_vec(), b"bar".to_vec()]);
         let s = headers.to_string();
         assert_eq!(s, "Content-Length: 10\r\nx-foo: foo\r\nx-foo: bar\r\n");
@@ -903,8 +902,12 @@ mod tests {
     #[cfg(feature = "nightly")]
     #[bench]
     fn bench_headers_from_raw(b: &mut Bencher) {
-        let raw = raw!(b"Content-Length: 10");
-        b.iter(|| Headers::from_raw(&raw).unwrap())
+        use ::http::buf::MemSlice;
+
+        let buf = MemSlice::from(b"Content-Length: 10" as &[u8]);
+        let buf_clone = buf.clone();
+        let raw = raw!(buf_clone);
+        b.iter(|| Headers::from_raw(&raw, buf.clone()).unwrap())
     }
 
     #[cfg(feature = "nightly")]

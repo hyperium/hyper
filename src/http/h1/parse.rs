@@ -6,6 +6,7 @@ use httparse;
 use header::{self, Headers, ContentLength, TransferEncoding};
 use http::{MessageHead, RawStatus, Http1Transaction, ParseResult, ServerTransaction, ClientTransaction, RequestLine};
 use http::h1::{Encoder, Decoder};
+use http::buf::MemSlice;
 use method::Method;
 use status::StatusCode;
 use version::HttpVersion::{Http10, Http11};
@@ -13,7 +14,7 @@ use version::HttpVersion::{Http10, Http11};
 const MAX_HEADERS: usize = 100;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
 
-pub fn parse<T: Http1Transaction<Incoming=I>, I>(buf: &[u8]) -> ParseResult<I> {
+pub fn parse<T: Http1Transaction<Incoming=I>, I>(buf: MemSlice) -> ParseResult<I> {
     if buf.len() == 0 {
         return Ok(None);
     }
@@ -25,11 +26,11 @@ impl Http1Transaction for ServerTransaction {
     type Incoming = RequestLine;
     type Outgoing = StatusCode;
 
-    fn parse(buf: &[u8]) -> ParseResult<RequestLine> {
+    fn parse(buf: MemSlice) -> ParseResult<RequestLine> {
         let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
         trace!("Request.parse([Header; {}], [u8; {}])", headers.len(), buf.len());
         let mut req = httparse::Request::new(&mut headers);
-        Ok(match try!(req.parse(buf)) {
+        Ok(match try!(req.parse(buf.clone().get())) {
             httparse::Status::Complete(len) => {
                 trace!("Request.parse Complete({})", len);
                 Some((MessageHead {
@@ -38,10 +39,10 @@ impl Http1Transaction for ServerTransaction {
                         try!(req.method.unwrap().parse()),
                         try!(req.path.unwrap().parse())
                     ),
-                    headers: try!(Headers::from_raw(req.headers))
+                    headers: try!(Headers::from_raw(req.headers, buf))
                 }, len))
-            },
-            httparse::Status::Partial => None
+            }
+            httparse::Status::Partial => None,
         })
     }
 
@@ -112,11 +113,11 @@ impl Http1Transaction for ClientTransaction {
     type Incoming = RawStatus;
     type Outgoing = RequestLine;
 
-    fn parse(buf: &[u8]) -> ParseResult<RawStatus> {
+    fn parse(buf: MemSlice) -> ParseResult<RawStatus> {
         let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
         trace!("Response.parse([Header; {}], [u8; {}])", headers.len(), buf.len());
         let mut res = httparse::Response::new(&mut headers);
-        Ok(match try!(res.parse(buf)) {
+        Ok(match try!(res.parse(buf.clone().get())) {
             httparse::Status::Complete(len) => {
                 trace!("Response.try_parse Complete({})", len);
                 let code = res.code.unwrap();
@@ -127,7 +128,7 @@ impl Http1Transaction for ClientTransaction {
                 Some((MessageHead {
                     version: if res.version.unwrap() == 1 { Http11 } else { Http10 },
                     subject: RawStatus(code, reason),
-                    headers: try!(Headers::from_raw(res.headers))
+                    headers: try!(Headers::from_raw(res.headers, buf))
                 }, len))
             },
             httparse::Status::Partial => None
@@ -244,21 +245,22 @@ fn extend(dst: &mut Vec<u8>, data: &[u8]) {
 #[cfg(test)]
 mod tests {
     use http;
+    use http::buf::MemSlice;
     use super::{parse};
 
     #[test]
     fn test_parse_request() {
-        let raw = b"GET /echo HTTP/1.1\r\nHost: hyper.rs\r\n\r\n";
+        let raw = MemSlice::from(b"GET /echo HTTP/1.1\r\nHost: hyper.rs\r\n\r\n" as &[u8]);
         parse::<http::ServerTransaction, _>(raw).unwrap();
     }
 
     #[test]
     fn test_parse_raw_status() {
-        let raw = b"HTTP/1.1 200 OK\r\n\r\n";
+        let raw = MemSlice::from(b"HTTP/1.1 200 OK\r\n\r\n" as &[u8]);
         let (res, _) = parse::<http::ClientTransaction, _>(raw).unwrap().unwrap();
         assert_eq!(res.subject.1, "OK");
 
-        let raw = b"HTTP/1.1 200 Howdy\r\n\r\n";
+        let raw = MemSlice::from(b"HTTP/1.1 200 Howdy\r\n\r\n" as &[u8]);
         let (res, _) = parse::<http::ClientTransaction, _>(raw).unwrap().unwrap();
         assert_eq!(res.subject.1, "Howdy");
     }
@@ -269,9 +271,25 @@ mod tests {
     #[cfg(feature = "nightly")]
     #[bench]
     fn bench_parse_incoming(b: &mut Bencher) {
-        let raw = b"GET /echo HTTP/1.1\r\nHost: hyper.rs\r\n\r\n";
+        let raw = MemSlice::from(b"GET /super_long_uri/and_whatever?what_should_we_talk_about/\
+                                  I_wonder/Hard_to_write_in_an_uri_after_all/you_have_to_make\
+                                  _up_the_punctuation_yourself/how_fun_is_that?test=foo&test1=\
+                                  foo1&test2=foo2&test3=foo3&test4=foo4 HTTP/1.1\r\nHost: \
+                                  hyper.rs\r\nAccept: a lot of things\r\nAccept-Charset: \
+                                  utf8\r\nAccept-Encoding: *\r\nAccess-Control-Allow-\
+                                  Credentials: None\r\nAccess-Control-Allow-Origin: None\r\n\
+                                  Access-Control-Allow-Methods: None\r\nAccess-Control-Allow-\
+                                  Headers: None\r\nContent-Encoding: utf8\r\nContent-Security-\
+                                  Policy: None\r\nContent-Type: text/html\r\nOrigin: hyper\
+                                  \r\nSec-Websocket-Extensions: It looks super important!\r\n\
+                                  Sec-Websocket-Origin: hyper\r\nSec-Websocket-Version: 4.3\r\
+                                  \nStrict-Transport-Security: None\r\nUser-Agent: hyper\r\n\
+                                  X-Content-Duration: None\r\nX-Content-Security-Policy: None\
+                                  \r\nX-DNSPrefetch-Control: None\r\nX-Frame-Options: \
+                                  Something important obviously\r\nX-Requested-With: Nothing\
+                                  \r\n\r\n" as &[u8]);
         b.iter(|| {
-            parse::<http::ServerTransaction, _>(raw).unwrap()
+            parse::<http::ServerTransaction, _>(raw.clone()).unwrap()
         });
     }
 
