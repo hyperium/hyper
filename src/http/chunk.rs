@@ -69,7 +69,7 @@ impl AsRef<[u8]> for Chunk {
         match self.0 {
             Inner::Owned(ref vec) => vec,
             Inner::Referenced(ref vec) => vec,
-            Inner::Mem(ref slice) => slice,
+            Inner::Mem(ref slice) => slice.as_ref(),
             Inner::Static(slice) => slice,
         }
     }

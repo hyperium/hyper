@@ -21,7 +21,7 @@ pub fn from_one_raw_str<T: str::FromStr>(raw: &Raw) -> ::Result<T> {
 
 /// Reads a raw string into a value.
 pub fn from_raw_str<T: str::FromStr>(raw: &[u8]) -> ::Result<T> {
-    let s = try!(str::from_utf8(raw));
+    let s = try!(str::from_utf8(raw)).trim();
     T::from_str(s).or(Err(::Error::Header))
 }
 
@@ -36,7 +36,7 @@ pub fn from_comma_delimited<T: str::FromStr>(raw: &Raw) -> ::Result<Vec<T>> {
                           "" => None,
                           y => Some(y)
                       })
-                      .filter_map(|x| x.parse().ok()))
+                      .filter_map(|x| x.trim().parse().ok()))
     }
     Ok(result)
 }

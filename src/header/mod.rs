@@ -80,7 +80,6 @@ use std::borrow::{Cow, ToOwned};
 use std::iter::{FromIterator, IntoIterator};
 use std::{mem, fmt};
 
-use httparse;
 use unicase::UniCase;
 
 use self::internals::{Item, VecMap, Entry};
@@ -88,6 +87,7 @@ use self::internals::{Item, VecMap, Entry};
 pub use self::shared::*;
 pub use self::common::*;
 pub use self::raw::Raw;
+use http::buf::MemSlice;
 
 mod common;
 mod internals;
@@ -346,31 +346,17 @@ literals! {
 impl Headers {
 
     /// Creates a new, empty headers map.
+    #[inline]
     pub fn new() -> Headers {
-        Headers {
-            data: VecMap::new()
-        }
+        Headers::with_capacity(0)
     }
 
-    #[doc(hidden)]
-    pub fn from_raw(raw: &[httparse::Header]) -> ::Result<Headers> {
-        let mut headers = Headers::new();
-        for header in raw {
-            trace!("raw header: {:?}={:?}", header.name, &header.value[..]);
-            let name = HeaderName(UniCase(maybe_literal(header.name)));
-            let trim = header.value.iter().rev().take_while(|&&x| x == b' ').count();
-            let value = &header.value[.. header.value.len() - trim];
-
-            match headers.data.entry(name) {
-                Entry::Vacant(entry) => {
-                    entry.insert(Item::new_raw(self::raw::parsed(value)));
-                }
-                Entry::Occupied(entry) => {
-                    entry.into_mut().mut_raw().push(value);
-                }
-            };
+    /// Creates a new `Headers` struct with space reserved for `len` headers.
+    #[inline]
+    pub fn with_capacity(len: usize) -> Headers {
+        Headers {
+            data: VecMap::with_capacity(len)
         }
-        Ok(headers)
     }
 
     /// Set a header field to the corresponding value.
@@ -586,6 +572,24 @@ impl<'a> Extend<HeaderView<'a>> for Headers {
     }
 }
 
+impl<'a> Extend<(&'a str, MemSlice)> for Headers {
+    fn extend<I: IntoIterator<Item=(&'a str, MemSlice)>>(&mut self, iter: I) {
+        for (name, value) in iter {
+            let name = HeaderName(UniCase(maybe_literal(name)));
+            //let trim = header.value.iter().rev().take_while(|&&x| x == b' ').count();
+
+            match self.data.entry(name) {
+                Entry::Vacant(entry) => {
+                    entry.insert(Item::new_raw(self::raw::parsed(value)));
+                }
+                Entry::Occupied(entry) => {
+                    self::raw::push(entry.into_mut().mut_raw(), value);
+                }
+            };
+        }
+    }
+}
+
 impl<'a> FromIterator<HeaderView<'a>> for Headers {
     fn from_iter<I: IntoIterator<Item=HeaderView<'a>>>(iter: I) -> Headers {
         let mut headers = Headers::new();
@@ -658,37 +662,25 @@ mod tests {
     use mime::SubLevel::Plain;
     use super::{Headers, Header, Raw, ContentLength, ContentType,
                 Accept, Host, qitem};
-    use httparse;
 
     #[cfg(feature = "nightly")]
     use test::Bencher;
 
-    // Slice.position_elem was unstable
-    fn index_of(slice: &[u8], byte: u8) -> Option<usize> {
-        for (index, &b) in slice.iter().enumerate() {
-            if b == byte {
-                return Some(index);
-            }
-        }
-        None
-    }
-
-    macro_rules! raw {
-        ($($line:expr),*) => ({
-            [$({
-                let line = $line;
-                let pos = index_of(line, b':').expect("raw splits on ':', not found");
-                httparse::Header {
-                    name: ::std::str::from_utf8(&line[..pos]).unwrap(),
-                    value: &line[pos + 2..]
-                }
-            }),*]
+    macro_rules! make_header {
+        ($name:expr, $value:expr) => ({
+            let mut headers = Headers::new();
+            headers.set_raw(String::from_utf8($name.to_vec()).unwrap(), $value.to_vec());
+            headers
+        });
+        ($text:expr) => ({
+            let bytes = $text;
+            let colon = bytes.iter().position(|&x| x == b':').unwrap();
+            make_header!(&bytes[..colon], &bytes[colon + 2..])
         })
     }
-
     #[test]
     fn test_from_raw() {
-        let headers = Headers::from_raw(&raw!(b"Content-Length: 10")).unwrap();
+        let headers = make_header!(b"Content-Length", b"10");
         assert_eq!(headers.get(), Some(&ContentLength(10)));
     }
 
@@ -738,20 +730,20 @@ mod tests {
 
     #[test]
     fn test_different_structs_for_same_header() {
-        let headers = Headers::from_raw(&raw!(b"Content-Length: 10")).unwrap();
+        let headers = make_header!(b"Content-Length: 10");
         assert_eq!(headers.get::<ContentLength>(), Some(&ContentLength(10)));
         assert_eq!(headers.get::<CrazyLength>(), Some(&CrazyLength(Some(false), 10)));
     }
 
     #[test]
     fn test_trailing_whitespace() {
-        let headers = Headers::from_raw(&raw!(b"Content-Length: 10   ")).unwrap();
+        let headers = make_header!(b"Content-Length: 10   ");
         assert_eq!(headers.get::<ContentLength>(), Some(&ContentLength(10)));
     }
 
     #[test]
     fn test_multiple_reads() {
-        let headers = Headers::from_raw(&raw!(b"Content-Length: 10")).unwrap();
+        let headers = make_header!(b"Content-Length: 10");
         let ContentLength(one) = *headers.get::<ContentLength>().unwrap();
         let ContentLength(two) = *headers.get::<ContentLength>().unwrap();
         assert_eq!(one, two);
@@ -759,15 +751,16 @@ mod tests {
 
     #[test]
     fn test_different_reads() {
-        let headers = Headers::from_raw(
-            &raw!(b"Content-Length: 10", b"Content-Type: text/plain")).unwrap();
+        let mut headers = Headers::new();
+        headers.set_raw("Content-Length", "10");
+        headers.set_raw("Content-Type", "text/plain");
         let ContentLength(_) = *headers.get::<ContentLength>().unwrap();
         let ContentType(_) = *headers.get::<ContentType>().unwrap();
     }
 
     #[test]
     fn test_get_mutable() {
-        let mut headers = Headers::from_raw(&raw!(b"Content-Length: 10")).unwrap();
+        let mut headers = make_header!(b"Content-Length: 10");
         *headers.get_mut::<ContentLength>().unwrap() = ContentLength(20);
         assert_eq!(headers.get_raw("content-length").unwrap(), &[b"20".to_vec()][..]);
         assert_eq!(*headers.get::<ContentLength>().unwrap(), ContentLength(20));
@@ -786,7 +779,7 @@ mod tests {
 
     #[test]
     fn test_headers_to_string_raw() {
-        let mut headers = Headers::from_raw(&raw!(b"Content-Length: 10")).unwrap();
+        let mut headers = make_header!(b"Content-Length: 10");
         headers.set_raw("x-foo", vec![b"foo".to_vec(), b"bar".to_vec()]);
         let s = headers.to_string();
         assert_eq!(s, "Content-Length: 10\r\nx-foo: foo\r\nx-foo: bar\r\n");
@@ -898,13 +891,6 @@ mod tests {
             h.set(ContentLength(11));
             h
         })
-    }
-
-    #[cfg(feature = "nightly")]
-    #[bench]
-    fn bench_headers_from_raw(b: &mut Bencher) {
-        let raw = raw!(b"Content-Length: 10");
-        b.iter(|| Headers::from_raw(&raw).unwrap())
     }
 
     #[cfg(feature = "nightly")]

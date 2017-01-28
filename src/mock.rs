@@ -6,7 +6,8 @@ use tokio::io::Io;
 
 #[derive(Debug)]
 pub struct Buf {
-    vec: Vec<u8>
+    vec: Vec<u8>,
+    pos: usize,
 }
 
 impl Buf {
@@ -17,6 +18,7 @@ impl Buf {
     pub fn wrap(vec: Vec<u8>) -> Buf {
         Buf {
             vec: vec,
+            pos: 0,
         }
     }
 }
@@ -48,7 +50,10 @@ impl Write for Buf {
 
 impl Read for Buf {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        (&*self.vec).read(buf)
+        (&self.vec[self.pos..]).read(buf).map(|n| {
+            self.pos += n;
+            n
+        })
     }
 }
 

@@ -40,6 +40,7 @@ impl Header for ContentLength {
         static NAME: &'static str = "Content-Length";
         NAME
     }
+
     fn parse_header(raw: &Raw) -> ::Result<ContentLength> {
         // If multiple Content-Length headers were sent, everything can still
         // be alright if they all contain the same value, and all parse
@@ -49,9 +50,9 @@ impl Header for ContentLength {
             .fold(None, |prev, x| {
                 match (prev, x) {
                     (None, x) => Some(x),
-                    (e@Some(Err(_)), _ ) => e,
+                    (e @ Some(Err(_)), _ ) => e,
                     (Some(Ok(prev)), Ok(x)) if prev == x => Some(Ok(prev)),
-                    _ => Some(Err(::Error::Header))
+                    _ => Some(Err(::Error::Header)),
                 }
             })
             .unwrap_or(Err(::Error::Header))

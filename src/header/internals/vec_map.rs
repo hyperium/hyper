@@ -4,9 +4,9 @@ pub struct VecMap<K, V> {
 }
 
 impl<K: PartialEq, V> VecMap<K, V> {
-    pub fn new() -> VecMap<K, V> {
+    pub fn with_capacity(cap: usize) -> VecMap<K, V> {
         VecMap {
-            vec: Vec::new()
+            vec: Vec::with_capacity(cap)
         }
     }
 
@@ -43,6 +43,7 @@ impl<K: PartialEq, V> VecMap<K, V> {
     }
 
     pub fn len(&self) -> usize { self.vec.len() }
+
     pub fn iter(&self) -> ::std::slice::Iter<(K, V)> {
         self.vec.iter()
     }

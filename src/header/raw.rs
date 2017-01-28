@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::fmt;
+use http::buf::MemSlice;
 
 /// A raw header value.
 #[derive(Clone, PartialEq, Eq)]
@@ -19,8 +20,8 @@ impl Raw {
     #[inline]
     pub fn one(&self) -> Option<&[u8]> {
         match self.0 {
-            Lines::One(ref line) => Some(line),
-            Lines::Many(ref lines) if lines.len() == 1 => Some(&lines[0]),
+            Lines::One(ref line) => Some(line.as_ref()),
+            Lines::Many(ref lines) if lines.len() == 1 => Some(lines[0].as_ref()),
             _ => None
         }
     }
@@ -29,37 +30,42 @@ impl Raw {
     #[inline]
     pub fn iter(&self) -> RawLines {
         RawLines {
-            inner: match self.0 {
-                Lines::One(ref line) => unsafe {
-                    ::std::slice::from_raw_parts(line, 1)
-                }.iter(),
-                Lines::Many(ref lines) => lines.iter()
-            }
+            inner: &self.0,
+            pos: 0,
         }
     }
 
     /// Append a line to this `Raw` header value.
     pub fn push(&mut self, val: &[u8]) {
+        self.push_line(maybe_literal(val.into()));
+    }
+
+    fn push_line(&mut self, line: Line) {
         let lines = ::std::mem::replace(&mut self.0, Lines::Many(Vec::new()));
         match lines {
-            Lines::One(line) => {
-                self.0 = Lines::Many(vec![line, maybe_literal(val.into())]);
+            Lines::One(one) => {
+                self.0 = Lines::Many(vec![one, line]);
             }
             Lines::Many(mut lines) => {
-                lines.push(maybe_literal(val.into()));
+                lines.push(line);
                 self.0 = Lines::Many(lines);
             }
         }
     }
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum Lines {
     One(Line),
-    Many(Vec<Line>)
+    Many(Vec<Line>),
 }
 
-type Line = Cow<'static, [u8]>;
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Line {
+    Static(&'static [u8]),
+    Owned(Vec<u8>),
+    Shared(MemSlice),
+}
 
 fn eq<A: AsRef<[u8]>, B: AsRef<[u8]>>(a: &[A], b: &[B]) -> bool {
     if a.len() != b.len() {
@@ -123,24 +129,59 @@ impl From<String> for Raw {
 impl From<Vec<u8>> for Raw {
     #[inline]
     fn from(val: Vec<u8>) -> Raw {
-        Raw(Lines::One(Cow::Owned(val)))
+        Raw(Lines::One(Line::from(val)))
     }
 }
 
 impl From<&'static str> for Raw {
     fn from(val: &'static str) -> Raw {
-        Raw(Lines::One(Cow::Borrowed(val.as_bytes())))
+        Raw(Lines::One(Line::Static(val.as_bytes())))
     }
 }
 
 impl From<&'static [u8]> for Raw {
     fn from(val: &'static [u8]) -> Raw {
-        Raw(Lines::One(Cow::Borrowed(val)))
+        Raw(Lines::One(Line::Static(val)))
     }
 }
 
-pub fn parsed(val: &[u8]) -> Raw {
-    Raw(Lines::One(maybe_literal(val.into())))
+impl From<MemSlice> for Raw {
+    #[inline]
+    fn from(val: MemSlice) -> Raw {
+        Raw(Lines::One(Line::Shared(val)))
+    }
+}
+
+impl From<Vec<u8>> for Line {
+    #[inline]
+    fn from(val: Vec<u8>) -> Line {
+        Line::Owned(val)
+    }
+}
+
+impl From<MemSlice> for Line {
+    #[inline]
+    fn from(val: MemSlice) -> Line {
+        Line::Shared(val)
+    }
+}
+
+impl AsRef<[u8]> for Line {
+    fn as_ref(&self) -> &[u8] {
+        match *self {
+            Line::Static(ref s) => s,
+            Line::Owned(ref v) => v.as_ref(),
+            Line::Shared(ref m) => m.as_ref(),
+        }
+    }
+}
+
+pub fn parsed(val: MemSlice) -> Raw {
+    Raw(Lines::One(From::from(val)))
+}
+
+pub fn push(raw: &mut Raw, val: MemSlice) {
+    raw.push_line(Line::from(val));
 }
 
 impl fmt::Debug for Raw {
@@ -154,6 +195,7 @@ impl fmt::Debug for Raw {
 
 impl ::std::ops::Index<usize> for Raw {
     type Output = [u8];
+
     fn index(&self, idx: usize) -> &[u8] {
         match self.0 {
             Lines::One(ref line) => if idx == 0 {
@@ -168,12 +210,12 @@ impl ::std::ops::Index<usize> for Raw {
 
 macro_rules! literals {
     ($($len:expr => $($value:expr),+;)+) => (
-        fn maybe_literal<'a>(s: Cow<'a, [u8]>) -> Cow<'static, [u8]> {
+        fn maybe_literal<'a>(s: Cow<'a, [u8]>) -> Line {
             match s.len() {
                 $($len => {
                     $(
                     if s.as_ref() == $value {
-                        return Cow::Borrowed($value);
+                        return Line::Static($value);
                     }
                     )+
                 })+
@@ -181,7 +223,7 @@ macro_rules! literals {
                 _ => ()
             }
 
-            Cow::Owned(s.into_owned())
+            Line::from(s.into_owned())
         }
 
         #[test]
@@ -216,7 +258,8 @@ impl<'a> IntoIterator for &'a Raw {
 
 #[derive(Debug)]
 pub struct RawLines<'a> {
-    inner: ::std::slice::Iter<'a, Cow<'static, [u8]>>
+    inner: &'a Lines,
+    pos: usize,
 }
 
 impl<'a> Iterator for RawLines<'a> {
@@ -224,6 +267,17 @@ impl<'a> Iterator for RawLines<'a> {
 
     #[inline]
     fn next(&mut self) -> Option<&'a [u8]> {
-        self.inner.next().map(AsRef::as_ref)
+        let current_pos = self.pos;
+        self.pos += 1;
+        match *self.inner {
+            Lines::One(ref line) => {
+                if current_pos == 0 {
+                    Some(line.as_ref())
+                } else {
+                    None
+                }
+            }
+            Lines::Many(ref lines) => lines.get(current_pos).map(|l| l.as_ref()),
+        }
     }
 }
