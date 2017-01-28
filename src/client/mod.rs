@@ -49,11 +49,17 @@ impl Client<HttpConnector> {
     ///
     /// # Example
     ///
-    /// ```dont_run
-    /// # use hyper::Client;
-    /// let client = Client::configure()
+    /// ```no_run
+    /// extern crate hyper;
+    /// extern crate tokio_core;
+    ///
+    /// fn main() {
+    /// let mut core = tokio_core::reactor::Core::new().unwrap();
+    /// let handle = core.handle();
+    /// let client = hyper::Client::configure()
     ///     .keep_alive(true)
-    ///     .build().unwrap();
+    ///     .build(&handle);
+    /// }
     /// ```
     #[inline]
     pub fn configure() -> Config<UseDefaultConnector> {
