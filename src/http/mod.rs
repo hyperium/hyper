@@ -2,7 +2,7 @@
 use std::borrow::Cow;
 use std::fmt;
 
-use header::{Connection, ConnectionOption};
+use header::{Connection, ConnectionOption, Expect};
 use header::Headers;
 use method::Method;
 use status::StatusCode;
@@ -68,6 +68,10 @@ impl<S> MessageHead<S> {
     pub fn should_keep_alive(&self) -> bool {
         should_keep_alive(self.version, &self.headers)
     }
+
+    pub fn expecting_continue(&self) -> bool {
+        expecting_continue(self.version, &self.headers)
+    }
 }
 
 /// The raw status code and reason-phrase.
@@ -112,6 +116,16 @@ pub fn should_keep_alive(version: HttpVersion, headers: &Headers) -> bool {
         _ => true
     };
     trace!("should_keep_alive(version={:?}, header={:?}) = {:?}", version, headers.get::<Connection>(), ret);
+    ret
+}
+
+#[inline]
+pub fn expecting_continue(version: HttpVersion, headers: &Headers) -> bool {
+    let ret = match (version, headers.get::<Expect>()) {
+        (Http11, Some(expect)) if expect == &Expect::Continue => true,
+        _ => false
+    };
+    trace!("expecting_continue(version={:?}, header={:?}) = {:?}", version, headers.get::<Expect>(), ret);
     ret
 }
 

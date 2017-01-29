@@ -116,6 +116,7 @@ impl<I: Io, T: Http1Transaction, K: KeepAlive> Conn<I, T, K> {
                     }
                 };
                 self.state.busy();
+                let wants_continue = head.expecting_continue();
                 let wants_keep_alive = head.should_keep_alive();
                 self.state.keep_alive &= wants_keep_alive;
                 let (body, reading) = if decoder.is_eof() {
@@ -124,6 +125,10 @@ impl<I: Io, T: Http1Transaction, K: KeepAlive> Conn<I, T, K> {
                     (true, Reading::Body(decoder))
                 };
                 self.state.reading = reading;
+                if wants_continue {
+                    self.state.reading = Reading::Init;
+                }
+
                 return Ok(Async::Ready(Some(Frame::Message { message: head, body: body })));
             },
             _ => {
