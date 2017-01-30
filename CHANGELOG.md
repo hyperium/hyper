@@ -1,3 +1,36 @@
+### v0.9.18 (2017-01-30)
+
+
+#### Bug Fixes
+
+* **header:** enable SetCookie.fmt_header when only 1 cookie ([e3f317ee](https://github.com/hyperium/hyper/commit/e3f317eea7f315d960dfd98e2ffa1462d5fd2cc0))
+
+
+### v0.9.17 (2017-01-24)
+
+
+#### Bug Fixes
+
+* **client:** only set Host header when not present ([98342399](https://github.com/hyperium/hyper/commit/98342399a6f852905d9bf09060ac6a92d4caf923))
+* **header:** security fix for header values that include newlines ([39ef6355](https://github.com/hyperium/hyper/commit/39ef63558bf4649452eb0b7d6053c159fc81b9e6))
+
+
+#### Breaking Changes
+
+* This technically will cause code that a calls
+  `SetCookie.fmt_header` to panic, as it is no longer to properly write
+  that method. Most people should not be doing this at all, and all
+  other ways of printing headers should work just fine.
+
+  The breaking change must occur in a patch version because of the
+  security nature of the fix.
+
+ ([39ef6355](https://github.com/hyperium/hyper/commit/39ef63558bf4649452eb0b7d6053c159fc81b9e6))
+
+
+### v0.9.16 (2017-01-23)
+
+
 ### v0.9.15 (2017-01-19)
 
 
