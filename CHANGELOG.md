@@ -1,7 +1,19 @@
+### v0.10.3 (2017-01-30)
+
+
+#### Bug Fixes
+
+* **header:**
+  * deprecate HeaderFormatter ([282466e1](https://github.com/hyperium/hyper/commit/282466e1c00879cf9dde1ed62c3d436e99bfba85))
+  * enable SetCookie.fmt_header when only 1 cookie ([7611c307](https://github.com/hyperium/hyper/commit/7611c3071475afa2b0b80bbba2a0a7223a3d5920))
+
+
+#### Features
+
+* **header:** add Headers::append_raw ([6babbc40](https://github.com/hyperium/hyper/commit/6babbc40fb86a29ad76083a2a386182c40c0f335))
+
+
 ### v0.10.2 (2017-01-23)
-
-
-### v0.10.1 (2017-01-19)
 
 
 #### Bug Fixes
@@ -21,6 +33,9 @@
   security nature of the fix.
 
  ([2603d78f](https://github.com/hyperium/hyper/commit/2603d78f59d284953553b7ef48c3ea4baa085cd1))
+
+
+### v0.10.1 (2017-01-19)
 
 
 ## v0.10.0 (2017-01-10)
