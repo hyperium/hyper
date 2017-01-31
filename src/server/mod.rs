@@ -223,7 +223,7 @@ impl<S: SslServer + Clone + Send> Server<HttpsListener<S>> {
     }
 }
 
-impl<L: NetworkListener + Send + 'static> Server<L> {
+impl<L: NetworkListener + Send + Clone + 'static> Server<L> {
     /// Binds to a socket and starts handling connections.
     pub fn handle<H: Handler + 'static>(self, handler: H) -> ::Result<Listening> {
         self.handle_threads(handler, num_cpus::get() * 5 / 4)
@@ -238,7 +238,8 @@ impl<L: NetworkListener + Send + 'static> Server<L> {
 }
 
 fn handle<H, L>(mut server: Server<L>, handler: H, threads: usize) -> ::Result<Listening>
-where H: Handler + 'static, L: NetworkListener + Send + 'static {
+    where H: Handler + 'static, L: NetworkListener + Send + Clone + 'static
+{
     let socket = try!(server.listener.local_addr());
 
     debug!("threads = {:?}", threads);

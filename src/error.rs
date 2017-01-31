@@ -10,7 +10,11 @@ use url;
 use solicit::http::HttpError as Http2Error;
 
 #[cfg(feature = "openssl")]
-use openssl::ssl::error::SslError;
+use openssl::error::Error as SslError;
+#[cfg(feature = "openssl")]
+use openssl::error::ErrorStack as SslErrorStack;
+#[cfg(feature = "openssl")]
+use openssl::ssl::HandshakeError as SslHandshakeError;
 
 use self::Error::{
     Method,
@@ -122,9 +126,24 @@ impl From<url::ParseError> for Error {
 #[cfg(feature = "openssl")]
 impl From<SslError> for Error {
     fn from(err: SslError) -> Error {
+        Ssl(Box::new(err))
+    }
+}
+
+#[cfg(feature = "openssl")]
+impl From<SslErrorStack> for Error {
+    fn from(err: SslErrorStack) -> Error {
+        Ssl(Box::new(err))
+    }
+}
+
+#[cfg(feature = "openssl")]
+impl<S> From<SslHandshakeError<S>> for Error {
+    fn from(err: SslHandshakeError<S>) -> Error {
         match err {
-            SslError::StreamError(err) => Io(err),
-            err => Ssl(Box::new(err)),
+            SslHandshakeError::SetupFailure(stack) => stack.into(),
+            SslHandshakeError::Failure(err) => Ssl(Box::new(err.into_error())),
+            SslHandshakeError::Interrupted(err) => Ssl(Box::new(err.into_error()))
         }
     }
 }
@@ -218,15 +237,5 @@ mod tests {
         from!(httparse::Error::Token => Header);
         from!(httparse::Error::TooManyHeaders => TooLarge);
         from!(httparse::Error::Version => Version);
-    }
-
-    #[cfg(feature = "openssl")]
-    #[test]
-    fn test_from_ssl() {
-        use openssl::ssl::error::SslError;
-
-        from!(SslError::StreamError(
-            io::Error::new(io::ErrorKind::Other, "ssl negotiation")) => Io(..));
-        from_and_cause!(SslError::SslSessionClosed => Ssl(..));
     }
 }
