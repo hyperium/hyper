@@ -57,6 +57,12 @@ impl Header for Expect {
 
 impl HeaderFormat for Expect {
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+impl fmt::Display for Expect {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str("100-continue")
     }
 }
