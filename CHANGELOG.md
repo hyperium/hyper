@@ -1,3 +1,11 @@
+### v0.10.4 (2017-01-31)
+
+
+#### Features
+
+* **header:** implement fmt::Display for several headers ([d5075770](https://github.com/hyperium/hyper/commit/d50757707b1c628f398fb0583aa3dd02111ae658))
+
+
 ### v0.10.3 (2017-01-30)
 
 
