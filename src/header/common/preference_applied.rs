@@ -64,6 +64,13 @@ impl Header for PreferenceApplied {
     }
 
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+impl fmt::Display for PreferenceApplied {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        //TODO: format this without allocating a Vec and cloning contents
         let preferences: Vec<_> = self.0.iter().map(|pref| match pref {
             // The spec ignores parameters in `Preferences-Applied`
             &Preference::Extension(ref name, ref value, _) => Preference::Extension(

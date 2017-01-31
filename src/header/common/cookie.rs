@@ -55,6 +55,12 @@ impl Header for Cookie {
     }
 
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+impl fmt::Display for Cookie {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let cookies = &self.0;
         for (i, cookie) in cookies.iter().enumerate() {
             if i != 0 {
@@ -63,6 +69,7 @@ impl Header for Cookie {
             try!(Display::fmt(&cookie, f));
         }
         Ok(())
+
     }
 }
 

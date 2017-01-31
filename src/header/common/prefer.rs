@@ -66,6 +66,12 @@ impl Header for Prefer {
     }
 
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+impl fmt::Display for Prefer {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt_comma_delimited(f, &self[..])
     }
 }

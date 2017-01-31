@@ -101,6 +101,12 @@ impl<S: Scheme + Any> Header for Authorization<S> where <S as FromStr>::Err: 'st
     }
 
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+impl<S: Scheme> fmt::Display for Authorization<S> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(scheme) = <S as Scheme>::scheme() {
             try!(write!(f, "{} ", scheme))
         };
@@ -152,7 +158,6 @@ impl Scheme for Basic {
         if let Some(ref pass) = self.password {
             text.push_str(&pass[..]);
         }
-        
         f.write_str(&encode(text.as_ref()))
     }
 }
@@ -193,25 +198,25 @@ impl FromStr for Basic {
 #[derive(Clone, PartialEq, Debug)]
 ///Token holder for Bearer Authentication, most often seen with oauth
 pub struct Bearer {
-	///Actual bearer token as a string
-	pub token: String
+    ///Actual bearer token as a string
+    pub token: String
 }
 
 impl Scheme for Bearer {
-	fn scheme() -> Option<&'static str> {
-		Some("Bearer")
-	}
+    fn scheme() -> Option<&'static str> {
+        Some("Bearer")
+    }
 
-	fn fmt_scheme(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "{}", self.token)
-	}
+    fn fmt_scheme(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.token)
+    }
 }
 
 impl FromStr for Bearer {
-	type Err = ::Error;
-	fn from_str(s: &str) -> ::Result<Bearer> {
-		Ok(Bearer { token: s.to_owned()})
-	}
+    type Err = ::Error;
+    fn from_str(s: &str) -> ::Result<Bearer> {
+        Ok(Bearer { token: s.to_owned()})
+    }
 }
 
 #[cfg(test)]
@@ -265,7 +270,7 @@ mod tests {
         assert_eq!(auth.0.password, Some("".to_owned()));
     }
 
-	#[test]
+    #[test]
     fn test_bearer_auth() {
         let mut headers = Headers::new();
         headers.set(Authorization(

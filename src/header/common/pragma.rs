@@ -55,6 +55,12 @@ impl Header for Pragma {
     }
 
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+impl fmt::Display for Pragma {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str(match *self {
             Pragma::NoCache => "no-cache",
             Pragma::Ext(ref string) => &string[..],

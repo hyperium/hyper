@@ -85,9 +85,8 @@ macro_rules! bench_header(
             fn bench_format(b: &mut Bencher) {
                 let raw = $value.into();
                 let val: $ty = Header::parse_header(&raw).unwrap();
-                let fmt = ::header::HeaderFormatter(&val);
                 b.iter(|| {
-                    format!("{}", fmt);
+                    format!("{}", val);
                 });
             }
         }

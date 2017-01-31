@@ -80,6 +80,12 @@ impl Header for ReferrerPolicy {
     }
 
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+impl fmt::Display for ReferrerPolicy {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use self::ReferrerPolicy::*;
         f.write_str(match *self {
             NoReferrer => "no-referrer",

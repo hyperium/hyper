@@ -59,7 +59,7 @@ impl Header for Origin {
     }
 
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}://{}", self.scheme, self.host)
+        fmt::Display::fmt(self, f)
     }
 }
 
@@ -80,6 +80,12 @@ impl FromStr for Origin {
             scheme: scheme.to_owned(),
             host: host
         })
+    }
+}
+
+impl fmt::Display for Origin {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}://{}", self.scheme, self.host)
     }
 }
 
