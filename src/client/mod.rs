@@ -363,6 +363,7 @@ impl<'a> RequestBuilder<'a> {
                 // separate branches because they can't be one
                 RedirectPolicy::FollowAll => (), //continue
                 RedirectPolicy::FollowIf(cond) if cond(&url) => (), //continue
+                RedirectPolicy::FollowIfRes(cond) if cond(&res) => (), //continue
                 _ => return Ok(res),
             }
         }
@@ -461,6 +462,8 @@ pub enum RedirectPolicy {
     FollowAll,
     /// Follow a redirect if the contained function returns true.
     FollowIf(fn(&Url) -> bool),
+    /// Follow a redirect if the contained function of a Response returns true.
+    FollowIfRes(fn(&Response) -> bool),
 }
 
 impl fmt::Debug for RedirectPolicy {
@@ -469,6 +472,7 @@ impl fmt::Debug for RedirectPolicy {
             RedirectPolicy::FollowNone => fmt.write_str("FollowNone"),
             RedirectPolicy::FollowAll => fmt.write_str("FollowAll"),
             RedirectPolicy::FollowIf(_) => fmt.write_str("FollowIf"),
+            RedirectPolicy::FollowIfRes(_) => fmt.write_str("FollowIfRes"),
         }
     }
 }
@@ -507,7 +511,7 @@ mod tests {
     use header::Server;
     use http::h1::Http11Message;
     use mock::{MockStream, MockSsl};
-    use super::{Client, RedirectPolicy};
+    use super::{Client, RedirectPolicy, Response};
     use super::proxy::Proxy;
     use super::pool::Pool;
     use url::Url;
@@ -614,6 +618,17 @@ mod tests {
         }
         let mut client = Client::with_connector(MockRedirectPolicy);
         client.set_redirect_policy(RedirectPolicy::FollowIf(follow_if));
+        let res = client.get("http://127.0.0.1").send().unwrap();
+        assert_eq!(res.headers.get(), Some(&Server("mock2".to_owned())));
+    }
+
+    #[test]
+    fn test_redirect_followifres() {
+        fn follow_if_res(res: &Response) -> bool {
+            res.headers.get() == Some(&Server("mock1".to_owned()))
+        }
+        let mut client = Client::with_connector(MockRedirectPolicy);
+        client.set_redirect_policy(RedirectPolicy::FollowIfRes(follow_if_res));
         let res = client.get("http://127.0.0.1").send().unwrap();
         assert_eq!(res.headers.get(), Some(&Server("mock2".to_owned())));
     }
