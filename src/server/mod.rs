@@ -16,7 +16,7 @@ use futures::{Future, Map, Stream, Poll, Async, Sink, StartSend, AsyncSink};
 
 use tokio::io::Io;
 use tokio::reactor::{Core, Handle, Timeout};
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream};
 use tokio_proto::BindServer;
 use tokio_proto::streaming::Message;
 use tokio_proto::streaming::pipeline::{Transport, Frame, ServerProto};
@@ -41,6 +41,9 @@ pub struct Http {
     keep_alive: bool,
 }
 
+
+type ConnectionStream = Box<Stream<Item=(TcpStream, SocketAddr), Error=io::Error>>;
+
 /// An instance of a server created through `Http::bind`.
 ///
 /// This server is intended as a convenience for creating a TCP listener on an
@@ -49,7 +52,8 @@ pub struct Server<S> {
     protocol: Http,
     new_service: S,
     core: Core,
-    listener: TcpListener,
+    local_address: SocketAddr,
+    incoming: ConnectionStream,
     shutdown_timeout: Duration,
 }
 
@@ -87,15 +91,48 @@ impl Http {
         let core = try!(Core::new());
         let handle = core.handle();
         let listener = try!(TcpListener::bind(addr, &handle));
+        let local_addr = try!(listener.local_addr());
 
         Ok(Server {
             new_service: new_service,
             core: core,
-            listener: listener,
+            local_address: local_addr,
+            incoming: Box::new(listener.incoming()),
             protocol: self.clone(),
             shutdown_timeout: Duration::new(1, 0),
         })
     }
+    /// Bind the provided incoming stream and return a server ready to handle
+    /// connections.
+    ///
+    ///
+    /// This method will setup a Server on the provided Core and ConnectionStream 
+    ///
+    /// to accept connections. Each connection will be processed with the
+    /// `new_service` object provided as well, creating a new service per
+    /// connection.
+    ///
+    /// 
+    /// The returned `Server` contains one method, `run`, which is used to
+    /// actually run the server.
+    pub fn bind_existing<S>(&self, local_addr: SocketAddr, core: Core, listener: ConnectionStream, new_service: S) -> ::Result<Server<S>>
+    where S: NewService<Request = Request, Response = Response, Error = ::Error> +
+    Send + Sync + 'static,
+{
+
+    Ok(Server {
+        new_service: new_service,
+        core: core,
+        local_address: local_addr,
+        incoming: listener,
+        protocol: self.clone(),
+        shutdown_timeout: Duration::new(1, 0),
+    })
+}
+
+
+
+
 
     /// Use this `Http` instance to create a new server task which handles the
     /// connection `io` provided.
@@ -276,7 +313,7 @@ impl<S> Server<S>
 {
     /// Returns the local address that this server is bound to.
     pub fn local_addr(&self) -> ::Result<SocketAddr> {
-        Ok(try!(self.listener.local_addr()))
+        Ok(self.local_address)
     }
 
     /// Returns a handle to the underlying event loop that this server will be
@@ -322,8 +359,11 @@ impl<S> Server<S>
     pub fn run_until<F>(self, shutdown_signal: F) -> ::Result<()>
         where F: Future<Item = (), Error = ::Error>,
     {
-        let Server { protocol, new_service, mut core, listener, shutdown_timeout } = self;
+        let Server { protocol, new_service, mut core, local_address, incoming, shutdown_timeout } = self;
         let handle = core.handle();
+
+        // Unused :)
+        { let _ =local_address; }
 
         // Mini future to track the number of active services
         let info = Rc::new(RefCell::new(Info {
@@ -332,7 +372,7 @@ impl<S> Server<S>
         }));
 
         // Future for our server's execution
-        let srv = listener.incoming().for_each(|(socket, addr)| {
+        let srv = incoming.for_each(|(socket, addr)| {
             let s = NotifyService {
                 inner: try!(new_service.new_service()),
                 info: Rc::downgrade(&info),
@@ -361,6 +401,7 @@ impl<S> Server<S>
         //
         // Our custom `WaitUntilZero` will resolve once all services constructed
         // here have been destroyed.
+
         let timeout = try!(Timeout::new(shutdown_timeout, &handle));
         let wait = WaitUntilZero { info: info.clone() };
         match core.run(wait.select(timeout)) {
@@ -374,7 +415,7 @@ impl<S: fmt::Debug> fmt::Debug for Server<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Server")
          .field("core", &"...")
-         .field("listener", &self.listener)
+         .field("local_address", &self.local_address)
          .field("new_service", &self.new_service)
          .field("protocol", &self.protocol)
          .finish()
@@ -436,3 +477,4 @@ impl Future for WaitUntilZero {
         }
     }
 }
+ 
