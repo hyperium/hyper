@@ -50,16 +50,17 @@ impl Client<HttpConnector> {
     /// # Example
     ///
     /// ```no_run
-    /// extern crate hyper;
-    /// extern crate tokio_core;
+    /// # extern crate hyper;
+    /// # extern crate tokio_core;
     ///
-    /// fn main() {
-    /// let mut core = tokio_core::reactor::Core::new().unwrap();
-    /// let handle = core.handle();
+    /// # fn main() {
+    /// # let core = tokio_core::reactor::Core::new().unwrap();
+    /// # let handle = core.handle();
     /// let client = hyper::Client::configure()
     ///     .keep_alive(true)
     ///     .build(&handle);
-    /// }
+    /// # drop(client);
+    /// # }
     /// ```
     #[inline]
     pub fn configure() -> Config<UseDefaultConnector> {

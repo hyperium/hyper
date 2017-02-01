@@ -399,7 +399,8 @@ impl Headers {
     /// # use hyper::header::Headers;
     /// # use hyper::header::ContentType;
     /// # let mut headers = Headers::new();
-    /// let has_type = headers.has::<ContentType>();
+    /// headers.set(ContentType::json());
+    /// assert!(headers.has::<ContentType>());
     /// ```
     pub fn has<H: Header>(&self) -> bool {
         self.data.contains_key(&HeaderName(UniCase(Cow::Borrowed(header_name::<H>()))))
