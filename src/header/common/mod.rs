@@ -64,6 +64,7 @@ macro_rules! bench_header(
     ($name:ident, $ty:ty, $value:expr) => {
         #[cfg(test)]
         #[cfg(feature = "nightly")]
+        #[allow(deprecated)]
         mod $name {
             use test::Bencher;
             use super::*;
