@@ -1,4 +1,4 @@
-use unicase::UniCase;
+use unicase::Ascii;
 
 header! {
     /// `Access-Control-Expose-Headers` header, part of
@@ -23,13 +23,13 @@ header! {
     /// // extern crate unicase;
     ///
     /// use hyper::header::{Headers, AccessControlExposeHeaders};
-    /// use unicase::UniCase;
+    /// use unicase::Ascii;
     ///
     /// let mut headers = Headers::new();
     /// headers.set(
     ///     AccessControlExposeHeaders(vec![
-    ///         UniCase("etag".to_owned()),
-    ///         UniCase("content-length".to_owned())
+    ///         Ascii::new("etag".to_owned()),
+    ///         Ascii::new("content-length".to_owned())
     ///     ])
     /// );
     /// # }
@@ -41,18 +41,18 @@ header! {
     /// // extern crate unicase;
     ///
     /// use hyper::header::{Headers, AccessControlExposeHeaders};
-    /// use unicase::UniCase;
+    /// use unicase::Ascii;
     ///
     /// let mut headers = Headers::new();
     /// headers.set(
     ///     AccessControlExposeHeaders(vec![
-    ///         UniCase("etag".to_owned()),
-    ///         UniCase("content-length".to_owned())
+    ///         Ascii::new("etag".to_owned()),
+    ///         Ascii::new("content-length".to_owned())
     ///     ])
     /// );
     /// # }
     /// ```
-    (AccessControlExposeHeaders, "Access-Control-Expose-Headers") => (UniCase<String>)*
+    (AccessControlExposeHeaders, "Access-Control-Expose-Headers") => (Ascii<String>)*
 
     test_access_control_expose_headers {
         test_header!(test1, vec![b"etag, content-length"]);

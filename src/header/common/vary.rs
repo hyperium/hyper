@@ -1,4 +1,4 @@
-use unicase::UniCase;
+use unicase::Ascii;
 
 header! {
     /// `Vary` header, defined in [RFC7231](https://tools.ietf.org/html/rfc7231#section-7.1.4)
@@ -34,18 +34,18 @@ header! {
     /// // extern crate unicase;
     ///
     /// use hyper::header::{Headers, Vary};
-    /// use unicase::UniCase;
+    /// use unicase::Ascii;
     ///
     /// let mut headers = Headers::new();
     /// headers.set(
     ///     Vary::Items(vec![
-    ///         UniCase("accept-encoding".to_owned()),
-    ///         UniCase("accept-language".to_owned()),
+    ///         Ascii::new("accept-encoding".to_owned()),
+    ///         Ascii::new("accept-language".to_owned()),
     ///     ])
     /// );
     /// # }
     /// ```
-    (Vary, "Vary") => {Any / (UniCase<String>)+}
+    (Vary, "Vary") => {Any / (Ascii<String>)+}
 
     test_vary {
         test_header!(test1, vec![b"accept-encoding, accept-language"]);
