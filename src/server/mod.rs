@@ -42,18 +42,18 @@ pub struct Http {
 }
 
 
-type ConnectionStream = Box<Stream<Item=(TcpStream, SocketAddr), Error=io::Error>>;
+type ConnectionStream<I: Io> = Box<Stream<Item=(Box<I>, SocketAddr), Error=io::Error>>;
 
 /// An instance of a server created through `Http::bind`.
 ///
 /// This server is intended as a convenience for creating a TCP listener on an
 /// address and then serving TCP connections accepted with the service provided.
-pub struct Server<S> {
+pub struct Server<S, I: Io + 'static> {
     protocol: Http,
     new_service: S,
     core: Core,
     local_address: SocketAddr,
-    incoming: ConnectionStream,
+    incoming: ConnectionStream<I>,
     shutdown_timeout: Duration,
 }
 
@@ -84,7 +84,7 @@ impl Http {
     ///
     /// The returned `Server` contains one method, `run`, which is used to
     /// actually run the server.
-    pub fn bind<S>(&self, addr: &SocketAddr, new_service: S) -> ::Result<Server<S>>
+    pub fn bind<S>(&self, addr: &SocketAddr, new_service: S) -> ::Result<Server<S, TcpStream>>
         where S: NewService<Request = Request, Response = Response, Error = ::Error> +
                     Send + Sync + 'static,
     {
@@ -97,7 +97,7 @@ impl Http {
             new_service: new_service,
             core: core,
             local_address: local_addr,
-            incoming: Box::new(listener.incoming()),
+            incoming: Box::new(listener.incoming().map(|(s,a)| { (Box::new(s), a) })),
             protocol: self.clone(),
             shutdown_timeout: Duration::new(1, 0),
         })
@@ -115,10 +115,10 @@ impl Http {
     /// 
     /// The returned `Server` contains one method, `run`, which is used to
     /// actually run the server.
-    pub fn bind_existing<S>(&self, local_addr: SocketAddr, core: Core, listener: ConnectionStream, new_service: S) -> ::Result<Server<S>>
-    where S: NewService<Request = Request, Response = Response, Error = ::Error> +
-    Send + Sync + 'static,
-{
+    pub fn bind_existing<S, I>(&self, local_addr: SocketAddr, core: Core, listener: ConnectionStream<I>, new_service: S) -> ::Result<Server<S, I>>
+    where S: NewService<Request = Request, Response = Response, Error = ::Error> + Send + Sync + 'static,
+          I: Io + 'static
+    {
 
     Ok(Server {
         new_service: new_service,
@@ -307,9 +307,9 @@ impl<T> Service for HttpService<T>
     }
 }
 
-impl<S> Server<S>
-    where S: NewService<Request = Request, Response = Response, Error = ::Error>
-                + Send + Sync + 'static,
+impl<S, I> Server<S, I>
+    where S: NewService<Request = Request, Response = Response, Error = ::Error> + Send + Sync + 'static,
+          I: Io + 'static
 {
     /// Returns the local address that this server is bound to.
     pub fn local_addr(&self) -> ::Result<SocketAddr> {
@@ -378,7 +378,7 @@ impl<S> Server<S>
                 info: Rc::downgrade(&info),
             };
             info.borrow_mut().active += 1;
-            protocol.bind_connection(&handle, socket, addr, s);
+            protocol.bind_connection(&handle, *socket, addr, s);
             Ok(())
         });
 
@@ -411,7 +411,7 @@ impl<S> Server<S>
     }
 }
 
-impl<S: fmt::Debug> fmt::Debug for Server<S> {
+impl<S: fmt::Debug, I: Io> fmt::Debug for Server<S, I> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Server")
          .field("core", &"...")
