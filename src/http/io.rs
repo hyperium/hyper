@@ -242,8 +242,12 @@ impl<T: Write + ::vecio::Writev> AtomicWrite for T {
 */
 impl<T: Write> AtomicWrite for T {
     fn write_atomic(&mut self, bufs: &[&[u8]]) -> io::Result<usize> {
-        let vec = bufs.concat();
-        self.write(&vec)
+        if bufs.len() == 1 {
+            self.write(bufs[0])
+        } else {
+            let vec = bufs.concat();
+            self.write(&vec)
+        }
     }
 }
 //}
