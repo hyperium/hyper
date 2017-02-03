@@ -82,7 +82,7 @@ impl fmt::Display for RawStatus {
 
 impl From<StatusCode> for RawStatus {
     fn from(status: StatusCode) -> RawStatus {
-        RawStatus(status.to_u16(), Cow::Borrowed(status.canonical_reason().unwrap_or("")))
+        RawStatus(status.into(), Cow::Borrowed(status.canonical_reason().unwrap_or("")))
     }
 }
 
