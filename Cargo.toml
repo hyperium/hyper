@@ -12,6 +12,9 @@ keywords = ["http", "hyper", "hyperium"]
 categories = ["web-programming::http-client", "web-programming::http-server"]
 build = "build.rs"
 
+[badges]
+travis-ci = { repository = "hyperium/hyper" }
+
 [dependencies]
 base64 = "0.3.0"
 futures = "0.1.7"
