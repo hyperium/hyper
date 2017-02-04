@@ -137,6 +137,8 @@ extern crate openssl;
 extern crate openssl_verify;
 #[cfg(feature = "security-framework")]
 extern crate security_framework;
+#[cfg(feature = "native-tls")]
+extern crate native_tls;
 #[cfg(feature = "serde-serialization")]
 extern crate serde;
 extern crate cookie;

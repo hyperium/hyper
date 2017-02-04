@@ -11,6 +11,9 @@ pub use self::openssl::{Openssl, OpensslClient};
 #[cfg(feature = "security-framework")]
 pub use self::security_framework::ClientWrapper;
 
+#[cfg(feature = "native-tls")]
+pub use self::native_tls::{ClientWrapper, ServerWrapper};
+
 use std::time::Duration;
 
 use typeable::Typeable;
@@ -603,16 +606,19 @@ impl<S: SslClient, C: NetworkConnector<Stream=HttpStream>> NetworkConnector for 
 }
 
 
-#[cfg(all(not(feature = "openssl"), not(feature = "security-framework")))]
+#[cfg(all(not(feature = "openssl"), not(feature = "security-framework"), not(feature = "native-tls")))]
 #[doc(hidden)]
 pub type DefaultConnector = HttpConnector;
 
-#[cfg(feature = "openssl")]
+#[cfg(all(feature = "openssl", not(feature = "security-framework"), not(feature = "native-tls")))]
 #[doc(hidden)]
 pub type DefaultConnector = HttpsConnector<self::openssl::OpensslClient>;
 
-#[cfg(all(feature = "security-framework", not(feature = "openssl")))]
+#[cfg(all(not(feature = "openssl"), feature = "security-framework", not(feature = "native-tls")))]
 pub type DefaultConnector = HttpsConnector<self::security_framework::ClientWrapper>;
+
+#[cfg(all(not(feature = "openssl"), not(feature = "security-framework"), feature = "native-tls"))]
+pub type DefaultConnector = HttpsConnector<self::native_tls::ClientWrapper>;
 
 #[cfg(feature = "openssl")]
 mod openssl {
@@ -813,6 +819,122 @@ pub mod security_framework {
 
     #[derive(Clone)]
     pub struct Stream(Arc<Mutex<SslStream<HttpStream>>>);
+
+    impl io::Read for Stream {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            self.0.lock().unwrap_or_else(|e| e.into_inner()).read(buf)
+        }
+
+        fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
+            self.0.lock().unwrap_or_else(|e| e.into_inner()).read_to_end(buf)
+        }
+
+        fn read_to_string(&mut self, buf: &mut String) -> io::Result<usize> {
+            self.0.lock().unwrap_or_else(|e| e.into_inner()).read_to_string(buf)
+        }
+
+        fn read_exact(&mut self, buf: &mut [u8]) -> io::Result<()> {
+            self.0.lock().unwrap_or_else(|e| e.into_inner()).read_exact(buf)
+        }
+    }
+
+    impl io::Write for Stream {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.0.lock().unwrap_or_else(|e| e.into_inner()).write(buf)
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            self.0.lock().unwrap_or_else(|e| e.into_inner()).flush()
+        }
+
+        fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
+            self.0.lock().unwrap_or_else(|e| e.into_inner()).write_all(buf)
+        }
+
+        fn write_fmt(&mut self, fmt: fmt::Arguments) -> io::Result<()> {
+            self.0.lock().unwrap_or_else(|e| e.into_inner()).write_fmt(fmt)
+        }
+    }
+
+    impl NetworkStream for Stream {
+        fn peer_addr(&mut self) -> io::Result<SocketAddr> {
+            self.0.lock().unwrap_or_else(|e| e.into_inner()).get_mut().peer_addr()
+        }
+
+        fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
+            self.0.lock().unwrap_or_else(|e| e.into_inner()).get_mut().set_read_timeout(dur)
+        }
+
+        fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
+            self.0.lock().unwrap_or_else(|e| e.into_inner()).get_mut().set_write_timeout(dur)
+        }
+
+        fn close(&mut self, how: Shutdown) -> io::Result<()> {
+            self.0.lock().unwrap_or_else(|e| e.into_inner()).get_mut().close(how)
+        }
+    }
+}
+
+#[cfg(feature = "native-tls")]
+mod native_tls {
+    use std::io::{self};
+
+    use error::Error;
+    use net::{SslClient, SslServer, NetworkStream, HttpStream};
+    use std::fmt;
+    use std::sync::{Arc, Mutex};
+    use std::net::{Shutdown, SocketAddr};
+    use std::time::Duration;
+
+    use native_tls::{TlsConnector, TlsAcceptor, TlsStream};
+
+    pub struct ClientWrapper(TlsConnector);
+
+    impl Default for ClientWrapper {
+        fn default() -> ClientWrapper {
+            ClientWrapper(TlsConnector::builder().unwrap().build().unwrap())
+        }
+    }
+
+    impl ClientWrapper {
+        pub fn new(builder: TlsConnector) -> ClientWrapper {
+            ClientWrapper(builder)
+        }
+    }
+
+    impl SslClient for ClientWrapper {
+        type Stream = Stream;
+
+        fn wrap_client(&self, stream: HttpStream, host: &str) -> ::Result<Stream> {
+            match self.0.connect(host, stream) {
+                Ok(s) => Ok(Stream(Arc::new(Mutex::new(s)))),
+                Err(e) => Err(Error::Ssl(e.into())),
+            }
+        }
+    }
+
+    #[derive(Clone)]
+    pub struct ServerWrapper(Arc<TlsAcceptor>);
+
+    impl ServerWrapper {
+        pub fn new(builder: TlsAcceptor) -> ServerWrapper {
+            ServerWrapper(Arc::new(builder))
+        }
+    }
+
+    impl SslServer for ServerWrapper {
+        type Stream = Stream;
+
+        fn wrap_server(&self, stream: HttpStream) -> ::Result<Stream> {
+            match self.0.accept(stream) {
+                Ok(s) => Ok(Stream(Arc::new(Mutex::new(s)))),
+                Err(e) => Err(Error::Ssl(e.into())),
+            }
+        }
+    }
+
+    #[derive(Clone)]
+    pub struct Stream(Arc<Mutex<TlsStream<HttpStream>>>);
 
     impl io::Read for Stream {
         fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
