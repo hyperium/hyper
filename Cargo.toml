@@ -14,6 +14,7 @@ build = "build.rs"
 
 [badges]
 travis-ci = { repository = "hyperium/hyper" }
+appveyor = { repository = "hyperium/hyper" }
 
 [dependencies]
 base64 = "0.3.0"
