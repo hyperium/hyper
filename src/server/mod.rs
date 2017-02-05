@@ -124,10 +124,8 @@ use Error;
 use buffer::BufReader;
 use header::{Headers, Expect, Connection};
 use http;
-use method::Method;
 use net::{NetworkListener, NetworkStream, HttpListener, HttpsListener, SslServer};
 use status::StatusCode;
-use uri::RequestUri;
 use version::HttpVersion::Http11;
 
 use self::listener::ListenerPool;
@@ -368,7 +366,7 @@ impl<H: Handler + 'static> Worker<H> {
 
     fn handle_expect<W: Write>(&self, req: &Request, wrt: &mut W) -> bool {
          if req.version == Http11 && req.headers.get() == Some(&Expect::Continue) {
-            let status = self.handler.check_continue((&req.method, &req.uri, &req.headers));
+            let status = self.handler.check_continue(req);
             match write!(wrt, "{} {}\r\n\r\n", Http11, status).and_then(|_| wrt.flush()) {
                 Ok(..) => (),
                 Err(e) => {
@@ -429,7 +427,7 @@ pub trait Handler: Sync + Send {
     ///
     /// By default, this will always immediately response with a `StatusCode::Continue`,
     /// but can be overridden with custom behavior.
-    fn check_continue(&self, _: (&Method, &RequestUri, &Headers)) -> StatusCode {
+    fn check_continue(&self, &Request) -> StatusCode {
         StatusCode::Continue
     }
 
@@ -452,11 +450,8 @@ impl<F> Handler for F where F: Fn(Request, Response<Fresh>), F: Sync + Send {
 
 #[cfg(test)]
 mod tests {
-    use header::Headers;
-    use method::Method;
     use mock::MockStream;
     use status::StatusCode;
-    use uri::RequestUri;
 
     use super::{Request, Response, Fresh, Handler, Worker};
 
@@ -490,7 +485,7 @@ mod tests {
                 res.start().unwrap().end().unwrap();
             }
 
-            fn check_continue(&self, _: (&Method, &RequestUri, &Headers)) -> StatusCode {
+            fn check_continue(&self, _: &Request) -> StatusCode {
                 StatusCode::ExpectationFailed
             }
         }
