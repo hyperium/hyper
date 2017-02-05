@@ -86,6 +86,8 @@ impl Uri {
                 query: parse_query(s),
                 fragment: parse_fragment(s),
             })
+        } else if (s.contains("/") || s.contains("?")) && !s.contains("://") {
+            return Err(Error::Method)
         } else {
             Ok(Uri {
                 source: s.to_owned().into(),
@@ -316,6 +318,18 @@ test_parse! {
 }
 
 test_parse! {
+    test_uri_parse_authority_no_port,
+    "localhost",
+
+    scheme = None,
+    authority = Some("localhost"),
+    path = "",
+    query = None,
+    fragment = None,
+    port = None,
+}
+
+test_parse! {
     test_uri_parse_authority_form,
     "localhost:3000",
 
@@ -358,10 +372,11 @@ fn test_uri_parse_error() {
     }
 
     err("http://");
-    //TODO: these should error
-    //err("htt:p//host");
-    //err("hyper.rs/");
-    //err("hyper.rs?key=val");
+    err("htt:p//host");
+    err("hyper.rs/");
+    err("hyper.rs?key=val");
+    err("localhost/");
+    err("localhost?key=val");
 }
 
 #[test]
