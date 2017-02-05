@@ -427,7 +427,7 @@ mod tests {
 
     use header::Headers;
     use header;
-    use url::Url;
+    use Url;
     use method;
     use cookie;
     use version;

@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::fmt::{Display, self};
 use std::str::FromStr;
-use url::Url;
+use Url;
 use url::ParseError as UrlError;
 
 use Error;

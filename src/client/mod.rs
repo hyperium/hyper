@@ -23,7 +23,7 @@ use header::{Headers, Host};
 use http::{self, TokioBody};
 use method::Method;
 use self::pool::{Pool, Pooled};
-use {Url};
+use Url;
 
 pub use self::connect::{HttpConnector, Connect};
 pub use self::request::Request;
@@ -323,7 +323,7 @@ mod tests {
     use header::Server;
     use super::{Client};
     use super::pool::Pool;
-    use url::Url;
+    use Url;
 
     mock_connector!(Issue640Connector {
         b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\n",

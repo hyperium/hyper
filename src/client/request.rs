@@ -93,7 +93,7 @@ mod tests {
     /*
     use std::io::Write;
     use std::str::from_utf8;
-    use url::Url;
+    use Url;
     use method::Method::{Get, Head, Post};
     use mock::{MockStream, MockConnector};
     use net::Fresh;
