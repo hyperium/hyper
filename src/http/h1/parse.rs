@@ -283,6 +283,11 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_request_errors() {
+        let raw = MemBuf::from(b"GET htt:p// HTTP/1.1\r\nHost: hyper.rs\r\n\r\n".to_vec());
+        parse::<http::ServerTransaction, _>(&raw).unwrap_err();
+    }
+    #[test]
     fn test_parse_raw_status() {
         let raw = MemBuf::from(b"HTTP/1.1 200 OK\r\n\r\n".to_vec());
         let (res, _) = parse::<http::ClientTransaction, _>(&raw).unwrap().unwrap();
