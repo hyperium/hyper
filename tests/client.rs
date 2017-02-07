@@ -232,7 +232,7 @@ fn client_keep_alive() {
 }
 
 
-/* TODO: re-enable once rety works, its currently a flaky test
+/* TODO: re-enable once retry works, its currently a flaky test
 #[test]
 fn client_pooled_socket_disconnected() {
     let _ = pretty_env_logger::init();

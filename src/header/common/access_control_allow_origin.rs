@@ -88,7 +88,7 @@ impl Display for AccessControlAllowOrigin {
 }
 
 #[cfg(test)]
-mod test_access_control_allow_orgin {
+mod test_access_control_allow_origin {
     use header::*;
     use super::AccessControlAllowOrigin as HeaderField;
     test_header!(test1, vec![b"null"]);

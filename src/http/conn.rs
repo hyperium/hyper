@@ -524,7 +524,7 @@ impl<K: KeepAlive> State<K> {
 }
 
 // The DebugFrame and DebugChunk are simple Debug implementations that allow
-// us to dump the frame into logs, wihtout logging the entirety of the bytes.
+// us to dump the frame into logs, without logging the entirety of the bytes.
 struct DebugFrame<'a, T: fmt::Debug + 'a>(&'a Frame<http::MessageHead<T>, http::Chunk, ::Error>);
 
 impl<'a, T: fmt::Debug + 'a> fmt::Debug for DebugFrame<'a, T> {

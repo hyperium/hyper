@@ -476,7 +476,7 @@ impl Headers {
     ///
     /// If a header already contains a value, this will add another line to it.
     ///
-    /// If a header doesnot exist for this name, a new one will be created with
+    /// If a header does not exist for this name, a new one will be created with
     /// the value.
     ///
     /// Example:

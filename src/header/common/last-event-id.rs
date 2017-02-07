@@ -7,7 +7,7 @@ header! {
     /// track of event state. This is helpful when working
     /// with [Server-Sent-Events](http://www.html5rocks.com/en/tutorials/eventsource/basics/). If the connection were to be dropped, for example, it'd
     /// be useful to let the server know what the last event you
-    /// recieved was.
+    /// received was.
     ///
     /// The spec is a String with the id of the last event, it can be
     /// an empty string which acts a sort of "reset".

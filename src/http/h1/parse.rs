@@ -150,7 +150,7 @@ impl Http1Transaction for ClientTransaction {
     fn decoder(inc: &MessageHead<Self::Incoming>) -> ::Result<Decoder> {
         use ::header;
         // According to https://tools.ietf.org/html/rfc7230#section-3.3.3
-        // 1. HEAD reponses, and Status 1xx, 204, and 304 cannot have a body.
+        // 1. HEAD responses, and Status 1xx, 204, and 304 cannot have a body.
         // 2. Status 2xx to a CONNECT cannot have a body.
         //
         // First two steps taken care of before this method.
@@ -164,7 +164,7 @@ impl Http1Transaction for ClientTransaction {
             if codings.last() == Some(&header::Encoding::Chunked) {
                 Ok(Decoder::chunked())
             } else {
-                trace!("not chuncked. read till eof");
+                trace!("not chunked. read till eof");
                 Ok(Decoder::eof())
             }
         } else if let Some(&header::ContentLength(len)) = inc.headers.get() {

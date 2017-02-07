@@ -3,7 +3,7 @@ header! {
     /// [RFC7231](https://tools.ietf.org/html/rfc7231#section-3.1.4.2)
     ///
     /// The header can be used by both the client in requests and the server
-    /// in resposes with different semantics. Client sets `Content-Location`
+    /// in responses with different semantics. Client sets `Content-Location`
     /// to refer to the URI where original representation of the body was
     /// obtained.
     ///

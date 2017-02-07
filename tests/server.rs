@@ -212,7 +212,7 @@ fn server_get_with_body() {
     ").unwrap();
     req.read(&mut [0; 256]).unwrap();
 
-    // note: doesnt include trailing \r\n, cause Content-Length wasn't 21
+    // note: doesn't include trailing \r\n, cause Content-Length wasn't 21
     assert_eq!(server.body(), b"I'm a good request.");
 }
 

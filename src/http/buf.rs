@@ -91,7 +91,7 @@ impl MemBuf {
                 grow_zerofill(vec, needed);
             }
         } else {
-            // we need to allocate more space, but dont have unique
+            // we need to allocate more space, but don't have unique
             // access, so we need to make a new buffer
             trace!("MemBuf::reserve shared buffer, creating new");
             let mut new = MemBuf::with_capacity(needed);
