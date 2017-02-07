@@ -72,7 +72,7 @@ impl HttpMessage for Http11Message {
         let is_empty = !should_have_response_body(&method, raw_status.0);
         stream.get_mut().set_previous_response_expected_no_content(is_empty);
         // According to https://tools.ietf.org/html/rfc7230#section-3.3.3
-        // 1. HEAD reponses, and Status 1xx, 204, and 304 cannot have a body.
+        // 1. HEAD responses, and Status 1xx, 204, and 304 cannot have a body.
         // 2. Status 2xx to a CONNECT cannot have a body.
         // 3. Transfer-Encoding: chunked has a chunked body.
         // 4. If multiple differing Content-Length headers or invalid, close connection.
@@ -86,7 +86,7 @@ impl HttpMessage for Http11Message {
                 if codings.last() == Some(&Chunked) {
                     ChunkedReader(stream, None)
                 } else {
-                    trace!("not chuncked. read till eof");
+                    trace!("not chunked. read till eof");
                     EofReader(stream)
                 }
             } else if let Some(&ContentLength(len)) =  headers.get() {

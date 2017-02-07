@@ -34,7 +34,7 @@ impl Request {
     #[inline]
     pub fn url(&self) -> &Url { &self.url }
 
-    /// Readthe Request Version.
+    /// Read the Request Version.
     #[inline]
     pub fn version(&self) -> &HttpVersion { &self.version }
 

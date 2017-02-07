@@ -74,7 +74,7 @@ header! {
     }
 }
 
-/// A protocol name used to identify a spefic protocol. Names are case-sensitive
+/// A protocol name used to identify a specific protocol. Names are case-sensitive
 /// except for the `WebSocket` value.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ProtocolName {

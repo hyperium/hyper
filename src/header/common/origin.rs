@@ -71,7 +71,7 @@ impl FromStr for Origin {
             Some(idx) => idx,
             None => return Err(::Error::Header)
         };
-        // idx + 3 because thats how long "://" is
+        // idx + 3 because that's how long "://" is
         let (scheme, etc) = (&s[..idx], &s[idx + 3..]);
         let host = try!(Host::from_str(etc));
 
