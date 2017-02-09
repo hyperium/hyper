@@ -6,7 +6,7 @@ use httparse;
 use header::{self, Headers, ContentLength, TransferEncoding};
 use http::{MessageHead, RawStatus, Http1Transaction, ParseResult, ServerTransaction, ClientTransaction, RequestLine};
 use http::h1::{Encoder, Decoder};
-use http::buf::{MemBuf, MemSlice};
+use http::buf::{MemBuf, MemSlice, MemStr};
 use method::Method;
 use status::StatusCode;
 use version::HttpVersion::{Http10, Http11};
@@ -35,15 +35,22 @@ impl Http1Transaction for ServerTransaction {
                 trace!("Request.parse Complete({})", len);
                 let mut headers = Headers::with_capacity(req.headers.len());
                 let slice = buf.slice(len);
+                let path = req.path.unwrap();
+                let path_start = path.as_ptr() as usize - slice.as_ref().as_ptr() as usize;
+                let path_end = path_start + path.len();
+                let path = slice.slice(path_start..path_end);
                 headers.extend(HeadersAsMemSliceIter {
                     headers: req.headers.iter(),
                     slice: slice,
                 });
+                // path was found to be utf8 by httparse
+                let path = unsafe { MemStr::from_utf8_unchecked(path) };
+
                 Some((MessageHead {
                     version: if req.version.unwrap() == 1 { Http11 } else { Http10 },
                     subject: RequestLine(
                         try!(req.method.unwrap().parse()),
-                        try!(req.path.unwrap().parse())
+                        try!(::uri::from_mem_str(path)),
                     ),
                     headers: headers,
                 }, len))
@@ -143,7 +150,7 @@ impl Http1Transaction for ClientTransaction {
                     headers: headers,
                 }, len))
             },
-            httparse::Status::Partial => None
+            httparse::Status::Partial => None,
         })
     }
 

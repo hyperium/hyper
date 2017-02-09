@@ -4,6 +4,7 @@ use std::fmt;
 use std::io::{self, Read};
 use std::ops::{Index, Range, RangeFrom, RangeTo, RangeFull};
 use std::ptr;
+use std::str;
 use std::sync::Arc;
 
 pub struct MemBuf {
@@ -196,6 +197,19 @@ impl From<Vec<u8>> for MemBuf {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemStr(MemSlice);
+
+impl MemStr {
+    pub unsafe fn from_utf8_unchecked(slice: MemSlice) -> MemStr {
+        MemStr(slice)
+    }
+
+    pub fn as_str(&self) -> &str {
+        unsafe { str::from_utf8_unchecked(self.0.as_ref()) }
+    }
+}
+
 pub struct MemSlice {
     buf: Arc<UnsafeCell<Vec<u8>>>,
     start: usize,
@@ -303,8 +317,8 @@ impl PartialEq<[u8]> for MemSlice {
     }
 }
 
-impl PartialEq<str> for MemSlice {
-    fn eq(&self, other: &str) -> bool {
+impl<'a> PartialEq<&'a str> for MemSlice {
+    fn eq(&self, other: &&'a str) -> bool {
         self.get() == other.as_bytes()
     }
 }

@@ -7,6 +7,7 @@ use http::{Body, RequestHead};
 use method::Method;
 use uri::Uri;
 use version::HttpVersion;
+use std::str::FromStr;
 
 /// A client request to a remote server.
 pub struct Request {
@@ -79,7 +80,7 @@ impl fmt::Debug for Request {
 }
 
 pub fn split(req: Request) -> (RequestHead, Option<Body>) {
-    let uri = Uri::new(&req.url[::url::Position::BeforePath..::url::Position::AfterQuery]).expect("url is uri");
+    let uri = Uri::from_str(&req.url[::url::Position::BeforePath..::url::Position::AfterQuery]).expect("url is uri");
     let head = RequestHead {
         subject: ::http::RequestLine(req.method, uri),
         headers: req.headers,
