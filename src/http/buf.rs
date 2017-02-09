@@ -4,6 +4,7 @@ use std::fmt;
 use std::io::{self, Read};
 use std::ops::{Index, Range, RangeFrom, RangeTo, RangeFull};
 use std::ptr;
+use std::str;
 use std::sync::Arc;
 
 pub struct MemBuf {
@@ -49,8 +50,8 @@ impl MemBuf {
     }
 
     pub fn slice(&self, len: usize) -> MemSlice {
-        assert!(self.end - self.start.get() >= len);
         let start = self.start.get();
+        assert!(!(self.end - start < len));
         let end = start + len;
         self.start.set(end);
         MemSlice {
@@ -193,6 +194,19 @@ impl From<Vec<u8>> for MemBuf {
             start: Cell::new(0),
             end: end,
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemStr(MemSlice);
+
+impl MemStr {
+    pub unsafe fn from_utf8_unchecked(slice: MemSlice) -> MemStr {
+        MemStr(slice)
+    }
+
+    pub fn as_str(&self) -> &str {
+        unsafe { str::from_utf8_unchecked(self.0.as_ref()) }
     }
 }
 

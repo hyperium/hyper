@@ -1,6 +1,8 @@
 use std::borrow::Cow;
 use std::fmt::{Display, self};
-use std::str::FromStr;
+use std::ops::Deref;
+use std::str::{self, FromStr};
+use http::buf::MemStr;
 use Url;
 use url::ParseError as UrlError;
 
@@ -30,7 +32,7 @@ use Error;
 /// scheme          authority                 path            query         fragment
 #[derive(Clone)]
 pub struct Uri {
-    source: Cow<'static, str>,
+    source: InternalUri,
     scheme_end: Option<usize>,
     authority_end: Option<usize>,
     query: Option<usize>,
@@ -39,31 +41,32 @@ pub struct Uri {
 
 impl Uri {
     /// Parse a string into a `Uri`.
-    pub fn new(s: &str) -> Result<Uri, Error> {
-        let bytes = s.as_bytes();
-        if bytes.len() == 0 {
+    fn new(s: InternalUri) -> Result<Uri, Error> {
+        if s.len() == 0 {
             Err(Error::Uri(UrlError::RelativeUrlWithoutBase))
-        } else if bytes == b"*" {
+        } else if s.as_bytes() == b"*" {
             Ok(Uri {
-                source: "*".into(),
+                source: InternalUri::Cow("*".into()),
                 scheme_end: None,
                 authority_end: None,
                 query: None,
                 fragment: None,
             })
-        } else if bytes == b"/" {
+        } else if s.as_bytes() == b"/" {
             Ok(Uri::default())
-        } else if bytes.starts_with(b"/") {
+        } else if s.as_bytes()[0] == b'/' {
+            let query = parse_query(&s);
+            let fragment = parse_fragment(&s);
             Ok(Uri {
-                source: s.to_owned().into(),
+                source: s,
                 scheme_end: None,
                 authority_end: None,
-                query: parse_query(s),
-                fragment: parse_fragment(s),
+                query: query,
+                fragment: fragment,
             })
         } else if s.contains("://") {
-            let scheme = parse_scheme(s);
-            let auth = parse_authority(s);
+            let scheme = parse_scheme(&s);
+            let auth = parse_authority(&s);
             if let Some(end) = scheme {
                 match &s[..end] {
                     "ftp" | "gopher" | "http" | "https" | "ws" | "wss" => {},
@@ -79,20 +82,23 @@ impl Uri {
                     None => return Err(Error::Method),
                 }
             }
+            let query = parse_query(&s);
+            let fragment = parse_fragment(&s);
             Ok(Uri {
-                source: s.to_owned().into(),
+                source: s,
                 scheme_end: scheme,
                 authority_end: auth,
-                query: parse_query(s),
-                fragment: parse_fragment(s),
+                query: query,
+                fragment: fragment,
             })
         } else if (s.contains("/") || s.contains("?")) && !s.contains("://") {
             return Err(Error::Method)
         } else {
+            let len = s.len();
             Ok(Uri {
-                source: s.to_owned().into(),
+                source: s,
                 scheme_end: None,
-                authority_end: Some(s.len()),
+                authority_end: Some(len),
                 query: None,
                 fragment: None,
             })
@@ -108,9 +114,10 @@ impl Uri {
             if fragment_len > 0 { fragment_len + 1 } else { 0 };
         if index >= end {
             if self.scheme().is_some() {
-                return "/" // absolute-form MUST have path
+                "/" // absolute-form MUST have path
+            } else {
+                ""
             }
-            ""
         } else {
             &self.source[index..end]
         }
@@ -158,7 +165,8 @@ impl Uri {
         let fragment_len = self.fragment.unwrap_or(0);
         let fragment_len = if fragment_len > 0 { fragment_len + 1 } else { 0 };
         if let Some(len) = self.query {
-            Some(&self.source[self.source.len() - len - fragment_len..self.source.len() - fragment_len])
+            Some(&self.source[self.source.len() - len - fragment_len..
+                                       self.source.len() - fragment_len])
         } else {
             None
         }
@@ -167,7 +175,7 @@ impl Uri {
     #[cfg(test)]
     fn fragment(&self) -> Option<&str> {
         if let Some(len) = self.fragment {
-            Some(&self.source[self.source.len() - len..])
+            Some(&self.source[self.source.len() - len..self.source.len()])
         } else {
             None
         }
@@ -180,7 +188,7 @@ fn parse_scheme(s: &str) -> Option<usize> {
 
 fn parse_authority(s: &str) -> Option<usize> {
     let i = s.find("://").and_then(|p| Some(p + 3)).unwrap_or(0);
-    
+
     Some(&s[i..].split("/")
          .next()
          .unwrap_or(s)
@@ -209,32 +217,43 @@ impl FromStr for Uri {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Uri, Error> {
-        Uri::new(s)
+        //TODO: refactor such that the to_owned() is only required at the end
+        //of successful parsing, so an Err doesn't needlessly clone the string.
+        Uri::new(InternalUri::Cow(Cow::Owned(s.to_owned())))
     }
 }
 
 impl From<Url> for Uri {
     fn from(url: Url) -> Uri {
-        Uri::new(url.as_str()).expect("Uri::From<Url> failed")
+        let s = InternalUri::Cow(Cow::Owned(url.into_string()));
+        // TODO: we could build the indices with some simple subtraction,
+        // instead of re-parsing an already parsed string.
+        // For example:
+        // let scheme_end = url[..url::Position::AfterScheme].as_ptr() as usize
+        //   - url.as_str().as_ptr() as usize;
+        // etc
+        Uri::new(s).expect("Uri::From<Url> failed")
     }
 }
 
 impl PartialEq for Uri {
     fn eq(&self, other: &Uri) -> bool {
-        self.source == other.source
+        self.source.as_str() == other.source.as_str()
     }
 }
 
+impl Eq for Uri {}
+
 impl AsRef<str> for Uri {
     fn as_ref(&self) -> &str {
-        &self.source
+        self.source.as_str()
     }
 }
 
 impl Default for Uri {
     fn default() -> Uri {
         Uri {
-            source: "/".into(),
+            source: InternalUri::Cow("/".into()),
             scheme_end: None,
             authority_end: None,
             query: None,
@@ -245,15 +264,43 @@ impl Default for Uri {
 
 impl fmt::Debug for Uri {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Debug::fmt(&self.source.as_ref(), f)
+        fmt::Debug::fmt(self.as_ref(), f)
     }
 }
 
 impl Display for Uri {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(&self.source)
+        f.write_str(self.as_ref())
     }
 }
+
+pub fn from_mem_str(s: MemStr) -> Result<Uri, Error> {
+    Uri::new(InternalUri::Shared(s))
+}
+
+#[derive(Clone)]
+enum InternalUri {
+    Cow(Cow<'static, str>),
+    Shared(MemStr),
+}
+
+impl InternalUri {
+    fn as_str(&self) -> &str {
+        match *self {
+            InternalUri::Cow(ref s) => s.as_ref(),
+            InternalUri::Shared(ref m) => m.as_str(),
+        }
+    }
+}
+
+impl Deref for InternalUri {
+    type Target = str;
+
+    fn deref(&self) -> &str {
+        self.as_str()
+    }
+}
+
 
 macro_rules! test_parse {
     (
@@ -263,7 +310,7 @@ macro_rules! test_parse {
     ) => (
         #[test]
         fn $test_name() {
-            let uri = Uri::new($str).unwrap();
+            let uri = Uri::from_str($str).unwrap();
             $(
             assert_eq!(uri.$method(), $value);
             )+
@@ -368,7 +415,7 @@ test_parse! {
 #[test]
 fn test_uri_parse_error() {
     fn err(s: &str) {
-        Uri::new(s).unwrap_err();
+        Uri::from_str(s).unwrap_err();
     }
 
     err("http://");
