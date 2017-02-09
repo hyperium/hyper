@@ -577,6 +577,8 @@ mod tests {
     use super::{Conn, Writing};
     use ::uri::Uri;
 
+    use std::str::FromStr;
+
     #[test]
     fn test_conn_init_read() {
         let good_message = b"GET / HTTP/1.1\r\n\r\n".to_vec();
@@ -587,7 +589,7 @@ mod tests {
         match conn.poll().unwrap() {
             Async::Ready(Some(Frame::Message { message, body: false })) => {
                 assert_eq!(message, MessageHead {
-                    subject: ::http::RequestLine(::Get, Uri::new("/").unwrap()),
+                    subject: ::http::RequestLine(::Get, Uri::from_str("/").unwrap()),
                     .. MessageHead::default()
                 })
             },
