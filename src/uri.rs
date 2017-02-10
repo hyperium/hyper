@@ -25,11 +25,12 @@ use Error;
 /// > ```
 ///
 /// # Uri explanations
-///
+/// ```notrust
 /// abc://username:password@example.com:123/path/data?key=value&key2=value2#fragid1
 /// |-|   |-------------------------------||--------| |-------------------| |-----|
 ///  |                  |                       |               |              |
 /// scheme          authority                 path            query         fragment
+/// ```
 #[derive(Clone)]
 pub struct Uri {
     source: InternalUri,
@@ -152,7 +153,7 @@ impl Uri {
         }
     }
 
-    /// Get the port of this `Uri.
+    /// Get the port of this `Uri`.
     pub fn port(&self) -> Option<u16> {
         match self.authority() {
             Some(auth) => auth.find(":").and_then(|i| u16::from_str(&auth[i+1..]).ok()),
