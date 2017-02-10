@@ -34,7 +34,7 @@ extern crate test;
 
 
 pub use uri::Uri;
-pub use url::Url;
+pub use url::{Url, Origin};
 pub use client::Client;
 pub use error::{Result, Error};
 pub use header::Headers;
