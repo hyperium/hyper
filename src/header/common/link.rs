@@ -1,13 +1,13 @@
 use std::fmt;
+use std::borrow::Cow;
 use std::str::FromStr;
 use std::ascii::AsciiExt;
 
-use uri::Uri;
 use mime::Mime;
 use language_tags::LanguageTag;
 
+use header::parsing;
 use header::{Header, Raw};
-use header::parsing::from_one_raw_str;
 
 /// The `Link` header, defined in
 /// [RFC5988](http://tools.ietf.org/html/rfc5988#section-5)
@@ -57,7 +57,7 @@ use header::parsing::from_one_raw_str;
 /// ```
 /// use hyper::header::{Headers, Link, LinkValue, RelationType};
 ///
-/// let link_value = LinkValue::new("http://example.com/TheBook/chapter2").unwrap()
+/// let link_value = LinkValue::new("http://example.com/TheBook/chapter2")
 ///     .push_rel(RelationType::Previous)
 ///     .set_title("previous chapter");
 ///
@@ -68,157 +68,159 @@ use header::parsing::from_one_raw_str;
 /// ```
 #[derive(Clone, PartialEq, Debug)]
 pub struct Link {
-    /// All the `link-value`s of the header
+    /// A list of the `link-value`s of the Link entity-header.
     pub values: Vec<LinkValue>
 }
 
-/// A `Link` header's, `link-value`, based on
+/// A single `link-value` of a `Link` header, based on:
 /// [RFC5988](http://tools.ietf.org/html/rfc5988#section-5)
 #[derive(Clone, PartialEq, Debug)]
 pub struct LinkValue {
-    /// Target IRI: `link-value`
-    link: Uri,
+    /// Target IRI: `link-value`.
+    link: Cow<'static, str>,
 
-    /// Forward Relation Types: `rel`
+    /// Forward Relation Types: `rel`.
     rel: Option<Vec<RelationType>>,
 
-    /// Context IRI: `anchor`
-    anchor: Option<Uri>,
+    /// Context IRI: `anchor`.
+    anchor: Option<String>,
 
-    /// Reverse Relation Types: `rev`
+    /// Reverse Relation Types: `rev`.
     rev: Option<Vec<RelationType>>,
 
-    /// Language Tags: `hreflang`
+    /// Hint on the language of the result of dereferencing
+    /// the link: `hreflang`.
     href_lang: Option<Vec<LanguageTag>>,
 
-    /// Media Descriptors: `media`
+    /// Destination medium or media: `media`.
     media_desc: Option<Vec<MediaDesc>>,
 
-    /// Quoted String: `title`
+    /// Label of the destination of a Link: `title`.
     title: Option<String>,
 
-    /// Extended Value: `title*`
+    /// The `title` encoded in a different charset: `title*`.
     title_star: Option<String>,
 
-    /// Media Type: `type`
+    /// Hint on the media type of the result of dereferencing
+    /// the link: `type`.
     media_type: Option<Mime>,
 
-    /// Link Extension: `link-extensions`
+    /// Link Extension: `link-extension`.
     link_extension: Option<String>
 }
 
-/// A Media Descriptors Enum based on
+/// A Media Descriptors Enum based on:
 /// https://www.w3.org/TR/html401/types.html#h-6.13
 #[derive(Clone, PartialEq, Debug)]
 pub enum MediaDesc {
-    /// screen
+    /// screen.
     Screen,
-    /// tty
+    /// tty.
     Tty,
-    /// tv
+    /// tv.
     Tv,
-    /// projection
+    /// projection.
     Projection,
-    /// handheld
+    /// handheld.
     Handheld,
-    /// print
+    /// print.
     Print,
-    /// braille
+    /// braille.
     Braille,
-    /// aural
+    /// aural.
     Aural,
-    /// all
+    /// all.
     All,
-    /// Other Values
-    Value(String)
+    /// Unrecognized media descriptor extension.
+    Extension(String)
 }
 
-/// A Link Relation Type Enum based on
+/// A Link Relation Type Enum based on:
 /// [RFC5988](https://tools.ietf.org/html/rfc5988#section-6.2.2)
 #[derive(Clone, PartialEq, Debug)]
 pub enum RelationType {
-    /// alternate
+    /// alternate.
     Alternate,
-    /// appendix
+    /// appendix.
     Appendix,
-    /// bookmark
+    /// bookmark.
     Bookmark,
-    /// chapter
+    /// chapter.
     Chapter,
-    /// contents
+    /// contents.
     Contents,
-    /// copyright
+    /// copyright.
     Copyright,
-    /// current
+    /// current.
     Current,
-    /// describedby
+    /// describedby.
     DescribedBy,
-    /// edit
+    /// edit.
     Edit,
-    /// editMedia
+    /// edit-media.
     EditMedia,
-    /// enclosure
+    /// enclosure.
     Enclosure,
-    /// first
+    /// first.
     First,
-    /// glossary
+    /// glossary.
     Glossary,
-    /// help
+    /// help.
     Help,
-    /// hub
+    /// hub.
     Hub,
-    /// index
+    /// index.
     Index,
-    /// last
+    /// last.
     Last,
-    /// latestVersion
+    /// latest-version.
     LatestVersion,
-    /// license
+    /// license.
     License,
-    /// next
+    /// next.
     Next,
-    /// nextArchive
+    /// next-archive.
     NextArchive,
-    /// payment
+    /// payment.
     Payment,
-    /// prev
+    /// prev.
     Prev,
-    /// predecessorVersion
+    /// predecessor-version.
     PredecessorVersion,
-    /// previous
+    /// previous.
     Previous,
-    /// prevArchive
+    /// prev-archive.
     PrevArchive,
-    /// related
+    /// related.
     Related,
-    /// replies
+    /// replies.
     Replies,
-    /// section
+    /// section.
     Section,
-    /// self
+    /// self.
     RelationTypeSelf,
-    /// service
+    /// service.
     Service,
-    /// start
+    /// start.
     Start,
-    /// stylesheet
+    /// stylesheet.
     Stylesheet,
-    /// subsection
+    /// subsection.
     Subsection,
-    /// successorVersion
+    /// successor-version.
     SuccessorVersion,
-    /// up
+    /// up.
     Up,
-    /// versionHistory
+    /// versionHistory.
     VersionHistory,
-    /// via
+    /// via.
     Via,
-    /// working-copy
+    /// working-copy.
     WorkingCopy,
-    /// working-copy-of
+    /// working-copy-of.
     WorkingCopyOf,
-    /// ext-rel-type
-    ExtRelType(Uri)
+    /// ext-rel-type.
+    ExtRelType(String)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -226,7 +228,7 @@ pub enum RelationType {
 ////////////////////////////////////////////////////////////////////////////////
 
 impl Link {
-    /// Create Link from a `Vec<LinkValue>`
+    /// Create `Link` from a `Vec<LinkValue>`.
     pub fn new(link_values: Vec<LinkValue>) -> Link {
         Link { values: link_values }
     }
@@ -234,78 +236,74 @@ impl Link {
 
 #[allow(dead_code)]
 impl LinkValue {
-    /// Create LinkValue from URI-Reference
-    pub fn new(uri: &str) -> ::Result<LinkValue> {
-        match Uri::new(uri) {
-            Err(_) => Err(::Error::Header),
-            Ok(u) => Ok(
-                LinkValue {
-                    link: u,
-                    rel: None,
-                    anchor: None,
-                    rev: None,
-                    href_lang: None,
-                    media_desc: None,
-                    title: None,
-                    title_star: None,
-                    media_type: None,
-                    link_extension: None,
-                }
-            )
+    /// Create `LinkValue` from URI-Reference.
+    pub fn new<T>(uri: T) -> LinkValue
+        where T: Into<Cow<'static, str>> {
+        LinkValue {
+            link: uri.into(),
+            rel: None,
+            anchor: None,
+            rev: None,
+            href_lang: None,
+            media_desc: None,
+            title: None,
+            title_star: None,
+            media_type: None,
+            link_extension: None,
         }
     }
 
-    /// Get the LinkValue's value
-    pub fn link(&self) -> &Uri {
-        &self.link
+    /// Get the `LinkValue`'s value.
+    pub fn link(&self) -> &str {
+        self.link.as_ref()
     }
 
-    /// Get the LinkValue's `rel` parameter
+    /// Get the `LinkValue`'s `rel` parameter(s).
     pub fn rel(&self) -> Option<&Vec<RelationType>> {
         self.rel.as_ref()
     }
 
-    /// Get the LinkValue's `anchor` parameter
-    pub fn anchor(&self) -> Option<&Uri> {
+    /// Get the `LinkValue`'s `anchor` parameter.
+    pub fn anchor(&self) -> Option<&String> {
         self.anchor.as_ref()
     }
 
-    /// Get the LinkValue's `rev` parameter
+    /// Get the `LinkValue`'s `rev` parameter(s).
     pub fn rev(&self) -> Option<&Vec<RelationType>> {
         self.rev.as_ref()
     }
 
-    /// Get the LinkValue's `hreflang` parameter
+    /// Get the `LinkValue`'s `hreflang` parameter(s).
     pub fn href_lang(&self) -> Option<&Vec<LanguageTag>> {
         self.href_lang.as_ref()
     }
 
-    /// Get the LinkValue's `media` parameter
+    /// Get the `LinkValue`'s `media` parameter(s).
     pub fn media_desc(&self) -> Option<&Vec<MediaDesc>> {
         self.media_desc.as_ref()
     }
 
-    /// Get the LinkValue's `title` parameter
+    /// Get the `LinkValue`'s `title` parameter.
     pub fn title(&self) -> Option<&String> {
         self.title.as_ref()
     }
 
-    /// Get the LinkValue's `title*` parameter
+    /// Get the `LinkValue`'s `title*` parameter.
     pub fn title_star(&self) -> Option<&String> {
         self.title_star.as_ref()
     }
 
-    /// Get the LinkValue's `type` parameter
+    /// Get the `LinkValue`'s `type` parameter.
     pub fn media_type(&self) -> Option<&Mime> {
         self.media_type.as_ref()
     }
 
-    /// Get the LinkValue's `link-extension` parameter
+    /// Get the `LinkValue`'s `link-extension` parameter.
     pub fn link_extension(&self) -> Option<&String> {
         self.link_extension.as_ref()
     }
 
-    /// Update LinkValue's `rel` parameter
+    /// Add a `RelationType` to the `LinkValue`'s `rel` parameter.
     pub fn push_rel(mut self, rel: RelationType) -> LinkValue {
         let mut v = self.rel.take().unwrap_or(Vec::new());
 
@@ -316,19 +314,14 @@ impl LinkValue {
         self
     }
 
-    /// Set LinkValue's `anchor` parameter
-    pub fn set_anchor(mut self, anchor: &str) -> ::Result<LinkValue> {
-        match Uri::new(anchor) {
-            Err(_) => Err(::Error::Header),
-            Ok(uri) =>  {
-                self.anchor = Some(uri);
+    /// Set `LinkValue`'s `anchor` parameter.
+    pub fn set_anchor(mut self, anchor: &str) -> LinkValue {
+        self.anchor = Some(String::from(anchor));
 
-                Ok(self)
-            }
-        }
+        self
     }
 
-    /// Update LinkValue's `rev` parameter
+    /// Add a `RelationType` to the `LinkValue`'s `rev` parameter.
     pub fn push_rev(mut self, rev: RelationType) -> LinkValue {
         let mut v = self.rev.take().unwrap_or(Vec::new());
 
@@ -339,7 +332,7 @@ impl LinkValue {
         self
     }
 
-    /// Update LinkValue's `hreflang` parameter
+    /// Add a `LanguageTag` to the `LinkValue`'s `hreflang` parameter.
     pub fn push_href_lang(mut self, language_tag: LanguageTag) -> LinkValue {
         let mut v = self.href_lang.take().unwrap_or(Vec::new());
 
@@ -350,7 +343,7 @@ impl LinkValue {
         self
     }
 
-    /// Update LinkValue's `media` parameter
+    /// Add a `MediaDesc` to the `LinkValue`'s `media_desc` parameter.
     pub fn push_media_desc(mut self, media_desc: MediaDesc) -> LinkValue {
         let mut v = self.media_desc.take().unwrap_or(Vec::new());
 
@@ -361,28 +354,28 @@ impl LinkValue {
         self
     }
 
-    /// Set LinkValue's `title` parameter
+    /// Set `LinkValue`'s `title` parameter.
     pub fn set_title(mut self, title: &str) -> LinkValue {
         self.title = Some(String::from(title));
 
         self
     }
 
-    /// Set LinkValue's `title*` parameter
+    /// Set `LinkValue`'s `title*` parameter.
     pub fn set_title_star(mut self, title_star: &str) -> LinkValue {
         self.title_star = Some(String::from(title_star));
 
         self
     }
 
-    /// Set LinkValue's `type` parameter
+    /// Set `LinkValue`'s `type` parameter.
     pub fn set_media_type(mut self, media_type: &Mime) -> LinkValue {
         self.media_type = Some(media_type.clone());
 
         self
     }
 
-    /// Set LinkValue's `link-extension` parameter
+    /// Set `LinkValue`'s `link-extension` parameter.
     pub fn set_link_extension(mut self, link_extension: &str) -> LinkValue {
         self.link_extension = Some(String::from(link_extension));
 
@@ -401,10 +394,24 @@ impl Header for Link {
     }
 
     fn parse_header(raw: &Raw) -> ::Result<Link> {
-        // TODO: This should probably change to support multiple link
-        //       headers in one request although we can have one link
-        //       header with multiple values.
-        from_one_raw_str(raw)
+        // If more that one `Link` headers are present in a request's
+        // headers they are combined in a single `Link` header containing
+        // all the `link-value`s present in each of those `Link` headers.
+        raw.iter()
+            .map(parsing::from_raw_str::<Link>)
+            .fold(None, |p, c| {
+                match (p, c) {
+                    (None, c) => Some(c),
+                    (e @ Some(Err(_)), _) => e,
+                    (Some(Ok(mut p)), Ok(c)) => {
+                        p.values.extend(c.values);
+
+                        Some(Ok(p))
+                    },
+                    _ => Some(Err(::Error::Header)),
+                }
+            })
+            .unwrap_or(Err(::Error::Header))
     }
 
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -474,10 +481,9 @@ impl FromStr for Link {
                 link.values.push(
                     match verify_and_trim(segment.trim(), b'<', b'>') {
                         Err(_) => return Err(::Error::Header),
-                        Ok(link_url) => match Uri::new(link_url) {
-                            Err(_) => return Err(::Error::Header),
-                            Ok(uri) => LinkValue {
-                                link: uri,
+                        Ok(s) => {
+                            LinkValue {
+                                link: s.to_owned().into(),
                                 rel: None,
                                 anchor: None,
                                 rev: None,
@@ -511,10 +517,17 @@ impl FromStr for Link {
                     if link_header.rel.is_none() {
                         link_header.rel = match link_param_split.next() {
                             None => return Err(::Error::Header),
-                            Some(s) => match from_str_delimited(s.trim().trim_matches('"'), ' ') {
-                                Err(_) => return Err(::Error::Header),
-                                Ok(v) => Some(v),
-                            }
+                            Some(s) => {
+                                let res = s.trim_matches(|c: char| c == '"' || c.is_whitespace())
+                                         .split(' ')
+                                         .map(|t| t.trim().parse())
+                                         .collect();
+
+                                match res {
+                                    Err(_) => return Err(::Error::Header),
+                                    Ok(v) => Some(v),
+                                }
+                            },
                         };
                     }
                 } else if "anchor".eq_ignore_ascii_case(link_param_name) {
@@ -524,10 +537,7 @@ impl FromStr for Link {
                         None => return Err(::Error::Header),
                         Some(s) => match verify_and_trim(s.trim(), b'"', b'"') {
                             Err(_) => return Err(::Error::Header),
-                            Ok(a) => match Uri::new(a) {
-                                Err(_) => return Err(::Error::Header),
-                                Ok(u) => Some(u),
-                            },
+                            Ok(a) => Some(String::from(a)),
                         },
                     };
                 } else if "rev".eq_ignore_ascii_case(link_param_name) {
@@ -536,10 +546,17 @@ impl FromStr for Link {
                     if link_header.rev.is_none() {
                         link_header.rev = match link_param_split.next() {
                             None => return Err(::Error::Header),
-                            Some(s) => match from_str_delimited(s.trim().trim_matches('"'), ' ') {
-                                Err(_) => return Err(::Error::Header),
-                                Ok(v) => Some(v),
-                            }
+                            Some(s) => {
+                                let res = s.trim_matches(|c: char| c == '"' || c.is_whitespace())
+                                         .split(' ')
+                                         .map(|t| t.trim().parse())
+                                         .collect();
+
+                                match res {
+                                    Err(_) => return Err(::Error::Header),
+                                    Ok(v) => Some(v),
+                                }
+                            },
                         }
                     }
                 } else if "hreflang".eq_ignore_ascii_case(link_param_name) {
@@ -564,9 +581,16 @@ impl FromStr for Link {
                     if link_header.media_desc.is_none() {
                         link_header.media_desc = match link_param_split.next() {
                             None => return Err(::Error::Header),
-                            Some(s) => match from_str_delimited(s.trim().trim_matches('"'), ',') {
-                                Err(_) => return Err(::Error::Header),
-                                Ok(v) => Some(v),
+                            Some(s) => {
+                                let res = s.trim_matches(|c: char| c == '"' || c.is_whitespace())
+                                         .split(',')
+                                         .map(|t| t.trim().parse())
+                                         .collect();
+
+                                match res {
+                                    Err(_) => return Err(::Error::Header),
+                                    Ok(v) => Some(v),
+                                }
                             },
                         };
                     }
@@ -641,7 +665,7 @@ impl fmt::Display for MediaDesc {
             MediaDesc::Braille => write!(f, "braille"),
             MediaDesc::Aural => write!(f, "aural"),
             MediaDesc::All => write!(f, "all"),
-            MediaDesc::Value(ref other) => write!(f, "{}", other),
+            MediaDesc::Extension(ref other) => write!(f, "{}", other),
          }
     }
 }
@@ -660,7 +684,7 @@ impl FromStr for MediaDesc {
             "braille" => Ok(MediaDesc::Braille),
             "aural" => Ok(MediaDesc::Aural),
             "all" => Ok(MediaDesc::All),
-             _ => Ok(MediaDesc::Value(String::from(s))),
+             _ => Ok(MediaDesc::Extension(String::from(s))),
         }
     }
 }
@@ -798,10 +822,7 @@ impl FromStr for RelationType {
         } else if "working-copy-of".eq_ignore_ascii_case(s) {
             Ok(RelationType::WorkingCopyOf)
         } else {
-            match Uri::new(s) {
-                Err(_) => Err(::Error::Header),
-                Ok(uri) => Ok(RelationType::ExtRelType(uri)),
-            }
+            Ok(RelationType::ExtRelType(String::from(s)))
         }
     }
 }
@@ -813,7 +834,6 @@ impl FromStr for RelationType {
 struct SplitAsciiUnquoted<'a> {
     src: &'a str,
     pos: usize,
-    len: usize,
     del: &'a str
 }
 
@@ -822,7 +842,6 @@ impl<'a> SplitAsciiUnquoted<'a> {
         SplitAsciiUnquoted{
             src: s,
             pos: 0,
-            len: s.len(),
             del: d,
         }
     }
@@ -832,7 +851,7 @@ impl<'a> Iterator for SplitAsciiUnquoted<'a> {
     type Item = &'a str;
 
     fn next(&mut self) -> Option<&'a str> {
-        if self.pos < self.len {
+        if self.pos < self.src.len() {
             let prev_pos = self.pos;
             let mut pos = self.pos;
 
@@ -841,6 +860,7 @@ impl<'a> Iterator for SplitAsciiUnquoted<'a> {
             for c in self.src[prev_pos..].as_bytes().iter() {
                 in_quotes ^= *c == b'"';
 
+                // Ignore `c` if we're `in_quotes`.
                 if !in_quotes && self.del.as_bytes().contains(c) {
                     break;
                 }
@@ -857,27 +877,17 @@ impl<'a> Iterator for SplitAsciiUnquoted<'a> {
     }
 }
 
-fn from_str_delimited<T: FromStr>(s: &str, d: char) -> ::Result<Vec<T>> {
-    let mut v: Vec<T> = Vec::new();
-
-    for i in s.split(d) {
-        match T::from_str(i.trim()) {
-            Err(_) => return Err(::Error::Header),
-            Ok(t) => v.push(t),
-        }
-    }
-
-    Ok(v)
-}
-
 fn fmt_delimited<T: fmt::Display>(f: &mut fmt::Formatter, p: &[T], d: &str, s: &str, e: &str) -> fmt::Result {
     if p.len() != 0 {
+        // Write a starting string `s` before the first element
         try!(write!(f, "{}{}", s, p[0]));
 
         for i in &p[1..] {
+            // Write the next element preceded by the delimiter `d`
             try!(write!(f, "{}{}", d, i));
         }
 
+        // Write a ending string `e` before the first element
         try!(write!(f, "{}", e));
     }
 
@@ -888,8 +898,12 @@ fn verify_and_trim(s: &str, l: u8, r: u8) -> ::Result<&str> {
     let length = s.len();
     let byte_array = s.as_bytes();
 
+    // Verify that `s` starts with `l` and ends with `r` and return
+    // the contained substring after triming whitespace.
     if length > 1 && l == byte_array[0] && r == byte_array[length - 1] {
-        Ok(s.trim_matches(|c| c == l as char || c == r as char || c == ' '))
+        Ok(s.trim_matches(
+            |c: char| c == l as char || c == r as char || c.is_whitespace())
+        )
     } else {
         Err(::Error::Header)
     }
@@ -905,13 +919,16 @@ mod tests {
 
     use header::Header;
 
+    use http::{ServerTransaction, Http1Transaction};
+    use http::buf::MemBuf;
+
     use mime::Mime;
     use mime::TopLevel::Text;
     use mime::SubLevel::Plain;
 
     #[test]
     fn test_link() {
-        let link_value = LinkValue::new("http://example.com/TheBook/chapter2").unwrap()
+        let link_value = LinkValue::new("http://example.com/TheBook/chapter2")
             .push_rel(RelationType::Previous)
             .push_rev(RelationType::Next)
             .set_title("previous chapter");
@@ -927,11 +944,11 @@ mod tests {
 
     #[test]
     fn test_link_multiple_values() {
-        let first_link = LinkValue::new("/TheBook/chapter2").unwrap()
+        let first_link = LinkValue::new("/TheBook/chapter2")
             .push_rel(RelationType::Previous)
             .set_title_star("UTF-8'de'letztes%20Kapitel");
 
-        let second_link = LinkValue::new("/TheBook/chapter4").unwrap()
+        let second_link = LinkValue::new("/TheBook/chapter4")
             .push_rel(RelationType::Next)
             .set_title_star("UTF-8'de'n%c3%a4chstes%20Kapitel");
 
@@ -948,9 +965,9 @@ mod tests {
 
     #[test]
     fn test_link_all_attributes() {
-        let link_value = LinkValue::new("http://example.com/TheBook/chapter2").unwrap()
+        let link_value = LinkValue::new("http://example.com/TheBook/chapter2")
             .push_rel(RelationType::Previous)
-            .set_anchor("../anchor/example/").unwrap()
+            .set_anchor("../anchor/example/")
             .push_rev(RelationType::Next)
             .push_href_lang(langtag!(de))
             .push_media_desc(MediaDesc::Screen)
@@ -969,6 +986,41 @@ mod tests {
 
         let link = Header::parse_header(&vec![link_header.to_vec()].into());
         assert_eq!(link.ok(), Some(expected_link));
+    }
+
+    #[test]
+    fn test_link_multiple_link_headers() {
+        let first_link = LinkValue::new("/TheBook/chapter2")
+            .push_rel(RelationType::Previous)
+            .set_title_star("UTF-8'de'letztes%20Kapitel");
+
+        let second_link = LinkValue::new("/TheBook/chapter4")
+            .push_rel(RelationType::Next)
+            .set_title_star("UTF-8'de'n%c3%a4chstes%20Kapitel");
+
+        let third_link = LinkValue::new("http://example.com/TheBook/chapter2")
+            .push_rel(RelationType::Previous)
+            .push_rev(RelationType::Next)
+            .set_title("previous chapter");
+
+        let expected_link = Link::new(vec![first_link, second_link, third_link]);
+
+        let raw = MemBuf::from(b"GET /super_short_uri/and_whatever HTTP/1.1\r\nHost: \
+                                  hyper.rs\r\nAccept: a lot of things\r\nAccept-Charset: \
+                                  utf8\r\nAccept-Encoding: *\r\nLink: </TheBook/chapter2>; \
+                                  rel=\"previous\"; title*=UTF-8'de'letztes%20Kapitel, \
+                                  </TheBook/chapter4>; rel=\"next\"; title*=\
+                                  UTF-8'de'n%c3%a4chstes%20Kapitel\r\n\
+                                  Access-Control-Allow-Credentials: None\r\nLink: \
+                                  <http://example.com/TheBook/chapter2>; \
+                                  rel=\"previous\"; rev=next; title=\"previous chapter\"\
+                                  \r\n\r\n".to_vec());
+
+        let (mut res, _) = ServerTransaction::parse(&raw).unwrap().unwrap();
+
+        let link = res.headers.remove::<Link>().unwrap();
+
+        assert_eq!(link, expected_link);
     }
 }
 
