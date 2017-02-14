@@ -915,7 +915,11 @@ fn verify_and_trim(s: &str, l: u8, r: u8) -> ::Result<&str> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Link, LinkValue, MediaDesc, RelationType};
+    use std::fmt;
+    use std::fmt::Write;
+
+    use super::{Link, LinkValue, MediaDesc, RelationType, SplitAsciiUnquoted};
+    use super::{fmt_delimited, verify_and_trim};
 
     use header::Header;
 
@@ -1021,6 +1025,74 @@ mod tests {
         let link = res.headers.remove::<Link>().unwrap();
 
         assert_eq!(link, expected_link);
+    }
+
+    #[test]
+    fn test_link_display() {
+        let link_value = LinkValue::new("http://example.com/TheBook/chapter2")
+            .push_rel(RelationType::Previous)
+            .set_anchor("/anchor/example/")
+            .push_rev(RelationType::Next)
+            .push_href_lang(langtag!(de))
+            .push_media_desc(MediaDesc::Screen)
+            .set_title("previous chapter")
+            .set_title_star("title* unparsed")
+            .set_media_type(&Mime(Text, Plain, vec![]))
+            .set_link_extension("link-extension unparsed");
+
+        let link = Link::new(vec![link_value]);
+
+        let mut link_header = String::new();
+        write!(&mut link_header, "{}", link).unwrap();
+
+        let expected_link_header = "<http://example.com/TheBook/chapter2>; \
+            rel=\"previous\"; anchor=\"/anchor/example/\"; \
+            rev=\"next\"; hreflang=de; media=\"screen\"; \
+            title=\"previous chapter\"; title*=title* unparsed; \
+            type=\"text/plain\"; link-extension=link-extension unparsed";
+
+        assert_eq!(link_header, expected_link_header);
+    }
+
+    #[test]
+    fn test_link_split_ascii_unquoted_iterator() {
+        let string = "some, text; \"and, more; in quotes\", or not";
+        let mut string_split = SplitAsciiUnquoted::new(string, ";,");
+
+        assert_eq!(Some("some"), string_split.next());
+        assert_eq!(Some(" text"), string_split.next());
+        assert_eq!(Some(" \"and, more; in quotes\""), string_split.next());
+        assert_eq!(Some(" or not"), string_split.next());
+        assert_eq!(None, string_split.next());
+    }
+
+    #[test]
+    fn test_link_fmt_delimited() {
+        struct TestFormatterStruct<'a> { v: Vec<&'a str> };
+
+        impl<'a> fmt::Display for TestFormatterStruct<'a> {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                fmt_delimited(f, self.v.as_slice(), ", ", ">>", "<<")
+            }
+        }
+
+        let test_formatter = TestFormatterStruct { v: vec!["first", "second"] };
+
+        let mut string = String::new();
+        write!(&mut string, "{}", test_formatter).unwrap();
+
+        let expected_string = ">>first, second<<";
+
+        assert_eq!(string, expected_string);
+    }
+
+    #[test]
+    fn test_link_verify_and_trim() {
+        let string = verify_and_trim(">  some string   <", b'>', b'<');
+        assert_eq!(string.ok(), Some("some string"));
+
+        let err = verify_and_trim(" >  some string   <", b'>', b'<');
+        assert_eq!(err.is_err(), true);
     }
 }
 
