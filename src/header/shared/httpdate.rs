@@ -44,6 +44,16 @@ impl FromStr for HttpDate {
     }
 }
 
+impl FromUnixEpoch for HttpDate {
+    type Err = ::Error;
+    fn from_unix_epoch(u64: timestamp) -> ::Result<HttpDate> {
+        match time::strptime(timestamp, "%s").or_else(|_| {
+            Ok(t) => Ok(HttpDate(t)),
+            Err(_) => Err(::Error::Header),
+        }
+    }
+}
+
 impl Display for HttpDate {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Display::fmt(&self.0.to_utc().rfc822(), f)
