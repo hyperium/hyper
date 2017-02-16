@@ -105,7 +105,7 @@ impl<I: Io, T: Http1Transaction, K: KeepAlive> Conn<I, T, K> {
                 let decoder = match T::decoder(&head) {
                     Ok(d) => d,
                     Err(e) => {
-                        error!("decoder error = {:?}", e);
+                        debug!("decoder error = {:?}", e);
                         self.state.close_read();
                         return Ok(Async::Ready(Some(Frame::Error { error: e })));
                     }
