@@ -83,25 +83,20 @@ impl<I: Io, T: Http1Transaction, K: KeepAlive> Conn<I, T, K> {
             Ok(Some(head)) => (head.version, head),
             Ok(None) => return Ok(Async::NotReady),
             Err(e) => {
-                let must_respond_with_error = !self.state.was_idle();
-                self.state.close();
+                self.state.close_read();
                 self.io.consume_leading_lines();
-                let ret = if !self.io.read_buf().is_empty() {
-                    error!("parse error ({}) with bytes: {:?}", e, self.io.read_buf());
+                let was_mid_parse = !self.io.read_buf().is_empty();
+                let must_respond_with_error = !self.state.was_idle();
+                return if was_mid_parse {
+                    debug!("parse error ({}) with bytes: {:?}", e, self.io.read_buf());
+                    Ok(Async::Ready(Some(Frame::Error { error: e })))
+                } else if must_respond_with_error {
+                    trace!("parse error with 0 input, err = {:?}", e);
                     Ok(Async::Ready(Some(Frame::Error { error: e })))
                 } else {
-                    trace!("parse error with 0 input, err = {:?}", e);
-                    if must_respond_with_error {
-                        match e {
-                            ::Error::Io(io) => Err(io),
-                            other => Err(io::Error::new(io::ErrorKind::UnexpectedEof, other)),
-                        }
-                    } else {
-                        debug!("socket complete");
-                        Ok(Async::Ready(None))
-                    }
+                    debug!("socket complete");
+                    Ok(Async::Ready(None))
                 };
-                return ret;
             }
         };
 
@@ -111,7 +106,7 @@ impl<I: Io, T: Http1Transaction, K: KeepAlive> Conn<I, T, K> {
                     Ok(d) => d,
                     Err(e) => {
                         error!("decoder error = {:?}", e);
-                        self.state.close();
+                        self.state.close_read();
                         return Ok(Async::Ready(Some(Frame::Error { error: e })));
                     }
                 };
@@ -128,7 +123,7 @@ impl<I: Io, T: Http1Transaction, K: KeepAlive> Conn<I, T, K> {
             },
             _ => {
                 error!("unimplemented HTTP Version = {:?}", version);
-                self.state.close();
+                self.state.close_read();
                 return Ok(Async::Ready(Some(Frame::Error { error: ::Error::Version })));
             }
         }
@@ -310,6 +305,10 @@ where I: Io,
                 .map(|async| async.map(|chunk| Some(Frame::Body {
                     chunk: chunk
                 })))
+                .or_else(|err| {
+                    self.state.close_read();
+                    Ok(Async::Ready(Some(Frame::Error { error: err.into() })))
+                })
         } else {
             trace!("poll when on keep-alive");
             Ok(Async::NotReady)
@@ -473,6 +472,12 @@ impl<K: KeepAlive> State<K> {
         trace!("State::close()");
         self.reading = Reading::Closed;
         self.writing = Writing::Closed;
+        self.keep_alive.disable();
+    }
+
+    fn close_read(&mut self) {
+        trace!("State::close_read()");
+        self.reading = Reading::Closed;
         self.keep_alive.disable();
     }
 
