@@ -10,18 +10,18 @@ use version::HttpVersion;
 use std::str::FromStr;
 
 /// A client request to a remote server.
-pub struct Request {
+pub struct Request<B = Body> {
     method: Method,
     url: Url,
     version: HttpVersion,
     headers: Headers,
-    body: Option<Body>,
+    body: Option<B>,
 }
 
-impl Request {
+impl<B> Request<B> {
     /// Construct a new Request.
     #[inline]
-    pub fn new(method: Method, url: Url) -> Request {
+    pub fn new(method: Method, url: Url) -> Request<B> {
         Request {
             method: method,
             url: url,
@@ -65,10 +65,10 @@ impl Request {
 
     /// Set the body of the request.
     #[inline]
-    pub fn set_body<T: Into<Body>>(&mut self, body: T) { self.body = Some(body.into()); }
+    pub fn set_body<T: Into<B>>(&mut self, body: T) { self.body = Some(body.into()); }
 }
 
-impl fmt::Debug for Request {
+impl<B> fmt::Debug for Request<B> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Request")
             .field("method", &self.method)
@@ -79,7 +79,7 @@ impl fmt::Debug for Request {
     }
 }
 
-pub fn split(req: Request) -> (RequestHead, Option<Body>) {
+pub fn split<B>(req: Request<B>) -> (RequestHead, Option<B>) {
     let uri = Uri::from_str(&req.url[::url::Position::BeforePath..::url::Position::AfterQuery]).expect("url is uri");
     let head = RequestHead {
         subject: ::http::RequestLine(req.method, uri),
@@ -197,39 +197,6 @@ mod tests {
         let request_line = "GET http://example.dom/ HTTP/1.1";
         assert_eq!(&s[..request_line.len()], request_line);
         assert!(s.contains("Host: example.dom"));
-    }
-
-    #[test]
-    fn test_post_chunked_with_encoding() {
-        let url = Url::parse("http://example.dom").unwrap();
-        let mut req = Request::with_connector(
-            Post, url, &mut MockConnector
-        ).unwrap();
-        req.headers_mut().set(TransferEncoding(vec![Encoding::Chunked]));
-        let bytes = run_request(req);
-        let s = from_utf8(&bytes[..]).unwrap();
-        assert!(!s.contains("Content-Length:"));
-        assert!(s.contains("Transfer-Encoding:"));
-    }
-
-    #[test]
-    fn test_write_error_closes() {
-        let url = Url::parse("http://hyper.rs").unwrap();
-        let req = Request::with_connector(
-            Get, url, &mut MockConnector
-        ).unwrap();
-        let mut req = req.start().unwrap();
-
-        req.message.downcast_mut::<Http11Message>().unwrap()
-            .get_mut().downcast_mut::<MockStream>().unwrap()
-            .error_on_write = true;
-
-        req.write(b"foo").unwrap();
-        assert!(req.flush().is_err());
-
-        assert!(req.message.downcast_ref::<Http11Message>().unwrap()
-            .get_ref().downcast_ref::<MockStream>().unwrap()
-            .is_closed);
     }
     */
 }

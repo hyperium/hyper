@@ -6,7 +6,7 @@ use std::ptr;
 use futures::Async;
 use tokio::io::Io;
 
-use http::{Http1Transaction, h1, MessageHead, ParseResult};
+use http::{Http1Transaction, h1, MessageHead, ParseResult, DebugTruncate};
 use http::buf::{MemBuf, MemSlice};
 
 const INIT_BUFFER_SIZE: usize = 4096;
@@ -91,8 +91,8 @@ impl<T: Io> Buffered<T> {
         self.read_buf.reserve(INIT_BUFFER_SIZE);
     }
 
-    pub fn buffer<B: AsRef<[u8]>>(&mut self, buf: B) {
-        self.write_buf.buffer(buf.as_ref());
+    pub fn buffer<B: AsRef<[u8]>>(&mut self, buf: B) -> usize {
+        self.write_buf.buffer(buf.as_ref())
     }
 
     #[cfg(test)]
@@ -101,24 +101,6 @@ impl<T: Io> Buffered<T> {
     }
 }
 
-/*
-impl<T: Read> Read for Buffered<T> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        trace!("Buffered.read self={}, buf={}", self.read_buf.len(), buf.len());
-        unimplemented!()
-        /*
-        let n = try!(self.read_buf.bytes().read(buf));
-        self.read_buf.consume(n);
-        if n == 0 {
-            self.read_buf.reset();
-            self.io.read(&mut buf[n..])
-        } else {
-            Ok(n)
-        }
-        */
-    }
-}
-*/
 
 impl<T: Write> Write for Buffered<T> {
     fn write(&mut self, data: &[u8]) -> io::Result<usize> {
@@ -164,7 +146,7 @@ impl<T: Read> MemRead for Buffered<T> {
 }
 
 #[derive(Clone)]
-pub struct Cursor<T: AsRef<[u8]>> {
+pub struct Cursor<T> {
     bytes: T,
     pos: usize,
 }
@@ -211,16 +193,9 @@ impl<T: AsRef<[u8]>> Cursor<T> {
 
 impl<T: AsRef<[u8]>> fmt::Debug for Cursor<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let bytes = self.buf();
-        if bytes.len() > 32 {
-            try!(f.write_str("Cursor(["));
-            for byte in &bytes[..32] {
-                try!(write!(f, "{:?}, ", byte));
-            }
-            write!(f, "... {}])", bytes.len())
-        } else {
-            write!(f, "Cursor({:?})", &bytes)
-        }
+        f.debug_tuple("Cursor")
+            .field(&DebugTruncate(self.buf()))
+            .finish()
     }
 }
 

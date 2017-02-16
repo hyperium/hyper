@@ -40,6 +40,14 @@ impl Encoder {
         }
     }
 
+    pub fn eof(&self) -> Result<Option<&'static [u8]>, NotEof> {
+        match self.kind {
+            Kind::Length(0) => Ok(None),
+            Kind::Chunked(Chunked::Init) => Ok(Some(b"0\r\n\r\n")),
+            _ => Err(NotEof),
+        }
+    }
+
     pub fn encode<W: AtomicWrite>(&mut self, w: &mut W, msg: &[u8]) -> io::Result<usize> {
         match self.kind {
             Kind::Chunked(ref mut chunked) => {
@@ -66,6 +74,9 @@ impl Encoder {
         }
     }
 }
+
+#[derive(Debug)]
+pub struct NotEof;
 
 #[derive(Debug, PartialEq, Clone)]
 enum Chunked {

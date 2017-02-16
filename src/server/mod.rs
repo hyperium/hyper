@@ -6,6 +6,7 @@
 use std::cell::RefCell;
 use std::fmt;
 use std::io;
+use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::rc::{Rc, Weak};
 use std::time::Duration;
@@ -36,29 +37,33 @@ mod response;
 /// This structure is used to create instances of `Server` or to spawn off tasks
 /// which handle a connection to an HTTP server. Each instance of `Http` can be
 /// configured with various protocol-level options such as keepalive.
-#[derive(Debug, Clone)]
-pub struct Http {
+pub struct Http<B> {
     keep_alive: bool,
+    _marker: PhantomData<B>,
 }
 
 /// An instance of a server created through `Http::bind`.
 ///
 /// This server is intended as a convenience for creating a TCP listener on an
 /// address and then serving TCP connections accepted with the service provided.
-pub struct Server<S> {
-    protocol: Http,
+pub struct Server<S, B>
+where B: Stream<Error=::Error>,
+      B::Item: AsRef<[u8]>,
+{
+    protocol: Http<B::Item>,
     new_service: S,
     core: Core,
     listener: TcpListener,
     shutdown_timeout: Duration,
 }
 
-impl Http {
+impl<B: AsRef<[u8]> + 'static> Http<B> {
     /// Creates a new instance of the HTTP protocol, ready to spawn a server or
     /// start accepting connections.
-    pub fn new() -> Http {
+    pub fn new() -> Http<B> {
         Http {
             keep_alive: true,
+            _marker: PhantomData,
         }
     }
 
@@ -80,9 +85,10 @@ impl Http {
     ///
     /// The returned `Server` contains one method, `run`, which is used to
     /// actually run the server.
-    pub fn bind<S>(&self, addr: &SocketAddr, new_service: S) -> ::Result<Server<S>>
-        where S: NewService<Request = Request, Response = Response, Error = ::Error> +
+    pub fn bind<S, Bd>(&self, addr: &SocketAddr, new_service: S) -> ::Result<Server<S, Bd>>
+        where S: NewService<Request = Request, Response = Response<Bd>, Error = ::Error> +
                     Send + Sync + 'static,
+              Bd: Stream<Item=B, Error=::Error>,
     {
         let core = try!(Core::new());
         let handle = core.handle();
@@ -111,12 +117,13 @@ impl Http {
     /// used through the `serve` helper method above. This can be useful,
     /// however, when writing mocks or accepting sockets from a non-TCP
     /// location.
-    pub fn bind_connection<S, I>(&self,
+    pub fn bind_connection<S, I, Bd>(&self,
                                  handle: &Handle,
                                  io: I,
                                  remote_addr: SocketAddr,
                                  service: S)
-        where S: Service<Request = Request, Response = Response, Error = ::Error> + 'static,
+        where S: Service<Request = Request, Response = Response<Bd>, Error = ::Error> + 'static,
+              Bd: Stream<Item=B, Error=::Error> + 'static,
               I: Io + 'static,
     {
         self.bind_server(handle, io, HttpService {
@@ -126,29 +133,48 @@ impl Http {
     }
 }
 
-#[doc(hidden)]
-#[allow(missing_debug_implementations)]
-pub struct ProtoRequest(http::RequestHead);
-#[doc(hidden)]
-#[allow(missing_debug_implementations)]
-pub struct ProtoResponse(ResponseHead);
-#[doc(hidden)]
-#[allow(missing_debug_implementations)]
-pub struct ProtoTransport<T>(http::Conn<T, http::ServerTransaction>);
-#[doc(hidden)]
-#[allow(missing_debug_implementations)]
-pub struct ProtoBindTransport<T> {
-    inner: future::FutureResult<http::Conn<T, http::ServerTransaction>, io::Error>,
+impl<B> Clone for Http<B> {
+    fn clone(&self) -> Http<B> {
+        Http {
+            ..*self
+        }
+    }
 }
 
-impl<T: Io + 'static> ServerProto<T> for Http {
-    type Request = ProtoRequest;
+impl<B> fmt::Debug for Http<B> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Http")
+            .field("keep_alive", &self.keep_alive)
+            .finish()
+    }
+}
+
+#[doc(hidden)]
+#[allow(missing_debug_implementations)]
+pub struct __ProtoRequest(http::RequestHead);
+#[doc(hidden)]
+#[allow(missing_debug_implementations)]
+pub struct __ProtoResponse(ResponseHead);
+#[doc(hidden)]
+#[allow(missing_debug_implementations)]
+pub struct __ProtoTransport<T, B>(http::Conn<T, B, http::ServerTransaction>);
+#[doc(hidden)]
+#[allow(missing_debug_implementations)]
+pub struct __ProtoBindTransport<T, B> {
+    inner: future::FutureResult<http::Conn<T, B, http::ServerTransaction>, io::Error>,
+}
+
+impl<T, B> ServerProto<T> for Http<B>
+where T: Io + 'static,
+      B: AsRef<[u8]> + 'static,
+{
+    type Request = __ProtoRequest;
     type RequestBody = http::Chunk;
-    type Response = ProtoResponse;
-    type ResponseBody = http::Chunk;
+    type Response = __ProtoResponse;
+    type ResponseBody = B;
     type Error = ::Error;
-    type Transport = ProtoTransport<T>;
-    type BindTransport = ProtoBindTransport<T>;
+    type Transport = __ProtoTransport<T, B>;
+    type BindTransport = __ProtoBindTransport<T, B>;
 
     fn bind_transport(&self, io: T) -> Self::BindTransport {
         let ka = if self.keep_alive {
@@ -156,14 +182,17 @@ impl<T: Io + 'static> ServerProto<T> for Http {
         } else {
             http::KA::Disabled
         };
-        ProtoBindTransport {
+        __ProtoBindTransport {
             inner: future::ok(http::Conn::new(io, ka)),
         }
     }
 }
 
-impl<T: Io + 'static> Sink for ProtoTransport<T> {
-    type SinkItem = Frame<ProtoResponse, http::Chunk, ::Error>;
+impl<T, B> Sink for __ProtoTransport<T, B>
+where T: Io + 'static,
+      B: AsRef<[u8]>,
+{
+    type SinkItem = Frame<__ProtoResponse, B, ::Error>;
     type SinkError = io::Error;
 
     fn start_send(&mut self, item: Self::SinkItem)
@@ -179,7 +208,7 @@ impl<T: Io + 'static> Sink for ProtoTransport<T> {
             AsyncSink::Ready => Ok(AsyncSink::Ready),
             AsyncSink::NotReady(Frame::Message { message, body }) => {
                 Ok(AsyncSink::NotReady(Frame::Message {
-                    message: ProtoResponse(message),
+                    message: __ProtoResponse(message),
                     body: body,
                 }))
             }
@@ -197,8 +226,8 @@ impl<T: Io + 'static> Sink for ProtoTransport<T> {
     }
 }
 
-impl<T: Io + 'static> Stream for ProtoTransport<T> {
-    type Item = Frame<ProtoRequest, http::Chunk, ::Error>;
+impl<T: Io + 'static, B: AsRef<[u8]>> Stream for __ProtoTransport<T, B> {
+    type Item = Frame<__ProtoRequest, http::Chunk, ::Error>;
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, io::Error> {
@@ -208,7 +237,7 @@ impl<T: Io + 'static> Stream for ProtoTransport<T> {
         };
         let item = match item {
             Frame::Message { message, body } => {
-                Frame::Message { message: ProtoRequest(message), body: body }
+                Frame::Message { message: __ProtoRequest(message), body: body }
             }
             Frame::Body { chunk } => Frame::Body { chunk: chunk },
             Frame::Error { error } => Frame::Error { error: error },
@@ -217,7 +246,7 @@ impl<T: Io + 'static> Stream for ProtoTransport<T> {
     }
 }
 
-impl<T: Io + 'static> Transport for ProtoTransport<T> {
+impl<T: Io + 'static, B: AsRef<[u8]> + 'static> Transport for __ProtoTransport<T, B> {
     fn tick(&mut self) {
         self.0.tick()
     }
@@ -227,12 +256,12 @@ impl<T: Io + 'static> Transport for ProtoTransport<T> {
     }
 }
 
-impl<T: Io + 'static> Future for ProtoBindTransport<T> {
-    type Item = ProtoTransport<T>;
+impl<T: Io + 'static, B> Future for __ProtoBindTransport<T, B> {
+    type Item = __ProtoTransport<T, B>;
     type Error = io::Error;
 
-    fn poll(&mut self) -> Poll<ProtoTransport<T>, io::Error> {
-        self.inner.poll().map(|a| a.map(ProtoTransport))
+    fn poll(&mut self) -> Poll<__ProtoTransport<T, B>, io::Error> {
+        self.inner.poll().map(|a| a.map(__ProtoTransport))
     }
 }
 
@@ -241,24 +270,26 @@ struct HttpService<T> {
     remote_addr: SocketAddr,
 }
 
-fn map_response_to_message(res: Response) -> Message<ProtoResponse, http::TokioBody> {
+fn map_response_to_message<B>(res: Response<B>) -> Message<__ProtoResponse, B> {
     let (head, body) = response::split(res);
     if let Some(body) = body {
-        Message::WithBody(ProtoResponse(head), body.into())
+        Message::WithBody(__ProtoResponse(head), body.into())
     } else {
-        Message::WithoutBody(ProtoResponse(head))
+        Message::WithoutBody(__ProtoResponse(head))
     }
 }
 
 type ResponseHead = http::MessageHead<::StatusCode>;
 
-impl<T> Service for HttpService<T>
-    where T: Service<Request=Request, Response=Response, Error=::Error>,
+impl<T, B> Service for HttpService<T>
+    where T: Service<Request=Request, Response=Response<B>, Error=::Error>,
+          B: Stream<Error=::Error>,
+          B::Item: AsRef<[u8]>,
 {
-    type Request = Message<ProtoRequest, http::TokioBody>;
-    type Response = Message<ProtoResponse, http::TokioBody>;
+    type Request = Message<__ProtoRequest, http::TokioBody>;
+    type Response = Message<__ProtoResponse, B>;
     type Error = ::Error;
-    type Future = Map<T::Future, fn(Response) -> Message<ProtoResponse, http::TokioBody>>;
+    type Future = Map<T::Future, fn(Response<B>) -> Message<__ProtoResponse, B>>;
 
     fn call(&self, message: Self::Request) -> Self::Future {
         let (head, body) = match message {
@@ -270,9 +301,11 @@ impl<T> Service for HttpService<T>
     }
 }
 
-impl<S> Server<S>
-    where S: NewService<Request = Request, Response = Response, Error = ::Error>
+impl<S, B> Server<S, B>
+    where S: NewService<Request = Request, Response = Response<B>, Error = ::Error>
                 + Send + Sync + 'static,
+          B: Stream<Error=::Error> + 'static,
+          B::Item: AsRef<[u8]>,
 {
     /// Returns the local address that this server is bound to.
     pub fn local_addr(&self) -> ::Result<SocketAddr> {
@@ -370,7 +403,9 @@ impl<S> Server<S>
     }
 }
 
-impl<S: fmt::Debug> fmt::Debug for Server<S> {
+impl<S: fmt::Debug, B: Stream<Error=::Error>> fmt::Debug for Server<S, B>
+where B::Item: AsRef<[u8]>
+{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Server")
          .field("core", &"...")

@@ -8,16 +8,15 @@ use version;
 /// The Response sent to a client after receiving a Request in a Service.
 ///
 /// The default `StatusCode` for a `Response` is `200 OK`.
-#[derive(Default)]
-pub struct Response {
+pub struct Response<B = Body> {
     head: http::MessageHead<StatusCode>,
-    body: Option<Body>,
+    body: Option<B>,
 }
 
-impl Response {
+impl<B> Response<B> {
     /// Create a new Response.
     #[inline]
-    pub fn new() -> Response {
+    pub fn new() -> Response<B> {
         Response::default()
     }
 
@@ -47,7 +46,7 @@ impl Response {
 
     /// Set the body.
     #[inline]
-    pub fn set_body<T: Into<Body>>(&mut self, body: T) {
+    pub fn set_body<T: Into<B>>(&mut self, body: T) {
         self.body = Some(body.into());
     }
 
@@ -82,13 +81,22 @@ impl Response {
     ///
     /// Useful for the "builder-style" pattern.
     #[inline]
-    pub fn with_body<T: Into<Body>>(mut self, body: T) -> Self {
+    pub fn with_body<T: Into<B>>(mut self, body: T) -> Self {
         self.set_body(body);
         self
     }
 }
 
-impl fmt::Debug for Response {
+impl<B> Default for Response<B> {
+    fn default() -> Response<B> {
+        Response {
+            head: Default::default(),
+            body: None,
+        }
+    }
+}
+
+impl<B> fmt::Debug for Response<B> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Response")
             .field("status", &self.head.subject)
@@ -98,6 +106,6 @@ impl fmt::Debug for Response {
     }
 }
 
-pub fn split(res: Response) -> (http::MessageHead<StatusCode>, Option<Body>) {
+pub fn split<B>(res: Response<B>) -> (http::MessageHead<StatusCode>, Option<B>) {
     (res.head, res.body)
 }
