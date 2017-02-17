@@ -265,18 +265,30 @@ impl<T: Io + 'static, B> Future for __ProtoBindTransport<T, B> {
     }
 }
 
+impl From<Message<__ProtoRequest, http::TokioBody>> for Request {
+    fn from(message: Message<__ProtoRequest, http::TokioBody>) -> Request {
+        let (head, body) = match message {
+            Message::WithoutBody(head) => (head.0, http::Body::empty()),
+            Message::WithBody(head, body) => (head.0, body.into()),
+        };
+        request::new(None, head, body)
+    }
+}
+
+impl<B> Into<Message<__ProtoResponse, B>> for Response<B> {
+    fn into(self) -> Message<__ProtoResponse, B> {
+        let (head, body) = response::split(self);
+        if let Some(body) = body {
+            Message::WithBody(__ProtoResponse(head), body.into())
+        } else {
+            Message::WithoutBody(__ProtoResponse(head))
+        }
+    }
+}
+
 struct HttpService<T> {
     inner: T,
     remote_addr: SocketAddr,
-}
-
-fn map_response_to_message<B>(res: Response<B>) -> Message<__ProtoResponse, B> {
-    let (head, body) = response::split(res);
-    if let Some(body) = body {
-        Message::WithBody(__ProtoResponse(head), body.into())
-    } else {
-        Message::WithoutBody(__ProtoResponse(head))
-    }
 }
 
 type ResponseHead = http::MessageHead<::StatusCode>;
@@ -296,8 +308,8 @@ impl<T, B> Service for HttpService<T>
             Message::WithoutBody(head) => (head.0, http::Body::empty()),
             Message::WithBody(head, body) => (head.0, body.into()),
         };
-        let req = request::new(self.remote_addr, head, body);
-        self.inner.call(req).map(map_response_to_message)
+        let req = request::new(Some(self.remote_addr), head, body);
+        self.inner.call(req).map(Into::into)
     }
 }
 
