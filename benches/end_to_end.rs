@@ -60,7 +60,7 @@ fn post_one_at_a_time(b: &mut test::Bencher) {
         req.headers_mut().set(ContentLength(post.len() as u64));
         req.set_body(post);
 
-        let work = client.get(url.clone()).and_then(|res| {
+        let work = client.request(req).and_then(|res| {
             res.body().for_each(|_chunk| {
                 Ok(())
             })
