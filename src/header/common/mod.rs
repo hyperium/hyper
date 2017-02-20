@@ -60,6 +60,7 @@ pub use self::upgrade::{Upgrade, Protocol, ProtocolName};
 pub use self::user_agent::UserAgent;
 pub use self::vary::Vary;
 pub use self::warning::Warning;
+pub use self::link::{Link, LinkValue, RelationType, MediaDesc};
 
 #[doc(hidden)]
 #[macro_export]
@@ -393,3 +394,4 @@ mod upgrade;
 mod user_agent;
 mod vary;
 mod warning;
+mod link;
