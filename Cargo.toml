@@ -13,7 +13,7 @@ categories = ["web-programming::http-client", "web-programming::http-server"]
 build = "build.rs"
 
 [dependencies]
-base64 = "0.3.0"
+base64 = "0.4.0"
 futures = "0.1.7"
 futures-cpupool = "0.1"
 httparse = "1.0"

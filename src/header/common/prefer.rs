@@ -87,8 +87,8 @@ pub enum Preference {
     ReturnMinimal,
     /// "handling=strict"
     HandlingStrict,
-    /// "handling=leniant"
-    HandlingLeniant,
+    /// "handling=lenient"
+    HandlingLenient,
     /// "wait=delta"
     Wait(u32),
 
@@ -105,7 +105,7 @@ impl fmt::Display for Preference {
             ReturnRepresentation => "return=representation",
             ReturnMinimal => "return=minimal",
             HandlingStrict => "handling=strict",
-            HandlingLeniant => "handling=leniant",
+            HandlingLenient => "handling=lenient",
 
             Wait(secs) => return write!(f, "wait={}", secs),
 
@@ -148,7 +148,7 @@ impl FromStr for Preference {
                     ("return", "representation") => if rest.is_empty() { Ok(ReturnRepresentation) } else { Err(None) },
                     ("return", "minimal") => if rest.is_empty() { Ok(ReturnMinimal) } else { Err(None) },
                     ("handling", "strict") => if rest.is_empty() { Ok(HandlingStrict) } else { Err(None) },
-                    ("handling", "leniant") => if rest.is_empty() { Ok(HandlingLeniant) } else { Err(None) },
+                    ("handling", "lenient") => if rest.is_empty() { Ok(HandlingLenient) } else { Err(None) },
                     ("wait", secs) => if rest.is_empty() { secs.parse().map(Wait).map_err(Some) } else { Err(None) },
                     (left, right) => Ok(Extension(left.to_owned(), right.to_owned(), rest))
                 }
@@ -172,9 +172,9 @@ mod tests {
 
     #[test]
     fn test_parse_argument() {
-        let prefer = Header::parse_header(&"wait=100, handling=leniant, respond-async".into());
+        let prefer = Header::parse_header(&"wait=100, handling=lenient, respond-async".into());
         assert_eq!(prefer.ok(), Some(Prefer(vec![Preference::Wait(100),
-                                           Preference::HandlingLeniant,
+                                           Preference::HandlingLenient,
                                            Preference::RespondAsync])))
     }
 

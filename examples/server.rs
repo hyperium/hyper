@@ -3,6 +3,8 @@ extern crate futures;
 extern crate hyper;
 extern crate pretty_env_logger;
 
+use futures::future::FutureResult;
+
 use hyper::{Get, Post, StatusCode};
 use hyper::header::ContentLength;
 use hyper::server::{Http, Service, Request, Response};
@@ -16,10 +18,10 @@ impl Service for Echo {
     type Request = Request;
     type Response = Response;
     type Error = hyper::Error;
-    type Future = ::futures::Finished<Response, hyper::Error>;
+    type Future = FutureResult<Response, hyper::Error>;
 
     fn call(&self, req: Request) -> Self::Future {
-        ::futures::finished(match (req.method(), req.path()) {
+        futures::future::ok(match (req.method(), req.path()) {
             (&Get, "/") | (&Get, "/echo") => {
                 Response::new()
                     .with_header(ContentLength(INDEX.len() as u64))

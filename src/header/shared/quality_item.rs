@@ -114,7 +114,7 @@ fn from_f32(f: f32) -> Quality {
     Quality((f * 1000f32) as u16)
 }
 
-/// Convinience function to wrap a value in a `QualityItem`
+/// Convenience function to wrap a value in a `QualityItem`
 /// Sets `q` to the default 1.0
 pub fn qitem<T>(item: T) -> QualityItem<T> {
     QualityItem::new(item, Default::default())

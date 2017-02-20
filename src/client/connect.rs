@@ -7,7 +7,7 @@ use tokio::io::Io;
 use tokio::reactor::Handle;
 use tokio::net::{TcpStream, TcpStreamNew};
 use tokio_service::Service;
-use url::Url;
+use Url;
 
 use super::dns;
 
@@ -185,7 +185,7 @@ impl<S: SslClient> HttpsConnector<S> {
 mod tests {
     use std::io;
     use tokio::reactor::Core;
-    use url::Url;
+    use Url;
     use super::{Connect, HttpConnector};
 
     #[test]

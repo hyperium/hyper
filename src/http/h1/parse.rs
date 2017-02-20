@@ -6,7 +6,7 @@ use httparse;
 use header::{self, Headers, ContentLength, TransferEncoding};
 use http::{MessageHead, RawStatus, Http1Transaction, ParseResult, ServerTransaction, ClientTransaction, RequestLine};
 use http::h1::{Encoder, Decoder};
-use http::buf::{MemBuf, MemSlice};
+use http::buf::{MemBuf, MemSlice, MemStr};
 use method::Method;
 use status::StatusCode;
 use version::HttpVersion::{Http10, Http11};
@@ -33,18 +33,26 @@ impl Http1Transaction for ServerTransaction {
         Ok(match try!(req.parse(buf.bytes())) {
             httparse::Status::Complete(len) => {
                 trace!("Request.parse Complete({})", len);
-                let mut headers = Headers::with_capacity(req.headers.len());
                 let slice = buf.slice(len);
+                let path = req.path.unwrap();
+                let path_start = path.as_ptr() as usize - slice.as_ref().as_ptr() as usize;
+                let path_end = path_start + path.len();
+                let path = slice.slice(path_start..path_end);
+                // path was found to be utf8 by httparse
+                let path = unsafe { MemStr::from_utf8_unchecked(path) };
+                let subject = RequestLine(
+                    try!(req.method.unwrap().parse()),
+                    try!(::uri::from_mem_str(path)),
+                );
+                let mut headers = Headers::with_capacity(req.headers.len());
                 headers.extend(HeadersAsMemSliceIter {
                     headers: req.headers.iter(),
                     slice: slice,
                 });
+
                 Some((MessageHead {
                     version: if req.version.unwrap() == 1 { Http11 } else { Http10 },
-                    subject: RequestLine(
-                        try!(req.method.unwrap().parse()),
-                        try!(req.path.unwrap().parse())
-                    ),
+                    subject: subject,
                     headers: headers,
                 }, len))
             }
@@ -143,14 +151,14 @@ impl Http1Transaction for ClientTransaction {
                     headers: headers,
                 }, len))
             },
-            httparse::Status::Partial => None
+            httparse::Status::Partial => None,
         })
     }
 
     fn decoder(inc: &MessageHead<Self::Incoming>) -> ::Result<Decoder> {
         use ::header;
         // According to https://tools.ietf.org/html/rfc7230#section-3.3.3
-        // 1. HEAD reponses, and Status 1xx, 204, and 304 cannot have a body.
+        // 1. HEAD responses, and Status 1xx, 204, and 304 cannot have a body.
         // 2. Status 2xx to a CONNECT cannot have a body.
         //
         // First two steps taken care of before this method.
@@ -164,7 +172,7 @@ impl Http1Transaction for ClientTransaction {
             if codings.last() == Some(&header::Encoding::Chunked) {
                 Ok(Decoder::chunked())
             } else {
-                trace!("not chuncked. read till eof");
+                trace!("not chunked. read till eof");
                 Ok(Decoder::eof())
             }
         } else if let Some(&header::ContentLength(len)) = inc.headers.get() {
@@ -283,6 +291,11 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_request_errors() {
+        let raw = MemBuf::from(b"GET htt:p// HTTP/1.1\r\nHost: hyper.rs\r\n\r\n".to_vec());
+        parse::<http::ServerTransaction, _>(&raw).unwrap_err();
+    }
+    #[test]
     fn test_parse_raw_status() {
         let raw = MemBuf::from(b"HTTP/1.1 200 OK\r\n\r\n".to_vec());
         let (res, _) = parse::<http::ClientTransaction, _>(&raw).unwrap().unwrap();
@@ -321,5 +334,4 @@ mod tests {
             raw.restart();
         });
     }
-
 }

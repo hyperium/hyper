@@ -18,7 +18,7 @@ pub struct Request {
     uri: Uri,
     version: HttpVersion,
     headers: Headers,
-    remote_addr: SocketAddr,
+    remote_addr: Option<SocketAddr>,
     body: Body,
 }
 
@@ -40,8 +40,11 @@ impl Request {
     pub fn version(&self) -> &HttpVersion { &self.version }
 
     /// The remote socket address of this request
+    ///
+    /// This is an `Option`, because some underlying transports may not have
+    /// a socket address, such as Unix Sockets.
     #[inline]
-    pub fn remote_addr(&self) -> &SocketAddr { &self.remote_addr }
+    pub fn remote_addr(&self) -> Option<&SocketAddr> { self.remote_addr.as_ref() }
 
     /// The target path of this Request.
     #[inline]
@@ -82,9 +85,9 @@ impl fmt::Debug for Request {
     }
 }
 
-pub fn new(addr: SocketAddr, incoming: RequestHead, body: Body) -> Request {
+pub fn new(addr: Option<SocketAddr>, incoming: RequestHead, body: Body) -> Request {
     let MessageHead { version, subject: RequestLine(method, uri), headers } = incoming;
-    debug!("Request::new: addr={}, req=\"{} {} {}\"", addr, method, uri, version);
+    debug!("Request::new: addr={}, req=\"{} {} {}\"", MaybeAddr(&addr), method, uri, version);
     debug!("Request::new: headers={:?}", headers);
 
     Request {
@@ -96,3 +99,15 @@ pub fn new(addr: SocketAddr, incoming: RequestHead, body: Body) -> Request {
         body: body,
     }
 }
+
+struct MaybeAddr<'a>(&'a Option<SocketAddr>);
+
+impl<'a> fmt::Display for MaybeAddr<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self.0 {
+            Some(ref addr) => fmt::Display::fmt(addr, f),
+            None => f.write_str("None"),
+        }
+    }
+}
+

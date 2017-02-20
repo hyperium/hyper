@@ -2,9 +2,6 @@
 use std::fmt;
 use std::cmp::Ordering;
 
-// shamelessly lifted from Teepee. I tried a few schemes, this really
-// does seem like the best. Improved scheme to support arbitrary status codes.
-
 /// An HTTP status code (`status-code` in RFC 7230 et al.).
 ///
 /// This enum contains all common status codes and an Unregistered
@@ -230,6 +227,7 @@ pub enum StatusCode {
 impl StatusCode {
 
     #[doc(hidden)]
+    // Not part of public API or API contract. Could disappear.
     pub fn from_u16(n: u16) -> StatusCode {
         match n {
             100 => StatusCode::Continue,
@@ -296,8 +294,7 @@ impl StatusCode {
         }
     }
 
-    #[doc(hidden)]
-    pub fn to_u16(&self) -> u16 {
+    fn to_u16(&self) -> u16 {
         match *self {
             StatusCode::Continue => 100,
             StatusCode::SwitchingProtocols => 101,
@@ -550,6 +547,12 @@ impl Ord for StatusCode {
 impl Default for StatusCode {
     fn default() -> StatusCode {
         StatusCode::Ok
+    }
+}
+
+impl Into<u16> for StatusCode {
+    fn into(self) -> u16 {
+        self.to_u16()
     }
 }
 

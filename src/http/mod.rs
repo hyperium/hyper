@@ -82,7 +82,7 @@ impl fmt::Display for RawStatus {
 
 impl From<StatusCode> for RawStatus {
     fn from(status: StatusCode) -> RawStatus {
-        RawStatus(status.to_u16(), Cow::Borrowed(status.canonical_reason().unwrap_or("")))
+        RawStatus(status.into(), Cow::Borrowed(status.canonical_reason().unwrap_or("")))
     }
 }
 
@@ -132,6 +132,23 @@ pub trait Http1Transaction {
 }
 
 type ParseResult<T> = ::Result<Option<(MessageHead<T>, usize)>>;
+
+struct DebugTruncate<'a>(&'a [u8]);
+
+impl<'a> fmt::Debug for DebugTruncate<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let bytes = self.0;
+        if bytes.len() > 32 {
+            try!(f.write_str("["));
+            for byte in &bytes[..32] {
+                try!(write!(f, "{:?}, ", byte));
+            }
+            write!(f, "... {}]", bytes.len())
+        } else {
+            fmt::Debug::fmt(bytes, f)
+        }
+    }
+}
 
 #[test]
 fn test_should_keep_alive() {
