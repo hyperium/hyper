@@ -365,7 +365,7 @@ impl<S, B> Server<S, B>
     /// Once the `shutdown_timeout` elapses or all active connections are
     /// cleaned out then this method will return.
     pub fn run_until<F>(self, shutdown_signal: F) -> ::Result<()>
-        where F: Future<Item = (), Error = ::Error>,
+        where F: Future<Item = (), Error = ()>,
     {
         let Server { protocol, new_service, mut core, listener, shutdown_timeout } = self;
         let handle = core.handle();
@@ -387,6 +387,10 @@ impl<S, B> Server<S, B>
             Ok(())
         });
 
+        // for now, we don't care if the shutdown signal succeeds or errors
+        // as long as it resolves, we will shutdown.
+        let shutdown_signal = shutdown_signal.then(|_| Ok(()));
+
         // Main execution of the server. Here we use `select` to wait for either
         // `incoming` or `f` to resolve. We know that `incoming` will never
         // resolve with a success (it's infinite) so we're actually just waiting
@@ -394,9 +398,9 @@ impl<S, B> Server<S, B>
         //
         // When we get a shutdown signal (`Ok`) then we drop the TCP listener to
         // stop accepting incoming connections.
-        match core.run(shutdown_signal.select(srv.map_err(|e| e.into()))) {
+        match core.run(shutdown_signal.select(srv)) {
             Ok(((), _incoming)) => {}
-            Err((e, _other)) => return Err(e),
+            Err((e, _other)) => return Err(e.into()),
         }
 
         // Ok we've stopped accepting new connections at this point, but we want
