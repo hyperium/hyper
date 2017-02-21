@@ -392,6 +392,7 @@ impl Slice for RangeFull {
 
 unsafe impl Send for MemBuf {}
 unsafe impl Send for MemSlice {}
+unsafe impl Sync for MemSlice {}
 
 #[cfg(test)]
 impl<T: Read> ::http::io::MemRead for ::mock::AsyncIo<T> {

@@ -82,9 +82,11 @@ impl From<&'static str> for Body {
     }
 }
 
-fn _assert_send() {
-    fn _assert<T: Send>() {}
+fn _assert_send_sync() {
+    fn _assert_send<T: Send>() {}
+    fn _assert_sync<T: Sync>() {}
 
-    _assert::<Body>();
-    _assert::<Chunk>();
+    _assert_send::<Body>();
+    _assert_send::<Chunk>();
+    _assert_sync::<Chunk>();
 }
