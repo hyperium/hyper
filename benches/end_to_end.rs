@@ -97,8 +97,8 @@ fn spawn_hello(handle: &Handle) -> SocketAddr {
     let addr = listener.local_addr().unwrap();
 
     let handle2 = handle.clone();
+    let http = hyper::server::Http::new();
     handle.spawn(listener.incoming().for_each(move |(socket, addr)| {
-        let http = hyper::server::Http::new();
         http.bind_connection(&handle2, socket, addr, Hello);
         Ok(())
     }).then(|_| Ok(())));

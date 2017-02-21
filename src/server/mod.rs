@@ -37,7 +37,7 @@ mod response;
 /// This structure is used to create instances of `Server` or to spawn off tasks
 /// which handle a connection to an HTTP server. Each instance of `Http` can be
 /// configured with various protocol-level options such as keepalive.
-pub struct Http<B> {
+pub struct Http<B = ::Chunk> {
     keep_alive: bool,
     _marker: PhantomData<B>,
 }
