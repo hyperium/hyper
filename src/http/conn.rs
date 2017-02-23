@@ -173,9 +173,10 @@ where I: Io,
         // When writing finishes, we need to wake the task up in case there
         // is more reading that can be done, to start a new message.
         match self.state.reading {
-            Reading::Body(..) => return,
+            Reading::Body(..) |
+            Reading::KeepAlive => return,
             Reading::Init |
-            Reading::KeepAlive | Reading::Closed => (),
+            Reading::Closed => (),
         }
 
         match self.state.writing {
