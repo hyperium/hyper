@@ -201,7 +201,11 @@ fn parse_query(s: &str) -> Option<usize> {
         Some(i) => {
             let frag_pos = s.find('#').unwrap_or(s.len());
 
-            return Some(frag_pos - i - 1);
+            if frag_pos < i + 1 {
+                None
+            } else {
+                Some(frag_pos - i - 1)
+            }
         },
         None => None,
     }
@@ -411,6 +415,18 @@ test_parse! {
     query = None,
     fragment = None,
     port = Some(443),
+}
+
+test_parse! {
+    test_uri_parse_fragment_questionmark,
+    "http://127.0.0.1/#?",
+
+    scheme = Some("http"),
+    authority = Some("127.0.0.1"),
+    path = "/",
+    query = None,
+    fragment = Some("?"),
+    port = None,
 }
 
 #[test]
