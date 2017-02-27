@@ -560,6 +560,9 @@ impl<R> fmt::Debug for HttpReader<R> {
 
 impl<R: Read> Read for HttpReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        if buf.is_empty() {
+            return Ok(0);
+        }
         match *self {
             SizedReader(ref mut body, ref mut remaining) => {
                 trace!("Sized read, remaining={:?}", remaining);
@@ -1074,6 +1077,25 @@ mod tests {
         let e = r.read(&mut buf).unwrap_err();
         assert_eq!(e.kind(), io::ErrorKind::Other);
         assert_eq!(e.description(), "early eof");
+    }
+
+    #[test]
+    fn test_read_sized_zero_len_buf() {
+        let mut r = super::HttpReader::SizedReader(MockStream::with_input(b"foo bar"), 7);
+        let mut buf = [0u8; 0];
+        assert_eq!(r.read(&mut buf).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_read_chunked_zero_len_buf() {
+        let mut r = super::HttpReader::ChunkedReader(MockStream::with_input(b"\
+            7\r\n\
+            foo bar\
+            0\r\n\r\n\
+        "), None);
+
+        let mut buf = [0u8; 0];
+        assert_eq!(r.read(&mut buf).unwrap(), 0);
     }
 
     #[test]
