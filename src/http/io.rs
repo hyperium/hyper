@@ -269,7 +269,7 @@ impl WriteBuf {
         let mut vec = &mut self.0.bytes;
         let cap = vec.capacity();
         if cap == 0 {
-            let init = cmp::max(INIT_BUFFER_SIZE, needed);
+            let init = cmp::min(MAX_BUFFER_SIZE, cmp::max(INIT_BUFFER_SIZE, needed));
             trace!("WriteBuf reserving initial {}", init);
             vec.reserve(init);
         } else if cap < MAX_BUFFER_SIZE {
