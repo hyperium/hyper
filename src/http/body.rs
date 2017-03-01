@@ -1,9 +1,9 @@
-use std::convert::From;
-
-use tokio_proto;
-use http::Chunk;
+use bytes::Bytes;
 use futures::{Poll, Stream};
 use futures::sync::mpsc;
+use tokio_proto;
+
+use http::Chunk;
 
 pub type TokioBody = tokio_proto::streaming::Body<Chunk, ::Error>;
 
@@ -55,6 +55,12 @@ impl From<mpsc::Receiver<Result<Chunk, ::Error>>> for Body {
 impl From<Chunk> for Body {
     fn from (chunk: Chunk) -> Body {
         Body(TokioBody::from(chunk))
+    }
+}
+
+impl From<Bytes> for Body {
+    fn from (bytes: Bytes) -> Body {
+        Body(TokioBody::from(Chunk::from(bytes)))
     }
 }
 

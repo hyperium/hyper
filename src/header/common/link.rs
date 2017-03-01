@@ -933,7 +933,7 @@ mod tests {
     use header::Header;
 
     use http::{ServerTransaction, Http1Transaction};
-    use http::buf::MemBuf;
+    use bytes::BytesMut;
 
     use mime::Mime;
     use mime::TopLevel::Text;
@@ -1018,7 +1018,7 @@ mod tests {
 
         let expected_link = Link::new(vec![first_link, second_link, third_link]);
 
-        let raw = MemBuf::from(b"GET /super_short_uri/and_whatever HTTP/1.1\r\nHost: \
+        let mut raw = BytesMut::from(b"GET /super_short_uri/and_whatever HTTP/1.1\r\nHost: \
                                   hyper.rs\r\nAccept: a lot of things\r\nAccept-Charset: \
                                   utf8\r\nAccept-Encoding: *\r\nLink: </TheBook/chapter2>; \
                                   rel=\"previous\"; title*=UTF-8'de'letztes%20Kapitel, \
@@ -1029,7 +1029,7 @@ mod tests {
                                   rel=\"previous\"; rev=next; title=\"previous chapter\"\
                                   \r\n\r\n".to_vec());
 
-        let (mut res, _) = ServerTransaction::parse(&raw).unwrap().unwrap();
+        let (mut res, _) = ServerTransaction::parse(&mut raw).unwrap().unwrap();
 
         let link = res.headers.remove::<Link>().unwrap();
 

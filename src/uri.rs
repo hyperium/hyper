@@ -2,7 +2,8 @@ use std::borrow::Cow;
 use std::fmt::{Display, self};
 use std::ops::Deref;
 use std::str::{self, FromStr};
-use http::buf::MemStr;
+
+use http::ByteStr;
 use Url;
 use url::ParseError as UrlError;
 
@@ -279,14 +280,14 @@ impl Display for Uri {
     }
 }
 
-pub fn from_mem_str(s: MemStr) -> Result<Uri, Error> {
+pub fn from_mem_str(s: ByteStr) -> Result<Uri, Error> {
     Uri::new(InternalUri::Shared(s))
 }
 
 #[derive(Clone)]
 enum InternalUri {
     Cow(Cow<'static, str>),
-    Shared(MemStr),
+    Shared(ByteStr),
 }
 
 impl InternalUri {

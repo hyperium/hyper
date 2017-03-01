@@ -1,7 +1,7 @@
 use std::usize;
 use std::io;
 
-use http::buf::MemSlice;
+use bytes::Bytes;
 use http::io::MemRead;
 
 use self::Kind::{Length, Chunked, Eof};
@@ -79,12 +79,12 @@ impl Decoder {
 }
 
 impl Decoder {
-    pub fn decode<R: MemRead>(&mut self, body: &mut R) -> io::Result<MemSlice> {
+    pub fn decode<R: MemRead>(&mut self, body: &mut R) -> io::Result<Bytes> {
         match self.kind {
             Length(ref mut remaining) => {
                 trace!("Sized read, remaining={:?}", remaining);
                 if *remaining == 0 {
-                    Ok(MemSlice::empty())
+                    Ok(Bytes::new())
                 } else {
                     let to_read = *remaining as usize;
                     let buf = try!(body.read_mem(to_read));
@@ -107,7 +107,7 @@ impl Decoder {
                     *state = try!(state.step(body, size, &mut buf));
                     if *state == ChunkedState::End {
                         trace!("end of chunked");
-                        return Ok(MemSlice::empty());
+                        return Ok(Bytes::new());
                     }
                     if let Some(buf) = buf {
                         return Ok(buf);
@@ -116,7 +116,7 @@ impl Decoder {
             }
             Eof(ref mut is_eof) => {
                 if *is_eof {
-                    Ok(MemSlice::empty())
+                    Ok(Bytes::new())
                 } else {
                     // 8192 chosen because its about 2 packets, there probably
                     // won't be that much available, so don't have MemReaders
@@ -150,7 +150,7 @@ impl ChunkedState {
     fn step<R: MemRead>(&self,
                         body: &mut R,
                         size: &mut u64,
-                        buf: &mut Option<MemSlice>)
+                        buf: &mut Option<Bytes>)
                         -> io::Result<ChunkedState> {
         use self::ChunkedState::*;
         Ok(match *self {
@@ -223,7 +223,7 @@ impl ChunkedState {
 
     fn read_body<R: MemRead>(rdr: &mut R,
                           rem: &mut u64,
-                          buf: &mut Option<MemSlice>)
+                          buf: &mut Option<Bytes>)
                           -> io::Result<ChunkedState> {
         trace!("Chunked read, remaining={:?}", rem);
 
@@ -285,18 +285,19 @@ mod tests {
     use super::Decoder;
     use super::ChunkedState;
     use http::io::MemRead;
-    use http::buf::{MemBuf, MemSlice};
+    use bytes::{BytesMut, Bytes};
     use mock::AsyncIo;
 
     impl<'a> MemRead for &'a [u8] {
-        fn read_mem(&mut self, len: usize) -> io::Result<MemSlice> {
+        fn read_mem(&mut self, len: usize) -> io::Result<Bytes> {
             let n = ::std::cmp::min(len, self.len());
             if n > 0 {
-                let mut buf = MemBuf::with_capacity(n);
-                buf.read_from(self).unwrap();
-                Ok(buf.slice(n))
+                let (a, b) = self.split_at(n);
+                let mut buf = BytesMut::from(a);
+                *self = b;
+                Ok(buf.drain_to(n).freeze())
             } else {
-                Ok(MemSlice::empty())
+                Ok(Bytes::new())
             }
         }
     }
