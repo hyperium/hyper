@@ -12,6 +12,13 @@ keywords = ["http", "hyper", "hyperium"]
 categories = ["web-programming::http-client", "web-programming::http-server"]
 build = "build.rs"
 
+include = [
+  "build.rs",
+  "Cargo.toml",
+  "LICENSE",
+  "src/**/*"
+]
+
 [dependencies]
 base64 = "0.4.0"
 futures = "0.1.7"
