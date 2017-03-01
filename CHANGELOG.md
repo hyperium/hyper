@@ -1,3 +1,13 @@
+### v0.10.5 (2017-03-01)
+
+
+#### Bug Fixes
+
+* **http:**
+  * Consume entire chunked encoding message ([4147fcd0](https://github.com/hyperium/hyper/commit/4147fcd0d688b6d5b8d6b32f26c147819321a390))
+  * fix returning EarlyEof if supplied buffer is zero-len ([1e740fbc](https://github.com/hyperium/hyper/commit/1e740fbcc3fb60af2fe8d2227457fa29582151c3))
+
+
 ### v0.10.4 (2017-01-31)
 
 
