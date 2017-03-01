@@ -777,7 +777,6 @@ mod tests {
             let mut conn = Conn::<_, http::Chunk, ServerTransaction>::new(io, Default::default());
             conn.state.writing = Writing::Body(Encoder::length(1024 * 1024), None);
             assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'a'; 1024 * 1024].into()) }).unwrap().is_ready());
-            println!("{:#?}", conn);
             assert!(conn.state.writing.is_queued());
             assert!(conn.poll_complete().unwrap().is_ready());
             assert!(!conn.state.writing.is_queued());
