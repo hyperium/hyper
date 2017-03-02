@@ -45,7 +45,7 @@ impl From<Bytes> for Chunk {
 
 impl From<Chunk> for Bytes {
     fn from(chunk: Chunk) -> Bytes {
-        match self.0 {
+        match chunk.0 {
             Inner::Shared(bytes) => bytes,
         }
     }
