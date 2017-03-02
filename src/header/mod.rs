@@ -87,7 +87,7 @@ use self::internals::{Item, VecMap, Entry};
 pub use self::shared::*;
 pub use self::common::*;
 pub use self::raw::Raw;
-use http::buf::MemSlice;
+use bytes::Bytes;
 
 mod common;
 mod internals;
@@ -611,8 +611,8 @@ impl<'a> Extend<HeaderView<'a>> for Headers {
     }
 }
 
-impl<'a> Extend<(&'a str, MemSlice)> for Headers {
-    fn extend<I: IntoIterator<Item=(&'a str, MemSlice)>>(&mut self, iter: I) {
+impl<'a> Extend<(&'a str, Bytes)> for Headers {
+    fn extend<I: IntoIterator<Item=(&'a str, Bytes)>>(&mut self, iter: I) {
         for (name, value) in iter {
             let name = HeaderName(UniCase(maybe_literal(name)));
             //let trim = header.value.iter().rev().take_while(|&&x| x == b' ').count();

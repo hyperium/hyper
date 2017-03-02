@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 use std::fmt;
-use http::buf::MemSlice;
+use bytes::Bytes;
 
 /// A raw header value.
 #[derive(Clone, PartialEq, Eq)]
@@ -72,7 +72,7 @@ enum Lines {
 enum Line {
     Static(&'static [u8]),
     Owned(Vec<u8>),
-    Shared(MemSlice),
+    Shared(Bytes),
 }
 
 fn eq<A: AsRef<[u8]>, B: AsRef<[u8]>>(a: &[A], b: &[B]) -> bool {
@@ -152,9 +152,9 @@ impl<'a> From<&'a [u8]> for Raw {
     }
 }
 
-impl From<MemSlice> for Raw {
+impl From<Bytes> for Raw {
     #[inline]
-    fn from(val: MemSlice) -> Raw {
+    fn from(val: Bytes) -> Raw {
         Raw(Lines::One(Line::Shared(val)))
     }
 }
@@ -166,9 +166,9 @@ impl From<Vec<u8>> for Line {
     }
 }
 
-impl From<MemSlice> for Line {
+impl From<Bytes> for Line {
     #[inline]
-    fn from(val: MemSlice) -> Line {
+    fn from(val: Bytes) -> Line {
         Line::Shared(val)
     }
 }
@@ -183,11 +183,11 @@ impl AsRef<[u8]> for Line {
     }
 }
 
-pub fn parsed(val: MemSlice) -> Raw {
+pub fn parsed(val: Bytes) -> Raw {
     Raw(Lines::One(From::from(val)))
 }
 
-pub fn push(raw: &mut Raw, val: MemSlice) {
+pub fn push(raw: &mut Raw, val: Bytes) {
     raw.push_line(Line::from(val));
 }
 

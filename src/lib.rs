@@ -1,6 +1,6 @@
 #![doc(html_root_url = "https://hyperium.github.io/hyper/")]
 #![deny(missing_docs)]
-#![deny(warnings)]
+//#![deny(warnings)]
 #![deny(missing_debug_implementations)]
 #![cfg_attr(all(test, feature = "nightly"), feature(test))]
 
@@ -14,6 +14,7 @@
 //! [Server](server/index.html), along with a
 //! [typed Headers system](header/index.html).
 
+extern crate bytes;
 #[macro_use] extern crate futures;
 extern crate futures_cpupool;
 extern crate httparse;
