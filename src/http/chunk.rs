@@ -43,6 +43,14 @@ impl From<Bytes> for Chunk {
     }
 }
 
+impl From<Chunk> for Bytes {
+    fn from(chunk: Chunk) -> Bytes {
+        match self.0 {
+            Inner::Shared(bytes) => bytes,
+        }
+    }
+}
+
 impl ::std::ops::Deref for Chunk {
     type Target = [u8];
 
