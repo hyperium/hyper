@@ -114,6 +114,11 @@ header! {
                     SubLevel::Plain, vec![(Attr::Charset, Value::Utf8)]),
                     Quality(500)),
             ])));
+        test_header!(
+            test_fuzzing1,
+            vec![b"chunk#;e"],
+            None
+        );
     }
 }
 

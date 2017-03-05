@@ -1,3 +1,4 @@
+use std::ascii::AsciiExt;
 use std::cmp;
 use std::default::Default;
 use std::fmt;
@@ -73,12 +74,18 @@ impl<T: fmt::Display> fmt::Display for QualityItem<T> {
 impl<T: str::FromStr> str::FromStr for QualityItem<T> {
     type Err = ::Error;
     fn from_str(s: &str) -> ::Result<QualityItem<T>> {
+        if !s.is_ascii() {
+            return Err(::Error::Header);
+        }
         // Set defaults used if parsing fails.
         let mut raw_item = s;
         let mut quality = 1f32;
 
         let parts: Vec<&str> = s.rsplitn(2, ';').map(|x| x.trim()).collect();
         if parts.len() == 2 {
+            if parts[0].len() < 2 {
+                return Err(::Error::Header);
+            }
             let start = &parts[0][0..2];
             if start == "q=" || start == "Q=" {
                 let q_part = &parts[0][2..parts[0].len()];
@@ -211,5 +218,11 @@ mod tests {
     #[cfg_attr(all(target_arch="x86", target_env="msvc"), ignore)]
     fn test_quality_invalid2() {
         q(2.0);
+    }
+
+    #[test]
+    fn test_fuzzing_bugs() {
+        assert!("99999;".parse::<QualityItem<String>>().is_err());
+        assert!("\x0d;;;=\u{d6aa}==".parse::<QualityItem<String>>().is_err())
     }
 }
