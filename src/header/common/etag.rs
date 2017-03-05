@@ -83,6 +83,9 @@ header! {
         test_header!(test14,
             vec![b"matched-\"dquotes\""],
             None::<ETag>);
+        test_header!(test15,
+            vec![b"\""],
+            None::<ETag>);
     }
 }
 

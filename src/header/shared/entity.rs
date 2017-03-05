@@ -123,15 +123,17 @@ impl FromStr for EntityTag {
         let length: usize = s.len();
         let slice = &s[..];
         // Early exits if it doesn't terminate in a DQUOTE.
-        if !slice.ends_with('"') {
+        if !slice.ends_with('"') || slice.len() < 2 {
             return Err(::Error::Header);
         }
         // The etag is weak if its first char is not a DQUOTE.
-        if slice.starts_with('"') && check_slice_validity(&slice[1..length-1]) {
+        if slice.len() >= 2 && slice.starts_with('"')
+                && check_slice_validity(&slice[1..length-1]) {
             // No need to check if the last char is a DQUOTE,
             // we already did that above.
             return Ok(EntityTag { weak: false, tag: slice[1..length-1].to_owned() });
-        } else if slice.starts_with("W/\"") && check_slice_validity(&slice[3..length-1]) {
+        } else if slice.len() >= 4 && slice.starts_with("W/\"")
+                && check_slice_validity(&slice[3..length-1]) {
             return Ok(EntityTag { weak: true, tag: slice[3..length-1].to_owned() });
         }
         Err(::Error::Header)
