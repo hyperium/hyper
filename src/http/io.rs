@@ -73,7 +73,6 @@ impl<T: Io> Buffered<T> {
         match try!(parse::<S, _>(&mut self.read_buf)) {
             Some(head) => {
                 //trace!("parsed {} bytes out of {}", len, self.read_buf.len());
-                //self.read_buf.slice(len);
                 Ok(Some(head.0))
             },
             None => {

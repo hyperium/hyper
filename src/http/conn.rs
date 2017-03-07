@@ -83,10 +83,10 @@ where I: Io,
             Ok(Some(head)) => (head.version, head),
             Ok(None) => return Ok(Async::NotReady),
             Err(e) => {
+                let must_respond_with_error = !self.state.is_idle();
                 self.state.close_read();
                 self.io.consume_leading_lines();
                 let was_mid_parse = !self.io.read_buf().is_empty();
-                let must_respond_with_error = !self.state.is_idle();
                 return if was_mid_parse {
                     debug!("parse error ({}) with bytes: {:?}", e, self.io.read_buf());
                     Ok(Async::Ready(Some(Frame::Error { error: e })))
@@ -583,9 +583,7 @@ impl<B, K: KeepAlive> State<B, K> {
         match (&self.reading, &self.writing) {
             (&Reading::KeepAlive, &Writing::KeepAlive) => {
                 if let KA::Busy = self.keep_alive.status() {
-                    self.reading = Reading::Init;
-                    self.writing = Writing::Init;
-                    self.keep_alive.idle();
+                    self.idle();
                 } else {
                     self.close();
                 }
@@ -608,6 +606,12 @@ impl<B, K: KeepAlive> State<B, K> {
 
     fn busy(&mut self) {
         self.keep_alive.busy();
+    }
+
+    fn idle(&mut self) {
+        self.reading = Reading::Init;
+        self.writing = Writing::Init;
+        self.keep_alive.idle();
     }
 
     fn is_read_closed(&self) -> bool {
@@ -715,6 +719,43 @@ mod tests {
             }
             Ok(())
         }).wait();
+    }
+
+    #[test]
+    fn test_conn_init_read_eof_idle() {
+        let io = AsyncIo::new_buf(vec![], 1);
+        let mut conn = Conn::<_, http::Chunk, ServerTransaction>::new(io, Default::default());
+        conn.state.idle();
+
+        match conn.poll().unwrap() {
+            Async::Ready(None) => {},
+            other => panic!("frame is not None: {:?}", other)
+        }
+    }
+
+    #[test]
+    fn test_conn_init_read_eof_idle_partial_parse() {
+        let io = AsyncIo::new_buf(b"GET / HTTP/1.1".to_vec(), 100);
+        let mut conn = Conn::<_, http::Chunk, ServerTransaction>::new(io, Default::default());
+        conn.state.idle();
+
+        assert!(conn.poll().unwrap().is_not_ready());
+        match conn.poll().unwrap() {
+            Async::Ready(Some(Frame::Error { .. })) => {},
+            other => panic!("frame is not Error: {:?}", other)
+        }
+    }
+
+    #[test]
+    fn test_conn_init_read_eof_busy() {
+        let io = AsyncIo::new_buf(vec![], 1);
+        let mut conn = Conn::<_, http::Chunk, ServerTransaction>::new(io, Default::default());
+        conn.state.busy();
+
+        match conn.poll().unwrap() {
+            Async::Ready(Some(Frame::Error { .. })) => {},
+            other => panic!("frame is not Error: {:?}", other)
+        }
     }
 
     #[test]
