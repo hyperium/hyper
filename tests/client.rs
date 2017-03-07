@@ -37,6 +37,7 @@ macro_rules! test {
                 url: $client_url:expr,
                 headers: [ $($request_headers:expr,)* ],
                 body: $request_body:expr,
+                proxy: $request_proxy:expr,
 
             response:
                 status: $client_status:ident,
@@ -61,6 +62,8 @@ macro_rules! test {
                 let body: &'static str = body;
                 req.set_body(body);
             }
+            req.set_proxy($request_proxy);
+
             let res = client.request(req);
 
             let (tx, rx) = oneshot::channel();
@@ -109,6 +112,7 @@ test! {
             url: "http://{addr}/",
             headers: [],
             body: None,
+            proxy: false,
         response:
             status: Ok,
             headers: [
@@ -130,6 +134,7 @@ test! {
             url: "http://{addr}/foo?key=val#dont_send_me",
             headers: [],
             body: None,
+            proxy: false,
         response:
             status: Ok,
             headers: [
@@ -159,6 +164,7 @@ test! {
                 ContentLength(7),
             ],
             body: Some("foo bar"),
+            proxy: false,
         response:
             status: Ok,
             headers: [],
@@ -188,6 +194,31 @@ test! {
                 TransferEncoding::chunked(),
             ],
             body: Some("foo bar baz"),
+            proxy: false,
+        response:
+            status: Ok,
+            headers: [],
+            body: None,
+}
+
+test! {
+    name: client_http_proxy,
+
+    server:
+        expected: "\
+            GET http://{addr}/proxy HTTP/1.1\r\n\
+            Host: {addr}\r\n\
+            \r\n\
+            ",
+        reply: REPLY_OK,
+
+    client:
+        request:
+            method: Get,
+            url: "http://{addr}/proxy",
+            headers: [],
+            body: None,
+            proxy: true,
         response:
             status: Ok,
             headers: [],

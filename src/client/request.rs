@@ -16,6 +16,7 @@ pub struct Request<B = Body> {
     version: HttpVersion,
     headers: Headers,
     body: Option<B>,
+    is_proxy: bool,
 }
 
 impl<B> Request<B> {
@@ -28,6 +29,7 @@ impl<B> Request<B> {
             version: HttpVersion::default(),
             headers: Headers::new(),
             body: None,
+            is_proxy: false,
         }
     }
 
@@ -66,6 +68,13 @@ impl<B> Request<B> {
     /// Set the body of the request.
     #[inline]
     pub fn set_body<T: Into<B>>(&mut self, body: T) { self.body = Some(body.into()); }
+
+    /// Set that the URI should use the absolute form.
+    ///
+    /// This is only needed when talking to HTTP/1 proxies to URLs not
+    /// protected by TLS.
+    #[inline]
+    pub fn set_proxy(&mut self, is_proxy: bool) { self.is_proxy = is_proxy; }
 }
 
 impl<B> fmt::Debug for Request<B> {
@@ -80,7 +89,11 @@ impl<B> fmt::Debug for Request<B> {
 }
 
 pub fn split<B>(req: Request<B>) -> (RequestHead, Option<B>) {
-    let uri = Uri::from_str(&req.url[::url::Position::BeforePath..::url::Position::AfterQuery]).expect("url is uri");
+    let uri = if req.is_proxy {
+        Uri::from(req.url)
+    } else {
+        Uri::from_str(&req.url[::url::Position::BeforePath..::url::Position::AfterQuery]).expect("url is not uri")
+    };
     let head = RequestHead {
         subject: ::http::RequestLine(req.method, uri),
         headers: req.headers,
