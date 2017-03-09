@@ -295,7 +295,7 @@ mod tests {
                 let (a, b) = self.split_at(n);
                 let mut buf = BytesMut::from(a);
                 *self = b;
-                Ok(buf.drain_to(n).freeze())
+                Ok(buf.split_to(n).freeze())
             } else {
                 Ok(Bytes::new())
             }

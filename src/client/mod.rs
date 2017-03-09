@@ -11,8 +11,8 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use futures::{Poll, Async, Future, Stream};
-use relay;
-use tokio::io::Io;
+use futures::unsync::oneshot;
+use tokio_io::{AsyncRead, AsyncWrite};
 use tokio::reactor::Handle;
 use tokio_proto::BindClient;
 use tokio_proto::streaming::Message;
@@ -149,12 +149,12 @@ where C: Connect,
             let pool_key = Rc::new(url[..::url::Position::BeforePath].to_owned());
             self.connector.connect(url)
                 .map(move |io| {
-                    let (tx, rx) = relay::channel();
+                    let (tx, rx) = oneshot::channel();
                     let client = HttpClient {
                         client_rx: RefCell::new(Some(rx)),
                     }.bind_client(&handle, io);
                     let pooled = pool.pooled(pool_key, client);
-                    tx.complete(pooled.clone());
+                    drop(tx.send(pooled.clone()));
                     pooled
                 })
         };
@@ -207,11 +207,11 @@ impl<C, B> fmt::Debug for Client<C, B> {
 type TokioClient<B> = ClientProxy<Message<http::RequestHead, B>, Message<http::ResponseHead, TokioBody>, ::Error>;
 
 struct HttpClient<B> {
-    client_rx: RefCell<Option<relay::Receiver<Pooled<TokioClient<B>>>>>,
+    client_rx: RefCell<Option<oneshot::Receiver<Pooled<TokioClient<B>>>>>,
 }
 
 impl<T, B> ClientProto<T> for HttpClient<B>
-where T: Io + 'static,
+where T: AsyncRead + AsyncWrite + 'static,
       B: Stream<Error=::Error> + 'static,
       B::Item: AsRef<[u8]>,
 {
@@ -232,12 +232,12 @@ where T: Io + 'static,
 }
 
 struct BindingClient<T, B> {
-    rx: relay::Receiver<Pooled<TokioClient<B>>>,
+    rx: oneshot::Receiver<Pooled<TokioClient<B>>>,
     io: Option<T>,
 }
 
 impl<T, B> Future for BindingClient<T, B>
-where T: Io + 'static,
+where T: AsyncRead + AsyncWrite + 'static,
       B: Stream<Error=::Error>,
       B::Item: AsRef<[u8]>,
 {

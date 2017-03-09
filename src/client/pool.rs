@@ -7,7 +7,7 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use futures::{Future, Async, Poll};
-use relay;
+use futures::unsync::oneshot;
 
 use http::{KeepAlive, KA};
 
@@ -18,7 +18,7 @@ pub struct Pool<T> {
 struct PoolInner<T> {
     enabled: bool,
     idle: HashMap<Rc<String>, Vec<Entry<T>>>,
-    parked: HashMap<Rc<String>, VecDeque<relay::Sender<Entry<T>>>>,
+    parked: HashMap<Rc<String>, VecDeque<oneshot::Sender<Entry<T>>>>,
     timeout: Option<Duration>,
 }
 
@@ -44,31 +44,33 @@ impl<T: Clone> Pool<T> {
 
     fn put(&mut self, key: Rc<String>, entry: Entry<T>) {
         trace!("Pool::put {:?}", key);
+        let mut inner = self.inner.borrow_mut();
+        //let inner = &mut *inner;
         let mut remove_parked = false;
-        let tx = self.inner.borrow_mut().parked.get_mut(&key).and_then(|parked| {
-            let mut ret = None;
+        let mut entry = Some(entry);
+        if let Some(parked) = inner.parked.get_mut(&key) {
             while let Some(tx) = parked.pop_front() {
-                if !tx.is_canceled() {
-                    ret = Some(tx);
-                    break;
+                match tx.send(entry.take().unwrap()) {
+                    Ok(()) => break,
+                    Err(e) => {
+                        trace!("Pool::put removing canceled parked {:?}", key);
+                        entry = Some(e);
+                    }
                 }
-                trace!("Pool::put removing canceled parked {:?}", key);
             }
             remove_parked = parked.is_empty();
-            ret
-        });
+        }
         if remove_parked {
-            self.inner.borrow_mut().parked.remove(&key);
+            inner.parked.remove(&key);
         }
 
-        if let Some(tx) = tx {
-            trace!("Pool::put found parked {:?}", key);
-            tx.complete(entry);
-        } else {
-            self.inner.borrow_mut()
-                .idle.entry(key)
-                .or_insert(Vec::new())
-                .push(entry);
+        match entry {
+            Some(entry) => {
+                inner.idle.entry(key)
+                     .or_insert(Vec::new())
+                     .push(entry);
+            }
+            None => trace!("Pool::put found parked {:?}", key),
         }
     }
 
@@ -100,7 +102,7 @@ impl<T: Clone> Pool<T> {
         }
     }
 
-    fn park(&mut self, key: Rc<String>, tx: relay::Sender<Entry<T>>) {
+    fn park(&mut self, key: Rc<String>, tx: oneshot::Sender<Entry<T>>) {
         trace!("Pool::park {:?}", key);
         self.inner.borrow_mut()
             .parked.entry(key)
@@ -191,7 +193,7 @@ struct Entry<T> {
 pub struct Checkout<T> {
     key: Rc<String>,
     pool: Pool<T>,
-    parked: Option<relay::Receiver<Entry<T>>>,
+    parked: Option<oneshot::Receiver<Entry<T>>>,
 }
 
 impl<T: Clone> Future for Checkout<T> {
@@ -247,7 +249,7 @@ impl<T: Clone> Future for Checkout<T> {
             Some(entry) => Ok(Async::Ready(self.pool.reuse(self.key.clone(), entry))),
             None => {
                 if self.parked.is_none() {
-                    let (tx, mut rx) = relay::channel();
+                    let (tx, mut rx) = oneshot::channel();
                     let _ = rx.poll(); // park this task
                     self.pool.park(self.key.clone(), tx);
                     self.parked = Some(rx);
@@ -279,6 +281,7 @@ mod tests {
     use std::rc::Rc;
     use std::time::Duration;
     use futures::{Async, Future};
+    use futures::future;
     use http::KeepAlive;
     use super::Pool;
 
@@ -297,7 +300,7 @@ mod tests {
 
     #[test]
     fn test_pool_checkout_returns_none_if_expired() {
-        ::futures::lazy(|| {
+        future::lazy(|| {
             let pool = Pool::new(true, Some(Duration::from_secs(1)));
             let key = Rc::new("foo".to_string());
             let mut pooled = pool.pooled(key.clone(), 41);
@@ -339,7 +342,7 @@ mod tests {
         let pooled1 = pool.pooled(key.clone(), 41);
 
         let mut pooled = pooled1.clone();
-        let checkout = pool.checkout(&key).join(::futures::lazy(move || {
+        let checkout = pool.checkout(&key).join(future::lazy(move || {
             // the checkout future will park first,
             // and then this lazy future will be polled, which will insert
             // the pooled back into the pool
