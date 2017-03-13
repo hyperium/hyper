@@ -114,6 +114,13 @@ header! {
                     SubLevel::Plain, vec![(Attr::Charset, Value::Utf8)]),
                     Quality(500)),
             ])));
+
+        #[test]
+        fn test_fuzzing1() {
+            let raw: Raw = "chunk#;e".into();
+            let header = Accept::parse_header(&raw);
+            assert!(header.is_ok());
+        }
     }
 }
 
