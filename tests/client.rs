@@ -81,7 +81,7 @@ macro_rules! test {
                 assert_eq!(s(&buf[..n]), expected, "expected is invalid");
 
                 inc.write_all($server_reply.as_ref()).unwrap();
-                tx.complete(());
+                let _ = tx.send(());
             });
 
             let rx = rx.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
@@ -242,13 +242,13 @@ fn client_keep_alive() {
         let mut buf = [0; 4096];
         sock.read(&mut buf).expect("read 1");
         sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").expect("write 1");
-        tx1.complete(());
+        let _ = tx1.send(());
 
         sock.read(&mut buf).expect("read 2");
         let second_get = b"GET /b HTTP/1.1\r\n";
         assert_eq!(&buf[..second_get.len()], second_get);
         sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").expect("write 2");
-        tx2.complete(());
+        let _ = tx2.send(());
     });
 
 
@@ -285,7 +285,7 @@ fn client_pooled_socket_disconnected() {
         let out = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}", remote_addr.len(), remote_addr);
         sock.write_all(out.as_bytes()).expect("write 1");
         drop(sock);
-        tx1.complete(());
+        tx1.send(());
 
         let mut sock = server.accept().unwrap().0;
         sock.read(&mut buf).expect("read 2");
@@ -294,7 +294,7 @@ fn client_pooled_socket_disconnected() {
         let remote_addr = sock.peer_addr().unwrap().to_string();
         let out = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}", remote_addr.len(), remote_addr);
         sock.write_all(out.as_bytes()).expect("write 2");
-        tx2.complete(());
+        tx2.send(());
     });
 
     // spin shortly so we receive the hangup on the client socket
