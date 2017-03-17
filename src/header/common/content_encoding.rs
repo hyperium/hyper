@@ -25,26 +25,22 @@ header! {
     /// use hyper::header::{Headers, ContentEncoding, Encoding};
     /// 
     /// let mut headers = Headers::new();
-    /// headers.set(ContentEncoding(vec![Encoding::Chunked]));
+    /// headers.set(ContentEncoding(Encoding::Chunked));
     /// ```
     /// ```
     /// use hyper::header::{Headers, ContentEncoding, Encoding};
     /// 
     /// let mut headers = Headers::new();
-    /// headers.set(
-    ///     ContentEncoding(vec![
-    ///         Encoding::Gzip,
-    ///         Encoding::Chunked,
-    ///     ])
-    /// );
+    /// headers.set(ContentEncoding(Encoding::Gzip));
+    /// headers.set(ContentEncoding(Encoding::Chunked));
     /// ```
-    (ContentEncoding, "Content-Encoding") => (Encoding)+
+    (ContentEncoding, "Content-Encoding") => [Encoding]
 
     test_content_encoding {
         /// Testcase from the RFC
-        test_header!(test1, vec![b"gzip"], Some(ContentEncoding(vec![Encoding::Gzip])));
+        test_header!(test1, vec![b"gzip"], Some(ContentEncoding(Encoding::Gzip)));
     }
 }
 
 bench_header!(single, ContentEncoding, { vec![b"gzip".to_vec()] });
-bench_header!(multiple, ContentEncoding, { vec![b"gzip, deflate".to_vec()] });
+//bench_header!(multiple, ContentEncoding, { vec![b"gzip, deflate".to_vec()] }); // not allowed
