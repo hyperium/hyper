@@ -3,7 +3,7 @@ use std::io;
 //use std::net::SocketAddr;
 
 use futures::{Future, Poll, Async};
-use tokio::io::Io;
+use tokio_io::{AsyncRead, AsyncWrite};
 use tokio::reactor::Handle;
 use tokio::net::{TcpStream, TcpStreamNew};
 use tokio_service::Service;
@@ -18,7 +18,7 @@ use super::dns;
 /// `Request=Url` and `Response: Io` instead.
 pub trait Connect: Service<Request=Url, Error=io::Error> + 'static {
     /// The connected Io Stream.
-    type Output: Io + 'static;
+    type Output: AsyncRead + AsyncWrite + 'static;
     /// A Future that will resolve to the connected Stream.
     type Future: Future<Item=Self::Output, Error=io::Error> + 'static;
     /// Connect to a remote address.
@@ -27,7 +27,7 @@ pub trait Connect: Service<Request=Url, Error=io::Error> + 'static {
 
 impl<T> Connect for T
 where T: Service<Request=Url, Error=io::Error> + 'static,
-      T::Response: Io,
+      T::Response: AsyncRead + AsyncWrite,
       T::Future: Future<Error=io::Error>,
 {
     type Output = T::Response;
