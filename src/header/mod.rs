@@ -589,6 +589,12 @@ impl<'a> HeaderView<'a> {
     pub fn value_string(&self) -> String {
         ValueString(self.1).to_string()
     }
+
+    /// Access the raw value of the header.
+    #[inline]
+    pub fn raw(&self) -> &Raw {
+        self.1.raw()
+    }
 }
 
 impl<'a> fmt::Display for HeaderView<'a> {
@@ -910,6 +916,17 @@ mod tests {
         for header in headers.iter() {
             assert_eq!(header.name(), "foo");
             assert_eq!(header.value_string(), "one, two");
+        }
+    }
+
+    #[test]
+    fn test_header_view_raw() {
+        let mut headers = Headers::new();
+        headers.set_raw("foo", vec![b"one".to_vec(), b"two".to_vec()]);
+        for header in headers.iter() {
+            assert_eq!(header.name(), "foo");
+            let values: Vec<&[u8]> = header.raw().iter().collect();
+            assert_eq!(values, vec![b"one", b"two"]);
         }
     }
 
