@@ -10,7 +10,7 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 use std::time::Duration;
 
-use futures::{Poll, Async, Future, Stream};
+use futures::{future, Poll, Async, Future, Stream};
 use futures::unsync::oneshot;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio::reactor::Handle;
@@ -24,7 +24,7 @@ use header::{Headers, Host};
 use http::{self, TokioBody};
 use method::Method;
 use self::pool::{Pool, Pooled};
-use Url;
+use uri::{self, Uri};
 
 pub use self::connect::{HttpConnector, Connect};
 pub use self::request::Request;
@@ -95,7 +95,7 @@ where C: Connect,
 {
     /// Send a GET Request using this Client.
     #[inline]
-    pub fn get(&self, url: Url) -> FutureResponse {
+    pub fn get(&self, url: Uri) -> FutureResponse {
         self.request(Request::new(Method::Get, url))
     }
 
@@ -135,18 +135,30 @@ where C: Connect,
     type Future = FutureResponse;
 
     fn call(&self, req: Self::Request) -> Self::Future {
-        let url = req.url().clone();
+        let url = req.uri().clone();
+        let domain = match uri::scheme_and_authority(&url) {
+            Some(uri) => uri,
+            None => {
+                return FutureResponse(Box::new(future::err(::Error::Io(
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "invalid URI for Client Request"
+                    )
+                ))));
+            }
+        };
+        let host = Host::new(domain.host().expect("authority implies host").to_owned(), domain.port());
         let (mut head, body) = request::split(req);
         let mut headers = Headers::new();
-        headers.set(Host::new(url.host_str().unwrap().to_owned(), url.port()));
+        headers.set(host);
         headers.extend(head.headers.iter());
         head.headers = headers;
 
-        let checkout = self.pool.checkout(&url[..::url::Position::BeforePath]);
+        let checkout = self.pool.checkout(domain.as_ref());
         let connect = {
             let handle = self.handle.clone();
             let pool = self.pool.clone();
-            let pool_key = Rc::new(url[..::url::Position::BeforePath].to_owned());
+            let pool_key = Rc::new(domain.to_string());
             self.connector.connect(url)
                 .map(move |io| {
                     let (tx, rx) = oneshot::channel();

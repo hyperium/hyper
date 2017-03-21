@@ -28,7 +28,7 @@ fn get_one_at_a_time(b: &mut test::Bencher) {
 
     let client = hyper::Client::new(&handle);
 
-    let url: hyper::Url = format!("http://{}/get", addr).parse().unwrap();
+    let url: hyper::Uri = format!("http://{}/get", addr).parse().unwrap();
 
     b.bytes = 160 * 2 + PHRASE.len() as u64;
     b.iter(move || {
@@ -51,7 +51,7 @@ fn post_one_at_a_time(b: &mut test::Bencher) {
 
     let client = hyper::Client::new(&handle);
 
-    let url: hyper::Url = format!("http://{}/get", addr).parse().unwrap();
+    let url: hyper::Uri = format!("http://{}/get", addr).parse().unwrap();
 
     let post = "foo bar baz quux";
     b.bytes = 180 * 2 + post.len() as u64 + PHRASE.len() as u64;

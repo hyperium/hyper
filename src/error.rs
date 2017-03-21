@@ -6,7 +6,8 @@ use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 
 use httparse;
-use url;
+
+pub use uri::UriError;
 
 use self::Error::{
     Method,
@@ -21,8 +22,6 @@ use self::Error::{
     Utf8
 };
 
-pub use url::ParseError;
-
 /// Result type often returned from methods that can have hyper `Error`s.
 pub type Result<T> = ::std::result::Result<T, Error>;
 
@@ -32,7 +31,7 @@ pub enum Error {
     /// An invalid `Method`, such as `GE,T`.
     Method,
     /// An invalid `Uri`, such as `exam ple.domain`.
-    Uri(url::ParseError),
+    Uri(UriError),
     /// An invalid `HttpVersion`, such as `HTP/1.1`
     Version,
     /// An invalid `Header`.
@@ -102,15 +101,15 @@ impl StdError for Error {
     }
 }
 
-impl From<IoError> for Error {
-    fn from(err: IoError) -> Error {
-        Io(err)
+impl From<UriError> for Error {
+    fn from(err: UriError) -> Error {
+        Uri(err)
     }
 }
 
-impl From<url::ParseError> for Error {
-    fn from(err: url::ParseError) -> Error {
-        Uri(err)
+impl From<IoError> for Error {
+    fn from(err: IoError) -> Error {
+        Io(err)
     }
 }
 
@@ -145,7 +144,6 @@ mod tests {
     use std::error::Error as StdError;
     use std::io;
     use httparse;
-    use url;
     use super::Error;
     use super::Error::*;
 
@@ -185,7 +183,6 @@ mod tests {
     fn test_from() {
 
         from_and_cause!(io::Error::new(io::ErrorKind::Other, "other") => Io(..));
-        from_and_cause!(url::ParseError::EmptyHost => Uri(..));
 
         from!(httparse::Error::HeaderName => Header);
         from!(httparse::Error::HeaderName => Header);
@@ -195,15 +192,5 @@ mod tests {
         from!(httparse::Error::Token => Header);
         from!(httparse::Error::TooManyHeaders => TooLarge);
         from!(httparse::Error::Version => Version);
-    }
-
-    #[cfg(feature = "openssl")]
-    #[test]
-    fn test_from_ssl() {
-        use openssl::ssl::error::SslError;
-
-        from!(SslError::StreamError(
-            io::Error::new(io::ErrorKind::Other, "ssl negotiation")) => Io(..));
-        from_and_cause!(SslError::SslSessionClosed => Ssl(..));
     }
 }

@@ -61,7 +61,7 @@ impl Http1Transaction for ServerTransaction {
         let path = unsafe { ByteStr::from_utf8_unchecked(path) };
         let subject = RequestLine(
             method,
-            try!(::uri::from_mem_str(path)),
+            try!(::uri::from_byte_str(path)),
         );
 
         headers.extend(HeadersAsBytesIter {

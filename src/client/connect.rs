@@ -7,7 +7,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use tokio::reactor::Handle;
 use tokio::net::{TcpStream, TcpStreamNew};
 use tokio_service::Service;
-use Url;
+use Uri;
 
 use super::dns;
 
@@ -15,25 +15,25 @@ use super::dns;
 ///
 /// This trait is not implemented directly, and only exists to make
 /// the intent clearer. A connector should implement `Service` with
-/// `Request=Url` and `Response: Io` instead.
-pub trait Connect: Service<Request=Url, Error=io::Error> + 'static {
+/// `Request=Uri` and `Response: Io` instead.
+pub trait Connect: Service<Request=Uri, Error=io::Error> + 'static {
     /// The connected Io Stream.
     type Output: AsyncRead + AsyncWrite + 'static;
     /// A Future that will resolve to the connected Stream.
     type Future: Future<Item=Self::Output, Error=io::Error> + 'static;
     /// Connect to a remote address.
-    fn connect(&self, Url) -> <Self as Connect>::Future;
+    fn connect(&self, Uri) -> <Self as Connect>::Future;
 }
 
 impl<T> Connect for T
-where T: Service<Request=Url, Error=io::Error> + 'static,
+where T: Service<Request=Uri, Error=io::Error> + 'static,
       T::Response: AsyncRead + AsyncWrite,
       T::Future: Future<Error=io::Error>,
 {
     type Output = T::Response;
     type Future = T::Future;
 
-    fn connect(&self, url: Url) -> <Self as Connect>::Future {
+    fn connect(&self, url: Uri) -> <Self as Connect>::Future {
         self.call(url)
     }
 }
@@ -66,21 +66,21 @@ impl fmt::Debug for HttpConnector {
 }
 
 impl Service for HttpConnector {
-    type Request = Url;
+    type Request = Uri;
     type Response = TcpStream;
     type Error = io::Error;
     type Future = HttpConnecting;
 
-    fn call(&self, url: Url) -> Self::Future {
+    fn call(&self, url: Uri) -> Self::Future {
         debug!("Http::connect({:?})", url);
-        let host = match url.host_str() {
+        let host = match url.host() {
             Some(s) => s,
             None => return HttpConnecting {
                 state: State::Error(Some(io::Error::new(io::ErrorKind::InvalidInput, "invalid url"))),
                 handle: self.handle.clone(),
             },
         };
-        let port = url.port_or_known_default().unwrap_or(80);
+        let port = url.port().unwrap_or(80);
 
         HttpConnecting {
             state: State::Resolving(self.dns.resolve(host.into(), port)),
@@ -185,13 +185,12 @@ impl<S: SslClient> HttpsConnector<S> {
 mod tests {
     use std::io;
     use tokio::reactor::Core;
-    use Url;
     use super::{Connect, HttpConnector};
 
     #[test]
     fn test_non_http_url() {
         let mut core = Core::new().unwrap();
-        let url = Url::parse("file:///home/sean/foo.txt").unwrap();
+        let url = "/foo/bar?baz".parse().unwrap();
         let connector = HttpConnector::new(1, &core.handle());
 
         assert_eq!(core.run(connector.connect(url)).unwrap_err().kind(), io::ErrorKind::InvalidInput);

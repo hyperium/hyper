@@ -24,8 +24,8 @@ fn main() {
         }
     };
 
-    let url = hyper::Url::parse(&url).unwrap();
-    if url.scheme() != "http" {
+    let url = url.parse::<hyper::Uri>().unwrap();
+    if url.scheme() != Some("http") {
         println!("This example only works with 'http' URLs.");
         return;
     }
