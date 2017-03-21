@@ -71,16 +71,23 @@ impl Service for HttpConnector {
     type Error = io::Error;
     type Future = HttpConnecting;
 
-    fn call(&self, url: Uri) -> Self::Future {
-        debug!("Http::connect({:?})", url);
-        let host = match url.host() {
+    fn call(&self, uri: Uri) -> Self::Future {
+        debug!("Http::connect({:?})", uri);
+        let host = match uri.host() {
             Some(s) => s,
             None => return HttpConnecting {
                 state: State::Error(Some(io::Error::new(io::ErrorKind::InvalidInput, "invalid url"))),
                 handle: self.handle.clone(),
             },
         };
-        let port = url.port().unwrap_or(80);
+        let port = match uri.port() {
+            Some(port) => port,
+            None => match uri.scheme() {
+                Some("http") => 80,
+                Some("https") => 443,
+                _ => 80,
+            },
+        };
 
         HttpConnecting {
             state: State::Resolving(self.dns.resolve(host.into(), port)),
