@@ -1,6 +1,6 @@
 #![doc(html_root_url = "https://hyperium.github.io/hyper/")]
 #![deny(missing_docs)]
-//#![deny(warnings)]
+#![deny(warnings)]
 #![deny(missing_debug_implementations)]
 #![cfg_attr(all(test, feature = "nightly"), feature(test))]
 
@@ -35,7 +35,6 @@ extern crate test;
 
 
 pub use uri::Uri;
-pub use url::Url;
 pub use client::Client;
 pub use error::{Result, Error};
 pub use header::Headers;

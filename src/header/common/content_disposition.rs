@@ -9,10 +9,9 @@
 use language_tags::LanguageTag;
 use std::fmt;
 use unicase::UniCase;
-use url::percent_encoding;
 
 use header::{Header, Raw, parsing};
-use header::parsing::{parse_extended_value, HTTP_VALUE};
+use header::parsing::{parse_extended_value, http_percent_encode};
 use header::shared::Charset;
 
 /// The implied disposition of the content of the HTTP body
@@ -182,8 +181,7 @@ impl fmt::Display for ContentDisposition {
                             try!(write!(f, "{}", lang));
                         };
                         try!(write!(f, "'"));
-                        try!(f.write_str(
-                            &percent_encoding::percent_encode(bytes, HTTP_VALUE).to_string()))
+                        try!(http_percent_encode(f, bytes))
                     }
                 },
                 DispositionParam::Ext(ref k, ref v) => try!(write!(f, "; {}=\"{}\"", k, v)),
