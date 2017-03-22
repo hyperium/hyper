@@ -86,17 +86,17 @@ impl fmt::Display for PreferenceApplied {
 
 #[cfg(test)]
 mod tests {
-    use header::{Header, Preference};
+    use header::Preference;
     use super::*;
 
     #[test]
     fn test_format_ignore_parameters() {
         assert_eq!(
-            format!("{}", &PreferenceApplied(vec![Preference::Extension(
+            format!("{}", PreferenceApplied(vec![Preference::Extension(
                 "foo".to_owned(),
                 "bar".to_owned(),
                 vec![("bar".to_owned(), "foo".to_owned()), ("buz".to_owned(), "".to_owned())]
-            )]) as &(Header + Send + Sync)),
+            )])),
             "foo=bar".to_owned()
         );
     }

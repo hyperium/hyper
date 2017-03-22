@@ -167,6 +167,7 @@ pub struct MultilineFormatter<'a, 'b: 'a>(Multi<'a, 'b>);
 enum Multi<'a, 'b: 'a> {
     Line(&'a str, &'a mut fmt::Formatter<'b>),
     Join(bool, &'a mut fmt::Formatter<'b>),
+    Raw(&'a mut Raw),
 }
 
 impl<'a, 'b> MultilineFormatter<'a, 'b> {
@@ -186,6 +187,12 @@ impl<'a, 'b> MultilineFormatter<'a, 'b> {
                     *first = false;
                 }
                 write!(NewlineReplacer(*f), "{}", line)
+            }
+            Multi::Raw(ref mut raw) => {
+                let mut s = String::new();
+                try!(write!(NewlineReplacer(&mut s), "{}", line));
+                raw.push(s);
+                Ok(())
             }
         }
     }
@@ -227,9 +234,9 @@ impl<'a, H: Header> fmt::Debug for HeaderValueString<'a, H> {
     }
 }
 
-struct NewlineReplacer<'a, 'b: 'a>(&'a mut fmt::Formatter<'b>);
+struct NewlineReplacer<'a, F: fmt::Write + 'a>(&'a mut F);
 
-impl<'a, 'b> fmt::Write for NewlineReplacer<'a, 'b> {
+impl<'a, F: fmt::Write + 'a> fmt::Write for NewlineReplacer<'a, F> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         let mut since = 0;
         for (i, &byte) in s.as_bytes().iter().enumerate() {
@@ -643,45 +650,6 @@ impl<'a> FromIterator<HeaderView<'a>> for Headers {
     }
 }
 
-deprecated! {
-    #[deprecated(note="The semantics of formatting a HeaderFormat directly are not clear")]
-    impl<'a> fmt::Display for &'a (Header + Send + Sync) {
-        #[inline]
-        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            let mut multi = MultilineFormatter(Multi::Join(true, f));
-            self.fmt_multi_header(&mut multi)
-        }
-    }
-}
-
-deprecated! {
-    #[deprecated(note="The semantics of formatting a HeaderFormat directly are not clear")]
-    /// A wrapper around any Header with a Display impl that calls `fmt_header`.
-    ///
-    /// This can be used like so: `format!("{}", HeaderFormatter(&header))` to
-    /// get the 'value string' representation of this Header.
-    ///
-    /// Note: This may not necessarily be the value written to stream, such
-    /// as with the SetCookie header.
-    pub struct HeaderFormatter<'a, H: Header>(pub &'a H);
-}
-
-#[allow(deprecated)]
-impl<'a, H: Header> fmt::Display for HeaderFormatter<'a, H> {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Debug::fmt(&HeaderValueString(self.0), f)
-    }
-}
-
-#[allow(deprecated)]
-impl<'a, H: Header> fmt::Debug for HeaderFormatter<'a, H> {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(self, f)
-    }
-}
-
 #[derive(Clone, Debug)]
 struct HeaderName(UniCase<Cow<'static, str>>);
 
@@ -717,7 +685,7 @@ mod tests {
     use mime::TopLevel::Text;
     use mime::SubLevel::Plain;
     use super::{Headers, Header, Raw, ContentLength, ContentType,
-                Accept, Host, qitem};
+                Accept, Host, qitem, SetCookie};
 
     #[cfg(feature = "nightly")]
     use test::Bencher;
@@ -812,6 +780,19 @@ mod tests {
         headers.set_raw("Content-Type", "text/plain");
         let ContentLength(_) = *headers.get::<ContentLength>().unwrap();
         let ContentType(_) = *headers.get::<ContentType>().unwrap();
+    }
+
+    #[test]
+    fn test_typed_get_raw() {
+        let mut headers = Headers::new();
+        headers.set(ContentLength(15));
+        assert_eq!(headers.get_raw("content-length").unwrap(), "15");
+
+        headers.set(SetCookie(vec![
+            "foo=bar".to_string(),
+            "baz=quux; Path=/path".to_string()
+        ]));
+        assert_eq!(headers.get_raw("set-cookie").unwrap(), &["foo=bar", "baz=quux; Path=/path"][..]);
     }
 
     #[test]

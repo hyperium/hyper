@@ -3,7 +3,7 @@ use std::fmt;
 use bytes::Bytes;
 
 /// A raw header value.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct Raw(Lines);
 
 impl Raw {
@@ -11,6 +11,7 @@ impl Raw {
     #[inline]
     pub fn len(&self) -> usize {
         match self.0 {
+            Lines::Empty => 0,
             Lines::One(..) => 1,
             Lines::Many(ref lines) => lines.len()
         }
@@ -39,6 +40,7 @@ impl Raw {
     pub fn push<V: Into<Raw>>(&mut self, val: V) {
         let raw = val.into();
         match raw.0 {
+            Lines::Empty => (),
             Lines::One(one) => self.push_line(one),
             Lines::Many(lines) => {
                 for line in lines {
@@ -48,9 +50,12 @@ impl Raw {
         }
     }
 
-    fn push_line(&mut self, line: Line) {
-        let lines = ::std::mem::replace(&mut self.0, Lines::Many(Vec::new()));
+    fn push_line(&mut self, line: Bytes) {
+        let lines = ::std::mem::replace(&mut self.0, Lines::Empty);
         match lines {
+            Lines::Empty => {
+                self.0 = Lines::One(line);
+            }
             Lines::One(one) => {
                 self.0 = Lines::Many(vec![one, line]);
             }
@@ -62,20 +67,14 @@ impl Raw {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone)]
 enum Lines {
-    One(Line),
-    Many(Vec<Line>),
+    Empty,
+    One(Bytes),
+    Many(Vec<Bytes>),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum Line {
-    Static(&'static [u8]),
-    Owned(Vec<u8>),
-    Shared(Bytes),
-}
-
-fn eq<A: AsRef<[u8]>, B: AsRef<[u8]>>(a: &[A], b: &[B]) -> bool {
+fn eq_many<A: AsRef<[u8]>, B: AsRef<[u8]>>(a: &[A], b: &[B]) -> bool {
     if a.len() != b.len() {
         false
     } else {
@@ -88,18 +87,54 @@ fn eq<A: AsRef<[u8]>, B: AsRef<[u8]>>(a: &[A], b: &[B]) -> bool {
     }
 }
 
+fn eq<B: AsRef<[u8]>>(raw: &Raw, b: &[B]) -> bool {
+    match raw.0 {
+        Lines::Empty => b.is_empty(),
+        Lines::One(ref line) => eq_many(&[line], b),
+        Lines::Many(ref lines) => eq_many(lines, b)
+    }
+}
+
+impl PartialEq for Raw {
+    fn eq(&self, other: &Raw) -> bool {
+        match other.0 {
+            Lines::Empty => eq(self, &[] as &[Bytes]),
+            Lines::One(ref line) => eq(self, &[line]),
+            Lines::Many(ref lines) => eq(self, lines),
+        }
+    }
+}
+
+impl Eq for Raw {}
+
 impl PartialEq<[Vec<u8>]> for Raw {
     fn eq(&self, bytes: &[Vec<u8>]) -> bool {
-        match self.0 {
-            Lines::One(ref line) => eq(&[line], bytes),
-            Lines::Many(ref lines) => eq(lines, bytes)
-        }
+        eq(self, bytes)
+    }
+}
+
+impl<'a> PartialEq<[&'a [u8]]> for Raw {
+    fn eq(&self, bytes: &[&[u8]]) -> bool {
+        eq(self, bytes)
+    }
+}
+
+impl PartialEq<[String]> for Raw {
+    fn eq(&self, bytes: &[String]) -> bool {
+        eq(self, bytes)
+    }
+}
+
+impl<'a> PartialEq<[&'a str]> for Raw {
+    fn eq(&self, bytes: &[&'a str]) -> bool {
+        eq(self, bytes)
     }
 }
 
 impl PartialEq<[u8]> for Raw {
     fn eq(&self, bytes: &[u8]) -> bool {
         match self.0 {
+            Lines::Empty => bytes.is_empty(),
             Lines::One(ref line) => line.as_ref() == bytes,
             Lines::Many(..) => false
         }
@@ -108,10 +143,7 @@ impl PartialEq<[u8]> for Raw {
 
 impl PartialEq<str> for Raw {
     fn eq(&self, s: &str) -> bool {
-        match self.0 {
-            Lines::One(ref line) => line.as_ref() == s.as_bytes(),
-            Lines::Many(..) => false
-        }
+        self == s.as_bytes()
     }
 }
 
@@ -155,31 +187,7 @@ impl<'a> From<&'a [u8]> for Raw {
 impl From<Bytes> for Raw {
     #[inline]
     fn from(val: Bytes) -> Raw {
-        Raw(Lines::One(Line::Shared(val)))
-    }
-}
-
-impl From<Vec<u8>> for Line {
-    #[inline]
-    fn from(val: Vec<u8>) -> Line {
-        Line::Owned(val)
-    }
-}
-
-impl From<Bytes> for Line {
-    #[inline]
-    fn from(val: Bytes) -> Line {
-        Line::Shared(val)
-    }
-}
-
-impl AsRef<[u8]> for Line {
-    fn as_ref(&self) -> &[u8] {
-        match *self {
-            Line::Static(ref s) => s,
-            Line::Owned(ref v) => v.as_ref(),
-            Line::Shared(ref m) => m.as_ref(),
-        }
+        Raw(Lines::One(val))
     }
 }
 
@@ -188,12 +196,17 @@ pub fn parsed(val: Bytes) -> Raw {
 }
 
 pub fn push(raw: &mut Raw, val: Bytes) {
-    raw.push_line(Line::from(val));
+    raw.push_line(val);
 }
 
-impl fmt::Debug for Raw {
+pub fn new() -> Raw {
+    Raw(Lines::Empty)
+}
+
+impl fmt::Debug for Lines {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.0 {
+        match *self {
+            Lines::Empty => f.pad("[]"),
             Lines::One(ref line) => fmt::Debug::fmt(&[line], f),
             Lines::Many(ref lines) => fmt::Debug::fmt(lines, f)
         }
@@ -205,6 +218,7 @@ impl ::std::ops::Index<usize> for Raw {
 
     fn index(&self, idx: usize) -> &[u8] {
         match self.0 {
+            Lines::Empty => panic!("index of out of bounds: {}", idx),
             Lines::One(ref line) => if idx == 0 {
                 line.as_ref()
             } else {
@@ -217,12 +231,12 @@ impl ::std::ops::Index<usize> for Raw {
 
 macro_rules! literals {
     ($($len:expr => $($value:expr),+;)+) => (
-        fn maybe_literal<'a>(s: Cow<'a, [u8]>) -> Line {
+        fn maybe_literal<'a>(s: Cow<'a, [u8]>) -> Bytes {
             match s.len() {
                 $($len => {
                     $(
                     if s.as_ref() == $value {
-                        return Line::Static($value);
+                        return Bytes::from_static($value);
                     }
                     )+
                 })+
@@ -230,7 +244,7 @@ macro_rules! literals {
                 _ => ()
             }
 
-            Line::from(s.into_owned())
+            Bytes::from(s.into_owned())
         }
 
         #[test]
@@ -263,10 +277,17 @@ impl<'a> IntoIterator for &'a Raw {
     }
 }
 
-#[derive(Debug)]
 pub struct RawLines<'a> {
     inner: &'a Lines,
     pos: usize,
+}
+
+impl<'a> fmt::Debug for RawLines<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("RawLines")
+            .field(&self.inner)
+            .finish()
+    }
 }
 
 impl<'a> Iterator for RawLines<'a> {
@@ -277,6 +298,7 @@ impl<'a> Iterator for RawLines<'a> {
         let current_pos = self.pos;
         self.pos += 1;
         match *self.inner {
+            Lines::Empty => None,
             Lines::One(ref line) => {
                 if current_pos == 0 {
                     Some(line.as_ref())
