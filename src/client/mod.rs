@@ -72,6 +72,8 @@ use net::{HttpConnector, NetworkConnector, NetworkStream, SslClient};
 use Error;
 
 use self::proxy::{Proxy, tunnel};
+use super::header::{Authorization, Bearer};
+
 pub use self::pool::Pool;
 pub use self::request::Request;
 pub use self::response::Response;
@@ -366,6 +368,15 @@ impl<'a> RequestBuilder<'a> {
                 _ => return Ok(res),
             }
         }
+    }
+
+    /// Add an Authorization header with the provided token to the request.
+    pub fn with_token(self, token: &str) -> RequestBuilder<'a> {
+        self.header(Authorization(
+            Bearer {
+                token: token.to_string()
+            }
+        ))
     }
 }
 
