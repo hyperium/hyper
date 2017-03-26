@@ -1,8 +1,8 @@
 use std::cmp;
 use std::io::{self, Read, Write};
 
-use futures::Async;
-use tokio::io::Io;
+use futures::Poll;
+use tokio_io::{AsyncRead, AsyncWrite};
 
 #[derive(Debug)]
 pub struct Buf {
@@ -123,21 +123,12 @@ impl<T: Write> Write for AsyncIo<T> {
     }
 }
 
-impl<T: Read + Write> Io for AsyncIo<T> {
-    fn poll_read(&mut self) -> Async<()> {
-        if self.bytes_until_block == 0 {
-            Async::NotReady
-        } else {
-            Async::Ready(())
-        }
-    }
+impl<T: Read + Write> AsyncRead for AsyncIo<T> {
+}
 
-    fn poll_write(&mut self) -> Async<()> {
-        if self.bytes_until_block == 0 {
-            Async::NotReady
-        } else {
-            Async::Ready(())
-        }
+impl<T: Read + Write> AsyncWrite for AsyncIo<T> {
+    fn shutdown(&mut self) -> Poll<(), io::Error> {
+        Ok(().into())
     }
 }
 

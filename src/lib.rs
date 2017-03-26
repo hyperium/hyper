@@ -1,6 +1,6 @@
 #![doc(html_root_url = "https://hyperium.github.io/hyper/")]
 #![deny(missing_docs)]
-//#![deny(warnings)]
+#![deny(warnings)]
 #![deny(missing_debug_implementations)]
 #![cfg_attr(all(test, feature = "nightly"), feature(test))]
 
@@ -21,10 +21,10 @@ extern crate httparse;
 #[cfg_attr(test, macro_use)] extern crate language_tags;
 #[macro_use] extern crate log;
 #[macro_use] pub extern crate mime;
-extern crate relay;
 extern crate base64;
 extern crate time;
 #[macro_use] extern crate tokio_core as tokio;
+extern crate tokio_io;
 extern crate tokio_proto;
 extern crate tokio_service;
 extern crate unicase;
@@ -35,7 +35,6 @@ extern crate test;
 
 
 pub use uri::Uri;
-pub use url::Url;
 pub use client::Client;
 pub use error::{Result, Error};
 pub use header::Headers;

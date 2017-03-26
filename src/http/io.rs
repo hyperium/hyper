@@ -3,8 +3,7 @@ use std::fmt;
 use std::io::{self, Write};
 use std::ptr;
 
-use futures::Async;
-use tokio::io::Io;
+use tokio_io::{AsyncRead, AsyncWrite};
 
 use http::{Http1Transaction, h1, MessageHead, ParseResult, DebugTruncate};
 use bytes::{BytesMut, Bytes};
@@ -14,6 +13,7 @@ pub const MAX_BUFFER_SIZE: usize = 8192 + 4096 * 100;
 
 pub struct Buffered<T> {
     io: T,
+    read_blocked: bool,
     read_buf: BytesMut,
     write_buf: WriteBuf,
 }
@@ -27,12 +27,13 @@ impl<T> fmt::Debug for Buffered<T> {
     }
 }
 
-impl<T: Io> Buffered<T> {
+impl<T: AsyncRead + AsyncWrite> Buffered<T> {
     pub fn new(io: T) -> Buffered<T> {
         Buffered {
             io: io,
             read_buf: BytesMut::with_capacity(0),
             write_buf: WriteBuf::new(),
+            read_blocked: false,
         }
     }
 
@@ -49,12 +50,8 @@ impl<T: Io> Buffered<T> {
                     _ => break,
                 }
             }
-            self.read_buf.drain_to(i);
+            self.read_buf.split_to(i);
         }
-    }
-
-    pub fn poll_read(&mut self) -> Async<()> {
-        self.io.poll_read()
     }
 
     pub fn parse<S: Http1Transaction>(&mut self) -> ::Result<Option<MessageHead<S::Incoming>>> {
@@ -88,8 +85,17 @@ impl<T: Io> Buffered<T> {
 
     fn read_from_io(&mut self) -> io::Result<usize> {
         use bytes::BufMut;
+        self.read_blocked = false;
         unsafe {
-            let n = try!(self.io.read(self.read_buf.bytes_mut()));
+            let n = match self.io.read(self.read_buf.bytes_mut()) {
+                Ok(n) => n,
+                Err(e) => {
+                    if e.kind() == io::ErrorKind::WouldBlock {
+                        self.read_blocked = true;
+                    }
+                    return Err(e)
+                }
+            };
             self.read_buf.advance_mut(n);
             Ok(n)
         }
@@ -112,9 +118,12 @@ impl<T: Io> Buffered<T> {
         self.write_buf.buffer(buf.as_ref())
     }
 
-    #[cfg(test)]
     pub fn io_mut(&mut self) -> &mut T {
         &mut self.io
+    }
+
+    pub fn is_read_blocked(&self) -> bool {
+        self.read_blocked
     }
 }
 
@@ -146,17 +155,17 @@ pub trait MemRead {
     fn read_mem(&mut self, len: usize) -> io::Result<Bytes>;
 }
 
-impl<T: Io> MemRead for Buffered<T> {
+impl<T: AsyncRead + AsyncWrite> MemRead for Buffered<T> {
     fn read_mem(&mut self, len: usize) -> io::Result<Bytes> {
         trace!("Buffered.read_mem read_buf={}, wanted={}", self.read_buf.len(), len);
         if !self.read_buf.is_empty() {
             let n = ::std::cmp::min(len, self.read_buf.len());
             trace!("Buffered.read_mem read_buf is not empty, slicing {}", n);
-            Ok(self.read_buf.drain_to(n).freeze())
+            Ok(self.read_buf.split_to(n).freeze())
         } else {
             self.reserve_read_buf();
             let n = try!(self.read_from_io());
-            Ok(self.read_buf.drain_to(::std::cmp::min(len, n)).freeze())
+            Ok(self.read_buf.split_to(::std::cmp::min(len, n)).freeze())
         }
     }
 }

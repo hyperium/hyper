@@ -1,18 +1,15 @@
 use std::fmt;
 
-use Url;
-
 use header::Headers;
 use http::{Body, RequestHead};
 use method::Method;
-use uri::Uri;
+use uri::{self, Uri};
 use version::HttpVersion;
-use std::str::FromStr;
 
 /// A client request to a remote server.
 pub struct Request<B = Body> {
     method: Method,
-    url: Url,
+    uri: Uri,
     version: HttpVersion,
     headers: Headers,
     body: Option<B>,
@@ -22,10 +19,10 @@ pub struct Request<B = Body> {
 impl<B> Request<B> {
     /// Construct a new Request.
     #[inline]
-    pub fn new(method: Method, url: Url) -> Request<B> {
+    pub fn new(method: Method, uri: Uri) -> Request<B> {
         Request {
             method: method,
-            url: url,
+            uri: uri,
             version: HttpVersion::default(),
             headers: Headers::new(),
             body: None,
@@ -33,9 +30,9 @@ impl<B> Request<B> {
         }
     }
 
-    /// Read the Request Url.
+    /// Read the Request Uri.
     #[inline]
-    pub fn url(&self) -> &Url { &self.url }
+    pub fn uri(&self) -> &Uri { &self.uri }
 
     /// Read the Request Version.
     #[inline]
@@ -57,9 +54,9 @@ impl<B> Request<B> {
     #[inline]
     pub fn headers_mut(&mut self) -> &mut Headers { &mut self.headers }
 
-    /// Set the `Url` of this request.
+    /// Set the `Uri` of this request.
     #[inline]
-    pub fn set_url(&mut self, url: Url) { self.url = url; }
+    pub fn set_uri(&mut self, uri: Uri) { self.uri = uri; }
 
     /// Set the `HttpVersion` of this request.
     #[inline]
@@ -81,7 +78,7 @@ impl<B> fmt::Debug for Request<B> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Request")
             .field("method", &self.method)
-            .field("url", &self.url)
+            .field("uri", &self.uri)
             .field("version", &self.version)
             .field("headers", &self.headers)
             .finish()
@@ -90,9 +87,9 @@ impl<B> fmt::Debug for Request<B> {
 
 pub fn split<B>(req: Request<B>) -> (RequestHead, Option<B>) {
     let uri = if req.is_proxy {
-        Uri::from(req.url)
+        req.uri
     } else {
-        Uri::from_str(&req.url[::url::Position::BeforePath..::url::Position::AfterQuery]).expect("url is not uri")
+        uri::origin_form(&req.uri)
     };
     let head = RequestHead {
         subject: ::http::RequestLine(req.method, uri),

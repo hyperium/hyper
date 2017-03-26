@@ -13,9 +13,10 @@ use std::time::Duration;
 
 use futures::future;
 use futures::task::{self, Task};
-use futures::{Future, Map, Stream, Poll, Async, Sink, StartSend, AsyncSink};
+use futures::{Future, Stream, Poll, Async, Sink, StartSend, AsyncSink};
+use futures::future::Map;
 
-use tokio::io::Io;
+use tokio_io::{AsyncRead, AsyncWrite};
 use tokio::reactor::{Core, Handle, Timeout};
 use tokio::net::TcpListener;
 use tokio_proto::BindServer;
@@ -124,7 +125,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
                                  service: S)
         where S: Service<Request = Request, Response = Response<Bd>, Error = ::Error> + 'static,
               Bd: Stream<Item=B, Error=::Error> + 'static,
-              I: Io + 'static,
+              I: AsyncRead + AsyncWrite + 'static,
     {
         self.bind_server(handle, io, HttpService {
             inner: service,
@@ -165,8 +166,8 @@ pub struct __ProtoBindTransport<T, B> {
 }
 
 impl<T, B> ServerProto<T> for Http<B>
-where T: Io + 'static,
-      B: AsRef<[u8]> + 'static,
+    where T: AsyncRead + AsyncWrite + 'static,
+          B: AsRef<[u8]> + 'static,
 {
     type Request = __ProtoRequest;
     type RequestBody = http::Chunk;
@@ -189,8 +190,8 @@ where T: Io + 'static,
 }
 
 impl<T, B> Sink for __ProtoTransport<T, B>
-where T: Io + 'static,
-      B: AsRef<[u8]>,
+    where T: AsyncRead + AsyncWrite + 'static,
+          B: AsRef<[u8]> + 'static,
 {
     type SinkItem = Frame<__ProtoResponse, B, ::Error>;
     type SinkError = io::Error;
@@ -224,9 +225,16 @@ where T: Io + 'static,
     fn poll_complete(&mut self) -> Poll<(), io::Error> {
         self.0.poll_complete()
     }
+
+    fn close(&mut self) -> Poll<(), io::Error> {
+        self.0.close()
+    }
 }
 
-impl<T: Io + 'static, B: AsRef<[u8]>> Stream for __ProtoTransport<T, B> {
+impl<T, B> Stream for __ProtoTransport<T, B>
+    where T: AsyncRead + AsyncWrite + 'static,
+          B: AsRef<[u8]> + 'static,
+{
     type Item = Frame<__ProtoRequest, http::Chunk, ::Error>;
     type Error = io::Error;
 
@@ -246,7 +254,10 @@ impl<T: Io + 'static, B: AsRef<[u8]>> Stream for __ProtoTransport<T, B> {
     }
 }
 
-impl<T: Io + 'static, B: AsRef<[u8]> + 'static> Transport for __ProtoTransport<T, B> {
+impl<T, B> Transport for __ProtoTransport<T, B>
+    where T: AsyncRead + AsyncWrite + 'static,
+          B: AsRef<[u8]> + 'static,
+{
     fn tick(&mut self) {
         self.0.tick()
     }
@@ -256,7 +267,9 @@ impl<T: Io + 'static, B: AsRef<[u8]> + 'static> Transport for __ProtoTransport<T
     }
 }
 
-impl<T: Io + 'static, B> Future for __ProtoBindTransport<T, B> {
+impl<T, B> Future for __ProtoBindTransport<T, B>
+    where T: AsyncRead + AsyncWrite + 'static,
+{
     type Item = __ProtoTransport<T, B>;
     type Error = io::Error;
 

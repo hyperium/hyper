@@ -55,13 +55,13 @@ impl Http1Transaction for ServerTransaction {
         };
 
         let mut headers = Headers::with_capacity(headers_len);
-        let slice = buf.drain_to(len).freeze();
+        let slice = buf.split_to(len).freeze();
         let path = slice.slice(path.0, path.1);
         // path was found to be utf8 by httparse
         let path = unsafe { ByteStr::from_utf8_unchecked(path) };
         let subject = RequestLine(
             method,
-            try!(::uri::from_mem_str(path)),
+            try!(::uri::from_byte_str(path)),
         );
 
         headers.extend(HeadersAsBytesIter {
@@ -171,7 +171,7 @@ impl Http1Transaction for ClientTransaction {
         };
 
         let mut headers = Headers::with_capacity(headers_len);
-        let slice = buf.drain_to(len).freeze();
+        let slice = buf.split_to(len).freeze();
         headers.extend(HeadersAsBytesIter {
             headers: headers_indices[..headers_len].iter(),
             slice: slice,

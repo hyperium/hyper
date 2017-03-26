@@ -9,6 +9,7 @@ use url::percent_encoding;
 use header::Raw;
 use header::shared::Charset;
 
+
 /// Reads a single raw string when parsing a header.
 pub fn from_one_raw_str<T: str::FromStr>(raw: &Raw) -> ::Result<T> {
     if let Some(line) = raw.one() {
@@ -132,29 +133,42 @@ pub fn parse_extended_value(val: &str) -> ::Result<ExtendedValue> {
     })
 }
 
-define_encode_set! {
-    /// This encode set is used for HTTP header values and is defined at
-    /// https://tools.ietf.org/html/rfc5987#section-3.2
-    pub HTTP_VALUE = [percent_encoding::SIMPLE_ENCODE_SET] | {
-        ' ', '"', '%', '\'', '(', ')', '*', ',', '/', ':', ';', '<', '-', '>', '?',
-        '[', '\\', ']', '{', '}'
-    }
-}
-
-impl fmt::Debug for HTTP_VALUE {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.pad("HTTP_VALUE")
-    }
-}
 
 impl Display for ExtendedValue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let encoded_value =
-            percent_encoding::percent_encode(&self.value[..], HTTP_VALUE);
+            percent_encoding::percent_encode(&self.value[..], self::percent_encoding_http::HTTP_VALUE);
         if let Some(ref lang) = self.language_tag {
             write!(f, "{}'{}'{}", self.charset, lang, encoded_value)
         } else {
             write!(f, "{}''{}", self.charset, encoded_value)
+        }
+    }
+}
+
+/// Percent encode a sequence of bytes with a character set defined in
+/// https://tools.ietf.org/html/rfc5987#section-3.2
+pub fn http_percent_encode(f: &mut fmt::Formatter, bytes: &[u8]) -> fmt::Result {
+    let encoded = percent_encoding::percent_encode(bytes, self::percent_encoding_http::HTTP_VALUE);
+    fmt::Display::fmt(&encoded, f)
+}
+
+mod percent_encoding_http {
+    use std::fmt;
+    use url::percent_encoding;
+
+    define_encode_set! {
+        /// This encode set is used for HTTP header values and is defined at
+        /// https://tools.ietf.org/html/rfc5987#section-3.2
+        pub HTTP_VALUE = [percent_encoding::SIMPLE_ENCODE_SET] | {
+            ' ', '"', '%', '\'', '(', ')', '*', ',', '/', ':', ';', '<', '-', '>', '?',
+            '[', '\\', ']', '{', '}'
+        }
+    }
+
+    impl fmt::Debug for HTTP_VALUE {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            f.pad("HTTP_VALUE")
         }
     }
 }

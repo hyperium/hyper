@@ -4,7 +4,7 @@ use std::fmt;
 use std::str::from_utf8;
 
 use super::cell::{OptCell, PtrMapCell};
-use header::{Header, MultilineFormatter, Raw};
+use header::{Header, MultilineFormatter, Multi, raw, Raw};
 
 
 #[derive(Clone)]
@@ -46,7 +46,8 @@ impl Item {
             return raw;
         }
 
-        let raw = unsafe { self.typed.one() }.to_string().into_bytes().into();
+        let mut raw = raw::new();
+        self.write_h1(&mut MultilineFormatter(Multi::Raw(&mut raw))).expect("fmt failed");
         self.raw.set(raw);
 
         self.raw.as_ref().unwrap()
