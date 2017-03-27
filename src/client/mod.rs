@@ -77,6 +77,12 @@ impl Client<HttpConnector, http::Body> {
 }
 
 impl<C, B> Client<C, B> {
+    /// Return a reference to a handle to the event loop this Client is associated with.
+    #[inline]
+    pub fn handle<'a>(&'a self) -> &'a Handle {
+        &self.handle
+    }
+
     /// Create a new client with a specific connector.
     #[inline]
     fn configured(config: Config<C, B>, handle: &Handle) -> Client<C, B> {
