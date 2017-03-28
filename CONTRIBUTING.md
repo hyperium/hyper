@@ -20,13 +20,13 @@ we use the git commit messages to **generate the change log**.
 Each commit message consists of a **header**, a **body** and a **footer**.  The header has a special
 format that includes a **type**, a **scope** and a **subject**:
 
-``
+```
 <type>(<scope>): <subject>
 <BLANK LINE>
 <body>
 <BLANK LINE>
 <footer>
-``
+```
 
 Any line of the commit message cannot be longer 100 characters! This allows the message to be easier
 to read on github as well as in various git tools.
@@ -64,11 +64,13 @@ The subject contains succinct description of the change:
 * don't capitalize first letter
 * no dot (.) at the end
 
-###Body
+### Body
+
 Just as in the **subject**, use the imperative, present tense: "change" not "changed" nor "changes"
 The body should include the motivation for the change and contrast this with previous behavior.
 
-###Footer
+### Footer
+
 The footer should contain any information about **Breaking Changes** and is also the place to
 reference GitHub issues that this commit **Closes**.
 
