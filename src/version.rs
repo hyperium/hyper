@@ -3,7 +3,9 @@
 //! Instead of relying on typo-prone Strings, use expected HTTP versions as
 //! the `HttpVersion` enum.
 use std::fmt;
+use std::str::FromStr;
 
+use error::Error;
 use self::HttpVersion::{Http09, Http10, Http11, H2, H2c};
 
 /// Represents a version of the HTTP spec.
@@ -33,6 +35,24 @@ impl fmt::Display for HttpVersion {
             H2c => "h2c",
             HttpVersion::__DontMatchMe => unreachable!(),
         })
+    }
+}
+
+impl FromStr for HttpVersion {
+    type Err = Error;
+    fn from_str(s: &str) -> Result<HttpVersion, Error> {
+        if s == "" {
+            Err(Error::Method)
+        } else {
+            Ok(match s {
+                "HTTP/0.9" => Http09,
+                "HTTP/1.0" => Http10,
+                "HTTP/1.1" => Http11,
+                "h2" => H2,
+                "h2c" => H2c,
+                _ => unreachable!(),
+            })
+        }
     }
 }
 
