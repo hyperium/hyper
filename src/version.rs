@@ -41,18 +41,14 @@ impl fmt::Display for HttpVersion {
 impl FromStr for HttpVersion {
     type Err = Error;
     fn from_str(s: &str) -> Result<HttpVersion, Error> {
-        if s == "" {
-            Err(Error::Method)
-        } else {
-            Ok(match s {
-                "HTTP/0.9" => Http09,
-                "HTTP/1.0" => Http10,
-                "HTTP/1.1" => Http11,
-                "h2" => H2,
-                "h2c" => H2c,
-                _ => unreachable!(),
-            })
-        }
+        Ok(match s {
+            "HTTP/0.9" => Http09,
+            "HTTP/1.0" => Http10,
+            "HTTP/1.1" => Http11,
+            "h2" => H2,
+            "h2c" => H2c,
+            _ => return Err(Error::Version),
+        })
     }
 }
 
