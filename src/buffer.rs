@@ -18,6 +18,16 @@ impl<R: Read> BufReader<R> {
     }
 
     #[inline]
+    pub fn from_parts(rdr: R, buf: Vec<u8>, pos: usize, cap: usize) -> BufReader<R> {
+        BufReader {
+            inner: rdr,
+            buf: buf,
+            pos: pos,
+            cap: cap,
+        }
+    }
+
+    #[inline]
     pub fn with_capacity(rdr: R, cap: usize) -> BufReader<R> {
         BufReader {
             inner: rdr,
@@ -64,6 +74,11 @@ impl<R: Read> BufReader<R> {
 
     #[inline]
     pub fn into_inner(self) -> R { self.inner }
+
+    #[inline]
+    pub fn into_parts(self) -> (R, Vec<u8>, usize, usize) {
+        (self.inner, self.buf, self.pos, self.cap)
+    }
 
     #[inline]
     pub fn read_into_buf(&mut self) -> io::Result<usize> {
