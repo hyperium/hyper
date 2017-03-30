@@ -79,9 +79,11 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn test_from_str_panic() {
-        HttpVersion::from_str("foo").unwrap();
+        match HttpVersion::from_str("foo") {
+            Err(_) => assert!(true),
+            Ok(_) => assert!(false),
+        }
     }
         
 }
