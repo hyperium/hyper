@@ -57,3 +57,31 @@ impl Default for HttpVersion {
         Http11
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+    use super::HttpVersion;
+    use super::HttpVersion::{Http09,Http10,Http11,H2,H2c};
+
+    #[test]
+    fn test_default() {
+        assert_eq!(Http11, HttpVersion::default());
+    }
+
+    #[test]
+    fn test_from_str() {
+        assert_eq!(Http09, HttpVersion::from_str("HTTP/0.9").unwrap());
+        assert_eq!(Http10, HttpVersion::from_str("HTTP/1.0").unwrap());
+        assert_eq!(Http11, HttpVersion::from_str("HTTP/1.1").unwrap());
+        assert_eq!(H2, HttpVersion::from_str("h2").unwrap());
+        assert_eq!(H2c, HttpVersion::from_str("h2c").unwrap());
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_from_str_panic() {
+        HttpVersion::from_str("foo").unwrap();
+    }
+        
+}
