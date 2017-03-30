@@ -61,6 +61,7 @@ impl Default for HttpVersion {
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
+    use error::Error;
     use super::HttpVersion;
     use super::HttpVersion::{Http09,Http10,Http11,H2,H2c};
 
@@ -81,7 +82,8 @@ mod tests {
     #[test]
     fn test_from_str_panic() {
         match HttpVersion::from_str("foo") {
-            Err(_) => assert!(true),
+            Err(Error::Version) => assert!(true),
+            Err(_) => assert!(false),
             Ok(_) => assert!(false),
         }
     }
