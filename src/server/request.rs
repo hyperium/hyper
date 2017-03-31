@@ -37,14 +37,14 @@ impl Request {
 
     /// The version of HTTP for this request.
     #[inline]
-    pub fn version(&self) -> &HttpVersion { &self.version }
+    pub fn version(&self) -> HttpVersion { self.version }
 
     /// The remote socket address of this request
     ///
     /// This is an `Option`, because some underlying transports may not have
     /// a socket address, such as Unix Sockets.
     #[inline]
-    pub fn remote_addr(&self) -> Option<&SocketAddr> { self.remote_addr.as_ref() }
+    pub fn remote_addr(&self) -> Option<SocketAddr> { self.remote_addr }
 
     /// The target path of this Request.
     #[inline]

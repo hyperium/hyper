@@ -89,7 +89,7 @@ macro_rules! test {
             let work = res.join(rx).map(|r| r.0);
 
             let res = core.run(work).unwrap();
-            assert_eq!(res.status(), &StatusCode::$client_status, "status is invalid");
+            assert_eq!(res.status(), StatusCode::$client_status, "status is invalid");
             $(
                 assert_eq!(res.headers().get(), Some(&$response_headers), "headers are invalid");
             )*

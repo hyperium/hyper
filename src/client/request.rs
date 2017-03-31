@@ -36,7 +36,7 @@ impl<B> Request<B> {
 
     /// Read the Request Version.
     #[inline]
-    pub fn version(&self) -> &HttpVersion { &self.version }
+    pub fn version(&self) -> HttpVersion { self.version }
 
     /// Read the Request headers.
     #[inline]

@@ -37,7 +37,7 @@ impl Response {
 
     /// Get the status from the server.
     #[inline]
-    pub fn status(&self) -> &status::StatusCode { &self.status }
+    pub fn status(&self) -> status::StatusCode { self.status }
 
     /// Get the raw status code and reason.
     #[inline]
@@ -45,7 +45,7 @@ impl Response {
 
     /// Get the HTTP version of this response from the server.
     #[inline]
-    pub fn version(&self) -> &version::HttpVersion { &self.version }
+    pub fn version(&self) -> version::HttpVersion { self.version }
 
     /// Take the `Body` of this response.
     #[inline]

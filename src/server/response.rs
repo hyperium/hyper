@@ -26,13 +26,13 @@ impl<B> Response<B> {
 
     /// The status of this response.
     #[inline]
-    pub fn status(&self) -> &StatusCode {
-        &self.head.subject
+    pub fn status(&self) -> StatusCode {
+        self.head.subject
     }
 
     /// The HTTP version of this response.
     #[inline]
-    pub fn version(&self) -> &version::HttpVersion { &self.head.version }
+    pub fn version(&self) -> version::HttpVersion { self.head.version }
 
     /// Get a mutable reference to the Headers.
     #[inline]
