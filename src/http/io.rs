@@ -134,15 +134,16 @@ impl<T: Write> Write for Buffered<T> {
 
     fn flush(&mut self) -> io::Result<()> {
         if self.write_buf.remaining() == 0 {
-            Ok(())
+            self.io.flush()
         } else {
             loop {
                 let n = try!(self.write_buf.write_into(&mut self.io));
                 debug!("flushed {} bytes", n);
                 if self.write_buf.remaining() == 0 {
-                    return Ok(())
+                    break;
                 }
             }
+            self.io.flush()
         }
     }
 }
