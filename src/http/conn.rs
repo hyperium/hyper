@@ -827,6 +827,7 @@ mod tests {
             assert!(conn.state.writing.is_queued());
             assert!(conn.poll_complete().unwrap().is_ready());
             assert!(!conn.state.writing.is_queued());
+            assert!(conn.io.io_mut().flushed());
 
             Ok(())
         }).wait();
