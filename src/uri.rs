@@ -3,6 +3,7 @@ use std::fmt::{Display, self};
 use std::str::{self, FromStr};
 
 use http::ByteStr;
+use bytes::{BufMut, BytesMut};
 
 /// The Request-URI of a Request's StartLine.
 ///
@@ -101,14 +102,8 @@ impl Uri {
 
     /// Get the path of this `Uri`.
     pub fn path(&self) -> &str {
-        let index = self.authority_end.unwrap_or(self.scheme_end.unwrap_or(0));
-        let end = if let Some(query) = self.query_start {
-            query
-        } else if let Some(fragment) = self.fragment_start {
-            fragment
-        } else {
-            self.source.len()
-        };
+        let index = self.path_start();
+        let end = self.path_end();
         if index >= end {
             if self.scheme().is_some() {
                 "/" // absolute-form MUST have path
@@ -117,6 +112,31 @@ impl Uri {
             }
         } else {
             &self.source[index..end]
+        }
+    }
+
+    #[inline]
+    fn path_start(&self) -> usize {
+        self.authority_end.unwrap_or(self.scheme_end.unwrap_or(0))
+    }
+
+    #[inline]
+    fn path_end(&self) -> usize {
+        if let Some(query) = self.query_start {
+            query
+        } else if let Some(fragment) = self.fragment_start {
+            fragment
+        } else {
+            self.source.len()
+        }
+    }
+
+    #[inline]
+    fn origin_form_end(&self) -> usize {
+        if let Some(fragment) = self.fragment_start {
+            fragment
+        } else {
+            self.source.len()
         }
     }
 
@@ -226,6 +246,18 @@ impl PartialEq for Uri {
     }
 }
 
+impl<'a> PartialEq<&'a str> for Uri {
+    fn eq(&self, other: & &'a str) -> bool {
+        self.source.as_str() == *other
+    }
+}
+
+impl<'a> PartialEq<Uri> for &'a str{
+    fn eq(&self, other: &Uri) -> bool {
+        *self == other.source.as_str()
+    }
+}
+
 impl Eq for Uri {}
 
 impl AsRef<str> for Uri {
@@ -277,18 +309,36 @@ pub fn scheme_and_authority(uri: &Uri) -> Option<Uri> {
 }
 
 pub fn origin_form(uri: &Uri) -> Uri {
-    let start = uri.authority_end.unwrap_or(uri.scheme_end.unwrap_or(0));
-    let end = if let Some(f) = uri.fragment_start {
-        f
+    let range = Range(uri.path_start(), uri.origin_form_end());
+
+    let clone = if range.len() == 0 {
+        ByteStr::from_static("/")
+    } else if uri.source.as_bytes()[range.0] != b'/' {
+        let mut new = BytesMut::with_capacity(range.1 - range.0 + 1);
+        new.put_u8(b'/');
+        new.put_slice(&uri.source.as_bytes()[range.0..range.1]);
+        // safety: the bytes are '/' + previous utf8 str
+        unsafe { ByteStr::from_utf8_unchecked(new.freeze()) }
+    } else if range.0 == 0 && range.1 == uri.source.len() {
+        uri.source.clone()
     } else {
-        uri.source.len()
+        uri.source.slice(range.0, range.1)
     };
+
     Uri {
-        source: uri.source.slice(start, end),
+        source: clone,
         scheme_end: None,
         authority_end: None,
         query_start: uri.query_start,
         fragment_start: None,
+    }
+}
+
+struct Range(usize, usize);
+
+impl Range {
+    fn len(&self) -> usize {
+        self.1 - self.0
     }
 }
 
@@ -479,4 +529,22 @@ fn test_uri_parse_error() {
     err("?key=val");
     err("localhost/");
     err("localhost?key=val");
+}
+
+#[test]
+fn test_uri_to_origin_form() {
+    let cases = vec![
+        ("/", "/"),
+        ("/foo?bar", "/foo?bar"),
+        ("/foo?bar#nope", "/foo?bar"),
+        ("http://hyper.rs", "/"),
+        ("http://hyper.rs/", "/"),
+        ("http://hyper.rs/path", "/path"),
+        ("http://hyper.rs?query", "/?query"),
+    ];
+
+    for case in cases {
+        let uri = Uri::from_str(case.0).unwrap();
+        assert_eq!(origin_form(&uri), case.1);
+    }
 }
