@@ -32,8 +32,8 @@ pub struct Uri {
     source: ByteStr,
     scheme_end: Option<usize>,
     authority_end: Option<usize>,
-    query: Option<usize>,
-    fragment: Option<usize>,
+    query_start: Option<usize>,
+    fragment_start: Option<usize>,
 }
 
 impl Uri {
@@ -47,8 +47,8 @@ impl Uri {
                 source: ByteStr::from_static("*"),
                 scheme_end: None,
                 authority_end: None,
-                query: None,
-                fragment: None,
+                query_start: None,
+                fragment_start: None,
             })
         } else if s.as_bytes() == b"/" {
             // shortcut for '/'
@@ -61,13 +61,13 @@ impl Uri {
                 source: s,
                 scheme_end: None,
                 authority_end: None,
-                query: query,
-                fragment: fragment,
+                query_start: query,
+                fragment_start: fragment,
             })
         } else if s.contains("://") {
             // absolute-form
             let scheme = parse_scheme(&s);
-            let auth = parse_authority(&s);
+            let auth = Some(parse_authority(&s));
             let scheme_end = scheme.expect("just checked for ':' above");
             let auth_end = auth.expect("just checked for ://");
             if scheme_end + 3 == auth_end {
@@ -80,8 +80,8 @@ impl Uri {
                 source: s,
                 scheme_end: scheme,
                 authority_end: auth,
-                query: query,
-                fragment: fragment,
+                query_start: query,
+                fragment_start: fragment,
             })
         } else if (s.contains("/") || s.contains("?")) && !s.contains("://") {
             // last possibility is authority-form, above are illegal characters
@@ -93,8 +93,8 @@ impl Uri {
                 source: s,
                 scheme_end: None,
                 authority_end: Some(len),
-                query: None,
-                fragment: None,
+                query_start: None,
+                fragment_start: None,
             })
         }
     }
@@ -102,10 +102,13 @@ impl Uri {
     /// Get the path of this `Uri`.
     pub fn path(&self) -> &str {
         let index = self.authority_end.unwrap_or(self.scheme_end.unwrap_or(0));
-        let query_len = self.query.unwrap_or(0);
-        let fragment_len = self.fragment.unwrap_or(0);
-        let end = self.source.len() - if query_len > 0 { query_len + 1 } else { 0 } -
-            if fragment_len > 0 { fragment_len + 1 } else { 0 };
+        let end = if let Some(query) = self.query_start {
+            query
+        } else if let Some(fragment) = self.fragment_start {
+            fragment
+        } else {
+            self.source.len()
+        };
         if index >= end {
             if self.scheme().is_some() {
                 "/" // absolute-form MUST have path
@@ -156,23 +159,23 @@ impl Uri {
 
     /// Get the query string of this `Uri`, starting after the `?`.
     pub fn query(&self) -> Option<&str> {
-        let fragment_len = self.fragment.unwrap_or(0);
-        let fragment_len = if fragment_len > 0 { fragment_len + 1 } else { 0 };
-        if let Some(len) = self.query {
-            Some(&self.source[self.source.len() - len - fragment_len..
-                                       self.source.len() - fragment_len])
-        } else {
-            None
-        }
+        self.query_start.map(|start| {
+            // +1 to remove '?'
+            let start = start + 1;
+            if let Some(end) = self.fragment_start {
+                &self.source[start..end]
+            } else {
+                &self.source[start..]
+            }
+        })
     }
 
     #[cfg(test)]
     fn fragment(&self) -> Option<&str> {
-        if let Some(len) = self.fragment {
-            Some(&self.source[self.source.len() - len..self.source.len()])
-        } else {
-            None
-        }
+        self.fragment_start.map(|start| {
+            // +1 to remove the '#'
+           &self.source[start + 1..]
+        })
     }
 }
 
@@ -180,35 +183,31 @@ fn parse_scheme(s: &str) -> Option<usize> {
     s.find(':')
 }
 
-fn parse_authority(s: &str) -> Option<usize> {
-    let i = s.find("://").and_then(|p| Some(p + 3)).unwrap_or(0);
-
-    Some(&s[i..].split("/")
-         .next()
-         .unwrap_or(s)
-         .len() + i)
+fn parse_authority(s: &str) -> usize {
+    let i = s.find("://").map(|p| p + 3).unwrap_or(0);
+    s[i..].find('/')
+        .or_else(|| s[i..].find('?'))
+        .or_else(|| s[i..].find('#'))
+        .map(|end| end + i)
+        .unwrap_or(s.len())
 }
 
 fn parse_query(s: &str) -> Option<usize> {
-    match s.find('?') {
-        Some(i) => {
-            let frag_pos = s.find('#').unwrap_or(s.len());
-
-            if frag_pos < i + 1 {
+    s.find('?').and_then(|i| {
+        if let Some(frag) = s.find('#') {
+            if frag < i {
                 None
             } else {
-                Some(frag_pos - i - 1)
+                Some(i)
             }
-        },
-        None => None,
-    }
+        } else {
+            Some(i)
+        }
+    })
 }
 
 fn parse_fragment(s: &str) -> Option<usize> {
-    match s.find('#') {
-        Some(i) => Some(s.len() - i - 1),
-        None => None,
-    }
+    s.find('#')
 }
 
 impl FromStr for Uri {
@@ -241,8 +240,8 @@ impl Default for Uri {
             source: ByteStr::from_static("/"),
             scheme_end: None,
             authority_end: None,
-            query: None,
-            fragment: None,
+            query_start: None,
+            fragment_start: None,
         }
     }
 }
@@ -269,8 +268,8 @@ pub fn scheme_and_authority(uri: &Uri) -> Option<Uri> {
             source: uri.source.slice_to(uri.authority_end.expect("scheme without authority")),
             scheme_end: uri.scheme_end,
             authority_end: uri.authority_end,
-            query: None,
-            fragment: None,
+            query_start: None,
+            fragment_start: None,
         })
     } else {
         None
@@ -279,8 +278,8 @@ pub fn scheme_and_authority(uri: &Uri) -> Option<Uri> {
 
 pub fn origin_form(uri: &Uri) -> Uri {
     let start = uri.authority_end.unwrap_or(uri.scheme_end.unwrap_or(0));
-    let end = if let Some(f) = uri.fragment {
-        uri.source.len() - f - 1
+    let end = if let Some(f) = uri.fragment_start {
+        f
     } else {
         uri.source.len()
     };
@@ -288,8 +287,8 @@ pub fn origin_form(uri: &Uri) -> Uri {
         source: uri.source.slice(start, end),
         scheme_end: None,
         authority_end: None,
-        query: uri.query,
-        fragment: None,
+        query_start: uri.query_start,
+        fragment_start: None,
     }
 }
 
@@ -329,6 +328,7 @@ macro_rules! test_parse {
         #[test]
         fn $test_name() {
             let uri = Uri::from_str($str).unwrap();
+            println!("{:?} = {:#?}", $str, uri);
             $(
             assert_eq!(uri.$method(), $value);
             )+
@@ -442,6 +442,30 @@ test_parse! {
     port = None,
 }
 
+test_parse! {
+    test_uri_parse_path_with_terminating_questionmark,
+    "http://127.0.0.1/path?",
+
+    scheme = Some("http"),
+    authority = Some("127.0.0.1"),
+    path = "/path",
+    query = Some(""),
+    fragment = None,
+    port = None,
+}
+
+test_parse! {
+    test_uri_parse_absolute_form_with_empty_path_and_nonempty_query,
+    "http://127.0.0.1?foo=bar",
+
+    scheme = Some("http"),
+    authority = Some("127.0.0.1"),
+    path = "/",
+    query = Some("foo=bar"),
+    fragment = None,
+    port = None,
+}
+
 #[test]
 fn test_uri_parse_error() {
     fn err(s: &str) {
@@ -452,6 +476,7 @@ fn test_uri_parse_error() {
     err("htt:p//host");
     err("hyper.rs/");
     err("hyper.rs?key=val");
+    err("?key=val");
     err("localhost/");
     err("localhost?key=val");
 }
