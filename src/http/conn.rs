@@ -745,7 +745,6 @@ mod tests {
         let mut conn = Conn::<_, http::Chunk, ServerTransaction>::new(io, Default::default());
         conn.state.idle();
 
-        assert!(conn.poll().unwrap().is_not_ready());
         match conn.poll().unwrap() {
             Async::Ready(Some(Frame::Error { .. })) => {},
             other => panic!("frame is not Error: {:?}", other)
