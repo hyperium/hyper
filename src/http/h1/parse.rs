@@ -344,7 +344,7 @@ mod tests {
         let (req, len) = parse::<http::ServerTransaction, _>(&mut raw).unwrap().unwrap();
         assert_eq!(len, expected_len);
         assert_eq!(req.subject.0, ::Method::Get);
-        assert_eq!(req.subject.1, "/echo".parse().unwrap());
+        assert_eq!(req.subject.1, "/echo");
         assert_eq!(req.version, ::HttpVersion::Http11);
         assert_eq!(req.headers.len(), 1);
         assert_eq!(req.headers.get_raw("Host").map(|raw| &raw[0]), Some(b"hyper.rs".as_ref()));
