@@ -1,7 +1,7 @@
 use std::ops::Deref;
 use std::str;
 
-use bytes::{Bytes, BytesMut};
+use bytes::Bytes;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ByteStr(Bytes);
@@ -35,19 +35,6 @@ impl Deref for ByteStr {
     type Target = str;
     fn deref(&self) -> &str {
         self.as_str()
-    }
-}
-
-
-impl From<ByteStr> for Bytes {
-    fn from(s: ByteStr) -> Bytes {
-        s.0
-    }
-}
-
-impl From<ByteStr> for BytesMut {
-    fn from(s: ByteStr) -> BytesMut {
-        s.0.into()
     }
 }
 

@@ -44,13 +44,7 @@ impl Uri {
             Err(UriError(ErrorKind::Empty))
         } else if s.as_bytes() == b"*" {
             // asterisk-form
-            Ok(Uri {
-                source: ByteStr::from_static("*"),
-                scheme_end: None,
-                authority_end: None,
-                query_start: None,
-                fragment_start: None,
-            })
+            Ok(asterisk_form())
         } else if s.as_bytes() == b"/" {
             // shortcut for '/'
             Ok(Uri::default())
@@ -308,11 +302,24 @@ pub fn scheme_and_authority(uri: &Uri) -> Option<Uri> {
     }
 }
 
+#[inline]
+fn asterisk_form() -> Uri {
+    Uri {
+        source: ByteStr::from_static("*"),
+        scheme_end: None,
+        authority_end: None,
+        query_start: None,
+        fragment_start: None,
+    }
+}
+
 pub fn origin_form(uri: &Uri) -> Uri {
     let range = Range(uri.path_start(), uri.origin_form_end());
 
     let clone = if range.len() == 0 {
         ByteStr::from_static("/")
+    } else if uri.source.as_bytes()[range.0] == b'*' {
+        return asterisk_form();
     } else if uri.source.as_bytes()[range.0] != b'/' {
         let mut new = BytesMut::with_capacity(range.1 - range.0 + 1);
         new.put_u8(b'/');
@@ -541,10 +548,11 @@ fn test_uri_to_origin_form() {
         ("http://hyper.rs/", "/"),
         ("http://hyper.rs/path", "/path"),
         ("http://hyper.rs?query", "/?query"),
+        ("*", "*"),
     ];
 
     for case in cases {
         let uri = Uri::from_str(case.0).unwrap();
-        assert_eq!(origin_form(&uri), case.1);
+        assert_eq!(origin_form(&uri), case.1, "{:?}", case);
     }
 }
