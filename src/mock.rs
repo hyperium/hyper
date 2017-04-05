@@ -62,6 +62,7 @@ pub struct AsyncIo<T> {
     inner: T,
     bytes_until_block: usize,
     error: Option<io::Error>,
+    blocked: bool,
     flushed: bool,
 }
 
@@ -72,6 +73,7 @@ impl<T> AsyncIo<T> {
             bytes_until_block: bytes,
             error: None,
             flushed: false,
+            blocked: false,
         }
     }
 
@@ -92,13 +94,19 @@ impl AsyncIo<Buf> {
     pub fn flushed(&self) -> bool {
         self.flushed
     }
+
+    pub fn blocked(&self) -> bool {
+        self.blocked
+    }
 }
 
 impl<T: Read> Read for AsyncIo<T> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.blocked = false;
         if let Some(err) = self.error.take() {
             Err(err)
         } else if self.bytes_until_block == 0 {
+            self.blocked = true;
             Err(io::Error::new(io::ErrorKind::WouldBlock, "mock block"))
         } else {
             let n = cmp::min(self.bytes_until_block, buf.len());

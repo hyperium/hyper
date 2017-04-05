@@ -55,31 +55,33 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
     }
 
     pub fn parse<S: Http1Transaction>(&mut self) -> ::Result<Option<MessageHead<S::Incoming>>> {
-        self.reserve_read_buf();
-        match self.read_from_io() {
-            Ok(0) => {
-                trace!("parse eof");
-                return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "parse eof").into());
+        loop {
+            match try!(parse::<S, _>(&mut self.read_buf)) {
+                Some(head) => {
+                    //trace!("parsed {} bytes out of {}", len, self.read_buf.len());
+                    return Ok(Some(head.0))
+                },
+                None => {
+                    if self.read_buf.capacity() >= MAX_BUFFER_SIZE {
+                        debug!("MAX_BUFFER_SIZE reached, closing");
+                        return Err(::Error::TooLarge);
+                    }
+                },
             }
-            Ok(_) => {},
-            Err(e) => match e.kind() {
-                io::ErrorKind::WouldBlock => {},
-                _ => return Err(e.into())
-            }
-        }
-        match try!(parse::<S, _>(&mut self.read_buf)) {
-            Some(head) => {
-                //trace!("parsed {} bytes out of {}", len, self.read_buf.len());
-                Ok(Some(head.0))
-            },
-            None => {
-                if self.read_buf.capacity() >= MAX_BUFFER_SIZE {
-                    debug!("MAX_BUFFER_SIZE reached, closing");
-                    Err(::Error::TooLarge)
-                } else {
-                    Ok(None)
+            self.reserve_read_buf();
+            match self.read_from_io() {
+                Ok(0) => {
+                    trace!("parse eof");
+                    return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "parse eof").into());
                 }
-            },
+                Ok(_) => {},
+                Err(e) => match e.kind() {
+                    io::ErrorKind::WouldBlock => {
+                        return Ok(None);
+                    },
+                    _ => return Err(e.into())
+                }
+            }
         }
     }
 
@@ -339,4 +341,16 @@ fn test_iobuf_write_empty_slice() {
     // so we are testing that the io_buf does not trigger a write
     // when there is nothing to flush
     io_buf.flush().expect("should short-circuit flush");
+}
+
+#[test]
+fn test_parse_reads_until_blocked() {
+    use mock::{AsyncIo, Buf as MockBuf};
+    // missing last line ending
+    let raw = "HTTP/1.1 200 OK\r\n";
+
+    let mock = AsyncIo::new(MockBuf::wrap(raw.into()), raw.len());
+    let mut buffered = Buffered::new(mock);
+    assert_eq!(buffered.parse::<super::ClientTransaction>().unwrap(), None);
+    assert!(buffered.io.blocked());
 }
