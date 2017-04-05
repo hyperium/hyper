@@ -1,3 +1,11 @@
+### v0.10.6 (2017-04-05)
+
+
+#### Features
+
+* **buffer:** add from_parts and into_parts functions ([78551dd0](https://github.com/hyperium/hyper/commit/78551dd040e2ab46e833af355c92fe87aa026244))
+
+
 ### v0.10.5 (2017-03-01)
 
 
