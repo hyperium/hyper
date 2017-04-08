@@ -4,6 +4,7 @@ use std::fmt;
 use std::io::{self, ErrorKind, Read, Write};
 use std::net::{SocketAddr, ToSocketAddrs, TcpStream, TcpListener, Shutdown};
 use std::mem;
+use std::sync::Arc;
 
 use std::time::Duration;
 
@@ -219,29 +220,18 @@ impl NetworkStream + Send {
 }
 
 /// A `NetworkListener` for `HttpStream`s.
+#[derive(Clone)]
 pub struct HttpListener {
-    listener: TcpListener,
+    listener: Arc<TcpListener>,
 
     read_timeout : Option<Duration>,
     write_timeout: Option<Duration>,
 }
 
-impl Clone for HttpListener {
-    #[inline]
-    fn clone(&self) -> HttpListener {
-        HttpListener {
-            listener: self.listener.try_clone().unwrap(),
-
-            read_timeout : self.read_timeout.clone(),
-            write_timeout: self.write_timeout.clone(),
-        }
-    }
-}
-
 impl From<TcpListener> for HttpListener {
     fn from(listener: TcpListener) -> HttpListener {
         HttpListener {
-            listener: listener,
+            listener: Arc::new(listener),
 
             read_timeout : None,
             write_timeout: None,
