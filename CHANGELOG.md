@@ -1,3 +1,11 @@
+### v0.10.7 (2017-04-08)
+
+
+#### Bug Fixes
+
+* **server:** don't dup the listener TCP socket. ([d2362331](https://github.com/hyperium/hyper/commit/d23623317820696c910ce43262d5276e8e24c066))
+
+
 ### v0.10.6 (2017-04-05)
 
 
