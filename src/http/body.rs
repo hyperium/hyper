@@ -96,3 +96,18 @@ fn _assert_send_sync() {
     _assert_send::<Chunk>();
     _assert_sync::<Chunk>();
 }
+
+#[test]
+fn test_body_stream_concat() {
+    use futures::{Sink, Stream, Future};
+    let (tx, body) = Body::pair();
+
+    ::std::thread::spawn(move || {
+        let tx = tx.send(Ok("hello ".into())).wait().unwrap();
+        tx.send(Ok("world".into())).wait().unwrap();
+    });
+
+    let total = body.concat().wait().unwrap();
+    assert_eq!(total.as_ref(), b"hello world");
+
+}
