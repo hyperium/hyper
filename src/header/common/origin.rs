@@ -1,4 +1,5 @@
 use header::{Header, Raw, Host};
+use std::borrow::Cow;
 use std::fmt;
 use std::str::FromStr;
 use header::parsing::from_one_raw_str;
@@ -33,18 +34,38 @@ use header::parsing::from_one_raw_str;
 #[derive(Clone, Debug)]
 pub struct Origin {
     /// The scheme, such as http or https
-    pub scheme: String,
+    scheme: Cow<'static,str>,
     /// The host, such as Host{hostname: "hyper.rs".to_owned(), port: None}
-    pub host: Host,
+    host: Host,
 }
 
 impl Origin {
     /// Creates a new `Origin` header.
-    pub fn new<S: Into<String>, H: Into<String>>(scheme: S, hostname: H, port: Option<u16>) -> Origin{
+    pub fn new<S: Into<Cow<'static,str>>, H: Into<Cow<'static,str>>>(scheme: S, hostname: H, port: Option<u16>) -> Origin{
         Origin {
             scheme: scheme.into(),
-            host: Host::new(hostname.into(), port),
+            host: Host::new(hostname, port),
         }
+    }
+
+    /// The scheme, such as http or https
+    /// ```
+    /// use hyper::header::Origin;
+    /// let origin = Origin::new("https", "foo.com", Some(443));
+    /// assert_eq!(origin.scheme(), "https");
+    /// ```
+    pub fn scheme(&self) -> &str {
+        &(self.scheme)
+    }
+
+    /// The host, such as Host{hostname: "hyper.rs".to_owned(), port: None}
+    /// ```
+    /// use hyper::header::{Origin,Host};
+    /// let origin = Origin::new("https", "foo.com", Some(443));
+    /// assert_eq!(origin.host(), &Host::new("foo.com", Some(443)));
+    /// ```
+    pub fn host(&self) -> &Host {
+        &(self.host)
     }
 }
 
@@ -77,7 +98,7 @@ impl FromStr for Origin {
 
 
         Ok(Origin{
-            scheme: scheme.to_owned(),
+            scheme: scheme.to_owned().into(),
             host: host
         })
     }
