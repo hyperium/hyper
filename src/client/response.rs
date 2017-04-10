@@ -26,7 +26,6 @@ pub struct Response {
 }
 
 impl Response {
-
     /// Creates a new response from a server.
     pub fn new(url: Url, stream: Box<NetworkStream + Send>) -> ::Result<Response> {
         trace!("Response::new");
@@ -61,6 +60,12 @@ impl Response {
     #[inline]
     pub fn status_raw(&self) -> &RawStatus {
         &self.status_raw
+    }
+
+    /// Gets a borrowed reference to the underlying `HttpMessage`.
+    #[inline]
+    pub fn get_ref(&self) -> &HttpMessage {
+        &*self.message
     }
 }
 
