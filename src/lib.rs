@@ -18,7 +18,7 @@ extern crate bytes;
 #[macro_use] extern crate futures;
 extern crate futures_cpupool;
 extern crate httparse;
-#[cfg_attr(test, macro_use)] extern crate language_tags;
+extern crate language_tags;
 #[macro_use] extern crate log;
 #[macro_use] pub extern crate mime;
 extern crate base64;
@@ -54,13 +54,6 @@ macro_rules! unimplemented {
     ($fmt:expr, $($arg:tt)*) => ({
         panic!(concat!("unimplemented: ", $fmt), $($arg)*)
     });
-}
-
-macro_rules! deprecated {
-    (#[$note:meta] $i:item) => (
-        #[cfg_attr(has_deprecated, $note)]
-        $i
-    );
 }
 
 #[cfg(test)]

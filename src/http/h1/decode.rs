@@ -458,7 +458,7 @@ mod tests {
         let content_len = content.len();
         for block_at in 0..content_len {
             let actual = read_async(decoder.clone(), content.as_bytes(), block_at);
-            assert_eq!(expected, &actual, "Failed async. Blocking at {}", block_at);
+            assert_eq!(expected, &actual) //, "Failed async. Blocking at {}", block_at);
         }
     }
 

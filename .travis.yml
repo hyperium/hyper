@@ -6,6 +6,7 @@ matrix:
           env: FEATURES="--features nightly"
         - rust: beta
         - rust: stable
+        - rust: 1.10.0
 
 cache:
     apt: true

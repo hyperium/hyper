@@ -58,9 +58,9 @@ header! {
         test_header!(
             test2, vec![b"en-US, en; q=0.5, fr"],
             Some(AcceptLanguage(vec![
-                qitem(langtag!(en;;;US)),
-                QualityItem::new(langtag!(en), Quality(500)),
-                qitem(langtag!(fr)),
+                qitem("en-US".parse().unwrap()),
+                QualityItem::new("en".parse().unwrap(), Quality(500)),
+                qitem("fr".parse().unwrap()),
         ])));
     }
 }

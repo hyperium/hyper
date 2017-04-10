@@ -177,10 +177,11 @@ mod percent_encoding_http {
 mod tests {
     use header::shared::Charset;
     use super::{ExtendedValue, parse_extended_value};
+    use language_tags::LanguageTag;
 
     #[test]
     fn test_parse_extended_value_with_encoding_and_language_tag() {
-        let expected_language_tag = langtag!(en);
+        let expected_language_tag = "en".parse::<LanguageTag>().unwrap();
         // RFC 5987, Section 3.2.2
         // Extended notation, using the Unicode character U+00A3 (POUND SIGN)
         let result = parse_extended_value("iso-8859-1'en'%A3%20rates");

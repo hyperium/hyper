@@ -24,7 +24,9 @@ use header::parsing::from_one_raw_str;
 ///
 /// let mut headers = Headers::new();
 /// headers.set(
-///     Host::new("hyper.rs", 8080)
+///     // In Rust 1.12+
+///     // Host::new("hyper.rs", 8080)
+///     Host::new("hyper.rs", Some(8080))
 /// );
 /// ```
 #[derive(Clone, PartialEq, Debug)]
@@ -113,13 +115,13 @@ mod tests {
 
 
         let host = Header::parse_header(&vec![b"foo.com:8080".to_vec()].into());
-        assert_eq!(host.ok(), Some(Host::new("foo.com", 8080)));
+        assert_eq!(host.ok(), Some(Host::new("foo.com", Some(8080))));
 
         let host = Header::parse_header(&vec![b"foo.com".to_vec()].into());
         assert_eq!(host.ok(), Some(Host::new("foo.com", None)));
 
         let host = Header::parse_header(&vec![b"[::1]:8080".to_vec()].into());
-        assert_eq!(host.ok(), Some(Host::new("[::1]", 8080)));
+        assert_eq!(host.ok(), Some(Host::new("[::1]", Some(8080))));
 
         let host = Header::parse_header(&vec![b"[::1]".to_vec()].into());
         assert_eq!(host.ok(), Some(Host::new("[::1]", None)));

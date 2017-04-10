@@ -131,7 +131,7 @@ pub trait Http1Transaction {
     fn should_set_length(head: &MessageHead<Self::Outgoing>) -> bool;
 }
 
-type ParseResult<T> = ::Result<Option<(MessageHead<T>, usize)>>;
+pub type ParseResult<T> = ::Result<Option<(MessageHead<T>, usize)>>;
 
 struct DebugTruncate<'a>(&'a [u8]);
 

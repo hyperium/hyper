@@ -553,6 +553,6 @@ fn test_uri_to_origin_form() {
 
     for case in cases {
         let uri = Uri::from_str(case.0).unwrap();
-        assert_eq!(origin_form(&uri), case.1, "{:?}", case);
+        assert_eq!(origin_form(&uri), case.1); //, "{:?}", case);
     }
 }
