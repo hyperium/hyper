@@ -144,6 +144,11 @@ impl<S: NetworkStream> PooledStream<S> {
     pub fn into_inner(mut self) -> S {
         self.inner.take().expect("PooledStream lost its inner stream").stream
     }
+
+    /// Gets a borrowed reference to the underlying stream.
+    pub fn get_ref(&self) -> &S {
+        &self.inner.as_ref().expect("PooledStream lost its inner stream").stream
+    }
 }
 
 #[derive(Debug)]
