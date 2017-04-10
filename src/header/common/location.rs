@@ -21,16 +21,16 @@ header! {
     /// use hyper::header::{Headers, Location};
     ///
     /// let mut headers = Headers::new();
-    /// headers.set(Location("/People.html#tim".to_owned()));
+    /// headers.set(Location::new("/People.html#tim"));
     /// ```
     /// ```
     /// use hyper::header::{Headers, Location};
     ///
     /// let mut headers = Headers::new();
-    /// headers.set(Location("http://www.example.com/index.html".to_owned()));
+    /// headers.set(Location::new("http://www.example.com/index.html"));
     /// ```
     // TODO: Use URL
-    (Location, "Location") => [String]
+    (Location, "Location") => Cow[str]
 
     test_location {
         // Testcase from RFC

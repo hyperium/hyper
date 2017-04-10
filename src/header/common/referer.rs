@@ -21,16 +21,16 @@ header! {
     /// use hyper::header::{Headers, Referer};
     ///
     /// let mut headers = Headers::new();
-    /// headers.set(Referer("/People.html#tim".to_owned()));
+    /// headers.set(Referer::new("/People.html#tim"));
     /// ```
     /// ```
     /// use hyper::header::{Headers, Referer};
     ///
     /// let mut headers = Headers::new();
-    /// headers.set(Referer("http://www.example.com/index.html".to_owned()));
+    /// headers.set(Referer::new("http://www.example.com/index.html"));
     /// ```
     // TODO Use URL
-    (Referer, "Referer") => [String]
+    (Referer, "Referer") => Cow[str]
 
     test_referer {
         // Testcase from the RFC

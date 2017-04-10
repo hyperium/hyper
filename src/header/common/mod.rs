@@ -264,6 +264,41 @@ macro_rules! header {
             }
         }
     };
+    // Single value cow header
+    ($(#[$a:meta])*($id:ident, $n:expr) => Cow[$value:ty]) => {
+        $(#[$a])*
+        #[derive(Clone, Debug, PartialEq)]
+        pub struct $id(::std::borrow::Cow<'static,$value>);
+        impl $id {
+            /// Creates a new $id
+            pub fn new<I: Into<::std::borrow::Cow<'static,$value>>>(value: I) -> Self {
+                $id(value.into())
+            }
+        }
+        impl ::std::ops::Deref for $id {
+            type Target = $value;
+            fn deref(&self) -> &Self::Target {
+                &(self.0)
+            }
+        }
+        impl $crate::header::Header for $id {
+            fn header_name() -> &'static str {
+                static NAME: &'static str = $n;
+                NAME
+            }
+            fn parse_header(raw: &$crate::header::Raw) -> $crate::Result<Self> {
+                $crate::header::parsing::from_one_raw_str::<<$value as ::std::borrow::ToOwned>::Owned>(raw).map($id::new)
+            }
+            fn fmt_header(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                ::std::fmt::Display::fmt(&**self, f)
+            }
+        }
+        impl ::std::fmt::Display for $id {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                ::std::fmt::Display::fmt(&**self, f)
+            }
+        }
+    };
     // List header, one or more items with "*" option
     ($(#[$a:meta])*($id:ident, $n:expr) => {Any / ($item:ty)+}) => {
         $(#[$a])*
@@ -325,6 +360,14 @@ macro_rules! header {
         header! {
             $(#[$a])*
             ($id, $n) => [$item]
+        }
+
+        __hyper__tm! { $id, $tm { $($tf)* }}
+    };
+    ($(#[$a:meta])*($id:ident, $n:expr) => Cow[$item:ty] $tm:ident{$($tf:item)*}) => {
+        header! {
+            $(#[$a])*
+            ($id, $n) => Cow[$item]
         }
 
         __hyper__tm! { $id, $tm { $($tf)* }}

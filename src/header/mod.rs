@@ -148,7 +148,7 @@ fn test_get_type() {
     use ::header::{ContentLength, UserAgent};
 
     let len = ContentLength(5);
-    let agent = UserAgent("hyper".to_owned());
+    let agent = UserAgent::new("hyper");
 
     assert_eq!(TypeId::of::<ContentLength>(), len.get_type());
     assert_eq!(TypeId::of::<UserAgent>(), agent.get_type());

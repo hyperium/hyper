@@ -22,10 +22,10 @@ header! {
     /// use hyper::header::{Headers, Server};
     ///
     /// let mut headers = Headers::new();
-    /// headers.set(Server("hyper/0.5.2".to_owned()));
+    /// headers.set(Server::new("hyper/0.5.2"));
     /// ```
     // TODO: Maybe parse as defined in the spec?
-    (Server, "Server") => [String]
+    (Server, "Server") => Cow[str]
 
     test_server {
         // Testcase from RFC
