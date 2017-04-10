@@ -377,7 +377,7 @@ impl Http11Message {
         }
     }
 
-    /// Gets a mutable reference to the underlying `NetworkStream`, regardless of the state of the
+    /// Gets a borrowed reference to the underlying `NetworkStream`, regardless of the state of the
     /// `Http11Message`.
     pub fn get_ref(&self) -> &(NetworkStream + Send) {
         match *self.stream.as_ref() {
