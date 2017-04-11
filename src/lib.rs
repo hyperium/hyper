@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://hyper.rs/hyper/v0.10.7/hyper")]
+#![doc(html_root_url = "https://hyper.rs/hyper/v0.10.8/hyper")]
 #![cfg_attr(test, deny(missing_docs))]
 #![cfg_attr(test, deny(warnings))]
 #![cfg_attr(all(test, feature = "nightly"), feature(test))]

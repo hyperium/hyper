@@ -1,3 +1,13 @@
+### v0.10.8 (2017-04-11)
+
+
+#### Features
+
+* **client:**
+  * introduce PooledStream::<S>::get_ref ([a54ce30f](https://github.com/hyperium/hyper/commit/a54ce30f902772168bbd8dc90f26bb08cecde6ec))
+  * introduce Response::get_ref ([5ef0ec2c](https://github.com/hyperium/hyper/commit/5ef0ec2cd2841e78508a61949a207187be914265))
+
+
 ### v0.10.7 (2017-04-08)
 
 
