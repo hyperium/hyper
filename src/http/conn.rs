@@ -610,6 +610,9 @@ impl<B, K: KeepAlive> State<B, K> {
     }
 
     fn busy(&mut self) {
+        if let KA::Disabled = self.keep_alive.status() {
+            return;
+        }
         self.keep_alive.busy();
     }
 
