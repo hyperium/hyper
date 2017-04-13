@@ -84,6 +84,9 @@ impl Header for Origin {
     }
 }
 
+static HTTP : &'static str = "http";
+static HTTPS : &'static str = "https";
+
 impl FromStr for Origin {
     type Err = ::Error;
 
@@ -95,10 +98,14 @@ impl FromStr for Origin {
         // idx + 3 because that's how long "://" is
         let (scheme, etc) = (&s[..idx], &s[idx + 3..]);
         let host = try!(Host::from_str(etc));
-
+        let scheme = match scheme {
+            "http"  => Cow::Borrowed(HTTP),
+            "https" => Cow::Borrowed(HTTPS),
+            s       => Cow::Owned(s.to_owned())
+        };
 
         Ok(Origin{
-            scheme: scheme.to_owned().into(),
+            scheme: scheme,
             host: host
         })
     }
@@ -121,14 +128,26 @@ impl PartialEq for Origin {
 mod tests {
     use super::Origin;
     use header::Header;
+    use std::borrow::Cow;
+
+    macro_rules! assert_borrowed{
+        ($expr : expr) => {
+            match $expr {
+                Cow::Owned(ref v) => panic!("assertion failed: `{}` owns {:?}", stringify!($expr), v),
+                _ => {}
+            }
+        }
+    }
 
     #[test]
     fn test_origin() {
-        let origin = Header::parse_header(&vec![b"http://foo.com".to_vec()].into());
-        assert_eq!(origin.ok(), Some(Origin::new("http", "foo.com", None)));
+        let origin : Origin = Header::parse_header(&vec![b"http://foo.com".to_vec()].into()).unwrap();
+        assert_eq!(&origin, &Origin::new("http", "foo.com", None));
+        assert_borrowed!(origin.scheme);
 
-        let origin = Header::parse_header(&vec![b"https://foo.com:443".to_vec()].into());
-        assert_eq!(origin.ok(), Some(Origin::new("https", "foo.com", Some(443))));
+        let origin : Origin = Header::parse_header(&vec![b"https://foo.com:443".to_vec()].into()).unwrap();
+        assert_eq!(&origin, &Origin::new("https", "foo.com", Some(443)));
+        assert_borrowed!(origin.scheme);
     }
 }
 
