@@ -6,15 +6,6 @@ shopt -s globstar
 
 cargo doc --no-deps
 
-if [ -d ./doc ]; then
-    for f in $(find ./doc/**/*.md); do
-        rustdoc $f -L ./target/debug -L ./target/debug/deps -o "$(dirname $f)" --html-before-content=./doc/prelude.html.inc --html-after-content=./doc/postlude.html.inc --markdown-css=guide.css;
-    done
-
-    cp --parent ./doc/**/*.html ./target
-    cp ./doc/guide.css ./target/doc/guide/guide.css
-fi
-
 git clone --branch gh-pages "https://$TOKEN@github.com/${TRAVIS_REPO_SLUG}.git" deploy_docs > /dev/null 2>&1
 cd deploy_docs
 
