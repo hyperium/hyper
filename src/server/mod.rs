@@ -204,6 +204,11 @@ impl<L: NetworkListener> Server<L> {
     pub fn set_write_timeout(&mut self, dur: Option<Duration>) {
         self.listener.set_write_timeout(dur);
     }
+
+    /// Get the address that the server is listening on.
+    pub fn local_addr(&mut self) -> io::Result<SocketAddr> {
+        self.listener.local_addr()
+    }
 }
 
 impl Server<HttpListener> {
