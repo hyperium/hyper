@@ -33,7 +33,7 @@ impl<B> Request<B> {
     /// Read the Request Uri.
     #[inline]
     pub fn uri(&self) -> &Uri { &self.uri }
-
+    
     /// Read the Request Version.
     #[inline]
     pub fn version(&self) -> HttpVersion { self.version }
@@ -46,6 +46,10 @@ impl<B> Request<B> {
     #[inline]
     pub fn method(&self) -> &Method { &self.method }
 
+    /// Read the Request body.
+    #[inline]
+    pub fn body(&self) -> Option<&B> { self.body.as_ref() }
+    
     /// Set the Method of this request.
     #[inline]
     pub fn set_method(&mut self, method: Method) { self.method = method; }
