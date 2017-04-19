@@ -1,3 +1,11 @@
+### v0.10.9 (2017-04-19)
+
+
+#### Features
+
+* **server:** add local_addr to retrieve resolved address ([71f250ad](https://github.com/hyperium/hyper/commit/71f250ad46e9ae0cac108e1de6dc15289da26a56))
+
+
 ### v0.10.8 (2017-04-11)
 
 
