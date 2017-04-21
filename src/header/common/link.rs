@@ -423,14 +423,14 @@ impl Header for Link {
             .unwrap_or(Err(::Error::Header))
     }
 
-    fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt_delimited(f, self.values.as_slice(), ", ", ("", ""))
+    fn fmt_header(&self, f: &mut ::header::Formatter) -> fmt::Result {
+        f.fmt_line(self)
     }
 }
 
 impl fmt::Display for Link {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.fmt_header(f)
+        fmt_delimited(f, self.values.as_slice(), ", ", ("", ""))
     }
 }
 

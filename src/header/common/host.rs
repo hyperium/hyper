@@ -68,17 +68,17 @@ impl Header for Host {
        from_one_raw_str(raw)
     }
 
-    fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.port {
-            None | Some(80) | Some(443) => f.write_str(&self.hostname[..]),
-            Some(port) => write!(f, "{}:{}", self.hostname, port)
-        }
+    fn fmt_header(&self, f: &mut ::header::Formatter) -> fmt::Result {
+        f.fmt_line(self)
     }
 }
 
 impl fmt::Display for Host {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.fmt_header(f)
+        match self.port {
+            None | Some(80) | Some(443) => f.write_str(&self.hostname[..]),
+            Some(port) => write!(f, "{}:{}", self.hostname, port)
+        }
     }
 }
 

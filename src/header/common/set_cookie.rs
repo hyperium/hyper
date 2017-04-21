@@ -91,16 +91,7 @@ impl Header for SetCookie {
         }
     }
 
-    fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.0.len() == 1 {
-            write!(f, "{}", &self.0[0])
-        } else {
-            panic!("SetCookie with multiple cookies cannot be used with fmt_header, must use fmt_multi_header");
-        }
-    }
-
-
-    fn fmt_multi_header(&self, f: &mut ::header::MultilineFormatter) -> fmt::Result {
+    fn fmt_header(&self, f: &mut ::header::Formatter) -> fmt::Result {
         for cookie in &self.0 {
             try!(f.fmt_line(cookie));
         }

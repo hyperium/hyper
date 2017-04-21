@@ -41,7 +41,7 @@
 //!
 //! ```
 //! use std::fmt;
-//! use hyper::header::{Header, Raw};
+//! use hyper::header::{self, Header, Raw};
 //!
 //! #[derive(Debug, Clone, Copy)]
 //! struct Dnt(bool);
@@ -66,16 +66,16 @@
 //!         Err(hyper::Error::Header)
 //!     }
 //!
-//!     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//!         if self.0 {
-//!             f.write_str("1")
+//!     fn fmt_header(&self, f: &mut header::Formatter) -> fmt::Result {
+//!         let value = if self.0 {
+//!             "1"
 //!         } else {
-//!             f.write_str("0")
-//!         }
+//!             "0"
+//!         };
+//!         f.fmt_line(&value)
 //!     }
 //! }
 //! ```
-use std::any::{Any, TypeId};
 use std::borrow::{Cow, ToOwned};
 use std::iter::{FromIterator, IntoIterator};
 use std::{mem, fmt};
@@ -83,6 +83,7 @@ use std::{mem, fmt};
 use unicase::UniCase;
 
 use self::internals::{Item, VecMap, Entry};
+use self::sealed::{GetType, HeaderClone};
 
 pub use self::shared::*;
 pub use self::common::*;
@@ -100,7 +101,7 @@ pub mod parsing;
 ///
 /// This trait represents the construction and identification of headers,
 /// and contains trait-object unsafe methods.
-pub trait Header: HeaderClone + Any + GetType + Send + Sync {
+pub trait Header: HeaderClone + GetType + Send + Sync {
     /// Returns the name of the header field this belongs to.
     ///
     /// This will become an associated constant once available.
@@ -113,56 +114,71 @@ pub trait Header: HeaderClone + Any + GetType + Send + Sync {
     /// than one field value. If that's the case, you **should** return `None`
     /// if `raw.len() > 1`.
     fn parse_header(raw: &Raw) -> ::Result<Self> where Self: Sized;
-    /// Format a header to be output into a TcpStream.
+    /// Format a header to outgoing stream.
     ///
-    /// This method is not allowed to introduce an Err not produced
-    /// by the passed-in Formatter.
-    fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result;
-    /// Formats a header over multiple lines.
+    /// Most headers should be formatted on one line, and so a common pattern
+    /// would be to implement `std::fmt::Display` for this type as well, and
+    /// then just call `f.fmt_line(self)`.
+    ///
+    /// ## Note
+    ///
+    /// This has the ability to format a header over multiple lines.
     ///
     /// The main example here is `Set-Cookie`, which requires that every
-    /// cookie being set be specified in a separate line.
-    ///
-    /// The API here is still being explored, so this is hidden by default.
-    /// The passed in formatter doesn't have any public methods, so it would
-    /// be quite difficult to depend on this externally.
-    #[doc(hidden)]
+    /// cookie being set be specified in a separate line. Almost every other
+    /// case should only format as 1 single line.
     #[inline]
-    fn fmt_multi_header(&self, f: &mut MultilineFormatter) -> fmt::Result {
-        f.fmt_line(&FmtHeader(self))
+    fn fmt_header(&self, f: &mut Formatter) -> fmt::Result;
+}
+
+mod sealed {
+    use std::any::{Any, TypeId};
+    use super::Header;
+
+    #[doc(hidden)]
+    pub trait GetType: Any {
+        #[inline(always)]
+        fn get_type(&self) -> TypeId {
+            TypeId::of::<Self>()
+        }
+    }
+
+    impl<T: Any> GetType for T {}
+
+    #[doc(hidden)]
+    pub trait HeaderClone {
+        fn clone_box(&self) -> Box<Header + Send + Sync>;
+    }
+
+    impl<T: Header + Clone> HeaderClone for T {
+        #[inline]
+        fn clone_box(&self) -> Box<Header + Send + Sync> {
+            Box::new(self.clone())
+        }
+    }
+
+    #[test]
+    fn test_get_type() {
+        use ::header::{ContentLength, UserAgent};
+
+        let len = ContentLength(5);
+        let agent = UserAgent::new("hyper");
+
+        assert_eq!(TypeId::of::<ContentLength>(), len.get_type());
+        assert_eq!(TypeId::of::<UserAgent>(), agent.get_type());
+
+        let len: Box<Header + Send + Sync> = Box::new(len);
+        let agent: Box<Header + Send + Sync> = Box::new(agent);
+
+        assert_eq!(TypeId::of::<ContentLength>(), (*len).get_type());
+        assert_eq!(TypeId::of::<UserAgent>(), (*agent).get_type());
     }
 }
 
-#[doc(hidden)]
-pub trait GetType: Any {
-    #[inline(always)]
-    fn get_type(&self) -> TypeId {
-        TypeId::of::<Self>()
-    }
-}
 
-impl<T: Any> GetType for T {}
-
-#[test]
-fn test_get_type() {
-    use ::header::{ContentLength, UserAgent};
-
-    let len = ContentLength(5);
-    let agent = UserAgent::new("hyper");
-
-    assert_eq!(TypeId::of::<ContentLength>(), len.get_type());
-    assert_eq!(TypeId::of::<UserAgent>(), agent.get_type());
-
-    let len: Box<Header + Send + Sync> = Box::new(len);
-    let agent: Box<Header + Send + Sync> = Box::new(agent);
-
-    assert_eq!(TypeId::of::<ContentLength>(), (*len).get_type());
-    assert_eq!(TypeId::of::<UserAgent>(), (*agent).get_type());
-}
-
-#[doc(hidden)]
+/// A formatter used to serialize headers to an output stream.
 #[allow(missing_debug_implementations)]
-pub struct MultilineFormatter<'a, 'b: 'a>(Multi<'a, 'b>);
+pub struct Formatter<'a, 'b: 'a>(Multi<'a, 'b>);
 
 enum Multi<'a, 'b: 'a> {
     Line(&'a str, &'a mut fmt::Formatter<'b>),
@@ -170,8 +186,20 @@ enum Multi<'a, 'b: 'a> {
     Raw(&'a mut Raw),
 }
 
-impl<'a, 'b> MultilineFormatter<'a, 'b> {
-    fn fmt_line(&mut self, line: &fmt::Display) -> fmt::Result {
+impl<'a, 'b> Formatter<'a, 'b> {
+
+    /// Format one 'line' of a header.
+    ///
+    /// This writes the header name plus the `Display` value as a single line.
+    ///
+    /// ## Note
+    ///
+    /// This has the ability to format a header over multiple lines.
+    ///
+    /// The main example here is `Set-Cookie`, which requires that every
+    /// cookie being set be specified in a separate line. Almost every other
+    /// case should only format as 1 single line.
+    pub fn fmt_line(&mut self, line: &fmt::Display) -> fmt::Result {
         use std::fmt::Write;
         match self.0 {
             Multi::Line(ref name, ref mut f) => {
@@ -198,28 +226,19 @@ impl<'a, 'b> MultilineFormatter<'a, 'b> {
     }
 }
 
-// Internal helper to wrap fmt_header into a fmt::Display
-struct FmtHeader<'a, H: ?Sized + 'a>(&'a H);
-
-impl<'a, H: Header + ?Sized + 'a> fmt::Display for FmtHeader<'a, H> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.0.fmt_header(f)
-    }
-}
-
 struct ValueString<'a>(&'a Item);
 
 impl<'a> fmt::Debug for ValueString<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         try!(f.write_str("\""));
-        try!(self.0.write_h1(&mut MultilineFormatter(Multi::Join(true, f))));
+        try!(self.0.write_h1(&mut Formatter(Multi::Join(true, f))));
         f.write_str("\"")
     }
 }
 
 impl<'a> fmt::Display for ValueString<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.0.write_h1(&mut MultilineFormatter(Multi::Join(true, f)))
+        self.0.write_h1(&mut Formatter(Multi::Join(true, f)))
     }
 }
 
@@ -229,7 +248,7 @@ impl<'a, H: Header> fmt::Debug for HeaderValueString<'a, H> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         try!(f.write_str("\""));
-        try!(self.0.fmt_multi_header(&mut MultilineFormatter(Multi::Join(true, f))));
+        try!(self.0.fmt_header(&mut Formatter(Multi::Join(true, f))));
         f.write_str("\"")
     }
 }
@@ -254,17 +273,6 @@ impl<'a, F: fmt::Write + 'a> fmt::Write for NewlineReplacer<'a, F> {
     }
 }
 
-#[doc(hidden)]
-pub trait HeaderClone {
-    fn clone_box(&self) -> Box<Header + Send + Sync>;
-}
-
-impl<T: Header + Clone> HeaderClone for T {
-    #[inline]
-    fn clone_box(&self) -> Box<Header + Send + Sync> {
-        Box::new(self.clone())
-    }
-}
 
 impl Header + Send + Sync {
     // A trait object looks like this:
@@ -606,7 +614,7 @@ impl<'a> HeaderView<'a> {
 
 impl<'a> fmt::Display for HeaderView<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.1.write_h1(&mut MultilineFormatter(Multi::Line(self.0.as_ref(), f)))
+        self.1.write_h1(&mut Formatter(Multi::Line(self.0.as_ref(), f)))
     }
 }
 
@@ -746,7 +754,13 @@ mod tests {
             }
         }
 
-        fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fn fmt_header(&self, f: &mut super::Formatter) -> fmt::Result {
+            f.fmt_line(self)
+        }
+    }
+
+    impl fmt::Display for CrazyLength {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
             let CrazyLength(ref opt, ref value) = *self;
             write!(f, "{:?}, {:?}", opt, value)
         }

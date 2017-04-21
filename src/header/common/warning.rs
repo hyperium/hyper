@@ -96,7 +96,13 @@ impl Header for Warning {
         from_one_raw_str(raw)
     }
 
-    fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt_header(&self, f: &mut ::header::Formatter) -> fmt::Result {
+        f.fmt_line(self)
+    }
+}
+
+impl fmt::Display for Warning {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.date {
             Some(date) => write!(f, "{:03} {} \"{}\" \"{}\"", self.code, self.agent, self.text, date),
             None => write!(f, "{:03} {} \"{}\"", self.code, self.agent, self.text)

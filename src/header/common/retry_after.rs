@@ -121,7 +121,13 @@ impl Header for RetryAfter {
         }
     }
 
-    fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt_header(&self, f: &mut ::header::Formatter) -> ::std::fmt::Result {
+        f.fmt_line(self)
+    }
+}
+
+impl fmt::Display for RetryAfter {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             RetryAfter::Delay(ref duration) => {
                 write!(f, "{}", duration.num_seconds())

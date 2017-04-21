@@ -70,17 +70,17 @@ impl Header for IfRange {
         Err(::Error::Header)
     }
 
-    fn fmt_header(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        match *self {
-            IfRange::EntityTag(ref x) => Display::fmt(x, f),
-            IfRange::Date(ref x) => Display::fmt(x, f),
-        }
+    fn fmt_header(&self, f: &mut ::header::Formatter) -> ::std::fmt::Result {
+        f.fmt_line(self)
     }
 }
 
 impl Display for IfRange {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.fmt_header(f)
+        match *self {
+            IfRange::EntityTag(ref x) => Display::fmt(x, f),
+            IfRange::Date(ref x) => Display::fmt(x, f),
+        }
     }
 }
 

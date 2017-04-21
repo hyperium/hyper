@@ -72,18 +72,18 @@ impl Header for AccessControlAllowOrigin {
         }
     }
 
-    fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            AccessControlAllowOrigin::Any => f.write_str("*"),
-            AccessControlAllowOrigin::Null => f.write_str("null"),
-            AccessControlAllowOrigin::Value(ref url) => Display::fmt(url, f),
-        }
+    fn fmt_header(&self, f: &mut ::header::Formatter) -> fmt::Result {
+        f.fmt_line(self)
     }
 }
 
 impl Display for AccessControlAllowOrigin {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        self.fmt_header(f)
+        match *self {
+            AccessControlAllowOrigin::Any => f.write_str("*"),
+            AccessControlAllowOrigin::Null => f.write_str("null"),
+            AccessControlAllowOrigin::Value(ref url) => Display::fmt(url, f),
+        }
     }
 }
 

@@ -49,6 +49,7 @@ pub struct CacheControl(pub Vec<CacheDirective>);
 
 __hyper__deref!(CacheControl => Vec<CacheDirective>);
 
+//TODO: this could just be the header! macro
 impl Header for CacheControl {
     fn header_name() -> &'static str {
         static NAME: &'static str = "Cache-Control";
@@ -64,8 +65,8 @@ impl Header for CacheControl {
         }
     }
 
-    fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(self, f)
+    fn fmt_header(&self, f: &mut ::header::Formatter) -> fmt::Result {
+        f.fmt_line(self)
     }
 }
 

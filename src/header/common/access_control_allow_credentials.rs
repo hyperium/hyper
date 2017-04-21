@@ -63,14 +63,14 @@ impl Header for AccessControlAllowCredentials {
         Err(::Error::Header)
     }
 
-    fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str("true")
+    fn fmt_header(&self, f: &mut ::header::Formatter) -> fmt::Result {
+        f.fmt_line(self)
     }
 }
 
 impl Display for AccessControlAllowCredentials {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        self.fmt_header(f)
+        f.write_str("true")
     }
 }
 

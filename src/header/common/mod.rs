@@ -204,14 +204,13 @@ macro_rules! header {
             fn parse_header(raw: &$crate::header::Raw) -> $crate::Result<Self> {
                 $crate::header::parsing::from_comma_delimited(raw).map($id)
             }
-            fn fmt_header(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-                $crate::header::parsing::fmt_comma_delimited(f, &self.0[..])
+            fn fmt_header(&self, f: &mut $crate::header::Formatter) -> ::std::fmt::Result {
+                f.fmt_line(self)
             }
         }
         impl ::std::fmt::Display for $id {
             fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-                use $crate::header::Header;
-                self.fmt_header(f)
+                $crate::header::parsing::fmt_comma_delimited(f, &self.0[..])
             }
         }
     };
@@ -229,14 +228,13 @@ macro_rules! header {
             fn parse_header(raw: &$crate::header::Raw) -> $crate::Result<Self> {
                 $crate::header::parsing::from_comma_delimited(raw).map($id)
             }
-            fn fmt_header(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-                $crate::header::parsing::fmt_comma_delimited(f, &self.0[..])
+            fn fmt_header(&self, f: &mut $crate::header::Formatter) -> ::std::fmt::Result {
+                f.fmt_line(self)
             }
         }
         impl ::std::fmt::Display for $id {
             fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-                use $crate::header::Header;
-                self.fmt_header(f)
+                $crate::header::parsing::fmt_comma_delimited(f, &self.0[..])
             }
         }
     };
@@ -254,8 +252,8 @@ macro_rules! header {
             fn parse_header(raw: &$crate::header::Raw) -> $crate::Result<Self> {
                 $crate::header::parsing::from_one_raw_str(raw).map($id)
             }
-            fn fmt_header(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-                ::std::fmt::Display::fmt(&**self, f)
+            fn fmt_header(&self, f: &mut $crate::header::Formatter) -> ::std::fmt::Result {
+                f.fmt_line(self)
             }
         }
         impl ::std::fmt::Display for $id {
@@ -289,8 +287,8 @@ macro_rules! header {
             fn parse_header(raw: &$crate::header::Raw) -> $crate::Result<Self> {
                 $crate::header::parsing::from_one_raw_str::<<$value as ::std::borrow::ToOwned>::Owned>(raw).map($id::new)
             }
-            fn fmt_header(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-                ::std::fmt::Display::fmt(&**self, f)
+            fn fmt_header(&self, f: &mut $crate::header::Formatter) -> ::std::fmt::Result {
+                f.fmt_line(self)
             }
         }
         impl ::std::fmt::Display for $id {
@@ -323,18 +321,17 @@ macro_rules! header {
                 }
                 $crate::header::parsing::from_comma_delimited(raw).map($id::Items)
             }
-            fn fmt_header(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+            fn fmt_header(&self, f: &mut $crate::header::Formatter) -> ::std::fmt::Result {
+                f.fmt_line(self)
+            }
+        }
+        impl ::std::fmt::Display for $id {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
                 match *self {
                     $id::Any => f.write_str("*"),
                     $id::Items(ref fields) => $crate::header::parsing::fmt_comma_delimited(
                         f, &fields[..])
                 }
-            }
-        }
-        impl ::std::fmt::Display for $id {
-            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-                use $crate::header::Header;
-                self.fmt_header(f)
             }
         }
     };

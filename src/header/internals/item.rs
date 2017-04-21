@@ -4,7 +4,7 @@ use std::fmt;
 use std::str::from_utf8;
 
 use super::cell::{OptCell, PtrMapCell};
-use header::{Header, MultilineFormatter, Multi, raw, Raw};
+use header::{Header, Formatter, Multi, raw, Raw};
 
 
 #[derive(Clone)]
@@ -47,7 +47,7 @@ impl Item {
         }
 
         let mut raw = raw::new();
-        self.write_h1(&mut MultilineFormatter(Multi::Raw(&mut raw))).expect("fmt failed");
+        self.write_h1(&mut Formatter(Multi::Raw(&mut raw))).expect("fmt failed");
         self.raw.set(raw);
 
         self.raw.as_ref().unwrap()
@@ -93,7 +93,7 @@ impl Item {
         }.map(|typed| unsafe { typed.downcast_unchecked() })
     }
 
-    pub fn write_h1(&self, f: &mut MultilineFormatter) -> fmt::Result {
+    pub fn write_h1(&self, f: &mut Formatter) -> fmt::Result {
         match *self.raw {
             Some(ref raw) => {
                 for part in raw.iter() {
@@ -111,7 +111,7 @@ impl Item {
             },
             None => {
                 let typed = unsafe { self.typed.one() };
-                typed.fmt_multi_header(f)
+                typed.fmt_header(f)
             }
         }
     }
