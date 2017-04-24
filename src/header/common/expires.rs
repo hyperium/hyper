@@ -2,35 +2,30 @@ use header::HttpDate;
 
 header! {
     /// `Expires` header, defined in [RFC7234](http://tools.ietf.org/html/rfc7234#section-5.3)
-    /// 
+    ///
     /// The `Expires` header field gives the date/time after which the
     /// response is considered stale.
-    /// 
+    ///
     /// The presence of an Expires field does not imply that the original
     /// resource will change or cease to exist at, before, or after that
     /// time.
-    /// 
+    ///
     /// # ABNF
     /// ```plain
     /// Expires = HTTP-date
     /// ```
-    /// 
+    ///
     /// # Example values
     /// * `Thu, 01 Dec 1994 16:00:00 GMT`
-    /// 
+    ///
     /// # Example
     /// ```
-    /// # extern crate hyper;
-    /// # extern crate time;
-    /// # fn main() {
-    /// // extern crate time;
-    /// 
-    /// use hyper::header::{Headers, Expires, HttpDate};
-    /// use time::{self, Duration};
-    /// 
+    /// use hyper::header::{Headers, Expires};
+    /// use std::time::{SystemTime, Duration};
+    ///
     /// let mut headers = Headers::new();
-    /// headers.set(Expires(HttpDate(time::now() + Duration::days(1))));
-    /// # }
+    /// let expiration = SystemTime::now() + Duration::from_secs(60 * 60 * 24);
+    /// headers.set(Expires(expiration.into()));
     /// ```
     (Expires, "Expires") => [HttpDate]
 

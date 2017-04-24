@@ -2,31 +2,25 @@ use header::HttpDate;
 
 header! {
     /// `Date` header, defined in [RFC7231](http://tools.ietf.org/html/rfc7231#section-7.1.1.2)
-    /// 
+    ///
     /// The `Date` header field represents the date and time at which the
     /// message was originated.
-    /// 
+    ///
     /// # ABNF
     /// ```plain
     /// Date = HTTP-date
     /// ```
-    /// 
+    ///
     /// # Example values
     /// * `Tue, 15 Nov 1994 08:12:31 GMT`
-    /// 
+    ///
     /// # Example
     /// ```
-    /// # extern crate time;
-    /// # extern crate hyper;
-    /// # fn main() {
-    /// // extern crate time;
-    /// 
-    /// use hyper::header::{Headers, Date, HttpDate};
-    /// use time;
-    /// 
+    /// use hyper::header::{Headers, Date};
+    /// use std::time::SystemTime;
+    ///
     /// let mut headers = Headers::new();
-    /// headers.set(Date(HttpDate(time::now())));
-    /// # }
+    /// headers.set(Date(SystemTime::now().into()));
     /// ```
     (Date, "Date") => [HttpDate]
 

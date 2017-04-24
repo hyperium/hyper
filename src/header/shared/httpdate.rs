@@ -1,10 +1,10 @@
-use std::str::FromStr;
 use std::fmt::{self, Display};
+use std::str::FromStr;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use time;
 
-/// A `time::Time` with HTTP formatting and parsing
-///
+/// A timestamp with HTTP formatting and parsing
 //   Prior to 1995, there were three different formats commonly used by
 //   servers to communicate timestamps.  For compatibility with old
 //   implementations, all three are defined here.  The preferred format is
@@ -28,7 +28,7 @@ use time;
 //   HTTP-date, the sender MUST generate those timestamps in the
 //   IMF-fixdate format.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct HttpDate(pub time::Tm);
+pub struct HttpDate(time::Tm);
 
 impl FromStr for HttpDate {
     type Err = ::Error;
@@ -47,6 +47,32 @@ impl FromStr for HttpDate {
 impl Display for HttpDate {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Display::fmt(&self.0.to_utc().rfc822(), f)
+    }
+}
+
+impl From<SystemTime> for HttpDate {
+    fn from(sys: SystemTime) -> HttpDate {
+        let tmspec = match sys.duration_since(UNIX_EPOCH) {
+            Ok(dur) => {
+                time::Timespec::new(dur.as_secs() as i64, dur.subsec_nanos() as i32)
+            },
+            Err(err) => {
+                let neg = err.duration();
+                time::Timespec::new(-(neg.as_secs() as i64), -(neg.subsec_nanos() as i32))
+            },
+        };
+        HttpDate(time::at_utc(tmspec))
+    }
+}
+
+impl From<HttpDate> for SystemTime {
+    fn from(date: HttpDate) -> SystemTime {
+        let spec = date.0.to_timespec();
+        if spec.sec >= 0 {
+            UNIX_EPOCH + Duration::new(spec.sec as u64, spec.nsec as u32)
+        } else {
+            UNIX_EPOCH - Duration::new(spec.sec as u64, spec.nsec as u32)
+        }
     }
 }
 

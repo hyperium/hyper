@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::fmt::{self, Write};
+use std::time::SystemTime;
 
 use httparse;
 use bytes::{BytesMut, Bytes};
@@ -94,7 +95,7 @@ impl Http1Transaction for ServerTransaction {
         trace!("writing head: {:?}", head);
 
         if !head.headers.has::<header::Date>() {
-            head.headers.set(header::Date(header::HttpDate(::time::now_utc())));
+            head.headers.set(header::Date(SystemTime::now().into()));
         }
 
         let mut is_chunked = true;

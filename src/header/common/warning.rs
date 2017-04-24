@@ -33,7 +33,7 @@ use header::parsing::from_one_raw_str;
 /// # Examples
 /// ```
 /// use hyper::header::{Headers, Warning};
-/// 
+///
 /// let mut headers = Headers::new();
 /// headers.set(
 ///     Warning{
@@ -46,7 +46,7 @@ use header::parsing::from_one_raw_str;
 /// ```
 /// ```
 /// use hyper::header::{Headers, HttpDate, Warning};
-/// 
+///
 /// let mut headers = Headers::new();
 /// headers.set(
 ///     Warning{
@@ -58,21 +58,18 @@ use header::parsing::from_one_raw_str;
 /// );
 /// ```
 /// ```
-/// # extern crate hyper;
-/// # extern crate time;
-/// # fn main() {
-/// use hyper::header::{Headers, HttpDate, Warning};
-/// 
+/// use std::time::SystemTime;
+/// use hyper::header::{Headers, Warning};
+///
 /// let mut headers = Headers::new();
 /// headers.set(
 ///     Warning{
 ///         code: 199,
 ///         agent: "api.hyper.rs".to_owned(),
 ///         text: "Deprecated".to_owned(),
-///         date: Some(HttpDate(time::now()))
+///         date: Some(SystemTime::now().into())
 ///     }
 /// );
-/// # }
 /// ```
 #[derive(PartialEq, Clone, Debug)]
 pub struct Warning {

@@ -3,33 +3,28 @@ use header::HttpDate;
 header! {
     /// `Last-Modified` header, defined in
     /// [RFC7232](http://tools.ietf.org/html/rfc7232#section-2.2)
-    /// 
+    ///
     /// The `Last-Modified` header field in a response provides a timestamp
     /// indicating the date and time at which the origin server believes the
     /// selected representation was last modified, as determined at the
     /// conclusion of handling the request.
-    /// 
+    ///
     /// # ABNF
     /// ```plain
     /// Expires = HTTP-date
     /// ```
-    /// 
+    ///
     /// # Example values
     /// * `Sat, 29 Oct 1994 19:43:31 GMT`
-    /// 
+    ///
     /// # Example
     /// ```
-    /// # extern crate hyper;
-    /// # extern crate time;
-    /// # fn main() {
-    /// // extern crate time;
-    /// 
-    /// use hyper::header::{Headers, LastModified, HttpDate};
-    /// use time::{self, Duration};
-    /// 
+    /// use hyper::header::{Headers, LastModified};
+    /// use std::time::{SystemTime, Duration};
+    ///
     /// let mut headers = Headers::new();
-    /// headers.set(LastModified(HttpDate(time::now() - Duration::days(1))));
-    /// # }
+    /// let modified = SystemTime::now() - Duration::from_secs(60 * 60 * 24);
+    /// headers.set(LastModified(modified.into()));
     /// ```
     (LastModified, "Last-Modified") => [HttpDate]
 

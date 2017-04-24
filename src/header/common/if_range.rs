@@ -33,17 +33,12 @@ use header::{self, Header, Raw, EntityTag, HttpDate};
 /// headers.set(IfRange::EntityTag(EntityTag::new(false, "xyzzy".to_owned())));
 /// ```
 /// ```
-/// # extern crate hyper;
-/// # extern crate time;
-/// # fn main() {
-/// // extern crate time;
-///
-/// use hyper::header::{Headers, IfRange, HttpDate};
-/// use time::{self, Duration};
+/// use hyper::header::{Headers, IfRange};
+/// use std::time::{SystemTime, Duration};
 ///
 /// let mut headers = Headers::new();
-/// headers.set(IfRange::Date(HttpDate(time::now() - Duration::days(1))));
-/// # }
+/// let fetched = SystemTime::now() - Duration::from_secs(60 * 60 * 24);
+/// headers.set(IfRange::Date(fetched.into()));
 /// ```
 #[derive(Clone, Debug, PartialEq)]
 pub enum IfRange {

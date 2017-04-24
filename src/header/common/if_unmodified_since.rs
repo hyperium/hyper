@@ -3,34 +3,29 @@ use header::HttpDate;
 header! {
     /// `If-Unmodified-Since` header, defined in
     /// [RFC7232](http://tools.ietf.org/html/rfc7232#section-3.4)
-    /// 
+    ///
     /// The `If-Unmodified-Since` header field makes the request method
     /// conditional on the selected representation's last modification date
     /// being earlier than or equal to the date provided in the field-value.
     /// This field accomplishes the same purpose as If-Match for cases where
     /// the user agent does not have an entity-tag for the representation.
-    /// 
+    ///
     /// # ABNF
     /// ```plain
     /// If-Unmodified-Since = HTTP-date
     /// ```
-    /// 
+    ///
     /// # Example values
     /// * `Sat, 29 Oct 1994 19:43:31 GMT`
-    /// 
+    ///
     /// # Example
     /// ```
-    /// # extern crate hyper;
-    /// # extern crate time;
-    /// # fn main() {
-    /// // extern crate time;
-    /// 
-    /// use hyper::header::{Headers, IfUnmodifiedSince, HttpDate};
-    /// use time::{self, Duration};
-    /// 
+    /// use hyper::header::{Headers, IfUnmodifiedSince};
+    /// use std::time::{SystemTime, Duration};
+    ///
     /// let mut headers = Headers::new();
-    /// headers.set(IfUnmodifiedSince(HttpDate(time::now() - Duration::days(1))));
-    /// # }
+    /// let modified = SystemTime::now() - Duration::from_secs(60 * 60 * 24);
+    /// headers.set(IfUnmodifiedSince(modified.into()));
     /// ```
     (IfUnmodifiedSince, "If-Unmodified-Since") => [HttpDate]
 

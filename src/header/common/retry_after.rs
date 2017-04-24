@@ -35,11 +35,11 @@
 // Version 2.0, January 2004
 // http://www.apache.org/licenses/
 
+use std::fmt;
+use std::time::Duration;
+
 use header::{Header, Raw};
 use header::shared::HttpDate;
-use time;
-use time::{Duration, Tm};
-use std::fmt;
 
 /// The `Retry-After` header.
 ///
@@ -53,33 +53,23 @@ use std::fmt;
 ///
 /// # Examples
 /// ```
-/// # extern crate hyper;
-/// # extern crate time;
-/// # fn main() {
-/// // extern crate time;
-/// use time::{Duration};
+/// use std::time::Duration;
 /// use hyper::header::{Headers, RetryAfter};
 ///
 /// let mut headers = Headers::new();
 /// headers.set(
-///     RetryAfter::Delay(Duration::seconds(300))
+///     RetryAfter::Delay(Duration::from_secs(300))
 /// );
-/// # }
 /// ```
 /// ```
-/// # extern crate hyper;
-/// # extern crate time;
-/// # fn main() {
-/// // extern crate time;
-/// use time;
-/// use time::{Duration};
+/// use std::time::{SystemTime, Duration};
 /// use hyper::header::{Headers, RetryAfter};
 ///
 /// let mut headers = Headers::new();
+/// let date = SystemTime::now() + Duration::from_secs(300);
 /// headers.set(
-///     RetryAfter::DateTime(time::now_utc() + Duration::seconds(300))
+///     RetryAfter::DateTime(date.into())
 /// );
-/// # }
 /// ```
 
 /// Retry-After header, defined in [RFC7231](http://tools.ietf.org/html/rfc7231#section-7.1.3)
@@ -91,7 +81,7 @@ pub enum RetryAfter {
     Delay(Duration),
 
     /// Retry after the given DateTime
-    DateTime(Tm),
+    DateTime(HttpDate),
 }
 
 impl Header for RetryAfter {
@@ -108,11 +98,11 @@ impl Header for RetryAfter {
             };
 
             if let Ok(datetime) = utf8_str.parse::<HttpDate>() {
-                return Ok(RetryAfter::DateTime(datetime.0))
+                return Ok(RetryAfter::DateTime(datetime))
             }
 
-            if let Ok(seconds) = utf8_str.parse::<i64>() {
-                return Ok(RetryAfter::Delay(Duration::seconds(seconds)));
+            if let Ok(seconds) = utf8_str.parse::<u64>() {
+                return Ok(RetryAfter::Delay(Duration::from_secs(seconds)));
             }
 
             Err(::Error::Header)
@@ -130,16 +120,10 @@ impl fmt::Display for RetryAfter {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             RetryAfter::Delay(ref duration) => {
-                write!(f, "{}", duration.num_seconds())
+                write!(f, "{}", duration.as_secs())
             },
             RetryAfter::DateTime(ref datetime) => {
-                // According to RFC7231, the sender of an HTTP-date must use the RFC1123 format.
-                // http://tools.ietf.org/html/rfc7231#section-7.1.1.1
-                if let Ok(date_string) = time::strftime("%a, %d %b %Y %T GMT", datetime) {
-                    write!(f, "{}", date_string)
-                } else {
-                    Err(fmt::Error::default())
-                }
+                fmt::Display::fmt(datetime, f)
             }
         }
     }
@@ -147,9 +131,9 @@ impl fmt::Display for RetryAfter {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
     use header::Header;
     use header::shared::HttpDate;
-    use time::{Duration};
 
     use super::RetryAfter;
 
@@ -162,7 +146,7 @@ mod tests {
     fn parse_delay() {
         let retry_after = RetryAfter::parse_header(&vec![b"1234".to_vec()].into()).unwrap();
 
-        assert_eq!(RetryAfter::Delay(Duration::seconds(1234)), retry_after);
+        assert_eq!(RetryAfter::Delay(Duration::from_secs(1234)), retry_after);
     }
 
     macro_rules! test_retry_after_datetime {
@@ -172,7 +156,7 @@ mod tests {
                 let dt = "Sun, 06 Nov 1994 08:49:37 GMT".parse::<HttpDate>().unwrap();
                 let retry_after = RetryAfter::parse_header(&vec![$bytes.to_vec()].into()).expect("parse_header ok");
 
-                assert_eq!(RetryAfter::DateTime(dt.0), retry_after);
+                assert_eq!(RetryAfter::DateTime(dt), retry_after);
             }
         }
     }
@@ -184,7 +168,7 @@ mod tests {
     #[test]
     fn hyper_headers_from_raw_delay() {
         let retry_after = RetryAfter::parse_header(&b"300".to_vec().into()).unwrap();
-        assert_eq!(retry_after, RetryAfter::Delay(Duration::seconds(300)));
+        assert_eq!(retry_after, RetryAfter::Delay(Duration::from_secs(300)));
     }
 
     #[test]
@@ -192,6 +176,6 @@ mod tests {
         let retry_after = RetryAfter::parse_header(&b"Sun, 06 Nov 1994 08:49:37 GMT".to_vec().into()).unwrap();
         let expected = "Sun, 06 Nov 1994 08:49:37 GMT".parse::<HttpDate>().unwrap();
 
-        assert_eq!(retry_after, RetryAfter::DateTime(expected.0));
+        assert_eq!(retry_after, RetryAfter::DateTime(expected));
     }
 }
