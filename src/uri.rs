@@ -95,6 +95,7 @@ impl Uri {
     }
 
     /// Get the path of this `Uri`.
+    #[inline]
     pub fn path(&self) -> &str {
         let index = self.path_start();
         let end = self.path_end();
@@ -135,6 +136,7 @@ impl Uri {
     }
 
     /// Get the scheme of this `Uri`.
+    #[inline]
     pub fn scheme(&self) -> Option<&str> {
         if let Some(end) = self.scheme_end {
             Some(&self.source[..end])
@@ -144,6 +146,7 @@ impl Uri {
     }
 
     /// Get the authority of this `Uri`.
+    #[inline]
     pub fn authority(&self) -> Option<&str> {
         if let Some(end) = self.authority_end {
             let index = self.scheme_end.map(|i| i + 3).unwrap_or(0);
@@ -155,6 +158,7 @@ impl Uri {
     }
 
     /// Get the host of this `Uri`.
+    #[inline]
     pub fn host(&self) -> Option<&str> {
         if let Some(auth) = self.authority() {
             auth.split(":").next()
@@ -164,6 +168,7 @@ impl Uri {
     }
 
     /// Get the port of this `Uri`.
+    #[inline]
     pub fn port(&self) -> Option<u16> {
         match self.authority() {
             Some(auth) => auth.find(":").and_then(|i| u16::from_str(&auth[i+1..]).ok()),
@@ -172,6 +177,7 @@ impl Uri {
     }
 
     /// Get the query string of this `Uri`, starting after the `?`.
+    #[inline]
     pub fn query(&self) -> Option<&str> {
         self.query_start.map(|start| {
             // +1 to remove '?'
