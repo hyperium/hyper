@@ -19,6 +19,8 @@ pub enum Encoding {
     Compress,
     /// The `identity` encoding.
     Identity,
+    /// The `trailers` encoding.
+    Trailers,
     /// Some other encoding that is less common, can be any String.
     EncodingExt(String)
 }
@@ -32,6 +34,7 @@ impl fmt::Display for Encoding {
             Deflate => "deflate",
             Compress => "compress",
             Identity => "identity",
+            Trailers => "trailers",
             EncodingExt(ref s) => s.as_ref()
         })
     }
@@ -47,6 +50,7 @@ impl str::FromStr for Encoding {
             "gzip" => Ok(Gzip),
             "compress" => Ok(Compress),
             "identity" => Ok(Identity),
+            "trailers" => Ok(Trailers),
             _ => Ok(EncodingExt(s.to_owned()))
         }
     }
