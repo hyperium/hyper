@@ -104,9 +104,6 @@ pub struct LinkValue {
     /// Hint on the media type of the result of dereferencing
     /// the link: `type`.
     media_type: Option<Mime>,
-
-    /// Link Extension: `link-extension`.
-    link_extension: Option<String>
 }
 
 /// A Media Descriptors Enum based on:
@@ -258,7 +255,6 @@ impl LinkValue {
             title: None,
             title_star: None,
             media_type: None,
-            link_extension: None,
         }
     }
 
@@ -305,11 +301,6 @@ impl LinkValue {
     /// Get the `LinkValue`'s `type` parameter.
     pub fn media_type(&self) -> Option<&Mime> {
         self.media_type.as_ref()
-    }
-
-    /// Get the `LinkValue`'s `link-extension` parameter.
-    pub fn link_extension(&self) -> Option<&str> {
-        self.link_extension.as_ref().map(AsRef::as_ref)
     }
 
     /// Add a `RelationType` to the `LinkValue`'s `rel` parameter.
@@ -380,13 +371,6 @@ impl LinkValue {
     /// Set `LinkValue`'s `type` parameter.
     pub fn set_media_type(mut self, media_type: Mime) -> LinkValue {
         self.media_type = Some(media_type);
-
-        self
-    }
-
-    /// Set `LinkValue`'s `link-extension` parameter.
-    pub fn set_link_extension<T: Into<String>>(mut self, link_extension: T) -> LinkValue {
-        self.link_extension = Some(link_extension.into());
 
         self
     }
@@ -464,9 +448,6 @@ impl fmt::Display for LinkValue {
         if let Some(ref media_type) = self.media_type {
             try!(write!(f, "; type=\"{}\"", media_type));
         }
-        if let Some(ref link_extension) = self.link_extension {
-            try!(write!(f, "; link-extension={}", link_extension));
-        }
 
         Ok(())
     }
@@ -501,7 +482,6 @@ impl FromStr for Link {
                                 title: None,
                                 title_star: None,
                                 media_type: None,
-                                link_extension: None,
                             }
                         },
                     }
@@ -640,16 +620,6 @@ impl FromStr for Link {
                                 },
                             },
 
-                        };
-                    }
-                } else if "link-extension".eq_ignore_ascii_case(link_param_name) {
-                    // Parse target attribute: `link-extension`.
-                    // https://tools.ietf.org/html/rfc5988#section-5.4
-                    if link_header.link_extension.is_none() {
-                        link_header.link_extension = match link_param_split.next() {
-                            None => return Err(::Error::Header),
-                            Some("") =>  return Err(::Error::Header),
-                            Some(s) => Some(String::from(s.trim())),
                         };
                     }
                 } else {
@@ -986,14 +956,13 @@ mod tests {
             .push_media_desc(MediaDesc::Screen)
             .set_title("previous chapter")
             .set_title_star("title* unparsed")
-            .set_media_type(Mime(Text, Plain, vec![]))
-            .set_link_extension("link-extension unparsed");
+            .set_media_type(Mime(Text, Plain, vec![]));
 
         let link_header = b"<http://example.com/TheBook/chapter2>; \
             rel=\"previous\"; anchor=\"../anchor/example/\"; \
             rev=\"next\"; hreflang=de; media=\"screen\"; \
             title=\"previous chapter\"; title*=title* unparsed; \
-            type=\"text/plain\"; link-extension=link-extension unparsed";
+            type=\"text/plain\"";
 
         let expected_link = Link::new(vec![link_value]);
 
@@ -1046,8 +1015,7 @@ mod tests {
             .push_media_desc(MediaDesc::Screen)
             .set_title("previous chapter")
             .set_title_star("title* unparsed")
-            .set_media_type(Mime(Text, Plain, vec![]))
-            .set_link_extension("link-extension unparsed");
+            .set_media_type(Mime(Text, Plain, vec![]));
 
         let link = Link::new(vec![link_value]);
 
@@ -1058,7 +1026,7 @@ mod tests {
             rel=\"previous\"; anchor=\"/anchor/example/\"; \
             rev=\"next\"; hreflang=de; media=\"screen\"; \
             title=\"previous chapter\"; title*=title* unparsed; \
-            type=\"text/plain\"; link-extension=link-extension unparsed";
+            type=\"text/plain\"";
 
         assert_eq!(link_header, expected_link_header);
     }
