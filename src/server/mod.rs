@@ -53,7 +53,7 @@ where B: Stream<Error=::Error>,
 {
     protocol: Http<B::Item>,
     new_service: S,
-    core: Core,
+    core: RefCell<Core>,
     listener: TcpListener,
     shutdown_timeout: Duration,
 }
@@ -91,8 +91,26 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
                     Send + Sync + 'static,
               Bd: Stream<Item=B, Error=::Error>,
     {
-        let core = try!(Core::new());
-        let handle = core.handle();
+        let core = RefCell::new(try!(Core::new()));
+        self.bind2(core, addr, new_service)
+    }
+
+    /// Bind the provided `addr` and return a server ready to handle
+    /// connections. The server uses the provided `core` event loop.
+    ///
+    /// This method will bind the `addr` provided with a new TCP listener ready
+    /// to accept connections. Each connection will be processed with the
+    /// `new_service` object provided as well, creating a new service per
+    /// connection.
+    ///
+    /// The returned `Server` contains one method, `run`, which is used to
+    /// actually run the server.
+    pub fn bind2<S, Bd>(&self, core: RefCell<Core>, addr: &SocketAddr, new_service: S) -> ::Result<Server<S, Bd>>
+        where S: NewService<Request = Request, Response = Response<Bd>, Error = ::Error> +
+                    Send + Sync + 'static,
+              Bd: Stream<Item=B, Error=::Error>,
+    {
+        let handle = core.borrow().handle();
         let listener = try!(TcpListener::bind(addr, &handle));
 
         Ok(Server {
@@ -340,7 +358,7 @@ impl<S, B> Server<S, B>
     /// Returns a handle to the underlying event loop that this server will be
     /// running on.
     pub fn handle(&self) -> Handle {
-        self.core.handle()
+        self.core.borrow().handle()
     }
 
     /// Configure the amount of time this server will wait for a "graceful
@@ -380,8 +398,8 @@ impl<S, B> Server<S, B>
     pub fn run_until<F>(self, shutdown_signal: F) -> ::Result<()>
         where F: Future<Item = (), Error = ()>,
     {
-        let Server { protocol, new_service, mut core, listener, shutdown_timeout } = self;
-        let handle = core.handle();
+        let Server { protocol, new_service, core, listener, shutdown_timeout } = self;
+        let handle = core.borrow().handle();
 
         // Mini future to track the number of active services
         let info = Rc::new(RefCell::new(Info {
@@ -411,7 +429,7 @@ impl<S, B> Server<S, B>
         //
         // When we get a shutdown signal (`Ok`) then we drop the TCP listener to
         // stop accepting incoming connections.
-        match core.run(shutdown_signal.select(srv)) {
+        match core.borrow_mut().run(shutdown_signal.select(srv)) {
             Ok(((), _incoming)) => {}
             Err((e, _other)) => return Err(e.into()),
         }
@@ -425,10 +443,11 @@ impl<S, B> Server<S, B>
         // here have been destroyed.
         let timeout = try!(Timeout::new(shutdown_timeout, &handle));
         let wait = WaitUntilZero { info: info.clone() };
-        match core.run(wait.select(timeout)) {
+        let result = match core.borrow_mut().run(wait.select(timeout)) {
             Ok(_) => Ok(()),
             Err((e, _)) => return Err(e.into())
-        }
+        };
+        result
     }
 }
 
