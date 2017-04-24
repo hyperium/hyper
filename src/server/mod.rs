@@ -53,7 +53,7 @@ where B: Stream<Error=::Error>,
 {
     protocol: Http<B::Item>,
     new_service: S,
-    core: RefCell<Core>,
+    core: Rc<RefCell<Core>>,
     listener: TcpListener,
     shutdown_timeout: Duration,
 }
@@ -91,7 +91,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
                     Send + Sync + 'static,
               Bd: Stream<Item=B, Error=::Error>,
     {
-        let core = RefCell::new(try!(Core::new()));
+        let core = Rc::new(RefCell::new(try!(Core::new())));
         self.bind2(core, addr, new_service)
     }
 
@@ -105,7 +105,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     ///
     /// The returned `Server` contains one method, `run`, which is used to
     /// actually run the server.
-    pub fn bind2<S, Bd>(&self, core: RefCell<Core>, addr: &SocketAddr, new_service: S) -> ::Result<Server<S, Bd>>
+    pub fn bind2<S, Bd>(&self, core: Rc<RefCell<Core>>, addr: &SocketAddr, new_service: S) -> ::Result<Server<S, Bd>>
         where S: NewService<Request = Request, Response = Response<Bd>, Error = ::Error> +
                     Send + Sync + 'static,
               Bd: Stream<Item=B, Error=::Error>,
