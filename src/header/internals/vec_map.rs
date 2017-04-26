@@ -55,9 +55,6 @@ impl<K: PartialEq, V> VecMap<K, V> {
     pub fn len(&self) -> usize { self.vec.len() }
 
     #[inline]
-    pub fn is_empty(&self) -> bool { self.vec.is_empty() }
-
-    #[inline]
     pub fn iter(&self) -> ::std::slice::Iter<(K, V)> {
         self.vec.iter()
     }
