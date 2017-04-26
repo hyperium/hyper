@@ -27,12 +27,11 @@ header! {
     /// # Examples
     /// ```
     /// use hyper::header::{Headers, ContentType};
-    /// use hyper::mime::{Mime, TopLevel, SubLevel};
     ///
     /// let mut headers = Headers::new();
     ///
     /// headers.set(
-    ///     ContentType(Mime(TopLevel::Text, SubLevel::Html, vec![]))
+    ///     ContentType::json()
     /// );
     /// ```
     /// ```
@@ -42,7 +41,7 @@ header! {
     /// let mut headers = Headers::new();
     ///
     /// headers.set(
-    ///     ContentType(Mime(TopLevel::Application, SubLevel::Json,
+    ///     ContentType(Mime(TopLevel::Text, SubLevel::Html,
     ///                      vec![(Attr::Charset, Value::Utf8)]))
     /// );
     /// ```
