@@ -53,7 +53,7 @@ header! {
     /// );
     /// ```
     /// ```
-    /// use hyper::header::{Headers, Accept, QualityItem, Quality, qitem};
+    /// use hyper::header::{Headers, Accept, QualityItem, q, qitem};
     /// use hyper::mime::{Mime, TopLevel, SubLevel};
     ///
     /// let mut headers = Headers::new();
@@ -64,11 +64,11 @@ header! {
     ///         qitem(Mime(TopLevel::Application,
     ///                    SubLevel::Ext("xhtml+xml".to_owned()), vec![])),
     ///         QualityItem::new(Mime(TopLevel::Application, SubLevel::Xml, vec![]),
-    ///                          Quality(900)),
+    ///                          q(900)),
     ///                          qitem(Mime(TopLevel::Image,
     ///                                     SubLevel::Ext("webp".to_owned()), vec![])),
     ///                          QualityItem::new(Mime(TopLevel::Star, SubLevel::Star, vec![]),
-    ///                                           Quality(800))
+    ///                                           q(800))
     ///     ])
     /// );
     /// ```
@@ -85,18 +85,18 @@ header! {
         //    test1,
         //    vec![b"audio/*; q=0.2, audio/basic"],
         //    Some(HeaderField(vec![
-        //        QualityItem::new(Mime(TopLevel::Audio, SubLevel::Star, vec![]), Quality(200)),
+        //        QualityItem::new(Mime(TopLevel::Audio, SubLevel::Star, vec![]), q(200)),
         //        qitem(Mime(TopLevel::Audio, SubLevel::Ext("basic".to_owned()), vec![])),
         //        ])));
         test_header!(
             test2,
             vec![b"text/plain; q=0.5, text/html, text/x-dvi; q=0.8, text/x-c"],
             Some(HeaderField(vec![
-                QualityItem::new(Mime(TopLevel::Text, SubLevel::Plain, vec![]), Quality(500)),
+                QualityItem::new(Mime(TopLevel::Text, SubLevel::Plain, vec![]), q(500)),
                 qitem(Mime(TopLevel::Text, SubLevel::Html, vec![])),
                 QualityItem::new(
                     Mime(TopLevel::Text, SubLevel::Ext("x-dvi".to_owned()), vec![]),
-                    Quality(800)),
+                    q(800)),
                 qitem(Mime(TopLevel::Text, SubLevel::Ext("x-c".to_owned()), vec![])),
                 ])));
         // Custom tests
@@ -112,7 +112,7 @@ header! {
             Some(Accept(vec![
                 QualityItem::new(Mime(TopLevel::Text,
                     SubLevel::Plain, vec![(Attr::Charset, Value::Utf8)]),
-                    Quality(500)),
+                    q(500)),
             ])));
 
         #[test]

@@ -45,14 +45,14 @@ header! {
     /// );
     /// ```
     /// ```
-    /// use hyper::header::{Headers, AcceptEncoding, Encoding, QualityItem, Quality, qitem};
+    /// use hyper::header::{Headers, AcceptEncoding, Encoding, QualityItem, q, qitem};
     ///
     /// let mut headers = Headers::new();
     /// headers.set(
     ///     AcceptEncoding(vec![
     ///         qitem(Encoding::Chunked),
-    ///         QualityItem::new(Encoding::Gzip, Quality(600)),
-    ///         QualityItem::new(Encoding::EncodingExt("*".to_owned()), Quality(0)),
+    ///         QualityItem::new(Encoding::Gzip, q(600)),
+    ///         QualityItem::new(Encoding::EncodingExt("*".to_owned()), q(0)),
     ///     ])
     /// );
     /// ```

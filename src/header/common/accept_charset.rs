@@ -29,13 +29,13 @@ header! {
     /// );
     /// ```
     /// ```
-    /// use hyper::header::{Headers, AcceptCharset, Charset, Quality, QualityItem};
+    /// use hyper::header::{Headers, AcceptCharset, Charset, q, QualityItem};
     ///
     /// let mut headers = Headers::new();
     /// headers.set(
     ///     AcceptCharset(vec![
-    ///         QualityItem::new(Charset::Us_Ascii, Quality(900)),
-    ///         QualityItem::new(Charset::Iso_8859_10, Quality(200)),
+    ///         QualityItem::new(Charset::Us_Ascii, q(900)),
+    ///         QualityItem::new(Charset::Iso_8859_10, q(200)),
     ///     ])
     /// );
     /// ```
