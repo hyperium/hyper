@@ -39,14 +39,12 @@ impl<K: PartialEq, V> VecMap<K, V> {
     }
 
     #[inline]
-    pub fn get_mut<K2>(&mut self, key: &K2) -> Option<&mut V>
-    where K2: PartialEq<K> {
+    pub fn get_mut<K2: PartialEq<K> + ?Sized>(&mut self, key: &K2) -> Option<&mut V> {
         self.find(key).map(move |pos| &mut self.vec[pos].1)
     }
 
     #[inline]
-    pub fn contains_key<K2>(&self, key: &K2) -> bool
-    where K2: PartialEq<K> {
+    pub fn contains_key<K2: PartialEq<K> + ?Sized>(&self, key: &K2) -> bool {
         self.find(key).is_some()
     }
 
@@ -67,8 +65,7 @@ impl<K: PartialEq, V> VecMap<K, V> {
     }
 
     #[inline]
-    fn find<K2>(&self, key: &K2) -> Option<usize>
-    where K2: PartialEq<K> + ?Sized {
+    fn find<K2: PartialEq<K> + ?Sized>(&self, key: &K2) -> Option<usize> {
         self.vec.iter().position(|entry| key == &entry.0)
     }
 }
