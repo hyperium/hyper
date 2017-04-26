@@ -464,7 +464,7 @@ impl Headers {
     /// ```
     pub fn get_raw(&self, name: &str) -> Option<&Raw> {
         self.data
-            .get(&HeaderName(UniCase(Cow::Borrowed(unsafe { mem::transmute::<&str, &str>(name) }))))
+            .get(name)
             .map(Item::raw)
     }
 
@@ -517,9 +517,7 @@ impl Headers {
     /// Remove a header by name.
     pub fn remove_raw(&mut self, name: &str) {
         trace!("Headers.remove_raw( {:?} )", name);
-        self.data.remove(
-            &HeaderName(UniCase(Cow::Borrowed(unsafe { mem::transmute::<&str, &str>(name) })))
-        );
+        self.data.remove(name);
     }
 
 
@@ -685,6 +683,16 @@ impl PartialEq for HeaderName {
     }
 }
 
+impl PartialEq<HeaderName> for str {
+    fn eq(&self, other: &HeaderName) -> bool {
+        let k = other.as_ref();
+        if self.len() == k.len() && self.as_ptr() == k.as_ptr() {
+            true
+        } else {
+            other.0 == self
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

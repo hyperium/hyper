@@ -4,12 +4,14 @@ pub struct VecMap<K, V> {
 }
 
 impl<K: PartialEq, V> VecMap<K, V> {
+    #[inline]
     pub fn with_capacity(cap: usize) -> VecMap<K, V> {
         VecMap {
             vec: Vec::with_capacity(cap)
         }
     }
 
+    #[inline]
     pub fn insert(&mut self, key: K, value: V) {
         match self.find(&key) {
             Some(pos) => self.vec[pos] = (key, value),
@@ -17,6 +19,7 @@ impl<K: PartialEq, V> VecMap<K, V> {
         }
     }
 
+    #[inline]
     pub fn entry(&mut self, key: K) -> Entry<K, V> {
         match self.find(&key) {
             Some(pos) => Entry::Occupied(OccupiedEntry {
@@ -30,31 +33,47 @@ impl<K: PartialEq, V> VecMap<K, V> {
         }
     }
 
-    pub fn get(&self, key: &K) -> Option<&V> {
+    #[inline]
+    pub fn get<K2>(&self, key: &K2) -> Option<&V>
+    where K2: PartialEq<K> + ?Sized {
         self.find(key).map(move |pos| &self.vec[pos].1)
     }
 
-    pub fn get_mut(&mut self, key: &K) -> Option<&mut V> {
+    #[inline]
+    pub fn get_mut<K2>(&mut self, key: &K2) -> Option<&mut V>
+    where K2: PartialEq<K> {
         self.find(key).map(move |pos| &mut self.vec[pos].1)
     }
 
-    pub fn contains_key(&self, key: &K) -> bool {
+    #[inline]
+    pub fn contains_key<K2>(&self, key: &K2) -> bool
+    where K2: PartialEq<K> {
         self.find(key).is_some()
     }
 
+    #[inline]
     pub fn len(&self) -> usize { self.vec.len() }
 
+    #[inline]
+    pub fn is_empty(&self) -> bool { self.vec.is_empty() }
+
+    #[inline]
     pub fn iter(&self) -> ::std::slice::Iter<(K, V)> {
         self.vec.iter()
     }
-    pub fn remove(&mut self, key: &K) -> Option<V> {
+    #[inline]
+    pub fn remove<K2>(&mut self, key: &K2) -> Option<V>
+    where K2: PartialEq<K> + ?Sized {
         self.find(key).map(|pos| self.vec.remove(pos)).map(|(_, v)| v)
     }
+    #[inline]
     pub fn clear(&mut self) {
         self.vec.clear();
     }
 
-    fn find(&self, key: &K) -> Option<usize> {
+    #[inline]
+    fn find<K2>(&self, key: &K2) -> Option<usize>
+    where K2: PartialEq<K> + ?Sized {
         self.vec.iter().position(|entry| key == &entry.0)
     }
 }
