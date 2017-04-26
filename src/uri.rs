@@ -190,6 +190,14 @@ impl Uri {
         })
     }
 
+    /// Returns whether this URI is in `absolute-form`.
+    ///
+    /// An example of absolute form is `https://hyper.rs`.
+    #[inline]
+    pub fn is_absolute(&self) -> bool {
+        self.scheme_end.is_some()
+    }
+
     #[cfg(test)]
     fn fragment(&self) -> Option<&str> {
         self.fragment_start.map(|start| {
