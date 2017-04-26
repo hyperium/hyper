@@ -34,8 +34,7 @@ impl<K: PartialEq, V> VecMap<K, V> {
     }
 
     #[inline]
-    pub fn get<K2>(&self, key: &K2) -> Option<&V>
-    where K2: PartialEq<K> + ?Sized {
+    pub fn get<K2: PartialEq<K> + ?Sized>(&self, key: &K2) -> Option<&V> {
         self.find(key).map(move |pos| &self.vec[pos].1)
     }
 
@@ -59,8 +58,7 @@ impl<K: PartialEq, V> VecMap<K, V> {
         self.vec.iter()
     }
     #[inline]
-    pub fn remove<K2>(&mut self, key: &K2) -> Option<V>
-    where K2: PartialEq<K> + ?Sized {
+    pub fn remove<K2: PartialEq<K> + ?Sized>(&mut self, key: &K2) -> Option<V> {
         self.find(key).map(|pos| self.vec.remove(pos)).map(|(_, v)| v)
     }
     #[inline]
