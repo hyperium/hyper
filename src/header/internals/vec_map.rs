@@ -20,6 +20,11 @@ impl<K: PartialEq, V> VecMap<K, V> {
     }
 
     #[inline]
+    pub fn append(&mut self, key: K, value: V) {
+        self.vec.push((key, value));
+    }
+
+    #[inline]
     pub fn entry(&mut self, key: K) -> Entry<K, V> {
         match self.find(&key) {
             Some(pos) => Entry::Occupied(OccupiedEntry {
@@ -55,10 +60,23 @@ impl<K: PartialEq, V> VecMap<K, V> {
     pub fn iter(&self) -> ::std::slice::Iter<(K, V)> {
         self.vec.iter()
     }
+
     #[inline]
     pub fn remove<K2: PartialEq<K> + ?Sized>(&mut self, key: &K2) -> Option<V> {
         self.find(key).map(|pos| self.vec.remove(pos)).map(|(_, v)| v)
     }
+
+    #[inline]
+    pub fn remove_all<K2: PartialEq<K> + ?Sized>(&mut self, key: &K2) {
+        let len = self.vec.len();
+        for i in (0..len).rev() {
+            if key == &self.vec[i].0 {
+                self.vec.remove(i);
+            }
+        }
+    }
+
+
     #[inline]
     pub fn clear(&mut self) {
         self.vec.clear();
