@@ -1,8 +1,7 @@
-use header::{Header, Raw};
+use header::{Header, Raw, VecMap};
 use std::fmt;
 use std::str::from_utf8;
 use std::borrow::Borrow;
-use std::collections::HashMap;
 
 /// `Cookie` header, defined in [RFC6265](http://tools.ietf.org/html/rfc6265#section-5.4)
 ///
@@ -29,10 +28,11 @@ use std::collections::HashMap;
 ///    ])
 /// );
 /// ```
-#[derive(Clone, PartialEq, Debug)]
+#[allow(missing_debug_implementations)]
+#[derive(Clone)]
 pub struct Cookie {
     cookies: Vec<(String, String)>,
-    index: HashMap<String, String>,
+    index: VecMap<String, String>,
 }
 
 
@@ -49,9 +49,11 @@ impl Header for Cookie {
         for cookies_raw in raw.iter() {
             let cookies_str = try!(from_utf8(&cookies_raw[..]));
             for cookie_str in cookies_str.split(';') {
-                //cookies.push(cookie_str.trim().to_owned())
-
-                let mut kv_iterator = cookie_str.splitn(2, '=');
+                let cookie_trimmed = cookie_str.trim();
+                if cookie_trimmed.len() == 0 {
+                    continue;
+                }
+                let mut kv_iterator = cookie_trimmed.splitn(2, '=');
                 // split returns at least one element - unwrap is safe
                 let k = kv_iterator.next().unwrap().trim();
                 let v = match kv_iterator.next() { 
@@ -85,7 +87,7 @@ impl Cookie {
     pub fn with_capacity(capacity: usize) -> Cookie {
         Cookie {
             cookies: Vec::with_capacity(capacity),
-            index: HashMap::with_capacity(capacity),
+            index: VecMap::with_capacity(capacity),
         }
     }
 
@@ -130,23 +132,19 @@ impl Cookie {
 
 impl fmt::Display for Cookie {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-
-        let mut cookies_string = "".to_string();
         let mut first = true;
         for pair in self.cookies.clone() {
             let cookie = format!("{}={}", pair.0, pair.1);
-            if first {
-                cookies_string = cookie;
-                first = false
+            if !first {
+                try!(f.write_str(" "));
             } else {
-                cookies_string = format!("{}; {}", cookies_string, cookie)
+                first = false
             }
+            try!(f.write_str(&cookie));
+            try!(f.write_str(";"));
 
 
         }
-        // FIXME: dorfmay taking a short cut - will fix.
-        let _ = write!(f, "{}", cookies_string);
-
         Ok(())
 
     }
