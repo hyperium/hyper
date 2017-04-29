@@ -1,3 +1,95 @@
+### v0.10.9 (2017-04-19)
+
+
+#### Features
+
+* **server:** add local_addr to retrieve resolved address ([71f250ad](https://github.com/hyperium/hyper/commit/71f250ad46e9ae0cac108e1de6dc15289da26a56))
+
+
+### v0.10.8 (2017-04-11)
+
+
+#### Features
+
+* **client:**
+  * introduce PooledStream::<S>::get_ref ([a54ce30f](https://github.com/hyperium/hyper/commit/a54ce30f902772168bbd8dc90f26bb08cecde6ec))
+  * introduce Response::get_ref ([5ef0ec2c](https://github.com/hyperium/hyper/commit/5ef0ec2cd2841e78508a61949a207187be914265))
+
+
+### v0.10.7 (2017-04-08)
+
+
+#### Bug Fixes
+
+* **server:** don't dup the listener TCP socket. ([d2362331](https://github.com/hyperium/hyper/commit/d23623317820696c910ce43262d5276e8e24c066))
+
+
+### v0.10.6 (2017-04-05)
+
+
+#### Features
+
+* **buffer:** add from_parts and into_parts functions ([78551dd0](https://github.com/hyperium/hyper/commit/78551dd040e2ab46e833af355c92fe87aa026244))
+
+
+### v0.10.5 (2017-03-01)
+
+
+#### Bug Fixes
+
+* **http:**
+  * Consume entire chunked encoding message ([4147fcd0](https://github.com/hyperium/hyper/commit/4147fcd0d688b6d5b8d6b32f26c147819321a390))
+  * fix returning EarlyEof if supplied buffer is zero-len ([1e740fbc](https://github.com/hyperium/hyper/commit/1e740fbcc3fb60af2fe8d2227457fa29582151c3))
+
+
+### v0.10.4 (2017-01-31)
+
+
+#### Features
+
+* **header:** implement fmt::Display for several headers ([d5075770](https://github.com/hyperium/hyper/commit/d50757707b1c628f398fb0583aa3dd02111ae658))
+
+
+### v0.10.3 (2017-01-30)
+
+
+#### Bug Fixes
+
+* **header:**
+  * deprecate HeaderFormatter ([282466e1](https://github.com/hyperium/hyper/commit/282466e1c00879cf9dde1ed62c3d436e99bfba85))
+  * enable SetCookie.fmt_header when only 1 cookie ([7611c307](https://github.com/hyperium/hyper/commit/7611c3071475afa2b0b80bbba2a0a7223a3d5920))
+
+
+#### Features
+
+* **header:** add Headers::append_raw ([6babbc40](https://github.com/hyperium/hyper/commit/6babbc40fb86a29ad76083a2a386182c40c0f335))
+
+
+### v0.10.2 (2017-01-23)
+
+
+#### Bug Fixes
+
+* **header:** security fix for header values that include newlines ([2603d78f](https://github.com/hyperium/hyper/commit/2603d78f59d284953553b7ef48c3ea4baa085cd1))
+* **net:** set timeouts directly in `accept` ([f5d4d653](https://github.com/hyperium/hyper/commit/f5d4d653e35ed20bbbb0b13847b3b9f1cfe9575f))
+
+
+#### Breaking Changes
+
+* This technically will cause code that a calls
+  `SetCookie.fmt_header` to panic, as it is no longer to properly write
+  that method. Most people should not be doing this at all, and all
+  other ways of printing headers should work just fine.
+
+  The breaking change must occur in a patch version because of the
+  security nature of the fix.
+
+ ([2603d78f](https://github.com/hyperium/hyper/commit/2603d78f59d284953553b7ef48c3ea4baa085cd1))
+
+
+### v0.10.1 (2017-01-19)
+
+
 ## v0.10.0 (2017-01-10)
 
 #### Features
