@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::fmt;
 use std::str::from_utf8;
+use std::collections::HashMap;
 
 use header::{Header, Raw};
 use header::internals::VecMap;
@@ -228,4 +229,74 @@ mod tests {
     }
 }
 
-bench_header!(bench, Cookie, { vec![b"foo=bar; baz=quux".to_vec()] });
+impl Cookie {
+    /// Returns a HashMap for the cookies in the Cookie header.
+    ///
+    /// Cookie order is important, if there are duplicate keys, the first
+    /// value is used.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// // Let's say we got cookie_header from:
+    /// // cookie_header = req.headers().get::<hyper::header::Cookie>()
+    ///
+    /// use hyper::header::Cookie;
+    ///
+    /// let cookie = Cookie(vec!["SID=1DS38c3R0".to_string(), "datacenter=east01".to_string()]);
+    /// let cookie_header = Some(cookie);
+    ///
+    /// if let Some(ch) = cookie_header {
+    ///     let cookie_map = ch.map();
+    ///     if let Some(v) = cookie_map.get("datacenter") {
+    ///         println!("Got a DC: {}\n", v);
+    ///     }
+    /// }
+    ///
+    /// ```
+    ///
+    pub fn map(&self) -> HashMap<&str, &str> {
+        let mut cookie_map = HashMap::with_capacity(self.len());
+        for cookie in self.iter() {
+            let mut kv_iterator = cookie.splitn(2, '=');
+            // split returns at least one element - unwrap is safe
+            let k = kv_iterator.next().unwrap().trim();
+            let v = match kv_iterator.next() {
+                Some(value) => value.trim(),
+                None => "",
+            };
+            // Cookie order is important, the first one prevails when there
+            // are duplicates.
+            cookie_map.entry(k).or_insert(v);
+        }
+        cookie_map.shrink_to_fit();
+        cookie_map
+    }
+}
+
+bench_header!(bench, Cookie, {
+    vec![b"foo=bar; baz=quux".to_vec()]
+});
+
+#[cfg(test)]
+mod tests {
+    use super::Cookie;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_cookie_map_simple() {
+        let cookie = Cookie(vec!["a=11 ".to_string(), "  b =  bb".to_string()]);
+        let map = cookie.map();
+        let good: HashMap<&str, &str> = [("a", "11"), ("b", "bb")].iter().cloned().collect();
+        assert_eq!(map, good);
+    }
+
+    #[test]
+    fn test_cookie_map_duplicate() {
+        let cookie =
+            Cookie(vec!["a=11 ".to_string(), "  b =  bb".to_string(), "a=22 ".to_string()]);
+        let map = cookie.map();
+        let good: HashMap<&str, &str> = [("a", "11"), ("b", "bb")].iter().cloned().collect();
+        assert_eq!(map, good);
+    }
+}
