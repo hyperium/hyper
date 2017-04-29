@@ -42,12 +42,12 @@ impl Cookie {
     /// Sets a name and value for the `Cookie`.
     ///
     /// # Note
-    /// 
+    ///
     /// This will remove all other instances with the same name,
     /// and insert the new value.
     pub fn set<K, V>(&mut self, key: K, value: V)
-    where K: Into<Cow<'static, str>>,
-          V: Into<Cow<'static, str>>,
+        where K: Into<Cow<'static, str>>,
+              V: Into<Cow<'static, str>>
     {
         let key = key.into();
         let value = value.into();
@@ -69,15 +69,15 @@ impl Cookie {
     /// cookie.append("foo", "quux");
     /// assert_eq!(cookie.to_string(), "foo=bar; foo=quux");
     pub fn append<K, V>(&mut self, key: K, value: V)
-    where K: Into<Cow<'static, str>>,
-          V: Into<Cow<'static, str>>,
+        where K: Into<Cow<'static, str>>,
+              V: Into<Cow<'static, str>>
     {
         self.0.append(key.into(), value.into());
     }
 
     /// Get a value for the name, if it exists.
     ///
-    /// # Note 
+    /// # Note
     ///
     /// Only returns the first instance found. To access
     /// any other values associated with the name, parse
@@ -158,7 +158,7 @@ impl fmt::Display for Cookie {
 
 #[cfg(test)]
 mod tests {
-    use ::header::Header;
+    use header::Header;
     use super::Cookie;
 
     #[test]
@@ -220,7 +220,26 @@ mod tests {
         let parsed = Cookie::parse_header(&b" foo  =    bar;baz= quux  ".to_vec().into()).unwrap();
         assert_eq!(cookie, parsed);
 
-        let parsed = Cookie::parse_header(&vec![b"foo  =    bar".to_vec(),b"baz= quux  ".to_vec()].into()).unwrap();
+        let parsed =
+            Cookie::parse_header(&vec![b"foo  =    bar".to_vec(), b"baz= quux  ".to_vec()].into())
+                .unwrap();
+        assert_eq!(cookie, parsed);
+
+        let parsed = Cookie::parse_header(&b"foo=bar; baz=quux ; empty=".to_vec().into()).unwrap();
+        cookie.append("empty", "");
+        assert_eq!(cookie, parsed);
+
+
+        let mut cookie = Cookie::new();
+
+        let parsed = Cookie::parse_header(&b"middle=equals=in=the=middle".to_vec().into()).unwrap();
+        cookie.append("middle", "equals=in=the=middle");
+        assert_eq!(cookie, parsed);
+
+        let parsed =
+            Cookie::parse_header(&b"middle=equals=in=the=middle; double==2".to_vec().into())
+                .unwrap();
+        cookie.append("double", "=2");
         assert_eq!(cookie, parsed);
 
         Cookie::parse_header(&b"foo;bar=baz;quux".to_vec().into()).unwrap_err();
@@ -228,4 +247,6 @@ mod tests {
     }
 }
 
-bench_header!(bench, Cookie, { vec![b"foo=bar; baz=quux".to_vec()] });
+bench_header!(bench, Cookie, {
+    vec![b"foo=bar; baz=quux".to_vec()]
+});
