@@ -68,8 +68,8 @@ impl Request {
     ///
     /// Modifying these pieces will have no effect on how hyper behaves.
     #[inline]
-    pub fn deconstruct(self) -> (Method, Uri, HttpVersion, Headers, Body) {
-        (self.method, self.uri, self.version, self.headers, self.body)
+    pub fn deconstruct(self) -> (SocketAddr, Method, Uri, HttpVersion, Headers, Body) {
+        (self.remote_addr, self.method, self.uri, self.version, self.headers, self.body)
     }
 }
 
