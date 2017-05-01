@@ -71,9 +71,25 @@ impl<S> MessageHead<S> {
     }
 }
 
+impl ResponseHead {
+    /// Converts this head's RawStatus into a StatusCode.
+    #[inline]
+    pub fn status(&self) -> StatusCode {
+        self.subject.status()
+    }
+}
+
 /// The raw status code and reason-phrase.
 #[derive(Clone, PartialEq, Debug)]
 pub struct RawStatus(pub u16, pub Cow<'static, str>);
+
+impl RawStatus {
+    /// Converts this into a StatusCode.
+    #[inline]
+    pub fn status(&self) -> StatusCode {
+        StatusCode::from_u16(self.0)
+    }
+}
 
 impl fmt::Display for RawStatus {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
