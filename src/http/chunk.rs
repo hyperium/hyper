@@ -109,6 +109,13 @@ impl fmt::Debug for Chunk {
     }
 }
 
+impl Default for Chunk {
+    #[inline]
+    fn default() -> Chunk {
+        Chunk(Inner::Shared(Bytes::new()))
+    }
+}
+
 impl IntoIterator for Chunk {
     type Item = u8;
     type IntoIter = <Bytes as IntoIterator>::IntoIter;
