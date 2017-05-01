@@ -13,11 +13,13 @@ pub struct Body(TokioBody);
 
 impl Body {
     /// Return an empty body stream
+    #[inline]
     pub fn empty() -> Body {
         Body(TokioBody::empty())
     }
 
     /// Return a body stream with an associated sender half
+    #[inline]
     pub fn pair() -> (mpsc::Sender<Result<Chunk, ::Error>>, Body) {
         let (tx, rx) = TokioBody::pair();
         let rx = Body(rx);
@@ -25,64 +27,81 @@ impl Body {
     }
 }
 
+impl Default for Body {
+    #[inline]
+    fn default() -> Body {
+        Body::empty()
+    }
+}
+
 impl Stream for Body {
     type Item = Chunk;
     type Error = ::Error;
 
+    #[inline]
     fn poll(&mut self) -> Poll<Option<Chunk>, ::Error> {
         self.0.poll()
     }
 }
 
 impl From<Body> for tokio_proto::streaming::Body<Chunk, ::Error> {
+    #[inline]
     fn from(b: Body) -> tokio_proto::streaming::Body<Chunk, ::Error> {
         b.0
     }
 }
 
 impl From<tokio_proto::streaming::Body<Chunk, ::Error>> for Body {
+    #[inline]
     fn from(tokio_body: tokio_proto::streaming::Body<Chunk, ::Error>) -> Body {
         Body(tokio_body)
     }
 }
 
 impl From<mpsc::Receiver<Result<Chunk, ::Error>>> for Body {
+    #[inline]
     fn from(src: mpsc::Receiver<Result<Chunk, ::Error>>) -> Body {
         Body(src.into())
     }
 }
 
 impl From<Chunk> for Body {
+    #[inline]
     fn from (chunk: Chunk) -> Body {
         Body(TokioBody::from(chunk))
     }
 }
 
 impl From<Bytes> for Body {
+    #[inline]
     fn from (bytes: Bytes) -> Body {
         Body(TokioBody::from(Chunk::from(bytes)))
     }
 }
 
 impl From<Vec<u8>> for Body {
+    #[inline]
     fn from (vec: Vec<u8>) -> Body {
         Body(TokioBody::from(Chunk::from(vec)))
     }
 }
 
 impl From<&'static [u8]> for Body {
+    #[inline]
     fn from (slice: &'static [u8]) -> Body {
         Body(TokioBody::from(Chunk::from(slice)))
     }
 }
 
 impl From<String> for Body {
+    #[inline]
     fn from (s: String) -> Body {
         Body(TokioBody::from(Chunk::from(s.into_bytes())))
     }
 }
 
 impl From<&'static str> for Body {
+    #[inline]
     fn from (slice: &'static str) -> Body {
         Body(TokioBody::from(Chunk::from(slice.as_bytes())))
     }
@@ -107,7 +126,7 @@ fn test_body_stream_concat() {
         tx.send(Ok("world".into())).wait().unwrap();
     });
 
-    let total = body.concat().wait().unwrap();
+    let total = body.concat2().wait().unwrap();
     assert_eq!(total.as_ref(), b"hello world");
 
 }
