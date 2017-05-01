@@ -34,6 +34,12 @@ impl Default for Body {
     }
 }
 
+impl Default for Body {
+    fn default() -> Body {
+        Body::empty()
+    }
+}
+
 impl Stream for Body {
     type Item = Chunk;
     type Error = ::Error;
@@ -104,6 +110,12 @@ impl From<&'static str> for Body {
     #[inline]
     fn from (slice: &'static str) -> Body {
         Body(TokioBody::from(Chunk::from(slice.as_bytes())))
+    }
+}
+
+impl From<Option<Body>> for Body {
+    fn from (body: Option<Body>) -> Body {
+        body.unwrap_or_default()
     }
 }
 
