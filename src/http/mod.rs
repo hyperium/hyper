@@ -24,6 +24,8 @@ mod io;
 mod h1;
 //mod h2;
 mod str;
+pub mod request;
+pub mod response;
 
 /*
 macro_rules! nonblocking {
