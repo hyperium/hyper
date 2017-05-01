@@ -126,7 +126,7 @@ fn test_body_stream_concat() {
         tx.send(Ok("world".into())).wait().unwrap();
     });
 
-    let total = body.concat2().wait().unwrap();
+    let total = body.concat().wait().unwrap();
     assert_eq!(total.as_ref(), b"hello world");
 
 }
