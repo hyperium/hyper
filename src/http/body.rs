@@ -107,6 +107,13 @@ impl From<&'static str> for Body {
     }
 }
 
+impl From<Option<Body>> for Body {
+    #[inline]
+    fn from (body: Option<Body>) -> Body {
+        body.unwrap_or_default()
+    }
+}
+
 fn _assert_send_sync() {
     fn _assert_send<T: Send>() {}
     fn _assert_sync<T: Sync>() {}

@@ -22,19 +22,19 @@ pub use tokio_service::Service;
 
 use header::{Headers, Host};
 use http::{self, TokioBody};
+use http::response;
+use http::request;
 use method::Method;
 use self::pool::{Pool, Pooled};
 use uri::{self, Uri};
 
+pub use http::response::Response;
+pub use http::request::Request;
 pub use self::connect::{HttpConnector, Connect};
-pub use self::request::Request;
-pub use self::response::Response;
 
 mod connect;
 mod dns;
 mod pool;
-mod request;
-mod response;
 
 /// A Client to make outgoing HTTP requests.
 // If the Connector is clone, then the Client can be clone easily.
@@ -198,8 +198,8 @@ where C: Connect,
         });
         FutureResponse(Box::new(req.map(|msg| {
             match msg {
-                Message::WithoutBody(head) => response::new(head, None),
-                Message::WithBody(head, body) => response::new(head, Some(body.into())),
+                Message::WithoutBody(head) => response::from_wire(head, None),
+                Message::WithBody(head, body) => response::from_wire(head, Some(body.into())),
             }
         })))
     }

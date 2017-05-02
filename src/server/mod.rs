@@ -24,13 +24,12 @@ use tokio_proto::streaming::Message;
 use tokio_proto::streaming::pipeline::{Transport, Frame, ServerProto};
 pub use tokio_service::{NewService, Service};
 
-pub use self::request::Request;
-pub use self::response::Response;
-
 use http;
+use http::response;
+use http::request;
 
-mod request;
-mod response;
+pub use http::response::Response;
+pub use http::request::Request;
 
 /// An instance of the HTTP protocol, and implementation of tokio-proto's
 /// `ServerProto` trait.
@@ -284,7 +283,7 @@ impl From<Message<__ProtoRequest, http::TokioBody>> for Request {
             Message::WithoutBody(head) => (head.0, http::Body::empty()),
             Message::WithBody(head, body) => (head.0, body.into()),
         };
-        request::new(None, head, body)
+        request::from_wire(None, head, body)
     }
 }
 
@@ -321,7 +320,7 @@ impl<T, B> Service for HttpService<T>
             Message::WithoutBody(head) => (head.0, http::Body::empty()),
             Message::WithBody(head, body) => (head.0, body.into()),
         };
-        let req = request::new(Some(self.remote_addr), head, body);
+        let req = request::from_wire(Some(self.remote_addr), head, body);
         self.inner.call(req).map(Into::into)
     }
 }

@@ -503,7 +503,7 @@ fn test_server_disable_keep_alive() {
         .status(hyper::Ok)
         .header(hyper::header::ContentLength(quux.len() as u64))
         .body(quux);
-    
+
     let _ = req.write_all(b"\
         GET /quux HTTP/1.1\r\n\
         Host: example.domain\r\n\
