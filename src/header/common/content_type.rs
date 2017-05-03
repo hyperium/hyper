@@ -95,6 +95,12 @@ impl ContentType {
     pub fn png() -> ContentType {
         ContentType(mime!(Image/Png))
     }
+
+    /// A constructor  to easily create a `Content-Type: application/octet-stream` header.
+    #[inline]
+    pub fn octet_stream() -> ContentType {
+        ContentType(mime!(Application/OctetStream))
+    }
 }
 
 impl Eq for ContentType {}
