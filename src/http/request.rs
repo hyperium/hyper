@@ -8,6 +8,7 @@ use version::HttpVersion;
 use std::net::SocketAddr;
 
 /// A client request to a remote server.
+#[derive(Clone)]
 pub struct Request<B = Body> {
     method: Method,
     uri: Uri,

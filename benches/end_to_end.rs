@@ -33,7 +33,7 @@ fn get_one_at_a_time(b: &mut test::Bencher) {
     b.bytes = 160 * 2 + PHRASE.len() as u64;
     b.iter(move || {
         let work = client.get(url.clone()).and_then(|res| {
-            res.body().for_each(|_chunk| {
+            res.into_body().unwrap_or_default().for_each(|_chunk| {
                 Ok(())
             })
         });
@@ -61,7 +61,7 @@ fn post_one_at_a_time(b: &mut test::Bencher) {
         req.set_body(post);
 
         let work = client.request(req).and_then(|res| {
-            res.body().for_each(|_chunk| {
+            res.into_body().unwrap_or_default().for_each(|_chunk| {
                 Ok(())
             })
         });
@@ -85,7 +85,7 @@ impl Service for Hello {
             server::Response::new()
                 .with_header(ContentLength(PHRASE.len() as u64))
                 .with_header(ContentType::plaintext())
-                .with_body(PHRASE)
+                .with_body(Some(PHRASE.into()))
         )
     }
 

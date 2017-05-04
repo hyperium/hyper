@@ -38,7 +38,7 @@ fn main() {
         println!("Response: {}", res.status());
         println!("Headers: \n{}", res.headers());
 
-        res.body().for_each(|chunk| {
+        res.into_body().unwrap_or_default().for_each(|chunk| {
             io::stdout().write_all(&chunk).map_err(From::from)
         })
     }).map(|_| {

@@ -86,7 +86,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     /// The returned `Server` contains one method, `run`, which is used to
     /// actually run the server.
     pub fn bind<S, Bd>(&self, addr: &SocketAddr, new_service: S) -> ::Result<Server<S, Bd>>
-        where S: NewService<Request = Request, Response = Response<Bd>, Error = ::Error> +
+        where S: NewService<Request = Request, Response = Response<Option<Bd>>, Error = ::Error> +
                     Send + Sync + 'static,
               Bd: Stream<Item=B, Error=::Error>,
     {
@@ -122,7 +122,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
                                  io: I,
                                  remote_addr: SocketAddr,
                                  service: S)
-        where S: Service<Request = Request, Response = Response<Bd>, Error = ::Error> + 'static,
+        where S: Service<Request = Request, Response = Response<Option<Bd>>, Error = ::Error> + 'static,
               Bd: Stream<Item=B, Error=::Error> + 'static,
               I: AsyncRead + AsyncWrite + 'static,
     {
@@ -287,11 +287,11 @@ impl From<Message<__ProtoRequest, http::TokioBody>> for Request {
     }
 }
 
-impl<B> Into<Message<__ProtoResponse, B>> for Response<B> {
-    fn into(self) -> Message<__ProtoResponse, B> {
+impl<B_, B: Into<Option<B_>>> Into<Message<__ProtoResponse, B_>> for Response<B> {
+    fn into(self) -> Message<__ProtoResponse, B_> {
         let (head, body) = response::split(self);
-        if let Some(body) = body {
-            Message::WithBody(__ProtoResponse(head), body.into())
+        if let Some(body) = body.into() {
+            Message::WithBody(__ProtoResponse(head), body)
         } else {
             Message::WithoutBody(__ProtoResponse(head))
         }
@@ -306,14 +306,14 @@ struct HttpService<T> {
 type ResponseHead = http::MessageHead<::StatusCode>;
 
 impl<T, B> Service for HttpService<T>
-    where T: Service<Request=Request, Response=Response<B>, Error=::Error>,
+    where T: Service<Request=Request, Response=Response<Option<B>>, Error=::Error>,
           B: Stream<Error=::Error>,
           B::Item: AsRef<[u8]>,
 {
     type Request = Message<__ProtoRequest, http::TokioBody>;
     type Response = Message<__ProtoResponse, B>;
     type Error = ::Error;
-    type Future = Map<T::Future, fn(Response<B>) -> Message<__ProtoResponse, B>>;
+    type Future = Map<T::Future, fn(Response<Option<B>>) -> Message<__ProtoResponse, B>>;
 
     fn call(&self, message: Self::Request) -> Self::Future {
         let (head, body) = match message {
@@ -326,7 +326,7 @@ impl<T, B> Service for HttpService<T>
 }
 
 impl<S, B> Server<S, B>
-    where S: NewService<Request = Request, Response = Response<B>, Error = ::Error>
+    where S: NewService<Request = Request, Response = Response<Option<B>>, Error = ::Error>
                 + Send + Sync + 'static,
           B: Stream<Error=::Error> + 'static,
           B::Item: AsRef<[u8]>,

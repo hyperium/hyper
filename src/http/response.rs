@@ -6,19 +6,28 @@ use status::StatusCode;
 use version::HttpVersion;
 
 /// A response for a client request to a remote server.
-pub struct Response<B = Body> {
+#[derive(Clone)]
+pub struct Response<B = Option<Body>> {
     version: HttpVersion,
     headers: Headers,
     status: StatusCode,
     raw_status: RawStatus,
-    body: Option<B>,
+    body: B,
+}
+
+impl Response {
+    /// Constructs a default response
+    #[inline]
+    pub fn new() -> Response {
+        Response::default()
+    }
 }
 
 impl<B> Response<B> {
-    /// Constructs a default response
+    /// Constructs a default response with a given body
     #[inline]
-    pub fn new() -> Response<B> {
-        Response::default()
+    pub fn new_with_body(body: B) -> Response<B> {
+        Response::<()>::default().with_body(body)
     }
 
     /// Get the HTTP version of this response.
@@ -80,40 +89,77 @@ impl<B> Response<B> {
     /// Set the body.
     #[inline]
     pub fn set_body<T: Into<B>>(&mut self, body: T) {
-        self.body = Some(body.into());
+        self.body = body.into();
     }
 
     /// Set the body and move the Response.
     ///
     /// Useful for the "builder-style" pattern.
     #[inline]
-    pub fn with_body<T: Into<B>>(mut self, body: T) -> Self {
-        self.set_body(body);
-        self
-    }
-}
+    pub fn with_body<B_>(self, body: B_) -> Response<B_> {
+        let Response {
+            version: version_,
+            headers: headers_,
+            status: status_,
+            raw_status: raw_status_,
+            ..
+        } = self;
 
-impl Response<Body> {
-    /// Take the `Body` of this response.
+        Response {
+            version: version_,
+            headers: headers_,
+            status: status_,
+            raw_status: raw_status_,
+            body: body,
+        }
+    }
+
+    /// Get a reference to the body.
+    pub fn body(&self) -> &B { &self.body }
+
+    /// Get a mutable reference to the body.
+    pub fn body_mut(&mut self) -> &mut B { &mut self.body }
+
+    /// Take the body, moving it out of the Response.
     #[inline]
-    pub fn body(self) -> Body {
-        self.body.unwrap_or_default()
+    pub fn take_body(self) -> (B, Response<()>) {
+        let Response {
+            version: version_,
+            headers: headers_,
+            status: status_,
+            raw_status: raw_status_,
+            body: body_,
+        } = self;
+
+        (body_, Response {
+            version: version_,
+            headers: headers_,
+            status: status_,
+            raw_status: raw_status_,
+            body: (),
+        })
+    }
+
+    /// Take the body of this response.
+    #[inline]
+    pub fn into_body(self) -> B {
+        self.body
     }
 }
 
-impl<B> Default for Response<B> {
+impl<B: Default> Default for Response<B> {
     fn default() -> Response<B> {
         Response::<B> {
             version: Default::default(),
             headers: Default::default(),
             status: Default::default(),
             raw_status: Default::default(),
-            body: None,
+            body: Default::default(),
         }
     }
 }
 
-impl fmt::Debug for Response {
+impl<B> fmt::Debug for Response<B> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Response")
             .field("status", &self.status)
@@ -125,13 +171,14 @@ impl fmt::Debug for Response {
 
 /// Constructs a response using a received ResponseHead and optional body
 #[inline]
-pub fn from_wire<B>(incoming: ResponseHead, body: Option<B>) -> Response<B> {
+pub fn from_wire<B: Default>(incoming: ResponseHead, body: Option<B>)
+                             -> Response<Option<B>> {
     let status = incoming.status();
     trace!("Response::new");
     debug!("version={:?}, status={:?}", incoming.version, status);
     debug!("headers={:?}", incoming.headers);
 
-    Response::<B> {
+    Response {
         status: status,
         version: incoming.version,
         headers: incoming.headers,
@@ -142,7 +189,7 @@ pub fn from_wire<B>(incoming: ResponseHead, body: Option<B>) -> Response<B> {
 
 /// Splits this response into a MessageHead<StatusCode> and its body
 #[inline]
-pub fn split<B>(res: Response<B>) -> (MessageHead<StatusCode>, Option<B>) {
+pub fn split<B>(res: Response<B>) -> (MessageHead<StatusCode>, B) {
     let head = MessageHead::<StatusCode> {
         version: res.version,
         headers: res.headers,
