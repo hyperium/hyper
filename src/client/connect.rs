@@ -1,6 +1,7 @@
 use std::error::Error as StdError;
 use std::fmt;
 use std::io;
+use std::mem;
 //use std::net::SocketAddr;
 
 use futures::{Future, Poll, Async};
@@ -109,7 +110,7 @@ impl Service for HttpConnector {
         };
 
         HttpConnecting {
-            state: State::Resolving(self.dns.resolve(host.into(), port)),
+            state: State::Lazy(self.dns.clone(), host.into(), port),
             handle: self.handle.clone(),
         }
     }
@@ -153,6 +154,7 @@ pub struct HttpConnecting {
 }
 
 enum State {
+    Lazy(dns::Dns, String, u16),
     Resolving(dns::Query),
     Connecting(ConnectingTcp),
     Error(Option<io::Error>),
@@ -166,6 +168,10 @@ impl Future for HttpConnecting {
         loop {
             let state;
             match self.state {
+                State::Lazy(ref dns, ref mut host, port) => {
+                    let host = mem::replace(host, String::new());
+                    state = State::Resolving(dns.resolve(host, port));
+                },
                 State::Resolving(ref mut query) => {
                     match try!(query.poll()) {
                         Async::NotReady => return Ok(Async::NotReady),
