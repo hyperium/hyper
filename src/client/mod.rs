@@ -1,7 +1,4 @@
 //! HTTP Client
-//!
-//! The HTTP `Client` uses asynchronous IO, and utilizes the `Handler` trait
-//! to convey when IO events are available for a given request.
 
 use std::cell::RefCell;
 use std::fmt;
