@@ -102,8 +102,6 @@ impl Header for Cookie {
                 let key_val = (key_val.next(), key_val.next());
                 if let (Some(key), Some(val)) = key_val {
                     vec_map.insert(key.trim().to_owned().into(), val.trim().to_owned().into());
-                } else {
-                    return Err(::Error::Header);
                 }
             }
         }
@@ -213,8 +211,18 @@ mod tests {
         cookie.append("foo", "bar");
         assert_eq!(cookie, parsed);
 
+        let parsed = Cookie::parse_header(&b"foo=bar;".to_vec().into()).unwrap();
+        assert_eq!(cookie, parsed);
+
         let parsed = Cookie::parse_header(&b"foo=bar; baz=quux".to_vec().into()).unwrap();
         cookie.append("baz", "quux");
+        assert_eq!(cookie, parsed);
+
+        let parsed = Cookie::parse_header(&b"foo=bar;; baz=quux".to_vec().into()).unwrap();
+        assert_eq!(cookie, parsed);
+
+        let parsed = Cookie::parse_header(&b"foo=bar; invalid ; bad; ;; baz=quux".to_vec().into())
+            .unwrap();
         assert_eq!(cookie, parsed);
 
         let parsed = Cookie::parse_header(&b" foo  =    bar;baz= quux  ".to_vec().into()).unwrap();
@@ -241,9 +249,6 @@ mod tests {
                 .unwrap();
         cookie.append("double", "=2");
         assert_eq!(cookie, parsed);
-
-        Cookie::parse_header(&b"foo;bar=baz;quux".to_vec().into()).unwrap_err();
-
     }
 }
 
