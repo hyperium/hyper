@@ -1,8 +1,6 @@
 pub use self::decode::Decoder;
 pub use self::encode::Encoder;
 
-pub use self::parse::parse;
-
 mod decode;
 mod encode;
 pub mod parse;

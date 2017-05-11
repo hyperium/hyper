@@ -5,7 +5,7 @@ use std::ptr;
 
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use http::{Http1Transaction, h1, MessageHead, ParseResult, DebugTruncate};
+use http::{Http1Transaction, MessageHead, DebugTruncate};
 use bytes::{BytesMut, Bytes};
 
 const INIT_BUFFER_SIZE: usize = 8192;
@@ -56,7 +56,7 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
 
     pub fn parse<S: Http1Transaction>(&mut self) -> ::Result<Option<MessageHead<S::Incoming>>> {
         loop {
-            match try!(parse::<S, _>(&mut self.read_buf)) {
+            match try!(S::parse(&mut self.read_buf)) {
                 Some(head) => {
                     //trace!("parsed {} bytes out of {}", len, self.read_buf.len());
                     return Ok(Some(head.0))
@@ -149,10 +149,6 @@ impl<T: Write> Write for Buffered<T> {
             self.io.flush()
         }
     }
-}
-
-fn parse<T: Http1Transaction<Incoming=I>, I>(rdr: &mut BytesMut) -> ParseResult<I> {
-    h1::parse::<T, I>(rdr)
 }
 
 pub trait MemRead {
