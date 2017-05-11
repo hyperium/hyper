@@ -591,6 +591,7 @@ impl From<StatusCode> for u16 {
 /// to get the appropriate *category* of status.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy)]
 #[deprecated(note = "StatusClass is going away. Use the StatusCode::is_<class>() methods instead.")]
+#[allow(deprecated)]
 pub enum StatusClass {
     /// 1xx (Informational): The request was received, continuing process
     Informational,
