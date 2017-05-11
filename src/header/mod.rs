@@ -80,7 +80,7 @@ use std::borrow::{Cow, ToOwned};
 use std::iter::{FromIterator, IntoIterator};
 use std::{mem, fmt};
 
-use unicase::UniCase;
+use unicase::Ascii;
 
 use self::internals::{Item, VecMap, Entry};
 use self::sealed::{GetType, HeaderClone};
@@ -329,7 +329,7 @@ macro_rules! literals {
             match s.len() {
                 $($len => {
                     $(
-                    if UniCase(<$header>::header_name()) == s {
+                    if Ascii::new(<$header>::header_name()) == Ascii::new(s) {
                         return Cow::Borrowed(<$header>::header_name());
                     }
                     )+
@@ -390,19 +390,19 @@ impl Headers {
     /// The field is determined by the type of the value being set.
     pub fn set<H: Header>(&mut self, value: H) {
         trace!("Headers.set( {:?}, {:?} )", header_name::<H>(), HeaderValueString(&value));
-        self.data.insert(HeaderName(UniCase(Cow::Borrowed(header_name::<H>()))),
+        self.data.insert(HeaderName(Ascii::new(Cow::Borrowed(header_name::<H>()))),
                          Item::new_typed(Box::new(value)));
     }
 
     /// Get a reference to the header field's value, if it exists.
     pub fn get<H: Header>(&self) -> Option<&H> {
-        self.data.get(&HeaderName(UniCase(Cow::Borrowed(header_name::<H>()))))
+        self.data.get(&HeaderName(Ascii::new(Cow::Borrowed(header_name::<H>()))))
         .and_then(Item::typed::<H>)
     }
 
     /// Get a mutable reference to the header field's value, if it exists.
     pub fn get_mut<H: Header>(&mut self) -> Option<&mut H> {
-        self.data.get_mut(&HeaderName(UniCase(Cow::Borrowed(header_name::<H>()))))
+        self.data.get_mut(&HeaderName(Ascii::new(Cow::Borrowed(header_name::<H>()))))
         .and_then(Item::typed_mut::<H>)
     }
 
@@ -418,7 +418,7 @@ impl Headers {
     /// assert!(headers.has::<ContentType>());
     /// ```
     pub fn has<H: Header>(&self) -> bool {
-        self.data.contains_key(&HeaderName(UniCase(Cow::Borrowed(header_name::<H>()))))
+        self.data.contains_key(&HeaderName(Ascii::new(Cow::Borrowed(header_name::<H>()))))
     }
 
     /// Removes a header from the map, if one existed.
@@ -428,7 +428,7 @@ impl Headers {
     /// know whether a header exists, rather rely on `has`.
     pub fn remove<H: Header>(&mut self) -> Option<H> {
         trace!("Headers.remove( {:?} )", header_name::<H>());
-        self.data.remove(&HeaderName(UniCase(Cow::Borrowed(header_name::<H>()))))
+        self.data.remove(&HeaderName(Ascii::new(Cow::Borrowed(header_name::<H>()))))
             .and_then(Item::into_typed::<H>)
     }
 
@@ -484,7 +484,7 @@ impl Headers {
         let name = name.into();
         let value = value.into();
         trace!("Headers.set_raw( {:?}, {:?} )", name, value);
-        self.data.insert(HeaderName(UniCase(name)), Item::new_raw(value));
+        self.data.insert(HeaderName(Ascii::new(name)), Item::new_raw(value));
     }
 
     /// Append a value to raw value of this header.
@@ -506,7 +506,7 @@ impl Headers {
         let name = name.into();
         let value = value.into();
         trace!("Headers.append_raw( {:?}, {:?} )", name, value);
-        let name = HeaderName(UniCase(name));
+        let name = HeaderName(Ascii::new(name));
         if let Some(item) = self.data.get_mut(&name) {
             item.raw_mut().push(value);
             return;
@@ -519,7 +519,6 @@ impl Headers {
         trace!("Headers.remove_raw( {:?} )", name);
         self.data.remove(name);
     }
-
 
 }
 
@@ -577,7 +576,7 @@ impl<'a> HeaderView<'a> {
     /// Check if a HeaderView is a certain Header.
     #[inline]
     pub fn is<H: Header>(&self) -> bool {
-        HeaderName(UniCase(Cow::Borrowed(header_name::<H>()))) == *self.0
+        HeaderName(Ascii::new(Cow::Borrowed(header_name::<H>()))) == *self.0
     }
 
     /// Get the Header name as a slice.
@@ -633,7 +632,7 @@ impl<'a> Extend<HeaderView<'a>> for Headers {
 impl<'a> Extend<(&'a str, Bytes)> for Headers {
     fn extend<I: IntoIterator<Item=(&'a str, Bytes)>>(&mut self, iter: I) {
         for (name, value) in iter {
-            let name = HeaderName(UniCase(maybe_literal(name)));
+            let name = HeaderName(Ascii::new(maybe_literal(name)));
             //let trim = header.value.iter().rev().take_while(|&&x| x == b' ').count();
 
             match self.data.entry(name) {
@@ -657,7 +656,7 @@ impl<'a> FromIterator<HeaderView<'a>> for Headers {
 }
 
 #[derive(Clone, Debug)]
-struct HeaderName(UniCase<Cow<'static, str>>);
+struct HeaderName(Ascii<Cow<'static, str>>);
 
 impl fmt::Display for HeaderName {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -667,7 +666,7 @@ impl fmt::Display for HeaderName {
 
 impl AsRef<str> for HeaderName {
     fn as_ref(&self) -> &str {
-        ((self.0).0).as_ref()
+        self.0.as_ref()
     }
 }
 

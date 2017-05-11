@@ -1,6 +1,6 @@
 use std::fmt::{self, Display};
 use std::str;
-use unicase::UniCase;
+use unicase;
 use header::{Header, Raw};
 
 /// `Access-Control-Allow-Credentials` header, part of
@@ -38,7 +38,7 @@ use header::{Header, Raw};
 #[derive(Clone, PartialEq, Debug)]
 pub struct AccessControlAllowCredentials;
 
-const ACCESS_CONTROL_ALLOW_CREDENTIALS_TRUE: UniCase<&'static str> = UniCase("true");
+const ACCESS_CONTROL_ALLOW_CREDENTIALS_TRUE: &'static str = "true";
 
 impl Header for AccessControlAllowCredentials {
     fn header_name() -> &'static str {
@@ -56,7 +56,7 @@ impl Header for AccessControlAllowCredentials {
                 //    None. No big deal.
                 str::from_utf8_unchecked(line)
             };
-            if UniCase(text) == ACCESS_CONTROL_ALLOW_CREDENTIALS_TRUE {
+            if unicase::eq_ascii(text, ACCESS_CONTROL_ALLOW_CREDENTIALS_TRUE) {
                 return Ok(AccessControlAllowCredentials);
             }
         }

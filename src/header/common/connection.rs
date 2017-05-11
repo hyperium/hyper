@@ -1,11 +1,11 @@
 use std::fmt::{self, Display};
 use std::str::FromStr;
-use unicase::UniCase;
+use unicase::Ascii;
 
 pub use self::ConnectionOption::{KeepAlive, Close, ConnectionHeader};
 
-const KEEP_ALIVE: UniCase<&'static str> = UniCase("keep-alive");
-const CLOSE: UniCase<&'static str> = UniCase("close");
+static KEEP_ALIVE: &'static str = "keep-alive";
+static CLOSE: &'static str = "close";
 
 /// Values that can be in the `Connection` header.
 #[derive(Clone, PartialEq, Debug)]
@@ -22,18 +22,18 @@ pub enum ConnectionOption {
     // TODO: it would be nice if these "Strings" could be stronger types, since
     // they are supposed to relate to other Header fields (which we have strong
     // types for).
-    ConnectionHeader(UniCase<String>),
+    ConnectionHeader(Ascii<String>),
 }
 
 impl FromStr for ConnectionOption {
     type Err = ();
     fn from_str(s: &str) -> Result<ConnectionOption, ()> {
-        if UniCase(s) == KEEP_ALIVE {
+        if Ascii::new(s) == KEEP_ALIVE {
             Ok(KeepAlive)
-        } else if UniCase(s) == CLOSE {
+        } else if Ascii::new(s) == CLOSE {
             Ok(Close)
         } else {
-            Ok(ConnectionHeader(UniCase(s.to_owned())))
+            Ok(ConnectionHeader(Ascii::new(s.to_owned())))
         }
     }
 }
@@ -43,7 +43,7 @@ impl Display for ConnectionOption {
         f.write_str(match *self {
             KeepAlive => "keep-alive",
             Close => "close",
-            ConnectionHeader(UniCase(ref s)) => s.as_ref()
+            ConnectionHeader(ref s) => s.as_ref()
         })
     }
 }
@@ -83,12 +83,12 @@ header! {
     /// // extern crate unicase;
     ///
     /// use hyper::header::{Headers, Connection, ConnectionOption};
-    /// use unicase::UniCase;
+    /// use unicase::Ascii;
     ///
     /// let mut headers = Headers::new();
     /// headers.set(
     ///     Connection(vec![
-    ///         ConnectionOption::ConnectionHeader(UniCase("upgrade".to_owned())),
+    ///         ConnectionOption::ConnectionHeader(Ascii::new("upgrade".to_owned())),
     ///     ])
     /// );
     /// # }
@@ -124,7 +124,7 @@ bench_header!(header, Connection, { vec![b"authorization".to_vec()] });
 mod tests {
     use super::{Connection,ConnectionHeader};
     use header::Header;
-    use unicase::UniCase;
+    use unicase::Ascii;
 
     fn parse_option(header: Vec<u8>) -> Connection {
         let val = header.into();
@@ -137,7 +137,7 @@ mod tests {
         assert_eq!(Connection::close(),parse_option(b"close".to_vec()));
         assert_eq!(Connection::keep_alive(),parse_option(b"keep-alive".to_vec()));
         assert_eq!(Connection::keep_alive(),parse_option(b"Keep-Alive".to_vec()));
-        assert_eq!(Connection(vec![ConnectionHeader(UniCase("upgrade".to_owned()))]),
+        assert_eq!(Connection(vec![ConnectionHeader(Ascii::new("upgrade".to_owned()))]),
             parse_option(b"upgrade".to_vec()));
     }
 }
