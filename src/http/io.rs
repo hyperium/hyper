@@ -8,7 +8,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use http::{Http1Transaction, h1, MessageHead, ParseResult, DebugTruncate};
 use bytes::{BytesMut, Bytes};
 
-const INIT_BUFFER_SIZE: usize = 4096;
+const INIT_BUFFER_SIZE: usize = 8192;
 pub const MAX_BUFFER_SIZE: usize = 8192 + 4096 * 100;
 
 pub struct Buffered<T> {
