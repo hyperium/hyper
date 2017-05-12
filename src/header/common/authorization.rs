@@ -158,7 +158,8 @@ impl Scheme for Basic {
         if let Some(ref pass) = self.password {
             text.push_str(&pass[..]);
         }
-        f.write_str(&encode(text.as_ref()))
+
+        f.write_str(&encode(&text))
     }
 }
 
