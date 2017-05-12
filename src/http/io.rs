@@ -72,7 +72,8 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
             match self.read_from_io() {
                 Ok(0) => {
                     trace!("parse eof");
-                    return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "parse eof").into());
+                    //TODO: With Rust 1.14, this can be Error::from(ErrorKind)
+                    return Err(io::Error::new(io::ErrorKind::UnexpectedEof, ParseEof).into());
                 }
                 Ok(_) => {},
                 Err(e) => match e.kind() {
@@ -313,6 +314,21 @@ impl WriteBuf {
                 self.0.bytes.set_len(0);
             }
         }
+    }
+}
+
+#[derive(Debug)]
+struct ParseEof;
+
+impl fmt::Display for ParseEof {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("parse eof")
+    }
+}
+
+impl ::std::error::Error for ParseEof {
+    fn description(&self) -> &str {
+        "parse eof"
     }
 }
 
