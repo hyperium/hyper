@@ -786,13 +786,13 @@ mod tests {
             let max = ::http::io::MAX_BUFFER_SIZE + 4096;
             conn.state.writing = Writing::Body(Encoder::length((max * 2) as u64), None);
 
-            assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'a'; 1024 * 4].into()) }).unwrap().is_ready());
+            assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'a'; 1024 * 8].into()) }).unwrap().is_ready());
             assert!(!conn.state.writing.is_queued());
 
             assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'b'; max].into()) }).unwrap().is_ready());
             assert!(conn.state.writing.is_queued());
 
-            assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'b'; 1024 * 4].into()) }).unwrap().is_not_ready());
+            assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'b'; 1024 * 8].into()) }).unwrap().is_not_ready());
 
             conn.io.io_mut().block_in(1024 * 3);
             assert!(conn.poll_complete().unwrap().is_not_ready());
@@ -801,7 +801,7 @@ mod tests {
             conn.io.io_mut().block_in(max * 2);
             assert!(conn.poll_complete().unwrap().is_ready());
 
-            assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'c'; 1024 * 4].into()) }).unwrap().is_ready());
+            assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'c'; 1024 * 8].into()) }).unwrap().is_ready());
             Ok(())
         }).wait();
     }
@@ -814,7 +814,7 @@ mod tests {
             conn.state.writing = Writing::Body(Encoder::chunked(), None);
 
             assert!(conn.start_send(Frame::Body { chunk: Some("headers".into()) }).unwrap().is_ready());
-            assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'x'; 4096].into()) }).unwrap().is_ready());
+            assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'x'; 8192].into()) }).unwrap().is_ready());
             Ok(())
         }).wait();
     }
