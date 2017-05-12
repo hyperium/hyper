@@ -2,7 +2,6 @@
 extern crate hyper;
 extern crate futures;
 extern crate pretty_env_logger;
-//extern crate num_cpus;
 
 use futures::future::FutureResult;
 
@@ -11,7 +10,6 @@ use hyper::server::{Http, Service, Request, Response};
 
 static PHRASE: &'static [u8] = b"Hello World!";
 
-#[derive(Clone, Copy)]
 struct Hello;
 
 impl Service for Hello {
