@@ -49,7 +49,7 @@ where A: NetworkListener + Send + 'static,
             match acceptor.accept() {
                 Ok(stream) => work(stream),
                 Err(e) => {
-                    error!("Connection failed: {}", e);
+                    info!("Connection failed: {}", e);
                 }
             }
         }
