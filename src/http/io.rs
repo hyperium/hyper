@@ -68,7 +68,6 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
                     }
                 },
             }
-            self.reserve_read_buf();
             match self.read_from_io() {
                 Ok(0) => {
                     trace!("parse eof");
@@ -88,8 +87,17 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
 
     fn read_from_io(&mut self) -> io::Result<usize> {
         use bytes::BufMut;
+        // TODO: Investigate if we still need these unsafe blocks
+        if self.read_buf.remaining_mut() < INIT_BUFFER_SIZE {
+            self.read_buf.reserve(INIT_BUFFER_SIZE);
+            unsafe { // Zero out unused memory
+                let buf = self.read_buf.bytes_mut();
+                let len = buf.len();
+                ptr::write_bytes(buf.as_mut_ptr(), 0, len);
+            }
+        }
         self.read_blocked = false;
-        unsafe {
+        unsafe { // Can we use AsyncRead::read_buf instead?
             let n = match self.io.read(self.read_buf.bytes_mut()) {
                 Ok(n) => n,
                 Err(e) => {
@@ -101,19 +109,6 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
             };
             self.read_buf.advance_mut(n);
             Ok(n)
-        }
-    }
-
-    fn reserve_read_buf(&mut self) {
-        use bytes::BufMut;
-        if self.read_buf.remaining_mut() >= INIT_BUFFER_SIZE {
-            return
-        }
-        self.read_buf.reserve(INIT_BUFFER_SIZE);
-        unsafe {
-            let buf = self.read_buf.bytes_mut();
-            let len = buf.len();
-            ptr::write_bytes(buf.as_mut_ptr(), 0, len);
         }
     }
 
@@ -163,7 +158,6 @@ impl<T: AsyncRead + AsyncWrite> MemRead for Buffered<T> {
             trace!("Buffered.read_mem read_buf is not empty, slicing {}", n);
             Ok(self.read_buf.split_to(n).freeze())
         } else {
-            self.reserve_read_buf();
             let n = try!(self.read_from_io());
             Ok(self.read_buf.split_to(::std::cmp::min(len, n)).freeze())
         }
