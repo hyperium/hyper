@@ -2,6 +2,7 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::io;
 use std::mem;
+use std::rc::Rc;
 //use std::net::SocketAddr;
 
 use futures::{Future, Poll, Async};
@@ -11,7 +12,7 @@ use tokio::net::{TcpStream, TcpStreamNew};
 use tokio_service::Service;
 use Uri;
 
-use super::dns;
+use super::dns::{self, DnsService};
 
 /// A connector creates an Io to a remote address..
 ///
@@ -42,21 +43,34 @@ where T: Service<Request=Uri, Error=io::Error> + 'static,
 
 /// A connector for the `http` scheme.
 #[derive(Clone)]
-pub struct HttpConnector {
-    dns: dns::Dns,
+pub struct HttpConnector<D=dns::DnsPool> {
+    dns: Rc<D>,
     enforce_http: bool,
     handle: Handle,
 }
 
 impl HttpConnector {
-
     /// Construct a new HttpConnector.
     ///
     /// Takes number of DNS worker threads.
     #[inline]
     pub fn new(threads: usize, handle: &Handle) -> HttpConnector {
         HttpConnector {
-            dns: dns::Dns::new(threads),
+            dns: Rc::new(dns::DnsPool::new(threads)),
+            enforce_http: true,
+            handle: handle.clone(),
+        }
+    }
+}
+
+impl<D> HttpConnector<D> {
+    /// Construct a new HttpConnector.
+    ///
+    /// Takes a `DnsService`.
+    #[inline]
+    pub fn with_dns(dns: D, handle: &Handle) -> HttpConnector<D> {
+        HttpConnector {
+            dns: Rc::new(dns),
             enforce_http: true,
             handle: handle.clone(),
         }
@@ -71,7 +85,7 @@ impl HttpConnector {
     }
 }
 
-impl fmt::Debug for HttpConnector {
+impl<D> fmt::Debug for HttpConnector<D> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("HttpConnector")
@@ -79,11 +93,11 @@ impl fmt::Debug for HttpConnector {
     }
 }
 
-impl Service for HttpConnector {
+impl<D: DnsService> Service for HttpConnector<D> {
     type Request = Uri;
     type Response = TcpStream;
     type Error = io::Error;
-    type Future = HttpConnecting;
+    type Future = HttpConnecting<D>;
 
     fn call(&self, uri: Uri) -> Self::Future {
         debug!("Http::connect({:?})", uri);
@@ -117,7 +131,7 @@ impl Service for HttpConnector {
 }
 
 #[inline]
-fn invalid_url(err: InvalidUrl, handle: &Handle) -> HttpConnecting {
+fn invalid_url<D: DnsService>(err: InvalidUrl, handle: &Handle) -> HttpConnecting<D> {
     HttpConnecting {
         state: State::Error(Some(io::Error::new(io::ErrorKind::InvalidInput, err))),
         handle: handle.clone(),
@@ -148,19 +162,19 @@ impl StdError for InvalidUrl {
 }
 
 /// A Future representing work to connect to a URL.
-pub struct HttpConnecting {
-    state: State,
+pub struct HttpConnecting<D: DnsService = dns::DnsPool> {
+    state: State<D>,
     handle: Handle,
 }
 
-enum State {
-    Lazy(dns::Dns, String, u16),
-    Resolving(dns::Query),
-    Connecting(ConnectingTcp),
+enum State<D: DnsService> {
+    Lazy(Rc<D>, String, u16),
+    Resolving(<D as DnsService>::Future),
+    Connecting(ConnectingTcp<D>),
     Error(Option<io::Error>),
 }
 
-impl Future for HttpConnecting {
+impl<D: DnsService> Future for HttpConnecting<D> {
     type Item = TcpStream;
     type Error = io::Error;
 
@@ -177,7 +191,7 @@ impl Future for HttpConnecting {
                         Async::NotReady => return Ok(Async::NotReady),
                         Async::Ready(addrs) => {
                             state = State::Connecting(ConnectingTcp {
-                                addrs: addrs,
+                                addrs: addrs.into_iter(),
                                 current: None,
                             })
                         }
@@ -197,12 +211,12 @@ impl fmt::Debug for HttpConnecting {
     }
 }
 
-struct ConnectingTcp {
-    addrs: dns::IpAddrs,
+struct ConnectingTcp<D: DnsService> {
+    addrs: <D::Response as IntoIterator>::IntoIter,
     current: Option<TcpStreamNew>,
 }
 
-impl ConnectingTcp {
+impl<D: DnsService> ConnectingTcp<D> {
     // not a Future, since passing a &Handle to poll
     fn poll(&mut self, handle: &Handle) -> Poll<TcpStream, io::Error> {
         let mut err = None;

@@ -28,6 +28,7 @@ use uri::{self, Uri};
 pub use http::response::Response;
 pub use http::request::Request;
 pub use self::connect::{HttpConnector, Connect};
+pub use self::dns::{DnsPool, DnsQuery, DnsService, IpAddrs};
 
 mod connect;
 mod dns;
