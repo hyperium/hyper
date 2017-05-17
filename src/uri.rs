@@ -213,9 +213,8 @@ fn parse_scheme(s: &str) -> Option<usize> {
 
 fn parse_authority(s: &str) -> usize {
     let i = s.find("://").map(|p| p + 3).unwrap_or(0);
-    s[i..].find('/')
-        .or_else(|| s[i..].find('?'))
-        .or_else(|| s[i..].find('#'))
+    s[i..]
+        .find(|ch| ch == '/' || ch == '?' || ch == '#')
         .map(|end| end + i)
         .unwrap_or(s.len())
 }
@@ -534,6 +533,28 @@ test_parse! {
     path = "/",
     query = Some("foo=bar"),
     fragment = None,
+    port = None,
+}
+
+test_parse! {
+    test_uri_parse_absolute_form_with_empty_path_and_fragment_with_slash,
+    "http://127.0.0.1#foo/bar",
+    scheme = Some("http"),
+    authority = Some("127.0.0.1"),
+    path = "/",
+    query = None,
+    fragment = Some("foo/bar"),
+    port = None,
+}
+
+test_parse! {
+    test_uri_parse_absolute_form_with_empty_path_and_fragment_with_questionmark,
+    "http://127.0.0.1#foo?bar",
+    scheme = Some("http"),
+    authority = Some("127.0.0.1"),
+    path = "/",
+    query = None,
+    fragment = Some("foo?bar"),
     port = None,
 }
 
