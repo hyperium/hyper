@@ -1,7 +1,7 @@
 use std::cmp;
 use std::io::{self, Write};
 
-use http::io::AtomicWrite;
+use bytes::BytesMut;
 
 /// Encoders to handle different Transfer-Encodings.
 #[derive(Debug, Clone)]
@@ -48,7 +48,7 @@ impl Encoder {
         }
     }
 
-    pub fn encode<W: AtomicWrite>(&mut self, w: &mut W, msg: &[u8]) -> io::Result<usize> {
+    pub fn encode<W: Write>(&mut self, w: &mut W, msg: &[u8]) -> io::Result<usize> {
         match self.kind {
             Kind::Chunked(ref mut chunked) => {
                 chunked.encode(w, msg)
@@ -59,7 +59,8 @@ impl Encoder {
                     trace!("sized write, len = {}", max);
                     let slice = &msg[..max];
 
-                    try!(w.write_atomic(&[slice]))
+                    // TODO: Could we push this out of encode?
+                    try!(w.write(slice))
                 };
 
                 if n == 0 {
@@ -91,7 +92,7 @@ enum Chunked {
 }
 
 impl Chunked {
-    fn encode<W: AtomicWrite>(&mut self, w: &mut W, msg: &[u8]) -> io::Result<usize> {
+    fn encode<W: Write>(&mut self, w: &mut W, msg: &[u8]) -> io::Result<usize> {
         match *self {
             Chunked::Init => {
                 let mut size = ChunkSize {
@@ -108,49 +109,55 @@ impl Chunked {
             _ => {}
         }
         let mut n = {
-            let pieces = match *self {
+            // TODO: Could we pass in a buffer which we can reuse?
+            // TODO: Figure out a better init capacity
+            let mut pieces = BytesMut::with_capacity(0);
+            // TODO: Find a better way to concatente
+            //    Could use write! if we reserved the required capacity upfront
+            match *self {
                 Chunked::Init => unreachable!("Chunked::Init should have become Chunked::Size"),
-                Chunked::Size(ref size) => [
-                    &size.bytes[size.pos.into() .. size.len.into()],
-                    &b"\r\n"[..],
-                    msg,
-                    &b"\r\n"[..],
-                ],
-                Chunked::SizeCr => [
-                    &b""[..],
-                    &b"\r\n"[..],
-                    msg,
-                    &b"\r\n"[..],
-                ],
-                Chunked::SizeLf => [
-                    &b""[..],
-                    &b"\n"[..],
-                    msg,
-                    &b"\r\n"[..],
-                ],
-                Chunked::Body(pos) => [
-                    &b""[..],
-                    &b""[..],
-                    &msg[pos..],
-                    &b"\r\n"[..],
-                ],
-                Chunked::BodyCr => [
-                    &b""[..],
-                    &b""[..],
-                    &b""[..],
-                    &b"\r\n"[..],
-                ],
-                Chunked::BodyLf => [
-                    &b""[..],
-                    &b""[..],
-                    &b""[..],
-                    &b"\n"[..],
-                ],
+                Chunked::Size(ref size) => {
+                    pieces.extend(&size.bytes[size.pos.into() .. size.len.into()]);
+                    pieces.extend(&b"\r\n"[..]);
+                    pieces.extend(msg);
+                    pieces.extend(&b"\r\n"[..]);
+                },
+                Chunked::SizeCr => {
+                    pieces.extend(&b""[..]);
+                    pieces.extend(&b"\r\n"[..]);
+                    pieces.extend(msg);
+                    pieces.extend(&b"\r\n"[..]);
+                },
+                Chunked::SizeLf => {
+                    pieces.extend(&b""[..]);
+                    pieces.extend(&b"\n"[..]);
+                    pieces.extend(msg);
+                    pieces.extend(&b"\r\n"[..]);
+                },
+                Chunked::Body(pos) => {
+                    pieces.extend(&b""[..]);
+                    pieces.extend(&b""[..]);
+                    pieces.extend(&msg[pos..]);
+                    pieces.extend(&b"\r\n"[..]);
+                },
+                Chunked::BodyCr => {
+                    // TODO: Are all these empty byte slices needed?
+                    pieces.extend(&b""[..]);
+                    pieces.extend(&b""[..]);
+                    pieces.extend(&b""[..]);
+                    pieces.extend(&b"\r\n"[..]);
+                },
+                Chunked::BodyLf => {
+                    pieces.extend(&b""[..]);
+                    pieces.extend(&b""[..]);
+                    pieces.extend(&b""[..]);
+                    pieces.extend(&b"\n"[..]);
+                },
                 Chunked::End => unreachable!("Chunked::End shouldn't write more")
             };
-            try!(w.write_atomic(&pieces))
+            // TODO: Could we push this out of encode?
+            try!(w.write(&pieces.take()))
         };
-
         while n > 0 {
             match *self {
                 Chunked::Init => unreachable!("Chunked::Init should have become Chunked::Size"),

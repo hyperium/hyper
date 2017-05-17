@@ -218,34 +218,6 @@ impl<T: AsRef<[u8]>> fmt::Debug for Cursor<T> {
     }
 }
 
-pub trait AtomicWrite {
-    fn write_atomic(&mut self, data: &[&[u8]]) -> io::Result<usize>;
-}
-
-/*
-#[cfg(not(windows))]
-impl<T: Write + ::vecio::Writev> AtomicWrite for T {
-
-    fn write_atomic(&mut self, bufs: &[&[u8]]) -> io::Result<usize> {
-        self.writev(bufs)
-    }
-
-}
-
-#[cfg(windows)]
-*/
-impl<T: Write> AtomicWrite for T {
-    fn write_atomic(&mut self, bufs: &[&[u8]]) -> io::Result<usize> {
-        if bufs.len() == 1 {
-            self.write(bufs[0])
-        } else {
-            let vec = bufs.concat();
-            self.write(&vec)
-        }
-    }
-}
-//}
-
 // an internal buffer to collect writes before flushes
 #[derive(Debug)]
 struct WriteBuf(Cursor<Vec<u8>>);
