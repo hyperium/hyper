@@ -114,7 +114,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     /// will be handled (and mapped to responses).
     ///
     /// This method is typically not invoked directly but is rather transitively
-    /// used through the `serve` helper method above. This can be useful,
+    /// used through [`bind`](#method.bind). This can be useful,
     /// however, when writing mocks or accepting sockets from a non-TCP
     /// location.
     pub fn bind_connection<S, I, Bd>(&self,
