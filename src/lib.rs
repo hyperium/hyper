@@ -164,14 +164,6 @@ macro_rules! todo(
     })
 );
 
-macro_rules! inspect(
-    ($name:expr, $value:expr) => ({
-        let v = $value;
-        trace!("inspect: {:?} = {:?}", $name, v);
-        v
-    })
-);
-
 macro_rules! deprecated {
     (#[$note:meta] $i:item) => (
         #[cfg_attr(has_deprecated, $note)]

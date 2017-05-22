@@ -162,15 +162,6 @@ impl Default for Timeouts {
     }
 }
 
-macro_rules! try_option(
-    ($e:expr) => {{
-        match $e {
-            Some(v) => v,
-            None => return None
-        }
-    }}
-);
-
 impl<L: NetworkListener> Server<L> {
     /// Creates a new server with the provided handler.
     #[inline]
