@@ -46,18 +46,6 @@ pub use status::StatusCode::{self, Ok, BadRequest, NotFound};
 pub use server::Server;
 pub use version::HttpVersion;
 
-macro_rules! unimplemented {
-    () => ({
-        panic!("unimplemented")
-    });
-    ($msg:expr) => ({
-        unimplemented!("{}", $msg)
-    });
-    ($fmt:expr, $($arg:tt)*) => ({
-        panic!(concat!("unimplemented: ", $fmt), $($arg)*)
-    });
-}
-
 #[cfg(test)]
 mod mock;
 pub mod client;
