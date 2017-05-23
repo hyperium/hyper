@@ -30,7 +30,7 @@ pub use self::content_language::ContentLanguage;
 pub use self::content_location::ContentLocation;
 pub use self::content_range::{ContentRange, ContentRangeSpec};
 pub use self::content_type::ContentType;
-pub use self::cookie::Cookie;
+pub use self::cookie::{Cookie, CookieIter};
 pub use self::date::Date;
 pub use self::etag::ETag;
 pub use self::expect::Expect;
