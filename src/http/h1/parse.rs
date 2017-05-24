@@ -15,19 +15,15 @@ use version::HttpVersion::{Http10, Http11};
 const MAX_HEADERS: usize = 100;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
 
-pub fn parse<T: Http1Transaction<Incoming=I>, I>(buf: &mut BytesMut) -> ParseResult<I> {
-    if buf.len() == 0 {
-        return Ok(None);
-    }
-    trace!("parse({:?})", buf);
-    <T as Http1Transaction>::parse(buf)
-}
-
 impl Http1Transaction for ServerTransaction {
     type Incoming = RequestLine;
     type Outgoing = StatusCode;
 
     fn parse(buf: &mut BytesMut) -> ParseResult<RequestLine> {
+        if buf.len() == 0 {
+            return Ok(None);
+        }
+        trace!("parse({:?})", buf);
         let mut headers_indices = [HeaderIndices {
             name: (0, 0),
             value: (0, 0)
@@ -145,6 +141,10 @@ impl Http1Transaction for ClientTransaction {
     type Outgoing = RequestLine;
 
     fn parse(buf: &mut BytesMut) -> ParseResult<RawStatus> {
+        if buf.len() == 0 {
+            return Ok(None);
+        }
+        trace!("parse({:?})", buf);
         let mut headers_indices = [HeaderIndices {
             name: (0, 0),
             value: (0, 0)
@@ -332,9 +332,8 @@ fn extend(dst: &mut Vec<u8>, data: &[u8]) {
 
 #[cfg(test)]
 mod tests {
-    use http;
+    use http::{ServerTransaction, ClientTransaction, Http1Transaction};
     use bytes::BytesMut;
-    use super::{parse};
 
     #[test]
     fn test_parse_request() {
@@ -342,7 +341,7 @@ mod tests {
         let _ = pretty_env_logger::init();
         let mut raw = BytesMut::from(b"GET /echo HTTP/1.1\r\nHost: hyper.rs\r\n\r\n".to_vec());
         let expected_len = raw.len();
-        let (req, len) = parse::<http::ServerTransaction, _>(&mut raw).unwrap().unwrap();
+        let (req, len) = ServerTransaction::parse(&mut raw).unwrap().unwrap();
         assert_eq!(len, expected_len);
         assert_eq!(req.subject.0, ::Method::Get);
         assert_eq!(req.subject.1, "/echo");
@@ -358,7 +357,7 @@ mod tests {
         let _ = pretty_env_logger::init();
         let mut raw = BytesMut::from(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n".to_vec());
         let expected_len = raw.len();
-        let (req, len) = parse::<http::ClientTransaction, _>(&mut raw).unwrap().unwrap();
+        let (req, len) = ClientTransaction::parse(&mut raw).unwrap().unwrap();
         assert_eq!(len, expected_len);
         assert_eq!(req.subject.0, 200);
         assert_eq!(req.subject.1, "OK");
@@ -370,16 +369,16 @@ mod tests {
     #[test]
     fn test_parse_request_errors() {
         let mut raw = BytesMut::from(b"GET htt:p// HTTP/1.1\r\nHost: hyper.rs\r\n\r\n".to_vec());
-        parse::<http::ServerTransaction, _>(&mut raw).unwrap_err();
+        ServerTransaction::parse(&mut raw).unwrap_err();
     }
     #[test]
     fn test_parse_raw_status() {
         let mut raw = BytesMut::from(b"HTTP/1.1 200 OK\r\n\r\n".to_vec());
-        let (res, _) = parse::<http::ClientTransaction, _>(&mut raw).unwrap().unwrap();
+        let (res, _) = ClientTransaction::parse(&mut raw).unwrap().unwrap();
         assert_eq!(res.subject.1, "OK");
 
         let mut raw = BytesMut::from(b"HTTP/1.1 200 Howdy\r\n\r\n".to_vec());
-        let (res, _) = parse::<http::ClientTransaction, _>(&mut raw).unwrap().unwrap();
+        let (res, _) = ClientTransaction::parse(&mut raw).unwrap().unwrap();
         assert_eq!(res.subject.1, "Howdy");
     }
 
@@ -412,7 +411,7 @@ mod tests {
 
         b.bytes = len as u64;
         b.iter(|| {
-            parse::<http::ServerTransaction, _>(&mut raw).unwrap();
+            ServerTransaction::parse(&mut raw).unwrap();
             restart(&mut raw, len);
         });
 
