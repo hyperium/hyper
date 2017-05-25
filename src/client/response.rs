@@ -95,7 +95,7 @@ impl Drop for Response {
         if !(is_drained && http::should_keep_alive(self.version, &self.headers)) {
             trace!("Response.drop closing connection");
             if let Err(e) = self.message.close_connection() {
-                error!("Response.drop error closing connection: {}", e);
+                info!("Response.drop error closing connection: {}", e);
             }
         }
     }
