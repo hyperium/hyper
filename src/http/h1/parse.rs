@@ -86,7 +86,7 @@ impl Http1Transaction for ServerTransaction {
     }
 
 
-    fn encode(head: &mut MessageHead<Self::Outgoing>, dst: &mut Vec<u8>) -> Encoder {
+    fn encode(mut head: MessageHead<Self::Outgoing>, dst: &mut Vec<u8>) -> Encoder {
         use ::header;
         trace!("writing head: {:?}", head);
 
@@ -213,7 +213,7 @@ impl Http1Transaction for ClientTransaction {
         }
     }
 
-    fn encode(head: &mut MessageHead<Self::Outgoing>, dst: &mut Vec<u8>) -> Encoder {
+    fn encode(mut head: MessageHead<Self::Outgoing>, dst: &mut Vec<u8>) -> Encoder {
         trace!("writing head: {:?}", head);
 
 
@@ -420,5 +420,28 @@ mod tests {
                 b.set_len(len);
             }
         }
+    }
+
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_server_transaction_encode(b: &mut Bencher) {
+        use ::http::MessageHead;
+        use ::header::{Headers, ContentLength};
+        use ::{StatusCode, HttpVersion};
+        b.bytes = 75;
+
+        let mut head = MessageHead {
+            subject: StatusCode::Ok,
+            headers: Headers::new(),
+            version: HttpVersion::Http11,
+        };
+        head.headers.set(ContentLength(0));
+
+        b.iter(|| {
+            let mut vec = Vec::new();
+            ServerTransaction::encode(head.clone(), &mut vec);
+            assert_eq!(vec.len(), 75);
+            ::test::black_box(vec);
+        })
     }
 }

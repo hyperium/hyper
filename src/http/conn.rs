@@ -236,7 +236,7 @@ where I: AsyncRead + AsyncWrite,
         let wants_keep_alive = head.should_keep_alive();
         self.state.keep_alive &= wants_keep_alive;
         let mut buf = Vec::new();
-        let encoder = T::encode(&mut head, &mut buf);
+        let encoder = T::encode(head, &mut buf);
         //TODO: handle when there isn't enough room to buffer the head
         assert!(self.io.buffer(buf) > 0);
         self.state.writing = if body {
