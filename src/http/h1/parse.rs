@@ -94,14 +94,11 @@ impl Http1Transaction for ServerTransaction {
             head.headers.set(header::Date(SystemTime::now().into()));
         }
 
-        let mut is_chunked = true;
-        let mut body = Encoder::chunked();
-        if let Some(cl) = head.headers.get::<header::ContentLength>() {
-            body = Encoder::length(**cl);
-            is_chunked = false
-        }
+        let len = head.headers.get::<header::ContentLength>().map(|n| **n);
 
-        if is_chunked {
+        let body = if let Some(len) = len {
+            Encoder::length(len)
+        } else {
             let encodings = match head.headers.get_mut::<header::TransferEncoding>() {
                 Some(&mut header::TransferEncoding(ref mut encodings)) => {
                     if encodings.last() != Some(&header::Encoding::Chunked) {
@@ -115,7 +112,8 @@ impl Http1Transaction for ServerTransaction {
             if encodings {
                 head.headers.set(header::TransferEncoding(vec![header::Encoding::Chunked]));
             }
-        }
+            Encoder::chunked()
+        };
 
 
         let init_cap = 30 + head.headers.len() * AVERAGE_HEADER_SIZE;
