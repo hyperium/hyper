@@ -1,13 +1,12 @@
 use std::borrow::Cow;
 use std::fmt::{self, Write};
-use std::time::SystemTime;
 
 use httparse;
 use bytes::{BytesMut, Bytes};
 
 use header::{self, Headers, ContentLength, TransferEncoding};
 use http::{ByteStr, MessageHead, RawStatus, Http1Transaction, ParseResult, ServerTransaction, ClientTransaction, RequestLine};
-use http::h1::{Encoder, Decoder};
+use http::h1::{Encoder, Decoder, date};
 use method::Method;
 use status::StatusCode;
 use version::HttpVersion::{Http10, Http11};
@@ -90,10 +89,6 @@ impl Http1Transaction for ServerTransaction {
         use ::header;
         trace!("writing head: {:?}", head);
 
-        if !head.headers.has::<header::Date>() {
-            head.headers.set(header::Date(SystemTime::now().into()));
-        }
-
         let len = head.headers.get::<header::ContentLength>().map(|n| **n);
 
         let body = if let Some(len) = len {
@@ -121,10 +116,19 @@ impl Http1Transaction for ServerTransaction {
         debug!("writing headers = {:?}", head.headers);
         if head.version == ::HttpVersion::Http11 && head.subject == ::StatusCode::Ok {
             extend(dst, b"HTTP/1.1 200 OK\r\n");
-            let _ = write!(FastWrite(dst), "{}\r\n", head.headers);
+            let _ = write!(FastWrite(dst), "{}", head.headers);
         } else {
-            let _ = write!(FastWrite(dst), "{} {}\r\n{}\r\n", head.version, head.subject, head.headers);
+            let _ = write!(FastWrite(dst), "{} {}\r\n{}", head.version, head.subject, head.headers);
         }
+        // using http::h1::date is quite a lot faster than generating a unique Date header each time
+        // like req/s goes up about 10%
+        if !head.headers.has::<header::Date>() {
+            dst.reserve(date::DATE_VALUE_LENGTH + 8);
+            extend(dst, b"Date: ");
+            date::extend(dst);
+            extend(dst, b"\r\n");
+        }
+        extend(dst, b"\r\n");
         body
     }
 
@@ -316,16 +320,9 @@ impl<'a> fmt::Write for FastWrite<'a> {
     }
 }
 
+#[inline]
 fn extend(dst: &mut Vec<u8>, data: &[u8]) {
-    use std::ptr;
-    dst.reserve(data.len());
-    let prev = dst.len();
-    unsafe {
-        ptr::copy_nonoverlapping(data.as_ptr(),
-                                 dst.as_mut_ptr().offset(prev as isize),
-                                 data.len());
-        dst.set_len(prev + data.len());
-    }
+    dst.extend_from_slice(data);
 }
 
 #[cfg(test)]
