@@ -42,7 +42,7 @@ macro_rules! nonblocking {
 */
 
 /// An Incoming Message head. Includes request/status line, and headers.
-#[derive(Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct MessageHead<S> {
     /// HTTP version of the message.
     pub version: HttpVersion,
@@ -145,7 +145,7 @@ pub trait Http1Transaction {
     type Outgoing: Default;
     fn parse(bytes: &mut BytesMut) -> ParseResult<Self::Incoming>;
     fn decoder(head: &MessageHead<Self::Incoming>) -> ::Result<h1::Decoder>;
-    fn encode(head: &mut MessageHead<Self::Outgoing>, dst: &mut Vec<u8>) -> h1::Encoder;
+    fn encode(head: MessageHead<Self::Outgoing>, dst: &mut Vec<u8>) -> h1::Encoder;
     fn should_set_length(head: &MessageHead<Self::Outgoing>) -> bool;
 }
 

@@ -44,10 +44,12 @@ pub fn from_comma_delimited<T: str::FromStr>(raw: &Raw) -> ::Result<Vec<T>> {
 
 /// Format an array into a comma-delimited string.
 pub fn fmt_comma_delimited<T: Display>(f: &mut fmt::Formatter, parts: &[T]) -> fmt::Result {
-    for (i, part) in parts.iter().enumerate() {
-        if i != 0 {
-            try!(f.write_str(", "));
-        }
+    let mut iter = parts.iter();
+    if let Some(part) = iter.next() {
+        try!(Display::fmt(part, f));
+    }
+    for part in iter {
+        try!(f.write_str(", "));
         try!(Display::fmt(part, f));
     }
     Ok(())

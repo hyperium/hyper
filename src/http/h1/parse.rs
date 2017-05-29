@@ -1,13 +1,12 @@
 use std::borrow::Cow;
 use std::fmt::{self, Write};
-use std::time::SystemTime;
 
 use httparse;
 use bytes::{BytesMut, Bytes};
 
 use header::{self, Headers, ContentLength, TransferEncoding};
 use http::{ByteStr, MessageHead, RawStatus, Http1Transaction, ParseResult, ServerTransaction, ClientTransaction, RequestLine};
-use http::h1::{Encoder, Decoder};
+use http::h1::{Encoder, Decoder, date};
 use method::Method;
 use status::StatusCode;
 use version::HttpVersion::{Http10, Http11};
@@ -15,19 +14,15 @@ use version::HttpVersion::{Http10, Http11};
 const MAX_HEADERS: usize = 100;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
 
-pub fn parse<T: Http1Transaction<Incoming=I>, I>(buf: &mut BytesMut) -> ParseResult<I> {
-    if buf.len() == 0 {
-        return Ok(None);
-    }
-    trace!("parse({:?})", buf);
-    <T as Http1Transaction>::parse(buf)
-}
-
 impl Http1Transaction for ServerTransaction {
     type Incoming = RequestLine;
     type Outgoing = StatusCode;
 
     fn parse(buf: &mut BytesMut) -> ParseResult<RequestLine> {
+        if buf.len() == 0 {
+            return Ok(None);
+        }
+        trace!("parse({:?})", buf);
         let mut headers_indices = [HeaderIndices {
             name: (0, 0),
             value: (0, 0)
@@ -90,22 +85,15 @@ impl Http1Transaction for ServerTransaction {
     }
 
 
-    fn encode(head: &mut MessageHead<Self::Outgoing>, dst: &mut Vec<u8>) -> Encoder {
+    fn encode(mut head: MessageHead<Self::Outgoing>, dst: &mut Vec<u8>) -> Encoder {
         use ::header;
         trace!("writing head: {:?}", head);
 
-        if !head.headers.has::<header::Date>() {
-            head.headers.set(header::Date(SystemTime::now().into()));
-        }
+        let len = head.headers.get::<header::ContentLength>().map(|n| **n);
 
-        let mut is_chunked = true;
-        let mut body = Encoder::chunked();
-        if let Some(cl) = head.headers.get::<header::ContentLength>() {
-            body = Encoder::length(**cl);
-            is_chunked = false
-        }
-
-        if is_chunked {
+        let body = if let Some(len) = len {
+            Encoder::length(len)
+        } else {
             let encodings = match head.headers.get_mut::<header::TransferEncoding>() {
                 Some(&mut header::TransferEncoding(ref mut encodings)) => {
                     if encodings.last() != Some(&header::Encoding::Chunked) {
@@ -119,7 +107,8 @@ impl Http1Transaction for ServerTransaction {
             if encodings {
                 head.headers.set(header::TransferEncoding(vec![header::Encoding::Chunked]));
             }
-        }
+            Encoder::chunked()
+        };
 
 
         let init_cap = 30 + head.headers.len() * AVERAGE_HEADER_SIZE;
@@ -127,10 +116,19 @@ impl Http1Transaction for ServerTransaction {
         debug!("writing headers = {:?}", head.headers);
         if head.version == ::HttpVersion::Http11 && head.subject == ::StatusCode::Ok {
             extend(dst, b"HTTP/1.1 200 OK\r\n");
-            let _ = write!(FastWrite(dst), "{}\r\n", head.headers);
+            let _ = write!(FastWrite(dst), "{}", head.headers);
         } else {
-            let _ = write!(FastWrite(dst), "{} {}\r\n{}\r\n", head.version, head.subject, head.headers);
+            let _ = write!(FastWrite(dst), "{} {}\r\n{}", head.version, head.subject, head.headers);
         }
+        // using http::h1::date is quite a lot faster than generating a unique Date header each time
+        // like req/s goes up about 10%
+        if !head.headers.has::<header::Date>() {
+            dst.reserve(date::DATE_VALUE_LENGTH + 8);
+            extend(dst, b"Date: ");
+            date::extend(dst);
+            extend(dst, b"\r\n");
+        }
+        extend(dst, b"\r\n");
         body
     }
 
@@ -145,6 +143,10 @@ impl Http1Transaction for ClientTransaction {
     type Outgoing = RequestLine;
 
     fn parse(buf: &mut BytesMut) -> ParseResult<RawStatus> {
+        if buf.len() == 0 {
+            return Ok(None);
+        }
+        trace!("parse({:?})", buf);
         let mut headers_indices = [HeaderIndices {
             name: (0, 0),
             value: (0, 0)
@@ -215,7 +217,7 @@ impl Http1Transaction for ClientTransaction {
         }
     }
 
-    fn encode(head: &mut MessageHead<Self::Outgoing>, dst: &mut Vec<u8>) -> Encoder {
+    fn encode(mut head: MessageHead<Self::Outgoing>, dst: &mut Vec<u8>) -> Encoder {
         trace!("writing head: {:?}", head);
 
 
@@ -318,23 +320,15 @@ impl<'a> fmt::Write for FastWrite<'a> {
     }
 }
 
+#[inline]
 fn extend(dst: &mut Vec<u8>, data: &[u8]) {
-    use std::ptr;
-    dst.reserve(data.len());
-    let prev = dst.len();
-    unsafe {
-        ptr::copy_nonoverlapping(data.as_ptr(),
-                                 dst.as_mut_ptr().offset(prev as isize),
-                                 data.len());
-        dst.set_len(prev + data.len());
-    }
+    dst.extend_from_slice(data);
 }
 
 #[cfg(test)]
 mod tests {
-    use http;
+    use http::{ServerTransaction, ClientTransaction, Http1Transaction};
     use bytes::BytesMut;
-    use super::{parse};
 
     #[test]
     fn test_parse_request() {
@@ -342,7 +336,7 @@ mod tests {
         let _ = pretty_env_logger::init();
         let mut raw = BytesMut::from(b"GET /echo HTTP/1.1\r\nHost: hyper.rs\r\n\r\n".to_vec());
         let expected_len = raw.len();
-        let (req, len) = parse::<http::ServerTransaction, _>(&mut raw).unwrap().unwrap();
+        let (req, len) = ServerTransaction::parse(&mut raw).unwrap().unwrap();
         assert_eq!(len, expected_len);
         assert_eq!(req.subject.0, ::Method::Get);
         assert_eq!(req.subject.1, "/echo");
@@ -358,7 +352,7 @@ mod tests {
         let _ = pretty_env_logger::init();
         let mut raw = BytesMut::from(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n".to_vec());
         let expected_len = raw.len();
-        let (req, len) = parse::<http::ClientTransaction, _>(&mut raw).unwrap().unwrap();
+        let (req, len) = ClientTransaction::parse(&mut raw).unwrap().unwrap();
         assert_eq!(len, expected_len);
         assert_eq!(req.subject.0, 200);
         assert_eq!(req.subject.1, "OK");
@@ -370,16 +364,16 @@ mod tests {
     #[test]
     fn test_parse_request_errors() {
         let mut raw = BytesMut::from(b"GET htt:p// HTTP/1.1\r\nHost: hyper.rs\r\n\r\n".to_vec());
-        parse::<http::ServerTransaction, _>(&mut raw).unwrap_err();
+        ServerTransaction::parse(&mut raw).unwrap_err();
     }
     #[test]
     fn test_parse_raw_status() {
         let mut raw = BytesMut::from(b"HTTP/1.1 200 OK\r\n\r\n".to_vec());
-        let (res, _) = parse::<http::ClientTransaction, _>(&mut raw).unwrap().unwrap();
+        let (res, _) = ClientTransaction::parse(&mut raw).unwrap().unwrap();
         assert_eq!(res.subject.1, "OK");
 
         let mut raw = BytesMut::from(b"HTTP/1.1 200 Howdy\r\n\r\n".to_vec());
-        let (res, _) = parse::<http::ClientTransaction, _>(&mut raw).unwrap().unwrap();
+        let (res, _) = ClientTransaction::parse(&mut raw).unwrap().unwrap();
         assert_eq!(res.subject.1, "Howdy");
     }
 
@@ -412,7 +406,7 @@ mod tests {
 
         b.bytes = len as u64;
         b.iter(|| {
-            parse::<http::ServerTransaction, _>(&mut raw).unwrap();
+            ServerTransaction::parse(&mut raw).unwrap();
             restart(&mut raw, len);
         });
 
@@ -423,5 +417,28 @@ mod tests {
                 b.set_len(len);
             }
         }
+    }
+
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_server_transaction_encode(b: &mut Bencher) {
+        use ::http::MessageHead;
+        use ::header::{Headers, ContentLength};
+        use ::{StatusCode, HttpVersion};
+        b.bytes = 75;
+
+        let mut head = MessageHead {
+            subject: StatusCode::Ok,
+            headers: Headers::new(),
+            version: HttpVersion::Http11,
+        };
+        head.headers.set(ContentLength(0));
+
+        b.iter(|| {
+            let mut vec = Vec::new();
+            ServerTransaction::encode(head.clone(), &mut vec);
+            assert_eq!(vec.len(), 75);
+            ::test::black_box(vec);
+        })
     }
 }

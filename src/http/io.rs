@@ -5,7 +5,7 @@ use std::ptr;
 
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use http::{Http1Transaction, h1, MessageHead, ParseResult, DebugTruncate};
+use http::{Http1Transaction, MessageHead, DebugTruncate};
 use bytes::{BytesMut, Bytes};
 
 const INIT_BUFFER_SIZE: usize = 8192;
@@ -56,7 +56,7 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
 
     pub fn parse<S: Http1Transaction>(&mut self) -> ::Result<Option<MessageHead<S::Incoming>>> {
         loop {
-            match try!(parse::<S, _>(&mut self.read_buf)) {
+            match try!(S::parse(&mut self.read_buf)) {
                 Some(head) => {
                     //trace!("parsed {} bytes out of {}", len, self.read_buf.len());
                     return Ok(Some(head.0))
@@ -68,7 +68,6 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
                     }
                 },
             }
-            self.reserve_read_buf();
             match self.read_from_io() {
                 Ok(0) => {
                     trace!("parse eof");
@@ -88,8 +87,17 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
 
     fn read_from_io(&mut self) -> io::Result<usize> {
         use bytes::BufMut;
+        // TODO: Investigate if we still need these unsafe blocks
+        if self.read_buf.remaining_mut() < INIT_BUFFER_SIZE {
+            self.read_buf.reserve(INIT_BUFFER_SIZE);
+            unsafe { // Zero out unused memory
+                let buf = self.read_buf.bytes_mut();
+                let len = buf.len();
+                ptr::write_bytes(buf.as_mut_ptr(), 0, len);
+            }
+        }
         self.read_blocked = false;
-        unsafe {
+        unsafe { // Can we use AsyncRead::read_buf instead?
             let n = match self.io.read(self.read_buf.bytes_mut()) {
                 Ok(n) => n,
                 Err(e) => {
@@ -101,19 +109,6 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
             };
             self.read_buf.advance_mut(n);
             Ok(n)
-        }
-    }
-
-    fn reserve_read_buf(&mut self) {
-        use bytes::BufMut;
-        if self.read_buf.remaining_mut() >= INIT_BUFFER_SIZE {
-            return
-        }
-        self.read_buf.reserve(INIT_BUFFER_SIZE);
-        unsafe {
-            let buf = self.read_buf.bytes_mut();
-            let len = buf.len();
-            ptr::write_bytes(buf.as_mut_ptr(), 0, len);
         }
     }
 
@@ -151,10 +146,6 @@ impl<T: Write> Write for Buffered<T> {
     }
 }
 
-fn parse<T: Http1Transaction<Incoming=I>, I>(rdr: &mut BytesMut) -> ParseResult<I> {
-    h1::parse::<T, I>(rdr)
-}
-
 pub trait MemRead {
     fn read_mem(&mut self, len: usize) -> io::Result<Bytes>;
 }
@@ -167,7 +158,6 @@ impl<T: AsyncRead + AsyncWrite> MemRead for Buffered<T> {
             trace!("Buffered.read_mem read_buf is not empty, slicing {}", n);
             Ok(self.read_buf.split_to(n).freeze())
         } else {
-            self.reserve_read_buf();
             let n = try!(self.read_from_io());
             Ok(self.read_buf.split_to(::std::cmp::min(len, n)).freeze())
         }

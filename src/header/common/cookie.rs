@@ -85,6 +85,29 @@ impl Cookie {
     pub fn get(&self, key: &str) -> Option<&str> {
         self.0.get(key).map(AsRef::as_ref)
     }
+
+    /// Iterate cookies.
+    ///
+    /// Iterate cookie (key, value) in insertion order.
+    ///
+    /// ```
+    /// use hyper::header::Cookie;
+    /// let mut cookie = Cookie::new();
+    /// cookie.append("foo", "bar");
+    /// cookie.append(String::from("dyn"), String::from("amic"));
+    ///
+    /// let mut keys = Vec::new();
+    /// let mut values = Vec::new();
+    /// for (k, v) in cookie.iter() {
+    ///     keys.push(k);
+    ///     values.push(v);
+    /// }
+    /// assert_eq!(keys, vec!["foo", "dyn"]);
+    /// assert_eq!(values, vec!["bar", "amic"]);
+    /// ```
+    pub fn iter(&self) -> CookieIter {
+        CookieIter(self.0.iter())
+    }
 }
 
 impl Header for Cookie {
@@ -151,6 +174,18 @@ impl fmt::Display for Cookie {
             try!(write!(f, "; {}={}", key, val));
         }
         Ok(())
+    }
+}
+
+/// Iterator for cookie.
+#[derive(Debug)]
+pub struct CookieIter<'a>(::std::slice::Iter<'a, (Cow<'static, str>, Cow<'static, str>)>);
+
+impl<'a> Iterator for CookieIter<'a> {
+    type Item = (&'a str, &'a str);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next().map(|kv| (kv.0.as_ref(), kv.1.as_ref()))
     }
 }
 
