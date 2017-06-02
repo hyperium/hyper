@@ -141,6 +141,7 @@ impl<C: NetworkConnector<Stream=S>, S: NetworkStream + Send> NetworkConnector fo
 
         };
         Ok(PooledStream {
+            has_read: false,
             inner: Some(inner),
             is_closed: AtomicBool::new(false),
             pool: self.inner.clone(),
@@ -150,6 +151,7 @@ impl<C: NetworkConnector<Stream=S>, S: NetworkStream + Send> NetworkConnector fo
 
 /// A Stream that will try to be returned to the Pool when dropped.
 pub struct PooledStream<S> {
+    has_read: bool,
     inner: Option<PooledStreamInner<S>>,
     // mutated in &self methods
     is_closed: AtomicBool,
@@ -161,6 +163,7 @@ impl<S> fmt::Debug for PooledStream<S> where S: fmt::Debug + 'static {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("PooledStream")
            .field("inner", &self.inner)
+           .field("has_read", &self.has_read)
            .field("is_closed", &self.is_closed.load(Ordering::Relaxed))
            .field("pool", &self.pool)
            .finish()
@@ -195,15 +198,29 @@ struct PooledStreamInner<S> {
 impl<S: NetworkStream> Read for PooledStream<S> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        match self.inner.as_mut().unwrap().stream.read(buf) {
-            Ok(0) => {
-                // if the wrapped stream returns EOF (Ok(0)), that means the
-                // server has closed the stream. we must be sure this stream
-                // is dropped and not put back into the pool.
-                self.is_closed.store(true, Ordering::Relaxed);
+        let mut inner = self.inner.as_mut().unwrap();
+        let n = try!(inner.stream.read(buf));
+        if n == 0 {
+            // if the wrapped stream returns EOF (Ok(0)), that means the
+            // server has closed the stream. we must be sure this stream
+            // is dropped and not put back into the pool.
+            self.is_closed.store(true, Ordering::Relaxed);
+
+            // if the stream has never read bytes before, then the pooled
+            // stream may have been disconnected by the server while
+            // we checked it back out
+            if !self.has_read && inner.idle.is_some() {
+                // idle being some means this is a reused stream
+                Err(io::Error::new(
+                    io::ErrorKind::ConnectionAborted,
+                    "Pooled stream disconnected"
+                ))
+            } else {
                 Ok(0)
-            },
-            r => r
+            }
+        } else {
+            self.has_read = true;
+            Ok(n)
         }
     }
 }
