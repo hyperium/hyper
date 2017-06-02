@@ -322,7 +322,7 @@ impl<C, B> Config<C, B> {
 
     /// Set the `Connect` type to be used.
     #[inline]
-    pub fn connector<CC: Connect>(self, val: CC) -> Config<CC, B> {
+    pub fn connector<CC>(self, val: CC) -> Config<CC, B> {
         Config {
             _body_type: self._body_type,
             //connect_timeout: self.connect_timeout,
