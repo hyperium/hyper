@@ -38,7 +38,7 @@ url = "1.0"
 env_logger = "0.4"
 
 [build-dependencies]
-rustc_version = "0.1"
+version_check = "0.1"
 
 [features]
 nightly = []
