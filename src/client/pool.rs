@@ -12,10 +12,13 @@ use std::time::{Duration, Instant};
 use net::{NetworkConnector, NetworkStream, DefaultConnector};
 use client::scheme::Scheme;
 
+use self::stale::{StaleCheck, Stale};
+
 /// The `NetworkConnector` that behaves as a connection pool used by hyper's `Client`.
 pub struct Pool<C: NetworkConnector> {
     connector: C,
-    inner: Arc<Mutex<PoolImpl<<C as NetworkConnector>::Stream>>>
+    inner: Arc<Mutex<PoolImpl<<C as NetworkConnector>::Stream>>>,
+    stale_check: Option<StaleCallback<C::Stream>>,
 }
 
 /// Config options for the `Pool`.
@@ -41,6 +44,7 @@ struct Config2 {
     idle_timeout: Option<Duration>,
     max_idle: usize,
 }
+
 
 #[derive(Debug)]
 struct PoolImpl<S> {
@@ -74,7 +78,8 @@ impl<C: NetworkConnector> Pool<C> {
                     idle_timeout: None,
                     max_idle: config.max_idle,
                 }
-            }))
+            })),
+            stale_check: None,
         }
     }
 
@@ -83,10 +88,55 @@ impl<C: NetworkConnector> Pool<C> {
         self.inner.lock().unwrap().config.idle_timeout = timeout;
     }
 
+    pub fn set_stale_check<F>(&mut self, callback: F)
+    where F: Fn(StaleCheck<C::Stream>) -> Stale + Send + Sync + 'static {
+        self.stale_check = Some(Box::new(callback));
+    }
+
     /// Clear all idle connections from the Pool, closing them.
     #[inline]
     pub fn clear_idle(&mut self) {
         self.inner.lock().unwrap().conns.clear();
+    }
+
+    // private
+
+    fn checkout(&self, key: &Key) -> Option<PooledStreamInner<C::Stream>> {
+        while let Some(mut inner) = self.lookup(key) {
+            if let Some(ref stale_check) = self.stale_check {
+                let dur = inner.idle.expect("idle is never missing inside pool").elapsed();
+                let arg = stale::check(&mut inner.stream, dur);
+                if stale_check(arg).is_stale() {
+                    continue;
+                }
+            }
+            return Some(inner);
+        }
+        None
+    }
+
+
+    fn lookup(&self, key: &Key) -> Option<PooledStreamInner<C::Stream>> {
+        let mut locked = self.inner.lock().unwrap();
+        let mut should_remove = false;
+        let deadline = locked.config.idle_timeout.map(|dur| Instant::now() - dur);
+        let inner = locked.conns.get_mut(key).and_then(|vec| {
+            while let Some(inner) = vec.pop() {
+                should_remove = vec.len() <= 1;
+                if let Some(deadline) = deadline {
+                    if inner.idle.expect("idle is never missing inside pool") < deadline {
+                        trace!("ejecting expired connection");
+                        continue;
+                    }
+                }
+                return Some(inner);
+            }
+            None
+        });
+        if should_remove {
+            locked.conns.remove(key);
+        }
+        inner
     }
 }
 
@@ -104,34 +154,11 @@ impl<C: NetworkConnector<Stream=S>, S: NetworkStream + Send> NetworkConnector fo
     type Stream = PooledStream<S>;
     fn connect(&self, host: &str, port: u16, scheme: &str) -> ::Result<PooledStream<S>> {
         let key = key(host, port, scheme);
-
-        let inner = {
-            // keep the mutex locked only in this block
-            let mut locked = self.inner.lock().unwrap();
-            let mut should_remove = false;
-            let deadline = locked.config.idle_timeout.map(|dur| Instant::now() - dur);
-            let inner = locked.conns.get_mut(&key).and_then(|vec| {
-                while let Some(inner) = vec.pop() {
-                    should_remove = vec.len() <= 1;
-                    if let Some(deadline) = deadline {
-                        if inner.idle.expect("idle is never missing inside pool") < deadline {
-                            trace!("ejecting expired connection idle");
-                            continue;
-                        }
-                    }
-                    trace!("Pool had connection, using");
-                    return Some(inner);
-                }
-                None
-            });
-            if should_remove {
-                locked.conns.remove(&key);
-            }
-            inner
-        };
-
-        let inner = match inner {
-            Some(inner) => inner,
+        let inner = match self.checkout(&key) {
+            Some(inner) => {
+                trace!("Pool had connection, using");
+                inner
+            },
             None => PooledStreamInner {
                 key: key.clone(),
                 idle: None,
@@ -148,6 +175,68 @@ impl<C: NetworkConnector<Stream=S>, S: NetworkStream + Send> NetworkConnector fo
         })
     }
 }
+
+type StaleCallback<S> = Box<Fn(StaleCheck<S>) -> Stale + Send + Sync + 'static>;
+
+// private on purpose
+//
+// Yes, I know! Shame on me! This hurts docs! And it means it only
+// works with closures! I know!
+//
+// The thing is, this is experiemental. I'm not certain about the naming.
+// Or other things. So I don't really want it in the docs, yet.
+//
+// As for only working with closures, that's fine. A closure is probably
+// enough, and if it isn't, well you can grab the stream and duration and
+// pass those to a function, and then figure out whether to call stale()
+// or fresh() based on the return value.
+//
+// Point is, it's not that bad. And it's not ready to publicize.
+mod stale {
+    use std::time::Duration;
+
+    pub struct StaleCheck<'a, S: 'a> {
+        stream: &'a mut S,
+        duration: Duration,
+    }
+
+    #[inline]
+    pub fn check<'a, S: 'a>(stream: &'a mut S, dur: Duration) -> StaleCheck<'a, S> {
+        StaleCheck {
+            stream: stream,
+            duration: dur,
+        }
+    }
+
+    impl<'a, S: 'a> StaleCheck<'a, S> {
+        pub fn stream(&mut self) -> &mut S {
+            self.stream
+        }
+
+        pub fn idle_duration(&self) -> Duration {
+            self.duration
+        }
+
+        pub fn stale(self) -> Stale {
+            Stale(true)
+        }
+
+        pub fn fresh(self) -> Stale {
+            Stale(false)
+        }
+    }
+
+    pub struct Stale(bool);
+
+
+    impl Stale {
+        #[inline]
+        pub fn is_stale(self) -> bool {
+            self.0
+        }
+    }
+}
+
 
 /// A Stream that will try to be returned to the Pool when dropped.
 pub struct PooledStream<S> {

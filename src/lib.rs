@@ -192,16 +192,18 @@ pub mod mime {
     pub use mime_crate::*;
 }
 
-#[allow(unconditional_recursion)]
-fn _assert_send<T: Send>() {
+
+fn _assert_types() {
+    fn _assert_send<T: Send>() {}
+    fn _assert_sync<T: Sync>() {}
+
     _assert_send::<Client>();
     _assert_send::<client::Request<net::Fresh>>();
     _assert_send::<client::Response>();
     _assert_send::<error::Error>();
-}
+    _assert_send::<::client::pool::Pool<::net::DefaultConnector>>();
 
-#[allow(unconditional_recursion)]
-fn _assert_sync<T: Sync>() {
     _assert_sync::<Client>();
     _assert_sync::<error::Error>();
+    _assert_sync::<::client::pool::Pool<::net::DefaultConnector>>();
 }
