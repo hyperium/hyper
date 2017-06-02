@@ -91,6 +91,7 @@ use typeable::Typeable;
 use unicase::UniCase;
 
 use self::internals::{Item, VecMap, Entry};
+use self::sealed::Sealed;
 
 pub use self::shared::*;
 pub use self::common::*;
@@ -215,15 +216,29 @@ impl<'a, 'b> fmt::Write for NewlineReplacer<'a, 'b> {
     }
 }
 
-#[doc(hidden)]
-pub trait HeaderClone {
-    fn clone_box(&self) -> Box<HeaderFormat + Send + Sync>;
-}
+/// Internal implementation detail.
+///
+/// This trait is automatically implemented for all types that implement
+/// `HeaderFormat + Clone`. No methods are exposed, and so is not useful
+/// outside this crate.
+pub trait HeaderClone: Sealed {}
+impl<T: Sealed> HeaderClone for T {}
 
-impl<T: HeaderFormat + Clone> HeaderClone for T {
-    #[inline]
-    fn clone_box(&self) -> Box<HeaderFormat + Send + Sync> {
-        Box::new(self.clone())
+mod sealed {
+    use super::HeaderFormat;
+
+    #[doc(hidden)]
+    pub trait Sealed {
+        #[doc(hidden)]
+        fn clone_box(&self) -> Box<HeaderFormat + Send + Sync>;
+    }
+
+    #[doc(hidden)]
+    impl<T: HeaderFormat + Clone> Sealed for T {
+        #[inline]
+        fn clone_box(&self) -> Box<HeaderFormat + Send + Sync> {
+            Box::new(self.clone())
+        }
     }
 }
 
