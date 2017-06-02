@@ -15,6 +15,7 @@ pub struct MockStream {
     pub error_on_read: bool,
     pub read_timeout: Cell<Option<Duration>>,
     pub write_timeout: Cell<Option<Duration>>,
+    pub id: u64,
 }
 
 impl PartialEq for MockStream {
@@ -42,6 +43,7 @@ impl MockStream {
             error_on_read: false,
             read_timeout: Cell::new(None),
             write_timeout: Cell::new(None),
+            id: 0,
         }
     }
 }

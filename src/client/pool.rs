@@ -7,7 +7,7 @@ use std::net::{SocketAddr, Shutdown};
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use net::{NetworkConnector, NetworkStream, DefaultConnector};
 use client::scheme::Scheme;
@@ -34,10 +34,18 @@ impl Default for Config {
     }
 }
 
+// Because `Config` has all its properties public, it would be a breaking
+// change to add new ones. Sigh.
+#[derive(Debug)]
+struct Config2 {
+    idle_timeout: Option<Duration>,
+    max_idle: usize,
+}
+
 #[derive(Debug)]
 struct PoolImpl<S> {
     conns: HashMap<Key, Vec<PooledStreamInner<S>>>,
-    config: Config,
+    config: Config2,
 }
 
 type Key = (String, u16, Scheme);
@@ -62,9 +70,17 @@ impl<C: NetworkConnector> Pool<C> {
             connector: connector,
             inner: Arc::new(Mutex::new(PoolImpl {
                 conns: HashMap::new(),
-                config: config,
+                config: Config2 {
+                    idle_timeout: None,
+                    max_idle: config.max_idle,
+                }
             }))
         }
+    }
+
+    /// Set a duration for how long an idle connection is still valid.
+    pub fn set_idle_timeout(&mut self, timeout: Option<Duration>) {
+        self.inner.lock().unwrap().config.idle_timeout = timeout;
     }
 
     /// Clear all idle connections from the Pool, closing them.
@@ -93,10 +109,20 @@ impl<C: NetworkConnector<Stream=S>, S: NetworkStream + Send> NetworkConnector fo
             // keep the mutex locked only in this block
             let mut locked = self.inner.lock().unwrap();
             let mut should_remove = false;
-            let inner = locked.conns.get_mut(&key).map(|vec| {
-                trace!("Pool had connection, using");
-                should_remove = vec.len() == 1;
-                vec.pop().unwrap()
+            let deadline = locked.config.idle_timeout.map(|dur| Instant::now() - dur);
+            let inner = locked.conns.get_mut(&key).and_then(|vec| {
+                while let Some(inner) = vec.pop() {
+                    should_remove = vec.len() <= 1;
+                    if let Some(deadline) = deadline {
+                        if inner.idle.expect("idle is never missing inside pool") < deadline {
+                            trace!("ejecting expired connection idle");
+                            continue;
+                        }
+                    }
+                    trace!("Pool had connection, using");
+                    return Some(inner);
+                }
+                None
             });
             if should_remove {
                 locked.conns.remove(&key);
@@ -108,6 +134,7 @@ impl<C: NetworkConnector<Stream=S>, S: NetworkStream + Send> NetworkConnector fo
             Some(inner) => inner,
             None => PooledStreamInner {
                 key: key.clone(),
+                idle: None,
                 stream: try!(self.connector.connect(host, port, scheme)),
                 previous_response_expected_no_content: false,
             }
@@ -124,6 +151,7 @@ impl<C: NetworkConnector<Stream=S>, S: NetworkStream + Send> NetworkConnector fo
 /// A Stream that will try to be returned to the Pool when dropped.
 pub struct PooledStream<S> {
     inner: Option<PooledStreamInner<S>>,
+    // mutated in &self methods
     is_closed: AtomicBool,
     pool: Arc<Mutex<PoolImpl<S>>>,
 }
@@ -149,11 +177,17 @@ impl<S: NetworkStream> PooledStream<S> {
     pub fn get_ref(&self) -> &S {
         &self.inner.as_ref().expect("PooledStream lost its inner stream").stream
     }
+
+    #[cfg(test)]
+    fn get_mut(&mut self) -> &mut S {
+        &mut self.inner.as_mut().expect("PooledStream lost its inner stream").stream
+    }
 }
 
 #[derive(Debug)]
 struct PooledStreamInner<S> {
     key: Key,
+    idle: Option<Instant>,
     stream: S,
     previous_response_expected_no_content: bool,
 }
@@ -239,7 +273,9 @@ impl<S> Drop for PooledStream<S> {
         let is_closed = self.is_closed.load(Ordering::Relaxed);
         trace!("PooledStream.drop, is_closed={}", is_closed);
         if !is_closed {
-            self.inner.take().map(|inner| {
+            self.inner.take().map(|mut inner| {
+                let now = Instant::now();
+                inner.idle = Some(now);
                 if let Ok(mut pool) = self.pool.lock() {
                     pool.reuse(inner.key.clone(), inner);
                 }
@@ -253,6 +289,7 @@ impl<S> Drop for PooledStream<S> {
 mod tests {
     use std::net::Shutdown;
     use std::io::Read;
+    use std::time::Duration;
     use mock::{MockConnector};
     use net::{NetworkConnector, NetworkStream};
 
@@ -266,15 +303,21 @@ mod tests {
 
     #[test]
     fn test_connect_and_drop() {
-        let pool = mocked!();
+        let mut pool = mocked!();
+        pool.set_idle_timeout(Some(Duration::from_millis(100)));
         let key = key("127.0.0.1", 3000, "http");
-        pool.connect("127.0.0.1", 3000, "http").unwrap();
+        let mut stream = pool.connect("127.0.0.1", 3000, "http").unwrap();
+        assert_eq!(stream.get_ref().id, 0);
+        stream.get_mut().id = 9;
+        drop(stream);
         {
             let locked = pool.inner.lock().unwrap();
             assert_eq!(locked.conns.len(), 1);
             assert_eq!(locked.conns.get(&key).unwrap().len(), 1);
         }
-        pool.connect("127.0.0.1", 3000, "http").unwrap(); //reused
+        let stream = pool.connect("127.0.0.1", 3000, "http").unwrap(); //reused
+        assert_eq!(stream.get_ref().id, 9);
+        drop(stream);
         {
             let locked = pool.inner.lock().unwrap();
             assert_eq!(locked.conns.len(), 1);
@@ -301,5 +344,18 @@ mod tests {
         drop(stream);
         let locked = pool.inner.lock().unwrap();
         assert_eq!(locked.conns.len(), 0);
+    }
+
+    #[test]
+    fn test_idle_timeout() {
+        let mut pool = mocked!();
+        pool.set_idle_timeout(Some(Duration::from_millis(10)));
+        let mut stream = pool.connect("127.0.0.1", 3000, "http").unwrap();
+        assert_eq!(stream.get_ref().id, 0);
+        stream.get_mut().id = 1337;
+        drop(stream);
+        ::std::thread::sleep(Duration::from_millis(100));
+        let stream = pool.connect("127.0.0.1", 3000, "http").unwrap();
+        assert_eq!(stream.get_ref().id, 0);
     }
 }
