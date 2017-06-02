@@ -107,6 +107,7 @@ impl<C: NetworkConnector> Pool<C> {
                 let dur = inner.idle.expect("idle is never missing inside pool").elapsed();
                 let arg = stale::check(&mut inner.stream, dur);
                 if stale_check(arg).is_stale() {
+                    trace!("ejecting stale connection");
                     continue;
                 }
             }
