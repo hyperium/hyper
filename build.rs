@@ -1,7 +1,7 @@
-extern crate rustc_version as rustc;
+extern crate version_check as rustc;
 
 fn main() {
-    if rustc::version_matches(">= 1.9") {
+    if !rustc::is_min_version("1.9.0").unwrap_or(true) {
         println!("cargo:rustc-cfg=has_deprecated");
     }
 }
