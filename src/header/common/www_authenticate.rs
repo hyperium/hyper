@@ -284,30 +284,249 @@ mod basic {
 
 pub use self::digest::*;
 mod digest {
-    //use super::*;
-    // #[derive(Debug, Clone)]
-    // struct DigestChallenge {
-    //     realm: String,
-    //     domain: Option<Uri>,
-    //     nonce: String,
-    //     opaque: Option<String>,
-    //     stale: Option<bool>,
-    //     algolithm: Option<Algorithm>,
-    //     qop: Option<Qop>,
-    // }
+    use super::*;
+    use url::Url;
+    use std::str::FromStr;
 
-    // enum Algorithim {
-    //     Md5,
-    //     Md5Sess,
-    //     Other(String),
-    // }
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+    pub struct DigestChallenge {
+        pub realm: Option<String>,
+        pub domain: Option<Vec<Url>>,
+        pub nonce: Option<String>,
+        pub opaque: Option<String>,
+        pub stale: Option<bool>,
+        pub algorithm: Option<Algorithm>,
+        pub qop: Option<Vec<Qop>>,
+        // pub charset: Option<Charset>,
+        pub userhash: Option<bool>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+    pub enum Algorithm {
+        Md5,
+        Md5Sess,
+        Sha512Trunc256,
+        Sha512Trunc256Sess,
+        Sha256,
+        Sha256Sess,
+        Other(String),
+    }
 
 
-    // enum Qop {
-    //     Auth,
-    //     AuthInit,
-    //     Other(String)
-    // }
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+    pub enum Qop {
+        Auth,
+        AuthInt,
+    }
+
+
+    impl Challenge for DigestChallenge {
+        fn challenge_name() -> &'static str {
+            "Digest"
+        }
+        fn from_raw(raw: RawChallenge) -> Option<Self> {
+            use self::RawChallenge::*;
+            match raw {
+                Token68(_) => return None,
+                Fields(mut map) => {
+                    let realm = map.remove("realm");
+                    let domains = map.remove("domain");
+                    let nonce = map.remove("nonce");
+                    let opaque = map.remove("opaque");
+                    let stale = map.remove("stale");
+                    let algorithm = map.remove("algorithm");
+                    let qop = map.remove("qop");
+                    let charset = map.remove("charset");
+                    let userhash = map.remove("userhash");
+
+                    if !map.is_empty() {
+                        return None;
+                    }
+
+                    let domains = domains.and_then(|ds| {
+                                                       ds.split_whitespace()
+                                                           .map(Url::from_str)
+                                                           .map(::std::result::Result::ok)
+                                                           .collect::<Option<Vec<Url>>>()
+                                                   });
+                    let stale = stale.map(|s| s == "true");
+                    let algorithm = algorithm.map(|a| {
+                        use self::Algorithm::*;
+                        match a.as_str() {
+                            "MD5" => return Md5,
+                            "MD5-sess" => return Md5Sess,
+                            "SHA-512-256" => return Sha512Trunc256,
+                            "SHA-512-256-sess" => return Sha512Trunc256Sess,
+                            "SHA-256" => return Sha256,
+                            "SHA-256-sess" => return Sha256Sess,
+                            _ => (),
+                        };
+                        return Other(a);
+                    });
+                    let qop = match qop {
+                        None => None,
+                        Some(qop) => {
+                            let mut v = vec![];
+                            let s = parser::Stream::new(qop.as_bytes());
+                            loop {
+                                match try_opt!(s.token().ok()) {
+                                    "auth" => v.push(Qop::Auth),
+                                    "auth-int" => v.push(Qop::AuthInt),
+                                    _ => (),
+                                }
+                                try_opt!(s.skip_field_sep().ok());
+                                if s.is_end() {
+                                    break;
+                                }
+                            }
+                            Some(v)
+                        }
+                    };
+                    match charset {
+                        Some(c) => {
+                            if UniCase(&c) == UniCase("UTF-8") {
+                                ()
+                            } else {
+                                return None;
+                            }
+                        }
+                        None => (),
+                    }
+
+                    let userhash = userhash.and_then(|u| match u.as_str() {
+                                                         "true" => Some(true),
+                                                         "false" => Some(false),
+                                                         _ => None,
+                                                     });
+                    Some(DigestChallenge {
+                             realm: realm,
+                             domain: domains,
+                             nonce: nonce,
+                             opaque: opaque,
+                             stale: stale,
+                             algorithm: algorithm,
+                             qop: qop,
+                             // pub charset: Option<Charset>,
+                             userhash: userhash,
+                         })
+
+                }
+            }
+        }
+        fn into_raw(self) -> RawChallenge {
+            let mut map = ChallengeFields::new();
+            // Notes on quoting/non-quoting from the spec  ttps://tools.ietf.org/html/rfc7616#section-3.3
+            //
+            // > For historical reasons, a sender MUST only generate the quoted string
+            // > syntax values for the following parameters: realm, domain, nonce,
+            // > opaque, and qop.
+            // >
+            // > For historical reasons, a sender MUST NOT generate the quoted string
+            // > syntax values for the following parameters: stale and algorithm.
+
+            for realm in self.realm {
+                map.insert_static_quoting("realm", realm);
+            }
+
+            for domain in self.domain {
+                let mut d = String::new();
+                d.extend(domain.into_iter().map(Url::into_string).map(|s| s + " "));
+                let len = d.len();
+                d.truncate(len - 1);
+                map.insert_static_quoting("domain", d);
+
+            }
+            for nonce in self.nonce {
+                map.insert_static_quoting("nonce", nonce);
+            }
+            for opaque in self.opaque {
+                map.insert_static_quoting("opaque", opaque);
+            }
+            for stale in self.stale {
+                map.insert_static("stale", format!("{}", stale));
+            }
+            for algorithm in self.algorithm {
+                map.insert_static("algorithm", format!("{}", algorithm));
+            }
+            for qop in self.qop {
+                let mut q = String::new();
+                q.extend(qop.into_iter().map(|q| format!("{}", q)).map(|s| s + ", "));
+                let len = q.len();
+                q.truncate(len - 2);
+                map.insert_static_quoting("qop", q);
+            }
+            for userhash in self.userhash {
+                map.insert_static("userhash", format!("{}", userhash));
+            }
+            RawChallenge::Fields(map)
+        }
+    }
+
+    impl fmt::Display for Algorithm {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            use self::Algorithm::*;
+            match *self {
+                Md5 => write!(f, "MD5"),
+                Md5Sess => write!(f, "MD5-sess"),
+                Sha512Trunc256 => write!(f, "SHA-512-256"),
+                Sha512Trunc256Sess => write!(f, "SHA-512-256-sess"),
+                Sha256 => write!(f, "SHA-256"),
+                Sha256Sess => write!(f, "SHA-256-sess"),
+                Other(ref s) => write!(f, "{}", s),
+            }
+        }
+    }
+
+
+    impl fmt::Display for Qop {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            use self::Qop::*;
+            match *self {
+                Auth => write!(f, "auth"),
+                AuthInt => write!(f, "auth-int"),
+            }
+        }
+    }
+
+
+
+
+    #[test]
+    fn test_parse_digest() {
+        let input = br#"Digest realm="http-auth@example.org", qop="auth, auth-int", algorithm=SHA-256, nonce="7ypf/xlj9XXwfDPEoM4URrv/xwf94BcCAzFZH4GiTo0v", opaque="FQhe/qaU925kfnzjCev0ciny7QMkPqMAFRtzCUYo5tdS""#;
+        let auth = WwwAuthenticate::parse_header(&[input.to_vec()]).unwrap();
+        let digest = auth.get::<DigestChallenge>().unwrap();
+        assert_eq!(digest.realm, Some("http-auth@example.org".into()));
+        assert_eq!(digest.domain, None);
+        assert_eq!(digest.nonce,
+                   Some("7ypf/xlj9XXwfDPEoM4URrv/xwf94BcCAzFZH4GiTo0v".into()));
+        assert_eq!(digest.opaque,
+                   Some("FQhe/qaU925kfnzjCev0ciny7QMkPqMAFRtzCUYo5tdS".into()));
+        assert_eq!(digest.stale, None);
+        assert_eq!(digest.algorithm, Some(Algorithm::Sha256));
+        assert_eq!(digest.qop, Some(vec![Qop::Auth, Qop::AuthInt]));
+        assert_eq!(digest.userhash, None);
+    }
+
+    #[test]
+    fn test_roundtrip_digest() {
+        let digest = DigestChallenge {
+            realm: Some("http-auth@example.org".into()),
+            domain: None,
+            nonce: Some("7ypf/xlj9XXwfDPEoM4URrv/xwf94BcCAzFZH4GiTo0v".into()),
+            opaque: Some("FQhe/qaU925kfnzjCev0ciny7QMkPqMAFRtzCUYo5tdS".into()),
+            stale: None,
+            algorithm: Some(Algorithm::Sha256),
+            qop: Some(vec![Qop::Auth, Qop::AuthInt]),
+            userhash: None,
+        };
+        let mut auth = WwwAuthenticate::new();
+        auth.add(digest.clone());
+        let data = format!("{}", &auth as &(HeaderFormat + Send + Sync));
+        let auth = WwwAuthenticate::parse_header(&[data.into_bytes()]).unwrap();
+        let digest_tripped = auth.get::<DigestChallenge>().unwrap();
+        assert_eq!(digest, digest_tripped);
+    }
 }
 
 
@@ -319,12 +538,12 @@ mod parser {
 
     pub struct Stream<'a>(Cell<usize>, &'a [u8]);
 
-    fn is_ws(c: u8) -> bool {
+    pub fn is_ws(c: u8) -> bool {
         // See https://tools.ietf.org/html/rfc7230#section-3.2.3
         b"\t ".contains(&c)
     }
 
-    fn is_token_char(c: u8) -> bool {
+    pub fn is_token_char(c: u8) -> bool {
         // See https://tools.ietf.org/html/rfc7230#section-3.2.6
         br#"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!#$%&'*+-.^_`|~"#
             .contains(&c)
@@ -362,6 +581,9 @@ mod parser {
         }
         pub fn skip_a_next(&self, c: u8) -> Result<()> {
             self.skip_ws()?;
+            if self.is_end() {
+                return Err(Error::Header);
+            }
             self.skip_a(c)
         }
 
@@ -658,7 +880,7 @@ mod parser {
 
     #[test]
     fn test_parese_challenge5() {
-        let b = b"Bearer user=\"fooo\", token=aeub8_";
+        let b = b"Bearer user=\"fooo\",,, token=aeub8_,,";
         let stream = Stream::new(b);
         match stream.challenge().unwrap() {
             (_, RawChallenge::Token68(_)) => panic!(),
