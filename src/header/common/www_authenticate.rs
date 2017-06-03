@@ -1,13 +1,10 @@
 use std::fmt;
-// use std::ops::{Deref, DerefMut};
-// use base64::{encode, decode};
 use header::{Header, HeaderFormat};
 use std::collections::HashMap;
 use unicase::UniCase;
 use error::{Error, Result};
 use header::CowStr;
 use std::borrow::Cow;
-//use header::internals::cell::PtrMapCell;
 
 #[derive(Debug, Clone)]
 pub struct WwwAuthenticate(HashMap<UniCase<CowStr>, RawChallenge>);
@@ -107,8 +104,15 @@ mod raw {
     use std::borrow::Cow;
     use std::mem;
 
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    enum Quote {
+        Always,
+        IfNeed,
+    }
+
     #[derive(Debug, Clone)]
-    pub struct ChallengeFields(HashMap<UniCase<CowStr>, String>);
+    pub struct ChallengeFields(HashMap<UniCase<CowStr>, (String, Quote)>);
+
     impl ChallengeFields {
         pub fn new() -> Self {
             ChallengeFields(HashMap::new())
@@ -133,6 +137,7 @@ mod raw {
                 .get(&UniCase(CowStr(Cow::Borrowed(unsafe {
                                                       mem::transmute::<&str, &'static str>(k)
                                                   }))))
+                .map(|&(ref s, _)| s)
         }
         pub fn contains_key(&self, k: &str) -> bool {
             self.0
@@ -145,18 +150,34 @@ mod raw {
                 .get_mut(&UniCase(CowStr(Cow::Borrowed(unsafe {
                                                           mem::transmute::<&str, &'static str>(k)
                                                       }))))
+                .map(|&mut (ref mut s, _)| s)
         }
         pub fn insert(&mut self, k: String, v: String) -> Option<String> {
-            self.0.insert(UniCase(CowStr(Cow::Owned(k))), v)
+            self.0
+                .insert(UniCase(CowStr(Cow::Owned(k))), (v, Quote::IfNeed))
+                .map(|(s, _)| s)
+        }
+        pub fn insert_quoting(&mut self, k: String, v: String) -> Option<String> {
+            self.0
+                .insert(UniCase(CowStr(Cow::Owned(k))), (v, Quote::Always))
+                .map(|(s, _)| s)
         }
         pub fn insert_static(&mut self, k: &'static str, v: String) -> Option<String> {
-            self.0.insert(UniCase(CowStr(Cow::Borrowed(k))), v)
+            self.0
+                .insert(UniCase(CowStr(Cow::Borrowed(k))), (v, Quote::IfNeed))
+                .map(|(s, _)| s)
+        }
+        pub fn insert_static_quoting(&mut self, k: &'static str, v: String) -> Option<String> {
+            self.0
+                .insert(UniCase(CowStr(Cow::Borrowed(k))), (v, Quote::Always))
+                .map(|(s, _)| s)
         }
         pub fn remove(&mut self, k: &str) -> Option<String> {
             self.0
                 .remove(&UniCase(CowStr(Cow::Borrowed(unsafe {
                                                          mem::transmute::<&str, &'static str>(k)
                                                      }))))
+                .map(|(s, _)| s)
         }
     }
     // index
@@ -167,8 +188,12 @@ mod raw {
         Fields(ChallengeFields),
     }
 
-    fn need_quote(_: &str) -> bool {
-        true
+    fn need_quote(s: &str, q: &Quote) -> bool {
+        if q == &Quote::Always {
+            true
+        } else {
+            s.bytes().any(|c| !parser::is_token_char(c))
+        }
     }
 
     impl fmt::Display for RawChallenge {
@@ -177,11 +202,11 @@ mod raw {
             match *self {
                 Token68(ref token) => write!(f, "{}", token)?,
                 Fields(ref fields) => {
-                    for (ref k, ref v) in fields.0.iter() {
-                        if need_quote(v) {
-                            write!(f, "{}={:?}", k, v)?
+                    for (k, &(ref v, ref quote)) in fields.0.iter() {
+                        if need_quote(v, quote) {
+                            write!(f, "{}={:?}, ", k, v)?
                         } else {
-                            write!(f, "{}={}", k, v)?
+                            write!(f, "{}={}, ", k, v)?
                         }
                     }
                 }
