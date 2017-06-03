@@ -237,6 +237,23 @@ mod basic {
             RawChallenge::Fields(map)
         }
     }
+
+    #[test]
+    fn test_parse_basic() {
+        let input = b"Basic realm=\"secret zone\"".to_vec();
+        let auth = WwwAuthenticate::parse_header(&[input]).unwrap();
+        let basic = auth.get::<BasicChallenge>().unwrap();
+        assert_eq!(basic.realm, "secret zone")
+    }
+
+    #[test]
+    fn test_format_basic() {
+        let mut auth = WwwAuthenticate::new();
+        auth.add(BasicChallenge { realm: "secret zone".into() });
+        let auth = format!("{}", &auth as &(HeaderFormat + Send + Sync));
+        assert_eq!(auth, "WWW-Authenticate: Basic realm=\"secret zone\", ")
+    }
+
 }
 
 pub use self::digest::*;
@@ -485,7 +502,7 @@ mod parser {
     }
 
     #[test]
-    fn test_parese_field() {
+    fn test_parese_quoted_field() {
         let b = b"realm=\"secret zone\"";
         let stream = Stream::new(b);
         let (k, v) = stream.field().unwrap();
@@ -495,7 +512,17 @@ mod parser {
     }
 
     #[test]
-    fn test_parese_raw_fields() {
+    fn test_parese_token_field() {
+        let b = b"algorithm=MD5";
+        let stream = Stream::new(b);
+        let (k, v) = stream.field().unwrap();
+        assert_eq!(k, "algorithm");
+        assert_eq!(v, "MD5");
+        assert!(stream.is_end());
+    }
+
+    #[test]
+    fn test_parese_raw_quoted_fields() {
         let b = b"realm=\"secret zone\"";
         let stream = Stream::new(b);
         match stream.raw_fields().unwrap() {
@@ -508,6 +535,19 @@ mod parser {
         assert!(stream.is_end());
     }
 
+    #[test]
+    fn test_parese_raw_token_fields() {
+        let b = b"algorithm=MD5";
+        let stream = Stream::new(b);
+        match stream.raw_fields().unwrap() {
+            RawChallenge::Token68(_) => panic!(),
+            RawChallenge::Fields(fields) => {
+                assert_eq!(fields.len(), 1);
+                assert_eq!(fields.get("algorithm").unwrap(), "MD5");
+            }
+        }
+        assert!(stream.is_end());
+    }
     #[test]
     fn test_parese_token68() {
         let b = b"auea1./+=";
@@ -529,7 +569,21 @@ mod parser {
     }
 
     #[test]
-    fn test_parese_challenge() {
+    fn test_parese_challenge1() {
+        let b = b"Token abceaqj13-.+=";
+        let stream = Stream::new(b);
+        match stream.challenge().unwrap() {
+            (scheme, RawChallenge::Token68(token)) => {
+                assert_eq!(scheme, "Token");
+                assert_eq!(token, "abceaqj13-.+=");
+            }
+            (_, RawChallenge::Fields(_)) => panic!(),
+        }
+        assert!(stream.is_end());
+    }
+
+    #[test]
+    fn test_parese_challenge2() {
         let b = b"Basic realm=\"secret zone\"";
         let stream = Stream::new(b);
         match stream.challenge().unwrap() {
@@ -544,27 +598,59 @@ mod parser {
     }
 
     #[test]
+    fn test_parese_challenge3() {
+        let b = b"Bearer token=aeub8_";
+        let stream = Stream::new(b);
+        match stream.challenge().unwrap() {
+            (_, RawChallenge::Token68(_)) => panic!(),
+            (scheme, RawChallenge::Fields(fields)) => {
+                assert_eq!(scheme, "Bearer");
+                assert_eq!(fields.len(), 1);
+                assert_eq!(fields.get("token").unwrap(), "aeub8_");
+            }
+        }
+        assert!(stream.is_end());
+    }
+
+    #[test]
+    fn test_parese_challenge4() {
+        let b = b"Bearer token=aeub8_, user=\"fooo\"";
+        let stream = Stream::new(b);
+        match stream.challenge().unwrap() {
+            (_, RawChallenge::Token68(_)) => panic!(),
+            (scheme, RawChallenge::Fields(fields)) => {
+                assert_eq!(scheme, "Bearer");
+                assert_eq!(fields.len(), 2);
+                assert_eq!(fields.get("token").unwrap(), "aeub8_");
+                assert_eq!(fields.get("user").unwrap(), "fooo");
+            }
+        }
+        assert!(stream.is_end());
+    }
+
+    #[test]
+    fn test_parese_challenge5() {
+        let b = b"Bearer user=\"fooo\", token=aeub8_";
+        let stream = Stream::new(b);
+        match stream.challenge().unwrap() {
+            (_, RawChallenge::Token68(_)) => panic!(),
+            (scheme, RawChallenge::Fields(fields)) => {
+                assert_eq!(scheme, "Bearer");
+                assert_eq!(fields.len(), 2);
+                assert_eq!(fields.get("token").unwrap(), "aeub8_");
+                assert_eq!(fields.get("user").unwrap(), "fooo");
+            }
+        }
+        assert!(stream.is_end());
+    }
+
+
+
+    #[test]
     #[should_panic]
     fn test_parse_null() {
         let b = b"";
         let stream = Stream::new(b);
         println!("{:?}", stream.challenge().unwrap());
     }
-}
-
-
-#[test]
-fn test_parse_basic() {
-    let input = b"Basic realm=\"secret zone\"".to_vec();
-    let auth = WwwAuthenticate::parse_header(&[input]).unwrap();
-    let basic = auth.get::<BasicChallenge>().unwrap();
-    assert_eq!(basic.realm, "secret zone")
-}
-
-#[test]
-fn test_format_basic() {
-    let mut auth = WwwAuthenticate::new();
-    auth.add(BasicChallenge { realm: "secret zone".into() });
-    let auth = format!("{}", &auth as &(HeaderFormat + Send + Sync));
-    assert_eq!(auth, "WWW-Authenticate: Basic realm=\"secret zone\", ")
 }
