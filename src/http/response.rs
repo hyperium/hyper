@@ -1,7 +1,7 @@
 use std::fmt;
 
 use header::{Header, Headers};
-use http::{MessageHead, ResponseHead, Body, RawStatus};
+use http::{MessageHead, ResponseHead, Body};
 use status::StatusCode;
 use version::HttpVersion;
 
@@ -10,7 +10,8 @@ pub struct Response<B = Body> {
     version: HttpVersion,
     headers: Headers,
     status: StatusCode,
-    raw_status: RawStatus,
+    #[cfg(feature = "raw_status")]
+    raw_status: ::http::RawStatus,
     body: Option<B>,
 }
 
@@ -42,7 +43,8 @@ impl<B> Response<B> {
     /// This method is only useful when inspecting the raw subject line from
     /// a received response.
     #[inline]
-    pub fn status_raw(&self) -> &RawStatus { &self.raw_status }
+    #[cfg(feature = "raw_status")]
+    pub fn status_raw(&self) -> &::http::RawStatus { &self.raw_status }
 
     /// Set the `StatusCode` for this response.
     #[inline]
@@ -101,6 +103,19 @@ impl Response<Body> {
     }
 }
 
+#[cfg(not(feature = "raw_status"))]
+impl<B> Default for Response<B> {
+    fn default() -> Response<B> {
+        Response::<B> {
+            version: Default::default(),
+            headers: Default::default(),
+            status: Default::default(),
+            body: None,
+        }
+    }
+}
+
+#[cfg(feature = "raw_status")]
 impl<B> Default for Response<B> {
     fn default() -> Response<B> {
         Response::<B> {
@@ -125,6 +140,24 @@ impl fmt::Debug for Response {
 
 /// Constructs a response using a received ResponseHead and optional body
 #[inline]
+#[cfg(not(feature = "raw_status"))]
+pub fn from_wire<B>(incoming: ResponseHead, body: Option<B>) -> Response<B> {
+    let status = incoming.status();
+    trace!("Response::new");
+    debug!("version={:?}, status={:?}", incoming.version, status);
+    debug!("headers={:?}", incoming.headers);
+
+    Response::<B> {
+        status: status,
+        version: incoming.version,
+        headers: incoming.headers,
+        body: body,
+    }
+}
+
+/// Constructs a response using a received ResponseHead and optional body
+#[inline]
+#[cfg(feature = "raw_status")]
 pub fn from_wire<B>(incoming: ResponseHead, body: Option<B>) -> Response<B> {
     let status = incoming.status();
     trace!("Response::new");
