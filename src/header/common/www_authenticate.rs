@@ -1,4 +1,5 @@
 use std::fmt;
+use std::mem;
 use header::{Header, HeaderFormat};
 use std::collections::HashMap;
 use unicase::UniCase;
@@ -28,15 +29,33 @@ impl WwwAuthenticate {
             .and_then(C::from_raw)
     }
 
+    pub fn get_raw(&self, name: &str) -> Option<&RawChallenge> {
+        self.0
+            .get(&UniCase(CowStr(Cow::Borrowed(unsafe {
+                                                  mem::transmute::<&str, &'static str>(name)
+                                              }))))
+    }
+
     pub fn set<C: Challenge>(&mut self, c: C) {
         self.0.clear();
         self.add(c);
+    }
+
+    pub fn set_raw(&mut self, scheme: String, raw: RawChallenge) {
+        self.0.clear();
+        self.add_raw(scheme, raw);
     }
 
     pub fn add<C: Challenge>(&mut self, c: C) -> bool {
         self.0
             .insert(UniCase(CowStr(Cow::Borrowed(C::challenge_name()))),
                     c.into_raw())
+            .is_some()
+    }
+
+    pub fn add_raw(&mut self, scheme: String, raw: RawChallenge) -> bool {
+        self.0
+            .insert(UniCase(CowStr(Cow::Owned(scheme))), raw)
             .is_some()
     }
 
