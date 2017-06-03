@@ -89,6 +89,14 @@ impl HeaderFormat for WwwAuthenticate {
     }
 }
 
+macro_rules! try_opt {
+    ($e: expr) => {
+        match $e {
+            Some(e) => e,
+            None => return None
+        }
+    }
+}
 
 
 pub use self::raw::*;
@@ -187,15 +195,11 @@ pub use self::basic::*;
 mod basic {
     use super::*;
     use super::raw::RawChallenge;
+
     #[derive(Debug, Clone)]
     pub struct BasicChallenge {
         pub realm: String,
-    }
-
-    impl BasicChallenge {
-        pub fn new(realm: String) -> Self {
-            BasicChallenge { realm: realm }
-        }
+        // pub charset: Option<Charset>
     }
 
     impl Challenge for BasicChallenge {
@@ -207,10 +211,23 @@ mod basic {
             match raw {
                 Token68(_) => return None,
                 Fields(mut map) => {
-                    if map.len() != 1 {
+                    let realm = try_opt!(map.remove("realm"));
+                    // only "UTF-8" is allowed.
+                    // See https://tools.ietf.org/html/rfc7617#section-2.1
+                    match map.remove("charset") {
+                        Some(c) => {
+                            if UniCase(&c) == UniCase("UTF-8") {
+                                ()
+                            } else {
+                                return None;
+                            }
+                        }
+                        None => (),
+                    }
+                    if !map.is_empty() {
                         return None;
                     }
-                    map.remove("realm").map(BasicChallenge::new)
+                    Some(BasicChallenge { realm: realm })
                 }
             }
         }
