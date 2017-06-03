@@ -300,7 +300,7 @@ mod parser {
 
     fn is_token_char(c: u8) -> bool {
         // See https://tools.ietf.org/html/rfc7230#section-3.2.6
-        b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!#$%&'*+-.^_`|~"
+        br#"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!#$%&'*+-.^_`|~"#
             .contains(&c)
     }
 
@@ -405,11 +405,15 @@ mod parser {
         }
 
         pub fn quoted_string(&self) -> Result<String> {
-            let mut s = String::new();
-            if !self.1[0] == b'"' {
+            if self.is_end() {
+                return Err(Error::Header);
+            }
+
+            if self.cur() != b'"' {
                 return Err(Error::Header);
             }
             self.inc(1);
+            let mut s = String::new();
             while !self.is_end() && self.cur() != b'"' {
                 if self.cur() == b'\\' {
                     self.inc(1)
@@ -440,7 +444,6 @@ mod parser {
         }
 
         pub fn kv_token(&self) -> Result<(&str, &str)> {
-            self.skip_ws()?;
             let k = self.token()?;
             self.skip_a_next(b'=')?;
             self.skip_ws()?;
@@ -449,7 +452,6 @@ mod parser {
         }
 
         pub fn kv_quoted(&self) -> Result<(&str, String)> {
-            self.skip_ws()?;
             let k = self.token()?;
             self.skip_a_next(b'=')?;
             self.skip_ws()?;
@@ -458,9 +460,8 @@ mod parser {
         }
 
         pub fn field(&self) -> Result<(String, String)> {
-            self.try(|| self.kv_quoted())
-                .map(|(k, v)| (k.to_string(), v))
-                .or_else(|_| self.kv_token().map(|(k, v)| (k.to_string(), v.to_string())))
+            self.try(|| self.kv_token().map(|(k, v)| (k.to_string(), v.to_string())))
+                .or_else(|_| self.kv_quoted().map(|(k, v)| (k.to_string(), v)))
         }
 
         pub fn raw_token68(&self) -> Result<RawChallenge> {
@@ -495,6 +496,7 @@ mod parser {
 
         pub fn challenge(&self) -> Result<(String, RawChallenge)> {
             let scheme = self.next_token()?;
+            self.take_while1(is_ws)?;
             let challenge = self.try(|| self.raw_token68())
                 .or_else(|_| self.raw_fields())?;
             Ok((scheme.to_string(), challenge))
