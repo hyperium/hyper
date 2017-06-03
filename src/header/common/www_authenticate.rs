@@ -12,7 +12,7 @@ pub struct WwwAuthenticate(HashMap<UniCase<CowStr>, RawChallenge>);
 pub trait Challenge: Clone {
     fn challenge_name() -> &'static str;
     fn from_raw(raw: RawChallenge) -> Option<Self>;
-    fn to_raw(self) -> RawChallenge;
+    fn into_raw(self) -> RawChallenge;
 }
 
 
@@ -36,7 +36,7 @@ impl WwwAuthenticate {
     pub fn add<C: Challenge>(&mut self, c: C) -> bool {
         self.0
             .insert(UniCase(CowStr(Cow::Borrowed(C::challenge_name()))),
-                    c.to_raw())
+                    c.into_raw())
             .is_some()
     }
 
@@ -256,7 +256,7 @@ mod basic {
                 }
             }
         }
-        fn to_raw(self) -> RawChallenge {
+        fn into_raw(self) -> RawChallenge {
             let mut map = ChallengeFields::new();
             map.insert_static("realm", self.realm);
             RawChallenge::Fields(map)
