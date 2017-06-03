@@ -1158,7 +1158,7 @@ mod tests {
         let mut empty = MockStream::new();
         let mut buf = BufReader::new(&mut empty);
         match parse_request(&mut buf) {
-            Err(Error::Io(ref e)) if e.kind() == ErrorKind::ConnectionAborted => (),
+            Err(Error::Io(ref e)) if e.kind() == ErrorKind::UnexpectedEof => (),
             other => panic!("unexpected result: {:?}", other)
         }
     }

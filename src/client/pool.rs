@@ -454,6 +454,19 @@ mod tests {
     }
 
     #[test]
+    fn test_read_conn_aborted() {
+        let pool = mocked!();
+
+        pool.connect("127.0.0.1", 3000, "http").unwrap();
+        let mut stream = pool.connect("127.0.0.1", 3000, "http").unwrap();
+        let err = stream.read(&mut [0]).unwrap_err();
+        assert_eq!(err.kind(), ::std::io::ErrorKind::ConnectionAborted);
+        drop(stream);
+        let locked = pool.inner.lock().unwrap();
+        assert_eq!(locked.conns.len(), 0);
+    }
+
+    #[test]
     fn test_idle_timeout() {
         let mut pool = mocked!();
         pool.set_idle_timeout(Some(Duration::from_millis(10)));
