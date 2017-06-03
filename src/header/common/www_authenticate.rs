@@ -77,7 +77,6 @@ impl Header for WwwAuthenticate {
 
 impl HeaderFormat for WwwAuthenticate {
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "WWW-Authenticate: ")?;
         for (k, v) in &self.0 {
             // tail commas are allowed
             write!(f, "{} {}, ", k, v)?;
