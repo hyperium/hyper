@@ -22,7 +22,7 @@ impl Service for Hello {
             Response::new()
                 .with_header(ContentLength(PHRASE.len() as u64))
                 .with_header(ContentType::plaintext())
-                .with_body(PHRASE)
+                .with_body(Some(PHRASE.into()))
         )
     }
 

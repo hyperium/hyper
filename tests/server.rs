@@ -128,7 +128,7 @@ impl Service for TestService {
                         *res.headers_mut() = headers;
                     },
                     Reply::Body(body) => {
-                        res.set_body(body);
+                        res.set_body(Some(body.into()));
                     },
                 }
             }
