@@ -220,7 +220,7 @@ mod basic {
     use super::*;
     use super::raw::RawChallenge;
 
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Eq, PartialEq, Hash)]
     pub struct BasicChallenge {
         pub realm: String,
         // pub charset: Option<Charset>
@@ -271,13 +271,15 @@ mod basic {
     }
 
     #[test]
-    fn test_format_basic() {
+    fn test_roundtrip_basic() {
+        let basic = BasicChallenge { realm: "secret zone".into() };
         let mut auth = WwwAuthenticate::new();
-        auth.add(BasicChallenge { realm: "secret zone".into() });
-        let auth = format!("{}", &auth as &(HeaderFormat + Send + Sync));
-        assert_eq!(auth, "WWW-Authenticate: Basic realm=\"secret zone\", ")
+        auth.add(basic.clone());
+        let data = format!("{}", &auth as &(HeaderFormat + Send + Sync));
+        let auth = WwwAuthenticate::parse_header(&[data.into_bytes()]).unwrap();
+        let basic_tripped = auth.get::<BasicChallenge>().unwrap();
+        assert_eq!(basic, basic_tripped);
     }
-
 }
 
 pub use self::digest::*;
