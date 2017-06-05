@@ -3,12 +3,12 @@ use std::mem;
 use header::{Header, HeaderFormat};
 use std::collections::HashMap;
 use unicase::UniCase;
-use error::{Error, Result};
+use error::Result;
 use header::CowStr;
 use std::borrow::Cow;
 
 #[derive(Debug, Clone)]
-pub struct WwwAuthenticate(HashMap<UniCase<CowStr>, RawChallenge>);
+pub struct WwwAuthenticate(HashMap<UniCase<CowStr>, Vec<RawChallenge>>);
 
 pub trait Challenge: Clone {
     fn challenge_name() -> &'static str;
@@ -22,41 +22,45 @@ impl WwwAuthenticate {
         WwwAuthenticate(HashMap::new())
     }
 
-    pub fn get<C: Challenge>(&self) -> Option<C> {
+    pub fn get<C: Challenge>(&self) -> Option<Vec<C>> {
         self.0
             .get(&UniCase(CowStr(Cow::Borrowed(C::challenge_name()))))
-            .map(Clone::clone)
-            .and_then(C::from_raw)
+            .map(|m| m.iter().map(Clone::clone).flat_map(C::from_raw).collect())
     }
 
-    pub fn get_raw(&self, name: &str) -> Option<&RawChallenge> {
+    pub fn get_raw(&self, name: &str) -> Option<&[RawChallenge]> {
         self.0
             .get(&UniCase(CowStr(Cow::Borrowed(unsafe {
                                                   mem::transmute::<&str, &'static str>(name)
                                               }))))
+            .map(AsRef::as_ref)
     }
 
-    pub fn set<C: Challenge>(&mut self, c: C) {
-        self.0.clear();
-        self.add(c);
-    }
-
-    pub fn set_raw(&mut self, scheme: String, raw: RawChallenge) {
-        self.0.clear();
-        self.add_raw(scheme, raw);
-    }
-
-    pub fn add<C: Challenge>(&mut self, c: C) -> bool {
+    pub fn set<C: Challenge>(&mut self, c: C) -> bool {
         self.0
             .insert(UniCase(CowStr(Cow::Borrowed(C::challenge_name()))),
-                    c.into_raw())
+                    vec![c.into_raw()])
             .is_some()
     }
 
-    pub fn add_raw(&mut self, scheme: String, raw: RawChallenge) -> bool {
+    pub fn set_raw(&mut self, scheme: String, raw: RawChallenge) -> bool {
         self.0
-            .insert(UniCase(CowStr(Cow::Owned(scheme))), raw)
+            .insert(UniCase(CowStr(Cow::Owned(scheme))), vec![raw])
             .is_some()
+    }
+
+    pub fn append<C: Challenge>(&mut self, c: C) {
+        self.0
+            .entry(UniCase(CowStr(Cow::Borrowed(C::challenge_name()))))
+            .or_insert(Vec::new())
+            .push(c.into_raw())
+    }
+
+    pub fn append_raw(&mut self, scheme: String, raw: RawChallenge) {
+        self.0
+            .entry(UniCase(CowStr(Cow::Owned(scheme))))
+            .or_insert(Vec::new())
+            .push(raw)
     }
 
     pub fn has<C: Challenge>(&self) -> bool {
@@ -70,25 +74,26 @@ impl Header for WwwAuthenticate {
         "WWW-Authenticate"
     }
     fn parse_header(raw: &[Vec<u8>]) -> Result<Self> {
-        if raw.len() != 1 {
-            return Err(Error::Header);
-        }
-        let data = &raw[0];
-        let stream = parser::Stream::new(data.as_ref());
         let mut map = HashMap::new();
-        loop {
-            let (scheme, challenge) = match stream.challenge() {
-                Ok(v) => v,
-                Err(e) => {
-                    if stream.is_end() {
-                        break;
-                    } else {
-                        return Err(e);
+        for data in raw {
+            let stream = parser::Stream::new(data.as_ref());
+            loop {
+                let (scheme, challenge) = match stream.challenge() {
+                    Ok(v) => v,
+                    Err(e) => {
+                        if stream.is_end() {
+                            break;
+                        } else {
+                            return Err(e);
+                        }
                     }
-                }
-            };
-            // TODO: treat the cases when a scheme is duplicated
-            map.insert(UniCase(CowStr(Cow::Owned(scheme))), challenge);
+                };
+                // TODO: treat the cases when a scheme is duplicated
+                map.entry(UniCase(CowStr(Cow::Owned(scheme))))
+                    .or_insert(Vec::new())
+                    .push(challenge);
+            }
+
         }
         Ok(WwwAuthenticate(map))
     }
@@ -96,12 +101,49 @@ impl Header for WwwAuthenticate {
 
 impl HeaderFormat for WwwAuthenticate {
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for (k, v) in &self.0 {
-            // tail commas are allowed
-            write!(f, "{} {}, ", k, v)?;
+        for (scheme, values) in &self.0 {
+            for value in values.iter() {
+                // tail commas are allowed
+                write!(f, "{} {}, ", scheme, value)?;
+            }
         }
         Ok(())
     }
+}
+
+#[test]
+fn test_www_authenticate_multiple_headers() {
+    let input1 = br#"Digest realm="http-auth@example.org", qop="auth, auth-int", algorithm=SHA-256, nonce="7ypf/xlj9XXwfDPEoM4URrv/xwf94BcCAzFZH4GiTo0v", opaque="FQhe/qaU925kfnzjCev0ciny7QMkPqMAFRtzCUYo5tdS""#.to_vec();
+    let input2 = br#"Digest realm="http-auth@example.org", qop="auth, auth-int", algorithm=MD5, nonce="7ypf/xlj9XXwfDPEoM4URrv/xwf94BcCAzFZH4GiTo0v", opaque="FQhe/qaU925kfnzjCev0ciny7QMkPqMAFRtzCUYo5tdS""#.to_vec();
+    let input = &[input1, input2];
+
+    let auth = WwwAuthenticate::parse_header(input).unwrap();
+    let digests = auth.get::<DigestChallenge>().unwrap();
+    assert!(digests.contains(&DigestChallenge {
+                                 realm: Some("http-auth@example.org".into()),
+                                 qop: Some(vec![Qop::Auth, Qop::AuthInt]),
+                                 algorithm: Some(Algorithm::Sha256),
+                                 nonce: Some("7ypf/xlj9XXwfDPEoM4URrv/xwf94BcCAzFZH4GiTo0v".into()),
+                                 opaque: Some("FQhe/qaU925kfnzjCev0ciny7QMkPqMAFRtzCUYo5tdS"
+                                                  .into()),
+                                 domain: None,
+                                 stale: None,
+                                 userhash: None,
+                             }));
+
+    assert!(digests.contains(&DigestChallenge {
+                                 realm: Some("http-auth@example.org".into()),
+                                 qop: Some(vec![Qop::Auth, Qop::AuthInt]),
+                                 algorithm: Some(Algorithm::Md5),
+                                 nonce: Some("7ypf/xlj9XXwfDPEoM4URrv/xwf94BcCAzFZH4GiTo0v".into()),
+                                 opaque: Some("FQhe/qaU925kfnzjCev0ciny7QMkPqMAFRtzCUYo5tdS"
+                                                  .into()),
+                                 domain: None,
+                                 stale: None,
+                                 userhash: None,
+                             }));
+
+
 }
 
 macro_rules! try_opt {
@@ -285,7 +327,9 @@ mod basic {
     fn test_parse_basic() {
         let input = b"Basic realm=\"secret zone\"".to_vec();
         let auth = WwwAuthenticate::parse_header(&[input]).unwrap();
-        let basic = auth.get::<BasicChallenge>().unwrap();
+        let mut basics = auth.get::<BasicChallenge>().unwrap();
+        assert_eq!(basics.len(), 1);
+        let basic = basics.swap_remove(0);
         assert_eq!(basic.realm, "secret zone")
     }
 
@@ -293,10 +337,10 @@ mod basic {
     fn test_roundtrip_basic() {
         let basic = BasicChallenge { realm: "secret zone".into() };
         let mut auth = WwwAuthenticate::new();
-        auth.add(basic.clone());
+        auth.set(basic.clone());
         let data = format!("{}", &auth as &(HeaderFormat + Send + Sync));
         let auth = WwwAuthenticate::parse_header(&[data.into_bytes()]).unwrap();
-        let basic_tripped = auth.get::<BasicChallenge>().unwrap();
+        let basic_tripped = auth.get::<BasicChallenge>().unwrap().swap_remove(0);
         assert_eq!(basic, basic_tripped);
     }
 }
@@ -514,7 +558,9 @@ mod digest {
     fn test_parse_digest() {
         let input = br#"Digest realm="http-auth@example.org", qop="auth, auth-int", algorithm=SHA-256, nonce="7ypf/xlj9XXwfDPEoM4URrv/xwf94BcCAzFZH4GiTo0v", opaque="FQhe/qaU925kfnzjCev0ciny7QMkPqMAFRtzCUYo5tdS""#;
         let auth = WwwAuthenticate::parse_header(&[input.to_vec()]).unwrap();
-        let digest = auth.get::<DigestChallenge>().unwrap();
+        let mut digests = auth.get::<DigestChallenge>().unwrap();
+        assert_eq!(digests.len(), 1);
+        let digest = digests.swap_remove(0);
         assert_eq!(digest.realm, Some("http-auth@example.org".into()));
         assert_eq!(digest.domain, None);
         assert_eq!(digest.nonce,
@@ -540,10 +586,10 @@ mod digest {
             userhash: None,
         };
         let mut auth = WwwAuthenticate::new();
-        auth.add(digest.clone());
+        auth.set(digest.clone());
         let data = format!("{}", &auth as &(HeaderFormat + Send + Sync));
         let auth = WwwAuthenticate::parse_header(&[data.into_bytes()]).unwrap();
-        let digest_tripped = auth.get::<DigestChallenge>().unwrap();
+        let digest_tripped = auth.get::<DigestChallenge>().unwrap().swap_remove(0);
         assert_eq!(digest, digest_tripped);
     }
 }
