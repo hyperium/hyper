@@ -170,7 +170,7 @@ mod raw {
         IfNeed,
     }
 
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ChallengeFields(HashMap<UniCase<CowStr>, (String, Quote)>);
 
     impl ChallengeFields {
@@ -242,7 +242,7 @@ mod raw {
     }
     // index
 
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum RawChallenge {
         Token68(String),
         Fields(ChallengeFields),
