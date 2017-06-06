@@ -7,9 +7,58 @@ use error::Result;
 use header::CowStr;
 use std::borrow::Cow;
 
+/// `WWW-Authenticate` header, defined in [RFC7235](https://tools.ietf.org/html/rfc7235#section-4.1)
+///
+/// The `WWW-Authenticate` header field indicates the authentication
+/// scheme(s) and parameters applicable to the target resource.
+/// This MUST be contained in HTTP responses whose status is 401.
+///
+/// # ABNF
+/// ```plain
+/// WWW-Authenticate = 1#challenge
+/// ```
+///
+/// # Example values
+/// * `Basic realm="foo", charset="UTF-8"`
+/// * `Digest
+///    realm="http-auth@example.org",
+///    qop="auth, auth-int",
+///    algorithm=MD5,
+///    nonce="7ypf/xlj9XXwfDPEoM4URrv/xwf94BcCAzFZH4GiTo0v",
+///    opaque="FQhe/qaU925kfnzjCev0ciny7QMkPqMAFRtzCUYo5tdS"`
+///
+/// # Examples
+///
+/// ```
+/// use hyper::header::{Headers, WwwAuthenticate, DigestChallenge};
+/// let mut auth = WwwAuthenticate::new();
+/// auth.set(DigestChallenge {
+///     realm: Some("http-auth@example.org".into()),
+///     qop: Some(vec![Qop::Auth, Qop::AuthInt]),
+///     algorithm: Some(Algorithm::Sha256),
+///     nonce: Some("7ypf/xlj9XXwfDPEoM4URrv/xwf94BcCAzFZH4GiTo0v".into()),
+///     opaque: Some("FQhe/qaU925kfnzjCev0ciny7QMkPqMAFRtzCUYo5tdS"
+///                      .into()),
+///     domain: None,
+///     stale: None,
+///     userhash: None,
+/// });
+/// headers.set(auth);
+///
+/// ```
+/// ```
+/// use hyper::header::{Headers, WwwAuthenticate, BasicChallenge};
+/// let mut auth = WwwAuthenticate::new();
+/// auth.set(BasicChallenge{realm = "foo".into()})
+/// headers.set(auth);
+/// let auth = headers.get::<WwwAuthenticate>().unwrap();
+/// let basics = auth.get::<BasicChallenge>().unwrap();
+/// ```
 #[derive(Debug, Clone)]
 pub struct WwwAuthenticate(HashMap<UniCase<CowStr>, Vec<RawChallenge>>);
 
+/// The challenge described in [RFC7235](https://tools.ietf.org/html/rfc7235#section-4.1).
+/// Used in `WWW-Authenticate` header.
 pub trait Challenge: Clone {
     fn challenge_name() -> &'static str;
     fn from_raw(raw: RawChallenge) -> Option<Self>;
@@ -22,12 +71,14 @@ impl WwwAuthenticate {
         WwwAuthenticate(HashMap::new())
     }
 
+    /// find challenges and convert them into `C` if found.
     pub fn get<C: Challenge>(&self) -> Option<Vec<C>> {
         self.0
             .get(&UniCase(CowStr(Cow::Borrowed(C::challenge_name()))))
             .map(|m| m.iter().map(Clone::clone).flat_map(C::from_raw).collect())
     }
 
+    /// find challenges and return it if found
     pub fn get_raw(&self, name: &str) -> Option<&[RawChallenge]> {
         self.0
             .get(&UniCase(CowStr(Cow::Borrowed(unsafe {
@@ -36,6 +87,7 @@ impl WwwAuthenticate {
             .map(AsRef::as_ref)
     }
 
+    /// set a challenge. This replaces existing challenges of the same name.
     pub fn set<C: Challenge>(&mut self, c: C) -> bool {
         self.0
             .insert(UniCase(CowStr(Cow::Borrowed(C::challenge_name()))),
@@ -43,12 +95,14 @@ impl WwwAuthenticate {
             .is_some()
     }
 
+    /// set a challenge. This replaces existing challenges of the same name.
     pub fn set_raw(&mut self, scheme: String, raw: RawChallenge) -> bool {
         self.0
             .insert(UniCase(CowStr(Cow::Owned(scheme))), vec![raw])
             .is_some()
     }
 
+    /// append a challenge. This appends existing challenges of the same name.
     pub fn append<C: Challenge>(&mut self, c: C) {
         self.0
             .entry(UniCase(CowStr(Cow::Borrowed(C::challenge_name()))))
@@ -56,6 +110,7 @@ impl WwwAuthenticate {
             .push(c.into_raw())
     }
 
+    /// append a challenge. This appends existing challenges of the same name.
     pub fn append_raw(&mut self, scheme: String, raw: RawChallenge) {
         self.0
             .entry(UniCase(CowStr(Cow::Owned(scheme))))
@@ -63,6 +118,7 @@ impl WwwAuthenticate {
             .push(raw)
     }
 
+    /// test if the challenge exists
     pub fn has<C: Challenge>(&self) -> bool {
         self.get::<C>().is_some()
     }
@@ -170,6 +226,7 @@ mod raw {
         IfNeed,
     }
 
+    /// A representation of the challenge fields
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ChallengeFields(HashMap<UniCase<CowStr>, (String, Quote)>);
 
@@ -242,6 +299,7 @@ mod raw {
     }
     // index
 
+    /// A representation of raw challenges. A Challenge is either a token or fields.
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum RawChallenge {
         Token68(String),
@@ -281,8 +339,10 @@ mod basic {
     use super::*;
     use super::raw::RawChallenge;
 
+    /// The challenge for Basic authentication
     #[derive(Debug, Clone, Eq, PartialEq, Hash)]
     pub struct BasicChallenge {
+        /// realm of the authentication
         pub realm: String,
         // pub charset: Option<Charset>
     }
@@ -351,34 +411,58 @@ mod digest {
     use url::Url;
     use std::str::FromStr;
 
+    /// The challenge for Digest authentication
     #[derive(Debug, Clone, PartialEq, Eq, Hash)]
     pub struct DigestChallenge {
+        /// realm of the authentication
         pub realm: Option<String>,
+        /// domains of the authentication
         pub domain: Option<Vec<Url>>,
+        /// the nonce used in authentiaction
         pub nonce: Option<String>,
+        /// a string data specified by the server
         pub opaque: Option<String>,
+        /// a flag indicating that the previous request from
+        /// the client was rejected because the nonce value was stale.
         pub stale: Option<bool>,
+        /// the algorithm used to produce the digest and unkeyed digest.
+        /// if not present, it is assumed to be Md5
         pub algorithm: Option<Algorithm>,
+        /// "quality of protection" values supported by the server
         pub qop: Option<Vec<Qop>>,
         // pub charset: Option<Charset>,
+        /// this is an OPTIONAL parameter that is used by the server to
+        /// indicate that it supports username hashing.
+        /// default is false if not present
         pub userhash: Option<bool>,
     }
 
+    /// Algorithms used to produce the digest and unkeyed digest.
     #[derive(Debug, Clone, PartialEq, Eq, Hash)]
     pub enum Algorithm {
+        /// MD5
         Md5,
+        /// MD5-sess
         Md5Sess,
+        /// SHA-512-256
         Sha512Trunc256,
+        /// SHA-512-256-sess
         Sha512Trunc256Sess,
+        /// SHA-256
         Sha256,
+        /// SHA-256-sess
         Sha256Sess,
+        /// other algorithm
         Other(String),
     }
 
 
+    /// Quority of protection
     #[derive(Debug, Clone, PartialEq, Eq, Hash)]
     pub enum Qop {
+        /// authentication
         Auth,
+        /// authentication with integrity protection
         AuthInt,
     }
 
