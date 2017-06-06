@@ -12,10 +12,8 @@ authors = ["Sean McArthur <sean.monstar@gmail.com>",
            "Jonathan Reem <jonathan.reem@gmail.com>"]
 keywords = ["http", "hyper", "hyperium"]
 categories = ["web-programming::http-client", "web-programming::http-server"]
-build = "build.rs"
 
 include = [
-  "build.rs",
   "Cargo.toml",
   "LICENSE",
   "src/**/*"
@@ -36,9 +34,6 @@ url = "1.0"
 
 [dev-dependencies]
 env_logger = "0.4"
-
-[build-dependencies]
-version_check = "0.1"
 
 [features]
 nightly = []

@@ -164,13 +164,6 @@ macro_rules! todo(
     })
 );
 
-macro_rules! deprecated {
-    (#[$note:meta] $i:item) => (
-        #[cfg_attr(has_deprecated, $note)]
-        $i
-    );
-}
-
 #[cfg(test)]
 #[macro_use]
 mod mock;

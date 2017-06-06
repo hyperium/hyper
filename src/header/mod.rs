@@ -540,14 +540,12 @@ impl<'a> FromIterator<HeaderView<'a>> for Headers {
     }
 }
 
-deprecated! {
-    #[deprecated(note="The semantics of formatting a HeaderFormat directly are not clear")]
-    impl<'a> fmt::Display for &'a (HeaderFormat + Send + Sync) {
-        #[inline]
-        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            let mut multi = MultilineFormatter(Multi::Join(true, f));
-            self.fmt_multi_header(&mut multi)
-        }
+#[deprecated(note="The semantics of formatting a HeaderFormat directly are not clear")]
+impl<'a> fmt::Display for &'a (HeaderFormat + Send + Sync) {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut multi = MultilineFormatter(Multi::Join(true, f));
+        self.fmt_multi_header(&mut multi)
     }
 }
 
@@ -558,10 +556,8 @@ deprecated! {
 ///
 /// Note: This may not necessarily be the value written to stream, such
 /// as with the SetCookie header.
-deprecated! {
-    #[deprecated(note="The semantics of formatting a HeaderFormat directly are not clear")]
-    pub struct HeaderFormatter<'a, H: HeaderFormat>(pub &'a H);
-}
+#[deprecated(note="The semantics of formatting a HeaderFormat directly are not clear")]
+pub struct HeaderFormatter<'a, H: HeaderFormat>(pub &'a H);
 
 #[allow(deprecated)]
 impl<'a, H: HeaderFormat> fmt::Display for HeaderFormatter<'a, H> {
