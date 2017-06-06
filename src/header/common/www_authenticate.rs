@@ -30,26 +30,27 @@ use std::borrow::Cow;
 /// # Examples
 ///
 /// ```
-/// use hyper::header::{Headers, WwwAuthenticate, DigestChallenge};
-/// let mut auth = WwwAuthenticate::new();
-/// auth.set(DigestChallenge {
-///     realm: Some("http-auth@example.org".into()),
-///     qop: Some(vec![Qop::Auth, Qop::AuthInt]),
-///     algorithm: Some(Algorithm::Sha256),
-///     nonce: Some("7ypf/xlj9XXwfDPEoM4URrv/xwf94BcCAzFZH4GiTo0v".into()),
-///     opaque: Some("FQhe/qaU925kfnzjCev0ciny7QMkPqMAFRtzCUYo5tdS"
-///                      .into()),
-///     domain: None,
-///     stale: None,
-///     userhash: None,
+/// use hyper::header::{Headers, WwwAuthenticate, DigestChallenge, Qop, Algorithm};
+/// let auth = WwwAuthenticate::new(
+///     DigestChallenge {
+///         realm: Some("http-auth@example.org".into()),
+///         qop: Some(vec![Qop::Auth, Qop::AuthInt]),
+///         algorithm: Some(Algorithm::Sha256),
+///         nonce: Some("7ypf/xlj9XXwfDPEoM4URrv/xwf94BcCAzFZH4GiTo0v".into()),
+///         opaque: Some("FQhe/qaU925kfnzjCev0ciny7QMkPqMAFRtzCUYo5tdS"
+///                          .into()),
+///         domain: None,
+///         stale: None,
+///         userhash: None,
 /// });
+/// let mut headers = Headers::new();
 /// headers.set(auth);
 ///
 /// ```
 /// ```
 /// use hyper::header::{Headers, WwwAuthenticate, BasicChallenge};
-/// let mut auth = WwwAuthenticate::new();
-/// auth.set(BasicChallenge{realm = "foo".into()})
+/// let auth = WwwAuthenticate::new(BasicChallenge{realm: "foo".into()});
+/// let mut headers = Headers::new();
 /// headers.set(auth);
 /// let auth = headers.get::<WwwAuthenticate>().unwrap();
 /// let basics = auth.get::<BasicChallenge>().unwrap();
@@ -67,8 +68,16 @@ pub trait Challenge: Clone {
 
 
 impl WwwAuthenticate {
-    pub fn new() -> Self {
-        WwwAuthenticate(HashMap::new())
+    pub fn new<C: Challenge>(c: C) -> Self {
+        let mut auth = WwwAuthenticate(HashMap::new());
+        auth.set(c);
+        auth
+    }
+
+    pub fn new_from_raw(scheme: String, raw: RawChallenge) -> Self {
+        let mut auth = WwwAuthenticate(HashMap::new());
+        auth.set_raw(scheme, raw);
+        auth
     }
 
     /// find challenges and convert them into `C` if found.
@@ -396,8 +405,7 @@ mod basic {
     #[test]
     fn test_roundtrip_basic() {
         let basic = BasicChallenge { realm: "secret zone".into() };
-        let mut auth = WwwAuthenticate::new();
-        auth.set(basic.clone());
+        let auth = WwwAuthenticate::new(basic.clone());
         let data = format!("{}", &auth as &(HeaderFormat + Send + Sync));
         let auth = WwwAuthenticate::parse_header(&[data.into_bytes()]).unwrap();
         let basic_tripped = auth.get::<BasicChallenge>().unwrap().swap_remove(0);
@@ -669,8 +677,7 @@ mod digest {
             qop: Some(vec![Qop::Auth, Qop::AuthInt]),
             userhash: None,
         };
-        let mut auth = WwwAuthenticate::new();
-        auth.set(digest.clone());
+        let auth = WwwAuthenticate::new(digest.clone());
         let data = format!("{}", &auth as &(HeaderFormat + Send + Sync));
         let auth = WwwAuthenticate::parse_header(&[data.into_bytes()]).unwrap();
         let digest_tripped = auth.get::<DigestChallenge>().unwrap().swap_remove(0);
