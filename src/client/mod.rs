@@ -332,7 +332,9 @@ impl<'a> RequestBuilder<'a> {
                 _ => () // neither
             }
             let mut streaming = try!(req.start());
-            body.take().map(|mut rdr| copy(&mut rdr, &mut streaming));
+            if let Some(mut rdr) = body.take() {
+                try!(copy(&mut rdr, &mut streaming));
+            }
             let res = try!(streaming.send());
             if !res.status.is_redirection() {
                 return Ok(res)
@@ -720,5 +722,25 @@ mod tests {
         let mut s = String::new();
         client.post("http://127.0.0.1").send().unwrap().read_to_string(&mut s).unwrap();
         assert_eq!(s, "POST");
+    }
+
+    #[test]
+    fn test_request_body_error_is_returned() {
+        mock_connector!(Connector {
+            b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\n",
+            b"HELLO"
+        });
+
+        struct BadBody;
+
+        impl ::std::io::Read for BadBody {
+            fn read(&mut self, _buf: &mut [u8]) -> ::std::io::Result<usize> {
+                Err(::std::io::Error::new(::std::io::ErrorKind::Other, "BadBody read"))
+            }
+        }
+
+        let client = Client::with_connector(Connector);
+        let err = client.post("http://127.0.0.1").body(&mut BadBody).send().unwrap_err();
+        assert_eq!(err.to_string(), "BadBody read");
     }
 }
