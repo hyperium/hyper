@@ -614,6 +614,28 @@ mod parser {
             .contains(&c)
     }
 
+    pub fn is_obs_text(c: u8) -> bool {
+        // See https://tools.ietf.org/html/rfc7230#section-3.2.6
+        // u8 is always under 0xFF
+        0x80 <= c
+    }
+
+    pub fn is_vchar(c: u8) -> bool {
+        // consult the ASCII definition
+        0x21 <= c && c <= 0x7E
+    }
+
+    pub fn is_qdtext(c: u8) -> bool {
+        // See https://tools.ietf.org/html/rfc7230#section-3.2.6
+        b"\t \x21".contains(&c) || (0x23 <= c && c <= 0x5B) || (0x5D <= 0x7E) || is_obs_text(c)
+    }
+
+    pub fn is_quoting(c: u8) -> bool {
+        b"\t ".contains(&c) || is_vchar(c) || is_obs_text(c)
+    }
+
+
+
     impl<'a> Stream<'a> {
         pub fn new(data: &'a [u8]) -> Self {
             Stream(Cell::from(0), data)
@@ -718,6 +740,7 @@ mod parser {
         }
 
         pub fn quoted_string(&self) -> Result<String> {
+            // See https://tools.ietf.org/html/rfc7230#section-3.2.6
             if self.is_end() {
                 return Err(Error::Header);
             }
@@ -726,14 +749,24 @@ mod parser {
                 return Err(Error::Header);
             }
             self.inc(1);
-            let mut s = String::new();
+            let mut s = Vec::new();
             while !self.is_end() && self.cur() != b'"' {
                 if self.cur() == b'\\' {
-                    self.inc(1)
-
+                    self.inc(1);
+                    if is_quoting(self.cur()) {
+                        s.push(self.cur());
+                        self.inc(1);
+                    } else {
+                        return Err(Error::Header);
+                    }
+                } else {
+                    if is_qdtext(self.cur()) {
+                        s.push(self.cur());
+                        self.inc(1);
+                    } else {
+                        return Err(Error::Header);
+                    }
                 }
-                s.push(self.cur() as char);
-                self.inc(1);
             }
             if self.is_end() {
                 return Err(Error::Header);
@@ -741,7 +774,7 @@ mod parser {
                 debug_assert!(self.cur() == b'"');
                 self.inc(1);
             }
-            Ok(s)
+            String::from_utf8(s).map_err(|_| Error::Header)
         }
 
 
@@ -825,6 +858,17 @@ mod parser {
         assert_eq!(v, "secret zone");
         assert!(stream.is_end());
     }
+
+    #[test]
+    fn test_parese_quoted_field_nonvchars() {
+        let b = b"realm=\"secret zone\t\xe3\x8a\x99\"";
+        let stream = Stream::new(b);
+        let (k, v) = stream.field().unwrap();
+        assert_eq!(k, "realm");
+        assert_eq!(v, "secret zone\t㊙");
+        assert!(stream.is_end());
+    }
+
 
     #[test]
     fn test_parese_token_field() {
