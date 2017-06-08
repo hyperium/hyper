@@ -696,11 +696,7 @@ impl PartialEq<HeaderName> for str {
 #[cfg(test)]
 mod tests {
     use std::fmt;
-    use mime::Mime;
-    use mime::TopLevel::Text;
-    use mime::SubLevel::Plain;
-    use super::{Headers, Header, Raw, ContentLength, ContentType,
-                Accept, Host, qitem, SetCookie};
+    use super::{Headers, Header, Raw, ContentLength, ContentType, Host, SetCookie};
 
     #[cfg(feature = "nightly")]
     use test::Bencher;
@@ -721,25 +717,6 @@ mod tests {
     fn test_from_raw() {
         let headers = make_header!(b"Content-Length", b"10");
         assert_eq!(headers.get(), Some(&ContentLength(10)));
-    }
-
-    #[test]
-    fn test_content_type() {
-        let content_type = Header::parse_header(&b"text/plain".as_ref().into());
-        assert_eq!(content_type.ok(), Some(ContentType(Mime(Text, Plain, vec![]))));
-    }
-
-    #[test]
-    fn test_accept() {
-        let text_plain = qitem(Mime(Text, Plain, vec![]));
-        let application_vendor = "application/vnd.github.v3.full+json; q=0.5".parse().unwrap();
-
-        let accept = Header::parse_header(&b"text/plain".as_ref().into());
-        assert_eq!(accept.ok(), Some(Accept(vec![text_plain.clone()])));
-
-        let bytevec = b"application/vnd.github.v3.full+json; q=0.5, text/plain".as_ref().into();
-        let accept = Header::parse_header(&bytevec);
-        assert_eq!(accept.ok(), Some(Accept(vec![application_vendor, text_plain])));
     }
 
     #[derive(Clone, PartialEq, Debug)]
@@ -882,7 +859,7 @@ mod tests {
         let mut headers = Headers::new();
         headers.set(ContentLength(10));
         assert_eq!(headers.len(), 1);
-        headers.set(ContentType(Mime(Text, Plain, vec![])));
+        headers.set(ContentType::json());
         assert_eq!(headers.len(), 2);
         // Redundant, should not increase count.
         headers.set(ContentLength(20));
@@ -893,7 +870,7 @@ mod tests {
     fn test_clear() {
         let mut headers = Headers::new();
         headers.set(ContentLength(10));
-        headers.set(ContentType(Mime(Text, Plain, vec![])));
+        headers.set(ContentType::json());
         assert_eq!(headers.len(), 2);
         headers.clear();
         assert_eq!(headers.len(), 0);

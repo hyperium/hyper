@@ -905,9 +905,7 @@ mod tests {
     use http::{ServerTransaction, Http1Transaction};
     use bytes::BytesMut;
 
-    use mime::Mime;
-    use mime::TopLevel::Text;
-    use mime::SubLevel::Plain;
+    use mime;
 
     #[test]
     fn test_link() {
@@ -956,7 +954,7 @@ mod tests {
             .push_media_desc(MediaDesc::Screen)
             .set_title("previous chapter")
             .set_title_star("title* unparsed")
-            .set_media_type(Mime(Text, Plain, vec![]));
+            .set_media_type(mime::TEXT_PLAIN);
 
         let link_header = b"<http://example.com/TheBook/chapter2>; \
             rel=\"previous\"; anchor=\"../anchor/example/\"; \
@@ -1015,7 +1013,7 @@ mod tests {
             .push_media_desc(MediaDesc::Screen)
             .set_title("previous chapter")
             .set_title_star("title* unparsed")
-            .set_media_type(Mime(Text, Plain, vec![]));
+            .set_media_type(mime::TEXT_PLAIN);
 
         let link = Link::new(vec![link_value]);
 

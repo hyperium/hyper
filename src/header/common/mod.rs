@@ -3,7 +3,7 @@
 //! ## Mime
 //!
 //! Several header fields use MIME values for their contents. Keeping with the
-//! strongly-typed theme, the [mime](http://seanmonstar.github.io/mime.rs) crate
+//! strongly-typed theme, the [mime](https://docs.rs/mime) crate
 //! is used, such as `ContentType(pub Mime)`.
 
 pub use self::accept::Accept;
