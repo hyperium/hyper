@@ -10,17 +10,6 @@ use std::cmp::Ordering;
 /// recommended to only use values between [100, 599], since only these are
 /// defined as valid status codes with a status class by HTTP.
 ///
-/// If you encounter a status code that you do not know how to deal with, you
-/// should treat it as the `x00` status code—e.g. for code 123, treat it as
-/// 100 (Continue). This can be achieved with
-/// `self.class().default_code()`:
-///
-/// ```rust
-/// # use hyper::status::StatusCode;
-/// let status = StatusCode::Unregistered(123);
-/// assert_eq!(status.class().default_code(), StatusCode::Continue);
-/// ```
-///
 /// IANA maintain the [Hypertext Transfer Protocol (HTTP) Status Code
 /// Registry](http://www.iana.org/assignments/http-status-codes/http-status-codes.xhtml) which is
 /// the source for this enum (with one exception, 418 I'm a teapot, which is
@@ -448,52 +437,38 @@ impl StatusCode {
         }
     }
 
-    /// Determine the class of a status code, based on its first digit.
-    #[deprecated(note = "StatusClass is going away. Use the is_<class>() methods instead.")]
-    #[allow(deprecated)]
-    pub fn class(&self) -> StatusClass {
-        match self.to_u16() {
-            100...199 => StatusClass::Informational,
-            200...299 => StatusClass::Success,
-            300...399 => StatusClass::Redirection,
-            400...499 => StatusClass::ClientError,
-            500...599 => StatusClass::ServerError,
-            _ => StatusClass::NoClass,
-        }
-    }
-
-    /// Check if class is Informational.
-    #[allow(deprecated)]
+    /// Check if this `StatusCode` is within 100-199.
+    #[inline]
     pub fn is_informational(&self) -> bool {
         self.class() == StatusClass::Informational
     }
 
-    /// Check if class is Success.
-    #[allow(deprecated)]
+    /// Check if this `StatusCode` is within 200-299.
+    #[inline]
     pub fn is_success(&self) -> bool {
         self.class() == StatusClass::Success
     }
 
-    /// Check if class is Redirection.
-    #[allow(deprecated)]
+    /// Check if this `StatusCode` is within 300-399.
+    #[inline]
     pub fn is_redirection(&self) -> bool {
         self.class() == StatusClass::Redirection
     }
 
-    /// Check if class is ClientError.
-    #[allow(deprecated)]
+    /// Check if this `StatusCode` is within 400-499.
+    #[inline]
     pub fn is_client_error(&self) -> bool {
         self.class() == StatusClass::ClientError
     }
 
-    /// Check if class is ServerError.
-    #[allow(deprecated)]
+    /// Check if this `StatusCode` is within 500-599.
+    #[inline]
     pub fn is_server_error(&self) -> bool {
         self.class() == StatusClass::ServerError
     }
 
-    /// Check if class is NoClass
-    #[allow(deprecated)]
+    /// Check if this `StatusCode` is not within 100-599.
+    #[inline]
     pub fn is_strange_status(&self) -> bool {
         self.class() == StatusClass::NoClass
     }
@@ -590,9 +565,7 @@ impl From<StatusCode> for u16 {
 /// This can be used in cases where a status code’s meaning is unknown, also,
 /// to get the appropriate *category* of status.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy)]
-#[deprecated(note = "StatusClass is going away. Use the StatusCode::is_<class>() methods instead.")]
-#[allow(deprecated)]
-pub enum StatusClass {
+enum StatusClass {
     /// 1xx (Informational): The request was received, continuing process
     Informational,
 
@@ -612,7 +585,6 @@ pub enum StatusClass {
     NoClass,
 }
 
-#[allow(deprecated)]
 impl StatusClass {
     /// Get the default status code for the class.
     ///
@@ -683,7 +655,6 @@ mod tests {
     //   - status code
     //   - default code (for the given status code)
     //   - canonical reason
-    #[allow(deprecated)]
     fn validate(num: u16, status_code: StatusCode, default_code: StatusCode, reason: Option<&str>) {
         assert_eq!(StatusCode::from_u16(num), status_code);
         assert_eq!(status_code.to_u16(), num);
