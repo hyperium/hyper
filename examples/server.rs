@@ -11,7 +11,6 @@ use hyper::server::{Http, Service, Request, Response};
 
 static INDEX: &'static [u8] = b"Try POST /echo";
 
-#[derive(Clone, Copy)]
 struct Echo;
 
 impl Service for Echo {
