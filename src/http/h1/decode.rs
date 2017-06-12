@@ -198,7 +198,7 @@ impl ChunkedState {
             // LWS can follow the chunk size, but no more digits can come
             b'\t' | b' ' => Ok(ChunkedState::SizeLws),
             b';' => Ok(ChunkedState::Extension),
-            b'\r' => return Ok(ChunkedState::SizeLf),
+            b'\r' => Ok(ChunkedState::SizeLf),
             _ => {
                 Err(io::Error::new(io::ErrorKind::InvalidInput,
                                    "Invalid chunk size linear white space"))
@@ -208,8 +208,8 @@ impl ChunkedState {
     fn read_extension<R: MemRead>(rdr: &mut R) -> io::Result<ChunkedState> {
         trace!("read_extension");
         match byte!(rdr) {
-            b'\r' => return Ok(ChunkedState::SizeLf),
-            _ => return Ok(ChunkedState::Extension), // no supported extensions
+            b'\r' => Ok(ChunkedState::SizeLf),
+            _ => Ok(ChunkedState::Extension), // no supported extensions
         }
     }
     fn read_size_lf<R: MemRead>(rdr: &mut R, size: &mut u64) -> io::Result<ChunkedState> {

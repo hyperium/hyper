@@ -512,7 +512,7 @@ impl FromStr for Link {
                                     .split(' ')
                                     .map(|t| t.trim().parse())
                                     .collect::<Result<Vec<RelationType>, _>>()
-                                    .or_else(|_| return Err(::Error::Header))
+                                    .or_else(|_| Err(::Error::Header))
                                     .ok()
                             },
                         };
@@ -540,7 +540,7 @@ impl FromStr for Link {
                                     .split(' ')
                                     .map(|t| t.trim().parse())
                                     .collect::<Result<Vec<RelationType>, _>>()
-                                    .or_else(|_| return Err(::Error::Header))
+                                    .or_else(|_| Err(::Error::Header))
                                     .ok()
                             },
                         }
@@ -574,7 +574,7 @@ impl FromStr for Link {
                                     .split(',')
                                     .map(|t| t.trim().parse())
                                     .collect::<Result<Vec<MediaDesc>, _>>()
-                                    .or_else(|_| return Err(::Error::Header))
+                                    .or_else(|_| Err(::Error::Header))
                                     .ok()
                             },
                         };
