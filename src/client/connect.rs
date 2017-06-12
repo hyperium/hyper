@@ -103,7 +103,6 @@ impl Service for HttpConnector {
         let port = match uri.port() {
             Some(port) => port,
             None => match uri.scheme() {
-                Some("http") => 80,
                 Some("https") => 443,
                 _ => 80,
             },
