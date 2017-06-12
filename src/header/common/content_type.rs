@@ -1,4 +1,4 @@
-use mime::Mime;
+use mime::{self, Mime};
 
 header! {
     /// `Content-Type` header, defined in
@@ -22,7 +22,8 @@ header! {
     /// ```
     ///
     /// # Example values
-    /// * `text/html; charset=ISO-8859-4`
+    /// * `text/html; charset=utf-8`
+    /// * `application/json
     ///
     /// # Examples
     /// ```
@@ -36,13 +37,12 @@ header! {
     /// ```
     /// ```
     /// use hyper::header::{Headers, ContentType};
-    /// use hyper::mime::{Mime, TopLevel, SubLevel, Attr, Value};
+    /// use hyper::mime;
     ///
     /// let mut headers = Headers::new();
     ///
     /// headers.set(
-    ///     ContentType(Mime(TopLevel::Text, SubLevel::Html,
-    ///                      vec![(Attr::Charset, Value::Utf8)]))
+    ///     ContentType(mime::TEXT_HTML)
     /// );
     /// ```
     (ContentType, "Content-Type") => [Mime]
@@ -50,13 +50,8 @@ header! {
     test_content_type {
         test_header!(
             test1,
-            // FIXME: Should be b"text/html; charset=ISO-8859-4" but mime crate lowercases
-            // the whole value so parsing and formatting the value gives a different result
-            vec![b"text/html; charset=iso-8859-4"],
-            Some(HeaderField(Mime(
-                TopLevel::Text,
-                SubLevel::Html,
-                vec![(Attr::Charset, Value::Ext("iso-8859-4".to_owned()))]))));
+            vec![b"text/html"],
+            Some(HeaderField(TEXT_HTML)));
     }
 }
 
@@ -64,45 +59,45 @@ impl ContentType {
     /// A constructor  to easily create a `Content-Type: application/json` header.
     #[inline]
     pub fn json() -> ContentType {
-        ContentType(mime!(Application/Json))
+        ContentType(mime::APPLICATION_JSON)
     }
 
     /// A constructor  to easily create a `Content-Type: text/plain; charset=utf-8` header.
     #[inline]
     pub fn plaintext() -> ContentType {
-        ContentType(mime!(Text/Plain; Charset=Utf8))
+        ContentType(mime::TEXT_PLAIN_UTF_8)
     }
 
     /// A constructor  to easily create a `Content-Type: text/html; charset=utf-8` header.
     #[inline]
     pub fn html() -> ContentType {
-        ContentType(mime!(Text/Html; Charset=Utf8))
+        ContentType(mime::TEXT_HTML)
     }
 
     /// A constructor  to easily create a `Content-Type: application/www-form-url-encoded` header.
     #[inline]
     pub fn form_url_encoded() -> ContentType {
-        ContentType(mime!(Application/WwwFormUrlEncoded))
+        ContentType(mime::APPLICATION_WWW_FORM_URLENCODED)
     }
     /// A constructor  to easily create a `Content-Type: image/jpeg` header.
     #[inline]
     pub fn jpeg() -> ContentType {
-        ContentType(mime!(Image/Jpeg))
+        ContentType(mime::IMAGE_JPEG)
     }
 
     /// A constructor  to easily create a `Content-Type: image/png` header.
     #[inline]
     pub fn png() -> ContentType {
-        ContentType(mime!(Image/Png))
+        ContentType(mime::IMAGE_PNG)
     }
 
     /// A constructor  to easily create a `Content-Type: application/octet-stream` header.
     #[inline]
     pub fn octet_stream() -> ContentType {
-        ContentType(mime!(Application/OctetStream))
+        ContentType(mime::APPLICATION_OCTET_STREAM)
     }
 }
 
 impl Eq for ContentType {}
 
-bench_header!(bench, ContentType, { vec![b"application/json; charset=utf-8".to_vec()] });
+bench_header!(bench, ContentType, { vec![b"application/json".to_vec()] });

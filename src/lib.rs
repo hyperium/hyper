@@ -20,7 +20,7 @@ extern crate futures_cpupool;
 extern crate httparse;
 extern crate language_tags;
 #[macro_use] extern crate log;
-#[macro_use] pub extern crate mime;
+pub extern crate mime;
 extern crate base64;
 extern crate time;
 extern crate tokio_core as tokio;

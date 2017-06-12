@@ -1,4 +1,4 @@
-use mime::Mime;
+use mime::{self, Mime};
 
 use header::{QualityItem, qitem};
 
@@ -24,94 +24,89 @@ header! {
     /// ```
     ///
     /// # Example values
-    /// * `audio/*; q=0.2, audio/basic` (`*` value won't parse correctly)
+    /// * `audio/*; q=0.2, audio/basic`
     /// * `text/plain; q=0.5, text/html, text/x-dvi; q=0.8, text/x-c`
     ///
     /// # Examples
     /// ```
     /// use hyper::header::{Headers, Accept, qitem};
-    /// use hyper::mime::{Mime, TopLevel, SubLevel};
+    /// use hyper::mime;
     ///
     /// let mut headers = Headers::new();
     ///
     /// headers.set(
     ///     Accept(vec![
-    ///         qitem(Mime(TopLevel::Text, SubLevel::Html, vec![])),
+    ///         qitem(mime::TEXT_HTML),
     ///     ])
     /// );
     /// ```
     /// ```
     /// use hyper::header::{Headers, Accept, qitem};
-    /// use hyper::mime::{Mime, TopLevel, SubLevel, Attr, Value};
+    /// use hyper::mime;
     ///
     /// let mut headers = Headers::new();
     /// headers.set(
     ///     Accept(vec![
-    ///         qitem(Mime(TopLevel::Application, SubLevel::Json,
-    ///                    vec![(Attr::Charset, Value::Utf8)])),
+    ///         qitem(mime::APPLICATION_JSON),
     ///     ])
     /// );
     /// ```
     /// ```
     /// use hyper::header::{Headers, Accept, QualityItem, q, qitem};
-    /// use hyper::mime::{Mime, TopLevel, SubLevel};
+    /// use hyper::mime;
     ///
     /// let mut headers = Headers::new();
     ///
     /// headers.set(
     ///     Accept(vec![
-    ///         qitem(Mime(TopLevel::Text, SubLevel::Html, vec![])),
-    ///         qitem(Mime(TopLevel::Application,
-    ///                    SubLevel::Ext("xhtml+xml".to_owned()), vec![])),
-    ///         QualityItem::new(Mime(TopLevel::Application, SubLevel::Xml, vec![]),
-    ///                          q(900)),
-    ///                          qitem(Mime(TopLevel::Image,
-    ///                                     SubLevel::Ext("webp".to_owned()), vec![])),
-    ///                          QualityItem::new(Mime(TopLevel::Star, SubLevel::Star, vec![]),
-    ///                                           q(800))
+    ///         qitem(mime::TEXT_HTML),
+    ///         qitem("application/xhtml+xml".parse().unwrap()),
+    ///         QualityItem::new(
+    ///             mime::TEXT_XML,
+    ///             q(900)
+    ///         ),
+    ///         qitem("image/webp".parse().unwrap()),
+    ///         QualityItem::new(
+    ///             mime::STAR_STAR,
+    ///             q(800)
+    ///         ),
     ///     ])
     /// );
     /// ```
-    ///
-    /// # Notes
-    /// * Using always Mime types to represent `media-range` differs from the ABNF.
-    /// * **FIXME**: `accept-ext` is not supported.
     (Accept, "Accept") => (QualityItem<Mime>)+
 
     test_accept {
         // Tests from the RFC
-        // FIXME: Test fails, first value containing a "*" fails to parse
-        // test_header!(
-        //    test1,
-        //    vec![b"audio/*; q=0.2, audio/basic"],
-        //    Some(HeaderField(vec![
-        //        QualityItem::new(Mime(TopLevel::Audio, SubLevel::Star, vec![]), q(200)),
-        //        qitem(Mime(TopLevel::Audio, SubLevel::Ext("basic".to_owned()), vec![])),
-        //        ])));
+         test_header!(
+            test1,
+            vec![b"audio/*; q=0.2, audio/basic"],
+            Some(HeaderField(vec![
+                QualityItem::new("audio/*".parse().unwrap(), q(200)),
+                qitem("audio/basic".parse().unwrap()),
+                ])));
         test_header!(
             test2,
             vec![b"text/plain; q=0.5, text/html, text/x-dvi; q=0.8, text/x-c"],
             Some(HeaderField(vec![
-                QualityItem::new(Mime(TopLevel::Text, SubLevel::Plain, vec![]), q(500)),
-                qitem(Mime(TopLevel::Text, SubLevel::Html, vec![])),
+                QualityItem::new(TEXT_PLAIN, q(500)),
+                qitem(TEXT_HTML),
                 QualityItem::new(
-                    Mime(TopLevel::Text, SubLevel::Ext("x-dvi".to_owned()), vec![]),
+                    "text/x-dvi".parse().unwrap(),
                     q(800)),
-                qitem(Mime(TopLevel::Text, SubLevel::Ext("x-c".to_owned()), vec![])),
+                qitem("text/x-c".parse().unwrap()),
                 ])));
         // Custom tests
         test_header!(
             test3,
             vec![b"text/plain; charset=utf-8"],
             Some(Accept(vec![
-                qitem(Mime(TopLevel::Text, SubLevel::Plain, vec![(Attr::Charset, Value::Utf8)])),
+                qitem(TEXT_PLAIN_UTF_8),
                 ])));
         test_header!(
             test4,
             vec![b"text/plain; charset=utf-8; q=0.5"],
             Some(Accept(vec![
-                QualityItem::new(Mime(TopLevel::Text,
-                    SubLevel::Plain, vec![(Attr::Charset, Value::Utf8)]),
+                QualityItem::new(TEXT_PLAIN_UTF_8,
                     q(500)),
             ])));
 
@@ -127,22 +122,22 @@ header! {
 impl Accept {
     /// A constructor to easily create `Accept: */*`.
     pub fn star() -> Accept {
-        Accept(vec![qitem(mime!(Star/Star))])
+        Accept(vec![qitem(mime::STAR_STAR)])
     }
 
     /// A constructor to easily create `Accept: application/json`.
     pub fn json() -> Accept {
-        Accept(vec![qitem(mime!(Application/Json))])
+        Accept(vec![qitem(mime::APPLICATION_JSON)])
     }
 
     /// A constructor to easily create `Accept: text/*`.
     pub fn text() -> Accept {
-        Accept(vec![qitem(mime!(Text/Star))])
+        Accept(vec![qitem(mime::TEXT_STAR)])
     }
 
     /// A constructor to easily create `Accept: image/*`.
     pub fn image() -> Accept {
-        Accept(vec![qitem(mime!(Image/Star))])
+        Accept(vec![qitem(mime::IMAGE_STAR)])
     }
 }
 
