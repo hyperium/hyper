@@ -918,7 +918,7 @@ mod tests {
 
         headers1.set(ContentLength(11));
         headers2.set(Host::new("foo.bar", None));
-        assert!(headers1 != headers2);
+        assert_ne!(headers1, headers2);
 
         headers1 = Headers::new();
         headers2 = Headers::new();
@@ -928,7 +928,7 @@ mod tests {
         assert_eq!(headers1, headers2);
 
         headers1.set(ContentLength(10));
-        assert!(headers1 != headers2);
+        assert_ne!(headers1, headers2);
 
         headers1 = Headers::new();
         headers2 = Headers::new();
@@ -936,7 +936,7 @@ mod tests {
         headers1.set(Host::new("foo.bar", None));
         headers1.set(ContentLength(11));
         headers2.set(ContentLength(11));
-        assert!(headers1 != headers2);
+        assert_ne!(headers1, headers2);
     }
 
     #[cfg(feature = "nightly")]
