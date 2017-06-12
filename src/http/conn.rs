@@ -139,12 +139,10 @@ where I: AsyncRead + AsyncWrite,
                 let slice = try_nb!(decoder.decode(&mut self.io));
                 if !slice.is_empty() {
                     return Ok(Async::Ready(Some(http::Chunk::from(slice))));
+                } else if decoder.is_eof() {
+                    (Reading::KeepAlive, Ok(Async::Ready(None)))
                 } else {
-                    if decoder.is_eof() {
-                        (Reading::KeepAlive, Ok(Async::Ready(None)))
-                    } else {
-                        (Reading::Closed, Ok(Async::Ready(None)))
-                    }
+                    (Reading::Closed, Ok(Async::Ready(None)))
                 }
 
             },
