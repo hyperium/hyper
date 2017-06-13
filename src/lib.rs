@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://hyperium.github.io/hyper/")]
+#![doc(html_root_url = "https://docs.rs/hyper/0.11.0")]
 #![deny(missing_docs)]
 #![deny(warnings)]
 #![deny(missing_debug_implementations)]

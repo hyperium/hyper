@@ -1,3 +1,205 @@
+## v0.11.0 (2017-06-13)
+
+#### Bug Fixes
+
+* **header:**
+  * add length checks to `ETag` parsing ([643fac1e](https://github.com/hyperium/hyper/commit/643fac1e01102524e44ead188e865830ebdfb1f4))
+  * prevent 2 panics in `QualityItem` parsing ([d80aae55](https://github.com/hyperium/hyper/commit/d80aae55b1af0420bfcdecb2c8515b48e3e0e641))
+  * Allow IPv6 Addresses in `Host` header ([8541ac72](https://github.com/hyperium/hyper/commit/8541ac72d7ec80a36171115501e49dd47bcb1d0d))
+  * Remove raw part when getting mutable reference to typed header ([f38717e4](https://github.com/hyperium/hyper/commit/f38717e422a80e04ca95fcd5e5c5d54b7197bed2), closes [#821](https://github.com/hyperium/hyper/issues/821))
+  * only add chunked to `TransferEncoding` if not present ([1b4f8579](https://github.com/hyperium/hyper/commit/1b4f85799737a537d8ebfb6afd0423b97238ab8b))
+  * ignore invalid cookies ([310d98d5](https://github.com/hyperium/hyper/commit/310d98d50b929b8bde898cbb1137df95da5e0840))
+* **http:**
+  * Chunked decoder reads last `\r\n` ([bffde8c8](https://github.com/hyperium/hyper/commit/bffde8c841353e05e9aea267ca94848ccdeeb394))
+  * make Chunked decoder resilient in an async world ([8672ec5a](https://github.com/hyperium/hyper/commit/8672ec5a366e698bd32679d64dce925b3fa11fc6))
+* **server:**
+  * support HTTP/1.1 pipelining ([523b890a](https://github.com/hyperium/hyper/commit/523b890a19e9325938adf42456eea6191fcb8029))
+
+#### Features
+
+* **body:**
+  * implement Extend and IntoIterator for Chunk ([78512bdb](https://github.com/hyperium/hyper/commit/78512bdb184903061ea02f1101c99a097483cb69))
+  * add Default trait to Body ([f61708ba](https://github.com/hyperium/hyper/commit/f61708ba81fc03a4797688afd5bcec87e8f98eef))
+  * implement `Default` for `Body` ([6faa653f](https://github.com/hyperium/hyper/commit/6faa653f0dfaa5220e76a60fcd264511686dfd08))
+  * implement `Default` for `Chunk` ([f5567db4](https://github.com/hyperium/hyper/commit/f5567db4dcc04a769725d0b9ccb6a81bc3026acc))
+* **client:**
+  * add `HttpConnector.enforce_http` ([1c34a05a](https://github.com/hyperium/hyper/commit/1c34a05a85078421078f2cb266dccc5dfce8a9f0))
+  * add an accessor for the request body ([4e26646a](https://github.com/hyperium/hyper/commit/4e26646aa7b46d5739d3978126bb70e8c47cde1d))
+  * Response.status() now returns a `StatusCode` by value ([d63b7de4](https://github.com/hyperium/hyper/commit/d63b7de44f813696f8ec595d2f8f901526c1720e))
+  * add Client::handle ([9101817b](https://github.com/hyperium/hyper/commit/9101817b0fd61d7bcccfaa8933e64d6e3787395d))
+  * add Request.set_proxy for HTTP proxy requests ([e8714116](https://github.com/hyperium/hyper/commit/e871411627cab5caf00d8ee65328da9ff05fc53d), closes [#1056](https://github.com/hyperium/hyper/issues/1056))
+  * DNS worker count is configurable ([138e1643](https://github.com/hyperium/hyper/commit/138e1643e81669cae9dbe215197abd0e07f0c1e7))
+  * add keep_alive_timeout to Client ([976218ba](https://github.com/hyperium/hyper/commit/976218badc4a067e45a9d15af7e4eb5f2a4adc09))
+* **error:** Display for Error shows better info ([49e196db](https://github.com/hyperium/hyper/commit/49e196db1c91b2fb5f7ab05d99b9c7bc997195f2), closes [#694](https://github.com/hyperium/hyper/issues/694))
+* **header:**
+  * add ContentType::octet_stream() constructor ([1a353102](https://github.com/hyperium/hyper/commit/1a35310273732acbf8e8498ebb5dbad3d61386cb))
+  * change `Cookie` to be map-like ([dd03e723](https://github.com/hyperium/hyper/commit/dd03e7239238e6c0753cf2502a0534e2c9770d9e), closes [#1145](https://github.com/hyperium/hyper/issues/1145))
+  * add `Cookie::iter()` ([edc1c0dd](https://github.com/hyperium/hyper/commit/edc1c0dd01b24ee32250dff51268ad60fff9293d))
+  * implement fmt::Display for several headers ([e9e7381e](https://github.com/hyperium/hyper/commit/e9e7381ece21588076bb712d5c508f50cd740591))
+  * add `Headers::append_raw` ([b4b2fb78](https://github.com/hyperium/hyper/commit/b4b2fb782e51b2b932e52fab6add7c23a369f1fb))
+  * Add support for Retry-After header ([1037bc77](https://github.com/hyperium/hyper/commit/1037bc773256ca05c4311a781e96fbdcaac877fe))
+  * add `Encoding::Brotli` variant ([f0ab2b6a](https://github.com/hyperium/hyper/commit/f0ab2b6aedb909d37698365d1fcc34ce749304b5))
+  * introduce `header::Raw` (#869) ([50ccdaa7](https://github.com/hyperium/hyper/commit/50ccdaa7e7db574ec9890c220765ffd2da5e493b))
+  * add `TE` header struct (#1150) ([f1859dfd](https://github.com/hyperium/hyper/commit/f1859dfd7abfc124dd986edc413f754f76c76e8b), closes [#1109](https://github.com/hyperium/hyper/issues/1109))
+  * support Opaque origin headers (#1147) ([41485997](https://github.com/hyperium/hyper/commit/414859978b47dc8ebd0df264afc4e113b8a1909e), closes [#1065](https://github.com/hyperium/hyper/issues/1065))
+  * add `HeaderView.raw()` ([8143c33b](https://github.com/hyperium/hyper/commit/8143c33bad9146414f14197c39f6d5326d0f0212))
+  * `impl Eq for ContentType` ([bba761ac](https://github.com/hyperium/hyper/commit/bba761ac547b59c885aceea5b9e52bf52e8747b5))
+  * add `Link` header implementation ([592c1e21](https://github.com/hyperium/hyper/commit/592c1e21256d3ba2aeba6cdc2b62d8c1ebfa1dbf), closes [#650](https://github.com/hyperium/hyper/issues/650))
+  * add `star`, `json`, `text`, `image` constructors to `Accept` ([bdc19d52](https://github.com/hyperium/hyper/commit/bdc19d52bf5ec2e63b785de31bfe0ad3ba4d2550))
+  * Add strict-origin and strict-origin-when-cross-origin referer policy ([3593d798](https://github.com/hyperium/hyper/commit/3593d7987a92518736e130586499d97afa3e5b04))
+  * support multiple values for Referrer-Policy header ([7b558ae8](https://github.com/hyperium/hyper/commit/7b558ae87a826ca7383c0034d4ca95fc61aeac4c), closes [#882](https://github.com/hyperium/hyper/issues/882))
+  * add `Warning` header ([69894d19](https://github.com/hyperium/hyper/commit/69894d19947f01ad4ff54ce0283429758acba9ff), closes [#883](https://github.com/hyperium/hyper/issues/883))
+  * `Headers::remove` returns the Header ([9375addb](https://github.com/hyperium/hyper/commit/9375addba03505f2515d493364f9b1beb8b9b99a), closes [#891](https://github.com/hyperium/hyper/issues/891))
+  * add `ContentLocation` header ([13c5bf66](https://github.com/hyperium/hyper/commit/13c5bf66c305c08a2a1af26e48115b667d141b18), closes [#870](https://github.com/hyperium/hyper/issues/870))
+  * add `LastEventId` header ([e1542a60](https://github.com/hyperium/hyper/commit/e1542a609f99da770a65500333d922c58e39d179))
+  * add `Origin header ([01843f88](https://github.com/hyperium/hyper/commit/01843f882265a894c7051dc2ecf5cf09f2c2e8e7), closes [#651](https://github.com/hyperium/hyper/issues/651))
+  * Add `ReferrerPolicy` header ([3a86b3a2](https://github.com/hyperium/hyper/commit/3a86b3a2b25be1c088cf7d39bb431b2e624d4191))
+* **http:**
+  * add Into<Bytes> for Chunk ([fac3d70c](https://github.com/hyperium/hyper/commit/fac3d70c0b716157ba689ae2b8a0089b6afc9bdc))
+  * use the bytes crate for Chunk and internally ([65b3e08f](https://github.com/hyperium/hyper/commit/65b3e08f6904634294ff2d105f2551cafe7e754d))
+  * allow specifying custom body streams ([1b1311a7](https://github.com/hyperium/hyper/commit/1b1311a7d36b000c9c2c509971ee759da8765711))
+* **lib:**
+  * add `raw_status` feature in Cargo.toml ([acd62cda](https://github.com/hyperium/hyper/commit/acd62cda446e4c647716a2d595342360dc24a080))
+  * remove extern Url type usage ([4fb7e6eb](https://github.com/hyperium/hyper/commit/4fb7e6ebc6b1d429dcce4bc18139bd443fffa6ee))
+  * export Method::Put at top level ([5c890321](https://github.com/hyperium/hyper/commit/5c890321ee2da727a814c18d4ee2df5eddd6720e))
+  * redesign API to use Futures and Tokio ([2d2d5574](https://github.com/hyperium/hyper/commit/2d2d5574a698e74e5102d39b9a9ab750860d92d1))
+  * switch to non-blocking (asynchronous) IO ([d35992d0](https://github.com/hyperium/hyper/commit/d35992d0198d733c251e133ecc35f2bca8540d96))
+* **mime:** upgrade to mime v0.3 ([f273224f](https://github.com/hyperium/hyper/commit/f273224f21eedd2f466f12fe30fd24e83c35922c), closes [#738](https://github.com/hyperium/hyper/issues/738))
+* **server:**
+  * make Http default its body type to hyper::Chunk ([dc97dd77](https://github.com/hyperium/hyper/commit/dc97dd77f45486d9cb9a22a1859809c5af5579e2))
+  * make Http compatible with TcpServer ([e04bcc12](https://github.com/hyperium/hyper/commit/e04bcc12a7e081f75482cdca1e4f4c4f597ad2ce), closes [#1036](https://github.com/hyperium/hyper/issues/1036))
+  * add path() and query() to Request ([8b3c1206](https://github.com/hyperium/hyper/commit/8b3c1206846cb96be780923952eafe0dde7850bf), closes [#896](https://github.com/hyperium/hyper/issues/896), [#897](https://github.com/hyperium/hyper/issues/897))
+* **status:**
+  * add `StatusCode::try_from(u16)`. ([f953cafe](https://github.com/hyperium/hyper/commit/f953cafe27d1c5de0c8b859e485225cfc2c18629))
+  * remove deprecated `StatusClass` ([94ee6204](https://github.com/hyperium/hyper/commit/94ee6204ae32b8c431c00fdc03dc75eee573c69c))
+  * impl Into<u16> for StatusCode ([c42f18db](https://github.com/hyperium/hyper/commit/c42f18db05e47fc24e8a8ece76cbc782b7558e8b))
+* **uri:**
+  * redesign `RequestUri` type into `Uri` ([9036443e](https://github.com/hyperium/hyper/commit/9036443e6bd61b948ebe622588d2765e22e2b179), closes [#1000](https://github.com/hyperium/hyper/issues/1000))
+  * add `is_absolute` method to `Uri` ([154ab29c](https://github.com/hyperium/hyper/commit/154ab29c0d2b50d7bcac0f7918abf2f7a1628112))
+* **version:** impl `FromStr` for `HttpVersion` ([47f3aa62](https://github.com/hyperium/hyper/commit/47f3aa6247a3211ae499b30584dca6acb43d2204))
+
+
+#### Breaking Changes
+
+* The `Cookie` header is no longer a wrapper over a
+  `Vec<String>`. It must be accessed via its `get` and `set` methods.
+
+ ([dd03e723](https://github.com/hyperium/hyper/commit/dd03e7239238e6c0753cf2502a0534e2c9770d9e))
+* Any use of `Quality(num)` should change to `q(num)`.
+
+ ([a4644959](https://github.com/hyperium/hyper/commit/a4644959b0f980d94898d6c2e3cb1763aac73a5e))
+* `HttpDate` no longer has public fields. Convert between
+  `HttpDate` and `SystemTime` as needed.
+
+ ([316c6fad](https://github.com/hyperium/hyper/commit/316c6fad3026ba5ff5f6b9f31aca4d4f74b144e0))
+* The `link_extensions` methods of the `Link` header are
+  removed until fixed.
+
+ ([011f28cb](https://github.com/hyperium/hyper/commit/011f28cb18d285401bc8bea2b0f0dbdf80089d97))
+* The `fmt_header` method has changed to take a different
+  formatter. In most cases, if your header also implements
+  `fmt::Display`, you can just call `f.fmt_line(self)`.
+
+ ([6f02d43a](https://github.com/hyperium/hyper/commit/6f02d43ae0d80971a32617e316498b81acf38ca2))
+* The `Encoding` enum has an additional variant, `Trailers`.
+
+ ([f1859dfd](https://github.com/hyperium/hyper/commit/f1859dfd7abfc124dd986edc413f754f76c76e8b))
+* `Origin.scheme` and `Origin.host` now return `Option`s, since the `Origin` could be `null`.
+
+ ([41485997](https://github.com/hyperium/hyper/commit/414859978b47dc8ebd0df264afc4e113b8a1909e))
+* If you were explicitly checking the `StatusCode`, such as
+  with an equality comparison, you will need to use the value instead of a
+  reference.
+
+ ([d63b7de4](https://github.com/hyperium/hyper/commit/d63b7de44f813696f8ec595d2f8f901526c1720e))
+* This removes several deprecated methods for converting
+  Headers into strings. Use more specialized methods instead.
+
+ ([ec91bf41](https://github.com/hyperium/hyper/commit/ec91bf418b1f285bac9231d4bee0dd96742e565a))
+* The `Url` type is no longer used. Any instance in the
+  `Client` API has had it replaced with `hyper::Uri`.
+
+  This also means `Error::Uri` has changed types to
+  `hyper::error::UriError`.
+
+  The type `hyper::header::parsing::HTTP_VALUE` has been made private,
+  as an implementation detail. The function `http_percent_encoding`
+  should be used instead.
+
+ ([4fb7e6eb](https://github.com/hyperium/hyper/commit/4fb7e6ebc6b1d429dcce4bc18139bd443fffa6ee))
+* This makes `Request.remote_addr` an
+  `Option<SocketAddr>`, instead of `SocketAddr`.
+
+ ([e04bcc12](https://github.com/hyperium/hyper/commit/e04bcc12a7e081f75482cdca1e4f4c4f597ad2ce))
+* The `Preference` header had a typo in a variant and it's string representation,
+  change `Preference::HandlingLeniant` to `Preference::HandlingLenient`.
+ ([2fa414fb](https://github.com/hyperium/hyper/commit/2fa414fb5fe6dbc922da25cca9960652edf32591))
+* `Server` is no longer the primary entry point. Instead,
+  an `Http` type is created  and then either `bind` to receive a `Server`,
+  or it can be passed to other Tokio things.
+ ([f45e9c8e](https://github.com/hyperium/hyper/commit/f45e9c8e4fcacc2bd7fed84ef0df6d2fcf8c1134))
+* The name of `RequestUri` has changed to `Uri`. It is no
+  longer an `enum`, but an opaque struct with getter methods.
+
+ ([9036443e](https://github.com/hyperium/hyper/commit/9036443e6bd61b948ebe622588d2765e22e2b179))
+* This adds a new variant to the `Encoding` enum, which
+  can break exhaustive matches.
+
+ ([f0ab2b6a](https://github.com/hyperium/hyper/commit/f0ab2b6aedb909d37698365d1fcc34ce749304b5))
+* The fields of the `Host` header are no longer
+  available. Use the getter methods instead.
+
+ ([cd9fd522](https://github.com/hyperium/hyper/commit/cd9fd522074bfe530c30c878e49e6ac1bd881f1f))
+* A big sweeping set of breaking changes.
+
+ ([2d2d5574](https://github.com/hyperium/hyper/commit/2d2d5574a698e74e5102d39b9a9ab750860d92d1))
+* `Headers.remove()` used to return a `bool`,
+  it now returns `Option<H>`. To determine if a a header exists,
+  switch to `Headers.has()`.
+ ([9375addb](https://github.com/hyperium/hyper/commit/9375addba03505f2515d493364f9b1beb8b9b99a))
+* `Header::parse_header` now receives `&Raw`, instead of
+  a `&[Vec<u8>]`. `Raw` provides several methods to ease using it, but
+  may require some changes to existing code.
+ ([50ccdaa7](https://github.com/hyperium/hyper/commit/50ccdaa7e7db574ec9890c220765ffd2da5e493b))
+* LanguageTag used to be at the crate root, but it is now
+  in the `hyper::header` module.
+
+ ([40745c56](https://github.com/hyperium/hyper/commit/40745c5671daf8ac7eb342ff0e1e7c801a7171c4))
+* Removes the undocumented `from_u16` function. Use
+  `StatusCode::try_from` instead.
+
+  Also makes the `status` module private. All imports of
+  `hyper::status::StatusCode` should be `hyper::StatusCode`.
+
+ ([f953cafe](https://github.com/hyperium/hyper/commit/f953cafe27d1c5de0c8b859e485225cfc2c18629))
+* All usage of `status.class()` should change to
+  equivalent `status.is_*()` methods.
+
+ ([94ee6204](https://github.com/hyperium/hyper/commit/94ee6204ae32b8c431c00fdc03dc75eee573c69c))
+* Most uses of `mime` will likely break. There is no more
+  `mime!` macro, nor a `Mime` constructor, nor `TopLevel` and `SubLevel`
+  enums.
+
+  Instead, in most cases, a constant exists that can now be used.
+
+  For less common mime types, they can be created by parsing a string.
+
+ ([f273224f](https://github.com/hyperium/hyper/commit/f273224f21eedd2f466f12fe30fd24e83c35922c))
+* To use `RawStatus`, you must enable the `raw_status`
+  crate feature.
+
+ ([acd62cda](https://github.com/hyperium/hyper/commit/acd62cda446e4c647716a2d595342360dc24a080))
+* Some headers used `UniCase`, but now use
+  `unicase::Ascii`. Upgrade code to `Ascii::new(s)`.
+
+ ([c81edd41](https://github.com/hyperium/hyper/commit/c81edd41d783f67eca7a50d83b40c8a7cedf333c))
+* This breaks a lot of the Client and Server APIs.
+  Check the documentation for how Handlers can be used for asynchronous
+  events.
+
+ ([d35992d0](https://github.com/hyperium/hyper/commit/d35992d0198d733c251e133ecc35f2bca8540d96))
+
+
 ### v0.10.9 (2017-04-19)
 
 
