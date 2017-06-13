@@ -17,6 +17,7 @@
 //! If just starting out, **check out the [Guides](https://hyper.rs/guides)
 //! first.**
 
+extern crate base64;
 extern crate bytes;
 #[macro_use] extern crate futures;
 extern crate futures_cpupool;
@@ -24,14 +25,13 @@ extern crate httparse;
 extern crate language_tags;
 #[macro_use] extern crate log;
 pub extern crate mime;
-extern crate base64;
+#[macro_use] extern crate percent_encoding;
 extern crate time;
 extern crate tokio_core as tokio;
 #[macro_use] extern crate tokio_io;
 extern crate tokio_proto;
 extern crate tokio_service;
 extern crate unicase;
-#[macro_use] extern crate url;
 
 #[cfg(all(test, feature = "nightly"))]
 extern crate test;
