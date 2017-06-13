@@ -13,6 +13,9 @@
 //! Hyper provides both a [Client](client/index.html) and a
 //! [Server](server/index.html), along with a
 //! [typed Headers system](header/index.html).
+//!
+//! If just starting out, **check out the [Guides](https://hyper.rs/guides)
+//! first.**
 
 extern crate bytes;
 #[macro_use] extern crate futures;
