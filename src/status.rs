@@ -472,6 +472,17 @@ impl StatusCode {
     pub fn is_strange_status(&self) -> bool {
         self.class() == StatusClass::NoClass
     }
+
+    fn class(&self) -> StatusClass {
+        match self.to_u16() {
+            100...199 => StatusClass::Informational,
+            200...299 => StatusClass::Success,
+            300...399 => StatusClass::Redirection,
+            400...499 => StatusClass::ClientError,
+            500...599 => StatusClass::ServerError,
+            _ => StatusClass::NoClass,
+        }
+    }
 }
 
 impl Copy for StatusCode {}
@@ -585,6 +596,7 @@ enum StatusClass {
     NoClass,
 }
 
+/*
 impl StatusClass {
     /// Get the default status code for the class.
     ///
@@ -644,6 +656,7 @@ impl StatusClass {
         }
     }
 }
+*/
 
 #[cfg(test)]
 mod tests {
@@ -655,10 +668,10 @@ mod tests {
     //   - status code
     //   - default code (for the given status code)
     //   - canonical reason
-    fn validate(num: u16, status_code: StatusCode, default_code: StatusCode, reason: Option<&str>) {
+    fn validate(num: u16, status_code: StatusCode, _default_code: StatusCode, reason: Option<&str>) {
         assert_eq!(StatusCode::from_u16(num), status_code);
         assert_eq!(status_code.to_u16(), num);
-        assert_eq!(status_code.class().default_code(), default_code);
+        //assert_eq!(status_code.class().default_code(), default_code);
         assert_eq!(status_code.canonical_reason(), reason);
     }
 
