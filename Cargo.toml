@@ -12,7 +12,6 @@ keywords = ["http", "hyper", "hyperium"]
 categories = ["web-programming::http-client", "web-programming::http-server"]
 
 include = [
-  "build.rs",
   "Cargo.toml",
   "LICENSE",
   "src/**/*"
