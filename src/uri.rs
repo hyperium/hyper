@@ -80,7 +80,7 @@ impl Uri {
             })
         } else if (s.contains("/") || s.contains("?")) && !s.contains("://") {
             // last possibility is authority-form, above are illegal characters
-            return Err(UriError(ErrorKind::Malformed))
+            Err(UriError(ErrorKind::Malformed))
         } else {
             // authority-form
             let len = s.len();

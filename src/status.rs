@@ -648,11 +648,11 @@ impl StatusClass {
     pub fn default_code(&self) -> StatusCode {
         match *self {
             StatusClass::Informational => StatusCode::Continue,
-            StatusClass::Success => StatusCode::Ok,
+            StatusClass::Success |
+            StatusClass::NoClass => StatusCode::Ok,
             StatusClass::Redirection => StatusCode::MultipleChoices,
             StatusClass::ClientError => StatusCode::BadRequest,
             StatusClass::ServerError => StatusCode::InternalServerError,
-            StatusClass::NoClass => StatusCode::Ok,
         }
     }
 }

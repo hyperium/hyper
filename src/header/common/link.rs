@@ -505,14 +505,13 @@ impl FromStr for Link {
                     // https://tools.ietf.org/html/rfc5988#section-5.3
                     if link_header.rel.is_none() {
                         link_header.rel = match link_param_split.next() {
-                            None => return Err(::Error::Header),
-                            Some("") =>  return Err(::Error::Header),
+                            None | Some("") => return Err(::Error::Header),
                             Some(s) => {
                                 s.trim_matches(|c: char| c == '"' || c.is_whitespace())
                                     .split(' ')
                                     .map(|t| t.trim().parse())
                                     .collect::<Result<Vec<RelationType>, _>>()
-                                    .or_else(|_| return Err(::Error::Header))
+                                    .or_else(|_| Err(::Error::Header))
                                     .ok()
                             },
                         };
@@ -521,8 +520,7 @@ impl FromStr for Link {
                     // Parse the `Context IRI`.
                     // https://tools.ietf.org/html/rfc5988#section-5.2
                     link_header.anchor = match link_param_split.next() {
-                        None => return Err(::Error::Header),
-                        Some("") =>  return Err(::Error::Header),
+                        None | Some("") => return Err(::Error::Header),
                         Some(s) => match verify_and_trim(s.trim(), (b'"', b'"')) {
                             Err(_) => return Err(::Error::Header),
                             Ok(a) => Some(String::from(a)),
@@ -533,14 +531,13 @@ impl FromStr for Link {
                     // https://tools.ietf.org/html/rfc5988#section-5.3
                     if link_header.rev.is_none() {
                         link_header.rev = match link_param_split.next() {
-                            None => return Err(::Error::Header),
-                            Some("") =>  return Err(::Error::Header),
+                            None | Some("") => return Err(::Error::Header),
                             Some(s) => {
                                 s.trim_matches(|c: char| c == '"' || c.is_whitespace())
                                     .split(' ')
                                     .map(|t| t.trim().parse())
                                     .collect::<Result<Vec<RelationType>, _>>()
-                                    .or_else(|_| return Err(::Error::Header))
+                                    .or_else(|_| Err(::Error::Header))
                                     .ok()
                             },
                         }
@@ -552,8 +549,7 @@ impl FromStr for Link {
 
                     v.push(
                         match link_param_split.next() {
-                            None => return Err(::Error::Header),
-                            Some("") =>  return Err(::Error::Header),
+                            None | Some("") => return Err(::Error::Header),
                             Some(s) => match s.trim().parse() {
                                 Err(_) => return Err(::Error::Header),
                                 Ok(t) => t,
@@ -567,14 +563,13 @@ impl FromStr for Link {
                     // https://tools.ietf.org/html/rfc5988#section-5.4
                     if link_header.media_desc.is_none() {
                         link_header.media_desc = match link_param_split.next() {
-                            None => return Err(::Error::Header),
-                            Some("") =>  return Err(::Error::Header),
+                            None | Some("") => return Err(::Error::Header),
                             Some(s) => {
                                 s.trim_matches(|c: char| c == '"' || c.is_whitespace())
                                     .split(',')
                                     .map(|t| t.trim().parse())
                                     .collect::<Result<Vec<MediaDesc>, _>>()
-                                    .or_else(|_| return Err(::Error::Header))
+                                    .or_else(|_| Err(::Error::Header))
                                     .ok()
                             },
                         };
@@ -584,8 +579,7 @@ impl FromStr for Link {
                     // https://tools.ietf.org/html/rfc5988#section-5.4
                     if link_header.title.is_none() {
                         link_header.title = match link_param_split.next() {
-                            None => return Err(::Error::Header),
-                            Some("") =>  return Err(::Error::Header),
+                            None | Some("") => return Err(::Error::Header),
                             Some(s) => match verify_and_trim(s.trim(), (b'"', b'"')) {
                                 Err(_) => return Err(::Error::Header),
                                 Ok(t) => Some(String::from(t)),
@@ -600,8 +594,7 @@ impl FromStr for Link {
                     //       https://tools.ietf.org/html/rfc5987#section-3.2.1
                     if link_header.title_star.is_none() {
                         link_header.title_star = match link_param_split.next() {
-                            None => return Err(::Error::Header),
-                            Some("") =>  return Err(::Error::Header),
+                            None | Some("") => return Err(::Error::Header),
                             Some(s) => Some(String::from(s.trim())),
                         };
                     }
@@ -610,8 +603,7 @@ impl FromStr for Link {
                     // https://tools.ietf.org/html/rfc5988#section-5.4
                     if link_header.media_type.is_none() {
                         link_header.media_type = match link_param_split.next() {
-                            None => return Err(::Error::Header),
-                            Some("") =>  return Err(::Error::Header),
+                            None | Some("") => return Err(::Error::Header),
                             Some(s) => match verify_and_trim(s.trim(), (b'"', b'"')) {
                                 Err(_) => return Err(::Error::Header),
                                 Ok(t) => match t.parse() {

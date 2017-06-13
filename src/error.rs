@@ -128,11 +128,11 @@ impl From<FromUtf8Error> for Error {
 impl From<httparse::Error> for Error {
     fn from(err: httparse::Error) -> Error {
         match err {
-            httparse::Error::HeaderName => Header,
-            httparse::Error::HeaderValue => Header,
-            httparse::Error::NewLine => Header,
-            httparse::Error::Status => Status,
+            httparse::Error::HeaderName |
+            httparse::Error::HeaderValue |
+            httparse::Error::NewLine |
             httparse::Error::Token => Header,
+            httparse::Error::Status => Status,
             httparse::Error::TooManyHeaders => TooLarge,
             httparse::Error::Version => Version,
         }

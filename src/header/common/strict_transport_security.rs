@@ -104,8 +104,8 @@ impl FromStr for StrictTransportSecurity {
             .fold(Ok((None, None)), |res, dir| match (res, dir) {
                 (Ok((None, sub)), Ok(Directive::MaxAge(age))) => Ok((Some(age), sub)),
                 (Ok((age, None)), Ok(Directive::IncludeSubdomains)) => Ok((age, Some(()))),
-                (Ok((Some(_), _)), Ok(Directive::MaxAge(_))) => Err(::Error::Header),
-                (Ok((_, Some(_))), Ok(Directive::IncludeSubdomains)) => Err(::Error::Header),
+                (Ok((Some(_), _)), Ok(Directive::MaxAge(_))) |
+                (Ok((_, Some(_))), Ok(Directive::IncludeSubdomains)) |
                 (_, Err(_)) => Err(::Error::Header),
                 (res, _) => res
             })

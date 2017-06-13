@@ -222,16 +222,16 @@ mod tests {
 
         // left has more params
         cookie.append("foo", "bar");
-        assert!(cookie != cookie2);
+        assert_ne!(cookie, cookie2);
 
         // same len, different params
         cookie2.append("bar", "foo");
-        assert!(cookie != cookie2);
+        assert_ne!(cookie, cookie2);
 
 
         // right has more params, and matching KV
         cookie2.append("foo", "bar");
-        assert!(cookie != cookie2);
+        assert_ne!(cookie, cookie2);
 
         // same params, different order
         cookie.append("bar", "foo");
