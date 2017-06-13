@@ -260,16 +260,16 @@ impl<T: Clone> Future for Checkout<T> {
     }
 }
 
-struct Expiration(Option<Instant>);
+struct Expiration(Option<Duration>);
 
 impl Expiration {
     fn new(dur: Option<Duration>) -> Expiration {
-        Expiration(dur.map(|dur| Instant::now() - dur))
+        Expiration(dur)
     }
 
     fn expires(&self, instant: Instant) -> bool {
         match self.0 {
-            Some(expire) => expire > instant,
+            Some(timeout) => instant.elapsed() > timeout,
             None => false,
         }
     }
