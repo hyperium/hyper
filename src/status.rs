@@ -213,11 +213,35 @@ pub enum StatusCode {
     Unregistered(u16),
 }
 
+#[derive(Debug)]
+pub struct InvalidStatusCode {
+    _inner: (),
+}
+
 impl StatusCode {
 
-    #[doc(hidden)]
-    // Not part of public API or API contract. Could disappear.
-    pub fn from_u16(n: u16) -> StatusCode {
+    /// Try to convert a `u16` into a `StatusCode`.
+    ///
+    /// # Errors
+    ///
+    /// This will return an error if the provided argument is not within the
+    /// range `100...599`.
+    ///
+    /// # Note
+    ///
+    /// This function is temporary. When the `TryFrom` trait becomes stable,
+    /// this will be deprecated and replaced by `TryFrom<u16>`.
+    pub fn try_from(n: u16) -> Result<StatusCode, InvalidStatusCode> {
+        if n < 100 || n > 599 {
+            Err(InvalidStatusCode {
+                _inner: (),
+            })
+        } else {
+            Ok(StatusCode::from_u16(n))
+        }
+    }
+
+    fn from_u16(n: u16) -> StatusCode {
         match n {
             100 => StatusCode::Continue,
             101 => StatusCode::SwitchingProtocols,
@@ -490,7 +514,7 @@ impl Copy for StatusCode {}
 /// Formats the status code, *including* the canonical reason.
 ///
 /// ```rust
-/// # use hyper::status::StatusCode::{ImATeapot, Unregistered};
+/// # use hyper::StatusCode::{ImATeapot, Unregistered};
 /// assert_eq!(format!("{}", ImATeapot), "418 I'm a teapot");
 /// assert_eq!(format!("{}", Unregistered(123)),
 ///            "123 <unknown status code>");
@@ -749,5 +773,17 @@ mod tests {
         validate(511, NetworkAuthenticationRequired, InternalServerError,
             Some("Network Authentication Required"));
 
+    }
+
+    #[test]
+    fn try_from() {
+        StatusCode::try_from(100).unwrap();
+        StatusCode::try_from(599).unwrap();
+        StatusCode::try_from(200).unwrap();
+
+        StatusCode::try_from(99).unwrap_err();
+        StatusCode::try_from(600).unwrap_err();
+        StatusCode::try_from(0).unwrap_err();
+        StatusCode::try_from(1000).unwrap_err();
     }
 }

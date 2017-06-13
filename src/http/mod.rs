@@ -89,7 +89,7 @@ impl RawStatus {
     /// Converts this into a StatusCode.
     #[inline]
     pub fn status(&self) -> StatusCode {
-        StatusCode::from_u16(self.0)
+        StatusCode::try_from(self.0).unwrap()
     }
 }
 

@@ -57,6 +57,6 @@ mod method;
 pub mod header;
 mod http;
 pub mod server;
-pub mod status;
+mod status;
 mod uri;
 mod version;
