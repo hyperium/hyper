@@ -426,7 +426,7 @@ impl<S, B> Server<S, B>
         let wait = WaitUntilZero { info: info.clone() };
         match core.run(wait.select(timeout)) {
             Ok(_) => Ok(()),
-            Err((e, _)) => return Err(e.into())
+            Err((e, _)) => Err(e.into())
         }
     }
 }

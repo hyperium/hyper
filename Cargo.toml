@@ -1,10 +1,11 @@
 [package]
 
 name = "hyper"
-version = "0.11.0-a.0"
+version = "0.11.0" # don't forget to update html_root_url
 description = "A modern HTTP library."
 readme = "README.md"
-documentation = "http://hyperium.github.io/hyper"
+homepage = "https://hyper.rs"
+documentation = "https://docs.rs/hyper"
 repository = "https://github.com/hyperium/hyper"
 license = "MIT"
 authors = ["Sean McArthur <sean.monstar@gmail.com>"]
@@ -12,28 +13,27 @@ keywords = ["http", "hyper", "hyperium"]
 categories = ["web-programming::http-client", "web-programming::http-server"]
 
 include = [
-  "build.rs",
   "Cargo.toml",
   "LICENSE",
   "src/**/*"
 ]
 
 [dependencies]
-base64 = "0.5"
+base64 = "0.6"
 bytes = "0.4.4"
 futures = "0.1.14"
 futures-cpupool = "0.1"
 httparse = "1.0"
 language-tags = "0.2"
 log = "0.3"
-mime = "0.3"
+mime = "0.3.2"
+percent-encoding = "1.0"
 time = "0.1"
 tokio-core = "0.1.6"
 tokio-proto = "0.1"
 tokio-service = "0.1"
 tokio-io = "0.1"
 unicase = "2.0"
-url = "1.0"
 
 [dev-dependencies]
 num_cpus = "1.0"

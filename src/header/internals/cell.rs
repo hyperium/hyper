@@ -109,7 +109,7 @@ impl<V: ?Sized + Any + 'static> PtrMapCell<V> {
                 let one = mem::replace(map, PtrMap::Empty);
                 match one {
                     PtrMap::One(id, one) => {
-                        debug_assert!(id != key);
+                        debug_assert_ne!(id, key);
                         let mut hm = HashMap::with_capacity(2);
                         hm.insert(id, one);
                         hm.insert(key, val);

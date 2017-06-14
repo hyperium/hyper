@@ -4,7 +4,7 @@ use language_tags::LanguageTag;
 use std::str;
 use std::str::FromStr;
 use std::fmt::{self, Display};
-use url::percent_encoding;
+use percent_encoding;
 
 use header::Raw;
 use header::shared::Charset;
@@ -156,21 +156,16 @@ pub fn http_percent_encode(f: &mut fmt::Formatter, bytes: &[u8]) -> fmt::Result 
 }
 
 mod percent_encoding_http {
-    use std::fmt;
-    use url::percent_encoding;
+    use percent_encoding;
 
+    // internal module because macro is hard-coded to make a public item
+    // but we don't want to public export this item
     define_encode_set! {
-        /// This encode set is used for HTTP header values and is defined at
-        /// https://tools.ietf.org/html/rfc5987#section-3.2
+        // This encode set is used for HTTP header values and is defined at
+        // https://tools.ietf.org/html/rfc5987#section-3.2
         pub HTTP_VALUE = [percent_encoding::SIMPLE_ENCODE_SET] | {
             ' ', '"', '%', '\'', '(', ')', '*', ',', '/', ':', ';', '<', '-', '>', '?',
             '[', '\\', ']', '{', '}'
-        }
-    }
-
-    impl fmt::Debug for HTTP_VALUE {
-        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            f.pad("HTTP_VALUE")
         }
     }
 }

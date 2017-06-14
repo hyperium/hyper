@@ -231,7 +231,7 @@ impl ::std::ops::Index<usize> for Raw {
 
 macro_rules! literals {
     ($($len:expr => $($value:expr),+;)+) => (
-        fn maybe_literal<'a>(s: Cow<'a, [u8]>) -> Bytes {
+        fn maybe_literal(s: Cow<[u8]>) -> Bytes {
             match s.len() {
                 $($len => {
                     $(

@@ -160,7 +160,8 @@ impl Http1Transaction for ClientTransaction {
                 httparse::Status::Complete(len) => {
                     trace!("Response.try_parse Complete({})", len);
                     let code = res.code.unwrap();
-                    let reason = match StatusCode::from_u16(code).canonical_reason() {
+                    let status = try!(StatusCode::try_from(code).map_err(|_| ::Error::Status));
+                    let reason = match status.canonical_reason() {
                         Some(reason) if reason == res.reason.unwrap() => Cow::Borrowed(reason),
                         _ => Cow::Owned(res.reason.unwrap().to_owned())
                     };

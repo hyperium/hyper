@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://hyperium.github.io/hyper/")]
+#![doc(html_root_url = "https://docs.rs/hyper/0.11.0")]
 #![deny(missing_docs)]
 #![deny(warnings)]
 #![deny(missing_debug_implementations)]
@@ -13,7 +13,11 @@
 //! Hyper provides both a [Client](client/index.html) and a
 //! [Server](server/index.html), along with a
 //! [typed Headers system](header/index.html).
+//!
+//! If just starting out, **check out the [Guides](https://hyper.rs/guides)
+//! first.**
 
+extern crate base64;
 extern crate bytes;
 #[macro_use] extern crate futures;
 extern crate futures_cpupool;
@@ -21,14 +25,13 @@ extern crate httparse;
 extern crate language_tags;
 #[macro_use] extern crate log;
 pub extern crate mime;
-extern crate base64;
+#[macro_use] extern crate percent_encoding;
 extern crate time;
 extern crate tokio_core as tokio;
 #[macro_use] extern crate tokio_io;
 extern crate tokio_proto;
 extern crate tokio_service;
 extern crate unicase;
-#[macro_use] extern crate url;
 
 #[cfg(all(test, feature = "nightly"))]
 extern crate test;
@@ -54,6 +57,6 @@ mod method;
 pub mod header;
 mod http;
 pub mod server;
-pub mod status;
+mod status;
 mod uri;
 mod version;
