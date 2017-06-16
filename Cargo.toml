@@ -10,7 +10,7 @@ repository = "https://github.com/hyperium/hyper"
 license = "MIT"
 authors = ["Sean McArthur <sean.monstar@gmail.com>"]
 keywords = ["http", "hyper", "hyperium"]
-categories = ["web-programming::http-client", "web-programming::http-server"]
+categories = ["network-programming", "web-programming::http-client", "web-programming::http-server"]
 
 include = [
   "Cargo.toml",
