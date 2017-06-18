@@ -1,7 +1,7 @@
 use std::cmp;
 use std::io::{self, Write};
 
-use http::io::AtomicWrite;
+use bytes::BytesMut;
 
 /// Encoders to handle different Transfer-Encodings.
 #[derive(Debug, Clone)]
@@ -48,10 +48,10 @@ impl Encoder {
         }
     }
 
-    pub fn encode<W: AtomicWrite>(&mut self, w: &mut W, msg: &[u8]) -> io::Result<usize> {
+    pub fn encode<W: Write>(&mut self, w: &mut W, msg: &[u8], result_buf: &mut BytesMut) -> io::Result<usize> {
         match self.kind {
             Kind::Chunked(ref mut chunked) => {
-                chunked.encode(w, msg)
+                chunked.encode(w, msg, result_buf)
             },
             Kind::Length(ref mut remaining) => {
                 let n = {
@@ -59,7 +59,8 @@ impl Encoder {
                     trace!("sized write, len = {}", max);
                     let slice = &msg[..max];
 
-                    try!(w.write_atomic(&[slice]))
+                    // TODO: Could we push this out of encode?
+                    try!(w.write(slice))
                 };
 
                 if n == 0 {
@@ -91,7 +92,7 @@ enum Chunked {
 }
 
 impl Chunked {
-    fn encode<W: AtomicWrite>(&mut self, w: &mut W, msg: &[u8]) -> io::Result<usize> {
+    fn encode<W: Write>(&mut self, w: &mut W, msg: &[u8], result_buf: &mut BytesMut) -> io::Result<usize> {
         match *self {
             Chunked::Init => {
                 let mut size = ChunkSize {
@@ -107,50 +108,42 @@ impl Chunked {
             Chunked::End => return Ok(0),
             _ => {}
         }
+
         let mut n = {
-            let pieces = match *self {
+            // TODO: Find a better way to concatente into result_buf
+            match *self {
                 Chunked::Init => unreachable!("Chunked::Init should have become Chunked::Size"),
-                Chunked::Size(ref size) => [
-                    &size.bytes[size.pos.into() .. size.len.into()],
-                    &b"\r\n"[..],
-                    msg,
-                    &b"\r\n"[..],
-                ],
-                Chunked::SizeCr => [
-                    &b""[..],
-                    &b"\r\n"[..],
-                    msg,
-                    &b"\r\n"[..],
-                ],
-                Chunked::SizeLf => [
-                    &b""[..],
-                    &b"\n"[..],
-                    msg,
-                    &b"\r\n"[..],
-                ],
-                Chunked::Body(pos) => [
-                    &b""[..],
-                    &b""[..],
-                    &msg[pos..],
-                    &b"\r\n"[..],
-                ],
-                Chunked::BodyCr => [
-                    &b""[..],
-                    &b""[..],
-                    &b""[..],
-                    &b"\r\n"[..],
-                ],
-                Chunked::BodyLf => [
-                    &b""[..],
-                    &b""[..],
-                    &b""[..],
-                    &b"\n"[..],
-                ],
+                Chunked::Size(ref size) => {
+                    result_buf.extend_from_slice(&size.bytes[size.pos.into() .. size.len.into()]);
+                    result_buf.extend_from_slice(&b"\r\n"[..]);
+                    result_buf.extend_from_slice(msg);
+                    result_buf.extend_from_slice(&b"\r\n"[..]);
+                },
+                Chunked::SizeCr => {
+                    result_buf.extend_from_slice(&b"\r\n"[..]);
+                    result_buf.extend_from_slice(msg);
+                    result_buf.extend_from_slice(&b"\r\n"[..]);
+                },
+                Chunked::SizeLf => {
+                    result_buf.extend_from_slice(&b"\n"[..]);
+                    result_buf.extend_from_slice(msg);
+                    result_buf.extend_from_slice(&b"\r\n"[..]);
+                },
+                Chunked::Body(pos) => {
+                    result_buf.extend_from_slice(&msg[pos..]);
+                    result_buf.extend_from_slice(&b"\r\n"[..]);
+                },
+                Chunked::BodyCr => {
+                    result_buf.extend_from_slice(&b"\r\n"[..]);
+                },
+                Chunked::BodyLf => {
+                    result_buf.extend_from_slice(&b"\n"[..]);
+                },
                 Chunked::End => unreachable!("Chunked::End shouldn't write more")
             };
-            try!(w.write_atomic(&pieces))
+            // TODO: Could we push this out of encode?
+            try!(w.write(&result_buf.take()))
         };
-
         while n > 0 {
             match *self {
                 Chunked::Init => unreachable!("Chunked::Init should have become Chunked::Size"),
@@ -269,15 +262,17 @@ impl io::Write for ChunkSize {
 mod tests {
     use super::Encoder;
     use mock::{AsyncIo, Buf};
+    use bytes::{BytesMut};
 
     #[test]
     fn test_chunked_encode_sync() {
         let mut dst = Buf::new();
         let mut encoder = Encoder::chunked();
+        let mut result_buf = BytesMut::with_capacity(0);
 
-        encoder.encode(&mut dst, b"foo bar").unwrap();
-        encoder.encode(&mut dst, b"baz quux herp").unwrap();
-        encoder.encode(&mut dst, b"").unwrap();
+        encoder.encode(&mut dst, b"foo bar", &mut result_buf).unwrap();
+        encoder.encode(&mut dst, b"baz quux herp", &mut result_buf).unwrap();
+        encoder.encode(&mut dst, b"", &mut result_buf).unwrap();
         assert_eq!(&dst[..], &b"7\r\nfoo bar\r\nD\r\nbaz quux herp\r\n0\r\n\r\n"[..]);
     }
 
@@ -285,13 +280,14 @@ mod tests {
     fn test_chunked_encode_async() {
         let mut dst = AsyncIo::new(Buf::new(), 7);
         let mut encoder = Encoder::chunked();
+        let mut result_buf = BytesMut::with_capacity(0);
 
-        assert!(encoder.encode(&mut dst, b"foo bar").is_err());
+        assert!(encoder.encode(&mut dst, b"foo bar", &mut result_buf).is_err());
         dst.block_in(6);
-        assert_eq!(7, encoder.encode(&mut dst, b"foo bar").unwrap());
+        assert_eq!(7, encoder.encode(&mut dst, b"foo bar", &mut result_buf).unwrap());
         dst.block_in(30);
-        assert_eq!(13, encoder.encode(&mut dst, b"baz quux herp").unwrap());
-        encoder.encode(&mut dst, b"").unwrap();
+        assert_eq!(13, encoder.encode(&mut dst, b"baz quux herp", &mut result_buf).unwrap());
+        encoder.encode(&mut dst, b"", &mut result_buf).unwrap();
         assert_eq!(&dst[..], &b"7\r\nfoo bar\r\nD\r\nbaz quux herp\r\n0\r\n\r\n"[..]);
     }
 
@@ -299,8 +295,10 @@ mod tests {
     fn test_sized_encode() {
         let mut dst = Buf::new();
         let mut encoder = Encoder::length(8);
-        encoder.encode(&mut dst, b"foo bar").unwrap();
-        assert_eq!(encoder.encode(&mut dst, b"baz").unwrap(), 1);
+        let mut result_buf = BytesMut::with_capacity(0);
+
+        encoder.encode(&mut dst, b"foo bar", &mut result_buf).unwrap();
+        assert_eq!(encoder.encode(&mut dst, b"baz", &mut result_buf).unwrap(), 1);
 
         assert_eq!(dst, b"foo barb");
     }
