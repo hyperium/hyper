@@ -47,11 +47,6 @@ where I: AsyncRead + AsyncWrite,
         }
     }
 
-    fn parse(&mut self) -> ::Result<Option<http::MessageHead<T::Incoming>>> {
-        self.io.parse::<T>()
-    }
-
-
     fn is_read_closed(&self) -> bool {
         self.state.is_read_closed()
     }
@@ -79,9 +74,9 @@ where I: AsyncRead + AsyncWrite,
         debug_assert!(self.can_read_head());
         trace!("Conn::read_head");
 
-        let (version, head) = match self.parse() {
-            Ok(Some(head)) => (head.version, head),
-            Ok(None) => return Ok(Async::NotReady),
+        let (version, head) = match self.io.parse::<T>() {
+            Ok(Async::Ready(head)) => (head.version, head),
+            Ok(Async::NotReady) => return Ok(Async::NotReady),
             Err(e) => {
                 let must_respond_with_error = !self.state.is_idle();
                 self.state.close_read();

@@ -55,12 +55,12 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
         }
     }
 
-    pub fn parse<S: Http1Transaction>(&mut self) -> ::Result<Option<MessageHead<S::Incoming>>> {
+    pub fn parse<S: Http1Transaction>(&mut self) -> Poll<MessageHead<S::Incoming>, ::Error> {
         loop {
             match try!(S::parse(&mut self.read_buf)) {
                 Some(head) => {
                     //trace!("parsed {} bytes out of {}", len, self.read_buf.len());
-                    return Ok(Some(head.0))
+                    return Ok(Async::Ready(head.0))
                 },
                 None => {
                     if self.read_buf.capacity() >= MAX_BUFFER_SIZE {
@@ -69,19 +69,13 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
                     }
                 },
             }
-            match self.read_from_io() {
-                Ok(0) => {
+            match try_nb!(self.read_from_io()) {
+                0 => {
                     trace!("parse eof");
                     //TODO: With Rust 1.14, this can be Error::from(ErrorKind)
                     return Err(io::Error::new(io::ErrorKind::UnexpectedEof, ParseEof).into());
                 }
-                Ok(_) => {},
-                Err(e) => match e.kind() {
-                    io::ErrorKind::WouldBlock => {
-                        return Ok(None);
-                    },
-                    _ => return Err(e.into())
-                }
+                _ => {},
             }
         }
     }
@@ -323,6 +317,7 @@ impl ::std::error::Error for ParseEof {
     }
 }
 
+// TODO: Move tests to their own mod
 #[cfg(test)]
 use std::io::Read;
 
@@ -358,6 +353,6 @@ fn test_parse_reads_until_blocked() {
 
     let mock = AsyncIo::new(MockBuf::wrap(raw.into()), raw.len());
     let mut buffered = Buffered::new(mock);
-    assert_eq!(buffered.parse::<super::ClientTransaction>().unwrap(), None);
+    assert_eq!(buffered.parse::<super::ClientTransaction>().unwrap(), Async::NotReady);
     assert!(buffered.io.blocked());
 }
