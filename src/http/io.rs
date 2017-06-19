@@ -3,6 +3,7 @@ use std::fmt;
 use std::io::{self, Write};
 use std::ptr;
 
+use futures::{Async, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use http::{Http1Transaction, MessageHead, DebugTruncate};
@@ -147,19 +148,19 @@ impl<T: Write> Write for Buffered<T> {
 }
 
 pub trait MemRead {
-    fn read_mem(&mut self, len: usize) -> io::Result<Bytes>;
+    fn read_mem(&mut self, len: usize) -> Poll<Bytes, io::Error>;
 }
 
 impl<T: AsyncRead + AsyncWrite> MemRead for Buffered<T> {
-    fn read_mem(&mut self, len: usize) -> io::Result<Bytes> {
+    fn read_mem(&mut self, len: usize) -> Poll<Bytes, io::Error> {
         trace!("Buffered.read_mem read_buf={}, wanted={}", self.read_buf.len(), len);
         if !self.read_buf.is_empty() {
             let n = ::std::cmp::min(len, self.read_buf.len());
             trace!("Buffered.read_mem read_buf is not empty, slicing {}", n);
-            Ok(self.read_buf.split_to(n).freeze())
+            Ok(Async::Ready(self.read_buf.split_to(n).freeze()))
         } else {
-            let n = try!(self.read_from_io());
-            Ok(self.read_buf.split_to(::std::cmp::min(len, n)).freeze())
+            let n = try_nb!(self.read_from_io());
+            Ok(Async::Ready(self.read_buf.split_to(::std::cmp::min(len, n)).freeze()))
         }
     }
 }
@@ -327,10 +328,10 @@ use std::io::Read;
 
 #[cfg(test)]
 impl<T: Read> MemRead for ::mock::AsyncIo<T> {
-    fn read_mem(&mut self, len: usize) -> io::Result<Bytes> {
+    fn read_mem(&mut self, len: usize) -> Poll<Bytes, io::Error> {
         let mut v = vec![0; len];
-        let n = try!(self.read(v.as_mut_slice()));
-        Ok(BytesMut::from(&v[..n]).freeze())
+        let n = try_nb!(self.read(v.as_mut_slice()));
+        Ok(Async::Ready(BytesMut::from(&v[..n]).freeze()))
     }
 }
 

@@ -136,7 +136,7 @@ where I: AsyncRead + AsyncWrite,
 
         let (reading, ret) = match self.state.reading {
             Reading::Body(ref mut decoder) => {
-                let slice = try_nb!(decoder.decode(&mut self.io));
+                let slice = try_ready!(decoder.decode(&mut self.io));
                 if !slice.is_empty() {
                     return Ok(Async::Ready(Some(http::Chunk::from(slice))));
                 } else if decoder.is_eof() {
