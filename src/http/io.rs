@@ -69,7 +69,7 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
                     }
                 },
             }
-            match try_nb!(self.read_from_io()) {
+            match try_ready!(self.read_from_io()) {
                 0 => {
                     trace!("parse eof");
                     //TODO: With Rust 1.14, this can be Error::from(ErrorKind)
@@ -80,7 +80,7 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
         }
     }
 
-    fn read_from_io(&mut self) -> io::Result<usize> {
+    fn read_from_io(&mut self) -> Poll<usize, io::Error> {
         use bytes::BufMut;
         // TODO: Investigate if we still need these unsafe blocks
         if self.read_buf.remaining_mut() < INIT_BUFFER_SIZE {
@@ -97,13 +97,15 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
                 Ok(n) => n,
                 Err(e) => {
                     if e.kind() == io::ErrorKind::WouldBlock {
+                        // TODO: Push this out, ideally, into http::Conn.
                         self.read_blocked = true;
+                        return Ok(Async::NotReady);
                     }
                     return Err(e)
                 }
             };
             self.read_buf.advance_mut(n);
-            Ok(n)
+            Ok(Async::Ready(n))
         }
     }
 
@@ -153,7 +155,7 @@ impl<T: AsyncRead + AsyncWrite> MemRead for Buffered<T> {
             trace!("Buffered.read_mem read_buf is not empty, slicing {}", n);
             Ok(Async::Ready(self.read_buf.split_to(n).freeze()))
         } else {
-            let n = try_nb!(self.read_from_io());
+            let n = try_ready!(self.read_from_io());
             Ok(Async::Ready(self.read_buf.split_to(::std::cmp::min(len, n)).freeze()))
         }
     }
