@@ -14,6 +14,13 @@ use header::{Header, Raw, parsing};
 /// body, the Content-Length indicates the size of the selected
 /// representation.
 ///
+/// Note that setting this header will *remove* any previously set
+/// `Transfer-Encoding` header, in accordance with
+/// [RFC7230](http://tools.ietf.org/html/rfc7230#section-3.3.2):
+///
+/// > A sender MUST NOT send a Content-Length header field in any message
+/// that > contains a Transfer-Encoding header field.
+///
 /// # ABNF
 /// ```plain
 /// Content-Length = 1*DIGIT

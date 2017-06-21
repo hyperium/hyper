@@ -91,6 +91,10 @@ impl<B> Request<B> {
     pub fn set_version(&mut self, version: HttpVersion) { self.version = version; }
 
     /// Set the body of the request.
+    ///
+    /// By default, the body will be sent using `Transfer-Encoding: chunked`. To
+    /// override this behavior, manually set a [`ContentLength`] header with the
+    /// length of `body`.
     #[inline]
     pub fn set_body<T: Into<B>>(&mut self, body: T) { self.body = Some(body.into()); }
 
