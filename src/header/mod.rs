@@ -202,8 +202,8 @@ impl<'a, 'b> Formatter<'a, 'b> {
     pub fn fmt_line(&mut self, line: &fmt::Display) -> fmt::Result {
         use std::fmt::Write;
         match self.0 {
-            Multi::Line(ref name, ref mut f) => {
-                try!(f.write_str(*name));
+            Multi::Line(name, ref mut f) => {
+                try!(f.write_str(name));
                 try!(f.write_str(": "));
                 try!(write!(NewlineReplacer(*f), "{}", line));
                 f.write_str("\r\n")
@@ -256,6 +256,7 @@ impl<'a, H: Header> fmt::Debug for HeaderValueString<'a, H> {
 struct NewlineReplacer<'a, F: fmt::Write + 'a>(&'a mut F);
 
 impl<'a, F: fmt::Write + 'a> fmt::Write for NewlineReplacer<'a, F> {
+    #[inline]
     fn write_str(&mut self, s: &str) -> fmt::Result {
         let mut since = 0;
         for (i, &byte) in s.as_bytes().iter().enumerate() {
@@ -270,6 +271,11 @@ impl<'a, F: fmt::Write + 'a> fmt::Write for NewlineReplacer<'a, F> {
         } else {
             Ok(())
         }
+    }
+
+    #[inline]
+    fn write_fmt(&mut self, args: fmt::Arguments) -> fmt::Result {
+        fmt::write(self, args)
     }
 }
 
@@ -539,7 +545,8 @@ impl PartialEq for Headers {
 }
 
 impl fmt::Display for Headers {
-   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for header in self.iter() {
             try!(fmt::Display::fmt(&header, f));
         }
@@ -548,6 +555,7 @@ impl fmt::Display for Headers {
 }
 
 impl fmt::Debug for Headers {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_map()
             .entries(self.iter().map(|view| (view.0.as_ref(), ValueString(view.1))))
@@ -610,12 +618,14 @@ impl<'a> HeaderView<'a> {
 }
 
 impl<'a> fmt::Display for HeaderView<'a> {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.1.write_h1(&mut Formatter(Multi::Line(self.0.as_ref(), f)))
     }
 }
 
 impl<'a> fmt::Debug for HeaderView<'a> {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Display::fmt(self, f)
     }
@@ -659,8 +669,9 @@ impl<'a> FromIterator<HeaderView<'a>> for Headers {
 struct HeaderName(Ascii<Cow<'static, str>>);
 
 impl fmt::Display for HeaderName {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(&self.0, f)
+        fmt::Display::fmt(self.0.as_ref(), f)
     }
 }
 

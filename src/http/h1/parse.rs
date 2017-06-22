@@ -110,7 +110,6 @@ impl Http1Transaction for ServerTransaction {
             Encoder::chunked()
         };
 
-
         let init_cap = 30 + head.headers.len() * AVERAGE_HEADER_SIZE;
         dst.reserve(init_cap);
         debug!("writing headers = {:?}", head.headers);
@@ -311,11 +310,13 @@ impl<'a> Iterator for HeadersAsBytesIter<'a> {
 struct FastWrite<'a>(&'a mut Vec<u8>);
 
 impl<'a> fmt::Write for FastWrite<'a> {
+    #[inline]
     fn write_str(&mut self, s: &str) -> fmt::Result {
         extend(self.0, s.as_bytes());
         Ok(())
     }
 
+    #[inline]
     fn write_fmt(&mut self, args: fmt::Arguments) -> fmt::Result {
         fmt::write(self, args)
     }
@@ -424,21 +425,24 @@ mod tests {
     #[bench]
     fn bench_server_transaction_encode(b: &mut Bencher) {
         use ::http::MessageHead;
-        use ::header::{Headers, ContentLength};
+        use ::header::{Headers, ContentLength, ContentType};
         use ::{StatusCode, HttpVersion};
-        b.bytes = 75;
+
+        let len = 108;
+        b.bytes = len as u64;
 
         let mut head = MessageHead {
             subject: StatusCode::Ok,
             headers: Headers::new(),
             version: HttpVersion::Http11,
         };
-        head.headers.set(ContentLength(0));
+        head.headers.set(ContentLength(10));
+        head.headers.set(ContentType::json());
 
         b.iter(|| {
             let mut vec = Vec::new();
             ServerTransaction::encode(head.clone(), &mut vec);
-            assert_eq!(vec.len(), 75);
+            assert_eq!(vec.len(), len);
             ::test::black_box(vec);
         })
     }
