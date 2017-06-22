@@ -3,6 +3,7 @@ use std::fmt;
 use std::io::{self, Write};
 use std::ptr;
 
+use futures::{Async, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use http::{Http1Transaction, MessageHead, DebugTruncate};
@@ -54,12 +55,12 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
         }
     }
 
-    pub fn parse<S: Http1Transaction>(&mut self) -> ::Result<Option<MessageHead<S::Incoming>>> {
+    pub fn parse<S: Http1Transaction>(&mut self) -> Poll<MessageHead<S::Incoming>, ::Error> {
         loop {
             match try!(S::parse(&mut self.read_buf)) {
                 Some(head) => {
                     //trace!("parsed {} bytes out of {}", len, self.read_buf.len());
-                    return Ok(Some(head.0))
+                    return Ok(Async::Ready(head.0))
                 },
                 None => {
                     if self.read_buf.capacity() >= MAX_BUFFER_SIZE {
@@ -68,24 +69,18 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
                     }
                 },
             }
-            match self.read_from_io() {
-                Ok(0) => {
+            match try_ready!(self.read_from_io()) {
+                0 => {
                     trace!("parse eof");
                     //TODO: With Rust 1.14, this can be Error::from(ErrorKind)
                     return Err(io::Error::new(io::ErrorKind::UnexpectedEof, ParseEof).into());
                 }
-                Ok(_) => {},
-                Err(e) => match e.kind() {
-                    io::ErrorKind::WouldBlock => {
-                        return Ok(None);
-                    },
-                    _ => return Err(e.into())
-                }
+                _ => {},
             }
         }
     }
 
-    fn read_from_io(&mut self) -> io::Result<usize> {
+    fn read_from_io(&mut self) -> Poll<usize, io::Error> {
         use bytes::BufMut;
         // TODO: Investigate if we still need these unsafe blocks
         if self.read_buf.remaining_mut() < INIT_BUFFER_SIZE {
@@ -102,13 +97,15 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
                 Ok(n) => n,
                 Err(e) => {
                     if e.kind() == io::ErrorKind::WouldBlock {
+                        // TODO: Push this out, ideally, into http::Conn.
                         self.read_blocked = true;
+                        return Ok(Async::NotReady);
                     }
                     return Err(e)
                 }
             };
             self.read_buf.advance_mut(n);
-            Ok(n)
+            Ok(Async::Ready(n))
         }
     }
 
@@ -147,19 +144,19 @@ impl<T: Write> Write for Buffered<T> {
 }
 
 pub trait MemRead {
-    fn read_mem(&mut self, len: usize) -> io::Result<Bytes>;
+    fn read_mem(&mut self, len: usize) -> Poll<Bytes, io::Error>;
 }
 
 impl<T: AsyncRead + AsyncWrite> MemRead for Buffered<T> {
-    fn read_mem(&mut self, len: usize) -> io::Result<Bytes> {
+    fn read_mem(&mut self, len: usize) -> Poll<Bytes, io::Error> {
         trace!("Buffered.read_mem read_buf={}, wanted={}", self.read_buf.len(), len);
         if !self.read_buf.is_empty() {
             let n = ::std::cmp::min(len, self.read_buf.len());
             trace!("Buffered.read_mem read_buf is not empty, slicing {}", n);
-            Ok(self.read_buf.split_to(n).freeze())
+            Ok(Async::Ready(self.read_buf.split_to(n).freeze()))
         } else {
-            let n = try!(self.read_from_io());
-            Ok(self.read_buf.split_to(::std::cmp::min(len, n)).freeze())
+            let n = try_ready!(self.read_from_io());
+            Ok(Async::Ready(self.read_buf.split_to(::std::cmp::min(len, n)).freeze()))
         }
     }
 }
@@ -322,15 +319,16 @@ impl ::std::error::Error for ParseEof {
     }
 }
 
+// TODO: Move tests to their own mod
 #[cfg(test)]
 use std::io::Read;
 
 #[cfg(test)]
 impl<T: Read> MemRead for ::mock::AsyncIo<T> {
-    fn read_mem(&mut self, len: usize) -> io::Result<Bytes> {
+    fn read_mem(&mut self, len: usize) -> Poll<Bytes, io::Error> {
         let mut v = vec![0; len];
-        let n = try!(self.read(v.as_mut_slice()));
-        Ok(BytesMut::from(&v[..n]).freeze())
+        let n = try_nb!(self.read(v.as_mut_slice()));
+        Ok(Async::Ready(BytesMut::from(&v[..n]).freeze()))
     }
 }
 
@@ -357,6 +355,6 @@ fn test_parse_reads_until_blocked() {
 
     let mock = AsyncIo::new(MockBuf::wrap(raw.into()), raw.len());
     let mut buffered = Buffered::new(mock);
-    assert_eq!(buffered.parse::<super::ClientTransaction>().unwrap(), None);
+    assert_eq!(buffered.parse::<super::ClientTransaction>().unwrap(), Async::NotReady);
     assert!(buffered.io.blocked());
 }
