@@ -38,6 +38,7 @@ where I: AsyncRead + AsyncWrite,
         Conn {
             io: Buffered::new(io),
             state: State {
+                read_blocked: false,
                 reading: Reading::Init,
                 writing: Writing::Init,
                 read_task: None,
@@ -70,6 +71,7 @@ where I: AsyncRead + AsyncWrite,
         }
     }
 
+    // TODO: This function only ever returns `Ok`. Change type?
     fn read_head(&mut self) -> Poll<Option<Frame<http::MessageHead<T::Incoming>, http::Chunk, ::Error>>, io::Error> {
         debug_assert!(self.can_read_head());
         trace!("Conn::read_head");
@@ -148,7 +150,7 @@ where I: AsyncRead + AsyncWrite,
     }
 
     fn maybe_park_read(&mut self) {
-        if !self.io.is_read_blocked() {
+        if !self.state.read_blocked {
             // the Io object is ready to read, which means it will never alert
             // us that it is ready until we drain it. However, we're currently
             // finished reading, so we need to park the task to be able to
@@ -365,15 +367,20 @@ where I: AsyncRead + AsyncWrite,
                 .map(|async| async.map(|chunk| Some(Frame::Body {
                     chunk: chunk
                 })))
-                .or_else(|err| {
-                    self.state.close_read();
-                    Ok(Async::Ready(Some(Frame::Error { error: err.into() })))
-                })
         } else {
             trace!("poll when on keep-alive");
             self.maybe_park_read();
-            Ok(Async::NotReady)
+            // TODO: Should this set `read_blocked = true`?
+            return Ok(Async::NotReady);
         }
+        .map(|async| {
+            self.state.read_blocked = async.is_not_ready();
+            async
+        })
+        .or_else(|err| {
+            self.state.close_read();
+            Ok(Async::Ready(Some(Frame::Error { error: err.into() })))
+        })
     }
 }
 
@@ -467,6 +474,7 @@ impl<I, B: AsRef<[u8]>, T, K: fmt::Debug> fmt::Debug for Conn<I, B, T, K> {
 }
 
 struct State<B, K> {
+    read_blocked: bool,
     reading: Reading,
     writing: Writing<B>,
     read_task: Option<Task>,
@@ -492,6 +500,7 @@ enum Writing<B> {
 impl<B: AsRef<[u8]>, K: fmt::Debug> fmt::Debug for State<B, K> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("State")
+            .field("read_blocked", &self.read_blocked)
             .field("reading", &self.reading)
             .field("writing", &self.writing)
             .field("keep_alive", &self.keep_alive)
