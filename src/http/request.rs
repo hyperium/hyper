@@ -7,7 +7,7 @@ use uri::{self, Uri};
 use version::HttpVersion;
 use std::net::SocketAddr;
 
-/// A client request to a remote server.
+/// An HTTP Request
 pub struct Request<B = Body> {
     method: Method,
     uri: Uri,

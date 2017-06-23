@@ -5,7 +5,7 @@ use http::{MessageHead, ResponseHead, Body};
 use status::StatusCode;
 use version::HttpVersion;
 
-/// A response for a client request to a remote server.
+/// An HTTP Response
 pub struct Response<B = Body> {
     version: HttpVersion,
     headers: Headers,
