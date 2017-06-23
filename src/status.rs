@@ -620,68 +620,6 @@ enum StatusClass {
     NoClass,
 }
 
-/*
-impl StatusClass {
-    /// Get the default status code for the class.
-    ///
-    /// This produces the x00 status code; thus, for `ClientError` (4xx), for
-    /// example, this will produce `BadRequest` (400):
-    ///
-    /// ```rust
-    /// # use hyper::status::StatusClass::ClientError;
-    /// # use hyper::status::StatusCode::BadRequest;
-    /// assert_eq!(ClientError.default_code(), BadRequest);
-    /// ```
-    ///
-    /// The use for this is outlined in [RFC 7231, section 6 (Response Status
-    /// Codes)](https://tools.ietf.org/html/rfc7231#section-6):
-    ///
-    /// > HTTP status codes are extensible.  HTTP clients are not required to
-    /// > understand the meaning of all registered status codes, though such
-    /// > understanding is obviously desirable.  However, a client MUST
-    /// > understand the class of any status code, as indicated by the first
-    /// > digit, and treat an unrecognized status code as being equivalent to
-    /// > the x00 status code of that class, with the exception that a
-    /// > recipient MUST NOT cache a response with an unrecognized status code.
-    /// >
-    /// > For example, if an unrecognized status code of 471 is received by a
-    /// > client, the client can assume that there was something wrong with its
-    /// > request and treat the response as if it had received a 400 (Bad
-    /// > Request) status code.  The response message will usually contain a
-    /// > representation that explains the status.
-    ///
-    /// This is demonstrated thusly:
-    ///
-    /// ```rust
-    /// # use hyper::status::StatusCode::{Unregistered, BadRequest};
-    /// // Suppose we have received this status code.
-    /// // You will never directly create an unregistered status code.
-    /// let status = Unregistered(471);
-    ///
-    /// // Uh oh! Don’t know what to do with it.
-    /// // Let’s fall back to the default:
-    /// let status = status.class().default_code();
-    ///
-    /// // And look! That is 400 Bad Request.
-    /// assert_eq!(status, BadRequest);
-    /// // So now let’s treat it as that.
-    /// ```
-    /// All status codes that do not map to an existing status class are matched
-    /// by a `NoClass`, variant that resolves to 200 (Ok) as default code.
-    /// This is a common handling for unknown status codes in major browsers.
-    pub fn default_code(&self) -> StatusCode {
-        match *self {
-            StatusClass::Informational => StatusCode::Continue,
-            StatusClass::Success |
-            StatusClass::NoClass => StatusCode::Ok,
-            StatusClass::Redirection => StatusCode::MultipleChoices,
-            StatusClass::ClientError => StatusCode::BadRequest,
-            StatusClass::ServerError => StatusCode::InternalServerError,
-        }
-    }
-}
-*/
-
 #[cfg(test)]
 mod tests {
     use super::*;
