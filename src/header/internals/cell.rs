@@ -59,6 +59,11 @@ impl<V: ?Sized + Any + 'static> PtrMapCell<V> {
     }
 
     #[inline]
+    pub fn with_one(key: TypeId, val: Box<V>)  -> PtrMapCell<V> {
+        PtrMapCell(UnsafeCell::new(PtrMap::One(key, val)))
+    }
+
+    #[inline]
     pub fn get(&self, key: TypeId) -> Option<&V> {
         let map = unsafe { &*self.0.get() };
         match *map {

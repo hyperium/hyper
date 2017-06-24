@@ -23,12 +23,11 @@ impl Item {
     }
 
     #[inline]
-    pub fn new_typed(ty: Box<Header + Send + Sync>) -> Item {
-        let map = PtrMapCell::new();
-        unsafe { map.insert((*ty).get_type(), ty); }
+
+    pub fn new_typed<H: Header>(val: H) -> Item {
         Item {
             raw: OptCell::new(None),
-            typed: map,
+            typed: PtrMapCell::with_one(TypeId::of::<H>(), Box::new(val)),
         }
     }
 
