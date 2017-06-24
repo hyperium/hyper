@@ -87,25 +87,49 @@ impl Method {
     }
 }
 
+macro_rules! from_str {
+    ($s:ident, { $($n:pat => { $($text:pat => $var:ident,)* },)* }) => ({
+        let s = $s;
+        match s.len() {
+            $(
+            $n => match s {
+                $(
+                $text => return Ok($var),
+                )*
+                _ => {},
+            },
+            )*
+            0 => return Err(::Error::Method),
+            _ => {},
+        }
+        Ok(Extension(s.to_owned()))
+    })
+}
+
 impl FromStr for Method {
     type Err = Error;
     fn from_str(s: &str) -> Result<Method, Error> {
-        if s == "" {
-            Err(Error::Method)
-        } else {
-            Ok(match s {
-                "OPTIONS" => Options,
+        from_str!(s, {
+            3 => {
                 "GET" => Get,
-                "POST" => Post,
                 "PUT" => Put,
-                "DELETE" => Delete,
+            },
+            4 => {
                 "HEAD" => Head,
-                "TRACE" => Trace,
-                "CONNECT" => Connect,
+                "POST" => Post,
+            },
+            5 => {
                 "PATCH" => Patch,
-                _ => Extension(s.to_owned())
-            })
-        }
+                "TRACE" => Trace,
+            },
+            6 => {
+                "DELETE" => Delete,
+            },
+            7 => {
+                "OPTIONS" => Options,
+                "CONNECT" => Connect,
+            },
+        })
     }
 }
 
