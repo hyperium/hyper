@@ -176,6 +176,7 @@ impl<T, B> ServerProto<T> for Http<B>
     type Transport = __ProtoTransport<T, B>;
     type BindTransport = __ProtoBindTransport<T, B>;
 
+    #[inline]
     fn bind_transport(&self, io: T) -> Self::BindTransport {
         let ka = if self.keep_alive {
             http::KA::Busy
@@ -195,6 +196,7 @@ impl<T, B> Sink for __ProtoTransport<T, B>
     type SinkItem = Frame<__ProtoResponse, B, ::Error>;
     type SinkError = io::Error;
 
+    #[inline]
     fn start_send(&mut self, item: Self::SinkItem)
                   -> StartSend<Self::SinkItem, io::Error> {
         let item = match item {
@@ -221,10 +223,12 @@ impl<T, B> Sink for __ProtoTransport<T, B>
         }
     }
 
+    #[inline]
     fn poll_complete(&mut self) -> Poll<(), io::Error> {
         self.0.poll_complete()
     }
 
+    #[inline]
     fn close(&mut self) -> Poll<(), io::Error> {
         self.0.close()
     }
@@ -237,6 +241,7 @@ impl<T, B> Stream for __ProtoTransport<T, B>
     type Item = Frame<__ProtoRequest, http::Chunk, ::Error>;
     type Error = io::Error;
 
+    #[inline]
     fn poll(&mut self) -> Poll<Option<Self::Item>, io::Error> {
         let item = match try_ready!(self.0.poll()) {
             Some(item) => item,
@@ -257,10 +262,12 @@ impl<T, B> Transport for __ProtoTransport<T, B>
     where T: AsyncRead + AsyncWrite + 'static,
           B: AsRef<[u8]> + 'static,
 {
+    #[inline]
     fn tick(&mut self) {
         self.0.tick()
     }
 
+    #[inline]
     fn cancel(&mut self) -> io::Result<()> {
         self.0.cancel()
     }
@@ -272,12 +279,14 @@ impl<T, B> Future for __ProtoBindTransport<T, B>
     type Item = __ProtoTransport<T, B>;
     type Error = io::Error;
 
+    #[inline]
     fn poll(&mut self) -> Poll<__ProtoTransport<T, B>, io::Error> {
         self.inner.poll().map(|a| a.map(__ProtoTransport))
     }
 }
 
 impl From<Message<__ProtoRequest, http::TokioBody>> for Request {
+    #[inline]
     fn from(message: Message<__ProtoRequest, http::TokioBody>) -> Request {
         let (head, body) = match message {
             Message::WithoutBody(head) => (head.0, http::Body::empty()),
@@ -288,6 +297,7 @@ impl From<Message<__ProtoRequest, http::TokioBody>> for Request {
 }
 
 impl<B> Into<Message<__ProtoResponse, B>> for Response<B> {
+    #[inline]
     fn into(self) -> Message<__ProtoResponse, B> {
         let (head, body) = response::split(self);
         if let Some(body) = body {
@@ -315,6 +325,7 @@ impl<T, B> Service for HttpService<T>
     type Error = ::Error;
     type Future = Map<T::Future, fn(Response<B>) -> Message<__ProtoResponse, B>>;
 
+    #[inline]
     fn call(&self, message: Self::Request) -> Self::Future {
         let (head, body) = match message {
             Message::WithoutBody(head) => (head.0, http::Body::empty()),
