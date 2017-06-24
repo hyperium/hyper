@@ -213,7 +213,7 @@ where I: AsyncRead + AsyncWrite,
         }
     }
 
-    fn write_head(&mut self, mut head: http::MessageHead<T::Outgoing>, body: bool) -> StartSend<http::MessageHead<T::Outgoing>,io::Error> {
+    fn write_head(&mut self, mut head: http::MessageHead<T::Outgoing>, body: bool) {
         debug_assert!(self.can_write_head());
         if !body {
             head.headers.remove::<TransferEncoding>();
@@ -233,8 +233,6 @@ where I: AsyncRead + AsyncWrite,
         } else {
             Writing::KeepAlive
         };
-
-        Ok(AsyncSink::Ready)
     }
 
     fn write_body(&mut self, chunk: Option<B>) -> StartSend<Option<B>, io::Error> {
@@ -382,24 +380,15 @@ where I: AsyncRead + AsyncWrite,
     type SinkItem = Frame<http::MessageHead<T::Outgoing>, B, ::Error>;
     type SinkError = io::Error;
 
+    #[inline]
     fn start_send(&mut self, frame: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
         trace!("Conn::start_send( frame={:?} )", DebugFrame(&frame));
 
         let frame: Self::SinkItem = match frame {
             Frame::Message { message: head, body } => {
                 if self.can_write_head() {
-                    return self.write_head(head, body)
-                        .map(|async| {
-                            match async {
-                                AsyncSink::Ready => AsyncSink::Ready,
-                                AsyncSink::NotReady(head) => {
-                                    AsyncSink::NotReady(Frame::Message {
-                                        message: head,
-                                        body: body,
-                                    })
-                                }
-                            }
-                        })
+                    self.write_head(head, body);
+                    return Ok(AsyncSink::Ready);
                 } else {
                     Frame::Message { message: head, body: body }
                 }
