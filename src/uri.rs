@@ -2,8 +2,8 @@ use std::error::Error as StdError;
 use std::fmt::{Display, self};
 use std::str::{self, FromStr};
 
-use http::ByteStr;
-use bytes::{BufMut, BytesMut};
+use ::common::ByteStr;
+use bytes::{BufMut, Bytes, BytesMut};
 
 /// The Request-URI of a Request's StartLine.
 ///
@@ -297,8 +297,8 @@ impl Display for Uri {
     }
 }
 
-pub fn from_byte_str(s: ByteStr) -> Result<Uri, UriError> {
-    Uri::new(s)
+pub unsafe fn from_utf8_unchecked(slice: Bytes) -> Result<Uri, UriError> {
+    Uri::new(ByteStr::from_utf8_unchecked(slice))
 }
 
 pub fn scheme_and_authority(uri: &Uri) -> Option<Uri> {

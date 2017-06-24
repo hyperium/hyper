@@ -5,7 +5,7 @@ use httparse;
 use bytes::{BytesMut, Bytes};
 
 use header::{self, Headers, ContentLength, TransferEncoding};
-use http::{ByteStr, MessageHead, RawStatus, Http1Transaction, ParseResult, ServerTransaction, ClientTransaction, RequestLine};
+use http::{MessageHead, RawStatus, Http1Transaction, ParseResult, ServerTransaction, ClientTransaction, RequestLine};
 use http::h1::{Encoder, Decoder, date};
 use method::Method;
 use status::StatusCode;
@@ -54,10 +54,10 @@ impl Http1Transaction for ServerTransaction {
         let slice = buf.split_to(len).freeze();
         let path = slice.slice(path.0, path.1);
         // path was found to be utf8 by httparse
-        let path = unsafe { ByteStr::from_utf8_unchecked(path) };
+        let path = try!(unsafe { ::uri::from_utf8_unchecked(path) });
         let subject = RequestLine(
             method,
-            try!(::uri::from_byte_str(path)),
+            path,
         );
 
         headers.extend(HeadersAsBytesIter {

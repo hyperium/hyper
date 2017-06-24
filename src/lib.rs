@@ -37,6 +37,7 @@ extern crate unicase;
 extern crate test;
 
 
+mod common;
 pub use uri::Uri;
 pub use client::Client;
 pub use error::{Result, Error};
