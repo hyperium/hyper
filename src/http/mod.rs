@@ -15,7 +15,6 @@ use version::HttpVersion::{Http10, Http11};
 pub use self::conn::{Conn, KeepAlive, KA};
 pub use self::body::{Body, TokioBody};
 pub use self::chunk::Chunk;
-pub use self::str::ByteStr;
 
 mod body;
 mod chunk;
@@ -23,23 +22,9 @@ mod conn;
 mod io;
 mod h1;
 //mod h2;
-mod str;
 pub mod request;
 pub mod response;
 
-/*
-macro_rules! nonblocking {
-    ($e:expr) => ({
-        match $e {
-            Ok(n) => Ok(Some(n)),
-            Err(e) => match e.kind() {
-                stdio::ErrorKind::WouldBlock => Ok(None),
-                _ => Err(e)
-            }
-        }
-    });
-}
-*/
 
 /// An Incoming Message head. Includes request/status line, and headers.
 #[derive(Clone, Debug, Default, PartialEq)]
