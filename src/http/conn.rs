@@ -1,7 +1,6 @@
 use std::fmt;
 use std::io::{self, Write};
 use std::marker::PhantomData;
-use std::time::Instant;
 
 use futures::{Poll, Async, AsyncSink, Stream, Sink, StartSend};
 use futures::task::Task;
@@ -228,10 +227,7 @@ where I: AsyncRead + AsyncWrite,
 
         let wants_keep_alive = head.should_keep_alive();
         self.state.keep_alive &= wants_keep_alive;
-        let mut buf = Vec::new();
-        let encoder = T::encode(head, &mut buf);
-        //TODO: handle when there isn't enough room to buffer the head
-        assert!(self.io.buffer(buf) > 0);
+        let encoder = T::encode(head, self.io.write_buf_mut());
         self.state.writing = if body {
             Writing::Body(encoder, None)
         } else {
@@ -534,7 +530,7 @@ pub trait KeepAlive: fmt::Debug + ::std::ops::BitAndAssign<bool> {
 
 #[derive(Clone, Copy, Debug)]
 pub enum KA {
-    Idle(Instant),
+    Idle,
     Busy,
     Disabled,
 }
@@ -547,7 +543,7 @@ impl Default for KA {
 
 impl KeepAlive for KA {
     fn idle(&mut self) {
-        *self = KA::Idle(Instant::now());
+        *self = KA::Idle;
     }
 
     fn busy(&mut self) {
@@ -595,7 +591,7 @@ impl<B, K: KeepAlive> State<B, K> {
     }
 
     fn is_idle(&self) -> bool {
-        if let KA::Idle(..) = self.keep_alive.status() {
+        if let KA::Idle = self.keep_alive.status() {
             true
         } else {
             false

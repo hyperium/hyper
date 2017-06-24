@@ -42,6 +42,12 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
         self.read_buf.as_ref()
     }
 
+    pub fn write_buf_mut(&mut self) -> &mut Vec<u8> {
+        self.write_buf.maybe_reset();
+        self.write_buf.maybe_reserve(0);
+        &mut self.write_buf.0.bytes
+    }
+
     pub fn consume_leading_lines(&mut self) {
         if !self.read_buf.is_empty() {
             let mut i = 0;
@@ -133,7 +139,7 @@ impl<T: Write> Write for Buffered<T> {
         } else {
             loop {
                 let n = try!(self.write_buf.write_into(&mut self.io));
-                debug!("flushed {} bytes", n);
+                trace!("flushed {} bytes", n);
                 if self.write_buf.remaining() == 0 {
                     break;
                 }

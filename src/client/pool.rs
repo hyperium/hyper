@@ -80,7 +80,7 @@ impl<T: Clone> Pool<T> {
             entry: Entry {
                 value: value,
                 is_reused: false,
-                status: Rc::new(Cell::new(KA::Busy)),
+                status: Rc::new(Cell::new(TimedKA::Busy)),
             },
             key: key,
             pool: self.clone(),
@@ -94,7 +94,7 @@ impl<T: Clone> Pool<T> {
     fn reuse(&self, key: Rc<String>, mut entry: Entry<T>) -> Pooled<T> {
         trace!("Pool::reuse {:?}", key);
         entry.is_reused = true;
-        entry.status.set(KA::Busy);
+        entry.status.set(TimedKA::Busy);
         Pooled {
             entry: entry,
             key: key,
@@ -141,17 +141,17 @@ impl<T> DerefMut for Pooled<T> {
 
 impl<T: Clone> KeepAlive for Pooled<T> {
     fn busy(&mut self) {
-        self.entry.status.set(KA::Busy);
+        self.entry.status.set(TimedKA::Busy);
     }
 
     fn disable(&mut self) {
-        self.entry.status.set(KA::Disabled);
+        self.entry.status.set(TimedKA::Disabled);
     }
 
     fn idle(&mut self) {
         let previous = self.status();
-        self.entry.status.set(KA::Idle(Instant::now()));
-        if let KA::Idle(..) = previous {
+        self.entry.status.set(TimedKA::Idle(Instant::now()));
+        if let KA::Idle = previous {
             trace!("Pooled::idle already idle");
             return;
         }
@@ -162,7 +162,11 @@ impl<T: Clone> KeepAlive for Pooled<T> {
     }
 
     fn status(&self) -> KA {
-        self.entry.status.get()
+        match self.entry.status.get() {
+            TimedKA::Idle(_) => KA::Idle,
+            TimedKA::Busy => KA::Busy,
+            TimedKA::Disabled => KA::Disabled,
+        }
     }
 }
 
@@ -187,7 +191,14 @@ impl<T: Clone> BitAndAssign<bool> for Pooled<T> {
 struct Entry<T> {
     value: T,
     is_reused: bool,
-    status: Rc<Cell<KA>>,
+    status: Rc<Cell<TimedKA>>,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum TimedKA {
+    Idle(Instant),
+    Busy,
+    Disabled,
 }
 
 pub struct Checkout<T> {
@@ -224,7 +235,7 @@ impl<T: Clone> Future for Checkout<T> {
             trace!("Checkout::poll key found {:?}", key);
             while let Some(entry) = list.pop() {
                 match entry.status.get() {
-                    KA::Idle(idle_at) if !expiration.expires(idle_at) => {
+                    TimedKA::Idle(idle_at) if !expiration.expires(idle_at) => {
                         trace!("Checkout::poll found idle client for {:?}", key);
                         should_remove = list.is_empty();
                         return Some(entry);
