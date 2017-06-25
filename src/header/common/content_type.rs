@@ -23,7 +23,7 @@ header! {
     ///
     /// # Example values
     /// * `text/html; charset=utf-8`
-    /// * `application/json
+    /// * `application/json`
     ///
     /// # Examples
     /// ```
