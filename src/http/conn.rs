@@ -163,7 +163,13 @@ where I: AsyncRead + AsyncWrite,
             // us that it is ready until we drain it. However, we're currently
             // finished reading, so we need to park the task to be able to
             // wake back up later when more reading should happen.
-            self.state.read_task = Some(::futures::task::current());
+            let park = self.state.read_task.as_ref()
+                .map(|t| !t.will_notify_current())
+                .unwrap_or(true);
+            if park {
+                trace!("parking current task");
+                self.state.read_task = Some(::futures::task::current());
+            }
         }
     }
 
@@ -191,8 +197,10 @@ where I: AsyncRead + AsyncWrite,
             Writing::Closed => (),
         }
 
-        if let Some(task) = self.state.read_task.take() {
-            task.notify();
+        if !self.io.is_read_blocked() {
+            if let Some(ref task) = self.state.read_task {
+                task.notify();
+            }
         }
     }
 
@@ -376,7 +384,6 @@ where I: AsyncRead + AsyncWrite,
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         trace!("Conn::poll()");
-        self.state.read_task.take();
 
         loop {
             if self.is_read_closed() {
@@ -596,6 +603,7 @@ impl<B, K: KeepAlive> State<B, K> {
     fn close_read(&mut self) {
         trace!("State::close_read()");
         self.reading = Reading::Closed;
+        self.read_task = None;
         self.keep_alive.disable();
     }
 
