@@ -62,6 +62,13 @@ where I: AsyncRead + AsyncWrite,
         }
     }
 
+    fn can_write_continue(&self) -> bool {
+        match self.state.writing {
+            Writing::Continue(..) => true,
+            _ => false,
+        }
+    }
+
     fn can_read_body(&self) -> bool {
         match self.state.reading {
             Reading::Body(..) => true,
@@ -105,6 +112,10 @@ where I: AsyncRead + AsyncWrite,
                     }
                 };
                 self.state.busy();
+                if head.expecting_continue() {
+                    let msg = b"HTTP/1.1 100 Continue\r\n\r\n";
+                    self.state.writing = Writing::Continue(Cursor::new(msg));
+                }
                 let wants_keep_alive = head.should_keep_alive();
                 self.state.keep_alive &= wants_keep_alive;
                 let (body, reading) = if decoder.is_eof() {
@@ -172,6 +183,7 @@ where I: AsyncRead + AsyncWrite,
         }
 
         match self.state.writing {
+            Writing::Continue(..) |
             Writing::Body(..) |
             Writing::Ending(..) => return,
             Writing::Init |
@@ -191,7 +203,7 @@ where I: AsyncRead + AsyncWrite,
 
     fn can_write_head(&self) -> bool {
         match self.state.writing {
-            Writing::Init => true,
+            Writing::Continue(..) | Writing::Init => true,
             _ => false
         }
     }
@@ -199,6 +211,7 @@ where I: AsyncRead + AsyncWrite,
     fn can_write_body(&self) -> bool {
         match self.state.writing {
             Writing::Body(..) => true,
+            Writing::Continue(..) |
             Writing::Init |
             Writing::Ending(..) |
             Writing::KeepAlive |
@@ -227,6 +240,13 @@ where I: AsyncRead + AsyncWrite,
 
         let wants_keep_alive = head.should_keep_alive();
         self.state.keep_alive &= wants_keep_alive;
+        // if a 100-continue has started but not finished sending, tack the
+        // remainder on to the start of the buffer.
+        if let Writing::Continue(ref pending) = self.state.writing {
+            if pending.has_started() {
+                self.io.write_buf_mut().extend_from_slice(pending.buf());
+            }
+        }
         let encoder = T::encode(head, self.io.write_buf_mut());
         self.state.writing = if body {
             Writing::Body(encoder, None)
@@ -290,6 +310,15 @@ where I: AsyncRead + AsyncWrite,
     fn write_queued(&mut self) -> Poll<(), io::Error> {
         trace!("Conn::write_queued()");
         let state = match self.state.writing {
+            Writing::Continue(ref mut queued) => {
+                let n = self.io.buffer(queued.buf());
+                queued.consume(n);
+                if queued.is_written() {
+                    Writing::Init
+                } else {
+                    return Ok(Async::NotReady);
+                }
+            }
             Writing::Body(ref mut encoder, ref mut queued) => {
                 let complete = if let Some(chunk) = queued.as_mut() {
                     let n = try_nb!(encoder.encode(&mut self.io, chunk.buf()));
@@ -349,24 +378,28 @@ where I: AsyncRead + AsyncWrite,
         trace!("Conn::poll()");
         self.state.read_task.take();
 
-        if self.is_read_closed() {
-            trace!("Conn::poll when closed");
-            Ok(Async::Ready(None))
-        } else if self.can_read_head() {
-            self.read_head()
-        } else if self.can_read_body() {
-            self.read_body()
-                .map(|async| async.map(|chunk| Some(Frame::Body {
-                    chunk: chunk
-                })))
-                .or_else(|err| {
-                    self.state.close_read();
-                    Ok(Async::Ready(Some(Frame::Error { error: err.into() })))
-                })
-        } else {
-            trace!("poll when on keep-alive");
-            self.maybe_park_read();
-            Ok(Async::NotReady)
+        loop {
+            if self.is_read_closed() {
+                trace!("Conn::poll when closed");
+                return Ok(Async::Ready(None));
+            } else if self.can_read_head() {
+                return self.read_head();
+            } else if self.can_write_continue() {
+                try_nb!(self.flush());
+            } else if self.can_read_body() {
+                return self.read_body()
+                    .map(|async| async.map(|chunk| Some(Frame::Body {
+                        chunk: chunk
+                    })))
+                    .or_else(|err| {
+                        self.state.close_read();
+                        Ok(Async::Ready(Some(Frame::Error { error: err.into() })))
+                    });
+            } else {
+                trace!("poll when on keep-alive");
+                self.maybe_park_read();
+                return Ok(Async::NotReady);
+            }
         }
     }
 }
@@ -467,6 +500,7 @@ enum Reading {
 }
 
 enum Writing<B> {
+    Continue(Cursor<&'static [u8]>),
     Init,
     Body(Encoder, Option<Cursor<B>>),
     Ending(Cursor<&'static [u8]>),
@@ -488,6 +522,9 @@ impl<B: AsRef<[u8]>, K: fmt::Debug> fmt::Debug for State<B, K> {
 impl<B: AsRef<[u8]>> fmt::Debug for Writing<B> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
+            Writing::Continue(ref buf) => f.debug_tuple("Continue")
+                .field(buf)
+                .finish(),
             Writing::Init => f.write_str("Init"),
             Writing::Body(ref enc, ref queued) => f.debug_tuple("Body")
                 .field(enc)
