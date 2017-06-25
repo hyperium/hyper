@@ -14,7 +14,6 @@ pub const MAX_BUFFER_SIZE: usize = 8192 + 4096 * 100;
 
 pub struct Buffered<T> {
     io: T,
-    read_blocked: bool,
     read_buf: BytesMut,
     write_buf: WriteBuf,
 }
@@ -34,7 +33,6 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
             io: io,
             read_buf: BytesMut::with_capacity(0),
             write_buf: WriteBuf::new(),
-            read_blocked: false,
         }
     }
 
@@ -97,19 +95,10 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
                 ptr::write_bytes(buf.as_mut_ptr(), 0, len);
             }
         }
-        self.read_blocked = false;
-        unsafe { // Can we use AsyncRead::read_buf instead?
-            let n = match self.io.read(self.read_buf.bytes_mut()) {
-                Ok(n) => n,
-                Err(e) => {
-                    if e.kind() == io::ErrorKind::WouldBlock {
-                        // TODO: Push this out, ideally, into http::Conn.
-                        self.read_blocked = true;
-                        return Ok(Async::NotReady);
-                    }
-                    return Err(e)
-                }
-            };
+        // TODO: Use AsyncRead::read_buf instead
+        //     Ensure `read_buf` wouldn't re-zero the buffer each call
+        unsafe {
+            let n = try_nb!(self.io.read(self.read_buf.bytes_mut()));
             self.read_buf.advance_mut(n);
             Ok(Async::Ready(n))
         }
@@ -121,10 +110,6 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
 
     pub fn io_mut(&mut self) -> &mut T {
         &mut self.io
-    }
-
-    pub fn is_read_blocked(&self) -> bool {
-        self.read_blocked
     }
 }
 
