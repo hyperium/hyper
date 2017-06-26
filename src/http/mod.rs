@@ -4,7 +4,7 @@ use std::fmt;
 
 use bytes::BytesMut;
 
-use header::{Connection, ConnectionOption};
+use header::{Connection, ConnectionOption, Expect};
 use header::Headers;
 use method::Method;
 use status::StatusCode;
@@ -55,6 +55,10 @@ pub type ResponseHead = MessageHead<RawStatus>;
 impl<S> MessageHead<S> {
     pub fn should_keep_alive(&self) -> bool {
         should_keep_alive(self.version, &self.headers)
+    }
+
+    pub fn expecting_continue(&self) -> bool {
+        expecting_continue(self.version, &self.headers)
     }
 }
 
@@ -119,6 +123,17 @@ pub fn should_keep_alive(version: HttpVersion, headers: &Headers) -> bool {
     ret
 }
 
+/// Checks if a connection is expecting a `100 Continue` before sending its body.
+#[inline]
+pub fn expecting_continue(version: HttpVersion, headers: &Headers) -> bool {
+    let ret = match (version, headers.get::<Expect>()) {
+        (Http11, Some(&Expect::Continue)) => true,
+        _ => false
+    };
+    trace!("expecting_continue(version={:?}, header={:?}) = {:?}", version, headers.get::<Expect>(), ret);
+    ret
+}
+
 #[derive(Debug)]
 pub enum ServerTransaction {}
 
@@ -167,4 +182,16 @@ fn test_should_keep_alive() {
     headers.set(Connection::keep_alive());
     assert!(should_keep_alive(Http10, &headers));
     assert!(should_keep_alive(Http11, &headers));
+}
+
+#[test]
+fn test_expecting_continue() {
+    let mut headers = Headers::new();
+
+    assert!(!expecting_continue(Http10, &headers));
+    assert!(!expecting_continue(Http11, &headers));
+
+    headers.set(Expect::Continue);
+    assert!(!expecting_continue(Http10, &headers));
+    assert!(expecting_continue(Http11, &headers));
 }

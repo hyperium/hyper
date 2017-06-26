@@ -181,6 +181,10 @@ impl<T: AsRef<[u8]>> Cursor<T> {
         }
     }
 
+    pub fn has_started(&self) -> bool {
+        self.pos != 0
+    }
+
     pub fn is_written(&self) -> bool {
         trace!("Cursor::is_written pos = {}, len = {}", self.pos, self.bytes.as_ref().len());
         self.pos >= self.bytes.as_ref().len()
