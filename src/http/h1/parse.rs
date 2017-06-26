@@ -109,10 +109,10 @@ impl Http1Transaction for ServerTransaction {
             }
             Encoder::chunked()
         };
+        debug!("encode headers = {:?}", head.headers);
 
         let init_cap = 30 + head.headers.len() * AVERAGE_HEADER_SIZE;
         dst.reserve(init_cap);
-        debug!("writing headers = {:?}", head.headers);
         if head.version == ::HttpVersion::Http11 && head.subject == ::StatusCode::Ok {
             extend(dst, b"HTTP/1.1 200 OK\r\n");
             let _ = write!(FastWrite(dst), "{}", head.headers);
@@ -250,10 +250,10 @@ impl Http1Transaction for ClientTransaction {
                 head.headers.set(TransferEncoding(vec![header::Encoding::Chunked]));
             }
         }
+        debug!("encode headers = {:?}", head.headers);
 
         let init_cap = 30 + head.headers.len() * AVERAGE_HEADER_SIZE;
         dst.reserve(init_cap);
-        debug!("writing {:#?}", head.headers);
         let _ = write!(FastWrite(dst), "{} {}\r\n{}\r\n", head.subject, head.version, head.headers);
 
         body
