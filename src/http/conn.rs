@@ -248,14 +248,15 @@ where I: AsyncRead + AsyncWrite,
 
         let wants_keep_alive = head.should_keep_alive();
         self.state.keep_alive &= wants_keep_alive;
+        let mut buf = self.io.write_buf_mut();
         // if a 100-continue has started but not finished sending, tack the
         // remainder on to the start of the buffer.
         if let Writing::Continue(ref pending) = self.state.writing {
             if pending.has_started() {
-                self.io.write_buf_mut().extend_from_slice(pending.buf());
+                buf.extend_from_slice(pending.buf());
             }
         }
-        let encoder = T::encode(head, self.io.write_buf_mut());
+        let encoder = T::encode(head, buf);
         self.state.writing = if body {
             Writing::Body(encoder, None)
         } else {
