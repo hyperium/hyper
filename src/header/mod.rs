@@ -224,6 +224,32 @@ impl<'a, 'b> Formatter<'a, 'b> {
             }
         }
     }
+
+    fn danger_fmt_line_without_newline_replacer<T: fmt::Display>(&mut self, line: &T) -> fmt::Result {
+        use std::fmt::Write;
+        match self.0 {
+            Multi::Line(name, ref mut f) => {
+                try!(f.write_str(name));
+                try!(f.write_str(": "));
+                try!(fmt::Display::fmt(line, f));
+                f.write_str("\r\n")
+            },
+            Multi::Join(ref mut first, ref mut f) => {
+                if !*first {
+                    try!(f.write_str(", "));
+                } else {
+                    *first = false;
+                }
+                fmt::Display::fmt(line, f)
+            }
+            Multi::Raw(ref mut raw) => {
+                let mut s = String::new();
+                try!(write!(s, "{}", line));
+                raw.push(s);
+                Ok(())
+            }
+        }
+    }
 }
 
 struct ValueString<'a>(&'a Item);

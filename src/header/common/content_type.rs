@@ -45,7 +45,7 @@ header! {
     ///     ContentType(mime::TEXT_HTML)
     /// );
     /// ```
-    (ContentType, "Content-Type") => [Mime]
+    (ContentType, "Content-Type") => danger [Mime]
 
     test_content_type {
         test_header!(

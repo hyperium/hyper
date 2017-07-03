@@ -66,7 +66,7 @@ impl Header for ContentLength {
 
     #[inline]
     fn fmt_header(&self, f: &mut ::header::Formatter) -> fmt::Result {
-        f.fmt_line(self)
+        f.danger_fmt_line_without_newline_replacer(self)
     }
 }
 

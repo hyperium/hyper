@@ -275,6 +275,34 @@ macro_rules! header {
             }
         }
     };
+    // Single value header (internal)
+    ($(#[$a:meta])*($id:ident, $n:expr) => danger [$value:ty]) => {
+        $(#[$a])*
+        #[derive(Clone, Debug, PartialEq)]
+        pub struct $id(pub $value);
+        __hyper__deref!($id => $value);
+        impl $crate::header::Header for $id {
+            #[inline]
+            fn header_name() -> &'static str {
+                static NAME: &'static str = $n;
+                NAME
+            }
+            #[inline]
+            fn parse_header(raw: &$crate::header::Raw) -> $crate::Result<Self> {
+                $crate::header::parsing::from_one_raw_str(raw).map($id)
+            }
+            #[inline]
+            fn fmt_header(&self, f: &mut $crate::header::Formatter) -> ::std::fmt::Result {
+                f.danger_fmt_line_without_newline_replacer(self)
+            }
+        }
+        impl ::std::fmt::Display for $id {
+            #[inline]
+            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                ::std::fmt::Display::fmt(&self.0, f)
+            }
+        }
+    };
     // Single value cow header
     ($(#[$a:meta])*($id:ident, $n:expr) => Cow[$value:ty]) => {
         $(#[$a])*
@@ -379,6 +407,14 @@ macro_rules! header {
         header! {
             $(#[$a])*
             ($id, $n) => [$item]
+        }
+
+        __hyper__tm! { $id, $tm { $($tf)* }}
+    };
+    ($(#[$a:meta])*($id:ident, $n:expr) => danger [$item:ty] $tm:ident{$($tf:item)*}) => {
+        header! {
+            $(#[$a])*
+            ($id, $n) => danger [$item]
         }
 
         __hyper__tm! { $id, $tm { $($tf)* }}
