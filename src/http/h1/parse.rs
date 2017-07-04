@@ -131,9 +131,16 @@ impl Http1Transaction for ServerTransaction {
         body
     }
 
-    fn should_set_length(_head: &MessageHead<Self::Outgoing>) -> bool {
+    fn should_set_length(head: &MessageHead<Self::Outgoing>) -> bool {
         //TODO: pass method, check if method == HEAD
-        true
+
+        match head.subject {
+            // TODO: support for 1xx codes needs improvement everywhere
+            // would be 100...199 => false
+            StatusCode::NoContent |
+            StatusCode::NotModified => false,
+            _ => true,
+        }
     }
 }
 
