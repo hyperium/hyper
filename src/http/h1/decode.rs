@@ -11,7 +11,7 @@ use self::Kind::{Length, Chunked, Eof};
 ///
 /// If a message body does not include a Transfer-Encoding, it *should*
 /// include a Content-Length header.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Decoder {
     kind: Kind,
 }
@@ -30,7 +30,7 @@ impl Decoder {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 enum Kind {
     /// A Reader used when a Content-Length header is passed with a positive integer.
     Length(u64),

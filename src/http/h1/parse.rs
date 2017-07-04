@@ -191,14 +191,21 @@ impl Http1Transaction for ClientTransaction {
         // According to https://tools.ietf.org/html/rfc7230#section-3.3.3
         // 1. HEAD responses, and Status 1xx, 204, and 304 cannot have a body.
         // 2. Status 2xx to a CONNECT cannot have a body.
-        //
-        // First two steps taken care of before this method.
-        //
         // 3. Transfer-Encoding: chunked has a chunked body.
         // 4. If multiple differing Content-Length headers or invalid, close connection.
         // 5. Content-Length header has a sized body.
         // 6. Not Client.
         // 7. Read till EOF.
+
+        //TODO: need a way to pass the Method that caused this Response
+
+        match inc.subject.0 {
+            100...199 |
+            204 |
+            304 => return Ok(Decoder::length(0)),
+            _ => (),
+        }
+
         if let Some(&header::TransferEncoding(ref codings)) = inc.headers.get() {
             if codings.last() == Some(&header::Encoding::Chunked) {
                 Ok(Decoder::chunked())
@@ -329,8 +336,10 @@ fn extend(dst: &mut Vec<u8>, data: &[u8]) {
 
 #[cfg(test)]
 mod tests {
-    use http::{ServerTransaction, ClientTransaction, Http1Transaction};
     use bytes::BytesMut;
+
+    use http::{MessageHead, ServerTransaction, ClientTransaction, Http1Transaction};
+    use header::{ContentLength, TransferEncoding};
 
     #[test]
     fn test_parse_request() {
@@ -368,6 +377,7 @@ mod tests {
         let mut raw = BytesMut::from(b"GET htt:p// HTTP/1.1\r\nHost: hyper.rs\r\n\r\n".to_vec());
         ServerTransaction::parse(&mut raw).unwrap_err();
     }
+
     #[test]
     fn test_parse_raw_status() {
         let mut raw = BytesMut::from(b"HTTP/1.1 200 OK\r\n\r\n".to_vec());
@@ -377,6 +387,34 @@ mod tests {
         let mut raw = BytesMut::from(b"HTTP/1.1 200 Howdy\r\n\r\n".to_vec());
         let (res, _) = ClientTransaction::parse(&mut raw).unwrap().unwrap();
         assert_eq!(res.subject.1, "Howdy");
+    }
+
+    #[test]
+    fn test_decoder_response() {
+        use super::Decoder;
+
+        let mut head = MessageHead::<::http::RawStatus>::default();
+
+        head.subject.0 = 204;
+        assert_eq!(Decoder::length(0), ClientTransaction::decoder(&head).unwrap());
+        head.subject.0 = 304;
+        assert_eq!(Decoder::length(0), ClientTransaction::decoder(&head).unwrap());
+
+        head.subject.0 = 200;
+        assert_eq!(Decoder::eof(), ClientTransaction::decoder(&head).unwrap());
+
+        head.headers.set(TransferEncoding::chunked());
+        assert_eq!(Decoder::chunked(), ClientTransaction::decoder(&head).unwrap());
+
+        head.headers.remove::<TransferEncoding>();
+        head.headers.set(ContentLength(10));
+        assert_eq!(Decoder::length(10), ClientTransaction::decoder(&head).unwrap());
+
+        head.headers.set_raw("Content-Length", vec![b"5".to_vec(), b"5".to_vec()]);
+        assert_eq!(Decoder::length(5), ClientTransaction::decoder(&head).unwrap());
+
+        head.headers.set_raw("Content-Length", vec![b"10".to_vec(), b"11".to_vec()]);
+        ClientTransaction::decoder(&head).unwrap_err();
     }
 
     #[cfg(feature = "nightly")]
@@ -424,8 +462,7 @@ mod tests {
     #[cfg(feature = "nightly")]
     #[bench]
     fn bench_server_transaction_encode(b: &mut Bencher) {
-        use ::http::MessageHead;
-        use ::header::{Headers, ContentLength, ContentType};
+        use header::{Headers, ContentLength, ContentType};
         use ::{StatusCode, HttpVersion};
 
         let len = 108;
