@@ -74,11 +74,31 @@ impl Http1Transaction for ServerTransaction {
 
     fn decoder(head: &MessageHead<Self::Incoming>) -> ::Result<Decoder> {
         use ::header;
-        if let Some(&header::ContentLength(len)) = head.headers.get() {
+        // According to https://tools.ietf.org/html/rfc7230#section-3.3.3
+        // 1. (irrelevant to Request)
+        // 2. (irrelevant to Request)
+        // 3. Transfer-Encoding: chunked has a chunked body.
+        // 4. If multiple differing Content-Length headers or invalid, close connection.
+        // 5. Content-Length header has a sized body.
+        // 6. Length 0.
+        // 7. (irrelevant to Request)
+
+        if let Some(&header::TransferEncoding(ref encodings)) = head.headers.get() {
+            // https://tools.ietf.org/html/rfc7230#section-3.3.3
+            // If Transfer-Encoding header is present, and 'chunked' is
+            // not the final encoding, and this is a Request, then it is
+            // mal-formed. A server should responsed with 400 Bad Request.
+            if encodings.last() == Some(&header::Encoding::Chunked) {
+                Ok(Decoder::chunked())
+            } else {
+                debug!("request with transfer-encoding header, but not chunked, bad request");
+                Err(::Error::Header)
+            }
+        } else if let Some(&header::ContentLength(len)) = head.headers.get() {
             Ok(Decoder::length(len))
-        } else if head.headers.has::<header::TransferEncoding>() {
-            //TODO: check for Transfer-Encoding: chunked
-            Ok(Decoder::chunked())
+        } else if head.headers.has::<header::ContentLength>() {
+            debug!("illegal Content-Length: {:?}", head.headers.get_raw("Content-Length"));
+            Err(::Error::Header)
         } else {
             Ok(Decoder::length(0))
         }
@@ -201,7 +221,7 @@ impl Http1Transaction for ClientTransaction {
         // 3. Transfer-Encoding: chunked has a chunked body.
         // 4. If multiple differing Content-Length headers or invalid, close connection.
         // 5. Content-Length header has a sized body.
-        // 6. Not Client.
+        // 6. (irrelevant to Response)
         // 7. Read till EOF.
 
         //TODO: need a way to pass the Method that caused this Response
@@ -223,7 +243,7 @@ impl Http1Transaction for ClientTransaction {
         } else if let Some(&header::ContentLength(len)) = inc.headers.get() {
             Ok(Decoder::length(len))
         } else if inc.headers.has::<header::ContentLength>() {
-            trace!("illegal Content-Length: {:?}", inc.headers.get_raw("Content-Length"));
+            debug!("illegal Content-Length: {:?}", inc.headers.get_raw("Content-Length"));
             Err(::Error::Header)
         } else {
             trace!("neither Transfer-Encoding nor Content-Length");
@@ -396,6 +416,39 @@ mod tests {
         assert_eq!(res.subject.1, "Howdy");
     }
 
+
+    #[test]
+    fn test_decoder_request() {
+        use super::Decoder;
+
+        let mut head = MessageHead::<::http::RequestLine>::default();
+
+        head.subject.0 = ::Method::Get;
+        assert_eq!(Decoder::length(0), ServerTransaction::decoder(&head).unwrap());
+        head.subject.0 = ::Method::Post;
+        assert_eq!(Decoder::length(0), ServerTransaction::decoder(&head).unwrap());
+
+        head.headers.set(TransferEncoding::chunked());
+        assert_eq!(Decoder::chunked(), ServerTransaction::decoder(&head).unwrap());
+        // transfer-encoding and content-length = chunked
+        head.headers.set(ContentLength(10));
+        assert_eq!(Decoder::chunked(), ServerTransaction::decoder(&head).unwrap());
+
+        head.headers.remove::<TransferEncoding>();
+        assert_eq!(Decoder::length(10), ServerTransaction::decoder(&head).unwrap());
+
+        head.headers.set_raw("Content-Length", vec![b"5".to_vec(), b"5".to_vec()]);
+        assert_eq!(Decoder::length(5), ServerTransaction::decoder(&head).unwrap());
+
+        head.headers.set_raw("Content-Length", vec![b"10".to_vec(), b"11".to_vec()]);
+        ServerTransaction::decoder(&head).unwrap_err();
+
+        head.headers.remove::<ContentLength>();
+
+        head.headers.set_raw("Transfer-Encoding", "gzip");
+        ServerTransaction::decoder(&head).unwrap_err();
+    }
+
     #[test]
     fn test_decoder_response() {
         use super::Decoder;
@@ -413,8 +466,11 @@ mod tests {
         head.headers.set(TransferEncoding::chunked());
         assert_eq!(Decoder::chunked(), ClientTransaction::decoder(&head).unwrap());
 
-        head.headers.remove::<TransferEncoding>();
+        // transfer-encoding and content-length = chunked
         head.headers.set(ContentLength(10));
+        assert_eq!(Decoder::chunked(), ClientTransaction::decoder(&head).unwrap());
+
+        head.headers.remove::<TransferEncoding>();
         assert_eq!(Decoder::length(10), ClientTransaction::decoder(&head).unwrap());
 
         head.headers.set_raw("Content-Length", vec![b"5".to_vec(), b"5".to_vec()]);
