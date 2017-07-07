@@ -3,10 +3,12 @@ use std::fmt;
 use std::io;
 use std::mem;
 //use std::net::SocketAddr;
+use std::time::Duration;
 
 use futures::{Future, Poll, Async};
+use futures::future::Either;
 use tokio_io::{AsyncRead, AsyncWrite};
-use tokio::reactor::Handle;
+use tokio::reactor::{Handle, Timeout};
 use tokio::net::{TcpStream, TcpStreamNew};
 use tokio_service::Service;
 use Uri;
@@ -242,11 +244,77 @@ impl<S: SslClient> HttpsConnector<S> {
 }
 */
 
+/// A connector that enforces as connection timeout
+#[derive(Debug)]
+pub struct TimeoutConnector<T> {
+    /// A connector implementing the `Connect` trait
+    connector: T,
+    /// Handle to be used to set the timeout within tokio's core
+    handle: Handle,
+    /// Amount of time to wait connecting
+    connect_timeout: Duration,
+}
+
+impl TimeoutConnector<HttpConnector> {
+    /// Construct a new TimeoutConnector
+    ///
+    /// Takes number of DNS worker threads
+    ///
+    /// This uses hyper's default `HttpConnector`. If you wish to use something besides the defaults,
+    /// create the connector and then use `TimeoutConnector::with_connector`.
+    pub fn new(threads: usize, handle: &Handle, timeout: Duration) -> Self {
+        let http = HttpConnector::new(threads, handle);
+        TimeoutConnector::with_connector(http, handle, timeout)
+    }
+}
+
+impl<T: Connect> TimeoutConnector<T> {
+    /// Construct a new TimeoutConnector with a given connector implementing the `Connect` trait
+    pub fn with_connector(connector: T, handle: &Handle, timeout: Duration) -> Self {
+        TimeoutConnector {
+            connector: connector,
+            handle: handle.clone(),
+            connect_timeout: timeout,
+        }
+    }
+}
+
+impl<T> Service for TimeoutConnector<T>
+    where T: Service<Error=io::Error> + 'static,
+          T::Response: AsyncRead + AsyncWrite,
+          T::Future: Future<Error=io::Error>,
+{
+    type Request = T::Request;
+    type Response = T::Response;
+    type Error = T::Error;
+    type Future = Box<Future<Item=Self::Response, Error=Self::Error>>;
+
+    fn call(&self, req: Self::Request) -> Self::Future {
+        let connecting = self.connector.call(req);
+        let timeout = Timeout::new(self.connect_timeout, &self.handle).unwrap();
+
+        Box::new(connecting.select2(timeout).then(|res| {
+            match res {
+                Ok(Either::A((connecting, _))) => Ok(connecting),
+                Ok(Either::B((_, _))) => {
+                    Err(io::Error::new(
+                            io::ErrorKind::TimedOut,
+                            "Client timed out while connecting"
+                        ))
+                }
+                Err(Either::A((e, _))) => Err(e),
+                Err(Either::B((e, _))) => Err(e),
+            }
+        }))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::io;
+    use std::time::Duration;
     use tokio::reactor::Core;
-    use super::{Connect, HttpConnector};
+    use super::{Connect, HttpConnector, TimeoutConnector};
 
     #[test]
     fn test_errors_missing_authority() {
@@ -274,5 +342,19 @@ mod tests {
         let connector = HttpConnector::new(1, &core.handle());
 
         assert_eq!(core.run(connector.connect(url)).unwrap_err().kind(), io::ErrorKind::InvalidInput);
+    }
+
+    #[test]
+    fn test_timeout_connector() {
+        let mut core = Core::new().unwrap();
+        // 10.255.255.1 is a not a routable IP address
+        let url = "http://10.255.255.1".parse().unwrap();
+        let connector = TimeoutConnector::with_connector(
+            HttpConnector::new(1, &core.handle()),
+            &core.handle(),
+            Duration::from_millis(1)
+        );
+
+        assert_eq!(core.run(connector.connect(url)).unwrap_err().kind(), io::ErrorKind::TimedOut);
     }
 }

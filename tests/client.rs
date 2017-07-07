@@ -4,6 +4,7 @@ extern crate futures;
 extern crate tokio_core;
 extern crate pretty_env_logger;
 
+use std::error::Error;
 use std::io::{self, Read, Write};
 use std::net::TcpListener;
 use std::thread;
@@ -260,6 +261,54 @@ fn client_keep_alive() {
     let rx = rx2.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
     let res = client.get(format!("http://{}/b", addr).parse().unwrap());
     core.run(res.join(rx).map(|r| r.0)).unwrap();
+}
+
+#[test]
+fn client_read_timeout() {
+    let _ = pretty_env_logger::init();
+    let server = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = server.local_addr().unwrap();
+    let mut core = Core::new().unwrap();
+    let client = Client::configure().read_timeout(Some(Duration::from_millis(1))).build(&core.handle());
+
+    let (tx, rx) = oneshot::channel();
+    thread::spawn(move || {
+        let mut sock = server.accept().unwrap().0;
+        let mut buf = [0; 4096];
+        sock.read(&mut buf).expect("read 1");
+        let delay = Duration::from_millis(2);
+        thread::sleep(delay);
+        let _ = tx.send(());
+    });
+
+    let rx = rx.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+    let res = client.get(format!("http://{}/a", addr).parse().unwrap());
+
+    // tokio-proto currently swallows the read timeout error and returns "broken pipe" insetead
+    assert_eq!(core.run(res.join(rx).map(|r| r.0)).unwrap_err().description(), "broken pipe");
+}
+
+#[test]
+fn client_write_timeout() {
+    let _ = pretty_env_logger::init();
+    let server = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = server.local_addr().unwrap();
+    let mut core = Core::new().unwrap();
+    let client = Client::configure().write_timeout(Some(Duration::from_millis(1))).build(&core.handle());
+
+    let (tx, rx) = oneshot::channel();
+    thread::spawn(move || {
+        let _sock = server.accept().unwrap().0;
+        let delay = Duration::from_millis(2);
+        thread::sleep(delay);
+        let _ = tx.send(());
+    });
+
+    let rx = rx.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+    let res = client.get(format!("http://{}/a", addr).parse().unwrap());
+
+    // tokio-proto currently swallows the write timeout error and returns "broken pipe" insetead
+    assert_eq!(core.run(res.join(rx).map(|r| r.0)).unwrap_err().description(), "broken pipe");
 }
 
 
