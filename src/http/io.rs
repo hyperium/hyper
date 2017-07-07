@@ -89,6 +89,7 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
     fn read_from_io(&mut self) -> Poll<usize, io::Error> {
         use bytes::BufMut;
         // TODO: Investigate if we still need these unsafe blocks
+        //    Note: `AsyncRead::read_buf` also zeros memory if needed
         if self.read_buf.remaining_mut() < INIT_BUFFER_SIZE {
             self.read_buf.reserve(INIT_BUFFER_SIZE);
             unsafe { // Zero out unused memory
@@ -98,21 +99,11 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
             }
         }
         self.read_blocked = false;
-        unsafe { // Can we use AsyncRead::read_buf instead?
-            let n = match self.io.read(self.read_buf.bytes_mut()) {
-                Ok(n) => n,
-                Err(e) => {
-                    if e.kind() == io::ErrorKind::WouldBlock {
-                        // TODO: Push this out, ideally, into http::Conn.
-                        self.read_blocked = true;
-                        return Ok(Async::NotReady);
-                    }
-                    return Err(e)
-                }
-            };
-            self.read_buf.advance_mut(n);
-            Ok(Async::Ready(n))
-        }
+        self.io.read_buf(&mut self.read_buf).map(|async| {
+            // TODO: Push this out, ideally, into http::Conn.
+            self.read_blocked = async.is_not_ready();
+            async
+        })
     }
 
     pub fn buffer<B: AsRef<[u8]>>(&mut self, buf: B) -> usize {
