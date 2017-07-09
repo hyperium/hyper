@@ -1,7 +1,8 @@
 use std::fmt;
-use std::io::{self, Write};
+use std::io::{self, Cursor, Write};
 use std::marker::PhantomData;
 
+use bytes::Buf;
 use futures::{Poll, Async, AsyncSink, Stream, Sink, StartSend};
 use futures::task::Task;
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -9,7 +10,7 @@ use tokio_proto::streaming::pipeline::{Frame, Transport};
 
 use header::{ContentLength, TransferEncoding};
 use http::{self, Http1Transaction, DebugTruncate};
-use http::io::{Cursor, Buffered};
+use http::io::Buffered;
 use http::h1::{Encoder, Decoder};
 use version::HttpVersion;
 
@@ -252,8 +253,8 @@ where I: AsyncRead + AsyncWrite,
         // if a 100-continue has started but not finished sending, tack the
         // remainder on to the start of the buffer.
         if let Writing::Continue(ref pending) = self.state.writing {
-            if pending.has_started() {
-                buf.extend_from_slice(pending.buf());
+            if pending.position() != 0 {
+                buf.extend_from_slice(pending.bytes());
             }
         }
         let encoder = T::encode(head, buf);
@@ -278,11 +279,11 @@ where I: AsyncRead + AsyncWrite,
                 }
                 if let Some(chunk) = chunk {
                     let mut cursor = Cursor::new(chunk);
-                    match encoder.encode(&mut self.io, cursor.buf()) {
+                    match encoder.encode(&mut self.io, cursor.bytes()) {
                         Ok(n) => {
-                            cursor.consume(n);
+                            cursor.advance(n);
 
-                            if !cursor.is_written() {
+                            if cursor.has_remaining() {
                                 trace!("Conn::start_send frame not written, queued");
                                 *queued = Some(cursor);
                             }
@@ -320,9 +321,9 @@ where I: AsyncRead + AsyncWrite,
         trace!("Conn::write_queued()");
         let state = match self.state.writing {
             Writing::Continue(ref mut queued) => {
-                let n = self.io.buffer(queued.buf());
-                queued.consume(n);
-                if queued.is_written() {
+                let n = self.io.buffer(queued.bytes());
+                queued.advance(n);
+                if !queued.has_remaining() {
                     Writing::Init
                 } else {
                     return Ok(Async::NotReady);
@@ -330,9 +331,9 @@ where I: AsyncRead + AsyncWrite,
             }
             Writing::Body(ref mut encoder, ref mut queued) => {
                 let complete = if let Some(chunk) = queued.as_mut() {
-                    let n = try_nb!(encoder.encode(&mut self.io, chunk.buf()));
-                    chunk.consume(n);
-                    chunk.is_written()
+                    let n = try_nb!(encoder.encode(&mut self.io, chunk.bytes()));
+                    chunk.advance(n);
+                    !chunk.has_remaining()
                 } else {
                     true
                 };
@@ -345,9 +346,9 @@ where I: AsyncRead + AsyncWrite,
                 };
             },
             Writing::Ending(ref mut ending) => {
-                let n = self.io.buffer(ending.buf());
-                ending.consume(n);
-                if ending.is_written() {
+                let n = self.io.buffer(ending.bytes());
+                ending.advance(n);
+                if !ending.has_remaining() {
                     Writing::KeepAlive
                 } else {
                     return Ok(Async::NotReady);
@@ -531,15 +532,21 @@ impl<B: AsRef<[u8]>> fmt::Debug for Writing<B> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Writing::Continue(ref buf) => f.debug_tuple("Continue")
-                .field(buf)
+                .field(&DebugTruncate(buf.bytes()))
                 .finish(),
             Writing::Init => f.write_str("Init"),
-            Writing::Body(ref enc, ref queued) => f.debug_tuple("Body")
-                .field(enc)
-                .field(queued)
-                .finish(),
+            Writing::Body(ref enc, ref queued) => {
+                let bytes = match queued {
+                    &Some(ref cursor) => cursor.bytes(),
+                    &None => b"None",
+                };
+                f.debug_tuple("Body")
+                    .field(enc)
+                    .field(&DebugTruncate(bytes))
+                    .finish()
+            },
             Writing::Ending(ref ending) => f.debug_tuple("Ending")
-                .field(ending)
+                .field(&DebugTruncate(ending.bytes()))
                 .finish(),
             Writing::KeepAlive => f.write_str("KeepAlive"),
             Writing::Closed => f.write_str("Closed"),

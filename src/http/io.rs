@@ -1,13 +1,13 @@
 use std::cmp;
 use std::fmt;
-use std::io::{self, Write};
+use std::io::{self, Cursor, Write};
 use std::ptr;
 
 use futures::{Async, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use http::{Http1Transaction, MessageHead, DebugTruncate};
-use bytes::{BytesMut, Bytes};
+use http::{Http1Transaction, MessageHead};
+use bytes::{Buf, BytesMut, Bytes};
 
 const INIT_BUFFER_SIZE: usize = 8192;
 pub const MAX_BUFFER_SIZE: usize = 8192 + 4096 * 100;
@@ -45,7 +45,7 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
     pub fn write_buf_mut(&mut self) -> &mut Vec<u8> {
         self.write_buf.maybe_reset();
         self.write_buf.maybe_reserve(0);
-        &mut self.write_buf.0.bytes
+        self.write_buf.0.get_mut()
     }
 
     pub fn consume_leading_lines(&mut self) {
@@ -128,7 +128,7 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
     }
 }
 
-impl<T: Write> Write for Buffered<T> {
+impl<T: AsyncWrite> Write for Buffered<T> {
     fn write(&mut self, data: &[u8]) -> io::Result<usize> {
         Ok(self.write_buf.buffer(data))
     }
@@ -164,64 +164,6 @@ impl<T: AsyncRead + AsyncWrite> MemRead for Buffered<T> {
             let n = try_ready!(self.read_from_io());
             Ok(Async::Ready(self.read_buf.split_to(::std::cmp::min(len, n)).freeze()))
         }
-    }
-}
-
-#[derive(Clone)]
-pub struct Cursor<T> {
-    bytes: T,
-    pos: usize,
-}
-
-impl<T: AsRef<[u8]>> Cursor<T> {
-    pub fn new(bytes: T) -> Cursor<T> {
-        Cursor {
-            bytes: bytes,
-            pos: 0,
-        }
-    }
-
-    pub fn has_started(&self) -> bool {
-        self.pos != 0
-    }
-
-    pub fn is_written(&self) -> bool {
-        trace!("Cursor::is_written pos = {}, len = {}", self.pos, self.bytes.as_ref().len());
-        self.pos >= self.bytes.as_ref().len()
-    }
-
-    pub fn write_to<W: Write>(&mut self, dst: &mut W) -> io::Result<usize> {
-        if self.remaining() == 0 {
-            Ok(0)
-        } else {
-            dst.write(&self.bytes.as_ref()[self.pos..]).map(|n| {
-                self.pos += n;
-                n
-            })
-        }
-    }
-
-    fn remaining(&self) -> usize {
-        self.bytes.as_ref().len() - self.pos
-    }
-
-    #[inline]
-    pub fn buf(&self) -> &[u8] {
-        &self.bytes.as_ref()[self.pos..]
-    }
-
-    #[inline]
-    pub fn consume(&mut self, num: usize) {
-        trace!("Cursor::consume({})", num);
-        self.pos = ::std::cmp::min(self.bytes.as_ref().len(), self.pos + num);
-    }
-}
-
-impl<T: AsRef<[u8]>> fmt::Debug for Cursor<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_tuple("Cursor")
-            .field(&DebugTruncate(self.buf()))
-            .finish()
     }
 }
 
@@ -262,15 +204,22 @@ impl WriteBuf {
         WriteBuf(Cursor::new(Vec::new()))
     }
 
-    fn write_into<W: Write>(&mut self, w: &mut W) -> io::Result<usize> {
-        self.0.write_to(w)
+    fn write_into<W: AsyncWrite>(&mut self, w: &mut W) -> io::Result<usize> {
+        if self.remaining() == 0 {
+            Ok(0)
+        } else {
+            match try!(w.write_buf(&mut self.0)) {
+                Async::Ready(n) => Ok(n),
+                Async::NotReady => Err(io::ErrorKind::WouldBlock.into()),
+            }
+        }
     }
 
     fn buffer(&mut self, data: &[u8]) -> usize {
         trace!("WriteBuf::buffer() len = {:?}", data.len());
         self.maybe_reset();
         self.maybe_reserve(data.len());
-        let mut vec = &mut self.0.bytes;
+        let mut vec = &mut self.0.get_mut();
         let len = cmp::min(vec.capacity() - vec.len(), data.len());
         assert!(vec.capacity() - vec.len() >= len);
         unsafe {
@@ -292,7 +241,7 @@ impl WriteBuf {
 
     #[inline]
     fn maybe_reserve(&mut self, needed: usize) {
-        let mut vec = &mut self.0.bytes;
+        let mut vec = &mut self.0.get_mut();
         let cap = vec.capacity();
         if cap == 0 {
             let init = cmp::min(MAX_BUFFER_SIZE, cmp::max(INIT_BUFFER_SIZE, needed));
@@ -305,10 +254,10 @@ impl WriteBuf {
     }
 
     fn maybe_reset(&mut self) {
-        if self.0.pos != 0 && self.0.remaining() == 0 {
-            self.0.pos = 0;
+        if self.0.position() != 0 && self.0.remaining() == 0 {
+            self.0.set_position(0);
             unsafe {
-                self.0.bytes.set_len(0);
+                self.0.get_mut().set_len(0);
             }
         }
     }
