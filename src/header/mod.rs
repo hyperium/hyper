@@ -83,7 +83,7 @@ use std::{mem, fmt};
 use unicase::Ascii;
 
 use self::internals::{Item, VecMap, Entry};
-use self::sealed::{GetType, HeaderClone};
+use self::sealed::HeaderClone;
 
 pub use self::shared::*;
 pub use self::common::*;
@@ -101,7 +101,7 @@ pub mod parsing;
 ///
 /// This trait represents the construction and identification of headers,
 /// and contains trait-object unsafe methods.
-pub trait Header: HeaderClone + GetType + Send + Sync {
+pub trait Header: 'static + HeaderClone + Send + Sync {
     /// Returns the name of the header field this belongs to.
     ///
     /// This will become an associated constant once available.
@@ -132,18 +132,7 @@ pub trait Header: HeaderClone + GetType + Send + Sync {
 }
 
 mod sealed {
-    use std::any::{Any, TypeId};
     use super::Header;
-
-    #[doc(hidden)]
-    pub trait GetType: Any {
-        #[inline(always)]
-        fn get_type(&self) -> TypeId {
-            TypeId::of::<Self>()
-        }
-    }
-
-    impl<T: Any> GetType for T {}
 
     #[doc(hidden)]
     pub trait HeaderClone {
@@ -155,23 +144,6 @@ mod sealed {
         fn clone_box(&self) -> Box<Header + Send + Sync> {
             Box::new(self.clone())
         }
-    }
-
-    #[test]
-    fn test_get_type() {
-        use ::header::{ContentLength, UserAgent};
-
-        let len = ContentLength(5);
-        let agent = UserAgent::new("hyper");
-
-        assert_eq!(TypeId::of::<ContentLength>(), len.get_type());
-        assert_eq!(TypeId::of::<UserAgent>(), agent.get_type());
-
-        let len: Box<Header + Send + Sync> = Box::new(len);
-        let agent: Box<Header + Send + Sync> = Box::new(agent);
-
-        assert_eq!(TypeId::of::<ContentLength>(), (*len).get_type());
-        assert_eq!(TypeId::of::<UserAgent>(), (*agent).get_type());
     }
 }
 
