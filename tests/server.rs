@@ -16,6 +16,431 @@ use std::time::Duration;
 
 use hyper::server::{Http, Request, Response, Service, NewService};
 
+#[test]
+fn get_should_ignore_body() {
+    let server = serve();
+
+    let mut req = connect(server.addr());
+    // Connection: close = don't try to parse the body as a new request
+    req.write_all(b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: close\r\n\
+        \r\n\
+        I shouldn't be read.\r\n\
+    ").unwrap();
+    req.read(&mut [0; 256]).unwrap();
+
+    assert_eq!(server.body(), b"");
+}
+
+#[test]
+fn get_with_body() {
+    let server = serve();
+    let mut req = connect(server.addr());
+    req.write_all(b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Content-Length: 19\r\n\
+        \r\n\
+        I'm a good request.\r\n\
+    ").unwrap();
+    req.read(&mut [0; 256]).unwrap();
+
+    // note: doesn't include trailing \r\n, cause Content-Length wasn't 21
+    assert_eq!(server.body(), b"I'm a good request.");
+}
+
+#[test]
+fn get_fixed_response() {
+    let foo_bar = b"foo bar baz";
+    let server = serve();
+    server.reply()
+        .status(hyper::Ok)
+        .header(hyper::header::ContentLength(foo_bar.len() as u64))
+        .body(foo_bar);
+    let mut req = connect(server.addr());
+    req.write_all(b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: close\r\n\
+        \r\n\
+    ").unwrap();
+    let mut body = String::new();
+    req.read_to_string(&mut body).unwrap();
+    let n = body.find("\r\n\r\n").unwrap() + 4;
+
+    assert_eq!(&body[n..], "foo bar baz");
+}
+
+#[test]
+fn get_chunked_response() {
+    let foo_bar = b"foo bar baz";
+    let server = serve();
+    server.reply()
+        .status(hyper::Ok)
+        .header(hyper::header::TransferEncoding::chunked())
+        .body(foo_bar);
+    let mut req = connect(server.addr());
+    req.write_all(b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: close\r\n\
+        \r\n\
+    ").unwrap();
+    let mut body = String::new();
+    req.read_to_string(&mut body).unwrap();
+    let n = body.find("\r\n\r\n").unwrap() + 4;
+
+    assert_eq!(&body[n..], "B\r\nfoo bar baz\r\n0\r\n\r\n");
+}
+
+#[test]
+fn get_chunked_response_with_ka() {
+    let foo_bar = b"foo bar baz";
+    let foo_bar_chunk = b"\r\nfoo bar baz\r\n0\r\n\r\n";
+    let server = serve();
+    server.reply()
+        .status(hyper::Ok)
+        .header(hyper::header::TransferEncoding::chunked())
+        .body(foo_bar);
+    let mut req = connect(server.addr());
+    req.write_all(b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: keep-alive\r\n\
+        \r\n\
+    ").expect("writing 1");
+
+    let mut buf = [0; 1024 * 4];
+    let mut ntotal = 0;
+    loop {
+        let n = req.read(&mut buf[ntotal..]).expect("reading 1");
+        ntotal = ntotal + n;
+        assert!(ntotal < buf.len());
+        if &buf[ntotal - foo_bar_chunk.len()..ntotal] == foo_bar_chunk {
+            break;
+        }
+    }
+
+
+    // try again!
+
+    let quux = b"zar quux";
+    server.reply()
+        .status(hyper::Ok)
+        .header(hyper::header::ContentLength(quux.len() as u64))
+        .body(quux);
+    req.write_all(b"\
+        GET /quux HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: close\r\n\
+        \r\n\
+    ").expect("writing 2");
+
+    let mut buf = [0; 1024 * 8];
+    loop {
+        let n = req.read(&mut buf[..]).expect("reading 2");
+        assert!(n > 0, "n = {}", n);
+        if n < buf.len() && n > 0  {
+            if &buf[n - quux.len()..n] == quux {
+                break;
+            }
+        }
+    }
+}
+
+#[test]
+fn post_with_chunked_body() {
+    let server = serve();
+    let mut req = connect(server.addr());
+    req.write_all(b"\
+        POST / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Transfer-Encoding: chunked\r\n\
+        \r\n\
+        1\r\n\
+        q\r\n\
+        2\r\n\
+        we\r\n\
+        2\r\n\
+        rt\r\n\
+        0\r\n\
+        \r\n\
+    ").unwrap();
+    req.read(&mut [0; 256]).unwrap();
+
+    assert_eq!(server.body(), b"qwert");
+}
+
+#[test]
+fn empty_response_chunked() {
+    let server = serve();
+
+    server.reply()
+        .status(hyper::Ok)
+        .body("");
+
+    let mut req = connect(server.addr());
+    req.write_all(b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Content-Length: 0\r\n\
+        Connection: close\r\n\
+        \r\n\
+    ").unwrap();
+
+
+    let mut response = String::new();
+    req.read_to_string(&mut response).unwrap();
+
+    assert!(response.contains("Transfer-Encoding: chunked\r\n"));
+
+    let mut lines = response.lines();
+    assert_eq!(lines.next(), Some("HTTP/1.1 200 OK"));
+
+    let mut lines = lines.skip_while(|line| !line.is_empty());
+    assert_eq!(lines.next(), Some(""));
+    // 0\r\n\r\n
+    assert_eq!(lines.next(), Some("0"));
+    assert_eq!(lines.next(), Some(""));
+    assert_eq!(lines.next(), None);
+}
+
+#[test]
+fn empty_response_chunked_without_body_should_set_content_length() {
+    extern crate pretty_env_logger;
+    let _ = pretty_env_logger::init();
+    let server = serve();
+    server.reply()
+        .status(hyper::Ok)
+        .header(hyper::header::TransferEncoding::chunked());
+    let mut req = connect(server.addr());
+    req.write_all(b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: close\r\n\
+        \r\n\
+    ").unwrap();
+
+    let mut response = String::new();
+    req.read_to_string(&mut response).unwrap();
+
+    assert!(!response.contains("Transfer-Encoding: chunked\r\n"));
+    assert!(response.contains("Content-Length: 0\r\n"));
+
+    let mut lines = response.lines();
+    assert_eq!(lines.next(), Some("HTTP/1.1 200 OK"));
+
+    let mut lines = lines.skip_while(|line| !line.is_empty());
+    assert_eq!(lines.next(), Some(""));
+    assert_eq!(lines.next(), None);
+}
+
+#[test]
+fn head_response_can_send_content_length() {
+    extern crate pretty_env_logger;
+    let _ = pretty_env_logger::init();
+    let server = serve();
+    server.reply()
+        .status(hyper::Ok)
+        .header(hyper::header::ContentLength(1024));
+    let mut req = connect(server.addr());
+    req.write_all(b"\
+        HEAD / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: close\r\n\
+        \r\n\
+    ").unwrap();
+
+    let mut response = String::new();
+    req.read_to_string(&mut response).unwrap();
+
+    assert!(response.contains("Content-Length: 1024\r\n"));
+
+    let mut lines = response.lines();
+    assert_eq!(lines.next(), Some("HTTP/1.1 200 OK"));
+
+    let mut lines = lines.skip_while(|line| !line.is_empty());
+    assert_eq!(lines.next(), Some(""));
+    assert_eq!(lines.next(), None);
+}
+
+#[test]
+fn response_does_not_set_chunked_if_body_not_allowed() {
+    extern crate pretty_env_logger;
+    let _ = pretty_env_logger::init();
+    let server = serve();
+    server.reply()
+        .status(hyper::StatusCode::NotModified)
+        .header(hyper::header::TransferEncoding::chunked());
+    let mut req = connect(server.addr());
+    req.write_all(b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: close\r\n\
+        \r\n\
+    ").unwrap();
+
+    let mut response = String::new();
+    req.read_to_string(&mut response).unwrap();
+
+    assert!(!response.contains("Transfer-Encoding"));
+
+    let mut lines = response.lines();
+    assert_eq!(lines.next(), Some("HTTP/1.1 304 Not Modified"));
+
+    // no body or 0\r\n\r\n
+    let mut lines = lines.skip_while(|line| !line.is_empty());
+    assert_eq!(lines.next(), Some(""));
+    assert_eq!(lines.next(), None);
+}
+
+#[test]
+fn keep_alive() {
+    let foo_bar = b"foo bar baz";
+    let server = serve();
+    server.reply()
+        .status(hyper::Ok)
+        .header(hyper::header::ContentLength(foo_bar.len() as u64))
+        .body(foo_bar);
+    let mut req = connect(server.addr());
+    req.write_all(b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: keep-alive\r\n\
+        \r\n\
+    ").expect("writing 1");
+
+    let mut buf = [0; 1024 * 8];
+    loop {
+        let n = req.read(&mut buf[..]).expect("reading 1");
+        if n < buf.len() {
+            if &buf[n - foo_bar.len()..n] == foo_bar {
+                break;
+            } else {
+            }
+        }
+    }
+
+    // try again!
+
+    let quux = b"zar quux";
+    server.reply()
+        .status(hyper::Ok)
+        .header(hyper::header::ContentLength(quux.len() as u64))
+        .body(quux);
+    req.write_all(b"\
+        GET /quux HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: close\r\n\
+        \r\n\
+    ").expect("writing 2");
+
+    let mut buf = [0; 1024 * 8];
+    loop {
+        let n = req.read(&mut buf[..]).expect("reading 2");
+        assert!(n > 0, "n = {}", n);
+        if n < buf.len() {
+            if &buf[n - quux.len()..n] == quux {
+                break;
+            }
+        }
+    }
+}
+
+#[test]
+fn disable_keep_alive() {
+    let foo_bar = b"foo bar baz";
+    let server = serve_with_options(ServeOptions {
+        keep_alive_disabled: true,
+        .. Default::default()
+    });
+    server.reply()
+        .status(hyper::Ok)
+        .header(hyper::header::ContentLength(foo_bar.len() as u64))
+        .body(foo_bar);
+    let mut req = connect(server.addr());
+    req.write_all(b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: keep-alive\r\n\
+        \r\n\
+    ").expect("writing 1");
+
+    let mut buf = [0; 1024 * 8];
+    loop {
+        let n = req.read(&mut buf[..]).expect("reading 1");
+        if n < buf.len() {
+            if &buf[n - foo_bar.len()..n] == foo_bar {
+                break;
+            } else {
+            }
+        }
+    }
+
+    // try again!
+
+    let quux = b"zar quux";
+    server.reply()
+        .status(hyper::Ok)
+        .header(hyper::header::ContentLength(quux.len() as u64))
+        .body(quux);
+
+    let _ = req.write_all(b"\
+        GET /quux HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: close\r\n\
+        \r\n\
+    ");
+
+    // the write can possibly succeed, since it fills the kernel buffer on the first write
+    let mut buf = [0; 1024 * 8];
+    match req.read(&mut buf[..]) {
+        // Ok(0) means EOF, so a proper shutdown
+        // Err(_) could mean ConnReset or something, also fine
+        Ok(0) |
+        Err(_) => {}
+        Ok(n) => {
+            panic!("read {} bytes on a disabled keep-alive socket", n);
+        }
+    }
+}
+
+#[test]
+fn expect_continue() {
+    let server = serve();
+    let mut req = connect(server.addr());
+    server.reply().status(hyper::Ok);
+
+    req.write_all(b"\
+        POST /foo HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Expect: 100-continue\r\n\
+        Content-Length: 5\r\n\
+        Connection: Close\r\n\
+        \r\n\
+    ").expect("write 1");
+
+    let msg = b"HTTP/1.1 100 Continue\r\n\r\n";
+    let mut buf = vec![0; msg.len()];
+    req.read_exact(&mut buf).expect("read 1");
+    assert_eq!(buf, msg);
+
+    let msg = b"hello";
+    req.write_all(msg).expect("write 2");
+
+    let mut body = String::new();
+    req.read_to_string(&mut body).expect("read 2");
+
+    let body = server.body();
+    assert_eq!(body, msg);
+}
+
+// -------------------------------------------------
+// the Server that is used to run all the tests with
+// -------------------------------------------------
+
 struct Serve {
     addr: SocketAddr,
     msg_rx: mpsc::Receiver<Msg>,
@@ -190,366 +615,4 @@ fn serve_with_options(options: ServeOptions) -> Serve {
     }
 }
 
-#[test]
-fn server_get_should_ignore_body() {
-    let server = serve();
 
-    let mut req = connect(server.addr());
-    // Connection: close = don't try to parse the body as a new request
-    req.write_all(b"\
-        GET / HTTP/1.1\r\n\
-        Host: example.domain\r\n\
-        Connection: close\r\n\
-        \r\n\
-        I shouldn't be read.\r\n\
-    ").unwrap();
-    req.read(&mut [0; 256]).unwrap();
-
-    assert_eq!(server.body(), b"");
-}
-
-#[test]
-fn server_get_with_body() {
-    let server = serve();
-    let mut req = connect(server.addr());
-    req.write_all(b"\
-        GET / HTTP/1.1\r\n\
-        Host: example.domain\r\n\
-        Content-Length: 19\r\n\
-        \r\n\
-        I'm a good request.\r\n\
-    ").unwrap();
-    req.read(&mut [0; 256]).unwrap();
-
-    // note: doesn't include trailing \r\n, cause Content-Length wasn't 21
-    assert_eq!(server.body(), b"I'm a good request.");
-}
-
-#[test]
-fn server_get_fixed_response() {
-    let foo_bar = b"foo bar baz";
-    let server = serve();
-    server.reply()
-        .status(hyper::Ok)
-        .header(hyper::header::ContentLength(foo_bar.len() as u64))
-        .body(foo_bar);
-    let mut req = connect(server.addr());
-    req.write_all(b"\
-        GET / HTTP/1.1\r\n\
-        Host: example.domain\r\n\
-        Connection: close\r\n\
-        \r\n\
-    ").unwrap();
-    let mut body = String::new();
-    req.read_to_string(&mut body).unwrap();
-    let n = body.find("\r\n\r\n").unwrap() + 4;
-
-    assert_eq!(&body[n..], "foo bar baz");
-}
-
-#[test]
-fn server_get_chunked_response() {
-    let foo_bar = b"foo bar baz";
-    let server = serve();
-    server.reply()
-        .status(hyper::Ok)
-        .header(hyper::header::TransferEncoding::chunked())
-        .body(foo_bar);
-    let mut req = connect(server.addr());
-    req.write_all(b"\
-        GET / HTTP/1.1\r\n\
-        Host: example.domain\r\n\
-        Connection: close\r\n\
-        \r\n\
-    ").unwrap();
-    let mut body = String::new();
-    req.read_to_string(&mut body).unwrap();
-    let n = body.find("\r\n\r\n").unwrap() + 4;
-
-    assert_eq!(&body[n..], "B\r\nfoo bar baz\r\n0\r\n\r\n");
-}
-
-#[test]
-fn server_get_chunked_response_with_ka() {
-    let foo_bar = b"foo bar baz";
-    let foo_bar_chunk = b"\r\nfoo bar baz\r\n0\r\n\r\n";
-    let server = serve();
-    server.reply()
-        .status(hyper::Ok)
-        .header(hyper::header::TransferEncoding::chunked())
-        .body(foo_bar);
-    let mut req = connect(server.addr());
-    req.write_all(b"\
-        GET / HTTP/1.1\r\n\
-        Host: example.domain\r\n\
-        Connection: keep-alive\r\n\
-        \r\n\
-    ").expect("writing 1");
-
-    let mut buf = [0; 1024 * 4];
-    let mut ntotal = 0;
-    loop {
-        let n = req.read(&mut buf[ntotal..]).expect("reading 1");
-        ntotal = ntotal + n;
-        assert!(ntotal < buf.len());
-        if &buf[ntotal - foo_bar_chunk.len()..ntotal] == foo_bar_chunk {
-            break;
-        }
-    }
-
-
-    // try again!
-
-    let quux = b"zar quux";
-    server.reply()
-        .status(hyper::Ok)
-        .header(hyper::header::ContentLength(quux.len() as u64))
-        .body(quux);
-    req.write_all(b"\
-        GET /quux HTTP/1.1\r\n\
-        Host: example.domain\r\n\
-        Connection: close\r\n\
-        \r\n\
-    ").expect("writing 2");
-
-    let mut buf = [0; 1024 * 8];
-    loop {
-        let n = req.read(&mut buf[..]).expect("reading 2");
-        assert!(n > 0, "n = {}", n);
-        if n < buf.len() && n > 0  {
-            if &buf[n - quux.len()..n] == quux {
-                break;
-            }
-        }
-    }
-}
-
-
-
-#[test]
-fn server_post_with_chunked_body() {
-    let server = serve();
-    let mut req = connect(server.addr());
-    req.write_all(b"\
-        POST / HTTP/1.1\r\n\
-        Host: example.domain\r\n\
-        Transfer-Encoding: chunked\r\n\
-        \r\n\
-        1\r\n\
-        q\r\n\
-        2\r\n\
-        we\r\n\
-        2\r\n\
-        rt\r\n\
-        0\r\n\
-        \r\n\
-    ").unwrap();
-    req.read(&mut [0; 256]).unwrap();
-
-    assert_eq!(server.body(), b"qwert");
-}
-
-#[test]
-fn server_empty_response_chunked() {
-    let server = serve();
-
-    server.reply()
-        .status(hyper::Ok)
-        .body("");
-
-    let mut req = connect(server.addr());
-    req.write_all(b"\
-        GET / HTTP/1.1\r\n\
-        Host: example.domain\r\n\
-        Content-Length: 0\r\n\
-        Connection: close\r\n\
-        \r\n\
-    ").unwrap();
-
-
-    let mut response = String::new();
-    req.read_to_string(&mut response).unwrap();
-
-    assert!(response.contains("Transfer-Encoding: chunked\r\n"));
-
-    let mut lines = response.lines();
-    assert_eq!(lines.next(), Some("HTTP/1.1 200 OK"));
-
-    let mut lines = lines.skip_while(|line| !line.is_empty());
-    assert_eq!(lines.next(), Some(""));
-    // 0\r\n\r\n
-    assert_eq!(lines.next(), Some("0"));
-    assert_eq!(lines.next(), Some(""));
-    assert_eq!(lines.next(), None);
-}
-
-#[test]
-fn server_empty_response_chunked_without_body_should_set_content_length() {
-    extern crate pretty_env_logger;
-    let _ = pretty_env_logger::init();
-    let server = serve();
-    server.reply()
-        .status(hyper::Ok)
-        .header(hyper::header::TransferEncoding::chunked());
-    let mut req = connect(server.addr());
-    req.write_all(b"\
-        GET / HTTP/1.1\r\n\
-        Host: example.domain\r\n\
-        Connection: close\r\n\
-        \r\n\
-    ").unwrap();
-
-    let mut response = String::new();
-    req.read_to_string(&mut response).unwrap();
-
-    assert!(!response.contains("Transfer-Encoding: chunked\r\n"));
-    assert!(response.contains("Content-Length: 0\r\n"));
-
-    let mut lines = response.lines();
-    assert_eq!(lines.next(), Some("HTTP/1.1 200 OK"));
-
-    let mut lines = lines.skip_while(|line| !line.is_empty());
-    assert_eq!(lines.next(), Some(""));
-    assert_eq!(lines.next(), None);
-}
-
-#[test]
-fn server_keep_alive() {
-    let foo_bar = b"foo bar baz";
-    let server = serve();
-    server.reply()
-        .status(hyper::Ok)
-        .header(hyper::header::ContentLength(foo_bar.len() as u64))
-        .body(foo_bar);
-    let mut req = connect(server.addr());
-    req.write_all(b"\
-        GET / HTTP/1.1\r\n\
-        Host: example.domain\r\n\
-        Connection: keep-alive\r\n\
-        \r\n\
-    ").expect("writing 1");
-
-    let mut buf = [0; 1024 * 8];
-    loop {
-        let n = req.read(&mut buf[..]).expect("reading 1");
-        if n < buf.len() {
-            if &buf[n - foo_bar.len()..n] == foo_bar {
-                break;
-            } else {
-            }
-        }
-    }
-
-    // try again!
-
-    let quux = b"zar quux";
-    server.reply()
-        .status(hyper::Ok)
-        .header(hyper::header::ContentLength(quux.len() as u64))
-        .body(quux);
-    req.write_all(b"\
-        GET /quux HTTP/1.1\r\n\
-        Host: example.domain\r\n\
-        Connection: close\r\n\
-        \r\n\
-    ").expect("writing 2");
-
-    let mut buf = [0; 1024 * 8];
-    loop {
-        let n = req.read(&mut buf[..]).expect("reading 2");
-        assert!(n > 0, "n = {}", n);
-        if n < buf.len() {
-            if &buf[n - quux.len()..n] == quux {
-                break;
-            }
-        }
-    }
-}
-
-#[test]
-fn test_server_disable_keep_alive() {
-  let foo_bar = b"foo bar baz";
-    let server = serve_with_options(ServeOptions {
-        keep_alive_disabled: true,
-        .. Default::default()
-    });
-    server.reply()
-        .status(hyper::Ok)
-        .header(hyper::header::ContentLength(foo_bar.len() as u64))
-        .body(foo_bar);
-    let mut req = connect(server.addr());
-    req.write_all(b"\
-        GET / HTTP/1.1\r\n\
-        Host: example.domain\r\n\
-        Connection: keep-alive\r\n\
-        \r\n\
-    ").expect("writing 1");
-
-    let mut buf = [0; 1024 * 8];
-    loop {
-        let n = req.read(&mut buf[..]).expect("reading 1");
-        if n < buf.len() {
-            if &buf[n - foo_bar.len()..n] == foo_bar {
-                break;
-            } else {
-            }
-        }
-    }
-
-    // try again!
-
-    let quux = b"zar quux";
-    server.reply()
-        .status(hyper::Ok)
-        .header(hyper::header::ContentLength(quux.len() as u64))
-        .body(quux);
-
-    let _ = req.write_all(b"\
-        GET /quux HTTP/1.1\r\n\
-        Host: example.domain\r\n\
-        Connection: close\r\n\
-        \r\n\
-    ");
-
-    // the write can possibly succeed, since it fills the kernel buffer on the first write
-    let mut buf = [0; 1024 * 8];
-    match req.read(&mut buf[..]) {
-        // Ok(0) means EOF, so a proper shutdown
-        // Err(_) could mean ConnReset or something, also fine
-        Ok(0) |
-        Err(_) => {}
-        Ok(n) => {
-            panic!("read {} bytes on a disabled keep-alive socket", n);
-        }
-    }
-}
-
-#[test]
-fn expect_continue() {
-    let server = serve();
-    let mut req = connect(server.addr());
-    server.reply().status(hyper::Ok);
-
-    req.write_all(b"\
-        POST /foo HTTP/1.1\r\n\
-        Host: example.domain\r\n\
-        Expect: 100-continue\r\n\
-        Content-Length: 5\r\n\
-        Connection: Close\r\n\
-        \r\n\
-    ").expect("write 1");
-
-    let msg = b"HTTP/1.1 100 Continue\r\n\r\n";
-    let mut buf = vec![0; msg.len()];
-    req.read_exact(&mut buf).expect("read 1");
-    assert_eq!(buf, msg);
-
-    let msg = b"hello";
-    req.write_all(msg).expect("write 2");
-
-    let mut body = String::new();
-    req.read_to_string(&mut body).expect("read 2");
-
-    let body = server.body();
-    assert_eq!(body, msg);
-}

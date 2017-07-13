@@ -7,10 +7,10 @@ use futures::task::Task;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_proto::streaming::pipeline::{Frame, Transport};
 
-use header::{ContentLength, TransferEncoding};
 use http::{self, Http1Transaction, DebugTruncate};
 use http::io::{Cursor, Buffered};
 use http::h1::{Encoder, Decoder};
+use method::Method;
 use version::HttpVersion;
 
 
@@ -37,10 +37,11 @@ where I: AsyncRead + AsyncWrite,
         Conn {
             io: Buffered::new(io),
             state: State {
+                keep_alive: keep_alive,
+                method: None,
+                read_task: None,
                 reading: Reading::Init,
                 writing: Writing::Init,
-                read_task: None,
-                keep_alive: keep_alive,
             },
             _marker: PhantomData,
         }
@@ -103,7 +104,7 @@ where I: AsyncRead + AsyncWrite,
 
         match version {
             HttpVersion::Http10 | HttpVersion::Http11 => {
-                let decoder = match T::decoder(&head) {
+                let decoder = match T::decoder(&head, &mut self.state.method) {
                     Ok(d) => d,
                     Err(e) => {
                         debug!("decoder error = {:?}", e);
@@ -234,17 +235,8 @@ where I: AsyncRead + AsyncWrite,
         }
     }
 
-    fn write_head(&mut self, mut head: http::MessageHead<T::Outgoing>, body: bool) {
+    fn write_head(&mut self, head: http::MessageHead<T::Outgoing>, body: bool) {
         debug_assert!(self.can_write_head());
-        if !body {
-            head.headers.remove::<TransferEncoding>();
-            //TODO: check that this isn't a response to a HEAD
-            //request, which could include the content-length
-            //even if no body is to be written
-            if T::should_set_length(&head) {
-                head.headers.set(ContentLength(0));
-            }
-        }
 
         let wants_keep_alive = head.should_keep_alive();
         self.state.keep_alive &= wants_keep_alive;
@@ -256,8 +248,8 @@ where I: AsyncRead + AsyncWrite,
                 buf.extend_from_slice(pending.buf());
             }
         }
-        let encoder = T::encode(head, buf);
-        self.state.writing = if body {
+        let encoder = T::encode(head, body, &mut self.state.method, buf);
+        self.state.writing = if !encoder.is_eof() {
             Writing::Body(encoder, None)
         } else {
             Writing::KeepAlive
@@ -493,10 +485,11 @@ impl<I, B: AsRef<[u8]>, T, K: fmt::Debug> fmt::Debug for Conn<I, B, T, K> {
 }
 
 struct State<B, K> {
+    keep_alive: K,
+    method: Option<Method>,
+    read_task: Option<Task>,
     reading: Reading,
     writing: Writing<B>,
-    read_task: Option<Task>,
-    keep_alive: K,
 }
 
 #[derive(Debug)]
@@ -522,6 +515,7 @@ impl<B: AsRef<[u8]>, K: fmt::Debug> fmt::Debug for State<B, K> {
             .field("reading", &self.reading)
             .field("writing", &self.writing)
             .field("keep_alive", &self.keep_alive)
+            .field("method", &self.method)
             .field("read_task", &self.read_task)
             .finish()
     }
@@ -641,6 +635,7 @@ impl<B, K: KeepAlive> State<B, K> {
     }
 
     fn idle(&mut self) {
+        self.method = None;
         self.reading = Reading::Init;
         self.writing = Writing::Init;
         self.keep_alive.idle();

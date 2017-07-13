@@ -144,9 +144,8 @@ pub trait Http1Transaction {
     type Incoming;
     type Outgoing: Default;
     fn parse(bytes: &mut BytesMut) -> ParseResult<Self::Incoming>;
-    fn decoder(head: &MessageHead<Self::Incoming>) -> ::Result<h1::Decoder>;
-    fn encode(head: MessageHead<Self::Outgoing>, dst: &mut Vec<u8>) -> h1::Encoder;
-    fn should_set_length(head: &MessageHead<Self::Outgoing>) -> bool;
+    fn decoder(head: &MessageHead<Self::Incoming>, method: &mut Option<::Method>) -> ::Result<h1::Decoder>;
+    fn encode(head: MessageHead<Self::Outgoing>, has_body: bool, method: &mut Option<Method>, dst: &mut Vec<u8>) -> h1::Encoder;
 }
 
 pub type ParseResult<T> = ::Result<Option<(MessageHead<T>, usize)>>;
