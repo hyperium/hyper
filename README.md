@@ -24,6 +24,8 @@ layer over "stringly-typed" HTTP.
 hyper offers both an HTTP client and server which can be used to drive
 complex web applications written entirely in Rust.
 
+For those wanting a higher-level HTTP/HTTPS client built on top of Hyper, see [reqwest](https://github.com/seanmonstar/reqwest). 
+
 hyper makes use of "async IO" (non-blocking sockets) via the [Tokio](https://tokio.rs) and [Futures](https://docs.rs/futures) libraries.
 
 See the [Hello World](https://github.com/hyperium/hyper/blob/master/examples/hello.rs) example for a toy server using hyper.
