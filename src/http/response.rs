@@ -93,6 +93,10 @@ impl<B> Response<B> {
         self.set_body(body);
         self
     }
+
+    /// Read the body.
+    #[inline]
+    pub fn body_ref(&self) -> Option<&B> { self.body.as_ref() }
 }
 
 impl Response<Body> {
