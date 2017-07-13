@@ -6,6 +6,10 @@
 //! strongly-typed theme, the [mime](https://docs.rs/mime) crate
 //! is used, such as `ContentType(pub Mime)`.
 
+pub use self::accept_charset::AcceptCharset;
+pub use self::accept_encoding::AcceptEncoding;
+pub use self::accept_language::AcceptLanguage;
+pub use self::accept_ranges::{AcceptRanges, RangeUnit};
 pub use self::accept::Accept;
 pub use self::access_control_allow_credentials::AccessControlAllowCredentials;
 pub use self::access_control_allow_headers::AccessControlAllowHeaders;
@@ -15,18 +19,14 @@ pub use self::access_control_expose_headers::AccessControlExposeHeaders;
 pub use self::access_control_max_age::AccessControlMaxAge;
 pub use self::access_control_request_headers::AccessControlRequestHeaders;
 pub use self::access_control_request_method::AccessControlRequestMethod;
-pub use self::accept_charset::AcceptCharset;
-pub use self::accept_encoding::AcceptEncoding;
-pub use self::accept_language::AcceptLanguage;
-pub use self::accept_ranges::{AcceptRanges, RangeUnit};
 pub use self::allow::Allow;
 pub use self::authorization::{Authorization, Scheme, Basic, Bearer};
 pub use self::cache_control::{CacheControl, CacheDirective};
 pub use self::connection::{Connection, ConnectionOption};
 pub use self::content_disposition::{ContentDisposition, DispositionType, DispositionParam};
-pub use self::content_length::ContentLength;
 pub use self::content_encoding::ContentEncoding;
 pub use self::content_language::ContentLanguage;
+pub use self::content_length::ContentLength;
 pub use self::content_location::ContentLocation;
 pub use self::content_range::{ContentRange, ContentRangeSpec};
 pub use self::content_type::ContentType;
@@ -40,9 +40,10 @@ pub use self::host::Host;
 pub use self::if_match::IfMatch;
 pub use self::if_modified_since::IfModifiedSince;
 pub use self::if_none_match::IfNoneMatch;
-pub use self::if_unmodified_since::IfUnmodifiedSince;
 pub use self::if_range::IfRange;
+pub use self::if_unmodified_since::IfUnmodifiedSince;
 pub use self::last_modified::LastModified;
+pub use self::link::{Link, LinkValue, RelationType, MediaDesc};
 pub use self::location::Location;
 pub use self::origin::Origin;
 pub use self::pragma::Pragma;
@@ -60,7 +61,6 @@ pub use self::upgrade::{Upgrade, Protocol, ProtocolName};
 pub use self::user_agent::UserAgent;
 pub use self::vary::Vary;
 pub use self::warning::Warning;
-pub use self::link::{Link, LinkValue, RelationType, MediaDesc};
 
 #[doc(hidden)]
 #[macro_export]
@@ -438,6 +438,10 @@ macro_rules! header {
 }
 
 
+mod accept_charset;
+mod accept_encoding;
+mod accept_language;
+mod accept_ranges;
 mod accept;
 mod access_control_allow_credentials;
 mod access_control_allow_headers;
@@ -447,14 +451,9 @@ mod access_control_expose_headers;
 mod access_control_max_age;
 mod access_control_request_headers;
 mod access_control_request_method;
-mod accept_charset;
-mod accept_encoding;
-mod accept_language;
-mod accept_ranges;
 mod allow;
 mod authorization;
 mod cache_control;
-mod cookie;
 mod connection;
 mod content_disposition;
 mod content_encoding;
@@ -463,6 +462,7 @@ mod content_length;
 mod content_location;
 mod content_range;
 mod content_type;
+mod cookie;
 mod date;
 mod etag;
 mod expect;
@@ -475,6 +475,7 @@ mod if_none_match;
 mod if_range;
 mod if_unmodified_since;
 mod last_modified;
+mod link;
 mod location;
 mod origin;
 mod pragma;
@@ -492,4 +493,3 @@ mod upgrade;
 mod user_agent;
 mod vary;
 mod warning;
-mod link;
