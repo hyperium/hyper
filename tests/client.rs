@@ -12,7 +12,7 @@ use std::time::Duration;
 use hyper::client::{Client, Request, HttpConnector};
 use hyper::{Method, StatusCode};
 
-use futures::Future;
+use futures::{Future, Stream};
 use futures::sync::oneshot;
 
 use tokio_core::reactor::{Core, Handle};
@@ -93,6 +93,12 @@ macro_rules! test {
             $(
                 assert_eq!(res.headers().get(), Some(&$response_headers));
             )*
+
+            let body = core.run(res.body().concat2()).unwrap();
+
+            let expected_res_body = Option::<&[u8]>::from($response_body)
+                .unwrap_or_default();
+            assert_eq!(body.as_ref(), expected_res_body);
         }
     );
 }
@@ -219,6 +225,36 @@ test! {
             headers: [],
             body: None,
             proxy: true,
+        response:
+            status: Ok,
+            headers: [],
+            body: None,
+}
+
+
+test! {
+    name: client_head_ignores_body,
+
+    server:
+        expected: "\
+            HEAD /head HTTP/1.1\r\n\
+            Host: {addr}\r\n\
+            \r\n\
+            ",
+        reply: "\
+            HTTP/1.1 200 OK\r\n\
+            Content-Length: 11\r\n\
+            \r\n\
+            Hello World\
+            ",
+
+    client:
+        request:
+            method: Head,
+            url: "http://{addr}/head",
+            headers: [],
+            body: None,
+            proxy: false,
         response:
             status: Ok,
             headers: [],
