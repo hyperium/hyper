@@ -16,6 +16,7 @@ use tokio_proto::streaming::Message;
 use tokio_proto::streaming::pipeline::ClientProto;
 use tokio_proto::util::client_proxy::ClientProxy;
 pub use tokio_service::Service;
+use tokio_io_timeout::TimeoutStream;
 
 use header::{Headers, Host};
 use http::{self, TokioBody};
@@ -27,7 +28,7 @@ use uri::{self, Uri};
 
 pub use http::response::Response;
 pub use http::request::Request;
-pub use self::connect::{HttpConnector, Connect};
+pub use self::connect::{HttpConnector, Connect, TimeoutConnector};
 
 mod connect;
 mod dns;
@@ -39,6 +40,9 @@ pub struct Client<C, B = http::Body> {
     connector: C,
     handle: Handle,
     pool: Pool<TokioClient<B>>,
+    //connect_timeout: Option<Duration>,
+    read_timeout: Option<Duration>,
+    write_timeout: Option<Duration>,
 }
 
 impl Client<HttpConnector, http::Body> {
@@ -87,6 +91,9 @@ impl<C, B> Client<C, B> {
             connector: config.connector,
             handle: handle.clone(),
             pool: Pool::new(config.keep_alive, config.keep_alive_timeout),
+            //connect_timeout: config.connect_timeout,
+            read_timeout: config.read_timeout,
+            write_timeout: config.write_timeout,
         }
     }
 }
@@ -162,8 +169,13 @@ where C: Connect,
             let handle = self.handle.clone();
             let pool = self.pool.clone();
             let pool_key = Rc::new(domain.to_string());
+            let read_timeout = self.read_timeout.clone();
+            let write_timeout = self.write_timeout.clone();
             self.connector.connect(url)
                 .map(move |io| {
+                    let mut io = TimeoutStream::new(io, &handle);
+                    io.set_read_timeout(read_timeout);
+                    io.set_write_timeout(write_timeout);
                     let (tx, rx) = oneshot::channel();
                     let client = HttpClient {
                         client_rx: RefCell::new(Some(rx)),
@@ -209,6 +221,9 @@ impl<C: Clone, B> Clone for Client<C, B> {
             connector: self.connector.clone(),
             handle: self.handle.clone(),
             pool: self.pool.clone(),
+            //connect_timeout: self.connect_timeout.clone(),
+            read_timeout: self.read_timeout.clone(),
+            write_timeout: self.write_timeout.clone(),
         }
     }
 }
@@ -273,7 +288,9 @@ where T: AsyncRead + AsyncWrite + 'static,
 /// Configuration for a Client
 pub struct Config<C, B> {
     _body_type: PhantomData<B>,
-    //connect_timeout: Duration,
+    //connect_timeout: Option<Duration>,
+    read_timeout: Option<Duration>,
+    write_timeout: Option<Duration>,
     connector: C,
     keep_alive: bool,
     keep_alive_timeout: Option<Duration>,
@@ -289,7 +306,9 @@ impl Default for Config<UseDefaultConnector, http::Body> {
     fn default() -> Config<UseDefaultConnector, http::Body> {
         Config {
             _body_type: PhantomData::<http::Body>,
-            //connect_timeout: Duration::from_secs(10),
+            //connect_timeout: Some(Duration::from_secs(10)),
+            read_timeout: Some(Duration::from_secs(10)),
+            write_timeout: Some(Duration::from_secs(10)),
             connector: UseDefaultConnector(()),
             keep_alive: true,
             keep_alive_timeout: Some(Duration::from_secs(90)),
@@ -312,11 +331,13 @@ impl<C, B> Config<C, B> {
     pub fn body<BB>(self) -> Config<C, BB> {
         Config {
             _body_type: PhantomData::<BB>,
-            //connect_timeout: self.connect_timeout,
             connector: self.connector,
             keep_alive: self.keep_alive,
             keep_alive_timeout: self.keep_alive_timeout,
             max_idle: self.max_idle,
+            //connect_timeout: self.connect_timeout,
+            read_timeout: self.read_timeout,
+            write_timeout: self.write_timeout,
         }
     }
 
@@ -325,11 +346,13 @@ impl<C, B> Config<C, B> {
     pub fn connector<CC>(self, val: CC) -> Config<CC, B> {
         Config {
             _body_type: self._body_type,
-            //connect_timeout: self.connect_timeout,
             connector: val,
             keep_alive: self.keep_alive,
             keep_alive_timeout: self.keep_alive_timeout,
             max_idle: self.max_idle,
+            //connect_timeout: self.connect_timeout,
+            read_timeout: self.read_timeout,
+            write_timeout: self.write_timeout,
         }
     }
 
@@ -358,11 +381,29 @@ impl<C, B> Config<C, B> {
     ///
     /// Default is 10 seconds.
     #[inline]
-    pub fn connect_timeout(mut self, val: Duration) -> Config<C, B> {
+    pub fn connect_timeout(mut self, val: Option<Duration>) -> Config<C, B> {
         self.connect_timeout = val;
         self
     }
     */
+
+    /// Set the timeout for the response.
+    ///
+    /// Default is 10 seconds.
+    #[inline]
+    pub fn read_timeout(mut self, val: Option<Duration>) -> Config<C, B> {
+        self.read_timeout = val;
+        self
+    }
+
+    /// Set the timeout for the request.
+    ///
+    /// Default is 10 seconds.
+    #[inline]
+    pub fn write_timeout(mut self, val: Option<Duration>) -> Config<C, B> {
+        self.write_timeout = val;
+        self
+    }
 }
 
 impl<C, B> Config<C, B>
@@ -406,6 +447,9 @@ impl<C: Clone, B> Clone for Config<C, B> {
             keep_alive: self.keep_alive,
             keep_alive_timeout: self.keep_alive_timeout,
             max_idle: self.max_idle,
+            //connect_timeout: self.connect_timeout,
+            read_timeout: self.read_timeout,
+            write_timeout: self.write_timeout,
         }
     }
 }
