@@ -57,6 +57,8 @@ pub use self::transfer_encoding::TransferEncoding;
 pub use self::upgrade::{Upgrade, Protocol, ProtocolName};
 pub use self::user_agent::UserAgent;
 pub use self::vary::Vary;
+pub use self::www_authenticate::{WwwAuthenticate, Challenge, RawChallenge, ChallengeFields,
+                                 BasicChallenge, DigestChallenge, Qop, Algorithm};
 pub use self::link::{Link, LinkValue, RelationType, MediaDesc};
 
 #[doc(hidden)]
@@ -392,4 +394,5 @@ mod transfer_encoding;
 mod upgrade;
 mod user_agent;
 mod vary;
+mod www_authenticate;
 mod link;
