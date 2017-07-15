@@ -883,15 +883,17 @@ fn parse<R: Read, T: TryParse<Subject=I>, I>(rdr: &mut BufReader<R>) -> ::Result
             },
             _partial => ()
         }
-        match try!(rdr.read_into_buf()) {
-            0 if rdr.get_buf().is_empty() => {
+        let n = try!(rdr.read_into_buf());
+        if n == 0 {
+            let buffered = rdr.get_buf().len();
+            if buffered == ::buffer::MAX_BUFFER_SIZE {
+                return Err(Error::TooLarge);
+            } else {
                 return Err(Error::Io(io::Error::new(
-                    io::ErrorKind::ConnectionAborted,
-                    "Connection closed"
-                )))
-            },
-            0 => return Err(Error::TooLarge),
-            _ => ()
+                    io::ErrorKind::UnexpectedEof,
+                    "end of stream before headers finished"
+                )));
+            }
         }
     }
 }
@@ -1156,7 +1158,7 @@ mod tests {
         let mut empty = MockStream::new();
         let mut buf = BufReader::new(&mut empty);
         match parse_request(&mut buf) {
-            Err(Error::Io(ref e)) if e.kind() == ErrorKind::ConnectionAborted => (),
+            Err(Error::Io(ref e)) if e.kind() == ErrorKind::UnexpectedEof => (),
             other => panic!("unexpected result: {:?}", other)
         }
     }

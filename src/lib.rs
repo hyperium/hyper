@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://hyper.rs/hyper/v0.10.11")]
+#![doc(html_root_url = "https://docs.rs/hyper/v0.10.12")]
 #![cfg_attr(test, deny(missing_docs))]
 #![cfg_attr(test, deny(warnings))]
 #![cfg_attr(all(test, feature = "nightly"), feature(test))]
@@ -164,13 +164,6 @@ macro_rules! todo(
     })
 );
 
-macro_rules! deprecated {
-    (#[$note:meta] $i:item) => (
-        #[cfg_attr(has_deprecated, $note)]
-        $i
-    );
-}
-
 #[cfg(test)]
 #[macro_use]
 mod mock;
@@ -192,16 +185,18 @@ pub mod mime {
     pub use mime_crate::*;
 }
 
-#[allow(unconditional_recursion)]
-fn _assert_send<T: Send>() {
+
+fn _assert_types() {
+    fn _assert_send<T: Send>() {}
+    fn _assert_sync<T: Sync>() {}
+
     _assert_send::<Client>();
     _assert_send::<client::Request<net::Fresh>>();
     _assert_send::<client::Response>();
     _assert_send::<error::Error>();
-}
+    _assert_send::<::client::pool::Pool<::net::DefaultConnector>>();
 
-#[allow(unconditional_recursion)]
-fn _assert_sync<T: Sync>() {
     _assert_sync::<Client>();
     _assert_sync::<error::Error>();
+    _assert_sync::<::client::pool::Pool<::net::DefaultConnector>>();
 }

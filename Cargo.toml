@@ -1,28 +1,26 @@
 [package]
 
 name = "hyper"
-version = "0.10.11"
+version = "0.10.12" # remember to update html_root_url
 description = "A modern HTTP library."
 readme = "README.md"
 homepage = "http://hyper.rs"
-documentation = "http://hyper.rs/hyper"
+documentation = "https://docs.rs/hyper"
 repository = "https://github.com/hyperium/hyper"
 license = "MIT"
 authors = ["Sean McArthur <sean.monstar@gmail.com>",
            "Jonathan Reem <jonathan.reem@gmail.com>"]
 keywords = ["http", "hyper", "hyperium"]
 categories = ["web-programming::http-client", "web-programming::http-server"]
-build = "build.rs"
 
 include = [
-  "build.rs",
   "Cargo.toml",
   "LICENSE",
   "src/**/*"
 ]
 
 [dependencies]
-base64 = "0.5.2"
+base64 = "0.6.0"
 httparse = "1.0"
 language-tags = "0.2"
 log = "0.3"
@@ -36,9 +34,6 @@ url = "1.0"
 
 [dev-dependencies]
 env_logger = "0.4"
-
-[build-dependencies]
-rustc_version = "0.1"
 
 [features]
 nightly = []

@@ -9,7 +9,7 @@ pub struct BufReader<R> {
 }
 
 const INIT_BUFFER_SIZE: usize = 4096;
-const MAX_BUFFER_SIZE: usize = 8192 + 4096 * 100;
+pub const MAX_BUFFER_SIZE: usize = 8192 + 4096 * 100;
 
 impl<R: Read> BufReader<R> {
     #[inline]
