@@ -269,6 +269,10 @@ where I: AsyncRead + AsyncWrite,
                     return Ok(AsyncSink::NotReady(chunk));
                 }
                 if let Some(chunk) = chunk {
+                    if chunk.as_ref().is_empty() {
+                        return Ok(AsyncSink::Ready);
+                    }
+
                     let mut cursor = Cursor::new(chunk);
                     match encoder.encode(&mut self.io, cursor.buf()) {
                         Ok(n) => {

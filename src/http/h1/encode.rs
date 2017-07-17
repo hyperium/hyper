@@ -63,7 +63,7 @@ impl Encoder {
                 };
 
                 if n == 0 {
-                    return Err(io::Error::new(io::ErrorKind::WouldBlock, "would block"));
+                    return Err(io::Error::new(io::ErrorKind::WriteZero, "write zero"));
                 }
 
                 *remaining -= n as u64;
