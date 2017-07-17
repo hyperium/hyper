@@ -130,7 +130,12 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
 
 impl<T: Write> Write for Buffered<T> {
     fn write(&mut self, data: &[u8]) -> io::Result<usize> {
-        Ok(self.write_buf.buffer(data))
+        let n = self.write_buf.buffer(data);
+        if n == 0 {
+            Err(io::Error::from(io::ErrorKind::WouldBlock))
+        } else {
+            Ok(n)
+        }
     }
 
     fn flush(&mut self) -> io::Result<()> {
