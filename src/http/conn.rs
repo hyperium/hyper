@@ -441,7 +441,8 @@ where I: AsyncRead + AsyncWrite,
                                 })
                             }
                         });
-                } else if chunk.is_none() {
+                // This allows when chunk is `None`, or `Some([])`.
+                } else if chunk.as_ref().map(|c| c.as_ref().len()).unwrap_or(0) == 0 {
                     return Ok(AsyncSink::Ready);
                 } else {
                     Frame::Body { chunk: chunk }
@@ -931,5 +932,16 @@ mod tests {
         }
 
         assert!(conn.state.is_write_closed());
+    }
+
+    #[test]
+    fn test_conn_write_empty_chunk() {
+        let io = AsyncIo::new_buf(vec![], 0);
+        let mut conn = Conn::<_, http::Chunk, ServerTransaction>::new(io, Default::default());
+        conn.state.writing = Writing::KeepAlive;
+
+        assert!(conn.start_send(Frame::Body { chunk: None }).unwrap().is_ready());
+        assert!(conn.start_send(Frame::Body { chunk: Some(Vec::new().into()) }).unwrap().is_ready());
+        conn.start_send(Frame::Body { chunk: Some(vec![b'a'].into()) }).unwrap_err();
     }
 }
