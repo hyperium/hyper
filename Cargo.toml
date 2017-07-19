@@ -39,8 +39,14 @@ unicase = "2.0"
 num_cpus = "1.0"
 pretty_env_logger = "0.1"
 spmc = "0.2"
+flate2 = "0.2"
+hyper-tls =  "0.1"
 
 [features]
 default = []
 nightly = []
 raw_status = []
+
+
+[replace]
+"hyper:0.11.1" = { path = "." }
