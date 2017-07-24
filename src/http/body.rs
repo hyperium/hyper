@@ -8,6 +8,7 @@ use http::Chunk;
 pub type TokioBody = tokio_proto::streaming::Body<Chunk, ::Error>;
 
 /// A `Stream` for `Chunk`s used in requests and responses.
+#[must_use = "streams do nothing unless polled"]
 #[derive(Debug)]
 pub struct Body(TokioBody);
 

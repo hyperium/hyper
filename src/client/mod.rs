@@ -110,6 +110,7 @@ where C: Connect,
 }
 
 /// A `Future` that will resolve to an HTTP Response.
+#[must_use = "futures do nothing unless polled"]
 pub struct FutureResponse(Box<Future<Item=Response, Error=::Error> + 'static>);
 
 impl fmt::Debug for FutureResponse {
