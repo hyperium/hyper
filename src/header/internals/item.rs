@@ -57,13 +57,10 @@ impl Item {
         match self.typed.get(tid) {
             Some(val) => Some(val),
             None => {
-                match parse::<H>(self.raw.as_ref().expect("item.raw must exist")) {
-                    Ok(typed) => {
-                        unsafe { self.typed.insert(tid, typed); }
-                        self.typed.get(tid)
-                    },
-                    Err(_) => None
-                }
+                parse::<H>(self.raw.as_ref().expect("item.raw must exist")).and_then(|typed| {
+                    unsafe { self.typed.insert(tid, typed); }
+                    self.typed.get(tid)
+                })
             }
         }.map(|typed| unsafe { typed.downcast_ref_unchecked() })
     }
@@ -71,12 +68,9 @@ impl Item {
     pub fn typed_mut<H: Header>(&mut self) -> Option<&mut H> {
         let tid = TypeId::of::<H>();
         if self.typed.get_mut(tid).is_none() {
-            match parse::<H>(self.raw.as_ref().expect("item.raw must exist")) {
-                Ok(typed) => {
-                    unsafe { self.typed.insert(tid, typed); }
-                },
-                Err(_) => ()
-            }
+            parse::<H>(self.raw.as_ref().expect("item.raw must exist")).map(|typed| {
+                unsafe { self.typed.insert(tid, typed); }
+            });
         }
         if self.raw.is_some() && self.typed.get_mut(tid).is_some() {
             self.raw = OptCell::new(None);
@@ -86,10 +80,10 @@ impl Item {
 
     pub fn into_typed<H: Header>(self) -> Option<H> {
         let tid = TypeId::of::<H>();
-        match self.typed.into_value(tid) {
-            Some(val) => Some(val),
-            None => parse::<H>(self.raw.as_ref().expect("item.raw must exist")).ok()
-        }.map(|typed| unsafe { typed.downcast_unchecked() })
+        let Item { typed, raw } = self;
+        typed.into_value(tid)
+            .or_else(|| raw.as_ref().and_then(parse::<H>))
+            .map(|typed| unsafe { typed.downcast_unchecked() })
     }
 
     pub fn write_h1(&self, f: &mut Formatter) -> fmt::Result {
@@ -117,9 +111,9 @@ impl Item {
 }
 
 #[inline]
-fn parse<H: Header>(raw: &Raw) -> ::Result<Box<Header + Send + Sync>> {
+fn parse<H: Header>(raw: &Raw) -> Option<Box<Header + Send + Sync>> {
     H::parse_header(raw).map(|h| {
         let h: Box<Header + Send + Sync> = Box::new(h);
         h
-    })
+    }).ok()
 }

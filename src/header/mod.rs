@@ -863,6 +863,12 @@ mod tests {
         let mut headers = Headers::new();
         headers.set(ContentLength(10));
         assert_eq!(headers.remove(), Some(ContentLength(10)));
+        assert_eq!(headers.len(), 0);
+
+        headers.set(ContentLength(9));
+        assert_eq!(headers.len(), 1);
+        assert!(headers.remove::<CrazyLength>().is_none());
+        assert_eq!(headers.len(), 0);
     }
 
     #[test]
