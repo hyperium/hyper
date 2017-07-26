@@ -48,6 +48,6 @@ impl Iterator for IpAddrs {
 pub type Answer = io::Result<IpAddrs>;
 
 fn work(hostname: String, port: u16) -> Answer {
-    debug!("resolve {:?}:{:?}", hostname, port);
+    debug!("resolve host={:?}, port={:?}", hostname, port);
     (&*hostname, port).to_socket_addrs().map(|i| IpAddrs { iter: i })
 }
