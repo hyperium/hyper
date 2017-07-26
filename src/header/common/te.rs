@@ -25,19 +25,19 @@ header! {
     ///
     /// # Examples
     /// ```
-    /// use hyper::header::{Headers, TE, Encoding, qitem};
+    /// use hyper::header::{Headers, Te, Encoding, qitem};
     ///
     /// let mut headers = Headers::new();
     /// headers.set(
-    ///     TE(vec![qitem(Encoding::Trailers)])
+    ///     Te(vec![qitem(Encoding::Trailers)])
     /// );
     /// ```
     /// ```
-    /// use hyper::header::{Headers, TE, Encoding, qitem};
+    /// use hyper::header::{Headers, Te, Encoding, qitem};
     ///
     /// let mut headers = Headers::new();
     /// headers.set(
-    ///     TE(vec![
+    ///     Te(vec![
     ///         qitem(Encoding::Trailers),
     ///         qitem(Encoding::Gzip),
     ///         qitem(Encoding::Deflate),
@@ -45,18 +45,18 @@ header! {
     /// );
     /// ```
     /// ```
-    /// use hyper::header::{Headers, TE, Encoding, QualityItem, q, qitem};
+    /// use hyper::header::{Headers, Te, Encoding, QualityItem, q, qitem};
     ///
     /// let mut headers = Headers::new();
     /// headers.set(
-    ///     TE(vec![
+    ///     Te(vec![
     ///         qitem(Encoding::Trailers),
     ///         QualityItem::new(Encoding::Gzip, q(600)),
     ///         QualityItem::new(Encoding::EncodingExt("*".to_owned()), q(0)),
     ///     ])
     /// );
     /// ```
-    (TE, "TE") => (QualityItem<Encoding>)*
+    (Te, "TE") => (QualityItem<Encoding>)*
 
     test_te {
         // From the RFC

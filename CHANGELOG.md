@@ -1,3 +1,11 @@
+### v0.11.1 (2017-07-03)
+
+
+#### Features
+
+* **server:** Handle 100-continue ([6164e764](https://github.com/hyperium/hyper/commit/6164e76405935065aeb912f94ba94230e0bac60f))
+
+
 ## v0.11.0 (2017-06-13)
 
 #### Bug Fixes

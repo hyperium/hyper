@@ -5,7 +5,7 @@ use http::{MessageHead, ResponseHead, Body};
 use status::StatusCode;
 use version::HttpVersion;
 
-/// A response for a client request to a remote server.
+/// An HTTP Response
 pub struct Response<B = Body> {
     version: HttpVersion,
     headers: Headers,
@@ -93,6 +93,10 @@ impl<B> Response<B> {
         self.set_body(body);
         self
     }
+
+    /// Read the body.
+    #[inline]
+    pub fn body_ref(&self) -> Option<&B> { self.body.as_ref() }
 }
 
 impl Response<Body> {
@@ -143,9 +147,8 @@ impl fmt::Debug for Response {
 #[cfg(not(feature = "raw_status"))]
 pub fn from_wire<B>(incoming: ResponseHead, body: Option<B>) -> Response<B> {
     let status = incoming.status();
-    trace!("Response::new");
-    debug!("version={:?}, status={:?}", incoming.version, status);
-    debug!("headers={:?}", incoming.headers);
+    info!("Response::new \"{} {}\"", incoming.version, status);
+    debug!("Response::new headers={:?}", incoming.headers);
 
     Response::<B> {
         status: status,
@@ -160,9 +163,8 @@ pub fn from_wire<B>(incoming: ResponseHead, body: Option<B>) -> Response<B> {
 #[cfg(feature = "raw_status")]
 pub fn from_wire<B>(incoming: ResponseHead, body: Option<B>) -> Response<B> {
     let status = incoming.status();
-    trace!("Response::new");
-    debug!("version={:?}, status={:?}", incoming.version, status);
-    debug!("headers={:?}", incoming.headers);
+    info!("Response::new \"{} {}\"", incoming.version, status);
+    debug!("Response::new headers={:?}", incoming.headers);
 
     Response::<B> {
         status: status,

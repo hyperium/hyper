@@ -4,7 +4,7 @@ use std::fmt;
 
 use bytes::BytesMut;
 
-use header::{Connection, ConnectionOption};
+use header::{Connection, ConnectionOption, Expect};
 use header::Headers;
 use method::Method;
 use status::StatusCode;
@@ -15,7 +15,6 @@ use version::HttpVersion::{Http10, Http11};
 pub use self::conn::{Conn, KeepAlive, KA};
 pub use self::body::{Body, TokioBody};
 pub use self::chunk::Chunk;
-pub use self::str::ByteStr;
 
 mod body;
 mod chunk;
@@ -23,23 +22,9 @@ mod conn;
 mod io;
 mod h1;
 //mod h2;
-mod str;
 pub mod request;
 pub mod response;
 
-/*
-macro_rules! nonblocking {
-    ($e:expr) => ({
-        match $e {
-            Ok(n) => Ok(Some(n)),
-            Err(e) => match e.kind() {
-                stdio::ErrorKind::WouldBlock => Ok(None),
-                _ => Err(e)
-            }
-        }
-    });
-}
-*/
 
 /// An Incoming Message head. Includes request/status line, and headers.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -70,6 +55,10 @@ pub type ResponseHead = MessageHead<RawStatus>;
 impl<S> MessageHead<S> {
     pub fn should_keep_alive(&self) -> bool {
         should_keep_alive(self.version, &self.headers)
+    }
+
+    pub fn expecting_continue(&self) -> bool {
+        expecting_continue(self.version, &self.headers)
     }
 }
 
@@ -134,6 +123,17 @@ pub fn should_keep_alive(version: HttpVersion, headers: &Headers) -> bool {
     ret
 }
 
+/// Checks if a connection is expecting a `100 Continue` before sending its body.
+#[inline]
+pub fn expecting_continue(version: HttpVersion, headers: &Headers) -> bool {
+    let ret = match (version, headers.get::<Expect>()) {
+        (Http11, Some(&Expect::Continue)) => true,
+        _ => false
+    };
+    trace!("expecting_continue(version={:?}, header={:?}) = {:?}", version, headers.get::<Expect>(), ret);
+    ret
+}
+
 #[derive(Debug)]
 pub enum ServerTransaction {}
 
@@ -144,9 +144,8 @@ pub trait Http1Transaction {
     type Incoming;
     type Outgoing: Default;
     fn parse(bytes: &mut BytesMut) -> ParseResult<Self::Incoming>;
-    fn decoder(head: &MessageHead<Self::Incoming>) -> ::Result<h1::Decoder>;
-    fn encode(head: MessageHead<Self::Outgoing>, dst: &mut Vec<u8>) -> h1::Encoder;
-    fn should_set_length(head: &MessageHead<Self::Outgoing>) -> bool;
+    fn decoder(head: &MessageHead<Self::Incoming>, method: &mut Option<::Method>) -> ::Result<h1::Decoder>;
+    fn encode(head: MessageHead<Self::Outgoing>, has_body: bool, method: &mut Option<Method>, dst: &mut Vec<u8>) -> h1::Encoder;
 }
 
 pub type ParseResult<T> = ::Result<Option<(MessageHead<T>, usize)>>;
@@ -182,4 +181,16 @@ fn test_should_keep_alive() {
     headers.set(Connection::keep_alive());
     assert!(should_keep_alive(Http10, &headers));
     assert!(should_keep_alive(Http11, &headers));
+}
+
+#[test]
+fn test_expecting_continue() {
+    let mut headers = Headers::new();
+
+    assert!(!expecting_continue(Http10, &headers));
+    assert!(!expecting_continue(Http11, &headers));
+
+    headers.set(Expect::Continue);
+    assert!(!expecting_continue(Http10, &headers));
+    assert!(expecting_continue(Http11, &headers));
 }

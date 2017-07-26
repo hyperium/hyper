@@ -110,6 +110,7 @@ where C: Connect,
 }
 
 /// A `Future` that will resolve to an HTTP Response.
+#[must_use = "futures do nothing unless polled"]
 pub struct FutureResponse(Box<Future<Item=Response, Error=::Error> + 'static>);
 
 impl fmt::Debug for FutureResponse {
@@ -184,7 +185,7 @@ where C: Connect,
                 // never had a pooled stream at all
                 e.into()
             });
-        let req = race.and_then(move |client| {
+        let resp = race.and_then(move |client| {
             let msg = match body {
                 Some(body) => {
                     Message::WithBody(head, body.into())
@@ -193,7 +194,7 @@ where C: Connect,
             };
             client.call(msg)
         });
-        FutureResponse(Box::new(req.map(|msg| {
+        FutureResponse(Box::new(resp.map(|msg| {
             match msg {
                 Message::WithoutBody(head) => response::from_wire(head, None),
                 Message::WithBody(head, body) => response::from_wire(head, Some(body.into())),

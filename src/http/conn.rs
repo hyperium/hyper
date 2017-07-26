@@ -1,17 +1,16 @@
 use std::fmt;
 use std::io::{self, Write};
 use std::marker::PhantomData;
-use std::time::Instant;
 
 use futures::{Poll, Async, AsyncSink, Stream, Sink, StartSend};
 use futures::task::Task;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_proto::streaming::pipeline::{Frame, Transport};
 
-use header::{ContentLength, TransferEncoding};
 use http::{self, Http1Transaction, DebugTruncate};
 use http::io::{Cursor, Buffered};
 use http::h1::{Encoder, Decoder};
+use method::Method;
 use version::HttpVersion;
 
 
@@ -38,19 +37,15 @@ where I: AsyncRead + AsyncWrite,
         Conn {
             io: Buffered::new(io),
             state: State {
+                keep_alive: keep_alive,
+                method: None,
+                read_task: None,
                 reading: Reading::Init,
                 writing: Writing::Init,
-                read_task: None,
-                keep_alive: keep_alive,
             },
             _marker: PhantomData,
         }
     }
-
-    fn parse(&mut self) -> ::Result<Option<http::MessageHead<T::Incoming>>> {
-        self.io.parse::<T>()
-    }
-
 
     fn is_read_closed(&self) -> bool {
         self.state.is_read_closed()
@@ -68,6 +63,13 @@ where I: AsyncRead + AsyncWrite,
         }
     }
 
+    fn can_write_continue(&self) -> bool {
+        match self.state.writing {
+            Writing::Continue(..) => true,
+            _ => false,
+        }
+    }
+
     fn can_read_body(&self) -> bool {
         match self.state.reading {
             Reading::Body(..) => true,
@@ -79,9 +81,9 @@ where I: AsyncRead + AsyncWrite,
         debug_assert!(self.can_read_head());
         trace!("Conn::read_head");
 
-        let (version, head) = match self.parse() {
-            Ok(Some(head)) => (head.version, head),
-            Ok(None) => return Ok(Async::NotReady),
+        let (version, head) = match self.io.parse::<T>() {
+            Ok(Async::Ready(head)) => (head.version, head),
+            Ok(Async::NotReady) => return Ok(Async::NotReady),
             Err(e) => {
                 let must_respond_with_error = !self.state.is_idle();
                 self.state.close_read();
@@ -102,7 +104,7 @@ where I: AsyncRead + AsyncWrite,
 
         match version {
             HttpVersion::Http10 | HttpVersion::Http11 => {
-                let decoder = match T::decoder(&head) {
+                let decoder = match T::decoder(&head, &mut self.state.method) {
                     Ok(d) => d,
                     Err(e) => {
                         debug!("decoder error = {:?}", e);
@@ -111,6 +113,10 @@ where I: AsyncRead + AsyncWrite,
                     }
                 };
                 self.state.busy();
+                if head.expecting_continue() {
+                    let msg = b"HTTP/1.1 100 Continue\r\n\r\n";
+                    self.state.writing = Writing::Continue(Cursor::new(msg));
+                }
                 let wants_keep_alive = head.should_keep_alive();
                 self.state.keep_alive &= wants_keep_alive;
                 let (body, reading) = if decoder.is_eof() {
@@ -136,7 +142,7 @@ where I: AsyncRead + AsyncWrite,
 
         let (reading, ret) = match self.state.reading {
             Reading::Body(ref mut decoder) => {
-                let slice = try_nb!(decoder.decode(&mut self.io));
+                let slice = try_ready!(decoder.decode(&mut self.io));
                 if !slice.is_empty() {
                     return Ok(Async::Ready(Some(http::Chunk::from(slice))));
                 } else if decoder.is_eof() {
@@ -158,7 +164,13 @@ where I: AsyncRead + AsyncWrite,
             // us that it is ready until we drain it. However, we're currently
             // finished reading, so we need to park the task to be able to
             // wake back up later when more reading should happen.
-            self.state.read_task = Some(::futures::task::current());
+            let park = self.state.read_task.as_ref()
+                .map(|t| !t.will_notify_current())
+                .unwrap_or(true);
+            if park {
+                trace!("parking current task");
+                self.state.read_task = Some(::futures::task::current());
+            }
         }
     }
 
@@ -178,6 +190,7 @@ where I: AsyncRead + AsyncWrite,
         }
 
         match self.state.writing {
+            Writing::Continue(..) |
             Writing::Body(..) |
             Writing::Ending(..) => return,
             Writing::Init |
@@ -185,8 +198,10 @@ where I: AsyncRead + AsyncWrite,
             Writing::Closed => (),
         }
 
-        if let Some(task) = self.state.read_task.take() {
-            task.notify();
+        if !self.io.is_read_blocked() {
+            if let Some(ref task) = self.state.read_task {
+                task.notify();
+            }
         }
     }
 
@@ -197,7 +212,7 @@ where I: AsyncRead + AsyncWrite,
 
     fn can_write_head(&self) -> bool {
         match self.state.writing {
-            Writing::Init => true,
+            Writing::Continue(..) | Writing::Init => true,
             _ => false
         }
     }
@@ -205,6 +220,7 @@ where I: AsyncRead + AsyncWrite,
     fn can_write_body(&self) -> bool {
         match self.state.writing {
             Writing::Body(..) => true,
+            Writing::Continue(..) |
             Writing::Init |
             Writing::Ending(..) |
             Writing::KeepAlive |
@@ -219,31 +235,25 @@ where I: AsyncRead + AsyncWrite,
         }
     }
 
-    fn write_head(&mut self, mut head: http::MessageHead<T::Outgoing>, body: bool) -> StartSend<http::MessageHead<T::Outgoing>,io::Error> {
+    fn write_head(&mut self, head: http::MessageHead<T::Outgoing>, body: bool) {
         debug_assert!(self.can_write_head());
-        if !body {
-            head.headers.remove::<TransferEncoding>();
-            //TODO: check that this isn't a response to a HEAD
-            //request, which could include the content-length
-            //even if no body is to be written
-            if T::should_set_length(&head) {
-                head.headers.set(ContentLength(0));
-            }
-        }
 
         let wants_keep_alive = head.should_keep_alive();
         self.state.keep_alive &= wants_keep_alive;
-        let mut buf = Vec::new();
-        let encoder = T::encode(head, &mut buf);
-        //TODO: handle when there isn't enough room to buffer the head
-        assert!(self.io.buffer(buf) > 0);
-        self.state.writing = if body {
+        let mut buf = self.io.write_buf_mut();
+        // if a 100-continue has started but not finished sending, tack the
+        // remainder on to the start of the buffer.
+        if let Writing::Continue(ref pending) = self.state.writing {
+            if pending.has_started() {
+                buf.extend_from_slice(pending.buf());
+            }
+        }
+        let encoder = T::encode(head, body, &mut self.state.method, buf);
+        self.state.writing = if !encoder.is_eof() {
             Writing::Body(encoder, None)
         } else {
             Writing::KeepAlive
         };
-
-        Ok(AsyncSink::Ready)
     }
 
     fn write_body(&mut self, chunk: Option<B>) -> StartSend<Option<B>, io::Error> {
@@ -259,6 +269,10 @@ where I: AsyncRead + AsyncWrite,
                     return Ok(AsyncSink::NotReady(chunk));
                 }
                 if let Some(chunk) = chunk {
+                    if chunk.as_ref().is_empty() {
+                        return Ok(AsyncSink::Ready);
+                    }
+
                     let mut cursor = Cursor::new(chunk);
                     match encoder.encode(&mut self.io, cursor.buf()) {
                         Ok(n) => {
@@ -301,6 +315,15 @@ where I: AsyncRead + AsyncWrite,
     fn write_queued(&mut self) -> Poll<(), io::Error> {
         trace!("Conn::write_queued()");
         let state = match self.state.writing {
+            Writing::Continue(ref mut queued) => {
+                let n = self.io.buffer(queued.buf());
+                queued.consume(n);
+                if queued.is_written() {
+                    Writing::Init
+                } else {
+                    return Ok(Async::NotReady);
+                }
+            }
             Writing::Body(ref mut encoder, ref mut queued) => {
                 let complete = if let Some(chunk) = queued.as_mut() {
                     let n = try_nb!(encoder.encode(&mut self.io, chunk.buf()));
@@ -358,26 +381,29 @@ where I: AsyncRead + AsyncWrite,
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         trace!("Conn::poll()");
-        self.state.read_task.take();
 
-        if self.is_read_closed() {
-            trace!("Conn::poll when closed");
-            Ok(Async::Ready(None))
-        } else if self.can_read_head() {
-            self.read_head()
-        } else if self.can_read_body() {
-            self.read_body()
-                .map(|async| async.map(|chunk| Some(Frame::Body {
-                    chunk: chunk
-                })))
-                .or_else(|err| {
-                    self.state.close_read();
-                    Ok(Async::Ready(Some(Frame::Error { error: err.into() })))
-                })
-        } else {
-            trace!("poll when on keep-alive");
-            self.maybe_park_read();
-            Ok(Async::NotReady)
+        loop {
+            if self.is_read_closed() {
+                trace!("Conn::poll when closed");
+                return Ok(Async::Ready(None));
+            } else if self.can_read_head() {
+                return self.read_head();
+            } else if self.can_write_continue() {
+                try_nb!(self.flush());
+            } else if self.can_read_body() {
+                return self.read_body()
+                    .map(|async| async.map(|chunk| Some(Frame::Body {
+                        chunk: chunk
+                    })))
+                    .or_else(|err| {
+                        self.state.close_read();
+                        Ok(Async::Ready(Some(Frame::Error { error: err.into() })))
+                    });
+            } else {
+                trace!("poll when on keep-alive");
+                self.maybe_park_read();
+                return Ok(Async::NotReady);
+            }
         }
     }
 }
@@ -391,24 +417,15 @@ where I: AsyncRead + AsyncWrite,
     type SinkItem = Frame<http::MessageHead<T::Outgoing>, B, ::Error>;
     type SinkError = io::Error;
 
+    #[inline]
     fn start_send(&mut self, frame: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
         trace!("Conn::start_send( frame={:?} )", DebugFrame(&frame));
 
         let frame: Self::SinkItem = match frame {
             Frame::Message { message: head, body } => {
                 if self.can_write_head() {
-                    return self.write_head(head, body)
-                        .map(|async| {
-                            match async {
-                                AsyncSink::Ready => AsyncSink::Ready,
-                                AsyncSink::NotReady(head) => {
-                                    AsyncSink::NotReady(Frame::Message {
-                                        message: head,
-                                        body: body,
-                                    })
-                                }
-                            }
-                        })
+                    self.write_head(head, body);
+                    return Ok(AsyncSink::Ready);
                 } else {
                     Frame::Message { message: head, body: body }
                 }
@@ -424,7 +441,8 @@ where I: AsyncRead + AsyncWrite,
                                 })
                             }
                         });
-                } else if chunk.is_none() {
+                // This allows when chunk is `None`, or `Some([])`.
+                } else if chunk.as_ref().map(|c| c.as_ref().len()).unwrap_or(0) == 0 {
                     return Ok(AsyncSink::Ready);
                 } else {
                     Frame::Body { chunk: chunk }
@@ -472,10 +490,11 @@ impl<I, B: AsRef<[u8]>, T, K: fmt::Debug> fmt::Debug for Conn<I, B, T, K> {
 }
 
 struct State<B, K> {
+    keep_alive: K,
+    method: Option<Method>,
+    read_task: Option<Task>,
     reading: Reading,
     writing: Writing<B>,
-    read_task: Option<Task>,
-    keep_alive: K,
 }
 
 #[derive(Debug)]
@@ -487,6 +506,7 @@ enum Reading {
 }
 
 enum Writing<B> {
+    Continue(Cursor<&'static [u8]>),
     Init,
     Body(Encoder, Option<Cursor<B>>),
     Ending(Cursor<&'static [u8]>),
@@ -500,6 +520,7 @@ impl<B: AsRef<[u8]>, K: fmt::Debug> fmt::Debug for State<B, K> {
             .field("reading", &self.reading)
             .field("writing", &self.writing)
             .field("keep_alive", &self.keep_alive)
+            .field("method", &self.method)
             .field("read_task", &self.read_task)
             .finish()
     }
@@ -508,6 +529,9 @@ impl<B: AsRef<[u8]>, K: fmt::Debug> fmt::Debug for State<B, K> {
 impl<B: AsRef<[u8]>> fmt::Debug for Writing<B> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
+            Writing::Continue(ref buf) => f.debug_tuple("Continue")
+                .field(buf)
+                .finish(),
             Writing::Init => f.write_str("Init"),
             Writing::Body(ref enc, ref queued) => f.debug_tuple("Body")
                 .field(enc)
@@ -539,7 +563,7 @@ pub trait KeepAlive: fmt::Debug + ::std::ops::BitAndAssign<bool> {
 
 #[derive(Clone, Copy, Debug)]
 pub enum KA {
-    Idle(Instant),
+    Idle,
     Busy,
     Disabled,
 }
@@ -552,7 +576,7 @@ impl Default for KA {
 
 impl KeepAlive for KA {
     fn idle(&mut self) {
-        *self = KA::Idle(Instant::now());
+        *self = KA::Idle;
     }
 
     fn busy(&mut self) {
@@ -579,6 +603,7 @@ impl<B, K: KeepAlive> State<B, K> {
     fn close_read(&mut self) {
         trace!("State::close_read()");
         self.reading = Reading::Closed;
+        self.read_task = None;
         self.keep_alive.disable();
     }
 
@@ -600,7 +625,7 @@ impl<B, K: KeepAlive> State<B, K> {
     }
 
     fn is_idle(&self) -> bool {
-        if let KA::Idle(..) = self.keep_alive.status() {
+        if let KA::Idle = self.keep_alive.status() {
             true
         } else {
             false
@@ -615,6 +640,7 @@ impl<B, K: KeepAlive> State<B, K> {
     }
 
     fn idle(&mut self) {
+        self.method = None;
         self.reading = Reading::Init;
         self.writing = Writing::Init;
         self.keep_alive.idle();
@@ -778,6 +804,8 @@ mod tests {
 
     #[test]
     fn test_conn_body_write_length() {
+        extern crate pretty_env_logger;
+        let _ = pretty_env_logger::init();
         let _: Result<(), ()> = future::lazy(|| {
             let io = AsyncIo::new_buf(vec![], 0);
             let mut conn = Conn::<_, http::Chunk, ServerTransaction>::new(io, Default::default());
@@ -904,5 +932,16 @@ mod tests {
         }
 
         assert!(conn.state.is_write_closed());
+    }
+
+    #[test]
+    fn test_conn_write_empty_chunk() {
+        let io = AsyncIo::new_buf(vec![], 0);
+        let mut conn = Conn::<_, http::Chunk, ServerTransaction>::new(io, Default::default());
+        conn.state.writing = Writing::KeepAlive;
+
+        assert!(conn.start_send(Frame::Body { chunk: None }).unwrap().is_ready());
+        assert!(conn.start_send(Frame::Body { chunk: Some(Vec::new().into()) }).unwrap().is_ready());
+        conn.start_send(Frame::Body { chunk: Some(vec![b'a'].into()) }).unwrap_err();
     }
 }

@@ -147,6 +147,7 @@ impl StdError for InvalidUrl {
 }
 
 /// A Future representing work to connect to a URL.
+#[must_use = "futures do nothing unless polled"]
 pub struct HttpConnecting {
     state: State,
     handle: Handle,

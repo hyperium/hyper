@@ -23,7 +23,7 @@ header! {
     ///
     /// # Example values
     /// * `text/html; charset=utf-8`
-    /// * `application/json
+    /// * `application/json`
     ///
     /// # Examples
     /// ```
@@ -45,7 +45,7 @@ header! {
     ///     ContentType(mime::TEXT_HTML)
     /// );
     /// ```
-    (ContentType, "Content-Type") => [Mime]
+    (ContentType, "Content-Type") => danger [Mime]
 
     test_content_type {
         test_header!(
