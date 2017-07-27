@@ -1,3 +1,28 @@
+### v0.11.2 (2017-07-27)
+
+
+#### Bug Fixes
+
+* **client:** don't assume bodies on 204 and 304 Responses ([81c0d185](https://github.com/hyperium/hyper/commit/81c0d185bdb2cb11e0fba231e3259097f492dd7d), closes [#1242](https://github.com/hyperium/hyper/issues/1242))
+* **header:** fix panic from headers.remove when typed doesn't match ([4bd9746a](https://github.com/hyperium/hyper/commit/4bd9746a0fa56ddc578ec5a8044e6c37390f3770))
+* **http:**
+  * allow zero-length chunks when no body is allowed ([9b47e186](https://github.com/hyperium/hyper/commit/9b47e1861a6bd766f21c88b95ecfc9b45fad874d))
+  * fix encoding when buffer is full ([fc5b9cce](https://github.com/hyperium/hyper/commit/fc5b9cce3176776e4c916cd1b907b1649a538f00))
+  * skip zero length chunks when encoding ([d6da3f7b](https://github.com/hyperium/hyper/commit/d6da3f7b40550b425f760d0d331807feff9114fd))
+* **server:**
+  * improve detection of when a Response can have a body ([673e5cb1](https://github.com/hyperium/hyper/commit/673e5cb1a3dadea178e51677fa660a1258610ae8), closes [#1257](https://github.com/hyperium/hyper/issues/1257))
+  * reject Requests with invalid body lengths ([14cbd400](https://github.com/hyperium/hyper/commit/14cbd40071816ec04dd1921e599c1d5cca883898))
+  * do not automatically set ContentLength for 204 and 304 Responses ([c4c89a22](https://github.com/hyperium/hyper/commit/c4c89a22f8f1ebc74a13a6ee75a8209081dcb535))
+* **uri:** fix Uri parsing of IPv6 and userinfo ([7081c449](https://github.com/hyperium/hyper/commit/7081c4498e707c1240c7e672d39ba4948fffb558), closes [#1269](https://github.com/hyperium/hyper/issues/1269))
+
+
+#### Features
+
+* **headers:** export missing header types ([c9f4ff33](https://github.com/hyperium/hyper/commit/c9f4ff33821df1bff557dfddac1ba3fc6255ee62))
+* **server:** Provide reference to Response body ([a79fc98e](https://github.com/hyperium/hyper/commit/a79fc98e36eac485803b1ab97f35c60198fd72cb), closes [#1216](https://github.com/hyperium/hyper/issues/1216))
+* **status:** add `as_u16()` method to `StatusCode` ([5f6f252c](https://github.com/hyperium/hyper/commit/5f6f252c603c642be8037682c1bf7e7ed2392a53))
+
+
 ### v0.11.1 (2017-07-03)
 
 
