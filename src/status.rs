@@ -307,7 +307,28 @@ impl StatusCode {
         }
     }
 
-    fn to_u16(&self) -> u16 {
+    /// Get the `u16` code from this `StatusCode`.
+    ///
+    /// Also available as `From`/`Into<u16>`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use hyper::StatusCode;
+    ///
+    /// let status = StatusCode::Ok;
+    /// assert_eq!(status.as_u16(), 200);
+    ///
+    /// // Into
+    /// let num: u16 = status.into();
+    /// assert_eq!(num, 200);
+    ///
+    /// // From
+    /// let other = u16::from(status);
+    /// assert_eq!(num, other);
+    /// ```
+    #[inline]
+    pub fn as_u16(&self) -> u16 {
         match *self {
             StatusCode::Continue => 100,
             StatusCode::SwitchingProtocols => 101,
@@ -498,7 +519,7 @@ impl StatusCode {
     }
 
     fn class(&self) -> StatusClass {
-        match self.to_u16() {
+        match self.as_u16() {
             100...199 => StatusClass::Informational,
             200...299 => StatusClass::Success,
             300...399 => StatusClass::Redirection,
@@ -520,8 +541,9 @@ impl Copy for StatusCode {}
 ///            "123 <unknown status code>");
 /// ```
 impl fmt::Display for StatusCode {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} {}", self.to_u16(),
+        write!(f, "{} {}", self.as_u16(),
                self.canonical_reason().unwrap_or("<unknown status code>"))
     }
 }
@@ -529,7 +551,7 @@ impl fmt::Display for StatusCode {
 impl PartialEq for StatusCode {
     #[inline]
     fn eq(&self, other: &StatusCode) -> bool {
-        self.to_u16() == other.to_u16()
+        self.as_u16() == other.as_u16()
     }
 }
 
@@ -545,7 +567,7 @@ impl Clone for StatusCode {
 impl PartialOrd for StatusCode {
     #[inline]
     fn partial_cmp(&self, other: &StatusCode) -> Option<Ordering> {
-        self.to_u16().partial_cmp(&(other.to_u16()))
+        self.as_u16().partial_cmp(&(other.as_u16()))
     }
 }
 
@@ -570,7 +592,7 @@ impl Default for StatusCode {
 
 impl From<StatusCode> for u16 {
     fn from(code: StatusCode) -> u16 {
-        code.to_u16()
+        code.as_u16()
     }
 }
 
@@ -632,7 +654,7 @@ mod tests {
     //   - canonical reason
     fn validate(num: u16, status_code: StatusCode, _default_code: StatusCode, reason: Option<&str>) {
         assert_eq!(StatusCode::from_u16(num), status_code);
-        assert_eq!(status_code.to_u16(), num);
+        assert_eq!(status_code.as_u16(), num);
         //assert_eq!(status_code.class().default_code(), default_code);
         assert_eq!(status_code.canonical_reason(), reason);
     }
