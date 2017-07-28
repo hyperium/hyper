@@ -98,6 +98,20 @@ impl<B> Request<B> {
     #[inline]
     pub fn set_body<T: Into<B>>(&mut self, body: T) { self.body = Some(body.into()); }
 
+    /// Set the body and move the Request, using the previous body as context.
+    #[inline]
+    pub fn map_body<F: FnOnce(B) -> T, T>(self, f: F) -> Request<T> {
+        Request {
+            method: self.method,
+            uri: self.uri,
+            version: self.version,
+            headers: self.headers,
+            body: self.body.map(f),
+            is_proxy: self.is_proxy,
+            remote_addr: self.remote_addr,
+        }
+    }
+
     /// Set that the URI should use the absolute form.
     ///
     /// This is only needed when talking to HTTP/1 proxies to URLs not

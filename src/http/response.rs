@@ -94,6 +94,31 @@ impl<B> Response<B> {
         self
     }
 
+    /// Set the body and move the Response, using the previous body as context.
+    #[cfg(not(feature = "raw_status"))]
+    #[inline]
+    pub fn map_body<F: FnOnce(B) -> T, T>(self, f: F) -> Response<T> {
+        Response {
+            version: self.version,
+            headers: self.headers,
+            status: self.status,
+            body: self.body.map(f),
+        }
+    }
+
+    /// Set the body and move the Response, using the previous body as context.
+    #[cfg(feature = "raw_status")]
+    #[inline]
+    pub fn map_body<F: FnOnce(B) -> T, T>(self, f: F) -> Response<T> {
+        Response {
+            version: self.version,
+            headers: self.headers,
+            status: self.status,
+            raw_status: self.raw_status,
+            body: self.body.map(f),
+        }
+    }
+
     /// Read the body.
     #[inline]
     pub fn body_ref(&self) -> Option<&B> { self.body.as_ref() }
