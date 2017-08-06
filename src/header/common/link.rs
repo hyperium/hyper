@@ -180,6 +180,8 @@ pub enum RelationType {
     NextArchive,
     /// payment.
     Payment,
+    /// prefetch.
+    Prefetch,
     /// prev.
     Prev,
     /// predecessor-version.
@@ -685,6 +687,7 @@ impl fmt::Display for RelationType {
             RelationType::Next => write!(f, "next"),
             RelationType::NextArchive => write!(f, "next-archive"),
             RelationType::Payment => write!(f, "payment"),
+            RelationType::Prefetch => write!(f, "prefetch"),
             RelationType::Prev => write!(f, "prev"),
             RelationType::PredecessorVersion => write!(f, "predecessor-version"),
             RelationType::Previous => write!(f, "previous"),
@@ -756,6 +759,8 @@ impl FromStr for RelationType {
             Ok(RelationType::NextArchive)
         } else if "payment".eq_ignore_ascii_case(s) {
             Ok(RelationType::Payment)
+        } else if "prefetch".eq_ignore_ascii_case(s) {
+            Ok(RelationType::Prefetch)
         } else if "prev".eq_ignore_ascii_case(s) {
             Ok(RelationType::Prev)
         } else if "predecessor-version".eq_ignore_ascii_case(s) {
