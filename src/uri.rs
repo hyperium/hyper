@@ -69,6 +69,15 @@ impl Uri {
                 // authority was empty
                 return Err(UriError(ErrorKind::MissingAuthority));
             }
+            {
+                let authority = &s.as_bytes()[scheme_end + 3..auth_end];
+                let has_start_bracket = authority.contains(&b'[');
+                let has_end_bracket = authority.contains(&b']');
+                if has_start_bracket ^ has_end_bracket {
+                    // has only 1 of [ and ]
+                    return Err(UriError(ErrorKind::Malformed));
+                }
+            }
             let query = parse_query(&s);
             let fragment = parse_fragment(&s);
             Ok(Uri {
@@ -160,18 +169,27 @@ impl Uri {
     /// Get the host of this `Uri`.
     #[inline]
     pub fn host(&self) -> Option<&str> {
-        if let Some(auth) = self.authority() {
-            auth.split(":").next()
-        } else {
-            None
-        }
+        self.authority().map(|auth| {
+            let host_port = auth.rsplit('@')
+                .next()
+                .expect("split always has at least 1 item");
+            if host_port.as_bytes()[0] == b'[' {
+                let i = host_port.find(']')
+                    .expect("parsing should validate matching brackets");
+                &host_port[1..i]
+            } else {
+                host_port.split(':')
+                    .next()
+                    .expect("split always has at least 1 item")
+            }
+        })
     }
 
     /// Get the port of this `Uri`.
     #[inline]
     pub fn port(&self) -> Option<u16> {
         match self.authority() {
-            Some(auth) => auth.find(":").and_then(|i| u16::from_str(&auth[i+1..]).ok()),
+            Some(auth) => auth.rfind(':').and_then(|i| auth[i+1..].parse().ok()),
             None => None,
        }
     }
@@ -400,7 +418,7 @@ macro_rules! test_parse {
             let uri = Uri::from_str($str).unwrap();
             println!("{:?} = {:#?}", $str, uri);
             $(
-            assert_eq!(uri.$method(), $value);
+            assert_eq!(uri.$method(), $value, stringify!($method));
             )+
         }
     );
@@ -423,6 +441,7 @@ test_parse! {
 
     scheme = Some("http"),
     authority = Some("127.0.0.1:61761"),
+    host = Some("127.0.0.1"),
     path = "/chunks",
     query = None,
     fragment = None,
@@ -435,6 +454,7 @@ test_parse! {
 
     scheme = Some("https"),
     authority = Some("127.0.0.1:61761"),
+    host = Some("127.0.0.1"),
     path = "/",
     query = None,
     fragment = None,
@@ -458,6 +478,7 @@ test_parse! {
 
     scheme = None,
     authority = Some("localhost"),
+    host = Some("localhost"),
     path = "",
     query = None,
     fragment = None,
@@ -470,6 +491,7 @@ test_parse! {
 
     scheme = None,
     authority = Some("localhost:3000"),
+    host = Some("localhost"),
     path = "",
     query = None,
     fragment = None,
@@ -478,11 +500,12 @@ test_parse! {
 
 test_parse! {
     test_uri_parse_absolute_with_default_port_http,
-    "http://127.0.0.1:80",
+    "http://127.0.0.1:80/foo",
 
     scheme = Some("http"),
     authority = Some("127.0.0.1:80"),
-    path = "/",
+    host = Some("127.0.0.1"),
+    path = "/foo",
     query = None,
     fragment = None,
     port = Some(80),
@@ -494,10 +517,50 @@ test_parse! {
 
     scheme = Some("https"),
     authority = Some("127.0.0.1:443"),
+    host = Some("127.0.0.1"),
     path = "/",
     query = None,
     fragment = None,
     port = Some(443),
+}
+
+test_parse! {
+    test_uri_parse_absolute_with_ipv6,
+    "https://[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:8008",
+
+    scheme = Some("https"),
+    authority = Some("[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:8008"),
+    host = Some("2001:0db8:85a3:0000:0000:8a2e:0370:7334"),
+    path = "/",
+    query = None,
+    fragment = None,
+    port = Some(8008),
+}
+
+test_parse! {
+    test_uri_parse_absolute_with_ipv6_and_no_port,
+    "https://[2001:0db8:85a3:0000:0000:8a2e:0370:7334]",
+
+    scheme = Some("https"),
+    authority = Some("[2001:0db8:85a3:0000:0000:8a2e:0370:7334]"),
+    host = Some("2001:0db8:85a3:0000:0000:8a2e:0370:7334"),
+    path = "/",
+    query = None,
+    fragment = None,
+    port = None,
+}
+
+test_parse! {
+    test_uri_parse_absolute_with_userinfo,
+    "https://seanmonstar:password@hyper.rs",
+
+    scheme = Some("https"),
+    authority = Some("seanmonstar:password@hyper.rs"),
+    host = Some("hyper.rs"),
+    path = "/",
+    query = None,
+    fragment = None,
+    port = None,
 }
 
 test_parse! {
@@ -506,6 +569,7 @@ test_parse! {
 
     scheme = Some("http"),
     authority = Some("127.0.0.1"),
+    host = Some("127.0.0.1"),
     path = "/",
     query = None,
     fragment = Some("?"),
@@ -518,6 +582,7 @@ test_parse! {
 
     scheme = Some("http"),
     authority = Some("127.0.0.1"),
+    host = Some("127.0.0.1"),
     path = "/path",
     query = Some(""),
     fragment = None,
@@ -530,6 +595,7 @@ test_parse! {
 
     scheme = Some("http"),
     authority = Some("127.0.0.1"),
+    host = Some("127.0.0.1"),
     path = "/",
     query = Some("foo=bar"),
     fragment = None,
@@ -541,6 +607,7 @@ test_parse! {
     "http://127.0.0.1#foo/bar",
     scheme = Some("http"),
     authority = Some("127.0.0.1"),
+    host = Some("127.0.0.1"),
     path = "/",
     query = None,
     fragment = Some("foo/bar"),
@@ -552,6 +619,7 @@ test_parse! {
     "http://127.0.0.1#foo?bar",
     scheme = Some("http"),
     authority = Some("127.0.0.1"),
+    host = Some("127.0.0.1"),
     path = "/",
     query = None,
     fragment = Some("foo?bar"),
@@ -571,6 +639,8 @@ fn test_uri_parse_error() {
     err("?key=val");
     err("localhost/");
     err("localhost?key=val");
+    err("http://::1]");
+    err("http://[::1");
 }
 
 #[test]

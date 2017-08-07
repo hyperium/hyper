@@ -140,7 +140,8 @@ pub struct Basic {
     /// The username as a possibly empty string
     pub username: String,
     /// The password. `None` if the `:` delimiter character was not
-    /// part of the parsed input.
+    /// part of the parsed input. Note: A compliant client MUST
+    /// always send a password (which may be the empty string).
     pub password: Option<String>
 }
 
