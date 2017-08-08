@@ -107,6 +107,12 @@ pub struct LinkValue {
     /// Hint on the media type of the result of dereferencing
     /// the link: `type`.
     media_type: Option<Mime>,
+
+    /// Required for font preloading
+    crossorigin: Option<()>,
+
+    /// Hint an opt-out for server push
+    nopush: Option<()>,
 }
 
 /// A Media Descriptors Enum based on:
@@ -263,6 +269,8 @@ impl LinkValue {
             title: None,
             title_star: None,
             media_type: None,
+            crossorigin: None,
+            nopush: None,
         }
     }
 
@@ -314,6 +322,16 @@ impl LinkValue {
     /// Get the `LinkValue`'s `type` parameter.
     pub fn media_type(&self) -> Option<&Mime> {
         self.media_type.as_ref()
+    }
+
+    /// Get the `LinkValue`'s `crossorigin` parameter.
+    pub fn crossorigin(&self) -> Option<()> {
+        self.crossorigin
+    }
+
+    /// Get the `LinkValue`'s `nopush` parameter.
+    pub fn nopush(&self) -> Option<()> {
+        self.nopush
     }
 
     /// Add a `RelationType` to the `LinkValue`'s `rel` parameter.
@@ -394,6 +412,20 @@ impl LinkValue {
 
         self
     }
+
+    /// Set `LinkValue`'s `crossorigin` parameter.
+    pub fn set_crossorigin(mut self) -> LinkValue {
+        self.crossorigin = Some(());
+
+        self
+    }
+
+    /// Set `LinkValue`'s `nopush` parameter.
+    pub fn set_nopush(mut self) -> LinkValue {
+        self.nopush = Some(());
+
+        self
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -471,6 +503,12 @@ impl fmt::Display for LinkValue {
         if let Some(ref media_type) = self.media_type {
             try!(write!(f, "; type=\"{}\"", media_type));
         }
+        if let Some(ref _crossorigin) = self.crossorigin {
+            try!(write!(f, "; crossorigin"));
+        }
+        if let Some(ref _nopush) = self.nopush {
+            try!(write!(f, "; nopush"));
+        }
 
         Ok(())
     }
@@ -506,6 +544,8 @@ impl FromStr for Link {
                                 title: None,
                                 title_star: None,
                                 media_type: None,
+                                crossorigin: None,
+                                nopush: None,
                             }
                         },
                     }
@@ -647,6 +687,14 @@ impl FromStr for Link {
 
                         };
                     }
+                } else if "crossorigin".eq_ignore_ascii_case(link_param_name) {
+                    // Parse target attribute: `crossorigin`.
+                    // https://tools.ietf.org/html/rfc5988#section-5.4
+                    link_header.crossorigin = Some(());
+                } else if "nopush".eq_ignore_ascii_case(link_param_name) {
+                    // Parse target attribute: `nopush`.
+                    // https://tools.ietf.org/html/rfc5988#section-5.4
+                    link_header.nopush = Some(());
                 } else {
                     return Err(::Error::Header);
                 }
@@ -1097,10 +1145,11 @@ mod tests {
     fn test_link_preloading() {
         let link_value = LinkValue::new("/foo")
             .push_rel(RelationType::Preload)
-            .set_as("script");
+            .set_as("script")
+            .set_crossorigin()
+            .set_nopush();
 
-        // let link_header = b"</foo>; rel=preload; as=script; nopush";
-        let link_header = b"</foo>; rel=preload; as=script";
+        let link_header = b"</foo>; rel=preload; as=script; crossorigin; nopush";
 
         let expected_link = Link::new(vec![link_value]);
 
