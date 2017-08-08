@@ -85,6 +85,9 @@ pub struct LinkValue {
     /// Context IRI: `anchor`.
     anchor: Option<String>,
 
+    /// Specify the target context that will consume the response
+    as_: Option<String>,
+
     /// Reverse Relation Types: `rev`.
     rev: Option<Vec<RelationType>>,
 
@@ -182,6 +185,8 @@ pub enum RelationType {
     Payment,
     /// prefetch.
     Prefetch,
+    /// preload.
+    Preload,
     /// prev.
     Prev,
     /// predecessor-version.
@@ -251,6 +256,7 @@ impl LinkValue {
             link: uri.into(),
             rel: None,
             anchor: None,
+            as_: None,
             rev: None,
             href_lang: None,
             media_desc: None,
@@ -273,6 +279,11 @@ impl LinkValue {
     /// Get the `LinkValue`'s `anchor` parameter.
     pub fn anchor(&self) -> Option<&str> {
         self.anchor.as_ref().map(AsRef::as_ref)
+    }
+
+    /// Get the `LinkValue`'s `as` parameter.
+    pub fn as_(&self) -> Option<&str> {
+        self.as_.as_ref().map(AsRef::as_ref)
     }
 
     /// Get the `LinkValue`'s `rev` parameter(s).
@@ -319,6 +330,13 @@ impl LinkValue {
     /// Set `LinkValue`'s `anchor` parameter.
     pub fn set_anchor<T: Into<String>>(mut self, anchor: T) -> LinkValue {
         self.anchor = Some(anchor.into());
+
+        self
+    }
+
+    /// Set `LinkValue`'s `as` parameter.
+    pub fn set_as<T: Into<String>>(mut self, as_: T) -> LinkValue {
+        self.as_ = Some(as_.into());
 
         self
     }
@@ -430,6 +448,9 @@ impl fmt::Display for LinkValue {
         if let Some(ref anchor) = self.anchor {
             try!(write!(f, "; anchor=\"{}\"", anchor));
         }
+        if let Some(ref as_) = self.as_ {
+            try!(write!(f, "; as={}", as_));
+        }
         if let Some(ref rev) = self.rev {
             try!(fmt_delimited(f, rev.as_slice(), " ", ("; rev=\"", "\"")));
         }
@@ -478,6 +499,7 @@ impl FromStr for Link {
                                 link: s.to_owned().into(),
                                 rel: None,
                                 anchor: None,
+                                as_: None,
                                 rev: None,
                                 href_lang: None,
                                 media_desc: None,
@@ -528,6 +550,15 @@ impl FromStr for Link {
                             Ok(a) => Some(String::from(a)),
                         },
                     };
+                } else if "as".eq_ignore_ascii_case(link_param_name) {
+                    // Parse target attribute: `as`.
+                    // https://tools.ietf.org/html/rfc5988#section-5.4
+                    if link_header.as_.is_none() {
+                        link_header.as_ = match link_param_split.next() {
+                            None | Some("") => return Err(::Error::Header),
+                            Some(s) => Some(String::from(s.trim())),
+                        };
+                    }
                 } else if "rev".eq_ignore_ascii_case(link_param_name) {
                     // Parse relation type: `rev`.
                     // https://tools.ietf.org/html/rfc5988#section-5.3
@@ -688,6 +719,7 @@ impl fmt::Display for RelationType {
             RelationType::NextArchive => write!(f, "next-archive"),
             RelationType::Payment => write!(f, "payment"),
             RelationType::Prefetch => write!(f, "prefetch"),
+            RelationType::Preload => write!(f, "preload"),
             RelationType::Prev => write!(f, "prev"),
             RelationType::PredecessorVersion => write!(f, "predecessor-version"),
             RelationType::Previous => write!(f, "previous"),
@@ -761,6 +793,8 @@ impl FromStr for RelationType {
             Ok(RelationType::Payment)
         } else if "prefetch".eq_ignore_ascii_case(s) {
             Ok(RelationType::Prefetch)
+        } else if "preload".eq_ignore_ascii_case(s) {
+            Ok(RelationType::Preload)
         } else if "prev".eq_ignore_ascii_case(s) {
             Ok(RelationType::Prev)
         } else if "predecessor-version".eq_ignore_ascii_case(s) {
@@ -1057,7 +1091,22 @@ mod tests {
 
         err = Header::parse_header(&vec![link_e.to_vec()].into());
         assert_eq!(err.is_err(), true);
-     }
+    }
+
+    #[test]
+    fn test_link_preloading() {
+        let link_value = LinkValue::new("/foo")
+            .push_rel(RelationType::Preload)
+            .set_as("script");
+
+        // let link_header = b"</foo>; rel=preload; as=script; nopush";
+        let link_header = b"</foo>; rel=preload; as=script";
+
+        let expected_link = Link::new(vec![link_value]);
+
+        let link = Header::parse_header(&vec![link_header.to_vec()].into());
+        assert_eq!(link.ok(), Some(expected_link));
+    }
 
     #[test]
     fn test_link_split_ascii_unquoted_iterator() {
