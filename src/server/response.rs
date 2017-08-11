@@ -166,7 +166,7 @@ impl<'a> Response<'a, Fresh> {
     /// }
     /// ```
     #[inline]
-    pub fn send(mut self, body: &[u8]) -> io::Result<()> {
+    pub fn send(self, body: &[u8]) -> io::Result<()> {
         self.headers.set(header::ContentLength(body.len() as u64));
         let mut stream = try!(self.start());
         try!(stream.write_all(body));

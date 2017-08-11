@@ -75,7 +75,7 @@ impl<V: ?Sized + fmt::Debug + Any + 'static> PtrMapCell<V> {
 
     #[inline]
     pub fn get_mut(&mut self, key: TypeId) -> Option<&mut V> {
-        let mut map = unsafe { &mut *self.0.get() };
+        let map = unsafe { &mut *self.0.get() };
         match *map {
             PtrMap::Empty => None,
             PtrMap::One(id, ref mut v) => if id == key {
@@ -89,7 +89,7 @@ impl<V: ?Sized + fmt::Debug + Any + 'static> PtrMapCell<V> {
 
     #[inline]
     pub unsafe fn insert(&self, key: TypeId, val: Box<V>) {
-        let mut map = &mut *self.0.get();
+        let map = &mut *self.0.get();
         match *map {
             PtrMap::Empty => *map = PtrMap::One(key, val),
             PtrMap::One(..) => {

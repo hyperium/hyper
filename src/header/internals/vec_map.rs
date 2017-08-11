@@ -70,7 +70,7 @@ pub struct VacantEntry<'a, K: 'a, V: 'a> {
 
 impl<'a, K, V> VacantEntry<'a, K, V> {
     pub fn insert(self, val: V) -> &'a mut V {
-        let mut vec = self.vec;
+        let vec = self.vec;
         vec.vec.push((self.key, val));
         let pos = vec.vec.len() - 1;
         &mut vec.vec[pos].1

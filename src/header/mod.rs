@@ -288,7 +288,7 @@ impl Headers {
         for header in raw {
             trace!("raw header: {:?}={:?}", header.name, &header.value[..]);
             let name = UniCase(CowStr(Cow::Owned(header.name.to_owned())));
-            let mut item = match headers.data.entry(name) {
+            let item = match headers.data.entry(name) {
                 Entry::Vacant(entry) => entry.insert(Item::new_raw(vec![])),
                 Entry::Occupied(entry) => entry.into_mut()
             };

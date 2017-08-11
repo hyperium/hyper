@@ -288,7 +288,7 @@ struct PooledStreamInner<S> {
 impl<S: NetworkStream> Read for PooledStream<S> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let mut inner = self.inner.as_mut().unwrap();
+        let inner = self.inner.as_mut().unwrap();
         let n = try!(inner.stream.read(buf));
         if n == 0 {
             // if the wrapped stream returns EOF (Ok(0)), that means the

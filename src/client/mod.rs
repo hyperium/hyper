@@ -270,7 +270,7 @@ impl<'a> RequestBuilder<'a> {
     /// Add an individual new header to the request.
     pub fn header<H: Header + HeaderFormat>(mut self, header: H) -> RequestBuilder<'a> {
         {
-            let mut headers = match self.headers {
+            let headers = match self.headers {
                 Some(ref mut h) => h,
                 None => {
                     self.headers = Some(Headers::new());

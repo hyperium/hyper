@@ -262,7 +262,7 @@ impl<H: Handler + 'static> Worker<H> {
         }
     }
 
-    fn handle_connection<S>(&self, mut stream: &mut S) where S: NetworkStream + Clone {
+    fn handle_connection<S>(&self, stream: &mut S) where S: NetworkStream + Clone {
         debug!("Incoming stream");
 
         self.handler.on_connection_start();
@@ -296,7 +296,7 @@ impl<H: Handler + 'static> Worker<H> {
         s.set_read_timeout(timeout)
     }
 
-    fn keep_alive_loop<W: Write>(&self, mut rdr: &mut BufReader<&mut NetworkStream>,
+    fn keep_alive_loop<W: Write>(&self, rdr: &mut BufReader<&mut NetworkStream>,
             wrt: &mut W, addr: SocketAddr) -> bool {
         let req = match Request::new(rdr, addr) {
             Ok(req) => req,
