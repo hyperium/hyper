@@ -7,6 +7,8 @@ use futures::task::Task;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_proto::streaming::pipeline::{Frame, Transport};
 
+use bytes::BytesMut;
+
 use http::{self, Http1Transaction};
 use http::io::{Cursor, Buffered};
 use http::h1::{Encoder, Decoder};
@@ -366,7 +368,20 @@ where I: AsyncRead + AsyncWrite,
         self.try_keep_alive();
         trace!("flushed {:?}", self.state);
         Ok(Async::Ready(()))
+    }
 
+    /// Extracts the underlying I/O stream and any buffered data already read,
+    /// but only if the write buffer is already empty.
+    #[inline]
+    pub fn try_into_inner(self) -> Result<(I, BytesMut), Self> {
+        let Conn { io, state, _marker } = self;
+        io.try_into_inner().map_err(|io| {
+            Conn {
+                io: io,
+                state: state,
+                _marker: PhantomData,
+            }
+        })
     }
 }
 
