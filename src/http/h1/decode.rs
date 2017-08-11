@@ -326,7 +326,7 @@ mod tests {
 
         fn read(s: &str) -> u64 {
             let mut state = ChunkedState::Size;
-            let mut rdr = &mut s.as_bytes();
+            let rdr = &mut s.as_bytes();
             let mut size = 0;
             loop {
                 let result = state.step(rdr, &mut size, &mut None);
@@ -341,7 +341,7 @@ mod tests {
 
         fn read_err(s: &str, expected_err: io::ErrorKind) {
             let mut state = ChunkedState::Size;
-            let mut rdr = &mut s.as_bytes();
+            let rdr = &mut s.as_bytes();
             let mut size = 0;
             loop {
                 let result = state.step(rdr, &mut size, &mut None);

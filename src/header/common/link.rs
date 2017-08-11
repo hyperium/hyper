@@ -495,7 +495,7 @@ impl FromStr for Link {
                     Some(p) => p.trim(),
                 };
 
-                let mut link_header = match link_values.last_mut() {
+                let link_header = match link_values.last_mut() {
                     None => return Err(::Error::Header),
                     Some(l) => l,
                 };

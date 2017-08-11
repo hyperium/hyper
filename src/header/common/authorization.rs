@@ -170,7 +170,7 @@ impl FromStr for Basic {
         match decode(s) {
             Ok(decoded) => match String::from_utf8(decoded) {
                 Ok(text) => {
-                    let mut parts = &mut text.split(':');
+                    let parts = &mut text.split(':');
                     let user = match parts.next() {
                         Some(part) => part.to_owned(),
                         None => return Err(::Error::Header)

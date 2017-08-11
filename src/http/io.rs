@@ -275,7 +275,7 @@ impl WriteBuf {
         trace!("WriteBuf::buffer() len = {:?}", data.len());
         self.maybe_reset();
         self.maybe_reserve(data.len());
-        let mut vec = &mut self.0.bytes;
+        let vec = &mut self.0.bytes;
         let len = cmp::min(vec.capacity() - vec.len(), data.len());
         assert!(vec.capacity() - vec.len() >= len);
         unsafe {
@@ -297,7 +297,7 @@ impl WriteBuf {
 
     #[inline]
     fn maybe_reserve(&mut self, needed: usize) {
-        let mut vec = &mut self.0.bytes;
+        let vec = &mut self.0.bytes;
         let cap = vec.capacity();
         if cap == 0 {
             let init = cmp::min(MAX_BUFFER_SIZE, cmp::max(INIT_BUFFER_SIZE, needed));
