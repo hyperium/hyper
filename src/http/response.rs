@@ -142,6 +142,16 @@ impl fmt::Debug for Response {
     }
 }
 
+impl fmt::Debug for Response<()> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Response")
+            .field("status", &self.status)
+            .field("version", &self.version)
+            .field("headers", &self.headers)
+            .finish()
+    }
+}
+
 /// Constructs a response using a received ResponseHead and optional body
 #[inline]
 #[cfg(not(feature = "raw_status"))]
