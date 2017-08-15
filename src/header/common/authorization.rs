@@ -184,13 +184,13 @@ impl FromStr for Basic {
                         password: password
                     })
                 },
-                Err(e) => {
-                    debug!("Basic::from_utf8 error={:?}", e);
+                Err(_) => {
+                    debug!("Basic::from_str utf8 error");
                     Err(::Error::Header)
                 }
             },
-            Err(e) => {
-                debug!("Basic::from_base64 error={:?}", e);
+            Err(_) => {
+                debug!("Basic::from_str base64 error");
                 Err(::Error::Header)
             }
         }

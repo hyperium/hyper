@@ -132,24 +132,9 @@ impl<B> fmt::Debug for Request<B> {
     }
 }
 
-struct MaybeAddr<'a>(&'a Option<SocketAddr>);
-
-impl<'a> fmt::Display for MaybeAddr<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self.0 {
-            Some(ref addr) => {
-                write!(f, "addr={}, ", addr)
-            },
-            None => Ok(()),
-        }
-    }
-}
-
 /// Constructs a request using a received ResponseHead and optional body
 pub fn from_wire<B>(addr: Option<SocketAddr>, incoming: RequestHead, body: B) -> Request<B> {
     let MessageHead { version, subject: RequestLine(method, uri), headers } = incoming;
-    info!("Request::new: {}\"{} {} {}\"", MaybeAddr(&addr), method, uri, version);
-    debug!("Request::new: headers={:?}", headers);
 
     Request::<B> {
         method: method,

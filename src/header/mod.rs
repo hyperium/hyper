@@ -240,17 +240,6 @@ impl<'a> fmt::Display for ValueString<'a> {
     }
 }
 
-struct HeaderValueString<'a, H: Header + 'a>(&'a H);
-
-impl<'a, H: Header> fmt::Debug for HeaderValueString<'a, H> {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        try!(f.write_str("\""));
-        try!(self.0.fmt_header(&mut Formatter(Multi::Join(true, f))));
-        f.write_str("\"")
-    }
-}
-
 struct NewlineReplacer<'a, F: fmt::Write + 'a>(&'a mut F);
 
 impl<'a, F: fmt::Write + 'a> fmt::Write for NewlineReplacer<'a, F> {
@@ -394,7 +383,6 @@ impl Headers {
     ///
     /// The field is determined by the type of the value being set.
     pub fn set<H: Header>(&mut self, value: H) {
-        trace!("Headers.set( {:?}, {:?} )", header_name::<H>(), HeaderValueString(&value));
         self.data.insert(HeaderName(Ascii::new(Cow::Borrowed(header_name::<H>()))),
                          Item::new_typed(value));
     }
@@ -432,7 +420,6 @@ impl Headers {
     /// Note that this function may return `None` even though a header was removed. If you want to
     /// know whether a header exists, rather rely on `has`.
     pub fn remove<H: Header>(&mut self) -> Option<H> {
-        trace!("Headers.remove( {:?} )", header_name::<H>());
         self.data.remove(&HeaderName(Ascii::new(Cow::Borrowed(header_name::<H>()))))
             .and_then(Item::into_typed::<H>)
     }
@@ -488,7 +475,6 @@ impl Headers {
     pub fn set_raw<K: Into<Cow<'static, str>>, V: Into<Raw>>(&mut self, name: K, value: V) {
         let name = name.into();
         let value = value.into();
-        trace!("Headers.set_raw( {:?}, {:?} )", name, value);
         self.data.insert(HeaderName(Ascii::new(name)), Item::new_raw(value));
     }
 
@@ -510,7 +496,6 @@ impl Headers {
     pub fn append_raw<K: Into<Cow<'static, str>>, V: Into<Raw>>(&mut self, name: K, value: V) {
         let name = name.into();
         let value = value.into();
-        trace!("Headers.append_raw( {:?}, {:?} )", name, value);
         let name = HeaderName(Ascii::new(name));
         if let Some(item) = self.data.get_mut(&name) {
             item.raw_mut().push(value);
@@ -521,7 +506,6 @@ impl Headers {
 
     /// Remove a header by name.
     pub fn remove_raw(&mut self, name: &str) {
-        trace!("Headers.remove_raw( {:?} )", name);
         self.data.remove(name);
     }
 

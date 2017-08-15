@@ -7,7 +7,7 @@ use futures::task::Task;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_proto::streaming::pipeline::{Frame, Transport};
 
-use http::{self, Http1Transaction, DebugTruncate};
+use http::{self, Http1Transaction};
 use http::io::{Cursor, Buffered};
 use http::h1::{Encoder, Decoder};
 use method::Method;
@@ -90,13 +90,13 @@ where I: AsyncRead + AsyncWrite,
                 self.io.consume_leading_lines();
                 let was_mid_parse = !self.io.read_buf().is_empty();
                 return if was_mid_parse {
-                    debug!("parse error ({}) with bytes: {:?}", e, self.io.read_buf());
+                    debug!("parse error ({}) with {} bytes", e, self.io.read_buf().len());
                     Ok(Async::Ready(Some(Frame::Error { error: e })))
                 } else if must_respond_with_error {
                     trace!("parse error with 0 input, err = {:?}", e);
                     Ok(Async::Ready(Some(Frame::Error { error: e })))
                 } else {
-                    debug!("socket complete");
+                    debug!("read eof");
                     Ok(Async::Ready(None))
                 };
             }
@@ -669,20 +669,19 @@ struct DebugFrame<'a, T: fmt::Debug + 'a, B: AsRef<[u8]> + 'a>(&'a Frame<http::M
 impl<'a, T: fmt::Debug + 'a, B: AsRef<[u8]> + 'a> fmt::Debug for DebugFrame<'a, T, B> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self.0 {
-            Frame::Message { ref message, ref body } => {
+            Frame::Message { ref body, .. } => {
                 f.debug_struct("Message")
-                    .field("message", message)
                     .field("body", body)
                     .finish()
             },
             Frame::Body { chunk: Some(ref chunk) } => {
                 f.debug_struct("Body")
-                    .field("chunk", &DebugTruncate(chunk.as_ref()))
+                    .field("bytes", &chunk.as_ref().len())
                     .finish()
             },
             Frame::Body { chunk: None } => {
                 f.debug_struct("Body")
-                    .field("chunk", &None::<()>)
+                    .field("bytes", &None::<()>)
                     .finish()
             },
             Frame::Error { ref error } => {

@@ -147,8 +147,6 @@ impl fmt::Debug for Response {
 #[cfg(not(feature = "raw_status"))]
 pub fn from_wire<B>(incoming: ResponseHead, body: Option<B>) -> Response<B> {
     let status = incoming.status();
-    info!("Response::new \"{} {}\"", incoming.version, status);
-    debug!("Response::new headers={:?}", incoming.headers);
 
     Response::<B> {
         status: status,
@@ -163,8 +161,6 @@ pub fn from_wire<B>(incoming: ResponseHead, body: Option<B>) -> Response<B> {
 #[cfg(feature = "raw_status")]
 pub fn from_wire<B>(incoming: ResponseHead, body: Option<B>) -> Response<B> {
     let status = incoming.status();
-    info!("Response::new \"{} {}\"", incoming.version, status);
-    debug!("Response::new headers={:?}", incoming.headers);
 
     Response::<B> {
         status: status,

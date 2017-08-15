@@ -23,7 +23,6 @@ impl Http1Transaction for ServerTransaction {
         if buf.len() == 0 {
             return Ok(None);
         }
-        trace!("parse({:?})", buf);
         let mut headers_indices = [HeaderIndices {
             name: (0, 0),
             value: (0, 0)
@@ -34,7 +33,7 @@ impl Http1Transaction for ServerTransaction {
             let mut req = httparse::Request::new(&mut headers);
             match try!(req.parse(&buf)) {
                 httparse::Status::Complete(len) => {
-                    trace!("httparse Complete({})", len);
+                    trace!("Request.parse Complete({})", len);
                     let method = try!(req.method.unwrap().parse());
                     let path = req.path.unwrap();
                     let bytes_ptr = buf.as_ref().as_ptr() as usize;
@@ -110,11 +109,9 @@ impl Http1Transaction for ServerTransaction {
 
 
     fn encode(mut head: MessageHead<Self::Outgoing>, has_body: bool, method: &mut Option<Method>, dst: &mut Vec<u8>) -> Encoder {
-        trace!("ServerTransaction::encode head={:?}, has_body={}, method={:?}",
-               head, has_body, method);
+        trace!("ServerTransaction::encode has_body={}, method={:?}", has_body, method);
 
         let body = ServerTransaction::set_length(&mut head, has_body, method.as_ref());
-        debug!("encode headers = {:?}", head.headers);
 
         let init_cap = 30 + head.headers.len() * AVERAGE_HEADER_SIZE;
         dst.reserve(init_cap);
@@ -180,7 +177,6 @@ impl Http1Transaction for ClientTransaction {
         if buf.len() == 0 {
             return Ok(None);
         }
-        trace!("parse({:?})", buf);
         let mut headers_indices = [HeaderIndices {
             name: (0, 0),
             value: (0, 0)
@@ -192,7 +188,7 @@ impl Http1Transaction for ClientTransaction {
             let bytes = buf.as_ref();
             match try!(res.parse(bytes)) {
                 httparse::Status::Complete(len) => {
-                    trace!("Response.try_parse Complete({})", len);
+                    trace!("Response.parse Complete({})", len);
                     let code = res.code.unwrap();
                     let status = try!(StatusCode::try_from(code).map_err(|_| ::Error::Status));
                     let reason = match status.canonical_reason() {
@@ -273,14 +269,11 @@ impl Http1Transaction for ClientTransaction {
     }
 
     fn encode(mut head: MessageHead<Self::Outgoing>, has_body: bool, method: &mut Option<Method>, dst: &mut Vec<u8>) -> Encoder {
-        trace!("ClientTransaction::encode head={:?}, has_body={}, method={:?}",
-               head, has_body, method);
-
+        trace!("ClientTransaction::encode has_body={}, method={:?}", has_body, method);
 
         *method = Some(head.subject.0.clone());
 
         let body = ClientTransaction::set_length(&mut head, has_body);
-        debug!("encode headers = {:?}", head.headers);
 
         let init_cap = 30 + head.headers.len() * AVERAGE_HEADER_SIZE;
         dst.reserve(init_cap);
