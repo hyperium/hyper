@@ -123,7 +123,7 @@ impl<C: NetworkConnector> Pool<C> {
         let deadline = locked.config.idle_timeout.map(|dur| Instant::now() - dur);
         let inner = locked.conns.get_mut(key).and_then(|vec| {
             while let Some(inner) = vec.pop() {
-                should_remove = vec.len() <= 1;
+                should_remove = vec.is_empty();
                 if let Some(deadline) = deadline {
                     if inner.idle.expect("idle is never missing inside pool") < deadline {
                         trace!("ejecting expired connection");
@@ -430,6 +430,24 @@ mod tests {
             assert_eq!(locked.conns.len(), 1);
             assert_eq!(locked.conns.get(&key).unwrap().len(), 1);
         }
+    }
+
+    #[test]
+    fn test_double_connect_reuse() {
+        let mut pool = mocked!();
+        pool.set_idle_timeout(Some(Duration::from_millis(100)));
+        let key = key("127.0.0.1", 3000, "http");
+        let stream1 = pool.connect("127.0.0.1", 3000, "http").unwrap();
+        let stream2 = pool.connect("127.0.0.1", 3000, "http").unwrap();
+        drop(stream1);
+        drop(stream2);
+        let stream1 = pool.connect("127.0.0.1", 3000, "http").unwrap();
+        {
+            let locked = pool.inner.lock().unwrap();
+            assert_eq!(locked.conns.len(), 1);
+            assert_eq!(locked.conns.get(&key).unwrap().len(), 1);
+        }
+        let _ = stream1;
     }
 
     #[test]
