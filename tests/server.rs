@@ -539,7 +539,7 @@ impl Service for TestService {
     fn call(&self, req: Request) -> Self::Future {
         let tx = self.tx.clone();
         let replies = self.reply.clone();
-        req.body().for_each(move |chunk| {
+        Box::new(req.body().for_each(move |chunk| {
             tx.lock().unwrap().send(Msg::Chunk(chunk.to_vec())).unwrap();
             Ok(())
         }).map(move |_| {
@@ -558,7 +558,7 @@ impl Service for TestService {
                 }
             }
             res
-        }).boxed()
+        }))
     }
 
 }
