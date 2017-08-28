@@ -3,7 +3,6 @@
 
 extern crate futures;
 extern crate hyper;
-extern crate pretty_env_logger;
 extern crate test;
 extern crate tokio_core;
 
@@ -21,7 +20,6 @@ use hyper::server::{self, Service};
 
 #[bench]
 fn get_one_at_a_time(b: &mut test::Bencher) {
-    let _ = pretty_env_logger::init();
     let mut core = Core::new().unwrap();
     let handle = core.handle();
     let addr = spawn_hello(&handle);
@@ -44,7 +42,6 @@ fn get_one_at_a_time(b: &mut test::Bencher) {
 
 #[bench]
 fn post_one_at_a_time(b: &mut test::Bencher) {
-    let _ = pretty_env_logger::init();
     let mut core = Core::new().unwrap();
     let handle = core.handle();
     let addr = spawn_hello(&handle);
