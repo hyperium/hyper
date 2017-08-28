@@ -21,6 +21,7 @@ use header::{Header, Raw};
 /// # Example values
 /// * `Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==`
 /// * `Bearer fpKL54jvWmEGVoRdCNjG`
+/// * `Token Ithoo6daph2yekoz3aen`
 ///
 /// # Examples
 /// ```
@@ -50,6 +51,18 @@ use header::{Header, Raw};
 ///    Authorization(
 ///        Bearer {
 ///            token: "QWxhZGRpbjpvcGVuIHNlc2FtZQ".to_owned()
+///        }
+///    )
+/// );
+/// ```
+/// ```
+/// use hyper::header::{Headers, Authorization, Token};
+///
+/// let mut headers = Headers::new();
+/// headers.set(
+///    Authorization(
+///        Token {
+///            token: "Ithoo6daph2yekoz3aen`".to_owned()
 ///        }
 ///    )
 /// );
@@ -221,9 +234,33 @@ impl FromStr for Bearer {
     }
 }
 
+#[derive(Clone, Debug)]
+///Token holder for Token Authentication, often seen with static API tokens
+pub struct Token {
+    ///Actual token as a string
+    pub token: String,
+}
+
+impl Scheme for Token {
+    fn scheme() -> Option<&'static str> {
+        Some("Token")
+    }
+
+    fn fmt_scheme(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.token)
+    }
+}
+
+impl FromStr for Token {
+    type Err = ::Error;
+    fn from_str(s: &str) -> ::Result<Token> {
+        Ok(Token { token: s.to_owned() })
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Authorization, Basic, Bearer};
+    use super::{Authorization, Basic, Bearer, Token};
     use super::super::super::{Headers, Header};
 
     #[test]
@@ -288,8 +325,26 @@ mod tests {
             &b"Bearer fpKL54jvWmEGVoRdCNjG".as_ref().into()).unwrap();
         assert_eq!(auth.0.token, "fpKL54jvWmEGVoRdCNjG");
     }
+
+    #[test]
+    fn test_token_auth() {
+        let mut headers = Headers::new();
+        headers.set(Authorization(
+            Token { token: "Ithoo6daph2yekoz3aen".to_owned() }));
+        assert_eq!(
+            headers.to_string(),
+            "Authorization: Token Ithoo6daph2yekoz3aen\r\n".to_owned());
+    }
+
+    #[test]
+    fn test_token_auth_parse() {
+        let auth: Authorization<Token> = Header::parse_header(
+            &b"Token Ithoo6daph2yekoz3aen".as_ref().into()).unwrap();
+        assert_eq!(auth.0.token, "Ithoo6daph2yekoz3aen");
+    }
 }
 
 bench_header!(raw, Authorization<String>, { vec![b"foo bar baz".to_vec()] });
 bench_header!(basic, Authorization<Basic>, { vec![b"Basic QWxhZGRpbjpuIHNlc2FtZQ==".to_vec()] });
 bench_header!(bearer, Authorization<Bearer>, { vec![b"Bearer fpKL54jvWmEGVoRdCNjG".to_vec()] });
+bench_header!(token, Authorization<Token>, { vec![b"Token Ithoo6daph2yekoz3aen".to_vec()] });
