@@ -107,7 +107,7 @@ impl<T: Read> Read for AsyncIo<T> {
             Err(err)
         } else if self.bytes_until_block == 0 {
             self.blocked = true;
-            Err(io::Error::new(io::ErrorKind::WouldBlock, "mock block"))
+            Err(io::ErrorKind::WouldBlock.into())
         } else {
             let n = cmp::min(self.bytes_until_block, buf.len());
             let n = try!(self.inner.read(&mut buf[..n]));
@@ -122,7 +122,7 @@ impl<T: Write> Write for AsyncIo<T> {
         if let Some(err) = self.error.take() {
             Err(err)
         } else if self.bytes_until_block == 0 {
-            Err(io::Error::new(io::ErrorKind::WouldBlock, "mock block"))
+            Err(io::ErrorKind::WouldBlock.into())
         } else {
             trace!("AsyncIo::write() block_in = {}, data.len() = {}", self.bytes_until_block, data.len());
             self.flushed = false;

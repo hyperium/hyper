@@ -202,7 +202,7 @@ impl Chunked {
         match *self {
             Chunked::Init |
             Chunked::End => Ok(msg.len()),
-            _ => Err(io::Error::new(io::ErrorKind::WouldBlock, "chunked incomplete"))
+            _ => Err(io::ErrorKind::WouldBlock.into())
         }
     }
 }
