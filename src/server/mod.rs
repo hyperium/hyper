@@ -34,6 +34,8 @@ use http::request;
 pub use http::response::Response;
 pub use http::request::Request;
 
+use common::Omitted;
+
 /// An instance of the HTTP protocol, and implementation of tokio-proto's
 /// `ServerProto` trait.
 ///
@@ -668,7 +670,7 @@ impl<T, B, P> fmt::Debug for BindUpgradableConnection<T, B, P>
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("BindUpgradableConnection")
-            .field("receiver", &"...")
+            .field("receiver", &Omitted)
             .field("state", &self.state)
             .finish()
     }
@@ -889,7 +891,7 @@ where B::Item: AsRef<[u8]>
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Server")
-         .field("core", &"...")
+         .field("core", &Omitted)
          .field("listener", &self.listener)
          .field("new_service", &self.new_service)
          .field("protocol", &self.protocol)
