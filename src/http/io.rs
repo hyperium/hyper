@@ -132,7 +132,7 @@ impl<T: Write> Write for Buffered<T> {
     fn write(&mut self, data: &[u8]) -> io::Result<usize> {
         let n = self.write_buf.buffer(data);
         if n == 0 {
-            Err(io::Error::from(io::ErrorKind::WouldBlock))
+            Err(io::ErrorKind::WouldBlock.into())
         } else {
             Ok(n)
         }
