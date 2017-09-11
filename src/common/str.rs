@@ -7,25 +7,6 @@ use bytes::Bytes;
 pub struct ByteStr(Bytes);
 
 impl ByteStr {
-    pub unsafe fn from_utf8_unchecked(slice: Bytes) -> ByteStr {
-        ByteStr(slice)
-    }
-
-    pub fn from_static(s: &'static str) -> ByteStr {
-        ByteStr(Bytes::from_static(s.as_bytes()))
-    }
-
-    pub fn slice(&self, from: usize, to: usize) -> ByteStr {
-        assert!(self.as_str().is_char_boundary(from));
-        assert!(self.as_str().is_char_boundary(to));
-        ByteStr(self.0.slice(from, to))
-    }
-
-    pub fn slice_to(&self, idx: usize) -> ByteStr {
-        assert!(self.as_str().is_char_boundary(idx));
-        ByteStr(self.0.slice_to(idx))
-    }
-
     pub fn as_str(&self) -> &str {
         unsafe { str::from_utf8_unchecked(self.0.as_ref()) }
     }

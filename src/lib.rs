@@ -22,6 +22,7 @@ extern crate bytes;
 #[macro_use] extern crate futures;
 extern crate futures_cpupool;
 extern crate httparse;
+extern crate http as http_types;
 extern crate language_tags;
 #[macro_use] extern crate log;
 pub extern crate mime;

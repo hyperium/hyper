@@ -54,7 +54,7 @@ impl Http1Transaction for ServerTransaction {
         let slice = buf.split_to(len).freeze();
         let path = slice.slice(path.0, path.1);
         // path was found to be utf8 by httparse
-        let path = try!(unsafe { ::uri::from_utf8_unchecked(path) });
+        let path = try!(::uri::Uri::from_shared(path));
         let subject = RequestLine(
             method,
             path,
