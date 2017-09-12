@@ -68,7 +68,9 @@ macro_rules! test {
 
             let (tx, rx) = oneshot::channel();
 
-            thread::spawn(move || {
+            let thread = thread::Builder::new()
+                .name(format!("tcp-server<{}>", stringify!($name)));
+            thread.spawn(move || {
                 let mut inc = server.accept().unwrap().0;
                 inc.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
                 inc.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
@@ -76,13 +78,16 @@ macro_rules! test {
                 let mut buf = [0; 4096];
                 let mut n = 0;
                 while n < buf.len() && n < expected.len() {
-                    n += inc.read(&mut buf[n..]).unwrap();
+                    n += match inc.read(&mut buf[n..]) {
+                        Ok(n) => n,
+                        Err(e) => panic!("failed to read request, partialy read = {:?}, error: {}", s(&buf[..n]), e),
+                    };
                 }
                 assert_eq!(s(&buf[..n]), expected);
 
                 inc.write_all($server_reply.as_ref()).unwrap();
                 let _ = tx.send(());
-            });
+            }).unwrap();
 
             let rx = rx.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
 
