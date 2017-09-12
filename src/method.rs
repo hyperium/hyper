@@ -3,6 +3,9 @@ use std::fmt;
 use std::str::FromStr;
 use std::convert::AsRef;
 
+#[cfg(feature = "compat")]
+use http_types;
+
 use error::Error;
 use self::Method::{Options, Get, Post, Put, Delete, Head, Trace, Connect, Patch,
                    Extension};
@@ -153,6 +156,24 @@ impl fmt::Display for Method {
 impl Default for Method {
     fn default() -> Method {
         Method::Get
+    }
+}
+
+#[cfg(feature = "compat")]
+impl From<http_types::Method> for Method {
+    fn from(method: http_types::Method) -> Method {
+        method.as_ref().parse()
+            .expect("attempted to convert invalid method")
+    }
+}
+
+#[cfg(feature = "compat")]
+impl From<Method> for http_types::Method {
+    fn from(method: Method) -> http_types::Method {
+        use http_types::HttpTryFrom;
+
+        HttpTryFrom::try_from(method.as_ref())
+            .expect("attempted to convert invalid method")
     }
 }
 

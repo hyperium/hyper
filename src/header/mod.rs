@@ -77,8 +77,13 @@
 //! }
 //! ```
 use std::borrow::{Cow, ToOwned};
+#[cfg(feature = "compat")]
+use std::convert::From;
 use std::iter::{FromIterator, IntoIterator};
 use std::{mem, fmt};
+
+#[cfg(feature = "compat")]
+use http_types;
 
 use unicase::Ascii;
 
@@ -543,6 +548,32 @@ impl fmt::Debug for Headers {
         f.debug_map()
             .entries(self.iter().map(|view| (view.0.as_ref(), ValueString(view.1))))
             .finish()
+    }
+}
+
+#[cfg(feature = "compat")]
+impl From<http_types::HeaderMap> for Headers {
+    fn from(header_map: http_types::HeaderMap) -> Headers {
+        let mut headers = Headers::new();
+        for (name, value) in header_map.iter() {
+            headers.set_raw(name.as_str().to_string(), value.as_bytes());        
+        }
+        headers
+    }
+}
+
+#[cfg(feature = "compat")]
+impl From<Headers> for http_types::HeaderMap {
+    fn from(headers: Headers) -> http_types::HeaderMap {
+        let mut header_map = http_types::HeaderMap::new();
+        for header in headers.iter() {
+            let name = http_types::header::HeaderName::from_bytes(header.name().as_bytes())
+                .expect("attempted to convert invalid header name");
+            let value = http_types::header::HeaderValue::from_bytes(header.value_string().as_bytes())
+                .expect("attempted to convert invalid header value");
+            header_map.insert(name, value);
+        }
+        header_map
     }
 }
 

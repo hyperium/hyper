@@ -3,6 +3,11 @@
 //! A `Server` is created to listen on a port, parse HTTP requests, and hand
 //! them off to a `Service`.
 
+#[cfg(feature = "compat")]
+mod compat_impl;
+#[cfg(feature = "compat")]
+pub mod compat;
+
 use std::cell::RefCell;
 use std::fmt;
 use std::io;
@@ -16,6 +21,9 @@ use futures::task::{self, Task};
 use futures::{Future, Stream, Poll, Async, Sink, StartSend, AsyncSink};
 use futures::future::Map;
 
+#[cfg(feature = "compat")]
+use http_types;
+
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio::reactor::{Core, Handle, Timeout};
 use tokio::net::TcpListener;
@@ -27,6 +35,8 @@ pub use tokio_service::{NewService, Service};
 use http;
 use http::response;
 use http::request;
+#[cfg(feature = "compat")]
+use http::Body;
 
 pub use http::response::Response;
 pub use http::request::Request;
@@ -103,6 +113,18 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
         })
     }
 
+    /// Bind a `NewService` using types from the `http` crate.
+    ///
+    /// See `Http::bind`.
+    #[cfg(feature = "compat")]
+    pub fn bind_compat<S, Bd>(&self, addr: &SocketAddr, new_service: S) -> ::Result<Server<compat::NewCompatService<S>, Bd>>
+        where S: NewService<Request = http_types::Request<Body>, Response = http_types::Response<Bd>, Error = ::Error> +
+                    Send + Sync + 'static,
+              Bd: Stream<Item=B, Error=::Error>,
+    {
+        self.bind(addr, self::compat_impl::new_service(new_service))
+    }
+
     /// Use this `Http` instance to create a new server task which handles the
     /// connection `io` provided.
     ///
@@ -128,6 +150,25 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     {
         self.bind_server(handle, io, HttpService {
             inner: service,
+            remote_addr: remote_addr,
+        })
+    }
+
+    /// Bind a `Service` using types from the `http` crate.
+    ///
+    /// See `Http::bind_connection`.
+    #[cfg(feature = "compat")]
+    pub fn bind_connection_compat<S, I, Bd>(&self,
+                                 handle: &Handle,
+                                 io: I,
+                                 remote_addr: SocketAddr,
+                                 service: S)
+        where S: Service<Request = http_types::Request<Body>, Response = http_types::Response<Bd>, Error = ::Error> + 'static,
+              Bd: Stream<Item=B, Error=::Error> + 'static,
+              I: AsyncRead + AsyncWrite + 'static,
+    {
+        self.bind_server(handle, io, HttpService {
+            inner: compat_impl::service(service),
             remote_addr: remote_addr,
         })
     }

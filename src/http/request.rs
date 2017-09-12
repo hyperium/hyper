@@ -1,11 +1,14 @@
 use std::fmt;
+use std::net::SocketAddr;
+
+#[cfg(feature = "compat")]
+use http_types;
 
 use header::Headers;
 use http::{Body, MessageHead, RequestHead, RequestLine};
 use method::Method;
 use uri::{self, Uri};
 use version::HttpVersion;
-use std::net::SocketAddr;
 
 /// An HTTP Request
 pub struct Request<B = Body> {
@@ -129,6 +132,24 @@ impl<B> fmt::Debug for Request<B> {
             .field("remote_addr", &self.remote_addr)
             .field("headers", &self.headers)
             .finish()
+    }
+}
+
+#[cfg(feature = "compat")]
+impl From<Request> for http_types::Request<Body> {
+    fn from(req: Request) -> http_types::Request<Body> {
+        let mut builder = http_types::request::Builder::new();
+
+        builder.method(req.method().as_ref());
+        builder.uri(req.uri().as_ref());
+        builder.version(req.version().into());
+
+        for header in req.headers().iter() {
+            builder.header(header.name(), header.value_string().as_str());
+        }
+
+        builder.body(req.body())
+            .expect("attempted to convert invalid request")
     }
 }
 

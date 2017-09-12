@@ -2,6 +2,9 @@
 use std::fmt;
 use std::cmp::Ordering;
 
+#[cfg(feature = "compat")]
+use http_types;
+
 /// An HTTP status code (`status-code` in RFC 7230 et al.).
 ///
 /// This enum contains all common status codes and an Unregistered
@@ -593,6 +596,22 @@ impl Default for StatusCode {
 impl From<StatusCode> for u16 {
     fn from(code: StatusCode) -> u16 {
         code.as_u16()
+    }
+}
+
+#[cfg(feature = "compat")]
+impl From<http_types::StatusCode> for StatusCode {
+    fn from(status: http_types::StatusCode) -> StatusCode {
+        StatusCode::try_from(status.as_u16())
+            .expect("attempted to convert invalid status code")
+    }
+}
+
+#[cfg(feature = "compat")]
+impl From<StatusCode> for http_types::StatusCode {
+    fn from(status: StatusCode) -> http_types::StatusCode {
+        http_types::StatusCode::from_u16(status.as_u16())
+            .expect("attempted to convert invalid status code")
     }
 }
 

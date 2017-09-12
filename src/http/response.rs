@@ -1,5 +1,8 @@
 use std::fmt;
 
+#[cfg(feature = "compat")]
+use http_types;
+
 use header::{Header, Headers};
 use http::{MessageHead, ResponseHead, Body};
 use status::StatusCode;
@@ -139,6 +142,23 @@ impl fmt::Debug for Response {
             .field("version", &self.version)
             .field("headers", &self.headers)
             .finish()
+    }
+}
+
+#[cfg(feature = "compat")]
+impl<B> From<http_types::Response<B>> for Response<B> {
+    fn from(from_res: http_types::Response<B>) -> Response<B> {
+        let mut to_res = Response::new();
+        to_res.version = from_res.version().into();
+        to_res.set_status(from_res.status().into());
+        {
+            let mut to_headers = to_res.headers_mut();
+            for (name, value) in from_res.headers().iter() {
+                to_headers.set_raw(name.as_str().to_string(), value.as_bytes());        
+            }
+        }
+        let (_, body) = from_res.into_parts();
+        to_res.with_body(body)
     }
 }
 
