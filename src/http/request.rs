@@ -137,19 +137,18 @@ impl<B> fmt::Debug for Request<B> {
 
 #[cfg(feature = "compat")]
 impl From<Request> for http_types::Request<Body> {
-    fn from(req: Request) -> http_types::Request<Body> {
-        let mut builder = http_types::request::Builder::new();
+    fn from(from_req: Request) -> http_types::Request<Body> {
+        let (m, u, v, h, b) = from_req.deconstruct();
 
-        builder.method(req.method().as_ref());
-        builder.uri(req.uri().as_ref());
-        builder.version(req.version().into());
+        let to_req = http_types::Request::new(());
+        let (mut to_parts, _) = to_req.into_parts();
 
-        for header in req.headers().iter() {
-            builder.header(header.name(), header.value_string().as_str());
-        }
+        to_parts.method = m.into();
+        to_parts.uri = u.into();
+        to_parts.version = v.into();
+        to_parts.headers = h.into();
 
-        builder.body(req.body())
-            .expect("attempted to convert invalid request")
+        http_types::Request::from_parts(to_parts, b)
     }
 }
 
