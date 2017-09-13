@@ -162,8 +162,30 @@ impl Default for Method {
 #[cfg(feature = "compat")]
 impl From<http_types::Method> for Method {
     fn from(method: http_types::Method) -> Method {
-        method.as_ref().parse()
-            .expect("attempted to convert invalid method")
+        match method {
+            http_types::Method::GET =>
+                Method::Get,
+            http_types::Method::POST =>
+                Method::Post,
+            http_types::Method::PUT =>
+                Method::Put,
+            http_types::Method::DELETE =>
+                Method::Delete,
+            http_types::Method::HEAD =>
+                Method::Head,
+            http_types::Method::OPTIONS =>
+                Method::Options,
+            http_types::Method::CONNECT =>
+                Method::Connect,
+            http_types::Method::PATCH =>
+                Method::Patch,
+            http_types::Method::TRACE =>
+                Method::Trace,
+            _ => {
+                method.as_ref().parse()
+                    .expect("attempted to convert invalid method")
+            }
+        }
     }
 }
 
@@ -172,8 +194,30 @@ impl From<Method> for http_types::Method {
     fn from(method: Method) -> http_types::Method {
         use http_types::HttpTryFrom;
 
-        HttpTryFrom::try_from(method.as_ref())
-            .expect("attempted to convert invalid method")
+        match method {
+            Method::Get =>
+                http_types::Method::GET,
+            Method::Post =>
+                http_types::Method::POST,
+            Method::Put =>
+                http_types::Method::PUT,
+            Method::Delete =>
+                http_types::Method::DELETE,
+            Method::Head =>
+                http_types::Method::HEAD,
+            Method::Options =>
+                http_types::Method::OPTIONS,
+            Method::Connect =>
+                http_types::Method::CONNECT,
+            Method::Patch =>
+                http_types::Method::PATCH,
+            Method::Trace =>
+                http_types::Method::TRACE,
+            Method::Extension(s) => {
+                HttpTryFrom::try_from(s.as_str())
+                    .expect("attempted to convert invalid method")
+            }
+        }
     }
 }
 
