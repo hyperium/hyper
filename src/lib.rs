@@ -49,6 +49,8 @@ pub use method::Method::{self, Get, Head, Post, Put, Delete};
 pub use status::StatusCode::{self, Ok, BadRequest, NotFound};
 pub use server::Server;
 pub use version::HttpVersion;
+#[cfg(feature = "raw_status")]
+pub use http::RawStatus;
 
 #[cfg(test)]
 mod mock;
