@@ -6,27 +6,25 @@
 [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![crates.io](http://meritbadge.herokuapp.com/hyper)](https://crates.io/crates/hyper)
 
-A Modern HTTP library for Rust.
+A low-level HTTP implementation for Rust.
 
 ### Documentation
 
 - [Released](http://docs.rs/hyper)
 - [Master](http://hyperium.github.io/hyper/master)
 
-Get started by looking over the [guides](https://hyper.rs/guides).
+**Get started** by looking over the [guides](https://hyper.rs/guides).
 
 ## Overview
 
-hyper is a fast, modern HTTP implementation written in and for Rust. It
-is a low-level typesafe abstraction over raw HTTP, providing an elegant
-layer over "stringly-typed" HTTP.
+hyper is a fast, safe HTTP implementation written in and for Rust.
 
 hyper offers both an HTTP client and server which can be used to drive
 complex web applications written entirely in Rust.
 
-hyper makes use of "async IO" (non-blocking sockets) via the [Tokio](https://tokio.rs) and [Futures](https://docs.rs/futures) libraries.
-
-See the [Hello World](https://github.com/hyperium/hyper/blob/master/examples/hello.rs) example for a toy server using hyper.
+hyper makes use of "async IO" (non-blocking sockets) via the
+[Tokio](https://tokio.rs) and [Futures](https://docs.rs/futures) crates.
 
 Be aware that hyper is still actively evolving towards 1.0, and is likely
-to experience breaking changes before stabilising. You can also see the [1.0 issue milestone](https://github.com/hyperium/hyper/milestone/1).
+to experience breaking changes before stabilising. You can also see the
+[1.0 issue milestone](https://github.com/hyperium/hyper/milestone/1).
