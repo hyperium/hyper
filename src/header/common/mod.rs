@@ -20,7 +20,7 @@ pub use self::access_control_max_age::AccessControlMaxAge;
 pub use self::access_control_request_headers::AccessControlRequestHeaders;
 pub use self::access_control_request_method::AccessControlRequestMethod;
 pub use self::allow::Allow;
-pub use self::authorization::{Authorization, Scheme, Basic, Bearer};
+pub use self::authorization::{Authorization, Scheme, Basic, Bearer, Token};
 pub use self::cache_control::{CacheControl, CacheDirective};
 pub use self::connection::{Connection, ConnectionOption};
 pub use self::content_disposition::{ContentDisposition, DispositionType, DispositionParam};
