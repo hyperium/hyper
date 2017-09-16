@@ -1,13 +1,15 @@
 # Contributing to Hyper
 
-You want to contribute? You're awesome! Don't know where to start? Check the [easy tag][].
+You want to contribute? You're awesome! Don't know where to start? Check the [list of easy issues][].
 
-[easy tag]: https://github.com/hyperium/hyper/issues?q=label%3Aeasy+is%3Aopen
+[easy tag]: https://github.com/hyperium/hyper/issues?q=label%3AE-easy+is%3Aopen
+
+
+## Pull Requests
 
 When submitting a Pull Request, please have your commits follow these guidelines:
 
-
-## Git Commit Guidelines
+### Git Commit Guidelines
 
 These guidelines have been copied from the [AngularJS](https://github.com/angular/angular.js/blob/master/CONTRIBUTING.md#-git-commit-guidelines)
 project.
@@ -16,7 +18,7 @@ We have very precise rules over how our git commit messages can be formatted.  T
 readable messages** that are easy to follow when looking through the **project history**.  But also,
 we use the git commit messages to **generate the change log**.
 
-### Commit Message Format
+#### Commit Message Format
 Each commit message consists of a **header**, a **body** and a **footer**.  The header has a special
 format that includes a **type**, a **scope** and a **subject**:
 
@@ -31,7 +33,7 @@ format that includes a **type**, a **scope** and a **subject**:
 Any line of the commit message cannot be longer 100 characters! This allows the message to be easier
 to read on github as well as in various git tools.
 
-### Type
+#### Type
 Must be one of the following:
 
 * **feat**: A new feature
@@ -45,7 +47,7 @@ Must be one of the following:
 * **chore**: Changes to the build process or auxiliary tools and libraries such as documentation
     generation
 
-### Scope
+#### Scope
 The scope should refer to a module in hyper that is being touched. Examples:
 
 * headers
@@ -57,19 +59,20 @@ The scope should refer to a module in hyper that is being touched. Examples:
 * status
 * version
 
-### Subject
+#### Subject
+
 The subject contains succinct description of the change:
 
 * use the imperative, present tense: "change" not "changed" nor "changes"
 * don't capitalize first letter
 * no dot (.) at the end
 
-### Body
+#### Body
 
 Just as in the **subject**, use the imperative, present tense: "change" not "changed" nor "changes"
 The body should include the motivation for the change and contrast this with previous behavior.
 
-### Footer
+#### Footer
 
 The footer should contain any information about **Breaking Changes** and is also the place to
 reference GitHub issues that this commit **Closes**.
