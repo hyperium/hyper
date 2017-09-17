@@ -29,6 +29,11 @@ impl ByteStr {
     pub fn as_str(&self) -> &str {
         unsafe { str::from_utf8_unchecked(self.0.as_ref()) }
     }
+
+    #[cfg(feature = "compat")]
+    pub fn into_bytes(self) -> Bytes {
+        self.0
+    }
 }
 
 impl Deref for ByteStr {

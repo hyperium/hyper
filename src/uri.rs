@@ -329,7 +329,8 @@ impl From<http_types::Uri> for Uri {
 #[cfg(feature = "compat")]
 impl From<Uri> for http_types::Uri {
     fn from(uri: Uri) -> http_types::Uri {
-        uri.as_ref().parse()
+        let bytes = uri.source.into_bytes();
+        http_types::Uri::from_shared(bytes)
             .expect("attempted to convert invalid uri")
     }
 }
