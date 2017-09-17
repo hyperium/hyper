@@ -571,7 +571,7 @@ impl From<Headers> for http_types::HeaderMap {
                 .expect("attempted to convert invalid header name");
             let value = http_types::header::HeaderValue::from_bytes(header.value_string().as_bytes())
                 .expect("attempted to convert invalid header value");
-            header_map.insert(name, value);
+            header_map.append(name, value);
         }
         header_map
     }

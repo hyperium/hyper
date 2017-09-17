@@ -162,6 +162,25 @@ impl<B> From<http_types::Response<B>> for Response<B> {
     }
 }
 
+#[cfg(feature = "compat")]
+impl From<Response> for http_types::Response<Body> {
+    fn from(from_res: Response) -> http_types::Response<Body> {
+        let (mut to_parts, ()) = http_types::Response::new(()).into_parts();
+        to_parts.version = from_res.version().into();
+        to_parts.status = from_res.status().into();
+        {
+            for header in from_res.headers().iter() {
+                let name = http_types::header::HeaderName::from_bytes(header.name().as_bytes())
+                    .expect("attempted to convert invalid header name");
+                let value = http_types::header::HeaderValue::from_bytes(header.value_string().as_bytes())
+                    .expect("attempted to convert invalid header value");
+                to_parts.headers.append(name, value);
+            }
+        }
+        http_types::Response::from_parts(to_parts, from_res.body())
+    }
+}
+
 /// Constructs a response using a received ResponseHead and optional body
 #[inline]
 #[cfg(not(feature = "raw_status"))]

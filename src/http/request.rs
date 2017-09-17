@@ -152,6 +152,24 @@ impl From<Request> for http_types::Request<Body> {
     }
 }
 
+#[cfg(feature = "compat")]
+impl<B> From<http_types::Request<B>> for Request<B> {
+    fn from(from_req: http_types::Request<B>) -> Request<B> {
+        let (from_parts, body) = from_req.into_parts();
+
+        let mut to_req = Request::new(from_parts.method.into(), from_parts.uri.into());
+        to_req.set_version(from_parts.version.into());
+        {
+            let mut to_headers = to_req.headers_mut();
+            for (name, value) in from_parts.headers.iter() {
+                to_headers.set_raw(name.as_str().to_string(), value.as_bytes());        
+            }
+        }
+        to_req.set_body(body);
+        to_req
+    }
+}
+
 /// Constructs a request using a received ResponseHead and optional body
 pub fn from_wire<B>(addr: Option<SocketAddr>, incoming: RequestHead, body: B) -> Request<B> {
     let MessageHead { version, subject: RequestLine(method, uri), headers } = incoming;
