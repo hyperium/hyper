@@ -1,4 +1,6 @@
 use std::fmt;
+#[cfg(feature = "compat")]
+use std::mem::replace;
 use std::net::SocketAddr;
 
 #[cfg(feature = "compat")]
@@ -159,12 +161,7 @@ impl<B> From<http_types::Request<B>> for Request<B> {
 
         let mut to_req = Request::new(from_parts.method.into(), from_parts.uri.into());
         to_req.set_version(from_parts.version.into());
-        {
-            let mut to_headers = to_req.headers_mut();
-            for (name, value) in from_parts.headers.iter() {
-                to_headers.set_raw(name.as_str().to_string(), value.as_bytes());        
-            }
-        }
+        replace(to_req.headers_mut(), from_parts.headers.into());
         to_req.set_body(body);
         to_req
     }
