@@ -30,14 +30,14 @@ use uri::{self, Uri};
 pub use http::response::Response;
 pub use http::request::Request;
 pub use self::connect::{HttpConnector, Connect};
-#[cfg(feature = "compat")]
-pub use self::compat::CompatFutureResponse;
 
 mod connect;
 mod dns;
 mod pool;
 #[cfg(feature = "compat")]
-mod compat;
+mod compat_impl;
+#[cfg(feature = "compat")]
+pub mod compat;
 
 /// A Client to make outgoing HTTP requests.
 // If the Connector is clone, then the Client can be clone easily.
@@ -117,8 +117,14 @@ where C: Connect,
     /// Send an `http::Request` using this Client.
     #[inline]
     #[cfg(feature = "compat")]
-    pub fn request_compat(&self, req: http_types::Request<B>) -> CompatFutureResponse {
-        self::compat::future(self.call(req.into()))
+    pub fn request_compat(&self, req: http_types::Request<B>) -> compat::CompatFutureResponse {
+        self::compat_impl::future(self.call(req.into()))
+    }
+
+    /// Convert into a client accepting `http::Request`.
+    #[cfg(feature = "compat")]
+    pub fn into_compat(self) -> compat::CompatClient<C, B> {
+        self::compat_impl::client(self)
     }
 }
 
