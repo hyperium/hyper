@@ -24,6 +24,7 @@ use http::request;
 use method::Method;
 use self::pool::{Pool, Pooled};
 use uri::{self, Uri};
+use version::HttpVersion;
 
 pub use http::response::Response;
 pub use http::request::Request;
@@ -139,6 +140,15 @@ where C: Connect,
     type Future = FutureResponse;
 
     fn call(&self, req: Self::Request) -> Self::Future {
+        match req.version() {
+            HttpVersion::Http10 |
+            HttpVersion::Http11 => (),
+            other => {
+                error!("Request has unsupported version \"{}\"", other);
+                return FutureResponse(Box::new(future::err(::Error::Version)));
+            }
+        }
+
         let url = req.uri().clone();
         let domain = match uri::scheme_and_authority(&url) {
             Some(uri) => uri,
