@@ -271,6 +271,16 @@ impl<T: Clone> Future for Checkout<T> {
     }
 }
 
+impl<T> Drop for Checkout<T> {
+    fn drop(&mut self) {
+        // Cleanup the parked senders in the pool to prevent a memory leak where
+        // it would grow indefinitely.
+        // @todo This clears out other parked senders as well, how should we
+        // remove just our sender of this checkout?
+        self.pool.inner.borrow_mut().parked.remove(&self.key);
+    }
+}
+
 struct Expiration(Option<Duration>);
 
 impl Expiration {
