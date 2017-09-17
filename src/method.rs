@@ -275,4 +275,25 @@ mod tests {
         assert_eq!(Put.as_ref(), "PUT");
         assert_eq!(Extension("MOVE".to_owned()).as_ref(), "MOVE");
     }
+
+    #[test]
+    #[cfg(feature = "compat")]
+    fn test_compat() {
+        use http_types::{self, HttpTryFrom};
+
+        let methods = vec![
+            "GET",
+            "POST",
+            "PUT",
+            "MOVE"
+        ];
+        for method in methods {
+            let orig_hyper_method = Method::from_str(method).unwrap();
+            let orig_http_method = http_types::Method::try_from(method).unwrap();
+            let conv_hyper_method: Method = orig_http_method.clone().into();
+            let conv_http_method: http_types::Method = orig_hyper_method.clone().into();
+            assert_eq!(orig_hyper_method, conv_hyper_method);
+            assert_eq!(orig_http_method, conv_http_method);
+        }
+    }
 }

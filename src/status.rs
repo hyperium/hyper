@@ -765,4 +765,18 @@ mod tests {
         StatusCode::try_from(0).unwrap_err();
         StatusCode::try_from(1000).unwrap_err();
     }
+
+    #[test]
+    #[cfg(feature = "compat")]
+    fn test_compat() {
+        use http_types::{self, HttpTryFrom};
+        for i in 100..600 {
+            let orig_hyper_status = StatusCode::try_from(i).unwrap();
+            let orig_http_status = http_types::StatusCode::try_from(i).unwrap();
+            let conv_hyper_status: StatusCode = orig_http_status.into();
+            let conv_http_status: http_types::StatusCode = orig_hyper_status.into();
+            assert_eq!(orig_hyper_status, conv_hyper_status);
+            assert_eq!(orig_http_status, conv_http_status);
+        }
+    }
 }
