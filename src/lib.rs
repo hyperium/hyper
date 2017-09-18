@@ -26,6 +26,7 @@ extern crate language_tags;
 #[macro_use] extern crate log;
 pub extern crate mime;
 #[macro_use] extern crate percent_encoding;
+extern crate relay;
 extern crate time;
 extern crate tokio_core as tokio;
 #[macro_use] extern crate tokio_io;
