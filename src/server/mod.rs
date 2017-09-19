@@ -14,15 +14,17 @@ use std::time::Duration;
 use futures::future;
 use futures::task::{self, Task};
 use futures::{Future, Stream, Poll, Async, Sink, StartSend, AsyncSink};
-use futures::future::Map;
+use futures::future::{Map, Empty, Select};
+use futures::stream::{FromErr};
 
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio::reactor::{Core, Handle, Timeout};
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream, Incoming};
 use tokio_proto::BindServer;
 use tokio_proto::streaming::Message;
 use tokio_proto::streaming::pipeline::{Transport, Frame, ServerProto};
 pub use tokio_service::{NewService, Service};
+
 
 use http;
 use http::response;
@@ -46,14 +48,15 @@ pub struct Http<B = ::Chunk> {
 ///
 /// This server is intended as a convenience for creating a TCP listener on an
 /// address and then serving TCP connections accepted with the service provided.
-pub struct Server<S, B>
+pub struct Server<S, B, IO, Listener>
 where B: Stream<Error=::Error>,
       B::Item: AsRef<[u8]>,
+      IO: AsyncRead + AsyncWrite,
+      Listener: Stream<Item = (IO, SocketAddr), Error = ::Error>
 {
     protocol: Http<B::Item>,
     new_service: S,
-    core: Core,
-    listener: TcpListener,
+    listener: Listener,
     shutdown_timeout: Duration,
 }
 
@@ -85,22 +88,37 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     ///
     /// The returned `Server` contains one method, `run`, which is used to
     /// actually run the server.
-    pub fn bind<S, Bd>(&self, addr: &SocketAddr, new_service: S) -> ::Result<Server<S, Bd>>
+    pub fn bind<S, Bd>(&self, addr: &SocketAddr, handle: Handle, new_service: S) -> ::Result<Server<S, Bd, TcpStream, FromErr<Incoming, ::Error>>>
         where S: NewService<Request = Request, Response = Response<Bd>, Error = ::Error> +
-                    Send + Sync + 'static,
+                    'static,
               Bd: Stream<Item=B, Error=::Error>,
     {
-        let core = try!(Core::new());
-        let handle = core.handle();
-        let listener = try!(TcpListener::bind(addr, &handle));
+        Ok(self.from_listener(
+            try!(TcpListener::bind(addr, &handle)).incoming().from_err(),
+            new_service
+        ))
+    }
 
-        Ok(Server {
-            new_service: new_service,
-            core: core,
-            listener: listener,
+    /// Use the provided `listener` as a stream of connections.
+    ///
+    /// This method is used for example by [`bind`](#method.bind),
+    /// using `tokio_io::net::Incoming` as parameter `listener`.
+    ///
+    /// The returned `Server` contains one method, `run`, which is
+    /// used to actually run the server.
+    pub fn from_listener<S, Bd, IO, Listener>(&self, listener: Listener, new_service: S) -> Server<S, Bd, IO, Listener>
+        where S: NewService<Request = Request, Response = Response<Bd>, Error = ::Error> +
+                    'static,
+              Bd: Stream<Item=B, Error=::Error>,
+              IO: AsyncRead + AsyncWrite,
+              Listener: Stream<Item = (IO, SocketAddr), Error = ::Error>
+    {
+        Server {
+            new_service,
+            listener,
             protocol: self.clone(),
             shutdown_timeout: Duration::new(1, 0),
-        })
+        }
     }
 
     /// Use this `Http` instance to create a new server task which handles the
@@ -118,10 +136,10 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     /// however, when writing mocks or accepting sockets from a non-TCP
     /// location.
     pub fn bind_connection<S, I, Bd>(&self,
-                                 handle: &Handle,
-                                 io: I,
-                                 remote_addr: SocketAddr,
-                                 service: S)
+                                     handle: &Handle,
+                                     io: I,
+                                     remote_addr: SocketAddr,
+                                     service: S)
         where S: Service<Request = Request, Response = Response<Bd>, Error = ::Error> + 'static,
               Bd: Stream<Item=B, Error=::Error> + 'static,
               I: AsyncRead + AsyncWrite + 'static,
@@ -336,22 +354,14 @@ impl<T, B> Service for HttpService<T>
     }
 }
 
-impl<S, B> Server<S, B>
+impl<S, B, I, L> Server<S, B, I, L>
     where S: NewService<Request = Request, Response = Response<B>, Error = ::Error>
-                + Send + Sync + 'static,
+             + 'static,
           B: Stream<Error=::Error> + 'static,
           B::Item: AsRef<[u8]>,
+          I: AsyncRead + AsyncWrite + 'static,
+          L: Stream<Item = (I, SocketAddr), Error = ::Error>
 {
-    /// Returns the local address that this server is bound to.
-    pub fn local_addr(&self) -> ::Result<SocketAddr> {
-        Ok(try!(self.listener.local_addr()))
-    }
-
-    /// Returns a handle to the underlying event loop that this server will be
-    /// running on.
-    pub fn handle(&self) -> Handle {
-        self.core.handle()
-    }
 
     /// Configure the amount of time this server will wait for a "graceful
     /// shutdown".
@@ -390,59 +400,121 @@ impl<S, B> Server<S, B>
     pub fn run_until<F>(self, shutdown_signal: F) -> ::Result<()>
         where F: Future<Item = (), Error = ()>,
     {
-        let Server { protocol, new_service, mut core, listener, shutdown_timeout } = self;
+        let mut core = Core::new()?;
         let handle = core.handle();
+        core.run(self.future_run_until(handle, shutdown_signal))
+    }
 
-        // Mini future to track the number of active services
-        let info = Rc::new(RefCell::new(Info {
-            active: 0,
-            blocker: None,
-        }));
+    /// Build a future that executes this server infinitely.
+    ///
+    /// The returned `RunUntil` is meant to be run by, or spawned into
+    /// an event loop, like so:
+    ///
+    /// ```
+    /// let mut core = Core::new().unwrap();
+    /// let handle = core.handle();
+    /// core.run(self.future_run_until(handle, shutdown_signal)).unwrap()
+    /// ```
+    pub fn future_run(self, handle: Handle) -> RunUntil<Empty<(), ()>, S, B, I, L> {
+        self.future_run_until(handle, future::empty())
+    }
 
-        // Future for our server's execution
-        let srv = listener.incoming().for_each(|(socket, addr)| {
-            let s = NotifyService {
-                inner: try!(new_service.new_service()),
-                info: Rc::downgrade(&info),
-            };
-            info.borrow_mut().active += 1;
-            protocol.bind_connection(&handle, socket, addr, s);
-            Ok(())
-        });
 
-        // for now, we don't care if the shutdown signal succeeds or errors
-        // as long as it resolves, we will shutdown.
-        let shutdown_signal = shutdown_signal.then(|_| Ok(()));
-
-        // Main execution of the server. Here we use `select` to wait for either
-        // `incoming` or `f` to resolve. We know that `incoming` will never
-        // resolve with a success (it's infinite) so we're actually just waiting
-        // for an error or for `f`, our shutdown signal.
-        //
-        // When we get a shutdown signal (`Ok`) then we drop the TCP listener to
-        // stop accepting incoming connections.
-        match core.run(shutdown_signal.select(srv)) {
-            Ok(((), _incoming)) => {}
-            Err((e, _other)) => return Err(e.into()),
-        }
-
-        // Ok we've stopped accepting new connections at this point, but we want
-        // to give existing connections a chance to clear themselves out. Wait
-        // at most `shutdown_timeout` time before we just return clearing
-        // everything out.
-        //
-        // Our custom `WaitUntilZero` will resolve once all services constructed
-        // here have been destroyed.
-        let timeout = try!(Timeout::new(shutdown_timeout, &handle));
-        let wait = WaitUntilZero { info: info.clone() };
-        match core.run(wait.select(timeout)) {
-            Ok(_) => Ok(()),
-            Err((e, _)) => Err(e.into())
+    /// Build a future that runs the server until the given future,
+    /// `shutdown_signal`, resolves.
+    ///
+    /// This method, like `future_run` above, is used to execute this
+    /// HTTP server. The difference with `future_run`, however, is
+    /// that this method allows for shutdown in a graceful
+    /// fashion. The future provided is interpreted as a signal to
+    /// shut down the server when it resolves.
+    ///
+    /// When the `shutdown_signal` has resolved then the TCP listener
+    /// will be unbound (dropped). The future will resolve after a
+    /// maximum of `shutdown_timeout` time waiting for active
+    /// connections to shut down.  Once the `shutdown_timeout` elapses
+    /// or all active connections are cleaned out then the future will
+    /// resolve to `()`.
+    pub fn future_run_until<F>(self, handle: Handle, shutdown_signal: F) -> RunUntil<F, S, B, I, L>
+        where F: Future<Item = (), Error = ()>,
+    {
+        RunUntil {
+            server: self,
+            shutdown_signal,
+            info: Rc::new(RefCell::new(Info {
+                active: 0,
+                blocker: None,
+            })),
+            handle,
+            shutdown: None,
         }
     }
 }
 
-impl<S: fmt::Debug, B: Stream<Error=::Error>> fmt::Debug for Server<S, B>
+/// A future that runs a HTTP server. See the
+/// [`future_run`](./struct.Server.html#method.future_run) and
+/// [`future_run_until`](./struct.Server.html#method.future_run_until)
+/// methods of [`Http`](./struct.Server.html) to understand how to
+/// build instances of this.
+pub struct RunUntil<F, S, B, I, L>
+    where B: Stream<Error=::Error> + 'static,
+          B::Item: AsRef<[u8]>,
+          I: AsyncRead + AsyncWrite,
+          L: Stream<Item = (I, SocketAddr), Error = ::Error>
+{
+    server: Server<S, B, I, L>,
+    info: Rc<RefCell<Info>>,
+    shutdown_signal: F,
+    handle: Handle,
+    shutdown: Option<Select<WaitUntilZero, Timeout>>,
+}
+
+impl<F, S, B, I, L> Future for RunUntil<F, S, B, I, L>
+    where F:Future<Item = (), Error = ()>,
+          S: NewService<Request = Request, Response = Response<B>, Error = ::Error>
+                + 'static,
+          B: Stream<Error=::Error> + 'static,
+          B::Item: AsRef<[u8]>,
+          I: AsyncRead + AsyncWrite + 'static,
+          L: Stream<Item = (I, SocketAddr), Error = ::Error> {
+
+    type Item = ();
+    type Error = ::Error;
+    fn poll(&mut self) -> Poll<(), ::Error> {
+
+        loop {
+            if let Some(ref mut shutdown) = self.shutdown {
+                match shutdown.poll() {
+                    Ok(Async::Ready(_)) => return Ok(Async::Ready(())),
+                    Ok(Async::NotReady) => return Ok(Async::NotReady),
+                    Err((e, _)) => return Err(e.into())
+                }
+            } else if let Ok(Async::Ready(())) = self.shutdown_signal.poll() {
+                let timeout = Timeout::new(self.server.shutdown_timeout, &self.handle)?;
+                let wait = WaitUntilZero { info: self.info.clone() };
+                self.shutdown = Some(wait.select(timeout))
+            } else {
+                match self.server.listener.poll() {
+                    Ok(Async::Ready(Some((socket, addr)))) => {
+                        let s = NotifyService {
+                            inner: try!(self.server.new_service.new_service()),
+                            info: Rc::downgrade(&self.info),
+                        };
+                        self.info.borrow_mut().active += 1;
+                        self.server.protocol.bind_connection(&self.handle, socket, addr, s);
+                    }
+                    Ok(Async::Ready(None)) => return Ok(Async::Ready(())),
+                    Ok(Async::NotReady) => return Ok(Async::NotReady),
+                    Err(e) => debug!("hyper error: {:?}", e)
+                }
+            }
+        }
+    }
+}
+
+
+
+impl<S: fmt::Debug, B: Stream<Error=::Error>, I: AsyncRead+AsyncWrite, L:Stream<Item=(I, SocketAddr), Error=::Error> + fmt::Debug> fmt::Debug for Server<S, B, I, L>
 where B::Item: AsRef<[u8]>
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -451,6 +523,20 @@ where B::Item: AsRef<[u8]>
          .field("listener", &self.listener)
          .field("new_service", &self.new_service)
          .field("protocol", &self.protocol)
+         .finish()
+    }
+}
+
+impl<F, S: fmt::Debug, B: Stream<Error=::Error>, I: AsyncRead+AsyncWrite, L:Stream<Item=(I, SocketAddr), Error=::Error> + fmt::Debug> fmt::Debug for RunUntil<F, S, B, I, L>
+where B::Item: AsRef<[u8]>
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("RunUntil")
+         .field("server", &self.server)
+         .field("handle", &self.handle)
+         .field("info", &"...")
+         .field("shutdown_signal", &"...")
+         .field("shutdown", &"...")
          .finish()
     }
 }
