@@ -1,6 +1,7 @@
 #![deny(warnings)]
 extern crate hyper;
 extern crate futures;
+extern crate tokio_core;
 extern crate pretty_env_logger;
 
 use futures::future::FutureResult;
@@ -31,7 +32,5 @@ impl Service for Hello {
 fn main() {
     pretty_env_logger::init().unwrap();
     let addr = "127.0.0.1:3000".parse().unwrap();
-    let server = Http::new().bind(&addr, || Ok(Hello)).unwrap();
-    println!("Listening on http://{} with 1 thread.", server.local_addr().unwrap());
-    server.run().unwrap();
+    Http::new().run(&addr, || Ok(Hello)).unwrap();
 }

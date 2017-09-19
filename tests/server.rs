@@ -3,17 +3,17 @@ extern crate hyper;
 extern crate futures;
 extern crate spmc;
 extern crate pretty_env_logger;
+extern crate tokio_core;
 
 use futures::{Future, Stream};
 use futures::sync::oneshot;
-
 use std::net::{TcpStream, SocketAddr};
 use std::io::{Read, Write};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
-
+use tokio_core::reactor::Core;
 use hyper::server::{Http, Request, Response, Service, NewService};
 
 #[test]
@@ -595,13 +595,24 @@ fn serve_with_options(options: ServeOptions) -> Serve {
 
     let thread_name = format!("test-server-{:?}", dur);
     let thread = thread::Builder::new().name(thread_name).spawn(move || {
-        let srv = Http::new().keep_alive(keep_alive).bind(&addr, TestService {
-            tx: Arc::new(Mutex::new(msg_tx.clone())),
-            _timeout: dur,
-            reply: reply_rx,
-        }).unwrap();
-        addr_tx.send(srv.local_addr().unwrap()).unwrap();
-        srv.run_until(shutdown_rx.then(|_| Ok(()))).unwrap();
+
+        let mut srv = Http::new();
+        srv.keep_alive(keep_alive);
+
+        let mut core = Core::new().unwrap();
+        let h = core.handle();
+        let srv = srv.bind(
+            &addr,
+            &h,
+            TestService {
+                tx: Arc::new(Mutex::new(msg_tx.clone())),
+                _timeout: dur,
+                reply: reply_rx,
+            }
+        ).unwrap();
+        addr_tx.send(srv.local_addr()).unwrap();
+        core.run(srv.run_until(h, shutdown_rx.then(|_| Ok(())))).unwrap()
+
     }).unwrap();
 
     let addr = addr_rx.recv().unwrap();

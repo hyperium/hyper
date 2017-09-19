@@ -54,6 +54,7 @@ where B: Stream<Error=::Error>,
       IO: AsyncRead + AsyncWrite,
       Listener: Stream<Item = (IO, SocketAddr), Error = ::Error>
 {
+    local_addr: SocketAddr,
     protocol: Http<B::Item>,
     new_service: S,
     listener: Listener,
@@ -88,13 +89,15 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     ///
     /// The returned `Server` contains one method, `run`, which is used to
     /// actually run the server.
-    pub fn bind<S, Bd>(&self, addr: &SocketAddr, handle: Handle, new_service: S) -> ::Result<Server<S, Bd, TcpStream, FromErr<Incoming, ::Error>>>
+    pub fn bind<S, Bd>(&self, addr: &SocketAddr, handle: &Handle, new_service: S) -> ::Result<Server<S, Bd, TcpStream, FromErr<Incoming, ::Error>>>
         where S: NewService<Request = Request, Response = Response<Bd>, Error = ::Error> +
                     'static,
               Bd: Stream<Item=B, Error=::Error>,
     {
+        let listener = TcpListener::bind(addr, handle)?;
         Ok(self.from_listener(
-            try!(TcpListener::bind(addr, &handle)).incoming().from_err(),
+            listener.local_addr()?,
+            listener.incoming().from_err(),
             new_service
         ))
     }
@@ -106,7 +109,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     ///
     /// The returned `Server` contains one method, `run`, which is
     /// used to actually run the server.
-    pub fn from_listener<S, Bd, IO, Listener>(&self, listener: Listener, new_service: S) -> Server<S, Bd, IO, Listener>
+    pub fn from_listener<S, Bd, IO, Listener>(&self, local_addr: SocketAddr, listener: Listener, new_service: S) -> Server<S, Bd, IO, Listener>
         where S: NewService<Request = Request, Response = Response<Bd>, Error = ::Error> +
                     'static,
               Bd: Stream<Item=B, Error=::Error>,
@@ -114,6 +117,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
               Listener: Stream<Item = (IO, SocketAddr), Error = ::Error>
     {
         Server {
+            local_addr,
             new_service,
             listener,
             protocol: self.clone(),
@@ -149,6 +153,43 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
             remote_addr: remote_addr,
         })
     }
+
+
+    /// Create a server from this `Http`, and execute that server
+    /// infinitely.
+    ///
+    /// This method does not currently return, but it will return an
+    /// error if one occurs.
+    pub fn run<S, Bd>(self, addr: &SocketAddr, new_service: S) -> ::Result<()>
+        where S: NewService<Request = Request, Response = Response<Bd>, Error = ::Error> + 'static,
+              Bd: Stream<Item=B, Error=::Error> + 'static {
+
+        self.run_until(addr, new_service, future::empty())
+    }
+
+    /// Execute this server until the given future, `shutdown_signal`, resolves.
+    ///
+    /// This method, like `run` above, is used to execute this HTTP server. The
+    /// difference with `run`, however, is that this method allows for shutdown
+    /// in a graceful fashion. The future provided is interpreted as a signal to
+    /// shut down the server when it resolves.
+    ///
+    /// This method will block the current thread executing the HTTP server.
+    /// When the `shutdown_signal` has resolved then the TCP listener will be
+    /// unbound (dropped). The thread will continue to block for a maximum of
+    /// `shutdown_timeout` time waiting for active connections to shut down.
+    /// Once the `shutdown_timeout` elapses or all active connections are
+    /// cleaned out then this method will return.
+    pub fn run_until<F, S, Bd>(self, addr: &SocketAddr, new_service: S, shutdown_signal: F) -> ::Result<()>
+        where F: Future<Item = (), Error = ()>,
+              S: NewService<Request = Request, Response = Response<Bd>, Error = ::Error> + 'static,
+              Bd: Stream<Item=B, Error=::Error> + 'static {
+
+        let mut core = Core::new()?;
+        let h = core.handle();
+        core.run(self.bind(addr, &h, new_service)?.run_until(h, shutdown_signal))
+    }
+
 }
 
 impl<B> Clone for Http<B> {
@@ -363,6 +404,11 @@ impl<S, B, I, L> Server<S, B, I, L>
           L: Stream<Item = (I, SocketAddr), Error = ::Error>
 {
 
+    /// Returns the local address that this server is bound to.
+    pub fn local_addr(&self) -> SocketAddr {
+        self.local_addr
+    }
+
     /// Configure the amount of time this server will wait for a "graceful
     /// shutdown".
     ///
@@ -376,47 +422,12 @@ impl<S, B, I, L> Server<S, B, I, L>
         self
     }
 
-    /// Execute this server infinitely.
-    ///
-    /// This method does not currently return, but it will return an error if
-    /// one occurs.
-    pub fn run(self) -> ::Result<()> {
-        self.run_until(future::empty())
-    }
-
-    /// Execute this server until the given future, `shutdown_signal`, resolves.
-    ///
-    /// This method, like `run` above, is used to execute this HTTP server. The
-    /// difference with `run`, however, is that this method allows for shutdown
-    /// in a graceful fashion. The future provided is interpreted as a signal to
-    /// shut down the server when it resolves.
-    ///
-    /// This method will block the current thread executing the HTTP server.
-    /// When the `shutdown_signal` has resolved then the TCP listener will be
-    /// unbound (dropped). The thread will continue to block for a maximum of
-    /// `shutdown_timeout` time waiting for active connections to shut down.
-    /// Once the `shutdown_timeout` elapses or all active connections are
-    /// cleaned out then this method will return.
-    pub fn run_until<F>(self, shutdown_signal: F) -> ::Result<()>
-        where F: Future<Item = (), Error = ()>,
-    {
-        let mut core = Core::new()?;
-        let handle = core.handle();
-        core.run(self.future_run_until(handle, shutdown_signal))
-    }
-
     /// Build a future that executes this server infinitely.
     ///
     /// The returned `RunUntil` is meant to be run by, or spawned into
-    /// an event loop, like so:
-    ///
-    /// ```
-    /// let mut core = Core::new().unwrap();
-    /// let handle = core.handle();
-    /// core.run(self.future_run_until(handle, shutdown_signal)).unwrap()
-    /// ```
-    pub fn future_run(self, handle: Handle) -> RunUntil<Empty<(), ()>, S, B, I, L> {
-        self.future_run_until(handle, future::empty())
+    /// an event loop.
+    pub fn run(self, handle: Handle) -> RunUntil<Empty<(), ()>, S, B, I, L> {
+        self.run_until(handle, future::empty())
     }
 
 
@@ -435,7 +446,7 @@ impl<S, B, I, L> Server<S, B, I, L>
     /// connections to shut down.  Once the `shutdown_timeout` elapses
     /// or all active connections are cleaned out then the future will
     /// resolve to `()`.
-    pub fn future_run_until<F>(self, handle: Handle, shutdown_signal: F) -> RunUntil<F, S, B, I, L>
+    pub fn run_until<F>(self, handle: Handle, shutdown_signal: F) -> RunUntil<F, S, B, I, L>
         where F: Future<Item = (), Error = ()>,
     {
         RunUntil {
