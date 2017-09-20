@@ -74,6 +74,12 @@ impl ContentType {
         ContentType(mime::TEXT_HTML)
     }
 
+    /// A constructor  to easily create a `Content-Type: text/xml; charset=utf-8` header.
+    #[inline]
+    pub fn xml() -> ContentType {
+        ContentType(mime::TEXT_XML)
+    }
+
     /// A constructor  to easily create a `Content-Type: application/www-form-url-encoded` header.
     #[inline]
     pub fn form_url_encoded() -> ContentType {
