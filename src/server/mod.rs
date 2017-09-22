@@ -96,8 +96,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     /// The returned `Server` contains one method, `run`, which is used to
     /// actually run the server.
     pub fn bind<S, Bd>(&self, addr: &SocketAddr, new_service: S) -> ::Result<Server<S, Bd>>
-        where S: NewService<Request = Request, Response = Response<Bd>, Error = ::Error> +
-                    Send + Sync + 'static,
+        where S: NewService<Request = Request, Response = Response<Bd>, Error = ::Error> + 'static,
               Bd: Stream<Item=B, Error=::Error>,
     {
         let core = try!(Core::new());
@@ -378,8 +377,7 @@ impl<T, B> Service for HttpService<T>
 }
 
 impl<S, B> Server<S, B>
-    where S: NewService<Request = Request, Response = Response<B>, Error = ::Error>
-                + Send + Sync + 'static,
+    where S: NewService<Request = Request, Response = Response<B>, Error = ::Error> + 'static,
           B: Stream<Error=::Error> + 'static,
           B::Item: AsRef<[u8]>,
 {
