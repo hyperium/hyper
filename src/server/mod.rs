@@ -41,6 +41,13 @@ use http::Body;
 pub use http::response::Response;
 pub use http::request::Request;
 
+/// Hyper::Server is able to either create and use its own core, or share
+/// one with others.
+enum ServerInternal {
+    Core(Core),
+    Handle(Handle)
+}
+
 /// An instance of the HTTP protocol, and implementation of tokio-proto's
 /// `ServerProto` trait.
 ///
@@ -62,7 +69,7 @@ where B: Stream<Error=::Error>,
 {
     protocol: Http<B::Item>,
     new_service: S,
-    core: Core,
+    internal: ServerInternal,
     listener: TcpListener,
     shutdown_timeout: Duration,
 }
@@ -105,11 +112,31 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
 
         Ok(Server {
             new_service: new_service,
-            core: core,
+            internal: ServerInternal::Core(core),
             listener: listener,
             protocol: self.clone(),
             shutdown_timeout: Duration::new(1, 0),
         })
+    }
+
+    /// Bind the provided `addr` and return a server that has
+    /// a shared `Core`.
+    /// 
+    /// This method, when provided a handle to a `Core`, allows
+    /// the ability to bind multiple servers to the same `Core`.
+    pub fn bind_handle<S, Bd>(&self, addr: &SocketAddr, new_service: S, handle: Handle) -> Server<S, Bd>
+        where S: NewService<Request = Request, Response = Response<Bd>, Error = ::Error> + 'static,
+            Bd: Stream<Item=B, Error=::Error>,
+    {
+        let listener = TcpListener::bind(addr, &handle).unwrap();
+
+        Server {
+            new_service: new_service,
+            internal: ServerInternal::Handle(handle),
+            listener: listener,
+            protocol: self.clone(),
+            shutdown_timeout: Duration::new(1, 0),
+        }
     }
 
     /// Bind a `NewService` using types from the `http` crate.
@@ -376,7 +403,7 @@ impl<T, B> Service for HttpService<T>
     }
 }
 
-impl<S, B> Server<S, B>
+impl<'a, S, B> Server<S, B>
     where S: NewService<Request = Request, Response = Response<B>, Error = ::Error> + 'static,
           B: Stream<Error=::Error> + 'static,
           B::Item: AsRef<[u8]>,
@@ -386,11 +413,11 @@ impl<S, B> Server<S, B>
         Ok(try!(self.listener.local_addr()))
     }
 
-    /// Returns a handle to the underlying event loop that this server will be
-    /// running on.
-    pub fn handle(&self) -> Handle {
-        self.core.handle()
-    }
+    // /// Returns a handle to the underlying event loop that this server will be
+    // /// running on.
+    // pub fn handle(&self) -> Handle {
+    //     self.core.handle()
+    // }
 
     /// Configure the amount of time this server will wait for a "graceful
     /// shutdown".
@@ -429,7 +456,13 @@ impl<S, B> Server<S, B>
     pub fn run_until<F>(self, shutdown_signal: F) -> ::Result<()>
         where F: Future<Item = (), Error = ()>,
     {
-        let Server { protocol, new_service, mut core, listener, shutdown_timeout } = self;
+        let Server { protocol, new_service, internal, listener, shutdown_timeout } = self;
+
+        let mut core = match internal {
+            ServerInternal::Core(core) => core,
+            _ => panic!("Server does not own a core!"),
+        };
+
         let handle = core.handle();
 
         // Mini future to track the number of active services
@@ -481,7 +514,7 @@ impl<S, B> Server<S, B>
     }
 }
 
-impl<S: fmt::Debug, B: Stream<Error=::Error>> fmt::Debug for Server<S, B>
+impl<'a, S: fmt::Debug, B: Stream<Error=::Error>> fmt::Debug for Server<S, B>
 where B::Item: AsRef<[u8]>
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
