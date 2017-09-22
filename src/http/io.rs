@@ -86,6 +86,17 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
         }
     }
 
+    /// Extracts the underlying I/O stream and any buffered data already read,
+    /// but only if the write buffer is already empty.
+    #[inline]
+    pub fn try_into_inner(self) -> Result<(T, BytesMut), Self> {
+        if self.write_buf.remaining() == 0 {
+            Ok((self.io, self.read_buf))
+        } else {
+            Err(self)
+        }
+    }
+
     fn read_from_io(&mut self) -> Poll<usize, io::Error> {
         use bytes::BufMut;
         // TODO: Investigate if we still need these unsafe blocks

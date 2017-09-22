@@ -15,6 +15,7 @@ use futures::future;
 use futures::task::{self, Task};
 use futures::{Future, Stream, Poll, Async, Sink, StartSend, AsyncSink};
 use futures::future::Map;
+use futures::sync::oneshot::{self, Receiver, Sender};
 
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio::reactor::{Core, Handle, Timeout};
@@ -24,12 +25,16 @@ use tokio_proto::streaming::Message;
 use tokio_proto::streaming::pipeline::{Transport, Frame, ServerProto};
 pub use tokio_service::{NewService, Service};
 
+use bytes::BytesMut;
+
 use http;
 use http::response;
 use http::request;
 
 pub use http::response::Response;
 pub use http::request::Request;
+
+use common::Omitted;
 
 /// An instance of the HTTP protocol, and implementation of tokio-proto's
 /// `ServerProto` trait.
@@ -130,6 +135,49 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
             inner: service,
             remote_addr: remote_addr,
         })
+    }
+
+    /// Use this `Http` instance to create a new server task which handles the
+    /// connection `io` provided, and can be upgraded to another protocol in
+    /// response to a request from the client.
+    ///
+    /// This behaves like `bind_connection`, except the `Service` supplied must
+    /// return an `UpgradableResponse` containing either an HTTP `Response` or
+    /// some information describing a protocol switch. If an `Upgrade` response
+    /// is returned, the server task is shut down (without closing the
+    /// underlying `io`) and this information is forwarded to the `Future`
+    /// returned by this method, along with the underlying `io` and any
+    /// remaining buffered data that has already been read from it.
+    ///
+    /// If the server task shuts down normally, the `Future` completes with a
+    /// `None` output value. In the case of an error handling the connection,
+    /// the error is also forwarded to this `Future`.
+    pub fn bind_upgradable_connection<S, I, P, Bd>(&self,
+                                                   handle: &Handle,
+                                                   io: I,
+                                                   remote_addr: SocketAddr,
+                                                   service: S)
+                                                   -> BindUpgradableConnection<I, B, P>
+        where S: Service<Request = Request,
+                         Response = UpgradableResponse<P, Bd>,
+                         Error = ::Error> + 'static,
+              Bd: Stream<Item=B, Error=::Error> + 'static,
+              I: AsyncRead + AsyncWrite + 'static,
+              P: 'static,
+    {
+        let (sender, receiver) = oneshot::channel();
+        let proto = UpgradableHttp {
+            inner: self.clone(),
+            _marker: PhantomData,
+        };
+        proto.bind_server(handle, (io, sender), UpgradableHttpService {
+            inner: service,
+            remote_addr: remote_addr,
+        });
+        BindUpgradableConnection {
+            receiver: receiver,
+            state: None,
+        }
     }
 }
 
@@ -308,6 +356,27 @@ impl<B> Into<Message<__ProtoResponse, B>> for Response<B> {
     }
 }
 
+impl<B, P> Into<Message<UpgradableResponseHead<P>, B>> for UpgradableResponse<P, B> {
+    #[inline]
+    fn into(self) -> Message<UpgradableResponseHead<P>, B> {
+        match self {
+            UpgradableResponse::Response(res) => {
+                let (head, body) = response::split(res);
+                if let Some(body) = body {
+                    Message::WithBody(Ok(__ProtoResponse(head)), body.into())
+                } else {
+                    Message::WithoutBody(Ok(__ProtoResponse(head)))
+                }
+            }
+            UpgradableResponse::Upgrade(upgrade_info, maybe_head) => {
+                Message::WithoutBody(Err((upgrade_info, maybe_head.map(|head| {
+                    __ProtoResponse(response::split(head).0)
+                }))))
+            }
+        }
+    }
+}
+
 struct HttpService<T> {
     inner: T,
     remote_addr: SocketAddr,
@@ -324,6 +393,381 @@ impl<T, B> Service for HttpService<T>
     type Response = Message<__ProtoResponse, B>;
     type Error = ::Error;
     type Future = Map<T::Future, fn(Response<B>) -> Message<__ProtoResponse, B>>;
+
+    #[inline]
+    fn call(&self, message: Self::Request) -> Self::Future {
+        let (head, body) = match message {
+            Message::WithoutBody(head) => (head.0, http::Body::empty()),
+            Message::WithBody(head, body) => (head.0, body.into()),
+        };
+        let req = request::from_wire(Some(self.remote_addr), head, body);
+        self.inner.call(req).map(Into::into)
+    }
+}
+
+struct UpgradableHttp<P, B = ::Chunk> {
+    inner: Http<B>,
+    _marker: PhantomData<P>,
+}
+
+type UpgradablePayload<T, B, P> = Result<(__ProtoTransport<T, B>, P), ::Error>;
+type UpgradableReceiver<T, B, P> = Receiver<UpgradablePayload<T, B, P>>;
+type UpgradableSender<T, B, P> = Sender<UpgradablePayload<T, B, P>>;
+
+type UpgradableResponseHead<P> = Result<__ProtoResponse, (P, Option<__ProtoResponse>)>;
+
+impl<T, B, P> ServerProto<(T, UpgradableSender<T, B, P>)> for UpgradableHttp<P, B>
+    where T: AsyncRead + AsyncWrite + 'static,
+          B: AsRef<[u8]> + 'static,
+          P: 'static,
+{
+    type Request = __ProtoRequest;
+    type RequestBody = http::Chunk;
+    type Response = UpgradableResponseHead<P>;
+    type ResponseBody = B;
+    type Error = ::Error;
+    type Transport = UpgradableTransport<T, B, P>;
+    type BindTransport = UpgradableBindTransport<T, B, P>;
+
+    #[inline]
+    fn bind_transport(&self, (io, sender): (T, UpgradableSender<T, B, P>)) -> Self::BindTransport {
+        UpgradableBindTransport {
+            inner: self.inner.bind_transport(io),
+            sender: Some(sender),
+        }
+    }
+}
+
+struct UpgradableBindTransport<T, B, P> {
+    inner: __ProtoBindTransport<T, B>,
+    sender: Option<UpgradableSender<T, B, P>>,
+}
+
+impl<T, B, P> Future for UpgradableBindTransport<T, B, P>
+    where T: AsyncRead + AsyncWrite + 'static,
+{
+    type Item = UpgradableTransport<T, B, P>;
+    type Error = io::Error;
+
+    #[inline]
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        let inner_transport = try_ready!(self.inner.poll());
+        let transport = UpgradableTransport {
+            inner: Some(inner_transport),
+            sender: Some(self.sender.take().unwrap()),
+            recv_task: None,
+        };
+        Ok(transport.into())
+    }
+}
+
+struct UpgradableTransport<T, B, P> {
+    inner: Option<__ProtoTransport<T, B>>,
+    sender: Option<UpgradableSender<T, B, P>>,
+    recv_task: Option<Task>,
+}
+
+impl<T, B, P> UpgradableTransport<T, B, P> {
+    fn inner_mut(&mut self) -> &mut __ProtoTransport<T, B> {
+        self.inner.as_mut().expect("hyper: UpgradableTransport missing inner")
+    }
+
+    fn take_inner(&mut self) -> __ProtoTransport<T, B> {
+        self.inner.take().expect("hyper: UpgradableTransport missing inner")
+    }
+
+    fn take_sender(&mut self) -> UpgradableSender<T, B, P> {
+        self.sender.take().expect("hyper: UpgradableTransport missing sender")
+    }
+
+    fn send_error<E>(&mut self, err: E) -> E
+        where E: From<io::Error> + Into<::Error>,
+    {
+        match self.sender.take() {
+            None => err,
+            Some(sender) => {
+                let _ = sender.send(Err(err.into()));
+                proto_error()
+            }
+        }
+    }
+}
+
+/// This error will go back to the tokio-proto internals which in turn will
+/// simply discard it and shut down the connection, so we don't need to worry
+/// about what it contains.
+fn proto_error<E>() -> E
+    where E: From<io::Error>
+{
+    io::Error::from(io::ErrorKind::Other).into()
+}
+
+impl<T, B, P> Stream for UpgradableTransport<T, B, P>
+    where T: AsyncRead + AsyncWrite + 'static,
+          B: AsRef<[u8]> + 'static,
+{
+    type Item = Frame<__ProtoRequest, http::Chunk, ::Error>;
+    type Error = io::Error;
+
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        let result = match self.inner {
+            None => return Ok(None.into()),
+            Some(ref mut inner) => {
+                self.recv_task = Some(task::current());
+                inner.poll()
+            }
+        };
+        let item = match try_ready!(result.map_err(|err| self.send_error(err))) {
+            Some(Frame::Error { error }) => Some(Frame::Error { error: self.send_error(error) }),
+            item => item,
+        };
+        Ok(item.into())
+    }
+}
+
+impl<T, B, P> Sink for UpgradableTransport<T, B, P>
+    where T: AsyncRead + AsyncWrite + 'static,
+          B: AsRef<[u8]> + 'static,
+{
+    type SinkItem = Frame<UpgradableResponseHead<P>, B, ::Error>;
+    type SinkError = io::Error;
+
+    fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
+        let item = match item {
+            Frame::Error { error } => {
+                let alt = proto_error();
+                let result = self.inner_mut().start_send(Frame::Error { error: alt });
+                return Ok(match result.map_err(|err| self.send_error(err))? {
+                    AsyncSink::NotReady(_) => AsyncSink::NotReady(Frame::Error { error: error }),
+                    AsyncSink::Ready => {
+                        self.send_error(error);
+                        AsyncSink::Ready
+                    }
+                });
+            }
+            Frame::Body { chunk } => Frame::Body { chunk: chunk },
+            Frame::Message { message, body } => {
+                match message {
+                    Ok(message) => Frame::Message { message: message, body: body },
+                    Err((upgrade_info, maybe_head)) => {
+                        if let Some(head) = maybe_head {
+                            let result = self.inner_mut().start_send(Frame::Message {
+                                message: head,
+                                body: false
+                            });
+                            match result.map_err(|err| self.send_error(err))? {
+                                AsyncSink::Ready => (),
+                                AsyncSink::NotReady(item) => {
+                                    match item {
+                                        Frame::Message { message, body } => {
+                                            return Ok(AsyncSink::NotReady(Frame::Message {
+                                                message: Err((upgrade_info, Some(message))),
+                                                body: body,
+                                            }));
+                                        }
+                                        _ => unreachable!(),
+                                    }
+                                }
+                            }
+                        }
+
+                        let inner = self.take_inner();
+                        let sender = self.take_sender();
+                        let _ = sender.send(Ok((inner, upgrade_info)));
+
+                        if let Some(recv_task) = self.recv_task.take() {
+                            recv_task.notify();
+                        }
+
+                        return Ok(AsyncSink::Ready);
+                    }
+                }
+            }
+        };
+
+        let result = self.inner_mut().start_send(item);
+        Ok(match result.map_err(|err| self.send_error(err))? {
+            AsyncSink::Ready => AsyncSink::Ready,
+            AsyncSink::NotReady(item) => {
+                AsyncSink::NotReady(match item {
+                    Frame::Message { message, body } => {
+                        Frame::Message {
+                            message: Ok(message),
+                            body: body,
+                        }
+                    }
+                    Frame::Body { chunk } => Frame::Body { chunk: chunk },
+                    Frame::Error {..} => unreachable!(),
+                })
+            }
+        })
+    }
+
+    fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
+        let result = match self.inner {
+            None => return Ok(().into()),
+            Some(ref mut inner) => inner.poll_complete(),
+        };
+        result.map_err(|err| self.send_error(err))
+    }
+
+    fn close(&mut self) -> Poll<(), Self::SinkError> {
+        let result = match self.inner {
+            None => return Ok(().into()),
+            Some(ref mut inner) => inner.close(),
+        };
+        result.map_err(|err| self.send_error(err))
+    }
+}
+
+impl<T, B, P> Transport for UpgradableTransport<T, B, P>
+    where T: AsyncRead + AsyncWrite + 'static,
+          B: AsRef<[u8]> + 'static,
+          P: 'static,
+{
+    #[inline]
+    fn tick(&mut self) {
+        if let Some(ref mut inner) = self.inner {
+            inner.tick();
+        }
+    }
+
+    #[inline]
+    fn cancel(&mut self) -> io::Result<()> {
+        if self.recv_task.as_mut().map_or(false, |task| task.will_notify_current()) {
+            self.recv_task = None;
+        }
+
+        if let Some(ref mut inner) = self.inner {
+            inner.cancel()
+        } else {
+            Ok(())
+        }
+    }
+}
+
+/// The return type of `Http::bind_upgradable_connection`.
+///
+/// If the server task shuts down normally, this future completes with a `None`
+/// output value.
+///
+/// If an `Upgrade` response is returned by the bound `Service`, the server task
+/// is shut down (without closing the underlying I/O object) and the provided
+/// upgrade information is forwarded to this future, along with the underlying
+/// I/O object and any remaining buffered data that has already been read from
+/// it.
+///
+/// In the case of an error handling the connection, this future will complete
+/// with that error.
+pub struct BindUpgradableConnection<T, B, P> {
+    receiver: UpgradableReceiver<T, B, P>,
+    state: Option<(http::Conn<T, B, http::ServerTransaction>, P)>,
+}
+
+impl<T, B, P> fmt::Debug for BindUpgradableConnection<T, B, P>
+    where B: AsRef<[u8]>,
+          P: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("BindUpgradableConnection")
+            .field("receiver", &Omitted)
+            .field("state", &self.state)
+            .finish()
+    }
+}
+
+impl<T, B, P> Future for BindUpgradableConnection<T, B, P>
+    where T: AsyncRead + AsyncWrite + 'static,
+          B: AsRef<[u8]> + 'static,
+{
+    type Item = Option<(T, BytesMut, P)>;
+    type Error = ::Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        loop {
+            if let Some((ref mut conn, _)) = self.state {
+                try_ready!(conn.poll_complete());
+            }
+
+            if let Some((conn, upgrade_info)) = self.state.take() {
+                // We ensure above that the connection is flushed before
+                // unwrapping.
+                let (io, read_buf) = conn.try_into_inner().ok().unwrap();
+                return Ok(Some((io, read_buf, upgrade_info)).into());
+            }
+
+            match self.receiver.poll() {
+                Err(_) => return Ok(None.into()),
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
+                Ok(Async::Ready(result)) => {
+                    match result {
+                        Err(err) => return Err(err),
+                        Ok((transport, upgrade_info)) => {
+                            self.state = Some((transport.0, upgrade_info));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Either an HTTP response or a signal to upgrade from HTTP to another
+/// protocol.
+///
+/// If the latter, the `Upgrade` variant should contain information pertaining
+/// to this protocol switch.
+pub enum UpgradableResponse<P = (), B = ::Body> {
+    /// An HTTP response.
+    Response(Response<B>),
+    /// A protocol upgrade signal with accompanying information and optional
+    /// "switching protocols" HTTP response head.
+    Upgrade(P, Option<Response<()>>),
+}
+
+impl<P, B> fmt::Debug for UpgradableResponse<P, B>
+    where Response<B>: fmt::Debug,
+          P: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            UpgradableResponse::Response(ref response) => {
+                f.debug_tuple("Response").field(response).finish()
+            }
+            UpgradableResponse::Upgrade(ref upgrade_info, ref response) => {
+                f.debug_tuple("Upgrade").field(upgrade_info).field(response).finish()
+            }
+        }
+    }
+}
+
+impl<P, B> From<Response<B>> for UpgradableResponse<P, B> {
+    fn from(src: Response<B>) -> Self {
+        UpgradableResponse::Response(src)
+    }
+}
+
+impl<P, B> Default for UpgradableResponse<P, B> {
+    fn default() -> Self {
+        Response::default().into()
+    }
+}
+
+struct UpgradableHttpService<T> {
+    inner: T,
+    remote_addr: SocketAddr,
+}
+
+impl<T, B, P> Service for UpgradableHttpService<T>
+    where T: Service<Request=Request, Response=UpgradableResponse<P, B>, Error=::Error>,
+          B: Stream<Error=::Error>,
+          B::Item: AsRef<[u8]>,
+{
+    type Request = Message<__ProtoRequest, http::TokioBody>;
+    type Response = Message<UpgradableResponseHead<P>, B>;
+    type Error = ::Error;
+    type Future = Map<T::Future,
+                      fn(UpgradableResponse<P, B>) -> Message<UpgradableResponseHead<P>, B>>;
 
     #[inline]
     fn call(&self, message: Self::Request) -> Self::Future {
@@ -447,7 +891,7 @@ where B::Item: AsRef<[u8]>
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Server")
-         .field("core", &"...")
+         .field("core", &Omitted)
          .field("listener", &self.listener)
          .field("new_service", &self.new_service)
          .field("protocol", &self.protocol)
