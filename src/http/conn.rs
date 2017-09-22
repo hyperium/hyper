@@ -228,6 +228,16 @@ where I: AsyncRead + AsyncWrite,
         }
 
         if !self.io.is_read_blocked() {
+            if self.io.read_buf().is_empty() {
+                match self.io.read_from_io() {
+                    Ok(Async::Ready(_)) => (),
+                    Ok(Async::NotReady) => return,
+                    Err(e) => {
+                        trace!("maybe_notify read_from_io error: {}", e);
+                        self.state.close();
+                    }
+                }
+            }
             if let Some(ref task) = self.state.read_task {
                 task.notify();
             }
