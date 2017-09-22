@@ -437,6 +437,58 @@ fn expect_continue() {
     assert_eq!(body, msg);
 }
 
+#[test]
+fn pipline_disabled() {
+    let server = serve();
+    let mut req = connect(server.addr());
+    server.reply().status(hyper::Ok);
+    server.reply().status(hyper::Ok);
+
+    req.write_all(b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        \r\n\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        \r\n\
+    ").expect("write 1");
+
+    let mut buf = vec![0; 4096];
+    let n = req.read(&mut buf).expect("read 1");
+    assert_ne!(n, 0);
+    let n = req.read(&mut buf).expect("read 2");
+    assert_ne!(n, 0);
+}
+
+#[test]
+fn pipeline_enabled() {
+    let server = serve_with_options(ServeOptions {
+        pipeline: true,
+        .. Default::default()
+    });
+    let mut req = connect(server.addr());
+    server.reply().status(hyper::Ok);
+    server.reply().status(hyper::Ok);
+
+    req.write_all(b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        \r\n\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: close\r\n\
+        \r\n\
+    ").expect("write 1");
+
+    let mut buf = vec![0; 4096];
+    let n = req.read(&mut buf).expect("read 1");
+    assert_ne!(n, 0);
+    // with pipeline enabled, both responses should have been in the first read
+    // so a second read should be EOF
+    let n = req.read(&mut buf).expect("read 2");
+    assert_eq!(n, 0);
+}
+
 // -------------------------------------------------
 // the Server that is used to run all the tests with
 // -------------------------------------------------
@@ -577,6 +629,7 @@ fn serve() -> Serve {
 #[derive(Default)]
 struct ServeOptions {
     keep_alive_disabled: bool,
+    pipeline: bool,
     timeout: Option<Duration>,
 }
 
@@ -591,15 +644,19 @@ fn serve_with_options(options: ServeOptions) -> Serve {
     let addr = "127.0.0.1:0".parse().unwrap();
 
     let keep_alive = !options.keep_alive_disabled;
+    let pipeline = options.pipeline;
     let dur = options.timeout;
 
     let thread_name = format!("test-server-{:?}", dur);
     let thread = thread::Builder::new().name(thread_name).spawn(move || {
-        let srv = Http::new().keep_alive(keep_alive).bind(&addr, TestService {
-            tx: Arc::new(Mutex::new(msg_tx.clone())),
-            _timeout: dur,
-            reply: reply_rx,
-        }).unwrap();
+        let srv = Http::new()
+            .keep_alive(keep_alive)
+            .pipeline(pipeline)
+            .bind(&addr, TestService {
+                tx: Arc::new(Mutex::new(msg_tx.clone())),
+                _timeout: dur,
+                reply: reply_rx,
+            }).unwrap();
         addr_tx.send(srv.local_addr().unwrap()).unwrap();
         srv.run_until(shutdown_rx.then(|_| Ok(()))).unwrap();
     }).unwrap();

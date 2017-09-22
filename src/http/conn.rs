@@ -47,6 +47,9 @@ where I: AsyncRead + AsyncWrite,
         }
     }
 
+    pub fn set_flush_pipeline(&mut self, enabled: bool) {
+        self.io.set_flush_pipeline(enabled);
+    }
 
     fn poll2(&mut self) -> Poll<Option<Frame<http::MessageHead<T::Incoming>, http::Chunk, ::Error>>, io::Error> {
         trace!("Conn::poll()");

@@ -13,6 +13,7 @@ const INIT_BUFFER_SIZE: usize = 8192;
 pub const MAX_BUFFER_SIZE: usize = 8192 + 4096 * 100;
 
 pub struct Buffered<T> {
+    flush_pipeline: bool,
     io: T,
     read_blocked: bool,
     read_buf: BytesMut,
@@ -31,11 +32,16 @@ impl<T> fmt::Debug for Buffered<T> {
 impl<T: AsyncRead + AsyncWrite> Buffered<T> {
     pub fn new(io: T) -> Buffered<T> {
         Buffered {
+            flush_pipeline: false,
             io: io,
             read_buf: BytesMut::with_capacity(0),
             write_buf: WriteBuf::new(),
             read_blocked: false,
         }
+    }
+
+    pub fn set_flush_pipeline(&mut self, enabled: bool) {
+        self.flush_pipeline = enabled;
     }
 
     pub fn read_buf(&self) -> &[u8] {
@@ -139,7 +145,9 @@ impl<T: Write> Write for Buffered<T> {
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        if self.write_buf.remaining() == 0 {
+        if self.flush_pipeline && self.read_buf.is_empty() {
+            Ok(())
+        } else if self.write_buf.remaining() == 0 {
             self.io.flush()
         } else {
             loop {

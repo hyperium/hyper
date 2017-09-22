@@ -49,6 +49,7 @@ pub use http::request::Request;
 /// configured with various protocol-level options such as keepalive.
 pub struct Http<B = ::Chunk> {
     keep_alive: bool,
+    pipeline: bool,
     _marker: PhantomData<B>,
 }
 
@@ -73,6 +74,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     pub fn new() -> Http<B> {
         Http {
             keep_alive: true,
+            pipeline: false,
             _marker: PhantomData,
         }
     }
@@ -82,6 +84,16 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     /// Default is true.
     pub fn keep_alive(&mut self, val: bool) -> &mut Self {
         self.keep_alive = val;
+        self
+    }
+
+    /// Aggregates flushes to better support pipelined responses.
+    ///
+    /// Experimental, may be have bugs.
+    ///
+    /// Default is false.
+    pub fn pipeline(&mut self, enabled: bool) -> &mut Self {
+        self.pipeline = enabled;
         self
     }
 
@@ -185,6 +197,7 @@ impl<B> fmt::Debug for Http<B> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Http")
             .field("keep_alive", &self.keep_alive)
+            .field("pipeline", &self.pipeline)
             .finish()
     }
 }
@@ -223,8 +236,10 @@ impl<T, B> ServerProto<T> for Http<B>
         } else {
             http::KA::Disabled
         };
+        let mut conn = http::Conn::new(io, ka);
+        conn.set_flush_pipeline(self.pipeline);
         __ProtoBindTransport {
-            inner: future::ok(http::Conn::new(io, ka)),
+            inner: future::ok(conn),
         }
     }
 }
