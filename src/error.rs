@@ -5,9 +5,8 @@ use std::io::Error as IoError;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 
+use http_types::uri::InvalidUriBytes;
 use httparse;
-
-pub use uri::UriError;
 
 use self::Error::{
     Method,
@@ -31,7 +30,7 @@ pub enum Error {
     /// An invalid `Method`, such as `GE,T`.
     Method,
     /// An invalid `Uri`, such as `exam ple.domain`.
-    Uri(UriError),
+    Uri(::http_types::uri::InvalidUriBytes),
     /// An invalid `HttpVersion`, such as `HTP/1.1`
     Version,
     /// An invalid `Header`.
@@ -101,8 +100,8 @@ impl StdError for Error {
     }
 }
 
-impl From<UriError> for Error {
-    fn from(err: UriError) -> Error {
+impl From<InvalidUriBytes> for Error {
+    fn from(err: InvalidUriBytes) -> Error {
         Uri(err)
     }
 }

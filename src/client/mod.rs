@@ -168,7 +168,7 @@ where C: Connect,
         headers.extend(head.headers.iter());
         head.headers = headers;
 
-        let checkout = self.pool.checkout(domain.as_ref());
+        let checkout = self.pool.checkout(&domain.to_string());
         let connect = {
             let handle = self.handle.clone();
             let pool = self.pool.clone();
