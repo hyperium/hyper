@@ -77,8 +77,13 @@
 //! }
 //! ```
 use std::borrow::{Cow, ToOwned};
+#[cfg(feature = "compat")]
+use std::convert::From;
 use std::iter::{FromIterator, IntoIterator};
 use std::{mem, fmt};
+
+#[cfg(feature = "compat")]
+use http_types;
 
 use unicase::Ascii;
 
@@ -546,6 +551,54 @@ impl fmt::Debug for Headers {
     }
 }
 
+#[cfg(feature = "compat")]
+impl From<http_types::HeaderMap> for Headers {
+    fn from(mut header_map: http_types::HeaderMap) -> Headers {
+        let mut headers = Headers::new();
+        for (name, mut value_drain) in header_map.drain() {
+            if let Some(first_value) = value_drain.next() {
+                let mut raw: Raw = first_value.as_bytes().into();
+                for value in value_drain {
+                    raw.push(value.as_bytes());
+                }
+                headers.append_raw(name.as_str().to_string(), raw);        
+            }
+        }
+        headers
+    }
+}
+
+#[cfg(feature = "compat")]
+impl From<Headers> for http_types::HeaderMap {
+    fn from(headers: Headers) -> http_types::HeaderMap {
+        let mut header_map = http_types::HeaderMap::new();
+        for header in headers.iter() {
+            let entry = header_map.entry(header.name())
+                .expect("attempted to convert invalid header name");
+            let mut value_iter = header.raw().iter().map(|line| {
+                http_types::header::HeaderValue::from_bytes(line)
+                    .expect("attempted to convert invalid header value")
+            });
+            match entry {
+                http_types::header::Entry::Occupied(mut  occupied) => {
+                    for value in value_iter {
+                        occupied.append(value);
+                    }
+                },
+                http_types::header::Entry::Vacant(vacant) => {
+                    if let Some(first_value) = value_iter.next() {
+                        let mut occupied = vacant.insert_entry(first_value);
+                        for value in value_iter {
+                            occupied.append(value);
+                        }
+                    }
+                }
+            }
+        }
+        header_map
+    }
+}
+
 /// An `Iterator` over the fields in a `Headers` map.
 #[allow(missing_debug_implementations)]
 pub struct HeadersItems<'a> {
@@ -938,6 +991,29 @@ mod tests {
         headers1.set(ContentLength(11));
         headers2.set(ContentLength(11));
         assert_ne!(headers1, headers2);
+    }
+
+    #[test]
+    #[cfg(feature = "compat")]
+    fn test_compat() {
+        use http_types;
+
+        let mut orig_hyper_headers = Headers::new();
+        orig_hyper_headers.set(ContentLength(11));
+        orig_hyper_headers.set(Host::new("foo.bar", None));
+        orig_hyper_headers.append_raw("x-foo", b"bar".to_vec());
+        orig_hyper_headers.append_raw("x-foo", b"quux".to_vec());
+
+        let mut orig_http_headers = http_types::HeaderMap::new();
+        orig_http_headers.insert(http_types::header::CONTENT_LENGTH, "11".parse().unwrap());
+        orig_http_headers.insert(http_types::header::HOST, "foo.bar".parse().unwrap());
+        orig_http_headers.append("x-foo", "bar".parse().unwrap());
+        orig_http_headers.append("x-foo", "quux".parse().unwrap());
+
+        let conv_hyper_headers: Headers = orig_http_headers.clone().into();
+        let conv_http_headers: http_types::HeaderMap = orig_hyper_headers.clone().into();
+        assert_eq!(orig_hyper_headers, conv_hyper_headers);
+        assert_eq!(orig_http_headers, conv_http_headers);
     }
 
     #[cfg(feature = "nightly")]

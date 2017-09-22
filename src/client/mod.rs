@@ -9,6 +9,8 @@ use std::time::Duration;
 
 use futures::{future, Poll, Async, Future, Stream};
 use futures::unsync::oneshot;
+#[cfg(feature = "compat")]
+use http_types;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio::reactor::Handle;
 use tokio_proto::BindClient;
@@ -33,6 +35,10 @@ pub use self::connect::{HttpConnector, Connect};
 mod connect;
 mod dns;
 mod pool;
+#[cfg(feature = "compat")]
+mod compat_impl;
+#[cfg(feature = "compat")]
+pub mod compat;
 
 /// A Client to make outgoing HTTP requests.
 // If the Connector is clone, then the Client can be clone easily.
@@ -107,6 +113,19 @@ where C: Connect,
     #[inline]
     pub fn request(&self, req: Request<B>) -> FutureResponse {
         self.call(req)
+    }
+
+    /// Send an `http::Request` using this Client.
+    #[inline]
+    #[cfg(feature = "compat")]
+    pub fn request_compat(&self, req: http_types::Request<B>) -> compat::CompatFutureResponse {
+        self::compat_impl::future(self.call(req.into()))
+    }
+
+    /// Convert into a client accepting `http::Request`.
+    #[cfg(feature = "compat")]
+    pub fn into_compat(self) -> compat::CompatClient<C, B> {
+        self::compat_impl::client(self)
     }
 }
 

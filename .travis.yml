@@ -8,6 +8,8 @@ matrix:
           env: FEATURES="--features nightly"
         - rust: beta
         - rust: stable
+        - rust: stable
+          env: FEATURES="--features compat"
         - rust: 1.15.0
 
 cache:

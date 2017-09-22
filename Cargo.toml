@@ -23,6 +23,7 @@ base64 = "0.6"
 bytes = "0.4.4"
 futures = "0.1.14"
 futures-cpupool = "0.1"
+http = { version = "0.1", optional = true }
 httparse = "1.0"
 language-tags = "0.2"
 log = "0.3"
@@ -45,3 +46,4 @@ spmc = "0.2"
 default = []
 nightly = []
 raw_status = []
+compat = [ "http" ]

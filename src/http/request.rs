@@ -1,11 +1,16 @@
 use std::fmt;
+#[cfg(feature = "compat")]
+use std::mem::replace;
+use std::net::SocketAddr;
+
+#[cfg(feature = "compat")]
+use http_types;
 
 use header::Headers;
 use http::{Body, MessageHead, RequestHead, RequestLine};
 use method::Method;
 use uri::{self, Uri};
 use version::HttpVersion;
-use std::net::SocketAddr;
 
 /// An HTTP Request
 pub struct Request<B = Body> {
@@ -129,6 +134,36 @@ impl<B> fmt::Debug for Request<B> {
             .field("remote_addr", &self.remote_addr)
             .field("headers", &self.headers)
             .finish()
+    }
+}
+
+#[cfg(feature = "compat")]
+impl From<Request> for http_types::Request<Body> {
+    fn from(from_req: Request) -> http_types::Request<Body> {
+        let (m, u, v, h, b) = from_req.deconstruct();
+
+        let to_req = http_types::Request::new(());
+        let (mut to_parts, _) = to_req.into_parts();
+
+        to_parts.method = m.into();
+        to_parts.uri = u.into();
+        to_parts.version = v.into();
+        to_parts.headers = h.into();
+
+        http_types::Request::from_parts(to_parts, b)
+    }
+}
+
+#[cfg(feature = "compat")]
+impl<B> From<http_types::Request<B>> for Request<B> {
+    fn from(from_req: http_types::Request<B>) -> Request<B> {
+        let (from_parts, body) = from_req.into_parts();
+
+        let mut to_req = Request::new(from_parts.method.into(), from_parts.uri.into());
+        to_req.set_version(from_parts.version.into());
+        replace(to_req.headers_mut(), from_parts.headers.into());
+        to_req.set_body(body);
+        to_req
     }
 }
 

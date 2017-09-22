@@ -2,6 +2,9 @@
 use std::fmt;
 use std::cmp::Ordering;
 
+#[cfg(feature = "compat")]
+use http_types;
+
 /// An HTTP status code (`status-code` in RFC 7230 et al.).
 ///
 /// This enum contains all common status codes and an Unregistered
@@ -596,6 +599,22 @@ impl From<StatusCode> for u16 {
     }
 }
 
+#[cfg(feature = "compat")]
+impl From<http_types::StatusCode> for StatusCode {
+    fn from(status: http_types::StatusCode) -> StatusCode {
+        StatusCode::try_from(status.as_u16())
+            .expect("attempted to convert invalid status code")
+    }
+}
+
+#[cfg(feature = "compat")]
+impl From<StatusCode> for http_types::StatusCode {
+    fn from(status: StatusCode) -> http_types::StatusCode {
+        http_types::StatusCode::from_u16(status.as_u16())
+            .expect("attempted to convert invalid status code")
+    }
+}
+
 /// The class of an HTTP `status-code`.
 ///
 /// [RFC 7231, section 6 (Response Status Codes)](https://tools.ietf.org/html/rfc7231#section-6):
@@ -745,5 +764,19 @@ mod tests {
         StatusCode::try_from(600).unwrap_err();
         StatusCode::try_from(0).unwrap_err();
         StatusCode::try_from(1000).unwrap_err();
+    }
+
+    #[test]
+    #[cfg(feature = "compat")]
+    fn test_compat() {
+        use http_types::{self, HttpTryFrom};
+        for i in 100..600 {
+            let orig_hyper_status = StatusCode::try_from(i).unwrap();
+            let orig_http_status = http_types::StatusCode::try_from(i).unwrap();
+            let conv_hyper_status: StatusCode = orig_http_status.into();
+            let conv_http_status: http_types::StatusCode = orig_hyper_status.into();
+            assert_eq!(orig_hyper_status, conv_hyper_status);
+            assert_eq!(orig_http_status, conv_http_status);
+        }
     }
 }

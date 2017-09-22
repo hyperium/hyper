@@ -2,6 +2,9 @@ use std::error::Error as StdError;
 use std::fmt::{Display, self};
 use std::str::{self, FromStr};
 
+#[cfg(feature = "compat")]
+use http_types;
+
 use ::common::ByteStr;
 use bytes::{BufMut, Bytes, BytesMut};
 
@@ -312,6 +315,23 @@ impl fmt::Debug for Uri {
 impl Display for Uri {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str(self.as_ref())
+    }
+}
+
+#[cfg(feature = "compat")]
+impl From<http_types::Uri> for Uri {
+    fn from(uri: http_types::Uri) -> Uri {
+        uri.to_string().parse()
+            .expect("attempted to convert invalid uri")
+    }
+}
+
+#[cfg(feature = "compat")]
+impl From<Uri> for http_types::Uri {
+    fn from(uri: Uri) -> http_types::Uri {
+        let bytes = uri.source.into_bytes();
+        http_types::Uri::from_shared(bytes)
+            .expect("attempted to convert invalid uri")
     }
 }
 

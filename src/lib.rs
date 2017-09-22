@@ -21,6 +21,8 @@ extern crate base64;
 extern crate bytes;
 #[macro_use] extern crate futures;
 extern crate futures_cpupool;
+#[cfg(feature = "compat")]
+extern crate http as http_types;
 extern crate httparse;
 extern crate language_tags;
 #[macro_use] extern crate log;
