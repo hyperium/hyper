@@ -68,13 +68,13 @@ impl ContentType {
         ContentType(mime::TEXT_PLAIN_UTF_8)
     }
 
-    /// A constructor  to easily create a `Content-Type: text/html; charset=utf-8` header.
+    /// A constructor  to easily create a `Content-Type: text/html` header.
     #[inline]
     pub fn html() -> ContentType {
         ContentType(mime::TEXT_HTML)
     }
 
-    /// A constructor  to easily create a `Content-Type: text/xml; charset=utf-8` header.
+    /// A constructor  to easily create a `Content-Type: text/xml` header.
     #[inline]
     pub fn xml() -> ContentType {
         ContentType(mime::TEXT_XML)
