@@ -403,7 +403,7 @@ impl<T, B> Service for HttpService<T>
     }
 }
 
-impl<'a, S, B> Server<S, B>
+impl<S, B> Server<S, B>
     where S: NewService<Request = Request, Response = Response<B>, Error = ::Error> + 'static,
           B: Stream<Error=::Error> + 'static,
           B::Item: AsRef<[u8]>,
@@ -413,11 +413,14 @@ impl<'a, S, B> Server<S, B>
         Ok(try!(self.listener.local_addr()))
     }
 
-    // /// Returns a handle to the underlying event loop that this server will be
-    // /// running on.
-    // pub fn handle(&self) -> Handle {
-    //     self.core.handle()
-    // }
+    /// Returns a handle to the underlying event loop that this server will be
+    /// running on.
+    pub fn handle(&self) -> Handle {
+        match self.internal {
+            ServerInternal::Core(ref core) => core.handle().clone(),
+            ServerInternal::Handle(ref handle) => handle.clone(),
+        }
+    }
 
     /// Configure the amount of time this server will wait for a "graceful
     /// shutdown".
@@ -514,7 +517,7 @@ impl<'a, S, B> Server<S, B>
     }
 }
 
-impl<'a, S: fmt::Debug, B: Stream<Error=::Error>> fmt::Debug for Server<S, B>
+impl<S: fmt::Debug, B: Stream<Error=::Error>> fmt::Debug for Server<S, B>
 where B::Item: AsRef<[u8]>
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
