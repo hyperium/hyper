@@ -2,37 +2,27 @@ use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::vec;
 
-use ::futures::{Future, Poll};
-use ::futures_cpupool::{CpuPool, CpuFuture, Builder};
+use ::futures::{Async, Future, Poll};
 
-#[derive(Clone)]
-pub struct Dns {
-    pool: CpuPool,
+pub struct Work {
+    host: String,
+    port: u16
 }
 
-impl Dns {
-    pub fn new(threads: usize) -> Dns {
-        Dns {
-            pool: Builder::new()
-                .name_prefix("hyper-dns")
-                .pool_size(threads)
-                .create()
-        }
-    }
-
-    pub fn resolve(&self, host: String, port: u16) -> Query {
-        Query(self.pool.spawn_fn(move || work(host, port)))
+impl Work {
+    pub fn new(host: String, port: u16) -> Work {
+        Work { host: host, port: port }
     }
 }
 
-pub struct Query(CpuFuture<IpAddrs, io::Error>);
-
-impl Future for Query {
+impl Future for Work {
     type Item = IpAddrs;
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        self.0.poll()
+        debug!("resolve host={:?}, port={:?}", self.host, self.port);
+        (&*self.host, self.port).to_socket_addrs()
+            .map(|i| Async::Ready(IpAddrs { iter: i }))
     }
 }
 
@@ -46,11 +36,4 @@ impl Iterator for IpAddrs {
     fn next(&mut self) -> Option<SocketAddr> {
         self.iter.next()
     }
-}
-
-pub type Answer = io::Result<IpAddrs>;
-
-fn work(hostname: String, port: u16) -> Answer {
-    debug!("resolve host={:?}, port={:?}", hostname, port);
-    (&*hostname, port).to_socket_addrs().map(|i| IpAddrs { iter: i })
 }
