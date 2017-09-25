@@ -211,12 +211,12 @@ where I: AsyncRead + AsyncWrite,
         //
         // When writing finishes, we need to wake the task up in case there
         // is more reading that can be done, to start a new message.
-        match self.state.reading {
+        let wants_read = match self.state.reading {
             Reading::Body(..) |
             Reading::KeepAlive => return,
-            Reading::Init |
-            Reading::Closed => (),
-        }
+            Reading::Init => true,
+            Reading::Closed => false,
+        };
 
         match self.state.writing {
             Writing::Continue(..) |
@@ -228,10 +228,13 @@ where I: AsyncRead + AsyncWrite,
         }
 
         if !self.io.is_read_blocked() {
-            if self.io.read_buf().is_empty() {
+            if wants_read && self.io.read_buf().is_empty() {
                 match self.io.read_from_io() {
                     Ok(Async::Ready(_)) => (),
-                    Ok(Async::NotReady) => return,
+                    Ok(Async::NotReady) => {
+                        trace!("maybe_notify; read_from_io blocked");
+                        return
+                    },
                     Err(e) => {
                         trace!("maybe_notify read_from_io error: {}", e);
                         self.state.close();
