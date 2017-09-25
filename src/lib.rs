@@ -45,7 +45,7 @@ pub use uri::Uri;
 pub use client::Client;
 pub use error::{Result, Error};
 pub use header::Headers;
-pub use http::{Body, Chunk};
+pub use http::{Body, Buffering, Chunk};
 pub use http::request::Request;
 pub use http::response::Response;
 pub use method::Method::{self, Get, Head, Post, Put, Delete};
