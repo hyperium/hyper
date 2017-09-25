@@ -1,10 +1,13 @@
-use bytes::Bytes;
-use futures::{Poll, Stream};
+use std::borrow::Cow;
+use std::mem::replace;
+
+use bytes::{Bytes, BytesMut};
+use futures::{Async, Future, Poll, Stream};
 use futures::sync::mpsc;
 use tokio_proto;
-use std::borrow::Cow;
 
 use http::Chunk;
+use error::BodyTooLargeError;
 
 pub type TokioBody = tokio_proto::streaming::Body<Chunk, ::Error>;
 
@@ -26,6 +29,17 @@ impl Body {
         let (tx, rx) = TokioBody::pair();
         let rx = Body(rx);
         (tx, rx)
+    }
+
+    /// Buffer body stream with a limit.
+    ///
+    /// Concatenates chunks from the stream as long
+    /// as the resulting buffer is below the size limit
+    /// in bytes.
+    ///
+    /// Fails with `BodyTooLargeError` when the limit is exceeded.
+    pub fn buffer(self, limit: usize) -> Buffering {
+        buffer(self, limit)
     }
 }
 
@@ -160,4 +174,82 @@ fn test_body_stream_concat() {
     let total = body.concat2().wait().unwrap();
     assert_eq!(total.as_ref(), b"hello world");
 
+}
+
+#[derive(Debug)]
+/// Future that represents the fully buffered body.
+///
+/// Can be created with the `Body::buffer` method.
+pub struct Buffering {
+    limit: usize,
+    bytes: BytesMut,
+    inner: Body
+}
+
+fn buffer(body: Body, limit: usize) -> Buffering {
+    Buffering {
+        limit: limit,
+        bytes: BytesMut::new(),
+        inner: body
+    }
+}
+
+impl Future for Buffering {
+    type Item = Result<Bytes, BodyTooLargeError>;
+    type Error = ::Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        match self.inner.poll()? {
+            Async::NotReady => Ok(Async::NotReady),
+            Async::Ready(Some(chunk)) => {
+                if self.bytes.len() + chunk.len() > self.limit {
+                    return Ok(Async::Ready(Err(BodyTooLargeError)));
+                } else {
+                    self.bytes.extend_from_slice(&chunk);
+                    self.poll()
+                }
+            },
+            Async::Ready(None) => {
+                let bytes = replace(&mut self.bytes, BytesMut::new());
+                Ok(Async::Ready(Ok(bytes.freeze())))
+            }
+        }
+    }
+}
+
+#[test]
+fn test_body_buffer_empty() {
+    use futures::Future;
+    let body = Body::default();
+
+    let total = body.buffer(0).wait().unwrap().unwrap();
+    assert_eq!(total.as_ref(), b"");
+}
+
+#[test]
+fn test_body_buffer_within_limit() {
+    use futures::{Future, Sink};
+    let (tx, body) = Body::pair();
+
+    ::std::thread::spawn(move || {
+        let tx = tx.send(Ok("hello ".into())).wait().unwrap();
+        tx.send(Ok("world".into())).wait().unwrap();
+    });
+
+    let total = body.buffer(42).wait().unwrap().unwrap();
+    assert_eq!(total.as_ref(), b"hello world");
+}
+
+#[test]
+fn test_body_buffer_limit_exceeded() {
+    use futures::{Future, Sink};
+    let (tx, body) = Body::pair();
+
+    ::std::thread::spawn(move || {
+        let tx = tx.send(Ok("hello ".into())).wait().unwrap();
+        tx.send(Ok("world".into())).wait().unwrap();
+    });
+
+    let err = body.buffer(5).wait().unwrap().err();
+    assert_eq!(err, Some(BodyTooLargeError));
 }

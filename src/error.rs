@@ -139,6 +139,22 @@ impl From<httparse::Error> for Error {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+/// Possible error when the body buffer limit is exceeded.
+pub struct BodyTooLargeError;
+
+impl fmt::Display for BodyTooLargeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(self.description())
+    }
+}
+
+impl StdError for BodyTooLargeError {
+    fn description(&self) -> &str {
+        "Body is too large"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::error::Error as StdError;
