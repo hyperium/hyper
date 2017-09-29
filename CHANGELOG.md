@@ -3,7 +3,7 @@
 
 #### Bug Fixes
 
-* **client:**  fix panic in Pool ([0fbc215f](0fbc215f), closes [#1339](1339))
+* **client:**  fix panic in Pool ([0fbc215f](https://github.com/hyperium/hyper/commit/0fbc215f), closes [#1339](https://github.com/hyperium/hyper/issues/1339))
 
 
 ### v0.11.3 (2017-09-28)
@@ -11,26 +11,26 @@
 
 #### Features
 
-* **header:**  add ContentType::xml() constructor ([92595e84](92595e84))
-* **http:**  add Body::from(cow) for bytes and strings ([425ff71d](425ff71d))
-* **lib:**  implement compatibility with http crate ([0c7d375b](0c7d375b))
+* **header:**  add ContentType::xml() constructor ([92595e84](https://github.com/hyperium/hyper/commit/92595e84))
+* **http:**  add Body::from(cow) for bytes and strings ([425ff71d](https://github.com/hyperium/hyper/commit/425ff71d))
+* **lib:**  implement compatibility with http crate ([0c7d375b](https://github.com/hyperium/hyper/commit/0c7d375b))
 * **server:**
-  *  add experimental pipeline flush aggregation option to Http ([dd54f20b](dd54f20b))
-  *  remove unneeded Send + Sync from Server ([16e834d3](16e834d3))
+  *  add experimental pipeline flush aggregation option to Http ([dd54f20b](https://github.com/hyperium/hyper/commit/dd54f20b))
+  *  remove unneeded Send + Sync from Server ([16e834d3](https://github.com/hyperium/hyper/commit/16e834d3))
 
 #### Bug Fixes
 
 * **client:**
-  *  cleanup dropped pending Checkouts from Pool ([3b91fc65](3b91fc65), closes [#1315](1315))
-  *  return Version errors if unsupported ([41c47241](41c47241), closes [#1283](1283))
-* **http:**  log errors passed to tokio at debug level ([971864c4](971864c4), closes [#1278](1278))
+  *  cleanup dropped pending Checkouts from Pool ([3b91fc65](https://github.com/hyperium/hyper/commit/3b91fc65), closes [#1315](https://github.com/hyperium/hyper/issues/1315))
+  *  return Version errors if unsupported ([41c47241](https://github.com/hyperium/hyper/commit/41c47241), closes [#1283](https://github.com/hyperium/hyper/issues/1283))
+* **http:**  log errors passed to tokio at debug level ([971864c4](https://github.com/hyperium/hyper/commit/971864c4), closes [#1278](https://github.com/hyperium/hyper/issues/1278))
 * **lib:**
-  *  Export hyper::RawStatus if the raw_status feature is enabled ([627c4e3d](627c4e3d))
-  *  remove logs that contain request and response data ([207fca63](207fca63), closes [#1281](1281))
+  *  Export hyper::RawStatus if the raw_status feature is enabled ([627c4e3d](https://github.com/hyperium/hyper/commit/627c4e3d))
+  *  remove logs that contain request and response data ([207fca63](https://github.com/hyperium/hyper/commit/207fca63), closes [#1281](https://github.com/hyperium/hyper/issues/1281))
 
 #### Performance
 
-* **server:**  try to read from socket at keep-alive ([1a9f2648](1a9f2648))
+* **server:**  try to read from socket at keep-alive ([1a9f2648](https://github.com/hyperium/hyper/commit/1a9f2648))
 
 
 ### v0.11.2 (2017-07-27)
