@@ -20,16 +20,16 @@ use tokio_proto::util::client_proxy::ClientProxy;
 pub use tokio_service::Service;
 
 use header::{Headers, Host};
-use http::{self, TokioBody};
-use http::response;
-use http::request;
+use proto::{self, TokioBody};
+use proto::response;
+use proto::request;
 use method::Method;
 use self::pool::{Pool, Pooled};
 use uri::{self, Uri};
 use version::HttpVersion;
 
-pub use http::response::Response;
-pub use http::request::Request;
+pub use proto::response::Response;
+pub use proto::request::Request;
 pub use self::connect::{HttpConnector, Connect};
 
 mod connect;
@@ -42,21 +42,21 @@ pub mod compat;
 
 /// A Client to make outgoing HTTP requests.
 // If the Connector is clone, then the Client can be clone easily.
-pub struct Client<C, B = http::Body> {
+pub struct Client<C, B = proto::Body> {
     connector: C,
     handle: Handle,
     pool: Pool<TokioClient<B>>,
 }
 
-impl Client<HttpConnector, http::Body> {
+impl Client<HttpConnector, proto::Body> {
     /// Create a new Client with the default config.
     #[inline]
-    pub fn new(handle: &Handle) -> Client<HttpConnector, http::Body> {
+    pub fn new(handle: &Handle) -> Client<HttpConnector, proto::Body> {
         Config::default().build(handle)
     }
 }
 
-impl Client<HttpConnector, http::Body> {
+impl Client<HttpConnector, proto::Body> {
     /// Configure a Client.
     ///
     /// # Example
@@ -75,7 +75,7 @@ impl Client<HttpConnector, http::Body> {
     /// # }
     /// ```
     #[inline]
-    pub fn configure() -> Config<UseDefaultConnector, http::Body> {
+    pub fn configure() -> Config<UseDefaultConnector, proto::Body> {
         Config::default()
     }
 }
@@ -249,7 +249,7 @@ impl<C, B> fmt::Debug for Client<C, B> {
     }
 }
 
-type TokioClient<B> = ClientProxy<Message<http::RequestHead, B>, Message<http::ResponseHead, TokioBody>, ::Error>;
+type TokioClient<B> = ClientProxy<Message<proto::RequestHead, B>, Message<proto::ResponseHead, TokioBody>, ::Error>;
 
 struct HttpClient<B> {
     client_rx: RefCell<Option<oneshot::Receiver<Pooled<TokioClient<B>>>>>,
@@ -260,12 +260,12 @@ where T: AsyncRead + AsyncWrite + 'static,
       B: Stream<Error=::Error> + 'static,
       B::Item: AsRef<[u8]>,
 {
-    type Request = http::RequestHead;
+    type Request = proto::RequestHead;
     type RequestBody = B::Item;
-    type Response = http::ResponseHead;
-    type ResponseBody = http::Chunk;
+    type Response = proto::ResponseHead;
+    type ResponseBody = proto::Chunk;
     type Error = ::Error;
-    type Transport = http::Conn<T, B::Item, http::ClientTransaction, Pooled<TokioClient<B>>>;
+    type Transport = proto::Conn<T, B::Item, proto::ClientTransaction, Pooled<TokioClient<B>>>;
     type BindTransport = BindingClient<T, B>;
 
     fn bind_transport(&self, io: T) -> Self::BindTransport {
@@ -286,13 +286,13 @@ where T: AsyncRead + AsyncWrite + 'static,
       B: Stream<Error=::Error>,
       B::Item: AsRef<[u8]>,
 {
-    type Item = http::Conn<T, B::Item, http::ClientTransaction, Pooled<TokioClient<B>>>;
+    type Item = proto::Conn<T, B::Item, proto::ClientTransaction, Pooled<TokioClient<B>>>;
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         match self.rx.poll() {
             Ok(Async::Ready(client)) => Ok(Async::Ready(
-                    http::Conn::new(self.io.take().expect("binding client io lost"), client)
+                    proto::Conn::new(self.io.take().expect("binding client io lost"), client)
             )),
             Ok(Async::NotReady) => Ok(Async::NotReady),
             Err(_canceled) => unreachable!(),
@@ -315,10 +315,10 @@ pub struct Config<C, B> {
 #[derive(Debug, Clone, Copy)]
 pub struct UseDefaultConnector(());
 
-impl Default for Config<UseDefaultConnector, http::Body> {
-    fn default() -> Config<UseDefaultConnector, http::Body> {
+impl Default for Config<UseDefaultConnector, proto::Body> {
+    fn default() -> Config<UseDefaultConnector, proto::Body> {
         Config {
-            _body_type: PhantomData::<http::Body>,
+            _body_type: PhantomData::<proto::Body>,
             //connect_timeout: Duration::from_secs(10),
             connector: UseDefaultConnector(()),
             keep_alive: true,

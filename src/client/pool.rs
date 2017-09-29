@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 use futures::{Future, Async, Poll};
 use relay;
 
-use http::{KeepAlive, KA};
+use proto::{KeepAlive, KA};
 
 pub struct Pool<T> {
     inner: Rc<RefCell<PoolInner<T>>>,
@@ -337,7 +337,7 @@ mod tests {
     use std::time::Duration;
     use futures::{Async, Future};
     use futures::future;
-    use http::KeepAlive;
+    use proto::KeepAlive;
     use super::Pool;
 
     #[test]

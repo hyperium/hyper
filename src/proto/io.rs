@@ -6,7 +6,7 @@ use std::ptr;
 use futures::{Async, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use http::{Http1Transaction, MessageHead};
+use super::{Http1Transaction, MessageHead};
 use bytes::{BytesMut, Bytes};
 
 const INIT_BUFFER_SIZE: usize = 8192;

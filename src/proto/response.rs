@@ -6,7 +6,7 @@ use std::mem::replace;
 use http_types;
 
 use header::{Header, Headers};
-use http::{MessageHead, ResponseHead, Body};
+use proto::{MessageHead, ResponseHead, Body};
 use status::StatusCode;
 use version::HttpVersion;
 
@@ -16,7 +16,7 @@ pub struct Response<B = Body> {
     headers: Headers,
     status: StatusCode,
     #[cfg(feature = "raw_status")]
-    raw_status: ::http::RawStatus,
+    raw_status: ::proto::RawStatus,
     body: Option<B>,
 }
 
@@ -49,7 +49,7 @@ impl<B> Response<B> {
     /// a received response.
     #[inline]
     #[cfg(feature = "raw_status")]
-    pub fn status_raw(&self) -> &::http::RawStatus { &self.raw_status }
+    pub fn status_raw(&self) -> &::proto::RawStatus { &self.raw_status }
 
     /// Set the `StatusCode` for this response.
     #[inline]

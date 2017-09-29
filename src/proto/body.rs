@@ -4,7 +4,7 @@ use futures::sync::mpsc;
 use tokio_proto;
 use std::borrow::Cow;
 
-use http::Chunk;
+use super::Chunk;
 
 pub type TokioBody = tokio_proto::streaming::Body<Chunk, ::Error>;
 

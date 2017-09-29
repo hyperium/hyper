@@ -5,9 +5,9 @@ use httparse;
 use bytes::{BytesMut, Bytes};
 
 use header::{self, Headers, ContentLength, TransferEncoding};
-use http::{MessageHead, RawStatus, Http1Transaction, ParseResult,
+use proto::{MessageHead, RawStatus, Http1Transaction, ParseResult,
            ServerTransaction, ClientTransaction, RequestLine, RequestHead};
-use http::h1::{Encoder, Decoder, date};
+use proto::h1::{Encoder, Decoder, date};
 use method::Method;
 use status::StatusCode;
 use version::HttpVersion::{Http10, Http11};
@@ -381,7 +381,7 @@ fn extend(dst: &mut Vec<u8>, data: &[u8]) {
 mod tests {
     use bytes::BytesMut;
 
-    use http::{MessageHead, ServerTransaction, ClientTransaction, Http1Transaction};
+    use proto::{MessageHead, ServerTransaction, ClientTransaction, Http1Transaction};
     use header::{ContentLength, TransferEncoding};
 
     #[test]
@@ -438,7 +438,7 @@ mod tests {
         use super::Decoder;
 
         let method = &mut None;
-        let mut head = MessageHead::<::http::RequestLine>::default();
+        let mut head = MessageHead::<::proto::RequestLine>::default();
 
         head.subject.0 = ::Method::Get;
         assert_eq!(Decoder::length(0), ServerTransaction::decoder(&head, method).unwrap());
@@ -474,7 +474,7 @@ mod tests {
         use super::Decoder;
 
         let method = &mut Some(::Method::Get);
-        let mut head = MessageHead::<::http::RawStatus>::default();
+        let mut head = MessageHead::<::proto::RawStatus>::default();
 
         head.subject.0 = 204;
         assert_eq!(Decoder::length(0), ClientTransaction::decoder(&head, method).unwrap());

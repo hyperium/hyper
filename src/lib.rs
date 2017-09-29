@@ -45,15 +45,15 @@ pub use uri::Uri;
 pub use client::Client;
 pub use error::{Result, Error};
 pub use header::Headers;
-pub use http::{Body, Chunk};
-pub use http::request::Request;
-pub use http::response::Response;
+pub use proto::{Body, Chunk};
+pub use proto::request::Request;
+pub use proto::response::Response;
 pub use method::Method::{self, Get, Head, Post, Put, Delete};
 pub use status::StatusCode::{self, Ok, BadRequest, NotFound};
 pub use server::Server;
 pub use version::HttpVersion;
 #[cfg(feature = "raw_status")]
-pub use http::RawStatus;
+pub use proto::RawStatus;
 
 #[cfg(test)]
 mod mock;
@@ -61,7 +61,7 @@ pub mod client;
 pub mod error;
 mod method;
 pub mod header;
-mod http;
+mod proto;
 pub mod server;
 mod status;
 mod uri;

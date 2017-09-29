@@ -5,9 +5,9 @@ use http_types;
 use tokio_service::{NewService, Service};
 
 use error::Error;
-use http::Body;
-use http::request::Request;
-use http::response::Response;
+use proto::Body;
+use proto::request::Request;
+use proto::response::Response;
 
 /// Wraps a `Future` returning an `http::Response` into
 /// a `Future` returning a `hyper::server::Response`.

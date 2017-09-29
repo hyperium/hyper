@@ -7,7 +7,7 @@ use std::net::SocketAddr;
 use http_types;
 
 use header::Headers;
-use http::{Body, MessageHead, RequestHead, RequestLine};
+use proto::{Body, MessageHead, RequestHead, RequestLine};
 use method::Method;
 use uri::{self, Uri};
 use version::HttpVersion;
@@ -189,7 +189,7 @@ pub fn split<B>(req: Request<B>) -> (RequestHead, Option<B>) {
         uri::origin_form(&req.uri)
     };
     let head = RequestHead {
-        subject: ::http::RequestLine(req.method, uri),
+        subject: ::proto::RequestLine(req.method, uri),
         headers: req.headers,
         version: req.version,
     };

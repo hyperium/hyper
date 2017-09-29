@@ -894,7 +894,7 @@ mod tests {
 
     use header::Header;
 
-    use http::{ServerTransaction, Http1Transaction};
+    use proto::{ServerTransaction, Http1Transaction};
     use bytes::BytesMut;
 
     use mime;

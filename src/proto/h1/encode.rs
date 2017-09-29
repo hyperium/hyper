@@ -1,7 +1,7 @@
 use std::cmp;
 use std::io::{self, Write};
 
-use http::io::AtomicWrite;
+use proto::io::AtomicWrite;
 
 /// Encoders to handle different Transfer-Encodings.
 #[derive(Debug, Clone)]
