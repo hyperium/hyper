@@ -1,3 +1,11 @@
+### v0.11.4 (2017-09-28)
+
+
+#### Bug Fixes
+
+* **client:**  fix panic in Pool ([0fbc215f](0fbc215f), closes [#1339](1339))
+
+
 ### v0.11.3 (2017-09-28)
 
 
