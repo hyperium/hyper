@@ -65,6 +65,7 @@ impl<T: Clone> Pool<T> {
                     trace!("Pool::put removing canceled parked {:?}", key);
                 } else {
                     tx.complete(entry.take().unwrap());
+                    break;
                 }
                 /*
                 match tx.send(entry.take().unwrap()) {
