@@ -4,7 +4,7 @@ use tokio_service::Service;
 
 use client::{Connect, Client, FutureResponse};
 use error::Error;
-use http::Body;
+use proto::Body;
 
 /// A Client to make outgoing HTTP requests.
 #[derive(Debug)]
