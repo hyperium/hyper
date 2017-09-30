@@ -22,7 +22,7 @@ use futures::{Future, Stream, Poll, Async, Sink, StartSend, AsyncSink};
 use futures::future::Map;
 
 #[cfg(feature = "compat")]
-use http_types;
+use http;
 
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio::reactor::{Core, Handle, Timeout};
@@ -129,7 +129,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     /// See `Http::bind`.
     #[cfg(feature = "compat")]
     pub fn bind_compat<S, Bd>(&self, addr: &SocketAddr, new_service: S) -> ::Result<Server<compat::NewCompatService<S>, Bd>>
-        where S: NewService<Request = http_types::Request<Body>, Response = http_types::Response<Bd>, Error = ::Error> +
+        where S: NewService<Request = http::Request<Body>, Response = http::Response<Bd>, Error = ::Error> +
                     Send + Sync + 'static,
               Bd: Stream<Item=B, Error=::Error>,
     {
@@ -174,7 +174,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
                                  io: I,
                                  remote_addr: SocketAddr,
                                  service: S)
-        where S: Service<Request = http_types::Request<Body>, Response = http_types::Response<Bd>, Error = ::Error> + 'static,
+        where S: Service<Request = http::Request<Body>, Response = http::Response<Bd>, Error = ::Error> + 'static,
               Bd: Stream<Item=B, Error=::Error> + 'static,
               I: AsyncRead + AsyncWrite + 'static,
     {

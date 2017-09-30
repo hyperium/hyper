@@ -83,7 +83,7 @@ use std::iter::{FromIterator, IntoIterator};
 use std::{mem, fmt};
 
 #[cfg(feature = "compat")]
-use http_types;
+use http;
 
 use unicase::Ascii;
 
@@ -552,8 +552,8 @@ impl fmt::Debug for Headers {
 }
 
 #[cfg(feature = "compat")]
-impl From<http_types::HeaderMap> for Headers {
-    fn from(mut header_map: http_types::HeaderMap) -> Headers {
+impl From<http::HeaderMap> for Headers {
+    fn from(mut header_map: http::HeaderMap) -> Headers {
         let mut headers = Headers::new();
         for (name, mut value_drain) in header_map.drain() {
             if let Some(first_value) = value_drain.next() {
@@ -569,23 +569,23 @@ impl From<http_types::HeaderMap> for Headers {
 }
 
 #[cfg(feature = "compat")]
-impl From<Headers> for http_types::HeaderMap {
-    fn from(headers: Headers) -> http_types::HeaderMap {
-        let mut header_map = http_types::HeaderMap::new();
+impl From<Headers> for http::HeaderMap {
+    fn from(headers: Headers) -> http::HeaderMap {
+        let mut header_map = http::HeaderMap::new();
         for header in headers.iter() {
             let entry = header_map.entry(header.name())
                 .expect("attempted to convert invalid header name");
             let mut value_iter = header.raw().iter().map(|line| {
-                http_types::header::HeaderValue::from_bytes(line)
+                http::header::HeaderValue::from_bytes(line)
                     .expect("attempted to convert invalid header value")
             });
             match entry {
-                http_types::header::Entry::Occupied(mut  occupied) => {
+                http::header::Entry::Occupied(mut  occupied) => {
                     for value in value_iter {
                         occupied.append(value);
                     }
                 },
-                http_types::header::Entry::Vacant(vacant) => {
+                http::header::Entry::Vacant(vacant) => {
                     if let Some(first_value) = value_iter.next() {
                         let mut occupied = vacant.insert_entry(first_value);
                         for value in value_iter {
@@ -996,7 +996,7 @@ mod tests {
     #[test]
     #[cfg(feature = "compat")]
     fn test_compat() {
-        use http_types;
+        use http;
 
         let mut orig_hyper_headers = Headers::new();
         orig_hyper_headers.set(ContentLength(11));
@@ -1004,14 +1004,14 @@ mod tests {
         orig_hyper_headers.append_raw("x-foo", b"bar".to_vec());
         orig_hyper_headers.append_raw("x-foo", b"quux".to_vec());
 
-        let mut orig_http_headers = http_types::HeaderMap::new();
-        orig_http_headers.insert(http_types::header::CONTENT_LENGTH, "11".parse().unwrap());
-        orig_http_headers.insert(http_types::header::HOST, "foo.bar".parse().unwrap());
+        let mut orig_http_headers = http::HeaderMap::new();
+        orig_http_headers.insert(http::header::CONTENT_LENGTH, "11".parse().unwrap());
+        orig_http_headers.insert(http::header::HOST, "foo.bar".parse().unwrap());
         orig_http_headers.append("x-foo", "bar".parse().unwrap());
         orig_http_headers.append("x-foo", "quux".parse().unwrap());
 
         let conv_hyper_headers: Headers = orig_http_headers.clone().into();
-        let conv_http_headers: http_types::HeaderMap = orig_hyper_headers.clone().into();
+        let conv_http_headers: http::HeaderMap = orig_hyper_headers.clone().into();
         assert_eq!(orig_hyper_headers, conv_hyper_headers);
         assert_eq!(orig_http_headers, conv_http_headers);
     }

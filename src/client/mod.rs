@@ -10,7 +10,7 @@ use std::time::Duration;
 use futures::{future, Poll, Async, Future, Stream};
 use futures::unsync::oneshot;
 #[cfg(feature = "compat")]
-use http_types;
+use http;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio::reactor::Handle;
 use tokio_proto::BindClient;
@@ -118,7 +118,7 @@ where C: Connect,
     /// Send an `http::Request` using this Client.
     #[inline]
     #[cfg(feature = "compat")]
-    pub fn request_compat(&self, req: http_types::Request<B>) -> compat::CompatFutureResponse {
+    pub fn request_compat(&self, req: http::Request<B>) -> compat::CompatFutureResponse {
         self::compat_impl::future(self.call(req.into()))
     }
 

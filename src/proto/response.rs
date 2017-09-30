@@ -3,7 +3,7 @@ use std::fmt;
 use std::mem::replace;
 
 #[cfg(feature = "compat")]
-use http_types;
+use http;
 
 use header::{Header, Headers};
 use proto::{MessageHead, ResponseHead, Body};
@@ -148,8 +148,8 @@ impl fmt::Debug for Response {
 }
 
 #[cfg(feature = "compat")]
-impl<B> From<http_types::Response<B>> for Response<B> {
-    fn from(from_res: http_types::Response<B>) -> Response<B> {
+impl<B> From<http::Response<B>> for Response<B> {
+    fn from(from_res: http::Response<B>) -> Response<B> {
         let (from_parts, body) = from_res.into_parts();
         let mut to_res = Response::new();
         to_res.version = from_parts.version.into();
@@ -160,14 +160,14 @@ impl<B> From<http_types::Response<B>> for Response<B> {
 }
 
 #[cfg(feature = "compat")]
-impl From<Response> for http_types::Response<Body> {
-    fn from(mut from_res: Response) -> http_types::Response<Body> {
-        let (mut to_parts, ()) = http_types::Response::new(()).into_parts();
+impl From<Response> for http::Response<Body> {
+    fn from(mut from_res: Response) -> http::Response<Body> {
+        let (mut to_parts, ()) = http::Response::new(()).into_parts();
         to_parts.version = from_res.version().into();
         to_parts.status = from_res.status().into();
         let from_headers = replace(from_res.headers_mut(), Headers::new());
         to_parts.headers = from_headers.into();
-        http_types::Response::from_parts(to_parts, from_res.body())
+        http::Response::from_parts(to_parts, from_res.body())
     }
 }
 

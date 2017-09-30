@@ -6,7 +6,7 @@ use std::fmt;
 use std::str::FromStr;
 
 #[cfg(feature = "compat")]
-use http_types;
+use http;
 
 use error::Error;
 use self::HttpVersion::{Http09, Http10, Http11, H2, H2c};
@@ -62,33 +62,33 @@ impl Default for HttpVersion {
 }
 
 #[cfg(feature = "compat")]
-impl From<http_types::Version> for HttpVersion {
-    fn from(v: http_types::Version) -> HttpVersion {
+impl From<http::Version> for HttpVersion {
+    fn from(v: http::Version) -> HttpVersion {
         match v {
-            http_types::Version::HTTP_09 =>
+            http::Version::HTTP_09 =>
                 HttpVersion::Http09,
-            http_types::Version::HTTP_10 =>
+            http::Version::HTTP_10 =>
                 HttpVersion::Http10,
-            http_types::Version::HTTP_11 =>
+            http::Version::HTTP_11 =>
                 HttpVersion::Http11,
-            http_types::Version::HTTP_2 =>
+            http::Version::HTTP_2 =>
                 HttpVersion::H2
         }
     }
 }
 
 #[cfg(feature = "compat")]
-impl From<HttpVersion> for http_types::Version {
-    fn from(v: HttpVersion) -> http_types::Version {
+impl From<HttpVersion> for http::Version {
+    fn from(v: HttpVersion) -> http::Version {
         match v {
             HttpVersion::Http09 =>
-                http_types::Version::HTTP_09,
+                http::Version::HTTP_09,
             HttpVersion::Http10 =>
-                http_types::Version::HTTP_10,
+                http::Version::HTTP_10,
             HttpVersion::Http11 =>
-                http_types::Version::HTTP_11,
+                http::Version::HTTP_11,
             HttpVersion::H2 =>
-                http_types::Version::HTTP_2,
+                http::Version::HTTP_2,
             _ => panic!("attempted to convert unexpected http version")
         }
     }

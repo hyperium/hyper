@@ -1,5 +1,5 @@
 use futures::{Future, Poll, Stream};
-use http_types;
+use http;
 use tokio_service::Service;
 
 use client::{Connect, Client, FutureResponse};
@@ -21,8 +21,8 @@ where C: Connect,
       B: Stream<Error=Error> + 'static,
       B::Item: AsRef<[u8]>,
 {
-    type Request = http_types::Request<B>;
-    type Response = http_types::Response<Body>;
+    type Request = http::Request<B>;
+    type Response = http::Response<Body>;
     type Error = Error;
     type Future = CompatFutureResponse;
 
@@ -43,7 +43,7 @@ pub fn future(fut: FutureResponse) -> CompatFutureResponse {
 }
 
 impl Future for CompatFutureResponse {
-    type Item = http_types::Response<Body>;
+    type Item = http::Response<Body>;
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Error> {

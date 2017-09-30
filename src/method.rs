@@ -4,7 +4,7 @@ use std::str::FromStr;
 use std::convert::AsRef;
 
 #[cfg(feature = "compat")]
-use http_types;
+use http;
 
 use error::Error;
 use self::Method::{Options, Get, Post, Put, Delete, Head, Trace, Connect, Patch,
@@ -160,26 +160,26 @@ impl Default for Method {
 }
 
 #[cfg(feature = "compat")]
-impl From<http_types::Method> for Method {
-    fn from(method: http_types::Method) -> Method {
+impl From<http::Method> for Method {
+    fn from(method: http::Method) -> Method {
         match method {
-            http_types::Method::GET =>
+            http::Method::GET =>
                 Method::Get,
-            http_types::Method::POST =>
+            http::Method::POST =>
                 Method::Post,
-            http_types::Method::PUT =>
+            http::Method::PUT =>
                 Method::Put,
-            http_types::Method::DELETE =>
+            http::Method::DELETE =>
                 Method::Delete,
-            http_types::Method::HEAD =>
+            http::Method::HEAD =>
                 Method::Head,
-            http_types::Method::OPTIONS =>
+            http::Method::OPTIONS =>
                 Method::Options,
-            http_types::Method::CONNECT =>
+            http::Method::CONNECT =>
                 Method::Connect,
-            http_types::Method::PATCH =>
+            http::Method::PATCH =>
                 Method::Patch,
-            http_types::Method::TRACE =>
+            http::Method::TRACE =>
                 Method::Trace,
             _ => {
                 method.as_ref().parse()
@@ -190,29 +190,29 @@ impl From<http_types::Method> for Method {
 }
 
 #[cfg(feature = "compat")]
-impl From<Method> for http_types::Method {
-    fn from(method: Method) -> http_types::Method {
-        use http_types::HttpTryFrom;
+impl From<Method> for http::Method {
+    fn from(method: Method) -> http::Method {
+        use http::HttpTryFrom;
 
         match method {
             Method::Get =>
-                http_types::Method::GET,
+                http::Method::GET,
             Method::Post =>
-                http_types::Method::POST,
+                http::Method::POST,
             Method::Put =>
-                http_types::Method::PUT,
+                http::Method::PUT,
             Method::Delete =>
-                http_types::Method::DELETE,
+                http::Method::DELETE,
             Method::Head =>
-                http_types::Method::HEAD,
+                http::Method::HEAD,
             Method::Options =>
-                http_types::Method::OPTIONS,
+                http::Method::OPTIONS,
             Method::Connect =>
-                http_types::Method::CONNECT,
+                http::Method::CONNECT,
             Method::Patch =>
-                http_types::Method::PATCH,
+                http::Method::PATCH,
             Method::Trace =>
-                http_types::Method::TRACE,
+                http::Method::TRACE,
             Method::Extension(s) => {
                 HttpTryFrom::try_from(s.as_str())
                     .expect("attempted to convert invalid method")
@@ -279,7 +279,7 @@ mod tests {
     #[test]
     #[cfg(feature = "compat")]
     fn test_compat() {
-        use http_types::{self, HttpTryFrom};
+        use http::{self, HttpTryFrom};
 
         let methods = vec![
             "GET",
@@ -289,9 +289,9 @@ mod tests {
         ];
         for method in methods {
             let orig_hyper_method = Method::from_str(method).unwrap();
-            let orig_http_method = http_types::Method::try_from(method).unwrap();
+            let orig_http_method = http::Method::try_from(method).unwrap();
             let conv_hyper_method: Method = orig_http_method.clone().into();
-            let conv_http_method: http_types::Method = orig_hyper_method.clone().into();
+            let conv_http_method: http::Method = orig_hyper_method.clone().into();
             assert_eq!(orig_hyper_method, conv_hyper_method);
             assert_eq!(orig_http_method, conv_http_method);
         }

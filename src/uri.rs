@@ -3,7 +3,7 @@ use std::fmt::{Display, self};
 use std::str::{self, FromStr};
 
 #[cfg(feature = "compat")]
-use http_types;
+use http;
 
 use ::common::ByteStr;
 use bytes::{BufMut, Bytes, BytesMut};
@@ -319,18 +319,18 @@ impl Display for Uri {
 }
 
 #[cfg(feature = "compat")]
-impl From<http_types::Uri> for Uri {
-    fn from(uri: http_types::Uri) -> Uri {
+impl From<http::Uri> for Uri {
+    fn from(uri: http::Uri) -> Uri {
         uri.to_string().parse()
             .expect("attempted to convert invalid uri")
     }
 }
 
 #[cfg(feature = "compat")]
-impl From<Uri> for http_types::Uri {
-    fn from(uri: Uri) -> http_types::Uri {
+impl From<Uri> for http::Uri {
+    fn from(uri: Uri) -> http::Uri {
         let bytes = uri.source.into_bytes();
-        http_types::Uri::from_shared(bytes)
+        http::Uri::from_shared(bytes)
             .expect("attempted to convert invalid uri")
     }
 }
