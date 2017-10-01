@@ -98,10 +98,9 @@ impl From<&'static [u8]> for Body {
 impl From<Cow<'static, [u8]>> for Body {
     #[inline]
     fn from (cow: Cow<'static, [u8]>) -> Body {
-        if let Cow::Borrowed(value) = cow {
-            Body::from(value)
-        } else {
-            Body::from(cow.to_owned())
+        match cow {
+            Cow::Borrowed(b) => Body::from(b),
+            Cow::Owned(o) => Body::from(o)
         }
     }
 }
@@ -123,10 +122,9 @@ impl From<&'static str> for Body {
 impl From<Cow<'static, str>> for Body {
     #[inline]
     fn from(cow: Cow<'static, str>) -> Body {
-        if let Cow::Borrowed(value) = cow {
-            Body::from(value)
-        } else {
-            Body::from(cow.to_owned())
+        match cow {
+            Cow::Borrowed(b) => Body::from(b),
+            Cow::Owned(o) => Body::from(o)
         }
     }
 }
