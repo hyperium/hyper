@@ -66,6 +66,7 @@ where B: Stream<Error=::Error>,
     core: Core,
     listener: TcpListener,
     shutdown_timeout: Duration,
+    no_proto: bool,
 }
 
 impl<B: AsRef<[u8]> + 'static> Http<B> {
@@ -121,6 +122,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
             listener: listener,
             protocol: self.clone(),
             shutdown_timeout: Duration::new(1, 0),
+            no_proto: false,
         })
     }
 
@@ -165,6 +167,30 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
         })
     }
 
+    /// Bind a connection together with a Service.
+    ///
+    /// This returns a Future that must be polled in order for HTTP to be
+    /// driven on the connection.
+    ///
+    /// This additionally skips the tokio-proto infrastructure internally.
+    pub fn no_proto<S, I, Bd>(&self, io: I, service: S) -> Connection<I, Bd, S>
+        where S: Service<Request = Request, Response = Response<Bd>, Error = ::Error> + 'static,
+              Bd: Stream<Item=B, Error=::Error> + 'static,
+              I: AsyncRead + AsyncWrite + 'static,
+
+    {
+        let ka = if self.keep_alive {
+            proto::KA::Busy
+        } else {
+            proto::KA::Disabled
+        };
+        let mut conn = proto::Conn::new(io, ka);
+        conn.set_flush_pipeline(self.pipeline);
+        Connection {
+            conn: proto::dispatch::Dispatcher::new(proto::dispatch::Server::new(service), conn),
+        }
+    }
+
     /// Bind a `Service` using types from the `http` crate.
     ///
     /// See `Http::bind_connection`.
@@ -182,6 +208,67 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
             inner: compat_impl::service(service),
             remote_addr: remote_addr,
         })
+    }
+}
+
+/// A future binding a connection with a Service.
+///
+/// Polling this future will drive HTTP forward.
+#[must_use = "futures do nothing unless polled"]
+pub struct Connection<I, B, S>
+where S: Service,
+      B: Stream<Error=::Error>,
+      B::Item: AsRef<[u8]>,
+{
+    conn: proto::dispatch::Dispatcher<proto::dispatch::Server<S>, B, I, B::Item, proto::ServerTransaction, proto::KA>,
+}
+
+impl<I, B, S> Future for Connection<I, B, S>
+where S: Service<Request = Request, Response = Response<B>, Error = ::Error> + 'static,
+      I: AsyncRead + AsyncWrite + 'static,
+      B: Stream<Error=::Error> + 'static,
+      B::Item: AsRef<[u8]>,
+{
+    type Item = self::unnameable::Opaque;
+    type Error = ::Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        try_ready!(self.conn.poll());
+        Ok(self::unnameable::opaque().into())
+    }
+}
+
+impl<I, B, S> fmt::Debug for Connection<I, B, S> 
+where S: Service,
+      B: Stream<Error=::Error>,
+      B::Item: AsRef<[u8]>,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Connection")
+            .finish()
+    }
+}
+
+mod unnameable {
+    // This type is specifically not exported outside the crate,
+    // so no one can actually name the type. With no methods, we make no
+    // promises about this type.
+    //
+    // All of that to say we can eventually replace the type returned
+    // to something else, and it would not be a breaking change.
+    //
+    // We may want to eventually yield the `T: AsyncRead + AsyncWrite`, which
+    // doesn't have a `Debug` bound. So, this type can't implement `Debug`
+    // either, so the type change doesn't break people.
+    #[allow(missing_debug_implementations)]
+    pub struct Opaque {
+        _inner: (),
+    }
+
+    pub fn opaque() -> Opaque {
+        Opaque {
+            _inner: (),
+        }
     }
 }
 
@@ -207,7 +294,7 @@ impl<B> fmt::Debug for Http<B> {
 pub struct __ProtoRequest(proto::RequestHead);
 #[doc(hidden)]
 #[allow(missing_debug_implementations)]
-pub struct __ProtoResponse(ResponseHead);
+pub struct __ProtoResponse(proto::MessageHead<::StatusCode>);
 #[doc(hidden)]
 #[allow(missing_debug_implementations)]
 pub struct __ProtoTransport<T, B>(proto::Conn<T, B, proto::ServerTransaction>);
@@ -368,8 +455,6 @@ struct HttpService<T> {
     remote_addr: SocketAddr,
 }
 
-type ResponseHead = proto::MessageHead<::StatusCode>;
-
 impl<T, B> Service for HttpService<T>
     where T: Service<Request=Request, Response=Response<B>, Error=::Error>,
           B: Stream<Error=::Error>,
@@ -420,6 +505,12 @@ impl<S, B> Server<S, B>
         self
     }
 
+    /// Configure this server to not use tokio-proto infrastructure internally.
+    pub fn no_proto(&mut self) -> &mut Self {
+        self.no_proto = true;
+        self
+    }
+
     /// Execute this server infinitely.
     ///
     /// This method does not currently return, but it will return an error if
@@ -444,7 +535,7 @@ impl<S, B> Server<S, B>
     pub fn run_until<F>(self, shutdown_signal: F) -> ::Result<()>
         where F: Future<Item = (), Error = ()>,
     {
-        let Server { protocol, new_service, mut core, listener, shutdown_timeout } = self;
+        let Server { protocol, new_service, mut core, listener, shutdown_timeout, no_proto } = self;
         let handle = core.handle();
 
         // Mini future to track the number of active services
@@ -460,7 +551,14 @@ impl<S, B> Server<S, B>
                 info: Rc::downgrade(&info),
             };
             info.borrow_mut().active += 1;
-            protocol.bind_connection(&handle, socket, addr, s);
+            if no_proto {
+                let fut = protocol.no_proto(socket, s)
+                    .map(|_| ())
+                    .map_err(|err| error!("no_proto error: {}", err));
+                handle.spawn(fut);
+            } else {
+                protocol.bind_connection(&handle, socket, addr, s);
+            }
             Ok(())
         });
 

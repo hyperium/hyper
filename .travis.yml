@@ -9,6 +9,8 @@ matrix:
         - rust: beta
         - rust: stable
         - rust: stable
+          env: HYPER_NO_PROTO=1
+        - rust: stable
           env: FEATURES="--features compat"
         - rust: 1.17.0
 

@@ -132,6 +132,10 @@ impl Http1Transaction for ServerTransaction {
         extend(dst, b"\r\n");
         body
     }
+
+    fn should_error_on_parse_eof() -> bool {
+        false
+    }
 }
 
 impl ServerTransaction {
@@ -280,6 +284,10 @@ impl Http1Transaction for ClientTransaction {
         let _ = write!(FastWrite(dst), "{} {}\r\n{}\r\n", head.subject, head.version, head.headers);
 
         body
+    }
+
+    fn should_error_on_parse_eof() -> bool {
+        true
     }
 }
 

@@ -19,6 +19,7 @@ pub use self::chunk::Chunk;
 mod body;
 mod chunk;
 mod conn;
+pub mod dispatch;
 mod io;
 mod h1;
 //mod h2;
@@ -146,6 +147,8 @@ pub trait Http1Transaction {
     fn parse(bytes: &mut BytesMut) -> ParseResult<Self::Incoming>;
     fn decoder(head: &MessageHead<Self::Incoming>, method: &mut Option<::Method>) -> ::Result<h1::Decoder>;
     fn encode(head: MessageHead<Self::Outgoing>, has_body: bool, method: &mut Option<Method>, dst: &mut Vec<u8>) -> h1::Encoder;
+
+    fn should_error_on_parse_eof() -> bool;
 }
 
 pub type ParseResult<T> = ::Result<Option<(MessageHead<T>, usize)>>;

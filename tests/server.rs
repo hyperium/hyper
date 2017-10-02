@@ -3,9 +3,14 @@ extern crate hyper;
 extern crate futures;
 extern crate spmc;
 extern crate pretty_env_logger;
+extern crate tokio_core;
 
 use futures::{Future, Stream};
+use futures::future::{self, FutureResult};
 use futures::sync::oneshot;
+
+use tokio_core::net::TcpListener;
+use tokio_core::reactor::Core;
 
 use std::net::{TcpStream, SocketAddr};
 use std::io::{Read, Write};
@@ -387,6 +392,7 @@ fn disable_keep_alive() {
         .header(hyper::header::ContentLength(quux.len() as u64))
         .body(quux);
 
+    // the write can possibly succeed, since it fills the kernel buffer on the first write
     let _ = req.write_all(b"\
         GET /quux HTTP/1.1\r\n\
         Host: example.domain\r\n\
@@ -394,7 +400,6 @@ fn disable_keep_alive() {
         \r\n\
     ");
 
-    // the write can possibly succeed, since it fills the kernel buffer on the first write
     let mut buf = [0; 1024 * 8];
     match req.read(&mut buf[..]) {
         // Ok(0) means EOF, so a proper shutdown
@@ -502,6 +507,50 @@ fn pipeline_enabled() {
     // so a second read should be EOF
     let n = req.read(&mut buf).expect("read 2");
     assert_eq!(n, 0);
+}
+
+#[test]
+fn no_proto_empty_parse_eof_does_not_return_error() {
+    let mut core = Core::new().unwrap();
+    let listener = TcpListener::bind(&"127.0.0.1:0".parse().unwrap(), &core.handle()).unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    thread::spawn(move || {
+        let _tcp = connect(&addr);
+    });
+
+    let fut = listener.incoming()
+        .into_future()
+        .map_err(|_| unreachable!())
+        .and_then(|(item, _incoming)| {
+            let (socket, _) = item.unwrap();
+            Http::new().no_proto(socket, HelloWorld)
+        });
+
+    core.run(fut).unwrap();
+}
+
+#[test]
+fn no_proto_nonempty_parse_eof_returns_error() {
+    let mut core = Core::new().unwrap();
+    let listener = TcpListener::bind(&"127.0.0.1:0".parse().unwrap(), &core.handle()).unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        tcp.write_all(b"GET / HTTP/1.1").unwrap();
+    });
+
+    let fut = listener.incoming()
+        .into_future()
+        .map_err(|_| unreachable!())
+        .and_then(|(item, _incoming)| {
+            let (socket, _) = item.unwrap();
+            Http::new().no_proto(socket, HelloWorld)
+                .map(|_| ())
+        });
+
+    core.run(fut).unwrap_err();
 }
 
 // -------------------------------------------------
@@ -628,6 +677,20 @@ impl Service for TestService {
 
 }
 
+struct HelloWorld;
+
+impl Service for HelloWorld {
+    type Request = Request;
+    type Response = Response;
+    type Error = hyper::Error;
+    type Future = FutureResult<Self::Response, Self::Error>;
+
+    fn call(&self, _req: Request) -> Self::Future {
+        future::ok(Response::new())
+    }
+}
+
+
 fn connect(addr: &SocketAddr) -> TcpStream {
     let req = TcpStream::connect(addr).unwrap();
     req.set_read_timeout(Some(Duration::from_secs(1))).unwrap();
@@ -639,11 +702,29 @@ fn serve() -> Serve {
     serve_with_options(Default::default())
 }
 
-#[derive(Default)]
 struct ServeOptions {
     keep_alive_disabled: bool,
+    no_proto: bool,
     pipeline: bool,
     timeout: Option<Duration>,
+}
+
+impl Default for ServeOptions {
+    fn default() -> Self {
+        ServeOptions {
+            keep_alive_disabled: false,
+            no_proto: env("HYPER_NO_PROTO", "1"),
+            pipeline: false,
+            timeout: None,
+        }
+    }
+}
+
+fn env(name: &str, val: &str) -> bool {
+    match ::std::env::var(name) {
+        Ok(var) => var == val,
+        Err(_) => false,
+    }
 }
 
 fn serve_with_options(options: ServeOptions) -> Serve {
@@ -657,12 +738,13 @@ fn serve_with_options(options: ServeOptions) -> Serve {
     let addr = "127.0.0.1:0".parse().unwrap();
 
     let keep_alive = !options.keep_alive_disabled;
+    let no_proto = !options.no_proto;
     let pipeline = options.pipeline;
     let dur = options.timeout;
 
     let thread_name = format!("test-server-{:?}", dur);
     let thread = thread::Builder::new().name(thread_name).spawn(move || {
-        let srv = Http::new()
+        let mut srv = Http::new()
             .keep_alive(keep_alive)
             .pipeline(pipeline)
             .bind(&addr, TestService {
@@ -670,6 +752,9 @@ fn serve_with_options(options: ServeOptions) -> Serve {
                 _timeout: dur,
                 reply: reply_rx,
             }).unwrap();
+        if no_proto {
+            srv.no_proto();
+        }
         addr_tx.send(srv.local_addr().unwrap()).unwrap();
         srv.run_until(shutdown_rx.then(|_| Ok(()))).unwrap();
     }).unwrap();
@@ -684,5 +769,3 @@ fn serve_with_options(options: ServeOptions) -> Serve {
         thread: Some(thread),
     }
 }
-
-

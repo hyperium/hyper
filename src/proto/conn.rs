@@ -7,7 +7,7 @@ use futures::task::Task;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_proto::streaming::pipeline::{Frame, Transport};
 
-use proto::{Http1Transaction};
+use proto::Http1Transaction;
 use super::io::{Cursor, Buffered};
 use super::h1::{Encoder, Decoder};
 use method::Method;
@@ -51,15 +51,28 @@ where I: AsyncRead + AsyncWrite,
         self.io.set_flush_pipeline(enabled);
     }
 
-    fn poll2(&mut self) -> Poll<Option<Frame<super::MessageHead<T::Incoming>, super::Chunk, ::Error>>, io::Error> {
-        trace!("Conn::poll()");
+    fn poll_incoming(&mut self) -> Poll<Option<Frame<super::MessageHead<T::Incoming>, super::Chunk, ::Error>>, io::Error> {
+        trace!("Conn::poll_incoming()");
 
         loop {
             if self.is_read_closed() {
                 trace!("Conn::poll when closed");
                 return Ok(Async::Ready(None));
             } else if self.can_read_head() {
-                return self.read_head();
+                return match self.read_head() {
+                    Ok(Async::Ready(Some((head, body)))) => {
+                        Ok(Async::Ready(Some(Frame::Message {
+                            message: head,
+                            body: body,
+                        })))
+                    },
+                    Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
+                    Ok(Async::NotReady) => Ok(Async::NotReady),
+                    Err(::Error::Io(err)) => Err(err),
+                    Err(err) => Ok(Async::Ready(Some(Frame::Error {
+                        error: err,
+                    }))),
+                };
             } else if self.can_write_continue() {
                 try_nb!(self.flush());
             } else if self.can_read_body() {
@@ -79,16 +92,15 @@ where I: AsyncRead + AsyncWrite,
         }
     }
 
-    fn is_read_closed(&self) -> bool {
+    pub fn is_read_closed(&self) -> bool {
         self.state.is_read_closed()
     }
 
-    #[allow(unused)]
-    fn is_write_closed(&self) -> bool {
+    pub fn is_write_closed(&self) -> bool {
         self.state.is_write_closed()
     }
 
-    fn can_read_head(&self) -> bool {
+    pub fn can_read_head(&self) -> bool {
         match self.state.reading {
             Reading::Init => true,
             _ => false,
@@ -102,14 +114,14 @@ where I: AsyncRead + AsyncWrite,
         }
     }
 
-    fn can_read_body(&self) -> bool {
+    pub fn can_read_body(&self) -> bool {
         match self.state.reading {
             Reading::Body(..) => true,
             _ => false,
         }
     }
 
-    fn read_head(&mut self) -> Poll<Option<Frame<super::MessageHead<T::Incoming>, super::Chunk, ::Error>>, io::Error> {
+    pub fn read_head(&mut self) -> Poll<Option<(super::MessageHead<T::Incoming>, bool)>, ::Error> {
         debug_assert!(self.can_read_head());
         trace!("Conn::read_head");
 
@@ -117,13 +129,16 @@ where I: AsyncRead + AsyncWrite,
             Ok(Async::Ready(head)) => (head.version, head),
             Ok(Async::NotReady) => return Ok(Async::NotReady),
             Err(e) => {
-                let must_respond_with_error = !self.state.is_idle();
+                // If we are currently waiting on a message, then an empty
+                // message should be reported as an error. If not, it is just
+                // the connection closing gracefully.
+                let must_error = !self.state.is_idle() && T::should_error_on_parse_eof();
                 self.state.close_read();
                 self.io.consume_leading_lines();
                 let was_mid_parse = !self.io.read_buf().is_empty();
-                return if was_mid_parse || must_respond_with_error {
+                return if was_mid_parse || must_error {
                     debug!("parse error ({}) with {} bytes", e, self.io.read_buf().len());
-                    Ok(Async::Ready(Some(Frame::Error { error: e })))
+                    Err(e)
                 } else {
                     debug!("read eof");
                     Ok(Async::Ready(None))
@@ -138,7 +153,7 @@ where I: AsyncRead + AsyncWrite,
                     Err(e) => {
                         debug!("decoder error = {:?}", e);
                         self.state.close_read();
-                        return Ok(Async::Ready(Some(Frame::Error { error: e })));
+                        return Err(e);
                     }
                 };
                 self.state.busy();
@@ -154,17 +169,17 @@ where I: AsyncRead + AsyncWrite,
                     (true, Reading::Body(decoder))
                 };
                 self.state.reading = reading;
-                Ok(Async::Ready(Some(Frame::Message { message: head, body: body })))
+                Ok(Async::Ready(Some((head, body))))
             },
             _ => {
                 error!("unimplemented HTTP Version = {:?}", version);
                 self.state.close_read();
-                Ok(Async::Ready(Some(Frame::Error { error: ::Error::Version })))
+                Err(::Error::Version)
             }
         }
     }
 
-    fn read_body(&mut self) -> Poll<Option<super::Chunk>, io::Error> {
+    pub fn read_body(&mut self) -> Poll<Option<super::Chunk>, io::Error> {
         debug_assert!(self.can_read_body());
 
         trace!("Conn::read_body");
@@ -187,7 +202,7 @@ where I: AsyncRead + AsyncWrite,
         ret
     }
 
-    fn maybe_park_read(&mut self) {
+    pub fn maybe_park_read(&mut self) {
         if !self.io.is_read_blocked() {
             // the Io object is ready to read, which means it will never alert
             // us that it is ready until we drain it. However, we're currently
@@ -236,13 +251,16 @@ where I: AsyncRead + AsyncWrite,
                         return
                     },
                     Err(e) => {
-                        trace!("maybe_notify read_from_io error: {}", e);
+                        trace!("maybe_notify; read_from_io error: {}", e);
                         self.state.close();
                     }
                 }
             }
             if let Some(ref task) = self.state.read_task {
+                trace!("maybe_notify; notifying task");
                 task.notify();
+            } else {
+                trace!("maybe_notify; no task to notify");
             }
         }
     }
@@ -252,14 +270,14 @@ where I: AsyncRead + AsyncWrite,
         self.maybe_notify();
     }
 
-    fn can_write_head(&self) -> bool {
+    pub fn can_write_head(&self) -> bool {
         match self.state.writing {
             Writing::Continue(..) | Writing::Init => true,
             _ => false
         }
     }
 
-    fn can_write_body(&self) -> bool {
+    pub fn can_write_body(&self) -> bool {
         match self.state.writing {
             Writing::Body(..) => true,
             Writing::Continue(..) |
@@ -277,7 +295,7 @@ where I: AsyncRead + AsyncWrite,
         }
     }
 
-    fn write_head(&mut self, head: super::MessageHead<T::Outgoing>, body: bool) {
+    pub fn write_head(&mut self, head: super::MessageHead<T::Outgoing>, body: bool) {
         debug_assert!(self.can_write_head());
 
         let wants_keep_alive = head.should_keep_alive();
@@ -298,7 +316,7 @@ where I: AsyncRead + AsyncWrite,
         };
     }
 
-    fn write_body(&mut self, chunk: Option<B>) -> StartSend<Option<B>, io::Error> {
+    pub fn write_body(&mut self, chunk: Option<B>) -> StartSend<Option<B>, io::Error> {
         debug_assert!(self.can_write_body());
 
         if self.has_queued_body() {
@@ -397,7 +415,7 @@ where I: AsyncRead + AsyncWrite,
         Ok(Async::Ready(()))
     }
 
-    fn flush(&mut self) -> Poll<(), io::Error> {
+    pub fn flush(&mut self) -> Poll<(), io::Error> {
         loop {
             let queue_finished = try!(self.write_queued()).is_ready();
             try_nb!(self.io.flush());
@@ -410,7 +428,17 @@ where I: AsyncRead + AsyncWrite,
         Ok(Async::Ready(()))
 
     }
+
+    pub fn close_read(&mut self) {
+        self.state.close_read();
+    }
+
+    pub fn close_write(&mut self) {
+        self.state.close_write();
+    }
 }
+
+// ==== tokio_proto impl ====
 
 impl<I, B, T, K> Stream for Conn<I, B, T, K>
 where I: AsyncRead + AsyncWrite,
@@ -423,7 +451,7 @@ where I: AsyncRead + AsyncWrite,
 
     #[inline]
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        self.poll2().map_err(|err| {
+        self.poll_incoming().map_err(|err| {
             debug!("poll error: {}", err);
             err
         })
@@ -635,6 +663,12 @@ impl<B, K: KeepAlive> State<B, K> {
         self.keep_alive.disable();
     }
 
+    fn close_write(&mut self) {
+        trace!("State::close_write()");
+        self.writing = Writing::Closed;
+        self.keep_alive.disable();
+    }
+
     fn try_keep_alive(&mut self) {
         match (&self.reading, &self.writing) {
             (&Reading::KeepAlive, &Writing::KeepAlive) => {
@@ -652,14 +686,6 @@ impl<B, K: KeepAlive> State<B, K> {
         }
     }
 
-    fn is_idle(&self) -> bool {
-        if let KA::Idle = self.keep_alive.status() {
-            true
-        } else {
-            false
-        }
-    }
-
     fn busy(&mut self) {
         if let KA::Disabled = self.keep_alive.status() {
             return;
@@ -674,6 +700,14 @@ impl<B, K: KeepAlive> State<B, K> {
         self.keep_alive.idle();
     }
 
+    fn is_idle(&self) -> bool {
+        if let KA::Idle = self.keep_alive.status() {
+            true
+        } else {
+            false
+        }
+    }
+
     fn is_read_closed(&self) -> bool {
         match self.reading {
             Reading::Closed => true,
@@ -681,7 +715,6 @@ impl<B, K: KeepAlive> State<B, K> {
         }
     }
 
-    #[allow(unused)]
     fn is_write_closed(&self) -> bool {
         match self.writing {
             Writing::Closed => true,
@@ -727,7 +760,7 @@ mod tests {
     use futures::future;
     use tokio_proto::streaming::pipeline::Frame;
 
-    use proto::{self, MessageHead, ServerTransaction};
+    use proto::{self, ClientTransaction, MessageHead, ServerTransaction};
     use super::super::h1::Encoder;
     use mock::AsyncIo;
 
@@ -799,21 +832,32 @@ mod tests {
         let mut conn = Conn::<_, proto::Chunk, ServerTransaction>::new(io, Default::default());
         conn.state.idle();
 
-        match conn.poll().unwrap() {
-            Async::Ready(Some(Frame::Error { .. })) => {},
-            other => panic!("frame is not Error: {:?}", other)
+        match conn.poll() {
+            Err(ref err) if err.kind() == ::std::io::ErrorKind::UnexpectedEof => {},
+            other => panic!("unexpected frame: {:?}", other)
         }
     }
 
     #[test]
     fn test_conn_init_read_eof_busy() {
+        // server ignores
         let io = AsyncIo::new_buf(vec![], 1);
         let mut conn = Conn::<_, proto::Chunk, ServerTransaction>::new(io, Default::default());
         conn.state.busy();
 
         match conn.poll().unwrap() {
-            Async::Ready(Some(Frame::Error { .. })) => {},
-            other => panic!("frame is not Error: {:?}", other)
+            Async::Ready(None) => {},
+            other => panic!("unexpected frame: {:?}", other)
+        }
+
+        // client, when busy, returns the error
+        let io = AsyncIo::new_buf(vec![], 1);
+        let mut conn = Conn::<_, proto::Chunk, ClientTransaction>::new(io, Default::default());
+        conn.state.busy();
+
+        match conn.poll() {
+            Err(ref err) if err.kind() == ::std::io::ErrorKind::UnexpectedEof => {},
+            other => panic!("unexpected frame: {:?}", other)
         }
     }
 
