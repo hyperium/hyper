@@ -1,14 +1,14 @@
 [package]
 
 name = "hyper"
-version = "0.11.4" # don't forget to update html_root_url
+version = "0.11.5" # don't forget to update html_root_url
 description = "A modern HTTP library."
 readme = "README.md"
 homepage = "https://hyper.rs"
 documentation = "https://docs.rs/hyper"
 repository = "https://github.com/hyperium/hyper"
 license = "MIT"
-authors = ["Sean McArthur <sean.monstar@gmail.com>"]
+authors = ["Sean McArthur <sean@seanmonstar.com>"]
 keywords = ["http", "hyper", "hyperium"]
 categories = ["network-programming", "web-programming::http-client", "web-programming::http-server"]
 

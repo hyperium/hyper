@@ -1,3 +1,11 @@
+### v0.11.5 (2017-10-02)
+
+
+#### Bug Fixes
+
+* **http:** avoid infinite recursion when Body::from is called with Cow::Owned. (#1343) ([e8d61737](https://github.com/hyperium/hyper/commit/e8d6173734b0fb43bf7401fdbe43258d913a6284))
+
+
 ### v0.11.4 (2017-09-28)
 
 
