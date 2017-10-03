@@ -3,7 +3,7 @@ use std::net::{SocketAddr, ToSocketAddrs};
 use std::vec;
 
 use ::futures::{Future, Poll};
-use ::futures_cpupool::{CpuPool, CpuFuture};
+use ::futures_cpupool::{CpuPool, CpuFuture, Builder};
 
 #[derive(Clone)]
 pub struct Dns {
@@ -13,7 +13,10 @@ pub struct Dns {
 impl Dns {
     pub fn new(threads: usize) -> Dns {
         Dns {
-            pool: CpuPool::new(threads)
+            pool: Builder::new()
+                .name_prefix("hyper-dns")
+                .pool_size(threads)
+                .create()
         }
     }
 
