@@ -1,3 +1,11 @@
+### v0.11.6 (2017-10-02)
+
+
+#### Bug Fixes
+
+* **server:** fix experimental pipeline flushing ([6b4635fd](https://github.com/hyperium/hyper/commit/6b4635fd13f5fe91ad6d388c5e66394627ad7ba2))
+
+
 ### v0.11.5 (2017-10-02)
 
 
