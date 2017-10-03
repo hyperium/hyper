@@ -147,7 +147,7 @@ impl<T: Write> Write for Buffered<T> {
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        if self.flush_pipeline && self.read_buf.is_empty() {
+        if self.flush_pipeline && !self.read_buf.is_empty() {
             Ok(())
         } else if self.write_buf.remaining() == 0 {
             self.io.flush()
