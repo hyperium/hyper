@@ -90,7 +90,7 @@ impl Uri {
                 query_start: query,
                 fragment_start: fragment,
             })
-        } else if (s.contains("/") || s.contains("?")) && !s.contains("://") {
+        } else if s.contains("/") || s.contains("?") {
             // last possibility is authority-form, above are illegal characters
             Err(UriError(ErrorKind::Malformed))
         } else {
