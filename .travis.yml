@@ -10,7 +10,7 @@ matrix:
         - rust: stable
         - rust: stable
           env: FEATURES="--features compat"
-        - rust: 1.15.0
+        - rust: 1.17.0
 
 cache:
     apt: true
