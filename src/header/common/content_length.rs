@@ -19,7 +19,7 @@ use header::{Header, Raw, parsing};
 /// [RFC7230](http://tools.ietf.org/html/rfc7230#section-3.3.2):
 ///
 /// > A sender MUST NOT send a Content-Length header field in any message
-/// that > contains a Transfer-Encoding header field.
+/// > that contains a Transfer-Encoding header field.
 ///
 /// # ABNF
 /// ```plain
