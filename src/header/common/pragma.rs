@@ -10,7 +10,6 @@ use header::{Header, Raw, parsing};
 /// > that they will understand (as Cache-Control was not defined until
 /// > HTTP/1.1).  When the Cache-Control header field is also present and
 /// > understood in a request, Pragma is ignored.
-
 /// > In HTTP/1.0, Pragma was defined as an extensible field for
 /// > implementation-specified directives for recipients.  This
 /// > specification deprecates such extensions to improve interoperability.

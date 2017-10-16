@@ -200,7 +200,7 @@ pub fn from_wire<B>(incoming: ResponseHead, body: Option<B>) -> Response<B> {
     }
 }
 
-/// Splits this response into a MessageHead<StatusCode> and its body
+/// Splits this response into a `MessageHead<StatusCode>` and its body
 #[inline]
 pub fn split<B>(res: Response<B>) -> (MessageHead<StatusCode>, Option<B>) {
     let head = MessageHead::<StatusCode> {
