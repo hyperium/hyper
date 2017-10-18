@@ -2,9 +2,13 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::io;
 use std::mem;
+use std::sync::Arc;
 //use std::net::SocketAddr;
 
 use futures::{Future, Poll, Async};
+use futures::future::{Executor, ExecuteError};
+use futures::sync::oneshot;
+use futures_cpupool::{Builder as CpuPoolBuilder};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio::reactor::Handle;
 use tokio::net::{TcpStream, TcpStreamNew};
@@ -43,22 +47,35 @@ where T: Service<Request=Uri, Error=io::Error> + 'static,
 /// A connector for the `http` scheme.
 #[derive(Clone)]
 pub struct HttpConnector {
-    dns: dns::Dns,
+    executor: HttpConnectExecutor,
     enforce_http: bool,
     handle: Handle,
 }
 
 impl HttpConnector {
-
     /// Construct a new HttpConnector.
     ///
     /// Takes number of DNS worker threads.
     #[inline]
     pub fn new(threads: usize, handle: &Handle) -> HttpConnector {
+        let pool = CpuPoolBuilder::new()
+            .name_prefix("hyper-dns")
+            .pool_size(threads)
+            .create();
+        HttpConnector::new_with_executor(pool, handle)
+    }
+
+    /// Construct a new HttpConnector.
+    ///
+    /// Takes an executor to run blocking tasks on.
+    #[inline]
+    pub fn new_with_executor<E: 'static>(executor: E, handle: &Handle) -> HttpConnector
+        where E: Executor<HttpConnectorBlockingTask>
+    {
         HttpConnector {
-            dns: dns::Dns::new(threads),
+            executor: HttpConnectExecutor(Arc::new(executor)),
             enforce_http: true,
-            handle: handle.clone(),
+            handle: handle.clone()
         }
     }
 
@@ -109,7 +126,7 @@ impl Service for HttpConnector {
         };
 
         HttpConnecting {
-            state: State::Lazy(self.dns.clone(), host.into(), port),
+            state: State::Lazy(self.executor.clone(), host.into(), port),
             handle: self.handle.clone(),
         }
     }
@@ -154,8 +171,8 @@ pub struct HttpConnecting {
 }
 
 enum State {
-    Lazy(dns::Dns, String, u16),
-    Resolving(dns::Query),
+    Lazy(HttpConnectExecutor, String, u16),
+    Resolving(oneshot::SpawnHandle<dns::IpAddrs, io::Error>),
     Connecting(ConnectingTcp),
     Error(Option<io::Error>),
 }
@@ -168,12 +185,13 @@ impl Future for HttpConnecting {
         loop {
             let state;
             match self.state {
-                State::Lazy(ref dns, ref mut host, port) => {
+                State::Lazy(ref executor, ref mut host, port) => {
                     let host = mem::replace(host, String::new());
-                    state = State::Resolving(dns.resolve(host, port));
+                    let work = dns::Work::new(host, port);
+                    state = State::Resolving(oneshot::spawn(work, executor));
                 },
-                State::Resolving(ref mut query) => {
-                    match try!(query.poll()) {
+                State::Resolving(ref mut future) => {
+                    match try!(future.poll()) {
                         Async::NotReady => return Ok(Async::NotReady),
                         Async::Ready(addrs) => {
                             state = State::Connecting(ConnectingTcp {
@@ -228,6 +246,36 @@ impl ConnectingTcp {
 
             return Err(err.take().expect("missing connect error"));
         }
+    }
+}
+
+/// Blocking task to be executed on a thread pool.
+pub struct HttpConnectorBlockingTask {
+    work: oneshot::Execute<dns::Work>
+}
+
+impl fmt::Debug for HttpConnectorBlockingTask {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.pad("HttpConnectorBlockingTask")
+    }
+}
+
+impl Future for HttpConnectorBlockingTask {
+    type Item = ();
+    type Error = ();
+
+    fn poll(&mut self) -> Poll<(), ()> {
+        self.work.poll()
+    }
+}
+
+#[derive(Clone)]
+struct HttpConnectExecutor(Arc<Executor<HttpConnectorBlockingTask>>);
+
+impl Executor<oneshot::Execute<dns::Work>> for HttpConnectExecutor {
+    fn execute(&self, future: oneshot::Execute<dns::Work>) -> Result<(), ExecuteError<oneshot::Execute<dns::Work>>> {
+        self.0.execute(HttpConnectorBlockingTask { work: future })
+            .map_err(|err| ExecuteError::new(err.kind(), err.into_future().work))
     }
 }
 
