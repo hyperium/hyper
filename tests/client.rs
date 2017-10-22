@@ -80,7 +80,7 @@ macro_rules! test {
                 while n < buf.len() && n < expected.len() {
                     n += match inc.read(&mut buf[n..]) {
                         Ok(n) => n,
-                        Err(e) => panic!("failed to read request, partialy read = {:?}, error: {}", s(&buf[..n]), e),
+                        Err(e) => panic!("failed to read request, partially read = {:?}, error: {}", s(&buf[..n]), e),
                     };
                 }
                 assert_eq!(s(&buf[..n]), expected);
