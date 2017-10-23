@@ -90,7 +90,7 @@ impl Http1Transaction for ServerTransaction {
             // https://tools.ietf.org/html/rfc7230#section-3.3.3
             // If Transfer-Encoding header is present, and 'chunked' is
             // not the final encoding, and this is a Request, then it is
-            // mal-formed. A server should responsed with 400 Bad Request.
+            // mal-formed. A server should respond with 400 Bad Request.
             if encodings.last() == Some(&header::Encoding::Chunked) {
                 Ok(Decoder::chunked())
             } else {
@@ -137,7 +137,7 @@ impl Http1Transaction for ServerTransaction {
 impl ServerTransaction {
     fn set_length(head: &mut MessageHead<StatusCode>, has_body: bool, method: Option<&Method>) -> Encoder {
         // these are here thanks to borrowck
-        // `if method == Some(&Method::Get)` says the RHS doesnt live long enough
+        // `if method == Some(&Method::Get)` says the RHS doesn't live long enough
         const HEAD: Option<&'static Method> = Some(&Method::Head);
         const CONNECT: Option<&'static Method> = Some(&Method::Connect);
 

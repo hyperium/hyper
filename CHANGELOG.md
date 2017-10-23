@@ -636,7 +636,7 @@
 
 #### Bug Fixes
 
-* **cargo:** remove * dependendies for serde and env_logger ([4a05bee9](https://github.com/hyperium/hyper/commit/4a05bee9abdc426bbd904fe356b771e492dc8f43))
+* **cargo:** remove * dependencies for serde and env_logger ([4a05bee9](https://github.com/hyperium/hyper/commit/4a05bee9abdc426bbd904fe356b771e492dc8f43))
 * **server:**
   * Flush 100-continue messages ([92ff50f2](https://github.com/hyperium/hyper/commit/92ff50f2e57fa2cb8a55b3d6d9fa43ef9a1b5526), closes [#704](https://github.com/hyperium/hyper/issues/704))
   * Removed check for GET/HEAD request when parsing body ([0b05c590](https://github.com/hyperium/hyper/commit/0b05c5903e86327cc9cb4cac39217e496851fce3), closes [#698](https://github.com/hyperium/hyper/issues/698))
@@ -682,7 +682,7 @@
 #### Features
 
 * **headers:** Add Access-Control-Expose-Headers ([f783e991](https://github.com/hyperium/hyper/commit/f783e9913b988f3d5c28707e2291145999756dbe))
-* **server:** Add hooks for HttpListener and HttpsListener to be started from existing listene ([fa0848d4](https://github.com/hyperium/hyper/commit/fa0848d4216aa81e7b7619b7ce0a650356ee7ab7))
+* **server:** Add hooks for HttpListener and HttpsListener to be started from existing listener ([fa0848d4](https://github.com/hyperium/hyper/commit/fa0848d4216aa81e7b7619b7ce0a650356ee7ab7))
 
 
 #### Breaking Changes
@@ -750,7 +750,7 @@
 
 #### Bug Fixes
 
-* **client:** fix panics when some errors occured inside HttpMessage ([ef15257b](https://github.com/hyperium/hyper/commit/ef15257b733d40bc3a7c598f61918f91385585f9))
+* **client:** fix panics when some errors occurred inside HttpMessage ([ef15257b](https://github.com/hyperium/hyper/commit/ef15257b733d40bc3a7c598f61918f91385585f9))
 * **headers:** case insensitive values for Connection header ([341f8eae](https://github.com/hyperium/hyper/commit/341f8eae6eb33e2242be09541807cdad9afc732e), closes [#635](https://github.com/hyperium/hyper/issues/635))
 
 
@@ -1002,7 +1002,7 @@ types changed.
 #### Bug Fixes
 
 * **client:**
-  * dont call close() inside Request ([3334fca2](https://github.com/hyperium/hyper/commit/3334fca278e662b2755e41045ce641238514bea9), closes [#519](https://github.com/hyperium/hyper/issues/519))
+  * don't call close() inside Request ([3334fca2](https://github.com/hyperium/hyper/commit/3334fca278e662b2755e41045ce641238514bea9), closes [#519](https://github.com/hyperium/hyper/issues/519))
   * keep the underlying connector when setting an SSL verifier ([f4556d55](https://github.com/hyperium/hyper/commit/f4556d554faa2a1170fec0af5b4076c31e7c3600), closes [#495](https://github.com/hyperium/hyper/issues/495))
 * **mock:** adjust ChannelMockConnector connect method to compile ([085d7b07](https://github.com/hyperium/hyper/commit/085d7b0752d7fc0134e99e9eec2a67cc66b319b3))
 
@@ -1030,7 +1030,7 @@ types changed.
 
  ([62d96adc](https://github.com/hyperium/hyper/commit/62d96adc6b852b3836b47fc2e154bbdbab9ad7f6))
 * Any custom Connectors will need to change to &self in
-  the connect method. Any Connectors that needed the mutablity need to
+  the connect method. Any Connectors that needed the mutability need to
   figure out a synchronization strategy.
 
   Request::with_connector() takes a &NetworkConnector instead of &mut.

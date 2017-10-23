@@ -870,7 +870,7 @@ fn verify_and_trim(s: &str, b: (u8, u8)) -> ::Result<&str> {
     let byte_array = s.as_bytes();
 
     // Verify that `s` starts with `b.0` and ends with `b.1` and return
-    // the contained substring after triming whitespace.
+    // the contained substring after trimming whitespace.
     if length > 1 && b.0 == byte_array[0] && b.1 == byte_array[length - 1] {
         Ok(s.trim_matches(
             |c: char| c == b.0 as char || c == b.1 as char || c.is_whitespace())
