@@ -173,7 +173,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     /// driven on the connection.
     ///
     /// This additionally skips the tokio-proto infrastructure internally.
-    pub fn no_proto<S, I, Bd>(&self, io: I, service: S) -> Connection<I, Bd, S>
+    pub fn no_proto<S, I, Bd>(&self, io: I, service: S) -> Connection<I, S>
         where S: Service<Request = Request, Response = Response<Bd>, Error = ::Error> + 'static,
               Bd: Stream<Item=B, Error=::Error> + 'static,
               I: AsyncRead + AsyncWrite + 'static,
@@ -211,19 +211,73 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     }
 }
 
+use self::hyper_service::HyperService;
+mod hyper_service {
+    use super::{Request, Response, Service, Stream};
+    /// A "trait alias" for any type that implements `Service` with hyper's
+    /// Request, Response, and Error types, and a streaming body.
+    ///
+    /// There is an auto implementation inside hyper, so no one can actually
+    /// implement this trait. It simply exists to reduce the amount of generics
+    /// needed.
+    pub trait HyperService: Service + Sealed {
+        #[doc(hidden)]
+        type ResponseBody;
+        #[doc(hidden)]
+        type Sealed: Sealed2;
+    }
+
+    pub trait Sealed {}
+    pub trait Sealed2 {}
+
+    #[allow(missing_debug_implementations)]
+    pub struct Opaque {
+        _inner: (),
+    }
+
+    impl Sealed2 for Opaque {}
+
+    impl<S, B> Sealed for S
+    where
+        S: Service<
+            Request=Request,
+            Response=Response<B>,
+            Error=::Error,
+        >,
+        B: Stream<Error=::Error>,
+        B::Item: AsRef<[u8]>,
+    {}
+
+    impl<S, B> HyperService for S
+    where
+        S: Service<
+            Request=Request,
+            Response=Response<B>,
+            Error=::Error,
+        >,
+        S: Sealed,
+        B: Stream<Error=::Error>,
+        B::Item: AsRef<[u8]>,
+    {
+        type ResponseBody = B;
+        type Sealed = Opaque;
+    }
+
+}
 /// A future binding a connection with a Service.
 ///
 /// Polling this future will drive HTTP forward.
 #[must_use = "futures do nothing unless polled"]
-pub struct Connection<I, B, S>
-where S: Service,
-      B: Stream<Error=::Error>,
-      B::Item: AsRef<[u8]>,
+pub struct Connection<I, S>
+where
+    S: HyperService,
+    S::ResponseBody: Stream<Error=::Error>,
+    <S::ResponseBody as Stream>::Item: AsRef<[u8]>,
 {
-    conn: proto::dispatch::Dispatcher<proto::dispatch::Server<S>, B, I, B::Item, proto::ServerTransaction, proto::KA>,
+    conn: proto::dispatch::Dispatcher<proto::dispatch::Server<S>, S::ResponseBody, I, <S::ResponseBody as Stream>::Item, proto::ServerTransaction, proto::KA>,
 }
 
-impl<I, B, S> Future for Connection<I, B, S>
+impl<I, B, S> Future for Connection<I, S>
 where S: Service<Request = Request, Response = Response<B>, Error = ::Error> + 'static,
       I: AsyncRead + AsyncWrite + 'static,
       B: Stream<Error=::Error> + 'static,
@@ -238,10 +292,11 @@ where S: Service<Request = Request, Response = Response<B>, Error = ::Error> + '
     }
 }
 
-impl<I, B, S> fmt::Debug for Connection<I, B, S> 
-where S: Service,
-      B: Stream<Error=::Error>,
-      B::Item: AsRef<[u8]>,
+impl<I, S> fmt::Debug for Connection<I, S>
+where
+    S: HyperService,
+    S::ResponseBody: Stream<Error=::Error>,
+    <S::ResponseBody as Stream>::Item: AsRef<[u8]>,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Connection")
