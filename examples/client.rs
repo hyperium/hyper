@@ -1,4 +1,4 @@
-#![deny(warnings)]
+//#![deny(warnings)]
 extern crate futures;
 extern crate hyper;
 extern crate tokio_core;
@@ -32,7 +32,9 @@ fn main() {
 
     let mut core = tokio_core::reactor::Core::new().unwrap();
     let handle = core.handle();
-    let client = Client::new(&handle);
+    let client = Client::configure()
+        .no_proto()
+        .build(&handle);
 
     let work = client.get(url).and_then(|res| {
         println!("Response: {}", res.status());

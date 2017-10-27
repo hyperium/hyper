@@ -84,7 +84,7 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
             match try_ready!(self.read_from_io()) {
                 0 => {
                     trace!("parse eof");
-                    //TODO: With Rust 1.14, this can be Error::from(ErrorKind)
+                    //TODO: utilize Error::Incomplete when Error type is redesigned
                     return Err(io::Error::new(io::ErrorKind::UnexpectedEof, ParseEof).into());
                 }
                 _ => {},
@@ -335,13 +335,13 @@ struct ParseEof;
 
 impl fmt::Display for ParseEof {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str("parse eof")
+        f.write_str(::std::error::Error::description(self))
     }
 }
 
 impl ::std::error::Error for ParseEof {
     fn description(&self) -> &str {
-        "parse eof"
+        "end of file reached before parsing could complete"
     }
 }
 

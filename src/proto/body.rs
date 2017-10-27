@@ -7,6 +7,7 @@ use std::borrow::Cow;
 use super::Chunk;
 
 pub type TokioBody = tokio_proto::streaming::Body<Chunk, ::Error>;
+pub type BodySender = mpsc::Sender<Result<Chunk, ::Error>>;
 
 /// A `Stream` for `Chunk`s used in requests and responses.
 #[must_use = "streams do nothing unless polled"]
