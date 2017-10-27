@@ -149,6 +149,7 @@ pub trait Http1Transaction {
     fn encode(head: MessageHead<Self::Outgoing>, has_body: bool, method: &mut Option<Method>, dst: &mut Vec<u8>) -> h1::Encoder;
 
     fn should_error_on_parse_eof() -> bool;
+    fn should_read_first() -> bool;
 }
 
 pub type ParseResult<T> = ::Result<Option<(MessageHead<T>, usize)>>;

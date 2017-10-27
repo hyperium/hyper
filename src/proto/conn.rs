@@ -102,7 +102,16 @@ where I: AsyncRead + AsyncWrite,
 
     pub fn can_read_head(&self) -> bool {
         match self.state.reading {
-            Reading::Init => true,
+            Reading::Init => {
+                if T::should_read_first() {
+                    true
+                } else {
+                    match self.state.writing {
+                        Writing::Init => false,
+                        _ => true,
+                    }
+                }
+            }
             _ => false,
         }
     }
@@ -840,25 +849,35 @@ mod tests {
 
     #[test]
     fn test_conn_init_read_eof_busy() {
-        // server ignores
-        let io = AsyncIo::new_buf(vec![], 1);
-        let mut conn = Conn::<_, proto::Chunk, ServerTransaction>::new(io, Default::default());
-        conn.state.busy();
+        let _: Result<(), ()> = future::lazy(|| {
+            // server ignores
+            let io = AsyncIo::new_buf(vec![], 1);
+            let mut conn = Conn::<_, proto::Chunk, ServerTransaction>::new(io, Default::default());
+            conn.state.busy();
 
-        match conn.poll().unwrap() {
-            Async::Ready(None) => {},
-            other => panic!("unexpected frame: {:?}", other)
-        }
+            match conn.poll().unwrap() {
+                Async::Ready(None) => {},
+                other => panic!("unexpected frame: {:?}", other)
+            }
 
-        // client, when busy, returns the error
-        let io = AsyncIo::new_buf(vec![], 1);
-        let mut conn = Conn::<_, proto::Chunk, ClientTransaction>::new(io, Default::default());
-        conn.state.busy();
+            // client
+            let io = AsyncIo::new_buf(vec![], 1);
+            let mut conn = Conn::<_, proto::Chunk, ClientTransaction>::new(io, Default::default());
+            conn.state.busy();
 
-        match conn.poll() {
-            Err(ref err) if err.kind() == ::std::io::ErrorKind::UnexpectedEof => {},
-            other => panic!("unexpected frame: {:?}", other)
-        }
+            match conn.poll() {
+                Ok(Async::NotReady) => {},
+                other => panic!("unexpected frame: {:?}", other)
+            }
+
+            // once mid-request, returns the error
+            conn.state.writing = super::Writing::KeepAlive;
+            match conn.poll() {
+                Err(ref err) if err.kind() == ::std::io::ErrorKind::UnexpectedEof => {},
+                other => panic!("unexpected frame: {:?}", other)
+            }
+            Ok(())
+        }).wait();
     }
 
     #[test]

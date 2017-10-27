@@ -354,6 +354,38 @@ test! {
 }
 
 test! {
+    name: client_pipeline_responses_extra,
+
+    server:
+        expected: "\
+            GET /pipe HTTP/1.1\r\n\
+            Host: {addr}\r\n\
+            \r\n\
+            ",
+        reply: "\
+            HTTP/1.1 200 OK\r\n\
+            Content-Length: 0\r\n\
+            \r\n\
+            HTTP/1.1 200 OK\r\n\
+            Content-Length: 0\r\n\
+            \r\n\
+            ",
+
+    client:
+        request:
+            method: Get,
+            url: "http://{addr}/pipe",
+            headers: [],
+            body: None,
+            proxy: false,
+        response:
+            status: Ok,
+            headers: [],
+            body: None,
+}
+
+
+test! {
     name: client_error_unexpected_eof,
 
     server:

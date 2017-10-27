@@ -136,6 +136,10 @@ impl Http1Transaction for ServerTransaction {
     fn should_error_on_parse_eof() -> bool {
         false
     }
+
+    fn should_read_first() -> bool {
+        true
+    }
 }
 
 impl ServerTransaction {
@@ -288,6 +292,10 @@ impl Http1Transaction for ClientTransaction {
 
     fn should_error_on_parse_eof() -> bool {
         true
+    }
+
+    fn should_read_first() -> bool {
+        false
     }
 }
 
