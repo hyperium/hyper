@@ -235,6 +235,9 @@ where I: AsyncRead + AsyncWrite,
         //
         // When writing finishes, we need to wake the task up in case there
         // is more reading that can be done, to start a new message.
+
+
+
         let wants_read = match self.state.reading {
             Reading::Body(..) |
             Reading::KeepAlive => return,
@@ -242,13 +245,19 @@ where I: AsyncRead + AsyncWrite,
             Reading::Closed => false,
         };
 
-        match self.state.writing {
+        let wants_write = match self.state.writing {
             Writing::Continue(..) |
             Writing::Body(..) |
             Writing::Ending(..) => return,
-            Writing::Init |
-            Writing::KeepAlive |
-            Writing::Closed => (),
+            Writing::Init => true,
+            Writing::KeepAlive => false,
+            Writing::Closed => false,
+        };
+
+        // if the client is at Reading::Init and Writing::Init,
+        // it's not actually looking for a read, but a write.
+        if wants_write && !T::should_read_first() {
+            return;
         }
 
         if !self.io.is_read_blocked() {
@@ -704,9 +713,13 @@ impl<B, K: KeepAlive> State<B, K> {
 
     fn idle(&mut self) {
         self.method = None;
-        self.reading = Reading::Init;
-        self.writing = Writing::Init;
         self.keep_alive.idle();
+        if self.is_idle() {
+            self.reading = Reading::Init;
+            self.writing = Writing::Init;
+        } else {
+            self.close();
+        }
     }
 
     fn is_idle(&self) -> bool {

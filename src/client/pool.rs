@@ -3,7 +3,7 @@ use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::io;
 use std::ops::{Deref, DerefMut, BitAndAssign};
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::time::{Duration, Instant};
 
 use futures::{Future, Async, Poll};
@@ -103,7 +103,7 @@ impl<T: Clone> Pool<T> {
                 status: Rc::new(Cell::new(TimedKA::Busy)),
             },
             key: key,
-            pool: self.clone(),
+            pool: Rc::downgrade(&self.inner),
         }
     }
 
@@ -118,7 +118,7 @@ impl<T: Clone> Pool<T> {
         Pooled {
             entry: entry,
             key: key,
-            pool: self.clone(),
+            pool: Rc::downgrade(&self.inner),
         }
     }
 
@@ -161,7 +161,7 @@ impl<T> Clone for Pool<T> {
 pub struct Pooled<T> {
     entry: Entry<T>,
     key: Rc<String>,
-    pool: Pool<T>,
+    pool: Weak<RefCell<PoolInner<T>>>,
 }
 
 impl<T> Deref for Pooled<T> {
@@ -194,8 +194,16 @@ impl<T: Clone> KeepAlive for Pooled<T> {
             return;
         }
         self.entry.is_reused = true;
-        if self.pool.is_enabled() {
-            self.pool.put(self.key.clone(), self.entry.clone());
+        if let Some(inner) = self.pool.upgrade() {
+            let mut pool = Pool {
+                inner: inner,
+            };
+            if pool.is_enabled() {
+                pool.put(self.key.clone(), self.entry.clone());
+            }
+        } else {
+            trace!("pool dropped, dropping pooled ({:?})", self.key);
+            self.entry.status.set(TimedKA::Disabled);
         }
     }
 

@@ -543,57 +543,115 @@ fn client_pooled_socket_disconnected() {
 }
 */
 
-#[test]
-fn drop_body_before_eof_closes_connection() {
-    // https://github.com/hyperium/hyper/issues/1353
+mod dispatch_impl {
+    use super::*;
     use std::io::{self, Read, Write};
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::thread;
     use std::time::Duration;
+
+    use futures::{self, Future};
+    use futures::sync::oneshot;
     use tokio_core::reactor::{Timeout};
     use tokio_core::net::TcpStream;
     use tokio_io::{AsyncRead, AsyncWrite};
+
     use hyper::client::HttpConnector;
     use hyper::server::Service;
-    use hyper::Uri;
+    use hyper::{Client, Uri};
+    use hyper;
 
-    let _ = pretty_env_logger::init();
 
-    let server = TcpListener::bind("127.0.0.1:0").unwrap();
-    let addr = server.local_addr().unwrap();
-    let mut core = Core::new().unwrap();
-    let handle = core.handle();
-    let closes = Arc::new(AtomicUsize::new(0));
-    let client = Client::configure()
-        .connector(DebugConnector(HttpConnector::new(1, &core.handle()), closes.clone()))
-        .no_proto()
-        .build(&handle);
 
-    let (tx1, rx1) = oneshot::channel();
+    #[test]
+    fn drop_body_before_eof_closes_connection() {
+        // https://github.com/hyperium/hyper/issues/1353
+        let _ = pretty_env_logger::init();
 
-    thread::spawn(move || {
-        let mut sock = server.accept().unwrap().0;
-        sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
-        sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
-        let mut buf = [0; 4096];
-        sock.read(&mut buf).expect("read 1");
-        let body = vec![b'x'; 1024 * 128];
-        write!(sock, "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", body.len()).expect("write head");
-        let _ = sock.write_all(&body);
-        let _ = tx1.send(());
-    });
+        let server = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = server.local_addr().unwrap();
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+        let closes = Arc::new(AtomicUsize::new(0));
+        let client = Client::configure()
+            .connector(DebugConnector(HttpConnector::new(1, &core.handle()), closes.clone()))
+            .no_proto()
+            .build(&handle);
 
-    let uri = format!("http://{}/a", addr).parse().unwrap();
+        let (tx1, rx1) = oneshot::channel();
 
-    let res = client.get(uri).and_then(move |res| {
-        assert_eq!(res.status(), hyper::StatusCode::Ok);
-        Timeout::new(Duration::from_secs(1), &handle).unwrap()
-            .from_err()
-    });
-    let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
-    core.run(res.join(rx).map(|r| r.0)).unwrap();
+        thread::spawn(move || {
+            let mut sock = server.accept().unwrap().0;
+            sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let mut buf = [0; 4096];
+            sock.read(&mut buf).expect("read 1");
+            let body = vec![b'x'; 1024 * 128];
+            write!(sock, "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", body.len()).expect("write head");
+            let _ = sock.write_all(&body);
+            let _ = tx1.send(());
+        });
 
-    assert_eq!(closes.load(Ordering::Relaxed), 1);
+        let uri = format!("http://{}/a", addr).parse().unwrap();
+
+        let res = client.get(uri).and_then(move |res| {
+            assert_eq!(res.status(), hyper::StatusCode::Ok);
+            Timeout::new(Duration::from_secs(1), &handle).unwrap()
+                .from_err()
+        });
+        let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+        core.run(res.join(rx).map(|r| r.0)).unwrap();
+
+        assert_eq!(closes.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn drop_client_closes_connection() {
+        // https://github.com/hyperium/hyper/issues/1353
+        let _ = pretty_env_logger::init();
+
+        let server = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = server.local_addr().unwrap();
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+        let closes = Arc::new(AtomicUsize::new(0));
+
+        let (tx1, rx1) = oneshot::channel();
+
+        thread::spawn(move || {
+            let mut sock = server.accept().unwrap().0;
+            sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let mut buf = [0; 4096];
+            sock.read(&mut buf).expect("read 1");
+            let body =[b'x'; 64];
+            write!(sock, "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", body.len()).expect("write head");
+            let _ = sock.write_all(&body);
+            let _ = tx1.send(());
+        });
+
+        let uri = format!("http://{}/a", addr).parse().unwrap();
+
+        let res = {
+            let client = Client::configure()
+                .connector(DebugConnector(HttpConnector::new(1, &handle), closes.clone()))
+                .no_proto()
+                .build(&handle);
+            client.get(uri).and_then(move |res| {
+                assert_eq!(res.status(), hyper::StatusCode::Ok);
+                res.body().concat2()
+            }).and_then(|_| {
+                Timeout::new(Duration::from_secs(1), &handle).unwrap()
+                    .from_err()
+            })
+        };
+        // client is dropped
+        let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+        core.run(res.join(rx).map(|r| r.0)).unwrap();
+
+        assert_eq!(closes.load(Ordering::Relaxed), 1);
+    }
 
 
 
