@@ -5,13 +5,11 @@
 [![Coverage Status](https://coveralls.io/repos/hyperium/hyper/badge.svg?branch=master)](https://coveralls.io/r/hyperium/hyper?branch=master)
 [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![crates.io](http://meritbadge.herokuapp.com/hyper)](https://crates.io/crates/hyper)
+[![Released API docs](https://docs.rs/hyper/badge.svg)](http://docs.rs/hyper)
+
+([Master API docs](http://hyperium.github.io/hyper/master))
 
 A low-level HTTP implementation for Rust.
-
-### Documentation
-
-- [Released](http://docs.rs/hyper)
-- [Master](http://hyperium.github.io/hyper/master)
 
 **Get started** by looking over the [guides](https://hyper.rs/guides).
 
