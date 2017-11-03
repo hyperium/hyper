@@ -6,8 +6,7 @@
 [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![crates.io](http://meritbadge.herokuapp.com/hyper)](https://crates.io/crates/hyper)
 [![Released API docs](https://docs.rs/hyper/badge.svg)](http://docs.rs/hyper)
-
-([Master API docs](http://hyperium.github.io/hyper/master))
+[![Master API docs](https://img.shields.io/badge/docs-master-green.svg)](http://hyperium.github.io/hyper/master)
 
 A low-level HTTP implementation for Rust.
 
