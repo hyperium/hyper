@@ -564,8 +564,8 @@ fn no_ports_exhausted_errors() {
     let handle = core.handle();
 
     // Send 100k requests (TCP connections).
-    let nr_requests = 100_000;
-    let concurrency = 10_000;
+    let nr_requests = 10_000_000;
+    let concurrency = 100_000;
 
     let mut parallel = Vec::new();
     for _i in 0..concurrency {
