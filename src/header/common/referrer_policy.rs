@@ -1,4 +1,5 @@
 use std::fmt;
+#[allow(unused)]
 use std::ascii::AsciiExt;
 
 use header::{Header, Raw, parsing};
