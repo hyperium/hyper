@@ -524,7 +524,7 @@ fn no_proto_empty_parse_eof_does_not_return_error() {
         .map_err(|_| unreachable!())
         .and_then(|(item, _incoming)| {
             let (socket, _) = item.unwrap();
-            Http::new().no_proto(socket, HelloWorld)
+            Http::<hyper::Chunk>::new().serve_connection(socket, HelloWorld)
         });
 
     core.run(fut).unwrap();
@@ -546,7 +546,7 @@ fn no_proto_nonempty_parse_eof_returns_error() {
         .map_err(|_| unreachable!())
         .and_then(|(item, _incoming)| {
             let (socket, _) = item.unwrap();
-            Http::new().no_proto(socket, HelloWorld)
+            Http::<hyper::Chunk>::new().serve_connection(socket, HelloWorld)
                 .map(|_| ())
         });
 

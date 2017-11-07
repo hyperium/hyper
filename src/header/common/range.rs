@@ -76,6 +76,77 @@ pub enum ByteRangeSpec {
     Last(u64)
 }
 
+impl ByteRangeSpec {
+    /// Given the full length of the entity, attempt to normalize the byte range
+    /// into an satisfiable end-inclusive (from, to) range.
+    ///
+    /// The resulting range is guaranteed to be a satisfiable range within the bounds
+    /// of `0 <= from <= to < full_length`.
+    ///
+    /// If the byte range is deemed unsatisfiable, `None` is returned.
+    /// An unsatisfiable range is generally cause for a server to either reject
+    /// the client request with a `416 Range Not Satisfiable` status code, or to
+    /// simply ignore the range header and serve the full entity using a `200 OK`
+    /// status code.
+    ///
+    /// This function closely follows [RFC 7233][1] section 2.1.
+    /// As such, it considers ranges to be satisfiable if they meet the following
+    /// conditions: 
+    ///
+    /// > If a valid byte-range-set includes at least one byte-range-spec with
+    /// a first-byte-pos that is less than the current length of the
+    /// representation, or at least one suffix-byte-range-spec with a
+    /// non-zero suffix-length, then the byte-range-set is satisfiable.
+    /// Otherwise, the byte-range-set is unsatisfiable.
+    ///
+    /// The function also computes remainder ranges based on the RFC:
+    ///
+    /// > If the last-byte-pos value is
+    /// absent, or if the value is greater than or equal to the current
+    /// length of the representation data, the byte range is interpreted as
+    /// the remainder of the representation (i.e., the server replaces the
+    /// value of last-byte-pos with a value that is one less than the current
+    /// length of the selected representation).
+    ///
+    /// [1]: https://tools.ietf.org/html/rfc7233
+    pub fn to_satisfiable_range(&self, full_length: u64) -> Option<(u64, u64)> {
+        // If the full length is zero, there is no satisfiable end-inclusive range.
+        if full_length == 0 {
+            return None;
+        }
+        match self {
+            &ByteRangeSpec::FromTo(from, to) => {
+                if from < full_length && from <= to {
+                    Some((from, ::std::cmp::min(to, full_length - 1)))
+                } else {
+                    None
+                }
+            },
+            &ByteRangeSpec::AllFrom(from) => {
+                if from < full_length {
+                    Some((from, full_length - 1))
+                } else {
+                    None
+                }
+            },
+            &ByteRangeSpec::Last(last) => {
+                if last > 0 {
+                    // From the RFC: If the selected representation is shorter
+                    // than the specified suffix-length,
+                    // the entire representation is used.
+                    if last > full_length {
+                        Some((0, full_length - 1))
+                    } else {
+                        Some((full_length - last, full_length - 1))
+                    }
+                } else {
+                    None
+                }
+            }
+        }
+    }
+}
+
 impl Range {
     /// Get the most common byte range header ("bytes=from-to")
     pub fn bytes(from: u64, to: u64) -> Range {
@@ -286,6 +357,28 @@ fn test_fmt() {
     headers.set(Range::Unregistered("custom".to_owned(), "1-xxx".to_owned()));
 
     assert_eq!(&headers.to_string(), "Range: custom=1-xxx\r\n");
+}
+
+#[test]
+fn test_byte_range_spec_to_satisfiable_range() {
+    assert_eq!(Some((0, 0)), ByteRangeSpec::FromTo(0, 0).to_satisfiable_range(3));
+    assert_eq!(Some((1, 2)), ByteRangeSpec::FromTo(1, 2).to_satisfiable_range(3));
+    assert_eq!(Some((1, 2)), ByteRangeSpec::FromTo(1, 5).to_satisfiable_range(3));
+    assert_eq!(None, ByteRangeSpec::FromTo(3, 3).to_satisfiable_range(3));
+    assert_eq!(None, ByteRangeSpec::FromTo(2, 1).to_satisfiable_range(3));
+    assert_eq!(None, ByteRangeSpec::FromTo(0, 0).to_satisfiable_range(0));
+
+    assert_eq!(Some((0, 2)), ByteRangeSpec::AllFrom(0).to_satisfiable_range(3));
+    assert_eq!(Some((2, 2)), ByteRangeSpec::AllFrom(2).to_satisfiable_range(3));
+    assert_eq!(None, ByteRangeSpec::AllFrom(3).to_satisfiable_range(3));
+    assert_eq!(None, ByteRangeSpec::AllFrom(5).to_satisfiable_range(3));
+    assert_eq!(None, ByteRangeSpec::AllFrom(0).to_satisfiable_range(0));
+
+    assert_eq!(Some((1, 2)), ByteRangeSpec::Last(2).to_satisfiable_range(3));
+    assert_eq!(Some((2, 2)), ByteRangeSpec::Last(1).to_satisfiable_range(3));
+    assert_eq!(Some((0, 2)), ByteRangeSpec::Last(5).to_satisfiable_range(3));
+    assert_eq!(None, ByteRangeSpec::Last(0).to_satisfiable_range(3));
+    assert_eq!(None, ByteRangeSpec::Last(2).to_satisfiable_range(0));
 }
 
 bench_header!(bytes_multi, Range, { vec![b"bytes=1-1001,2001-3001,10001-".to_vec()]});
