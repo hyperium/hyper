@@ -10,7 +10,8 @@ header! {
     ///
     /// # ABNF
     /// ```plain
-    /// Access-Control-Allow-Methods: "Access-Control-Allow-Methods" ":" #Method
+    /// Wildcard: "*"
+    /// Access-Control-Allow-Methods: "Access-Control-Allow-Methods" ":" #Method / Wildcard
     /// ```
     ///
     /// # Example values
@@ -23,7 +24,7 @@ header! {
     ///
     /// let mut headers = Headers::new();
     /// headers.set(
-    ///     AccessControlAllowMethods(vec![Method::Get])
+    ///     AccessControlAllowMethods::Items(vec![Method::Get])
     /// );
     /// ```
     /// ```
@@ -32,7 +33,7 @@ header! {
     ///
     /// let mut headers = Headers::new();
     /// headers.set(
-    ///     AccessControlAllowMethods(vec![
+    ///     AccessControlAllowMethods::Items(vec![
     ///         Method::Get,
     ///         Method::Post,
     ///         Method::Patch,
@@ -40,9 +41,27 @@ header! {
     ///     ])
     /// );
     /// ```
-    (AccessControlAllowMethods, "Access-Control-Allow-Methods") => (Method)*
+    /// ```
+    /// use hyper::header::{Headers, AccessControlAllowMethods};
+    /// use hyper::Method;
+    ///
+    /// let mut headers = Headers::new();
+    /// headers.set(
+    ///     AccessControlAllowMethods::Any
+    /// );
+    /// ```
+    (AccessControlAllowMethods, "Access-Control-Allow-Methods") => {Any / (Method)+}
 
     test_access_control_allow_methods {
-        test_header!(test1, vec![b"PUT, DELETE, XMODIFY"]);
+        test_header!(test1, vec![b"GET"], Some(HeaderField::Items(vec![Method::Get])));
+        test_header!(
+            test2,
+            vec![b"PUT, DELETE, XMODIFY"],
+            Some(HeaderField::Items(
+                vec![Method::Put,
+                     Method::Delete,
+                     Method::Extension("XMODIFY".to_owned())])));
+        test_header!(test3, vec![b"*"], Some(HeaderField::Any));
     }
+
 }
