@@ -39,8 +39,6 @@ extern crate unicase;
 #[cfg(all(test, feature = "nightly"))]
 extern crate test;
 
-
-mod common;
 pub use uri::Uri;
 pub use client::Client;
 pub use error::{Result, Error};
@@ -55,6 +53,24 @@ pub use version::HttpVersion;
 #[cfg(feature = "raw_status")]
 pub use proto::RawStatus;
 
+macro_rules! feat_server_proto {
+    ($($i:item)*) => ($(
+        #[cfg_attr(
+            not(feature = "server-proto"),
+            deprecated(
+                since="0.11.7",
+                note="server-proto was recently added to default features, but you have disabled default features. A future version will remove these types if the server-proto feature is not enabled."
+            )
+        )]
+        #[cfg_attr(
+            not(feature = "server-proto"),
+            allow(deprecated)
+        )]
+        $i
+    )*)
+}
+
+mod common;
 #[cfg(test)]
 mod mock;
 pub mod client;
