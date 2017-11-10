@@ -7,6 +7,7 @@
 mod compat_impl;
 #[cfg(feature = "compat")]
 pub mod compat;
+mod service;
 
 use std::cell::RefCell;
 use std::fmt;
@@ -45,6 +46,8 @@ feat_server_proto! {
         __ProtoBindTransport,
     };
 }
+
+pub use self::service::{const_service, service_fn};
 
 /// An instance of the HTTP protocol, and implementation of tokio-proto's
 /// `ServerProto` trait.
