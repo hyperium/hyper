@@ -9,7 +9,8 @@ use header::parsing::{from_comma_delimited, fmt_comma_delimited};
 /// behaviors be employed by a server while processing a request.
 ///
 /// # ABNF
-/// ```plain
+///
+/// ```text
 /// Prefer     = "Prefer" ":" 1#preference
 /// preference = token [ BWS "=" BWS word ]
 ///              *( OWS ";" [ OWS parameter ] )
@@ -22,6 +23,7 @@ use header::parsing::{from_comma_delimited, fmt_comma_delimited};
 /// * `wait=30`
 ///
 /// # Examples
+///
 /// ```
 /// use hyper::header::{Headers, Prefer, Preference};
 ///
@@ -30,6 +32,7 @@ use header::parsing::{from_comma_delimited, fmt_comma_delimited};
 ///     Prefer(vec![Preference::RespondAsync])
 /// );
 /// ```
+///
 /// ```
 /// use hyper::header::{Headers, Prefer, Preference};
 ///

@@ -10,7 +10,8 @@ header! {
     /// response.
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// Accept-Language = 1#( language-range [ weight ] )
     /// language-range  = <language-range, see [RFC4647], Section 2.1>
     /// ```
@@ -20,6 +21,7 @@ header! {
     /// * `en-us;q=1.0, en;q=0.5, fr`
     ///
     /// # Examples
+    ///
     /// ```
     /// use hyper::header::{Headers, AcceptLanguage, LanguageTag, qitem};
     ///
@@ -33,6 +35,7 @@ header! {
     ///     ])
     /// );
     /// ```
+    ///
     /// ```
     /// # extern crate hyper;
     /// # #[macro_use] extern crate language_tags;

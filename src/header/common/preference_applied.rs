@@ -9,17 +9,20 @@ use header::parsing::{from_comma_delimited, fmt_comma_delimited};
 /// honored by the server and applied to the processing of a request.
 ///
 /// # ABNF
-/// ```plain
+///
+/// ```text
 /// Preference-Applied = "Preference-Applied" ":" 1#applied-pref
 /// applied-pref = token [ BWS "=" BWS word ]
 /// ```
 ///
 /// # Example values
+///
 /// * `respond-async`
 /// * `return=minimal`
 /// * `wait=30`
 ///
 /// # Examples
+///
 /// ```
 /// use hyper::header::{Headers, PreferenceApplied, Preference};
 ///
@@ -28,6 +31,7 @@ use header::parsing::{from_comma_delimited, fmt_comma_delimited};
 ///     PreferenceApplied(vec![Preference::RespondAsync])
 /// );
 /// ```
+///
 /// ```
 /// use hyper::header::{Headers, PreferenceApplied, Preference};
 ///

@@ -17,21 +17,25 @@ header! {
     /// there have been any changes to the representation data.
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// If-Match = "*" / 1#entity-tag
     /// ```
     ///
     /// # Example values
+    ///
     /// * `"xyzzy"`
     /// * "xyzzy", "r2d2xxxx", "c3piozzzz"
     ///
     /// # Examples
+    ///
     /// ```
     /// use hyper::header::{Headers, IfMatch};
     ///
     /// let mut headers = Headers::new();
     /// headers.set(IfMatch::Any);
     /// ```
+    ///
     /// ```
     /// use hyper::header::{Headers, IfMatch, EntityTag};
     ///

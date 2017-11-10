@@ -70,7 +70,8 @@ header! {
 /// Content-Range, described in [RFC7233](https://tools.ietf.org/html/rfc7233#section-4.2)
 ///
 /// # ABNF
-/// ```plain
+///
+/// ```text
 /// Content-Range       = byte-content-range
 ///                     / other-content-range
 ///

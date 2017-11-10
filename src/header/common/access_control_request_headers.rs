@@ -9,7 +9,8 @@ header! {
     /// during the actual request.
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// Access-Control-Allow-Headers: "Access-Control-Allow-Headers" ":" #field-name
     /// ```
     ///
@@ -17,6 +18,7 @@ header! {
     /// * `accept-language, date`
     ///
     /// # Examples
+    ///
     /// ```
     /// # extern crate hyper;
     /// # extern crate unicase;
@@ -32,6 +34,7 @@ header! {
     /// );
     /// # }
     /// ```
+    ///
     /// ```
     /// # extern crate hyper;
     /// # extern crate unicase;

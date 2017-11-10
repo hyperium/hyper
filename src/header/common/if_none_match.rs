@@ -16,11 +16,13 @@ header! {
     /// the representation data.
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// If-None-Match = "*" / 1#entity-tag
     /// ```
     ///
     /// # Example values
+    ///
     /// * `"xyzzy"`
     /// * `W/"xyzzy"`
     /// * `"xyzzy", "r2d2xxxx", "c3piozzzz"`
@@ -28,12 +30,14 @@ header! {
     /// * `*`
     ///
     /// # Examples
+    ///
     /// ```
     /// use hyper::header::{Headers, IfNoneMatch};
     ///
     /// let mut headers = Headers::new();
     /// headers.set(IfNoneMatch::Any);
     /// ```
+    ///
     /// ```
     /// use hyper::header::{Headers, IfNoneMatch, EntityTag};
     ///

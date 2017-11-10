@@ -11,7 +11,8 @@ header! {
     /// data has not changed.
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// If-Unmodified-Since = HTTP-date
     /// ```
     ///
@@ -19,6 +20,7 @@ header! {
     /// * `Sat, 29 Oct 1994 19:43:31 GMT`
     ///
     /// # Example
+    ///
     /// ```
     /// use hyper::header::{Headers, IfModifiedSince};
     /// use std::time::{SystemTime, Duration};

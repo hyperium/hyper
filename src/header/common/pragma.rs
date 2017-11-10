@@ -15,15 +15,19 @@ use header::{Header, Raw, parsing};
 /// > implementation-specified directives for recipients.  This
 /// > specification deprecates such extensions to improve interoperability.
 ///
-/// Spec: https://tools.ietf.org/html/rfc7234#section-5.4
+/// Spec: [https://tools.ietf.org/html/rfc7234#section-5.4][url]
+///
+/// [url]: https://tools.ietf.org/html/rfc7234#section-5.4
 ///
 /// # Examples
+///
 /// ```
 /// use hyper::header::{Headers, Pragma};
 ///
 /// let mut headers = Headers::new();
 /// headers.set(Pragma::NoCache);
 /// ```
+///
 /// ```
 /// use hyper::header::{Headers, Pragma};
 ///

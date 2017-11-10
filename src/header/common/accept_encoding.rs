@@ -11,7 +11,8 @@ header! {
     /// preferred.
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// Accept-Encoding  = #( codings [ weight ] )
     /// codings          = content-coding / "identity" / "*"
     /// ```

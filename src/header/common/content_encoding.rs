@@ -13,20 +13,24 @@ header! {
     /// its underlying media type.
     /// 
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// Content-Encoding = 1#content-coding
     /// ```
     /// 
     /// # Example values
+    ///
     /// * `gzip`
-    /// 
+    ///
     /// # Examples
+    ///
     /// ```
     /// use hyper::header::{Headers, ContentEncoding, Encoding};
     /// 
     /// let mut headers = Headers::new();
     /// headers.set(ContentEncoding(vec![Encoding::Chunked]));
     /// ```
+    ///
     /// ```
     /// use hyper::header::{Headers, ContentEncoding, Encoding};
     /// 
