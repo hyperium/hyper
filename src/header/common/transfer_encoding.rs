@@ -17,14 +17,17 @@ header! {
     /// > that contains a Transfer-Encoding header field.
     /// 
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// Transfer-Encoding = 1#transfer-coding
     /// ```
     /// 
     /// # Example values
+    ///
     /// * `gzip, chunked`
     /// 
     /// # Example
+    ///
     /// ```
     /// use hyper::header::{Headers, TransferEncoding, Encoding};
     /// 

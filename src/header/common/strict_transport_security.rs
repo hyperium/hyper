@@ -17,7 +17,7 @@ use header::{Header, Raw, parsing};
 ///
 /// # ABNF
 ///
-/// ```plain
+/// ```text
 ///      [ directive ]  *( ";" [ directive ] )
 ///
 ///      directive                 = directive-name [ "=" directive-value ]
@@ -27,10 +27,12 @@ use header::{Header, Raw, parsing};
 /// ```
 ///
 /// # Example values
+///
 /// * `max-age=31536000`
 /// * `max-age=15768000 ; includeSubDomains`
 ///
 /// # Example
+///
 /// ```
 /// # extern crate hyper;
 /// # fn main() {

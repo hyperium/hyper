@@ -16,7 +16,8 @@ header! {
     /// change.
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// Upgrade          = 1#protocol
     ///
     /// protocol         = protocol-name ["/" protocol-version]
@@ -25,15 +26,18 @@ header! {
     /// ```
     ///
     /// # Example values
+    ///
     /// * `HTTP/2.0, SHTTP/1.3, IRC/6.9, RTA/x11`
     ///
     /// # Examples
+    ///
     /// ```
     /// use hyper::header::{Headers, Upgrade, Protocol, ProtocolName};
     ///
     /// let mut headers = Headers::new();
     /// headers.set(Upgrade(vec![Protocol::new(ProtocolName::WebSocket, None)]));
     /// ```
+    ///
     /// ```
     /// use hyper::header::{Headers, Upgrade, Protocol, ProtocolName};
     ///

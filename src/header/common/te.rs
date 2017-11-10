@@ -13,7 +13,8 @@ header! {
     /// so should never appear in this header.
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// TE        = "TE" ":" #( t-codings )
     /// t-codings = "trailers" | ( transfer-extension [ accept-params ] )
     /// ```
@@ -24,6 +25,7 @@ header! {
     /// * ``
     ///
     /// # Examples
+    ///
     /// ```
     /// use hyper::header::{Headers, Te, Encoding, qitem};
     ///
@@ -32,6 +34,7 @@ header! {
     ///     Te(vec![qitem(Encoding::Trailers)])
     /// );
     /// ```
+    ///
     /// ```
     /// use hyper::header::{Headers, Te, Encoding, qitem};
     ///
@@ -44,6 +47,7 @@ header! {
     ///     ])
     /// );
     /// ```
+    ///
     /// ```
     /// use hyper::header::{Headers, Te, Encoding, QualityItem, q, qitem};
     ///

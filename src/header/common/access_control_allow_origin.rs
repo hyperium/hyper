@@ -8,10 +8,11 @@ use header::{Header, Raw};
 ///
 /// The `Access-Control-Allow-Origin` header indicates whether a resource
 /// can be shared based by returning the value of the Origin request header,
-/// "*", or "null" in the response.
+/// `*`, or `null` in the response.
 ///
 /// # ABNF
-/// ```plain
+///
+/// ```text
 /// Access-Control-Allow-Origin = "Access-Control-Allow-Origin" ":" origin-list-or-null | "*"
 /// ```
 ///

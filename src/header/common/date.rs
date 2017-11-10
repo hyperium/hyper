@@ -7,14 +7,17 @@ header! {
     /// message was originated.
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// Date = HTTP-date
     /// ```
     ///
     /// # Example values
+    ///
     /// * `Tue, 15 Nov 1994 08:12:31 GMT`
     ///
     /// # Example
+    ///
     /// ```
     /// use hyper::header::{Headers, Date};
     /// use std::time::SystemTime;

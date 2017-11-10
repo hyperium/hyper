@@ -11,14 +11,17 @@ header! {
     /// (case-insensitive).
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// Vary = "*" / 1#field-name
     /// ```
     ///
     /// # Example values
+    ///
     /// * `accept-encoding, accept-language`
     ///
     /// # Example
+    ///
     /// ```
     /// use hyper::header::{Headers, Vary};
     ///
@@ -27,6 +30,7 @@ header! {
     /// ```
     ///
     /// # Example
+    ///
     /// ```
     /// # extern crate hyper;
     /// # extern crate unicase;

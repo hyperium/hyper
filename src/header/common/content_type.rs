@@ -17,15 +17,18 @@ header! {
     /// this is an issue, it's possible to implement `Header` on a custom struct.
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// Content-Type = media-type
     /// ```
     ///
     /// # Example values
+    ///
     /// * `text/html; charset=utf-8`
     /// * `application/json`
     ///
     /// # Examples
+    ///
     /// ```
     /// use hyper::header::{Headers, ContentType};
     ///
@@ -35,6 +38,7 @@ header! {
     ///     ContentType::json()
     /// );
     /// ```
+    ///
     /// ```
     /// use hyper::header::{Headers, ContentType};
     /// use hyper::mime;

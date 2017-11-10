@@ -8,7 +8,8 @@ header! {
     /// status code semantics.
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// Location = URI-reference
     /// ```
     ///
@@ -17,12 +18,14 @@ header! {
     /// * `http://www.example.net/index.html`
     ///
     /// # Examples
+    ///
     /// ```
     /// use hyper::header::{Headers, Location};
     ///
     /// let mut headers = Headers::new();
     /// headers.set(Location::new("/People.html#tim"));
     /// ```
+    ///
     /// ```
     /// use hyper::header::{Headers, Location};
     ///

@@ -11,14 +11,17 @@ header! {
     /// the user agent does not have an entity-tag for the representation.
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// If-Unmodified-Since = HTTP-date
     /// ```
     ///
     /// # Example values
+    ///
     /// * `Sat, 29 Oct 1994 19:43:31 GMT`
     ///
     /// # Example
+    ///
     /// ```
     /// use hyper::header::{Headers, IfUnmodifiedSince};
     /// use std::time::{SystemTime, Duration};

@@ -11,11 +11,13 @@ header! {
     /// that was content negotiated, created or for the response payload.
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// Content-Location = absolute-URI / partial-URI
     /// ```
     ///
     /// # Example values
+    ///
     /// * `/hypertext/Overview.html`
     /// * `http://www.example.org/hypertext/Overview.html`
     ///
@@ -27,6 +29,7 @@ header! {
     /// let mut headers = Headers::new();
     /// headers.set(ContentLocation("/hypertext/Overview.html".to_owned()));
     /// ```
+    ///
     /// ```
     /// use hyper::header::{Headers, ContentLocation};
     ///

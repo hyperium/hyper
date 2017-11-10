@@ -7,7 +7,8 @@ header! {
     /// The `Access-Control-Request-Method` header indicates which method will be
     /// used in the actual request as part of the preflight request.
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// Access-Control-Request-Method: \"Access-Control-Request-Method\" \":\" Method
     /// ```
     /// 
@@ -15,6 +16,7 @@ header! {
     /// * `GET`
     /// 
     /// # Examples
+    ///
     /// ```
     /// use hyper::header::{Headers, AccessControlRequestMethod};
     /// use hyper::Method;

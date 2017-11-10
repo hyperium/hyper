@@ -11,7 +11,8 @@ header! {
     /// time.
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// Expires = HTTP-date
     /// ```
     ///
@@ -19,6 +20,7 @@ header! {
     /// * `Thu, 01 Dec 1994 16:00:00 GMT`
     ///
     /// # Example
+    ///
     /// ```
     /// use hyper::header::{Headers, Expires};
     /// use std::time::{SystemTime, Duration};

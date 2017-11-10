@@ -9,20 +9,24 @@ header! {
     /// URI reference, if any, when generating the Referer field value.
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// Referer = absolute-URI / partial-URI
     /// ```
     ///
     /// # Example values
+    ///
     /// * `http://www.example.org/hypertext/Overview.html`
     ///
     /// # Examples
+    ///
     /// ```
     /// use hyper::header::{Headers, Referer};
     ///
     /// let mut headers = Headers::new();
     /// headers.set(Referer::new("/People.html#tim"));
     /// ```
+    ///
     /// ```
     /// use hyper::header::{Headers, Referer};
     ///

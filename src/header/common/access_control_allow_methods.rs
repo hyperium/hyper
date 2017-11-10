@@ -9,7 +9,8 @@ header! {
     /// actual request.
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// Access-Control-Allow-Methods: "Access-Control-Allow-Methods" ":" #Method
     /// ```
     ///
@@ -17,6 +18,7 @@ header! {
     /// * `PUT, DELETE, XMODIFY`
     ///
     /// # Examples
+    ///
     /// ```
     /// use hyper::header::{Headers, AccessControlAllowMethods};
     /// use hyper::Method;
@@ -26,6 +28,7 @@ header! {
     ///     AccessControlAllowMethods(vec![Method::Get])
     /// );
     /// ```
+    ///
     /// ```
     /// use hyper::header::{Headers, AccessControlAllowMethods};
     /// use hyper::Method;
