@@ -186,9 +186,18 @@ impl Future for HttpConnecting {
             let state;
             match self.state {
                 State::Lazy(ref executor, ref mut host, port) => {
-                    let host = mem::replace(host, String::new());
-                    let work = dns::Work::new(host, port);
-                    state = State::Resolving(oneshot::spawn(work, executor));
+                    // If the host is already an IP addr (v4 or v6),
+                    // skip resolving the dns and start connecting right away.
+                    if let Some(addrs) = dns::IpAddrs::try_parse(host, port) {
+                        state = State::Connecting(ConnectingTcp {
+                            addrs: addrs,
+                            current: None
+                        })
+                    } else {
+                        let host = mem::replace(host, String::new());
+                        let work = dns::Work::new(host, port);
+                        state = State::Resolving(oneshot::spawn(work, executor));
+                    }
                 },
                 State::Resolving(ref mut future) => {
                     match try!(future.poll()) {
