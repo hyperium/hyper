@@ -18,7 +18,7 @@ pub trait Dispatch {
     type PollBody;
     type RecvItem;
     fn poll_msg(&mut self) -> Poll<Option<(Self::PollItem, Option<Self::PollBody>)>, ::Error>;
-    fn recv_msg(&mut self, msg: ::Result<(Self::RecvItem, Body)>) -> ::Result<()>;
+    fn recv_msg(&mut self, msg: ::Result<(Self::RecvItem, Option<Body>)>) -> ::Result<()>;
     fn should_poll(&self) -> bool;
 }
 
@@ -60,9 +60,9 @@ where
                         let body = if has_body {
                             let (tx, rx) = super::Body::pair();
                             self.body_tx = Some(tx);
-                            rx
+                            Some(rx)
                         } else {
-                            Body::empty()
+                            None
                         };
                         self.dispatch.recv_msg(Ok((head, body))).expect("recv_msg with Ok shouldn't error");
                     },
@@ -253,7 +253,7 @@ where
         }
     }
 
-    fn recv_msg(&mut self, msg: ::Result<(Self::RecvItem, Body)>) -> ::Result<()> {
+    fn recv_msg(&mut self, msg: ::Result<(Self::RecvItem, Option<Body>)>) -> ::Result<()> {
         let (msg, body) = msg?;
         let req = super::request::from_wire(None, msg, body);
         self.in_flight = Some(self.service.call(req));
@@ -300,10 +300,10 @@ where
         }
     }
 
-    fn recv_msg(&mut self, msg: ::Result<(Self::RecvItem, Body)>) -> ::Result<()> {
+    fn recv_msg(&mut self, msg: ::Result<(Self::RecvItem, Option<Body>)>) -> ::Result<()> {
         match msg {
             Ok((msg, body)) => {
-                let res = super::response::from_wire(msg, Some(body));
+                let res = super::response::from_wire(msg, body);
                 let cb = self.callback.take().expect("recv_msg without callback");
                 let _ = cb.send(Ok(res));
                 Ok(())

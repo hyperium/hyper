@@ -219,8 +219,8 @@ impl From<Message<__ProtoRequest, proto::TokioBody>> for Request {
     #[inline]
     fn from(message: Message<__ProtoRequest, proto::TokioBody>) -> Request {
         let (head, body) = match message {
-            Message::WithoutBody(head) => (head.0, proto::Body::empty()),
-            Message::WithBody(head, body) => (head.0, body.into()),
+            Message::WithoutBody(head) => (head.0, None),
+            Message::WithBody(head, body) => (head.0, Some(body.into())),
         };
         request::from_wire(None, head, body)
     }
@@ -256,8 +256,8 @@ impl<T, B> Service for HttpService<T>
     #[inline]
     fn call(&self, message: Self::Request) -> Self::Future {
         let (head, body) = match message {
-            Message::WithoutBody(head) => (head.0, proto::Body::empty()),
-            Message::WithBody(head, body) => (head.0, body.into()),
+            Message::WithoutBody(head) => (head.0, None),
+            Message::WithBody(head, body) => (head.0, Some(body.into())),
         };
         let req = request::from_wire(Some(self.remote_addr), head, body);
         self.inner.call(req).map(Into::into)

@@ -21,6 +21,7 @@ use std::time::Duration;
 
 use hyper::server::{Http, Request, Response, Service, NewService};
 
+
 #[test]
 fn get_should_ignore_body() {
     let server = serve();
@@ -54,6 +55,47 @@ fn get_with_body() {
 
     // note: doesn't include trailing \r\n, cause Content-Length wasn't 21
     assert_eq!(server.body(), b"I'm a good request.");
+}
+
+#[test]
+fn get_implicitly_empty() {
+    // See https://github.com/hyperium/hyper/issues/1373
+    let mut core = Core::new().unwrap();
+    let listener = TcpListener::bind(&"127.0.0.1:0".parse().unwrap(), &core.handle()).unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        tcp.write_all(b"\
+            GET / HTTP/1.1\r\n\
+            Host: example.domain\r\n\
+            \r\n\
+        ").unwrap();
+    });
+
+    let fut = listener.incoming()
+        .into_future()
+        .map_err(|_| unreachable!())
+        .and_then(|(item, _incoming)| {
+            let (socket, _) = item.unwrap();
+            Http::<hyper::Chunk>::new().serve_connection(socket, GetImplicitlyEmpty)
+        });
+
+    core.run(fut).unwrap();
+
+    struct GetImplicitlyEmpty;
+
+    impl Service for GetImplicitlyEmpty {
+        type Request = Request;
+        type Response = Response;
+        type Error = hyper::Error;
+        type Future = FutureResult<Self::Response, Self::Error>;
+
+        fn call(&self, req: Request) -> Self::Future {
+            assert!(req.body_ref().is_none());
+            future::ok(Response::new())
+        }
+    }
 }
 
 #[test]
