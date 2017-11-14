@@ -56,6 +56,7 @@
 //! });
 //! ```
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::default::Default;
 use std::io::{self, copy, Read};
 use std::fmt;
@@ -143,6 +144,7 @@ impl Client {
             proxy: (scheme.clone(), host.clone(), port),
             connector: proxy_config.connector,
             ssl: proxy_config.ssl,
+            proxy_headers: proxy_config.proxy_headers,
         };
 
         let mut client = match proxy_config.pool_config {
@@ -469,6 +471,7 @@ where C: NetworkConnector + Send + Sync + 'static,
     pool_config: Option<pool::Config>,
     connector: C,
     ssl: S,
+    proxy_headers: Option<HashMap<String, String>>,
 }
 
 impl<C, S> ProxyConfig<C, S>
@@ -478,7 +481,7 @@ where C: NetworkConnector + Send + Sync + 'static,
 
     /// Create a new `ProxyConfig`.
     #[inline]
-    pub fn new<H: Into<Cow<'static, str>>>(scheme: &str, host: H, port: u16, connector: C, ssl: S) -> ProxyConfig<C, S> {
+    pub fn new<H: Into<Cow<'static, str>>>(scheme: &str, host: H, port: u16, connector: C, ssl: S, proxy_headers: Option<HashMap<String, String>>) -> ProxyConfig<C, S> {
         ProxyConfig {
             scheme: scheme.into(),
             host: host.into(),
@@ -486,6 +489,7 @@ where C: NetworkConnector + Send + Sync + 'static,
             pool_config: Some(pool::Config::default()),
             connector: connector,
             ssl: ssl,
+            proxy_headers: proxy_headers,
         }
     }
 
