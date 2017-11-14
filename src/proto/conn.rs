@@ -306,7 +306,7 @@ where I: AsyncRead + AsyncWrite,
         }
     }
 
-    fn has_queued_body(&self) -> bool {
+    pub fn has_queued_body(&self) -> bool {
         match self.state.writing {
             Writing::Body(_, Some(_)) => true,
             _ => false,

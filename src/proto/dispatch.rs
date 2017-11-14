@@ -148,6 +148,8 @@ where
                     self.conn.close_write();
                     return Ok(Async::Ready(()));
                 }
+            } else if self.conn.has_queued_body() {
+                try_ready!(self.poll_flush());
             } else if let Some(mut body) = self.body_rx.take() {
                 let chunk = match body.poll()? {
                     Async::Ready(Some(chunk)) => {
@@ -165,7 +167,7 @@ where
                         return Ok(Async::NotReady);
                     }
                 };
-                self.conn.write_body(Some(chunk))?;
+                assert!(self.conn.write_body(Some(chunk))?.is_ready());
             } else {
                 return Ok(Async::NotReady);
             }
