@@ -20,6 +20,7 @@ use self::Error::{
     Io,
     Ssl,
     TooLarge,
+    ProxyAuthenticationRequired,
     Utf8
 };
 
@@ -49,6 +50,7 @@ pub enum Error {
     Ssl(Box<StdError + Send + Sync>),
     /// Parsing a field as string failed
     Utf8(Utf8Error),
+    ProxyAuthenticationRequired,
 
     #[doc(hidden)]
     __Nonexhaustive(Void)
@@ -83,6 +85,7 @@ impl StdError for Error {
             Header => "Invalid Header provided",
             TooLarge => "Message head is too large",
             Status => "Invalid Status provided",
+            ProxyAuthenticationRequired => "Proxy Authentication Required",
             Uri(ref e) => e.description(),
             Io(ref e) => e.description(),
             Ssl(ref e) => e.description(),

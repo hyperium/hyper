@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::io;
 use std::net::{SocketAddr, Shutdown};
 use std::time::Duration;
@@ -12,6 +13,7 @@ pub fn tunnel(proxy: (Scheme, Cow<'static, str>, u16)) -> Proxy<HttpConnector, s
         connector: HttpConnector,
         proxy: proxy,
         ssl: self::no_ssl::Plaintext,
+        proxy_headers: None,
     }
 
 }
@@ -23,6 +25,7 @@ where C: NetworkConnector + Send + Sync + 'static,
     pub connector: C,
     pub proxy: (Scheme, Cow<'static, str>, u16),
     pub ssl: S,
+    pub proxy_headers: Option<HashMap<String, String>>,
 }
 
 impl<C, S> NetworkConnector for Proxy<C, S>
@@ -44,14 +47,24 @@ where C: NetworkConnector + Send + Sync + 'static,
             "https" => {
                 let mut stream = try!(self.connector.connect(self.proxy.1.as_ref(), self.proxy.2, self.proxy.0.as_ref()));
                 trace!("{:?} CONNECT {}:{}", self.proxy, host, port);
-                try!(write!(&mut stream, "{method} {host}:{port} {version}\r\nHost: {host}:{port}\r\n\r\n",
-                            method=Method::Connect, host=host, port=port, version=Http11));
+                match self.proxy_headers {
+                    None => try!(write!(&mut stream, "{method} {host}:{port} {version}\r\nHost: {host}:{port}\r\n\r\n",
+                            method=Method::Connect, host=host, port=port, version=Http11)),
+                    Some (ref proxy_headers) => {
+                        let mut all_headers = String::new();
+                        for (header, value) in proxy_headers {
+                            all_headers = all_headers + &header + &":" + &value + &"\r\n";
+                        }
+                        try!(write!(&mut stream, "{method} {host}:{port} {version}\r\nHost: {host}:{port}\r\n{all_headers}\r\n",
+                                    method=Method::Connect, host=host, port=port, version=Http11, all_headers=all_headers));
+                    }
+                }
                 try!(stream.flush());
                 let mut buf = [0; 1024];
                 let mut n = 0;
                 while n < buf.len() {
                     n += try!(stream.read(&mut buf[n..]));
-                    let mut headers = [httparse::EMPTY_HEADER; 10];
+                    let mut headers = [httparse::EMPTY_HEADER; 32];
                     let mut res = httparse::Response::new(&mut headers);
                     if try!(res.parse(&buf[..n])).is_complete() {
                         let code = res.code.expect("complete parsing lost code");
@@ -59,6 +72,8 @@ where C: NetworkConnector + Send + Sync + 'static,
                             trace!("CONNECT success = {:?}", code);
                             return self.ssl.wrap_client(stream, host)
                                 .map(Proxied::Tunneled)
+                        } else if code == 407 {
+                            return Err(::Error::ProxyAuthenticationRequired);
                         } else {
                             trace!("CONNECT response = {:?}", code);
                             return Err(::Error::Status);
