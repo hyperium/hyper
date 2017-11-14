@@ -1,3 +1,28 @@
+### v0.11.7 (2017-11-14)
+
+
+#### Bug Fixes
+
+* **client:**
+  * drop in-use connections when they finish if Client is dropped ([b1765dd1](https://github.com/hyperium/hyper/commit/b1765dd168b24912fbd36682f1f6df70eeb1acd5))
+  * don't read extra bytes on idle connections ([7c4b814e](https://github.com/hyperium/hyper/commit/7c4b814e6b95bdb22b11e027b2da16c5abb8399f))
+* **server:** GET requests with no body have None instead of Empty ([8bf79648](https://github.com/hyperium/hyper/commit/8bf7964875205155e3018902a6e8facee6c145b6), closes [#1373](https://github.com/hyperium/hyper/issues/1373))
+
+
+#### Features
+
+* **client:**
+  * skip dns resolution when host is a valid ip addr ([b1785c66](https://github.com/hyperium/hyper/commit/b1785c662bc75f7bbd36a242c379d120ff7c6cd2))
+  * allow custom executors for HttpConnector ([ed497bf5](https://github.com/hyperium/hyper/commit/ed497bf5e6f1d651e3b30fd42c10245c560aff5b))
+  * add names to DNS threads ([e0de55da](https://github.com/hyperium/hyper/commit/e0de55daa2ec241f97fc5ed14f5ec933bde110d7))
+* **header:** implement `ByteRangeSpec::to_satisfiable_range` ([bb54e36c](https://github.com/hyperium/hyper/commit/bb54e36c90dc9c2ca876cd7f2c7dc7250d217552))
+* **lib:** add support to disable tokio-proto internals ([f7532b71](https://github.com/hyperium/hyper/commit/f7532b71d141ebe41172dbb863d58d519e387a4e))
+* **server:**
+  * add `const_service` and `service_fn` helpers ([fe38aa4b](https://github.com/hyperium/hyper/commit/fe38aa4bc1c8fdcaefb0d839239c14620a7b8f0a))
+  * add `server::Serve` that can use a shared Handle ([39cf6ef7](https://github.com/hyperium/hyper/commit/39cf6ef7d26b3d829ec19fb1db176e8221170cb3))
+  * allow creating Server with shared Handle ([0844dede](https://github.com/hyperium/hyper/commit/0844dede191d720e0336ee4aca63af2255abe458))
+
+
 ### v0.11.6 (2017-10-02)
 
 
