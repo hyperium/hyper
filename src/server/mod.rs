@@ -204,9 +204,9 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
         self.bind(addr, self::compat_impl::new_service(new_service))
     }
 
-    /// This method allows the ability to share a `Core` with multiple servers.
-    ///
     /// Bind the provided `addr` and return a server with a shared `Core`.
+    ///
+    /// This method allows the ability to share a `Core` with multiple servers.
     ///
     /// This is method will bind the `addr` provided with a new TCP listener ready
     /// to accept connections. Each connection will be processed with the
@@ -221,11 +221,13 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
             addr: listener.local_addr()?,
             listener: listener,
         };
-        Ok(self.serve(incoming, new_service))
+        Ok(self.serve_incoming(incoming, new_service))
     }
 
-    //TODO: make public
-    fn serve<I, S, Bd>(&self, incoming: I, new_service: S) -> Serve<I, S>
+    /// Bind the provided stream of incoming IO objects with a `NewService`.
+    ///
+    /// This method allows the ability to share a `Core` with multiple servers.
+    pub fn serve_incoming<I, S, Bd>(&self, incoming: I, new_service: S) -> Serve<I, S>
         where I: Stream<Error=::std::io::Error>,
               I::Item: AsyncRead + AsyncWrite,
               S: NewService<Request = Request, Response = Response<Bd>, Error = ::Error>,
