@@ -31,16 +31,15 @@ use header::parsing::{from_comma_delimited, fmt_comma_delimited};
 /// );
 /// ```
 /// ```
-/// use hyper::header::{Headers, CacheControl, CacheDirective};
+/// use hyper::header::{Headers, CacheControl, CacheDirective, CacheDirectiveExtension};
 ///
 /// let mut headers = Headers::new();
 /// headers.set(
 ///     CacheControl(vec![
 ///         CacheDirective::NoCache,
 ///         CacheDirective::Private,
-///         CacheDirective::MaxAge(360u32),
-///         CacheDirective::Extension("foo".to_owned(),
-///                                   Some("bar".to_owned())),
+///         CacheDirective::MaxAge(360_u32),
+///         CacheDirective::Extension(CacheDirectiveExtension::StaleWhileRevalidate(360_u32)),
 ///     ])
 /// );
 /// ```
@@ -76,6 +75,28 @@ impl fmt::Display for CacheControl {
     }
 }
 
+/// Cache-Control directive extensions.
+#[derive(PartialEq, Copy, Clone, Debug)]
+pub enum CacheDirectiveExtension {
+    /// The [`immutable`](http://tools.ietf.org/html/8246) Cache-Control Extension
+    Immutable,
+    /// The [`stale-while-revalidate`](http://tools.ietf.org/html/5861) Cache-Control Extension
+    StaleWhileRevalidate(u32),
+    /// The [`stale-if-error`](http://tools.ietf.org/html/5861) Cache-Control Extension
+    StaleIfError(u32),
+}
+
+impl fmt::Display for CacheDirectiveExtension {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use self::CacheDirectiveExtension::*;
+        fmt::Display::fmt(match *self {
+            Immutable => "immutable",
+            StaleWhileRevalidate(secs) => return write!(f, "stale-while-revalidate={}", secs),
+            StaleIfError(secs) => return write!(f, "stale-if-error={}", secs),
+        }, f)
+    }
+}
+
 /// `CacheControl` contains a list of these directives.
 #[derive(PartialEq, Clone, Debug)]
 pub enum CacheDirective {
@@ -108,8 +129,8 @@ pub enum CacheDirective {
     /// "s-maxage=delta"
     SMaxAge(u32),
 
-    /// Extension directives. Optionally include an argument.
-    Extension(String, Option<String>)
+    /// Extension directives.
+    Extension(CacheDirectiveExtension),
 }
 
 impl fmt::Display for CacheDirective {
@@ -131,9 +152,7 @@ impl fmt::Display for CacheDirective {
             ProxyRevalidate => "proxy-revalidate",
             SMaxAge(secs) => return write!(f, "s-maxage={}", secs),
 
-            Extension(ref name, None) => &name[..],
-            Extension(ref name, Some(ref arg)) => return write!(f, "{}={}", name, arg),
-
+            Extension(ref extension) => return fmt::Display::fmt(extension, f),
         }, f)
     }
 }
@@ -142,6 +161,7 @@ impl FromStr for CacheDirective {
     type Err = Option<<u32 as FromStr>::Err>;
     fn from_str(s: &str) -> Result<CacheDirective, Option<<u32 as FromStr>::Err>> {
         use self::CacheDirective::*;
+        use self::CacheDirectiveExtension::*;
         match s {
             "no-cache" => Ok(NoCache),
             "no-store" => Ok(NoStore),
@@ -151,17 +171,22 @@ impl FromStr for CacheDirective {
             "public" => Ok(Public),
             "private" => Ok(Private),
             "proxy-revalidate" => Ok(ProxyRevalidate),
+            "immutable" => Ok(Extension(Immutable)),
             "" => Err(None),
-            _ => match s.find('=') {
-                Some(idx) if idx+1 < s.len() => match (&s[..idx], (&s[idx+1..]).trim_matches('"')) {
-                    ("max-age" , secs) => secs.parse().map(MaxAge).map_err(Some),
-                    ("max-stale", secs) => secs.parse().map(MaxStale).map_err(Some),
-                    ("min-fresh", secs) => secs.parse().map(MinFresh).map_err(Some),
-                    ("s-maxage", secs) => secs.parse().map(SMaxAge).map_err(Some),
-                    (left, right) => Ok(Extension(left.to_owned(), Some(right.to_owned())))
-                },
-                Some(_) => Err(None),
-                None => Ok(Extension(s.to_owned(), None))
+            _ => {
+                let mut parts_it = s.splitn(2, '=');
+                let (lhs, rhs) = (parts_it.next().ok_or(None)?, parts_it.next().ok_or(None)?);
+                // FIXME: Use proper quoted-string parsing for rhs.
+                let secs: u32 = rhs.trim_matches('"').parse().map_err(Some)?;
+                Ok(match lhs {
+                    "max-age" => MaxAge(secs),
+                    "max-stale" => MaxStale(secs),
+                    "min-fresh" => MinFresh(secs),
+                    "s-maxage" => SMaxAge(secs),
+                    "stale-while-revalidate" => Extension(StaleWhileRevalidate(secs)),
+                    "stale-if-error" => Extension(StaleIfError(secs)),
+                    _ => Err(None)?
+                })
             }
         }
     }
@@ -194,10 +219,10 @@ mod tests {
 
     #[test]
     fn test_parse_extension() {
-        let cache = Header::parse_header(&vec![b"foo, bar=baz".to_vec()].into());
-        assert_eq!(cache.ok(), Some(CacheControl(vec![
-            CacheDirective::Extension("foo".to_owned(), None),
-            CacheDirective::Extension("bar".to_owned(), Some("baz".to_owned()))])))
+        let cache = Header::parse_header(&vec![b"immutable, stale-if-error=100".to_vec()].into());
+        let extensions = vec![CacheDirective::Extension(CacheDirectiveExtension::Immutable),
+              CacheDirective::Extension(CacheDirectiveExtension::StaleIfError(100))];
+        assert_eq!(cache.ok(), Some(CacheControl(extensions)))
     }
 
     #[test]
