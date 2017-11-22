@@ -447,6 +447,20 @@ where I: AsyncRead + AsyncWrite,
 
     }
 
+    pub fn shutdown(&mut self) -> Poll<(), io::Error> {
+        match self.io.io_mut().shutdown() {
+            Ok(Async::NotReady) => Ok(Async::NotReady),
+            Ok(Async::Ready(())) => {
+                trace!("shut down IO");
+                Ok(Async::Ready(()))
+            }
+            Err(e) => {
+                debug!("error shutting down IO: {}", e);
+                Err(e)
+            }
+        }
+    }
+
     pub fn close_read(&mut self) {
         self.state.close_read();
     }
@@ -540,10 +554,7 @@ where I: AsyncRead + AsyncWrite,
     #[inline]
     fn close(&mut self) -> Poll<(), Self::SinkError> {
         try_ready!(self.poll_complete());
-        self.io.io_mut().shutdown().map_err(|err| {
-            debug!("error closing: {}", err);
-            err
-        })
+        self.shutdown()
     }
 }
 

@@ -210,6 +210,7 @@ where
         self.poll_flush()?;
 
         if self.is_done() {
+            try_ready!(self.conn.shutdown());
             trace!("Dispatch::poll done");
             Ok(Async::Ready(()))
         } else {
