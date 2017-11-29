@@ -536,6 +536,18 @@ where
     }
 }
 
+impl<I, B, S> Connection<I, S>
+where S: Service<Request = Request, Response = Response<B>, Error = ::Error> + 'static,
+      I: AsyncRead + AsyncWrite + 'static,
+      B: Stream<Error=::Error> + 'static,
+      B::Item: AsRef<[u8]>,
+{
+    /// Disables keep-alive for this connection.
+    pub fn disable_keep_alive(&mut self) {
+        self.conn.disable_keep_alive()
+    }
+}
+
 mod unnameable {
     // This type is specifically not exported outside the crate,
     // so no one can actually name the type. With no methods, we make no

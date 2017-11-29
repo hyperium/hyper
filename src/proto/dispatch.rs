@@ -54,6 +54,10 @@ where
         }
     }
 
+    pub fn disable_keep_alive(&mut self) {
+        self.conn.disable_keep_alive()
+    }
+
     fn poll_read(&mut self) -> Poll<(), ::Error> {
         loop {
             if self.conn.can_read_head() {

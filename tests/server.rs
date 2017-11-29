@@ -6,7 +6,7 @@ extern crate pretty_env_logger;
 extern crate tokio_core;
 
 use futures::{Future, Stream};
-use futures::future::{self, FutureResult};
+use futures::future::{self, FutureResult, Either};
 use futures::sync::oneshot;
 
 use tokio_core::net::TcpListener;
@@ -552,6 +552,106 @@ fn pipeline_enabled() {
 }
 
 #[test]
+fn disable_keep_alive_mid_request() {
+    let mut core = Core::new().unwrap();
+    let listener = TcpListener::bind(&"127.0.0.1:0".parse().unwrap(), &core.handle()).unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    let (tx1, rx1) = oneshot::channel();
+    let (tx2, rx2) = oneshot::channel();
+
+    let child = thread::spawn(move || {
+        let mut req = connect(&addr);
+        req.write_all(b"GET / HTTP/1.1\r\n").unwrap();
+        tx1.send(()).unwrap();
+        rx2.wait().unwrap();
+        req.write_all(b"Host: localhost\r\n\r\n").unwrap();
+        let mut buf = vec![];
+        req.read_to_end(&mut buf).unwrap();
+    });
+
+    let fut = listener.incoming()
+        .into_future()
+        .map_err(|_| unreachable!())
+        .and_then(|(item, _incoming)| {
+            let (socket, _) = item.unwrap();
+            Http::<hyper::Chunk>::new().serve_connection(socket, HelloWorld)
+                .select2(rx1)
+                .then(|r| {
+                    match r {
+                        Ok(Either::A(_)) => panic!("expected rx first"),
+                        Ok(Either::B(((), mut conn))) => {
+                            conn.disable_keep_alive();
+                            tx2.send(()).unwrap();
+                            conn
+                        }
+                        Err(Either::A((e, _))) => panic!("unexpected error {}", e),
+                        Err(Either::B((e, _))) => panic!("unexpected error {}", e),
+                    }
+                })
+        });
+
+    core.run(fut).unwrap();
+    child.join().unwrap();
+}
+
+#[test]
+fn disable_keep_alive_post_request() {
+    let mut core = Core::new().unwrap();
+    let listener = TcpListener::bind(&"127.0.0.1:0".parse().unwrap(), &core.handle()).unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    let (tx1, rx1) = oneshot::channel();
+
+    let child = thread::spawn(move || {
+        let mut req = connect(&addr);
+        req.write_all(b"\
+            GET / HTTP/1.1\r\n\
+            Host: localhost\r\n\
+            \r\n\
+        ").unwrap();
+
+        let mut buf = [0; 1024 * 8];
+        loop {
+            let n = req.read(&mut buf).expect("reading 1");
+            if n < buf.len() {
+                if &buf[n - HELLO.len()..n] == HELLO.as_bytes() {
+                    break;
+                }
+            }
+        }
+
+        tx1.send(()).unwrap();
+
+        let nread = req.read(&mut buf).unwrap();
+        assert_eq!(nread, 0);
+    });
+
+    let fut = listener.incoming()
+        .into_future()
+        .map_err(|_| unreachable!())
+        .and_then(|(item, _incoming)| {
+            let (socket, _) = item.unwrap();
+            Http::<hyper::Chunk>::new().serve_connection(socket, HelloWorld)
+                .select2(rx1)
+                .then(|r| {
+                    match r {
+                        Ok(Either::A(_)) => panic!("expected rx first"),
+                        Ok(Either::B(((), mut conn))) => {
+                            conn.disable_keep_alive();
+                            conn
+                        }
+                        Err(Either::A((e, _))) => panic!("unexpected error {}", e),
+                        Err(Either::B((e, _))) => panic!("unexpected error {}", e),
+                    }
+                })
+        });
+
+    core.run(fut).unwrap();
+    child.join().unwrap();
+}
+
+#[test]
 fn no_proto_empty_parse_eof_does_not_return_error() {
     let mut core = Core::new().unwrap();
     let listener = TcpListener::bind(&"127.0.0.1:0".parse().unwrap(), &core.handle()).unwrap();
@@ -719,6 +819,8 @@ impl Service for TestService {
 
 }
 
+const HELLO: &'static str = "hello";
+
 struct HelloWorld;
 
 impl Service for HelloWorld {
@@ -728,7 +830,10 @@ impl Service for HelloWorld {
     type Future = FutureResult<Self::Response, Self::Error>;
 
     fn call(&self, _req: Request) -> Self::Future {
-        future::ok(Response::new())
+        let mut response = Response::new();
+        response.headers_mut().set(hyper::header::ContentLength(HELLO.len() as u64));
+        response.set_body(HELLO);
+        future::ok(response)
     }
 }
 
