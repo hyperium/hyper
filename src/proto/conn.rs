@@ -102,16 +102,7 @@ where I: AsyncRead + AsyncWrite,
 
     pub fn can_read_head(&self) -> bool {
         match self.state.reading {
-            Reading::Init => {
-                if T::should_read_first() {
-                    true
-                } else {
-                    match self.state.writing {
-                        Writing::Init => false,
-                        _ => true,
-                    }
-                }
-            }
+            Reading::Init => true,
             _ => false,
         }
     }
@@ -245,19 +236,13 @@ where I: AsyncRead + AsyncWrite,
             Reading::Closed => false,
         };
 
-        let wants_write = match self.state.writing {
+        match self.state.writing {
             Writing::Continue(..) |
             Writing::Body(..) |
             Writing::Ending(..) => return,
-            Writing::Init => true,
-            Writing::KeepAlive => false,
-            Writing::Closed => false,
-        };
-
-        // if the client is at Reading::Init and Writing::Init,
-        // it's not actually looking for a read, but a write.
-        if wants_write && !T::should_read_first() {
-            return;
+            Writing::Init |
+            Writing::KeepAlive |
+            Writing::Closed => (),
         }
 
         if !self.io.is_read_blocked() {

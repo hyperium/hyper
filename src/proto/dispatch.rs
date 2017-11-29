@@ -1,3 +1,5 @@
+use std::io;
+
 use futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
 use futures::sync::{mpsc, oneshot};
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -64,7 +66,7 @@ where
                         } else {
                             None
                         };
-                        self.dispatch.recv_msg(Ok((head, body))).expect("recv_msg with Ok shouldn't error");
+                        self.dispatch.recv_msg(Ok((head, body)))?;
                     },
                     Ok(Async::Ready(None)) => {
                         // read eof, conn will start to shutdown automatically
@@ -306,10 +308,13 @@ where
     fn recv_msg(&mut self, msg: ::Result<(Self::RecvItem, Option<Body>)>) -> ::Result<()> {
         match msg {
             Ok((msg, body)) => {
-                let res = super::response::from_wire(msg, body);
-                let cb = self.callback.take().expect("recv_msg without callback");
-                let _ = cb.send(Ok(res));
-                Ok(())
+                if let Some(cb) = self.callback.take() {
+                    let res = super::response::from_wire(msg, body);
+                    let _ = cb.send(Ok(res));
+                    Ok(())
+                } else {
+                    Err(::Error::Io(io::Error::new(io::ErrorKind::InvalidData, "response received without matching request")))
+                }
             },
             Err(err) => {
                 if let Some(cb) = self.callback.take() {
