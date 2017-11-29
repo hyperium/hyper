@@ -869,18 +869,11 @@ mod tests {
                 other => panic!("unexpected frame: {:?}", other)
             }
 
-            // client
+            // client 
             let io = AsyncIo::new_buf(vec![], 1);
             let mut conn = Conn::<_, proto::Chunk, ClientTransaction>::new(io, Default::default());
             conn.state.busy();
 
-            match conn.poll() {
-                Ok(Async::NotReady) => {},
-                other => panic!("unexpected frame: {:?}", other)
-            }
-
-            // once mid-request, returns the error
-            conn.state.writing = super::Writing::KeepAlive;
             match conn.poll() {
                 Err(ref err) if err.kind() == ::std::io::ErrorKind::UnexpectedEof => {},
                 other => panic!("unexpected frame: {:?}", other)

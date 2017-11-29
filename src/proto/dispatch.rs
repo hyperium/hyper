@@ -184,11 +184,23 @@ where
     }
 
     fn is_done(&self) -> bool {
+        trace!(
+            "is_done; read={}, write={}, should_poll={}, body={}",
+            self.conn.is_read_closed(),
+            self.conn.is_write_closed(),
+            self.dispatch.should_poll(),
+            self.body_rx.is_some(),
+        );
         let read_done = self.conn.is_read_closed();
-        let write_done = self.conn.is_write_closed() ||
-            (!self.dispatch.should_poll() && self.body_rx.is_none());
 
-        read_done && write_done
+        if !T::should_read_first() && read_done {
+            // a client that cannot read may was well be done.
+            true
+        } else {
+            let write_done = self.conn.is_write_closed() ||
+                (!self.dispatch.should_poll() && self.body_rx.is_none());
+            read_done && write_done
+        }
     }
 }
 
