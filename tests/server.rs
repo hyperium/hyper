@@ -6,7 +6,7 @@ extern crate pretty_env_logger;
 extern crate tokio_core;
 
 use futures::{Future, Stream};
-use futures::future::{self, FutureResult};
+use futures::future::{self, FutureResult, join_all, loop_fn, Loop};
 use futures::sync::oneshot;
 
 use tokio_core::net::TcpListener;
@@ -594,6 +594,42 @@ fn no_proto_nonempty_parse_eof_returns_error() {
 
     core.run(fut).unwrap_err();
 }
+
+// Test that the server does not exit with "too many open files" IO errors with
+// a lot of TCP connections.
+#[test]
+fn no_ports_exhausted_errors() {
+    let server = serve();
+    let addr = server.addr();
+
+    let mut core = Core::new().unwrap();
+    let handle = core.handle();
+
+    // Send 10 million requests (TCP connections).
+    let nr_requests = 10_000_000;
+    let concurrency = 100_000;
+
+    let mut parallel = Vec::new();
+    for _i in 0..concurrency {
+        let requests_til_done = loop_fn(0, |counter| {
+            // Just establish the TCP connection, do nothing otherwise.
+            let socket = tokio_core::net::TcpStream::connect(&addr, &handle);
+
+            socket.then(move |_| -> Result<_, std::io::Error> {
+                if counter < (nr_requests / concurrency) {
+                    Ok(Loop::Continue(counter + 1))
+                } else {
+                    Ok(Loop::Break(counter))
+                }
+            })
+        });
+        parallel.push(requests_til_done);
+    }
+
+    let work = join_all(parallel);
+    core.run(work).unwrap();
+}
+
 
 // -------------------------------------------------
 // the Server that is used to run all the tests with
