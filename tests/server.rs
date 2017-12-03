@@ -605,7 +605,7 @@ fn no_ports_exhausted_errors() {
     let mut core = Core::new().unwrap();
     let handle = core.handle();
 
-    // Send 100k requests (TCP connections).
+    // Send 10 million requests (TCP connections).
     let nr_requests = 10_000_000;
     let concurrency = 100_000;
 
