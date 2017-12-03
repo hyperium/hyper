@@ -73,7 +73,8 @@ pub struct ExtendedValue {
 /// Extended values are denoted by parameter names that end with `*`.
 ///
 /// ## ABNF
-/// ```plain
+///
+/// ```text
 /// ext-value     = charset  "'" [ language ] "'" value-chars
 ///               ; like RFC 2231's <extended-initial-value>
 ///               ; (see [RFC2231], Section 7)
@@ -149,7 +150,9 @@ impl Display for ExtendedValue {
 }
 
 /// Percent encode a sequence of bytes with a character set defined in
-/// https://tools.ietf.org/html/rfc5987#section-3.2
+/// [https://tools.ietf.org/html/rfc5987#section-3.2][url]
+///
+/// [url]: https://tools.ietf.org/html/rfc5987#section-3.2
 pub fn http_percent_encode(f: &mut fmt::Formatter, bytes: &[u8]) -> fmt::Result {
     let encoded = percent_encoding::percent_encode(bytes, self::percent_encoding_http::HTTP_VALUE);
     fmt::Display::fmt(&encoded, f)

@@ -10,7 +10,8 @@ header! {
     /// responses.
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// Server = product *( RWS ( product / comment ) )
     /// ```
     ///
@@ -18,6 +19,7 @@ header! {
     /// * `CERN/3.0 libwww/2.17`
     ///
     /// # Example
+    ///
     /// ```
     /// use hyper::header::{Headers, Server};
     ///

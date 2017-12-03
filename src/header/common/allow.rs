@@ -9,7 +9,8 @@ header! {
     /// with the resource.
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// Allow = #method
     /// ```
     ///
@@ -19,6 +20,7 @@ header! {
     /// * ``
     ///
     /// # Examples
+    ///
     /// ```
     /// use hyper::header::{Headers, Allow};
     /// use hyper::Method;
@@ -28,6 +30,7 @@ header! {
     ///     Allow(vec![Method::Get])
     /// );
     /// ```
+    ///
     /// ```
     /// use hyper::header::{Headers, Allow};
     /// use hyper::Method;

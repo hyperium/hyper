@@ -11,20 +11,24 @@ header! {
     /// unless specifically configured not to do so.
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// User-Agent = product *( RWS ( product / comment ) )
     /// product         = token ["/" product-version]
     /// product-version = token
     /// ```
     ///
     /// # Example values
+    ///
     /// * `CERN-LineMode/2.15 libwww/2.17b3`
     /// * `Bunnies`
     ///
     /// # Notes
+    ///
     /// * The parser does not split the value
     ///
     /// # Example
+    ///
     /// ```
     /// use hyper::header::{Headers, UserAgent};
     ///

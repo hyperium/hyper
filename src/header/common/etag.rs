@@ -14,16 +14,19 @@ header! {
     /// prefixed by a weakness indicator.
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// ETag       = entity-tag
     /// ```
     ///
     /// # Example values
+    ///
     /// * `"xyzzy"`
     /// * `W/"xyzzy"`
     /// * `""`
     ///
     /// # Examples
+    ///
     /// ```
     /// use hyper::header::{Headers, ETag, EntityTag};
     ///

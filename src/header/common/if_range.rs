@@ -17,21 +17,25 @@ use header::{self, Header, Raw, EntityTag, HttpDate};
 /// in Range; otherwise, send me the entire representation.
 ///
 /// # ABNF
-/// ```plain
+///
+/// ```text
 /// If-Range = entity-tag / HTTP-date
 /// ```
 ///
 /// # Example values
+///
 /// * `Sat, 29 Oct 1994 19:43:31 GMT`
 /// * `\"xyzzy\"`
 ///
 /// # Examples
+///
 /// ```
 /// use hyper::header::{Headers, IfRange, EntityTag};
 ///
 /// let mut headers = Headers::new();
 /// headers.set(IfRange::EntityTag(EntityTag::new(false, "xyzzy".to_owned())));
 /// ```
+///
 /// ```
 /// use hyper::header::{Headers, IfRange};
 /// use std::time::{SystemTime, Duration};

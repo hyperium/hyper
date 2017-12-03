@@ -102,16 +102,7 @@ where I: AsyncRead + AsyncWrite,
 
     pub fn can_read_head(&self) -> bool {
         match self.state.reading {
-            Reading::Init => {
-                if T::should_read_first() {
-                    true
-                } else {
-                    match self.state.writing {
-                        Writing::Init => false,
-                        _ => true,
-                    }
-                }
-            }
+            Reading::Init => true,
             _ => false,
         }
     }
@@ -245,19 +236,13 @@ where I: AsyncRead + AsyncWrite,
             Reading::Closed => false,
         };
 
-        let wants_write = match self.state.writing {
+        match self.state.writing {
             Writing::Continue(..) |
             Writing::Body(..) |
             Writing::Ending(..) => return,
-            Writing::Init => true,
-            Writing::KeepAlive => false,
-            Writing::Closed => false,
-        };
-
-        // if the client is at Reading::Init and Writing::Init,
-        // it's not actually looking for a read, but a write.
-        if wants_write && !T::should_read_first() {
-            return;
+            Writing::Init |
+            Writing::KeepAlive |
+            Writing::Closed => (),
         }
 
         if !self.io.is_read_blocked() {
@@ -306,7 +291,7 @@ where I: AsyncRead + AsyncWrite,
         }
     }
 
-    fn has_queued_body(&self) -> bool {
+    pub fn has_queued_body(&self) -> bool {
         match self.state.writing {
             Writing::Body(_, Some(_)) => true,
             _ => false,
@@ -447,6 +432,20 @@ where I: AsyncRead + AsyncWrite,
 
     }
 
+    pub fn shutdown(&mut self) -> Poll<(), io::Error> {
+        match self.io.io_mut().shutdown() {
+            Ok(Async::NotReady) => Ok(Async::NotReady),
+            Ok(Async::Ready(())) => {
+                trace!("shut down IO");
+                Ok(Async::Ready(()))
+            }
+            Err(e) => {
+                debug!("error shutting down IO: {}", e);
+                Err(e)
+            }
+        }
+    }
+
     pub fn close_read(&mut self) {
         self.state.close_read();
     }
@@ -540,10 +539,7 @@ where I: AsyncRead + AsyncWrite,
     #[inline]
     fn close(&mut self) -> Poll<(), Self::SinkError> {
         try_ready!(self.poll_complete());
-        self.io.io_mut().shutdown().map_err(|err| {
-            debug!("error closing: {}", err);
-            err
-        })
+        self.shutdown()
     }
 }
 
@@ -873,18 +869,11 @@ mod tests {
                 other => panic!("unexpected frame: {:?}", other)
             }
 
-            // client
+            // client 
             let io = AsyncIo::new_buf(vec![], 1);
             let mut conn = Conn::<_, proto::Chunk, ClientTransaction>::new(io, Default::default());
             conn.state.busy();
 
-            match conn.poll() {
-                Ok(Async::NotReady) => {},
-                other => panic!("unexpected frame: {:?}", other)
-            }
-
-            // once mid-request, returns the error
-            conn.state.writing = super::Writing::KeepAlive;
             match conn.poll() {
                 Err(ref err) if err.kind() == ::std::io::ErrorKind::UnexpectedEof => {},
                 other => panic!("unexpected frame: {:?}", other)

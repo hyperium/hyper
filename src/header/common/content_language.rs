@@ -11,15 +11,18 @@ header! {
     /// representation.
     /// 
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// Content-Language = 1#language-tag
     /// ```
     /// 
     /// # Example values
+    ///
     /// * `da`
     /// * `mi, en`
-    /// 
+    ///
     /// # Examples
+    ///
     /// ```
     /// # extern crate hyper;
     /// # #[macro_use] extern crate language_tags;
@@ -34,6 +37,7 @@ header! {
     /// );
     /// # }
     /// ```
+    ///
     /// ```
     /// # extern crate hyper;
     /// # #[macro_use] extern crate language_tags;

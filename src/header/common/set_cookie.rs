@@ -13,7 +13,8 @@ use std::str::from_utf8;
 /// a name-value-pair, followed by zero or more attribute-value pairs.
 ///
 /// # ABNF
-/// ```plain
+///
+/// ```text
 /// set-cookie-header = "Set-Cookie:" SP set-cookie-string
 /// set-cookie-string = cookie-pair *( ";" SP cookie-av )
 /// cookie-pair       = cookie-name "=" cookie-value
@@ -48,12 +49,14 @@ use std::str::from_utf8;
 /// ```
 ///
 /// # Example values
+///
 /// * `SID=31d4d96e407aad42`
 /// * `lang=en-US; Expires=Wed, 09 Jun 2021 10:18:14 GMT`
 /// * `lang=; Expires=Sun, 06 Nov 1994 08:49:37 GMT`
 /// * `lang=en-US; Path=/; Domain=example.com`
 ///
 /// # Example
+///
 /// ```
 /// use hyper::header::{Headers, SetCookie};
 ///

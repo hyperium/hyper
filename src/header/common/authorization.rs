@@ -14,7 +14,8 @@ use header::{Header, Raw};
 /// agent for the realm of the resource being requested.
 ///
 /// # ABNF
-/// ```plain
+///
+/// ```text
 /// Authorization = credentials
 /// ```
 ///
@@ -23,6 +24,7 @@ use header::{Header, Raw};
 /// * `Bearer fpKL54jvWmEGVoRdCNjG`
 ///
 /// # Examples
+///
 /// ```
 /// use hyper::header::{Headers, Authorization};
 ///
@@ -42,6 +44,7 @@ use header::{Header, Raw};
 ///    )
 /// );
 /// ```
+///
 /// ```
 /// use hyper::header::{Headers, Authorization, Bearer};
 ///

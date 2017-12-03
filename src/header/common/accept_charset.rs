@@ -12,7 +12,8 @@ header! {
     /// those charsets.
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// Accept-Charset = 1#( ( charset / "*" ) [ weight ] )
     /// ```
     ///

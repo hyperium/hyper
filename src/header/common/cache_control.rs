@@ -11,12 +11,14 @@ use header::parsing::{from_comma_delimited, fmt_comma_delimited};
 /// not imply that the same directive is to be given in the response.
 ///
 /// # ABNF
-/// ```plain
+///
+/// ```text
 /// Cache-Control   = 1#cache-directive
 /// cache-directive = token [ "=" ( token / quoted-string ) ]
 /// ```
 ///
 /// # Example values
+///
 /// * `no-cache`
 /// * `private, community="UCI"`
 /// * `max-age=30`
@@ -30,6 +32,7 @@ use header::parsing::{from_comma_delimited, fmt_comma_delimited};
 ///     CacheControl(vec![CacheDirective::MaxAge(86400u32)])
 /// );
 /// ```
+///
 /// ```
 /// use hyper::header::{Headers, CacheControl, CacheDirective};
 ///

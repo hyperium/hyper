@@ -59,7 +59,8 @@ header! {
     /// message.
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// Connection        = 1#connection-option
     /// connection-option = token
     ///
@@ -70,12 +71,14 @@ header! {
     /// ```
     ///
     /// # Examples
+    ///
     /// ```
     /// use hyper::header::{Headers, Connection};
     ///
     /// let mut headers = Headers::new();
     /// headers.set(Connection::keep_alive());
     /// ```
+    ///
     /// ```
     /// # extern crate hyper;
     /// # extern crate unicase;

@@ -12,7 +12,8 @@ header! {
     /// in-line image
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// Accept = #( media-range [ accept-params ] )
     ///
     /// media-range    = ( "*/*"
@@ -40,6 +41,7 @@ header! {
     ///     ])
     /// );
     /// ```
+    ///
     /// ```
     /// use hyper::header::{Headers, Accept, qitem};
     /// use hyper::mime;

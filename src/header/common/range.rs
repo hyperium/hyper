@@ -12,7 +12,8 @@ use header::parsing::{from_one_raw_str};
 /// representation data.
 ///
 /// # ABNF
-/// ```plain
+///
+/// ```text
 /// Range =	byte-ranges-specifier / other-ranges-specifier
 /// other-ranges-specifier = other-range-unit "=" other-range-set
 /// other-range-set = 1*VCHAR
@@ -27,6 +28,7 @@ use header::parsing::{from_one_raw_str};
 /// ```
 ///
 /// # Example values
+///
 /// * `bytes=1000-`
 /// * `bytes=-2000`
 /// * `bytes=0-1,30-40`
@@ -35,6 +37,7 @@ use header::parsing::{from_one_raw_str};
 /// * `custom_unit=xxx-yyy`
 ///
 /// # Examples
+///
 /// ```
 /// use hyper::header::{Headers, Range, ByteRangeSpec};
 ///
@@ -46,6 +49,7 @@ use header::parsing::{from_one_raw_str};
 /// headers.clear();
 /// headers.set(Range::Unregistered("letters".to_owned(), "a-f".to_owned()));
 /// ```
+///
 /// ```
 /// use hyper::header::{Headers, Range};
 ///

@@ -10,14 +10,17 @@ header! {
     /// conclusion of handling the request.
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// Expires = HTTP-date
     /// ```
     ///
     /// # Example values
+    ///
     /// * `Sat, 29 Oct 1994 19:43:31 GMT`
     ///
     /// # Example
+    ///
     /// ```
     /// use hyper::header::{Headers, LastModified};
     /// use std::time::{SystemTime, Duration};

@@ -44,8 +44,8 @@ after_success:
     cmake -DCMAKE_INSTALL_PREFIX:PATH=$LOCAL .. && make && make install && cd ../.. &&
     ls target/debug &&
     RUSTFLAGS="-C link-dead-code" cargo test --no-run &&
-    for file in target/debug/hyper-*; do
-      if [[ "${file: -2}" != ".d" ]]; then
+    for file in target/debug/*; do
+      if [[ -x $file ]]; then
         mkdir -p "target/cov/$(basename $file)";
         kcov --exclude-pattern=/.cargo,/usr/lib --verify "target/cov/$(basename $file)" "$file";
       fi;

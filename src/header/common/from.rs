@@ -4,13 +4,16 @@ header! {
     /// The `From` header field contains an Internet email address for a
     /// human user who controls the requesting user agent.  The address ought
     /// to be machine-usable.
+    ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// From    = mailbox
     /// mailbox = <mailbox, see [RFC5322], Section 3.4>
     /// ```
     ///
     /// # Example
+    ///
     /// ```
     /// use hyper::header::{Headers, From};
     ///

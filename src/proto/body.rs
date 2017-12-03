@@ -47,6 +47,8 @@ impl Stream for Body {
     }
 }
 
+// deprecate soon, but can't really deprecate trait impls
+#[doc(hidden)]
 impl From<Body> for tokio_proto::streaming::Body<Chunk, ::Error> {
     #[inline]
     fn from(b: Body) -> tokio_proto::streaming::Body<Chunk, ::Error> {
@@ -54,6 +56,8 @@ impl From<Body> for tokio_proto::streaming::Body<Chunk, ::Error> {
     }
 }
 
+// deprecate soon, but can't really deprecate trait impls
+#[doc(hidden)]
 impl From<tokio_proto::streaming::Body<Chunk, ::Error>> for Body {
     #[inline]
     fn from(tokio_body: tokio_proto::streaming::Body<Chunk, ::Error>) -> Body {

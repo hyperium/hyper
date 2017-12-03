@@ -200,10 +200,13 @@ impl<T: Clone> KeepAlive for Pooled<T> {
             };
             if pool.is_enabled() {
                 pool.put(self.key.clone(), self.entry.clone());
+            } else {
+                trace!("keepalive disabled, dropping pooled ({:?})", self.key);
+                self.disable();
             }
         } else {
             trace!("pool dropped, dropping pooled ({:?})", self.key);
-            self.entry.status.set(TimedKA::Disabled);
+            self.disable();
         }
     }
 

@@ -6,14 +6,17 @@ header! {
     /// preflight request can be cached in a preflight result cache.
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// Access-Control-Max-Age = \"Access-Control-Max-Age\" \":\" delta-seconds
     /// ```
     ///
     /// # Example values
+    ///
     /// * `531`
     ///
     /// # Examples
+    ///
     /// ```
     /// use hyper::header::{Headers, AccessControlMaxAge};
     ///

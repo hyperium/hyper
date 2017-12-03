@@ -1,10 +1,10 @@
 use std::str::FromStr;
 use std::fmt::{self, Display};
 
-// check that each char in the slice is either:
-// 1. %x21, or
-// 2. in the range %x23 to %x7E, or
-// 3. above %x80
+/// check that each char in the slice is either:
+/// 1. `%x21`, or
+/// 2. in the range `%x23` to `%x7E`, or
+/// 3. above `%x80`
 fn check_slice_validity(slice: &str) -> bool {
     slice.bytes().all(|c|
         c == b'\x21' || (c >= b'\x23' && c <= b'\x7e') | (c >= b'\x80'))
@@ -17,7 +17,8 @@ fn check_slice_validity(slice: &str) -> bool {
 /// which always looks like `W/`. Examples for valid tags are `"xyzzy"` and `W/"xyzzy"`.
 ///
 /// # ABNF
-/// ```plain
+///
+/// ```text
 /// entity-tag = [ weak ] opaque-tag
 /// weak       = %x57.2F ; "W/", case-sensitive
 /// opaque-tag = DQUOTE *etagc DQUOTE

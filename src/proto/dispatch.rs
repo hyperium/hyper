@@ -1,3 +1,5 @@
+use std::io;
+
 use futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
 use futures::sync::{mpsc, oneshot};
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -18,7 +20,7 @@ pub trait Dispatch {
     type PollBody;
     type RecvItem;
     fn poll_msg(&mut self) -> Poll<Option<(Self::PollItem, Option<Self::PollBody>)>, ::Error>;
-    fn recv_msg(&mut self, msg: ::Result<(Self::RecvItem, Body)>) -> ::Result<()>;
+    fn recv_msg(&mut self, msg: ::Result<(Self::RecvItem, Option<Body>)>) -> ::Result<()>;
     fn should_poll(&self) -> bool;
 }
 
@@ -60,11 +62,11 @@ where
                         let body = if has_body {
                             let (tx, rx) = super::Body::pair();
                             self.body_tx = Some(tx);
-                            rx
+                            Some(rx)
                         } else {
-                            Body::empty()
+                            None
                         };
-                        self.dispatch.recv_msg(Ok((head, body))).expect("recv_msg with Ok shouldn't error");
+                        self.dispatch.recv_msg(Ok((head, body)))?;
                     },
                     Ok(Async::Ready(None)) => {
                         // read eof, conn will start to shutdown automatically
@@ -148,6 +150,8 @@ where
                     self.conn.close_write();
                     return Ok(Async::Ready(()));
                 }
+            } else if self.conn.has_queued_body() {
+                try_ready!(self.poll_flush());
             } else if let Some(mut body) = self.body_rx.take() {
                 let chunk = match body.poll()? {
                     Async::Ready(Some(chunk)) => {
@@ -165,7 +169,7 @@ where
                         return Ok(Async::NotReady);
                     }
                 };
-                self.conn.write_body(Some(chunk))?;
+                assert!(self.conn.write_body(Some(chunk))?.is_ready());
             } else {
                 return Ok(Async::NotReady);
             }
@@ -180,11 +184,23 @@ where
     }
 
     fn is_done(&self) -> bool {
+        trace!(
+            "is_done; read={}, write={}, should_poll={}, body={}",
+            self.conn.is_read_closed(),
+            self.conn.is_write_closed(),
+            self.dispatch.should_poll(),
+            self.body_rx.is_some(),
+        );
         let read_done = self.conn.is_read_closed();
-        let write_done = self.conn.is_write_closed() ||
-            (!self.dispatch.should_poll() && self.body_rx.is_none());
 
-        read_done && write_done
+        if !T::should_read_first() && read_done {
+            // a client that cannot read may was well be done.
+            true
+        } else {
+            let write_done = self.conn.is_write_closed() ||
+                (!self.dispatch.should_poll() && self.body_rx.is_none());
+            read_done && write_done
+        }
     }
 }
 
@@ -208,6 +224,7 @@ where
         self.poll_flush()?;
 
         if self.is_done() {
+            try_ready!(self.conn.shutdown());
             trace!("Dispatch::poll done");
             Ok(Async::Ready(()))
         } else {
@@ -253,7 +270,7 @@ where
         }
     }
 
-    fn recv_msg(&mut self, msg: ::Result<(Self::RecvItem, Body)>) -> ::Result<()> {
+    fn recv_msg(&mut self, msg: ::Result<(Self::RecvItem, Option<Body>)>) -> ::Result<()> {
         let (msg, body) = msg?;
         let req = super::request::from_wire(None, msg, body);
         self.in_flight = Some(self.service.call(req));
@@ -300,13 +317,16 @@ where
         }
     }
 
-    fn recv_msg(&mut self, msg: ::Result<(Self::RecvItem, Body)>) -> ::Result<()> {
+    fn recv_msg(&mut self, msg: ::Result<(Self::RecvItem, Option<Body>)>) -> ::Result<()> {
         match msg {
             Ok((msg, body)) => {
-                let res = super::response::from_wire(msg, Some(body));
-                let cb = self.callback.take().expect("recv_msg without callback");
-                let _ = cb.send(Ok(res));
-                Ok(())
+                if let Some(cb) = self.callback.take() {
+                    let res = super::response::from_wire(msg, body);
+                    let _ = cb.send(Ok(res));
+                    Ok(())
+                } else {
+                    Err(::Error::Io(io::Error::new(io::ErrorKind::InvalidData, "response received without matching request")))
+                }
             },
             Err(err) => {
                 if let Some(cb) = self.callback.take() {

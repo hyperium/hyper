@@ -14,7 +14,7 @@ use header::{Header, Raw, parsing};
 use header::parsing::{parse_extended_value, http_percent_encode};
 use header::shared::Charset;
 
-/// The implied disposition of the content of the HTTP body
+/// The implied disposition of the content of the HTTP body.
 #[derive(Clone, Debug, PartialEq)]
 pub enum DispositionType {
     /// Inline implies default processing
@@ -26,7 +26,7 @@ pub enum DispositionType {
     Ext(String)
 }
 
-/// A parameter to the disposition type
+/// A parameter to the disposition type.
 #[derive(Clone, Debug, PartialEq)]
 pub enum DispositionParam {
     /// A Filename consisting of a Charset, an optional LanguageTag, and finally a sequence of
@@ -37,7 +37,7 @@ pub enum DispositionParam {
     Ext(String, String)
 }
 
-/// A `Content-Disposition` header, (re)defined in [RFC6266](https://tools.ietf.org/html/rfc6266)
+/// A `Content-Disposition` header, (re)defined in [RFC6266](https://tools.ietf.org/html/rfc6266).
 ///
 /// The Content-Disposition response header field is used to convey
 /// additional information about how to process the response payload, and
@@ -45,7 +45,8 @@ pub enum DispositionParam {
 /// to use when saving the response payload locally.
 ///
 /// # ABNF
-/// ```plain
+
+/// ```text
 /// content-disposition = "Content-Disposition" ":"
 ///                       disposition-type *( ";" disposition-parm )
 ///
@@ -66,6 +67,7 @@ pub enum DispositionParam {
 /// ```
 ///
 /// # Example
+///
 /// ```
 /// use hyper::header::{Headers, ContentDisposition, DispositionType, DispositionParam, Charset};
 ///

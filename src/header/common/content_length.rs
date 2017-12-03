@@ -22,14 +22,17 @@ use header::{Header, Raw, parsing};
 /// > that contains a Transfer-Encoding header field.
 ///
 /// # ABNF
-/// ```plain
+///
+/// ```text
 /// Content-Length = 1*DIGIT
 /// ```
 ///
 /// # Example values
+///
 /// * `3495`
 ///
 /// # Example
+///
 /// ```
 /// use hyper::header::{Headers, ContentLength};
 ///

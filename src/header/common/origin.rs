@@ -9,11 +9,13 @@ use header::parsing::from_one_raw_str;
 /// The `Origin` header is a version of the `Referer` header that is used for all HTTP fetches and `POST`s whose CORS flag is set.
 /// This header is often used to inform recipients of the security context of where the request was initiated.
 ///
-///
-/// Following the spec, https://fetch.spec.whatwg.org/#origin-header, the value of this header is composed of
+/// Following the spec, [https://fetch.spec.whatwg.org/#origin-header][url], the value of this header is composed of
 /// a String (scheme), header::Host (host/port)
 ///
+/// [url]: https://fetch.spec.whatwg.org/#origin-header
+///
 /// # Examples
+///
 /// ```
 /// use hyper::header::{Headers, Origin};
 ///
@@ -22,6 +24,7 @@ use header::parsing::from_one_raw_str;
 ///     Origin::new("http", "hyper.rs", None)
 /// );
 /// ```
+///
 /// ```
 /// use hyper::header::{Headers, Origin};
 ///
@@ -30,7 +33,6 @@ use header::parsing::from_one_raw_str;
 ///     Origin::new("https", "wikipedia.org", Some(443))
 /// );
 /// ```
-
 #[derive(PartialEq, Clone, Debug)]
 pub struct Origin(OriginOrNull);
 
@@ -67,7 +69,8 @@ impl Origin {
         }
     }
 
-    /// The scheme, such as http or https
+    /// The scheme, such as http or https.
+    ///
     /// ```
     /// use hyper::header::Origin;
     /// let origin = Origin::new("https", "foo.com", Some(443));
@@ -80,7 +83,8 @@ impl Origin {
         }
     }
 
-    /// The host, such as Host{hostname: "hyper.rs".to_owned(), port: None}
+    /// The host, such as `Host { hostname: "hyper.rs".to_owned(), port: None}`.
+    ///
     /// ```
     /// use hyper::header::{Origin,Host};
     /// let origin = Origin::new("https", "foo.com", Some(443));

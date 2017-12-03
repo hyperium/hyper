@@ -168,16 +168,16 @@ impl<B> From<http::Request<B>> for Request<B> {
 }
 
 /// Constructs a request using a received ResponseHead and optional body
-pub fn from_wire<B>(addr: Option<SocketAddr>, incoming: RequestHead, body: B) -> Request<B> {
+pub fn from_wire(addr: Option<SocketAddr>, incoming: RequestHead, body: Option<Body>) -> Request<Body> {
     let MessageHead { version, subject: RequestLine(method, uri), headers } = incoming;
 
-    Request::<B> {
+    Request {
         method: method,
         uri: uri,
         headers: headers,
         version: version,
         remote_addr: addr,
-        body: Some(body),
+        body: body,
         is_proxy: false,
     }
 }

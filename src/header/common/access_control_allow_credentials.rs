@@ -13,7 +13,8 @@ use header::{Header, Raw};
 /// > match the following ABNF:
 ///
 /// # ABNF
-/// ```plain
+///
+/// ```text
 /// Access-Control-Allow-Credentials: "Access-Control-Allow-Credentials" ":" "true"
 /// ```
 ///
@@ -25,6 +26,7 @@ use header::{Header, Raw};
 /// * "true"
 ///
 /// # Examples
+///
 /// ```
 /// # extern crate hyper;
 /// # fn main() {

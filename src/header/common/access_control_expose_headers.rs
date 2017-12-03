@@ -8,7 +8,8 @@ header! {
     /// API of a CORS API specification.
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// Access-Control-Expose-Headers = "Access-Control-Expose-Headers" ":" #field-name
     /// ```
     ///
@@ -16,6 +17,7 @@ header! {
     /// * `ETag, Content-Length`
     ///
     /// # Examples
+    ///
     /// ```
     /// # extern crate hyper;
     /// # extern crate unicase;
@@ -34,6 +36,7 @@ header! {
     /// );
     /// # }
     /// ```
+    ///
     /// ```
     /// # extern crate hyper;
     /// # extern crate unicase;

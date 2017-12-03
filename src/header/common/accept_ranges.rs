@@ -9,7 +9,8 @@ header! {
     /// supports range requests for the target resource.
     ///
     /// # ABNF
-    /// ```plain
+    ///
+    /// ```text
     /// Accept-Ranges     = acceptable-ranges
     /// acceptable-ranges = 1#range-unit / \"none\"
     ///
@@ -26,12 +27,14 @@ header! {
     /// let mut headers = Headers::new();
     /// headers.set(AcceptRanges(vec![RangeUnit::Bytes]));
     /// ```
+    ///
     /// ```
     /// use hyper::header::{Headers, AcceptRanges, RangeUnit};
     ///
     /// let mut headers = Headers::new();
     /// headers.set(AcceptRanges(vec![RangeUnit::None]));
     /// ```
+    ///
     /// ```
     /// use hyper::header::{Headers, AcceptRanges, RangeUnit};
     ///
@@ -62,7 +65,8 @@ header! {
 /// representation's media type.
 ///
 /// # ABNF
-/// ```plain
+///
+/// ```text
 /// range-unit       = bytes-unit / other-range-unit
 /// bytes-unit       = "bytes"
 /// other-range-unit = token

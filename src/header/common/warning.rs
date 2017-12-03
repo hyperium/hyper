@@ -11,7 +11,8 @@ use header::parsing::from_one_raw_str;
 /// compatible way to notify of a deprecated API. 
 ///
 /// # ABNF
-/// ```plain
+///
+/// ```text
 /// Warning       = 1#warning-value
 /// warning-value = warn-code SP warn-agent SP warn-text
 ///                                       [ SP warn-date ]
@@ -25,12 +26,14 @@ use header::parsing::from_one_raw_str;
 /// ```
 ///
 /// # Example values
+///
 /// * `Warning: 112 - "network down" "Sat, 25 Aug 2012 23:34:45 GMT"`
 /// * `Warning: 299 - "Deprecated API " "Tue, 15 Nov 1994 08:12:31 GMT"`
 /// * `Warning: 299 api.hyper.rs:8080 "Deprecated API : use newapi.hyper.rs instead."`
 /// * `Warning: 299 api.hyper.rs:8080 "Deprecated API : use newapi.hyper.rs instead." "Tue, 15 Nov 1994 08:12:31 GMT"` 
 ///
 /// # Examples
+///
 /// ```
 /// use hyper::header::{Headers, Warning};
 ///
@@ -44,6 +47,7 @@ use header::parsing::from_one_raw_str;
 ///     }
 /// );
 /// ```
+///
 /// ```
 /// use hyper::header::{Headers, HttpDate, Warning};
 ///
@@ -57,6 +61,7 @@ use header::parsing::from_one_raw_str;
 ///     }
 /// );
 /// ```
+///
 /// ```
 /// use std::time::SystemTime;
 /// use hyper::header::{Headers, Warning};
