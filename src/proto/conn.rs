@@ -453,6 +453,14 @@ where I: AsyncRead + AsyncWrite,
     pub fn close_write(&mut self) {
         self.state.close_write();
     }
+
+    pub fn disable_keep_alive(&mut self) {
+        if self.state.is_idle() {
+            self.state.close_read();
+        } else {
+            self.state.disable_keep_alive();
+        }
+    }
 }
 
 // ==== tokio_proto impl ====
@@ -700,6 +708,10 @@ impl<B, K: KeepAlive> State<B, K> {
         }
     }
 
+    fn disable_keep_alive(&mut self) {
+        self.keep_alive.disable()
+    }
+
     fn busy(&mut self) {
         if let KA::Disabled = self.keep_alive.status() {
             return;
@@ -869,7 +881,7 @@ mod tests {
                 other => panic!("unexpected frame: {:?}", other)
             }
 
-            // client 
+            // client
             let io = AsyncIo::new_buf(vec![], 1);
             let mut conn = Conn::<_, proto::Chunk, ClientTransaction>::new(io, Default::default());
             conn.state.busy();
