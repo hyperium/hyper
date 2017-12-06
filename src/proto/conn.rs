@@ -196,8 +196,9 @@ where I: AsyncRead + AsyncWrite,
                 }
 
             },
-            Reading::Init | Reading::KeepAlive | Reading::Closed => unreachable!()
+            _ => unreachable!("read_body invalid state: {:?}", self.state.reading),
         };
+
         self.state.reading = reading;
         ret
     }
@@ -324,6 +325,14 @@ where I: AsyncRead + AsyncWrite,
 
         if self.has_queued_body() {
             try!(self.flush());
+
+            if !self.can_write_body() {
+                if chunk.as_ref().map(|c| c.as_ref().len()).unwrap_or(0) == 0 {
+                    return Ok(AsyncSink::NotReady(chunk));
+                } else {
+                    return Ok(AsyncSink::Ready);
+                }
+            }
         }
 
         let state = match self.state.writing {
@@ -369,8 +378,9 @@ where I: AsyncRead + AsyncWrite,
                     }
                 }
             },
-            _ => unreachable!(),
+            _ => unreachable!("write_body invalid state: {:?}", self.state.writing),
         };
+
         self.state.writing = state;
         Ok(AsyncSink::Ready)
     }
