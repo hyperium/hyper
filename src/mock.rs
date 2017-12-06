@@ -91,6 +91,10 @@ impl AsyncIo<Buf> {
         AsyncIo::new(Buf::wrap(buf.into()), bytes)
     }
 
+    pub fn new_eof() -> AsyncIo<Buf> {
+        AsyncIo::new(Buf::wrap(Vec::new().into()), 1)
+    }
+
     pub fn flushed(&self) -> bool {
         self.flushed
     }

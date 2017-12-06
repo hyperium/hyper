@@ -137,6 +137,9 @@ where
                 } else {
                     let _ = body.close();
                 }
+            } else if !T::should_read_first() {
+                self.conn.try_empty_read()?;
+                return Ok(Async::NotReady);
             } else {
                 self.conn.maybe_park_read();
                 return Ok(Async::Ready(()));
@@ -188,13 +191,6 @@ where
     }
 
     fn is_done(&self) -> bool {
-        trace!(
-            "is_done; read={}, write={}, should_poll={}, body={}",
-            self.conn.is_read_closed(),
-            self.conn.is_write_closed(),
-            self.dispatch.should_poll(),
-            self.body_rx.is_some(),
-        );
         let read_done = self.conn.is_read_closed();
 
         if !T::should_read_first() && read_done {
@@ -223,6 +219,7 @@ where
 
     #[inline]
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        trace!("Dispatcher::poll");
         self.poll_read()?;
         self.poll_write()?;
         self.poll_flush()?;

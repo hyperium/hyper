@@ -86,6 +86,9 @@ where I: AsyncRead + AsyncWrite,
                     });
             } else {
                 trace!("poll when on keep-alive");
+                if !T::should_read_first() {
+                    self.try_empty_read()?;
+                }
                 self.maybe_park_read();
                 return Ok(Async::NotReady);
             }
@@ -102,7 +105,17 @@ where I: AsyncRead + AsyncWrite,
 
     pub fn can_read_head(&self) -> bool {
         match self.state.reading {
-            Reading::Init => true,
+            //Reading::Init => true,
+            Reading::Init => {
+                if T::should_read_first() {
+                    true
+                } else {
+                    match self.state.writing {
+                        Writing::Init => false,
+                        _ => true,
+                    }
+                }
+            },
             _ => false,
         }
     }
@@ -215,6 +228,41 @@ where I: AsyncRead + AsyncWrite,
             if park {
                 trace!("parking current task");
                 self.state.read_task = Some(::futures::task::current());
+            }
+        }
+    }
+
+    // This will check to make sure the io object read is empty.
+    //
+    // This should only be called for Clients wanting to enter the idle
+    // state.
+    pub fn try_empty_read(&mut self) -> io::Result<()> {
+        assert!(!self.can_read_head() && !self.can_read_body());
+
+        if !self.io.read_buf().is_empty() {
+            Err(io::Error::new(io::ErrorKind::InvalidData, "unexpected bytes after message ended"))
+        } else {
+             match self.io.read_from_io() {
+                Ok(Async::Ready(0)) => {
+                    self.state.close_read();
+                    let must_error = !self.state.is_idle() && T::should_error_on_parse_eof();
+                    if must_error {
+                        Err(io::ErrorKind::UnexpectedEof.into())
+                    } else {
+                        Ok(())
+                    }
+                },
+                Ok(Async::Ready(_)) => {
+                    Err(io::Error::new(io::ErrorKind::InvalidData, "unexpected bytes after message ended"))
+                },
+                Ok(Async::NotReady) => {
+                    trace!("try_empty_read; read blocked");
+                    Ok(())
+                },
+                Err(e) => {
+                    self.state.close();
+                    Err(e)
+                }
             }
         }
     }
@@ -882,7 +930,7 @@ mod tests {
     fn test_conn_init_read_eof_busy() {
         let _: Result<(), ()> = future::lazy(|| {
             // server ignores
-            let io = AsyncIo::new_buf(vec![], 1);
+            let io = AsyncIo::new_eof();
             let mut conn = Conn::<_, proto::Chunk, ServerTransaction>::new(io, Default::default());
             conn.state.busy();
 
@@ -892,7 +940,7 @@ mod tests {
             }
 
             // client
-            let io = AsyncIo::new_buf(vec![], 1);
+            let io = AsyncIo::new_eof();
             let mut conn = Conn::<_, proto::Chunk, ClientTransaction>::new(io, Default::default());
             conn.state.busy();
 
