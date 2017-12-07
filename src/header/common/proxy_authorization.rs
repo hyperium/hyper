@@ -186,6 +186,13 @@ mod tests {
     }
 }
 
-bench_header!(raw, ProxyAuthorization<String>, { vec![b"foo bar baz".to_vec()] });
-bench_header!(basic, ProxyAuthorization<Basic>, { vec![b"Basic QWxhZGRpbjpuIHNlc2FtZQ==".to_vec()] });
-bench_header!(bearer, ProxyAuthorization<Bearer>, { vec![b"Bearer fpKL54jvWmEGVoRdCNjG".to_vec()] });
+#[cfg(test)]
+#[cfg(feature = "nightly")]
+mod benches {
+    use super::ProxyAuthorization;
+    use ::header::{Basic, Bearer};
+
+    bench_header!(raw, ProxyAuthorization<String>, { vec![b"foo bar baz".to_vec()] });
+    bench_header!(basic, ProxyAuthorization<Basic>, { vec![b"Basic QWxhZGRpbjpuIHNlc2FtZQ==".to_vec()] });
+    bench_header!(bearer, ProxyAuthorization<Bearer>, { vec![b"Bearer fpKL54jvWmEGVoRdCNjG".to_vec()] });
+}
