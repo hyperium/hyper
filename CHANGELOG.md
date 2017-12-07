@@ -1,3 +1,26 @@
+### v0.11.8 (2017-12-06)
+
+
+#### Bug Fixes
+
+* **client:**
+  * return error instead of unmatched response when idle ([95e0164e](https://github.com/hyperium/hyper/commit/95e0164e8f0f03742f71868cb2828bcd4bfa5cfc))
+  * remove idle connections when read eof is found ([cecef9d4](https://github.com/hyperium/hyper/commit/cecef9d402b76af12e6415519deb2b604f77b195))
+  * always wait on reads for pooled connections ([9f212410](https://github.com/hyperium/hyper/commit/9f212410026c780ea2a76ba81705ed137022260d))
+  * don't leak connections with no keep-alive ([d2aa5d86](https://github.com/hyperium/hyper/commit/d2aa5d862c95168f4e71cc65155c2dc41f306f36), closes [#1383](https://github.com/hyperium/hyper/issues/1383))
+* **conn:** handle when pre-emptive flushing closes the write state ([8f938d97](https://github.com/hyperium/hyper/commit/8f938d97e7f25ca9e8c9ae65f756f952753d9bf7), closes [#1391](https://github.com/hyperium/hyper/issues/1391))
+* **lib:** fix `no_proto` dispatcher to flush queue before polling more body ([121b5eef](https://github.com/hyperium/hyper/commit/121b5eef19e65acfecb8261d865554e173f2fc78))
+* **server:** allow TLS shutdown before dropping connections with `no_proto` ([60d0eaf8](https://github.com/hyperium/hyper/commit/60d0eaf8916f7cb5073105778f25dff21bd504bb), closes [#1380](https://github.com/hyperium/hyper/issues/1380))
+
+
+#### Features
+
+* **headers:** Implement `ProxyAuthorization` (#1394) ([c93cdb29](https://github.com/hyperium/hyper/commit/c93cdb290875cb86900e84c333725aefa4d7fad5))
+* **server:**
+  * Allow keep alive to be turned off for a connection (#1390) ([eb9590e3](https://github.com/hyperium/hyper/commit/eb9590e3da65299928938ae8bb830dfb008fdadd), closes [#1365](https://github.com/hyperium/hyper/issues/1365))
+  * add `Http.serve_incoming` to wrap generic accept steams ([e4864a2b](https://github.com/hyperium/hyper/commit/e4864a2bea59b40fb07e6d18329f75817803a3f3))
+
+
 ### v0.11.7 (2017-11-14)
 
 
