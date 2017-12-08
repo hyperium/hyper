@@ -1,3 +1,4 @@
+use std::fmt;
 use std::usize;
 use std::io;
 
@@ -11,32 +12,20 @@ use self::Kind::{Length, Chunked, Eof};
 ///
 /// If a message body does not include a Transfer-Encoding, it *should*
 /// include a Content-Length header.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct Decoder {
     kind: Kind,
 }
 
-impl Decoder {
-    pub fn length(x: u64) -> Decoder {
-        Decoder { kind: Kind::Length(x) }
-    }
-
-    pub fn chunked() -> Decoder {
-        Decoder { kind: Kind::Chunked(ChunkedState::Size, 0) }
-    }
-
-    pub fn eof() -> Decoder {
-        Decoder { kind: Kind::Eof(false) }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum Kind {
     /// A Reader used when a Content-Length header is passed with a positive integer.
     Length(u64),
     /// A Reader used when Transfer-Encoding is `chunked`.
     Chunked(ChunkedState, u64),
     /// A Reader used for responses that don't indicate a length or chunked.
+    ///
+    /// The bool tracks when EOF is seen on the transport.
     ///
     /// Note: This should only used for `Response`s. It is illegal for a
     /// `Request` to be made with both `Content-Length` and
@@ -53,7 +42,7 @@ enum Kind {
     Eof(bool),
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum ChunkedState {
     Size,
     SizeLws,
@@ -68,6 +57,22 @@ enum ChunkedState {
 }
 
 impl Decoder {
+    // constructors
+
+    pub fn length(x: u64) -> Decoder {
+        Decoder { kind: Kind::Length(x) }
+    }
+
+    pub fn chunked() -> Decoder {
+        Decoder { kind: Kind::Chunked(ChunkedState::Size, 0) }
+    }
+
+    pub fn eof() -> Decoder {
+        Decoder { kind: Kind::Eof(false) }
+    }
+
+    // methods
+
     pub fn is_eof(&self) -> bool {
         trace!("is_eof? {:?}", self);
         match self.kind {
@@ -77,9 +82,7 @@ impl Decoder {
             _ => false,
         }
     }
-}
 
-impl Decoder {
     pub fn decode<R: MemRead>(&mut self, body: &mut R) -> Poll<Bytes, io::Error> {
         match self.kind {
             Length(ref mut remaining) => {
@@ -131,6 +134,23 @@ impl Decoder {
     }
 }
 
+
+impl fmt::Debug for Decoder {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(&self.kind, f)
+    }
+}
+
+impl fmt::Display for Decoder {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.kind {
+            Kind::Length(n) => write!(f, "content-length ({} bytes)", n),
+            Kind::Chunked(..) => f.write_str("chunked encoded"),
+            Kind::Eof(..) => f.write_str("until end-of-file"),
+        }
+    }
+}
+
 macro_rules! byte (
     ($rdr:ident) => ({
         let buf = try_ready!($rdr.read_mem(1));
@@ -154,7 +174,7 @@ impl ChunkedState {
             Size => ChunkedState::read_size(body, size),
             SizeLws => ChunkedState::read_size_lws(body),
             Extension => ChunkedState::read_extension(body),
-            SizeLf => ChunkedState::read_size_lf(body, size),
+            SizeLf => ChunkedState::read_size_lf(body, *size),
             Body => ChunkedState::read_body(body, size, buf),
             BodyCr => ChunkedState::read_body_cr(body),
             BodyLf => ChunkedState::read_body_lf(body),
@@ -209,11 +229,17 @@ impl ChunkedState {
             _ => Ok(Async::Ready(ChunkedState::Extension)), // no supported extensions
         }
     }
-    fn read_size_lf<R: MemRead>(rdr: &mut R, size: &mut u64) -> Poll<ChunkedState, io::Error> {
+    fn read_size_lf<R: MemRead>(rdr: &mut R, size: u64) -> Poll<ChunkedState, io::Error> {
         trace!("Chunk size is {:?}", size);
         match byte!(rdr) {
-            b'\n' if *size > 0 => Ok(Async::Ready(ChunkedState::Body)),
-            b'\n' if *size == 0 => Ok(Async::Ready(ChunkedState::EndCr)),
+            b'\n' => {
+                if size == 0 {
+                    Ok(Async::Ready(ChunkedState::EndCr))
+                } else {
+                    debug!("incoming chunked header: {0:#X} ({0} bytes)", size);
+                    Ok(Async::Ready(ChunkedState::Body))
+                }
+            },
             _ => Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk size LF")),
         }
     }

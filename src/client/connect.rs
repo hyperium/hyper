@@ -103,7 +103,7 @@ impl Service for HttpConnector {
     type Future = HttpConnecting;
 
     fn call(&self, uri: Uri) -> Self::Future {
-        debug!("Http::connect({:?})", uri);
+        trace!("Http::connect({:?})", uri);
 
         if self.enforce_http {
             if uri.scheme() != Some("http") {
@@ -241,14 +241,14 @@ impl ConnectingTcp {
                         trace!("connect error {:?}", e);
                         err = Some(e);
                         if let Some(addr) = self.addrs.next() {
-                            debug!("connecting to {:?}", addr);
+                            debug!("connecting to {}", addr);
                             *current = TcpStream::connect(&addr, handle);
                             continue;
                         }
                     }
                 }
             } else if let Some(addr) = self.addrs.next() {
-                debug!("connecting to {:?}", addr);
+                debug!("connecting to {}", addr);
                 self.current = Some(TcpStream::connect(&addr, handle));
                 continue;
             }

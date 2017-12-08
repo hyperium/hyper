@@ -70,9 +70,9 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
     pub fn parse<S: Http1Transaction>(&mut self) -> Poll<MessageHead<S::Incoming>, ::Error> {
         loop {
             match try!(S::parse(&mut self.read_buf)) {
-                Some(head) => {
-                    //trace!("parsed {} bytes out of {}", len, self.read_buf.len());
-                    return Ok(Async::Ready(head.0))
+                Some((head, len)) => {
+                    debug!("parsed {} headers ({} bytes)", head.headers.len(), len);
+                    return Ok(Async::Ready(head))
                 },
                 None => {
                     if self.read_buf.capacity() >= MAX_BUFFER_SIZE {
@@ -118,6 +118,7 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
                     return Err(e)
                 }
             };
+            debug!("read {} bytes", n);
             self.read_buf.advance_mut(n);
             Ok(Async::Ready(n))
         }
@@ -154,7 +155,7 @@ impl<T: Write> Write for Buffered<T> {
         } else {
             loop {
                 let n = try!(self.write_buf.write_into(&mut self.io));
-                trace!("flushed {} bytes", n);
+                debug!("flushed {} bytes", n);
                 if self.write_buf.remaining() == 0 {
                     break;
                 }

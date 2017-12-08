@@ -24,7 +24,7 @@ impl Future for Work {
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        debug!("resolve host={:?}, port={:?}", self.host, self.port);
+        debug!("resolving host={:?}, port={:?}", self.host, self.port);
         (&*self.host, self.port).to_socket_addrs()
             .map(|i| Async::Ready(IpAddrs { iter: i }))
     }

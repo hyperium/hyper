@@ -169,6 +169,9 @@ where I: AsyncRead + AsyncWrite,
                         return Err(e);
                     }
                 };
+
+                debug!("incoming body is {}", decoder);
+
                 self.state.busy();
                 if head.expecting_continue() {
                     let msg = b"HTTP/1.1 100 Continue\r\n\r\n";
@@ -203,8 +206,11 @@ where I: AsyncRead + AsyncWrite,
                 if !slice.is_empty() {
                     return Ok(Async::Ready(Some(super::Chunk::from(slice))));
                 } else if decoder.is_eof() {
+                    debug!("incoming body completed");
                     (Reading::KeepAlive, Ok(Async::Ready(None)))
                 } else {
+                    trace!("decode stream unexpectedly ended");
+                    //TODO: Should this return an UnexpectedEof?
                     (Reading::Closed, Ok(Async::Ready(None)))
                 }
 
@@ -240,10 +246,12 @@ where I: AsyncRead + AsyncWrite,
         assert!(!self.can_read_head() && !self.can_read_body());
 
         if !self.io.read_buf().is_empty() {
+            debug!("received an unexpected {} bytes", self.io.read_buf().len());
             Err(io::Error::new(io::ErrorKind::InvalidData, "unexpected bytes after message ended"))
         } else {
              match self.io.read_from_io() {
                 Ok(Async::Ready(0)) => {
+                    trace!("try_empty_read; found EOF on connection");
                     self.state.close_read();
                     let must_error = !self.state.is_idle() && T::should_error_on_parse_eof();
                     if must_error {
@@ -252,11 +260,11 @@ where I: AsyncRead + AsyncWrite,
                         Ok(())
                     }
                 },
-                Ok(Async::Ready(_)) => {
+                Ok(Async::Ready(n)) => {
+                    debug!("received {} bytes on an idle connection", n);
                     Err(io::Error::new(io::ErrorKind::InvalidData, "unexpected bytes after message ended"))
                 },
                 Ok(Async::NotReady) => {
-                    trace!("try_empty_read; read blocked");
                     Ok(())
                 },
                 Err(e) => {
@@ -616,7 +624,7 @@ where I: AsyncRead + AsyncWrite + 'static,
       K: KeepAlive + 'static,
       T::Outgoing: fmt::Debug {}
 
-impl<I, B: AsRef<[u8]>, T, K: fmt::Debug> fmt::Debug for Conn<I, B, T, K> {
+impl<I, B: AsRef<[u8]>, T, K: KeepAlive> fmt::Debug for Conn<I, B, T, K> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Conn")
             .field("state", &self.state)
@@ -650,13 +658,13 @@ enum Writing<B> {
     Closed,
 }
 
-impl<B: AsRef<[u8]>, K: fmt::Debug> fmt::Debug for State<B, K> {
+impl<B: AsRef<[u8]>, K: KeepAlive> fmt::Debug for State<B, K> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("State")
             .field("reading", &self.reading)
             .field("writing", &self.writing)
-            .field("keep_alive", &self.keep_alive)
-            .field("method", &self.method)
+            .field("keep_alive", &self.keep_alive.status())
+            //.field("method", &self.method)
             .field("read_task", &self.read_task)
             .finish()
     }

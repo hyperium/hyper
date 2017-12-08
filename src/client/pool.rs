@@ -85,6 +85,7 @@ impl<T: Clone> Pool<T> {
 
         match entry {
             Some(entry) => {
+                debug!("pooling idle connection for {:?}", key);
                 inner.idle.entry(key)
                      .or_insert(Vec::new())
                      .push(entry);
@@ -95,7 +96,6 @@ impl<T: Clone> Pool<T> {
 
 
     pub fn pooled(&self, key: Rc<String>, value: T) -> Pooled<T> {
-        trace!("Pool::pooled {:?}", key);
         Pooled {
             entry: Entry {
                 value: value,
@@ -112,7 +112,7 @@ impl<T: Clone> Pool<T> {
     }
 
     fn reuse(&self, key: Rc<String>, mut entry: Entry<T>) -> Pooled<T> {
-        trace!("Pool::reuse {:?}", key);
+        trace!("reuse {:?}", key);
         entry.is_reused = true;
         entry.status.set(TimedKA::Busy);
         Pooled {
@@ -123,7 +123,7 @@ impl<T: Clone> Pool<T> {
     }
 
     fn park(&mut self, key: Rc<String>, tx: relay::Sender<Entry<T>>) {
-        trace!("Pool::park {:?}", key);
+        trace!("park; waiting for idle connection: {:?}", key);
         self.inner.borrow_mut()
             .parked.entry(key)
             .or_insert(VecDeque::new())
@@ -133,7 +133,7 @@ impl<T: Clone> Pool<T> {
 
 impl<T> Pool<T> {
     fn clean_parked(&mut self, key: &Rc<String>) {
-        trace!("Pool::clean_parked {:?}", key);
+        trace!("clean_parked {:?}", key);
         let mut inner = self.inner.borrow_mut();
 
         let mut remove_parked = false;
@@ -285,7 +285,7 @@ impl<T: Clone> Future for Checkout<T> {
             while let Some(entry) = list.pop() {
                 match entry.status.get() {
                     TimedKA::Idle(idle_at) if !expiration.expires(idle_at) => {
-                        trace!("Checkout::poll found idle client for {:?}", key);
+                        debug!("found idle connection for {:?}", key);
                         should_remove = list.is_empty();
                         return Some(entry);
                     },
