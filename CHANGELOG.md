@@ -1,3 +1,16 @@
+### v0.11.9 (2017-12-09)
+
+
+#### Bug Fixes
+
+* **client:** detect valid eof after reading a body ([15fdd53d](https://github.com/hyperium/hyper/commit/15fdd53d4cb1cd0fef41c4bed509020f44512a00), closes [#1396](https://github.com/hyperium/hyper/issues/1396))
+
+
+#### Features
+
+* **log:** improve quality of debug level logs ([7b593112](https://github.com/hyperium/hyper/commit/7b5931122a07f2a766d3e103001bcb5ee1f983f3))
+
+
 ### v0.11.8 (2017-12-06)
 
 
