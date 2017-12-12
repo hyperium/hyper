@@ -225,9 +225,17 @@ where
         self.poll_flush()?;
 
         if self.is_done() {
-            try_ready!(self.conn.shutdown());
-            trace!("Dispatch::poll done");
-            Ok(Async::Ready(()))
+            match self.conn.shutdown() {
+                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                    Ok(Async::NotReady)
+                }
+                // errors during shutdown are going to be common if the socket's already closed
+                // they're already logged inside of shutdown() so we can just short circuit
+                _ => {
+                    trace!("Dispatch::poll done");
+                    Ok(Async::Ready(()))
+                }
+            }
         } else {
             Ok(Async::NotReady)
         }
