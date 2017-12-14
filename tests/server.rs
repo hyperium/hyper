@@ -623,7 +623,9 @@ fn disable_keep_alive_post_request() {
 
         tx1.send(()).unwrap();
 
-        let nread = req.read(&mut buf).unwrap();
+        // allow a little more time for TCP to notice the FIN
+        req.set_read_timeout(Some(Duration::from_secs(5))).expect("set_read_timeout 2");
+        let nread = req.read(&mut buf).expect("keep-alive reading");
         assert_eq!(nread, 0);
     });
 
@@ -631,7 +633,7 @@ fn disable_keep_alive_post_request() {
         .into_future()
         .map_err(|_| unreachable!())
         .and_then(|(item, _incoming)| {
-            let (socket, _) = item.unwrap();
+            let (socket, _) = item.expect("accepted socket");
             Http::<hyper::Chunk>::new().serve_connection(socket, HelloWorld)
                 .select2(rx1)
                 .then(|r| {
