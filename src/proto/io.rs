@@ -118,8 +118,10 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
                     return Err(e)
                 }
             };
-            debug!("read {} bytes", n);
-            self.read_buf.advance_mut(n);
+            if n > 0 {
+                debug!("read {} bytes", n);
+                self.read_buf.advance_mut(n);
+            }
             Ok(Async::Ready(n))
         }
     }
