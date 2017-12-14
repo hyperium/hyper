@@ -1,6 +1,6 @@
 use std::io;
 
-use futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
+use futures::{Async, AsyncSink, Future, Poll, Stream};
 use futures::sync::{mpsc, oneshot};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_service::Service;
@@ -11,7 +11,7 @@ use ::StatusCode;
 pub struct Dispatcher<D, Bs, I, B, T, K> {
     conn: Conn<I, B, T, K>,
     dispatch: D,
-    body_tx: Option<super::body::BodySender>,
+    body_tx: Option<super::body::ChunkSender>,
     body_rx: Option<Bs>,
     is_closing: bool,
 }
@@ -22,6 +22,7 @@ pub trait Dispatch {
     type RecvItem;
     fn poll_msg(&mut self) -> Poll<Option<(Self::PollItem, Option<Self::PollBody>)>, ::Error>;
     fn recv_msg(&mut self, msg: ::Result<(Self::RecvItem, Option<Body>)>) -> ::Result<()>;
+    fn poll_ready(&mut self) -> Poll<(), ()>;
     fn should_poll(&self) -> bool;
 }
 
@@ -70,10 +71,22 @@ where
             if self.is_closing {
                 return Ok(Async::Ready(()));
             } else if self.conn.can_read_head() {
+                // can dispatch receive, or does it still care about, an incoming message?
+                match self.dispatch.poll_ready() {
+                    Ok(Async::Ready(())) => (),
+                    Ok(Async::NotReady) => unreachable!("dispatch not ready when conn is"),
+                    Err(()) => {
+                        trace!("dispatch no longer receiving messages");
+                        self.is_closing = true;
+                        return Ok(Async::Ready(()));
+                    }
+                }
+                // dispatch is ready for a message, try to read one
                 match self.conn.read_head() {
                     Ok(Async::Ready(Some((head, has_body)))) => {
                         let body = if has_body {
-                            let (tx, rx) = super::Body::pair();
+                            let (mut tx, rx) = super::body::channel();
+                            let _ = tx.poll_ready(); // register this task if rx is dropped
                             self.body_tx = Some(tx);
                             Some(rx)
                         } else {
@@ -111,6 +124,8 @@ where
                             self.conn.close_read();
                             return Ok(Async::Ready(()));
                         }
+                        // else the conn body is done, and user dropped,
+                        // so everything is fine!
                     }
                 }
                 if can_read_body {
@@ -133,7 +148,7 @@ where
                             }
                         },
                         Ok(Async::Ready(None)) => {
-                            let _ = body.close();
+                            // just drop, the body will close automatically
                         },
                         Ok(Async::NotReady) => {
                             self.body_tx = Some(body);
@@ -144,7 +159,7 @@ where
                         }
                     }
                 } else {
-                    let _ = body.close();
+                    // just drop, the body will close automatically
                 }
             } else if !T::should_read_first() {
                 self.conn.try_empty_read()?;
@@ -305,6 +320,14 @@ where
         Ok(())
     }
 
+    fn poll_ready(&mut self) -> Poll<(), ()> {
+        if self.in_flight.is_some() {
+            Ok(Async::NotReady)
+        } else {
+            Ok(Async::Ready(()))
+        }
+    }
+
     fn should_poll(&self) -> bool {
         self.in_flight.is_some()
     }
@@ -333,9 +356,18 @@ where
 
     fn poll_msg(&mut self) -> Poll<Option<(Self::PollItem, Option<Self::PollBody>)>, ::Error> {
         match self.rx.poll() {
-            Ok(Async::Ready(Some(ClientMsg::Request(head, body, cb)))) => {
-                self.callback = Some(cb);
-                Ok(Async::Ready(Some((head, body))))
+            Ok(Async::Ready(Some(ClientMsg::Request(head, body, mut cb)))) => {
+                // check that future hasn't been canceled already
+                match cb.poll_cancel().expect("poll_cancel cannot error") {
+                    Async::Ready(()) => {
+                        trace!("request canceled");
+                        Ok(Async::Ready(None))
+                    },
+                    Async::NotReady => {
+                        self.callback = Some(cb);
+                        Ok(Async::Ready(Some((head, body))))
+                    }
+                }
             },
             Ok(Async::Ready(Some(ClientMsg::Close))) |
             Ok(Async::Ready(None)) => {
@@ -367,6 +399,20 @@ where
                     Err(err)
                 }
             }
+        }
+    }
+
+    fn poll_ready(&mut self) -> Poll<(), ()> {
+        match self.callback {
+            Some(ref mut cb) => match cb.poll_cancel() {
+                Ok(Async::Ready(())) => {
+                    trace!("callback receiver has dropped");
+                    Err(())
+                },
+                Ok(Async::NotReady) => Ok(Async::Ready(())),
+                Err(_) => unreachable!("oneshot poll_cancel cannot error"),
+            },
+            None => Err(()),
         }
     }
 

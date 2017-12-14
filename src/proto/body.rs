@@ -1,6 +1,6 @@
 use bytes::Bytes;
-use futures::{Poll, Stream};
-use futures::sync::mpsc;
+use futures::{Async, AsyncSink, Future, Poll, Sink, StartSend, Stream};
+use futures::sync::{mpsc, oneshot};
 use tokio_proto;
 use std::borrow::Cow;
 
@@ -12,20 +12,36 @@ pub type BodySender = mpsc::Sender<Result<Chunk, ::Error>>;
 /// A `Stream` for `Chunk`s used in requests and responses.
 #[must_use = "streams do nothing unless polled"]
 #[derive(Debug)]
-pub struct Body(TokioBody);
+pub struct Body(Inner);
+
+#[derive(Debug)]
+enum Inner {
+    Tokio(TokioBody),
+    Hyper {
+        close_tx: oneshot::Sender<()>,
+        rx: mpsc::Receiver<Result<Chunk, ::Error>>,
+    }
+}
+
+//pub(crate)
+#[derive(Debug)]
+pub struct ChunkSender {
+    close_rx: oneshot::Receiver<()>,
+    tx: BodySender,
+}
 
 impl Body {
     /// Return an empty body stream
     #[inline]
     pub fn empty() -> Body {
-        Body(TokioBody::empty())
+        Body(Inner::Tokio(TokioBody::empty()))
     }
 
     /// Return a body stream with an associated sender half
     #[inline]
     pub fn pair() -> (mpsc::Sender<Result<Chunk, ::Error>>, Body) {
         let (tx, rx) = TokioBody::pair();
-        let rx = Body(rx);
+        let rx = Body(Inner::Tokio(rx));
         (tx, rx)
     }
 }
@@ -43,7 +59,51 @@ impl Stream for Body {
 
     #[inline]
     fn poll(&mut self) -> Poll<Option<Chunk>, ::Error> {
-        self.0.poll()
+        match self.0 {
+            Inner::Tokio(ref mut rx) => rx.poll(),
+            Inner::Hyper { ref mut rx, .. } => match rx.poll().expect("mpsc cannot error") {
+                Async::Ready(Some(Ok(chunk))) => Ok(Async::Ready(Some(chunk))),
+                Async::Ready(Some(Err(err))) => Err(err),
+                Async::Ready(None) => Ok(Async::Ready(None)),
+                Async::NotReady => Ok(Async::NotReady),
+            },
+        }
+    }
+}
+
+//pub(crate)
+pub fn channel() -> (ChunkSender, Body) {
+    let (tx, rx) = mpsc::channel(0);
+    let (close_tx, close_rx) = oneshot::channel();
+
+    let tx = ChunkSender {
+        close_rx: close_rx,
+        tx: tx,
+    };
+    let rx = Body(Inner::Hyper {
+        close_tx: close_tx,
+        rx: rx,
+    });
+
+    (tx, rx)
+}
+
+impl ChunkSender {
+    pub fn poll_ready(&mut self) -> Poll<(), ()> {
+        match self.close_rx.poll() {
+            Ok(Async::Ready(())) | Err(_) => return Err(()),
+            Ok(Async::NotReady) => (),
+        }
+
+        self.tx.poll_ready().map_err(|_| ())
+    }
+
+    pub fn start_send(&mut self, msg: Result<Chunk, ::Error>) -> StartSend<(), ()> {
+        match self.tx.start_send(msg) {
+            Ok(AsyncSink::Ready) => Ok(AsyncSink::Ready),
+            Ok(AsyncSink::NotReady(_)) => Ok(AsyncSink::NotReady(())),
+            Err(_) => Err(()),
+        }
     }
 }
 
@@ -52,7 +112,14 @@ impl Stream for Body {
 impl From<Body> for tokio_proto::streaming::Body<Chunk, ::Error> {
     #[inline]
     fn from(b: Body) -> tokio_proto::streaming::Body<Chunk, ::Error> {
-        b.0
+        match b.0 {
+            Inner::Tokio(b) => b,
+            Inner::Hyper { close_tx, rx } => {
+                warn!("converting hyper::Body into a tokio_proto Body is deprecated");
+                ::std::mem::forget(close_tx);
+                rx.into()
+            }
+        }
     }
 }
 
@@ -61,42 +128,42 @@ impl From<Body> for tokio_proto::streaming::Body<Chunk, ::Error> {
 impl From<tokio_proto::streaming::Body<Chunk, ::Error>> for Body {
     #[inline]
     fn from(tokio_body: tokio_proto::streaming::Body<Chunk, ::Error>) -> Body {
-        Body(tokio_body)
+        Body(Inner::Tokio(tokio_body))
     }
 }
 
 impl From<mpsc::Receiver<Result<Chunk, ::Error>>> for Body {
     #[inline]
     fn from(src: mpsc::Receiver<Result<Chunk, ::Error>>) -> Body {
-        Body(src.into())
+        TokioBody::from(src).into()
     }
 }
 
 impl From<Chunk> for Body {
     #[inline]
     fn from (chunk: Chunk) -> Body {
-        Body(TokioBody::from(chunk))
+        TokioBody::from(chunk).into()
     }
 }
 
 impl From<Bytes> for Body {
     #[inline]
     fn from (bytes: Bytes) -> Body {
-        Body(TokioBody::from(Chunk::from(bytes)))
+        Body::from(TokioBody::from(Chunk::from(bytes)))
     }
 }
 
 impl From<Vec<u8>> for Body {
     #[inline]
     fn from (vec: Vec<u8>) -> Body {
-        Body(TokioBody::from(Chunk::from(vec)))
+        Body::from(TokioBody::from(Chunk::from(vec)))
     }
 }
 
 impl From<&'static [u8]> for Body {
     #[inline]
     fn from (slice: &'static [u8]) -> Body {
-        Body(TokioBody::from(Chunk::from(slice)))
+        Body::from(TokioBody::from(Chunk::from(slice)))
     }
 }
 
@@ -113,14 +180,14 @@ impl From<Cow<'static, [u8]>> for Body {
 impl From<String> for Body {
     #[inline]
     fn from (s: String) -> Body {
-        Body(TokioBody::from(Chunk::from(s.into_bytes())))
+        Body::from(TokioBody::from(Chunk::from(s.into_bytes())))
     }
 }
 
 impl From<&'static str> for Body {
     #[inline]
     fn from(slice: &'static str) -> Body {
-        Body(TokioBody::from(Chunk::from(slice.as_bytes())))
+        Body::from(TokioBody::from(Chunk::from(slice.as_bytes())))
     }
 }
 
