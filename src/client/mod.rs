@@ -249,8 +249,12 @@ where C: Connect,
                     let pool_key = Rc::new(domain.to_string());
                     self.connector.connect(url)
                         .map(move |io| {
-                            let (tx, rx) = mpsc::channel(1);
-                            let pooled = pool.pooled(pool_key, RefCell::new(tx));
+                            let (tx, rx) = mpsc::channel(0);
+                            let tx = HyperClient {
+                                tx: RefCell::new(tx),
+                                should_close: true,
+                            };
+                            let pooled = pool.pooled(pool_key, tx);
                             let conn = proto::Conn::<_, _, proto::ClientTransaction, _>::new(io, pooled.clone());
                             let dispatch = proto::dispatch::Dispatcher::new(proto::dispatch::Client::new(rx), conn);
                             handle.spawn(dispatch.map_err(|err| error!("no_proto error: {}", err)));
@@ -269,9 +273,10 @@ where C: Connect,
                         e.into()
                     });
 
-                let resp = race.and_then(move |client| {
+                let resp = race.and_then(move |mut client| {
                     let (callback, rx) = oneshot::channel();
-                    client.borrow_mut().start_send((head, body, callback)).unwrap();
+                    client.tx.borrow_mut().start_send(proto::dispatch::ClientMsg::Request(head, body, callback)).unwrap();
+                    client.should_close = false;
                     rx.then(|res| {
                         match res {
                             Ok(Ok(res)) => Ok(res),
@@ -309,7 +314,29 @@ impl<C, B> fmt::Debug for Client<C, B> {
 }
 
 type ProtoClient<B> = ClientProxy<Message<RequestHead, B>, Message<proto::ResponseHead, TokioBody>, ::Error>;
-type HyperClient<B> = RefCell<::futures::sync::mpsc::Sender<(RequestHead, Option<B>, ::futures::sync::oneshot::Sender<::Result<::Response>>)>>;
+
+struct HyperClient<B> {
+    tx: RefCell<::futures::sync::mpsc::Sender<proto::dispatch::ClientMsg<B>>>,
+    should_close: bool,
+}
+
+impl<B> Clone for HyperClient<B> {
+    fn clone(&self) -> HyperClient<B> {
+        HyperClient {
+            tx: self.tx.clone(),
+            should_close: self.should_close,
+        }
+    }
+}
+
+impl<B> Drop for HyperClient<B> {
+    fn drop(&mut self) {
+        if self.should_close {
+            self.should_close = false;
+            let _ = self.tx.borrow_mut().try_send(proto::dispatch::ClientMsg::Close);
+        }
+    }
+}
 
 enum Dispatch<B> {
     Proto(Pool<ProtoClient<B>>),

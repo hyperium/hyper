@@ -607,7 +607,7 @@ mod dispatch_impl {
     }
 
     #[test]
-    fn drop_client_closes_connection() {
+    fn dropped_client_closes_connection() {
         // https://github.com/hyperium/hyper/issues/1353
         let _ = pretty_env_logger::init();
 
@@ -649,6 +649,57 @@ mod dispatch_impl {
         // client is dropped
         let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
         core.run(res.join(rx).map(|r| r.0)).unwrap();
+
+        assert_eq!(closes.load(Ordering::Relaxed), 1);
+    }
+
+
+    #[test]
+    fn drop_client_closes_idle_connections() {
+        let _ = pretty_env_logger::init();
+
+        let server = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = server.local_addr().unwrap();
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+        let closes = Arc::new(AtomicUsize::new(0));
+
+        let (tx1, rx1) = oneshot::channel();
+        let (_client_drop_tx, client_drop_rx) = oneshot::channel::<()>();
+
+        thread::spawn(move || {
+            let mut sock = server.accept().unwrap().0;
+            sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let mut buf = [0; 4096];
+            sock.read(&mut buf).expect("read 1");
+            let body =[b'x'; 64];
+            write!(sock, "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", body.len()).expect("write head");
+            let _ = sock.write_all(&body);
+            let _ = tx1.send(());
+
+            // prevent this thread from closing until end of test, so the connection
+            // stays open and idle until Client is dropped
+            let _ = client_drop_rx.wait();
+        });
+
+        let uri = format!("http://{}/a", addr).parse().unwrap();
+
+        let client = Client::configure()
+            .connector(DebugConnector(HttpConnector::new(1, &handle), closes.clone()))
+            .no_proto()
+            .build(&handle);
+        let res = client.get(uri).and_then(move |res| {
+            assert_eq!(res.status(), hyper::StatusCode::Ok);
+            res.body().concat2()
+        });
+        let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+        core.run(res.join(rx).map(|r| r.0)).unwrap();
+
+        // not closed yet, just idle
+        assert_eq!(closes.load(Ordering::Relaxed), 0);
+        drop(client);
+        core.run(Timeout::new(Duration::from_millis(100), &handle).unwrap()).unwrap();
 
         assert_eq!(closes.load(Ordering::Relaxed), 1);
     }

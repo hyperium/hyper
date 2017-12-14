@@ -13,6 +13,7 @@ pub struct Dispatcher<D, Bs, I, B, T, K> {
     dispatch: D,
     body_tx: Option<super::body::BodySender>,
     body_rx: Option<Bs>,
+    is_closing: bool,
 }
 
 pub trait Dispatch {
@@ -34,7 +35,12 @@ pub struct Client<B> {
     rx: ClientRx<B>,
 }
 
-type ClientRx<B> = mpsc::Receiver<(RequestHead, Option<B>, oneshot::Sender<::Result<::Response>>)>;
+pub enum ClientMsg<B> {
+    Request(RequestHead, Option<B>, oneshot::Sender<::Result<::Response>>),
+    Close,
+}
+
+type ClientRx<B> = mpsc::Receiver<ClientMsg<B>>;
 
 impl<D, Bs, I, B, T, K> Dispatcher<D, Bs, I, B, T, K>
 where
@@ -51,6 +57,7 @@ where
             dispatch: dispatch,
             body_tx: None,
             body_rx: None,
+            is_closing: false,
         }
     }
 
@@ -60,7 +67,9 @@ where
 
     fn poll_read(&mut self) -> Poll<(), ::Error> {
         loop {
-            if self.conn.can_read_head() {
+            if self.is_closing {
+                return Ok(Async::Ready(()));
+            } else if self.conn.can_read_head() {
                 match self.conn.read_head() {
                     Ok(Async::Ready(Some((head, has_body)))) => {
                         let body = if has_body {
@@ -149,12 +158,16 @@ where
 
     fn poll_write(&mut self) -> Poll<(), ::Error> {
         loop {
-            if self.body_rx.is_none() && self.dispatch.should_poll() {
+            if self.is_closing {
+                return Ok(Async::Ready(()));
+            } else if self.body_rx.is_none() && self.dispatch.should_poll() {
                 if let Some((head, body)) = try_ready!(self.dispatch.poll_msg()) {
                     self.conn.write_head(head, body.is_some());
                     self.body_rx = body;
                 } else {
-                    self.conn.close_write();
+                    self.is_closing = true;
+                    //self.conn.close_read();
+                    //self.conn.close_write();
                     return Ok(Async::Ready(()));
                 }
             } else if self.conn.has_queued_body() {
@@ -190,6 +203,16 @@ where
         })
     }
 
+    fn poll_close(&mut self) -> Poll<(), ::Error> {
+        debug_assert!(self.is_closing);
+
+        try_ready!(self.conn.close_and_shutdown());
+        self.conn.close_read();
+        self.conn.close_write();
+        self.is_closing = false;
+        Ok(Async::Ready(()))
+    }
+
     fn is_done(&self) -> bool {
         let read_done = self.conn.is_read_closed();
 
@@ -223,6 +246,10 @@ where
         self.poll_read()?;
         self.poll_write()?;
         self.poll_flush()?;
+
+        if self.is_closing {
+            self.poll_close()?;
+        }
 
         if self.is_done() {
             try_ready!(self.conn.shutdown());
@@ -285,6 +312,7 @@ where
 
 // ===== impl Client =====
 
+
 impl<B> Client<B> {
     pub fn new(rx: ClientRx<B>) -> Client<B> {
         Client {
@@ -305,11 +333,13 @@ where
 
     fn poll_msg(&mut self) -> Poll<Option<(Self::PollItem, Option<Self::PollBody>)>, ::Error> {
         match self.rx.poll() {
-            Ok(Async::Ready(Some((head, body, cb)))) => {
+            Ok(Async::Ready(Some(ClientMsg::Request(head, body, cb)))) => {
                 self.callback = Some(cb);
                 Ok(Async::Ready(Some((head, body))))
             },
+            Ok(Async::Ready(Some(ClientMsg::Close))) |
             Ok(Async::Ready(None)) => {
+                trace!("client tx closed");
                 // user has dropped sender handle
                 Ok(Async::Ready(None))
             },
