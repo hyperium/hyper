@@ -626,7 +626,7 @@ fn disable_keep_alive_post_request() {
 
         tx1.send(()).unwrap();
 
-        let nread = req.read(&mut buf).expect("keep-alive reading")
+        let nread = req.read(&mut buf).expect("keep-alive reading");
         assert_eq!(nread, 0);
     });
 
