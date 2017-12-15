@@ -77,7 +77,7 @@ where
                     Ok(Async::NotReady) => unreachable!("dispatch not ready when conn is"),
                     Err(()) => {
                         trace!("dispatch no longer receiving messages");
-                        self.is_closing = true;
+                        self.close();
                         return Ok(Async::Ready(()));
                     }
                 }
@@ -180,9 +180,7 @@ where
                     self.conn.write_head(head, body.is_some());
                     self.body_rx = body;
                 } else {
-                    self.is_closing = true;
-                    //self.conn.close_read();
-                    //self.conn.close_write();
+                    self.close();
                     return Ok(Async::Ready(()));
                 }
             } else if self.conn.has_queued_body() {
@@ -218,17 +216,17 @@ where
         })
     }
 
-    fn poll_close(&mut self) -> Poll<(), ::Error> {
-        debug_assert!(self.is_closing);
-
-        try_ready!(self.conn.close_and_shutdown());
+    fn close(&mut self) {
+        self.is_closing = true;
         self.conn.close_read();
         self.conn.close_write();
-        self.is_closing = false;
-        Ok(Async::Ready(()))
     }
 
     fn is_done(&self) -> bool {
+        if self.is_closing {
+            return true;
+        }
+
         let read_done = self.conn.is_read_closed();
 
         if !T::should_read_first() && read_done {
@@ -261,10 +259,6 @@ where
         self.poll_read()?;
         self.poll_write()?;
         self.poll_flush()?;
-
-        if self.is_closing {
-            self.poll_close()?;
-        }
 
         if self.is_done() {
             try_ready!(self.conn.shutdown());
