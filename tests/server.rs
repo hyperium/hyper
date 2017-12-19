@@ -11,7 +11,7 @@ use futures::future::{self, FutureResult, Either};
 use futures::sync::oneshot;
 
 use tokio_core::net::TcpListener;
-use tokio_core::reactor::Core;
+use tokio_core::reactor::{Core, Timeout};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use std::net::{TcpStream, SocketAddr};
@@ -658,6 +658,12 @@ fn disable_keep_alive_post_request() {
 
     assert!(!dropped.load());
     core.run(fut).unwrap();
+    // we must poll the Core one more time in order for Windows to drop
+    // the read-blocked socket.
+    //
+    // See https://github.com/carllerche/mio/issues/776
+    let timeout = Timeout::new(Duration::from_millis(10), &core.handle()).unwrap();
+    core.run(timeout).unwrap();
     assert!(dropped.load());
     child.join().unwrap();
 }
