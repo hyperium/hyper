@@ -19,7 +19,7 @@ include = [
 ]
 
 [dependencies]
-base64 = "0.8"
+base64 = "0.9"
 bytes = "0.4.4"
 futures = "0.1.17"
 futures-cpupool = "0.1.6"
