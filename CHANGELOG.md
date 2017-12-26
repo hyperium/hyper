@@ -1,3 +1,15 @@
+### v0.11.10 (2017-12-26)
+
+
+#### Bug Fixes
+
+* **client:**
+  * fix panic when request body is empty string ([bfb0f84d](https://github.com/hyperium/hyper/commit/bfb0f84d372ec4251a20d16a1ac514a4177e2a3b))
+  * close connections when Response Future or Body is dropped ([ef400812](https://github.com/hyperium/hyper/commit/ef4008121e4faa9383fe4661ebd05de5efe7ee9c), closes [#1397](https://github.com/hyperium/hyper/issues/1397))
+  * properly close idle connections after timeout ([139dc7ab](https://github.com/hyperium/hyper/commit/139dc7ab2be271cd58b909db16c6ddbe5109f133), closes [#1397](https://github.com/hyperium/hyper/issues/1397))
+* **conn:** don't double shutdown in some cases ([7d3abfbc](https://github.com/hyperium/hyper/commit/7d3abfbcf33946cb8831103c3b55f9966fa9469d))
+
+
 ### v0.11.9 (2017-12-09)
 
 
