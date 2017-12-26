@@ -202,7 +202,15 @@ where
                         return Ok(Async::NotReady);
                     }
                 };
-                assert!(self.conn.write_body(Some(chunk))?.is_ready());
+
+                if self.conn.can_write_body() {
+                    assert!(self.conn.write_body(Some(chunk))?.is_ready());
+                // This allows when chunk is `None`, or `Some([])`.
+                } else if chunk.as_ref().len() == 0 {
+                    // ok
+                } else {
+                    warn!("unexpected chunk when body cannot write");
+                }
             } else {
                 return Ok(Async::NotReady);
             }

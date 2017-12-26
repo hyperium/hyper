@@ -65,6 +65,7 @@ macro_rules! test {
 
             let res = test! {
                 INNER;
+                name: $name,
                 core: &mut core,
                 server:
                     expected: $server_expected,
@@ -115,6 +116,7 @@ macro_rules! test {
 
             let err = test! {
                 INNER;
+                name: $name,
                 core: &mut core,
                 server:
                     expected: $server_expected,
@@ -135,6 +137,7 @@ macro_rules! test {
 
     (
         INNER;
+        name: $name:ident,
         core: $core:expr,
         server:
             expected: $server_expected:expr,
@@ -292,6 +295,33 @@ test! {
                 TransferEncoding::chunked(),
             ],
             body: Some("foo bar baz"),
+            proxy: false,
+        response:
+            status: Ok,
+            headers: [],
+            body: None,
+}
+
+test! {
+    name: client_post_empty,
+
+    server:
+        expected: "\
+            POST /empty HTTP/1.1\r\n\
+            Host: {addr}\r\n\
+            Content-Length: 0\r\n\
+            \r\n\
+            ",
+        reply: REPLY_OK,
+
+    client:
+        request:
+            method: Post,
+            url: "http://{addr}/empty",
+            headers: [
+                ContentLength(0),
+            ],
+            body: Some(""),
             proxy: false,
         response:
             status: Ok,
