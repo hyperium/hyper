@@ -19,8 +19,7 @@ fn main() {
             .with_body(PHRASE))
     }));
 
-    let mut server = Http::new().bind(&addr, new_service).unwrap();
-    server.no_proto();
+    let server = Http::new().bind(&addr, new_service).unwrap();
     println!("Listening on http://{} with 1 thread.", server.local_addr().unwrap());
     server.run().unwrap();
 }

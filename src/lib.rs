@@ -32,6 +32,7 @@ extern crate relay;
 extern crate time;
 extern crate tokio_core as tokio;
 #[macro_use] extern crate tokio_io;
+#[cfg(feature = "tokio-proto")]
 extern crate tokio_proto;
 extern crate tokio_service;
 extern crate unicase;
@@ -55,17 +56,13 @@ pub use proto::RawStatus;
 
 macro_rules! feat_server_proto {
     ($($i:item)*) => ($(
-        #[cfg_attr(
-            not(feature = "server-proto"),
-            deprecated(
-                since="0.11.7",
-                note="server-proto was recently added to default features, but you have disabled default features. A future version will remove these types if the server-proto feature is not enabled."
-            )
+        #[cfg(feature = "server-proto")]
+        #[deprecated(
+            since="0.11.11",
+            note="All usage of the tokio-proto crate is going away."
         )]
-        #[cfg_attr(
-            not(feature = "server-proto"),
-            allow(deprecated)
-        )]
+        #[doc(hidden)]
+        #[allow(deprecated)]
         $i
     )*)
 }

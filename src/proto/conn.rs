@@ -2,9 +2,12 @@ use std::fmt;
 use std::io::{self, Write};
 use std::marker::PhantomData;
 
-use futures::{Poll, Async, AsyncSink, Stream, Sink, StartSend};
+use futures::{Async, AsyncSink, Poll, StartSend};
+#[cfg(feature = "tokio-proto")]
+use futures::{Sink, Stream};
 use futures::task::Task;
 use tokio_io::{AsyncRead, AsyncWrite};
+#[cfg(feature = "tokio-proto")]
 use tokio_proto::streaming::pipeline::{Frame, Transport};
 
 use proto::Http1Transaction;
@@ -51,6 +54,7 @@ where I: AsyncRead + AsyncWrite,
         self.io.set_flush_pipeline(enabled);
     }
 
+    #[cfg(feature = "tokio-proto")]
     fn poll_incoming(&mut self) -> Poll<Option<Frame<super::MessageHead<T::Incoming>, super::Chunk, ::Error>>, io::Error> {
         trace!("Conn::poll_incoming()");
 
@@ -123,7 +127,7 @@ where I: AsyncRead + AsyncWrite,
         }
     }
 
-    fn can_write_continue(&self) -> bool {
+    pub fn can_write_continue(&self) -> bool {
         match self.state.writing {
             Writing::Continue(..) => true,
             _ => false,
@@ -511,11 +515,6 @@ where I: AsyncRead + AsyncWrite,
 
     }
 
-    pub fn close_and_shutdown(&mut self) -> Poll<(), io::Error> {
-        try_ready!(self.flush());
-        self.shutdown()
-    }
-
     pub fn shutdown(&mut self) -> Poll<(), io::Error> {
         match self.io.io_mut().shutdown() {
             Ok(Async::NotReady) => Ok(Async::NotReady),
@@ -549,6 +548,7 @@ where I: AsyncRead + AsyncWrite,
 
 // ==== tokio_proto impl ====
 
+#[cfg(feature = "tokio-proto")]
 impl<I, B, T, K> Stream for Conn<I, B, T, K>
 where I: AsyncRead + AsyncWrite,
       B: AsRef<[u8]>,
@@ -567,6 +567,7 @@ where I: AsyncRead + AsyncWrite,
     }
 }
 
+#[cfg(feature = "tokio-proto")]
 impl<I, B, T, K> Sink for Conn<I, B, T, K>
 where I: AsyncRead + AsyncWrite,
       B: AsRef<[u8]>,
@@ -630,10 +631,12 @@ where I: AsyncRead + AsyncWrite,
 
     #[inline]
     fn close(&mut self) -> Poll<(), Self::SinkError> {
-        self.close_and_shutdown()
+        try_ready!(self.flush());
+        self.shutdown()
     }
 }
 
+#[cfg(feature = "tokio-proto")]
 impl<I, B, T, K> Transport for Conn<I, B, T, K>
 where I: AsyncRead + AsyncWrite + 'static,
       B: AsRef<[u8]> + 'static,
@@ -838,8 +841,10 @@ impl<B, K: KeepAlive> State<B, K> {
 
 // The DebugFrame and DebugChunk are simple Debug implementations that allow
 // us to dump the frame into logs, without logging the entirety of the bytes.
+#[cfg(feature = "tokio-proto")]
 struct DebugFrame<'a, T: fmt::Debug + 'a, B: AsRef<[u8]> + 'a>(&'a Frame<super::MessageHead<T>, B, ::Error>);
 
+#[cfg(feature = "tokio-proto")]
 impl<'a, T: fmt::Debug + 'a, B: AsRef<[u8]> + 'a> fmt::Debug for DebugFrame<'a, T, B> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self.0 {
@@ -868,6 +873,8 @@ impl<'a, T: fmt::Debug + 'a, B: AsRef<[u8]> + 'a> fmt::Debug for DebugFrame<'a, 
 }
 
 #[cfg(test)]
+#[cfg(feature = "tokio-proto")]
+//TODO: rewrite these using dispatch instead of tokio-proto API
 mod tests {
     use futures::{Async, Future, Stream, Sink};
     use futures::future;

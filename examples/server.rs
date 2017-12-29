@@ -47,8 +47,7 @@ fn main() {
     pretty_env_logger::init().unwrap();
     let addr = "127.0.0.1:1337".parse().unwrap();
 
-    let mut server = Http::new().bind(&addr, || Ok(Echo)).unwrap();
-    server.no_proto();
+    let server = Http::new().bind(&addr, || Ok(Echo)).unwrap();
     println!("Listening on http://{} with 1 thread.", server.local_addr().unwrap());
     server.run().unwrap();
 }

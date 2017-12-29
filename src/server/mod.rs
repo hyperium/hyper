@@ -49,8 +49,7 @@ feat_server_proto! {
 
 pub use self::service::{const_service, service_fn};
 
-/// An instance of the HTTP protocol, and implementation of tokio-proto's
-/// `ServerProto` trait.
+/// A configuration of the HTTP protocol.
 ///
 /// This structure is used to create instances of `Server` or to spawn off tasks
 /// which handle a connection to an HTTP server. Each instance of `Http` can be
@@ -74,7 +73,6 @@ where B: Stream<Error=::Error>,
     reactor: Core,
     listener: TcpListener,
     shutdown_timeout: Duration,
-    no_proto: bool,
 }
 
 /// A stream mapping incoming IOs to new services.
@@ -127,24 +125,17 @@ where
 
 // ===== impl Http =====
 
-// This is wrapped in this macro because using `Http` as a `ServerProto` will
-// never trigger a deprecation warning, so we have to annoy more people to
-// protect some others.
-feat_server_proto! {
-    impl<B: AsRef<[u8]> + 'static> Http<B> {
-        /// Creates a new instance of the HTTP protocol, ready to spawn a server or
-        /// start accepting connections.
-        pub fn new() -> Http<B> {
-            Http {
-                keep_alive: true,
-                pipeline: false,
-                _marker: PhantomData,
-            }
+impl<B: AsRef<[u8]> + 'static> Http<B> {
+    /// Creates a new instance of the HTTP protocol, ready to spawn a server or
+    /// start accepting connections.
+    pub fn new() -> Http<B> {
+        Http {
+            keep_alive: true,
+            pipeline: false,
+            _marker: PhantomData,
         }
     }
-}
 
-impl<B: AsRef<[u8]> + 'static> Http<B> {
     /// Enables or disables HTTP keep-alive.
     ///
     /// Default is true.
@@ -187,7 +178,6 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
             listener: listener,
             protocol: self.clone(),
             shutdown_timeout: Duration::new(1, 0),
-            no_proto: false,
         })
     }
 
@@ -320,9 +310,9 @@ impl<S, B> Server<S, B>
         self
     }
 
-    /// Configure this server to not use tokio-proto infrastructure internally.
+    #[doc(hidden)]
+    #[deprecated(since="0.11.11", note="no_proto is always enabled")]
     pub fn no_proto(&mut self) -> &mut Self {
-        self.no_proto = true;
         self
     }
 
@@ -350,7 +340,7 @@ impl<S, B> Server<S, B>
     pub fn run_until<F>(self, shutdown_signal: F) -> ::Result<()>
         where F: Future<Item = (), Error = ()>,
     {
-        let Server { protocol, new_service, mut reactor, listener, shutdown_timeout, no_proto } = self;
+        let Server { protocol, new_service, mut reactor, listener, shutdown_timeout } = self;
 
         let handle = reactor.handle();
 
@@ -367,15 +357,10 @@ impl<S, B> Server<S, B>
                 info: Rc::downgrade(&info),
             };
             info.borrow_mut().active += 1;
-            if no_proto {
-                let fut = protocol.serve_connection(socket, s)
-                    .map(|_| ())
-                    .map_err(|err| error!("no_proto error: {}", err));
-                handle.spawn(fut);
-            } else {
-                #[allow(deprecated)]
-                protocol.bind_connection(&handle, socket, addr, s);
-            }
+            let fut = protocol.serve_connection(socket, s)
+                .map(|_| ())
+                .map_err(move |err| error!("server connection error: ({}) {}", addr, err));
+            handle.spawn(fut);
             Ok(())
         });
 

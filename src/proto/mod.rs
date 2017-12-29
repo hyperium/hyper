@@ -13,7 +13,9 @@ use version::HttpVersion;
 use version::HttpVersion::{Http10, Http11};
 
 pub use self::conn::{Conn, KeepAlive, KA};
-pub use self::body::{Body, TokioBody};
+pub use self::body::Body;
+#[cfg(feature = "tokio-proto")]
+pub use self::body::TokioBody;
 pub use self::chunk::Chunk;
 
 mod body;

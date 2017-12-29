@@ -198,7 +198,7 @@ where C: Connect,
                     let pooled = pool.pooled(pool_key, tx);
                     let conn = proto::Conn::<_, _, proto::ClientTransaction, _>::new(io, pooled.clone());
                     let dispatch = proto::dispatch::Dispatcher::new(proto::dispatch::Client::new(rx), conn);
-                    handle.spawn(dispatch.map_err(|err| error!("no_proto error: {}", err)));
+                    handle.spawn(dispatch.map_err(|err| error!("client connection error: {}", err)));
                     pooled
                 })
         };

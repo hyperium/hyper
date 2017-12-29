@@ -87,14 +87,23 @@ impl<T> AsyncIo<T> {
 }
 
 impl AsyncIo<Buf> {
+    #[cfg(feature = "tokio-proto")]
+    //TODO: fix proto::conn::tests to not use tokio-proto API,
+    //and then this cfg flag go away
     pub fn new_buf<T: Into<Vec<u8>>>(buf: T, bytes: usize) -> AsyncIo<Buf> {
         AsyncIo::new(Buf::wrap(buf.into()), bytes)
     }
 
+    #[cfg(feature = "tokio-proto")]
+    //TODO: fix proto::conn::tests to not use tokio-proto API,
+    //and then this cfg flag go away
     pub fn new_eof() -> AsyncIo<Buf> {
         AsyncIo::new(Buf::wrap(Vec::new().into()), 1)
     }
 
+    #[cfg(feature = "tokio-proto")]
+    //TODO: fix proto::conn::tests to not use tokio-proto API,
+    //and then this cfg flag go away
     pub fn flushed(&self) -> bool {
         self.flushed
     }

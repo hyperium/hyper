@@ -669,7 +669,7 @@ fn disable_keep_alive_post_request() {
 }
 
 #[test]
-fn no_proto_empty_parse_eof_does_not_return_error() {
+fn empty_parse_eof_does_not_return_error() {
     let mut core = Core::new().unwrap();
     let listener = TcpListener::bind(&"127.0.0.1:0".parse().unwrap(), &core.handle()).unwrap();
     let addr = listener.local_addr().unwrap();
@@ -690,7 +690,7 @@ fn no_proto_empty_parse_eof_does_not_return_error() {
 }
 
 #[test]
-fn no_proto_nonempty_parse_eof_returns_error() {
+fn nonempty_parse_eof_returns_error() {
     let mut core = Core::new().unwrap();
     let listener = TcpListener::bind(&"127.0.0.1:0".parse().unwrap(), &core.handle()).unwrap();
     let addr = listener.local_addr().unwrap();
@@ -868,7 +868,6 @@ fn serve() -> Serve {
 
 struct ServeOptions {
     keep_alive_disabled: bool,
-    no_proto: bool,
     pipeline: bool,
     timeout: Option<Duration>,
 }
@@ -877,17 +876,9 @@ impl Default for ServeOptions {
     fn default() -> Self {
         ServeOptions {
             keep_alive_disabled: false,
-            no_proto: env("HYPER_NO_PROTO", "1"),
             pipeline: false,
             timeout: None,
         }
-    }
-}
-
-fn env(name: &str, val: &str) -> bool {
-    match ::std::env::var(name) {
-        Ok(var) => var == val,
-        Err(_) => false,
     }
 }
 
@@ -902,13 +893,12 @@ fn serve_with_options(options: ServeOptions) -> Serve {
     let addr = "127.0.0.1:0".parse().unwrap();
 
     let keep_alive = !options.keep_alive_disabled;
-    let no_proto = !options.no_proto;
     let pipeline = options.pipeline;
     let dur = options.timeout;
 
     let thread_name = format!("test-server-{:?}", dur);
     let thread = thread::Builder::new().name(thread_name).spawn(move || {
-        let mut srv = Http::new()
+        let srv = Http::new()
             .keep_alive(keep_alive)
             .pipeline(pipeline)
             .bind(&addr, TestService {
@@ -916,9 +906,6 @@ fn serve_with_options(options: ServeOptions) -> Serve {
                 _timeout: dur,
                 reply: reply_rx,
             }).unwrap();
-        if no_proto {
-            srv.no_proto();
-        }
         addr_tx.send(srv.local_addr().unwrap()).unwrap();
         srv.run_until(shutdown_rx.then(|_| Ok(()))).unwrap();
     }).unwrap();

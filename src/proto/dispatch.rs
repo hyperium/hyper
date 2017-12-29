@@ -108,6 +108,8 @@ where
                         return Ok(Async::Ready(()));
                     }
                 }
+            } else if self.conn.can_write_continue() {
+                try_nb!(self.conn.flush());
             } else if let Some(mut body) = self.body_tx.take() {
                 let can_read_body = self.conn.can_read_body();
                 match body.poll_ready() {
