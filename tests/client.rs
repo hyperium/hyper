@@ -19,22 +19,11 @@ use futures::sync::oneshot;
 use tokio_core::reactor::{Core, Handle};
 
 fn client(handle: &Handle) -> Client<HttpConnector> {
-    let mut config = Client::configure();
-    if env("HYPER_NO_PROTO", "1") {
-        config = config.no_proto();
-    }
-    config.build(handle)
+    Client::new(handle)
 }
 
 fn s(buf: &[u8]) -> &str {
     ::std::str::from_utf8(buf).unwrap()
-}
-
-fn env(name: &str, val: &str) -> bool {
-    match ::std::env::var(name) {
-        Ok(var) => var == val,
-        Err(_) => false,
-    }
 }
 
 macro_rules! test {
@@ -463,8 +452,7 @@ test! {
             body: None,
             proxy: false,
         error: |err| match err {
-            &hyper::Error::Version if env("HYPER_NO_PROTO", "1") => true,
-            &hyper::Error::Io(_) if !env("HYPER_NO_PROTO", "1") => true,
+            &hyper::Error::Version => true,
             _ => false,
         },
 
@@ -606,7 +594,6 @@ mod dispatch_impl {
         let closes = Arc::new(AtomicUsize::new(0));
         let client = Client::configure()
             .connector(DebugConnector(HttpConnector::new(1, &core.handle()), closes.clone()))
-            .no_proto()
             .build(&handle);
 
         let (tx1, rx1) = oneshot::channel();
@@ -666,7 +653,6 @@ mod dispatch_impl {
         let res = {
             let client = Client::configure()
                 .connector(DebugConnector(HttpConnector::new(1, &handle), closes.clone()))
-                .no_proto()
                 .build(&handle);
             client.get(uri).and_then(move |res| {
                 assert_eq!(res.status(), hyper::StatusCode::Ok);
@@ -717,7 +703,6 @@ mod dispatch_impl {
 
         let client = Client::configure()
             .connector(DebugConnector(HttpConnector::new(1, &handle), closes.clone()))
-            .no_proto()
             .build(&handle);
         let res = client.get(uri).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::Ok);
@@ -767,7 +752,6 @@ mod dispatch_impl {
         let res = {
             let client = Client::configure()
                 .connector(DebugConnector(HttpConnector::new(1, &handle), closes.clone()))
-                .no_proto()
                 .build(&handle);
             client.get(uri)
         };
@@ -812,7 +796,6 @@ mod dispatch_impl {
         let res = {
             let client = Client::configure()
                 .connector(DebugConnector(HttpConnector::new(1, &handle), closes.clone()))
-                .no_proto()
                 .build(&handle);
             // notably, havent read body yet
             client.get(uri)
@@ -852,7 +835,6 @@ mod dispatch_impl {
 
         let client = Client::configure()
             .connector(DebugConnector(HttpConnector::new(1, &handle), closes.clone()))
-            .no_proto()
             .keep_alive(false)
             .build(&handle);
         let res = client.get(uri).and_then(move |res| {
@@ -892,7 +874,6 @@ mod dispatch_impl {
 
         let client = Client::configure()
             .connector(DebugConnector(HttpConnector::new(1, &handle), closes.clone()))
-            .no_proto()
             .build(&handle);
         let res = client.get(uri).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::Ok);
