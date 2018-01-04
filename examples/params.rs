@@ -96,7 +96,7 @@ impl Service for ParamExample {
 
 
 fn main() {
-    pretty_env_logger::init().unwrap();
+    pretty_env_logger::init();
     let addr = "127.0.0.1:1337".parse().unwrap();
 
     let server = Http::new().bind(&addr, || Ok(ParamExample)).unwrap();

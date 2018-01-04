@@ -403,7 +403,7 @@ mod tests {
     #[test]
     fn test_parse_request() {
         extern crate pretty_env_logger;
-        let _ = pretty_env_logger::init();
+        let _ = pretty_env_logger::try_init();
         let mut raw = BytesMut::from(b"GET /echo HTTP/1.1\r\nHost: hyper.rs\r\n\r\n".to_vec());
         let expected_len = raw.len();
         let (req, len) = ServerTransaction::parse(&mut raw).unwrap().unwrap();
@@ -419,7 +419,7 @@ mod tests {
     #[test]
     fn test_parse_response() {
         extern crate pretty_env_logger;
-        let _ = pretty_env_logger::init();
+        let _ = pretty_env_logger::try_init();
         let mut raw = BytesMut::from(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n".to_vec());
         let expected_len = raw.len();
         let (req, len) = ClientTransaction::parse(&mut raw).unwrap().unwrap();

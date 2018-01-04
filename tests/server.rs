@@ -260,7 +260,7 @@ fn empty_response_chunked() {
 #[test]
 fn empty_response_chunked_without_body_should_set_content_length() {
     extern crate pretty_env_logger;
-    let _ = pretty_env_logger::init();
+    let _ = pretty_env_logger::try_init();
     let server = serve();
     server.reply()
         .status(hyper::Ok)
@@ -290,7 +290,7 @@ fn empty_response_chunked_without_body_should_set_content_length() {
 #[test]
 fn head_response_can_send_content_length() {
     extern crate pretty_env_logger;
-    let _ = pretty_env_logger::init();
+    let _ = pretty_env_logger::try_init();
     let server = serve();
     server.reply()
         .status(hyper::Ok)
@@ -319,7 +319,7 @@ fn head_response_can_send_content_length() {
 #[test]
 fn response_does_not_set_chunked_if_body_not_allowed() {
     extern crate pretty_env_logger;
-    let _ = pretty_env_logger::init();
+    let _ = pretty_env_logger::try_init();
     let server = serve();
     server.reply()
         .status(hyper::StatusCode::NotModified)
@@ -883,7 +883,7 @@ impl Default for ServeOptions {
 }
 
 fn serve_with_options(options: ServeOptions) -> Serve {
-    let _ = pretty_env_logger::init();
+    let _ = pretty_env_logger::try_init();
 
     let (addr_tx, addr_rx) = mpsc::channel();
     let (msg_tx, msg_rx) = mpsc::channel();

@@ -9,7 +9,7 @@ use hyper::server::{Http, Response, const_service, service_fn};
 static PHRASE: &'static [u8] = b"Hello World!";
 
 fn main() {
-    pretty_env_logger::init().unwrap();
+    pretty_env_logger::init();
     let addr = ([127, 0, 0, 1], 3000).into();
 
     let new_service = const_service(service_fn(|_| {

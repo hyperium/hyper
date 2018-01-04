@@ -49,7 +49,7 @@ macro_rules! test {
         fn $name() {
             #![allow(unused)]
             use hyper::header::*;
-            let _ = pretty_env_logger::init();
+            let _ = pretty_env_logger::try_init();
             let mut core = Core::new().unwrap();
 
             let res = test! {
@@ -100,7 +100,7 @@ macro_rules! test {
         fn $name() {
             #![allow(unused)]
             use hyper::header::*;
-            let _ = pretty_env_logger::init();
+            let _ = pretty_env_logger::try_init();
             let mut core = Core::new().unwrap();
 
             let err = test! {
@@ -500,7 +500,7 @@ fn client_keep_alive() {
 /* TODO: re-enable once retry works, its currently a flaky test
 #[test]
 fn client_pooled_socket_disconnected() {
-    let _ = pretty_env_logger::init();
+    let _ = pretty_env_logger::try_init();
     let server = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = server.local_addr().unwrap();
     let mut core = Core::new().unwrap();
@@ -585,7 +585,7 @@ mod dispatch_impl {
     #[test]
     fn drop_body_before_eof_closes_connection() {
         // https://github.com/hyperium/hyper/issues/1353
-        let _ = pretty_env_logger::init();
+        let _ = pretty_env_logger::try_init();
 
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
@@ -626,7 +626,7 @@ mod dispatch_impl {
     #[test]
     fn dropped_client_closes_connection() {
         // https://github.com/hyperium/hyper/issues/1353
-        let _ = pretty_env_logger::init();
+        let _ = pretty_env_logger::try_init();
 
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
@@ -672,7 +672,7 @@ mod dispatch_impl {
 
     #[test]
     fn drop_client_closes_idle_connections() {
-        let _ = pretty_env_logger::init();
+        let _ = pretty_env_logger::try_init();
 
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
@@ -721,7 +721,7 @@ mod dispatch_impl {
 
     #[test]
     fn drop_response_future_closes_in_progress_connection() {
-        let _ = pretty_env_logger::init();
+        let _ = pretty_env_logger::try_init();
 
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
@@ -766,7 +766,7 @@ mod dispatch_impl {
 
     #[test]
     fn drop_response_body_closes_in_progress_connection() {
-        let _ = pretty_env_logger::init();
+        let _ = pretty_env_logger::try_init();
 
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
@@ -811,7 +811,7 @@ mod dispatch_impl {
     #[test]
     fn no_keep_alive_closes_connection() {
         // https://github.com/hyperium/hyper/issues/1383
-        let _ = pretty_env_logger::init();
+        let _ = pretty_env_logger::try_init();
 
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
@@ -850,7 +850,7 @@ mod dispatch_impl {
     #[test]
     fn socket_disconnect_closes_idle_conn() {
         // notably when keep-alive is enabled
-        let _ = pretty_env_logger::init();
+        let _ = pretty_env_logger::try_init();
 
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();

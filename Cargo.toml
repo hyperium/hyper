@@ -26,7 +26,7 @@ futures-cpupool = "0.1.6"
 http = { version = "0.1", optional = true }
 httparse = "1.0"
 language-tags = "0.2"
-log = "0.3"
+log = "0.4"
 mime = "0.3.2"
 percent-encoding = "1.0"
 relay = "0.1"
@@ -39,7 +39,7 @@ unicase = "2.0"
 
 [dev-dependencies]
 num_cpus = "1.0"
-pretty_env_logger = "0.1"
+pretty_env_logger = "0.2.0-rc.1"
 spmc = "0.2"
 url = "1.0"
 

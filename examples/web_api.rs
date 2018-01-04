@@ -76,7 +76,7 @@ impl Service for ResponseExamples {
 
 
 fn main() {
-    pretty_env_logger::init().unwrap();
+    pretty_env_logger::init();
     let addr = "127.0.0.1:1337".parse().unwrap();
 
     let mut core = tokio_core::reactor::Core::new().unwrap();

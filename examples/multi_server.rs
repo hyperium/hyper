@@ -41,7 +41,7 @@ impl Service for Srv {
 
 
 fn main() {
-    pretty_env_logger::init().unwrap();
+    pretty_env_logger::init();
     let addr1 = "127.0.0.1:1337".parse().unwrap();
     let addr2 = "127.0.0.1:1338".parse().unwrap();
 
