@@ -1,6 +1,8 @@
 use std::fmt;
 use std::borrow::Cow;
 use std::str::FromStr;
+
+#[allow(unused_imports)]
 use std::ascii::AsciiExt;
 
 use mime::Mime;

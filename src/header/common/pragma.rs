@@ -1,4 +1,6 @@
 use std::fmt;
+
+#[allow(unused_imports)]
 use std::ascii::AsciiExt;
 
 use header::{Header, HeaderFormat, parsing};
