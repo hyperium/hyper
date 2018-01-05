@@ -1,3 +1,12 @@
+### v0.11.11 (2018-01-05)
+
+
+#### Features
+
+* **client:** replace default dispatcher ([0892cb27](https://github.com/hyperium/hyper/commit/0892cb27777858737449a012bc6ea08ee080e5b7))
+* **server:** change default dispatcher ([6ade21aa](https://github.com/hyperium/hyper/commit/6ade21aa7f16dfeb6c0c53fe39c3f168f5f8aec1))
+
+
 ### v0.11.10 (2017-12-26)
 
 
