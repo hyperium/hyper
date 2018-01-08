@@ -1,3 +1,11 @@
+### v0.11.12 (2018-01-08)
+
+
+#### Bug Fixes
+
+* **server:** add remote_addr back to Request when using Http::bind ([fa7f4377](https://github.com/hyperium/hyper/commit/fa7f4377c1d783ca860820aefc41d0eab73be14c), closes [#1410](https://github.com/hyperium/hyper/issues/1410))
+
+
 ### v0.11.11 (2018-01-05)
 
 
