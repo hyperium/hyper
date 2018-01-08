@@ -58,13 +58,9 @@ impl<B> Request<B> {
     #[inline]
     pub fn body_ref(&self) -> Option<&B> { self.body.as_ref() }
 
-    /// The remote socket address of this request
-    ///
-    /// This is an `Option`, because some underlying transports may not have
-    /// a socket address, such as Unix Sockets.
-    ///
-    /// This field is not used for outgoing requests.
+    #[doc(hidden)]
     #[inline]
+    #[deprecated(since="0.11.12", note="This method will be gone in future versions.")]
     pub fn remote_addr(&self) -> Option<SocketAddr> { self.remote_addr }
 
     /// The target path of this Request.
@@ -194,6 +190,10 @@ pub fn split<B>(req: Request<B>) -> (RequestHead, Option<B>) {
         version: req.version,
     };
     (head, req.body)
+}
+
+pub fn addr<B>(req: &mut Request<B>, addr: SocketAddr) {
+    req.remote_addr = Some(addr);
 }
 
 #[cfg(test)]

@@ -712,6 +712,22 @@ fn nonempty_parse_eof_returns_error() {
     core.run(fut).unwrap_err();
 }
 
+#[test]
+fn remote_addr() {
+    let server = serve();
+
+    let mut req = connect(server.addr());
+    req.write_all(b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        \r\n\
+    ").unwrap();
+    req.read(&mut [0; 256]).unwrap();
+
+    let client_addr = req.local_addr().unwrap();
+    assert_eq!(server.remote_addr(), client_addr);
+}
+
 // -------------------------------------------------
 // the Server that is used to run all the tests with
 // -------------------------------------------------
@@ -729,10 +745,23 @@ impl Serve {
         &self.addr
     }
 
+    pub fn remote_addr(&self) -> SocketAddr {
+        match self.msg_rx.try_recv() {
+            Ok(Msg::Addr(addr)) => addr,
+            other => panic!("expected remote addr, found: {:?}", other),
+        }
+    }
+
     fn body(&self) -> Vec<u8> {
         let mut buf = vec![];
-        while let Ok(Msg::Chunk(msg)) = self.msg_rx.try_recv() {
-            buf.extend(&msg);
+        loop {
+            match self.msg_rx.try_recv() {
+                Ok(Msg::Chunk(msg)) => {
+                    buf.extend(&msg);
+                },
+                Ok(Msg::Addr(_)) => {},
+                Err(_) => break,
+            }
         }
         buf
     }
@@ -787,8 +816,10 @@ enum Reply {
     Body(Vec<u8>),
 }
 
+#[derive(Debug)]
 enum Msg {
     //Head(Request),
+    Addr(SocketAddr),
     Chunk(Vec<u8>),
 }
 
@@ -811,6 +842,11 @@ impl Service for TestService {
     type Future = Box<Future<Item=Response, Error=hyper::Error>>;
     fn call(&self, req: Request) -> Self::Future {
         let tx = self.tx.clone();
+
+        #[allow(deprecated)]
+        let remote_addr = req.remote_addr().expect("remote_addr");
+        tx.lock().unwrap().send(Msg::Addr(remote_addr)).unwrap();
+
         let replies = self.reply.clone();
         Box::new(req.body().for_each(move |chunk| {
             tx.lock().unwrap().send(Msg::Chunk(chunk.to_vec())).unwrap();

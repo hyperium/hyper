@@ -352,8 +352,9 @@ impl<S, B> Server<S, B>
 
         // Future for our server's execution
         let srv = listener.incoming().for_each(|(socket, addr)| {
+            let addr_service = SocketAddrService::new(addr, new_service.new_service()?);
             let s = NotifyService {
-                inner: try!(new_service.new_service()),
+                inner: addr_service,
                 info: Rc::downgrade(&info),
             };
             info.borrow_mut().active += 1;
@@ -643,6 +644,41 @@ mod addr_stream {
         }
     }
 }
+
+// ===== SocketAddrService
+
+// This is used from `Server::run`, which captures the remote address
+// in this service, and then injects it into each `Request`.
+struct SocketAddrService<S> {
+    addr: SocketAddr,
+    inner: S,
+}
+
+impl<S> SocketAddrService<S> {
+    fn new(addr: SocketAddr, service: S) -> SocketAddrService<S> {
+        SocketAddrService {
+            addr: addr,
+            inner: service,
+        }
+    }
+}
+
+impl<S> Service for SocketAddrService<S>
+where
+    S: Service<Request=Request>,
+{
+    type Request = S::Request;
+    type Response = S::Response;
+    type Error = S::Error;
+    type Future = S::Future;
+
+    fn call(&self, mut req: Self::Request) -> Self::Future {
+        proto::request::addr(&mut req, self.addr);
+        self.inner.call(req)
+    }
+}
+
+// ===== NotifyService =====
 
 struct NotifyService<S> {
     inner: S,
