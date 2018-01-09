@@ -13,8 +13,7 @@ matrix:
           env: FEATURES="--no-default-features"
         - rust: stable
           env: FEATURES="--features compat"
-        - rust: 1.17.0
-          env: BUILD_ONLY=1
+        - rust: 1.18.0
 
 cache:
     apt: true
@@ -24,8 +23,8 @@ cache:
 
 script:
   - ./.travis/readme.py
-  - cargo build --verbose $FEATURES
-  - 'if [ "$BUILD_ONLY" != "1" ]; then cargo test --verbose $FEATURES; fi'
+  - cargo build $FEATURES
+  - 'if [ "$BUILD_ONLY" != "1" ]; then cargo test $FEATURES; fi'
   - 'if [ $TRAVIS_RUST_VERSION = nightly ]; then for f in ./benches/*.rs; do cargo test --bench $(basename $f .rs) $FEATURES; done; fi'
 
 addons:
