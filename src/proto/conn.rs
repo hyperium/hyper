@@ -238,7 +238,21 @@ where I: AsyncRead + AsyncWrite,
         ret
     }
 
-    pub fn maybe_park_read(&mut self) {
+    pub fn read_keep_alive(&mut self) -> Result<(), ::Error> {
+        debug_assert!(!self.can_read_head() && !self.can_read_body());
+
+        trace!("Conn::read_keep_alive");
+
+        if T::should_read_first() || !self.state.is_idle() {
+            self.maybe_park_read();
+        } else {
+            self.try_empty_read()?;
+        }
+
+        Ok(())
+    }
+
+    fn maybe_park_read(&mut self) {
         if !self.io.is_read_blocked() {
             // the Io object is ready to read, which means it will never alert
             // us that it is ready until we drain it. However, we're currently
@@ -258,7 +272,7 @@ where I: AsyncRead + AsyncWrite,
     //
     // This should only be called for Clients wanting to enter the idle
     // state.
-    pub fn try_empty_read(&mut self) -> io::Result<()> {
+    fn try_empty_read(&mut self) -> io::Result<()> {
         assert!(!self.can_read_head() && !self.can_read_body());
 
         if !self.io.read_buf().is_empty() {
