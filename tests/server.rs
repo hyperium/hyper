@@ -14,7 +14,7 @@ use tokio_core::net::TcpListener;
 use tokio_core::reactor::{Core, Timeout};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use std::net::{TcpStream, SocketAddr};
+use std::net::{TcpStream, Shutdown, SocketAddr};
 use std::io::{self, Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
@@ -221,6 +221,26 @@ fn post_with_chunked_body() {
     req.read(&mut [0; 256]).unwrap();
 
     assert_eq!(server.body(), b"qwert");
+}
+
+#[test]
+fn post_with_incomplete_body() {
+    extern crate pretty_env_logger;
+    let _ = pretty_env_logger::try_init();
+    let server = serve();
+    let mut req = connect(server.addr());
+    req.write_all(b"\
+        POST / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Content-Length: 10\r\n\
+        \r\n\
+        12345\
+    ").expect("write");
+    req.shutdown(Shutdown::Write).expect("shutdown write");
+
+    server.body_err();
+
+    req.read(&mut [0; 256]).expect("read");
 }
 
 #[test]
@@ -746,24 +766,34 @@ impl Serve {
     }
 
     pub fn remote_addr(&self) -> SocketAddr {
-        match self.msg_rx.try_recv() {
+        match self.msg_rx.recv() {
             Ok(Msg::Addr(addr)) => addr,
             other => panic!("expected remote addr, found: {:?}", other),
         }
     }
 
     fn body(&self) -> Vec<u8> {
+        self.try_body().expect("body")
+    }
+
+    fn body_err(&self) -> hyper::Error {
+        self.try_body().expect_err("body_err")
+    }
+
+    fn try_body(&self) -> Result<Vec<u8>, hyper::Error> {
         let mut buf = vec![];
         loop {
-            match self.msg_rx.try_recv() {
+            match self.msg_rx.recv() {
                 Ok(Msg::Chunk(msg)) => {
                     buf.extend(&msg);
                 },
                 Ok(Msg::Addr(_)) => {},
-                Err(_) => break,
+                Ok(Msg::Error(e)) => return Err(e),
+                Ok(Msg::End) => break,
+                Err(e) => panic!("expected body, found: {:?}", e),
             }
         }
-        buf
+        Ok(buf)
     }
 
     fn reply(&self) -> ReplyBuilder {
@@ -821,6 +851,8 @@ enum Msg {
     //Head(Request),
     Addr(SocketAddr),
     Chunk(Vec<u8>),
+    Error(hyper::Error),
+    End,
 }
 
 impl NewService for TestService {
@@ -841,15 +873,23 @@ impl Service for TestService {
     type Error = hyper::Error;
     type Future = Box<Future<Item=Response, Error=hyper::Error>>;
     fn call(&self, req: Request) -> Self::Future {
-        let tx = self.tx.clone();
+        let tx1 = self.tx.clone();
+        let tx2 = self.tx.clone();
 
         #[allow(deprecated)]
         let remote_addr = req.remote_addr().expect("remote_addr");
-        tx.lock().unwrap().send(Msg::Addr(remote_addr)).unwrap();
+        tx1.lock().unwrap().send(Msg::Addr(remote_addr)).unwrap();
 
         let replies = self.reply.clone();
         Box::new(req.body().for_each(move |chunk| {
-            tx.lock().unwrap().send(Msg::Chunk(chunk.to_vec())).unwrap();
+            tx1.lock().unwrap().send(Msg::Chunk(chunk.to_vec())).unwrap();
+            Ok(())
+        }).then(move |result| {
+            let msg = match result {
+                Ok(()) => Msg::End,
+                Err(e) => Msg::Error(e),
+            };
+            tx2.lock().unwrap().send(msg).unwrap();
             Ok(())
         }).map(move |_| {
             let mut res = Response::new();

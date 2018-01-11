@@ -85,66 +85,25 @@ where
             if self.is_closing {
                 return Ok(Async::Ready(()));
             } else if self.conn.can_read_head() {
-                // can dispatch receive, or does it still care about, an incoming message?
-                match self.dispatch.poll_ready() {
-                    Ok(Async::Ready(())) => (),
-                    Ok(Async::NotReady) => unreachable!("dispatch not ready when conn is"),
-                    Err(()) => {
-                        trace!("dispatch no longer receiving messages");
-                        self.close();
-                        return Ok(Async::Ready(()));
-                    }
-                }
-                // dispatch is ready for a message, try to read one
-                match self.conn.read_head() {
-                    Ok(Async::Ready(Some((head, has_body)))) => {
-                        let body = if has_body {
-                            let (mut tx, rx) = super::body::channel();
-                            let _ = tx.poll_ready(); // register this task if rx is dropped
-                            self.body_tx = Some(tx);
-                            Some(rx)
-                        } else {
-                            None
-                        };
-                        self.dispatch.recv_msg(Ok((head, body)))?;
-                    },
-                    Ok(Async::Ready(None)) => {
-                        // read eof, conn will start to shutdown automatically
-                        return Ok(Async::Ready(()));
-                    }
-                    Ok(Async::NotReady) => return Ok(Async::NotReady),
-                    Err(err) => {
-                        debug!("read_head error: {}", err);
-                        self.dispatch.recv_msg(Err(err))?;
-                        // if here, the dispatcher gave the user the error
-                        // somewhere else. we still need to shutdown, but
-                        // not as a second error.
-                        return Ok(Async::Ready(()));
-                    }
-                }
+                try_ready!(self.poll_read_head());
             } else if self.conn.can_write_continue() {
                 try_nb!(self.conn.flush());
             } else if let Some(mut body) = self.body_tx.take() {
-                let can_read_body = self.conn.can_read_body();
-                match body.poll_ready() {
-                    Ok(Async::Ready(())) => (),
-                    Ok(Async::NotReady) => {
-                        self.body_tx = Some(body);
-                        return Ok(Async::NotReady);
-                    },
-                    Err(_canceled) => {
-                        // user doesn't care about the body
-                        // so we should stop reading
-                        if can_read_body {
+                if self.conn.can_read_body() {
+                    match body.poll_ready() {
+                        Ok(Async::Ready(())) => (),
+                        Ok(Async::NotReady) => {
+                            self.body_tx = Some(body);
+                            return Ok(Async::NotReady);
+                        },
+                        Err(_canceled) => {
+                            // user doesn't care about the body
+                            // so we should stop reading
                             trace!("body receiver dropped before eof, closing");
                             self.conn.close_read();
                             return Ok(Async::Ready(()));
                         }
-                        // else the conn body is done, and user dropped,
-                        // so everything is fine!
                     }
-                }
-                if can_read_body {
                     match self.conn.read_body() {
                         Ok(Async::Ready(Some(chunk))) => {
                             match body.start_send(Ok(chunk)) {
@@ -179,6 +138,47 @@ where
                 }
             } else {
                 return self.conn.read_keep_alive().map(Async::Ready);
+            }
+        }
+    }
+
+    fn poll_read_head(&mut self) -> Poll<(), ::Error> {
+        // can dispatch receive, or does it still care about, an incoming message?
+        match self.dispatch.poll_ready() {
+            Ok(Async::Ready(())) => (),
+            Ok(Async::NotReady) => unreachable!("dispatch not ready when conn is"),
+            Err(()) => {
+                trace!("dispatch no longer receiving messages");
+                self.close();
+                return Ok(Async::Ready(()));
+            }
+        }
+        // dispatch is ready for a message, try to read one
+        match self.conn.read_head() {
+            Ok(Async::Ready(Some((head, has_body)))) => {
+                let body = if has_body {
+                    let (mut tx, rx) = super::body::channel();
+                    let _ = tx.poll_ready(); // register this task if rx is dropped
+                    self.body_tx = Some(tx);
+                    Some(rx)
+                } else {
+                    None
+                };
+                self.dispatch.recv_msg(Ok((head, body)))?;
+                Ok(Async::Ready(()))
+            },
+            Ok(Async::Ready(None)) => {
+                // read eof, conn will start to shutdown automatically
+                Ok(Async::Ready(()))
+            }
+            Ok(Async::NotReady) => Ok(Async::NotReady),
+            Err(err) => {
+                debug!("read_head error: {}", err);
+                self.dispatch.recv_msg(Err(err))?;
+                // if here, the dispatcher gave the user the error
+                // somewhere else. we still need to shutdown, but
+                // not as a second error.
+                Ok(Async::Ready(()))
             }
         }
     }

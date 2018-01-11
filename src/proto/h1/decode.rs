@@ -1,3 +1,4 @@
+use std::error::Error as StdError;
 use std::fmt;
 use std::usize;
 use std::io;
@@ -97,7 +98,7 @@ impl Decoder {
                     if num > *remaining {
                         *remaining = 0;
                     } else if num == 0 {
-                        return Err(io::Error::new(io::ErrorKind::Other, "early eof"));
+                        return Err(io::Error::new(io::ErrorKind::UnexpectedEof, IncompleteBody));
                     } else {
                         *remaining -= num;
                     }
@@ -262,7 +263,7 @@ impl ChunkedState {
 
         if count == 0 {
             *rem = 0;
-            return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "early eof"));
+            return Err(io::Error::new(io::ErrorKind::UnexpectedEof, IncompleteBody));
         }
         *buf = Some(slice);
         *rem -= count as u64;
@@ -300,9 +301,23 @@ impl ChunkedState {
     }
 }
 
+#[derive(Debug)]
+struct IncompleteBody;
+
+impl fmt::Display for IncompleteBody {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(self.description())
+    }
+}
+
+impl StdError for IncompleteBody {
+    fn description(&self) -> &str {
+        "end of file before message length reached"
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use std::error::Error;
     use std::io;
     use std::io::Write;
     use super::Decoder;
@@ -422,8 +437,7 @@ mod tests {
         let mut decoder = Decoder::length(10);
         assert_eq!(decoder.decode(&mut bytes).unwrap().unwrap().len(), 7);
         let e = decoder.decode(&mut bytes).unwrap_err();
-        assert_eq!(e.kind(), io::ErrorKind::Other);
-        assert_eq!(e.description(), "early eof");
+        assert_eq!(e.kind(), io::ErrorKind::UnexpectedEof);
     }
 
     #[test]
@@ -436,7 +450,6 @@ mod tests {
         assert_eq!(decoder.decode(&mut bytes).unwrap().unwrap().len(), 7);
         let e = decoder.decode(&mut bytes).unwrap_err();
         assert_eq!(e.kind(), io::ErrorKind::UnexpectedEof);
-        assert_eq!(e.description(), "early eof");
     }
 
     #[test]

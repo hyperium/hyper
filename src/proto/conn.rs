@@ -235,18 +235,31 @@ where I: AsyncRead + AsyncWrite,
 
         let (reading, ret) = match self.state.reading {
             Reading::Body(ref mut decoder) => {
-                let slice = try_ready!(decoder.decode(&mut self.io));
-                if !slice.is_empty() {
-                    return Ok(Async::Ready(Some(super::Chunk::from(slice))));
-                } else if decoder.is_eof() {
-                    debug!("incoming body completed");
-                    (Reading::KeepAlive, Ok(Async::Ready(None)))
-                } else {
-                    trace!("decode stream unexpectedly ended");
-                    //TODO: Should this return an UnexpectedEof?
-                    (Reading::Closed, Ok(Async::Ready(None)))
+                match decoder.decode(&mut self.io) {
+                    Ok(Async::Ready(slice)) => {
+                        let chunk = if !slice.is_empty() {
+                            Some(super::Chunk::from(slice))
+                        } else {
+                            None
+                        };
+                        let reading = if decoder.is_eof() {
+                            debug!("incoming body completed");
+                            Reading::KeepAlive
+                        } else if chunk.is_some() {
+                            Reading::Body(decoder.clone())
+                        } else {
+                            trace!("decode stream unexpectedly ended");
+                            //TODO: Should this return an UnexpectedEof?
+                            Reading::Closed
+                        };
+                        (reading, Ok(Async::Ready(chunk)))
+                    },
+                    Ok(Async::NotReady) => return Ok(Async::NotReady),
+                    Err(e) => {
+                        trace!("decode stream error: {}", e);
+                        (Reading::Closed, Err(e))
+                    },
                 }
-
             },
             _ => unreachable!("read_body invalid state: {:?}", self.state.reading),
         };
