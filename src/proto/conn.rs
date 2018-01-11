@@ -58,6 +58,21 @@ where I: AsyncRead + AsyncWrite,
     fn poll_incoming(&mut self) -> Poll<Option<Frame<super::MessageHead<T::Incoming>, super::Chunk, ::Error>>, io::Error> {
         trace!("Conn::poll_incoming()");
 
+        #[derive(Debug)]
+        struct ParseEof;
+
+        impl fmt::Display for ParseEof {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str(::std::error::Error::description(self))
+            }
+        }
+
+        impl ::std::error::Error for ParseEof {
+            fn description(&self) -> &str {
+                "end of file reached before parsing could complete"
+            }
+        }
+
         loop {
             if self.is_read_closed() {
                 trace!("Conn::poll when closed");
@@ -73,6 +88,9 @@ where I: AsyncRead + AsyncWrite,
                     Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
                     Ok(Async::NotReady) => Ok(Async::NotReady),
                     Err(::Error::Io(err)) => Err(err),
+                    Err(::Error::Incomplete) => {
+                        Err(io::Error::new(io::ErrorKind::UnexpectedEof, ParseEof))
+                    },
                     Err(err) => Ok(Async::Ready(Some(Frame::Error {
                         error: err,
                     }))),

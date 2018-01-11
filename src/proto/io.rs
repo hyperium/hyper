@@ -84,8 +84,7 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
             match try_ready!(self.read_from_io()) {
                 0 => {
                     trace!("parse eof");
-                    //TODO: utilize Error::Incomplete when Error type is redesigned
-                    return Err(io::Error::new(io::ErrorKind::UnexpectedEof, ParseEof).into());
+                    return Err(::Error::Incomplete);
                 }
                 _ => {},
             }
@@ -330,21 +329,6 @@ impl WriteBuf {
                 self.0.bytes.set_len(0);
             }
         }
-    }
-}
-
-#[derive(Debug)]
-struct ParseEof;
-
-impl fmt::Display for ParseEof {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(::std::error::Error::description(self))
-    }
-}
-
-impl ::std::error::Error for ParseEof {
-    fn description(&self) -> &str {
-        "end of file reached before parsing could complete"
     }
 }
 

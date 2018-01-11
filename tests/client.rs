@@ -425,7 +425,7 @@ test! {
             body: None,
             proxy: false,
         error: |err| match err {
-            &hyper::Error::Io(_) => true,
+            &hyper::Error::Incomplete => true,
             _ => false,
         },
 }
