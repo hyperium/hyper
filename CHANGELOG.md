@@ -1,3 +1,14 @@
+### v0.11.13 (2018-01-12)
+
+
+#### Bug Fixes
+
+* **client:**
+  * change connection errors to debug log level ([2fe90f25](https://github.com/hyperium/hyper/commit/2fe90f256420ff668966290ac96686ce061453e4), closes [#1412](https://github.com/hyperium/hyper/issues/1412))
+  * don't error on read before writing request ([7976023b](https://github.com/hyperium/hyper/commit/7976023b594ec6784e40a147d3baec99a947b118))
+* **lib:** properly handle body streaming errors ([7a48d0e8](https://github.com/hyperium/hyper/commit/7a48d0e8b4ad465c0205ddfb116b6bd60dbdec71))
+
+
 ### v0.11.12 (2018-01-08)
 
 
