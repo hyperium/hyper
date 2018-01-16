@@ -1,3 +1,11 @@
+### v0.11.14 (2018-01-16)
+
+
+#### Bug Fixes
+
+* **tokio-proto:** return end-of-body frame correctly for tokio-proto ([14e4c741](https://github.com/hyperium/hyper/commit/14e4c741dc48a386d7bdc6f8e9e279e60f172722), closes [#1414](https://github.com/hyperium/hyper/issues/1414))
+
+
 ### v0.11.13 (2018-01-12)
 
 
