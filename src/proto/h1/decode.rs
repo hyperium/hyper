@@ -75,7 +75,6 @@ impl Decoder {
     // methods
 
     pub fn is_eof(&self) -> bool {
-        trace!("is_eof? {:?}", self);
         match self.kind {
             Length(0) |
             Chunked(ChunkedState::End, _) |
@@ -85,16 +84,15 @@ impl Decoder {
     }
 
     pub fn decode<R: MemRead>(&mut self, body: &mut R) -> Poll<Bytes, io::Error> {
+        trace!("decode; state={:?}", self.kind);
         match self.kind {
             Length(ref mut remaining) => {
-                trace!("Sized read, remaining={:?}", remaining);
                 if *remaining == 0 {
                     Ok(Async::Ready(Bytes::new()))
                 } else {
                     let to_read = *remaining as usize;
                     let buf = try_ready!(body.read_mem(to_read));
                     let num = buf.as_ref().len() as u64;
-                    trace!("Length read: {}", num);
                     if num > *remaining {
                         *remaining = 0;
                     } else if num == 0 {
