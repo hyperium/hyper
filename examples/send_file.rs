@@ -103,7 +103,7 @@ impl Service for ResponseExamples {
                                     tx_body.close().expect("panic closing");
                                     break;
                                 } else {
-                                    let chunk: Chunk = buf.to_vec().into();
+                                    let chunk: Chunk = buf[0..n].to_vec().into();
                                     match tx_body.send(Ok(chunk)).wait() {
                                         Ok(t) => { tx_body = t; },
                                         Err(_) => { break; }
