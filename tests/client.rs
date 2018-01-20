@@ -888,6 +888,44 @@ mod dispatch_impl {
         assert_eq!(closes.load(Ordering::Relaxed), 1);
     }
 
+    #[test]
+    fn client_custom_executor() {
+        let server = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = server.local_addr().unwrap();
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+        let closes = Arc::new(AtomicUsize::new(0));
+
+        let (tx1, rx1) = oneshot::channel();
+
+        thread::spawn(move || {
+            let mut sock = server.accept().unwrap().0;
+            sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let mut buf = [0; 4096];
+            sock.read(&mut buf).expect("read 1");
+            sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").unwrap();
+            let _ = tx1.send(());
+        });
+
+        let uri = format!("http://{}/a", addr).parse().unwrap();
+
+        let client = Client::configure()
+            .connector(DebugConnector(HttpConnector::new(1, &handle), closes.clone()))
+            .executor(handle.clone());
+        let res = client.get(uri).and_then(move |res| {
+            assert_eq!(res.status(), hyper::StatusCode::Ok);
+            res.body().concat2()
+        });
+        let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+
+        let timeout = Timeout::new(Duration::from_millis(200), &handle).unwrap();
+        let rx = rx.and_then(move |_| timeout.map_err(|e| e.into()));
+        core.run(res.join(rx).map(|r| r.0)).unwrap();
+
+        assert_eq!(closes.load(Ordering::Relaxed), 1);
+    }
+
     struct DebugConnector(HttpConnector, Arc<AtomicUsize>);
 
     impl Service for DebugConnector {

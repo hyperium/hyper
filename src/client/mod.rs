@@ -7,7 +7,8 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 use std::time::Duration;
 
-use futures::{future, Poll, Future, Stream};
+use futures::{Future, Poll, Stream};
+use futures::future::{self, Executor};
 #[cfg(feature = "compat")]
 use http;
 use tokio::reactor::Handle;
@@ -25,6 +26,8 @@ pub use proto::response::Response;
 pub use proto::request::Request;
 pub use self::connect::{HttpConnector, Connect};
 
+use self::background::{bg, Background};
+
 mod connect;
 mod dns;
 mod pool;
@@ -37,7 +40,7 @@ pub mod compat;
 // If the Connector is clone, then the Client can be clone easily.
 pub struct Client<C, B = proto::Body> {
     connector: C,
-    handle: Handle,
+    executor: Exec,
     pool: Pool<HyperClient<B>>,
 }
 
@@ -74,18 +77,24 @@ impl Client<HttpConnector, proto::Body> {
 }
 
 impl<C, B> Client<C, B> {
-    /// Return a reference to a handle to the event loop this Client is associated with.
-    #[inline]
+    // Eventually, a Client won't really care about a tokio Handle, and only
+    // the executor used to spawn background tasks. Removing this method is
+    // a breaking change, so for now, it's just deprecated.
+    #[doc(hidden)]
+    #[deprecated]
     pub fn handle(&self) -> &Handle {
-        &self.handle
+        match self.executor {
+            Exec::Handle(ref h) => h,
+            Exec::Executor(..) => panic!("Client not built with a Handle"),
+        }
     }
 
     /// Create a new client with a specific connector.
     #[inline]
-    fn configured(config: Config<C, B>, handle: &Handle) -> Client<C, B> {
+    fn configured(config: Config<C, B>, exec: Exec) -> Client<C, B> {
         Client {
             connector: config.connector,
-            handle: handle.clone(),
+            executor: exec,
             pool: Pool::new(config.keep_alive, config.keep_alive_timeout)
         }
     }
@@ -185,11 +194,11 @@ where C: Connect,
 
         let checkout = self.pool.checkout(domain.as_ref());
         let connect = {
-            let handle = self.handle.clone();
+            let executor = self.executor.clone();
             let pool = self.pool.clone();
             let pool_key = Rc::new(domain.to_string());
             self.connector.connect(url)
-                .map(move |io| {
+                .and_then(move |io| {
                     let (tx, rx) = mpsc::channel(0);
                     let tx = HyperClient {
                         tx: RefCell::new(tx),
@@ -198,8 +207,8 @@ where C: Connect,
                     let pooled = pool.pooled(pool_key, tx);
                     let conn = proto::Conn::<_, _, proto::ClientTransaction, _>::new(io, pooled.clone());
                     let dispatch = proto::dispatch::Dispatcher::new(proto::dispatch::Client::new(rx), conn);
-                    handle.spawn(dispatch.map_err(|err| debug!("client connection error: {}", err)));
-                    pooled
+                    executor.execute(dispatch.map_err(|e| debug!("client connection error: {}", e)))?;
+                    Ok(pooled)
                 })
         };
 
@@ -236,7 +245,7 @@ impl<C: Clone, B> Clone for Client<C, B> {
     fn clone(&self) -> Client<C, B> {
         Client {
             connector: self.connector.clone(),
-            handle: self.handle.clone(),
+            executor: self.executor.clone(),
             pool: self.pool.clone(),
         }
     }
@@ -384,7 +393,18 @@ where C: Connect,
     /// Construct the Client with this configuration.
     #[inline]
     pub fn build(self, handle: &Handle) -> Client<C, B> {
-        Client::configured(self, handle)
+        Client::configured(self, Exec::Handle(handle.clone()))
+    }
+
+    /// Construct a Client with this configuration and an executor.
+    ///
+    /// The executor will be used to spawn "background" connection tasks
+    /// to drive requests and responses.
+    pub fn executor<E>(self, executor: E) -> Client<C, B>
+    where
+        E: Executor<Background> + 'static,
+    {
+        Client::configured(self, Exec::Executor(Rc::new(executor)))
     }
 }
 
@@ -414,6 +434,68 @@ impl<C: Clone, B> Clone for Config<C, B> {
         Config {
             connector: self.connector.clone(),
             .. *self
+        }
+    }
+}
+
+
+// ===== impl Exec =====
+
+#[derive(Clone)]
+enum Exec {
+    Handle(Handle),
+    Executor(Rc<Executor<Background>>),
+}
+
+
+impl Exec {
+    fn execute<F>(&self, fut: F) -> io::Result<()>
+    where
+        F: Future<Item=(), Error=()> + 'static,
+    {
+        match *self {
+            Exec::Handle(ref h) => h.spawn(fut),
+            Exec::Executor(ref e) => {
+                e.execute(bg(Box::new(fut)))
+                    .map_err(|err| {
+                        debug!("executor error: {:?}", err.kind());
+                        io::Error::new(
+                            io::ErrorKind::Other,
+                            "executor error",
+                        )
+                    })?
+            },
+        }
+        Ok(())
+    }
+}
+
+// ===== impl Background =====
+
+// The types inside this module are not exported out of the crate,
+// so they are in essence un-nameable.
+mod background {
+    use futures::{Future, Poll};
+
+    // This is basically `impl Future`, since the type is un-nameable,
+    // and only implementeds `Future`.
+    #[allow(missing_debug_implementations)]
+    pub struct Background {
+        inner: Box<Future<Item=(), Error=()>>,
+    }
+
+    pub fn bg(fut: Box<Future<Item=(), Error=()>>) -> Background {
+        Background {
+            inner: fut,
+        }
+    }
+
+    impl Future for Background {
+        type Item = ();
+        type Error = ();
+
+        fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+            self.inner.poll()
         }
     }
 }
