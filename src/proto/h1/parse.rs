@@ -245,6 +245,7 @@ impl Http1Transaction for ClientTransaction {
                 },
                 _ => {},
             },
+			Some(Method::Brew) => return Ok(Decoder::length(0)),
             Some(_) => {},
             None => {
                 trace!("ClientTransaction::decoder is missing the Method");
