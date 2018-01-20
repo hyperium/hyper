@@ -8,13 +8,14 @@ use http;
 
 use error::Error;
 use self::Method::{Options, Get, Post, Put, Delete, Head, Trace, Connect, Patch,
-                   Extension};
+                   Extension, Brew};
 
 
 /// The Request Method (VERB)
 ///
 /// Currently includes 8 variants representing the 8 methods defined in
-/// [RFC 7230](https://tools.ietf.org/html/rfc7231#section-4.1), plus PATCH,
+/// [RFC 7230](https://tools.ietf.org/html/rfc7231#section-4.1), plus both PATCH
+/// and BREW as stated in [RFC 7168](https://tools.ietf.org/html/rfc7168#section-2.1),
 /// and an Extension variant for all extensions.
 ///
 /// It may make sense to grow this to include all variants currently
@@ -39,6 +40,8 @@ pub enum Method {
     Connect,
     /// PATCH
     Patch,
+	/// BREW
+	Brew,
     /// Method extensions. An example would be `let m = Extension("FOO".to_string())`.
     Extension(String)
 }
@@ -55,6 +58,7 @@ impl AsRef<str> for Method {
             Trace => "TRACE",
             Connect => "CONNECT",
             Patch => "PATCH",
+			Brew => "BREW",
             Extension(ref s) => s.as_ref()
         }
     }
@@ -68,7 +72,7 @@ impl Method {
     /// for more words.
     pub fn safe(&self) -> bool {
         match *self {
-            Get | Head | Options | Trace => true,
+            Get | Head | Options | Trace | Brew => true,
             _ => false
         }
     }
@@ -213,6 +217,8 @@ impl From<Method> for http::Method {
                 http::Method::PATCH,
             Method::Trace =>
                 http::Method::TRACE,
+			Method::Brew =>
+			    HttpTryFrom::try_from("BREW"),
             Method::Extension(s) => {
                 HttpTryFrom::try_from(s.as_str())
                     .expect("attempted to convert invalid method")
