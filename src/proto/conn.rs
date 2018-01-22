@@ -45,6 +45,9 @@ where I: AsyncRead + AsyncWrite,
                 read_task: None,
                 reading: Reading::Init,
                 writing: Writing::Init,
+                // We assume a modern world where the remote speaks HTTP/1.1.
+                // If they tell us otherwise, we'll downgrade in `read_head`.
+                version: Version::Http11,
             },
             _marker: PhantomData,
         }
@@ -189,43 +192,44 @@ where I: AsyncRead + AsyncWrite,
             }
         };
 
-        match version {
-            HttpVersion::Http10 | HttpVersion::Http11 => {
-                let decoder = match T::decoder(&head, &mut self.state.method) {
-                    Ok(d) => d,
-                    Err(e) => {
-                        debug!("decoder error = {:?}", e);
-                        self.state.close_read();
-                        return Err(e);
-                    }
-                };
-
-                debug!("incoming body is {}", decoder);
-
-                self.state.busy();
-                if head.expecting_continue() {
-                    let msg = b"HTTP/1.1 100 Continue\r\n\r\n";
-                    self.state.writing = Writing::Continue(Cursor::new(msg));
-                }
-                let wants_keep_alive = head.should_keep_alive();
-                self.state.keep_alive &= wants_keep_alive;
-                let (body, reading) = if decoder.is_eof() {
-                    (false, Reading::KeepAlive)
-                } else {
-                    (true, Reading::Body(decoder))
-                };
-                self.state.reading = reading;
-                if !body {
-                    self.try_keep_alive();
-                }
-                Ok(Async::Ready(Some((head, body))))
-            },
+        self.state.version = match version {
+            HttpVersion::Http10 => Version::Http10,
+            HttpVersion::Http11 => Version::Http11,
             _ => {
                 error!("unimplemented HTTP Version = {:?}", version);
                 self.state.close_read();
-                Err(::Error::Version)
+                return Err(::Error::Version);
             }
+        };
+
+        let decoder = match T::decoder(&head, &mut self.state.method) {
+            Ok(d) => d,
+            Err(e) => {
+                debug!("decoder error = {:?}", e);
+                self.state.close_read();
+                return Err(e);
+            }
+        };
+
+        debug!("incoming body is {}", decoder);
+
+        self.state.busy();
+        if head.expecting_continue() {
+            let msg = b"HTTP/1.1 100 Continue\r\n\r\n";
+            self.state.writing = Writing::Continue(Cursor::new(msg));
         }
+        let wants_keep_alive = head.should_keep_alive();
+        self.state.keep_alive &= wants_keep_alive;
+        let (body, reading) = if decoder.is_eof() {
+            (false, Reading::KeepAlive)
+        } else {
+            (true, Reading::Body(decoder))
+        };
+        self.state.reading = reading;
+        if !body {
+            self.try_keep_alive();
+        }
+        Ok(Async::Ready(Some((head, body))))
     }
 
     pub fn read_body(&mut self) -> Poll<Option<super::Chunk>, io::Error> {
@@ -414,11 +418,11 @@ where I: AsyncRead + AsyncWrite,
         }
     }
 
-    pub fn write_head(&mut self, head: super::MessageHead<T::Outgoing>, body: bool) {
+    pub fn write_head(&mut self, mut head: super::MessageHead<T::Outgoing>, body: bool) {
         debug_assert!(self.can_write_head());
 
-        let wants_keep_alive = head.should_keep_alive();
-        self.state.keep_alive &= wants_keep_alive;
+        self.enforce_version(&mut head);
+
         let buf = self.io.write_buf_mut();
         // if a 100-continue has started but not finished sending, tack the
         // remainder on to the start of the buffer.
@@ -433,6 +437,36 @@ where I: AsyncRead + AsyncWrite,
         } else {
             Writing::KeepAlive
         };
+    }
+
+    // If we know the remote speaks an older version, we try to fix up any messages
+    // to work with our older peer.
+    fn enforce_version(&mut self, head: &mut super::MessageHead<T::Outgoing>) {
+        use header::Connection;
+
+        let wants_keep_alive = if self.state.wants_keep_alive() {
+            let ka = head.should_keep_alive();
+            self.state.keep_alive &= ka;
+            ka
+        } else {
+            false
+        };
+
+        match self.state.version {
+            Version::Http10 => {
+                // If the remote only knows HTTP/1.0, we should force ourselves
+                // to do only speak HTTP/1.0 as well.
+                head.version = HttpVersion::Http10;
+                if wants_keep_alive {
+                    head.headers.set(Connection::keep_alive());
+                }
+            },
+            Version::Http11 => {
+                // If the remote speaks HTTP/1.1, then it *should* be fine with
+                // both HTTP/1.0 and HTTP/1.1 from us. So again, we just let
+                // the user's headers be.
+            }
+        }
     }
 
     pub fn write_body(&mut self, chunk: Option<B>) -> StartSend<Option<B>, io::Error> {
@@ -486,7 +520,7 @@ where I: AsyncRead + AsyncWrite,
                     }
                 } else {
                     // end of stream, that means we should try to eof
-                    match encoder.eof() {
+                    match encoder.end() {
                         Ok(Some(end)) => Writing::Ending(Cursor::new(end)),
                         Ok(None) => Writing::KeepAlive,
                         Err(_not_eof) => Writing::Closed,
@@ -701,6 +735,7 @@ struct State<B, K> {
     read_task: Option<Task>,
     reading: Reading,
     writing: Writing<B>,
+    version: Version,
 }
 
 #[derive(Debug)]
@@ -819,6 +854,14 @@ impl<B, K: KeepAlive> State<B, K> {
         self.keep_alive.disable();
     }
 
+    fn wants_keep_alive(&self) -> bool {
+        if let KA::Disabled = self.keep_alive.status() {
+            false
+        } else {
+            true
+        }
+    }
+
     fn try_keep_alive(&mut self) {
         match (&self.reading, &self.writing) {
             (&Reading::KeepAlive, &Writing::KeepAlive) => {
@@ -879,6 +922,12 @@ impl<B, K: KeepAlive> State<B, K> {
             _ => false
         }
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Version {
+    Http10,
+    Http11,
 }
 
 // The DebugFrame and DebugChunk are simple Debug implementations that allow

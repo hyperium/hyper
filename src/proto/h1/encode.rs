@@ -17,6 +17,11 @@ enum Kind {
     ///
     /// Enforces that the body is not longer than the Content-Length header.
     Length(u64),
+    /// An Encoder for when neither Content-Length nore Chunked encoding is set.
+    ///
+    /// This is mostly only used with HTTP/1.0 with a length. This kind requires
+    /// the connection to be closed when the body is finished.
+    Eof
 }
 
 impl Encoder {
@@ -32,6 +37,12 @@ impl Encoder {
         }
     }
 
+    pub fn eof() -> Encoder {
+        Encoder {
+            kind: Kind::Eof,
+        }
+    }
+
     pub fn is_eof(&self) -> bool {
         match self.kind {
             Kind::Length(0) |
@@ -40,7 +51,7 @@ impl Encoder {
         }
     }
 
-    pub fn eof(&self) -> Result<Option<&'static [u8]>, NotEof> {
+    pub fn end(&self) -> Result<Option<&'static [u8]>, NotEof> {
         match self.kind {
             Kind::Length(0) => Ok(None),
             Kind::Chunked(Chunked::Init) => Ok(Some(b"0\r\n\r\n")),
@@ -73,6 +84,12 @@ impl Encoder {
                 trace!("encoded {} bytes, remaining = {}", n, remaining);
                 Ok(n)
             },
+            Kind::Eof => {
+                if msg.is_empty() {
+                    return Ok(0);
+                }
+                w.write_atomic(&[msg])
+            }
         }
     }
 }

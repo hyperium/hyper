@@ -10,7 +10,7 @@ use proto::{MessageHead, RawStatus, Http1Transaction, ParseResult,
 use proto::h1::{Encoder, Decoder, date};
 use method::Method;
 use status::StatusCode;
-use version::HttpVersion::{Http10, Http11};
+use version::HttpVersion::{self, Http10, Http11};
 
 const MAX_HEADERS: usize = 100;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
@@ -166,7 +166,7 @@ impl ServerTransaction {
         };
 
         if has_body && can_have_body {
-            set_length(&mut head.headers)
+            set_length(head.version, &mut head.headers)
         } else {
             head.headers.remove::<TransferEncoding>();
             if can_have_body {
@@ -302,7 +302,7 @@ impl Http1Transaction for ClientTransaction {
 impl ClientTransaction {
     fn set_length(head: &mut RequestHead, has_body: bool) -> Encoder {
         if has_body {
-            set_length(&mut head.headers)
+            set_length(head.version, &mut head.headers)
         } else {
             head.headers.remove::<ContentLength>();
             head.headers.remove::<TransferEncoding>();
@@ -311,12 +311,12 @@ impl ClientTransaction {
     }
 }
 
-fn set_length(headers: &mut Headers) -> Encoder {
+fn set_length(version: HttpVersion, headers: &mut Headers) -> Encoder {
     let len = headers.get::<header::ContentLength>().map(|n| **n);
 
     if let Some(len) = len {
         Encoder::length(len)
-    } else {
+    } else if version == Http11 {
         let encodings = match headers.get_mut::<header::TransferEncoding>() {
             Some(&mut header::TransferEncoding(ref mut encodings)) => {
                 if encodings.last() != Some(&header::Encoding::Chunked) {
@@ -331,6 +331,9 @@ fn set_length(headers: &mut Headers) -> Encoder {
             headers.set(header::TransferEncoding(vec![header::Encoding::Chunked]));
         }
         Encoder::chunked()
+    } else {
+        headers.remove::<TransferEncoding>();
+        Encoder::eof()
     }
 }
 

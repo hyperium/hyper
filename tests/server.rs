@@ -146,6 +146,75 @@ fn get_chunked_response() {
 }
 
 #[test]
+fn get_auto_response() {
+    let foo_bar = b"foo bar baz";
+    let server = serve();
+    server.reply()
+        .status(hyper::Ok)
+        .body(foo_bar);
+    let mut req = connect(server.addr());
+    req.write_all(b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: close\r\n\
+        \r\n\
+    ").unwrap();
+    let mut body = String::new();
+    req.read_to_string(&mut body).unwrap();
+
+    assert!(has_header(&body, "Transfer-Encoding: chunked"));
+
+    let n = body.find("\r\n\r\n").unwrap() + 4;
+    assert_eq!(&body[n..], "B\r\nfoo bar baz\r\n0\r\n\r\n");
+}
+
+#[test]
+fn http_10_get_auto_response() {
+    let foo_bar = b"foo bar baz";
+    let server = serve();
+    server.reply()
+        .status(hyper::Ok)
+        .body(foo_bar);
+    let mut req = connect(server.addr());
+    req.write_all(b"\
+        GET / HTTP/1.0\r\n\
+        Host: example.domain\r\n\
+        \r\n\
+    ").unwrap();
+    let mut body = String::new();
+    req.read_to_string(&mut body).unwrap();
+
+    assert!(!has_header(&body, "Transfer-Encoding:"));
+
+    let n = body.find("\r\n\r\n").unwrap() + 4;
+    assert_eq!(&body[n..], "foo bar baz");
+}
+
+#[test]
+fn http_10_get_chunked_response() {
+    let foo_bar = b"foo bar baz";
+    let server = serve();
+    server.reply()
+        .status(hyper::Ok)
+        // this header should actually get removed
+        .header(hyper::header::TransferEncoding::chunked())
+        .body(foo_bar);
+    let mut req = connect(server.addr());
+    req.write_all(b"\
+        GET / HTTP/1.0\r\n\
+        Host: example.domain\r\n\
+        \r\n\
+    ").unwrap();
+    let mut body = String::new();
+    req.read_to_string(&mut body).unwrap();
+
+    assert!(!has_header(&body, "Transfer-Encoding:"));
+
+    let n = body.find("\r\n\r\n").unwrap() + 4;
+    assert_eq!(&body[n..], "foo bar baz");
+}
+
+#[test]
 fn get_chunked_response_with_ka() {
     let foo_bar = b"foo bar baz";
     let foo_bar_chunk = b"\r\nfoo bar baz\r\n0\r\n\r\n";
@@ -378,7 +447,6 @@ fn keep_alive() {
     req.write_all(b"\
         GET / HTTP/1.1\r\n\
         Host: example.domain\r\n\
-        Connection: keep-alive\r\n\
         \r\n\
     ").expect("writing 1");
 
@@ -388,7 +456,6 @@ fn keep_alive() {
         if n < buf.len() {
             if &buf[n - foo_bar.len()..n] == foo_bar {
                 break;
-            } else {
             }
         }
     }
@@ -404,6 +471,57 @@ fn keep_alive() {
         GET /quux HTTP/1.1\r\n\
         Host: example.domain\r\n\
         Connection: close\r\n\
+        \r\n\
+    ").expect("writing 2");
+
+    let mut buf = [0; 1024 * 8];
+    loop {
+        let n = req.read(&mut buf[..]).expect("reading 2");
+        assert!(n > 0, "n = {}", n);
+        if n < buf.len() {
+            if &buf[n - quux.len()..n] == quux {
+                break;
+            }
+        }
+    }
+}
+
+#[test]
+fn http_10_keep_alive() {
+    let foo_bar = b"foo bar baz";
+    let server = serve();
+    server.reply()
+        .status(hyper::Ok)
+        .header(hyper::header::ContentLength(foo_bar.len() as u64))
+        .body(foo_bar);
+    let mut req = connect(server.addr());
+    req.write_all(b"\
+        GET / HTTP/1.0\r\n\
+        Host: example.domain\r\n\
+        Connection: keep-alive\r\n\
+        \r\n\
+    ").expect("writing 1");
+
+    let mut buf = [0; 1024 * 8];
+    loop {
+        let n = req.read(&mut buf[..]).expect("reading 1");
+        if n < buf.len() {
+            if &buf[n - foo_bar.len()..n] == foo_bar {
+                break;
+            }
+        }
+    }
+
+    // try again!
+
+    let quux = b"zar quux";
+    server.reply()
+        .status(hyper::Ok)
+        .header(hyper::header::ContentLength(quux.len() as u64))
+        .body(quux);
+    req.write_all(b"\
+        GET /quux HTTP/1.0\r\n\
+        Host: example.domain\r\n\
         \r\n\
     ").expect("writing 2");
 
@@ -572,6 +690,23 @@ fn pipeline_enabled() {
     // so a second read should be EOF
     let n = req.read(&mut buf).expect("read 2");
     assert_eq!(n, 0);
+}
+
+#[test]
+fn http_10_request_receives_http_10_response() {
+    let server = serve();
+
+    let mut req = connect(server.addr());
+    req.write_all(b"\
+        GET / HTTP/1.0\r\n\
+        \r\n\
+    ").unwrap();
+
+    let expected = "HTTP/1.0 200 OK\r\nContent-Length: 0\r\n";
+    let mut buf = [0; 256];
+    let n = req.read(&mut buf).unwrap();
+    assert!(n >= expected.len(), "read: {:?} >= {:?}", n, expected.len());
+    assert_eq!(s(&buf[..expected.len()]), expected);
 }
 
 #[test]
@@ -995,6 +1130,16 @@ fn serve_with_options(options: ServeOptions) -> Serve {
         shutdown_signal: Some(shutdown_tx),
         thread: Some(thread),
     }
+}
+
+fn s(buf: &[u8]) -> &str {
+    ::std::str::from_utf8(buf).unwrap()
+}
+
+fn has_header(msg: &str, name: &str) -> bool {
+    let n = msg.find("\r\n\r\n").unwrap_or(msg.len());
+
+    msg[..n].contains(name)
 }
 
 struct DebugStream<T, D> {
