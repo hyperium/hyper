@@ -1,3 +1,16 @@
+### v0.11.15 (2018-01-22)
+
+
+#### Bug Fixes
+
+* **lib:** properly handle HTTP/1.0 remotes ([36e66a50](https://github.com/hyperium/hyper/commit/36e66a50546347c6f9b74c6d3c26e8b910483a4b), closes [#1304](https://github.com/hyperium/hyper/issues/1304))
+
+
+#### Features
+
+* **client:** add `executor` method when configuring a `Client` ([c89019eb](https://github.com/hyperium/hyper/commit/c89019eb100d00b5235d3b9a0d0b672ab0ef8ddc))
+
+
 ### v0.11.14 (2018-01-16)
 
 
