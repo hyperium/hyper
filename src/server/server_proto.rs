@@ -23,7 +23,7 @@ use proto::{self, request, response};
 #[cfg(feature = "compat")]
 use proto::Body;
 #[cfg(feature = "compat")]
-use super::compat_impl;
+use super::compat;
 use super::Http;
 
 impl<B: AsRef<[u8]> + 'static> Http<B> {
@@ -71,7 +71,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
               I: AsyncRead + AsyncWrite + 'static,
     {
         self.bind_server(handle, io, HttpService {
-            inner: compat_impl::service(service),
+            inner: compat::service(service),
             remote_addr: remote_addr,
         })
     }

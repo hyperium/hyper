@@ -4,8 +4,6 @@
 //! them off to a `Service`.
 
 #[cfg(feature = "compat")]
-mod compat_impl;
-#[cfg(feature = "compat")]
 pub mod compat;
 mod service;
 
@@ -191,7 +189,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
                     Send + Sync + 'static,
               Bd: Stream<Item=B, Error=::Error>,
     {
-        self.bind(addr, self::compat_impl::new_service(new_service))
+        self.bind(addr, self::compat::new_service(new_service))
     }
 
     /// Bind the provided `addr` and return a server with a shared `Core`.

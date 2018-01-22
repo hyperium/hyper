@@ -32,8 +32,6 @@ mod connect;
 mod dns;
 mod pool;
 #[cfg(feature = "compat")]
-mod compat_impl;
-#[cfg(feature = "compat")]
 pub mod compat;
 
 /// A Client to make outgoing HTTP requests.
@@ -121,13 +119,13 @@ where C: Connect,
     #[inline]
     #[cfg(feature = "compat")]
     pub fn request_compat(&self, req: http::Request<B>) -> compat::CompatFutureResponse {
-        self::compat_impl::future(self.call(req.into()))
+        self::compat::future(self.call(req.into()))
     }
 
     /// Convert into a client accepting `http::Request`.
     #[cfg(feature = "compat")]
     pub fn into_compat(self) -> compat::CompatClient<C, B> {
-        self::compat_impl::client(self)
+        self::compat::client(self)
     }
 }
 
