@@ -73,6 +73,7 @@ where
 
         if self.is_done() {
             try_ready!(self.conn.shutdown());
+            self.conn.take_error()?;
             trace!("Dispatch::poll done");
             Ok(Async::Ready(()))
         } else {

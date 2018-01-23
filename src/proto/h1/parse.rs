@@ -111,10 +111,23 @@ impl Http1Transaction for ServerTransaction {
     }
 
 
-    fn encode(mut head: MessageHead<Self::Outgoing>, has_body: bool, method: &mut Option<Method>, dst: &mut Vec<u8>) -> Encoder {
+    fn encode(mut head: MessageHead<Self::Outgoing>, has_body: bool, method: &mut Option<Method>, dst: &mut Vec<u8>) -> ::Result<Encoder> {
         trace!("ServerTransaction::encode has_body={}, method={:?}", has_body, method);
 
-        let body = ServerTransaction::set_length(&mut head, has_body, method.as_ref());
+        // hyper currently doesn't support returning 1xx status codes as a Response
+        // This is because Service only allows returning a single Response, and
+        // so if you try to reply with a e.g. 100 Continue, you have no way of
+        // replying with the latter status code response.
+        let ret = if head.subject.is_informational() {
+            error!("response with 1xx status code not supported");
+            head = MessageHead::default();
+            head.subject = ::StatusCode::InternalServerError;
+            head.headers.set(ContentLength(0));
+            Err(::Error::Status)
+        } else {
+            Ok(ServerTransaction::set_length(&mut head, has_body, method.as_ref()))
+        };
+
 
         let init_cap = 30 + head.headers.len() * AVERAGE_HEADER_SIZE;
         dst.reserve(init_cap);
@@ -133,7 +146,8 @@ impl Http1Transaction for ServerTransaction {
             extend(dst, b"\r\n");
         }
         extend(dst, b"\r\n");
-        body
+
+        ret
     }
 
     fn should_error_on_parse_eof() -> bool {
@@ -289,7 +303,7 @@ impl Http1Transaction for ClientTransaction {
         }
     }
 
-    fn encode(mut head: MessageHead<Self::Outgoing>, has_body: bool, method: &mut Option<Method>, dst: &mut Vec<u8>) -> Encoder {
+    fn encode(mut head: MessageHead<Self::Outgoing>, has_body: bool, method: &mut Option<Method>, dst: &mut Vec<u8>) -> ::Result<Encoder> {
         trace!("ClientTransaction::encode has_body={}, method={:?}", has_body, method);
 
         *method = Some(head.subject.0.clone());
@@ -300,7 +314,7 @@ impl Http1Transaction for ClientTransaction {
         dst.reserve(init_cap);
         let _ = write!(FastWrite(dst), "{} {}\r\n{}\r\n", head.subject, head.version, head.headers);
 
-        body
+        Ok(body)
     }
 
     fn should_error_on_parse_eof() -> bool {
@@ -645,7 +659,7 @@ mod tests {
 
         b.iter(|| {
             let mut vec = Vec::new();
-            ServerTransaction::encode(head.clone(), true, &mut None, &mut vec);
+            ServerTransaction::encode(head.clone(), true, &mut None, &mut vec).unwrap();
             assert_eq!(vec.len(), len);
             ::test::black_box(vec);
         })

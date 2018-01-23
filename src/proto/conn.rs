@@ -40,6 +40,7 @@ where I: AsyncRead + AsyncWrite,
         Conn {
             io: Buffered::new(io),
             state: State {
+                error: None,
                 keep_alive: keep_alive,
                 method: None,
                 read_task: None,
@@ -437,11 +438,18 @@ where I: AsyncRead + AsyncWrite,
                 buf.extend_from_slice(pending.buf());
             }
         }
-        let encoder = T::encode(head, body, &mut self.state.method, buf);
-        self.state.writing = if !encoder.is_eof() {
-            Writing::Body(encoder, None)
-        } else {
-            Writing::KeepAlive
+        self.state.writing = match T::encode(head, body, &mut self.state.method, buf) {
+            Ok(encoder) => {
+                if !encoder.is_eof() {
+                    Writing::Body(encoder, None)
+                } else {
+                    Writing::KeepAlive
+                }
+            },
+            Err(err) => {
+                self.state.error = Some(err);
+                Writing::Closed
+            }
         };
     }
 
@@ -626,6 +634,14 @@ where I: AsyncRead + AsyncWrite,
             self.state.disable_keep_alive();
         }
     }
+
+    pub fn take_error(&mut self) -> ::Result<()> {
+        if let Some(err) = self.state.error.take() {
+            Err(err)
+        } else {
+            Ok(())
+        }
+    }
 }
 
 // ==== tokio_proto impl ====
@@ -736,6 +752,7 @@ impl<I, B: AsRef<[u8]>, T, K: KeepAlive> fmt::Debug for Conn<I, B, T, K> {
 }
 
 struct State<B, K> {
+    error: Option<::Error>,
     keep_alive: K,
     method: Option<Method>,
     read_task: Option<Task>,
@@ -767,6 +784,7 @@ impl<B: AsRef<[u8]>, K: KeepAlive> fmt::Debug for State<B, K> {
             .field("reading", &self.reading)
             .field("writing", &self.writing)
             .field("keep_alive", &self.keep_alive.status())
+            .field("error", &self.error)
             //.field("method", &self.method)
             .field("read_task", &self.read_task)
             .finish()

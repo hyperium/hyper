@@ -22,7 +22,8 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use hyper::server::{Http, Request, Response, Service, NewService};
+use hyper::StatusCode;
+use hyper::server::{Http, Request, Response, Service, NewService, service_fn};
 
 
 #[test]
@@ -868,6 +869,38 @@ fn nonempty_parse_eof_returns_error() {
 }
 
 #[test]
+fn returning_1xx_response_is_error() {
+    let mut core = Core::new().unwrap();
+    let listener = TcpListener::bind(&"127.0.0.1:0".parse().unwrap(), &core.handle()).unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        tcp.write_all(b"GET / HTTP/1.1\r\n\r\n").unwrap();
+        let mut buf = [0; 256];
+        tcp.read(&mut buf).unwrap();
+
+        let expected = "HTTP/1.1 500 ";
+        assert_eq!(s(&buf[..expected.len()]), expected);
+    });
+
+    let fut = listener.incoming()
+        .into_future()
+        .map_err(|_| unreachable!())
+        .and_then(|(item, _incoming)| {
+            let (socket, _) = item.unwrap();
+            Http::<hyper::Chunk>::new()
+                .serve_connection(socket, service_fn(|_| {
+                    Ok(Response::<hyper::Body>::new()
+                        .with_status(StatusCode::Continue))
+                }))
+                .map(|_| ())
+        });
+
+    core.run(fut).unwrap_err();
+}
+
+#[test]
 fn remote_addr() {
     let server = serve();
 
@@ -1191,3 +1224,4 @@ impl Drop for Dropped {
         self.0.store(true, Ordering::SeqCst);
     }
 }
+
