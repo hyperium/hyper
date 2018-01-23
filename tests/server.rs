@@ -901,6 +901,64 @@ fn returning_1xx_response_is_error() {
 }
 
 #[test]
+fn parse_errors_send_4xx_response() {
+    let mut core = Core::new().unwrap();
+    let listener = TcpListener::bind(&"127.0.0.1:0".parse().unwrap(), &core.handle()).unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        tcp.write_all(b"GE T / HTTP/1.1\r\n\r\n").unwrap();
+        let mut buf = [0; 256];
+        tcp.read(&mut buf).unwrap();
+
+        let expected = "HTTP/1.1 400 ";
+        assert_eq!(s(&buf[..expected.len()]), expected);
+    });
+
+    let fut = listener.incoming()
+        .into_future()
+        .map_err(|_| unreachable!())
+        .and_then(|(item, _incoming)| {
+            let (socket, _) = item.unwrap();
+            Http::<hyper::Chunk>::new()
+                .serve_connection(socket, HelloWorld)
+                .map(|_| ())
+        });
+
+    core.run(fut).unwrap_err();
+}
+
+#[test]
+fn illegal_request_length_returns_400_response() {
+    let mut core = Core::new().unwrap();
+    let listener = TcpListener::bind(&"127.0.0.1:0".parse().unwrap(), &core.handle()).unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        tcp.write_all(b"POST / HTTP/1.1\r\nContent-Length: foo\r\n\r\n").unwrap();
+        let mut buf = [0; 256];
+        tcp.read(&mut buf).unwrap();
+
+        let expected = "HTTP/1.1 400 ";
+        assert_eq!(s(&buf[..expected.len()]), expected);
+    });
+
+    let fut = listener.incoming()
+        .into_future()
+        .map_err(|_| unreachable!())
+        .and_then(|(item, _incoming)| {
+            let (socket, _) = item.unwrap();
+            Http::<hyper::Chunk>::new()
+                .serve_connection(socket, HelloWorld)
+                .map(|_| ())
+        });
+
+    core.run(fut).unwrap_err();
+}
+
+#[test]
 fn remote_addr() {
     let server = serve();
 

@@ -186,7 +186,8 @@ where I: AsyncRead + AsyncWrite,
                     let was_mid_parse = !self.io.read_buf().is_empty();
                     return if was_mid_parse || must_error {
                         debug!("parse error ({}) with {} bytes", e, self.io.read_buf().len());
-                        Err(e)
+                        self.on_parse_error(e)
+                            .map(|()| Async::NotReady)
                     } else {
                         debug!("read eof");
                         Ok(Async::Ready(None))
@@ -213,7 +214,8 @@ where I: AsyncRead + AsyncWrite,
                 Err(e) => {
                     debug!("decoder error = {:?}", e);
                     self.state.close_read();
-                    return Err(e);
+                    return self.on_parse_error(e)
+                        .map(|()| Async::NotReady);
                 }
             };
 
@@ -546,6 +548,27 @@ where I: AsyncRead + AsyncWrite,
 
         self.state.writing = state;
         Ok(AsyncSink::Ready)
+    }
+
+    // When we get a parse error, depending on what side we are, we might be able
+    // to write a response before closing the connection.
+    //
+    // - Client: there is nothing we can do
+    // - Server: if Response hasn't been written yet, we can send a 4xx response
+    fn on_parse_error(&mut self, err: ::Error) -> ::Result<()> {
+        match self.state.writing {
+            Writing::Init => {
+                if let Some(msg) = T::on_error(&err) {
+                    self.write_head(msg, false);
+                    self.state.error = Some(err);
+                    return Ok(());
+                }
+            }
+            _ => (),
+        }
+
+        // fallback is pass the error back up
+        Err(err)
     }
 
     fn write_queued(&mut self) -> Poll<(), io::Error> {

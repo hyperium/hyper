@@ -150,6 +150,26 @@ impl Http1Transaction for ServerTransaction {
         ret
     }
 
+    fn on_error(err: &::Error) -> Option<MessageHead<Self::Outgoing>> {
+        let status = match err {
+            &::Error::Method |
+            &::Error::Version |
+            &::Error::Header |
+            &::Error::Uri(_) => {
+                StatusCode::BadRequest
+            },
+            &::Error::TooLarge => {
+                StatusCode::RequestHeaderFieldsTooLarge
+            }
+            _ => return None,
+        };
+
+        debug!("sending automatic response ({}) for parse error", status);
+        let mut msg = MessageHead::default();
+        msg.subject = status;
+        Some(msg)
+    }
+
     fn should_error_on_parse_eof() -> bool {
         false
     }
@@ -315,6 +335,11 @@ impl Http1Transaction for ClientTransaction {
         let _ = write!(FastWrite(dst), "{} {}\r\n{}\r\n", head.subject, head.version, head.headers);
 
         Ok(body)
+    }
+
+    fn on_error(_err: &::Error) -> Option<MessageHead<Self::Outgoing>> {
+        // we can't tell the server about any errors it creates
+        None
     }
 
     fn should_error_on_parse_eof() -> bool {
