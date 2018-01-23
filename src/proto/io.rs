@@ -94,35 +94,21 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
     pub fn read_from_io(&mut self) -> Poll<usize, io::Error> {
         use bytes::BufMut;
         self.read_blocked = false;
-        //TODO: use io.read_buf(), so we don't have to zero memory
-        //Reason this doesn't use it yet is because benchmarks show the
-        //slightest **decrease** in performance. Switching should be done
-        //when it doesn't cost anything.
         if self.read_buf.remaining_mut() < INIT_BUFFER_SIZE {
             self.read_buf.reserve(INIT_BUFFER_SIZE);
-            unsafe { // Zero out unused memory
-                let buf = self.read_buf.bytes_mut();
-                let len = buf.len();
-                ptr::write_bytes(buf.as_mut_ptr(), 0, len);
-            }
         }
-        unsafe {
-            let n = match self.io.read(self.read_buf.bytes_mut()) {
-                Ok(n) => n,
-                Err(e) => {
-                    if e.kind() == io::ErrorKind::WouldBlock {
-                        self.read_blocked = true;
-                        return Ok(Async::NotReady);
-                    }
-                    return Err(e)
+        self.io.read_buf(&mut self.read_buf).map(|ok| {
+            match ok {
+                Async::Ready(n) => {
+                    debug!("read {} bytes", n);
+                    Async::Ready(n)
+                },
+                Async::NotReady => {
+                    self.read_blocked = true;
+                    Async::NotReady
                 }
-            };
-            if n > 0 {
-                debug!("read {} bytes", n);
-                self.read_buf.advance_mut(n);
             }
-            Ok(Async::Ready(n))
-        }
+        })
     }
 
     pub fn buffer<B: AsRef<[u8]>>(&mut self, buf: B) -> usize {
