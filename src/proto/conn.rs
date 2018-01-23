@@ -171,65 +171,71 @@ where I: AsyncRead + AsyncWrite,
         debug_assert!(self.can_read_head());
         trace!("Conn::read_head");
 
-        let (version, head) = match self.io.parse::<T>() {
-            Ok(Async::Ready(head)) => (head.version, head),
-            Ok(Async::NotReady) => return Ok(Async::NotReady),
-            Err(e) => {
-                // If we are currently waiting on a message, then an empty
-                // message should be reported as an error. If not, it is just
-                // the connection closing gracefully.
-                let must_error = self.should_error_on_eof();
-                self.state.close_read();
-                self.io.consume_leading_lines();
-                let was_mid_parse = !self.io.read_buf().is_empty();
-                return if was_mid_parse || must_error {
-                    debug!("parse error ({}) with {} bytes", e, self.io.read_buf().len());
-                    Err(e)
-                } else {
-                    debug!("read eof");
-                    Ok(Async::Ready(None))
-                };
+        loop {
+            let (version, head) = match self.io.parse::<T>() {
+                Ok(Async::Ready(head)) => (head.version, head),
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
+                Err(e) => {
+                    // If we are currently waiting on a message, then an empty
+                    // message should be reported as an error. If not, it is just
+                    // the connection closing gracefully.
+                    let must_error = self.should_error_on_eof();
+                    self.state.close_read();
+                    self.io.consume_leading_lines();
+                    let was_mid_parse = !self.io.read_buf().is_empty();
+                    return if was_mid_parse || must_error {
+                        debug!("parse error ({}) with {} bytes", e, self.io.read_buf().len());
+                        Err(e)
+                    } else {
+                        debug!("read eof");
+                        Ok(Async::Ready(None))
+                    };
+                }
+            };
+
+            self.state.version = match version {
+                HttpVersion::Http10 => Version::Http10,
+                HttpVersion::Http11 => Version::Http11,
+                _ => {
+                    error!("unimplemented HTTP Version = {:?}", version);
+                    self.state.close_read();
+                    return Err(::Error::Version);
+                }
+            };
+
+            let decoder = match T::decoder(&head, &mut self.state.method) {
+                Ok(Some(d)) => d,
+                Ok(None) => {
+                    // likely a 1xx message that we can ignore
+                    continue;
+                }
+                Err(e) => {
+                    debug!("decoder error = {:?}", e);
+                    self.state.close_read();
+                    return Err(e);
+                }
+            };
+
+            debug!("incoming body is {}", decoder);
+
+            self.state.busy();
+            if head.expecting_continue() {
+                let msg = b"HTTP/1.1 100 Continue\r\n\r\n";
+                self.state.writing = Writing::Continue(Cursor::new(msg));
             }
-        };
-
-        self.state.version = match version {
-            HttpVersion::Http10 => Version::Http10,
-            HttpVersion::Http11 => Version::Http11,
-            _ => {
-                error!("unimplemented HTTP Version = {:?}", version);
-                self.state.close_read();
-                return Err(::Error::Version);
+            let wants_keep_alive = head.should_keep_alive();
+            self.state.keep_alive &= wants_keep_alive;
+            let (body, reading) = if decoder.is_eof() {
+                (false, Reading::KeepAlive)
+            } else {
+                (true, Reading::Body(decoder))
+            };
+            self.state.reading = reading;
+            if !body {
+                self.try_keep_alive();
             }
-        };
-
-        let decoder = match T::decoder(&head, &mut self.state.method) {
-            Ok(d) => d,
-            Err(e) => {
-                debug!("decoder error = {:?}", e);
-                self.state.close_read();
-                return Err(e);
-            }
-        };
-
-        debug!("incoming body is {}", decoder);
-
-        self.state.busy();
-        if head.expecting_continue() {
-            let msg = b"HTTP/1.1 100 Continue\r\n\r\n";
-            self.state.writing = Writing::Continue(Cursor::new(msg));
+            return Ok(Async::Ready(Some((head, body))));
         }
-        let wants_keep_alive = head.should_keep_alive();
-        self.state.keep_alive &= wants_keep_alive;
-        let (body, reading) = if decoder.is_eof() {
-            (false, Reading::KeepAlive)
-        } else {
-            (true, Reading::Body(decoder))
-        };
-        self.state.reading = reading;
-        if !body {
-            self.try_keep_alive();
-        }
-        Ok(Async::Ready(Some((head, body))))
     }
 
     pub fn read_body(&mut self) -> Poll<Option<super::Chunk>, io::Error> {

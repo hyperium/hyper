@@ -458,6 +458,72 @@ test! {
 
 }
 
+test! {
+    name: client_100_continue,
+
+    server:
+        expected: "\
+            POST /continue HTTP/1.1\r\n\
+            Host: {addr}\r\n\
+            Content-Length: 7\r\n\
+            \r\n\
+            foo bar\
+            ",
+        reply: "\
+            HTTP/1.1 100 Continue\r\n\
+            \r\n\
+            HTTP/1.1 200 OK\r\n\
+            Content-Length: 0\r\n\
+            \r\n\
+            ",
+
+    client:
+        request:
+            method: Post,
+            url: "http://{addr}/continue",
+            headers: [
+                ContentLength(7),
+            ],
+            body: Some("foo bar"),
+            proxy: false,
+        response:
+            status: Ok,
+            headers: [],
+            body: None,
+}
+
+
+test! {
+    name: client_101_upgrade,
+
+    server:
+        expected: "\
+            GET /upgrade HTTP/1.1\r\n\
+            Host: {addr}\r\n\
+            \r\n\
+            ",
+        reply: "\
+            HTTP/1.1 101 Switching Protocols\r\n\
+            Upgrade: websocket\r\n\
+            Connection: upgrade\r\n\
+            \r\n\
+            ",
+
+    client:
+        request:
+            method: Get,
+            url: "http://{addr}/upgrade",
+            headers: [],
+            body: None,
+            proxy: false,
+        error: |err| match err {
+            &hyper::Error::Upgrade => true,
+            _ => false,
+        },
+
+}
+
+
 #[test]
 fn client_keep_alive() {
     let server = TcpListener::bind("127.0.0.1:0").unwrap();

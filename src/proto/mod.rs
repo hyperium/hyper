@@ -147,7 +147,7 @@ pub trait Http1Transaction {
     type Incoming;
     type Outgoing: Default;
     fn parse(bytes: &mut BytesMut) -> ParseResult<Self::Incoming>;
-    fn decoder(head: &MessageHead<Self::Incoming>, method: &mut Option<::Method>) -> ::Result<h1::Decoder>;
+    fn decoder(head: &MessageHead<Self::Incoming>, method: &mut Option<::Method>) -> ::Result<Option<h1::Decoder>>;
     fn encode(head: MessageHead<Self::Outgoing>, has_body: bool, method: &mut Option<Method>, dst: &mut Vec<u8>) -> h1::Encoder;
 
     fn should_error_on_parse_eof() -> bool;

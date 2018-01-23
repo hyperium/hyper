@@ -16,6 +16,7 @@ use self::Error::{
     Header,
     Status,
     Timeout,
+    Upgrade,
     Io,
     TooLarge,
     Incomplete,
@@ -44,6 +45,8 @@ pub enum Error {
     Status,
     /// A timeout occurred waiting for an IO event.
     Timeout,
+    /// A protocol upgrade was encountered, but not yet supported in hyper.
+    Upgrade,
     /// An `io::Error` that occurred while trying to read or write to a network stream.
     Io(IoError),
     /// Parsing a field as string failed
@@ -76,13 +79,14 @@ impl fmt::Display for Error {
 impl StdError for Error {
     fn description(&self) -> &str {
         match *self {
-            Method => "Invalid Method specified",
-            Version => "Invalid HTTP version specified",
-            Header => "Invalid Header provided",
-            TooLarge => "Message head is too large",
-            Status => "Invalid Status provided",
-            Incomplete => "Message is incomplete",
-            Timeout => "Timeout",
+            Method => "invalid Method specified",
+            Version => "invalid HTTP version specified",
+            Header => "invalid Header provided",
+            TooLarge => "message head is too large",
+            Status => "invalid Status provided",
+            Incomplete => "message is incomplete",
+            Timeout => "timeout",
+            Upgrade => "unsupported protocol upgrade",
             Uri(ref e) => e.description(),
             Io(ref e) => e.description(),
             Utf8(ref e) => e.description(),
