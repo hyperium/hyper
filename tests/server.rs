@@ -959,6 +959,41 @@ fn illegal_request_length_returns_400_response() {
 }
 
 #[test]
+fn max_buf_size() {
+    let _ = pretty_env_logger::try_init();
+    let mut core = Core::new().unwrap();
+    let listener = TcpListener::bind(&"127.0.0.1:0".parse().unwrap(), &core.handle()).unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    const MAX: usize = 16_000;
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        tcp.write_all(b"POST /").expect("write 1");
+        tcp.write_all(&vec![b'a'; MAX]).expect("write 2");
+        tcp.write_all(b" HTTP/1.1\r\n\r\n").expect("write 3");
+        let mut buf = [0; 256];
+        tcp.read(&mut buf).expect("read 1");
+
+        let expected = "HTTP/1.1 400 ";
+        assert_eq!(s(&buf[..expected.len()]), expected);
+    });
+
+    let fut = listener.incoming()
+        .into_future()
+        .map_err(|_| unreachable!())
+        .and_then(|(item, _incoming)| {
+            let (socket, _) = item.unwrap();
+            Http::<hyper::Chunk>::new()
+                .max_buf_size(MAX)
+                .serve_connection(socket, HelloWorld)
+                .map(|_| ())
+        });
+
+    core.run(fut).unwrap_err();
+}
+
+#[test]
 fn remote_addr() {
     let server = serve();
 

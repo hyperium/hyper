@@ -58,6 +58,10 @@ where I: AsyncRead + AsyncWrite,
         self.io.set_flush_pipeline(enabled);
     }
 
+    pub fn set_max_buf_size(&mut self, max: usize) {
+        self.io.set_max_buf_size(max);
+    }
+
     #[cfg(feature = "tokio-proto")]
     fn poll_incoming(&mut self) -> Poll<Option<Frame<super::MessageHead<T::Incoming>, super::Chunk, ::Error>>, io::Error> {
         trace!("Conn::poll_incoming()");
@@ -1221,7 +1225,7 @@ mod tests {
         let _: Result<(), ()> = future::lazy(|| {
             let io = AsyncIo::new_buf(vec![], 0);
             let mut conn = Conn::<_, proto::Chunk, ServerTransaction>::new(io, Default::default());
-            let max = ::proto::io::MAX_BUFFER_SIZE + 4096;
+            let max = ::proto::io::DEFAULT_MAX_BUFFER_SIZE + 4096;
             conn.state.writing = Writing::Body(Encoder::length((max * 2) as u64), None);
 
             assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'a'; 1024 * 8].into()) }).unwrap().is_ready());

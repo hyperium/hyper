@@ -113,6 +113,9 @@ impl<T, B> ServerProto<T> for Http<B>
         };
         let mut conn = proto::Conn::new(io, ka);
         conn.set_flush_pipeline(self.pipeline);
+        if let Some(max) = self.max_buf_size {
+            conn.set_max_buf_size(max);
+        }
         __ProtoBindTransport {
             inner: future::ok(conn),
         }

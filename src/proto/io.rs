@@ -10,11 +10,12 @@ use super::{Http1Transaction, MessageHead};
 use bytes::{BytesMut, Bytes};
 
 const INIT_BUFFER_SIZE: usize = 8192;
-pub const MAX_BUFFER_SIZE: usize = 8192 + 4096 * 100;
+pub const DEFAULT_MAX_BUFFER_SIZE: usize = 8192 + 4096 * 100;
 
 pub struct Buffered<T> {
     flush_pipeline: bool,
     io: T,
+    max_buf_size: usize,
     read_blocked: bool,
     read_buf: BytesMut,
     write_buf: WriteBuf,
@@ -34,6 +35,7 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
         Buffered {
             flush_pipeline: false,
             io: io,
+            max_buf_size: DEFAULT_MAX_BUFFER_SIZE,
             read_buf: BytesMut::with_capacity(0),
             write_buf: WriteBuf::new(),
             read_blocked: false,
@@ -44,6 +46,11 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
         self.flush_pipeline = enabled;
     }
 
+    pub fn set_max_buf_size(&mut self, max: usize) {
+        self.max_buf_size = max;
+        self.write_buf.max_buf_size = max;
+    }
+
     pub fn read_buf(&self) -> &[u8] {
         self.read_buf.as_ref()
     }
@@ -51,7 +58,7 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
     pub fn write_buf_mut(&mut self) -> &mut Vec<u8> {
         self.write_buf.maybe_reset();
         self.write_buf.maybe_reserve(0);
-        &mut self.write_buf.0.bytes
+        &mut self.write_buf.buf.bytes
     }
 
     pub fn consume_leading_lines(&mut self) {
@@ -75,8 +82,8 @@ impl<T: AsyncRead + AsyncWrite> Buffered<T> {
                     return Ok(Async::Ready(head))
                 },
                 None => {
-                    if self.read_buf.capacity() >= MAX_BUFFER_SIZE {
-                        debug!("MAX_BUFFER_SIZE reached, closing");
+                    if self.read_buf.capacity() >= self.max_buf_size {
+                        debug!("max_buf_size ({}) reached, closing", self.max_buf_size);
                         return Err(::Error::TooLarge);
                     }
                 },
@@ -259,22 +266,28 @@ impl<T: Write> AtomicWrite for T {
 
 // an internal buffer to collect writes before flushes
 #[derive(Debug)]
-struct WriteBuf(Cursor<Vec<u8>>);
+struct WriteBuf{
+    buf: Cursor<Vec<u8>>,
+    max_buf_size: usize,
+}
 
 impl WriteBuf {
     fn new() -> WriteBuf {
-        WriteBuf(Cursor::new(Vec::new()))
+        WriteBuf {
+            buf: Cursor::new(Vec::new()),
+            max_buf_size: DEFAULT_MAX_BUFFER_SIZE,
+        }
     }
 
     fn write_into<W: Write>(&mut self, w: &mut W) -> io::Result<usize> {
-        self.0.write_to(w)
+        self.buf.write_to(w)
     }
 
     fn buffer(&mut self, data: &[u8]) -> usize {
         trace!("WriteBuf::buffer() len = {:?}", data.len());
         self.maybe_reset();
         self.maybe_reserve(data.len());
-        let vec = &mut self.0.bytes;
+        let vec = &mut self.buf.bytes;
         let len = cmp::min(vec.capacity() - vec.len(), data.len());
         assert!(vec.capacity() - vec.len() >= len);
         unsafe {
@@ -291,28 +304,28 @@ impl WriteBuf {
     }
 
     fn remaining(&self) -> usize {
-        self.0.remaining()
+        self.buf.remaining()
     }
 
     #[inline]
     fn maybe_reserve(&mut self, needed: usize) {
-        let vec = &mut self.0.bytes;
+        let vec = &mut self.buf.bytes;
         let cap = vec.capacity();
         if cap == 0 {
-            let init = cmp::min(MAX_BUFFER_SIZE, cmp::max(INIT_BUFFER_SIZE, needed));
+            let init = cmp::min(self.max_buf_size, cmp::max(INIT_BUFFER_SIZE, needed));
             trace!("WriteBuf reserving initial {}", init);
             vec.reserve(init);
-        } else if cap < MAX_BUFFER_SIZE {
-            vec.reserve(cmp::min(needed, MAX_BUFFER_SIZE - cap));
+        } else if cap < self.max_buf_size {
+            vec.reserve(cmp::min(needed, self.max_buf_size - cap));
             trace!("WriteBuf reserved {}", vec.capacity() - cap);
         }
     }
 
     fn maybe_reset(&mut self) {
-        if self.0.pos != 0 && self.0.remaining() == 0 {
-            self.0.pos = 0;
+        if self.buf.pos != 0 && self.buf.remaining() == 0 {
+            self.buf.pos = 0;
             unsafe {
-                self.0.bytes.set_len(0);
+                self.buf.bytes.set_len(0);
             }
         }
     }

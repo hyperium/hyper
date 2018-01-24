@@ -53,6 +53,7 @@ pub use self::service::{const_service, service_fn};
 /// which handle a connection to an HTTP server. Each instance of `Http` can be
 /// configured with various protocol-level options such as keepalive.
 pub struct Http<B = ::Chunk> {
+    max_buf_size: Option<usize>,
     keep_alive: bool,
     pipeline: bool,
     _marker: PhantomData<B>,
@@ -129,6 +130,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     pub fn new() -> Http<B> {
         Http {
             keep_alive: true,
+            max_buf_size: None,
             pipeline: false,
             _marker: PhantomData,
         }
@@ -139,6 +141,12 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     /// Default is true.
     pub fn keep_alive(&mut self, val: bool) -> &mut Self {
         self.keep_alive = val;
+        self
+    }
+
+    /// Set the maximum buffer size for the connection.
+    pub fn max_buf_size(&mut self, max: usize) -> &mut Self {
+        self.max_buf_size = Some(max);
         self
     }
 
@@ -226,6 +234,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
             new_service: new_service,
             protocol: Http {
                 keep_alive: self.keep_alive,
+                max_buf_size: self.max_buf_size,
                 pipeline: self.pipeline,
                 _marker: PhantomData,
             },
@@ -250,6 +259,9 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
         };
         let mut conn = proto::Conn::new(io, ka);
         conn.set_flush_pipeline(self.pipeline);
+        if let Some(max) = self.max_buf_size {
+            conn.set_max_buf_size(max);
+        }
         Connection {
             conn: proto::dispatch::Dispatcher::new(proto::dispatch::Server::new(service), conn),
         }
