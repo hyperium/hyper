@@ -971,11 +971,10 @@ fn max_buf_size() {
         let mut tcp = connect(&addr);
         tcp.write_all(b"POST /").expect("write 1");
         tcp.write_all(&vec![b'a'; MAX]).expect("write 2");
-        tcp.write_all(b" HTTP/1.1\r\n\r\n").expect("write 3");
         let mut buf = [0; 256];
         tcp.read(&mut buf).expect("read 1");
 
-        let expected = "HTTP/1.1 400 ";
+        let expected = "HTTP/1.1 431 ";
         assert_eq!(s(&buf[..expected.len()]), expected);
     });
 

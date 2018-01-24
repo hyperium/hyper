@@ -8,7 +8,7 @@ extern crate tokio_core;
 
 use std::net::SocketAddr;
 
-use futures::{Future, Stream};
+use futures::{future, Future, Stream};
 use tokio_core::reactor::{Core, Handle};
 use tokio_core::net::TcpListener;
 
@@ -76,9 +76,9 @@ impl Service for Hello {
     type Request = server::Request;
     type Response = server::Response;
     type Error = hyper::Error;
-    type Future = ::futures::Finished<Self::Response, hyper::Error>;
+    type Future = future::FutureResult<Self::Response, hyper::Error>;
     fn call(&self, _req: Self::Request) -> Self::Future {
-        ::futures::finished(
+        future::ok(
             server::Response::new()
                 .with_header(ContentLength(PHRASE.len() as u64))
                 .with_header(ContentType::plaintext())
@@ -94,9 +94,13 @@ fn spawn_hello(handle: &Handle) -> SocketAddr {
     let addr = listener.local_addr().unwrap();
 
     let handle2 = handle.clone();
-    let http = hyper::server::Http::new();
-    handle.spawn(listener.incoming().for_each(move |(socket, addr)| {
-        http.bind_connection(&handle2, socket, addr, Hello);
+    let http = hyper::server::Http::<hyper::Chunk>::new();
+    handle.spawn(listener.incoming().for_each(move |(socket, _addr)| {
+        handle2.spawn(
+            http.serve_connection(socket, Hello)
+                .map(|_| ())
+                .map_err(|_| ())
+        );
         Ok(())
     }).then(|_| Ok(())));
     return addr

@@ -9,7 +9,7 @@ use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::mpsc;
 
-use futures::Future;
+use futures::{future, Future};
 use futures::sync::oneshot;
 
 use hyper::header::{ContentLength, ContentType, TransferEncoding};
@@ -102,9 +102,9 @@ impl Service for FixedSizeSmallPayload {
     type Request = server::Request;
     type Response = server::Response;
     type Error = hyper::Error;
-    type Future = ::futures::Finished<Self::Response, hyper::Error>;
+    type Future = future::FutureResult<Self::Response, hyper::Error>;
     fn call(&self, _req: Self::Request) -> Self::Future {
-        ::futures::finished(
+        future::ok(
             server::Response::new()
                 .with_header(ContentLength("Hello, World!".len() as u64))
                 .with_header(ContentType::plaintext())
@@ -119,9 +119,9 @@ impl Service for ChunkedSmallPayload {
     type Request = server::Request;
     type Response = server::Response;
     type Error = hyper::Error;
-    type Future = ::futures::Finished<Self::Response, hyper::Error>;
+    type Future = future::FutureResult<Self::Response, hyper::Error>;
     fn call(&self, _req: Self::Request) -> Self::Future {
-        ::futures::finished(
+        future::ok(
             server::Response::new()
                 .with_header(TransferEncoding::chunked())
                 .with_header(ContentType::plaintext())
@@ -136,9 +136,9 @@ impl Service for ChunkedLargePayload {
     type Request = server::Request;
     type Response = server::Response;
     type Error = hyper::Error;
-    type Future = ::futures::Finished<Self::Response, hyper::Error>;
+    type Future = future::FutureResult<Self::Response, hyper::Error>;
     fn call(&self, _req: Self::Request) -> Self::Future {
-        ::futures::finished(
+        future::ok(
             server::Response::new()
                 .with_header(TransferEncoding::chunked())
                 .with_header(ContentType::plaintext())
