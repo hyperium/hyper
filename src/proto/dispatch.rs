@@ -87,8 +87,6 @@ where
                 return Ok(Async::Ready(()));
             } else if self.conn.can_read_head() {
                 try_ready!(self.poll_read_head());
-            } else if self.conn.can_write_continue() {
-                try_nb!(self.conn.flush());
             } else if let Some(mut body) = self.body_tx.take() {
                 if self.conn.can_read_body() {
                     match body.poll_ready() {
@@ -196,7 +194,7 @@ where
                     self.close();
                     return Ok(Async::Ready(()));
                 }
-            } else if self.conn.has_queued_body() {
+            } else if !self.conn.can_buffer_body() {
                 try_ready!(self.poll_flush());
             } else if let Some(mut body) = self.body_rx.take() {
                 let chunk = match body.poll()? {

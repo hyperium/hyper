@@ -1,5 +1,5 @@
 use std::fmt;
-use std::io::{self, Write};
+use std::io::{self};
 use std::marker::PhantomData;
 
 use futures::{Async, AsyncSink, Poll, StartSend};
@@ -12,7 +12,7 @@ use tokio_proto::streaming::pipeline::{Frame, Transport};
 
 use proto::Http1Transaction;
 use super::io::{Cursor, Buffered};
-use super::h1::{Encoder, Decoder};
+use super::h1::{EncodedBuf, Encoder, Decoder};
 use method::Method;
 use version::HttpVersion;
 
@@ -25,8 +25,8 @@ use version::HttpVersion;
 /// determine if this  connection can be kept alive after the message,
 /// or if it is complete.
 pub struct Conn<I, B, T, K = KA> {
-    io: Buffered<I>,
-    state: State<B, K>,
+    io: Buffered<I, EncodedBuf<Cursor<B>>>,
+    state: State<K>,
     _marker: PhantomData<T>
 }
 
@@ -103,8 +103,6 @@ where I: AsyncRead + AsyncWrite,
                         error: err,
                     }))),
                 };
-            } else if self.can_write_continue() {
-                try_nb!(self.flush());
             } else if self.can_read_body() {
                 return self.read_body()
                     .map(|async| async.map(|chunk| Some(Frame::Body {
@@ -149,13 +147,6 @@ where I: AsyncRead + AsyncWrite,
                     }
                 }
             },
-            _ => false,
-        }
-    }
-
-    pub fn can_write_continue(&self) -> bool {
-        match self.state.writing {
-            Writing::Continue(..) => true,
             _ => false,
         }
     }
@@ -228,7 +219,7 @@ where I: AsyncRead + AsyncWrite,
             self.state.busy();
             if head.expecting_continue() {
                 let msg = b"HTTP/1.1 100 Continue\r\n\r\n";
-                self.state.writing = Writing::Continue(Cursor::new(msg));
+                self.io.write_buf_mut().extend_from_slice(msg);
             }
             let wants_keep_alive = head.should_keep_alive();
             self.state.keep_alive &= wants_keep_alive;
@@ -370,9 +361,7 @@ where I: AsyncRead + AsyncWrite,
         };
 
         match self.state.writing {
-            Writing::Continue(..) |
-            Writing::Body(..) |
-            Writing::Ending(..) => return,
+            Writing::Body(..) => return,
             Writing::Init |
             Writing::KeepAlive |
             Writing::Closed => (),
@@ -408,7 +397,7 @@ where I: AsyncRead + AsyncWrite,
 
     pub fn can_write_head(&self) -> bool {
         match self.state.writing {
-            Writing::Continue(..) | Writing::Init => true,
+            Writing::Init => true,
             _ => false
         }
     }
@@ -416,19 +405,14 @@ where I: AsyncRead + AsyncWrite,
     pub fn can_write_body(&self) -> bool {
         match self.state.writing {
             Writing::Body(..) => true,
-            Writing::Continue(..) |
             Writing::Init |
-            Writing::Ending(..) |
             Writing::KeepAlive |
             Writing::Closed => false,
         }
     }
 
-    pub fn has_queued_body(&self) -> bool {
-        match self.state.writing {
-            Writing::Body(_, Some(_)) => true,
-            _ => false,
-        }
+    pub fn can_buffer_body(&self) -> bool {
+        self.io.can_buffer()
     }
 
     pub fn write_head(&mut self, mut head: super::MessageHead<T::Outgoing>, body: bool) {
@@ -437,17 +421,10 @@ where I: AsyncRead + AsyncWrite,
         self.enforce_version(&mut head);
 
         let buf = self.io.write_buf_mut();
-        // if a 100-continue has started but not finished sending, tack the
-        // remainder on to the start of the buffer.
-        if let Writing::Continue(ref pending) = self.state.writing {
-            if pending.has_started() {
-                buf.extend_from_slice(pending.buf());
-            }
-        }
         self.state.writing = match T::encode(head, body, &mut self.state.method, buf) {
             Ok(encoder) => {
                 if !encoder.is_eof() {
-                    Writing::Body(encoder, None)
+                    Writing::Body(encoder)
                 } else {
                     Writing::KeepAlive
                 }
@@ -492,46 +469,26 @@ where I: AsyncRead + AsyncWrite,
     pub fn write_body(&mut self, chunk: Option<B>) -> StartSend<Option<B>, io::Error> {
         debug_assert!(self.can_write_body());
 
-        if self.has_queued_body() {
-            try!(self.flush());
-
-            if !self.can_write_body() {
-                if chunk.as_ref().map(|c| c.as_ref().len()).unwrap_or(0) == 0 {
-                    return Ok(AsyncSink::NotReady(chunk));
-                } else {
+        if !self.can_buffer_body() {
+            if let Async::NotReady = self.flush()? {
+                // if chunk is Some(&[]), aka empty, whatever, just skip it
+                if chunk.as_ref().map(|c| c.as_ref().is_empty()).unwrap_or(false) {
                     return Ok(AsyncSink::Ready);
+                } else {
+                    return Ok(AsyncSink::NotReady(chunk));
                 }
             }
         }
 
         let state = match self.state.writing {
-            Writing::Body(ref mut encoder, ref mut queued) => {
-                if queued.is_some() {
-                    return Ok(AsyncSink::NotReady(chunk));
-                }
+            Writing::Body(ref mut encoder) => {
                 if let Some(chunk) = chunk {
                     if chunk.as_ref().is_empty() {
                         return Ok(AsyncSink::Ready);
                     }
 
-                    let mut cursor = Cursor::new(chunk);
-                    match encoder.encode(&mut self.io, cursor.buf()) {
-                        Ok(n) => {
-                            cursor.consume(n);
-
-                            if !cursor.is_written() {
-                                trace!("Conn::start_send frame not written, queued");
-                                *queued = Some(cursor);
-                            }
-                        },
-                        Err(e) => match e.kind() {
-                            io::ErrorKind::WouldBlock => {
-                                trace!("Conn::start_send frame not written, queued");
-                                *queued = Some(cursor);
-                            },
-                            _ => return Err(e)
-                        }
-                    }
+                    let encoded = encoder.encode(Cursor::new(chunk));
+                    self.io.buffer(encoded);
 
                     if encoder.is_eof() {
                         Writing::KeepAlive
@@ -541,8 +498,12 @@ where I: AsyncRead + AsyncWrite,
                 } else {
                     // end of stream, that means we should try to eof
                     match encoder.end() {
-                        Ok(Some(end)) => Writing::Ending(Cursor::new(end)),
-                        Ok(None) => Writing::KeepAlive,
+                        Ok(end) => {
+                            if let Some(end) = end {
+                                self.io.buffer(end);
+                            }
+                            Writing::KeepAlive
+                        },
                         Err(_not_eof) => Writing::Closed,
                     }
                 }
@@ -575,61 +536,11 @@ where I: AsyncRead + AsyncWrite,
         Err(err)
     }
 
-    fn write_queued(&mut self) -> Poll<(), io::Error> {
-        trace!("Conn::write_queued()");
-        let state = match self.state.writing {
-            Writing::Continue(ref mut queued) => {
-                let n = self.io.buffer(queued.buf());
-                queued.consume(n);
-                if queued.is_written() {
-                    Writing::Init
-                } else {
-                    return Ok(Async::NotReady);
-                }
-            }
-            Writing::Body(ref mut encoder, ref mut queued) => {
-                let complete = if let Some(chunk) = queued.as_mut() {
-                    let n = try_nb!(encoder.encode(&mut self.io, chunk.buf()));
-                    chunk.consume(n);
-                    chunk.is_written()
-                } else {
-                    true
-                };
-                trace!("Conn::write_queued complete = {}", complete);
-                return if complete {
-                    *queued = None;
-                    Ok(Async::Ready(()))
-                } else {
-                    Ok(Async::NotReady)
-                };
-            },
-            Writing::Ending(ref mut ending) => {
-                let n = self.io.buffer(ending.buf());
-                ending.consume(n);
-                if ending.is_written() {
-                    Writing::KeepAlive
-                } else {
-                    return Ok(Async::NotReady);
-                }
-            },
-            _ => return Ok(Async::Ready(())),
-        };
-        self.state.writing = state;
-        Ok(Async::Ready(()))
-    }
-
     pub fn flush(&mut self) -> Poll<(), io::Error> {
-        loop {
-            let queue_finished = try!(self.write_queued()).is_ready();
-            try_nb!(self.io.flush());
-            if queue_finished {
-                break;
-            }
-        }
+        try_ready!(self.io.flush());
         self.try_keep_alive();
         trace!("flushed {:?}", self.state);
         Ok(Async::Ready(()))
-
     }
 
     pub fn shutdown(&mut self) -> Poll<(), io::Error> {
@@ -740,7 +651,7 @@ where I: AsyncRead + AsyncWrite,
             },
         };
 
-        error!("writing illegal frame; state={:?}, frame={:?}", self.state.writing, DebugFrame(&frame));
+        warn!("writing illegal frame; state={:?}, frame={:?}", self.state.writing, DebugFrame(&frame));
         Err(io::Error::new(io::ErrorKind::InvalidInput, "illegal frame"))
 
     }
@@ -778,13 +689,13 @@ impl<I, B: AsRef<[u8]>, T, K: KeepAlive> fmt::Debug for Conn<I, B, T, K> {
     }
 }
 
-struct State<B, K> {
+struct State<K> {
     error: Option<::Error>,
     keep_alive: K,
     method: Option<Method>,
     read_task: Option<Task>,
     reading: Reading,
-    writing: Writing<B>,
+    writing: Writing,
     version: Version,
 }
 
@@ -796,16 +707,14 @@ enum Reading {
     Closed,
 }
 
-enum Writing<B> {
-    Continue(Cursor<&'static [u8]>),
+enum Writing {
     Init,
-    Body(Encoder, Option<Cursor<B>>),
-    Ending(Cursor<&'static [u8]>),
+    Body(Encoder),
     KeepAlive,
     Closed,
 }
 
-impl<B: AsRef<[u8]>, K: KeepAlive> fmt::Debug for State<B, K> {
+impl<K: KeepAlive> fmt::Debug for State<K> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("State")
             .field("reading", &self.reading)
@@ -818,19 +727,12 @@ impl<B: AsRef<[u8]>, K: KeepAlive> fmt::Debug for State<B, K> {
     }
 }
 
-impl<B: AsRef<[u8]>> fmt::Debug for Writing<B> {
+impl fmt::Debug for Writing {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Writing::Continue(ref buf) => f.debug_tuple("Continue")
-                .field(buf)
-                .finish(),
             Writing::Init => f.write_str("Init"),
-            Writing::Body(ref enc, ref queued) => f.debug_tuple("Body")
+            Writing::Body(ref enc) => f.debug_tuple("Body")
                 .field(enc)
-                .field(queued)
-                .finish(),
-            Writing::Ending(ref ending) => f.debug_tuple("Ending")
-                .field(ending)
                 .finish(),
             Writing::KeepAlive => f.write_str("KeepAlive"),
             Writing::Closed => f.write_str("Closed"),
@@ -884,7 +786,7 @@ impl KeepAlive for KA {
     }
 }
 
-impl<B, K: KeepAlive> State<B, K> {
+impl<K: KeepAlive> State<K> {
     fn close(&mut self) {
         trace!("State::close()");
         self.reading = Reading::Closed;
@@ -1030,15 +932,6 @@ mod tests {
     use ::uri::Uri;
 
     use std::str::FromStr;
-
-    impl<T> Writing<T> {
-        fn is_queued(&self) -> bool {
-            match *self {
-                Writing::Body(_, Some(_)) => true,
-                _ => false,
-            }
-        }
-    }
 
     #[test]
     fn test_conn_init_read() {
@@ -1226,13 +1119,10 @@ mod tests {
             let io = AsyncIo::new_buf(vec![], 0);
             let mut conn = Conn::<_, proto::Chunk, ServerTransaction>::new(io, Default::default());
             let max = ::proto::io::DEFAULT_MAX_BUFFER_SIZE + 4096;
-            conn.state.writing = Writing::Body(Encoder::length((max * 2) as u64), None);
+            conn.state.writing = Writing::Body(Encoder::length((max * 2) as u64));
 
-            assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'a'; 1024 * 8].into()) }).unwrap().is_ready());
-            assert!(!conn.state.writing.is_queued());
-
-            assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'b'; max].into()) }).unwrap().is_ready());
-            assert!(conn.state.writing.is_queued());
+            assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'a'; max].into()) }).unwrap().is_ready());
+            assert!(!conn.can_buffer_body());
 
             assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'b'; 1024 * 8].into()) }).unwrap().is_not_ready());
 
@@ -1253,7 +1143,7 @@ mod tests {
         let _: Result<(), ()> = future::lazy(|| {
             let io = AsyncIo::new_buf(vec![], 4096);
             let mut conn = Conn::<_, proto::Chunk, ServerTransaction>::new(io, Default::default());
-            conn.state.writing = Writing::Body(Encoder::chunked(), None);
+            conn.state.writing = Writing::Body(Encoder::chunked());
 
             assert!(conn.start_send(Frame::Body { chunk: Some("headers".into()) }).unwrap().is_ready());
             assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'x'; 8192].into()) }).unwrap().is_ready());
@@ -1266,11 +1156,12 @@ mod tests {
         let _: Result<(), ()> = future::lazy(|| {
             let io = AsyncIo::new_buf(vec![], 1024 * 1024 * 5);
             let mut conn = Conn::<_, proto::Chunk, ServerTransaction>::new(io, Default::default());
-            conn.state.writing = Writing::Body(Encoder::length(1024 * 1024), None);
+            conn.state.writing = Writing::Body(Encoder::length(1024 * 1024));
             assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'a'; 1024 * 1024].into()) }).unwrap().is_ready());
-            assert!(conn.state.writing.is_queued());
+            assert!(!conn.can_buffer_body());
+            conn.io.io_mut().block_in(1024 * 1024 * 5);
             assert!(conn.poll_complete().unwrap().is_ready());
-            assert!(!conn.state.writing.is_queued());
+            assert!(conn.can_buffer_body());
             assert!(conn.io.io_mut().flushed());
 
             Ok(())
@@ -1329,7 +1220,7 @@ mod tests {
             let mut conn = Conn::<_, proto::Chunk, ServerTransaction>::new(io, Default::default());
             conn.state.reading = Reading::KeepAlive;
             assert!(conn.poll().unwrap().is_not_ready());
-            conn.state.writing = Writing::Body(Encoder::length(5_000), None);
+            conn.state.writing = Writing::Body(Encoder::length(5_000));
             assert!(conn.poll_complete().unwrap().is_ready());
             Ok::<(), ()>(())
         });

@@ -3,6 +3,7 @@
 
 extern crate futures;
 extern crate hyper;
+extern crate pretty_env_logger;
 extern crate test;
 
 use std::io::{Read, Write};
@@ -17,6 +18,7 @@ use hyper::server::{self, Service};
 
 macro_rules! bench_server {
     ($b:ident, $header:expr, $body:expr) => ({
+        let _ = pretty_env_logger::try_init();
         let (_until_tx, until_rx) = oneshot::channel();
         let addr = {
             let (addr_tx, addr_rx) = mpsc::channel();
@@ -53,7 +55,7 @@ macro_rules! bench_server {
                 sum += tcp.read(&mut buf).unwrap();
             }
             assert_eq!(sum, total_bytes);
-        })
+        });
     })
 }
 

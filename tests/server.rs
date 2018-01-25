@@ -23,6 +23,7 @@ use std::thread;
 use std::time::Duration;
 
 use hyper::StatusCode;
+use hyper::header::ContentLength;
 use hyper::server::{Http, Request, Response, Service, NewService, service_fn};
 
 
@@ -630,8 +631,14 @@ fn expect_continue() {
 fn pipeline_disabled() {
     let server = serve();
     let mut req = connect(server.addr());
-    server.reply().status(hyper::Ok);
-    server.reply().status(hyper::Ok);
+    server.reply()
+        .status(hyper::Ok)
+        .header(ContentLength(12))
+        .body("Hello World!");
+    server.reply()
+        .status(hyper::Ok)
+        .header(ContentLength(12))
+        .body("Hello World!");
 
     req.write_all(b"\
         GET / HTTP/1.1\r\n\
@@ -671,8 +678,14 @@ fn pipeline_enabled() {
         .. Default::default()
     });
     let mut req = connect(server.addr());
-    server.reply().status(hyper::Ok);
-    server.reply().status(hyper::Ok);
+    server.reply()
+        .status(hyper::Ok)
+        .header(ContentLength(12))
+        .body("Hello World\n");
+    server.reply()
+        .status(hyper::Ok)
+        .header(ContentLength(12))
+        .body("Hello World\n");
 
     req.write_all(b"\
         GET / HTTP/1.1\r\n\
@@ -687,6 +700,23 @@ fn pipeline_enabled() {
     let mut buf = vec![0; 4096];
     let n = req.read(&mut buf).expect("read 1");
     assert_ne!(n, 0);
+
+    {
+        let mut lines = buf.split(|&b| b == b'\n');
+        assert_eq!(s(lines.next().unwrap()), "HTTP/1.1 200 OK\r");
+        assert_eq!(s(lines.next().unwrap()), "Content-Length: 12\r");
+        lines.next().unwrap(); // Date
+        assert_eq!(s(lines.next().unwrap()), "\r");
+        assert_eq!(s(lines.next().unwrap()), "Hello World");
+
+        assert_eq!(s(lines.next().unwrap()), "HTTP/1.1 200 OK\r");
+        assert_eq!(s(lines.next().unwrap()), "Content-Length: 12\r");
+        lines.next().unwrap(); // Date
+        assert_eq!(s(lines.next().unwrap()), "\r");
+        assert_eq!(s(lines.next().unwrap()), "Hello World");
+    }
+
+
     // with pipeline enabled, both responses should have been in the first read
     // so a second read should be EOF
     let n = req.read(&mut buf).expect("read 2");
@@ -993,6 +1023,51 @@ fn max_buf_size() {
 }
 
 #[test]
+fn streaming_body() {
+    let _ = pretty_env_logger::try_init();
+    let mut core = Core::new().unwrap();
+    let listener = TcpListener::bind(&"127.0.0.1:0".parse().unwrap(), &core.handle()).unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        tcp.write_all(b"GET / HTTP/1.1\r\n\r\n").unwrap();
+        let mut buf = [0; 8192];
+        let mut sum = tcp.read(&mut buf).expect("read 1");
+
+        let expected = "HTTP/1.1 200 ";
+        assert_eq!(s(&buf[..expected.len()]), expected);
+
+        loop {
+            let n = tcp.read(&mut buf).expect("read loop");
+            sum += n;
+            if n == 0 {
+                break;
+            }
+        }
+        assert_eq!(sum, 1_007_089);
+    });
+
+    let fut = listener.incoming()
+        .into_future()
+        .map_err(|_| unreachable!())
+        .and_then(|(item, _incoming)| {
+            let (socket, _) = item.unwrap();
+            Http::<& &'static [u8]>::new()
+                .keep_alive(false)
+                .serve_connection(socket, service_fn(|_| {
+                    static S: &'static [&'static [u8]] = &[&[b'x'; 1_000] as &[u8]; 1_00] as _;
+                    let b = ::futures::stream::iter_ok(S.iter());
+                    Ok(Response::<futures::stream::IterOk<::std::slice::Iter<&'static [u8]>, ::hyper::Error>>::new()
+                        .with_body(b))
+                }))
+                .map(|_| ())
+        });
+
+    core.run(fut).unwrap();
+}
+
+#[test]
 fn remote_addr() {
     let server = serve();
 
@@ -1085,6 +1160,12 @@ impl<'a> ReplyBuilder<'a> {
     }
 }
 
+impl<'a> Drop for ReplyBuilder<'a> {
+    fn drop(&mut self) {
+        let _ = self.tx.send(Reply::End);
+    }
+}
+
 impl Drop for Serve {
     fn drop(&mut self) {
         drop(self.shutdown_signal.take());
@@ -1104,6 +1185,7 @@ enum Reply {
     Status(hyper::StatusCode),
     Headers(hyper::Headers),
     Body(Vec<u8>),
+    End,
 }
 
 #[derive(Debug)]
@@ -1164,6 +1246,7 @@ impl Service for TestService {
                     Reply::Body(body) => {
                         res.set_body(body);
                     },
+                    Reply::End => break,
                 }
             }
             res

@@ -31,6 +31,12 @@ impl ::std::ops::Deref for Buf {
     }
 }
 
+impl AsRef<[u8]> for Buf {
+    fn as_ref(&self) -> &[u8] {
+        &self.vec
+    }
+}
+
 impl<S: AsRef<[u8]>> PartialEq<S> for Buf {
     fn eq(&self, other: &S) -> bool {
         self.vec == other.as_ref()
@@ -110,6 +116,13 @@ impl AsyncIo<Buf> {
     }
 }
 
+impl<S: AsRef<[u8]>, T: AsRef<[u8]>> PartialEq<S> for AsyncIo<T> {
+    fn eq(&self, other: &S) -> bool {
+        self.inner.as_ref() == other.as_ref()
+    }
+}
+
+
 impl<T: Read> Read for AsyncIo<T> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.blocked = false;
@@ -155,6 +168,46 @@ impl<T: Read + Write> AsyncRead for AsyncIo<T> {
 impl<T: Read + Write> AsyncWrite for AsyncIo<T> {
     fn shutdown(&mut self) -> Poll<(), io::Error> {
         Ok(().into())
+    }
+
+    fn write_buf<B: ::bytes::Buf>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
+        use futures::Async;
+        let r = {
+            static DUMMY: &[u8] = &[0];
+            let mut bufs = [From::from(DUMMY); 64];
+            let i = ::bytes::Buf::bytes_vec(&buf, &mut bufs);
+            let mut n = 0;
+            let mut ret = Ok(0);
+            for iovec in &bufs[..i] {
+                match self.write(iovec) {
+                    Ok(num) => {
+                        n += num;
+                        ret = Ok(n);
+                    },
+                    Err(e) => {
+                        if e.kind() == io::ErrorKind::WouldBlock {
+                            if let Ok(0) = ret {
+                                ret = Err(e);
+                            }
+                        } else {
+                            ret = Err(e);
+                        }
+                        break;
+                    }
+                }
+            }
+            ret
+        };
+        match r {
+            Ok(n) => {
+                ::bytes::Buf::advance(buf, n);
+                Ok(Async::Ready(n))
+            }
+            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                Ok(Async::NotReady)
+            }
+            Err(e) => Err(e),
+        }
     }
 }
 

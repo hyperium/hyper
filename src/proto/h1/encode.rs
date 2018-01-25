@@ -1,7 +1,9 @@
-use std::cmp;
-use std::io::{self, Write};
+//use std::cmp;
+use std::fmt;
 
-use proto::io::AtomicWrite;
+use bytes::{Buf, IntoBuf};
+use bytes::buf::{Chain, Take};
+use iovec::IoVec;
 
 /// Encoders to handle different Transfer-Encodings.
 #[derive(Debug, Clone)]
@@ -9,10 +11,18 @@ pub struct Encoder {
     kind: Kind,
 }
 
+#[derive(Debug)]
+pub struct EncodedBuf<B> {
+    kind: BufKind<B>,
+}
+
+#[derive(Debug)]
+pub struct NotEof;
+
 #[derive(Debug, PartialEq, Clone)]
 enum Kind {
     /// An Encoder for when Transfer-Encoding includes `chunked`.
-    Chunked(Chunked),
+    Chunked,
     /// An Encoder for when Content-Length is set.
     ///
     /// Enforces that the body is not longer than the Content-Length header.
@@ -24,10 +34,18 @@ enum Kind {
     Eof
 }
 
+#[derive(Debug)]
+enum BufKind<B> {
+    Exact(B),
+    Limited(Take<B>),
+    Chunked(Chain<ChunkSize, Chain<B, CrLf>>),
+    ChunkedEnd(CrLf),
+}
+
 impl Encoder {
     pub fn chunked() -> Encoder {
         Encoder {
-            kind: Kind::Chunked(Chunked::Init),
+            kind: Kind::Chunked,
         }
     }
 
@@ -45,184 +63,102 @@ impl Encoder {
 
     pub fn is_eof(&self) -> bool {
         match self.kind {
-            Kind::Length(0) |
-            Kind::Chunked(Chunked::End) => true,
+            Kind::Length(0) => true,
             _ => false
         }
     }
 
-    pub fn end(&self) -> Result<Option<&'static [u8]>, NotEof> {
+    pub fn end<B>(&self) -> Result<Option<EncodedBuf<B>>, NotEof> {
         match self.kind {
             Kind::Length(0) => Ok(None),
-            Kind::Chunked(Chunked::Init) => Ok(Some(b"0\r\n\r\n")),
+            Kind::Chunked => Ok(Some(EncodedBuf {
+                kind: BufKind::ChunkedEnd(CrLf(b"0\r\n\r\n")),
+            })),
             _ => Err(NotEof),
         }
     }
 
-    pub fn encode<W: AtomicWrite>(&mut self, w: &mut W, msg: &[u8]) -> io::Result<usize> {
-        match self.kind {
-            Kind::Chunked(ref mut chunked) => {
-                chunked.encode(w, msg)
+    pub fn encode<B>(&mut self, msg: B) -> EncodedBuf<B::Buf>
+    where
+        B: IntoBuf,
+    {
+        let msg = msg.into_buf();
+        let len = msg.remaining();
+        assert!(len > 0, "encode() called with empty buf");
+
+        let buf = match self.kind {
+            Kind::Chunked => {
+                trace!("encoding chunked {}B", len);
+                BufKind::Chunked(ChunkSize::new(len)
+                    .chain(msg.chain(CrLf(b"\r\n"))))
             },
             Kind::Length(ref mut remaining) => {
-                if msg.is_empty() {
-                    return Ok(0);
+                trace!("sized write, len = {}", len);
+                if len as u64 > *remaining {
+                    let limit = *remaining as usize;
+                    *remaining = 0;
+                    BufKind::Limited(msg.take(limit))
+                } else {
+                    *remaining -= len as u64;
+                    BufKind::Exact(msg)
                 }
-                let n = {
-                    let max = cmp::min(*remaining as usize, msg.len());
-                    trace!("sized write = {}", max);
-                    let slice = &msg[..max];
-
-                    try!(w.write_atomic(&[slice]))
-                };
-
-                if n == 0 {
-                    return Err(io::Error::new(io::ErrorKind::WriteZero, "write zero"));
-                }
-
-                *remaining -= n as u64;
-                trace!("encoded {} bytes, remaining = {}", n, remaining);
-                Ok(n)
             },
             Kind::Eof => {
-                if msg.is_empty() {
-                    return Ok(0);
-                }
-                w.write_atomic(&[msg])
+                trace!("eof write {}B", len);
+                BufKind::Exact(msg)
             }
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct NotEof;
-
-#[derive(Debug, PartialEq, Clone)]
-enum Chunked {
-    Init,
-    Size(ChunkSize),
-    SizeCr,
-    SizeLf,
-    Body(usize),
-    BodyCr,
-    BodyLf,
-    End,
-}
-
-impl Chunked {
-    fn encode<W: AtomicWrite>(&mut self, w: &mut W, msg: &[u8]) -> io::Result<usize> {
-        match *self {
-            Chunked::Init => {
-                let mut size = ChunkSize {
-                    bytes: [0; CHUNK_SIZE_MAX_BYTES],
-                    pos: 0,
-                    len: 0,
-                };
-                trace!("chunked write, size = {:?}", msg.len());
-                write!(&mut size, "{:X}", msg.len())
-                    .expect("CHUNK_SIZE_MAX_BYTES should fit any usize");
-                *self = Chunked::Size(size);
-            }
-            Chunked::End => return Ok(0),
-            _ => {}
-        }
-        let mut n = {
-            let pieces = match *self {
-                Chunked::Init => unreachable!("Chunked::Init should have become Chunked::Size"),
-                Chunked::Size(ref size) => [
-                    &size.bytes[size.pos.into() .. size.len.into()],
-                    &b"\r\n"[..],
-                    msg,
-                    &b"\r\n"[..],
-                ],
-                Chunked::SizeCr => [
-                    &b""[..],
-                    &b"\r\n"[..],
-                    msg,
-                    &b"\r\n"[..],
-                ],
-                Chunked::SizeLf => [
-                    &b""[..],
-                    &b"\n"[..],
-                    msg,
-                    &b"\r\n"[..],
-                ],
-                Chunked::Body(pos) => [
-                    &b""[..],
-                    &b""[..],
-                    &msg[pos..],
-                    &b"\r\n"[..],
-                ],
-                Chunked::BodyCr => [
-                    &b""[..],
-                    &b""[..],
-                    &b""[..],
-                    &b"\r\n"[..],
-                ],
-                Chunked::BodyLf => [
-                    &b""[..],
-                    &b""[..],
-                    &b""[..],
-                    &b"\n"[..],
-                ],
-                Chunked::End => unreachable!("Chunked::End shouldn't write more")
-            };
-            try!(w.write_atomic(&pieces))
         };
-
-        while n > 0 {
-            match *self {
-                Chunked::Init => unreachable!("Chunked::Init should have become Chunked::Size"),
-                Chunked::Size(mut size) => {
-                    n = size.update(n);
-                    if size.len == 0 {
-                        *self = Chunked::SizeCr;
-                    } else {
-                        *self = Chunked::Size(size);
-                    }
-                },
-                Chunked::SizeCr => {
-                    *self = Chunked::SizeLf;
-                    n -= 1;
-                }
-                Chunked::SizeLf => {
-                    *self = Chunked::Body(0);
-                    n -= 1;
-                }
-                Chunked::Body(pos) => {
-                    let left = msg.len() - pos;
-                    if n >= left {
-                        *self = Chunked::BodyCr;
-                        n -= left;
-                    } else {
-                        *self = Chunked::Body(pos + n);
-                        n = 0;
-                    }
-                }
-                Chunked::BodyCr => {
-                    *self = Chunked::BodyLf;
-                    n -= 1;
-                }
-                Chunked::BodyLf => {
-                    assert!(n == 1);
-                    *self = if msg.len() == 0 {
-                        Chunked::End
-                    } else {
-                        Chunked::Init
-                    };
-                    n = 0;
-                },
-                Chunked::End => unreachable!("Chunked::End shouldn't have any to write")
-            }
-        }
-
-        match *self {
-            Chunked::Init |
-            Chunked::End => Ok(msg.len()),
-            _ => Err(io::ErrorKind::WouldBlock.into())
+        EncodedBuf {
+            kind: buf,
         }
     }
 }
+
+impl<B> Buf for EncodedBuf<B>
+where
+    B: Buf,
+{
+    #[inline]
+    fn remaining(&self) -> usize {
+        match self.kind {
+            BufKind::Exact(ref b) => b.remaining(),
+            BufKind::Limited(ref b) => b.remaining(),
+            BufKind::Chunked(ref b) => b.remaining(),
+            BufKind::ChunkedEnd(ref b) => b.remaining(),
+        }
+    }
+
+    #[inline]
+    fn bytes(&self) -> &[u8] {
+        match self.kind {
+            BufKind::Exact(ref b) => b.bytes(),
+            BufKind::Limited(ref b) => b.bytes(),
+            BufKind::Chunked(ref b) => b.bytes(),
+            BufKind::ChunkedEnd(ref b) => b.bytes(),
+        }
+    }
+
+    #[inline]
+    fn advance(&mut self, cnt: usize) {
+        match self.kind {
+            BufKind::Exact(ref mut b) => b.advance(cnt),
+            BufKind::Limited(ref mut b) => b.advance(cnt),
+            BufKind::Chunked(ref mut b) => b.advance(cnt),
+            BufKind::ChunkedEnd(ref mut b) => b.advance(cnt),
+        }
+    }
+
+    #[inline]
+    fn bytes_vec<'t>(&'t self, dst: &mut [&'t IoVec]) -> usize {
+        match self.kind {
+            BufKind::Exact(ref b) => b.bytes_vec(dst),
+            BufKind::Limited(ref b) => b.bytes_vec(dst),
+            BufKind::Chunked(ref b) => b.bytes_vec(dst),
+            BufKind::ChunkedEnd(ref b) => b.bytes_vec(dst),
+        }
+    }
+}
+
 
 #[cfg(target_pointer_width = "32")]
 const USIZE_BYTES: usize = 4;
@@ -235,27 +171,45 @@ const CHUNK_SIZE_MAX_BYTES: usize = USIZE_BYTES * 2;
 
 #[derive(Clone, Copy)]
 struct ChunkSize {
-    bytes: [u8; CHUNK_SIZE_MAX_BYTES],
+    bytes: [u8; CHUNK_SIZE_MAX_BYTES + 2],
     pos: u8,
     len: u8,
 }
 
 impl ChunkSize {
-    fn update(&mut self, n: usize) -> usize {
-        let diff = (self.len - self.pos).into();
-        if n >= diff {
-            self.pos = 0;
-            self.len = 0;
-            n - diff
-        } else {
-            self.pos += n as u8; // just verified it was a small usize
-            0
-        }
+    fn new(len: usize) -> ChunkSize {
+        use std::fmt::Write;
+        let mut size = ChunkSize {
+            bytes: [0; CHUNK_SIZE_MAX_BYTES + 2],
+            pos: 0,
+            len: 0,
+        };
+        write!(&mut size, "{:X}\r\n", len)
+            .expect("CHUNK_SIZE_MAX_BYTES should fit any usize");
+        size
     }
 }
 
-impl ::std::fmt::Debug for ChunkSize {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+impl Buf for ChunkSize {
+    #[inline]
+    fn remaining(&self) -> usize {
+        (self.len - self.pos).into()
+    }
+
+    #[inline]
+    fn bytes(&self) -> &[u8] {
+        &self.bytes[self.pos.into() .. self.len.into()]
+    }
+
+    #[inline]
+    fn advance(&mut self, cnt: usize) {
+        assert!(cnt <= self.remaining());
+        self.pos += cnt as u8; // just asserted cnt fits in u8
+    }
+}
+
+impl fmt::Debug for ChunkSize {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ChunkSize")
             .field("bytes", &&self.bytes[..self.len.into()])
             .field("pos", &self.pos)
@@ -263,64 +217,122 @@ impl ::std::fmt::Debug for ChunkSize {
     }
 }
 
-impl ::std::cmp::PartialEq for ChunkSize {
-    fn eq(&self, other: &ChunkSize) -> bool {
-        self.len == other.len &&
-            self.pos == other.pos &&
-            (&self.bytes[..]) == (&other.bytes[..])
+impl fmt::Write for ChunkSize {
+    fn write_str(&mut self, num: &str) -> fmt::Result {
+        use std::io::Write;
+        (&mut self.bytes[self.len.into()..]).write(num.as_bytes())
+            .expect("&mut [u8].write() cannot error");
+        self.len += num.len() as u8; // safe because bytes is never bigger than 256
+        Ok(())
     }
 }
 
-impl io::Write for ChunkSize {
-    fn write(&mut self, msg: &[u8]) -> io::Result<usize> {
-        let n = (&mut self.bytes[self.len.into() ..]).write(msg)
-            .expect("&mut [u8].write() cannot error");
-        self.len += n as u8; // safe because bytes is never bigger than 256
-        Ok(n)
+#[derive(Debug)]
+struct CrLf(&'static [u8]);
+
+impl Buf for CrLf {
+    #[inline]
+    fn remaining(&self) -> usize {
+        self.0.len()
     }
 
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
+    #[inline]
+    fn bytes(&self) -> &[u8] {
+        self.0
+    }
+
+    #[inline]
+    fn advance(&mut self, cnt: usize) {
+        self.0 = &self.0[cnt..];
+    }
+
+    #[inline]
+    fn bytes_vec<'t>(&'t self, dst: &mut [&'t IoVec]) -> usize {
+        if dst.is_empty() {
+            return 0;
+        } else {
+            dst[0] = self.0.into();
+            return 1;
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use bytes::{BufMut};
+
+    use proto::io::Cursor;
     use super::Encoder;
-    use mock::{AsyncIo, Buf};
 
     #[test]
-    fn test_chunked_encode_sync() {
-        let mut dst = Buf::new();
+    fn chunked() {
         let mut encoder = Encoder::chunked();
+        let mut dst = Vec::new();
 
-        encoder.encode(&mut dst, b"foo bar").unwrap();
-        encoder.encode(&mut dst, b"baz quux herp").unwrap();
-        encoder.encode(&mut dst, b"").unwrap();
-        assert_eq!(&dst[..], &b"7\r\nfoo bar\r\nD\r\nbaz quux herp\r\n0\r\n\r\n"[..]);
+        let msg1 = b"foo bar".as_ref();
+        let buf1 = encoder.encode(msg1);
+        dst.put(buf1);
+        assert_eq!(dst, b"7\r\nfoo bar\r\n");
+
+        let msg2 = b"baz quux herp".as_ref();
+        let buf2 = encoder.encode(msg2);
+        dst.put(buf2);
+
+        assert_eq!(dst, b"7\r\nfoo bar\r\nD\r\nbaz quux herp\r\n");
+
+        let end = encoder.end::<Cursor<Vec<u8>>>().unwrap().unwrap();
+        dst.put(end);
+
+        assert_eq!(dst, b"7\r\nfoo bar\r\nD\r\nbaz quux herp\r\n0\r\n\r\n".as_ref());
     }
 
     #[test]
-    fn test_chunked_encode_async() {
-        let mut dst = AsyncIo::new(Buf::new(), 7);
-        let mut encoder = Encoder::chunked();
+    fn length() {
+        let max_len = 8;
+        let mut encoder = Encoder::length(max_len as u64);
+        let mut dst = Vec::new();
 
-        assert!(encoder.encode(&mut dst, b"foo bar").is_err());
-        dst.block_in(6);
-        assert_eq!(7, encoder.encode(&mut dst, b"foo bar").unwrap());
-        dst.block_in(30);
-        assert_eq!(13, encoder.encode(&mut dst, b"baz quux herp").unwrap());
-        encoder.encode(&mut dst, b"").unwrap();
-        assert_eq!(&dst[..], &b"7\r\nfoo bar\r\nD\r\nbaz quux herp\r\n0\r\n\r\n"[..]);
-    }
 
-    #[test]
-    fn test_sized_encode() {
-        let mut dst = Buf::new();
-        let mut encoder = Encoder::length(8);
-        encoder.encode(&mut dst, b"foo bar").unwrap();
-        assert_eq!(encoder.encode(&mut dst, b"baz").unwrap(), 1);
+        let msg1 = b"foo bar".as_ref();
+        let buf1 = encoder.encode(msg1);
+        dst.put(buf1);
 
+
+        assert_eq!(dst, b"foo bar");
+        assert!(!encoder.is_eof());
+        encoder.end::<()>().unwrap_err();
+
+        let msg2 = b"baz".as_ref();
+        let buf2 = encoder.encode(msg2);
+        dst.put(buf2);
+
+        assert_eq!(dst.len(), max_len);
         assert_eq!(dst, b"foo barb");
+        assert!(encoder.is_eof());
+        assert!(encoder.end::<()>().unwrap().is_none());
+    }
+
+    #[test]
+    fn eof() {
+        let mut encoder = Encoder::eof();
+        let mut dst = Vec::new();
+
+
+        let msg1 = b"foo bar".as_ref();
+        let buf1 = encoder.encode(msg1);
+        dst.put(buf1);
+
+
+        assert_eq!(dst, b"foo bar");
+        assert!(!encoder.is_eof());
+        encoder.end::<()>().unwrap_err();
+
+        let msg2 = b"baz".as_ref();
+        let buf2 = encoder.encode(msg2);
+        dst.put(buf2);
+
+        assert_eq!(dst, b"foo barbaz");
+        assert!(!encoder.is_eof());
+        encoder.end::<()>().unwrap_err();
     }
 }

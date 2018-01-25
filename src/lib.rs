@@ -24,6 +24,7 @@ extern crate futures_cpupool;
 #[cfg(feature = "compat")]
 extern crate http;
 extern crate httparse;
+extern crate iovec;
 extern crate language_tags;
 #[macro_use] extern crate log;
 pub extern crate mime;
