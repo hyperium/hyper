@@ -5,7 +5,8 @@ use std::io;
 
 use futures::{Async, Poll};
 use bytes::Bytes;
-use proto::io::MemRead;
+
+use super::io::MemRead;
 
 use self::Kind::{Length, Chunked, Eof};
 
@@ -320,7 +321,7 @@ mod tests {
     use std::io::Write;
     use super::Decoder;
     use super::ChunkedState;
-    use proto::io::MemRead;
+    use super::super::io::MemRead;
     use futures::{Async, Poll};
     use bytes::{BytesMut, Bytes};
     use mock::AsyncIo;

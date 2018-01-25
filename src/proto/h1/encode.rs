@@ -261,7 +261,7 @@ impl Buf for CrLf {
 mod tests {
     use bytes::{BufMut};
 
-    use proto::io::Cursor;
+    use super::super::io::Cursor;
     use super::Encoder;
 
     #[test]

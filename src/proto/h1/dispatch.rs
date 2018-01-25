@@ -5,13 +5,13 @@ use futures::sync::{mpsc, oneshot};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_service::Service;
 
-use super::{Body, Conn, KeepAlive, Http1Transaction, MessageHead, RequestHead, ResponseHead};
+use proto::{Body, Conn, KeepAlive, Http1Transaction, MessageHead, RequestHead, ResponseHead};
 use ::StatusCode;
 
 pub struct Dispatcher<D, Bs, I, B, T, K> {
     conn: Conn<I, B, T, K>,
     dispatch: D,
-    body_tx: Option<super::body::ChunkSender>,
+    body_tx: Option<::proto::body::ChunkSender>,
     body_rx: Option<Bs>,
     is_closing: bool,
 }
@@ -156,7 +156,7 @@ where
         match self.conn.read_head() {
             Ok(Async::Ready(Some((head, has_body)))) => {
                 let body = if has_body {
-                    let (mut tx, rx) = super::body::channel();
+                    let (mut tx, rx) = ::proto::body::channel();
                     let _ = tx.poll_ready(); // register this task if rx is dropped
                     self.body_tx = Some(tx);
                     Some(rx)
@@ -315,7 +315,7 @@ where
                     return Ok(Async::NotReady);
                 }
             };
-            let (head, body) = super::response::split(resp);
+            let (head, body) = ::proto::response::split(resp);
             Ok(Async::Ready(Some((head.into(), body))))
         } else {
             unreachable!("poll_msg shouldn't be called if no inflight");
@@ -324,7 +324,7 @@ where
 
     fn recv_msg(&mut self, msg: ::Result<(Self::RecvItem, Option<Body>)>) -> ::Result<()> {
         let (msg, body) = msg?;
-        let req = super::request::from_wire(None, msg, body);
+        let req = ::proto::request::from_wire(None, msg, body);
         self.in_flight = Some(self.service.call(req));
         Ok(())
     }
@@ -393,7 +393,7 @@ where
         match msg {
             Ok((msg, body)) => {
                 if let Some(cb) = self.callback.take() {
-                    let res = super::response::from_wire(msg, body);
+                    let res = ::proto::response::from_wire(msg, body);
                     let _ = cb.send(Ok(res));
                     Ok(())
                 } else {

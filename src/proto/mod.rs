@@ -12,17 +12,14 @@ use uri::Uri;
 use version::HttpVersion;
 use version::HttpVersion::{Http10, Http11};
 
-pub use self::conn::{Conn, KeepAlive, KA};
 pub use self::body::Body;
 #[cfg(feature = "tokio-proto")]
 pub use self::body::TokioBody;
 pub use self::chunk::Chunk;
+pub use self::h1::{dispatch, Conn, KeepAlive, KA};
 
 mod body;
 mod chunk;
-mod conn;
-pub mod dispatch;
-mod io;
 mod h1;
 //mod h2;
 pub mod request;

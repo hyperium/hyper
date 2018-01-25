@@ -10,9 +10,9 @@ use tokio_io::{AsyncRead, AsyncWrite};
 #[cfg(feature = "tokio-proto")]
 use tokio_proto::streaming::pipeline::{Frame, Transport};
 
-use proto::Http1Transaction;
+use proto::{Chunk, Http1Transaction, MessageHead};
 use super::io::{Cursor, Buffered};
-use super::h1::{EncodedBuf, Encoder, Decoder};
+use super::{EncodedBuf, Encoder, Decoder};
 use method::Method;
 use version::HttpVersion;
 
@@ -63,7 +63,7 @@ where I: AsyncRead + AsyncWrite,
     }
 
     #[cfg(feature = "tokio-proto")]
-    fn poll_incoming(&mut self) -> Poll<Option<Frame<super::MessageHead<T::Incoming>, super::Chunk, ::Error>>, io::Error> {
+    fn poll_incoming(&mut self) -> Poll<Option<Frame<MessageHead<T::Incoming>, Chunk, ::Error>>, io::Error> {
         trace!("Conn::poll_incoming()");
 
         #[derive(Debug)]
@@ -163,7 +163,7 @@ where I: AsyncRead + AsyncWrite,
         T::should_error_on_parse_eof() && !self.state.is_idle()
     }
 
-    pub fn read_head(&mut self) -> Poll<Option<(super::MessageHead<T::Incoming>, bool)>, ::Error> {
+    pub fn read_head(&mut self) -> Poll<Option<(MessageHead<T::Incoming>, bool)>, ::Error> {
         debug_assert!(self.can_read_head());
         trace!("Conn::read_head");
 
@@ -236,7 +236,7 @@ where I: AsyncRead + AsyncWrite,
         }
     }
 
-    pub fn read_body(&mut self) -> Poll<Option<super::Chunk>, io::Error> {
+    pub fn read_body(&mut self) -> Poll<Option<Chunk>, io::Error> {
         debug_assert!(self.can_read_body());
 
         trace!("Conn::read_body");
@@ -246,7 +246,7 @@ where I: AsyncRead + AsyncWrite,
                 match decoder.decode(&mut self.io) {
                     Ok(Async::Ready(slice)) => {
                         let (reading, chunk) = if !slice.is_empty() {
-                            return Ok(Async::Ready(Some(super::Chunk::from(slice))));
+                            return Ok(Async::Ready(Some(Chunk::from(slice))));
                         } else if decoder.is_eof() {
                             debug!("incoming body completed");
                             (Reading::KeepAlive, None)
@@ -415,7 +415,7 @@ where I: AsyncRead + AsyncWrite,
         self.io.can_buffer()
     }
 
-    pub fn write_head(&mut self, mut head: super::MessageHead<T::Outgoing>, body: bool) {
+    pub fn write_head(&mut self, mut head: MessageHead<T::Outgoing>, body: bool) {
         debug_assert!(self.can_write_head());
 
         self.enforce_version(&mut head);
@@ -438,7 +438,7 @@ where I: AsyncRead + AsyncWrite,
 
     // If we know the remote speaks an older version, we try to fix up any messages
     // to work with our older peer.
-    fn enforce_version(&mut self, head: &mut super::MessageHead<T::Outgoing>) {
+    fn enforce_version(&mut self, head: &mut MessageHead<T::Outgoing>) {
         use header::Connection;
 
         let wants_keep_alive = if self.state.wants_keep_alive() {
@@ -591,7 +591,7 @@ where I: AsyncRead + AsyncWrite,
       T: Http1Transaction,
       K: KeepAlive,
       T::Outgoing: fmt::Debug {
-    type Item = Frame<super::MessageHead<T::Incoming>, super::Chunk, ::Error>;
+    type Item = Frame<MessageHead<T::Incoming>, Chunk, ::Error>;
     type Error = io::Error;
 
     #[inline]
@@ -610,7 +610,7 @@ where I: AsyncRead + AsyncWrite,
       T: Http1Transaction,
       K: KeepAlive,
       T::Outgoing: fmt::Debug {
-    type SinkItem = Frame<super::MessageHead<T::Outgoing>, B, ::Error>;
+    type SinkItem = Frame<MessageHead<T::Outgoing>, B, ::Error>;
     type SinkError = io::Error;
 
     #[inline]
@@ -886,7 +886,7 @@ enum Version {
 // The DebugFrame and DebugChunk are simple Debug implementations that allow
 // us to dump the frame into logs, without logging the entirety of the bytes.
 #[cfg(feature = "tokio-proto")]
-struct DebugFrame<'a, T: fmt::Debug + 'a, B: AsRef<[u8]> + 'a>(&'a Frame<super::MessageHead<T>, B, ::Error>);
+struct DebugFrame<'a, T: fmt::Debug + 'a, B: AsRef<[u8]> + 'a>(&'a Frame<MessageHead<T>, B, ::Error>);
 
 #[cfg(feature = "tokio-proto")]
 impl<'a, T: fmt::Debug + 'a, B: AsRef<[u8]> + 'a> fmt::Debug for DebugFrame<'a, T, B> {
@@ -925,7 +925,7 @@ mod tests {
     use tokio_proto::streaming::pipeline::Frame;
 
     use proto::{self, ClientTransaction, MessageHead, ServerTransaction};
-    use super::super::h1::Encoder;
+    use super::super::Encoder;
     use mock::AsyncIo;
 
     use super::{Conn, Decoder, Reading, Writing};
@@ -1118,7 +1118,7 @@ mod tests {
         let _: Result<(), ()> = future::lazy(|| {
             let io = AsyncIo::new_buf(vec![], 0);
             let mut conn = Conn::<_, proto::Chunk, ServerTransaction>::new(io, Default::default());
-            let max = ::proto::io::DEFAULT_MAX_BUFFER_SIZE + 4096;
+            let max = super::super::io::DEFAULT_MAX_BUFFER_SIZE + 4096;
             conn.state.writing = Writing::Body(Encoder::length((max * 2) as u64));
 
             assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'a'; max].into()) }).unwrap().is_ready());
