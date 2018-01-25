@@ -274,6 +274,13 @@ impl PartialEq for Uri {
     }
 }
 
+impl PartialEq<str> for Uri {
+    fn eq(&self, other: &str) -> bool {
+        self.source.as_str() == other
+    }
+}
+
+// FIXME delete for 0.12
 impl<'a> PartialEq<&'a str> for Uri {
     fn eq(&self, other: & &'a str) -> bool {
         self.source.as_str() == *other
