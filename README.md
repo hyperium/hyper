@@ -24,4 +24,4 @@ hyper makes use of "async IO" (non-blocking sockets) via the
 
 Be aware that hyper is still actively evolving towards 1.0, and is likely
 to experience breaking changes before stabilising. You can also see the
-[1.0 issue milestone](https://github.com/hyperium/hyper/milestone/1).
+[issues in the upcoming milestones](https://github.com/hyperium/hyper/milestones).
