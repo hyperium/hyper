@@ -93,6 +93,10 @@ impl<V: ?Sized + Any + 'static> PtrMapCell<V> {
 
     #[inline]
     pub fn into_value(self, key: TypeId) -> Option<Box<V>> {
+        // UnsafeCell::into_inner was unsafe forever, and 1.25 has removed
+        // the unsafe modifier, resulting in a warning. This allow can be
+        // removed when the minimum supported rust version is at least 1.25.
+        #[allow(unused_unsafe)]
         let map = unsafe { self.0.into_inner() };
         match map {
             PtrMap::Empty => None,
