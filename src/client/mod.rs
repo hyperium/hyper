@@ -221,10 +221,26 @@ where C: Connect,
                 e.into()
             });
 
-        let resp = race.and_then(move |mut client| {
+        let resp = race.and_then(move |client| {
+            use proto::dispatch::ClientMsg;
+
             let (callback, rx) = oneshot::channel();
-            client.tx.borrow_mut().start_send(proto::dispatch::ClientMsg::Request(head, body, callback)).unwrap();
-            client.should_close = false;
+
+            match client.tx.borrow_mut().start_send(ClientMsg::Request(head, body, callback)) {
+                Ok(_) => (),
+                Err(e) => match e.into_inner() {
+                    ClientMsg::Request(_, _, callback) => {
+                        error!("pooled connection was not ready, this is a hyper bug");
+                        let err = io::Error::new(
+                            io::ErrorKind::BrokenPipe,
+                            "pool selected dead connection",
+                        );
+                        let _ = callback.send(Err(::Error::Io(err)));
+                    },
+                    _ => unreachable!("ClientMsg::Request was just sent"),
+                }
+            }
+
             rx.then(|res| {
                 match res {
                     Ok(Ok(res)) => Ok(res),
@@ -256,8 +272,8 @@ impl<C, B> fmt::Debug for Client<C, B> {
 }
 
 struct HyperClient<B> {
-    tx: RefCell<::futures::sync::mpsc::Sender<proto::dispatch::ClientMsg<B>>>,
     should_close: bool,
+    tx: RefCell<::futures::sync::mpsc::Sender<proto::dispatch::ClientMsg<B>>>,
 }
 
 impl<B> Clone for HyperClient<B> {
@@ -266,6 +282,15 @@ impl<B> Clone for HyperClient<B> {
             tx: self.tx.clone(),
             should_close: self.should_close,
         }
+    }
+}
+
+impl<B> self::pool::Ready for HyperClient<B> {
+    fn poll_ready(&mut self) -> Poll<(), ()> {
+        self.tx
+            .borrow_mut()
+            .poll_ready()
+            .map_err(|_| ())
     }
 }
 
@@ -497,3 +522,4 @@ mod background {
         }
     }
 }
+
