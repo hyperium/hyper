@@ -1,10 +1,12 @@
 //! Wrappers to build compatibility with the `http` crate.
 
+use std::io;
+
 use futures::{Future, Poll, Stream};
 use http;
 use tokio_service::Service;
 
-use client::{Connect, Client, FutureResponse};
+use client::{Connect2, Client, FutureResponse};
 use error::Error;
 use proto::Body;
 
@@ -19,7 +21,9 @@ pub(super) fn client<C, B>(client: Client<C, B>) -> CompatClient<C, B> {
 }
 
 impl<C, B> Service for CompatClient<C, B>
-where C: Connect,
+where C: Connect2<Error=io::Error>,
+      C::Transport: 'static,
+      C::Future: 'static,
       B: Stream<Error=Error> + 'static,
       B::Item: AsRef<[u8]>,
 {

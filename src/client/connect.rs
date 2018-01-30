@@ -1,9 +1,9 @@
+//! Contains the `Connect2` trait, and supporting types.
 use std::error::Error as StdError;
 use std::fmt;
 use std::io;
 use std::mem;
 use std::sync::Arc;
-//use std::net::SocketAddr;
 
 use futures::{Future, Poll, Async};
 use futures::future::{Executor, ExecuteError};
@@ -16,31 +16,79 @@ use tokio_service::Service;
 use Uri;
 
 use super::dns;
+use self::http_connector::HttpConnectorBlockingTask;
 
-/// A connector creates an Io to a remote address..
-///
-/// This trait is not implemented directly, and only exists to make
-/// the intent clearer. A connector should implement `Service` with
-/// `Request=Uri` and `Response: Io` instead.
-pub trait Connect: Service<Request=Uri, Error=io::Error> + 'static {
-    /// The connected Io Stream.
-    type Output: AsyncRead + AsyncWrite + 'static;
-    /// A Future that will resolve to the connected Stream.
-    type Future: Future<Item=Self::Output, Error=io::Error> + 'static;
-    /// Connect to a remote address.
-    fn connect(&self, Uri) -> <Self as Connect>::Future;
+/// Connect to a destination, returning an IO transport.
+pub trait Connect2 {
+    /// The connected IO Stream.
+    type Transport: AsyncRead + AsyncWrite;
+    /// An error occured when trying to connect.
+    type Error;
+    /// A Future that will resolve to the connected Transport.
+    type Future: Future<Item=(Self::Transport, Connected), Error=Self::Error>;
+    /// Connect to a destination.
+    fn connect(&self, dst: Destination) -> Self::Future;
 }
 
-impl<T> Connect for T
-where T: Service<Request=Uri, Error=io::Error> + 'static,
-      T::Response: AsyncRead + AsyncWrite,
-      T::Future: Future<Error=io::Error>,
-{
-    type Output = T::Response;
-    type Future = T::Future;
+/// A set of properties to describe where and how to try to connect.
+#[derive(Debug)]
+pub struct Destination {
+    pub(super) alpn: Alpn,
+    pub(super) uri: Uri,
+}
 
-    fn connect(&self, url: Uri) -> <Self as Connect>::Future {
-        self.call(url)
+/// Extra information about the connected transport.
+#[derive(Debug)]
+pub struct Connected {
+    alpn: Alpn,
+    is_proxy: bool,
+}
+
+#[derive(Debug)]
+pub(super) enum Alpn {
+    Http1,
+    H2,
+}
+
+impl Destination {
+    /// Get a reference to the requested `Uri`.
+    pub fn uri(&self) -> &Uri {
+        &self.uri
+    }
+
+    /// Returns whether this connection must negotiate HTTP/2 via ALPN.
+    pub fn h2(&self) -> bool {
+        match self.alpn {
+            Alpn::Http1 => false,
+            Alpn::H2 => true,
+        }
+    }
+}
+
+impl Connected {
+    /// Create new `Connected` type with empty metadata.
+    pub fn new() -> Connected {
+        Connected {
+            alpn: Alpn::Http1,
+            is_proxy: false,
+        }
+    }
+
+    /// Set that the connected transport is to an HTTP proxy.
+    ///
+    /// This setting will affect if HTTP/1 requests written on the transport
+    /// will have the request-target in absolute-form or origin-form (such as
+    /// `GET http://hyper.rs/guide HTTP/1.1` or `GET /guide HTTP/1.1`).
+    pub fn proxy(mut self) -> Connected {
+        self.is_proxy = true;
+        self
+    }
+
+    /// Set that the connected transport negotiated HTTP/2 as it's
+    /// next protocol.
+    pub fn h2(mut self) -> Connected {
+        self.alpn = Alpn::H2;
+        self
     }
 }
 
@@ -96,6 +144,8 @@ impl fmt::Debug for HttpConnector {
     }
 }
 
+// deprecated, will be gone in 0.12
+#[doc(hidden)]
 impl Service for HttpConnector {
     type Request = Uri;
     type Response = TcpStream;
@@ -258,23 +308,27 @@ impl ConnectingTcp {
     }
 }
 
-/// Blocking task to be executed on a thread pool.
-pub struct HttpConnectorBlockingTask {
-    work: oneshot::Execute<dns::Work>
-}
-
-impl fmt::Debug for HttpConnectorBlockingTask {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.pad("HttpConnectorBlockingTask")
+// Make this Future unnameable outside of this crate.
+mod http_connector {
+    use super::*;
+    // Blocking task to be executed on a thread pool.
+    pub struct HttpConnectorBlockingTask {
+        pub(super) work: oneshot::Execute<dns::Work>
     }
-}
 
-impl Future for HttpConnectorBlockingTask {
-    type Item = ();
-    type Error = ();
+    impl fmt::Debug for HttpConnectorBlockingTask {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            f.pad("HttpConnectorBlockingTask")
+        }
+    }
 
-    fn poll(&mut self) -> Poll<(), ()> {
-        self.work.poll()
+    impl Future for HttpConnectorBlockingTask {
+        type Item = ();
+        type Error = ();
+
+        fn poll(&mut self) -> Poll<(), ()> {
+            self.work.poll()
+        }
     }
 }
 
@@ -288,20 +342,97 @@ impl Executor<oneshot::Execute<dns::Work>> for HttpConnectExecutor {
     }
 }
 
-/*
-impl<S: SslClient> HttpsConnector<S> {
-    /// Create a new connector using the provided SSL implementation.
-    pub fn new(s: S) -> HttpsConnector<S> {
-        HttpsConnector {
-            http: HttpConnector::default(),
-            ssl: s,
+#[doc(hidden)]
+#[deprecated(since="0.11.16", note="Use the Connect2 trait, which will become Connect in 0.12")]
+pub trait Connect: Service<Request=Uri, Error=io::Error> + 'static {
+    /// The connected Io Stream.
+    type Output: AsyncRead + AsyncWrite + 'static;
+    /// A Future that will resolve to the connected Stream.
+    type Future: Future<Item=Self::Output, Error=io::Error> + 'static;
+    /// Connect to a remote address.
+    fn connect(&self, Uri) -> <Self as Connect>::Future;
+}
+
+#[doc(hidden)]
+#[allow(deprecated)]
+impl<T> Connect for T
+where T: Service<Request=Uri, Error=io::Error> + 'static,
+      T::Response: AsyncRead + AsyncWrite,
+      T::Future: Future<Error=io::Error>,
+{
+    type Output = T::Response;
+    type Future = T::Future;
+
+    fn connect(&self, url: Uri) -> <Self as Connect>::Future {
+        self.call(url)
+    }
+}
+
+#[doc(hidden)]
+#[allow(deprecated)]
+impl<T> Connect2 for T
+where
+    T: Connect,
+{
+    type Transport = <T as Connect>::Output;
+    type Error = io::Error;
+    type Future = ConnectToConnect2Future<<T as Connect>::Future>;
+
+    fn connect(&self, dst: Destination) -> <Self as Connect2>::Future {
+        ConnectToConnect2Future {
+            inner: <Self as Connect>::connect(self, dst.uri),
         }
     }
 }
-*/
+
+#[doc(hidden)]
+#[deprecated(since="0.11.16")]
+#[allow(missing_debug_implementations)]
+pub struct ConnectToConnect2Future<F> {
+    inner: F,
+}
+
+#[allow(deprecated)]
+impl<F> Future for ConnectToConnect2Future<F>
+where
+    F: Future,
+{
+    type Item = (F::Item, Connected);
+    type Error = F::Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        self.inner.poll()
+            .map(|async| async.map(|t| (t, Connected::new())))
+    }
+}
+
+// even though deprecated, we need to make sure the HttpConnector still
+// implements Connect (and Service apparently...)
+
+#[allow(deprecated)]
+fn _assert_http_connector() {
+    fn assert_connect<T>()
+    where
+        T: Connect2<
+            Transport=TcpStream,
+            Error=io::Error,
+            Future=ConnectToConnect2Future<HttpConnecting>
+        >,
+        T: Connect<Output=TcpStream, Future=HttpConnecting>,
+        T: Service<
+            Request=Uri,
+            Response=TcpStream,
+            Future=HttpConnecting,
+            Error=io::Error
+        >,
+    {}
+
+    assert_connect::<HttpConnector>();
+}
 
 #[cfg(test)]
 mod tests {
+    #![allow(deprecated)]
     use std::io;
     use tokio::reactor::Core;
     use super::{Connect, HttpConnector};
