@@ -105,6 +105,16 @@ pub struct AddrIncoming {
 /// A future binding a connection with a Service.
 ///
 /// Polling this future will drive HTTP forward.
+///
+/// # Note
+///
+/// This will currently yield an unnameable (`Opaque`) value
+/// on success. The purpose of this is that nothing can be assumed about
+/// the type, not even it's name. It's probable that in a later release,
+/// this future yields the underlying IO object, which could be done without
+/// a breaking change.
+///
+/// It is likely best to just map the value to `()`, for now.
 #[must_use = "futures do nothing unless polled"]
 pub struct Connection<I, S>
 where

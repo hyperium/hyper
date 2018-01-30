@@ -30,17 +30,10 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     /// Use this `Http` instance to create a new server task which handles the
     /// connection `io` provided.
     ///
-    /// This is the low-level method used to actually spawn handling a TCP
-    /// connection, typically. The `handle` provided is the event loop on which
-    /// the server task will be spawned, `io` is the I/O object associated with
-    /// this connection (data that's read/written), `remote_addr` is the remote
-    /// peer address of the HTTP client, and `service` defines how HTTP requests
-    /// will be handled (and mapped to responses).
+    /// # Deprecated
     ///
-    /// This method is typically not invoked directly but is rather transitively
-    /// used through [`bind`](#method.bind). This can be useful,
-    /// however, when writing mocks or accepting sockets from a non-TCP
-    /// location.
+    /// This method is deprecated. If seeking a replacement, consider
+    /// `Http::serve_connection`.
     pub fn bind_connection<S, I, Bd>(&self,
                                  handle: &Handle,
                                  io: I,
