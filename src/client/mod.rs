@@ -24,11 +24,14 @@ use version::HttpVersion;
 
 pub use proto::response::Response;
 pub use proto::request::Request;
-pub use self::connect::{HttpConnector, Connect};
+pub use self::connect::{Connect2, HttpConnector};
+#[allow(deprecated)]
+pub use self::connect::Connect;
 
 use self::background::{bg, Background};
+use self::connect::Destination;
 
-mod connect;
+pub mod connect;
 mod dns;
 mod pool;
 #[cfg(feature = "compat")]
@@ -99,7 +102,9 @@ impl<C, B> Client<C, B> {
 }
 
 impl<C, B> Client<C, B>
-where C: Connect,
+where C: Connect2<Error=io::Error>,
+      C::Transport: 'static,
+      C::Future: 'static,
       B: Stream<Error=::Error> + 'static,
       B::Item: AsRef<[u8]>,
 {
@@ -149,7 +154,9 @@ impl Future for FutureResponse {
 }
 
 impl<C, B> Service for Client<C, B>
-where C: Connect,
+where C: Connect2<Error=io::Error>,
+      C::Transport: 'static,
+      C::Future: 'static,
       B: Stream<Error=::Error> + 'static,
       B::Item: AsRef<[u8]>,
 {
@@ -195,8 +202,12 @@ where C: Connect,
             let executor = self.executor.clone();
             let pool = self.pool.clone();
             let pool_key = Rc::new(domain.to_string());
-            self.connector.connect(url)
-                .and_then(move |io| {
+            let dst = Destination {
+                uri: url,
+                alpn: self::connect::Alpn::Http1,
+            };
+            self.connector.connect(dst)
+                .and_then(move |(io, _connected)| {
                     let (tx, rx) = mpsc::channel(0);
                     let tx = HyperClient {
                         tx: RefCell::new(tx),
@@ -409,7 +420,9 @@ impl<C, B> Config<C, B> {
 }
 
 impl<C, B> Config<C, B>
-where C: Connect,
+where C: Connect2<Error=io::Error>,
+      C::Transport: 'static,
+      C::Future: 'static,
       B: Stream<Error=::Error>,
       B::Item: AsRef<[u8]>,
 {
