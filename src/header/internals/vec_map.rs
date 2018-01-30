@@ -23,6 +23,11 @@ impl<K: PartialEq, V> VecMap<K, V> {
         self.vec.push((key, value));
     }
 
+    pub fn insert_pos(&mut self, key: K, value: V, pos: usize) {
+        debug_assert!(!self.contains_key(&key));
+        self.vec.insert(pos, (key, value))
+    }
+
     #[inline]
     pub fn append(&mut self, key: K, value: V) {
         self.vec.push((key, value));

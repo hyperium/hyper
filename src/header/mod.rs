@@ -392,6 +392,14 @@ impl Headers {
                          Item::new_typed(value));
     }
 
+    pub(crate) fn set_pos<H: Header>(&mut self, pos: usize, value: H) {
+        self.data.insert_pos(
+            HeaderName(Ascii::new(Cow::Borrowed(header_name::<H>()))),
+            Item::new_typed(value),
+            pos,
+        );
+    }
+
     /// Get a reference to the header field's value, if it exists.
     pub fn get<H: Header>(&self) -> Option<&H> {
         self.data.get(&HeaderName(Ascii::new(Cow::Borrowed(header_name::<H>()))))

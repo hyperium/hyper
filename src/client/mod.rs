@@ -14,7 +14,7 @@ use http;
 use tokio::reactor::Handle;
 pub use tokio_service::Service;
 
-use header::{Headers, Host};
+use header::{Host};
 use proto;
 use proto::request;
 use method::Method;
@@ -180,12 +180,14 @@ where C: Connect,
                 ))));
             }
         };
-        let host = Host::new(domain.host().expect("authority implies host").to_owned(), domain.port());
         let (mut head, body) = request::split(req);
-        let mut headers = Headers::new();
-        headers.set(host);
-        headers.extend(head.headers.iter());
-        head.headers = headers;
+        if !head.headers.has::<Host>() {
+            let host = Host::new(
+                domain.host().expect("authority implies host").to_owned(),
+                domain.port(),
+            );
+            head.headers.set_pos(0, host);
+        }
 
         use futures::Sink;
         use futures::sync::{mpsc, oneshot};
