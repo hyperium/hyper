@@ -1,3 +1,25 @@
+### v0.11.16 (2018-01-30)
+
+
+#### Bug Fixes
+
+* **client:**
+  * check for dead connections in Pool ([44af2738](https://github.com/hyperium/hyper/commit/44af273853f82b81591b813d13627e143a14a6b7), closes [#1429](https://github.com/hyperium/hyper/issues/1429))
+  * error on unsupport 101 responses, ignore other 1xx codes ([22774222](https://github.com/hyperium/hyper/commit/227742221fa7830a14c18becbbc6137d97b57729))
+* **server:**
+  * send 400 responses on parse errors before closing connection ([7cb72d20](https://github.com/hyperium/hyper/commit/7cb72d2019bffbc667b9ad2d8cbc19c1a513fcf7))
+  * error if Response code is 1xx ([44c34ce9](https://github.com/hyperium/hyper/commit/44c34ce9adc888916bd67656cc54c35f7908f536))
+
+
+#### Features
+
+* **server:** add `Http::max_buf_size()` option ([d22deb65](https://github.com/hyperium/hyper/commit/d22deb6572c279e11773b6bcb862415c08f19c2e), closes [#1368](https://github.com/hyperium/hyper/issues/1368))
+* **uri:** Add a `PartialEq<str>` impl for `Uri` ([11b49c2c](https://github.com/hyperium/hyper/commit/11b49c2cc84695e966e9d9a0b05781853b28d7a8))
+
+#### Performance
+
+- **h1:** utilize `writev` when possible, reducing copies ([68377ede](https://github.com/hyperium/hyper/commit/68377ede))
+
 ### v0.11.15 (2018-01-22)
 
 
