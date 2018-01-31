@@ -1,6 +1,6 @@
 //! HTTP Client
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::fmt;
 use std::io;
 use std::marker::PhantomData;
@@ -199,10 +199,11 @@ where C: Connect,
             let pool_key = Rc::new(domain.to_string());
             self.connector.connect(url)
                 .and_then(move |io| {
-                    let (tx, rx) = mpsc::channel(0);
+                    // 1 extra slot for possible Close message
+                    let (tx, rx) = mpsc::channel(1);
                     let tx = HyperClient {
                         tx: RefCell::new(tx),
-                        should_close: true,
+                        should_close: Cell::new(true),
                     };
                     let pooled = pool.pooled(pool_key, tx);
                     let conn = proto::Conn::<_, _, proto::ClientTransaction, _>::new(io, pooled.clone());
@@ -227,6 +228,7 @@ where C: Connect,
             use proto::dispatch::ClientMsg;
 
             let (callback, rx) = oneshot::channel();
+            client.should_close.set(false);
 
             match client.tx.borrow_mut().start_send(ClientMsg::Request(head, body, callback)) {
                 Ok(_) => (),
@@ -274,7 +276,12 @@ impl<C, B> fmt::Debug for Client<C, B> {
 }
 
 struct HyperClient<B> {
-    should_close: bool,
+    // A sentinel that is usually always true. If this is dropped
+    // while true, this will try to shutdown the dispatcher task.
+    //
+    // This should be set to false whenever it is checked out of the
+    // pool and successfully used to send a request.
+    should_close: Cell<bool>,
     tx: RefCell<::futures::sync::mpsc::Sender<proto::dispatch::ClientMsg<B>>>,
 }
 
@@ -282,7 +289,7 @@ impl<B> Clone for HyperClient<B> {
     fn clone(&self) -> HyperClient<B> {
         HyperClient {
             tx: self.tx.clone(),
-            should_close: self.should_close,
+            should_close: self.should_close.clone(),
         }
     }
 }
@@ -298,8 +305,8 @@ impl<B> self::pool::Ready for HyperClient<B> {
 
 impl<B> Drop for HyperClient<B> {
     fn drop(&mut self) {
-        if self.should_close {
-            self.should_close = false;
+        if self.should_close.get() {
+            self.should_close.set(false);
             let _ = self.tx.borrow_mut().try_send(proto::dispatch::ClientMsg::Close);
         }
     }
