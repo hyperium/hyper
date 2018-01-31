@@ -20,7 +20,8 @@ use self::Error::{
     Io,
     Ssl,
     TooLarge,
-    Utf8
+    Utf8,
+    Bind,
 };
 
 pub use url::ParseError;
@@ -49,6 +50,8 @@ pub enum Error {
     Ssl(Box<StdError + Send + Sync>),
     /// Parsing a field as string failed
     Utf8(Utf8Error),
+    /// Failed binding to a port
+    Bind(IoError),
 
     #[doc(hidden)]
     __Nonexhaustive(Void)
@@ -70,6 +73,7 @@ impl fmt::Display for Error {
             Io(ref e) => fmt::Display::fmt(e, f),
             Ssl(ref e) => fmt::Display::fmt(e, f),
             Utf8(ref e) => fmt::Display::fmt(e, f),
+            Bind(ref e) => write!(f, "Could not bind to the given address: {}", e),
             ref e => f.write_str(e.description()),
         }
     }
@@ -83,6 +87,7 @@ impl StdError for Error {
             Header => "Invalid Header provided",
             TooLarge => "Message head is too large",
             Status => "Invalid Status provided",
+            Bind(_) => "Could not bind to the given address",
             Uri(ref e) => e.description(),
             Io(ref e) => e.description(),
             Ssl(ref e) => e.description(),
@@ -97,6 +102,7 @@ impl StdError for Error {
             Ssl(ref error) => Some(&**error),
             Uri(ref error) => Some(error),
             Utf8(ref error) => Some(error),
+            Bind(ref error) => Some(error),
             _ => None,
         }
     }
