@@ -8,6 +8,8 @@ use std::sync::Arc;
 
 use std::time::Duration;
 
+use error::Error;
+
 use typeable::Typeable;
 use traitobject;
 
@@ -241,8 +243,8 @@ impl From<TcpListener> for HttpListener {
 
 impl HttpListener {
     /// Start listening to an address over HTTP.
-    pub fn new<To: ToSocketAddrs>(addr: To) -> ::Result<HttpListener> {
-        Ok(HttpListener::from(try!(TcpListener::bind(addr))))
+    pub fn new<To: ToSocketAddrs>(addr: To) -> Result<HttpListener, Error> {
+        Ok(HttpListener::from(try!(TcpListener::bind(addr).map_err(Error::Bind))))
     }
 }
 
