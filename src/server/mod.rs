@@ -30,6 +30,7 @@ pub use tokio_service::{NewService, Service};
 use proto;
 #[cfg(feature = "compat")]
 use proto::Body;
+use self::addr_stream::AddrStream;
 use self::hyper_service::HyperService;
 
 pub use proto::response::Response;
@@ -223,10 +224,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
               Bd: Stream<Item=B, Error=::Error>,
     {
         let listener = TcpListener::bind(addr, &handle)?;
-        let incoming = AddrIncoming {
-            addr: listener.local_addr()?,
-            listener: listener,
-        };
+        let incoming = AddrIncoming::new(listener)?;
         Ok(self.serve_incoming(incoming, new_service))
     }
 
@@ -364,10 +362,7 @@ impl<S, B> Server<S, B>
 
         let handle = reactor.handle();
 
-        let incoming = AddrIncoming {
-            addr: listener.local_addr()?,
-            listener: listener,
-        };
+        let incoming = AddrIncoming::new(listener)?;
 
         // Mini future to track the number of active services
         let info = Rc::new(RefCell::new(Info {
@@ -586,6 +581,13 @@ mod unnameable {
 // ===== impl AddrIncoming =====
 
 impl AddrIncoming {
+    fn new(listener: TcpListener) -> io::Result<AddrIncoming> {
+         Ok(AddrIncoming {
+            addr: listener.local_addr()?,
+            listener: listener,
+        })
+    }
+
     /// Get the local address bound to this listener.
     pub fn local_addr(&self) -> SocketAddr {
         self.addr
@@ -594,14 +596,14 @@ impl AddrIncoming {
 
 impl Stream for AddrIncoming {
     // currently unnameable...
-    type Item = self::addr_stream::AddrStream;
+    type Item = AddrStream;
     type Error = ::std::io::Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         loop {
             match self.listener.accept() {
                 Ok((socket, addr)) => {
-                    return Ok(Async::Ready(Some(self::addr_stream::new(socket, addr))));
+                    return Ok(Async::Ready(Some(AddrStream::new(socket, addr))));
                 },
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => return Ok(Async::NotReady),
                 Err(e) => return Err(e),
@@ -618,17 +620,20 @@ mod addr_stream {
     use tokio::net::TcpStream;
     use tokio_io::{AsyncRead, AsyncWrite};
 
-    pub fn new(tcp: TcpStream, addr: SocketAddr) -> AddrStream {
-        AddrStream {
-            inner: tcp,
-            remote_addr: addr,
-        }
-    }
 
     #[derive(Debug)]
     pub struct AddrStream {
         inner: TcpStream,
         pub(super) remote_addr: SocketAddr,
+    }
+
+    impl AddrStream {
+        pub(super) fn new(tcp: TcpStream, addr: SocketAddr) -> AddrStream {
+            AddrStream {
+                inner: tcp,
+                remote_addr: addr,
+            }
+        }
     }
 
     impl Read for AddrStream {
