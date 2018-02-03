@@ -1,14 +1,14 @@
 //! HTTP Client
 
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 use std::fmt;
 use std::io;
 use std::marker::PhantomData;
 use std::rc::Rc;
 use std::time::Duration;
 
-use futures::{Future, Poll, Stream};
-use futures::future::{self, Executor};
+use futures::{Async, Future, Poll, Stream};
+use futures::future::{self, Either, Executor};
 #[cfg(feature = "compat")]
 use http;
 use tokio::reactor::Handle;
@@ -28,7 +28,10 @@ pub use self::connect::{HttpConnector, Connect};
 
 use self::background::{bg, Background};
 
+mod cancel;
 mod connect;
+//TODO(easy): move cancel and dispatch into common instead
+pub(crate) mod dispatch;
 mod dns;
 mod pool;
 #[cfg(feature = "compat")]
@@ -189,9 +192,6 @@ where C: Connect,
             head.headers.set_pos(0, host);
         }
 
-        use futures::Sink;
-        use futures::sync::{mpsc, oneshot};
-
         let checkout = self.pool.checkout(domain.as_ref());
         let connect = {
             let executor = self.executor.clone();
@@ -199,10 +199,9 @@ where C: Connect,
             let pool_key = Rc::new(domain.to_string());
             self.connector.connect(url)
                 .and_then(move |io| {
-                    // 1 extra slot for possible Close message
-                    let (tx, rx) = mpsc::channel(1);
+                    let (tx, rx) = dispatch::channel();
                     let tx = HyperClient {
-                        tx: RefCell::new(tx),
+                        tx: tx,
                         should_close: Cell::new(true),
                     };
                     let pooled = pool.pooled(pool_key, tx);
@@ -225,33 +224,26 @@ where C: Connect,
             });
 
         let resp = race.and_then(move |client| {
-            use proto::dispatch::ClientMsg;
-
-            let (callback, rx) = oneshot::channel();
-            client.should_close.set(false);
-
-            match client.tx.borrow_mut().start_send(ClientMsg::Request(head, body, callback)) {
-                Ok(_) => (),
-                Err(e) => match e.into_inner() {
-                    ClientMsg::Request(_, _, callback) => {
-                        error!("pooled connection was not ready, this is a hyper bug");
-                        let err = io::Error::new(
-                            io::ErrorKind::BrokenPipe,
-                            "pool selected dead connection",
-                        );
-                        let _ = callback.send(Err(::Error::Io(err)));
-                    },
-                    _ => unreachable!("ClientMsg::Request was just sent"),
+            match client.tx.send((head, body)) {
+                Ok(rx) => {
+                    client.should_close.set(false);
+                    Either::A(rx.then(|res| {
+                        match res {
+                            Ok(Ok(res)) => Ok(res),
+                            Ok(Err(err)) => Err(err),
+                            Err(_) => panic!("dispatch dropped without returning error"),
+                        }
+                    }))
+                },
+                Err(_) => {
+                    error!("pooled connection was not ready, this is a hyper bug");
+                    let err = io::Error::new(
+                        io::ErrorKind::BrokenPipe,
+                        "pool selected dead connection",
+                    );
+                    Either::B(future::err(::Error::Io(err)))
                 }
             }
-
-            rx.then(|res| {
-                match res {
-                    Ok(Ok(res)) => Ok(res),
-                    Ok(Err(err)) => Err(err),
-                    Err(_) => panic!("dispatch dropped without returning error"),
-                }
-            })
         });
 
         FutureResponse(Box::new(resp))
@@ -276,13 +268,8 @@ impl<C, B> fmt::Debug for Client<C, B> {
 }
 
 struct HyperClient<B> {
-    // A sentinel that is usually always true. If this is dropped
-    // while true, this will try to shutdown the dispatcher task.
-    //
-    // This should be set to false whenever it is checked out of the
-    // pool and successfully used to send a request.
     should_close: Cell<bool>,
-    tx: RefCell<::futures::sync::mpsc::Sender<proto::dispatch::ClientMsg<B>>>,
+    tx: dispatch::Sender<proto::dispatch::ClientMsg<B>, ::Response>,
 }
 
 impl<B> Clone for HyperClient<B> {
@@ -296,10 +283,11 @@ impl<B> Clone for HyperClient<B> {
 
 impl<B> self::pool::Ready for HyperClient<B> {
     fn poll_ready(&mut self) -> Poll<(), ()> {
-        self.tx
-            .borrow_mut()
-            .poll_ready()
-            .map_err(|_| ())
+        if self.tx.is_closed() {
+            Err(())
+        } else {
+            Ok(Async::Ready(()))
+        }
     }
 }
 
@@ -307,7 +295,7 @@ impl<B> Drop for HyperClient<B> {
     fn drop(&mut self) {
         if self.should_close.get() {
             self.should_close.set(false);
-            let _ = self.tx.borrow_mut().try_send(proto::dispatch::ClientMsg::Close);
+            self.tx.cancel();
         }
     }
 }
