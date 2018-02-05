@@ -1,7 +1,7 @@
 use std::io;
 
 use futures::{Async, AsyncSink, Future, Poll, Stream};
-use futures::sync::{mpsc, oneshot};
+use futures::sync::oneshot;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_service::Service;
 
@@ -36,12 +36,9 @@ pub struct Client<B> {
     rx: ClientRx<B>,
 }
 
-pub enum ClientMsg<B> {
-    Request(RequestHead, Option<B>, oneshot::Sender<::Result<::Response>>),
-    Close,
-}
+pub type ClientMsg<B> = (RequestHead, Option<B>);
 
-type ClientRx<B> = mpsc::Receiver<ClientMsg<B>>;
+type ClientRx<B> = ::client::dispatch::Receiver<ClientMsg<B>, ::Response>;
 
 impl<D, Bs, I, B, T, K> Dispatcher<D, Bs, I, B, T, K>
 where
@@ -365,7 +362,7 @@ where
 
     fn poll_msg(&mut self) -> Poll<Option<(Self::PollItem, Option<Self::PollBody>)>, ::Error> {
         match self.rx.poll() {
-            Ok(Async::Ready(Some(ClientMsg::Request(head, body, mut cb)))) => {
+            Ok(Async::Ready(Some(((head, body), mut cb)))) => {
                 // check that future hasn't been canceled already
                 match cb.poll_cancel().expect("poll_cancel cannot error") {
                     Async::Ready(()) => {
@@ -378,14 +375,13 @@ where
                     }
                 }
             },
-            Ok(Async::Ready(Some(ClientMsg::Close))) |
             Ok(Async::Ready(None)) => {
                 trace!("client tx closed");
                 // user has dropped sender handle
                 Ok(Async::Ready(None))
             },
             Ok(Async::NotReady) => return Ok(Async::NotReady),
-            Err(()) => unreachable!("mpsc receiver cannot error"),
+            Err(_) => unreachable!("receiver cannot error"),
         }
     }
 
@@ -404,7 +400,7 @@ where
                 if let Some(cb) = self.callback.take() {
                     let _ = cb.send(Err(err));
                     Ok(())
-                } else if let Ok(Async::Ready(Some(ClientMsg::Request(_, _, cb)))) = self.rx.poll() {
+                } else if let Ok(Async::Ready(Some((_, cb)))) = self.rx.poll() {
                     let _ = cb.send(Err(err));
                     Ok(())
                 } else {
@@ -435,8 +431,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use futures::Sink;
-
     use super::*;
     use mock::AsyncIo;
     use proto::ClientTransaction;
@@ -447,7 +441,7 @@ mod tests {
         let _ = pretty_env_logger::try_init();
         ::futures::lazy(|| {
             let io = AsyncIo::new_buf(b"HTTP/1.1 200 OK\r\n\r\n".to_vec(), 100);
-            let (mut tx, rx) = mpsc::channel(0);
+            let (tx, rx) = ::client::dispatch::channel();
             let conn = Conn::<_, ::Chunk, ClientTransaction>::new(io, Default::default());
             let mut dispatcher = Dispatcher::new(Client::new(rx), conn);
 
@@ -456,8 +450,7 @@ mod tests {
                 subject: ::proto::RequestLine::default(),
                 headers: Default::default(),
             };
-            let (res_tx, res_rx) = oneshot::channel();
-            tx.start_send(ClientMsg::Request(req, None::<::Body>, res_tx)).unwrap();
+            let res_rx = tx.send((req, None::<::Body>)).unwrap();
 
             dispatcher.poll().expect("dispatcher poll 1");
             dispatcher.poll().expect("dispatcher poll 2");
