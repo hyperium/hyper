@@ -176,10 +176,8 @@ where
     B: Buf,
 {
     fn read_mem(&mut self, len: usize) -> Poll<Bytes, io::Error> {
-        trace!("Buffered.read_mem read_buf={}, wanted={}", self.read_buf.len(), len);
         if !self.read_buf.is_empty() {
             let n = ::std::cmp::min(len, self.read_buf.len());
-            trace!("Buffered.read_mem read_buf is not empty, slicing {}", n);
             Ok(Async::Ready(self.read_buf.split_to(n).freeze()))
         } else {
             let n = try_ready!(self.read_from_io());
