@@ -158,6 +158,9 @@ where
                 debug!("flushed {} bytes", n);
                 if self.write_buf.remaining() == 0 {
                     break;
+                } else if n == 0 {
+                    trace!("write returned zero, but {} bytes remaining", self.write_buf.remaining());
+                    return Err(io::ErrorKind::WriteZero.into())
                 }
             }
             try_nb!(self.io.flush())
@@ -391,8 +394,20 @@ impl<B: Buf> Buf for VecOrBuf<B> {
     #[inline]
     fn bytes_vec<'t>(&'t self, dst: &mut [&'t IoVec]) -> usize {
         match *self {
-            VecOrBuf::Vec(ref v) => v.bytes_vec(dst),
-            VecOrBuf::Buf(ref b) => b.bytes_vec(dst),
+            VecOrBuf::Vec(ref v) => {
+                if v.has_remaining() {
+                    v.bytes_vec(dst)
+                } else {
+                    0
+                }
+            },
+            VecOrBuf::Buf(ref b) => {
+                if b.has_remaining() {
+                    b.bytes_vec(dst)
+                } else {
+                    0
+                }
+            },
         }
     }
 }
@@ -420,11 +435,12 @@ impl<T: Buf> Buf for BufDeque<T> {
 
     #[inline]
     fn bytes(&self) -> &[u8] {
-        if let Some(buf) = self.bufs.front() {
-            buf.bytes()
-        } else {
-            &[]
+        for buf in &self.bufs {
+            if buf.has_remaining() {
+                return buf.bytes();
+            }
         }
+        &[]
     }
 
     #[inline]
