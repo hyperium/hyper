@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::collections::VecDeque;
 use std::fmt;
 use std::io;
@@ -55,7 +56,7 @@ where
         self.write_buf.set_strategy(if enabled {
             Strategy::Flatten
         } else {
-            Strategy::Queue
+            Strategy::Auto
         });
     }
 
@@ -68,6 +69,11 @@ where
         self.read_buf.as_ref()
     }
 
+    //TODO(perf): don't return a `&mut Vec<u8>`, but a wrapper
+    //that protects the Vec when growing. Specifically, if this
+    //Vec couldn't be reset, as it's position isn't at the end,
+    //any new reserves will copy the bytes before the position,
+    //which is unnecessary.
     pub fn write_buf_mut(&mut self) -> &mut Vec<u8> {
         let buf = self.write_buf.head_mut();
         buf.maybe_reset();
@@ -154,7 +160,7 @@ where
             try_nb!(self.io.flush());
         } else {
             loop {
-                let n = try_ready!(self.io.write_buf(&mut self.write_buf));
+                let n = try_ready!(self.io.write_buf(&mut self.write_buf.auto()));
                 debug!("flushed {} bytes", n);
                 if self.write_buf.remaining() == 0 {
                     break;
@@ -263,7 +269,7 @@ impl<B> WriteBuf<B> {
         WriteBuf {
             buf: BufDeque::new(),
             max_buf_size: DEFAULT_MAX_BUFFER_SIZE,
-            strategy: Strategy::Queue,
+            strategy: Strategy::Auto,
         }
     }
 }
@@ -277,6 +283,11 @@ where
         self.strategy = strategy;
     }
 
+    #[inline]
+    fn auto(&mut self) -> WriteBufAuto<B> {
+        WriteBufAuto::new(self)
+    }
+
     fn buffer(&mut self, buf: B) {
         match self.strategy {
             Strategy::Flatten => {
@@ -284,7 +295,7 @@ where
                 head.maybe_reset();
                 head.bytes.put(buf);
             },
-            Strategy::Queue => {
+            Strategy::Auto | Strategy::Queue => {
                 self.buf.bufs.push_back(VecOrBuf::Buf(buf));
             },
         }
@@ -295,8 +306,7 @@ where
             Strategy::Flatten => {
                 self.remaining() < self.max_buf_size
             },
-            Strategy::Queue => {
-                // for now, the simplest of heuristics
+            Strategy::Auto | Strategy::Queue => {
                 self.buf.bufs.len() < MAX_BUF_LIST_BUFFERS
                     && self.remaining() < self.max_buf_size
             },
@@ -355,8 +365,68 @@ impl<B: Buf> Buf for WriteBuf<B> {
     }
 }
 
+/// Detects when wrapped `WriteBuf` is used for vectored IO, and
+/// adjusts the `WriteBuf` strategy if not.
+struct WriteBufAuto<'a, B: Buf + 'a> {
+    bytes_called: Cell<bool>,
+    bytes_vec_called: Cell<bool>,
+    inner: &'a mut WriteBuf<B>,
+}
+
+impl<'a, B: Buf> WriteBufAuto<'a, B> {
+    fn new(inner: &'a mut WriteBuf<B>) -> WriteBufAuto<'a, B> {
+        WriteBufAuto {
+            bytes_called: Cell::new(false),
+            bytes_vec_called: Cell::new(false),
+            inner: inner,
+        }
+    }
+}
+
+impl<'a, B: Buf> Buf for WriteBufAuto<'a, B> {
+    #[inline]
+    fn remaining(&self) -> usize {
+        self.inner.remaining()
+    }
+
+    #[inline]
+    fn bytes(&self) -> &[u8] {
+        self.bytes_called.set(true);
+        self.inner.bytes()
+    }
+
+    #[inline]
+    fn advance(&mut self, cnt: usize) {
+        self.inner.advance(cnt)
+    }
+
+    #[inline]
+    fn bytes_vec<'t>(&'t self, dst: &mut [&'t IoVec]) -> usize {
+        self.bytes_vec_called.set(true);
+        self.inner.bytes_vec(dst)
+    }
+}
+
+impl<'a, B: Buf + 'a> Drop for WriteBufAuto<'a, B> {
+    fn drop(&mut self) {
+        if let Strategy::Auto = self.inner.strategy {
+            if self.bytes_vec_called.get() {
+                self.inner.strategy = Strategy::Queue;
+            } else if self.bytes_called.get() {
+                trace!("detected no usage of vectored write, flattening");
+                self.inner.strategy = Strategy::Flatten;
+                let mut vec = Vec::new();
+                vec.put(&mut self.inner.buf);
+                self.inner.buf.bufs.push_back(VecOrBuf::Vec(Cursor::new(vec)));
+            }
+        }
+    }
+}
+
+
 #[derive(Debug)]
 enum Strategy {
+    Auto,
     Flatten,
     Queue,
 }
@@ -535,5 +605,118 @@ mod tests {
         buffered.buffer(Cursor::new(b"hello".to_vec()));
         buffered.flush().unwrap();
         assert_eq!(buffered.io, b"hello");
+    }
+
+    #[test]
+    fn write_buf_queue() {
+        extern crate pretty_env_logger;
+        let _ = pretty_env_logger::try_init();
+
+        let mock = AsyncIo::new_buf(vec![], 1024);
+        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
+
+        buffered.write_buf_mut().extend(b"hello ");
+        buffered.buffer(Cursor::new(b"world, ".to_vec()));
+        buffered.write_buf_mut().extend(b"it's ");
+        buffered.buffer(Cursor::new(b"hyper!".to_vec()));
+        buffered.flush().unwrap();
+
+        assert_eq!(buffered.io, b"hello world, it's hyper!");
+        assert_eq!(buffered.io.num_writes(), 1);
+    }
+
+    #[test]
+    fn write_buf_reclaim_vec() {
+        extern crate pretty_env_logger;
+        let _ = pretty_env_logger::try_init();
+
+        let mock = AsyncIo::new_buf(vec![], 1024);
+        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
+
+        buffered.write_buf_mut().extend(b"hello ");
+        assert_eq!(buffered.write_buf.buf.bufs.len(), 1);
+        buffered.write_buf_mut().extend(b"world, ");
+        assert_eq!(buffered.write_buf.buf.bufs.len(), 1);
+
+        // after flushing, reclaim the Vec
+        buffered.flush().unwrap();
+        assert_eq!(buffered.write_buf.remaining(), 0);
+        assert_eq!(buffered.write_buf.buf.bufs.len(), 1);
+
+        // add a user buf in the way
+        buffered.buffer(Cursor::new(b"it's ".to_vec()));
+        // and then add more hyper bytes
+        buffered.write_buf_mut().extend(b"hyper!");
+        buffered.flush().unwrap();
+        assert_eq!(buffered.write_buf.buf.bufs.len(), 1);
+
+        assert_eq!(buffered.io, b"hello world, it's hyper!");
+    }
+
+    #[test]
+    fn write_buf_flatten() {
+        extern crate pretty_env_logger;
+        let _ = pretty_env_logger::try_init();
+
+        let mock = AsyncIo::new_buf(vec![], 1024);
+        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
+        buffered.write_buf.set_strategy(Strategy::Flatten);
+
+        buffered.write_buf_mut().extend(b"hello ");
+        buffered.buffer(Cursor::new(b"world, ".to_vec()));
+        buffered.write_buf_mut().extend(b"it's ");
+        buffered.buffer(Cursor::new(b"hyper!".to_vec()));
+        assert_eq!(buffered.write_buf.buf.bufs.len(), 1);
+
+        buffered.flush().unwrap();
+
+        assert_eq!(buffered.io, b"hello world, it's hyper!");
+        assert_eq!(buffered.io.num_writes(), 1);
+        assert_eq!(buffered.write_buf.buf.bufs.len(), 1);
+    }
+
+    #[test]
+    fn write_buf_auto_flatten() {
+        extern crate pretty_env_logger;
+        let _ = pretty_env_logger::try_init();
+
+        let mut mock = AsyncIo::new_buf(vec![], 1024);
+        mock.max_read_vecs(0); // disable vectored IO
+        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
+
+        // we have 4 buffers, but hope to detect that vectored IO isn't
+        // being used, and switch to flattening automatically,
+        // resulting in only 2 writes
+        buffered.write_buf_mut().extend(b"hello ");
+        buffered.buffer(Cursor::new(b"world, ".to_vec()));
+        buffered.write_buf_mut().extend(b"it's hyper!");
+        //buffered.buffer(Cursor::new(b"hyper!".to_vec()));
+        buffered.flush().unwrap();
+
+        assert_eq!(buffered.io, b"hello world, it's hyper!");
+        assert_eq!(buffered.io.num_writes(), 2);
+        assert_eq!(buffered.write_buf.buf.bufs.len(), 1);
+    }
+
+    #[test]
+    fn write_buf_queue_does_not_auto() {
+        extern crate pretty_env_logger;
+        let _ = pretty_env_logger::try_init();
+
+        let mut mock = AsyncIo::new_buf(vec![], 1024);
+        mock.max_read_vecs(0); // disable vectored IO
+        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
+        buffered.write_buf.set_strategy(Strategy::Queue);
+
+        // we have 4 buffers, and vec IO disabled, but explicitly said
+        // don't try to auto detect (via setting strategy above)
+        buffered.write_buf_mut().extend(b"hello ");
+        buffered.buffer(Cursor::new(b"world, ".to_vec()));
+        buffered.write_buf_mut().extend(b"it's ");
+        buffered.buffer(Cursor::new(b"hyper!".to_vec()));
+        buffered.flush().unwrap();
+
+        assert_eq!(buffered.io, b"hello world, it's hyper!");
+        assert_eq!(buffered.io.num_writes(), 4);
     }
 }

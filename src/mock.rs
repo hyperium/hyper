@@ -70,6 +70,7 @@ pub struct AsyncIo<T> {
     flushed: bool,
     inner: T,
     max_read_vecs: usize,
+    num_writes: usize,
 }
 
 impl<T> AsyncIo<T> {
@@ -81,6 +82,7 @@ impl<T> AsyncIo<T> {
             flushed: false,
             inner: inner,
             max_read_vecs: READ_VECS_CNT,
+            num_writes: 0,
         }
     }
 
@@ -106,6 +108,10 @@ impl<T> AsyncIo<T> {
 
     pub fn blocked(&self) -> bool {
         self.blocked
+    }
+
+    pub fn num_writes(&self) -> usize {
+        self.num_writes
     }
 }
 
@@ -160,6 +166,7 @@ impl<T: Read> Read for AsyncIo<T> {
 
 impl<T: Write> Write for AsyncIo<T> {
     fn write(&mut self, data: &[u8]) -> io::Result<usize> {
+        self.num_writes += 1;
         if let Some(err) = self.error.take() {
             Err(err)
         } else if self.bytes_until_block == 0 {
@@ -198,6 +205,9 @@ impl<T: Read + Write> AsyncWrite for AsyncIo<T> {
             let i = ::bytes::Buf::bytes_vec(&buf, &mut bufs[..self.max_read_vecs]);
             let mut n = 0;
             let mut ret = Ok(0);
+            // each call to write() will increase our count, but we assume
+            // that if iovecs are used, its really only 1 write call.
+            let num_writes = self.num_writes;
             for iovec in &bufs[..i] {
                 match self.write(iovec) {
                     Ok(num) => {
@@ -216,6 +226,7 @@ impl<T: Read + Write> AsyncWrite for AsyncIo<T> {
                     }
                 }
             }
+            self.num_writes = num_writes + 1;
             ret
         };
         match r {
