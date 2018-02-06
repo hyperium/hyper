@@ -65,6 +65,13 @@ where
         self.write_buf.max_buf_size = max;
     }
 
+    pub fn set_write_strategy_flatten(&mut self) {
+        // this should always be called only at construction time,
+        // so this assert is here to catch myself
+        debug_assert!(self.write_buf.buf.bufs.is_empty());
+        self.write_buf.set_strategy(Strategy::Flatten);
+    }
+
     pub fn read_buf(&self) -> &[u8] {
         self.read_buf.as_ref()
     }

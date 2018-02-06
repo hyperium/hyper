@@ -62,6 +62,10 @@ where I: AsyncRead + AsyncWrite,
         self.io.set_max_buf_size(max);
     }
 
+    pub fn set_write_strategy_flatten(&mut self) {
+        self.io.set_write_strategy_flatten();
+    }
+
     #[cfg(feature = "tokio-proto")]
     fn poll_incoming(&mut self) -> Poll<Option<Frame<MessageHead<T::Incoming>, Chunk, ::Error>>, io::Error> {
         trace!("Conn::poll_incoming()");
