@@ -1,3 +1,12 @@
+### v0.11.17 (2018-02-05)
+
+
+#### Bug Fixes
+
+* **client:** more reliably detect closed pooled connections (#1434) ([265ad67c](https://github.com/hyperium/hyper/commit/265ad67c86379841a5aa821543a01648ccc8c26c))
+* **h1:** fix hung streaming bodies over HTTPS ([73109694](https://github.com/hyperium/hyper/commit/731096947d0704de58b75d17e05af956bcb21bd9))
+
+
 ### v0.11.16 (2018-01-30)
 
 
