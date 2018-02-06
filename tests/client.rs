@@ -1044,45 +1044,6 @@ mod dispatch_impl {
         assert_eq!(closes.load(Ordering::Relaxed), 1);
     }
 
-    #[test]
-    fn client_body_mpsc() {
-        use futures::Sink;
-        let _ = pretty_env_logger::try_init();
-        let server = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = server.local_addr().unwrap();
-        let mut core = Core::new().unwrap();
-        let handle = core.handle();
-        let closes = Arc::new(AtomicUsize::new(0));
-
-        let (tx1, rx1) = oneshot::channel();
-
-        thread::spawn(move || {
-            let mut sock = server.accept().unwrap().0;
-            sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
-            sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
-            let mut buf = [0; 4096];
-            sock.read(&mut buf).expect("read 1");
-            sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").unwrap();
-            let _ = tx1.send(());
-        });
-
-        let uri = format!("http://{}/a", addr).parse().unwrap();
-
-        let client = Client::configure()
-            .connector(DebugConnector(HttpConnector::new(1, &handle), closes.clone()))
-            .build(&handle);
-        let mut req = Request::new(Method::Post, uri);
-        let (tx, body) = hyper::Body::pair();
-        req.set_body(body);
-        let res = client.request(req).and_then(move |res| {
-            assert_eq!(res.status(), hyper::StatusCode::Ok);
-            res.body().concat2()
-        });
-        let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
-        let send = tx.send_all(::futures::stream::iter_ok(vec!["hello"; 2]).map(hyper::Chunk::from).map(Ok)).then(|_| Ok(()));
-        core.run(res.join(send).join(rx).map(|r| r.0)).unwrap();
-    }
-
     struct DebugConnector(HttpConnector, Arc<AtomicUsize>);
 
     impl Service for DebugConnector {

@@ -1,7 +1,8 @@
 use std::cmp;
 use std::io::{self, Read, Write};
 
-use futures::Poll;
+use bytes::Buf as BufTrait;
+use futures::{Async, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 #[derive(Debug)]
@@ -11,10 +12,6 @@ pub struct Buf {
 }
 
 impl Buf {
-    pub fn new() -> Buf {
-        Buf::wrap(vec![])
-    }
-
     pub fn wrap(vec: Vec<u8>) -> Buf {
         Buf {
             vec: vec,
@@ -63,23 +60,27 @@ impl Read for Buf {
     }
 }
 
+const READ_VECS_CNT: usize = 64;
+
 #[derive(Debug)]
 pub struct AsyncIo<T> {
-    inner: T,
+    blocked: bool,
     bytes_until_block: usize,
     error: Option<io::Error>,
-    blocked: bool,
     flushed: bool,
+    inner: T,
+    max_read_vecs: usize,
 }
 
 impl<T> AsyncIo<T> {
     pub fn new(inner: T, bytes: usize) -> AsyncIo<T> {
         AsyncIo {
-            inner: inner,
+            blocked: false,
             bytes_until_block: bytes,
             error: None,
             flushed: false,
-            blocked: false,
+            inner: inner,
+            max_read_vecs: READ_VECS_CNT,
         }
     }
 
@@ -89,6 +90,22 @@ impl<T> AsyncIo<T> {
 
     pub fn error(&mut self, err: io::Error) {
         self.error = Some(err);
+    }
+
+    pub fn max_read_vecs(&mut self, cnt: usize) {
+        assert!(cnt <= READ_VECS_CNT);
+        self.max_read_vecs = cnt;
+    }
+
+    #[cfg(feature = "tokio-proto")]
+    //TODO: fix proto::conn::tests to not use tokio-proto API,
+    //and then this cfg flag go away
+    pub fn flushed(&self) -> bool {
+        self.flushed
+    }
+
+    pub fn blocked(&self) -> bool {
+        self.blocked
     }
 }
 
@@ -103,16 +120,17 @@ impl AsyncIo<Buf> {
     pub fn new_eof() -> AsyncIo<Buf> {
         AsyncIo::new(Buf::wrap(Vec::new().into()), 1)
     }
+}
 
-    #[cfg(feature = "tokio-proto")]
-    //TODO: fix proto::conn::tests to not use tokio-proto API,
-    //and then this cfg flag go away
-    pub fn flushed(&self) -> bool {
-        self.flushed
-    }
+impl<T: Read + Write> AsyncIo<T> {
+    fn write_no_vecs<B: BufTrait>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
+        if !buf.has_remaining() {
+            return Ok(Async::Ready(0));
+        }
 
-    pub fn blocked(&self) -> bool {
-        self.blocked
+        let n = try_nb!(self.write(buf.bytes()));
+        buf.advance(n);
+        Ok(Async::Ready(n))
     }
 }
 
@@ -170,12 +188,14 @@ impl<T: Read + Write> AsyncWrite for AsyncIo<T> {
         Ok(().into())
     }
 
-    fn write_buf<B: ::bytes::Buf>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
-        use futures::Async;
+    fn write_buf<B: BufTrait>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
+        if self.max_read_vecs == 0 {
+            return self.write_no_vecs(buf);
+        }
         let r = {
             static DUMMY: &[u8] = &[0];
-            let mut bufs = [From::from(DUMMY); 64];
-            let i = ::bytes::Buf::bytes_vec(&buf, &mut bufs);
+            let mut bufs = [From::from(DUMMY); READ_VECS_CNT];
+            let i = ::bytes::Buf::bytes_vec(&buf, &mut bufs[..self.max_read_vecs]);
             let mut n = 0;
             let mut ret = Ok(0);
             for iovec in &bufs[..i] {

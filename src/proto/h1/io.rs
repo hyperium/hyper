@@ -440,6 +440,9 @@ impl<T: Buf> Buf for BufDeque<T> {
                 return buf.bytes();
             }
         }
+        if let Some(ref buf) = self.bufs.front() {
+            return buf.bytes();
+        }
         &[]
     }
 
@@ -483,42 +486,54 @@ impl<T: Buf> Buf for BufDeque<T> {
     }
 }
 
-// TODO: Move tests to their own mod
 #[cfg(test)]
-use std::io::Read;
+mod tests {
+    use super::*;
+    use std::io::Read;
+    use mock::AsyncIo;
 
-#[cfg(test)]
-impl<T: Read> MemRead for ::mock::AsyncIo<T> {
-    fn read_mem(&mut self, len: usize) -> Poll<Bytes, io::Error> {
-        let mut v = vec![0; len];
-        let n = try_nb!(self.read(v.as_mut_slice()));
-        Ok(Async::Ready(BytesMut::from(&v[..n]).freeze()))
+    #[cfg(test)]
+    impl<T: Read> MemRead for ::mock::AsyncIo<T> {
+        fn read_mem(&mut self, len: usize) -> Poll<Bytes, io::Error> {
+            let mut v = vec![0; len];
+            let n = try_nb!(self.read(v.as_mut_slice()));
+            Ok(Async::Ready(BytesMut::from(&v[..n]).freeze()))
+        }
     }
-}
 
-#[test]
-fn test_iobuf_write_empty_slice() {
-    use mock::{AsyncIo, Buf as MockBuf};
+    #[test]
+    fn iobuf_write_empty_slice() {
+        let mut mock = AsyncIo::new_buf(vec![], 256);
+        mock.error(io::Error::new(io::ErrorKind::Other, "logic error"));
 
-    let mut mock = AsyncIo::new(MockBuf::new(), 256);
-    mock.error(io::Error::new(io::ErrorKind::Other, "logic error"));
+        let mut io_buf = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
 
-    let mut io_buf = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
+        // underlying io will return the logic error upon write,
+        // so we are testing that the io_buf does not trigger a write
+        // when there is nothing to flush
+        io_buf.flush().expect("should short-circuit flush");
+    }
 
-    // underlying io will return the logic error upon write,
-    // so we are testing that the io_buf does not trigger a write
-    // when there is nothing to flush
-    io_buf.flush().expect("should short-circuit flush");
-}
+    #[test]
+    fn parse_reads_until_blocked() {
+        // missing last line ending
+        let raw = "HTTP/1.1 200 OK\r\n";
 
-#[test]
-fn test_parse_reads_until_blocked() {
-    use mock::{AsyncIo, Buf as MockBuf};
-    // missing last line ending
-    let raw = "HTTP/1.1 200 OK\r\n";
+        let mock = AsyncIo::new_buf(raw, raw.len());
+        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
+        assert_eq!(buffered.parse::<::proto::ClientTransaction>().unwrap(), Async::NotReady);
+        assert!(buffered.io.blocked());
+    }
 
-    let mock = AsyncIo::new(MockBuf::wrap(raw.into()), raw.len());
-    let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
-    assert_eq!(buffered.parse::<::proto::ClientTransaction>().unwrap(), Async::NotReady);
-    assert!(buffered.io.blocked());
+    #[test]
+    fn write_buf_skips_empty_bufs() {
+        let mut mock = AsyncIo::new_buf(vec![], 1024);
+        mock.max_read_vecs(0); // disable vectored IO
+        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
+
+        buffered.buffer(Cursor::new(Vec::new()));
+        buffered.buffer(Cursor::new(b"hello".to_vec()));
+        buffered.flush().unwrap();
+        assert_eq!(buffered.io, b"hello");
+    }
 }
