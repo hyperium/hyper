@@ -65,9 +65,64 @@ impl<T, U> Stream for Receiver<T, U> {
         if let Async::Ready(()) = self.canceled.poll()? {
             return Ok(Async::Ready(None));
         }
-        self.inner.poll()
-            .map_err(|()| unreachable!("mpsc never errors"))
+        self.inner.poll().map_err(|()| unreachable!("mpsc never errors"))
     }
 }
 
 //TODO: Drop for Receiver should consume inner
+
+#[cfg(test)]
+mod tests {
+
+    #[cfg(feature = "nightly")]
+    extern crate test;
+
+    #[cfg(feature = "nightly")]
+    use futures::{Future, Stream};
+
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn cancelable_queue_throughput(b: &mut test::Bencher) {
+
+        let (tx, mut rx) = super::channel::<i32, ()>();
+
+        b.iter(move || {
+            ::futures::future::lazy(|| {
+                let _ = tx.send(1).unwrap();
+                loop {
+                    let async = rx.poll().unwrap();
+                    if async.is_not_ready() {
+                        break;
+                    }
+                }
+
+
+                Ok::<(), ()>(())
+            }).wait().unwrap();
+        })
+    }
+
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn cancelable_queue_not_ready(b: &mut test::Bencher) {
+        let (_tx, mut rx) = super::channel::<i32, ()>();
+
+        b.iter(move || {
+            ::futures::future::lazy(|| {
+                assert!(rx.poll().unwrap().is_not_ready());
+
+                Ok::<(), ()>(())
+            }).wait().unwrap();
+        })
+    }
+
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn cancelable_queue_cancel(b: &mut test::Bencher) {
+        let (tx, _rx) = super::channel::<i32, ()>();
+
+        b.iter(move || {
+            tx.cancel();
+        })
+    }
+}
