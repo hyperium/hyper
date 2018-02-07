@@ -17,6 +17,7 @@ use self::Error::{
     Status,
     Timeout,
     Upgrade,
+    Cancel,
     Io,
     TooLarge,
     Incomplete,
@@ -47,6 +48,8 @@ pub enum Error {
     Timeout,
     /// A protocol upgrade was encountered, but not yet supported in hyper.
     Upgrade,
+    /// A pending item was dropped before ever being processed.
+    Cancel(Canceled),
     /// An `io::Error` that occurred while trying to read or write to a network stream.
     Io(IoError),
     /// Parsing a field as string failed
@@ -54,6 +57,45 @@ pub enum Error {
 
     #[doc(hidden)]
     __Nonexhaustive(Void)
+}
+
+impl Error {
+    pub(crate) fn new_canceled() -> Error {
+        Error::Cancel(Canceled {
+            _inner: (),
+        })
+    }
+}
+
+/// A pending item was dropped before ever being processed.
+///
+/// For example, a `Request` could be queued in the `Client`, *just*
+/// as the related connection gets closed by the remote. In that case,
+/// when the connection drops, the pending response future will be
+/// fulfilled with this error, signaling the `Request` was never started.
+pub struct Canceled {
+    // maybe in the future this contains an optional value of
+    // what was canceled?
+    _inner: (),
+}
+
+impl Canceled {
+    fn description(&self) -> &str {
+        "an operation was canceled internally before starting"
+    }
+}
+
+impl fmt::Debug for Canceled {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Canceled")
+            .finish()
+    }
+}
+
+impl fmt::Display for Canceled {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.pad(self.description())
+    }
 }
 
 #[doc(hidden)]
@@ -87,6 +129,7 @@ impl StdError for Error {
             Incomplete => "message is incomplete",
             Timeout => "timeout",
             Upgrade => "unsupported protocol upgrade",
+            Cancel(ref e) => e.description(),
             Uri(ref e) => e.description(),
             Io(ref e) => e.description(),
             Utf8(ref e) => e.description(),
@@ -142,6 +185,11 @@ impl From<httparse::Error> for Error {
         }
     }
 }
+
+#[doc(hidden)]
+trait AssertSendSync: Send + Sync + 'static {}
+#[doc(hidden)]
+impl AssertSendSync for Error {}
 
 #[cfg(test)]
 mod tests {

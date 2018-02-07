@@ -57,6 +57,12 @@ impl Cancel {
     }
 }
 
+impl Canceled {
+    pub fn cancel(&self) {
+        self.inner.is_canceled.store(true, Ordering::SeqCst);
+    }
+}
+
 impl Future for Canceled {
     type Item = ();
     type Error = Never;
@@ -87,7 +93,7 @@ impl Future for Canceled {
 
 impl Drop for Canceled {
     fn drop(&mut self) {
-        self.inner.is_canceled.store(true, Ordering::SeqCst);
+        self.cancel();
     }
 }
 
