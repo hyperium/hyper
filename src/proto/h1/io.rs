@@ -517,9 +517,6 @@ impl<T: Buf> Buf for BufDeque<T> {
                 return buf.bytes();
             }
         }
-        if let Some(ref buf) = self.bufs.front() {
-            return buf.bytes();
-        }
         &[]
     }
 
