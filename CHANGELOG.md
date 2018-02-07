@@ -1,3 +1,16 @@
+### v0.11.18 (2018-02-07)
+
+
+#### Bug Fixes
+
+* **client:** send an `Error::Cancel` if a queued request is dropped ([88f01793](https://github.com/hyperium/hyper/commit/88f01793bec5830370cb88f74a64a2e20a440c17))
+
+
+#### Features
+
+* **client:** add `http1_writev` configuration option ([b0aa6497](https://github.com/hyperium/hyper/commit/b0aa6497258c20354ae0fe36d668e0c2361b3151))
+
+
 ### v0.11.17 (2018-02-05)
 
 
