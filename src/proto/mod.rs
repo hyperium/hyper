@@ -21,7 +21,8 @@ pub use self::h1::{dispatch, Conn, KeepAlive, KA};
 mod body;
 mod chunk;
 mod h1;
-//mod h2;
+#[cfg(feature = "http2")]
+pub mod h2;
 pub mod request;
 pub mod response;
 

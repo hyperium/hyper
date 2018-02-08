@@ -83,7 +83,7 @@ fn main() {
     let handle = core.handle();
     let client_handle = core.handle();
 
-    let serve = Http::new().serve_addr_handle(&addr, &handle, move || Ok(ResponseExamples(client_handle.clone()))).unwrap();
+    let serve = Http::new().serve_addr_handle2(&addr, &handle, move || Ok(ResponseExamples(client_handle.clone()))).unwrap();
     println!("Listening on http://{} with 1 thread.", serve.incoming_ref().local_addr());
 
     let h2 = handle.clone();

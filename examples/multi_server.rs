@@ -48,8 +48,8 @@ fn main() {
     let mut core = Core::new().unwrap();
     let handle = core.handle();
 
-    let srv1 = Http::new().serve_addr_handle(&addr1, &handle, || Ok(Srv(INDEX1))).unwrap();
-    let srv2 = Http::new().serve_addr_handle(&addr2, &handle, || Ok(Srv(INDEX2))).unwrap();
+    let srv1 = Http::new().serve_addr_handle2(&addr1, &handle, || Ok(Srv(INDEX1))).unwrap();
+    let srv2 = Http::new().serve_addr_handle2(&addr2, &handle, || Ok(Srv(INDEX2))).unwrap();
 
     println!("Listening on http://{}", srv1.incoming_ref().local_addr());
     println!("Listening on http://{}", srv2.incoming_ref().local_addr());

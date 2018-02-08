@@ -16,7 +16,6 @@ pub use tokio_service::Service;
 
 use header::{Host};
 use proto;
-use proto::request;
 use method::Method;
 use self::pool::Pool;
 use uri::{self, Uri};
@@ -44,6 +43,7 @@ pub struct Client<C, B = proto::Body> {
     executor: Exec,
     h1_writev: bool,
     pool: Pool<HyperClient<B>>,
+    version: Ver,
 }
 
 impl Client<HttpConnector, proto::Body> {
@@ -98,7 +98,8 @@ impl<C, B> Client<C, B> {
             connector: config.connector,
             executor: exec,
             h1_writev: config.h1_writev,
-            pool: Pool::new(config.keep_alive, config.keep_alive_timeout)
+            pool: Pool::new(config.keep_alive, config.keep_alive_timeout),
+            version: config.version,
         }
     }
 }
@@ -132,6 +133,19 @@ where C: Connect,
     pub fn into_compat(self) -> compat::CompatClient<C, B> {
         self::compat::client(self)
     }
+
+    fn enforce_version(&self, version: &mut HttpVersion) {
+        match (self.version, *version) {
+            (Ver::Http1, HttpVersion::Http10) |
+            (Ver::Http1, HttpVersion::Http11) => {},
+            (Ver::Http1, _) => {
+                *version = HttpVersion::Http11;
+            },
+            _ => {
+
+            }
+        }
+    }
 }
 
 /// A `Future` that will resolve to an HTTP Response.
@@ -153,6 +167,7 @@ impl Future for FutureResponse {
     }
 }
 
+
 impl<C, B> Service for Client<C, B>
 where C: Connect,
       B: Stream<Error=::Error> + 'static,
@@ -163,15 +178,11 @@ where C: Connect,
     type Error = ::Error;
     type Future = FutureResponse;
 
-    fn call(&self, req: Self::Request) -> Self::Future {
-        match req.version() {
-            HttpVersion::Http10 |
-            HttpVersion::Http11 => (),
-            other => {
-                error!("Request has unsupported version \"{}\"", other);
-                return FutureResponse(Box::new(future::err(::Error::Version)));
-            }
-        }
+    fn call(&self, mut req: Self::Request) -> Self::Future {
+        self.enforce_version(req.version_mut());
+
+        let ver = self.version;
+        let is_h2 = ver != Ver::Http1;
 
         let url = req.uri().clone();
         let domain = match uri::scheme_and_authority(&url) {
@@ -185,37 +196,76 @@ where C: Connect,
                 ))));
             }
         };
-        let (mut head, body) = request::split(req);
-        if !head.headers.has::<Host>() {
+
+        if !req.headers().has::<Host>() {
             let host = Host::new(
                 domain.host().expect("authority implies host").to_owned(),
                 domain.port(),
             );
-            head.headers.set_pos(0, host);
+            req.headers_mut().set_pos(0, host);
         }
 
-        let checkout = self.pool.checkout(domain.as_ref());
+        let checkout = self.pool.checkout(domain.as_ref(), ver);
         let connect = {
             let executor = self.executor.clone();
             let pool = self.pool.clone();
-            let pool_key = Rc::new(domain.to_string());
+
+            let pool_key = checkout.key().clone();
             let h1_writev = self.h1_writev;
-            self.connector.connect(url)
+            let checkout_cancel = checkout.cancel_token().clone();
+
+            let connect = self.connector.connect(url)
                 .and_then(move |io| {
+                    checkout_cancel.cancel();
                     let (tx, rx) = dispatch::channel();
                     let tx = HyperClient {
                         tx: tx,
                         should_close: Cell::new(true),
                     };
                     let pooled = pool.pooled(pool_key, tx);
-                    let mut conn = proto::Conn::<_, _, proto::ClientTransaction, _>::new(io, pooled.clone());
-                    if !h1_writev {
-                        conn.set_write_strategy_flatten();
+
+                    if is_h2 {
+                        #[cfg(feature = "http2")]
+                        {
+                            let dispatch = proto::h2::Client::new(io, rx, executor.clone());
+                            executor.execute(dispatch.map_err(|e| debug!("client connection error: {}", e)))?;
+                        }
+                        #[cfg(not(feature = "http2"))]
+                        {
+                            // in fact, the `Ver` enum should have only 1 variant, so is_h2 should
+                            // essentially be a constant `false`, and the compiler should be able
+                            // to remove this branch entirely.
+                            unreachable!("is_h2 should never be true if http2 feature is disabled");
+                        }
+                    } else {
+                        let mut conn = proto::Conn::<_, _, proto::ClientTransaction, _>::new(io, pooled.clone());
+                        if !h1_writev {
+                            conn.set_write_strategy_flatten();
+                        }
+                        let dispatch = proto::dispatch::Dispatcher::new(proto::dispatch::Client::new(rx), conn);
+                        executor.execute(dispatch.map_err(|e| debug!("client connection error: {}", e)))?;
                     }
-                    let dispatch = proto::dispatch::Dispatcher::new(proto::dispatch::Client::new(rx), conn);
-                    executor.execute(dispatch.map_err(|e| debug!("client connection error: {}", e)))?;
                     Ok(pooled)
+                });
+
+            #[cfg(feature = "http2")]
+            {
+                // before polling on the connect future, check if the pool
+                // already has one (if this is HTTP2)
+                let pool = self.pool.clone();
+                let pool_key = checkout.key().clone();
+                future::lazy(move || {
+                    if pool.is_connecting(&pool_key) {
+                        trace!("pool found existing connecting task for {:?}", pool_key);
+                        future::Either::A(future::empty())
+                    } else {
+                        pool.connecting(pool_key);
+                        future::Either::B(connect)
+                    }
                 })
+            }
+            #[cfg(not(feature = "http2"))]
+            connect
         };
 
         let race = checkout.select(connect)
@@ -230,14 +280,21 @@ where C: Connect,
             });
 
         let resp = race.and_then(move |client| {
-            match client.tx.send((head, body)) {
+            match client.tx.send(req) {
                 Ok(rx) => {
                     client.should_close.set(false);
                     Either::A(rx.then(|res| {
                         match res {
                             Ok(Ok(res)) => Ok(res),
                             Ok(Err(err)) => Err(err),
-                            Err(_) => panic!("dispatch dropped without returning error"),
+                            Err(_) => {
+                                debug!("dispatch dropped without returning result");
+                                let err = io::Error::new(
+                                    io::ErrorKind::BrokenPipe,
+                                    "connection dropped unexpectedly",
+                                );
+                                Err(::Error::Io(err))
+                            },
                         }
                     }))
                 },
@@ -257,6 +314,16 @@ where C: Connect,
 
 }
 
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum Ver {
+    Http1,
+    #[cfg_attr(not(feature = "http2"), allow(unused))]
+    Http2,
+    //Http1Upgrade,
+    //Http1OrAlpn,
+}
+
 impl<C: Clone, B> Clone for Client<C, B> {
     fn clone(&self) -> Client<C, B> {
         Client {
@@ -264,6 +331,7 @@ impl<C: Clone, B> Clone for Client<C, B> {
             executor: self.executor.clone(),
             h1_writev: self.h1_writev,
             pool: self.pool.clone(),
+            version: self.version,
         }
     }
 }
@@ -317,6 +385,7 @@ pub struct Config<C, B> {
     h1_writev: bool,
     //TODO: make use of max_idle config
     max_idle: usize,
+    version: Ver,
 }
 
 /// Phantom type used to signal that `Config` should create a `HttpConnector`.
@@ -333,6 +402,7 @@ impl Default for Config<UseDefaultConnector, proto::Body> {
             keep_alive_timeout: Some(Duration::from_secs(90)),
             h1_writev: true,
             max_idle: 5,
+            version: Ver::Http1,
         }
     }
 }
@@ -357,6 +427,7 @@ impl<C, B> Config<C, B> {
             keep_alive_timeout: self.keep_alive_timeout,
             h1_writev: self.h1_writev,
             max_idle: self.max_idle,
+            version: self.version,
         }
     }
 
@@ -371,6 +442,7 @@ impl<C, B> Config<C, B> {
             keep_alive_timeout: self.keep_alive_timeout,
             h1_writev: self.h1_writev,
             max_idle: self.max_idle,
+            version: self.version,
         }
     }
 
@@ -416,6 +488,16 @@ impl<C, B> Config<C, B> {
     #[inline]
     pub fn http1_writev(mut self, val: bool) -> Config<C, B> {
         self.h1_writev = val;
+        self
+    }
+
+    /// Set whether HTTP/2 Prior Knowledge should be used for all requests.
+    ///
+    /// Default is false.
+    #[cfg(feature = "http2")]
+    #[inline]
+    pub fn http2_only(mut self) -> Config<C, B> {
+        self.version = Ver::Http2;
         self
     }
 
@@ -484,14 +566,14 @@ impl<C: Clone, B> Clone for Config<C, B> {
 // ===== impl Exec =====
 
 #[derive(Clone)]
-enum Exec {
+pub(crate) enum Exec {
     Handle(Handle),
     Executor(Rc<Executor<Background>>),
 }
 
 
 impl Exec {
-    fn execute<F>(&self, fut: F) -> io::Result<()>
+    pub fn execute<F>(&self, fut: F) -> io::Result<()>
     where
         F: Future<Item=(), Error=()> + 'static,
     {

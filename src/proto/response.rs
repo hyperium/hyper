@@ -102,6 +102,15 @@ impl<B> Response<B> {
     /// Read the body.
     #[inline]
     pub fn body_ref(&self) -> Option<&B> { self.body.as_ref() }
+
+    #[cfg(feature = "http2")]
+    pub(crate) fn into_http(self) -> http::Response<Option<B>> {
+        let (mut to_parts, ()) = http::Response::new(()).into_parts();
+        to_parts.version = self.version().into();
+        to_parts.status = self.status().into();
+        to_parts.headers = self.headers.into();
+        http::Response::from_parts(to_parts, self.body)
+    }
 }
 
 impl Response<Body> {

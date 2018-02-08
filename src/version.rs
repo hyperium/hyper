@@ -9,7 +9,8 @@ use std::str::FromStr;
 use http;
 
 use error::Error;
-use self::HttpVersion::{Http09, Http10, Http11, H2, H2c};
+#[allow(deprecated)]
+use self::HttpVersion::{Http09, Http10, Http11, H2, H2c, Http2};
 
 /// Represents a version of the HTTP spec.
 #[derive(PartialEq, PartialOrd, Copy, Clone, Eq, Ord, Hash, Debug)]
@@ -20,22 +21,28 @@ pub enum HttpVersion {
     Http10,
     /// `HTTP/1.1`
     Http11,
-    /// `HTTP/2.0` over TLS
+    #[doc(hidden)]
+    #[deprecated(note="Use the HttpVersion::Http2.")]
     H2,
-    /// `HTTP/2.0` over cleartext
+    #[doc(hidden)]
+    #[deprecated(note="Use the HttpVersion::Http2.")]
     H2c,
+    /// `HTTP/2`
+    Http2,
     #[doc(hidden)]
     __DontMatchMe,
 }
 
 impl fmt::Display for HttpVersion {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        #[allow(deprecated)]
         fmt.write_str(match *self {
             Http09 => "HTTP/0.9",
             Http10 => "HTTP/1.0",
             Http11 => "HTTP/1.1",
             H2 => "h2",
             H2c => "h2c",
+            Http2 => "HTTP/2",
             HttpVersion::__DontMatchMe => unreachable!(),
         })
     }
@@ -44,6 +51,7 @@ impl fmt::Display for HttpVersion {
 impl FromStr for HttpVersion {
     type Err = Error;
     fn from_str(s: &str) -> Result<HttpVersion, Error> {
+        #[allow(deprecated)]
         Ok(match s {
             "HTTP/0.9" => Http09,
             "HTTP/1.0" => Http10,
@@ -72,7 +80,7 @@ impl From<http::Version> for HttpVersion {
             http::Version::HTTP_11 =>
                 HttpVersion::Http11,
             http::Version::HTTP_2 =>
-                HttpVersion::H2
+                HttpVersion::Http2
         }
     }
 }
@@ -80,6 +88,7 @@ impl From<http::Version> for HttpVersion {
 #[cfg(feature = "compat")]
 impl From<HttpVersion> for http::Version {
     fn from(v: HttpVersion) -> http::Version {
+        #[allow(deprecated)]
         match v {
             HttpVersion::Http09 =>
                 http::Version::HTTP_09,
@@ -87,7 +96,9 @@ impl From<HttpVersion> for http::Version {
                 http::Version::HTTP_10,
             HttpVersion::Http11 =>
                 http::Version::HTTP_11,
-            HttpVersion::H2 =>
+            HttpVersion::H2 |
+            HttpVersion::H2c |
+            HttpVersion::Http2 =>
                 http::Version::HTTP_2,
             _ => panic!("attempted to convert unexpected http version")
         }
@@ -99,6 +110,7 @@ mod tests {
     use std::str::FromStr;
     use error::Error;
     use super::HttpVersion;
+    #[allow(deprecated)]
     use super::HttpVersion::{Http09,Http10,Http11,H2,H2c};
 
     #[test]
@@ -106,6 +118,7 @@ mod tests {
         assert_eq!(Http11, HttpVersion::default());
     }
 
+    #[allow(deprecated)]
     #[test]
     fn test_from_str() {
         assert_eq!(Http09, HttpVersion::from_str("HTTP/0.9").unwrap());
@@ -116,12 +129,11 @@ mod tests {
     }
 
     #[test]
-    fn test_from_str_panic() {
+    fn test_from_str_error() {
         match HttpVersion::from_str("foo") {
             Err(Error::Version) => assert!(true),
             Err(_) => assert!(false),
             Ok(_) => assert!(false),
         }
     }
-        
 }

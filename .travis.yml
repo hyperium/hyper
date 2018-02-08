@@ -13,7 +13,10 @@ matrix:
           env: FEATURES="--no-default-features"
         - rust: stable
           env: FEATURES="--features compat"
+        - rust: stable
+          env: FEATURES="--features http2"
         - rust: 1.18.0
+          env: BUILD_ONLY=1
 
 cache:
     apt: true

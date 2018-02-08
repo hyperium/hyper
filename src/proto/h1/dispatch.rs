@@ -36,7 +36,7 @@ pub struct Client<B> {
     rx: ClientRx<B>,
 }
 
-pub type ClientMsg<B> = (RequestHead, Option<B>);
+pub type ClientMsg<B> = ::Request<B>;
 
 type ClientRx<B> = ::client::dispatch::Receiver<ClientMsg<B>, ::Response>;
 
@@ -362,7 +362,8 @@ where
 
     fn poll_msg(&mut self) -> Poll<Option<(Self::PollItem, Option<Self::PollBody>)>, ::Error> {
         match self.rx.poll() {
-            Ok(Async::Ready(Some(((head, body), mut cb)))) => {
+            Ok(Async::Ready(Some((req, mut cb)))) => {
+                let (head, body) = ::proto::request::split(req);
                 // check that future hasn't been canceled already
                 match cb.poll_cancel().expect("poll_cancel cannot error") {
                     Async::Ready(()) => {
@@ -434,6 +435,7 @@ mod tests {
     use super::*;
     use mock::AsyncIo;
     use proto::ClientTransaction;
+    use proto::request::Request;
 
     #[test]
     fn client_read_response_before_writing_request() {
@@ -445,12 +447,8 @@ mod tests {
             let conn = Conn::<_, ::Chunk, ClientTransaction>::new(io, Default::default());
             let mut dispatcher = Dispatcher::new(Client::new(rx), conn);
 
-            let req = RequestHead {
-                version: ::HttpVersion::Http11,
-                subject: ::proto::RequestLine::default(),
-                headers: Default::default(),
-            };
-            let res_rx = tx.send((req, None::<::Body>)).unwrap();
+            let req = Request::<::Body>::new(::Method::Get, ::Uri::default());
+            let res_rx = tx.send(req).unwrap();
 
             dispatcher.poll().expect("dispatcher poll 1");
             dispatcher.poll().expect("dispatcher poll 2");

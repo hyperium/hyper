@@ -1,6 +1,8 @@
 use bytes::Bytes;
 use futures::{Async, AsyncSink, Future, Poll, Sink, StartSend, Stream};
 use futures::sync::{mpsc, oneshot};
+#[cfg(feature = "h2")]
+use h2;
 #[cfg(feature = "tokio-proto")]
 use tokio_proto;
 use std::borrow::Cow;
@@ -20,6 +22,8 @@ pub struct Body(Inner);
 enum Inner {
     #[cfg(feature = "tokio-proto")]
     Tokio(TokioBody),
+    #[cfg(feature = "h2")]
+    H2(h2::RecvStream),
     Chan {
         close_tx: oneshot::Sender<bool>,
         rx: mpsc::Receiver<Result<Chunk, ::Error>>,
@@ -49,6 +53,11 @@ impl Body {
         let (tx, rx) = channel();
         (tx.tx, rx)
     }
+
+    #[cfg(feature = "h2")]
+    pub(crate) fn h2(s: h2::RecvStream) -> Body {
+        Body(Inner::H2(s))
+    }
 }
 
 impl Default for Body {
@@ -67,6 +76,18 @@ impl Stream for Body {
         match self.0 {
             #[cfg(feature = "tokio-proto")]
             Inner::Tokio(ref mut rx) => rx.poll(),
+            #[cfg(feature = "h2")]
+            Inner::H2(ref mut h2) => {
+                h2.poll()
+                    .map(|async| {
+                        async.map(|opt| {
+                            opt.map(|bytes| {
+                                Chunk::h2(bytes, h2.release_capacity())
+                            })
+                        })
+                    })
+                    .map_err(::Error::from_h2)
+            },
             Inner::Chan { ref mut rx, .. } => match rx.poll().expect("mpsc cannot error") {
                 Async::Ready(Some(Ok(chunk))) => Ok(Async::Ready(Some(chunk))),
                 Async::Ready(Some(Err(err))) => Err(err),
@@ -128,6 +149,14 @@ feat_server_proto! {
         fn from(b: Body) -> tokio_proto::streaming::Body<Chunk, ::Error> {
             match b.0 {
                 Inner::Tokio(b) => b,
+                #[cfg(feature = "h2")]
+                Inner::H2(..) => {
+                    error!("HTTP2 body cannot be converted into a tokio_proto Body");
+                    let (mut tx, rx) = TokioBody::pair();
+                    let err = ::Error::new_h2_body_into_tokio_proto();
+                    let _ = tx.try_send(Err(err));
+                    rx
+                },
                 Inner::Chan { close_tx, rx } => {
                     // disable knowing if the Rx gets dropped, since we cannot
                     // pass this tx along.

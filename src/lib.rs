@@ -21,7 +21,9 @@ extern crate base64;
 extern crate bytes;
 #[macro_use] extern crate futures;
 extern crate futures_cpupool;
-#[cfg(feature = "compat")]
+#[cfg(feature = "h2")]
+extern crate h2;
+#[cfg(feature = "http")]
 extern crate http;
 extern crate httparse;
 extern crate iovec;

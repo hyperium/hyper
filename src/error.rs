@@ -50,6 +50,14 @@ pub enum Error {
     Upgrade,
     /// A pending item was dropped before ever being processed.
     Cancel(Canceled),
+    /// An HTTP/2 error.
+    ///
+    /// # Note
+    ///
+    /// The contained type is unnameable, as it is somewhat unstable. However,
+    /// it can be printed for debugging purposes.
+    #[cfg(feature = "http2")]
+    Http2(self::http2::Http2),
     /// An `io::Error` that occurred while trying to read or write to a network stream.
     Io(IoError),
     /// Parsing a field as string failed
@@ -113,6 +121,8 @@ impl fmt::Display for Error {
             Uri(ref e) => fmt::Display::fmt(e, f),
             Io(ref e) => fmt::Display::fmt(e, f),
             Utf8(ref e) => fmt::Display::fmt(e, f),
+            #[cfg(feature = "http2")]
+            Error::Http2(ref e) => fmt::Display::fmt(e, f),
             ref e => f.write_str(e.description()),
         }
     }
@@ -130,6 +140,8 @@ impl StdError for Error {
             Timeout => "timeout",
             Upgrade => "unsupported protocol upgrade",
             Cancel(ref e) => e.description(),
+            #[cfg(feature = "http2")]
+            Error::Http2(ref e) => e.description(),
             Uri(ref e) => e.description(),
             Io(ref e) => e.description(),
             Utf8(ref e) => e.description(),
@@ -190,6 +202,77 @@ impl From<httparse::Error> for Error {
 trait AssertSendSync: Send + Sync + 'static {}
 #[doc(hidden)]
 impl AssertSendSync for Error {}
+
+#[cfg(feature = "http2")]
+mod http2 {
+    use std::fmt;
+    use h2;
+    use super::Error;
+
+    impl Error {
+        /// A crate-private method to not expose a public `From<h2::Error>`,
+        /// and lock the h2 version used.
+        pub(crate) fn from_h2(err: h2::Error) -> Error {
+            Error::Http2(Http2 {
+                kind: Kind::H2(err),
+            })
+        }
+
+        #[cfg(feature = "tokio-proto")]
+        pub(crate) fn new_h2_body_into_tokio_proto() -> Error {
+            Error::Http2(Http2 {
+                kind: Kind::TokioProtoBody,
+            })
+        }
+    }
+
+    // Wraps an `h2::Error`. For now, this just a mostly opaque type, as we explore
+    // adding h2 into hyper. It can be printed for debugging purposes.
+    pub struct Http2 {
+        kind: Kind,
+    }
+
+    enum Kind {
+        H2(h2::Error),
+        #[cfg(feature = "tokio-proto")]
+        TokioProtoBody,
+    }
+
+    #[cfg(feature = "tokio-proto")]
+    static TOKIO_PROTO_BODY_MSG: &'static str = "HTTP2 body cannot be converted into a tokio_proto::streaming::Body";
+
+    impl Http2 {
+        pub(super) fn description(&self) -> &str {
+            "an HTTP/2 error occurred"
+        }
+    }
+
+    impl fmt::Debug for Http2 {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            match self.kind {
+                Kind::H2(ref e) => {
+                    if let Some(reason) = e.reason() {
+                        fmt::Debug::fmt(&reason, f)
+                    } else {
+                        fmt::Debug::fmt(e, f)
+                    }
+                },
+                #[cfg(feature = "tokio-proto")]
+                Kind::TokioProtoBody => fmt::Debug::fmt(&TOKIO_PROTO_BODY_MSG, f),
+            }
+        }
+    }
+
+    impl fmt::Display for Http2 {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            match self.kind {
+                Kind::H2(ref e) => fmt::Display::fmt(e, f),
+                #[cfg(feature = "tokio-proto")]
+                Kind::TokioProtoBody => fmt::Display::fmt(&TOKIO_PROTO_BODY_MSG, f),
+            }
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

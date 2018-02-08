@@ -32,6 +32,7 @@ use proto;
 use proto::Body;
 use self::addr_stream::AddrStream;
 use self::hyper_service::HyperService;
+use self::hyper_new_service::HyperNewService;
 
 pub use proto::response::Response;
 pub use proto::request::Request;
@@ -57,6 +58,7 @@ pub struct Http<B = ::Chunk> {
     max_buf_size: Option<usize>,
     keep_alive: bool,
     pipeline: bool,
+    version: Version,
     _marker: PhantomData<B>,
 }
 
@@ -78,12 +80,47 @@ where B: Stream<Error=::Error>,
 /// A stream mapping incoming IOs to new services.
 ///
 /// Yields `Connection`s that are futures that should be put on a reactor.
+///
+/// # Deprecated
+///
+/// This type is deprecated, and the new `Serve2` will take its place in the
+/// next breaking release. The bounds on this type were too lenient to allow
+/// HTTP2 usage internally.
+///
+/// The `#[deprecated]` attribute is only present if the `http2` feature is
+/// enabled, to reduce bothering people not trying out HTTP2. However, the
+/// new version exists even without the `http2` feature enabled, to allow
+/// anyone trying it out to easily disable it and have minimal code to change
+/// back.
+#[cfg_attr(feature = "http2", deprecated(note="Serve is missing necessary bounds to support HTTP2, Serve2 will replace it"))]
 #[must_use = "streams do nothing unless polled"]
-#[derive(Debug)]
+// cannot derive Debug because it triggers deprecated warnings
 pub struct Serve<I, S> {
     incoming: I,
     new_service: S,
     protocol: Http,
+}
+
+/// A stream mapping incoming IOs to new services.
+///
+/// Yields `Connection`s that are futures that should be put on a reactor.
+///
+/// # v2
+///
+/// This type has a `2` on the end, because it is meant to replace the
+/// previous version. The trait bounds on previous version were too lenient
+/// to allow HTTP2 internals. To prevent breaking changes, this second
+/// version was created, and the old was deprecated. In the next breaking
+/// release, this will lose the `2` suffix.
+#[must_use = "streams do nothing unless polled"]
+#[derive(Debug)]
+pub struct Serve2<I, S>
+where
+    S: HyperNewService,
+{
+    incoming: I,
+    new_service: S,
+    protocol: Http<S::ResponseBodyChunk>,
 }
 
 /*
@@ -116,13 +153,74 @@ pub struct AddrIncoming {
 /// a breaking change.
 ///
 /// It is likely best to just map the value to `()`, for now.
+///
+/// # Deprecated
+///
+/// This type is deprecated, and the new `Connection2` will take its place in the
+/// next breaking release. The bounds on this type were too lenient to allow
+/// HTTP2 usage internally.
+///
+/// The `#[deprecated]` attribute is only present if the `http2` feature is
+/// enabled, to reduce bothering people not trying out HTTP2. However, the
+/// new version exists even without the `http2` feature enabled, to allow
+/// anyone trying it out to easily disable it and have minimal code to change
+/// back.
 #[must_use = "futures do nothing unless polled"]
+#[cfg_attr(feature = "http2", deprecated(note="Connection is missing necessary bounds to support HTTP2, Connection2 will replace it"))]
 pub struct Connection<I, S>
 where
     S: HyperService,
-    S::ResponseBody: Stream<Error=::Error>,
-    <S::ResponseBody as Stream>::Item: AsRef<[u8]>,
 {
+    conn: proto::dispatch::Dispatcher<
+        proto::dispatch::Server<S>,
+        S::ResponseBody,
+        I,
+        S::ResponseBodyChunk,
+        proto::ServerTransaction,
+        proto::KA,
+    >,
+}
+
+/// A future binding a connection with a Service.
+///
+/// Polling this future will drive HTTP forward.
+///
+/// # Note
+///
+/// This will currently yield an unnameable (`Opaque`) value
+/// on success. The purpose of this is that nothing can be assumed about
+/// the type, not even it's name. It's probable that in a later release,
+/// this future yields the underlying IO object, which could be done without
+/// a breaking change.
+///
+/// It is likely best to just map the value to `()`, for now.
+///
+/// # v2
+///
+/// This type has a `2` on the end, because it is meant to replace the
+/// previous version. The trait bounds on previous version were too lenient
+/// to allow HTTP2 internals. To prevent breaking changes, this second
+/// version was created, and the old was deprecated. In the next breaking
+/// release, this will lose the `2` suffix.
+#[must_use = "futures do nothing unless polled"]
+pub struct Connection2<I, S>
+where
+    S: HyperService,
+    S::ResponseBodyChunk: 'static,
+{
+    #[cfg(feature = "http2")]
+    conn: future::Either<
+        proto::dispatch::Dispatcher<
+            proto::dispatch::Server<S>,
+            S::ResponseBody,
+            I,
+            <S::ResponseBody as Stream>::Item,
+            proto::ServerTransaction,
+            proto::KA,
+        >,
+        proto::h2::Server<I, S, S::ResponseBody>,
+    >,
+    #[cfg(not(feature = "http2"))]
     conn: proto::dispatch::Dispatcher<
         proto::dispatch::Server<S>,
         S::ResponseBody,
@@ -131,6 +229,14 @@ where
         proto::ServerTransaction,
         proto::KA,
     >,
+}
+
+// The preference for the protocol of the underlying server dispatcher.
+#[derive(Clone, Copy, Debug)]
+enum Version {
+    Http1,
+    #[cfg(feature = "http2")]
+    Http2,
 }
 
 // ===== impl Http =====
@@ -143,8 +249,16 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
             keep_alive: true,
             max_buf_size: None,
             pipeline: false,
+            version: Version::Http1,
             _marker: PhantomData,
         }
+    }
+
+    /// Require that HTTP/2 Prior Knowledge to be used.
+    #[cfg(feature = "http2")]
+    pub fn http2(&mut self) -> &mut Self {
+        self.version = Version::Http2;
+        self
     }
 
     /// Enables or disables HTTP keep-alive.
@@ -219,6 +333,20 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     /// to accept connections. Each connection will be processed with the
     /// `new_service` object provided as well, creating a new service per
     /// connection.
+    ///
+    /// # Deprecated
+    ///
+    /// This method is deprecated, and the new `serve_addr_handle2` will take its place in the
+    /// next breaking release. The bounds on this type were too lenient to allow
+    /// HTTP2 usage internally.
+    ///
+    /// The `#[deprecated]` attribute is only present if the `http2` feature is
+    /// enabled, to reduce bothering people not trying out HTTP2. However, the
+    /// new version exists even without the `http2` feature enabled, to allow
+    /// anyone trying it out to easily disable it and have minimal code to change
+    /// back.
+    #[cfg_attr(feature = "http2", allow(deprecated))]
+    #[cfg_attr(feature = "http2", deprecated(note="serve_addr_handle is missing necessary bounds to support HTTP2, serve_addr_handle2 will replace it"))]
     pub fn serve_addr_handle<S, Bd>(&self, addr: &SocketAddr, handle: &Handle, new_service: S) -> ::Result<Serve<AddrIncoming, S>>
         where S: NewService<Request = Request, Response = Response<Bd>, Error = ::Error>,
               Bd: Stream<Item=B, Error=::Error>,
@@ -228,9 +356,49 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
         Ok(self.serve_incoming(incoming, new_service))
     }
 
+    /// Bind the provided `addr` and return a server with a shared `Core`.
+    ///
+    /// This method allows the ability to share a `Core` with multiple servers.
+    ///
+    /// This is method will bind the `addr` provided with a new TCP listener ready
+    /// to accept connections. Each connection will be processed with the
+    /// `new_service` object provided as well, creating a new service per
+    /// connection.
+    ///
+    /// # v2
+    ///
+    /// This type has a `2` on the end, because it is meant to replace the
+    /// previous version. The trait bounds on previous version were too lenient
+    /// to allow HTTP2 internals. To prevent breaking changes, this second
+    /// version was created, and the old was deprecated. In the next breaking
+    /// release, this will lose the `2` suffix.
+    pub fn serve_addr_handle2<S, Bd>(&self, addr: &SocketAddr, handle: &Handle, new_service: S) -> ::Result<Serve2<AddrIncoming, S>>
+        where S: NewService<Request = Request, Response = Response<Bd>, Error = ::Error>,
+              S::Instance: 'static,
+              Bd: Stream<Item=B, Error=::Error> + 'static,
+    {
+        let listener = TcpListener::bind(addr, &handle)?;
+        let incoming = AddrIncoming::new(listener)?;
+        Ok(self.serve_incoming2(incoming, new_service))
+    }
+
     /// Bind the provided stream of incoming IO objects with a `NewService`.
     ///
     /// This method allows the ability to share a `Core` with multiple servers.
+    ///
+    /// # Deprecated
+    ///
+    /// This method is deprecated, and the new `serve_incoming2` will take its place in the
+    /// next breaking release. The bounds on this type were too lenient to allow
+    /// HTTP2 usage internally.
+    ///
+    /// The `#[deprecated]` attribute is only present if the `http2` feature is
+    /// enabled, to reduce bothering people not trying out HTTP2. However, the
+    /// new version exists even without the `http2` feature enabled, to allow
+    /// anyone trying it out to easily disable it and have minimal code to change
+    /// back.
+    #[cfg_attr(feature = "http2", allow(deprecated))]
+    #[cfg_attr(feature = "http2", deprecated(note="serve_incoming is missing necessary bounds to support HTTP2, serve_incoming2 will replace it"))]
     pub fn serve_incoming<I, S, Bd>(&self, incoming: I, new_service: S) -> Serve<I, S>
         where I: Stream<Error=::std::io::Error>,
               I::Item: AsyncRead + AsyncWrite,
@@ -244,8 +412,34 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
                 keep_alive: self.keep_alive,
                 max_buf_size: self.max_buf_size,
                 pipeline: self.pipeline,
+                version: self.version,
                 _marker: PhantomData,
             },
+        }
+    }
+
+    /// Bind the provided stream of incoming IO objects with a `NewService`.
+    ///
+    /// This method allows the ability to share a `Core` with multiple servers.
+    ///
+    /// # v2
+    ///
+    /// This type has a `2` on the end, because it is meant to replace the
+    /// previous version. The trait bounds on previous version were too lenient
+    /// to allow HTTP2 internals. To prevent breaking changes, this second
+    /// version was created, and the old was deprecated. In the next breaking
+    /// release, this will lose the `2` suffix.
+    pub fn serve_incoming2<I, S, Bd>(&self, incoming: I, new_service: S) -> Serve2<I, S>
+        where I: Stream<Error=::std::io::Error>,
+              I::Item: AsyncRead + AsyncWrite,
+              S: NewService<Request = Request, Response = Response<Bd>, Error = ::Error>,
+              S::Instance: 'static,
+              Bd: Stream<Item=B, Error=::Error> + 'static,
+    {
+        Serve2 {
+            incoming: incoming,
+            new_service: new_service,
+            protocol: self.clone(),
         }
     }
 
@@ -253,25 +447,97 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     ///
     /// This returns a Future that must be polled in order for HTTP to be
     /// driven on the connection.
+    ///
+    /// # Deprecated
+    ///
+    /// This method is deprecated, and the new `serve_connection2` will take its place in the
+    /// next breaking release. The bounds on this type were too lenient to allow
+    /// HTTP2 usage internally.
+    ///
+    /// The `#[deprecated]` attribute is only present if the `http2` feature is
+    /// enabled, to reduce bothering people not trying out HTTP2. However, the
+    /// new version exists even without the `http2` feature enabled, to allow
+    /// anyone trying it out to easily disable it and have minimal code to change
+    /// back.
+    #[cfg_attr(feature = "http2", allow(deprecated))]
+    #[cfg_attr(feature = "http2", deprecated(note="serve_connection is missing necessary bounds to support HTTP2, serve_connection2 will replace it"))]
     pub fn serve_connection<S, I, Bd>(&self, io: I, service: S) -> Connection<I, S>
-        where S: Service<Request = Request, Response = Response<Bd>, Error = ::Error>,
+        where S: Service<Request = Request, Response = Response<Bd>, Error = ::Error> + 'static,
               Bd: Stream<Error=::Error>,
               Bd::Item: AsRef<[u8]>,
-              I: AsyncRead + AsyncWrite,
-
+              I: AsyncRead + AsyncWrite + 'static,
     {
-        let ka = if self.keep_alive {
-            proto::KA::Busy
-        } else {
-            proto::KA::Disabled
+        let inner = match self.version {
+            Version::Http1 => {
+                let ka = if self.keep_alive {
+                    proto::KA::Busy
+                } else {
+                    proto::KA::Disabled
+                };
+                let mut conn = proto::Conn::new(io, ka);
+                conn.set_flush_pipeline(self.pipeline);
+                if let Some(max) = self.max_buf_size {
+                    conn.set_max_buf_size(max);
+                }
+                proto::dispatch::Dispatcher::new(proto::dispatch::Server::new(service), conn)
+            },
+            #[cfg(feature = "http2")]
+            Version::Http2 => {
+                panic!("serve_connection does not work with HTTP/2, use serve_connection2");
+            },
         };
-        let mut conn = proto::Conn::new(io, ka);
-        conn.set_flush_pipeline(self.pipeline);
-        if let Some(max) = self.max_buf_size {
-            conn.set_max_buf_size(max);
-        }
         Connection {
-            conn: proto::dispatch::Dispatcher::new(proto::dispatch::Server::new(service), conn),
+            conn: inner,
+        }
+    }
+
+    /// Bind a connection together with a Service.
+    ///
+    /// This returns a Future that must be polled in order for HTTP to be
+    /// driven on the connection.
+    ///
+    /// # v2
+    ///
+    /// This type has a `2` on the end, because it is meant to replace the
+    /// previous version. The trait bounds on previous version were too lenient
+    /// to allow HTTP2 internals. To prevent breaking changes, this second
+    /// version was created, and the old was deprecated. In the next breaking
+    /// release, this will lose the `2` suffix.
+    pub fn serve_connection2<S, I, Bd>(&self, io: I, service: S) -> Connection2<I, S>
+        where S: Service<Request = Request, Response = Response<Bd>, Error = ::Error> + 'static,
+              Bd: Stream<Item=B, Error=::Error>,
+              I: AsyncRead + AsyncWrite + 'static,
+    {
+        let inner = match self.version {
+            Version::Http1 => {
+                let ka = if self.keep_alive {
+                    proto::KA::Busy
+                } else {
+                    proto::KA::Disabled
+                };
+                let mut conn = proto::Conn::new(io, ka);
+                conn.set_flush_pipeline(self.pipeline);
+                if let Some(max) = self.max_buf_size {
+                    conn.set_max_buf_size(max);
+                }
+                let dispatch = proto::dispatch::Dispatcher::new(proto::dispatch::Server::new(service), conn);
+
+                #[cfg(feature = "http2")]
+                {
+                    future::Either::A(dispatch)
+                }
+                #[cfg(not(feature = "http2"))]
+                {
+                    dispatch
+                }
+            },
+            #[cfg(feature = "http2")]
+            Version::Http2 => {
+                future::Either::B(::proto::h2::Server::new(io, service))
+            },
+        };
+        Connection2 {
+            conn: inner,
         }
     }
 }
@@ -291,6 +557,7 @@ impl<B> fmt::Debug for Http<B> {
         f.debug_struct("Http")
             .field("keep_alive", &self.keep_alive)
             .field("pipeline", &self.pipeline)
+            .field("version", &self.version)
             .finish()
     }
 }
@@ -379,7 +646,7 @@ impl<S, B> Server<S, B>
                 info: Rc::downgrade(&info),
             };
             info.borrow_mut().active += 1;
-            let fut = protocol.serve_connection(socket, s)
+            let fut = protocol.serve_connection2(socket, s)
                 .map(|_| ())
                 .map_err(move |err| error!("server connection error: ({}) {}", addr, err));
             handle.spawn(fut);
@@ -433,6 +700,7 @@ where B::Item: AsRef<[u8]>
 
 // ===== impl Serve =====
 
+#[cfg_attr(feature = "http2", allow(deprecated))]
 impl<I, S> Serve<I, S> {
     /*
     /// Spawn all incoming connections onto the provide executor.
@@ -451,13 +719,15 @@ impl<I, S> Serve<I, S> {
     }
 }
 
+#[cfg_attr(feature = "http2", allow(deprecated))]
 impl<I, S, B> Stream for Serve<I, S>
 where
     I: Stream<Error=io::Error>,
-    I::Item: AsyncRead + AsyncWrite,
+    I::Item: AsyncRead + AsyncWrite + 'static,
     S: NewService<Request=Request, Response=Response<B>, Error=::Error>,
+    S::Instance: 'static,
     B: Stream<Error=::Error>,
-    B::Item: AsRef<[u8]>,
+    B::Item: AsRef<[u8]> + 'static,
 {
     type Item = Connection<I::Item, S::Instance>;
     type Error = ::Error;
@@ -466,6 +736,65 @@ where
         if let Some(io) = try_ready!(self.incoming.poll()) {
             let service = self.new_service.new_service()?;
             Ok(Async::Ready(Some(self.protocol.serve_connection(io, service))))
+        } else {
+            Ok(Async::Ready(None))
+        }
+    }
+}
+
+#[cfg_attr(feature = "http2", allow(deprecated))]
+impl<I: fmt::Debug, S: fmt::Debug> fmt::Debug for Serve<I, S> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // destructure to make sure we get all fields
+        let &Serve {
+            ref incoming,
+            ref new_service,
+            ref protocol,
+        } = self;
+        f.debug_struct("Serve")
+            .field("incoming", incoming)
+            .field("new_service", new_service)
+            .field("protocol", protocol)
+            .finish()
+
+    }
+}
+
+impl<I, S> Serve2<I, S>
+where
+    S: HyperNewService,
+{
+    /*
+    /// Spawn all incoming connections onto the provide executor.
+    pub fn spawn_all<E>(self, executor: E) -> SpawnAll<I, S, E> {
+        SpawnAll {
+            executor: executor,
+            serve: self,
+        }
+    }
+    */
+
+    /// Get a reference to the incoming stream.
+    #[inline]
+    pub fn incoming_ref(&self) -> &I {
+        &self.incoming
+    }
+}
+
+impl<I, S> Stream for Serve2<I, S>
+where
+    I: Stream<Error=io::Error>,
+    I::Item: AsyncRead + AsyncWrite + 'static,
+    S: HyperNewService,
+    S::ResponseBodyChunk: 'static,
+{
+    type Item = Connection2<I::Item, S::HyperService>;
+    type Error = ::Error;
+
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        if let Some(io) = try_ready!(self.incoming.poll()) {
+            let service = self.new_service.hyper_new_service()?;
+            Ok(Async::Ready(Some(self.protocol.serve_connection2(io, service))))
         } else {
             Ok(Async::Ready(None))
         }
@@ -516,6 +845,7 @@ where
 
 // ===== impl Connection =====
 
+#[cfg_attr(feature = "http2", allow(deprecated))]
 impl<I, B, S> Future for Connection<I, S>
 where S: Service<Request = Request, Response = Response<B>, Error = ::Error> + 'static,
       I: AsyncRead + AsyncWrite + 'static,
@@ -531,11 +861,10 @@ where S: Service<Request = Request, Response = Response<B>, Error = ::Error> + '
     }
 }
 
+#[cfg_attr(feature = "http2", allow(deprecated))]
 impl<I, S> fmt::Debug for Connection<I, S>
 where
     S: HyperService,
-    S::ResponseBody: Stream<Error=::Error>,
-    <S::ResponseBody as Stream>::Item: AsRef<[u8]>,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Connection")
@@ -543,6 +872,7 @@ where
     }
 }
 
+#[cfg_attr(feature = "http2", allow(deprecated))]
 impl<I, B, S> Connection<I, S>
 where S: Service<Request = Request, Response = Response<B>, Error = ::Error> + 'static,
       I: AsyncRead + AsyncWrite + 'static,
@@ -552,6 +882,59 @@ where S: Service<Request = Request, Response = Response<B>, Error = ::Error> + '
     /// Disables keep-alive for this connection.
     pub fn disable_keep_alive(&mut self) {
         self.conn.disable_keep_alive()
+    }
+}
+
+impl<I, B, S> Future for Connection2<I, S>
+where S: Service<Request = Request, Response = Response<B>, Error = ::Error> + 'static,
+      I: AsyncRead + AsyncWrite + 'static,
+      B: Stream<Error=::Error> + 'static,
+      B::Item: AsRef<[u8]>,
+{
+    type Item = self::unnameable::Opaque;
+    type Error = ::Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        try_ready!(self.conn.poll());
+        Ok(self::unnameable::opaque().into())
+    }
+}
+
+impl<I, S> fmt::Debug for Connection2<I, S>
+where
+    S: HyperService,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Connection2")
+            .finish()
+    }
+}
+
+impl<I, B, S> Connection2<I, S>
+where S: Service<Request = Request, Response = Response<B>, Error = ::Error> + 'static,
+      I: AsyncRead + AsyncWrite + 'static,
+      B: Stream<Error=::Error> + 'static,
+      B::Item: AsRef<[u8]>,
+{
+    /// Set this connection to shutdown gracefully without aborting current requests.
+    pub fn graceful_shutdown(&mut self) {
+        #[cfg(feature = "http2")]
+        {
+            match self.conn {
+                future::Either::A(ref mut h1) => h1.disable_keep_alive(),
+                future::Either::B(_) => debug!("graceful_shutdown not yet implemented for HTTP/2"),
+            }
+        }
+        #[cfg(not(feature = "http2"))]
+        {
+            self.conn.disable_keep_alive();
+        }
+    }
+
+    #[doc(hidden)]
+    #[deprecated(note="use graceful_shutdown instead")]
+    pub fn disable_keep_alive(&mut self) {
+        self.graceful_shutdown();
     }
 }
 
@@ -779,9 +1162,12 @@ mod hyper_service {
     /// There is an auto implementation inside hyper, so no one can actually
     /// implement this trait. It simply exists to reduce the amount of generics
     /// needed.
-    pub trait HyperService: Service + Sealed {
+    pub trait HyperService: Service<Error=::Error> + Sealed {
         #[doc(hidden)]
-        type ResponseBody;
+        type ResponseBody: Stream<Item=Self::ResponseBodyChunk, Error=::Error>;
+        #[doc(hidden)]
+        type ResponseBodyChunk: AsRef<[u8]>;
+
         #[doc(hidden)]
         type Sealed: Sealed2;
     }
@@ -819,6 +1205,85 @@ mod hyper_service {
         B::Item: AsRef<[u8]>,
     {
         type ResponseBody = B;
+        type ResponseBodyChunk = B::Item;
         type Sealed = Opaque;
+    }
+}
+
+mod hyper_new_service {
+    use super::{HyperService, NewService, Request, Response, Stream};
+    /// A "trait alias" for any type that implements `NewService` with hyper's
+    /// Request, Response, and Error types, and a streaming body.
+    ///
+    /// There is an auto implementation inside hyper, so no one can actually
+    /// implement this trait. It simply exists to reduce the amount of generics
+    /// needed.
+    pub trait HyperNewService: NewService + Sealed {
+        #[doc(hidden)]
+        type ResponseBody: Stream<Item=Self::ResponseBodyChunk, Error=::Error> + 'static;
+
+        #[doc(hidden)]
+        type ResponseBodyChunk: AsRef<[u8]> + 'static;
+
+        #[doc(hidden)]
+        type HyperService: HyperService<
+            Request=Request,
+            Response=Response<Self::ResponseBody>,
+            ResponseBody=Self::ResponseBody,
+            ResponseBodyChunk=Self::ResponseBodyChunk,
+        > + 'static;
+
+        #[doc(hidden)]
+        type Sealed: Sealed2;
+
+        #[doc(hidden)]
+        fn hyper_new_service(&self) -> Result<Self::HyperService, ::std::io::Error>;
+    }
+
+    pub trait Sealed {}
+    pub trait Sealed2 {}
+
+    #[allow(missing_debug_implementations)]
+    pub struct Opaque {
+        _inner: (),
+    }
+
+    impl Sealed2 for Opaque {}
+
+    impl<S, B> Sealed for S
+    where
+        S: NewService<
+            Request=Request,
+            Response=Response<B>,
+            Error=::Error,
+        >,
+        S::Instance: HyperService,
+        B: Stream<Error=::Error> + 'static,
+        B::Item: AsRef<[u8]> + 'static,
+    {}
+
+    impl<S, B> HyperNewService for S
+    where
+        S: NewService<
+            Request=Request,
+            Response=Response<B>,
+            Error=::Error,
+        >,
+        S: Sealed,
+        S::Instance: HyperService<
+            ResponseBody=B,
+            ResponseBodyChunk=B::Item,
+        > + 'static,
+        B: Stream<Error=::Error> + 'static,
+        B::Item: AsRef<[u8]> + 'static,
+    {
+        type ResponseBody = B;
+        type ResponseBodyChunk = B::Item;
+        type HyperService = S::Instance;
+        type Sealed = Opaque;
+
+        fn hyper_new_service(&self) -> Result<Self::HyperService, ::std::io::Error> {
+            self.new_service()
+        }
     }
 }

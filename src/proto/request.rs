@@ -91,6 +91,9 @@ impl<B> Request<B> {
     #[inline]
     pub fn set_version(&mut self, version: HttpVersion) { self.version = version; }
 
+    #[inline]
+    pub(crate) fn version_mut(&mut self) -> &mut HttpVersion { &mut self.version }
+
     /// Set the body of the request.
     ///
     /// By default, the body will be sent using `Transfer-Encoding: chunked`. To
@@ -105,6 +108,19 @@ impl<B> Request<B> {
     /// protected by TLS.
     #[inline]
     pub fn set_proxy(&mut self, is_proxy: bool) { self.is_proxy = is_proxy; }
+
+    #[cfg(feature = "http2")]
+    pub(super) fn into_http(self) -> http::Request<Option<B>> {
+        let to_req = http::Request::new(());
+        let (mut to_parts, _) = to_req.into_parts();
+
+        to_parts.method = self.method.into();
+        to_parts.uri = self.uri.into();
+        to_parts.version = self.version.into();
+        to_parts.headers = self.headers.into();
+
+        http::Request::from_parts(to_parts, self.body)
+    }
 }
 
 impl Request<Body> {
