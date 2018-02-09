@@ -30,6 +30,13 @@ impl ByteStr {
         unsafe { str::from_utf8_unchecked(self.0.as_ref()) }
     }
 
+    pub fn insert(&mut self, idx: usize, ch: char) {
+        let mut s = self.as_str().to_owned();
+        s.insert(idx, ch);
+        let bytes = Bytes::from(s);
+        self.0 = bytes;
+    }
+
     #[cfg(feature = "compat")]
     pub fn into_bytes(self) -> Bytes {
         self.0

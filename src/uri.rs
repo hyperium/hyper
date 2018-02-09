@@ -42,7 +42,7 @@ pub struct Uri {
 
 impl Uri {
     /// Parse a string into a `Uri`.
-    fn new(s: ByteStr) -> Result<Uri, UriError> {
+    fn new(mut s: ByteStr) -> Result<Uri, UriError> {
         if s.len() == 0 {
             Err(UriError(ErrorKind::Empty))
         } else if s.as_bytes() == b"*" {
@@ -81,8 +81,19 @@ impl Uri {
                     return Err(UriError(ErrorKind::Malformed));
                 }
             }
+
+            // absolute-form must always have a path
+            // if there isn't a '/', for consistency, add one.
+            let slash = auth_end;
+            if s.len() == slash {
+                s.insert(slash, '/');
+            } else if s.as_bytes()[slash] != b'/' {
+                s.insert(slash, '/');
+            }
+
             let query = parse_query(&s);
             let fragment = parse_fragment(&s);
+
             Ok(Uri {
                 source: s,
                 scheme_end: scheme,
@@ -443,7 +454,6 @@ macro_rules! test_parse {
         #[test]
         fn $test_name() {
             let uri = Uri::from_str($str).unwrap();
-            println!("{:?} = {:#?}", $str, uri);
             $(
             assert_eq!(uri.$method(), $value, stringify!($method));
             )+
@@ -486,6 +496,8 @@ test_parse! {
     query = None,
     fragment = None,
     port = Some(61761),
+
+    to_string = "https://127.0.0.1:61761/",
 }
 
 test_parse! {
@@ -497,6 +509,8 @@ test_parse! {
     path = "*",
     query = None,
     fragment = None,
+
+    to_string = "*",
 }
 
 test_parse! {
@@ -510,6 +524,8 @@ test_parse! {
     query = None,
     fragment = None,
     port = None,
+
+    to_string = "localhost",
 }
 
 test_parse! {
@@ -627,6 +643,8 @@ test_parse! {
     query = Some("foo=bar"),
     fragment = None,
     port = None,
+
+    to_string = "http://127.0.0.1/?foo=bar",
 }
 
 test_parse! {
@@ -651,6 +669,8 @@ test_parse! {
     query = None,
     fragment = Some("foo?bar"),
     port = None,
+
+    to_string = "http://127.0.0.1/#foo?bar",
 }
 
 #[test]
