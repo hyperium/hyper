@@ -60,9 +60,9 @@ pub enum Error {
 }
 
 impl Error {
-    pub(crate) fn new_canceled() -> Error {
+    pub(crate) fn new_canceled(cause: Option<Error>) -> Error {
         Error::Cancel(Canceled {
-            _inner: (),
+            cause: cause.map(Box::new),
         })
     }
 }
@@ -73,22 +73,14 @@ impl Error {
 /// as the related connection gets closed by the remote. In that case,
 /// when the connection drops, the pending response future will be
 /// fulfilled with this error, signaling the `Request` was never started.
+#[derive(Debug)]
 pub struct Canceled {
-    // maybe in the future this contains an optional value of
-    // what was canceled?
-    _inner: (),
+    cause: Option<Box<Error>>,
 }
 
 impl Canceled {
     fn description(&self) -> &str {
         "an operation was canceled internally before starting"
-    }
-}
-
-impl fmt::Debug for Canceled {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Canceled")
-            .finish()
     }
 }
 
@@ -142,6 +134,7 @@ impl StdError for Error {
             Io(ref error) => Some(error),
             Uri(ref error) => Some(error),
             Utf8(ref error) => Some(error),
+            Cancel(ref e) => e.cause.as_ref().map(|e| &**e as &StdError),
             Error::__Nonexhaustive(..) =>  unreachable!(),
             _ => None,
         }

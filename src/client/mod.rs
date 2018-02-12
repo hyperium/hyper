@@ -243,11 +243,7 @@ where C: Connect,
                 },
                 Err(_) => {
                     error!("pooled connection was not ready, this is a hyper bug");
-                    let err = io::Error::new(
-                        io::ErrorKind::BrokenPipe,
-                        "pool selected dead connection",
-                    );
-                    Either::B(future::err(::Error::Io(err)))
+                    Either::B(future::err(::Error::new_canceled(None)))
                 }
             }
         });

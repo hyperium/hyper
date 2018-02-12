@@ -85,7 +85,7 @@ impl<T, U> Drop for Receiver<T, U> {
         // - Err: unreachable
         while let Ok(Async::Ready(Some((_val, cb)))) = self.inner.poll() {
             // maybe in future, we pass the value along with the error?
-            let _ = cb.send(Err(::Error::new_canceled()));
+            let _ = cb.send(Err(::Error::new_canceled(None)));
         }
     }
 

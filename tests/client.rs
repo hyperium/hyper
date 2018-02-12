@@ -14,9 +14,10 @@ use hyper::client::{Client, Request, HttpConnector};
 use hyper::{Method, StatusCode};
 
 use futures::{Future, Stream};
+use futures::future::Either;
 use futures::sync::oneshot;
 
-use tokio_core::reactor::{Core, Handle};
+use tokio_core::reactor::{Core, Handle, Timeout};
 
 fn client(handle: &Handle) -> Client<HttpConnector> {
     Client::new(handle)
@@ -523,7 +524,6 @@ test! {
 
 }
 
-
 #[test]
 fn client_keep_alive() {
     let server = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -562,10 +562,72 @@ fn client_keep_alive() {
     core.run(res.join(rx).map(|r| r.0)).unwrap();
 }
 
-
-/* TODO: re-enable once retry works, its currently a flaky test
 #[test]
-fn client_pooled_socket_disconnected() {
+fn client_keep_alive_connreset() {
+    use std::sync::mpsc;
+    extern crate pretty_env_logger;
+    let _ = pretty_env_logger::try_init();
+
+    let server = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = server.local_addr().unwrap();
+    let mut core = Core::new().unwrap();
+    let handle = core.handle();
+
+    // This one seems to hang forever
+    let client = client(&handle);
+
+    let (tx1, rx1) = oneshot::channel();
+    let (tx2, rx2) = mpsc::channel();
+    thread::spawn(move || {
+        let mut sock = server.accept().unwrap().0;
+        sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+        let mut buf = [0; 4096];
+        sock.read(&mut buf).expect("read 1");
+        sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").expect("write 1");
+
+        // Wait for client to indicate it is done processing the first request
+        // This is what seem to trigger the race condition -- without it client notices
+        // connection is closed while processing the first request.
+        let _ = rx2.recv();
+        let _r = sock.shutdown(std::net::Shutdown::Both);
+
+        // Let client know it can try to reuse the connection
+        let _ = tx1.send(());
+    });
+
+
+    let res = client.get(format!("http://{}/a", addr).parse().unwrap());
+    core.run(res).unwrap();
+
+    let _ = tx2.send(());
+
+    let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+    core.run(rx).unwrap();
+
+    let t = Timeout::new(Duration::from_millis(100), &handle).unwrap();
+    let res = client.get(format!("http://{}/b", addr).parse().unwrap());
+    let fut = res.select2(t).then(|result| match result {
+        Ok(Either::A((resp, _))) => Ok(resp),
+        Err(Either::A((err, _))) => Err(err),
+        Ok(Either::B(_)) |
+        Err(Either::B(_)) => Err(hyper::Error::Timeout),
+    });
+
+    // for now, the 2nd request is just canceled, since the connection is found to be dead
+    // at the same time the request is scheduled.
+    //
+    // in the future, it'd be nice to auto retry the request, but can't really be done yet
+    // as the `connector` isn't clone so we can't use it "later", when the future resolves.
+    let err = core.run(fut).unwrap_err();
+    match err {
+        hyper::Error::Cancel(..) => (),
+        other => panic!("expected Cancel error, got {:?}", other),
+    }
+}
+
+#[test]
+fn client_keep_alive_extra_body() {
     let _ = pretty_env_logger::try_init();
     let server = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = server.local_addr().unwrap();
@@ -581,51 +643,31 @@ fn client_pooled_socket_disconnected() {
         sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
         let mut buf = [0; 4096];
         sock.read(&mut buf).expect("read 1");
-        let remote_addr = sock.peer_addr().unwrap().to_string();
-        let out = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}", remote_addr.len(), remote_addr);
-        sock.write_all(out.as_bytes()).expect("write 1");
-        drop(sock);
-        tx1.send(());
+        sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello").expect("write 1");
+        // the body "hello", while ignored because its a HEAD request, should mean the connection
+        // cannot be put back in the pool
+        let _ = tx1.send(());
 
-        let mut sock = server.accept().unwrap().0;
-        sock.read(&mut buf).expect("read 2");
-        let second_get = b"GET /b HTTP/1.1\r\n";
-        assert_eq!(&buf[..second_get.len()], second_get);
-        let remote_addr = sock.peer_addr().unwrap().to_string();
-        let out = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}", remote_addr.len(), remote_addr);
-        sock.write_all(out.as_bytes()).expect("write 2");
-        tx2.send(());
+        let mut sock2 = server.accept().unwrap().0;
+        let n2 = sock2.read(&mut buf).expect("read 2");
+        assert_ne!(n2, 0);
+        let second_get = "GET /b HTTP/1.1\r\n";
+        assert_eq!(s(&buf[..second_get.len()]), second_get);
+        sock2.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").expect("write 2");
+        let _ = tx2.send(());
     });
 
-    // spin shortly so we receive the hangup on the client socket
-    let sleep = Timeout::new(Duration::from_millis(500), &core.handle()).unwrap();
-    core.run(sleep).unwrap();
+
 
     let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
-    let res = client.get(format!("http://{}/a", addr).parse().unwrap())
-        .and_then(|res| {
-            res.body()
-                .map(|chunk| chunk.to_vec())
-                .collect()
-                .map(|vec| vec.concat())
-                .map(|vec| String::from_utf8(vec).unwrap())
-        });
-    let addr1 = core.run(res.join(rx).map(|r| r.0)).unwrap();
+    let req = Request::new(Method::Head, format!("http://{}/a", addr).parse().unwrap());
+    let res = client.request(req);
+    core.run(res.join(rx).map(|r| r.0)).unwrap();
 
     let rx = rx2.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
-    let res = client.get(format!("http://{}/b", addr).parse().unwrap())
-        .and_then(|res| {
-            res.body()
-                .map(|chunk| chunk.to_vec())
-                .collect()
-                .map(|vec| vec.concat())
-                .map(|vec| String::from_utf8(vec).unwrap())
-        });
-    let addr2 = core.run(res.join(rx).map(|r| r.0)).unwrap();
-
-    assert_ne!(addr1, addr2);
+    let res = client.get(format!("http://{}/b", addr).parse().unwrap());
+    core.run(res.join(rx).map(|r| r.0)).unwrap();
 }
-*/
 
 mod dispatch_impl {
     use super::*;

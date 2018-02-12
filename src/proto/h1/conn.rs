@@ -119,7 +119,7 @@ where I: AsyncRead + AsyncWrite,
             } else {
                 trace!("poll when on keep-alive");
                 if !T::should_read_first() {
-                    self.try_empty_read()?;
+                    self.require_empty_read()?;
                     if self.is_read_closed() {
                         return Ok(Async::Ready(None));
                     }
@@ -281,15 +281,21 @@ where I: AsyncRead + AsyncWrite,
     pub fn read_keep_alive(&mut self) -> Result<(), ::Error> {
         debug_assert!(!self.can_read_head() && !self.can_read_body());
 
-        trace!("Conn::read_keep_alive");
+        trace!("read_keep_alive; is_mid_message={}", self.is_mid_message());
 
-        if T::should_read_first() || !self.state.is_idle() {
+        if self.is_mid_message() {
             self.maybe_park_read();
         } else {
-            self.try_empty_read()?;
+            self.require_empty_read()?;
         }
-
         Ok(())
+    }
+
+    fn is_mid_message(&self) -> bool {
+        match (&self.state.reading, &self.state.writing) {
+            (&Reading::Init, &Writing::Init) => false,
+            _ => true,
+        }
     }
 
     fn maybe_park_read(&mut self) {
@@ -312,39 +318,67 @@ where I: AsyncRead + AsyncWrite,
     //
     // This should only be called for Clients wanting to enter the idle
     // state.
-    fn try_empty_read(&mut self) -> io::Result<()> {
+    fn require_empty_read(&mut self) -> io::Result<()> {
         assert!(!self.can_read_head() && !self.can_read_body());
 
         if !self.io.read_buf().is_empty() {
             debug!("received an unexpected {} bytes", self.io.read_buf().len());
             Err(io::Error::new(io::ErrorKind::InvalidData, "unexpected bytes after message ended"))
         } else {
-             match self.io.read_from_io() {
-                Ok(Async::Ready(0)) => {
-                    trace!("try_empty_read; found EOF on connection: {:?}", self.state);
-                    let must_error = self.should_error_on_eof();
-                    // order is important: must_error needs state BEFORE close_read
-                    self.state.close_read();
-                    if must_error {
-                        Err(io::Error::new(io::ErrorKind::UnexpectedEof, "unexpected EOF waiting for response"))
-                    } else {
-                        Ok(())
-                    }
-                },
-                Ok(Async::Ready(n)) => {
-                    debug!("received {} bytes on an idle connection", n);
-                    Err(io::Error::new(io::ErrorKind::InvalidData, "unexpected bytes after message ended"))
-                },
-                Ok(Async::NotReady) => {
+            match self.try_io_read()? {
+                Async::Ready(0) => {
+                    // case handled in try_io_read
                     Ok(())
                 },
-                Err(e) => {
-                    self.state.close();
-                    Err(e)
-                }
+                Async::Ready(n) => {
+                    debug!("received {} bytes on an idle connection", n);
+                    let desc = if self.state.is_idle() {
+                        "unexpected bytes after message ended"
+                    } else {
+                        "unexpected bytes before writing message"
+                    };
+                    Err(io::Error::new(io::ErrorKind::InvalidData, desc))
+                },
+                Async::NotReady => {
+                    Ok(())
+                },
             }
         }
     }
+
+    fn try_io_read(&mut self) -> Poll<usize, io::Error> {
+         match self.io.read_from_io() {
+            Ok(Async::Ready(0)) => {
+                trace!("try_io_read; found EOF on connection: {:?}", self.state);
+                let must_error = self.should_error_on_eof();
+                let ret = if must_error {
+                    let desc = if self.is_mid_message() {
+                        "unexpected EOF waiting for response"
+                    } else {
+                        "unexpected EOF before writing message"
+                    };
+                    Err(io::Error::new(io::ErrorKind::UnexpectedEof, desc))
+                } else {
+                    Ok(Async::Ready(0))
+                };
+
+                // order is important: must_error needs state BEFORE close_read
+                self.state.close_read();
+                ret
+            },
+            Ok(Async::Ready(n)) => {
+                Ok(Async::Ready(n))
+            },
+            Ok(Async::NotReady) => {
+                Ok(Async::NotReady)
+            },
+            Err(e) => {
+                self.state.close();
+                Err(e)
+            }
+        }
+    }
+
 
     fn maybe_notify(&mut self) {
         // its possible that we returned NotReady from poll() without having

@@ -401,7 +401,9 @@ where
                     let _ = cb.send(Err(err));
                     Ok(())
                 } else if let Ok(Async::Ready(Some((_, cb)))) = self.rx.poll() {
-                    let _ = cb.send(Err(err));
+                    // in this case, the message was never even started, so it's safe to tell
+                    // the user that the request was completely canceled
+                    let _ = cb.send(Err(::Error::new_canceled(Some(err))));
                     Ok(())
                 } else {
                     Err(err)
@@ -431,13 +433,14 @@ where
 
 #[cfg(test)]
 mod tests {
+    extern crate pretty_env_logger;
+
     use super::*;
     use mock::AsyncIo;
     use proto::ClientTransaction;
 
     #[test]
-    fn client_read_response_before_writing_request() {
-        extern crate pretty_env_logger;
+    fn client_read_bytes_before_writing_request() {
         let _ = pretty_env_logger::try_init();
         ::futures::lazy(|| {
             let io = AsyncIo::new_buf(b"HTTP/1.1 200 OK\r\n\r\n".to_vec(), 100);
@@ -452,11 +455,16 @@ mod tests {
             };
             let res_rx = tx.send((req, None::<::Body>)).unwrap();
 
-            dispatcher.poll().expect("dispatcher poll 1");
-            dispatcher.poll().expect("dispatcher poll 2");
-            let _res = res_rx.wait()
+            let a1 = dispatcher.poll().expect("error should be sent on channel");
+            assert!(a1.is_ready(), "dispatcher should be closed");
+            let err = res_rx.wait()
                 .expect("callback poll")
-                .expect("callback response");
+                .expect_err("callback response");
+
+            match err {
+                ::Error::Cancel(_) => (),
+                other => panic!("expected Cancel(_), got {:?}", other),
+            }
             Ok::<(), ()>(())
         }).wait().unwrap();
     }
