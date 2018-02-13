@@ -373,6 +373,8 @@ impl<S, B> Server<S, B>
         // Future for our server's execution
         let srv = incoming.for_each(|socket| {
             let addr = socket.remote_addr;
+            debug!("accepted new connection ({})", addr);
+
             let addr_service = SocketAddrService::new(addr, new_service.new_service()?);
             let s = NotifyService {
                 inner: addr_service,
