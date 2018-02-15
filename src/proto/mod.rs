@@ -13,8 +13,6 @@ use version::HttpVersion;
 use version::HttpVersion::{Http10, Http11};
 
 pub use self::body::Body;
-#[cfg(feature = "tokio-proto")]
-pub use self::body::TokioBody;
 pub use self::chunk::Chunk;
 pub use self::h1::{dispatch, Conn};
 

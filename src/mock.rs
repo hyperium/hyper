@@ -118,12 +118,11 @@ impl<T> AsyncIo<T> {
         self.park_tasks = enabled;
     }
 
-    #[cfg(feature = "tokio-proto")]
-    //TODO: fix proto::conn::tests to not use tokio-proto API,
-    //and then this cfg flag go away
+    /*
     pub fn flushed(&self) -> bool {
         self.flushed
     }
+    */
 
     pub fn blocked(&self) -> bool {
         self.blocked
@@ -148,12 +147,11 @@ impl AsyncIo<MockCursor> {
         AsyncIo::new(MockCursor::wrap(buf.into()), bytes)
     }
 
-    #[cfg(feature = "tokio-proto")]
-    //TODO: fix proto::conn::tests to not use tokio-proto API,
-    //and then this cfg flag go away
-    pub fn new_eof() -> AsyncIo<MockCursor> {
-        AsyncIo::new(MockCursor::wrap(Vec::new().into()), 1)
+    /*
+    pub fn new_eof() -> AsyncIo<Buf> {
+        AsyncIo::new(Buf::wrap(Vec::new().into()), 1)
     }
+    */
 
     fn close(&mut self) {
         self.block_in(1);

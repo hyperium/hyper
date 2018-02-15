@@ -3,14 +3,10 @@ use std::fmt;
 use bytes::Bytes;
 use futures::{Async, AsyncSink, Future, Poll, Sink, StartSend, Stream};
 use futures::sync::{mpsc, oneshot};
-#[cfg(feature = "tokio-proto")]
-use tokio_proto;
 use std::borrow::Cow;
 
 use super::Chunk;
 
-#[cfg(feature = "tokio-proto")]
-pub type TokioBody = tokio_proto::streaming::Body<Chunk, ::Error>;
 pub type BodySender = mpsc::Sender<Result<Chunk, ::Error>>;
 
 /// A `Stream` for `Chunk`s used in requests and responses.
@@ -21,8 +17,6 @@ pub struct Body {
 
 #[derive(Debug)]
 enum Kind {
-    #[cfg(feature = "tokio-proto")]
-    Tokio(TokioBody),
     Chan {
         close_tx: oneshot::Sender<bool>,
         rx: mpsc::Receiver<Result<Chunk, ::Error>>,
@@ -77,8 +71,6 @@ impl Body {
 
     fn poll_inner(&mut self) -> Poll<Option<Chunk>, ::Error> {
         match self.kind {
-            #[cfg(feature = "tokio-proto")]
-            Kind::Tokio(ref mut rx) => rx.poll(),
             Kind::Chan { ref mut rx, .. } => match rx.poll().expect("mpsc cannot error") {
                 Async::Ready(Some(Ok(chunk))) => Ok(Async::Ready(Some(chunk))),
                 Async::Ready(Some(Err(err))) => Err(err),
@@ -157,42 +149,6 @@ impl ChunkSender {
             Ok(AsyncSink::NotReady(_)) => Ok(AsyncSink::NotReady(())),
             Err(_) => Err(()),
         }
-    }
-}
-
-feat_server_proto! {
-    impl From<Body> for tokio_proto::streaming::Body<Chunk, ::Error> {
-        fn from(b: Body) -> tokio_proto::streaming::Body<Chunk, ::Error> {
-            match b.kind {
-                Kind::Tokio(b) => b,
-                Kind::Chan { close_tx, rx } => {
-                    // disable knowing if the Rx gets dropped, since we cannot
-                    // pass this tx along.
-                    let _ = close_tx.send(false);
-                    rx.into()
-                },
-                Kind::Once(Some(chunk)) => TokioBody::from(chunk),
-                Kind::Once(None) |
-                Kind::Empty => TokioBody::empty(),
-            }
-        }
-    }
-
-    impl From<tokio_proto::streaming::Body<Chunk, ::Error>> for Body {
-        fn from(tokio_body: tokio_proto::streaming::Body<Chunk, ::Error>) -> Body {
-            Body::new(Kind::Tokio(tokio_body))
-        }
-    }
-}
-
-impl From<mpsc::Receiver<Result<Chunk, ::Error>>> for Body {
-    #[inline]
-    fn from(src: mpsc::Receiver<Result<Chunk, ::Error>>) -> Body {
-        let (tx, _) = oneshot::channel();
-        Body::new(Kind::Chan {
-            close_tx: tx,
-            rx: src,
-        })
     }
 }
 

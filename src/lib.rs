@@ -33,8 +33,6 @@ extern crate relay;
 extern crate time;
 extern crate tokio_core as tokio;
 #[macro_use] extern crate tokio_io;
-#[cfg(feature = "tokio-proto")]
-extern crate tokio_proto;
 extern crate tokio_service;
 extern crate unicase;
 
@@ -54,19 +52,6 @@ pub use server::Server;
 pub use version::HttpVersion;
 #[cfg(feature = "raw_status")]
 pub use proto::RawStatus;
-
-macro_rules! feat_server_proto {
-    ($($i:item)*) => ($(
-        #[cfg(feature = "server-proto")]
-        #[deprecated(
-            since="0.11.11",
-            note="All usage of the tokio-proto crate is going away."
-        )]
-        #[doc(hidden)]
-        #[allow(deprecated)]
-        $i
-    )*)
-}
 
 mod common;
 #[cfg(test)]
