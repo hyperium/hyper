@@ -32,7 +32,7 @@ pub struct Server<S: Service> {
 }
 
 pub struct Client<B> {
-    callback: Option<oneshot::Sender<::Result<::Response>>>,
+    callback: Option<oneshot::Sender<Result<::Response, (::Error, Option<ClientMsg<B>>)>>>,
     rx: ClientRx<B>,
 }
 
@@ -398,12 +398,13 @@ where
             },
             Err(err) => {
                 if let Some(cb) = self.callback.take() {
-                    let _ = cb.send(Err(err));
+                    let _ = cb.send(Err((err, None)));
                     Ok(())
-                } else if let Ok(Async::Ready(Some((_, cb)))) = self.rx.poll() {
+                } else if let Ok(Async::Ready(Some((req, cb)))) = self.rx.poll() {
+                    trace!("canceling queued request with connection error: {}", err);
                     // in this case, the message was never even started, so it's safe to tell
                     // the user that the request was completely canceled
-                    let _ = cb.send(Err(::Error::new_canceled(Some(err))));
+                    let _ = cb.send(Err((::Error::new_canceled(Some(err)), Some(req))));
                     Ok(())
                 } else {
                     Err(err)

@@ -38,12 +38,12 @@ mod pool;
 pub mod compat;
 
 /// A Client to make outgoing HTTP requests.
-// If the Connector is clone, then the Client can be clone easily.
 pub struct Client<C, B = proto::Body> {
-    connector: C,
+    connector: Rc<C>,
     executor: Exec,
     h1_writev: bool,
     pool: Pool<HyperClient<B>>,
+    retry_canceled_requests: bool,
 }
 
 impl Client<HttpConnector, proto::Body> {
@@ -95,10 +95,11 @@ impl<C, B> Client<C, B> {
     #[inline]
     fn configured(config: Config<C, B>, exec: Exec) -> Client<C, B> {
         Client {
-            connector: config.connector,
+            connector: Rc::new(config.connector),
             executor: exec,
             h1_writev: config.h1_writev,
-            pool: Pool::new(config.keep_alive, config.keep_alive_timeout)
+            pool: Pool::new(config.keep_alive, config.keep_alive_timeout),
+            retry_canceled_requests: config.retry_canceled_requests,
         }
     }
 }
@@ -116,8 +117,46 @@ where C: Connect,
 
     /// Send a constructed Request using this Client.
     #[inline]
-    pub fn request(&self, req: Request<B>) -> FutureResponse {
-        self.call(req)
+    pub fn request(&self, mut req: Request<B>) -> FutureResponse {
+        match req.version() {
+            HttpVersion::Http10 |
+            HttpVersion::Http11 => (),
+            other => {
+                error!("Request has unsupported version \"{}\"", other);
+                return FutureResponse(Box::new(future::err(::Error::Version)));
+            }
+        }
+
+        let domain = match uri::scheme_and_authority(req.uri()) {
+            Some(uri) => uri,
+            None => {
+                return FutureResponse(Box::new(future::err(::Error::Io(
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "invalid URI for Client Request"
+                    )
+                ))));
+            }
+        };
+        if !req.headers().has::<Host>() {
+            let host = Host::new(
+                domain.host().expect("authority implies host").to_owned(),
+                domain.port(),
+            );
+            req.headers_mut().set_pos(0, host);
+        }
+
+        let client = self.clone();
+        let is_proxy = req.is_proxy();
+        let uri = req.uri().clone();
+        let fut = RetryableSendRequest {
+            client: client,
+            future: self.send_request(req, &domain),
+            domain: domain,
+            is_proxy: is_proxy,
+            uri: uri,
+        };
+        FutureResponse(Box::new(fut))
     }
 
     /// Send an `http::Request` using this Client.
@@ -132,68 +171,11 @@ where C: Connect,
     pub fn into_compat(self) -> compat::CompatClient<C, B> {
         self::compat::client(self)
     }
-}
 
-/// A `Future` that will resolve to an HTTP Response.
-#[must_use = "futures do nothing unless polled"]
-pub struct FutureResponse(Box<Future<Item=Response, Error=::Error> + 'static>);
-
-impl fmt::Debug for FutureResponse {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.pad("Future<Response>")
-    }
-}
-
-impl Future for FutureResponse {
-    type Item = Response;
-    type Error = ::Error;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        self.0.poll()
-    }
-}
-
-impl<C, B> Service for Client<C, B>
-where C: Connect,
-      B: Stream<Error=::Error> + 'static,
-      B::Item: AsRef<[u8]>,
-{
-    type Request = Request<B>;
-    type Response = Response;
-    type Error = ::Error;
-    type Future = FutureResponse;
-
-    fn call(&self, req: Self::Request) -> Self::Future {
-        match req.version() {
-            HttpVersion::Http10 |
-            HttpVersion::Http11 => (),
-            other => {
-                error!("Request has unsupported version \"{}\"", other);
-                return FutureResponse(Box::new(future::err(::Error::Version)));
-            }
-        }
-
+    //TODO: replace with `impl Future` when stable
+    fn send_request(&self, req: Request<B>, domain: &Uri) -> Box<Future<Item=Response, Error=ClientError<B>>> {
         let url = req.uri().clone();
-        let domain = match uri::scheme_and_authority(&url) {
-            Some(uri) => uri,
-            None => {
-                return FutureResponse(Box::new(future::err(::Error::Io(
-                    io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "invalid URI for Client Request"
-                    )
-                ))));
-            }
-        };
-        let (mut head, body) = request::split(req);
-        if !head.headers.has::<Host>() {
-            let host = Host::new(
-                domain.host().expect("authority implies host").to_owned(),
-                domain.port(),
-            );
-            head.headers.set_pos(0, host);
-        }
-
+        let (head, body) = request::split(req);
         let checkout = self.pool.checkout(domain.as_ref());
         let connect = {
             let executor = self.executor.clone();
@@ -220,53 +202,147 @@ where C: Connect,
 
         let race = checkout.select(connect)
             .map(|(client, _work)| client)
-            .map_err(|(e, _work)| {
+            .map_err(|(e, _checkout)| {
                 // the Pool Checkout cannot error, so the only error
                 // is from the Connector
                 // XXX: should wait on the Checkout? Problem is
                 // that if the connector is failing, it may be that we
                 // never had a pooled stream at all
-                e.into()
+                ClientError::Normal(e.into())
             });
 
         let resp = race.and_then(move |client| {
+            let conn_reused = client.is_reused();
             match client.tx.send((head, body)) {
                 Ok(rx) => {
                     client.should_close.set(false);
-                    Either::A(rx.then(|res| {
+                    Either::A(rx.then(move |res| {
                         match res {
                             Ok(Ok(res)) => Ok(res),
-                            Ok(Err(err)) => Err(err),
+                            Ok(Err((err, orig_req))) => Err(match orig_req {
+                                Some(req) => ClientError::Canceled {
+                                    connection_reused: conn_reused,
+                                    reason: err,
+                                    req: req,
+                                },
+                                None => ClientError::Normal(err),
+                            }),
+                            // this is definite bug if it happens, but it shouldn't happen!
                             Err(_) => panic!("dispatch dropped without returning error"),
                         }
                     }))
                 },
-                Err(_) => {
-                    error!("pooled connection was not ready, this is a hyper bug");
-                    Either::B(future::err(::Error::new_canceled(None)))
+                Err(req) => {
+                    debug!("pooled connection was not ready");
+                    let err = ClientError::Canceled {
+                        connection_reused: conn_reused,
+                        reason: ::Error::new_canceled(None),
+                        req: req,
+                    };
+                    Either::B(future::err(err))
                 }
             }
         });
 
-        FutureResponse(Box::new(resp))
+        Box::new(resp)
     }
-
 }
 
-impl<C: Clone, B> Clone for Client<C, B> {
+impl<C, B> Service for Client<C, B>
+where C: Connect,
+      B: Stream<Error=::Error> + 'static,
+      B::Item: AsRef<[u8]>,
+{
+    type Request = Request<B>;
+    type Response = Response;
+    type Error = ::Error;
+    type Future = FutureResponse;
+
+    fn call(&self, req: Self::Request) -> Self::Future {
+        self.request(req)
+    }
+}
+
+impl<C, B> Clone for Client<C, B> {
     fn clone(&self) -> Client<C, B> {
         Client {
             connector: self.connector.clone(),
             executor: self.executor.clone(),
             h1_writev: self.h1_writev,
             pool: self.pool.clone(),
+            retry_canceled_requests: self.retry_canceled_requests,
         }
     }
 }
 
 impl<C, B> fmt::Debug for Client<C, B> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.pad("Client")
+        f.debug_struct("Client")
+            .finish()
+    }
+}
+
+/// A `Future` that will resolve to an HTTP Response.
+#[must_use = "futures do nothing unless polled"]
+pub struct FutureResponse(Box<Future<Item=Response, Error=::Error> + 'static>);
+
+impl fmt::Debug for FutureResponse {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.pad("Future<Response>")
+    }
+}
+
+impl Future for FutureResponse {
+    type Item = Response;
+    type Error = ::Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        self.0.poll()
+    }
+}
+
+struct RetryableSendRequest<C, B> {
+    client: Client<C, B>,
+    domain: Uri,
+    future: Box<Future<Item=Response, Error=ClientError<B>>>,
+    is_proxy: bool,
+    uri: Uri,
+}
+
+impl<C, B> Future for RetryableSendRequest<C, B>
+where
+    C: Connect,
+    B: Stream<Error=::Error> + 'static,
+    B::Item: AsRef<[u8]>,
+{
+    type Item = Response;
+    type Error = ::Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        loop {
+            match self.future.poll() {
+                Ok(Async::Ready(resp)) => return Ok(Async::Ready(resp)),
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
+                Err(ClientError::Normal(err)) => return Err(err),
+                Err(ClientError::Canceled {
+                    connection_reused,
+                    req,
+                    reason,
+                }) => {
+                    if !self.client.retry_canceled_requests || !connection_reused {
+                        // if client disabled, don't retry
+                        // a fresh connection means we definitely can't retry
+                        return Err(reason);
+                    }
+
+                    trace!("unstarted request canceled, trying again (reason={:?})", reason);
+                    let mut req = request::join(req);
+                    req.set_proxy(self.is_proxy);
+                    req.set_uri(self.uri.clone());
+                    self.future = self.client.send_request(req, &self.domain);
+                }
+            }
+        }
     }
 }
 
@@ -303,6 +379,15 @@ impl<B> Drop for HyperClient<B> {
     }
 }
 
+pub(crate) enum ClientError<B> {
+    Normal(::Error),
+    Canceled {
+        connection_reused: bool,
+        req: (::proto::RequestHead, Option<B>),
+        reason: ::Error,
+    }
+}
+
 /// Configuration for a Client
 pub struct Config<C, B> {
     _body_type: PhantomData<B>,
@@ -313,6 +398,7 @@ pub struct Config<C, B> {
     h1_writev: bool,
     //TODO: make use of max_idle config
     max_idle: usize,
+    retry_canceled_requests: bool,
 }
 
 /// Phantom type used to signal that `Config` should create a `HttpConnector`.
@@ -323,12 +409,12 @@ impl Default for Config<UseDefaultConnector, proto::Body> {
     fn default() -> Config<UseDefaultConnector, proto::Body> {
         Config {
             _body_type: PhantomData::<proto::Body>,
-            //connect_timeout: Duration::from_secs(10),
             connector: UseDefaultConnector(()),
             keep_alive: true,
             keep_alive_timeout: Some(Duration::from_secs(90)),
             h1_writev: true,
             max_idle: 5,
+            retry_canceled_requests: true,
         }
     }
 }
@@ -347,12 +433,12 @@ impl<C, B> Config<C, B> {
     pub fn body<BB>(self) -> Config<C, BB> {
         Config {
             _body_type: PhantomData::<BB>,
-            //connect_timeout: self.connect_timeout,
             connector: self.connector,
             keep_alive: self.keep_alive,
             keep_alive_timeout: self.keep_alive_timeout,
             h1_writev: self.h1_writev,
             max_idle: self.max_idle,
+            retry_canceled_requests: self.retry_canceled_requests,
         }
     }
 
@@ -361,12 +447,12 @@ impl<C, B> Config<C, B> {
     pub fn connector<CC>(self, val: CC) -> Config<CC, B> {
         Config {
             _body_type: self._body_type,
-            //connect_timeout: self.connect_timeout,
             connector: val,
             keep_alive: self.keep_alive,
             keep_alive_timeout: self.keep_alive_timeout,
             h1_writev: self.h1_writev,
             max_idle: self.max_idle,
+            retry_canceled_requests: self.retry_canceled_requests,
         }
     }
 
@@ -390,17 +476,6 @@ impl<C, B> Config<C, B> {
         self
     }
 
-    /*
-    /// Set the timeout for connecting to a URL.
-    ///
-    /// Default is 10 seconds.
-    #[inline]
-    pub fn connect_timeout(mut self, val: Duration) -> Config<C, B> {
-        self.connect_timeout = val;
-        self
-    }
-    */
-
     /// Set whether HTTP/1 connections should try to use vectored writes,
     /// or always flatten into a single buffer.
     ///
@@ -408,10 +483,27 @@ impl<C, B> Config<C, B> {
     /// but may also improve performance when an IO transport doesn't
     /// support vectored writes well, such as most TLS implementations.
     ///
-    /// Default is true.
+    /// Default is `true`.
     #[inline]
     pub fn http1_writev(mut self, val: bool) -> Config<C, B> {
         self.h1_writev = val;
+        self
+    }
+
+    /// Set whether to retry requests that get disrupted before ever starting
+    /// to write.
+    ///
+    /// This means a request that is queued, and gets given an idle, reused
+    /// connection, and then encounters an error immediately as the idle
+    /// connection was found to be unusable.
+    ///
+    /// When this is set to `false`, the related `FutureResponse` would instead
+    /// resolve to an `Error::Cancel`.
+    ///
+    /// Default is `true`.
+    #[inline]
+    pub fn retry_canceled_requests(mut self, val: bool) -> Config<C, B> {
+        self.retry_canceled_requests = val;
         self
     }
 

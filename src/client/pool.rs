@@ -211,6 +211,12 @@ pub struct Pooled<T> {
     pool: Weak<RefCell<PoolInner<T>>>,
 }
 
+impl<T> Pooled<T> {
+    pub fn is_reused(&self) -> bool {
+        self.entry.is_reused
+    }
+}
+
 impl<T> Deref for Pooled<T> {
     type Target = T;
     fn deref(&self) -> &T {

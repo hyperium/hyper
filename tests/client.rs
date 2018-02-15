@@ -573,7 +573,6 @@ fn client_keep_alive_connreset() {
     let mut core = Core::new().unwrap();
     let handle = core.handle();
 
-    // This one seems to hang forever
     let client = client(&handle);
 
     let (tx1, rx1) = oneshot::channel();
@@ -594,6 +593,14 @@ fn client_keep_alive_connreset() {
 
         // Let client know it can try to reuse the connection
         let _ = tx1.send(());
+
+        // use sock2 so that sock isn't dropped yet
+        let mut sock2 = server.accept().unwrap().0;
+        sock2.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        sock2.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+        let mut buf = [0; 4096];
+        sock2.read(&mut buf).expect("read 2");
+        sock2.write_all(b"HTTP/1.1 222 OK\r\nContent-Length: 0\r\n\r\n").expect("write 2");
     });
 
 
@@ -606,7 +613,11 @@ fn client_keep_alive_connreset() {
     core.run(rx).unwrap();
 
     let t = Timeout::new(Duration::from_millis(100), &handle).unwrap();
-    let res = client.get(format!("http://{}/b", addr).parse().unwrap());
+    let res = client.get(format!("http://{}/b", addr).parse().unwrap())
+        .map(|res| {
+            assert_eq!(res.status().as_u16(), 222);
+        });
+
     let fut = res.select2(t).then(|result| match result {
         Ok(Either::A((resp, _))) => Ok(resp),
         Err(Either::A((err, _))) => Err(err),
@@ -614,16 +625,7 @@ fn client_keep_alive_connreset() {
         Err(Either::B(_)) => Err(hyper::Error::Timeout),
     });
 
-    // for now, the 2nd request is just canceled, since the connection is found to be dead
-    // at the same time the request is scheduled.
-    //
-    // in the future, it'd be nice to auto retry the request, but can't really be done yet
-    // as the `connector` isn't clone so we can't use it "later", when the future resolves.
-    let err = core.run(fut).unwrap_err();
-    match err {
-        hyper::Error::Cancel(..) => (),
-        other => panic!("expected Cancel error, got {:?}", other),
-    }
+    core.run(fut).expect("req 2");
 }
 
 #[test]

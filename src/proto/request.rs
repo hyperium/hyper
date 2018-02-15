@@ -105,6 +105,8 @@ impl<B> Request<B> {
     /// protected by TLS.
     #[inline]
     pub fn set_proxy(&mut self, is_proxy: bool) { self.is_proxy = is_proxy; }
+
+    pub(crate) fn is_proxy(&self) -> bool { self.is_proxy }
 }
 
 impl Request<Body> {
@@ -165,16 +167,9 @@ impl<B> From<http::Request<B>> for Request<B> {
 
 /// Constructs a request using a received ResponseHead and optional body
 pub fn from_wire(addr: Option<SocketAddr>, incoming: RequestHead, body: Option<Body>) -> Request<Body> {
-    let MessageHead { version, subject: RequestLine(method, uri), headers } = incoming;
-
     Request {
-        method: method,
-        uri: uri,
-        headers: headers,
-        version: version,
         remote_addr: addr,
-        body: body,
-        is_proxy: false,
+        ..join((incoming, body))
     }
 }
 
@@ -190,6 +185,20 @@ pub fn split<B>(req: Request<B>) -> (RequestHead, Option<B>) {
         version: req.version,
     };
     (head, req.body)
+}
+
+pub fn join<B>((head, body): (RequestHead, Option<B>)) -> Request<B> {
+    let MessageHead { version, subject: RequestLine(method, uri), headers } = head;
+
+    Request {
+        method: method,
+        uri: uri,
+        headers: headers,
+        version: version,
+        remote_addr: None,
+        body: body,
+        is_proxy: false,
+    }
 }
 
 pub fn addr<B>(req: &mut Request<B>, addr: SocketAddr) {
