@@ -226,7 +226,7 @@ impl Future for HttpConnecting {
                     };
                 },
                 State::Connecting(ref mut c) => {
-                    let mut sock = try_ready!(c.poll(&self.handle));
+                    let sock = try_ready!(c.poll(&self.handle));
 
                     if let Some(dur) = self.keep_alive_timeout {
                         sock.set_keepalive(Some(dur))?;
