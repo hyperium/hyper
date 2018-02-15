@@ -463,8 +463,8 @@ mod tests {
                 .expect_err("callback response");
 
             match err {
-                ::Error::Cancel(_) => (),
-                other => panic!("expected Cancel(_), got {:?}", other),
+                (::Error::Cancel(_), Some(_)) => (),
+                other => panic!("expected Canceled, got {:?}", other),
             }
             Ok::<(), ()>(())
         }).wait().unwrap();

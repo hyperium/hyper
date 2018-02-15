@@ -117,7 +117,7 @@ mod tests {
             promise.then(|fulfilled| {
                 let res = fulfilled.expect("fulfilled");
                 match res.unwrap_err() {
-                    ::Error::Cancel(_) => (),
+                    (::Error::Cancel(_), Some(_)) => (),
                     e => panic!("expected Error::Cancel(_), found {:?}", e),
                 }
 
