@@ -37,16 +37,6 @@ use self::hyper_service::HyperService;
 pub use proto::response::Response;
 pub use proto::request::Request;
 
-feat_server_proto! {
-    mod server_proto;
-    pub use self::server_proto::{
-        __ProtoRequest,
-        __ProtoResponse,
-        __ProtoTransport,
-        __ProtoBindTransport,
-    };
-}
-
 pub use self::conn::Connection;
 pub use self::service::{const_service, service_fn};
 
@@ -346,12 +336,6 @@ impl<S, B> Server<S, B>
     /// This defaults to 1s.
     pub fn shutdown_timeout(&mut self, timeout: Duration) -> &mut Self {
         self.shutdown_timeout = timeout;
-        self
-    }
-
-    #[doc(hidden)]
-    #[deprecated(since="0.11.11", note="no_proto is always enabled")]
-    pub fn no_proto(&mut self) -> &mut Self {
         self
     }
 

@@ -35,7 +35,6 @@ percent-encoding = "1.0"
 relay = "0.1"
 time = "0.1"
 tokio-core = "0.1.11"
-tokio-proto = { version = "0.1", optional = true }
 tokio-service = "0.1"
 tokio-io = "0.1"
 unicase = "2.0"
@@ -47,8 +46,7 @@ spmc = "0.2"
 url = "1.0"
 
 [features]
-default = ["server-proto"]
+default = []
 nightly = []
 raw_status = []
 compat = [ "http" ]
-server-proto = ["tokio-proto"]
