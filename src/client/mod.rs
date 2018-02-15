@@ -544,7 +544,11 @@ where B: Stream<Error=::Error>,
     /// Construct the Client with this configuration.
     #[inline]
     pub fn build(self, handle: &Handle) -> Client<HttpConnector, B> {
-        self.connector(HttpConnector::new(4, handle)).build(handle)
+        let mut connector = HttpConnector::new(4, handle);
+        if self.keep_alive {
+            connector.set_keepalive(self.keep_alive_timeout);
+        }
+        self.connector(connector).build(handle)
     }
 }
 

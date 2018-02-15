@@ -3,7 +3,7 @@ use std::fmt;
 use std::io;
 use std::mem;
 use std::sync::Arc;
-//use std::net::SocketAddr;
+use std::time::Duration;
 
 use futures::{Future, Poll, Async};
 use futures::future::{Executor, ExecuteError};
@@ -50,6 +50,7 @@ pub struct HttpConnector {
     executor: HttpConnectExecutor,
     enforce_http: bool,
     handle: Handle,
+    keep_alive_timeout: Option<Duration>,
 }
 
 impl HttpConnector {
@@ -75,7 +76,8 @@ impl HttpConnector {
         HttpConnector {
             executor: HttpConnectExecutor(Arc::new(executor)),
             enforce_http: true,
-            handle: handle.clone()
+            handle: handle.clone(),
+            keep_alive_timeout: None,
         }
     }
 
@@ -85,6 +87,16 @@ impl HttpConnector {
     #[inline]
     pub fn enforce_http(&mut self, is_enforced: bool) {
         self.enforce_http = is_enforced;
+    }
+
+    /// Set that all sockets have `SO_KEEPALIVE` set with the supplied duration.
+    ///
+    /// If `None`, the option will not be set.
+    ///
+    /// Default is `None`.
+    #[inline]
+    pub fn set_keepalive(&mut self, dur: Option<Duration>) {
+        self.keep_alive_timeout = dur;
     }
 }
 
@@ -128,6 +140,7 @@ impl Service for HttpConnector {
         HttpConnecting {
             state: State::Lazy(self.executor.clone(), host.into(), port),
             handle: self.handle.clone(),
+            keep_alive_timeout: self.keep_alive_timeout,
         }
     }
 }
@@ -137,6 +150,7 @@ fn invalid_url(err: InvalidUrl, handle: &Handle) -> HttpConnecting {
     HttpConnecting {
         state: State::Error(Some(io::Error::new(io::ErrorKind::InvalidInput, err))),
         handle: handle.clone(),
+        keep_alive_timeout: None,
     }
 }
 
@@ -168,6 +182,7 @@ impl StdError for InvalidUrl {
 pub struct HttpConnecting {
     state: State,
     handle: Handle,
+    keep_alive_timeout: Option<Duration>,
 }
 
 enum State {
@@ -210,7 +225,15 @@ impl Future for HttpConnecting {
                         }
                     };
                 },
-                State::Connecting(ref mut c) => return c.poll(&self.handle).map_err(From::from),
+                State::Connecting(ref mut c) => {
+                    let mut sock = try_ready!(c.poll(&self.handle));
+
+                    if let Some(dur) = self.keep_alive_timeout {
+                        sock.set_keepalive(Some(dur))?;
+                    }
+
+                    return Ok(Async::Ready(sock));
+                },
                 State::Error(ref mut e) => return Err(e.take().expect("polled more than once")),
             }
             self.state = state;
@@ -287,18 +310,6 @@ impl Executor<oneshot::Execute<dns::Work>> for HttpConnectExecutor {
             .map_err(|err| ExecuteError::new(err.kind(), err.into_future().work))
     }
 }
-
-/*
-impl<S: SslClient> HttpsConnector<S> {
-    /// Create a new connector using the provided SSL implementation.
-    pub fn new(s: S) -> HttpsConnector<S> {
-        HttpsConnector {
-            http: HttpConnector::default(),
-            ssl: s,
-        }
-    }
-}
-*/
 
 #[cfg(test)]
 mod tests {
