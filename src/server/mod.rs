@@ -100,6 +100,7 @@ pub struct SpawnAll<I, S, E> {
 #[derive(Debug)]
 pub struct AddrIncoming {
     addr: SocketAddr,
+    keep_alive_timeout: Option<Duration>,
     listener: TcpListener,
 }
 
@@ -224,7 +225,10 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
               Bd: Stream<Item=B, Error=::Error>,
     {
         let listener = TcpListener::bind(addr, &handle)?;
-        let incoming = AddrIncoming::new(listener)?;
+        let mut incoming = AddrIncoming::new(listener)?;
+        if self.keep_alive {
+            incoming.set_keepalive(Some(Duration::from_secs(90)));
+        }
         Ok(self.serve_incoming(incoming, new_service))
     }
 
@@ -362,7 +366,11 @@ impl<S, B> Server<S, B>
 
         let handle = reactor.handle();
 
-        let incoming = AddrIncoming::new(listener)?;
+        let mut incoming = AddrIncoming::new(listener)?;
+
+        if protocol.keep_alive {
+            incoming.set_keepalive(Some(Duration::from_secs(90)));
+        }
 
         // Mini future to track the number of active services
         let info = Rc::new(RefCell::new(Info {
@@ -586,6 +594,7 @@ impl AddrIncoming {
     fn new(listener: TcpListener) -> io::Result<AddrIncoming> {
          Ok(AddrIncoming {
             addr: listener.local_addr()?,
+            keep_alive_timeout: None,
             listener: listener,
         })
     }
@@ -593,6 +602,10 @@ impl AddrIncoming {
     /// Get the local address bound to this listener.
     pub fn local_addr(&self) -> SocketAddr {
         self.addr
+    }
+
+    fn set_keepalive(&mut self, dur: Option<Duration>) {
+        self.keep_alive_timeout = dur;
     }
 }
 
@@ -605,6 +618,11 @@ impl Stream for AddrIncoming {
         loop {
             match self.listener.accept() {
                 Ok((socket, addr)) => {
+                    if let Some(dur) = self.keep_alive_timeout {
+                        if let Err(e) = socket.set_keepalive(Some(dur)) {
+                            trace!("error trying to set TCP keepalive: {}", e);
+                        }
+                    }
                     return Ok(Async::Ready(Some(AddrStream::new(socket, addr))));
                 },
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => return Ok(Async::NotReady),
