@@ -235,6 +235,28 @@ test! {
 }
 
 test! {
+    name: client_get_implicitly_empty,
+
+    server:
+        expected: "GET / HTTP/1.1\r\nHost: {addr}\r\n\r\n",
+        reply: REPLY_OK,
+
+    client:
+        request:
+            method: Get,
+            url: "http://{addr}/",
+            headers: [],
+            body: Some(""),
+            proxy: false,
+        response:
+            status: Ok,
+            headers: [
+                ContentLength(0),
+            ],
+            body: None,
+}
+
+test! {
     name: client_post_sized,
 
     server:
