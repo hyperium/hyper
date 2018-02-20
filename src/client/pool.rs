@@ -132,6 +132,10 @@ impl<T: Clone + Ready> Pool<T> {
         }
         if remove_parked {
             inner.parked.remove(&key);
+            #[cfg(feature = "http2")]
+            {
+                inner.connecting.remove(&key);
+            }
         }
 
         match entry {
@@ -178,6 +182,11 @@ impl<T: Clone + Ready> Pool<T> {
 
             if should_remove {
                 inner.idle.remove(key);
+
+                #[cfg(feature = "http2")]
+                {
+                    inner.connecting.remove(key);
+                }
             }
             entry
         };
