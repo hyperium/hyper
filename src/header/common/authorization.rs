@@ -167,6 +167,7 @@ impl Scheme for Basic {
     }
 }
 
+/// creates a Basic from a base-64 encoded, `:`-delimited utf-8 string
 impl FromStr for Basic {
     type Err = ::Error;
     fn from_str(s: &str) -> ::Result<Basic> {
