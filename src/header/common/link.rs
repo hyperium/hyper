@@ -88,6 +88,9 @@ pub struct LinkValue {
     /// Context IRI: `anchor`.
     anchor: Option<String>,
 
+    /// Specify the target context that will consume the response
+    as_: Option<String>,
+
     /// Reverse Relation Types: `rev`.
     rev: Option<Vec<RelationType>>,
 
@@ -107,6 +110,12 @@ pub struct LinkValue {
     /// Hint on the media type of the result of dereferencing
     /// the link: `type`.
     media_type: Option<Mime>,
+
+    /// Required for font preloading
+    crossorigin: Option<()>,
+
+    /// Hint an opt-out for server push
+    nopush: Option<()>,
 }
 
 /// A Media Descriptors Enum based on:
@@ -185,6 +194,10 @@ pub enum RelationType {
     NextArchive,
     /// payment.
     Payment,
+    /// prefetch.
+    Prefetch,
+    /// preload.
+    Preload,
     /// prev.
     Prev,
     /// predecessor-version.
@@ -254,12 +267,15 @@ impl LinkValue {
             link: uri.into(),
             rel: None,
             anchor: None,
+            as_: None,
             rev: None,
             href_lang: None,
             media_desc: None,
             title: None,
             title_star: None,
             media_type: None,
+            crossorigin: None,
+            nopush: None,
         }
     }
 
@@ -276,6 +292,11 @@ impl LinkValue {
     /// Get the `LinkValue`'s `anchor` parameter.
     pub fn anchor(&self) -> Option<&str> {
         self.anchor.as_ref().map(AsRef::as_ref)
+    }
+
+    /// Get the `LinkValue`'s `as` parameter.
+    pub fn as_(&self) -> Option<&str> {
+        self.as_.as_ref().map(AsRef::as_ref)
     }
 
     /// Get the `LinkValue`'s `rev` parameter(s).
@@ -308,6 +329,16 @@ impl LinkValue {
         self.media_type.as_ref()
     }
 
+    /// Get the `LinkValue`'s `crossorigin` parameter.
+    pub fn crossorigin(&self) -> Option<()> {
+        self.crossorigin
+    }
+
+    /// Get the `LinkValue`'s `nopush` parameter.
+    pub fn nopush(&self) -> Option<()> {
+        self.nopush
+    }
+
     /// Add a `RelationType` to the `LinkValue`'s `rel` parameter.
     pub fn push_rel(mut self, rel: RelationType) -> LinkValue {
         let mut v = self.rel.take().unwrap_or(Vec::new());
@@ -322,6 +353,13 @@ impl LinkValue {
     /// Set `LinkValue`'s `anchor` parameter.
     pub fn set_anchor<T: Into<String>>(mut self, anchor: T) -> LinkValue {
         self.anchor = Some(anchor.into());
+
+        self
+    }
+
+    /// Set `LinkValue`'s `as` parameter.
+    pub fn set_as<T: Into<String>>(mut self, as_: T) -> LinkValue {
+        self.as_ = Some(as_.into());
 
         self
     }
@@ -379,6 +417,20 @@ impl LinkValue {
 
         self
     }
+
+    /// Set `LinkValue`'s `crossorigin` parameter.
+    pub fn set_crossorigin(mut self) -> LinkValue {
+        self.crossorigin = Some(());
+
+        self
+    }
+
+    /// Set `LinkValue`'s `nopush` parameter.
+    pub fn set_nopush(mut self) -> LinkValue {
+        self.nopush = Some(());
+
+        self
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -433,6 +485,9 @@ impl fmt::Display for LinkValue {
         if let Some(ref anchor) = self.anchor {
             try!(write!(f, "; anchor=\"{}\"", anchor));
         }
+        if let Some(ref as_) = self.as_ {
+            try!(write!(f, "; as={}", as_));
+        }
         if let Some(ref rev) = self.rev {
             try!(fmt_delimited(f, rev.as_slice(), " ", ("; rev=\"", "\"")));
         }
@@ -452,6 +507,12 @@ impl fmt::Display for LinkValue {
         }
         if let Some(ref media_type) = self.media_type {
             try!(write!(f, "; type=\"{}\"", media_type));
+        }
+        if let Some(ref _crossorigin) = self.crossorigin {
+            try!(write!(f, "; crossorigin"));
+        }
+        if let Some(ref _nopush) = self.nopush {
+            try!(write!(f, "; nopush"));
         }
 
         Ok(())
@@ -481,12 +542,15 @@ impl FromStr for Link {
                                 link: s.to_owned().into(),
                                 rel: None,
                                 anchor: None,
+                                as_: None,
                                 rev: None,
                                 href_lang: None,
                                 media_desc: None,
                                 title: None,
                                 title_star: None,
                                 media_type: None,
+                                crossorigin: None,
+                                nopush: None,
                             }
                         },
                     }
@@ -531,6 +595,15 @@ impl FromStr for Link {
                             Ok(a) => Some(String::from(a)),
                         },
                     };
+                } else if "as".eq_ignore_ascii_case(link_param_name) {
+                    // Parse target attribute: `as`.
+                    // https://tools.ietf.org/html/rfc5988#section-5.4
+                    if link_header.as_.is_none() {
+                        link_header.as_ = match link_param_split.next() {
+                            None | Some("") => return Err(::Error::Header),
+                            Some(s) => Some(String::from(s.trim())),
+                        };
+                    }
                 } else if "rev".eq_ignore_ascii_case(link_param_name) {
                     // Parse relation type: `rev`.
                     // https://tools.ietf.org/html/rfc5988#section-5.3
@@ -619,6 +692,14 @@ impl FromStr for Link {
 
                         };
                     }
+                } else if "crossorigin".eq_ignore_ascii_case(link_param_name) {
+                    // Parse target attribute: `crossorigin`.
+                    // https://tools.ietf.org/html/rfc5988#section-5.4
+                    link_header.crossorigin = Some(());
+                } else if "nopush".eq_ignore_ascii_case(link_param_name) {
+                    // Parse target attribute: `nopush`.
+                    // https://tools.ietf.org/html/rfc5988#section-5.4
+                    link_header.nopush = Some(());
                 } else {
                     return Err(::Error::Header);
                 }
@@ -690,6 +771,8 @@ impl fmt::Display for RelationType {
             RelationType::Next => write!(f, "next"),
             RelationType::NextArchive => write!(f, "next-archive"),
             RelationType::Payment => write!(f, "payment"),
+            RelationType::Prefetch => write!(f, "prefetch"),
+            RelationType::Preload => write!(f, "preload"),
             RelationType::Prev => write!(f, "prev"),
             RelationType::PredecessorVersion => write!(f, "predecessor-version"),
             RelationType::Previous => write!(f, "previous"),
@@ -761,6 +844,10 @@ impl FromStr for RelationType {
             Ok(RelationType::NextArchive)
         } else if "payment".eq_ignore_ascii_case(s) {
             Ok(RelationType::Payment)
+        } else if "prefetch".eq_ignore_ascii_case(s) {
+            Ok(RelationType::Prefetch)
+        } else if "preload".eq_ignore_ascii_case(s) {
+            Ok(RelationType::Preload)
         } else if "prev".eq_ignore_ascii_case(s) {
             Ok(RelationType::Prev)
         } else if "predecessor-version".eq_ignore_ascii_case(s) {
@@ -1057,7 +1144,23 @@ mod tests {
 
         err = Header::parse_header(&vec![link_e.to_vec()].into());
         assert_eq!(err.is_err(), true);
-     }
+    }
+
+    #[test]
+    fn test_link_preloading() {
+        let link_value = LinkValue::new("/foo")
+            .push_rel(RelationType::Preload)
+            .set_as("script")
+            .set_crossorigin()
+            .set_nopush();
+
+        let link_header = b"</foo>; rel=preload; as=script; crossorigin; nopush";
+
+        let expected_link = Link::new(vec![link_value]);
+
+        let link = Header::parse_header(&vec![link_header.to_vec()].into());
+        assert_eq!(link.ok(), Some(expected_link));
+    }
 
     #[test]
     fn test_link_split_ascii_unquoted_iterator() {
