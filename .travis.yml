@@ -14,6 +14,7 @@ matrix:
         - rust: stable
           env: FEATURES="--features compat"
         - rust: 1.18.0
+          env: BUILD_ONLY=1
 
 cache:
     apt: true
