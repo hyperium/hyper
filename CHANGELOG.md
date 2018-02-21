@@ -1,3 +1,19 @@
+### v0.11.19 (2018-02-21)
+
+
+#### Bug Fixes
+
+* **client:**
+  * prevent empty bodies sending transfer-encoding for GET, HEAD ([77adab4e](https://github.com/hyperium/hyper/commit/77adab4ebf0fadd9ccd014d24ff0bcec1bce1e8b))
+  * detect connection closes as pool tries to use ([dc619a8f](https://github.com/hyperium/hyper/commit/dc619a8fa01616b260ef32a35b35963460987206), closes [#1439](https://github.com/hyperium/hyper/issues/1439))
+* **uri:** make absolute-form uris always have a path ([a9413d73](https://github.com/hyperium/hyper/commit/a9413d7367e8b9f0245fc8a90a22ece7d55e7e04))
+
+
+#### Features
+
+* **client:** Client will retry requests on fresh connections ([ee61ea9a](https://github.com/hyperium/hyper/commit/ee61ea9adf86b309490a68d044e40bd1090338e8))
+
+
 ### v0.11.18 (2018-02-07)
 
 
