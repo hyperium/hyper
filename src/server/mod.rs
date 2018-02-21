@@ -257,6 +257,34 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     ///
     /// This returns a Future that must be polled in order for HTTP to be
     /// driven on the connection.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # extern crate futures;
+    /// # extern crate hyper;
+    /// # extern crate tokio_core;
+    /// # extern crate tokio_io;
+    /// # use futures::Future;
+    /// # use hyper::server::{Http, Request, Response, Service};
+    /// # use tokio_io::{AsyncRead, AsyncWrite};
+    /// # use tokio_core::reactor::Handle;
+    /// # fn run<I, S>(some_io: I, some_service: S, some_handle: &Handle)
+    /// # where
+    /// #     I: AsyncRead + AsyncWrite + 'static,
+    /// #     S: Service<Request=Request, Response=Response, Error=hyper::Error> + 'static,
+    /// # {
+    /// let http = Http::<hyper::Chunk>::new();
+    /// let conn = http.serve_connection(some_io, some_service);
+    ///
+    /// let fut = conn
+    ///     .map(|_| ())
+    ///     .map_err(|e| eprintln!("server connection error: {}", e));
+    ///
+    /// some_handle.spawn(fut);
+    /// # }
+    /// # fn main() {}
+    /// ```
     pub fn serve_connection<S, I, Bd>(&self, io: I, service: S) -> Connection<I, S>
         where S: Service<Request = Request, Response = Response<Bd>, Error = ::Error>,
               Bd: Stream<Error=::Error>,
