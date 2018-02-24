@@ -664,6 +664,7 @@ impl Stream for AddrIncoming {
     type Error = ::std::io::Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        // Check if a previous timeout is active that was set by IO errors.
         if let Some(ref mut to) = self.timeout {
             match to.poll().expect("timeout never fails") {
                 Async::Ready(_) => {}
@@ -682,8 +683,13 @@ impl Stream for AddrIncoming {
                     return Ok(Async::Ready(Some(AddrStream::new(socket, addr))));
                 },
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => return Ok(Async::NotReady),
-                Err(ref e) if connection_error(e) => continue,
-                Err(e) => {
+                Err(ref e) if self.sleep_on_errors => {
+                    // Connection errors can be ignored directly, continue by
+                    // accepting the next request.
+                    if connection_error(e) {
+                        continue;
+                    }
+                    // Sleep 10ms.
                     let delay = ::std::time::Duration::from_millis(10);
                     debug!("Accept error: {}. Sleeping {:?}...",
                         e, delay);
@@ -698,7 +704,8 @@ impl Stream for AddrIncoming {
                             return Ok(Async::NotReady);
                         }
                     }
-                }
+                },
+                Err(e) => return Err(e),
             }
         }
     }
