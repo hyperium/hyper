@@ -58,6 +58,10 @@ impl<B> Request<B> {
     #[inline]
     pub fn body_ref(&self) -> Option<&B> { self.body.as_ref() }
 
+     /// Get a mutable reference to the Request body.
+    #[inline]
+    pub fn body_mut(&mut self) -> &mut Option<B> { &mut self.body }
+
     #[doc(hidden)]
     #[inline]
     #[deprecated(since="0.11.12", note="This method will be gone in future versions.")]

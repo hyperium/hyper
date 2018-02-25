@@ -49,6 +49,22 @@ impl Body {
         let (tx, rx) = channel();
         (tx.tx, rx)
     }
+
+    /// Returns if this body was constructed via `Body::empty()`.
+    ///
+    /// # Note
+    ///
+    /// This does **not** detect if the body stream may be at the end, or
+    /// if the stream will not yield any chunks, in all cases. For instance,
+    /// a streaming body using `chunked` encoding is not able to tell if
+    /// there are more chunks immediately.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        match self.0 {
+            Inner::Empty => true,
+            _ => false,
+        }
+    }
 }
 
 impl Default for Body {
