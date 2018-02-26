@@ -57,6 +57,7 @@ pub struct Http<B = ::Chunk> {
     max_buf_size: Option<usize>,
     keep_alive: bool,
     pipeline: bool,
+    sleep_on_errors: bool,
     _marker: PhantomData<B>,
 }
 
@@ -102,6 +103,9 @@ pub struct AddrIncoming {
     addr: SocketAddr,
     keep_alive_timeout: Option<Duration>,
     listener: TcpListener,
+    handle: Handle,
+    sleep_on_errors: bool,
+    timeout: Option<Timeout>,
 }
 
 /// A future binding a connection with a Service.
@@ -144,6 +148,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
             keep_alive: true,
             max_buf_size: None,
             pipeline: false,
+            sleep_on_errors: false,
             _marker: PhantomData,
         }
     }
@@ -169,6 +174,18 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     /// Default is false.
     pub fn pipeline(&mut self, enabled: bool) -> &mut Self {
         self.pipeline = enabled;
+        self
+    }
+
+    /// Swallow connection accept errors. Instead of passing up IO errors when
+    /// the server is under heavy load the errors will be ignored. Some
+    /// connection accept errors (like "connection reset") can be ignored, some
+    /// (like "too many files open") may consume 100% CPU and a timout of 10ms
+    /// is used in that case.
+    ///
+    /// Default is false.
+    pub fn sleep_on_errors(&mut self, enabled: bool) -> &mut Self {
+        self.sleep_on_errors = enabled;
         self
     }
 
@@ -225,7 +242,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
               Bd: Stream<Item=B, Error=::Error>,
     {
         let listener = TcpListener::bind(addr, &handle)?;
-        let mut incoming = AddrIncoming::new(listener)?;
+        let mut incoming = AddrIncoming::new(listener, handle.clone(), self.sleep_on_errors)?;
         if self.keep_alive {
             incoming.set_keepalive(Some(Duration::from_secs(90)));
         }
@@ -248,6 +265,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
                 keep_alive: self.keep_alive,
                 max_buf_size: self.max_buf_size,
                 pipeline: self.pipeline,
+                sleep_on_errors: self.sleep_on_errors,
                 _marker: PhantomData,
             },
         }
@@ -394,7 +412,7 @@ impl<S, B> Server<S, B>
 
         let handle = reactor.handle();
 
-        let mut incoming = AddrIncoming::new(listener)?;
+        let mut incoming = AddrIncoming::new(listener, handle.clone(), protocol.sleep_on_errors)?;
 
         if protocol.keep_alive {
             incoming.set_keepalive(Some(Duration::from_secs(90)));
@@ -619,11 +637,14 @@ mod unnameable {
 // ===== impl AddrIncoming =====
 
 impl AddrIncoming {
-    fn new(listener: TcpListener) -> io::Result<AddrIncoming> {
+    fn new(listener: TcpListener, handle: Handle, sleep_on_errors: bool) -> io::Result<AddrIncoming> {
          Ok(AddrIncoming {
             addr: listener.local_addr()?,
             keep_alive_timeout: None,
             listener: listener,
+            handle: handle,
+            sleep_on_errors: sleep_on_errors,
+            timeout: None,
         })
     }
 
@@ -643,6 +664,14 @@ impl Stream for AddrIncoming {
     type Error = ::std::io::Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        // Check if a previous timeout is active that was set by IO errors.
+        if let Some(ref mut to) = self.timeout {
+            match to.poll().expect("timeout never fails") {
+                Async::Ready(_) => {}
+                Async::NotReady => return Ok(Async::NotReady),
+            }
+        }
+        self.timeout = None;
         loop {
             match self.listener.accept() {
                 Ok((socket, addr)) => {
@@ -654,10 +683,45 @@ impl Stream for AddrIncoming {
                     return Ok(Async::Ready(Some(AddrStream::new(socket, addr))));
                 },
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => return Ok(Async::NotReady),
+                Err(ref e) if self.sleep_on_errors => {
+                    // Connection errors can be ignored directly, continue by
+                    // accepting the next request.
+                    if connection_error(e) {
+                        continue;
+                    }
+                    // Sleep 10ms.
+                    let delay = ::std::time::Duration::from_millis(10);
+                    debug!("Accept error: {}. Sleeping {:?}...",
+                        e, delay);
+                    let mut timeout = Timeout::new(delay, &self.handle)
+                        .expect("can always set a timeout");
+                    let result = timeout.poll()
+                        .expect("timeout never fails");
+                    match result {
+                        Async::Ready(()) => continue,
+                        Async::NotReady => {
+                            self.timeout = Some(timeout);
+                            return Ok(Async::NotReady);
+                        }
+                    }
+                },
                 Err(e) => return Err(e),
             }
         }
     }
+}
+
+/// This function defines errors that are per-connection. Which basically
+/// means that if we get this error from `accept()` system call it means
+/// next connection might be ready to be accepted.
+///
+/// All other errors will incur a timeout before next `accept()` is performed.
+/// The timeout is useful to handle resource exhaustion errors like ENFILE
+/// and EMFILE. Otherwise, could enter into tight loop.
+fn connection_error(e: &io::Error) -> bool {
+    e.kind() == io::ErrorKind::ConnectionRefused ||
+    e.kind() == io::ErrorKind::ConnectionAborted ||
+    e.kind() == io::ErrorKind::ConnectionReset
 }
 
 mod addr_stream {
