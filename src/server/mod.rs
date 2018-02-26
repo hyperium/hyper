@@ -691,7 +691,7 @@ impl Stream for AddrIncoming {
                     }
                     // Sleep 10ms.
                     let delay = ::std::time::Duration::from_millis(10);
-                    debug!("Accept error: {}. Sleeping {:?}...",
+                    debug!("accept error: {}; sleeping {:?}",
                         e, delay);
                     let mut timeout = Timeout::new(delay, &self.handle)
                         .expect("can always set a timeout");
