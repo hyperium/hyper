@@ -1,3 +1,19 @@
+### v0.11.20 (2018-02-26)
+
+
+#### Bug Fixes
+
+* **server:**
+  * Make sleep_on_errors configurable and use it in example ([3a36eb55](https://github.com/hyperium/hyper/commit/3a36eb559676349d8a321c3159684503014f7fbe))
+  * Sleep on socket IO errors ([68458cde](https://github.com/hyperium/hyper/commit/68458cde57a20f4b3c9c306eaf9801189262e0a6))
+
+
+#### Features
+
+* **body:** add `Body::is_empty()` method ([2f45d539](https://github.com/hyperium/hyper/commit/2f45d5394a2f8a49442ff4798a4b1651c079f0ff))
+* **request:** add `Request::body_mut()` method ([3fa191a2](https://github.com/hyperium/hyper/commit/3fa191a2676feb86c91abf8dfcc8e63477980297))
+
+
 ### v0.11.19 (2018-02-21)
 
 
