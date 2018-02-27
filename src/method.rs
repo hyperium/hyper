@@ -8,14 +8,14 @@ use http;
 
 use error::Error;
 use self::Method::{Options, Get, Post, Put, Delete, Head, Trace, Connect, Patch,
-                   Extension};
+                   Link, Unlink, Extension};
 
 
 /// The Request Method (VERB)
 ///
 /// Currently includes 8 variants representing the 8 methods defined in
 /// [RFC 7230](https://tools.ietf.org/html/rfc7231#section-4.1), plus PATCH,
-/// and an Extension variant for all extensions.
+/// LINK, UNLINK and an Extension variant for all extensions.
 ///
 /// It may make sense to grow this to include all variants currently
 /// registered with IANA, if they are at all common to use.
@@ -39,6 +39,10 @@ pub enum Method {
     Connect,
     /// PATCH
     Patch,
+    /// LINK
+    Link,
+    /// UNLINK
+    Unlink,
     /// Method extensions. An example would be `let m = Extension("FOO".to_string())`.
     Extension(String)
 }
@@ -55,6 +59,8 @@ impl AsRef<str> for Method {
             Trace => "TRACE",
             Connect => "CONNECT",
             Patch => "PATCH",
+            Link => "LINK",
+            Unlink => "UNLINK",
             Extension(ref s) => s.as_ref()
         }
     }
@@ -148,6 +154,8 @@ impl fmt::Display for Method {
             Trace => "TRACE",
             Connect => "CONNECT",
             Patch => "PATCH",
+            Link => "LINK",
+            Unlink => "UNLINK",
             Extension(ref s) => s.as_ref()
         })
     }
@@ -211,6 +219,10 @@ impl From<Method> for http::Method {
                 http::Method::CONNECT,
             Method::Patch =>
                 http::Method::PATCH,
+            Method::Link =>
+                http::Method::from_bytes(b"LINK").unwrap(),
+            Method::Unlink =>
+                http::Method::from_bytes(b"UNLINK").unwrap(),
             Method::Trace =>
                 http::Method::TRACE,
             Method::Extension(s) => {
