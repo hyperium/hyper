@@ -182,22 +182,25 @@ where C: Connect,
             let pool = self.pool.clone();
             let pool_key = Rc::new(domain.to_string());
             let h1_writev = self.h1_writev;
-            self.connector.connect(url)
-                .and_then(move |io| {
-                    let (tx, rx) = dispatch::channel();
-                    let tx = HyperClient {
-                        tx: tx,
-                        should_close: Cell::new(true),
-                    };
-                    let pooled = pool.pooled(pool_key, tx);
-                    let mut conn = proto::Conn::<_, _, proto::ClientTransaction, _>::new(io, pooled.clone());
-                    if !h1_writev {
-                        conn.set_write_strategy_flatten();
-                    }
-                    let dispatch = proto::dispatch::Dispatcher::new(proto::dispatch::Client::new(rx), conn);
-                    executor.execute(dispatch.map_err(|e| debug!("client connection error: {}", e)))?;
-                    Ok(pooled)
-                })
+            let connector = self.connector.clone();
+            future::lazy(move || {
+                connector.connect(url)
+                    .and_then(move |io| {
+                        let (tx, rx) = dispatch::channel();
+                        let tx = HyperClient {
+                            tx: tx,
+                            should_close: Cell::new(true),
+                        };
+                        let pooled = pool.pooled(pool_key, tx);
+                        let mut conn = proto::Conn::<_, _, proto::ClientTransaction, _>::new(io, pooled.clone());
+                        if !h1_writev {
+                            conn.set_write_strategy_flatten();
+                        }
+                        let dispatch = proto::dispatch::Dispatcher::new(proto::dispatch::Client::new(rx), conn);
+                        executor.execute(dispatch.map_err(|e| debug!("client connection error: {}", e)))?;
+                        Ok(pooled)
+                    })
+            })
         };
 
         let race = checkout.select(connect)
