@@ -376,13 +376,9 @@ impl<B> Clone for HyperClient<B> {
     }
 }
 
-impl<B> self::pool::Ready for HyperClient<B> {
-    fn poll_ready(&mut self) -> Poll<(), ()> {
-        if self.tx.is_closed() {
-            Err(())
-        } else {
-            Ok(Async::Ready(()))
-        }
+impl<B> self::pool::Closed for HyperClient<B> {
+    fn is_closed(&self) -> bool {
+        self.tx.is_closed()
     }
 }
 
