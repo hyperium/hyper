@@ -41,6 +41,12 @@ struct PoolInner<T> {
     // connection.
     parked: HashMap<Rc<String>, VecDeque<relay::Sender<Entry<T>>>>,
     timeout: Option<Duration>,
+    // Used to prevent multiple intervals from being spawned to clear
+    // expired connections.
+    //
+    // TODO(0.12): Remove the need for this when Client::schedule_pool_timer
+    // can be done in Client::new.
+    expired_timer_spawned: bool,
 }
 
 impl<T: Clone + Ready> Pool<T> {
@@ -51,6 +57,7 @@ impl<T: Clone + Ready> Pool<T> {
                 idle: HashMap::new(),
                 parked: HashMap::new(),
                 timeout: timeout,
+                expired_timer_spawned: false,
             })),
         }
     }
@@ -229,11 +236,16 @@ impl<T> Pool<T> {
 
 impl<T: 'static> Pool<T> {
     pub(super) fn spawn_expired_interval(&self, handle: &Handle) {
-        let inner = self.inner.borrow();
+        let mut inner = self.inner.borrow_mut();
 
         if !inner.enabled {
             return;
         }
+
+        if inner.expired_timer_spawned {
+            return;
+        }
+        inner.expired_timer_spawned = true;
 
         let dur = if let Some(dur) = inner.timeout {
             dur
@@ -529,7 +541,9 @@ mod tests {
 
     #[test]
     fn test_pool_timer_removes_expired() {
-        let pool = Pool::new(true, Some(Duration::from_secs(1)));
+        let mut core = ::tokio::reactor::Core::new().unwrap();
+        let pool = Pool::new(true, Some(Duration::from_millis(100)));
+        pool.spawn_expired_interval(&core.handle());
         let key = Rc::new("foo".to_string());
 
         let mut pooled1 = pool.pooled(key.clone(), 41);
@@ -540,9 +554,13 @@ mod tests {
         pooled3.idle();
 
         assert_eq!(pool.inner.borrow().idle.get(&key).map(|entries| entries.len()), Some(3));
-        ::std::thread::sleep(pool.inner.borrow().timeout.unwrap());
 
-        pool.clear_expired();
+        let timeout = ::tokio::reactor::Timeout::new(
+            Duration::from_millis(400), // allow for too-good resolution
+            &core.handle()
+        ).unwrap();
+        core.run(timeout).unwrap();
+
         assert!(pool.inner.borrow().idle.get(&key).is_none());
     }
 

@@ -90,33 +90,15 @@ impl<C, B> Client<C, B> {
             Exec::Executor(..) => panic!("Client not built with a Handle"),
         }
     }
-}
 
-
-impl<C, B> Client<C, B>
-where C: Connect,
-      B: Stream<Error=::Error>,
-      B::Item: AsRef<[u8]>,
-{
-    // Create a new client with a specific connector.
     #[inline]
     fn configured(config: Config<C, B>, exec: Exec) -> Client<C, B> {
-        let client = Client {
+        Client {
             connector: Rc::new(config.connector),
             executor: exec,
             h1_writev: config.h1_writev,
             pool: Pool::new(config.keep_alive, config.keep_alive_timeout),
             retry_canceled_requests: config.retry_canceled_requests,
-        };
-
-        client.schedule_pool_timer();
-
-        client
-    }
-
-    fn schedule_pool_timer(&self) {
-        if let Exec::Handle(ref h) = self.executor {
-            self.pool.spawn_expired_interval(h);
         }
     }
 }
@@ -135,6 +117,14 @@ where C: Connect,
     /// Send a constructed Request using this Client.
     #[inline]
     pub fn request(&self, mut req: Request<B>) -> FutureResponse {
+        // TODO(0.12): do this at construction time.
+        //
+        // It cannot be done in the constructor because the Client::configured
+        // does not have `B: 'static` bounds, which are required to spawn
+        // the interval. In 0.12, add a static bounds to the constructor,
+        // and move this.
+        self.schedule_pool_timer();
+
         match req.version() {
             HttpVersion::Http10 |
             HttpVersion::Http11 => (),
@@ -262,6 +252,12 @@ where C: Connect,
         });
 
         Box::new(resp)
+    }
+
+    fn schedule_pool_timer(&self) {
+        if let Exec::Handle(ref h) = self.executor {
+            self.pool.spawn_expired_interval(h);
+        }
     }
 }
 
