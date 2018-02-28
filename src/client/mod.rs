@@ -90,16 +90,33 @@ impl<C, B> Client<C, B> {
             Exec::Executor(..) => panic!("Client not built with a Handle"),
         }
     }
+}
 
-    /// Create a new client with a specific connector.
+
+impl<C, B> Client<C, B>
+where C: Connect,
+      B: Stream<Error=::Error>,
+      B::Item: AsRef<[u8]>,
+{
+    // Create a new client with a specific connector.
     #[inline]
     fn configured(config: Config<C, B>, exec: Exec) -> Client<C, B> {
-        Client {
+        let client = Client {
             connector: Rc::new(config.connector),
             executor: exec,
             h1_writev: config.h1_writev,
             pool: Pool::new(config.keep_alive, config.keep_alive_timeout),
             retry_canceled_requests: config.retry_canceled_requests,
+        };
+
+        client.schedule_pool_timer();
+
+        client
+    }
+
+    fn schedule_pool_timer(&self) {
+        if let Exec::Handle(ref h) = self.executor {
+            self.pool.spawn_expired_interval(h);
         }
     }
 }
