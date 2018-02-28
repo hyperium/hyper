@@ -91,7 +91,6 @@ impl<C, B> Client<C, B> {
         }
     }
 
-    /// Create a new client with a specific connector.
     #[inline]
     fn configured(config: Config<C, B>, exec: Exec) -> Client<C, B> {
         Client {
@@ -118,6 +117,14 @@ where C: Connect,
     /// Send a constructed Request using this Client.
     #[inline]
     pub fn request(&self, mut req: Request<B>) -> FutureResponse {
+        // TODO(0.12): do this at construction time.
+        //
+        // It cannot be done in the constructor because the Client::configured
+        // does not have `B: 'static` bounds, which are required to spawn
+        // the interval. In 0.12, add a static bounds to the constructor,
+        // and move this.
+        self.schedule_pool_timer();
+
         match req.version() {
             HttpVersion::Http10 |
             HttpVersion::Http11 => (),
@@ -248,6 +255,12 @@ where C: Connect,
         });
 
         Box::new(resp)
+    }
+
+    fn schedule_pool_timer(&self) {
+        if let Exec::Handle(ref h) = self.executor {
+            self.pool.spawn_expired_interval(h);
+        }
     }
 }
 
