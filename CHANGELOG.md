@@ -1,3 +1,14 @@
+### v0.11.21 (2018-02-28)
+
+
+#### Bug Fixes
+
+* **client:**
+  * check conn is closed in expire interval ([2fa0c845](https://github.com/hyperium/hyper/commit/2fa0c845b5f3f07e039522a9112a14593e02fe1b))
+  * schedule interval to clear expired idle connections ([727b7479](https://github.com/hyperium/hyper/commit/727b74797e5754af8abba8812a876c3c8fda6d94))
+  * never call connect if idle connection is available ([13741f51](https://github.com/hyperium/hyper/commit/13741f5145eb3dc894d2bc8d8486fc51c29e2e41))
+
+
 ### v0.11.20 (2018-02-26)
 
 
