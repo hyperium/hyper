@@ -6,13 +6,12 @@ use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 
 use httparse;
-
-pub use uri::UriError;
+use http;
 
 use self::Error::{
     Method,
-    Uri,
     Version,
+    Uri,
     Header,
     Status,
     Timeout,
@@ -33,10 +32,10 @@ pub type Result<T> = ::std::result::Result<T, Error>;
 pub enum Error {
     /// An invalid `Method`, such as `GE,T`.
     Method,
-    /// An invalid `Uri`, such as `exam ple.domain`.
-    Uri(UriError),
     /// An invalid `HttpVersion`, such as `HTP/1.1`
     Version,
+    /// Uri Errors
+    Uri,
     /// An invalid `Header`.
     Header,
     /// A message head is too large to be reasonable.
@@ -105,7 +104,6 @@ impl fmt::Debug for Void {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Uri(ref e) => fmt::Display::fmt(e, f),
             Io(ref e) => fmt::Display::fmt(e, f),
             Utf8(ref e) => fmt::Display::fmt(e, f),
             ref e => f.write_str(e.description()),
@@ -118,6 +116,7 @@ impl StdError for Error {
         match *self {
             Method => "invalid Method specified",
             Version => "invalid HTTP version specified",
+            Uri => "invalid URI",
             Header => "invalid Header provided",
             TooLarge => "message head is too large",
             Status => "invalid Status provided",
@@ -126,7 +125,6 @@ impl StdError for Error {
             Upgrade => "unsupported protocol upgrade",
             Closed => "connection is closed",
             Cancel(ref e) => e.description(),
-            Uri(ref e) => e.description(),
             Io(ref e) => e.description(),
             Utf8(ref e) => e.description(),
             Error::__Nonexhaustive(..) =>  unreachable!(),
@@ -136,18 +134,11 @@ impl StdError for Error {
     fn cause(&self) -> Option<&StdError> {
         match *self {
             Io(ref error) => Some(error),
-            Uri(ref error) => Some(error),
             Utf8(ref error) => Some(error),
             Cancel(ref e) => e.cause.as_ref().map(|e| &**e as &StdError),
             Error::__Nonexhaustive(..) =>  unreachable!(),
             _ => None,
         }
-    }
-}
-
-impl From<UriError> for Error {
-    fn from(err: UriError) -> Error {
-        Uri(err)
     }
 }
 
@@ -180,6 +171,18 @@ impl From<httparse::Error> for Error {
             httparse::Error::TooManyHeaders => TooLarge,
             httparse::Error::Version => Version,
         }
+    }
+}
+
+impl From<http::method::InvalidMethod> for Error {
+    fn from(_: http::method::InvalidMethod) -> Error {
+        Error::Method
+    }
+}
+
+impl From<http::uri::InvalidUriBytes> for Error {
+    fn from(_: http::uri::InvalidUriBytes) -> Error {
+        Error::Uri
     }
 }
 

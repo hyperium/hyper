@@ -23,7 +23,12 @@ fn retryable_request() {
 
 
     {
-        let res1 = client.get("http://mock.local/a".parse().unwrap());
+
+        let req = Request::builder()
+            .uri("http://mock.local/a")
+            .body(Default::default())
+            .unwrap();
+        let res1 = client.request(req);
         let srv1 = poll_fn(|| {
             try_ready!(sock1.read(&mut [0u8; 512]));
             try_ready!(sock1.write(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"));
@@ -33,7 +38,11 @@ fn retryable_request() {
     }
     drop(sock1);
 
-    let res2 = client.get("http://mock.local/b".parse().unwrap())
+    let req = Request::builder()
+        .uri("http://mock.local/b")
+        .body(Default::default())
+        .unwrap();
+    let res2 = client.request(req)
         .map(|res| {
             assert_eq!(res.status().as_u16(), 222);
         });
@@ -61,7 +70,13 @@ fn conn_reset_after_write() {
 
 
     {
-        let res1 = client.get("http://mock.local/a".parse().unwrap());
+        let req = Request::builder()
+            .uri("http://mock.local/a")
+            //TODO: remove this header when auto lengths are fixed
+            .header("content-length", "0")
+            .body(Default::default())
+            .unwrap();
+        let res1 = client.request(req);
         let srv1 = poll_fn(|| {
             try_ready!(sock1.read(&mut [0u8; 512]));
             try_ready!(sock1.write(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"));
@@ -70,7 +85,11 @@ fn conn_reset_after_write() {
         core.run(res1.join(srv1)).expect("res1");
     }
 
-    let res2 = client.get("http://mock.local/a".parse().unwrap());
+    let req = Request::builder()
+        .uri("http://mock.local/a")
+        .body(Default::default())
+        .unwrap();
+    let res2 = client.request(req);
     let mut sock1 = Some(sock1);
     let srv2 = poll_fn(|| {
         // We purposefully keep the socket open until the client

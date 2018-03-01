@@ -14,7 +14,7 @@ use bytes::Bytes;
 use futures::{Future, Poll, Stream};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use proto;
+use proto::{self, Body};
 use super::{HyperService, Request, Response, Service};
 
 /// A future binding a connection with a Service.
@@ -59,7 +59,7 @@ pub struct Parts<T> {
 // ===== impl Connection =====
 
 impl<I, B, S> Connection<I, S>
-where S: Service<Request = Request, Response = Response<B>, Error = ::Error> + 'static,
+where S: Service<Request = Request<Body>, Response = Response<B>, Error = ::Error> + 'static,
       I: AsyncRead + AsyncWrite + 'static,
       B: Stream<Error=::Error> + 'static,
       B::Item: AsRef<[u8]>,
@@ -97,7 +97,7 @@ where S: Service<Request = Request, Response = Response<B>, Error = ::Error> + '
 }
 
 impl<I, B, S> Future for Connection<I, S>
-where S: Service<Request = Request, Response = Response<B>, Error = ::Error> + 'static,
+where S: Service<Request = Request<Body>, Response = Response<B>, Error = ::Error> + 'static,
       I: AsyncRead + AsyncWrite + 'static,
       B: Stream<Error=::Error> + 'static,
       B::Item: AsRef<[u8]>,

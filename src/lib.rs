@@ -11,24 +11,18 @@
 //! layer over "stringly-typed" HTTP.
 //!
 //! Hyper provides both a [Client](client/index.html) and a
-//! [Server](server/index.html), along with a
-//! [typed Headers system](header/index.html).
+//! [Server](server/index.html).
 //!
 //! If just starting out, **check out the [Guides](https://hyper.rs/guides)
 //! first.**
 
-extern crate base64;
 extern crate bytes;
 #[macro_use] extern crate futures;
 extern crate futures_cpupool;
-#[cfg(feature = "compat")]
 extern crate http;
 extern crate httparse;
 extern crate iovec;
-extern crate language_tags;
 #[macro_use] extern crate log;
-pub extern crate mime;
-#[macro_use] extern crate percent_encoding;
 extern crate relay;
 extern crate time;
 extern crate tokio_core as tokio;
@@ -39,29 +33,25 @@ extern crate unicase;
 #[cfg(all(test, feature = "nightly"))]
 extern crate test;
 
-pub use uri::Uri;
+pub use http::{
+    Method,
+    Request,
+    Response,
+    StatusCode,
+    Uri,
+    Version,
+};
+
 pub use client::Client;
 pub use error::{Result, Error};
-pub use header::Headers;
 pub use proto::{Body, Chunk};
-pub use proto::request::Request;
-pub use proto::response::Response;
-pub use method::Method::{self, Get, Head, Post, Put, Delete};
-pub use status::StatusCode::{self, Ok, BadRequest, NotFound};
 pub use server::Server;
-pub use version::HttpVersion;
-#[cfg(feature = "raw_status")]
-pub use proto::RawStatus;
 
 mod common;
 #[cfg(test)]
 mod mock;
 pub mod client;
 pub mod error;
-mod method;
-pub mod header;
+mod headers;
 mod proto;
 pub mod server;
-mod status;
-mod uri;
-mod version;

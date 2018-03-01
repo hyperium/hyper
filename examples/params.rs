@@ -6,9 +6,8 @@ extern crate url;
 
 use futures::{Future, Stream};
 
-use hyper::{Get, Post, StatusCode};
-use hyper::header::ContentLength;
-use hyper::server::{Http, Service, Request, Response};
+use hyper::{Body, Method, Request, Response, StatusCode};
+use hyper::server::{Http, Service};
 
 use std::collections::HashMap;
 use url::form_urlencoded;
@@ -20,20 +19,18 @@ static NOTNUMERIC: &[u8] = b"Number field is not numeric";
 struct ParamExample;
 
 impl Service for ParamExample {
-    type Request = Request;
-    type Response = Response;
+    type Request = Request<Body>;
+    type Response = Response<Body>;
     type Error = hyper::Error;
     type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
 
-    fn call(&self, req: Request) -> Self::Future {
-        match (req.method(), req.path()) {
-            (&Get, "/") | (&Get, "/post") => {
-                Box::new(futures::future::ok(Response::new()
-                                             .with_header(ContentLength(INDEX.len() as u64))
-                                             .with_body(INDEX)))
+    fn call(&self, req: Request<Body>) -> Self::Future {
+        match (req.method(), req.uri().path()) {
+            (&Method::GET, "/") | (&Method::GET, "/post") => {
+                Box::new(futures::future::ok(Response::new(INDEX.into())))
             },
-            (&Post, "/post") => {
-                Box::new(req.body().concat2().map(|b| {
+            (&Method::POST, "/post") => {
+                Box::new(req.into_parts().1.concat2().map(|b| {
                     // Parse the request body. form_urlencoded::parse
                     // always succeeds, but in general parsing may
                     // fail (for example, an invalid post of json), so
@@ -52,25 +49,25 @@ impl Service for ParamExample {
                     let name = if let Some(n) = params.get("name") {
                         n
                     } else {
-                        return Response::new()
-                            .with_status(StatusCode::UnprocessableEntity)
-                            .with_header(ContentLength(MISSING.len() as u64))
-                            .with_body(MISSING);
+                        return Response::builder()
+                            .status(StatusCode::UNPROCESSABLE_ENTITY)
+                            .body(MISSING.into())
+                            .unwrap();
                     };
                     let number = if let Some(n) = params.get("number") {
                         if let Ok(v) = n.parse::<f64>() {
                             v
                         } else {
-                            return Response::new()
-                                .with_status(StatusCode::UnprocessableEntity)
-                                .with_header(ContentLength(NOTNUMERIC.len() as u64))
-                                .with_body(NOTNUMERIC);
+                            return Response::builder()
+                                .status(StatusCode::UNPROCESSABLE_ENTITY)
+                                .body(NOTNUMERIC.into())
+                                .unwrap();
                         }
                     } else {
-                        return Response::new()
-                            .with_status(StatusCode::UnprocessableEntity)
-                            .with_header(ContentLength(MISSING.len() as u64))
-                            .with_body(MISSING);
+                        return Response::builder()
+                            .status(StatusCode::UNPROCESSABLE_ENTITY)
+                            .body(MISSING.into())
+                            .unwrap();
                     };
 
                     // Render the response. This will often involve
@@ -80,14 +77,14 @@ impl Service for ParamExample {
                     // responses such as InternalServiceError may be
                     // needed here, too.
                     let body = format!("Hello {}, your number is {}", name, number);
-                    Response::new()
-                        .with_header(ContentLength(body.len() as u64))
-                        .with_body(body)
+                    Response::new(body.into())
                 }))
             },
             _ => {
-                Box::new(futures::future::ok(Response::new()
-                                    .with_status(StatusCode::NotFound)))
+                Box::new(futures::future::ok(Response::builder()
+                                    .status(StatusCode::NOT_FOUND)
+                                    .body(Body::empty())
+                                    .unwrap()))
             }
         }
     }

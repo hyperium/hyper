@@ -9,11 +9,12 @@ use futures::{Future, Poll, Async};
 use futures::future::{Executor, ExecuteError};
 use futures::sync::oneshot;
 use futures_cpupool::{Builder as CpuPoolBuilder};
+use http::Uri;
+use http::uri::Scheme;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio::reactor::Handle;
 use tokio::net::{TcpStream, TcpStreamNew};
 use tokio_service::Service;
-use Uri;
 
 use super::dns;
 
@@ -118,10 +119,10 @@ impl Service for HttpConnector {
         trace!("Http::connect({:?})", uri);
 
         if self.enforce_http {
-            if uri.scheme() != Some("http") {
+            if uri.scheme_part() != Some(&Scheme::HTTP) {
                 return invalid_url(InvalidUrl::NotHttp, &self.handle);
             }
-        } else if uri.scheme().is_none() {
+        } else if uri.scheme_part().is_none() {
             return invalid_url(InvalidUrl::MissingScheme, &self.handle);
         }
 
@@ -131,10 +132,7 @@ impl Service for HttpConnector {
         };
         let port = match uri.port() {
             Some(port) => port,
-            None => match uri.scheme() {
-                Some("https") => 443,
-                _ => 80,
-            },
+            None => if uri.scheme_part() == Some(&Scheme::HTTPS) { 443 } else { 80 },
         };
 
         HttpConnecting {

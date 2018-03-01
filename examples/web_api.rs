@@ -6,10 +6,9 @@ extern crate tokio_core;
 
 use futures::{Future, Stream};
 
-use hyper::{Body, Chunk, Client, Get, Post, StatusCode};
+use hyper::{Body, Chunk, Client, Method, Request, Response, StatusCode};
 use hyper::error::Error;
-use hyper::header::ContentLength;
-use hyper::server::{Http, Service, Request, Response};
+use hyper::server::{Http, Service};
 
 #[allow(unused)]
 use std::ascii::AsciiExt;
@@ -24,50 +23,51 @@ pub type ResponseStream = Box<Stream<Item=Chunk, Error=Error>>;
 struct ResponseExamples(tokio_core::reactor::Handle);
 
 impl Service for ResponseExamples {
-    type Request = Request;
+    type Request = Request<Body>;
     type Response = Response<ResponseStream>;
     type Error = hyper::Error;
     type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
 
-    fn call(&self, req: Request) -> Self::Future {
-        match (req.method(), req.path()) {
-            (&Get, "/") | (&Get, "/index.html") => {
+    fn call(&self, req: Self::Request) -> Self::Future {
+        match (req.method(), req.uri().path()) {
+            (&Method::GET, "/") | (&Method::GET, "/index.html") => {
                 let body: ResponseStream = Box::new(Body::from(INDEX));
-                Box::new(futures::future::ok(Response::new()
-                                             .with_header(ContentLength(INDEX.len() as u64))
-                                             .with_body(body)))
+                Box::new(futures::future::ok(Response::new(body)))
             },
-            (&Get, "/test.html") => {
+            (&Method::GET, "/test.html") => {
                 // Run a web query against the web api below
                 let client = Client::configure().build(&self.0);
-                let mut req = Request::new(Post, URL.parse().unwrap());
-                req.set_body(LOWERCASE);
+                let req = Request::builder()
+                    .method(Method::POST)
+                    .uri(URL)
+                    .body(LOWERCASE.into())
+                    .unwrap();
                 let web_res_future = client.request(req);
 
                 Box::new(web_res_future.map(|web_res| {
-                    let body: ResponseStream = Box::new(web_res.body().map(|b| {
+                    let body: ResponseStream = Box::new(web_res.into_parts().1.map(|b| {
                         Chunk::from(format!("before: '{:?}'<br>after: '{:?}'",
                                             std::str::from_utf8(LOWERCASE).unwrap(),
                                             std::str::from_utf8(&b).unwrap()))
                     }));
-                    Response::new().with_body(body)
+                    Response::new(body)
                 }))
             },
-            (&Post, "/web_api") => {
+            (&Method::POST, "/web_api") => {
                 // A web api to run against. Simple upcasing of the body.
-                let body: ResponseStream = Box::new(req.body().map(|chunk| {
+                let body: ResponseStream = Box::new(req.into_parts().1.map(|chunk| {
                     let upper = chunk.iter().map(|byte| byte.to_ascii_uppercase())
                         .collect::<Vec<u8>>();
                     Chunk::from(upper)
                 }));
-                Box::new(futures::future::ok(Response::new().with_body(body)))
+                Box::new(futures::future::ok(Response::new(body)))
             },
             _ => {
                 let body: ResponseStream = Box::new(Body::from(NOTFOUND));
-                Box::new(futures::future::ok(Response::new()
-                                             .with_status(StatusCode::NotFound)
-                                             .with_header(ContentLength(NOTFOUND.len() as u64))
-                                             .with_body(body)))
+                Box::new(futures::future::ok(Response::builder()
+                                             .status(StatusCode::NOT_FOUND)
+                                             .body(body)
+                                             .unwrap()))
             }
         }
     }
