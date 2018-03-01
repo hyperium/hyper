@@ -9,21 +9,14 @@ use std::time::Duration;
 
 use futures::{Async, Future, Poll, Stream};
 use futures::future::{self, Executor};
-#[cfg(feature = "compat")]
-use http;
+use http::{Method, Request, Response, Uri, Version};
+use http::header::{Entry, HeaderValue, HOST};
 use tokio::reactor::Handle;
 pub use tokio_service::Service;
 
-use header::{Host};
-use proto;
-use proto::request;
-use method::Method;
+use proto::{self, Body};
 use self::pool::Pool;
-use uri::{self, Uri};
-use version::HttpVersion;
 
-pub use proto::response::Response;
-pub use proto::request::Request;
 pub use self::connect::{HttpConnector, Connect};
 
 use self::background::{bg, Background};
@@ -34,8 +27,6 @@ mod connect;
 pub(crate) mod dispatch;
 mod dns;
 mod pool;
-#[cfg(feature = "compat")]
-pub mod compat;
 mod signal;
 #[cfg(test)]
 mod tests;
@@ -113,14 +104,29 @@ where C: Connect,
       B: Stream<Error=::Error> + 'static,
       B::Item: AsRef<[u8]>,
 {
-    /// Send a GET Request using this Client.
-    #[inline]
-    pub fn get(&self, url: Uri) -> FutureResponse {
-        self.request(Request::new(Method::Get, url))
+
+    /// Send a `GET` request to the supplied `Uri`.
+    ///
+    /// # Note
+    ///
+    /// This requires that the `Entity` type have a `Default` implementation.
+    /// It *should* return an "empty" version of itself, such that
+    /// `Entity::is_end_stream` is `true`.
+    pub fn get(&self, uri: Uri) -> FutureResponse
+    where
+        B: Default,
+    {
+        let body = B::default();
+        if !body.is_end_stream() {
+            warn!("default Entity used for get() does not return true for is_end_stream");
+        }
+
+        let mut req = Request::new(body);
+        *req.uri_mut() = uri;
+        self.request(req)
     }
 
     /// Send a constructed Request using this Client.
-    #[inline]
     pub fn request(&self, mut req: Request<B>) -> FutureResponse {
         // TODO(0.12): do this at construction time.
         //
@@ -131,23 +137,25 @@ where C: Connect,
         self.schedule_pool_timer();
 
         match req.version() {
-            HttpVersion::Http10 |
-            HttpVersion::Http11 => (),
+            Version::HTTP_10 |
+            Version::HTTP_11 => (),
             other => {
-                error!("Request has unsupported version \"{}\"", other);
+                error!("Request has unsupported version \"{:?}\"", other);
                 return FutureResponse(Box::new(future::err(::Error::Version)));
             }
         }
 
-        if req.method() == &Method::Connect {
+        if req.method() == &Method::CONNECT {
             debug!("Client does not support CONNECT requests");
             return FutureResponse(Box::new(future::err(::Error::Method)));
         }
 
-        let domain = match uri::scheme_and_authority(req.uri()) {
-            Some(uri) => uri,
-            None => {
-                debug!("request uri does not include scheme and authority");
+        let uri = req.uri().clone();
+        let domain = match (uri.scheme_part(), uri.authority_part()) {
+            (Some(scheme), Some(auth)) => {
+                format!("{}://{}", scheme, auth)
+            }
+            _ => {
                 return FutureResponse(Box::new(future::err(::Error::Io(
                     io::Error::new(
                         io::ErrorKind::InvalidInput,
@@ -156,45 +164,51 @@ where C: Connect,
                 ))));
             }
         };
-        if self.set_host && !req.headers().has::<Host>() {
-            let host = Host::new(
-                domain.host().expect("authority implies host").to_owned(),
-                domain.port(),
-            );
-            req.headers_mut().set_pos(0, host);
+
+        if self.set_host {
+            if let Entry::Vacant(entry) = req.headers_mut().entry(HOST).expect("HOST is always valid header name") {
+                let hostname = uri.host().expect("authority implies host");
+                let host = if let Some(port) = uri.port() {
+                    let s = format!("{}:{}", hostname, port);
+                    HeaderValue::from_str(&s)
+                } else {
+                    HeaderValue::from_str(hostname)
+                }.expect("uri host is valid header value");
+                entry.insert(host);
+            }
         }
 
+
         let client = self.clone();
-        let is_proxy = req.is_proxy();
-        let uri = req.uri().clone();
+        //TODO: let is_proxy = req.is_proxy();
+        //let uri = req.uri().clone();
         let fut = RetryableSendRequest {
             client: client,
             future: self.send_request(req, &domain),
             domain: domain,
-            is_proxy: is_proxy,
-            uri: uri,
+            //is_proxy: is_proxy,
+            //uri: uri,
         };
         FutureResponse(Box::new(fut))
     }
 
-    /// Send an `http::Request` using this Client.
-    #[inline]
-    #[cfg(feature = "compat")]
-    pub fn request_compat(&self, req: http::Request<B>) -> compat::CompatFutureResponse {
-        self::compat::future(self.call(req.into()))
-    }
-
-    /// Convert into a client accepting `http::Request`.
-    #[cfg(feature = "compat")]
-    pub fn into_compat(self) -> compat::CompatClient<C, B> {
-        self::compat::client(self)
-    }
-
     //TODO: replace with `impl Future` when stable
-    fn send_request(&self, req: Request<B>, domain: &Uri) -> Box<Future<Item=Response, Error=ClientError<B>>> {
-    //fn send_request(&self, req: Request<B>, domain: &Uri) -> Box<Future<Item=Response, Error=::Error>> {
+    fn send_request(&self, mut req: Request<B>, domain: &str) -> Box<Future<Item=Response<Body>, Error=ClientError<B>>> {
         let url = req.uri().clone();
-        let checkout = self.pool.checkout(domain.as_ref());
+
+        let path = match url.path_and_query() {
+            Some(path) => {
+                let mut parts = ::http::uri::Parts::default();
+                parts.path_and_query = Some(path.clone());
+                Uri::from_parts(parts).expect("path is valid uri")
+            },
+            None => {
+                "/".parse().expect("/ is valid path")
+            }
+        };
+        *req.uri_mut() = path;
+
+        let checkout = self.pool.checkout(domain);
         let connect = {
             let executor = self.executor.clone();
             let pool = self.pool.clone();
@@ -227,7 +241,6 @@ where C: Connect,
                 // never had a pooled stream at all
                 ClientError::Normal(e)
             });
-
 
         let executor = self.executor.clone();
         let resp = race.and_then(move |mut pooled| {
@@ -284,7 +297,7 @@ where C: Connect,
       B::Item: AsRef<[u8]>,
 {
     type Request = Request<B>;
-    type Response = Response;
+    type Response = Response<Body>;
     type Error = ::Error;
     type Future = FutureResponse;
 
@@ -315,7 +328,7 @@ impl<C, B> fmt::Debug for Client<C, B> {
 
 /// A `Future` that will resolve to an HTTP Response.
 #[must_use = "futures do nothing unless polled"]
-pub struct FutureResponse(Box<Future<Item=Response, Error=::Error> + 'static>);
+pub struct FutureResponse(Box<Future<Item=Response<Body>, Error=::Error> + 'static>);
 
 impl fmt::Debug for FutureResponse {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -324,7 +337,7 @@ impl fmt::Debug for FutureResponse {
 }
 
 impl Future for FutureResponse {
-    type Item = Response;
+    type Item = Response<Body>;
     type Error = ::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -334,10 +347,10 @@ impl Future for FutureResponse {
 
 struct RetryableSendRequest<C, B> {
     client: Client<C, B>,
-    domain: Uri,
-    future: Box<Future<Item=Response, Error=ClientError<B>>>,
-    is_proxy: bool,
-    uri: Uri,
+    domain: String,
+    future: Box<Future<Item=Response<Body>, Error=ClientError<B>>>,
+    //is_proxy: bool,
+    //uri: Uri,
 }
 
 impl<C, B> Future for RetryableSendRequest<C, B>
@@ -346,7 +359,7 @@ where
     B: Stream<Error=::Error> + 'static,
     B::Item: AsRef<[u8]>,
 {
-    type Item = Response;
+    type Item = Response<Body>;
     type Error = ::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -367,9 +380,6 @@ where
                     }
 
                     trace!("unstarted request canceled, trying again (reason={:?})", reason);
-                    let mut req = request::join(req);
-                    req.set_proxy(self.is_proxy);
-                    req.set_uri(self.uri.clone());
                     self.future = self.client.send_request(req, &self.domain);
                 }
             }
@@ -394,7 +404,7 @@ pub(crate) enum ClientError<B> {
     Normal(::Error),
     Canceled {
         connection_reused: bool,
-        req: (::proto::RequestHead, Option<B>),
+        req: Request<B>,
         reason: ::Error,
     }
 }

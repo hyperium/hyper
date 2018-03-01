@@ -10,11 +10,11 @@ use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::mpsc;
 
-use futures::{future, stream, Future};
+use futures::{future, stream, Future, Stream};
 use futures::sync::oneshot;
 
-use hyper::header::{ContentLength, ContentType, TransferEncoding};
-use hyper::server::{self, Service};
+use hyper::{Body, Request, Response};
+use hyper::server::Service;
 
 macro_rules! bench_server {
     ($b:ident, $header:expr, $body:expr) => ({
@@ -65,37 +65,37 @@ fn body(b: &'static [u8]) -> hyper::Body {
 
 #[bench]
 fn throughput_fixedsize_small_payload(b: &mut test::Bencher) {
-    bench_server!(b, ContentLength(13), || body(b"Hello, World!"))
+    bench_server!(b, ("content-length", "13"), || body(b"Hello, World!"))
 }
 
 #[bench]
 fn throughput_fixedsize_large_payload(b: &mut test::Bencher) {
-    bench_server!(b, ContentLength(1_000_000), ||  body(&[b'x'; 1_000_000]))
+    bench_server!(b, ("content-length", "1000000"), ||  body(&[b'x'; 1_000_000]))
 }
 
 #[bench]
 fn throughput_fixedsize_many_chunks(b: &mut test::Bencher) {
-    bench_server!(b, ContentLength(1_000_000), || {
+    bench_server!(b, ("content-length", "1000000"), || {
         static S: &'static [&'static [u8]] = &[&[b'x'; 1_000] as &[u8]; 1_000] as _;
-        stream::iter_ok(S.iter())
+        Body::wrap_stream(stream::iter_ok(S.iter()).map(|&s| s))
     })
 }
 
 #[bench]
 fn throughput_chunked_small_payload(b: &mut test::Bencher) {
-    bench_server!(b, TransferEncoding::chunked(), || body(b"Hello, World!"))
+    bench_server!(b, ("transfer-encoding", "chunked"), || body(b"Hello, World!"))
 }
 
 #[bench]
 fn throughput_chunked_large_payload(b: &mut test::Bencher) {
-    bench_server!(b, TransferEncoding::chunked(), ||  body(&[b'x'; 1_000_000]))
+    bench_server!(b, ("transfer-encoding", "chunked"), ||  body(&[b'x'; 1_000_000]))
 }
 
 #[bench]
 fn throughput_chunked_many_chunks(b: &mut test::Bencher) {
-    bench_server!(b, TransferEncoding::chunked(), || {
+    bench_server!(b, ("transfer-encoding", "chunked"), || {
         static S: &'static [&'static [u8]] = &[&[b'x'; 1_000] as &[u8]; 1_000] as _;
-        stream::iter_ok(S.iter())
+        Body::wrap_stream(stream::iter_ok(S.iter()).map(|&s| s))
     })
 }
 
@@ -177,26 +177,26 @@ fn raw_tcp_throughput_large_payload(b: &mut test::Bencher) {
     tx.send(()).unwrap();
 }
 
-struct BenchPayload<H, F> {
-    header: H,
+struct BenchPayload<F> {
+    header: (&'static str, &'static str),
     body: F,
 }
 
-impl<H, F, B> Service for BenchPayload<H, F>
+impl<F, B> Service for BenchPayload<F>
 where
-    H: hyper::header::Header + Clone,
     F: Fn() -> B,
 {
-    type Request = server::Request;
-    type Response = server::Response<B>;
+    type Request = Request<Body>;
+    type Response = Response<B>;
     type Error = hyper::Error;
     type Future = future::FutureResult<Self::Response, hyper::Error>;
     fn call(&self, _req: Self::Request) -> Self::Future {
         future::ok(
-            server::Response::new()
-                .with_header(self.header.clone())
-                .with_header(ContentType::plaintext())
-                .with_body((self.body)())
+            Response::builder()
+                .header(self.header.0, self.header.1)
+                .header("content-type", "text/plain")
+                .body((self.body)())
+                .unwrap()
         )
     }
 }

@@ -1,4 +1,5 @@
 #![deny(warnings)]
+extern crate http;
 extern crate hyper;
 #[macro_use]
 extern crate futures;
@@ -6,14 +7,6 @@ extern crate spmc;
 extern crate pretty_env_logger;
 extern crate tokio_core;
 extern crate tokio_io;
-
-use futures::{Future, Stream};
-use futures::future::{self, FutureResult, Either};
-use futures::sync::oneshot;
-
-use tokio_core::net::TcpListener;
-use tokio_core::reactor::{Core, Timeout};
-use tokio_io::{AsyncRead, AsyncWrite};
 
 use std::net::{TcpStream, Shutdown, SocketAddr};
 use std::io::{self, Read, Write};
@@ -23,9 +16,17 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use hyper::StatusCode;
-use hyper::header::ContentLength;
-use hyper::server::{Http, Request, Response, Service, NewService, service_fn};
+use futures::{Future, Stream};
+use futures::future::{self, FutureResult, Either};
+use futures::sync::oneshot;
+use http::header::{HeaderName, HeaderValue};
+use tokio_core::net::TcpListener;
+use tokio_core::reactor::{Core, Timeout};
+use tokio_io::{AsyncRead, AsyncWrite};
+
+
+use hyper::{Body, Request, Response, StatusCode};
+use hyper::server::{Http, Service, NewService, service_fn};
 
 
 #[test]
@@ -92,14 +93,19 @@ fn get_implicitly_empty() {
     struct GetImplicitlyEmpty;
 
     impl Service for GetImplicitlyEmpty {
-        type Request = Request;
-        type Response = Response;
+        type Request = Request<Body>;
+        type Response = Response<Body>;
         type Error = hyper::Error;
-        type Future = FutureResult<Self::Response, Self::Error>;
+        type Future = Box<Future<Item=Self::Response, Error=Self::Error>>;
 
-        fn call(&self, req: Request) -> Self::Future {
-            assert!(req.body_ref().is_none());
-            future::ok(Response::new())
+        fn call(&self, req: Request<Body>) -> Self::Future {
+            Box::new(req.into_parts()
+                .1
+                .concat2()
+                .map(|buf| {
+                    assert!(buf.is_empty());
+                    Response::new(Body::empty())
+                }))
         }
     }
 }
@@ -109,8 +115,7 @@ fn get_fixed_response() {
     let foo_bar = b"foo bar baz";
     let server = serve();
     server.reply()
-        .status(hyper::Ok)
-        .header(hyper::header::ContentLength(foo_bar.len() as u64))
+        .header("content-length", foo_bar.len().to_string())
         .body(foo_bar);
     let mut req = connect(server.addr());
     req.write_all(b"\
@@ -131,8 +136,7 @@ fn get_chunked_response() {
     let foo_bar = b"foo bar baz";
     let server = serve();
     server.reply()
-        .status(hyper::Ok)
-        .header(hyper::header::TransferEncoding::chunked())
+        .header("transfer-encoding", "chunked")
         .body(foo_bar);
     let mut req = connect(server.addr());
     req.write_all(b"\
@@ -153,7 +157,6 @@ fn get_auto_response() {
     let foo_bar = b"foo bar baz";
     let server = serve();
     server.reply()
-        .status(hyper::Ok)
         .body(foo_bar);
     let mut req = connect(server.addr());
     req.write_all(b"\
@@ -176,7 +179,6 @@ fn http_10_get_auto_response() {
     let foo_bar = b"foo bar baz";
     let server = serve();
     server.reply()
-        .status(hyper::Ok)
         .body(foo_bar);
     let mut req = connect(server.addr());
     req.write_all(b"\
@@ -198,9 +200,8 @@ fn http_10_get_chunked_response() {
     let foo_bar = b"foo bar baz";
     let server = serve();
     server.reply()
-        .status(hyper::Ok)
         // this header should actually get removed
-        .header(hyper::header::TransferEncoding::chunked())
+        .header("transfer-encoding", "chunked")
         .body(foo_bar);
     let mut req = connect(server.addr());
     req.write_all(b"\
@@ -223,8 +224,7 @@ fn get_chunked_response_with_ka() {
     let foo_bar_chunk = b"\r\nfoo bar baz\r\n0\r\n\r\n";
     let server = serve();
     server.reply()
-        .status(hyper::Ok)
-        .header(hyper::header::TransferEncoding::chunked())
+        .header("transfer-encoding", "chunked")
         .body(foo_bar);
     let mut req = connect(server.addr());
     req.write_all(b"\
@@ -250,8 +250,7 @@ fn get_chunked_response_with_ka() {
 
     let quux = b"zar quux";
     server.reply()
-        .status(hyper::Ok)
-        .header(hyper::header::ContentLength(quux.len() as u64))
+        .header("content-length", quux.len().to_string())
         .body(quux);
     req.write_all(b"\
         GET /quux HTTP/1.1\r\n\
@@ -320,7 +319,6 @@ fn empty_response_chunked() {
     let server = serve();
 
     server.reply()
-        .status(hyper::Ok)
         .body("");
 
     let mut req = connect(server.addr());
@@ -355,8 +353,7 @@ fn empty_response_chunked_without_body_should_set_content_length() {
     let _ = pretty_env_logger::try_init();
     let server = serve();
     server.reply()
-        .status(hyper::Ok)
-        .header(hyper::header::TransferEncoding::chunked());
+        .header("transfer-encoding", "chunked");
     let mut req = connect(server.addr());
     req.write_all(b"\
         GET / HTTP/1.1\r\n\
@@ -385,8 +382,7 @@ fn head_response_can_send_content_length() {
     let _ = pretty_env_logger::try_init();
     let server = serve();
     server.reply()
-        .status(hyper::Ok)
-        .header(hyper::header::ContentLength(1024));
+        .header("content-length", "1024");
     let mut req = connect(server.addr());
     req.write_all(b"\
         HEAD / HTTP/1.1\r\n\
@@ -414,8 +410,8 @@ fn response_does_not_set_chunked_if_body_not_allowed() {
     let _ = pretty_env_logger::try_init();
     let server = serve();
     server.reply()
-        .status(hyper::StatusCode::NotModified)
-        .header(hyper::header::TransferEncoding::chunked());
+        .status(hyper::StatusCode::NOT_MODIFIED)
+        .header("transfer-encoding", "chunked");
     let mut req = connect(server.addr());
     req.write_all(b"\
         GET / HTTP/1.1\r\n\
@@ -443,8 +439,7 @@ fn keep_alive() {
     let foo_bar = b"foo bar baz";
     let server = serve();
     server.reply()
-        .status(hyper::Ok)
-        .header(hyper::header::ContentLength(foo_bar.len() as u64))
+        .header("content-length", foo_bar.len().to_string())
         .body(foo_bar);
     let mut req = connect(server.addr());
     req.write_all(b"\
@@ -467,8 +462,7 @@ fn keep_alive() {
 
     let quux = b"zar quux";
     server.reply()
-        .status(hyper::Ok)
-        .header(hyper::header::ContentLength(quux.len() as u64))
+        .header("content-length", quux.len().to_string())
         .body(quux);
     req.write_all(b"\
         GET /quux HTTP/1.1\r\n\
@@ -494,8 +488,7 @@ fn http_10_keep_alive() {
     let foo_bar = b"foo bar baz";
     let server = serve();
     server.reply()
-        .status(hyper::Ok)
-        .header(hyper::header::ContentLength(foo_bar.len() as u64))
+        .header("content-length", foo_bar.len().to_string())
         .body(foo_bar);
     let mut req = connect(server.addr());
     req.write_all(b"\
@@ -519,8 +512,7 @@ fn http_10_keep_alive() {
 
     let quux = b"zar quux";
     server.reply()
-        .status(hyper::Ok)
-        .header(hyper::header::ContentLength(quux.len() as u64))
+        .header("content-length", quux.len().to_string())
         .body(quux);
     req.write_all(b"\
         GET /quux HTTP/1.0\r\n\
@@ -548,8 +540,7 @@ fn disable_keep_alive() {
         .. Default::default()
     });
     server.reply()
-        .status(hyper::Ok)
-        .header(hyper::header::ContentLength(foo_bar.len() as u64))
+        .header("content-length", foo_bar.len().to_string())
         .body(foo_bar);
     let mut req = connect(server.addr());
     req.write_all(b"\
@@ -574,8 +565,7 @@ fn disable_keep_alive() {
 
     let quux = b"zar quux";
     server.reply()
-        .status(hyper::Ok)
-        .header(hyper::header::ContentLength(quux.len() as u64))
+        .header("content-length", quux.len().to_string())
         .body(quux);
 
     // the write can possibly succeed, since it fills the kernel buffer on the first write
@@ -602,7 +592,7 @@ fn disable_keep_alive() {
 fn expect_continue() {
     let server = serve();
     let mut req = connect(server.addr());
-    server.reply().status(hyper::Ok);
+    server.reply();
 
     req.write_all(b"\
         POST /foo HTTP/1.1\r\n\
@@ -633,12 +623,10 @@ fn pipeline_disabled() {
     let server = serve();
     let mut req = connect(server.addr());
     server.reply()
-        .status(hyper::Ok)
-        .header(ContentLength(12))
+        .header("content-length", "12")
         .body("Hello World!");
     server.reply()
-        .status(hyper::Ok)
-        .header(ContentLength(12))
+        .header("content-length", "12")
         .body("Hello World!");
 
     req.write_all(b"\
@@ -680,12 +668,10 @@ fn pipeline_enabled() {
     });
     let mut req = connect(server.addr());
     server.reply()
-        .status(hyper::Ok)
-        .header(ContentLength(12))
+        .header("content-length", "12")
         .body("Hello World\n");
     server.reply()
-        .status(hyper::Ok)
-        .header(ContentLength(12))
+        .header("content-length", "12")
         .body("Hello World\n");
 
     req.write_all(b"\
@@ -922,8 +908,10 @@ fn returning_1xx_response_is_error() {
             let (socket, _) = item.unwrap();
             Http::<hyper::Chunk>::new()
                 .serve_connection(socket, service_fn(|_| {
-                    Ok(Response::<hyper::Body>::new()
-                        .with_status(StatusCode::Continue))
+                    Ok(Response::builder()
+                        .status(StatusCode::CONTINUE)
+                        .body(Body::empty())
+                        .unwrap())
                 }))
                 .map(|_| ())
         });
@@ -968,9 +956,11 @@ fn upgrades() {
             let (socket, _) = item.unwrap();
             let conn = Http::<hyper::Chunk>::new()
                 .serve_connection(socket, service_fn(|_| {
-                    let mut res = Response::<hyper::Body>::new()
-                        .with_status(StatusCode::SwitchingProtocols);
-                    res.headers_mut().set_raw("Upgrade", "foobar");
+                    let res = Response::builder()
+                        .status(101)
+                        .header("upgrade", "foobar")
+                        .body(hyper::Body::empty())
+                        .unwrap();
                     Ok(res)
                 }));
 
@@ -1128,29 +1118,16 @@ fn streaming_body() {
                 .serve_connection(socket, service_fn(|_| {
                     static S: &'static [&'static [u8]] = &[&[b'x'; 1_000] as &[u8]; 1_00] as _;
                     let b = ::futures::stream::iter_ok(S.iter());
+                    Ok(Response::new(b))
+                    /*
                     Ok(Response::<futures::stream::IterOk<::std::slice::Iter<&'static [u8]>, ::hyper::Error>>::new()
                         .with_body(b))
+                        */
                 }))
                 .map(|_| ())
         });
 
     core.run(fut.join(rx)).unwrap();
-}
-
-#[test]
-fn remote_addr() {
-    let server = serve();
-
-    let mut req = connect(server.addr());
-    req.write_all(b"\
-        GET / HTTP/1.1\r\n\
-        Host: example.domain\r\n\
-        \r\n\
-    ").unwrap();
-    req.read(&mut [0; 256]).unwrap();
-
-    let client_addr = req.local_addr().unwrap();
-    assert_eq!(server.remote_addr(), client_addr);
 }
 
 // -------------------------------------------------
@@ -1170,13 +1147,6 @@ impl Serve {
         &self.addr
     }
 
-    pub fn remote_addr(&self) -> SocketAddr {
-        match self.msg_rx.recv() {
-            Ok(Msg::Addr(addr)) => addr,
-            other => panic!("expected remote addr, found: {:?}", other),
-        }
-    }
-
     fn body(&self) -> Vec<u8> {
         self.try_body().expect("body")
     }
@@ -1192,7 +1162,6 @@ impl Serve {
                 Ok(Msg::Chunk(msg)) => {
                     buf.extend(&msg);
                 },
-                Ok(Msg::Addr(_)) => {},
                 Ok(Msg::Error(e)) => return Err(e),
                 Ok(Msg::End) => break,
                 Err(e) => panic!("expected body, found: {:?}", e),
@@ -1218,10 +1187,10 @@ impl<'a> ReplyBuilder<'a> {
         self
     }
 
-    fn header<H: hyper::header::Header>(self, header: H) -> Self {
-        let mut headers = hyper::Headers::new();
-        headers.set(header);
-        self.tx.send(Reply::Headers(headers)).unwrap();
+    fn header<V: AsRef<str>>(self, name: &str, value: V) -> Self {
+        let name = HeaderName::from_bytes(name.as_bytes()).expect("header name");
+        let value = HeaderValue::from_str(value.as_ref()).expect("header value");
+        self.tx.send(Reply::Header(name, value)).unwrap();
         self
     }
 
@@ -1253,7 +1222,7 @@ struct TestService {
 #[derive(Clone, Debug)]
 enum Reply {
     Status(hyper::StatusCode),
-    Headers(hyper::Headers),
+    Header(HeaderName, HeaderValue),
     Body(Vec<u8>),
     End,
 }
@@ -1261,15 +1230,14 @@ enum Reply {
 #[derive(Debug)]
 enum Msg {
     //Head(Request),
-    Addr(SocketAddr),
     Chunk(Vec<u8>),
     Error(hyper::Error),
     End,
 }
 
 impl NewService for TestService {
-    type Request = Request;
-    type Response = Response;
+    type Request = Request<Body>;
+    type Response = Response<Body>;
     type Error = hyper::Error;
 
     type Instance = TestService;
@@ -1280,20 +1248,16 @@ impl NewService for TestService {
 }
 
 impl Service for TestService {
-    type Request = Request;
-    type Response = Response;
+    type Request = Request<Body>;
+    type Response = Response<Body>;
     type Error = hyper::Error;
-    type Future = Box<Future<Item=Response, Error=hyper::Error>>;
-    fn call(&self, req: Request) -> Self::Future {
+    type Future = Box<Future<Item=Response<Body>, Error=hyper::Error>>;
+    fn call(&self, req: Request<Body>) -> Self::Future {
         let tx1 = self.tx.clone();
         let tx2 = self.tx.clone();
 
-        #[allow(deprecated)]
-        let remote_addr = req.remote_addr().expect("remote_addr");
-        tx1.lock().unwrap().send(Msg::Addr(remote_addr)).unwrap();
-
         let replies = self.reply.clone();
-        Box::new(req.body().for_each(move |chunk| {
+        Box::new(req.into_parts().1.for_each(move |chunk| {
             tx1.lock().unwrap().send(Msg::Chunk(chunk.to_vec())).unwrap();
             Ok(())
         }).then(move |result| {
@@ -1304,17 +1268,17 @@ impl Service for TestService {
             tx2.lock().unwrap().send(msg).unwrap();
             Ok(())
         }).map(move |_| {
-            let mut res = Response::new();
+            let mut res = Response::new(Body::empty());
             while let Ok(reply) = replies.try_recv() {
                 match reply {
                     Reply::Status(s) => {
-                        res.set_status(s);
+                        *res.status_mut() = s;
                     },
-                    Reply::Headers(headers) => {
-                        *res.headers_mut() = headers;
+                    Reply::Header(name, value) => {
+                        res.headers_mut().insert(name, value);
                     },
                     Reply::Body(body) => {
-                        res.set_body(body);
+                        *res.body_mut() = body.into();
                     },
                     Reply::End => break,
                 }
@@ -1330,15 +1294,13 @@ const HELLO: &'static str = "hello";
 struct HelloWorld;
 
 impl Service for HelloWorld {
-    type Request = Request;
-    type Response = Response;
+    type Request = Request<Body>;
+    type Response = Response<Body>;
     type Error = hyper::Error;
     type Future = FutureResult<Self::Response, Self::Error>;
 
-    fn call(&self, _req: Request) -> Self::Future {
-        let mut response = Response::new();
-        response.headers_mut().set(hyper::header::ContentLength(HELLO.len() as u64));
-        response.set_body(HELLO);
+    fn call(&self, _req: Request<Body>) -> Self::Future {
+        let response = Response::new(HELLO.into());
         future::ok(response)
     }
 }

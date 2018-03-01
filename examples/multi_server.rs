@@ -7,10 +7,9 @@ extern crate pretty_env_logger;
 use futures::{Future, Stream};
 use futures::future::FutureResult;
 
-use hyper::{Get, StatusCode};
+use hyper::{Body, Method, Request, Response, StatusCode};
 use tokio_core::reactor::Core;
-use hyper::header::ContentLength;
-use hyper::server::{Http, Service, Request, Response};
+use hyper::server::{Http, Service};
 
 static INDEX1: &'static [u8] = b"The 1st service!";
 static INDEX2: &'static [u8] = b"The 2nd service!";
@@ -18,21 +17,21 @@ static INDEX2: &'static [u8] = b"The 2nd service!";
 struct Srv(&'static [u8]);
 
 impl Service for Srv {
-    type Request = Request;
-    type Response = Response;
+    type Request = Request<Body>;
+    type Response = Response<Body>;
     type Error = hyper::Error;
-    type Future = FutureResult<Response, hyper::Error>;
+    type Future = FutureResult<Response<Body>, hyper::Error>;
 
-    fn call(&self, req: Request) -> Self::Future {
-        futures::future::ok(match (req.method(), req.path()) {
-            (&Get, "/") => {
-                Response::new()
-                    .with_header(ContentLength(self.0.len() as u64))
-                    .with_body(self.0)
+    fn call(&self, req: Request<Body>) -> Self::Future {
+        futures::future::ok(match (req.method(), req.uri().path()) {
+            (&Method::GET, "/") => {
+                Response::new(self.0.into())
             },
             _ => {
-                Response::new()
-                    .with_status(StatusCode::NotFound)
+                Response::builder()
+                    .status(StatusCode::NOT_FOUND)
+                    .body(Body::empty())
+                    .unwrap()
             }
         })
     }

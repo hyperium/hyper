@@ -11,7 +11,7 @@ use std::io::{self, Write};
 use futures::Future;
 use futures::stream::Stream;
 
-use hyper::Client;
+use hyper::{Body, Client, Request};
 
 fn main() {
     pretty_env_logger::init();
@@ -25,7 +25,7 @@ fn main() {
     };
 
     let url = url.parse::<hyper::Uri>().unwrap();
-    if url.scheme() != Some("http") {
+    if url.scheme_part().map(|s| s.as_ref()) != Some("http") {
         println!("This example only works with 'http' URLs.");
         return;
     }
@@ -34,11 +34,13 @@ fn main() {
     let handle = core.handle();
     let client = Client::new(&handle);
 
-    let work = client.get(url).and_then(|res| {
+    let mut req = Request::new(Body::empty());
+    *req.uri_mut() = url;
+    let work = client.request(req).and_then(|res| {
         println!("Response: {}", res.status());
-        println!("Headers: \n{}", res.headers());
+        println!("Headers: {:#?}", res.headers());
 
-        res.body().for_each(|chunk| {
+        res.into_parts().1.for_each(|chunk| {
             io::stdout().write_all(&chunk).map_err(From::from)
         })
     }).map(|_| {

@@ -12,9 +12,7 @@ use futures::{Future, Stream};
 use tokio_core::reactor::{Core, Handle};
 use tokio_core::net::TcpListener;
 
-use hyper::client;
-use hyper::header::{ContentLength, ContentType};
-use hyper::Method;
+use hyper::{Body, Method, Request, Response};
 
 
 #[bench]
@@ -30,7 +28,7 @@ fn get_one_at_a_time(b: &mut test::Bencher) {
     b.bytes = 160 * 2 + PHRASE.len() as u64;
     b.iter(move || {
         let work = client.get(url.clone()).and_then(|res| {
-            res.body().for_each(|_chunk| {
+            res.into_body().into_stream().for_each(|_chunk| {
                 Ok(())
             })
         });
@@ -54,12 +52,11 @@ fn post_one_at_a_time(b: &mut test::Bencher) {
     let post = "foo bar baz quux";
     b.bytes = 180 * 2 + post.len() as u64 + PHRASE.len() as u64;
     b.iter(move || {
-        let mut req = client::Request::new(Method::Post, url.clone());
-        req.headers_mut().set(ContentLength(post.len() as u64));
-        req.set_body(post);
-
+        let mut req = Request::new(post.into());
+        *req.method_mut() = Method::POST;
+        *req.uri_mut() = url.clone();
         let work = client.request(req).and_then(|res| {
-            res.body().for_each(|_chunk| {
+            res.into_body().into_stream().for_each(|_chunk| {
                 Ok(())
             })
         });
@@ -71,7 +68,7 @@ fn post_one_at_a_time(b: &mut test::Bencher) {
 static PHRASE: &'static [u8] = include_bytes!("../CHANGELOG.md"); //b"Hello, World!";
 
 fn spawn_hello(handle: &Handle) -> SocketAddr {
-    use hyper::server::{const_service, service_fn, NewService, Request, Response};
+    use hyper::server::{const_service, service_fn, NewService};
     let addr = "127.0.0.1:0".parse().unwrap();
     let listener = TcpListener::bind(&addr, handle).unwrap();
     let addr = listener.local_addr().unwrap();
@@ -79,14 +76,12 @@ fn spawn_hello(handle: &Handle) -> SocketAddr {
     let handle2 = handle.clone();
     let http = hyper::server::Http::<hyper::Chunk>::new();
 
-    let service = const_service(service_fn(|req: Request| {
-        req.body()
+    let service = const_service(service_fn(|req: Request<Body>| {
+        req.into_body()
+            .into_stream()
             .concat2()
             .map(|_| {
-                Response::<hyper::Body>::new()
-                    .with_header(ContentLength(PHRASE.len() as u64))
-                    .with_header(ContentType::plaintext())
-                    .with_body(PHRASE)
+                Response::new(Body::from(PHRASE))
             })
     }));
 

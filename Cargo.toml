@@ -25,7 +25,7 @@ base64 = "0.9"
 bytes = "0.4.4"
 futures = "0.1.17"
 futures-cpupool = "0.1.6"
-http = { version = "0.1", optional = true }
+http = "0.1.5"
 httparse = "1.0"
 iovec = "0.1"
 language-tags = "0.2"
@@ -46,7 +46,4 @@ spmc = "0.2"
 url = "1.0"
 
 [features]
-default = []
 nightly = []
-raw_status = []
-compat = [ "http" ]

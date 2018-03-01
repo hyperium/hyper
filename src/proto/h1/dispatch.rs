@@ -2,11 +2,11 @@ use std::io;
 
 use bytes::Bytes;
 use futures::{Async, AsyncSink, Future, Poll, Stream};
+use http::{Request, Response, StatusCode};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_service::Service;
 
-use proto::{Body, Conn, Http1Transaction, MessageHead, RequestHead, ResponseHead};
-use ::StatusCode;
+use proto::{Body, Conn, Http1Transaction, MessageHead, RequestHead, RequestLine, ResponseHead};
 
 pub struct Dispatcher<D, Bs, I, B, T> {
     conn: Conn<I, B, T>,
@@ -21,7 +21,7 @@ pub trait Dispatch {
     type PollBody;
     type RecvItem;
     fn poll_msg(&mut self) -> Poll<Option<(Self::PollItem, Option<Self::PollBody>)>, ::Error>;
-    fn recv_msg(&mut self, msg: ::Result<(Self::RecvItem, Option<Body>)>) -> ::Result<()>;
+    fn recv_msg(&mut self, msg: ::Result<(Self::RecvItem, Body)>) -> ::Result<()>;
     fn poll_ready(&mut self) -> Poll<(), ()>;
     fn should_poll(&self) -> bool;
 }
@@ -32,13 +32,13 @@ pub struct Server<S: Service> {
 }
 
 pub struct Client<B> {
-    callback: Option<::client::dispatch::Callback<ClientMsg<B>, ::Response>>,
+    callback: Option<::client::dispatch::Callback<ClientMsg<B>, Response<Body>>>,
     rx: ClientRx<B>,
 }
 
-pub type ClientMsg<B> = (RequestHead, Option<B>);
+pub type ClientMsg<B> = Request<B>;
 
-type ClientRx<B> = ::client::dispatch::Receiver<ClientMsg<B>, ::Response>;
+type ClientRx<B> = ::client::dispatch::Receiver<ClientMsg<B>, Response<Body>>;
 
 impl<D, Bs, I, B, T> Dispatcher<D, Bs, I, B, T>
 where
@@ -184,9 +184,9 @@ where
                     let (mut tx, rx) = ::proto::body::channel();
                     let _ = tx.poll_ready(); // register this task if rx is dropped
                     self.body_tx = Some(tx);
-                    Some(rx)
+                    rx
                 } else {
-                    None
+                    Body::empty()
                 };
                 self.dispatch.recv_msg(Ok((head, body)))?;
                 Ok(Async::Ready(()))
@@ -315,7 +315,7 @@ impl<S> Server<S> where S: Service {
 
 impl<S, Bs> Dispatch for Server<S>
 where
-    S: Service<Request=::Request, Response=::Response<Bs>, Error=::Error>,
+    S: Service<Request=Request<Body>, Response=Response<Bs>, Error=::Error>,
     Bs: Stream<Error=::Error>,
     Bs::Item: AsRef<[u8]>,
 {
@@ -332,16 +332,25 @@ where
                     return Ok(Async::NotReady);
                 }
             };
-            let (head, body) = ::proto::response::split(resp);
-            Ok(Async::Ready(Some((head.into(), body))))
+            let (parts, body) = resp.into_parts();
+            let head = MessageHead {
+                version: parts.version,
+                subject: parts.status,
+                headers: parts.headers,
+            };
+            Ok(Async::Ready(Some((head, Some(body)))))
         } else {
             unreachable!("poll_msg shouldn't be called if no inflight");
         }
     }
 
-    fn recv_msg(&mut self, msg: ::Result<(Self::RecvItem, Option<Body>)>) -> ::Result<()> {
+    fn recv_msg(&mut self, msg: ::Result<(Self::RecvItem, Body)>) -> ::Result<()> {
         let (msg, body) = msg?;
-        let req = ::proto::request::from_wire(None, msg, body);
+        let mut req = Request::new(body);
+        *req.method_mut() = msg.subject.0;
+        *req.uri_mut() = msg.subject.1;
+        *req.headers_mut() = msg.headers;
+        *req.version_mut() = msg.version;
         self.in_flight = Some(self.service.call(req));
         Ok(())
     }
@@ -382,7 +391,7 @@ where
 
     fn poll_msg(&mut self) -> Poll<Option<(Self::PollItem, Option<Self::PollBody>)>, ::Error> {
         match self.rx.poll() {
-            Ok(Async::Ready(Some(((head, body), mut cb)))) => {
+            Ok(Async::Ready(Some((req, mut cb)))) => {
                 // check that future hasn't been canceled already
                 match cb.poll_cancel().expect("poll_cancel cannot error") {
                     Async::Ready(()) => {
@@ -390,8 +399,14 @@ where
                         Ok(Async::Ready(None))
                     },
                     Async::NotReady => {
+                        let (parts, body) = req.into_parts();
+                        let head = RequestHead {
+                            version: parts.version,
+                            subject: RequestLine(parts.method, parts.uri),
+                            headers: parts.headers,
+                        };
                         self.callback = Some(cb);
-                        Ok(Async::Ready(Some((head, body))))
+                        Ok(Async::Ready(Some((head, Some(body)))))
                     }
                 }
             },
@@ -405,11 +420,14 @@ where
         }
     }
 
-    fn recv_msg(&mut self, msg: ::Result<(Self::RecvItem, Option<Body>)>) -> ::Result<()> {
+    fn recv_msg(&mut self, msg: ::Result<(Self::RecvItem, Body)>) -> ::Result<()> {
         match msg {
             Ok((msg, body)) => {
                 if let Some(cb) = self.callback.take() {
-                    let res = ::proto::response::from_wire(msg, body);
+                    let mut res = Response::new(body);
+                    *res.status_mut() = msg.subject;
+                    *res.headers_mut() = msg.headers;
+                    *res.version_mut() = msg.version;
                     let _ = cb.send(Ok(res));
                     Ok(())
                 } else {
@@ -469,12 +487,7 @@ mod tests {
             let conn = Conn::<_, ::Chunk, ClientTransaction>::new(io);
             let mut dispatcher = Dispatcher::new(Client::new(rx), conn);
 
-            let req = RequestHead {
-                version: ::HttpVersion::Http11,
-                subject: ::proto::RequestLine::default(),
-                headers: Default::default(),
-            };
-            let res_rx = tx.try_send((req, None::<::Body>)).unwrap();
+            let res_rx = tx.try_send(::Request::new(::Body::empty())).unwrap();
 
             let a1 = dispatcher.poll().expect("error should be sent on channel");
             assert!(a1.is_ready(), "dispatcher should be closed");

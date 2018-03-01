@@ -16,7 +16,8 @@ use futures::future::{self, Either};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use proto;
-use super::{dispatch, Request, Response};
+use super::dispatch;
+use {Body, Request, Response, StatusCode};
 
 /// Returns a `Handshake` future over some IO.
 ///
@@ -31,7 +32,7 @@ where
 
 /// The sender side of an established connection.
 pub struct SendRequest<B> {
-    dispatch: dispatch::Sender<proto::dispatch::ClientMsg<B>, ::Response>,
+    dispatch: dispatch::Sender<proto::dispatch::ClientMsg<B>, Response<Body>>,
 
 }
 
@@ -79,7 +80,7 @@ pub struct Handshake<T, B> {
 pub struct ResponseFuture {
     // for now, a Box is used to hide away the internal `B`
     // that can be returned if canceled
-    inner: Box<Future<Item=Response, Error=::Error> + Send>,
+    inner: Box<Future<Item=Response<Body>, Error=::Error> + Send>,
 }
 
 /// Deconstructed parts of a `Connection`.
@@ -158,17 +159,20 @@ where
     /// ```
     /// # extern crate futures;
     /// # extern crate hyper;
+    /// # extern crate http;
+    /// # use http::header::HOST;
     /// # use hyper::client::conn::SendRequest;
     /// # use hyper::Body;
     /// use futures::Future;
-    /// use hyper::{Method, Request};
-    /// use hyper::header::Host;
+    /// use hyper::Request;
     ///
     /// # fn doc(mut tx: SendRequest<Body>) {
     /// // build a Request
-    /// let path = "/foo/bar".parse().expect("valid path");
-    /// let mut req = Request::new(Method::Get, path);
-    /// req.headers_mut().set(Host::new("hyper.rs", None));
+    /// let req = Request::builder()
+    ///     .uri("/foo/bar")
+    ///     .header(HOST, "hyper.rs")
+    ///     .body(Body::empty())
+    ///     .unwrap();
     ///
     /// // send it and get a future back
     /// let fut = tx.send_request(req)
@@ -180,7 +184,8 @@ where
     /// # }
     /// # fn main() {}
     /// ```
-    pub fn send_request(&mut self, mut req: Request<B>) -> ResponseFuture {
+    pub fn send_request(&mut self, req: Request<B>) -> ResponseFuture {
+        /* TODO?
         // The Connection API does less things automatically than the Client
         // API does. For instance, right here, we always assume set_proxy, so
         // that if an absolute-form URI is provided, it is serialized as-is.
@@ -191,9 +196,9 @@ where
         // It's important that this method isn't called directly from the
         // `Client`, so that `set_proxy` there is still respected.
         req.set_proxy(true);
+        */
 
-        let (head, body) = proto::request::split(req);
-        let inner = match self.dispatch.send((head, body)) {
+        let inner = match self.dispatch.send(req) {
             Ok(rx) => {
                 Either::A(rx.then(move |res| {
                     match res {
@@ -210,15 +215,15 @@ where
                 Either::B(future::err(err))
             }
         };
+
         ResponseFuture {
             inner: Box::new(inner),
         }
     }
 
     //TODO: replace with `impl Future` when stable
-    pub(crate) fn send_request_retryable(&mut self, req: Request<B>) -> Box<Future<Item=Response, Error=(::Error, Option<(::proto::RequestHead, Option<B>)>)>> {
-        let (head, body) = proto::request::split(req);
-        let inner = match self.dispatch.try_send((head, body)) {
+    pub(crate) fn send_request_retryable(&mut self, req: Request<B>) -> Box<Future<Item=Response<Body>, Error=(::Error, Option<Request<B>>)>> {
+        let inner = match self.dispatch.try_send(req) {
             Ok(rx) => {
                 Either::A(rx.then(move |res| {
                     match res {
@@ -418,7 +423,7 @@ where
     B: Stream<Error=::Error> + 'static,
     B::Item: AsRef<[u8]>,
     R: proto::Http1Transaction<
-        Incoming=proto::RawStatus,
+        Incoming=StatusCode,
         Outgoing=proto::RequestLine,
     >,
 {
@@ -451,7 +456,7 @@ where
 // ===== impl ResponseFuture
 
 impl Future for ResponseFuture {
-    type Item = Response;
+    type Item = Response<Body>;
     type Error = ::Error;
 
     #[inline]
@@ -497,3 +502,4 @@ impl AssertSendSync for Builder {}
 
 #[doc(hidden)]
 impl AssertSend for ResponseFuture {}
+

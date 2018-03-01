@@ -5,13 +5,12 @@ use std::marker::PhantomData;
 use bytes::Bytes;
 use futures::{Async, AsyncSink, Poll, StartSend};
 use futures::task::Task;
+use http::{Method, Version};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use proto::{Chunk, Decode, Http1Transaction, MessageHead};
 use super::io::{Cursor, Buffered};
 use super::{EncodedBuf, Encoder, Decoder};
-use method::Method;
-use version::HttpVersion;
 
 
 /// This handles a connection, which will have been established over an
@@ -55,7 +54,7 @@ where I: AsyncRead + AsyncWrite,
                 writing: Writing::Init,
                 // We assume a modern world where the remote speaks HTTP/1.1.
                 // If they tell us otherwise, we'll downgrade in `read_head`.
-                version: Version::Http11,
+                version: Version::HTTP_11,
             },
             _marker: PhantomData,
         }
@@ -141,15 +140,16 @@ where I: AsyncRead + AsyncWrite,
                 }
             };
 
-            self.state.version = match version {
-                HttpVersion::Http10 => Version::Http10,
-                HttpVersion::Http11 => Version::Http11,
+            match version {
+                Version::HTTP_10 |
+                Version::HTTP_11 => {},
                 _ => {
                     error!("unimplemented HTTP Version = {:?}", version);
                     self.state.close_read();
                     return Err(::Error::Version);
                 }
             };
+            self.state.version = version;
 
             let decoder = match T::decoder(&head, &mut self.state.method) {
                 Ok(Decode::Normal(d)) => {
@@ -448,7 +448,7 @@ where I: AsyncRead + AsyncWrite,
     // If we know the remote speaks an older version, we try to fix up any messages
     // to work with our older peer.
     fn enforce_version(&mut self, head: &mut MessageHead<T::Outgoing>) {
-        use header::Connection;
+        //use header::Connection;
 
         let wants_keep_alive = if self.state.wants_keep_alive() {
             let ka = head.should_keep_alive();
@@ -459,15 +459,15 @@ where I: AsyncRead + AsyncWrite,
         };
 
         match self.state.version {
-            Version::Http10 => {
+            Version::HTTP_10 => {
                 // If the remote only knows HTTP/1.0, we should force ourselves
                 // to do only speak HTTP/1.0 as well.
-                head.version = HttpVersion::Http10;
+                head.version = Version::HTTP_10;
                 if wants_keep_alive {
-                    head.headers.set(Connection::keep_alive());
+                    //TODO: head.headers.set(Connection::keep_alive());
                 }
             },
-            Version::Http11 => {
+            _ => {
                 // If the remote speaks HTTP/1.1, then it *should* be fine with
                 // both HTTP/1.0 and HTTP/1.1 from us. So again, we just let
                 // the user's headers be.
@@ -787,12 +787,6 @@ impl State {
             _ => false
         }
     }
-}
-
-#[derive(Debug, Clone, Copy)]
-enum Version {
-    Http10,
-    Http11,
 }
 
 #[cfg(test)]

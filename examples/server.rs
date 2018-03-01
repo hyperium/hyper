@@ -5,37 +5,31 @@ extern crate pretty_env_logger;
 
 use futures::future::FutureResult;
 
-use hyper::{Get, Post, StatusCode};
-use hyper::header::ContentLength;
-use hyper::server::{Http, Service, Request, Response};
+use hyper::{Body, Method, Request, Response, StatusCode};
+use hyper::server::{Http, Service};
 
 static INDEX: &'static [u8] = b"Try POST /echo";
 
 struct Echo;
 
 impl Service for Echo {
-    type Request = Request;
-    type Response = Response;
+    type Request = Request<Body>;
+    type Response = Response<Body>;
     type Error = hyper::Error;
-    type Future = FutureResult<Response, hyper::Error>;
+    type Future = FutureResult<Self::Response, Self::Error>;
 
-    fn call(&self, req: Request) -> Self::Future {
-        futures::future::ok(match (req.method(), req.path()) {
-            (&Get, "/") | (&Get, "/echo") => {
-                Response::new()
-                    .with_header(ContentLength(INDEX.len() as u64))
-                    .with_body(INDEX)
+    fn call(&self, req: Self::Request) -> Self::Future {
+        futures::future::ok(match (req.method(), req.uri().path()) {
+            (&Method::GET, "/") | (&Method::POST, "/") => {
+                Response::new(INDEX.into())
             },
-            (&Post, "/echo") => {
-                let mut res = Response::new();
-                if let Some(len) = req.headers().get::<ContentLength>() {
-                    res.headers_mut().set(len.clone());
-                }
-                res.with_body(req.body())
+            (&Method::POST, "/echo") => {
+                Response::new(req.into_parts().1)
             },
             _ => {
-                Response::new()
-                    .with_status(StatusCode::NotFound)
+                let mut res = Response::new(Body::empty());
+                *res.status_mut() = StatusCode::NOT_FOUND;
+                res
             }
         })
     }

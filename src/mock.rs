@@ -418,11 +418,11 @@ impl Service for MockConnector {
 
     fn call(&self, uri: Uri) -> Self::Future {
         use futures::future;
-        trace!("mock connect: {:?}", uri.as_ref());
+        trace!("mock connect: {}", uri);
         let mut mocks = self.mocks.borrow_mut();
-        let mocks = mocks.get_mut(uri.as_ref())
-            .expect(&format!("unknown mocks uri: {:?}", uri.as_ref()));
-        assert!(!mocks.is_empty(), "no additional mocks for {:?}", uri.as_ref());
+        let mocks = mocks.get_mut(&uri.to_string())
+            .expect(&format!("unknown mocks uri: {}", uri));
+        assert!(!mocks.is_empty(), "no additional mocks for {}", uri);
         future::ok(mocks.remove(0))
     }
 }

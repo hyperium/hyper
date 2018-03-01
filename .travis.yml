@@ -9,10 +9,6 @@ matrix:
         - rust: beta
         - rust: stable
           env: HYPER_DOCS=1
-        - rust: stable
-          env: FEATURES="--no-default-features"
-        - rust: stable
-          env: FEATURES="--features compat"
         - rust: 1.21.0
 
 cache:
