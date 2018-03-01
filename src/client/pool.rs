@@ -387,7 +387,7 @@ impl<T: Clone + Closed> Checkout<T> {
         let mut drop_parked = false;
         if let Some(ref mut rx) = self.parked {
             match rx.poll() {
-                Ok(Async::Ready(mut entry)) => {
+                Ok(Async::Ready(entry)) => {
                     if !entry.value.is_closed() {
                         return Ok(Async::Ready(self.pool.reuse(&self.key, entry)));
                     }
