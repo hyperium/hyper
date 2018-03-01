@@ -1029,6 +1029,7 @@ fn streaming_body() {
     let listener = TcpListener::bind(&"127.0.0.1:0".parse().unwrap(), &core.handle()).unwrap();
     let addr = listener.local_addr().unwrap();
 
+    let (tx, rx) = oneshot::channel();
     thread::spawn(move || {
         let mut tcp = connect(&addr);
         tcp.write_all(b"GET / HTTP/1.1\r\n\r\n").unwrap();
@@ -1045,8 +1046,11 @@ fn streaming_body() {
                 break;
             }
         }
-        assert_eq!(sum, 1_007_089);
+        assert_eq!(sum, 100_789);
+        let _ = tx.send(());
     });
+
+    let rx = rx.map_err(|_| panic!("thread panicked"));
 
     let fut = listener.incoming()
         .into_future()
@@ -1064,7 +1068,7 @@ fn streaming_body() {
                 .map(|_| ())
         });
 
-    core.run(fut).unwrap();
+    core.run(fut.join(rx)).unwrap();
 }
 
 #[test]
