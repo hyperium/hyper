@@ -14,10 +14,9 @@ use hyper::client::{Client, Request, HttpConnector};
 use hyper::{Method, StatusCode};
 
 use futures::{Future, Stream};
-use futures::future::Either;
 use futures::sync::oneshot;
 
-use tokio_core::reactor::{Core, Handle, Timeout};
+use tokio_core::reactor::{Core, Handle};
 
 fn client(handle: &Handle) -> Client<HttpConnector> {
     Client::new(handle)
