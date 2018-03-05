@@ -36,6 +36,8 @@ mod dns;
 mod pool;
 #[cfg(feature = "compat")]
 pub mod compat;
+#[cfg(test)]
+mod tests;
 
 /// A Client to make outgoing HTTP requests.
 pub struct Client<C, B = proto::Body> {
