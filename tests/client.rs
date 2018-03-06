@@ -593,6 +593,32 @@ test! {
 }
 
 test! {
+    name: client_connect_method,
+
+    server:
+        expected: "\
+            CONNECT {addr} HTTP/1.1\r\n\
+            Host: {addr}\r\n\
+            \r\n\
+            ",
+        // won't ever get to reply
+        reply: "",
+
+    client:
+        request:
+            method: Connect,
+            url: "http://{addr}/",
+            headers: [],
+            body: None,
+            proxy: false,
+        error: |err| match err {
+            &hyper::Error::Method => true,
+            _ => false,
+        },
+
+}
+
+test! {
     name: client_set_host_false,
 
     server:

@@ -138,9 +138,15 @@ where C: Connect,
             }
         }
 
+        if req.method() == &Method::Connect {
+            debug!("Client does not support CONNECT requests");
+            return FutureResponse(Box::new(future::err(::Error::Method)));
+        }
+
         let domain = match uri::scheme_and_authority(req.uri()) {
             Some(uri) => uri,
             None => {
+                debug!("request uri does not include scheme and authority");
                 return FutureResponse(Box::new(future::err(::Error::Io(
                     io::Error::new(
                         io::ErrorKind::InvalidInput,
