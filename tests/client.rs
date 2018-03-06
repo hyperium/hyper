@@ -45,6 +45,45 @@ macro_rules! test {
                 headers: [ $($response_headers:expr,)* ],
                 body: $response_body:expr,
     ) => (
+        test! {
+            name: $name,
+            server:
+                expected: $server_expected,
+                reply: $server_reply,
+            client:
+                set_host: true,
+                request:
+                    method: $client_method,
+                    url: $client_url,
+                    headers: [ $($request_headers,)* ],
+                    body: $request_body,
+                    proxy: $request_proxy,
+
+                response:
+                    status: $client_status,
+                    headers: [ $($response_headers,)* ],
+                    body: $response_body,
+        }
+    );
+    (
+        name: $name:ident,
+        server:
+            expected: $server_expected:expr,
+            reply: $server_reply:expr,
+        client:
+            set_host: $set_host:expr,
+            request:
+                method: $client_method:ident,
+                url: $client_url:expr,
+                headers: [ $($request_headers:expr,)* ],
+                body: $request_body:expr,
+                proxy: $request_proxy:expr,
+
+            response:
+                status: $client_status:ident,
+                headers: [ $($response_headers:expr,)* ],
+                body: $response_body:expr,
+    ) => (
         #[test]
         fn $name() {
             #![allow(unused)]
@@ -60,6 +99,7 @@ macro_rules! test {
                     expected: $server_expected,
                     reply: $server_reply,
                 client:
+                    set_host: $set_host,
                     request:
                         method: $client_method,
                         url: $client_url,
@@ -111,6 +151,7 @@ macro_rules! test {
                     expected: $server_expected,
                     reply: $server_reply,
                 client:
+                    set_host: true,
                     request:
                         method: $client_method,
                         url: $client_url,
@@ -132,6 +173,7 @@ macro_rules! test {
             expected: $server_expected:expr,
             reply: $server_reply:expr,
         client:
+            set_host: $set_host:expr,
             request:
                 method: $client_method:ident,
                 url: $client_url:expr,
@@ -142,7 +184,12 @@ macro_rules! test {
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
         let mut core = $core;
-        let client = client(&core.handle());
+
+        let mut config = Client::configure();
+        if !$set_host {
+            config = config.set_host(false);
+        }
+        let client = config.build(&core.handle());
         let mut req = Request::new(Method::$client_method, format!($client_url, addr=addr).parse().unwrap());
         $(
             req.headers_mut().set($request_headers);
@@ -543,6 +590,35 @@ test! {
             _ => false,
         },
 
+}
+
+test! {
+    name: client_set_host_false,
+
+    server:
+        // {addr} is here because format! requires it to exist in the string
+        expected: "\
+            GET /no-host/{addr} HTTP/1.1\r\n\
+            \r\n\
+            ",
+        reply: "\
+            HTTP/1.1 200 OK\r\n\
+            Content-Length: 0\r\n\
+            \r\n\
+            ",
+
+    client:
+        set_host: false,
+        request:
+            method: Get,
+            url: "http://{addr}/no-host/{addr}",
+            headers: [],
+            body: None,
+            proxy: false,
+        response:
+            status: Ok,
+            headers: [],
+            body: None,
 }
 
 #[test]

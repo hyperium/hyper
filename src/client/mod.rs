@@ -46,6 +46,7 @@ pub struct Client<C, B = proto::Body> {
     h1_writev: bool,
     pool: Pool<HyperClient<B>>,
     retry_canceled_requests: bool,
+    set_host: bool,
 }
 
 impl Client<HttpConnector, proto::Body> {
@@ -101,6 +102,7 @@ impl<C, B> Client<C, B> {
             h1_writev: config.h1_writev,
             pool: Pool::new(config.keep_alive, config.keep_alive_timeout),
             retry_canceled_requests: config.retry_canceled_requests,
+            set_host: config.set_host,
         }
     }
 }
@@ -147,7 +149,7 @@ where C: Connect,
                 ))));
             }
         };
-        if !req.headers().has::<Host>() {
+        if self.set_host && !req.headers().has::<Host>() {
             let host = Host::new(
                 domain.host().expect("authority implies host").to_owned(),
                 domain.port(),
@@ -289,6 +291,7 @@ impl<C, B> Clone for Client<C, B> {
             h1_writev: self.h1_writev,
             pool: self.pool.clone(),
             retry_canceled_requests: self.retry_canceled_requests,
+            set_host: self.set_host,
         }
     }
 }
@@ -413,6 +416,7 @@ pub struct Config<C, B> {
     //TODO: make use of max_idle config
     max_idle: usize,
     retry_canceled_requests: bool,
+    set_host: bool,
 }
 
 /// Phantom type used to signal that `Config` should create a `HttpConnector`.
@@ -429,6 +433,7 @@ impl Default for Config<UseDefaultConnector, proto::Body> {
             h1_writev: true,
             max_idle: 5,
             retry_canceled_requests: true,
+            set_host: true,
         }
     }
 }
@@ -453,6 +458,7 @@ impl<C, B> Config<C, B> {
             h1_writev: self.h1_writev,
             max_idle: self.max_idle,
             retry_canceled_requests: self.retry_canceled_requests,
+            set_host: self.set_host,
         }
     }
 
@@ -467,6 +473,7 @@ impl<C, B> Config<C, B> {
             h1_writev: self.h1_writev,
             max_idle: self.max_idle,
             retry_canceled_requests: self.retry_canceled_requests,
+            set_host: self.set_host,
         }
     }
 
@@ -518,6 +525,18 @@ impl<C, B> Config<C, B> {
     #[inline]
     pub fn retry_canceled_requests(mut self, val: bool) -> Config<C, B> {
         self.retry_canceled_requests = val;
+        self
+    }
+
+    /// Set whether to automatically add the `Host` header to requests.
+    ///
+    /// If true, and a request does not include a `Host` header, one will be
+    /// added automatically, derived from the authority of the `Uri`.
+    ///
+    /// Default is `true`.
+    #[inline]
+    pub fn set_host(mut self, val: bool) -> Config<C, B> {
+        self.set_host = val;
         self
     }
 
@@ -573,6 +592,7 @@ impl<C, B> fmt::Debug for Config<C, B> {
             .field("keep_alive_timeout", &self.keep_alive_timeout)
             .field("http1_writev", &self.h1_writev)
             .field("max_idle", &self.max_idle)
+            .field("set_host", &self.set_host)
             .finish()
     }
 }
