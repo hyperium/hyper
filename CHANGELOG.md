@@ -1,3 +1,17 @@
+### v0.11.22 (2018-03-07)
+
+
+#### Bug Fixes
+
+* **client:** return error if Request has `CONNECT` method ([bfcdbd9f](https://github.com/hyperium/hyper/commit/bfcdbd9f86480cf6531544ecca247562a18172af))
+* **dependencies:** require tokio-core 0.1.11 ([49fcb066](https://github.com/hyperium/hyper/commit/49fcb0663cc30bbfc82cfc3c8e42d539211a3f3f))
+
+
+#### Features
+
+* **client:** add `Config::set_host` option ([33a385c6](https://github.com/hyperium/hyper/commit/33a385c6b677cce4ece2843c11ac78711fd5b898))
+
+
 ### v0.11.21 (2018-02-28)
 
 
