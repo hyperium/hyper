@@ -134,7 +134,6 @@ where
         I,
         <S::ResponseBody as Stream>::Item,
         proto::ServerTransaction,
-        proto::KA,
     >,
 }
 
@@ -310,12 +309,10 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
               I: AsyncRead + AsyncWrite,
 
     {
-        let ka = if self.keep_alive {
-            proto::KA::Busy
-        } else {
-            proto::KA::Disabled
-        };
-        let mut conn = proto::Conn::new(io, ka);
+        let mut conn = proto::Conn::new(io);
+        if !self.keep_alive {
+            conn.disable_keep_alive();
+        }
         conn.set_flush_pipeline(self.pipeline);
         if let Some(max) = self.max_buf_size {
             conn.set_max_buf_size(max);

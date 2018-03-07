@@ -5,8 +5,8 @@ use httparse;
 use bytes::{BytesMut, Bytes};
 
 use header::{self, Headers, ContentLength, TransferEncoding};
-use proto::{MessageHead, RawStatus, Http1Transaction, ParseResult,
-           ServerTransaction, ClientTransaction, RequestLine, RequestHead};
+use proto::{Decode, MessageHead, RawStatus, Http1Transaction, ParseResult,
+           RequestLine, RequestHead};
 use proto::h1::{Encoder, Decoder, date};
 use method::Method;
 use status::StatusCode;
@@ -15,7 +15,19 @@ use version::HttpVersion::{Http10, Http11};
 const MAX_HEADERS: usize = 100;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
 
-impl Http1Transaction for ServerTransaction {
+// There are 2 main roles, Client and Server.
+//
+// There is 1 modifier, OnUpgrade, which can wrap Client and Server,
+// to signal that HTTP upgrades are not supported.
+
+pub struct Client<T>(T);
+
+pub struct Server<T>(T);
+
+impl<T> Http1Transaction for Server<T>
+where
+    T: OnUpgrade,
+{
     type Incoming = RequestLine;
     type Outgoing = StatusCode;
 
@@ -72,7 +84,7 @@ impl Http1Transaction for ServerTransaction {
         }, len)))
     }
 
-    fn decoder(head: &MessageHead<Self::Incoming>, method: &mut Option<Method>) -> ::Result<Option<Decoder>> {
+    fn decoder(head: &MessageHead<Self::Incoming>, method: &mut Option<Method>) -> ::Result<Decode> {
         use ::header;
 
         *method = Some(head.subject.0.clone());
@@ -95,37 +107,40 @@ impl Http1Transaction for ServerTransaction {
                 debug!("HTTP/1.0 has Transfer-Encoding header");
                 Err(::Error::Header)
             } else if encodings.last() == Some(&header::Encoding::Chunked) {
-                Ok(Some(Decoder::chunked()))
+                Ok(Decode::Normal(Decoder::chunked()))
             } else {
                 debug!("request with transfer-encoding header, but not chunked, bad request");
                 Err(::Error::Header)
             }
         } else if let Some(&header::ContentLength(len)) = head.headers.get() {
-            Ok(Some(Decoder::length(len)))
+            Ok(Decode::Normal(Decoder::length(len)))
         } else if head.headers.has::<header::ContentLength>() {
             debug!("illegal Content-Length: {:?}", head.headers.get_raw("Content-Length"));
             Err(::Error::Header)
         } else {
-            Ok(Some(Decoder::length(0)))
+            Ok(Decode::Normal(Decoder::length(0)))
         }
     }
 
 
     fn encode(mut head: MessageHead<Self::Outgoing>, has_body: bool, method: &mut Option<Method>, dst: &mut Vec<u8>) -> ::Result<Encoder> {
-        trace!("ServerTransaction::encode has_body={}, method={:?}", has_body, method);
+        trace!("Server::encode has_body={}, method={:?}", has_body, method);
 
         // hyper currently doesn't support returning 1xx status codes as a Response
         // This is because Service only allows returning a single Response, and
         // so if you try to reply with a e.g. 100 Continue, you have no way of
         // replying with the latter status code response.
-        let ret = if head.subject.is_informational() {
+        let ret = if ::StatusCode::SwitchingProtocols == head.subject {
+            T::on_encode_upgrade(&mut head)
+                .map(|_| Server::set_length(&mut head, has_body, method.as_ref()))
+        } else if head.subject.is_informational() {
             error!("response with 1xx status code not supported");
             head = MessageHead::default();
             head.subject = ::StatusCode::InternalServerError;
             head.headers.set(ContentLength(0));
             Err(::Error::Status)
         } else {
-            Ok(ServerTransaction::set_length(&mut head, has_body, method.as_ref()))
+            Ok(Server::set_length(&mut head, has_body, method.as_ref()))
         };
 
 
@@ -179,7 +194,7 @@ impl Http1Transaction for ServerTransaction {
     }
 }
 
-impl ServerTransaction {
+impl Server<()> {
     fn set_length(head: &mut MessageHead<StatusCode>, has_body: bool, method: Option<&Method>) -> Encoder {
         // these are here thanks to borrowck
         // `if method == Some(&Method::Get)` says the RHS doesn't live long enough
@@ -214,7 +229,10 @@ impl ServerTransaction {
     }
 }
 
-impl Http1Transaction for ClientTransaction {
+impl<T> Http1Transaction for Client<T>
+where
+    T: OnUpgrade,
+{
     type Incoming = RawStatus;
     type Outgoing = RequestLine;
 
@@ -262,7 +280,7 @@ impl Http1Transaction for ClientTransaction {
         }, len)))
     }
 
-    fn decoder(inc: &MessageHead<Self::Incoming>, method: &mut Option<Method>) -> ::Result<Option<Decoder>> {
+    fn decoder(inc: &MessageHead<Self::Incoming>, method: &mut Option<Method>) -> ::Result<Decode> {
         // According to https://tools.ietf.org/html/rfc7230#section-3.3.3
         // 1. HEAD responses, and Status 1xx, 204, and 304 cannot have a body.
         // 2. Status 2xx to a CONNECT cannot have a body.
@@ -274,30 +292,29 @@ impl Http1Transaction for ClientTransaction {
 
         match inc.subject.0 {
             101 => {
-                debug!("received 101 upgrade response, not supported");
-                return Err(::Error::Upgrade);
+                return T::on_decode_upgrade().map(Decode::Final);
             },
             100...199 => {
                 trace!("ignoring informational response: {}", inc.subject.0);
-                return Ok(None);
+                return Ok(Decode::Ignore);
             },
             204 |
-            304 => return Ok(Some(Decoder::length(0))),
+            304 => return Ok(Decode::Normal(Decoder::length(0))),
             _ => (),
         }
         match *method {
             Some(Method::Head) => {
-                return Ok(Some(Decoder::length(0)));
+                return Ok(Decode::Normal(Decoder::length(0)));
             }
             Some(Method::Connect) => match inc.subject.0 {
                 200...299 => {
-                    return Ok(Some(Decoder::length(0)));
+                    return Ok(Decode::Final(Decoder::length(0)));
                 },
                 _ => {},
             },
             Some(_) => {},
             None => {
-                trace!("ClientTransaction::decoder is missing the Method");
+                trace!("Client::decoder is missing the Method");
             }
         }
 
@@ -307,28 +324,28 @@ impl Http1Transaction for ClientTransaction {
                 debug!("HTTP/1.0 has Transfer-Encoding header");
                 Err(::Error::Header)
             } else if codings.last() == Some(&header::Encoding::Chunked) {
-                Ok(Some(Decoder::chunked()))
+                Ok(Decode::Normal(Decoder::chunked()))
             } else {
                 trace!("not chunked. read till eof");
-                Ok(Some(Decoder::eof()))
+                Ok(Decode::Normal(Decoder::eof()))
             }
         } else if let Some(&header::ContentLength(len)) = inc.headers.get() {
-            Ok(Some(Decoder::length(len)))
+            Ok(Decode::Normal(Decoder::length(len)))
         } else if inc.headers.has::<header::ContentLength>() {
             debug!("illegal Content-Length: {:?}", inc.headers.get_raw("Content-Length"));
             Err(::Error::Header)
         } else {
             trace!("neither Transfer-Encoding nor Content-Length");
-            Ok(Some(Decoder::eof()))
+            Ok(Decode::Normal(Decoder::eof()))
         }
     }
 
     fn encode(mut head: MessageHead<Self::Outgoing>, has_body: bool, method: &mut Option<Method>, dst: &mut Vec<u8>) -> ::Result<Encoder> {
-        trace!("ClientTransaction::encode has_body={}, method={:?}", has_body, method);
+        trace!("Client::encode has_body={}, method={:?}", has_body, method);
 
         *method = Some(head.subject.0.clone());
 
-        let body = ClientTransaction::set_length(&mut head, has_body);
+        let body = Client::set_length(&mut head, has_body);
 
         let init_cap = 30 + head.headers.len() * AVERAGE_HEADER_SIZE;
         dst.reserve(init_cap);
@@ -351,7 +368,7 @@ impl Http1Transaction for ClientTransaction {
     }
 }
 
-impl ClientTransaction {
+impl Client<()> {
     fn set_length(head: &mut RequestHead, has_body: bool) -> Encoder {
         if has_body {
             let can_chunked = head.version == Http11
@@ -390,6 +407,42 @@ fn set_length(headers: &mut Headers, can_chunked: bool) -> Encoder {
     } else {
         headers.remove::<TransferEncoding>();
         Encoder::eof()
+    }
+}
+
+pub trait OnUpgrade {
+    fn on_encode_upgrade(head: &mut MessageHead<StatusCode>) -> ::Result<()>;
+    fn on_decode_upgrade() -> ::Result<Decoder>;
+}
+
+pub enum YesUpgrades {}
+
+pub enum NoUpgrades {}
+
+impl OnUpgrade for YesUpgrades {
+    fn on_encode_upgrade(_head: &mut MessageHead<StatusCode>) -> ::Result<()> {
+        Ok(())
+    }
+
+    fn on_decode_upgrade() -> ::Result<Decoder> {
+        debug!("101 response received, upgrading");
+        // 101 upgrades always have no body
+        Ok(Decoder::length(0))
+    }
+}
+
+impl OnUpgrade for NoUpgrades {
+    fn on_encode_upgrade(head: &mut MessageHead<StatusCode>) -> ::Result<()> {
+        error!("response with 101 status code not supported");
+        *head = MessageHead::default();
+        head.subject = ::StatusCode::InternalServerError;
+        head.headers.set(ContentLength(0));
+        Err(::Error::Status)
+    }
+
+    fn on_decode_upgrade() -> ::Result<Decoder> {
+        debug!("received 101 upgrade response, not supported");
+        return Err(::Error::Upgrade);
     }
 }
 
@@ -456,8 +509,35 @@ fn extend(dst: &mut Vec<u8>, data: &[u8]) {
 mod tests {
     use bytes::BytesMut;
 
-    use proto::{MessageHead, ServerTransaction, ClientTransaction, Http1Transaction};
+    use proto::{Decode, MessageHead};
+    use super::{Decoder, Server as S, Client as C, NoUpgrades, Http1Transaction};
     use header::{ContentLength, TransferEncoding};
+
+    type Server = S<NoUpgrades>;
+    type Client = C<NoUpgrades>;
+
+    impl Decode {
+        fn final_(self) -> Decoder {
+            match self {
+                Decode::Final(d) => d,
+                other => panic!("expected Final, found {:?}", other),
+            }
+        }
+
+        fn normal(self) -> Decoder {
+            match self {
+                Decode::Normal(d) => d,
+                other => panic!("expected Normal, found {:?}", other),
+            }
+        }
+
+        fn ignore(self) {
+            match self {
+                Decode::Ignore => {},
+                other => panic!("expected Ignore, found {:?}", other),
+            }
+        }
+    }
 
     #[test]
     fn test_parse_request() {
@@ -465,7 +545,7 @@ mod tests {
         let _ = pretty_env_logger::try_init();
         let mut raw = BytesMut::from(b"GET /echo HTTP/1.1\r\nHost: hyper.rs\r\n\r\n".to_vec());
         let expected_len = raw.len();
-        let (req, len) = ServerTransaction::parse(&mut raw).unwrap().unwrap();
+        let (req, len) = Server::parse(&mut raw).unwrap().unwrap();
         assert_eq!(len, expected_len);
         assert_eq!(req.subject.0, ::Method::Get);
         assert_eq!(req.subject.1, "/echo");
@@ -481,7 +561,7 @@ mod tests {
         let _ = pretty_env_logger::try_init();
         let mut raw = BytesMut::from(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n".to_vec());
         let expected_len = raw.len();
-        let (req, len) = ClientTransaction::parse(&mut raw).unwrap().unwrap();
+        let (req, len) = Client::parse(&mut raw).unwrap().unwrap();
         assert_eq!(len, expected_len);
         assert_eq!(req.subject.0, 200);
         assert_eq!(req.subject.1, "OK");
@@ -493,17 +573,17 @@ mod tests {
     #[test]
     fn test_parse_request_errors() {
         let mut raw = BytesMut::from(b"GET htt:p// HTTP/1.1\r\nHost: hyper.rs\r\n\r\n".to_vec());
-        ServerTransaction::parse(&mut raw).unwrap_err();
+        Server::parse(&mut raw).unwrap_err();
     }
 
     #[test]
     fn test_parse_raw_status() {
         let mut raw = BytesMut::from(b"HTTP/1.1 200 OK\r\n\r\n".to_vec());
-        let (res, _) = ClientTransaction::parse(&mut raw).unwrap().unwrap();
+        let (res, _) = Client::parse(&mut raw).unwrap().unwrap();
         assert_eq!(res.subject.1, "OK");
 
         let mut raw = BytesMut::from(b"HTTP/1.1 200 Howdy\r\n\r\n".to_vec());
-        let (res, _) = ClientTransaction::parse(&mut raw).unwrap().unwrap();
+        let (res, _) = Client::parse(&mut raw).unwrap().unwrap();
         assert_eq!(res.subject.1, "Howdy");
     }
 
@@ -516,32 +596,32 @@ mod tests {
         let mut head = MessageHead::<::proto::RequestLine>::default();
 
         head.subject.0 = ::Method::Get;
-        assert_eq!(Decoder::length(0), ServerTransaction::decoder(&head, method).unwrap().unwrap());
+        assert_eq!(Decoder::length(0), Server::decoder(&head, method).unwrap().normal());
         assert_eq!(*method, Some(::Method::Get));
 
         head.subject.0 = ::Method::Post;
-        assert_eq!(Decoder::length(0), ServerTransaction::decoder(&head, method).unwrap().unwrap());
+        assert_eq!(Decoder::length(0), Server::decoder(&head, method).unwrap().normal());
         assert_eq!(*method, Some(::Method::Post));
 
         head.headers.set(TransferEncoding::chunked());
-        assert_eq!(Decoder::chunked(), ServerTransaction::decoder(&head, method).unwrap().unwrap());
+        assert_eq!(Decoder::chunked(), Server::decoder(&head, method).unwrap().normal());
         // transfer-encoding and content-length = chunked
         head.headers.set(ContentLength(10));
-        assert_eq!(Decoder::chunked(), ServerTransaction::decoder(&head, method).unwrap().unwrap());
+        assert_eq!(Decoder::chunked(), Server::decoder(&head, method).unwrap().normal());
 
         head.headers.remove::<TransferEncoding>();
-        assert_eq!(Decoder::length(10), ServerTransaction::decoder(&head, method).unwrap().unwrap());
+        assert_eq!(Decoder::length(10), Server::decoder(&head, method).unwrap().normal());
 
         head.headers.set_raw("Content-Length", vec![b"5".to_vec(), b"5".to_vec()]);
-        assert_eq!(Decoder::length(5), ServerTransaction::decoder(&head, method).unwrap().unwrap());
+        assert_eq!(Decoder::length(5), Server::decoder(&head, method).unwrap().normal());
 
         head.headers.set_raw("Content-Length", vec![b"10".to_vec(), b"11".to_vec()]);
-        ServerTransaction::decoder(&head, method).unwrap_err();
+        Server::decoder(&head, method).unwrap_err();
 
         head.headers.remove::<ContentLength>();
 
         head.headers.set_raw("Transfer-Encoding", "gzip");
-        ServerTransaction::decoder(&head, method).unwrap_err();
+        Server::decoder(&head, method).unwrap_err();
 
 
         // http/1.0
@@ -549,14 +629,14 @@ mod tests {
         head.headers.clear();
 
         // 1.0 requests can only have bodies if content-length is set
-        assert_eq!(Decoder::length(0), ServerTransaction::decoder(&head, method).unwrap().unwrap());
+        assert_eq!(Decoder::length(0), Server::decoder(&head, method).unwrap().normal());
 
         head.headers.set(TransferEncoding::chunked());
-        ServerTransaction::decoder(&head, method).unwrap_err();
+        Server::decoder(&head, method).unwrap_err();
         head.headers.remove::<TransferEncoding>();
 
         head.headers.set(ContentLength(15));
-        assert_eq!(Decoder::length(15), ServerTransaction::decoder(&head, method).unwrap().unwrap());
+        assert_eq!(Decoder::length(15), Server::decoder(&head, method).unwrap().normal());
     }
 
     #[test]
@@ -567,64 +647,64 @@ mod tests {
         let mut head = MessageHead::<::proto::RawStatus>::default();
 
         head.subject.0 = 204;
-        assert_eq!(Decoder::length(0), ClientTransaction::decoder(&head, method).unwrap().unwrap());
+        assert_eq!(Decoder::length(0), Client::decoder(&head, method).unwrap().normal());
         head.subject.0 = 304;
-        assert_eq!(Decoder::length(0), ClientTransaction::decoder(&head, method).unwrap().unwrap());
+        assert_eq!(Decoder::length(0), Client::decoder(&head, method).unwrap().normal());
 
         head.subject.0 = 200;
-        assert_eq!(Decoder::eof(), ClientTransaction::decoder(&head, method).unwrap().unwrap());
+        assert_eq!(Decoder::eof(), Client::decoder(&head, method).unwrap().normal());
 
         *method = Some(::Method::Head);
-        assert_eq!(Decoder::length(0), ClientTransaction::decoder(&head, method).unwrap().unwrap());
+        assert_eq!(Decoder::length(0), Client::decoder(&head, method).unwrap().normal());
 
         *method = Some(::Method::Connect);
-        assert_eq!(Decoder::length(0), ClientTransaction::decoder(&head, method).unwrap().unwrap());
+        assert_eq!(Decoder::length(0), Client::decoder(&head, method).unwrap().final_());
 
 
         // CONNECT receiving non 200 can have a body
         head.subject.0 = 404;
         head.headers.set(ContentLength(10));
-        assert_eq!(Decoder::length(10), ClientTransaction::decoder(&head, method).unwrap().unwrap());
+        assert_eq!(Decoder::length(10), Client::decoder(&head, method).unwrap().normal());
         head.headers.remove::<ContentLength>();
 
 
         *method = Some(::Method::Get);
         head.headers.set(TransferEncoding::chunked());
-        assert_eq!(Decoder::chunked(), ClientTransaction::decoder(&head, method).unwrap().unwrap());
+        assert_eq!(Decoder::chunked(), Client::decoder(&head, method).unwrap().normal());
 
         // transfer-encoding and content-length = chunked
         head.headers.set(ContentLength(10));
-        assert_eq!(Decoder::chunked(), ClientTransaction::decoder(&head, method).unwrap().unwrap());
+        assert_eq!(Decoder::chunked(), Client::decoder(&head, method).unwrap().normal());
 
         head.headers.remove::<TransferEncoding>();
-        assert_eq!(Decoder::length(10), ClientTransaction::decoder(&head, method).unwrap().unwrap());
+        assert_eq!(Decoder::length(10), Client::decoder(&head, method).unwrap().normal());
 
         head.headers.set_raw("Content-Length", vec![b"5".to_vec(), b"5".to_vec()]);
-        assert_eq!(Decoder::length(5), ClientTransaction::decoder(&head, method).unwrap().unwrap());
+        assert_eq!(Decoder::length(5), Client::decoder(&head, method).unwrap().normal());
 
         head.headers.set_raw("Content-Length", vec![b"10".to_vec(), b"11".to_vec()]);
-        ClientTransaction::decoder(&head, method).unwrap_err();
+        Client::decoder(&head, method).unwrap_err();
         head.headers.clear();
 
         // 1xx status codes
         head.subject.0 = 100;
-        assert!(ClientTransaction::decoder(&head, method).unwrap().is_none());
+        Client::decoder(&head, method).unwrap().ignore();
 
         head.subject.0 = 103;
-        assert!(ClientTransaction::decoder(&head, method).unwrap().is_none());
+        Client::decoder(&head, method).unwrap().ignore();
 
         // 101 upgrade not supported yet
         head.subject.0 = 101;
-        ClientTransaction::decoder(&head, method).unwrap_err();
+        Client::decoder(&head, method).unwrap_err();
         head.subject.0 = 200;
 
         // http/1.0
         head.version = ::HttpVersion::Http10;
 
-        assert_eq!(Decoder::eof(), ClientTransaction::decoder(&head, method).unwrap().unwrap());
+        assert_eq!(Decoder::eof(), Client::decoder(&head, method).unwrap().normal());
 
         head.headers.set(TransferEncoding::chunked());
-        ClientTransaction::decoder(&head, method).unwrap_err();
+        Client::decoder(&head, method).unwrap_err();
     }
 
     #[cfg(feature = "nightly")]
@@ -656,7 +736,7 @@ mod tests {
 
         b.bytes = len as u64;
         b.iter(|| {
-            ServerTransaction::parse(&mut raw).unwrap();
+            Server::parse(&mut raw).unwrap();
             restart(&mut raw, len);
         });
 
@@ -688,7 +768,7 @@ mod tests {
 
         b.iter(|| {
             let mut vec = Vec::new();
-            ServerTransaction::encode(head.clone(), true, &mut None, &mut vec).unwrap();
+            Server::encode(head.clone(), true, &mut None, &mut vec).unwrap();
             assert_eq!(vec.len(), len);
             ::test::black_box(vec);
         })

@@ -152,6 +152,10 @@ where
         })
     }
 
+    pub fn into_inner(self) -> (T, Bytes) {
+        (self.io, self.read_buf.freeze())
+    }
+
     pub fn io_mut(&mut self) -> &mut T {
         &mut self.io
     }

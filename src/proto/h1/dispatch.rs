@@ -1,15 +1,16 @@
 use std::io;
 
+use bytes::Bytes;
 use futures::{Async, AsyncSink, Future, Poll, Stream};
 use futures::sync::oneshot;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_service::Service;
 
-use proto::{Body, Conn, KeepAlive, Http1Transaction, MessageHead, RequestHead, ResponseHead};
+use proto::{Body, Conn, Http1Transaction, MessageHead, RequestHead, ResponseHead};
 use ::StatusCode;
 
-pub struct Dispatcher<D, Bs, I, B, T, K> {
-    conn: Conn<I, B, T, K>,
+pub struct Dispatcher<D, Bs, I, B, T> {
+    conn: Conn<I, B, T>,
     dispatch: D,
     body_tx: Option<::proto::body::ChunkSender>,
     body_rx: Option<Bs>,
@@ -40,16 +41,15 @@ pub type ClientMsg<B> = (RequestHead, Option<B>);
 
 type ClientRx<B> = ::client::dispatch::Receiver<ClientMsg<B>, ::Response>;
 
-impl<D, Bs, I, B, T, K> Dispatcher<D, Bs, I, B, T, K>
+impl<D, Bs, I, B, T> Dispatcher<D, Bs, I, B, T>
 where
     D: Dispatch<PollItem=MessageHead<T::Outgoing>, PollBody=Bs, RecvItem=MessageHead<T::Incoming>>,
     I: AsyncRead + AsyncWrite,
     B: AsRef<[u8]>,
     T: Http1Transaction,
-    K: KeepAlive,
     Bs: Stream<Item=B, Error=::Error>,
 {
-    pub fn new(dispatch: D, conn: Conn<I, B, T, K>) -> Self {
+    pub fn new(dispatch: D, conn: Conn<I, B, T>) -> Self {
         Dispatcher {
             conn: conn,
             dispatch: dispatch,
@@ -63,15 +63,44 @@ where
         self.conn.disable_keep_alive()
     }
 
-    fn poll2(&mut self) -> Poll<(), ::Error> {
+    pub fn into_inner(self) -> (I, Bytes) {
+        self.conn.into_inner()
+    }
+
+    /// The "Future" poll function. Runs this dispatcher until the
+    /// connection is shutdown, or an error occurs.
+    pub fn poll_until_shutdown(&mut self) -> Poll<(), ::Error> {
+        self.poll_catch(true)
+    }
+
+    /// Run this dispatcher until HTTP says this connection is done,
+    /// but don't call `AsyncWrite::shutdown` on the underlying IO.
+    ///
+    /// This is useful for HTTP upgrades.
+    pub fn poll_without_shutdown(&mut self) -> Poll<(), ::Error> {
+        self.poll_catch(false)
+    }
+
+    fn poll_catch(&mut self, should_shutdown: bool) -> Poll<(), ::Error> {
+        self.poll_inner(should_shutdown).or_else(|e| {
+            // An error means we're shutting down either way.
+            // We just try to give the error to the user,
+            // and close the connection with an Ok. If we
+            // cannot give it to the user, then return the Err.
+            self.dispatch.recv_msg(Err(e)).map(Async::Ready)
+        })
+    }
+
+    fn poll_inner(&mut self, should_shutdown: bool) -> Poll<(), ::Error> {
         self.poll_read()?;
         self.poll_write()?;
         self.poll_flush()?;
 
         if self.is_done() {
-            try_ready!(self.conn.shutdown());
+            if should_shutdown {
+                try_ready!(self.conn.shutdown());
+            }
             self.conn.take_error()?;
-            trace!("Dispatch::poll done");
             Ok(Async::Ready(()))
         } else {
             Ok(Async::NotReady)
@@ -183,7 +212,7 @@ where
         loop {
             if self.is_closing {
                 return Ok(Async::Ready(()));
-            } else if self.body_rx.is_none() && self.dispatch.should_poll() {
+            } else if self.body_rx.is_none() && self.conn.can_write_head() && self.dispatch.should_poll() {
                 if let Some((head, body)) = try_ready!(self.dispatch.poll_msg()) {
                     self.conn.write_head(head, body.is_some());
                     self.body_rx = body;
@@ -257,13 +286,12 @@ where
 }
 
 
-impl<D, Bs, I, B, T, K> Future for Dispatcher<D, Bs, I, B, T, K>
+impl<D, Bs, I, B, T> Future for Dispatcher<D, Bs, I, B, T>
 where
     D: Dispatch<PollItem=MessageHead<T::Outgoing>, PollBody=Bs, RecvItem=MessageHead<T::Incoming>>,
     I: AsyncRead + AsyncWrite,
     B: AsRef<[u8]>,
     T: Http1Transaction,
-    K: KeepAlive,
     Bs: Stream<Item=B, Error=::Error>,
 {
     type Item = ();
@@ -271,14 +299,7 @@ where
 
     #[inline]
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        trace!("Dispatcher::poll");
-        self.poll2().or_else(|e| {
-            // An error means we're shutting down either way.
-            // We just try to give the error to the user,
-            // and close the connection with an Ok. If we
-            // cannot give it to the user, then return the Err.
-            self.dispatch.recv_msg(Err(e)).map(Async::Ready)
-        })
+        self.poll_until_shutdown()
     }
 }
 
@@ -445,8 +466,8 @@ mod tests {
         let _ = pretty_env_logger::try_init();
         ::futures::lazy(|| {
             let io = AsyncIo::new_buf(b"HTTP/1.1 200 OK\r\n\r\n".to_vec(), 100);
-            let (tx, rx) = ::client::dispatch::channel();
-            let conn = Conn::<_, ::Chunk, ClientTransaction>::new(io, Default::default());
+            let (mut tx, rx) = ::client::dispatch::channel();
+            let conn = Conn::<_, ::Chunk, ClientTransaction>::new(io);
             let mut dispatcher = Dispatcher::new(Client::new(rx), conn);
 
             let req = RequestHead {

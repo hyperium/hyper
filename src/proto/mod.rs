@@ -16,7 +16,7 @@ pub use self::body::Body;
 #[cfg(feature = "tokio-proto")]
 pub use self::body::TokioBody;
 pub use self::chunk::Chunk;
-pub use self::h1::{dispatch, Conn, KeepAlive, KA};
+pub use self::h1::{dispatch, Conn};
 
 mod body;
 mod chunk;
@@ -134,17 +134,16 @@ pub fn expecting_continue(version: HttpVersion, headers: &Headers) -> bool {
     ret
 }
 
-#[derive(Debug)]
-pub enum ServerTransaction {}
+pub type ServerTransaction = h1::role::Server<h1::role::NoUpgrades>;
 
-#[derive(Debug)]
-pub enum ClientTransaction {}
+pub type ClientTransaction = h1::role::Client<h1::role::NoUpgrades>;
+pub type ClientUpgradeTransaction = h1::role::Client<h1::role::YesUpgrades>;
 
 pub trait Http1Transaction {
     type Incoming;
     type Outgoing: Default;
     fn parse(bytes: &mut BytesMut) -> ParseResult<Self::Incoming>;
-    fn decoder(head: &MessageHead<Self::Incoming>, method: &mut Option<::Method>) -> ::Result<Option<h1::Decoder>>;
+    fn decoder(head: &MessageHead<Self::Incoming>, method: &mut Option<::Method>) -> ::Result<Decode>;
     fn encode(head: MessageHead<Self::Outgoing>, has_body: bool, method: &mut Option<Method>, dst: &mut Vec<u8>) -> ::Result<h1::Encoder>;
     fn on_error(err: &::Error) -> Option<MessageHead<Self::Outgoing>>;
 
@@ -153,6 +152,16 @@ pub trait Http1Transaction {
 }
 
 pub type ParseResult<T> = ::Result<Option<(MessageHead<T>, usize)>>;
+
+#[derive(Debug)]
+pub enum Decode {
+    /// Decode normally.
+    Normal(h1::Decoder),
+    /// After this decoder is done, HTTP is done.
+    Final(h1::Decoder),
+    /// A header block that should be ignored, like unknown 1xx responses.
+    Ignore,
+}
 
 #[test]
 fn test_should_keep_alive() {
