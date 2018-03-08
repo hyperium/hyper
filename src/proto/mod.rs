@@ -134,7 +134,9 @@ pub fn expecting_continue(version: HttpVersion, headers: &Headers) -> bool {
     ret
 }
 
-pub type ServerTransaction = h1::role::Server<h1::role::NoUpgrades>;
+pub type ServerTransaction = h1::role::Server<h1::role::YesUpgrades>;
+//pub type ServerTransaction = h1::role::Server<h1::role::NoUpgrades>;
+//pub type ServerUpgradeTransaction = h1::role::Server<h1::role::YesUpgrades>;
 
 pub type ClientTransaction = h1::role::Client<h1::role::NoUpgrades>;
 pub type ClientUpgradeTransaction = h1::role::Client<h1::role::YesUpgrades>;

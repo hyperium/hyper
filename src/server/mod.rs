@@ -5,6 +5,7 @@
 
 #[cfg(feature = "compat")]
 pub mod compat;
+pub mod conn;
 mod service;
 
 use std::cell::RefCell;
@@ -46,6 +47,7 @@ feat_server_proto! {
     };
 }
 
+pub use self::conn::Connection;
 pub use self::service::{const_service, service_fn};
 
 /// A configuration of the HTTP protocol.
@@ -108,34 +110,6 @@ pub struct AddrIncoming {
     timeout: Option<Timeout>,
 }
 
-/// A future binding a connection with a Service.
-///
-/// Polling this future will drive HTTP forward.
-///
-/// # Note
-///
-/// This will currently yield an unnameable (`Opaque`) value
-/// on success. The purpose of this is that nothing can be assumed about
-/// the type, not even it's name. It's probable that in a later release,
-/// this future yields the underlying IO object, which could be done without
-/// a breaking change.
-///
-/// It is likely best to just map the value to `()`, for now.
-#[must_use = "futures do nothing unless polled"]
-pub struct Connection<I, S>
-where
-    S: HyperService,
-    S::ResponseBody: Stream<Error=::Error>,
-    <S::ResponseBody as Stream>::Item: AsRef<[u8]>,
-{
-    conn: proto::dispatch::Dispatcher<
-        proto::dispatch::Server<S>,
-        S::ResponseBody,
-        I,
-        <S::ResponseBody as Stream>::Item,
-        proto::ServerTransaction,
-    >,
-}
 
 // ===== impl Http =====
 
@@ -566,70 +540,6 @@ where
     }
 }
 */
-
-// ===== impl Connection =====
-
-impl<I, B, S> Future for Connection<I, S>
-where S: Service<Request = Request, Response = Response<B>, Error = ::Error> + 'static,
-      I: AsyncRead + AsyncWrite + 'static,
-      B: Stream<Error=::Error> + 'static,
-      B::Item: AsRef<[u8]>,
-{
-    type Item = self::unnameable::Opaque;
-    type Error = ::Error;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        try_ready!(self.conn.poll());
-        Ok(self::unnameable::opaque().into())
-    }
-}
-
-impl<I, S> fmt::Debug for Connection<I, S>
-where
-    S: HyperService,
-    S::ResponseBody: Stream<Error=::Error>,
-    <S::ResponseBody as Stream>::Item: AsRef<[u8]>,
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Connection")
-            .finish()
-    }
-}
-
-impl<I, B, S> Connection<I, S>
-where S: Service<Request = Request, Response = Response<B>, Error = ::Error> + 'static,
-      I: AsyncRead + AsyncWrite + 'static,
-      B: Stream<Error=::Error> + 'static,
-      B::Item: AsRef<[u8]>,
-{
-    /// Disables keep-alive for this connection.
-    pub fn disable_keep_alive(&mut self) {
-        self.conn.disable_keep_alive()
-    }
-}
-
-mod unnameable {
-    // This type is specifically not exported outside the crate,
-    // so no one can actually name the type. With no methods, we make no
-    // promises about this type.
-    //
-    // All of that to say we can eventually replace the type returned
-    // to something else, and it would not be a breaking change.
-    //
-    // We may want to eventually yield the `T: AsyncRead + AsyncWrite`, which
-    // doesn't have a `Debug` bound. So, this type can't implement `Debug`
-    // either, so the type change doesn't break people.
-    #[allow(missing_debug_implementations)]
-    pub struct Opaque {
-        _inner: (),
-    }
-
-    pub fn opaque() -> Opaque {
-        Opaque {
-            _inner: (),
-        }
-    }
-}
 
 // ===== impl AddrIncoming =====
 
