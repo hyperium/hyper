@@ -1,4 +1,4 @@
-pub use self::conn::{Conn, KeepAlive, KA};
+pub use self::conn::Conn;
 pub use self::decode::Decoder;
 pub use self::encode::{EncodedBuf, Encoder};
 

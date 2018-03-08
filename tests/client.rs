@@ -737,7 +737,7 @@ mod dispatch_impl {
     use std::time::Duration;
 
     use futures::{self, Future};
-    use futures::sync::oneshot;
+    use futures::sync::{mpsc, oneshot};
     use tokio_core::reactor::{Timeout};
     use tokio_core::net::TcpStream;
     use tokio_io::{AsyncRead, AsyncWrite};
@@ -758,9 +758,9 @@ mod dispatch_impl {
         let addr = server.local_addr().unwrap();
         let mut core = Core::new().unwrap();
         let handle = core.handle();
-        let closes = Arc::new(AtomicUsize::new(0));
+        let (closes_tx, closes) = mpsc::channel(10);
         let client = Client::configure()
-            .connector(DebugConnector::with_http_and_closes(HttpConnector::new(1, &core.handle()), closes.clone()))
+            .connector(DebugConnector::with_http_and_closes(HttpConnector::new(1, &core.handle()), closes_tx))
             .build(&handle);
 
         let (tx1, rx1) = oneshot::channel();
@@ -787,7 +787,7 @@ mod dispatch_impl {
         let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
         core.run(res.join(rx).map(|r| r.0)).unwrap();
 
-        assert_eq!(closes.load(Ordering::Relaxed), 1);
+        core.run(closes.into_future()).unwrap().0.expect("closes");
     }
 
     #[test]
@@ -799,7 +799,7 @@ mod dispatch_impl {
         let addr = server.local_addr().unwrap();
         let mut core = Core::new().unwrap();
         let handle = core.handle();
-        let closes = Arc::new(AtomicUsize::new(0));
+        let (closes_tx, closes) = mpsc::channel(10);
 
         let (tx1, rx1) = oneshot::channel();
 
@@ -819,7 +819,7 @@ mod dispatch_impl {
 
         let res = {
             let client = Client::configure()
-                .connector(DebugConnector::with_http_and_closes(HttpConnector::new(1, &handle), closes.clone()))
+                .connector(DebugConnector::with_http_and_closes(HttpConnector::new(1, &handle), closes_tx))
                 .build(&handle);
             client.get(uri).and_then(move |res| {
                 assert_eq!(res.status(), hyper::StatusCode::Ok);
@@ -833,7 +833,7 @@ mod dispatch_impl {
         let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
         core.run(res.join(rx).map(|r| r.0)).unwrap();
 
-        assert_eq!(closes.load(Ordering::Relaxed), 1);
+        core.run(closes.into_future()).unwrap().0.expect("closes");
     }
 
 
@@ -845,7 +845,7 @@ mod dispatch_impl {
         let addr = server.local_addr().unwrap();
         let mut core = Core::new().unwrap();
         let handle = core.handle();
-        let closes = Arc::new(AtomicUsize::new(0));
+        let (closes_tx, mut closes) = mpsc::channel(10);
 
         let (tx1, rx1) = oneshot::channel();
         let (_client_drop_tx, client_drop_rx) = oneshot::channel::<()>();
@@ -869,7 +869,7 @@ mod dispatch_impl {
         let uri = format!("http://{}/a", addr).parse().unwrap();
 
         let client = Client::configure()
-            .connector(DebugConnector::with_http_and_closes(HttpConnector::new(1, &handle), closes.clone()))
+            .connector(DebugConnector::with_http_and_closes(HttpConnector::new(1, &handle), closes_tx))
             .build(&handle);
         let res = client.get(uri).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::Ok);
@@ -879,12 +879,24 @@ mod dispatch_impl {
         core.run(res.join(rx).map(|r| r.0)).unwrap();
 
         // not closed yet, just idle
-        assert_eq!(closes.load(Ordering::Relaxed), 0);
+        {
+            futures::future::poll_fn(|| {
+                assert!(closes.poll()?.is_not_ready());
+                Ok::<_, ()>(().into())
+            }).wait().unwrap();
+        }
         drop(client);
-        core.run(Timeout::new(Duration::from_millis(100), &handle).unwrap()).unwrap();
 
-        assert_eq!(closes.load(Ordering::Relaxed), 1);
+        let t = Timeout::new(Duration::from_millis(100), &handle).unwrap()
+            .map(|_| panic!("time out"));
+        let close = closes.into_future()
+            .map(|(opt, _)| {
+                opt.expect("closes");
+            })
+            .map_err(|_| panic!("closes dropped"));
+        let _ = core.run(t.select(close));
     }
+
 
     #[test]
     fn drop_response_future_closes_in_progress_connection() {
@@ -894,7 +906,7 @@ mod dispatch_impl {
         let addr = server.local_addr().unwrap();
         let mut core = Core::new().unwrap();
         let handle = core.handle();
-        let closes = Arc::new(AtomicUsize::new(0));
+        let (closes_tx, closes) = mpsc::channel(10);
 
         let (tx1, rx1) = oneshot::channel();
         let (_client_drop_tx, client_drop_rx) = oneshot::channel::<()>();
@@ -918,7 +930,7 @@ mod dispatch_impl {
 
         let res = {
             let client = Client::configure()
-                .connector(DebugConnector::with_http_and_closes(HttpConnector::new(1, &handle), closes.clone()))
+                .connector(DebugConnector::with_http_and_closes(HttpConnector::new(1, &handle), closes_tx))
                 .build(&handle);
             client.get(uri)
         };
@@ -926,9 +938,14 @@ mod dispatch_impl {
         //let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
         core.run(res.select2(rx1)).unwrap();
         // res now dropped
-        core.run(Timeout::new(Duration::from_millis(100), &handle).unwrap()).unwrap();
-
-        assert_eq!(closes.load(Ordering::Relaxed), 1);
+        let t = Timeout::new(Duration::from_millis(100), &handle).unwrap()
+            .map(|_| panic!("time out"));
+        let close = closes.into_future()
+            .map(|(opt, _)| {
+                opt.expect("closes");
+            })
+            .map_err(|_| panic!("closes dropped"));
+        let _ = core.run(t.select(close));
     }
 
     #[test]
@@ -939,7 +956,7 @@ mod dispatch_impl {
         let addr = server.local_addr().unwrap();
         let mut core = Core::new().unwrap();
         let handle = core.handle();
-        let closes = Arc::new(AtomicUsize::new(0));
+        let (closes_tx, closes) = mpsc::channel(10);
 
         let (tx1, rx1) = oneshot::channel();
         let (_client_drop_tx, client_drop_rx) = oneshot::channel::<()>();
@@ -962,7 +979,7 @@ mod dispatch_impl {
 
         let res = {
             let client = Client::configure()
-                .connector(DebugConnector::with_http_and_closes(HttpConnector::new(1, &handle), closes.clone()))
+                .connector(DebugConnector::with_http_and_closes(HttpConnector::new(1, &handle), closes_tx))
                 .build(&handle);
             // notably, havent read body yet
             client.get(uri)
@@ -970,9 +987,15 @@ mod dispatch_impl {
 
         let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
         core.run(res.join(rx).map(|r| r.0)).unwrap();
-        core.run(Timeout::new(Duration::from_millis(100), &handle).unwrap()).unwrap();
 
-        assert_eq!(closes.load(Ordering::Relaxed), 1);
+        let t = Timeout::new(Duration::from_millis(100), &handle).unwrap()
+            .map(|_| panic!("time out"));
+        let close = closes.into_future()
+            .map(|(opt, _)| {
+                opt.expect("closes");
+            })
+            .map_err(|_| panic!("closes dropped"));
+        let _ = core.run(t.select(close));
     }
 
     #[test]
@@ -984,7 +1007,7 @@ mod dispatch_impl {
         let addr = server.local_addr().unwrap();
         let mut core = Core::new().unwrap();
         let handle = core.handle();
-        let closes = Arc::new(AtomicUsize::new(0));
+        let (closes_tx, closes) = mpsc::channel(10);
 
         let (tx1, rx1) = oneshot::channel();
 
@@ -1001,7 +1024,7 @@ mod dispatch_impl {
         let uri = format!("http://{}/a", addr).parse().unwrap();
 
         let client = Client::configure()
-            .connector(DebugConnector::with_http_and_closes(HttpConnector::new(1, &handle), closes.clone()))
+            .connector(DebugConnector::with_http_and_closes(HttpConnector::new(1, &handle), closes_tx))
             .keep_alive(false)
             .build(&handle);
         let res = client.get(uri).and_then(move |res| {
@@ -1011,7 +1034,14 @@ mod dispatch_impl {
         let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
         core.run(res.join(rx).map(|r| r.0)).unwrap();
 
-        assert_eq!(closes.load(Ordering::Relaxed), 1);
+        let t = Timeout::new(Duration::from_millis(100), &handle).unwrap()
+            .map(|_| panic!("time out"));
+        let close = closes.into_future()
+            .map(|(opt, _)| {
+                opt.expect("closes");
+            })
+            .map_err(|_| panic!("closes dropped"));
+        let _ = core.run(t.select(close));
     }
 
     #[test]
@@ -1023,7 +1053,7 @@ mod dispatch_impl {
         let addr = server.local_addr().unwrap();
         let mut core = Core::new().unwrap();
         let handle = core.handle();
-        let closes = Arc::new(AtomicUsize::new(0));
+        let (closes_tx, closes) = mpsc::channel(10);
 
         let (tx1, rx1) = oneshot::channel();
 
@@ -1040,19 +1070,24 @@ mod dispatch_impl {
         let uri = format!("http://{}/a", addr).parse().unwrap();
 
         let client = Client::configure()
-            .connector(DebugConnector::with_http_and_closes(HttpConnector::new(1, &handle), closes.clone()))
+            .connector(DebugConnector::with_http_and_closes(HttpConnector::new(1, &handle), closes_tx))
             .build(&handle);
         let res = client.get(uri).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::Ok);
             res.body().concat2()
         });
         let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
-
-        let timeout = Timeout::new(Duration::from_millis(200), &handle).unwrap();
-        let rx = rx.and_then(move |_| timeout.map_err(|e| e.into()));
         core.run(res.join(rx).map(|r| r.0)).unwrap();
 
-        assert_eq!(closes.load(Ordering::Relaxed), 1);
+
+        let t = Timeout::new(Duration::from_millis(100), &handle).unwrap()
+            .map(|_| panic!("time out"));
+        let close = closes.into_future()
+            .map(|(opt, _)| {
+                opt.expect("closes");
+            })
+            .map_err(|_| panic!("closes dropped"));
+        let _ = core.run(t.select(close));
     }
 
     #[test]
@@ -1113,7 +1148,7 @@ mod dispatch_impl {
         let addr = server.local_addr().unwrap();
         let mut core = Core::new().unwrap();
         let handle = core.handle();
-        let closes = Arc::new(AtomicUsize::new(0));
+        let (closes_tx, closes) = mpsc::channel(10);
 
         let (tx1, rx1) = oneshot::channel();
 
@@ -1130,7 +1165,7 @@ mod dispatch_impl {
         let uri = format!("http://{}/a", addr).parse().unwrap();
 
         let client = Client::configure()
-            .connector(DebugConnector::with_http_and_closes(HttpConnector::new(1, &handle), closes.clone()))
+            .connector(DebugConnector::with_http_and_closes(HttpConnector::new(1, &handle), closes_tx))
             .executor(handle.clone());
         let res = client.get(uri).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::Ok);
@@ -1142,36 +1177,29 @@ mod dispatch_impl {
         let rx = rx.and_then(move |_| timeout.map_err(|e| e.into()));
         core.run(res.join(rx).map(|r| r.0)).unwrap();
 
-        assert_eq!(closes.load(Ordering::Relaxed), 1);
+
+        let t = Timeout::new(Duration::from_millis(100), &handle).unwrap()
+            .map(|_| panic!("time out"));
+        let close = closes.into_future()
+            .map(|(opt, _)| {
+                opt.expect("closes");
+            })
+            .map_err(|_| panic!("closes dropped"));
+        let _ = core.run(t.select(close));
     }
 
     #[test]
-    fn idle_conn_prevents_connect_call() {
+    fn connect_call_is_lazy() {
+        // We especially don't want connects() triggered if there's
+        // idle connections that the Checkout would have found
         let _ = pretty_env_logger::try_init();
 
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
-        let mut core = Core::new().unwrap();
+        let core = Core::new().unwrap();
         let handle = core.handle();
         let connector = DebugConnector::new(&handle);
         let connects = connector.connects.clone();
-
-        let (tx1, rx1) = oneshot::channel();
-        let (tx2, rx2) = oneshot::channel();
-
-        thread::spawn(move || {
-            let mut sock = server.accept().unwrap().0;
-            sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
-            sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
-            let mut buf = [0; 4096];
-            sock.read(&mut buf).expect("read 1");
-            sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").unwrap();
-            let _ = tx1.send(());
-
-            sock.read(&mut buf).expect("read 2");
-            sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").unwrap();
-            let _ = tx2.send(());
-        });
 
         let uri: hyper::Uri = format!("http://{}/a", addr).parse().unwrap();
 
@@ -1179,38 +1207,28 @@ mod dispatch_impl {
             .connector(connector)
             .build(&handle);
 
-        let res = client.get(uri.clone()).and_then(move |res| {
-            assert_eq!(res.status(), hyper::StatusCode::Ok);
-            res.body().concat2()
-        });
-        let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
-        core.run(res.join(rx).map(|r| r.0)).unwrap();
-        assert_eq!(connects.load(Ordering::Relaxed), 1);
-
-        let res2 = client.get(uri).and_then(move |res| {
-            assert_eq!(res.status(), hyper::StatusCode::Ok);
-            res.body().concat2()
-        });
-        let rx = rx2.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
-        core.run(res2.join(rx).map(|r| r.0)).unwrap();
-
-        assert_eq!(connects.load(Ordering::Relaxed), 1);
+        assert_eq!(connects.load(Ordering::Relaxed), 0);
+        let _fut = client.get(uri);
+        // internal Connect::connect should have been lazy, and not
+        // triggered an actual connect yet.
+        assert_eq!(connects.load(Ordering::Relaxed), 0);
     }
 
 
     struct DebugConnector {
         http: HttpConnector,
-        closes: Arc<AtomicUsize>,
+        closes: mpsc::Sender<()>,
         connects: Arc<AtomicUsize>,
     }
 
     impl DebugConnector {
         fn new(handle: &Handle) -> DebugConnector {
             let http = HttpConnector::new(1, handle);
-            DebugConnector::with_http_and_closes(http, Arc::new(AtomicUsize::new(0)))
+            let (tx, _) = mpsc::channel(10);
+            DebugConnector::with_http_and_closes(http, tx)
         }
 
-        fn with_http_and_closes(http: HttpConnector, closes: Arc<AtomicUsize>) -> DebugConnector {
+        fn with_http_and_closes(http: HttpConnector, closes: mpsc::Sender<()>) -> DebugConnector {
             DebugConnector {
                 http: http,
                 closes: closes,
@@ -1234,11 +1252,11 @@ mod dispatch_impl {
         }
     }
 
-    struct DebugStream(TcpStream, Arc<AtomicUsize>);
+    struct DebugStream(TcpStream, mpsc::Sender<()>);
 
     impl Drop for DebugStream {
         fn drop(&mut self) {
-            self.1.fetch_add(1, Ordering::SeqCst);
+            let _ = self.1.try_send(());
         }
     }
 
@@ -1261,6 +1279,359 @@ mod dispatch_impl {
     impl Read for DebugStream {
         fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
             self.0.read(buf)
+        }
+    }
+
+    impl AsyncRead for DebugStream {}
+}
+
+mod conn {
+    use std::io::{self, Read, Write};
+    use std::net::TcpListener;
+    use std::thread;
+    use std::time::Duration;
+
+    use futures::{Async, Future, Poll, Stream};
+    use futures::future::poll_fn;
+    use futures::sync::oneshot;
+    use tokio_core::reactor::{Core, Timeout};
+    use tokio_core::net::TcpStream;
+    use tokio_io::{AsyncRead, AsyncWrite};
+
+    use hyper::{self, Method, Request};
+    use hyper::client::conn;
+
+    use super::s;
+
+    #[test]
+    fn get() {
+        let server = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = server.local_addr().unwrap();
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+
+        let (tx1, rx1) = oneshot::channel();
+
+        thread::spawn(move || {
+            let mut sock = server.accept().unwrap().0;
+            sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let mut buf = [0; 4096];
+            let n = sock.read(&mut buf).expect("read 1");
+
+            // Notably:
+            // - Just a path, since just a path was set
+            // - No host, since no host was set
+            let expected = "GET /a HTTP/1.1\r\n\r\n";
+            assert_eq!(s(&buf[..n]), expected);
+
+            sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").unwrap();
+            let _ = tx1.send(());
+        });
+
+        let tcp = core.run(TcpStream::connect(&addr, &handle)).unwrap();
+
+        let (mut client, conn) = core.run(conn::handshake(tcp)).unwrap();
+
+        handle.spawn(conn.map(|_| ()).map_err(|e| panic!("conn error: {}", e)));
+
+        let uri = "/a".parse().unwrap();
+        let req = Request::new(Method::Get, uri);
+
+        let res = client.send_request(req).and_then(move |res| {
+            assert_eq!(res.status(), hyper::StatusCode::Ok);
+            res.body().concat2()
+        });
+        let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+
+        let timeout = Timeout::new(Duration::from_millis(200), &handle).unwrap();
+        let rx = rx.and_then(move |_| timeout.map_err(|e| e.into()));
+        core.run(res.join(rx).map(|r| r.0)).unwrap();
+    }
+
+    #[test]
+    fn uri_absolute_form() {
+        let server = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = server.local_addr().unwrap();
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+
+        let (tx1, rx1) = oneshot::channel();
+
+        thread::spawn(move || {
+            let mut sock = server.accept().unwrap().0;
+            sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let mut buf = [0; 4096];
+            let n = sock.read(&mut buf).expect("read 1");
+
+            // Notably:
+            // - Still no Host header, since it wasn't set
+            let expected = "GET http://hyper.local/a HTTP/1.1\r\n\r\n";
+            assert_eq!(s(&buf[..n]), expected);
+
+            sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").unwrap();
+            let _ = tx1.send(());
+        });
+
+        let tcp = core.run(TcpStream::connect(&addr, &handle)).unwrap();
+
+        let (mut client, conn) = core.run(conn::handshake(tcp)).unwrap();
+
+        handle.spawn(conn.map(|_| ()).map_err(|e| panic!("conn error: {}", e)));
+
+        let uri = "http://hyper.local/a".parse().unwrap();
+        let req = Request::new(Method::Get, uri);
+
+        let res = client.send_request(req).and_then(move |res| {
+            assert_eq!(res.status(), hyper::StatusCode::Ok);
+            res.body().concat2()
+        });
+        let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+
+        let timeout = Timeout::new(Duration::from_millis(200), &handle).unwrap();
+        let rx = rx.and_then(move |_| timeout.map_err(|e| e.into()));
+        core.run(res.join(rx).map(|r| r.0)).unwrap();
+    }
+
+
+    #[test]
+    fn pipeline() {
+        let server = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = server.local_addr().unwrap();
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+
+        let (tx1, rx1) = oneshot::channel();
+
+        thread::spawn(move || {
+            let mut sock = server.accept().unwrap().0;
+            sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let mut buf = [0; 4096];
+            sock.read(&mut buf).expect("read 1");
+            sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").unwrap();
+            let _ = tx1.send(());
+        });
+
+        let tcp = core.run(TcpStream::connect(&addr, &handle)).unwrap();
+
+        let (mut client, conn) = core.run(conn::handshake(tcp)).unwrap();
+
+        handle.spawn(conn.map(|_| ()).map_err(|e| panic!("conn error: {}", e)));
+
+        let uri = "/a".parse().unwrap();
+        let req = Request::new(Method::Get, uri);
+        let res1 = client.send_request(req).and_then(move |res| {
+            assert_eq!(res.status(), hyper::StatusCode::Ok);
+            res.body().concat2()
+        });
+
+        // pipelined request will hit NotReady, and thus should return an Error::Cancel
+        let uri = "/b".parse().unwrap();
+        let req = Request::new(Method::Get, uri);
+        let res2 = client.send_request(req)
+            .then(|result| {
+                let err = result.expect_err("res2");
+                match err {
+                    hyper::Error::Cancel(..) => (),
+                    other => panic!("expected Cancel, found {:?}", other),
+                }
+                Ok(())
+            });
+
+        let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+
+        let timeout = Timeout::new(Duration::from_millis(200), &handle).unwrap();
+        let rx = rx.and_then(move |_| timeout.map_err(|e| e.into()));
+        core.run(res1.join(res2).join(rx).map(|r| r.0)).unwrap();
+    }
+
+    #[test]
+    fn upgrade() {
+        use tokio_io::io::{read_to_end, write_all};
+        let _ = ::pretty_env_logger::try_init();
+
+        let server = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = server.local_addr().unwrap();
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+
+        let (tx1, rx1) = oneshot::channel();
+
+        thread::spawn(move || {
+            let mut sock = server.accept().unwrap().0;
+            sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let mut buf = [0; 4096];
+            sock.read(&mut buf).expect("read 1");
+            sock.write_all(b"\
+                HTTP/1.1 101 Switching Protocols\r\n\
+                Upgrade: foobar\r\n\
+                \r\n\
+                foobar=ready\
+            ").unwrap();
+            let _ = tx1.send(());
+
+            let n = sock.read(&mut buf).expect("read 2");
+            assert_eq!(&buf[..n], b"foo=bar");
+            sock.write_all(b"bar=foo").expect("write 2");
+        });
+
+        let tcp = core.run(TcpStream::connect(&addr, &handle)).unwrap();
+
+        let io = DebugStream {
+            tcp: tcp,
+            shutdown_called: false,
+        };
+
+        let (mut client, mut conn) = core.run(conn::handshake(io)).unwrap();
+
+        {
+            let until_upgrade = poll_fn(|| {
+                conn.poll_without_shutdown()
+            });
+
+            let uri = "/a".parse().unwrap();
+            let req = Request::new(Method::Get, uri);
+            let res = client.send_request(req).and_then(move |res| {
+                assert_eq!(res.status(), hyper::StatusCode::SwitchingProtocols);
+                assert_eq!(res.headers().get_raw("Upgrade").unwrap(), "foobar");
+                res.body().concat2()
+            });
+
+            let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+
+            let timeout = Timeout::new(Duration::from_millis(200), &handle).unwrap();
+            let rx = rx.and_then(move |_| timeout.map_err(|e| e.into()));
+            core.run(until_upgrade.join(res).join(rx).map(|r| r.0)).unwrap();
+
+            // should not be ready now
+            core.run(poll_fn(|| {
+                assert!(client.poll_ready().unwrap().is_not_ready());
+                Ok::<_, ()>(Async::Ready(()))
+            })).unwrap();
+        }
+
+        let parts = conn.into_parts();
+        let io = parts.io;
+        let buf = parts.read_buf;
+
+        assert_eq!(buf, b"foobar=ready"[..]);
+        assert!(!io.shutdown_called, "upgrade shouldn't shutdown AsyncWrite");
+        assert!(client.poll_ready().is_err());
+
+        let io = core.run(write_all(io, b"foo=bar")).unwrap().0;
+        let vec = core.run(read_to_end(io, vec![])).unwrap().1;
+        assert_eq!(vec, b"bar=foo");
+    }
+
+    #[test]
+    fn connect_method() {
+        use tokio_io::io::{read_to_end, write_all};
+        let _ = ::pretty_env_logger::try_init();
+
+        let server = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = server.local_addr().unwrap();
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+
+        let (tx1, rx1) = oneshot::channel();
+
+        thread::spawn(move || {
+            let mut sock = server.accept().unwrap().0;
+            sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let mut buf = [0; 4096];
+            sock.read(&mut buf).expect("read 1");
+            sock.write_all(b"\
+                HTTP/1.1 200 OK\r\n\
+                \r\n\
+                foobar=ready\
+            ").unwrap();
+            let _ = tx1.send(());
+
+            let n = sock.read(&mut buf).expect("read 2");
+            assert_eq!(&buf[..n], b"foo=bar", "sock read 2 bytes");
+            sock.write_all(b"bar=foo").expect("write 2");
+        });
+
+        let tcp = core.run(TcpStream::connect(&addr, &handle)).unwrap();
+
+        let io = DebugStream {
+            tcp: tcp,
+            shutdown_called: false,
+        };
+
+        let (mut client, mut conn) = core.run(conn::handshake(io)).unwrap();
+
+        {
+            let until_tunneled = poll_fn(|| {
+                conn.poll_without_shutdown()
+            });
+
+            let uri = format!("http://{}", addr).parse().unwrap();
+            let req = Request::new(Method::Connect, uri);
+            let res = client.send_request(req)
+                .and_then(move |res| {
+                    assert_eq!(res.status(), hyper::StatusCode::Ok);
+                    res.body().concat2()
+                })
+                .map(|body| {
+                    assert_eq!(body.as_ref(), b"");
+                });
+
+            let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+
+            let timeout = Timeout::new(Duration::from_millis(200), &handle).unwrap();
+            let rx = rx.and_then(move |_| timeout.map_err(|e| e.into()));
+            core.run(until_tunneled.join(res).join(rx).map(|r| r.0)).unwrap();
+
+            // should not be ready now
+            core.run(poll_fn(|| {
+                assert!(client.poll_ready().unwrap().is_not_ready());
+                Ok::<_, ()>(Async::Ready(()))
+            })).unwrap();
+        }
+
+        let parts = conn.into_parts();
+        let io = parts.io;
+        let buf = parts.read_buf;
+
+        assert_eq!(buf, b"foobar=ready"[..]);
+        assert!(!io.shutdown_called, "tunnel shouldn't shutdown AsyncWrite");
+        assert!(client.poll_ready().is_err());
+
+        let io = core.run(write_all(io, b"foo=bar")).unwrap().0;
+        let vec = core.run(read_to_end(io, vec![])).unwrap().1;
+        assert_eq!(vec, b"bar=foo");
+    }
+
+    struct DebugStream {
+        tcp: TcpStream,
+        shutdown_called: bool,
+    }
+
+    impl Write for DebugStream {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.tcp.write(buf)
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            self.tcp.flush()
+        }
+    }
+
+    impl AsyncWrite for DebugStream {
+        fn shutdown(&mut self) -> Poll<(), io::Error> {
+            self.shutdown_called = true;
+            AsyncWrite::shutdown(&mut self.tcp)
+        }
+    }
+
+    impl Read for DebugStream {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            self.tcp.read(buf)
         }
     }
 

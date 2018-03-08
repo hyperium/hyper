@@ -17,6 +17,7 @@ use self::Error::{
     Status,
     Timeout,
     Upgrade,
+    Closed,
     Cancel,
     Io,
     TooLarge,
@@ -50,6 +51,8 @@ pub enum Error {
     Upgrade,
     /// A pending item was dropped before ever being processed.
     Cancel(Canceled),
+    /// Indicates a connection is closed.
+    Closed,
     /// An `io::Error` that occurred while trying to read or write to a network stream.
     Io(IoError),
     /// Parsing a field as string failed
@@ -60,9 +63,9 @@ pub enum Error {
 }
 
 impl Error {
-    pub(crate) fn new_canceled(cause: Option<Error>) -> Error {
+    pub(crate) fn new_canceled<E: Into<Box<StdError + Send + Sync>>>(cause: Option<E>) -> Error {
         Error::Cancel(Canceled {
-            cause: cause.map(Box::new),
+            cause: cause.map(Into::into),
         })
     }
 }
@@ -75,7 +78,7 @@ impl Error {
 /// fulfilled with this error, signaling the `Request` was never started.
 #[derive(Debug)]
 pub struct Canceled {
-    cause: Option<Box<Error>>,
+    cause: Option<Box<StdError + Send + Sync>>,
 }
 
 impl Canceled {
@@ -121,6 +124,7 @@ impl StdError for Error {
             Incomplete => "message is incomplete",
             Timeout => "timeout",
             Upgrade => "unsupported protocol upgrade",
+            Closed => "connection is closed",
             Cancel(ref e) => e.description(),
             Uri(ref e) => e.description(),
             Io(ref e) => e.description(),

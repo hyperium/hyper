@@ -1,60 +1,64 @@
-use futures::{Async, Future, Poll, Stream};
+use futures::{Async, Poll, Stream};
 use futures::sync::{mpsc, oneshot};
 
 use common::Never;
-use super::cancel::{Cancel, Canceled};
+use super::signal;
 
 pub type Callback<T, U> = oneshot::Sender<Result<U, (::Error, Option<T>)>>;
 pub type Promise<T, U> = oneshot::Receiver<Result<U, (::Error, Option<T>)>>;
 
 pub fn channel<T, U>() -> (Sender<T, U>, Receiver<T, U>) {
-    let (tx, rx) = mpsc::unbounded();
-    let (cancel, canceled) = Cancel::new();
+    let (tx, rx) = mpsc::channel(0);
+    let (giver, taker) = signal::new();
     let tx = Sender {
-        cancel: cancel,
+        giver: giver,
         inner: tx,
     };
     let rx = Receiver {
-        canceled: canceled,
         inner: rx,
+        taker: taker,
     };
     (tx, rx)
 }
 
 pub struct Sender<T, U> {
-    cancel: Cancel,
-    inner: mpsc::UnboundedSender<(T, Callback<T, U>)>,
+    // The Giver helps watch that the the Receiver side has been polled
+    // when the queue is empty. This helps us know when a request and
+    // response have been fully processed, and a connection is ready
+    // for more.
+    giver: signal::Giver,
+    inner: mpsc::Sender<(T, Callback<T, U>)>,
 }
 
 impl<T, U> Sender<T, U> {
+    pub fn poll_ready(&mut self) -> Poll<(), ::Error> {
+        match self.inner.poll_ready() {
+            Ok(Async::Ready(())) => {
+                // there's room in the queue, but does the Connection
+                // want a message yet?
+                self.giver.poll_want()
+                    .map_err(|_| ::Error::Closed)
+            },
+            Ok(Async::NotReady) => Ok(Async::NotReady),
+            Err(_) => Err(::Error::Closed),
+        }
+    }
+
     pub fn is_closed(&self) -> bool {
-        self.cancel.is_canceled()
+        self.giver.is_canceled()
     }
 
-    pub fn cancel(&self) {
-        self.cancel.cancel();
-    }
-
-    pub fn send(&self, val: T) -> Result<Promise<T, U>, T> {
+    pub fn send(&mut self, val: T) -> Result<Promise<T, U>, T> {
         let (tx, rx) = oneshot::channel();
-        self.inner.unbounded_send((val, tx))
+        self.inner.try_send((val, tx))
             .map(move |_| rx)
             .map_err(|e| e.into_inner().0)
     }
 }
 
-impl<T, U> Clone for Sender<T, U> {
-    fn clone(&self) -> Sender<T, U> {
-        Sender {
-            cancel: self.cancel.clone(),
-            inner: self.inner.clone(),
-        }
-    }
-}
-
 pub struct Receiver<T, U> {
-    canceled: Canceled,
-    inner: mpsc::UnboundedReceiver<(T, Callback<T, U>)>,
+    inner: mpsc::Receiver<(T, Callback<T, U>)>,
+    taker: signal::Taker,
 }
 
 impl<T, U> Stream for Receiver<T, U> {
@@ -62,16 +66,20 @@ impl<T, U> Stream for Receiver<T, U> {
     type Error = Never;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        if let Async::Ready(()) = self.canceled.poll()? {
-            return Ok(Async::Ready(None));
+        match self.inner.poll() {
+            Ok(Async::Ready(item)) => Ok(Async::Ready(item)),
+            Ok(Async::NotReady) => {
+                self.taker.want();
+                Ok(Async::NotReady)
+            }
+            Err(()) => unreachable!("mpsc never errors"),
         }
-        self.inner.poll().map_err(|()| unreachable!("mpsc never errors"))
     }
 }
 
 impl<T, U> Drop for Receiver<T, U> {
     fn drop(&mut self) {
-        self.canceled.cancel();
+        self.taker.cancel();
         self.inner.close();
 
         // This poll() is safe to call in `Drop`, because we've
@@ -84,8 +92,7 @@ impl<T, U> Drop for Receiver<T, U> {
         // - NotReady: unreachable
         // - Err: unreachable
         while let Ok(Async::Ready(Some((val, cb)))) = self.inner.poll() {
-            // maybe in future, we pass the value along with the error?
-            let _ = cb.send(Err((::Error::new_canceled(None), Some(val))));
+            let _ = cb.send(Err((::Error::new_canceled(None::<::Error>), Some(val))));
         }
     }
 
@@ -109,7 +116,7 @@ mod tests {
         future::lazy(|| {
             #[derive(Debug)]
             struct Custom(i32);
-            let (tx, rx) = super::channel::<Custom, ()>();
+            let (mut tx, rx) = super::channel::<Custom, ()>();
 
             let promise = tx.send(Custom(43)).unwrap();
             drop(rx);
@@ -128,8 +135,8 @@ mod tests {
 
     #[cfg(feature = "nightly")]
     #[bench]
-    fn cancelable_queue_throughput(b: &mut test::Bencher) {
-        let (tx, mut rx) = super::channel::<i32, ()>();
+    fn giver_queue_throughput(b: &mut test::Bencher) {
+        let (mut tx, mut rx) = super::channel::<i32, ()>();
 
         b.iter(move || {
             ::futures::future::lazy(|| {
@@ -149,7 +156,7 @@ mod tests {
 
     #[cfg(feature = "nightly")]
     #[bench]
-    fn cancelable_queue_not_ready(b: &mut test::Bencher) {
+    fn giver_queue_not_ready(b: &mut test::Bencher) {
         let (_tx, mut rx) = super::channel::<i32, ()>();
 
         b.iter(move || {
@@ -163,11 +170,11 @@ mod tests {
 
     #[cfg(feature = "nightly")]
     #[bench]
-    fn cancelable_queue_cancel(b: &mut test::Bencher) {
-        let (tx, _rx) = super::channel::<i32, ()>();
+    fn giver_queue_cancel(b: &mut test::Bencher) {
+        let (_tx, rx) = super::channel::<i32, ()>();
 
         b.iter(move || {
-            tx.cancel();
+            rx.taker.cancel();
         })
     }
 }

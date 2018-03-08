@@ -99,12 +99,10 @@ impl<T, B> ServerProto<T> for Http<B>
 
     #[inline]
     fn bind_transport(&self, io: T) -> Self::BindTransport {
-        let ka = if self.keep_alive {
-            proto::KA::Busy
-        } else {
-            proto::KA::Disabled
-        };
-        let mut conn = proto::Conn::new(io, ka);
+        let mut conn = proto::Conn::new(io);
+        if !self.keep_alive {
+            conn.disable_keep_alive();
+        }
         conn.set_flush_pipeline(self.pipeline);
         if let Some(max) = self.max_buf_size {
             conn.set_max_buf_size(max);

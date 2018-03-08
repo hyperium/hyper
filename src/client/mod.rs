@@ -1,14 +1,14 @@
 //! HTTP Client
 
-use std::cell::Cell;
 use std::fmt;
 use std::io;
 use std::marker::PhantomData;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::time::Duration;
 
 use futures::{Async, Future, Poll, Stream};
-use futures::future::{self, Either, Executor};
+use futures::future::{self, Executor};
 #[cfg(feature = "compat")]
 use http;
 use tokio::reactor::Handle;
@@ -28,7 +28,7 @@ pub use self::connect::{HttpConnector, Connect};
 
 use self::background::{bg, Background};
 
-mod cancel;
+pub mod conn;
 mod connect;
 //TODO(easy): move cancel and dispatch into common instead
 pub(crate) mod dispatch;
@@ -36,6 +36,7 @@ mod dns;
 mod pool;
 #[cfg(feature = "compat")]
 pub mod compat;
+mod signal;
 #[cfg(test)]
 mod tests;
 
@@ -44,7 +45,7 @@ pub struct Client<C, B = proto::Body> {
     connector: Rc<C>,
     executor: Exec,
     h1_writev: bool,
-    pool: Pool<HyperClient<B>>,
+    pool: Pool<PoolClient<B>>,
     retry_canceled_requests: bool,
     set_host: bool,
 }
@@ -191,77 +192,73 @@ where C: Connect,
 
     //TODO: replace with `impl Future` when stable
     fn send_request(&self, req: Request<B>, domain: &Uri) -> Box<Future<Item=Response, Error=ClientError<B>>> {
+    //fn send_request(&self, req: Request<B>, domain: &Uri) -> Box<Future<Item=Response, Error=::Error>> {
         let url = req.uri().clone();
-        let (head, body) = request::split(req);
         let checkout = self.pool.checkout(domain.as_ref());
         let connect = {
             let executor = self.executor.clone();
             let pool = self.pool.clone();
-            let pool_key = Rc::new(domain.to_string());
+            let pool_key = Arc::new(domain.to_string());
             let h1_writev = self.h1_writev;
             let connector = self.connector.clone();
             future::lazy(move || {
                 connector.connect(url)
+                    .from_err()
                     .and_then(move |io| {
-                        let (tx, rx) = dispatch::channel();
-                        let tx = HyperClient {
+                        conn::Builder::new()
+                            .h1_writev(h1_writev)
+                            .handshake_no_upgrades(io)
+                    }).and_then(move |(tx, conn)| {
+                        executor.execute(conn.map_err(|e| debug!("client connection error: {}", e)))?;
+                        Ok(pool.pooled(pool_key, PoolClient {
                             tx: tx,
-                            should_close: Cell::new(true),
-                        };
-                        let pooled = pool.pooled(pool_key, tx);
-                        let mut conn = proto::Conn::<_, _, proto::ClientTransaction, _>::new(io, pooled.clone());
-                        if !h1_writev {
-                            conn.set_write_strategy_flatten();
-                        }
-                        let dispatch = proto::dispatch::Dispatcher::new(proto::dispatch::Client::new(rx), conn);
-                        executor.execute(dispatch.map_err(|e| debug!("client connection error: {}", e)))?;
-                        Ok(pooled)
+                        }))
                     })
             })
         };
 
         let race = checkout.select(connect)
-            .map(|(client, _work)| client)
+            .map(|(pooled, _work)| pooled)
             .map_err(|(e, _checkout)| {
                 // the Pool Checkout cannot error, so the only error
                 // is from the Connector
                 // XXX: should wait on the Checkout? Problem is
                 // that if the connector is failing, it may be that we
                 // never had a pooled stream at all
-                ClientError::Normal(e.into())
+                ClientError::Normal(e)
             });
 
-        let resp = race.and_then(move |client| {
-            let conn_reused = client.is_reused();
-            match client.tx.send((head, body)) {
-                Ok(rx) => {
-                    client.should_close.set(false);
-                    Either::A(rx.then(move |res| {
-                        match res {
-                            Ok(Ok(res)) => Ok(res),
-                            Ok(Err((err, orig_req))) => Err(match orig_req {
-                                Some(req) => ClientError::Canceled {
-                                    connection_reused: conn_reused,
-                                    reason: err,
-                                    req: req,
-                                },
-                                None => ClientError::Normal(err),
-                            }),
-                            // this is definite bug if it happens, but it shouldn't happen!
-                            Err(_) => panic!("dispatch dropped without returning error"),
+
+        let executor = self.executor.clone();
+        let resp = race.and_then(move |mut pooled| {
+            let conn_reused = pooled.is_reused();
+            let fut = pooled.tx.send_request_retryable(req)
+                .map_err(move |(err, orig_req)| {
+                    if let Some(req) = orig_req {
+                        ClientError::Canceled {
+                            connection_reused: conn_reused,
+                            reason: err,
+                            req: req,
                         }
-                    }))
-                },
-                Err(req) => {
-                    debug!("pooled connection was not ready");
-                    let err = ClientError::Canceled {
-                        connection_reused: conn_reused,
-                        reason: ::Error::new_canceled(None),
-                        req: req,
-                    };
-                    Either::B(future::err(err))
-                }
-            }
+                    } else {
+                        ClientError::Normal(err)
+                    }
+                });
+
+            // when pooled is dropped, it will try to insert back into the
+            // pool. To delay that, spawn a future that completes once the
+            // sender is ready again.
+            //
+            // This *should* only be once the related `Connection` has polled
+            // for a new request to start.
+            //
+            // If the executor doesn't have room, oh well. Things will likely
+            // be blowing up soon, but this specific task isn't required.
+            let _ = executor.execute(future::poll_fn(move || {
+                pooled.tx.poll_ready().map_err(|_| ())
+            }));
+
+            fut
         });
 
         Box::new(resp)
@@ -373,32 +370,16 @@ where
     }
 }
 
-struct HyperClient<B> {
-    should_close: Cell<bool>,
-    tx: dispatch::Sender<proto::dispatch::ClientMsg<B>, ::Response>,
+struct PoolClient<B> {
+    tx: conn::SendRequest<B>,
 }
 
-impl<B> Clone for HyperClient<B> {
-    fn clone(&self) -> HyperClient<B> {
-        HyperClient {
-            tx: self.tx.clone(),
-            should_close: self.should_close.clone(),
-        }
-    }
-}
-
-impl<B> self::pool::Closed for HyperClient<B> {
+impl<B> self::pool::Closed for PoolClient<B>
+where
+    B: 'static,
+{
     fn is_closed(&self) -> bool {
         self.tx.is_closed()
-    }
-}
-
-impl<B> Drop for HyperClient<B> {
-    fn drop(&mut self) {
-        if self.should_close.get() {
-            self.should_close.set(false);
-            self.tx.cancel();
-        }
     }
 }
 

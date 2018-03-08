@@ -1,3 +1,5 @@
+use std::fmt;
+
 use bytes::Bytes;
 use futures::{Async, AsyncSink, Future, Poll, Sink, StartSend, Stream};
 use futures::sync::{mpsc, oneshot};
@@ -13,11 +15,12 @@ pub type BodySender = mpsc::Sender<Result<Chunk, ::Error>>;
 
 /// A `Stream` for `Chunk`s used in requests and responses.
 #[must_use = "streams do nothing unless polled"]
-#[derive(Debug)]
-pub struct Body(Inner);
+pub struct Body {
+    kind: Kind,
+}
 
 #[derive(Debug)]
-enum Inner {
+enum Kind {
     #[cfg(feature = "tokio-proto")]
     Tokio(TokioBody),
     Chan {
@@ -40,7 +43,7 @@ impl Body {
     /// Return an empty body stream
     #[inline]
     pub fn empty() -> Body {
-        Body(Inner::Empty)
+        Body::new(Kind::Empty)
     }
 
     /// Return a body stream with an associated sender half
@@ -60,9 +63,30 @@ impl Body {
     /// there are more chunks immediately.
     #[inline]
     pub fn is_empty(&self) -> bool {
-        match self.0 {
-            Inner::Empty => true,
+        match self.kind {
+            Kind::Empty => true,
             _ => false,
+        }
+    }
+
+    fn new(kind: Kind) -> Body {
+        Body {
+            kind: kind,
+        }
+    }
+
+    fn poll_inner(&mut self) -> Poll<Option<Chunk>, ::Error> {
+        match self.kind {
+            #[cfg(feature = "tokio-proto")]
+            Kind::Tokio(ref mut rx) => rx.poll(),
+            Kind::Chan { ref mut rx, .. } => match rx.poll().expect("mpsc cannot error") {
+                Async::Ready(Some(Ok(chunk))) => Ok(Async::Ready(Some(chunk))),
+                Async::Ready(Some(Err(err))) => Err(err),
+                Async::Ready(None) => Ok(Async::Ready(None)),
+                Async::NotReady => Ok(Async::NotReady),
+            },
+            Kind::Once(ref mut val) => Ok(Async::Ready(val.take())),
+            Kind::Empty => Ok(Async::Ready(None)),
         }
     }
 }
@@ -80,18 +104,15 @@ impl Stream for Body {
 
     #[inline]
     fn poll(&mut self) -> Poll<Option<Chunk>, ::Error> {
-        match self.0 {
-            #[cfg(feature = "tokio-proto")]
-            Inner::Tokio(ref mut rx) => rx.poll(),
-            Inner::Chan { ref mut rx, .. } => match rx.poll().expect("mpsc cannot error") {
-                Async::Ready(Some(Ok(chunk))) => Ok(Async::Ready(Some(chunk))),
-                Async::Ready(Some(Err(err))) => Err(err),
-                Async::Ready(None) => Ok(Async::Ready(None)),
-                Async::NotReady => Ok(Async::NotReady),
-            },
-            Inner::Once(ref mut val) => Ok(Async::Ready(val.take())),
-            Inner::Empty => Ok(Async::Ready(None)),
-        }
+        self.poll_inner()
+    }
+}
+
+impl fmt::Debug for Body {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("Body")
+            .field(&self.kind)
+            .finish()
     }
 }
 
@@ -105,7 +126,7 @@ pub fn channel() -> (ChunkSender, Body) {
         close_rx_check: true,
         tx: tx,
     };
-    let rx = Body(Inner::Chan {
+    let rx = Body::new(Kind::Chan {
         close_tx: close_tx,
         rx: rx,
     });
@@ -142,24 +163,24 @@ impl ChunkSender {
 feat_server_proto! {
     impl From<Body> for tokio_proto::streaming::Body<Chunk, ::Error> {
         fn from(b: Body) -> tokio_proto::streaming::Body<Chunk, ::Error> {
-            match b.0 {
-                Inner::Tokio(b) => b,
-                Inner::Chan { close_tx, rx } => {
+            match b.kind {
+                Kind::Tokio(b) => b,
+                Kind::Chan { close_tx, rx } => {
                     // disable knowing if the Rx gets dropped, since we cannot
                     // pass this tx along.
                     let _ = close_tx.send(false);
                     rx.into()
                 },
-                Inner::Once(Some(chunk)) => TokioBody::from(chunk),
-                Inner::Once(None) |
-                Inner::Empty => TokioBody::empty(),
+                Kind::Once(Some(chunk)) => TokioBody::from(chunk),
+                Kind::Once(None) |
+                Kind::Empty => TokioBody::empty(),
             }
         }
     }
 
     impl From<tokio_proto::streaming::Body<Chunk, ::Error>> for Body {
         fn from(tokio_body: tokio_proto::streaming::Body<Chunk, ::Error>) -> Body {
-            Body(Inner::Tokio(tokio_body))
+            Body::new(Kind::Tokio(tokio_body))
         }
     }
 }
@@ -168,7 +189,7 @@ impl From<mpsc::Receiver<Result<Chunk, ::Error>>> for Body {
     #[inline]
     fn from(src: mpsc::Receiver<Result<Chunk, ::Error>>) -> Body {
         let (tx, _) = oneshot::channel();
-        Body(Inner::Chan {
+        Body::new(Kind::Chan {
             close_tx: tx,
             rx: src,
         })
@@ -178,7 +199,7 @@ impl From<mpsc::Receiver<Result<Chunk, ::Error>>> for Body {
 impl From<Chunk> for Body {
     #[inline]
     fn from (chunk: Chunk) -> Body {
-        Body(Inner::Once(Some(chunk)))
+        Body::new(Kind::Once(Some(chunk)))
     }
 }
 
