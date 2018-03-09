@@ -1,5 +1,6 @@
 #![deny(warnings)]
 extern crate hyper;
+#[macro_use]
 extern crate futures;
 extern crate spmc;
 extern crate pretty_env_logger;
@@ -928,6 +929,71 @@ fn returning_1xx_response_is_error() {
         });
 
     core.run(fut).unwrap_err();
+}
+
+#[test]
+fn upgrades() {
+    use tokio_io::io::{read_to_end, write_all};
+    let _ = pretty_env_logger::try_init();
+    let mut core = Core::new().unwrap();
+    let listener = TcpListener::bind(&"127.0.0.1:0".parse().unwrap(), &core.handle()).unwrap();
+    let addr = listener.local_addr().unwrap();
+    let (tx, rx) = oneshot::channel();
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        tcp.write_all(b"\
+            GET / HTTP/1.1\r\n\
+            Upgrade: foobar\r\n\
+            Connection: upgrade\r\n\
+            \r\n\
+            eagerly optimistic\
+        ").expect("write 1");
+        let mut buf = [0; 256];
+        tcp.read(&mut buf).expect("read 1");
+
+        let expected = "HTTP/1.1 101 Switching Protocols\r\n";
+        assert_eq!(s(&buf[..expected.len()]), expected);
+        let _ = tx.send(());
+
+        let n = tcp.read(&mut buf).expect("read 2");
+        assert_eq!(s(&buf[..n]), "foo=bar");
+        tcp.write_all(b"bar=foo").expect("write 2");
+    });
+
+    let fut = listener.incoming()
+        .into_future()
+        .map_err(|_| -> hyper::Error { unreachable!() })
+        .and_then(|(item, _incoming)| {
+            let (socket, _) = item.unwrap();
+            let conn = Http::<hyper::Chunk>::new()
+                .serve_connection(socket, service_fn(|_| {
+                    let mut res = Response::<hyper::Body>::new()
+                        .with_status(StatusCode::SwitchingProtocols);
+                    res.headers_mut().set_raw("Upgrade", "foobar");
+                    Ok(res)
+                }));
+
+            let mut conn_opt = Some(conn);
+            future::poll_fn(move || {
+                try_ready!(conn_opt.as_mut().unwrap().poll_without_shutdown());
+                // conn is done with HTTP now
+                Ok(conn_opt.take().unwrap().into())
+            })
+        });
+
+    let conn = core.run(fut).unwrap();
+
+    // wait so that we don't write until other side saw 101 response
+    core.run(rx).unwrap();
+
+    let parts = conn.into_parts();
+    let io = parts.io;
+    assert_eq!(parts.read_buf, "eagerly optimistic");
+
+    let io = core.run(write_all(io, b"foo=bar")).unwrap().0;
+    let vec = core.run(read_to_end(io, vec![])).unwrap().1;
+    assert_eq!(vec, b"bar=foo");
 }
 
 #[test]

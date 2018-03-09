@@ -500,6 +500,8 @@ where I: AsyncRead + AsyncWrite,
             Ok(encoder) => {
                 if !encoder.is_eof() {
                     Writing::Body(encoder)
+                } else if encoder.is_last() {
+                    Writing::Closed
                 } else {
                     Writing::KeepAlive
                 }
@@ -566,7 +568,11 @@ where I: AsyncRead + AsyncWrite,
                     self.io.buffer(encoded);
 
                     if encoder.is_eof() {
-                        Writing::KeepAlive
+                        if encoder.is_last() {
+                            Writing::Closed
+                        } else {
+                            Writing::KeepAlive
+                        }
                     } else {
                         return Ok(AsyncSink::Ready);
                     }
@@ -577,7 +583,11 @@ where I: AsyncRead + AsyncWrite,
                             if let Some(end) = end {
                                 self.io.buffer(end);
                             }
-                            Writing::KeepAlive
+                            if encoder.is_last() {
+                                Writing::Closed
+                            } else {
+                                Writing::KeepAlive
+                            }
                         },
                         Err(_not_eof) => Writing::Closed,
                     }

@@ -132,7 +132,11 @@ where
         // replying with the latter status code response.
         let ret = if ::StatusCode::SwitchingProtocols == head.subject {
             T::on_encode_upgrade(&mut head)
-                .map(|_| Server::set_length(&mut head, has_body, method.as_ref()))
+                .map(|_| {
+                    let mut enc = Server::set_length(&mut head, has_body, method.as_ref());
+                    enc.set_last();
+                    enc
+                })
         } else if head.subject.is_informational() {
             error!("response with 1xx status code not supported");
             head = MessageHead::default();

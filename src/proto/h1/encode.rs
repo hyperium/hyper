@@ -9,6 +9,7 @@ use iovec::IoVec;
 #[derive(Debug, Clone)]
 pub struct Encoder {
     kind: Kind,
+    is_last: bool,
 }
 
 #[derive(Debug)]
@@ -43,22 +44,22 @@ enum BufKind<B> {
 }
 
 impl Encoder {
-    pub fn chunked() -> Encoder {
+    fn new(kind: Kind) -> Encoder {
         Encoder {
-            kind: Kind::Chunked,
+            kind: kind,
+            is_last: false,
         }
+    }
+    pub fn chunked() -> Encoder {
+        Encoder::new(Kind::Chunked)
     }
 
     pub fn length(len: u64) -> Encoder {
-        Encoder {
-            kind: Kind::Length(len),
-        }
+        Encoder::new(Kind::Length(len))
     }
 
     pub fn eof() -> Encoder {
-        Encoder {
-            kind: Kind::Eof,
-        }
+        Encoder::new(Kind::Eof)
     }
 
     pub fn is_eof(&self) -> bool {
@@ -66,6 +67,14 @@ impl Encoder {
             Kind::Length(0) => true,
             _ => false
         }
+    }
+
+    pub fn set_last(&mut self) {
+        self.is_last = true;
+    }
+
+    pub fn is_last(&self) -> bool {
+        self.is_last
     }
 
     pub fn end<B>(&self) -> Result<Option<EncodedBuf<B>>, NotEof> {
