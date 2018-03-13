@@ -79,7 +79,7 @@ pub struct Handshake<T, B> {
 pub struct ResponseFuture {
     // for now, a Box is used to hide away the internal `B`
     // that can be returned if canceled
-    inner: Box<Future<Item=Response, Error=::Error>>,
+    inner: Box<Future<Item=Response, Error=::Error> + Send>,
 }
 
 /// Deconstructed parts of a `Connection`.
@@ -191,10 +191,25 @@ where
         // It's important that this method isn't called directly from the
         // `Client`, so that `set_proxy` there is still respected.
         req.set_proxy(true);
-        let inner = self.send_request_retryable(req).map_err(|e| {
-            let (err, _orig_req) = e;
-            err
-        });
+
+        let (head, body) = proto::request::split(req);
+        let inner = match self.dispatch.send((head, body)) {
+            Ok(rx) => {
+                Either::A(rx.then(move |res| {
+                    match res {
+                        Ok(Ok(res)) => Ok(res),
+                        Ok(Err(err)) => Err(err),
+                        // this is definite bug if it happens, but it shouldn't happen!
+                        Err(_) => panic!("dispatch dropped without returning error"),
+                    }
+                }))
+            },
+            Err(_req) => {
+                debug!("connection was not ready");
+                let err = ::Error::new_canceled(Some("connection was not ready"));
+                Either::B(future::err(err))
+            }
+        };
         ResponseFuture {
             inner: Box::new(inner),
         }
@@ -203,7 +218,7 @@ where
     //TODO: replace with `impl Future` when stable
     pub(crate) fn send_request_retryable(&mut self, req: Request<B>) -> Box<Future<Item=Response, Error=(::Error, Option<(::proto::RequestHead, Option<B>)>)>> {
         let (head, body) = proto::request::split(req);
-        let inner = match self.dispatch.send((head, body)) {
+        let inner = match self.dispatch.try_send((head, body)) {
             Ok(rx) => {
                 Either::A(rx.then(move |res| {
                     match res {
@@ -480,8 +495,5 @@ where
 #[doc(hidden)]
 impl AssertSendSync for Builder {}
 
-// TODO: This could be done by using a dispatch channel that doesn't
-// return the `B` on Error, removing the possibility of contains some !Send
-// thing.
-//#[doc(hidden)]
-//impl AssertSend for ResponseFuture {}
+#[doc(hidden)]
+impl AssertSend for ResponseFuture {}

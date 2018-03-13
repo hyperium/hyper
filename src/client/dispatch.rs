@@ -4,8 +4,9 @@ use futures::sync::{mpsc, oneshot};
 use common::Never;
 use super::signal;
 
-pub type Callback<T, U> = oneshot::Sender<Result<U, (::Error, Option<T>)>>;
-pub type Promise<T, U> = oneshot::Receiver<Result<U, (::Error, Option<T>)>>;
+//pub type Callback<T, U> = oneshot::Sender<Result<U, (::Error, Option<T>)>>;
+pub type RetryPromise<T, U> = oneshot::Receiver<Result<U, (::Error, Option<T>)>>;
+pub type Promise<T> = oneshot::Receiver<Result<T, ::Error>>;
 
 pub fn channel<T, U>() -> (Sender<T, U>, Receiver<T, U>) {
     let (tx, rx) = mpsc::channel(0);
@@ -48,9 +49,16 @@ impl<T, U> Sender<T, U> {
         self.giver.is_canceled()
     }
 
-    pub fn send(&mut self, val: T) -> Result<Promise<T, U>, T> {
+    pub fn try_send(&mut self, val: T) -> Result<RetryPromise<T, U>, T> {
         let (tx, rx) = oneshot::channel();
-        self.inner.try_send((val, tx))
+        self.inner.try_send((val, Callback::Retry(tx)))
+            .map(move |_| rx)
+            .map_err(|e| e.into_inner().0)
+    }
+
+    pub fn send(&mut self, val: T) -> Result<Promise<U>, T> {
+        let (tx, rx) = oneshot::channel();
+        self.inner.try_send((val, Callback::NoRetry(tx)))
             .map(move |_| rx)
             .map_err(|e| e.into_inner().0)
     }
@@ -98,6 +106,31 @@ impl<T, U> Drop for Receiver<T, U> {
 
 }
 
+pub enum Callback<T, U> {
+    Retry(oneshot::Sender<Result<U, (::Error, Option<T>)>>),
+    NoRetry(oneshot::Sender<Result<U, ::Error>>),
+}
+
+impl<T, U> Callback<T, U> {
+    pub fn poll_cancel(&mut self) -> Poll<(), ()> {
+        match *self {
+            Callback::Retry(ref mut tx) => tx.poll_cancel(),
+            Callback::NoRetry(ref mut tx) => tx.poll_cancel(),
+        }
+    }
+
+    pub fn send(self, val: Result<U, (::Error, Option<T>)>) {
+        match self {
+            Callback::Retry(tx) => {
+                let _ = tx.send(val);
+            },
+            Callback::NoRetry(tx) => {
+                let _ = tx.send(val.map_err(|e| e.0));
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     extern crate pretty_env_logger;
@@ -118,7 +151,7 @@ mod tests {
             struct Custom(i32);
             let (mut tx, rx) = super::channel::<Custom, ()>();
 
-            let promise = tx.send(Custom(43)).unwrap();
+            let promise = tx.try_send(Custom(43)).unwrap();
             drop(rx);
 
             promise.then(|fulfilled| {

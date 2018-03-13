@@ -2,7 +2,6 @@ use std::io;
 
 use bytes::Bytes;
 use futures::{Async, AsyncSink, Future, Poll, Stream};
-use futures::sync::oneshot;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_service::Service;
 
@@ -33,7 +32,7 @@ pub struct Server<S: Service> {
 }
 
 pub struct Client<B> {
-    callback: Option<oneshot::Sender<Result<::Response, (::Error, Option<ClientMsg<B>>)>>>,
+    callback: Option<::client::dispatch::Callback<ClientMsg<B>, ::Response>>,
     rx: ClientRx<B>,
 }
 
@@ -475,7 +474,7 @@ mod tests {
                 subject: ::proto::RequestLine::default(),
                 headers: Default::default(),
             };
-            let res_rx = tx.send((req, None::<::Body>)).unwrap();
+            let res_rx = tx.try_send((req, None::<::Body>)).unwrap();
 
             let a1 = dispatcher.poll().expect("error should be sent on channel");
             assert!(a1.is_ready(), "dispatcher should be closed");
