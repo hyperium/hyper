@@ -46,6 +46,4 @@ spmc = "0.2"
 url = "1.0"
 
 [features]
-default = []
 nightly = []
-raw_status = []
