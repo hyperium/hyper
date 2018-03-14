@@ -99,8 +99,8 @@ fn get_implicitly_empty() {
         type Future = Box<Future<Item=Self::Response, Error=Self::Error>>;
 
         fn call(&self, req: Request<Body>) -> Self::Future {
-            Box::new(req.into_parts()
-                .1
+            Box::new(req.into_body()
+                .into_stream()
                 .concat2()
                 .map(|buf| {
                     assert!(buf.is_empty());
@@ -110,112 +110,188 @@ fn get_implicitly_empty() {
     }
 }
 
-#[test]
-fn get_fixed_response() {
-    let foo_bar = b"foo bar baz";
-    let server = serve();
-    server.reply()
-        .header("content-length", foo_bar.len().to_string())
-        .body(foo_bar);
-    let mut req = connect(server.addr());
-    req.write_all(b"\
-        GET / HTTP/1.1\r\n\
-        Host: example.domain\r\n\
-        Connection: close\r\n\
-        \r\n\
-    ").unwrap();
-    let mut body = String::new();
-    req.read_to_string(&mut body).unwrap();
-    let n = body.find("\r\n\r\n").unwrap() + 4;
+mod response_body_lengths {
+    use super::*;
 
-    assert_eq!(&body[n..], "foo bar baz");
-}
+    struct TestCase {
+        version: usize,
+        headers: &'static [(&'static str, &'static str)],
+        body: Bd,
+        expects_chunked: bool,
+        expects_con_len: bool,
+    }
 
-#[test]
-fn get_chunked_response() {
-    let foo_bar = b"foo bar baz";
-    let server = serve();
-    server.reply()
-        .header("transfer-encoding", "chunked")
-        .body(foo_bar);
-    let mut req = connect(server.addr());
-    req.write_all(b"\
-        GET / HTTP/1.1\r\n\
-        Host: example.domain\r\n\
-        Connection: close\r\n\
-        \r\n\
-    ").unwrap();
-    let mut body = String::new();
-    req.read_to_string(&mut body).unwrap();
-    let n = body.find("\r\n\r\n").unwrap() + 4;
+    enum Bd {
+        Known(&'static str),
+        Unknown(&'static str),
+    }
 
-    assert_eq!(&body[n..], "B\r\nfoo bar baz\r\n0\r\n\r\n");
-}
+    fn run_test(case: TestCase) {
+        assert!(case.version == 0 || case.version == 1, "TestCase.version must 0 or 1");
 
-#[test]
-fn get_auto_response() {
-    let foo_bar = b"foo bar baz";
-    let server = serve();
-    server.reply()
-        .body(foo_bar);
-    let mut req = connect(server.addr());
-    req.write_all(b"\
-        GET / HTTP/1.1\r\n\
-        Host: example.domain\r\n\
-        Connection: close\r\n\
-        \r\n\
-    ").unwrap();
-    let mut body = String::new();
-    req.read_to_string(&mut body).unwrap();
+        let server = serve();
 
-    assert!(has_header(&body, "Transfer-Encoding: chunked"));
+        let mut reply = server.reply();
+        for header in case.headers {
+            reply = reply.header(header.0, header.1);
+        }
 
-    let n = body.find("\r\n\r\n").unwrap() + 4;
-    assert_eq!(&body[n..], "B\r\nfoo bar baz\r\n0\r\n\r\n");
-}
+        let body_str = match case.body {
+            Bd::Known(b) => {
+                reply.body(b);
+                b
+            },
+            Bd::Unknown(b) => {
+                let (mut tx, body) = hyper::Body::channel();
+                tx.send_data(b.into()).expect("send_data");
+                reply.body_stream(body);
+                b
+            },
+        };
 
-#[test]
-fn http_10_get_auto_response() {
-    let foo_bar = b"foo bar baz";
-    let server = serve();
-    server.reply()
-        .body(foo_bar);
-    let mut req = connect(server.addr());
-    req.write_all(b"\
-        GET / HTTP/1.0\r\n\
-        Host: example.domain\r\n\
-        \r\n\
-    ").unwrap();
-    let mut body = String::new();
-    req.read_to_string(&mut body).unwrap();
+        let mut req = connect(server.addr());
+        write!(req, "\
+            GET / HTTP/1.{}\r\n\
+            Host: example.domain\r\n\
+            Connection: close\r\n\
+            \r\n\
+        ", case.version).expect("request write");
+        let mut body = String::new();
+        req.read_to_string(&mut body).unwrap();
 
-    assert!(!has_header(&body, "Transfer-Encoding:"));
+        assert_eq!(
+            case.expects_chunked,
+            has_header(&body, "transfer-encoding:"),
+            "expects_chunked"
+        );
+        assert_eq!(
+            case.expects_con_len,
+            has_header(&body, "content-length:"),
+            "expects_con_len"
+        );
 
-    let n = body.find("\r\n\r\n").unwrap() + 4;
-    assert_eq!(&body[n..], "foo bar baz");
-}
+        let n = body.find("\r\n\r\n").unwrap() + 4;
 
-#[test]
-fn http_10_get_chunked_response() {
-    let foo_bar = b"foo bar baz";
-    let server = serve();
-    server.reply()
-        // this header should actually get removed
-        .header("transfer-encoding", "chunked")
-        .body(foo_bar);
-    let mut req = connect(server.addr());
-    req.write_all(b"\
-        GET / HTTP/1.0\r\n\
-        Host: example.domain\r\n\
-        \r\n\
-    ").unwrap();
-    let mut body = String::new();
-    req.read_to_string(&mut body).unwrap();
+        if case.expects_chunked {
+            let len = body.len();
+            assert_eq!(&body[n + 1..n + 3], "\r\n", "expected body chunk size header");
+            assert_eq!(&body[n + 3..len - 7], body_str, "expected body");
+            assert_eq!(&body[len - 7..], "\r\n0\r\n\r\n", "expected body final chunk size header");
+        } else {
+            assert_eq!(&body[n..], body_str, "expected body");
+        }
+    }
 
-    assert!(!has_header(&body, "Transfer-Encoding:"));
+    #[test]
+    fn get_fixed_response_known() {
+        run_test(TestCase {
+            version: 1,
+            headers: &[("content-length", "11")],
+            body: Bd::Known("foo bar baz"),
+            expects_chunked: false,
+            expects_con_len: true,
+        });
+    }
 
-    let n = body.find("\r\n\r\n").unwrap() + 4;
-    assert_eq!(&body[n..], "foo bar baz");
+    #[test]
+    fn get_fixed_response_unknown() {
+        run_test(TestCase {
+            version: 1,
+            headers: &[("content-length", "11")],
+            body: Bd::Unknown("foo bar baz"),
+            expects_chunked: false,
+            expects_con_len: true,
+        });
+    }
+
+    #[test]
+    fn get_chunked_response_known() {
+        run_test(TestCase {
+            version: 1,
+            headers: &[("transfer-encoding", "chunked")],
+            // even though we know the length, don't strip user's TE header
+            body: Bd::Known("foo bar baz"),
+            expects_chunked: true,
+            expects_con_len: false,
+        });
+    }
+
+    #[test]
+    fn get_chunked_response_unknown() {
+        run_test(TestCase {
+            version: 1,
+            headers: &[("transfer-encoding", "chunked")],
+            body: Bd::Unknown("foo bar baz"),
+            expects_chunked: true,
+            expects_con_len: false,
+        });
+    }
+
+    #[test]
+    fn get_chunked_response_trumps_length() {
+        run_test(TestCase {
+            version: 1,
+            headers: &[
+                ("transfer-encoding", "chunked"),
+                // both headers means content-length is stripped
+                ("content-length", "11"),
+            ],
+            body: Bd::Known("foo bar baz"),
+            expects_chunked: true,
+            expects_con_len: false,
+        });
+    }
+
+    #[test]
+    fn get_auto_response_with_entity_unknown_length() {
+        run_test(TestCase {
+            version: 1,
+            // no headers means trying to guess from Entity
+            headers: &[],
+            body: Bd::Unknown("foo bar baz"),
+            expects_chunked: true,
+            expects_con_len: false,
+        });
+    }
+
+    #[test]
+    fn get_auto_response_with_entity_known_length() {
+        run_test(TestCase {
+            version: 1,
+            // no headers means trying to guess from Entity
+            headers: &[],
+            body: Bd::Known("foo bar baz"),
+            expects_chunked: false,
+            expects_con_len: true,
+        });
+    }
+
+
+    #[test]
+    fn http_10_get_auto_response_with_entity_unknown_length() {
+        run_test(TestCase {
+            version: 0,
+            // no headers means trying to guess from Entity
+            headers: &[],
+            body: Bd::Unknown("foo bar baz"),
+            expects_chunked: false,
+            expects_con_len: false,
+        });
+    }
+
+
+    #[test]
+    fn http_10_get_chunked_response() {
+        run_test(TestCase {
+            version: 0,
+            // http/1.0 should strip this header
+            headers: &[("transfer-encoding", "chunked")],
+            // even when we don't know the length
+            body: Bd::Unknown("foo bar baz"),
+            expects_chunked: false,
+            expects_con_len: false,
+        });
+    }
 }
 
 #[test]
@@ -314,67 +390,6 @@ fn post_with_incomplete_body() {
     req.read(&mut [0; 256]).expect("read");
 }
 
-#[test]
-fn empty_response_chunked() {
-    let server = serve();
-
-    server.reply()
-        .body("");
-
-    let mut req = connect(server.addr());
-    req.write_all(b"\
-        GET / HTTP/1.1\r\n\
-        Host: example.domain\r\n\
-        Content-Length: 0\r\n\
-        Connection: close\r\n\
-        \r\n\
-    ").unwrap();
-
-
-    let mut response = String::new();
-    req.read_to_string(&mut response).unwrap();
-
-    assert!(response.contains("Transfer-Encoding: chunked\r\n"));
-
-    let mut lines = response.lines();
-    assert_eq!(lines.next(), Some("HTTP/1.1 200 OK"));
-
-    let mut lines = lines.skip_while(|line| !line.is_empty());
-    assert_eq!(lines.next(), Some(""));
-    // 0\r\n\r\n
-    assert_eq!(lines.next(), Some("0"));
-    assert_eq!(lines.next(), Some(""));
-    assert_eq!(lines.next(), None);
-}
-
-#[test]
-fn empty_response_chunked_without_body_should_set_content_length() {
-    extern crate pretty_env_logger;
-    let _ = pretty_env_logger::try_init();
-    let server = serve();
-    server.reply()
-        .header("transfer-encoding", "chunked");
-    let mut req = connect(server.addr());
-    req.write_all(b"\
-        GET / HTTP/1.1\r\n\
-        Host: example.domain\r\n\
-        Connection: close\r\n\
-        \r\n\
-    ").unwrap();
-
-    let mut response = String::new();
-    req.read_to_string(&mut response).unwrap();
-
-    assert!(!response.contains("Transfer-Encoding: chunked\r\n"));
-    assert!(response.contains("Content-Length: 0\r\n"));
-
-    let mut lines = response.lines();
-    assert_eq!(lines.next(), Some("HTTP/1.1 200 OK"));
-
-    let mut lines = lines.skip_while(|line| !line.is_empty());
-    assert_eq!(lines.next(), Some(""));
-    assert_eq!(lines.next(), None);
-}
 
 #[test]
 fn head_response_can_send_content_length() {
@@ -394,7 +409,7 @@ fn head_response_can_send_content_length() {
     let mut response = String::new();
     req.read_to_string(&mut response).unwrap();
 
-    assert!(response.contains("Content-Length: 1024\r\n"));
+    assert!(response.contains("content-length: 1024\r\n"));
 
     let mut lines = response.lines();
     assert_eq!(lines.next(), Some("HTTP/1.1 200 OK"));
@@ -423,7 +438,7 @@ fn response_does_not_set_chunked_if_body_not_allowed() {
     let mut response = String::new();
     req.read_to_string(&mut response).unwrap();
 
-    assert!(!response.contains("Transfer-Encoding"));
+    assert!(!response.contains("transfer-encoding"));
 
     let mut lines = response.lines();
     assert_eq!(lines.next(), Some("HTTP/1.1 304 Not Modified"));
@@ -691,13 +706,13 @@ fn pipeline_enabled() {
     {
         let mut lines = buf.split(|&b| b == b'\n');
         assert_eq!(s(lines.next().unwrap()), "HTTP/1.1 200 OK\r");
-        assert_eq!(s(lines.next().unwrap()), "Content-Length: 12\r");
+        assert_eq!(s(lines.next().unwrap()), "content-length: 12\r");
         lines.next().unwrap(); // Date
         assert_eq!(s(lines.next().unwrap()), "\r");
         assert_eq!(s(lines.next().unwrap()), "Hello World");
 
         assert_eq!(s(lines.next().unwrap()), "HTTP/1.1 200 OK\r");
-        assert_eq!(s(lines.next().unwrap()), "Content-Length: 12\r");
+        assert_eq!(s(lines.next().unwrap()), "content-length: 12\r");
         lines.next().unwrap(); // Date
         assert_eq!(s(lines.next().unwrap()), "\r");
         assert_eq!(s(lines.next().unwrap()), "Hello World");
@@ -720,7 +735,7 @@ fn http_10_request_receives_http_10_response() {
         \r\n\
     ").unwrap();
 
-    let expected = "HTTP/1.0 200 OK\r\nContent-Length: 0\r\n";
+    let expected = "HTTP/1.0 200 OK\r\ncontent-length: 0\r\n";
     let mut buf = [0; 256];
     let n = req.read(&mut buf).unwrap();
     assert!(n >= expected.len(), "read: {:?} >= {:?}", n, expected.len());
@@ -729,6 +744,7 @@ fn http_10_request_receives_http_10_response() {
 
 #[test]
 fn disable_keep_alive_mid_request() {
+    
     let mut core = Core::new().unwrap();
     let listener = TcpListener::bind(&"127.0.0.1:0".parse().unwrap(), &core.handle()).unwrap();
     let addr = listener.local_addr().unwrap();
@@ -773,6 +789,7 @@ fn disable_keep_alive_mid_request() {
 
 #[test]
 fn disable_keep_alive_post_request() {
+    let _ = pretty_env_logger::try_init();
     let mut core = Core::new().unwrap();
     let listener = TcpListener::bind(&"127.0.0.1:0".parse().unwrap(), &core.handle()).unwrap();
     let addr = listener.local_addr().unwrap();
@@ -790,10 +807,11 @@ fn disable_keep_alive_post_request() {
         let mut buf = [0; 1024 * 8];
         loop {
             let n = req.read(&mut buf).expect("reading 1");
-            if n < buf.len() {
-                if &buf[n - HELLO.len()..n] == HELLO.as_bytes() {
-                    break;
-                }
+            if &buf[n - HELLO.len()..n] == HELLO.as_bytes() {
+                break;
+            }
+            if n == 0 {
+                panic!("unexpected eof");
             }
         }
 
@@ -1113,16 +1131,14 @@ fn streaming_body() {
         .map_err(|_| unreachable!())
         .and_then(|(item, _incoming)| {
             let (socket, _) = item.unwrap();
-            Http::<& &'static [u8]>::new()
+            Http::<hyper::Chunk>::new()
                 .keep_alive(false)
                 .serve_connection(socket, service_fn(|_| {
                     static S: &'static [&'static [u8]] = &[&[b'x'; 1_000] as &[u8]; 1_00] as _;
-                    let b = ::futures::stream::iter_ok(S.iter());
+                    let b = ::futures::stream::iter_ok(S.into_iter())
+                        .map(|&s| s);
+                    let b = hyper::Body::wrap_stream(b);
                     Ok(Response::new(b))
-                    /*
-                    Ok(Response::<futures::stream::IterOk<::std::slice::Iter<&'static [u8]>, ::hyper::Error>>::new()
-                        .with_body(b))
-                        */
                 }))
                 .map(|_| ())
         });
@@ -1195,7 +1211,12 @@ impl<'a> ReplyBuilder<'a> {
     }
 
     fn body<T: AsRef<[u8]>>(self, body: T) {
-        self.tx.send(Reply::Body(body.as_ref().into())).unwrap();
+        self.tx.send(Reply::Body(body.as_ref().to_vec().into())).unwrap();
+    }
+
+    fn body_stream(self, body: Body)
+    {
+        self.tx.send(Reply::Body(body)).unwrap();
     }
 }
 
@@ -1219,11 +1240,11 @@ struct TestService {
     _timeout: Option<Duration>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 enum Reply {
     Status(hyper::StatusCode),
     Header(HeaderName, HeaderValue),
-    Body(Vec<u8>),
+    Body(hyper::Body),
     End,
 }
 
@@ -1257,7 +1278,7 @@ impl Service for TestService {
         let tx2 = self.tx.clone();
 
         let replies = self.reply.clone();
-        Box::new(req.into_parts().1.for_each(move |chunk| {
+        Box::new(req.into_body().into_stream().for_each(move |chunk| {
             tx1.lock().unwrap().send(Msg::Chunk(chunk.to_vec())).unwrap();
             Ok(())
         }).then(move |result| {
@@ -1278,7 +1299,7 @@ impl Service for TestService {
                         res.headers_mut().insert(name, value);
                     },
                     Reply::Body(body) => {
-                        *res.body_mut() = body.into();
+                        *res.body_mut() = body;
                     },
                     Reply::End => break,
                 }

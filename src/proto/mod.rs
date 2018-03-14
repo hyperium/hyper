@@ -8,7 +8,7 @@ pub use self::body::Body;
 pub use self::chunk::Chunk;
 pub use self::h1::{dispatch, Conn};
 
-mod body;
+pub mod body;
 mod chunk;
 mod h1;
 //mod h2;
@@ -72,7 +72,12 @@ pub trait Http1Transaction {
     type Outgoing: Default;
     fn parse(bytes: &mut BytesMut) -> ParseResult<Self::Incoming>;
     fn decoder(head: &MessageHead<Self::Incoming>, method: &mut Option<Method>) -> ::Result<Decode>;
-    fn encode(head: MessageHead<Self::Outgoing>, has_body: bool, method: &mut Option<Method>, dst: &mut Vec<u8>) -> ::Result<h1::Encoder>;
+    fn encode(
+        head: MessageHead<Self::Outgoing>,
+        body: Option<BodyLength>,
+        method: &mut Option<Method>,
+        dst: &mut Vec<u8>,
+    ) -> ::Result<h1::Encoder>;
     fn on_error(err: &::Error) -> Option<MessageHead<Self::Outgoing>>;
 
     fn should_error_on_parse_eof() -> bool;
@@ -80,6 +85,15 @@ pub trait Http1Transaction {
 }
 
 pub type ParseResult<T> = ::Result<Option<(MessageHead<T>, usize)>>;
+
+#[derive(Debug)]
+pub enum BodyLength {
+    /// Content-Length
+    Known(u64),
+    /// Transfer-Encoding: chunked (if h1)
+    Unknown,
+}
+
 
 #[derive(Debug)]
 pub enum Decode {

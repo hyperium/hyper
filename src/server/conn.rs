@@ -11,10 +11,11 @@
 use std::fmt;
 
 use bytes::Bytes;
-use futures::{Future, Poll, Stream};
+use futures::{Future, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use proto::{self, Body};
+use proto;
+use proto::body::{Body, Entity};
 use super::{HyperService, Request, Response, Service};
 
 /// A future binding a connection with a Service.
@@ -24,14 +25,13 @@ use super::{HyperService, Request, Response, Service};
 pub struct Connection<I, S>
 where
     S: HyperService,
-    S::ResponseBody: Stream<Error=::Error>,
-    <S::ResponseBody as Stream>::Item: AsRef<[u8]>,
+    S::ResponseBody: Entity<Error=::Error>,
 {
     pub(super) conn: proto::dispatch::Dispatcher<
         proto::dispatch::Server<S>,
         S::ResponseBody,
         I,
-        <S::ResponseBody as Stream>::Item,
+        <S::ResponseBody as Entity>::Data,
         proto::ServerTransaction,
     >,
 }
@@ -61,8 +61,7 @@ pub struct Parts<T> {
 impl<I, B, S> Connection<I, S>
 where S: Service<Request = Request<Body>, Response = Response<B>, Error = ::Error> + 'static,
       I: AsyncRead + AsyncWrite + 'static,
-      B: Stream<Error=::Error> + 'static,
-      B::Item: AsRef<[u8]>,
+      B: Entity<Error=::Error> + 'static,
 {
     /// Disables keep-alive for this connection.
     pub fn disable_keep_alive(&mut self) {
@@ -99,8 +98,7 @@ where S: Service<Request = Request<Body>, Response = Response<B>, Error = ::Erro
 impl<I, B, S> Future for Connection<I, S>
 where S: Service<Request = Request<Body>, Response = Response<B>, Error = ::Error> + 'static,
       I: AsyncRead + AsyncWrite + 'static,
-      B: Stream<Error=::Error> + 'static,
-      B::Item: AsRef<[u8]>,
+      B: Entity<Error=::Error> + 'static,
 {
     type Item = ();
     type Error = ::Error;
@@ -113,8 +111,7 @@ where S: Service<Request = Request<Body>, Response = Response<B>, Error = ::Erro
 impl<I, S> fmt::Debug for Connection<I, S>
 where
     S: HyperService,
-    S::ResponseBody: Stream<Error=::Error>,
-    <S::ResponseBody as Stream>::Item: AsRef<[u8]>,
+    S::ResponseBody: Entity<Error=::Error>,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Connection")

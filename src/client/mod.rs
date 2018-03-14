@@ -7,14 +7,15 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
-use futures::{Async, Future, Poll, Stream};
+use futures::{Async, Future, Poll};
 use futures::future::{self, Executor};
 use http::{Method, Request, Response, Uri, Version};
 use http::header::{Entry, HeaderValue, HOST};
 use tokio::reactor::Handle;
 pub use tokio_service::Service;
 
-use proto::{self, Body};
+use proto::body::{Body, Entity};
+use proto;
 use self::pool::Pool;
 
 pub use self::connect::{HttpConnector, Connect};
@@ -101,8 +102,7 @@ impl<C, B> Client<C, B> {
 
 impl<C, B> Client<C, B>
 where C: Connect,
-      B: Stream<Error=::Error> + 'static,
-      B::Item: AsRef<[u8]>,
+      B: Entity<Error=::Error> + 'static,
 {
 
     /// Send a `GET` request to the supplied `Uri`.
@@ -181,13 +181,13 @@ where C: Connect,
 
         let client = self.clone();
         //TODO: let is_proxy = req.is_proxy();
-        //let uri = req.uri().clone();
+        let uri = req.uri().clone();
         let fut = RetryableSendRequest {
             client: client,
             future: self.send_request(req, &domain),
             domain: domain,
             //is_proxy: is_proxy,
-            //uri: uri,
+            uri: uri,
         };
         FutureResponse(Box::new(fut))
     }
@@ -293,8 +293,7 @@ where C: Connect,
 
 impl<C, B> Service for Client<C, B>
 where C: Connect,
-      B: Stream<Error=::Error> + 'static,
-      B::Item: AsRef<[u8]>,
+      B: Entity<Error=::Error> + 'static,
 {
     type Request = Request<B>;
     type Response = Response<Body>;
@@ -350,14 +349,13 @@ struct RetryableSendRequest<C, B> {
     domain: String,
     future: Box<Future<Item=Response<Body>, Error=ClientError<B>>>,
     //is_proxy: bool,
-    //uri: Uri,
+    uri: Uri,
 }
 
 impl<C, B> Future for RetryableSendRequest<C, B>
 where
     C: Connect,
-    B: Stream<Error=::Error> + 'static,
-    B::Item: AsRef<[u8]>,
+    B: Entity<Error=::Error> + 'static,
 {
     type Item = Response<Body>;
     type Error = ::Error;
@@ -370,7 +368,7 @@ where
                 Err(ClientError::Normal(err)) => return Err(err),
                 Err(ClientError::Canceled {
                     connection_reused,
-                    req,
+                    mut req,
                     reason,
                 }) => {
                     if !self.client.retry_canceled_requests || !connection_reused {
@@ -380,6 +378,7 @@ where
                     }
 
                     trace!("unstarted request canceled, trying again (reason={:?})", reason);
+                    *req.uri_mut() = self.uri.clone();
                     self.future = self.client.send_request(req, &self.domain);
                 }
             }
@@ -547,8 +546,7 @@ impl<C, B> Config<C, B> {
 
 impl<C, B> Config<C, B>
 where C: Connect,
-      B: Stream<Error=::Error>,
-      B::Item: AsRef<[u8]>,
+      B: Entity<Error=::Error>,
 {
     /// Construct the Client with this configuration.
     #[inline]
@@ -569,8 +567,7 @@ where C: Connect,
 }
 
 impl<B> Config<UseDefaultConnector, B>
-where B: Stream<Error=::Error>,
-      B::Item: AsRef<[u8]>,
+where B: Entity<Error=::Error>,
 {
     /// Construct the Client with this configuration.
     #[inline]

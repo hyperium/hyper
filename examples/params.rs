@@ -30,7 +30,7 @@ impl Service for ParamExample {
                 Box::new(futures::future::ok(Response::new(INDEX.into())))
             },
             (&Method::POST, "/post") => {
-                Box::new(req.into_parts().1.concat2().map(|b| {
+                Box::new(req.into_parts().1.into_stream().concat2().map(|b| {
                     // Parse the request body. form_urlencoded::parse
                     // always succeeds, but in general parsing may
                     // fail (for example, an invalid post of json), so

@@ -23,7 +23,8 @@ use tokio::reactor::{Core, Handle, Timeout};
 use tokio::net::TcpListener;
 pub use tokio_service::{NewService, Service};
 
-use proto::{self, Body};
+use proto::body::{Body, Entity};
+use proto;
 use self::addr_stream::AddrStream;
 use self::hyper_service::HyperService;
 
@@ -48,10 +49,10 @@ pub struct Http<B = ::Chunk> {
 /// This server is intended as a convenience for creating a TCP listener on an
 /// address and then serving TCP connections accepted with the service provided.
 pub struct Server<S, B>
-where B: Stream<Error=::Error>,
-      B::Item: AsRef<[u8]>,
+where
+    B: Entity<Error=::Error>,
 {
-    protocol: Http<B::Item>,
+    protocol: Http<B::Data>,
     new_service: S,
     reactor: Core,
     listener: TcpListener,
@@ -89,7 +90,6 @@ pub struct AddrIncoming {
     sleep_on_errors: bool,
     timeout: Option<Timeout>,
 }
-
 
 // ===== impl Http =====
 
@@ -154,7 +154,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     /// actually run the server.
     pub fn bind<S, Bd>(&self, addr: &SocketAddr, new_service: S) -> ::Result<Server<S, Bd>>
         where S: NewService<Request = Request<Body>, Response = Response<Bd>, Error = ::Error> + 'static,
-              Bd: Stream<Item=B, Error=::Error>,
+              Bd: Entity<Data=B, Error=::Error>,
     {
         let core = try!(Core::new());
         let handle = core.handle();
@@ -179,7 +179,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     /// connection.
     pub fn serve_addr_handle<S, Bd>(&self, addr: &SocketAddr, handle: &Handle, new_service: S) -> ::Result<Serve<AddrIncoming, S>>
         where S: NewService<Request = Request<Body>, Response = Response<Bd>, Error = ::Error>,
-              Bd: Stream<Item=B, Error=::Error>,
+              Bd: Entity<Data=B, Error=::Error>,
     {
         let listener = TcpListener::bind(addr, &handle)?;
         let mut incoming = AddrIncoming::new(listener, handle.clone(), self.sleep_on_errors)?;
@@ -196,7 +196,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
         where I: Stream<Error=::std::io::Error>,
               I::Item: AsyncRead + AsyncWrite,
               S: NewService<Request = Request<Body>, Response = Response<Bd>, Error = ::Error>,
-              Bd: Stream<Item=B, Error=::Error>,
+              Bd: Entity<Data=B, Error=::Error>,
     {
         Serve {
             incoming: incoming,
@@ -246,10 +246,8 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     /// ```
     pub fn serve_connection<S, I, Bd>(&self, io: I, service: S) -> Connection<I, S>
         where S: Service<Request = Request<Body>, Response = Response<Bd>, Error = ::Error>,
-              Bd: Stream<Error=::Error>,
-              Bd::Item: AsRef<[u8]>,
+              Bd: Entity<Error=::Error>,
               I: AsyncRead + AsyncWrite,
-
     {
         let mut conn = proto::Conn::new(io);
         if !self.keep_alive {
@@ -290,8 +288,7 @@ impl<B> fmt::Debug for Http<B> {
 
 impl<S, B> Server<S, B>
     where S: NewService<Request = Request<Body>, Response = Response<B>, Error = ::Error> + 'static,
-          B: Stream<Error=::Error> + 'static,
-          B::Item: AsRef<[u8]>,
+          B: Entity<Error=::Error> + 'static,
 {
     /// Returns the local address that this server is bound to.
     pub fn local_addr(&self) -> ::Result<SocketAddr> {
@@ -407,8 +404,7 @@ impl<S, B> Server<S, B>
     }
 }
 
-impl<S: fmt::Debug, B: Stream<Error=::Error>> fmt::Debug for Server<S, B>
-where B::Item: AsRef<[u8]>
+impl<S: fmt::Debug, B: Entity<Error=::Error>> fmt::Debug for Server<S, B>
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Server")
@@ -445,8 +441,7 @@ where
     I: Stream<Error=io::Error>,
     I::Item: AsyncRead + AsyncWrite,
     S: NewService<Request=Request<Body>, Response=Response<B>, Error=::Error>,
-    B: Stream<Error=::Error>,
-    B::Item: AsRef<[u8]>,
+    B: Entity<Error=::Error>,
 {
     type Item = Connection<I::Item, S::Instance>;
     type Error = ::Error;
@@ -720,7 +715,7 @@ impl Future for WaitUntilZero {
 }
 
 mod hyper_service {
-    use super::{Body, Request, Response, Service, Stream};
+    use super::{Body, Entity, Request, Response, Service};
     /// A "trait alias" for any type that implements `Service` with hyper's
     /// Request, Response, and Error types, and a streaming body.
     ///
@@ -751,8 +746,7 @@ mod hyper_service {
             Response=Response<B>,
             Error=::Error,
         >,
-        B: Stream<Error=::Error>,
-        B::Item: AsRef<[u8]>,
+        B: Entity<Error=::Error>,
     {}
 
     impl<S, B> HyperService for S
@@ -763,8 +757,7 @@ mod hyper_service {
             Error=::Error,
         >,
         S: Sealed,
-        B: Stream<Error=::Error>,
-        B::Item: AsRef<[u8]>,
+        B: Entity<Error=::Error>,
     {
         type ResponseBody = B;
         type Sealed = Opaque;

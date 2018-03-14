@@ -1,12 +1,12 @@
 use std::fmt::{self, Write};
 
 use bytes::{BytesMut, Bytes};
-use http::header::{CONTENT_LENGTH, DATE, HeaderName, HeaderValue, TRANSFER_ENCODING};
+use http::header::{CONTENT_LENGTH, DATE, Entry, HeaderName, HeaderValue, TRANSFER_ENCODING};
 use http::{HeaderMap, Method, StatusCode, Uri, Version};
 use httparse;
 
 use headers;
-use proto::{Decode, MessageHead, Http1Transaction, ParseResult, RequestLine, RequestHead};
+use proto::{BodyLength, Decode, MessageHead, Http1Transaction, ParseResult, RequestLine, RequestHead};
 use proto::h1::{Encoder, Decoder, date};
 
 const MAX_HEADERS: usize = 100;
@@ -122,8 +122,13 @@ where
     }
 
 
-    fn encode(mut head: MessageHead<Self::Outgoing>, has_body: bool, method: &mut Option<Method>, dst: &mut Vec<u8>) -> ::Result<Encoder> {
-        trace!("Server::encode has_body={}, method={:?}", has_body, method);
+    fn encode(
+        mut head: MessageHead<Self::Outgoing>,
+        body: Option<BodyLength>,
+        method: &mut Option<Method>,
+        dst: &mut Vec<u8>,
+    ) -> ::Result<Encoder> {
+        trace!("Server::encode body={:?}, method={:?}", body, method);
 
         // hyper currently doesn't support returning 1xx status codes as a Response
         // This is because Service only allows returning a single Response, and
@@ -132,7 +137,7 @@ where
         let ret = if StatusCode::SWITCHING_PROTOCOLS == head.subject {
             T::on_encode_upgrade(&mut head)
                 .map(|_| {
-                    let mut enc = Server::set_length(&mut head, has_body, method.as_ref());
+                    let mut enc = Server::set_length(&mut head, body, method.as_ref());
                     enc.set_last();
                     enc
                 })
@@ -143,7 +148,7 @@ where
             headers::content_length_zero(&mut head.headers);
             Err(::Error::Status)
         } else {
-            Ok(Server::set_length(&mut head, has_body, method.as_ref()))
+            Ok(Server::set_length(&mut head, body, method.as_ref()))
         };
 
 
@@ -160,6 +165,7 @@ where
 
             extend(dst, head.subject.as_str().as_bytes());
             extend(dst, b" ");
+            // a reason MUST be written, as many parsers will expect it.
             extend(dst, head.subject.canonical_reason().unwrap_or("<none>").as_bytes());
             extend(dst, b"\r\n");
         }
@@ -207,7 +213,7 @@ where
 }
 
 impl Server<()> {
-    fn set_length(head: &mut MessageHead<StatusCode>, has_body: bool, method: Option<&Method>) -> Encoder {
+    fn set_length(head: &mut MessageHead<StatusCode>, body: Option<BodyLength>, method: Option<&Method>) -> Encoder {
         // these are here thanks to borrowck
         // `if method == Some(&Method::Get)` says the RHS doesn't live long enough
         const HEAD: Option<&'static Method> = Some(&Method::HEAD);
@@ -230,8 +236,8 @@ impl Server<()> {
             }
         };
 
-        if has_body && can_have_body {
-            set_length(&mut head.headers, head.version == Version::HTTP_11)
+        if let (Some(body), true) = (body, can_have_body) {
+            set_length(&mut head.headers, body, head.version == Version::HTTP_11)
         } else {
             head.headers.remove(TRANSFER_ENCODING);
             if can_have_body {
@@ -355,12 +361,17 @@ where
         }
     }
 
-    fn encode(mut head: MessageHead<Self::Outgoing>, has_body: bool, method: &mut Option<Method>, dst: &mut Vec<u8>) -> ::Result<Encoder> {
-        trace!("Client::encode has_body={}, method={:?}", has_body, method);
+    fn encode(
+        mut head: MessageHead<Self::Outgoing>,
+        body: Option<BodyLength>,
+        method: &mut Option<Method>,
+        dst: &mut Vec<u8>,
+    ) -> ::Result<Encoder> {
+        trace!("Client::encode body={:?}, method={:?}", body, method);
 
         *method = Some(head.subject.0.clone());
 
-        let body = Client::set_length(&mut head, has_body);
+        let body = Client::set_length(&mut head, body);
 
         let init_cap = 30 + head.headers.len() * AVERAGE_HEADER_SIZE;
         dst.reserve(init_cap);
@@ -399,33 +410,143 @@ where
 }
 
 impl Client<()> {
-    fn set_length(head: &mut RequestHead, has_body: bool) -> Encoder {
-        if has_body {
+    fn set_length(head: &mut RequestHead, body: Option<BodyLength>) -> Encoder {
+        if let Some(body) = body {
             let can_chunked = head.version == Version::HTTP_11
                 && (head.subject.0 != Method::HEAD)
                 && (head.subject.0 != Method::GET)
                 && (head.subject.0 != Method::CONNECT);
-            set_length(&mut head.headers, can_chunked)
+            set_length(&mut head.headers, body, can_chunked)
         } else {
-            head.headers.remove(CONTENT_LENGTH);
             head.headers.remove(TRANSFER_ENCODING);
             Encoder::length(0)
         }
     }
 }
 
-fn set_length(headers: &mut HeaderMap, can_chunked: bool) -> Encoder {
-    let len = headers::content_length_parse(&headers);
+fn set_length(headers: &mut HeaderMap, body: BodyLength, can_chunked: bool) -> Encoder {
+    // If the user already set specific headers, we should respect them, regardless
+    // of what the Entity knows about itself. They set them for a reason.
 
-    if let Some(len) = len {
-        Encoder::length(len)
-    } else if can_chunked {
-        //TODO: maybe not overwrite existing transfer-encoding
-        headers.insert(TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
-        Encoder::chunked()
+    // Because of the borrow checker, we can't check the for an existing
+    // Content-Length header while holding an `Entry` for the Transfer-Encoding
+    // header, so unfortunately, we must do the check here, first.
+
+    let existing_con_len = headers::content_length_parse(headers);
+    let mut should_remove_con_len = false;
+
+    if can_chunked {
+        // If the user set a transfer-encoding, respect that. Let's just
+        // make sure `chunked` is the final encoding.
+        let encoder = match headers.entry(TRANSFER_ENCODING)
+            .expect("TRANSFER_ENCODING is valid HeaderName") {
+            Entry::Occupied(te) => {
+                should_remove_con_len = true;
+                if headers::is_chunked(te.iter()) {
+                    Some(Encoder::chunked())
+                } else {
+                    warn!("user provided transfer-encoding does not end in 'chunked'");
+
+                    // There's a Transfer-Encoding, but it doesn't end in 'chunked'!
+                    // An example that could trigger this:
+                    //
+                    //     Transfer-Encoding: gzip
+                    //
+                    // This can be bad, depending on if this is a request or a
+                    // response.
+                    //
+                    // - A request is illegal if there is a `Transfer-Encoding`
+                    //   but it doesn't end in `chunked`.
+                    // - A response that has `Transfer-Encoding` but doesn't
+                    //   end in `chunked` isn't illegal, it just forces this
+                    //   to be close-delimited.
+                    //
+                    // We can try to repair this, by adding `chunked` ourselves.
+
+                    headers::add_chunked(te);
+                    Some(Encoder::chunked())
+                }
+            },
+            Entry::Vacant(te) => {
+                if let Some(len) = existing_con_len {
+                    Some(Encoder::length(len))
+                } else if let BodyLength::Unknown = body {
+                    should_remove_con_len = true;
+                    te.insert(HeaderValue::from_static("chunked"));
+                    Some(Encoder::chunked())
+                } else {
+                    None
+                }
+            },
+        };
+
+        // This is because we need a second mutable borrow to remove
+        // content-length header.
+        if let Some(encoder) = encoder {
+            if should_remove_con_len && existing_con_len.is_some() {
+                headers.remove(CONTENT_LENGTH);
+            }
+            return encoder;
+        }
+
+        // User didn't set transfer-encoding, AND we know body length,
+        // so we can just set the Content-Length automatically.
+
+        let len = if let BodyLength::Known(len) = body {
+            len
+        } else {
+            unreachable!("BodyLength::Unknown would set chunked");
+        };
+
+        set_content_length(headers, len)
     } else {
-        headers.remove(TRANSFER_ENCODING);
-        Encoder::eof()
+        // Chunked isn't legal, so if it is set, we need to remove it.
+        // Also, if it *is* set, then we shouldn't replace with a length,
+        // since the user tried to imply there isn't a length.
+        let encoder = if headers.remove(TRANSFER_ENCODING).is_some() {
+            trace!("removing illegal transfer-encoding header");
+            should_remove_con_len = true;
+            Encoder::eof()
+        } else if let Some(len) = existing_con_len {
+            Encoder::length(len)
+        } else if let BodyLength::Known(len) = body {
+            set_content_length(headers, len)
+        } else {
+            Encoder::eof()
+        };
+
+        if should_remove_con_len && existing_con_len.is_some() {
+            headers.remove(CONTENT_LENGTH);
+        }
+
+        encoder
+    }
+}
+
+fn set_content_length(headers: &mut HeaderMap, len: u64) -> Encoder {
+    // At this point, there should not be a valid Content-Length
+    // header. However, since we'll be indexing in anyways, we can
+    // warn the user if there was an existing illegal header.
+
+    match headers.entry(CONTENT_LENGTH)
+        .expect("CONTENT_LENGTH is valid HeaderName") {
+        Entry::Occupied(mut cl) => {
+            // Uh oh, the user set `Content-Length` headers, but set bad ones.
+            // This would be an illegal message anyways, so let's try to repair
+            // with our known good length.
+            warn!("user provided content-length header was invalid");
+
+            // Internal sanity check, we should have already determined
+            // that the header was illegal before calling this function.
+            debug_assert!(headers::content_length_parse_all(cl.iter()).is_none());
+
+            cl.insert(headers::content_length_value(len));
+            Encoder::length(len)
+        },
+        Entry::Vacant(cl) => {
+            cl.insert(headers::content_length_value(len));
+            Encoder::length(len)
+        }
     }
 }
 
@@ -572,6 +693,7 @@ mod tests {
             }
         }
     }
+
 
     #[test]
     fn test_parse_request() {
