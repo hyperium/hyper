@@ -243,20 +243,27 @@ where C: Connect,
                     } else {
                         ClientError::Normal(err)
                     }
+                })
+                .map(move |res| {
+                    // when pooled is dropped, it will try to insert back into the
+                    // pool. To delay that, spawn a future that completes once the
+                    // sender is ready again.
+                    //
+                    // This *should* only be once the related `Connection` has polled
+                    // for a new request to start.
+                    //
+                    // It won't be ready if there is a body to stream.
+                    if let Ok(Async::NotReady) = pooled.tx.poll_ready() {
+                        // If the executor doesn't have room, oh well. Things will likely
+                        // be blowing up soon, but this specific task isn't required.
+                        let _ = executor.execute(future::poll_fn(move || {
+                            pooled.tx.poll_ready().map_err(|_| ())
+                        }));
+                    }
+
+                    res
                 });
 
-            // when pooled is dropped, it will try to insert back into the
-            // pool. To delay that, spawn a future that completes once the
-            // sender is ready again.
-            //
-            // This *should* only be once the related `Connection` has polled
-            // for a new request to start.
-            //
-            // If the executor doesn't have room, oh well. Things will likely
-            // be blowing up soon, but this specific task isn't required.
-            let _ = executor.execute(future::poll_fn(move || {
-                pooled.tx.poll_ready().map_err(|_| ())
-            }));
 
             fut
         });

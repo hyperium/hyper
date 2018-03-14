@@ -1,10 +1,8 @@
 extern crate pretty_env_logger;
 
-use std::time::Duration;
-
 use futures::Async;
 use futures::future::poll_fn;
-use tokio::reactor::{Core, Timeout};
+use tokio::reactor::Core;
 
 use mock::MockConnector;
 use super::*;
@@ -70,11 +68,6 @@ fn conn_reset_after_write() {
             Ok(Async::Ready(()))
         });
         core.run(res1.join(srv1)).expect("res1");
-
-        // run a tiny timeout just to spin the core, so that the pool
-        // can tell the socket is ready again
-        let timeout = Timeout::new(Duration::from_millis(50), &core.handle()).unwrap();
-        core.run(timeout).unwrap();
     }
 
     let res2 = client.get("http://mock.local/a".parse().unwrap());
