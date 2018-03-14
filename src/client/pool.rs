@@ -6,7 +6,9 @@ use std::time::{Duration, Instant};
 
 use futures::{Future, Async, Poll, Stream};
 use futures::sync::oneshot;
-use tokio::reactor::{Handle, Interval};
+use futures_timer::Interval;
+
+use super::Exec;
 
 pub struct Pool<T> {
     inner: Arc<Mutex<PoolInner<T>>>,
@@ -218,8 +220,8 @@ impl<T: Closed> PoolInner<T> {
 }
 
 
-impl<T: Closed + 'static> Pool<T> {
-    pub(super) fn spawn_expired_interval(&self, handle: &Handle) {
+impl<T: Closed + Send + 'static> Pool<T> {
+    pub(super) fn spawn_expired_interval(&self, exec: &Exec) {
         let dur = {
             let mut inner = self.inner.lock().unwrap();
 
@@ -239,12 +241,11 @@ impl<T: Closed + 'static> Pool<T> {
             }
         };
 
-        let interval = Interval::new(dur, handle)
-            .expect("reactor is gone");
-        handle.spawn(IdleInterval {
+        let interval = Interval::new(dur);
+        exec.execute(IdleInterval {
             interval: interval,
             pool: Arc::downgrade(&self.inner),
-        });
+        }).unwrap();
     }
 }
 
@@ -431,7 +432,7 @@ mod tests {
     use std::time::Duration;
     use futures::{Async, Future};
     use futures::future;
-    use super::{Closed, Pool};
+    use super::{Closed, Pool, Exec};
 
     impl Closed for i32 {
         fn is_closed(&self) -> bool {
@@ -489,9 +490,11 @@ mod tests {
 
     #[test]
     fn test_pool_timer_removes_expired() {
-        let mut core = ::tokio::reactor::Core::new().unwrap();
+        let runtime = ::tokio::runtime::Runtime::new().unwrap();
         let pool = Pool::new(true, Some(Duration::from_millis(100)));
-        pool.spawn_expired_interval(&core.handle());
+
+        let executor = runtime.executor();
+        pool.spawn_expired_interval(&Exec::new(executor));
         let key = Arc::new("foo".to_string());
 
         pool.pooled(key.clone(), 41);
@@ -500,11 +503,9 @@ mod tests {
 
         assert_eq!(pool.inner.lock().unwrap().idle.get(&key).map(|entries| entries.len()), Some(3));
 
-        let timeout = ::tokio::reactor::Timeout::new(
-            Duration::from_millis(400), // allow for too-good resolution
-            &core.handle()
-        ).unwrap();
-        core.run(timeout).unwrap();
+        ::futures_timer::Delay::new(
+            Duration::from_millis(400) // allow for too-good resolution
+        ).wait().unwrap();
 
         assert!(pool.inner.lock().unwrap().idle.get(&key).is_none());
     }

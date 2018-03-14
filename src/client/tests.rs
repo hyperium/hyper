@@ -1,8 +1,11 @@
 extern crate pretty_env_logger;
 
+use std::thread;
+use std::time::Duration;
+
 use futures::Async;
 use futures::future::poll_fn;
-use tokio::reactor::Core;
+use tokio::executor::thread_pool::{Builder as ThreadPoolBuilder};
 
 use mock::MockConnector;
 use super::*;
@@ -10,8 +13,8 @@ use super::*;
 #[test]
 fn retryable_request() {
     let _ = pretty_env_logger::try_init();
-    let mut core = Core::new().unwrap();
 
+    let executor = ThreadPoolBuilder::new().pool_size(1).build();
     let mut connector = MockConnector::new();
 
     let sock1 = connector.mock("http://mock.local");
@@ -19,8 +22,7 @@ fn retryable_request() {
 
     let client = Client::configure()
         .connector(connector)
-        .build(&core.handle());
-
+        .executor(executor.sender().clone());
 
     {
 
@@ -34,7 +36,7 @@ fn retryable_request() {
             try_ready!(sock1.write(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"));
             Ok(Async::Ready(()))
         });
-        core.run(res1.join(srv1)).expect("res1");
+        res1.join(srv1).wait().expect("res1");
     }
     drop(sock1);
 
@@ -52,22 +54,21 @@ fn retryable_request() {
         Ok(Async::Ready(()))
     });
 
-    core.run(res2.join(srv2)).expect("res2");
+    res2.join(srv2).wait().expect("res2");
 }
 
 #[test]
 fn conn_reset_after_write() {
     let _ = pretty_env_logger::try_init();
-    let mut core = Core::new().unwrap();
 
+    let executor = ThreadPoolBuilder::new().pool_size(1).build();
     let mut connector = MockConnector::new();
 
     let sock1 = connector.mock("http://mock.local");
 
     let client = Client::configure()
         .connector(connector)
-        .build(&core.handle());
-
+        .executor(executor.sender().clone());
 
     {
         let req = Request::builder()
@@ -82,8 +83,11 @@ fn conn_reset_after_write() {
             try_ready!(sock1.write(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"));
             Ok(Async::Ready(()))
         });
-        core.run(res1.join(srv1)).expect("res1");
+        res1.join(srv1).wait().expect("res1");
     }
+
+    // sleep to allow some time for the connection to return to the pool
+    thread::sleep(Duration::from_secs(1));
 
     let req = Request::builder()
         .uri("http://mock.local/a")
@@ -102,7 +106,7 @@ fn conn_reset_after_write() {
         sock1.take();
         Ok(Async::Ready(()))
     });
-    let err = core.run(res2.join(srv2)).expect_err("res2");
+    let err = res2.join(srv2).wait().expect_err("res2");
     match err {
         ::Error::Incomplete => (),
         other => panic!("expected Incomplete, found {:?}", other)

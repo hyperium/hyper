@@ -1,15 +1,15 @@
 //#![deny(warnings)]
 extern crate futures;
 extern crate hyper;
-extern crate tokio_core;
+extern crate tokio;
 
 extern crate pretty_env_logger;
 
 use std::env;
 use std::io::{self, Write};
 
-use futures::Future;
-use futures::stream::Stream;
+use futures::{Future, Stream};
+use futures::future::lazy;
 
 use hyper::{Body, Client, Request};
 
@@ -30,22 +30,23 @@ fn main() {
         return;
     }
 
-    let mut core = tokio_core::reactor::Core::new().unwrap();
-    let handle = core.handle();
-    let client = Client::new(&handle);
+    tokio::run(lazy(move || {
+        let client = Client::default();
 
-    let mut req = Request::new(Body::empty());
-    *req.uri_mut() = url;
-    let work = client.request(req).and_then(|res| {
-        println!("Response: {}", res.status());
-        println!("Headers: {:#?}", res.headers());
+        let mut req = Request::new(Body::empty());
+        *req.uri_mut() = url;
 
-        res.into_parts().1.into_stream().for_each(|chunk| {
-            io::stdout().write_all(&chunk).map_err(From::from)
+        client.request(req).and_then(|res| {
+            println!("Response: {}", res.status());
+            println!("Headers: {:#?}", res.headers());
+
+            res.into_parts().1.into_stream().for_each(|chunk| {
+                io::stdout().write_all(&chunk).map_err(From::from)
+            })
+        }).map(|_| {
+            println!("\n\nDone.");
+        }).map_err(|err| {
+            eprintln!("Error {}", err);
         })
-    }).map(|_| {
-        println!("\n\nDone.");
-    });
-
-    core.run(work).unwrap();
+    }));
 }

@@ -45,7 +45,7 @@ impl<D, Bs, I, B, T> Dispatcher<D, Bs, I, B, T>
 where
     D: Dispatch<PollItem=MessageHead<T::Outgoing>, PollBody=Bs, RecvItem=MessageHead<T::Incoming>>,
     I: AsyncRead + AsyncWrite,
-    B: AsRef<[u8]>,
+    B: AsRef<[u8]> + Send,
     T: Http1Transaction,
     Bs: Entity<Data=B, Error=::Error>,
 {
@@ -292,7 +292,7 @@ impl<D, Bs, I, B, T> Future for Dispatcher<D, Bs, I, B, T>
 where
     D: Dispatch<PollItem=MessageHead<T::Outgoing>, PollBody=Bs, RecvItem=MessageHead<T::Incoming>>,
     I: AsyncRead + AsyncWrite,
-    B: AsRef<[u8]>,
+    B: AsRef<[u8]> + Send,
     T: Http1Transaction,
     Bs: Entity<Data=B, Error=::Error>,
 {

@@ -1,14 +1,13 @@
 #![deny(warnings)]
 extern crate hyper;
 extern crate futures;
-extern crate tokio_core;
 extern crate pretty_env_logger;
+extern crate tokio;
 
 use futures::{Future, Stream};
-use futures::future::FutureResult;
+use futures::future::{FutureResult, lazy};
 
 use hyper::{Body, Method, Request, Response, StatusCode};
-use tokio_core::reactor::Core;
 use hyper::server::{Http, Service};
 
 static INDEX1: &'static [u8] = b"The 1st service!";
@@ -44,26 +43,23 @@ fn main() {
     let addr1 = "127.0.0.1:1337".parse().unwrap();
     let addr2 = "127.0.0.1:1338".parse().unwrap();
 
-    let mut core = Core::new().unwrap();
-    let handle = core.handle();
+    tokio::run(lazy(move || {
+        let srv1 = Http::new().serve_addr(&addr1, || Ok(Srv(INDEX1))).unwrap();
+        let srv2 = Http::new().serve_addr(&addr2, || Ok(Srv(INDEX2))).unwrap();
 
-    let srv1 = Http::new().serve_addr_handle(&addr1, &handle, || Ok(Srv(INDEX1))).unwrap();
-    let srv2 = Http::new().serve_addr_handle(&addr2, &handle, || Ok(Srv(INDEX2))).unwrap();
+        println!("Listening on http://{}", srv1.incoming_ref().local_addr());
+        println!("Listening on http://{}", srv2.incoming_ref().local_addr());
 
-    println!("Listening on http://{}", srv1.incoming_ref().local_addr());
-    println!("Listening on http://{}", srv2.incoming_ref().local_addr());
+        tokio::spawn(srv1.for_each(move |conn| {
+            tokio::spawn(conn.map(|_| ()).map_err(|err| println!("srv1 error: {:?}", err)));
+            Ok(())
+        }).map_err(|_| ()));
 
-    let handle1 = handle.clone();
-    handle.spawn(srv1.for_each(move |conn| {
-        handle1.spawn(conn.map(|_| ()).map_err(|err| println!("srv1 error: {:?}", err)));
+        tokio::spawn(srv2.for_each(move |conn| {
+            tokio::spawn(conn.map(|_| ()).map_err(|err| println!("srv2 error: {:?}", err)));
+            Ok(())
+        }).map_err(|_| ()));
+
         Ok(())
-    }).map_err(|_| ()));
-
-    let handle2 = handle.clone();
-    handle.spawn(srv2.for_each(move |conn| {
-        handle2.spawn(conn.map(|_| ()).map_err(|err| println!("srv2 error: {:?}", err)));
-        Ok(())
-    }).map_err(|_| ()));
-
-    core.run(futures::future::empty::<(), ()>()).unwrap();
+    }));
 }
