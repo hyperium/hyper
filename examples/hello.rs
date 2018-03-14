@@ -20,7 +20,6 @@ fn main() {
     }));
 
     let server = Http::new()
-        .sleep_on_errors(true)
         .bind(&addr, new_service)
         .unwrap();
     println!("Listening on http://{} with 1 thread.", server.local_addr().unwrap());
