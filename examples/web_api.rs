@@ -2,9 +2,11 @@
 extern crate futures;
 extern crate hyper;
 extern crate pretty_env_logger;
-extern crate tokio_core;
+extern crate tokio;
 
 use futures::{Future, Stream};
+use futures::future::lazy;
+use tokio::reactor::Handle;
 
 use hyper::{Body, Chunk, Client, Method, Request, Response, StatusCode};
 use hyper::server::{Http, Service};
@@ -17,13 +19,13 @@ static URL: &str = "http://127.0.0.1:1337/web_api";
 static INDEX: &[u8] = b"<a href=\"test.html\">test.html</a>";
 static LOWERCASE: &[u8] = b"i am a lower case string";
 
-struct ResponseExamples(tokio_core::reactor::Handle);
+struct ResponseExamples(Handle);
 
 impl Service for ResponseExamples {
     type Request = Request<Body>;
     type Response = Response<Body>;
     type Error = hyper::Error;
-    type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
+    type Future = Box<Future<Item = Self::Response, Error = Self::Error> + Send>;
 
     fn call(&self, req: Self::Request) -> Self::Future {
         match (req.method(), req.uri().path()) {
@@ -76,18 +78,13 @@ fn main() {
     pretty_env_logger::init();
     let addr = "127.0.0.1:1337".parse().unwrap();
 
-    let mut core = tokio_core::reactor::Core::new().unwrap();
-    let handle = core.handle();
-    let client_handle = core.handle();
+    tokio::run(lazy(move || {
+        let handle = Handle::current();
+        let serve = Http::new().serve_addr(&addr, move || Ok(ResponseExamples(handle.clone()))).unwrap();
+        println!("Listening on http://{} with 1 thread.", serve.incoming_ref().local_addr());
 
-    let serve = Http::new().serve_addr_handle(&addr, &handle, move || Ok(ResponseExamples(client_handle.clone()))).unwrap();
-    println!("Listening on http://{} with 1 thread.", serve.incoming_ref().local_addr());
-
-    let h2 = handle.clone();
-    handle.spawn(serve.for_each(move |conn| {
-        h2.spawn(conn.map(|_| ()).map_err(|err| println!("serve error: {:?}", err)));
-        Ok(())
-    }).map_err(|_| ()));
-
-    core.run(futures::future::empty::<(), ()>()).unwrap();
+        serve.map_err(|_| ()).for_each(move |conn| {
+            tokio::spawn(conn.map(|_| ()).map_err(|err| println!("serve error: {:?}", err)))
+        })
+    }));
 }

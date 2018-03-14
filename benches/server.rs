@@ -5,6 +5,7 @@ extern crate futures;
 extern crate hyper;
 extern crate pretty_env_logger;
 extern crate test;
+extern crate tokio;
 
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -30,7 +31,7 @@ macro_rules! bench_server {
                 })).unwrap();
                 let addr = srv.local_addr().unwrap();
                 addr_tx.send(addr).unwrap();
-                srv.run_until(until_rx.map_err(|_| ())).unwrap();
+                tokio::run(srv.run_until(until_rx.map_err(|_| ())).map_err(|e| panic!("server error: {}", e)));
             });
 
             addr_rx.recv().unwrap()

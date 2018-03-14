@@ -3,7 +3,6 @@
 use std::fmt;
 use std::io;
 use std::marker::PhantomData;
-use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -13,6 +12,7 @@ use http::{Method, Request, Response, Uri, Version};
 use http::header::{Entry, HeaderValue, HOST};
 use http::uri::Scheme;
 use tokio::reactor::Handle;
+use tokio_executor::spawn;
 pub use tokio_service::Service;
 
 use proto::body::{Body, Entity};
@@ -36,7 +36,7 @@ mod tests;
 
 /// A Client to make outgoing HTTP requests.
 pub struct Client<C, B = proto::Body> {
-    connector: Rc<C>,
+    connector: Arc<C>,
     executor: Exec,
     h1_writev: bool,
     pool: Pool<PoolClient<B>>,
@@ -52,6 +52,12 @@ impl Client<HttpConnector, proto::Body> {
     }
 }
 
+impl Default for Client<HttpConnector, proto::Body> {
+    fn default() -> Client<HttpConnector, proto::Body> {
+        Client::new(&Handle::current())
+    }
+}
+
 impl Client<HttpConnector, proto::Body> {
     /// Configure a Client.
     ///
@@ -59,11 +65,11 @@ impl Client<HttpConnector, proto::Body> {
     ///
     /// ```no_run
     /// # extern crate hyper;
-    /// # extern crate tokio_core;
+    /// # extern crate tokio;
     ///
     /// # fn main() {
-    /// # let core = tokio_core::reactor::Core::new().unwrap();
-    /// # let handle = core.handle();
+    /// # let runtime = tokio::runtime::Runtime::new().unwrap();
+    /// # let handle = runtime.handle();
     /// let client = hyper::Client::configure()
     ///     .keep_alive(true)
     ///     .build(&handle);
@@ -77,22 +83,10 @@ impl Client<HttpConnector, proto::Body> {
 }
 
 impl<C, B> Client<C, B> {
-    // Eventually, a Client won't really care about a tokio Handle, and only
-    // the executor used to spawn background tasks. Removing this method is
-    // a breaking change, so for now, it's just deprecated.
-    #[doc(hidden)]
-    #[deprecated]
-    pub fn handle(&self) -> &Handle {
-        match self.executor {
-            Exec::Handle(ref h) => h,
-            Exec::Executor(..) => panic!("Client not built with a Handle"),
-        }
-    }
-
     #[inline]
     fn configured(config: Config<C, B>, exec: Exec) -> Client<C, B> {
         Client {
-            connector: Rc::new(config.connector),
+            connector: Arc::new(config.connector),
             executor: exec,
             h1_writev: config.h1_writev,
             pool: Pool::new(config.keep_alive, config.keep_alive_timeout),
@@ -103,10 +97,11 @@ impl<C, B> Client<C, B> {
 }
 
 impl<C, B> Client<C, B>
-where C: Connect<Error=io::Error> + 'static,
+where C: Connect<Error=io::Error> + Sync + 'static,
       C::Transport: 'static,
       C::Future: 'static,
-      B: Entity<Error=::Error> + 'static,
+      B: Entity<Error=::Error> + Send + 'static,
+      B::Data: Send,
 {
 
     /// Send a `GET` request to the supplied `Uri`.
@@ -195,7 +190,7 @@ where C: Connect<Error=io::Error> + 'static,
     }
 
     //TODO: replace with `impl Future` when stable
-    fn send_request(&self, mut req: Request<B>, domain: &str) -> Box<Future<Item=Response<Body>, Error=ClientError<B>>> {
+    fn send_request(&self, mut req: Request<B>, domain: &str) -> Box<Future<Item=Response<Body>, Error=ClientError<B>> + Send> {
         let url = req.uri().clone();
         let checkout = self.pool.checkout(domain);
         let connect = {
@@ -280,16 +275,15 @@ where C: Connect<Error=io::Error> + 'static,
     }
 
     fn schedule_pool_timer(&self) {
-        if let Exec::Handle(ref h) = self.executor {
-            self.pool.spawn_expired_interval(h);
-        }
+        self.pool.spawn_expired_interval(&self.executor);
     }
 }
 
 impl<C, B> Service for Client<C, B>
 where C: Connect<Error=io::Error> + 'static,
       C::Future: 'static,
-      B: Entity<Error=::Error> + 'static,
+      B: Entity<Error=::Error> + Send + 'static,
+      B::Data: Send,
 {
     type Request = Request<B>;
     type Response = Response<Body>;
@@ -323,7 +317,7 @@ impl<C, B> fmt::Debug for Client<C, B> {
 
 /// A `Future` that will resolve to an HTTP Response.
 #[must_use = "futures do nothing unless polled"]
-pub struct FutureResponse(Box<Future<Item=Response<Body>, Error=::Error> + 'static>);
+pub struct FutureResponse(Box<Future<Item=Response<Body>, Error=::Error> + Send + 'static>);
 
 impl fmt::Debug for FutureResponse {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -343,7 +337,7 @@ impl Future for FutureResponse {
 struct RetryableSendRequest<C, B> {
     client: Client<C, B>,
     domain: String,
-    future: Box<Future<Item=Response<Body>, Error=ClientError<B>>>,
+    future: Box<Future<Item=Response<Body>, Error=ClientError<B>> + Send>,
     uri: Uri,
 }
 
@@ -351,7 +345,8 @@ impl<C, B> Future for RetryableSendRequest<C, B>
 where
     C: Connect<Error=io::Error> + 'static,
     C::Future: 'static,
-    B: Entity<Error=::Error> + 'static,
+    B: Entity<Error=::Error> + Send + 'static,
+    B::Data: Send,
 {
     type Item = Response<Body>;
     type Error = ::Error;
@@ -562,12 +557,13 @@ impl<C, B> Config<C, B>
 where C: Connect<Error=io::Error>,
       C::Transport: 'static,
       C::Future: 'static,
-      B: Entity<Error=::Error>,
+      B: Entity<Error=::Error> + Send,
+      B::Data: Send,
 {
     /// Construct the Client with this configuration.
     #[inline]
-    pub fn build(self, handle: &Handle) -> Client<C, B> {
-        Client::configured(self, Exec::Handle(handle.clone()))
+    pub fn build(self) -> Client<C, B> {
+        Client::configured(self, Exec::Default)
     }
 
     /// Construct a Client with this configuration and an executor.
@@ -576,14 +572,16 @@ where C: Connect<Error=io::Error>,
     /// to drive requests and responses.
     pub fn executor<E>(self, executor: E) -> Client<C, B>
     where
-        E: Executor<Background> + 'static,
+        E: Executor<Background> + Send + Sync + 'static,
     {
-        Client::configured(self, Exec::Executor(Rc::new(executor)))
+        Client::configured(self, Exec::new(executor))
     }
 }
 
 impl<B> Config<UseDefaultConnector, B>
-where B: Entity<Error=::Error>,
+where
+    B: Entity<Error=::Error> + Send,
+    B::Data: Send,
 {
     /// Construct the Client with this configuration.
     #[inline]
@@ -592,7 +590,22 @@ where B: Entity<Error=::Error>,
         if self.keep_alive {
             connector.set_keepalive(self.keep_alive_timeout);
         }
-        self.connector(connector).build(handle)
+        self.connector(connector).build()
+    }
+
+    /// Construct a Client with this configuration and an executor.
+    ///
+    /// The executor will be used to spawn "background" connection tasks
+    /// to drive requests and responses.
+    pub fn build_with_executor<E>(self, handle: &Handle, executor: E) -> Client<HttpConnector, B>
+    where
+        E: Executor<Background> + Send + Sync + 'static,
+    {
+        let mut connector = HttpConnector::new(4, handle);
+        if self.keep_alive {
+            connector.set_keepalive(self.keep_alive_timeout);
+        }
+        self.connector(connector).executor(executor)
     }
 }
 
@@ -622,18 +635,22 @@ impl<C: Clone, B> Clone for Config<C, B> {
 
 #[derive(Clone)]
 enum Exec {
-    Handle(Handle),
-    Executor(Rc<Executor<Background>>),
+    Default,
+    Executor(Arc<Executor<Background> + Send + Sync>),
 }
 
 
 impl Exec {
+    pub(crate) fn new<E: Executor<Background> + Send + Sync + 'static>(executor: E) -> Exec {
+        Exec::Executor(Arc::new(executor))
+    }
+
     fn execute<F>(&self, fut: F) -> io::Result<()>
     where
-        F: Future<Item=(), Error=()> + 'static,
+        F: Future<Item=(), Error=()> + Send + 'static,
     {
         match *self {
-            Exec::Handle(ref h) => h.spawn(fut),
+            Exec::Default => spawn(fut),
             Exec::Executor(ref e) => {
                 e.execute(bg(Box::new(fut)))
                     .map_err(|err| {
@@ -660,10 +677,10 @@ mod background {
     // and only implementeds `Future`.
     #[allow(missing_debug_implementations)]
     pub struct Background {
-        inner: Box<Future<Item=(), Error=()>>,
+        inner: Box<Future<Item=(), Error=()> + Send>,
     }
 
-    pub fn bg(fut: Box<Future<Item=(), Error=()>>) -> Background {
+    pub fn bg(fut: Box<Future<Item=(), Error=()> + Send>) -> Background {
         Background {
             inner: fut,
         }

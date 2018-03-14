@@ -1,4 +1,5 @@
 environment:
+  RUST_BACKTRACE: 1
   matrix:
   - TARGET: x86_64-pc-windows-msvc
   - TARGET: i686-pc-windows-msvc
@@ -8,6 +9,7 @@ install:
   - curl -sSf -o rustup-init.exe https://win.rustup.rs/
   - rustup-init.exe -y --default-host %TARGET%
   - set PATH=%PATH%;C:\Users\appveyor\.cargo\bin
+  
   - rustc -vV
   - cargo -vV
 build: false

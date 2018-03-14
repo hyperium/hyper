@@ -208,7 +208,10 @@ where
     }
 
     //TODO: replace with `impl Future` when stable
-    pub(crate) fn send_request_retryable(&mut self, req: Request<B>) -> Box<Future<Item=Response<Body>, Error=(::Error, Option<Request<B>>)>> {
+    pub(crate) fn send_request_retryable(&mut self, req: Request<B>) -> Box<Future<Item=Response<Body>, Error=(::Error, Option<Request<B>>)> + Send>
+    where
+        B: Send,
+    {
         let inner = match self.dispatch.try_send(req) {
             Ok(rx) => {
                 Either::A(rx.then(move |res| {

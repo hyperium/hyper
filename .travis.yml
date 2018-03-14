@@ -54,4 +54,5 @@ after_success:
 
 env:
     global:
+        - RUST_BACKTRACE=1
         - secure: KipdEhZsGIrb2W0HsDbC95x8FJ1RKEWPq8uSK8wSZwGw6MtvoZDX0edfrtf4o3/skA0h84yn35ZWF/rpo1ZEesgFY1g+l+me+jtyGvMwEsXTGjNP4oNR2MrDizjO8eYDm4hRUCLEmJVvsq4j7oNVdLGHfdrcnwqk8/NxJsRzqXM=

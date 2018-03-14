@@ -6,20 +6,21 @@
 pub mod conn;
 mod service;
 
-use std::cell::RefCell;
 use std::fmt;
 use std::io;
 use std::marker::PhantomData;
-use std::net::SocketAddr;
-use std::rc::{Rc, Weak};
+use std::net::{SocketAddr, TcpListener as StdTcpListener};
+use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
 use futures::task::{self, Task};
 use futures::future::{self};
 use futures::{Future, Stream, Poll, Async};
+use futures_timer::Delay;
 use http::{Request, Response};
 use tokio_io::{AsyncRead, AsyncWrite};
-use tokio::reactor::{Core, Handle, Timeout};
+use tokio::spawn;
+use tokio::reactor::Handle;
 use tokio::net::TcpListener;
 pub use tokio_service::{NewService, Service};
 
@@ -54,7 +55,7 @@ where
 {
     protocol: Http<B::Data>,
     new_service: S,
-    reactor: Core,
+    handle: Handle,
     listener: TcpListener,
     shutdown_timeout: Duration,
 }
@@ -81,14 +82,25 @@ pub struct SpawnAll<I, S, E> {
 
 /// A stream of connections from binding to an address.
 #[must_use = "streams do nothing unless polled"]
-#[derive(Debug)]
 pub struct AddrIncoming {
     addr: SocketAddr,
     keep_alive_timeout: Option<Duration>,
     listener: TcpListener,
     handle: Handle,
     sleep_on_errors: bool,
-    timeout: Option<Timeout>,
+    timeout: Option<Delay>,
+}
+
+impl fmt::Debug for AddrIncoming {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("AddrIncoming")
+            .field("addr", &self.addr)
+            .field("keep_alive_timeout", &self.keep_alive_timeout)
+            .field("listener", &self.listener)
+            .field("handle", &self.handle)
+            .field("sleep_on_errors", &self.sleep_on_errors)
+            .finish()
+    }
 }
 
 // ===== impl Http =====
@@ -156,17 +168,37 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
         where S: NewService<Request = Request<Body>, Response = Response<Bd>, Error = ::Error> + 'static,
               Bd: Entity<Data=B, Error=::Error>,
     {
-        let core = try!(Core::new());
-        let handle = core.handle();
-        let listener = try!(TcpListener::bind(addr, &handle));
+        let handle = Handle::current();
+        let std_listener = StdTcpListener::bind(addr)?;
+        let listener = try!(TcpListener::from_std(std_listener, &handle));
 
         Ok(Server {
             new_service: new_service,
-            reactor: core,
+            handle: handle,
             listener: listener,
             protocol: self.clone(),
             shutdown_timeout: Duration::new(1, 0),
         })
+    }
+
+    /// Bind the provided `addr` and return a server with the default `Handle`.
+    ///
+    /// This is method will bind the `addr` provided with a new TCP listener ready
+    /// to accept connections. Each connection will be processed with the
+    /// `new_service` object provided as well, creating a new service per
+    /// connection.
+    pub fn serve_addr<S, Bd>(&self, addr: &SocketAddr, new_service: S) -> ::Result<Serve<AddrIncoming, S>>
+        where S: NewService<Request = Request<Body>, Response = Response<Bd>, Error = ::Error>,
+              Bd: Entity<Data=B, Error=::Error>,
+    {
+        let handle = Handle::current();
+        let std_listener = StdTcpListener::bind(addr)?;
+        let listener = TcpListener::from_std(std_listener, &handle)?;
+        let mut incoming = AddrIncoming::new(listener, handle.clone(), self.sleep_on_errors)?;
+        if self.keep_alive {
+            incoming.set_keepalive(Some(Duration::from_secs(90)));
+        }
+        Ok(self.serve_incoming(incoming, new_service))
     }
 
     /// Bind the provided `addr` and return a server with a shared `Core`.
@@ -181,7 +213,8 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
         where S: NewService<Request = Request<Body>, Response = Response<Bd>, Error = ::Error>,
               Bd: Entity<Data=B, Error=::Error>,
     {
-        let listener = TcpListener::bind(addr, &handle)?;
+        let std_listener = StdTcpListener::bind(addr)?;
+        let listener = TcpListener::from_std(std_listener, &handle)?;
         let mut incoming = AddrIncoming::new(listener, handle.clone(), self.sleep_on_errors)?;
         if self.keep_alive {
             incoming.set_keepalive(Some(Duration::from_secs(90)));
@@ -221,17 +254,18 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     /// ```
     /// # extern crate futures;
     /// # extern crate hyper;
-    /// # extern crate tokio_core;
+    /// # extern crate tokio;
     /// # extern crate tokio_io;
     /// # use futures::Future;
     /// # use hyper::{Body, Request, Response};
     /// # use hyper::server::{Http, Service};
     /// # use tokio_io::{AsyncRead, AsyncWrite};
-    /// # use tokio_core::reactor::Handle;
-    /// # fn run<I, S>(some_io: I, some_service: S, some_handle: &Handle)
+    /// # use tokio::reactor::Handle;
+    /// # fn run<I, S>(some_io: I, some_service: S)
     /// # where
-    /// #     I: AsyncRead + AsyncWrite + 'static,
-    /// #     S: Service<Request=Request<Body>, Response=Response<Body>, Error=hyper::Error> + 'static,
+    /// #     I: AsyncRead + AsyncWrite + Send + 'static,
+    /// #     S: Service<Request=Request<Body>, Response=Response<Body>, Error=hyper::Error> + Send + 'static,
+    /// #     S::Future: Send
     /// # {
     /// let http = Http::<hyper::Chunk>::new();
     /// let conn = http.serve_connection(some_io, some_service);
@@ -240,7 +274,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     ///     .map(|_| ())
     ///     .map_err(|e| eprintln!("server connection error: {}", e));
     ///
-    /// some_handle.spawn(fut);
+    /// tokio::spawn(fut);
     /// # }
     /// # fn main() {}
     /// ```
@@ -286,19 +320,36 @@ impl<B> fmt::Debug for Http<B> {
 
 // ===== impl Server =====
 
+
+/// TODO: add docs
+pub struct Run(Box<Future<Item=(), Error=::Error> + Send + 'static>);
+
+impl fmt::Debug for Run {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Run").finish()
+    }
+}
+
+impl Future for Run {
+    type Item = ();
+    type Error = ::Error;
+
+    fn poll(&mut self) -> Poll<(), ::Error> {
+        self.0.poll()
+    }
+}
+
+
 impl<S, B> Server<S, B>
-    where S: NewService<Request = Request<Body>, Response = Response<B>, Error = ::Error> + 'static,
-          B: Entity<Error=::Error> + 'static,
+    where S: NewService<Request = Request<Body>, Response = Response<B>, Error = ::Error> + Send + 'static,
+          <S as NewService>::Instance: Send,
+          <<S as NewService>::Instance as Service>::Future: Send,
+          B: Entity<Error=::Error> + Send + 'static,
+          B::Data: Send,
 {
     /// Returns the local address that this server is bound to.
     pub fn local_addr(&self) -> ::Result<SocketAddr> {
         Ok(try!(self.listener.local_addr()))
-    }
-
-    /// Returns a handle to the underlying event loop that this server will be
-    /// running on.
-    pub fn handle(&self) -> Handle {
-        self.reactor.handle()
     }
 
     /// Configure the amount of time this server will wait for a "graceful
@@ -318,7 +369,7 @@ impl<S, B> Server<S, B>
     ///
     /// This method does not currently return, but it will return an error if
     /// one occurs.
-    pub fn run(self) -> ::Result<()> {
+    pub fn run(self) -> Run {
         self.run_until(future::empty())
     }
 
@@ -335,40 +386,42 @@ impl<S, B> Server<S, B>
     /// `shutdown_timeout` time waiting for active connections to shut down.
     /// Once the `shutdown_timeout` elapses or all active connections are
     /// cleaned out then this method will return.
-    pub fn run_until<F>(self, shutdown_signal: F) -> ::Result<()>
-        where F: Future<Item = (), Error = ()>,
+    pub fn run_until<F>(self, shutdown_signal: F) -> Run
+        where F: Future<Item = (), Error = ()> + Send + 'static,
     {
-        let Server { protocol, new_service, mut reactor, listener, shutdown_timeout } = self;
+        let Server { protocol, new_service, handle, listener, shutdown_timeout } = self;
 
-        let handle = reactor.handle();
-
-        let mut incoming = AddrIncoming::new(listener, handle.clone(), protocol.sleep_on_errors)?;
+        let mut incoming = match AddrIncoming::new(listener, handle.clone(), protocol.sleep_on_errors) {
+            Ok(incoming) => incoming,
+            Err(err) => return Run(Box::new(future::err(err.into()))),
+        };
 
         if protocol.keep_alive {
             incoming.set_keepalive(Some(Duration::from_secs(90)));
         }
 
         // Mini future to track the number of active services
-        let info = Rc::new(RefCell::new(Info {
+        let info = Arc::new(Mutex::new(Info {
             active: 0,
             blocker: None,
         }));
 
         // Future for our server's execution
-        let srv = incoming.for_each(|socket| {
+        let info_cloned = info.clone();
+        let srv = incoming.for_each(move |socket| {
             let addr = socket.remote_addr;
             debug!("accepted new connection ({})", addr);
 
             let service = new_service.new_service()?;
             let s = NotifyService {
                 inner: service,
-                info: Rc::downgrade(&info),
+                info: Arc::downgrade(&info_cloned),
             };
-            info.borrow_mut().active += 1;
+            info_cloned.lock().unwrap().active += 1;
             let fut = protocol.serve_connection(socket, s)
                 .map(|_| ())
                 .map_err(move |err| error!("server connection error: ({}) {}", addr, err));
-            handle.spawn(fut);
+            spawn(fut);
             Ok(())
         });
 
@@ -383,24 +436,30 @@ impl<S, B> Server<S, B>
         //
         // When we get a shutdown signal (`Ok`) then we drop the TCP listener to
         // stop accepting incoming connections.
-        match reactor.run(shutdown_signal.select(srv)) {
-            Ok(((), _incoming)) => {}
-            Err((e, _other)) => return Err(e.into()),
-        }
+        let main_execution = shutdown_signal.select(srv).then(move |result| {
+            match result {
+                Ok(((), _incoming)) => {},
+                Err((e, _other)) => return future::Either::A(future::err(e.into()))
+            }
 
-        // Ok we've stopped accepting new connections at this point, but we want
-        // to give existing connections a chance to clear themselves out. Wait
-        // at most `shutdown_timeout` time before we just return clearing
-        // everything out.
-        //
-        // Our custom `WaitUntilZero` will resolve once all services constructed
-        // here have been destroyed.
-        let timeout = try!(Timeout::new(shutdown_timeout, &handle));
-        let wait = WaitUntilZero { info: info.clone() };
-        match reactor.run(wait.select(timeout)) {
-            Ok(_) => Ok(()),
-            Err((e, _)) => Err(e.into())
-        }
+            // Ok we've stopped accepting new connections at this point, but we want
+            // to give existing connections a chance to clear themselves out. Wait
+            // at most `shutdown_timeout` time before we just return clearing
+            // everything out.
+            //
+            // Our custom `WaitUntilZero` will resolve once all services constructed
+            // here have been destroyed.
+            let timeout = Delay::new(shutdown_timeout);
+            let wait = WaitUntilZero { info: info.clone() };
+            future::Either::B(wait.select(timeout).then(|result| {
+                match result {
+                    Ok(_) => Ok(()),
+                    Err((e, _)) => Err(e.into())
+                }
+            }))
+        });
+
+        Run(Box::new(main_execution))
     }
 }
 
@@ -537,8 +596,8 @@ impl Stream for AddrIncoming {
         }
         self.timeout = None;
         loop {
-            match self.listener.accept() {
-                Ok((socket, addr)) => {
+            match self.listener.poll_accept() {
+                Ok(Async::Ready((socket, addr))) => {
                     if let Some(dur) = self.keep_alive_timeout {
                         if let Err(e) = socket.set_keepalive(Some(dur)) {
                             trace!("error trying to set TCP keepalive: {}", e);
@@ -546,7 +605,7 @@ impl Stream for AddrIncoming {
                     }
                     return Ok(Async::Ready(Some(AddrStream::new(socket, addr))));
                 },
-                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => return Ok(Async::NotReady),
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Err(ref e) if self.sleep_on_errors => {
                     // Connection errors can be ignored directly, continue by
                     // accepting the next request.
@@ -557,8 +616,7 @@ impl Stream for AddrIncoming {
                     let delay = ::std::time::Duration::from_millis(10);
                     debug!("accept error: {}; sleeping {:?}",
                         e, delay);
-                    let mut timeout = Timeout::new(delay, &self.handle)
-                        .expect("can always set a timeout");
+                    let mut timeout = Delay::new(delay);
                     let result = timeout.poll()
                         .expect("timeout never fails");
                     match result {
@@ -660,11 +718,11 @@ mod addr_stream {
 
 struct NotifyService<S> {
     inner: S,
-    info: Weak<RefCell<Info>>,
+    info: Weak<Mutex<Info>>,
 }
 
 struct WaitUntilZero {
-    info: Rc<RefCell<Info>>,
+    info: Arc<Mutex<Info>>,
 }
 
 struct Info {
@@ -689,7 +747,7 @@ impl<S> Drop for NotifyService<S> {
             Some(info) => info,
             None => return,
         };
-        let mut info = info.borrow_mut();
+        let mut info = info.lock().unwrap();
         info.active -= 1;
         if info.active == 0 {
             if let Some(task) = info.blocker.take() {
@@ -704,7 +762,7 @@ impl Future for WaitUntilZero {
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<(), io::Error> {
-        let mut info = self.info.borrow_mut();
+        let mut info = self.info.lock().unwrap();
         if info.active == 0 {
             Ok(().into())
         } else {

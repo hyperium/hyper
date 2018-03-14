@@ -9,6 +9,7 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::io;
 use std::mem;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -18,9 +19,10 @@ use futures::sync::oneshot;
 use futures_cpupool::{Builder as CpuPoolBuilder};
 use http::Uri;
 use http::uri::Scheme;
+use net2::TcpBuilder;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio::reactor::Handle;
-use tokio::net::{TcpStream, TcpStreamNew};
+use tokio::net::{TcpStream, ConnectFuture};
 
 use super::dns;
 use self::http_connector::HttpConnectorBlockingTask;
@@ -30,13 +32,13 @@ use self::http_connector::HttpConnectorBlockingTask;
 /// A connector receives a [`Destination`](Destination) describing how a
 /// connection should be estabilished, and returns a `Future` of the
 /// ready connection.
-pub trait Connect {
+pub trait Connect: Send + Sync {
     /// The connected IO Stream.
-    type Transport: AsyncRead + AsyncWrite + 'static;
+    type Transport: AsyncRead + AsyncWrite + Send + 'static;
     /// An error occured when trying to connect.
     type Error;
     /// A Future that will resolve to the connected Transport.
-    type Future: Future<Item=(Self::Transport, Connected), Error=Self::Error>;
+    type Future: Future<Item=(Self::Transport, Connected), Error=Self::Error> + Send;
     /// Connect to a destination.
     fn connect(&self, dst: Destination) -> Self::Future;
 }
@@ -133,6 +135,28 @@ impl Connected {
     */
 }
 
+fn connect(addr: &SocketAddr, handle: &Handle) -> io::Result<ConnectFuture> {
+    let builder = match addr {
+        &SocketAddr::V4(_) => TcpBuilder::new_v4()?,
+        &SocketAddr::V6(_) => TcpBuilder::new_v6()?,
+    };
+
+    if cfg!(windows) {
+        // Windows requires a socket be bound before calling connect
+        let any: SocketAddr = match addr {
+            &SocketAddr::V4(_) => {
+                ([0, 0, 0, 0], 0).into()
+            },
+            &SocketAddr::V6(_) => {
+                ([0, 0, 0, 0, 0, 0, 0, 0], 0).into()
+            }
+        };
+        builder.bind(any)?;
+    }
+
+    Ok(TcpStream::connect_std(builder.to_tcp_stream()?, addr, handle))
+}
+
 /// A connector for the `http` scheme.
 ///
 /// Performs DNS resolution in a thread pool, and then connects over TCP.
@@ -162,7 +186,7 @@ impl HttpConnector {
     /// Takes an executor to run blocking tasks on.
     #[inline]
     pub fn new_with_executor<E: 'static>(executor: E, handle: &Handle) -> HttpConnector
-        where E: Executor<HttpConnectorBlockingTask>
+        where E: Executor<HttpConnectorBlockingTask> + Send + Sync
     {
         HttpConnector {
             executor: HttpConnectExecutor(Arc::new(executor)),
@@ -336,7 +360,7 @@ impl fmt::Debug for HttpConnecting {
 
 struct ConnectingTcp {
     addrs: dns::IpAddrs,
-    current: Option<TcpStreamNew>,
+    current: Option<ConnectFuture>,
 }
 
 impl ConnectingTcp {
@@ -352,14 +376,14 @@ impl ConnectingTcp {
                         err = Some(e);
                         if let Some(addr) = self.addrs.next() {
                             debug!("connecting to {}", addr);
-                            *current = TcpStream::connect(&addr, handle);
+                            *current = connect(&addr, handle)?;
                             continue;
                         }
                     }
                 }
             } else if let Some(addr) = self.addrs.next() {
                 debug!("connecting to {}", addr);
-                self.current = Some(TcpStream::connect(&addr, handle));
+                self.current = Some(connect(&addr, handle)?);
                 continue;
             }
 
@@ -393,7 +417,7 @@ mod http_connector {
 }
 
 #[derive(Clone)]
-struct HttpConnectExecutor(Arc<Executor<HttpConnectorBlockingTask>>);
+struct HttpConnectExecutor(Arc<Executor<HttpConnectorBlockingTask> + Send + Sync>);
 
 impl Executor<oneshot::Execute<dns::Work>> for HttpConnectExecutor {
     fn execute(&self, future: oneshot::Execute<dns::Work>) -> Result<(), ExecuteError<oneshot::Execute<dns::Work>>> {
@@ -406,43 +430,44 @@ impl Executor<oneshot::Execute<dns::Work>> for HttpConnectExecutor {
 mod tests {
     #![allow(deprecated)]
     use std::io;
-    use tokio::reactor::Core;
+    use futures::Future;
+    use tokio::runtime::Runtime;
     use super::{Connect, Destination, HttpConnector};
 
     #[test]
     fn test_errors_missing_authority() {
-        let mut core = Core::new().unwrap();
+        let runtime = Runtime::new().unwrap();
         let uri = "/foo/bar?baz".parse().unwrap();
         let dst = Destination {
             uri,
         };
-        let connector = HttpConnector::new(1, &core.handle());
+        let connector = HttpConnector::new(1, runtime.handle());
 
-        assert_eq!(core.run(connector.connect(dst)).unwrap_err().kind(), io::ErrorKind::InvalidInput);
+        assert_eq!(connector.connect(dst).wait().unwrap_err().kind(), io::ErrorKind::InvalidInput);
     }
 
     #[test]
     fn test_errors_enforce_http() {
-        let mut core = Core::new().unwrap();
+        let runtime = Runtime::new().unwrap();
         let uri = "https://example.domain/foo/bar?baz".parse().unwrap();
         let dst = Destination {
             uri,
         };
-        let connector = HttpConnector::new(1, &core.handle());
+        let connector = HttpConnector::new(1, runtime.handle());
 
-        assert_eq!(core.run(connector.connect(dst)).unwrap_err().kind(), io::ErrorKind::InvalidInput);
+        assert_eq!(connector.connect(dst).wait().unwrap_err().kind(), io::ErrorKind::InvalidInput);
     }
 
 
     #[test]
     fn test_errors_missing_scheme() {
-        let mut core = Core::new().unwrap();
+        let runtime = Runtime::new().unwrap();
         let uri = "example.domain".parse().unwrap();
         let dst = Destination {
             uri,
         };
-        let connector = HttpConnector::new(1, &core.handle());
+        let connector = HttpConnector::new(1, runtime.handle());
 
-        assert_eq!(core.run(connector.connect(dst)).unwrap_err().kind(), io::ErrorKind::InvalidInput);
+        assert_eq!(connector.connect(dst).wait().unwrap_err().kind(), io::ErrorKind::InvalidInput);
     }
 }
