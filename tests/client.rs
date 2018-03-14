@@ -638,9 +638,8 @@ mod dispatch_impl {
     use tokio_core::net::TcpStream;
     use tokio_io::{AsyncRead, AsyncWrite};
 
-    use hyper::client::HttpConnector;
-    use hyper::server::Service;
-    use hyper::{Client, Uri};
+    use hyper::client::connect::{Connect, Connected, Destination, HttpConnector};
+    use hyper::Client;
     use hyper;
 
 
@@ -1264,11 +1263,51 @@ mod dispatch_impl {
         assert_eq!(connects.load(Ordering::Relaxed), 2);
     }
 
+    #[test]
+    fn connect_proxy_sends_absolute_uri() {
+        let _ = pretty_env_logger::try_init();
+        let server = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = server.local_addr().unwrap();
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+        let connector = DebugConnector::new(&handle)
+            .proxy();
+
+        let client = Client::configure()
+            .connector(connector)
+            .build(&handle);
+
+        let (tx1, rx1) = oneshot::channel();
+        thread::spawn(move || {
+            let mut sock = server.accept().unwrap().0;
+            //drop(server);
+            sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let mut buf = [0; 4096];
+            let n = sock.read(&mut buf).expect("read 1");
+            let expected = format!("GET http://{addr}/foo/bar HTTP/1.1\r\nhost: {addr}\r\n\r\n", addr=addr);
+            assert_eq!(s(&buf[..n]), expected);
+
+            sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").expect("write 1");
+            let _ = tx1.send(());
+        });
+
+
+        let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+        let req = Request::builder()
+            .uri(&*format!("http://{}/foo/bar", addr))
+            .body(Body::empty())
+            .unwrap();
+        let res = client.request(req);
+        core.run(res.join(rx).map(|r| r.0)).unwrap();
+    }
+
 
     struct DebugConnector {
         http: HttpConnector,
         closes: mpsc::Sender<()>,
         connects: Arc<AtomicUsize>,
+        is_proxy: bool,
     }
 
     impl DebugConnector {
@@ -1283,21 +1322,27 @@ mod dispatch_impl {
                 http: http,
                 closes: closes,
                 connects: Arc::new(AtomicUsize::new(0)),
+                is_proxy: false,
             }
+        }
+
+        fn proxy(mut self) -> Self {
+            self.is_proxy = true;
+            self
         }
     }
 
-    impl Service for DebugConnector {
-        type Request = Uri;
-        type Response = DebugStream;
+    impl Connect for DebugConnector {
+        type Transport = DebugStream;
         type Error = io::Error;
-        type Future = Box<Future<Item = DebugStream, Error = io::Error>>;
+        type Future = Box<Future<Item = (DebugStream, Connected), Error = io::Error>>;
 
-        fn call(&self, uri: Uri) -> Self::Future {
+        fn connect(&self, dst: Destination) -> Self::Future {
             self.connects.fetch_add(1, Ordering::SeqCst);
             let closes = self.closes.clone();
-            Box::new(self.http.call(uri).map(move |s| {
-                DebugStream(s, closes)
+            let is_proxy = self.is_proxy;
+            Box::new(self.http.connect(dst).map(move |(s, c)| {
+                (DebugStream(s, closes), c.proxy(is_proxy))
             }))
         }
     }

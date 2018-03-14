@@ -8,9 +8,8 @@ use bytes::Buf;
 use futures::{Async, Poll};
 use futures::task::{self, Task};
 use tokio_io::{AsyncRead, AsyncWrite};
-use tokio_service::Service;
 
-use ::Uri;
+use ::client::connect::{Connect, Connected, Destination};
 
 #[derive(Debug)]
 pub struct MockCursor {
@@ -410,19 +409,23 @@ impl MockConnector {
     }
 }
 
-impl Service for MockConnector {
-    type Request = Uri;
-    type Response = Duplex;
+impl Connect for MockConnector {
+    type Transport = Duplex;
     type Error = io::Error;
-    type Future = ::futures::future::FutureResult<Self::Response, Self::Error>;
+    type Future = ::futures::future::FutureResult<(Self::Transport, Connected), Self::Error>;
 
-    fn call(&self, uri: Uri) -> Self::Future {
+    fn connect(&self, dst: Destination) -> Self::Future {
         use futures::future;
-        trace!("mock connect: {}", uri);
+        trace!("mock connect: {:?}", dst);
+        let key = format!("{}://{}{}", dst.scheme(), dst.host(), if let Some(port) = dst.port() {
+            format!(":{}", port)
+        } else {
+            "".to_owned()
+        });
         let mut mocks = self.mocks.borrow_mut();
-        let mocks = mocks.get_mut(&uri.to_string())
-            .expect(&format!("unknown mocks uri: {}", uri));
-        assert!(!mocks.is_empty(), "no additional mocks for {}", uri);
-        future::ok(mocks.remove(0))
+        let mocks = mocks.get_mut(&key)
+            .expect(&format!("unknown mocks uri: {}", key));
+        assert!(!mocks.is_empty(), "no additional mocks for {}", key);
+        future::ok((mocks.remove(0), Connected::new()))
     }
 }

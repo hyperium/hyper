@@ -14,8 +14,8 @@ fn retryable_request() {
 
     let mut connector = MockConnector::new();
 
-    let sock1 = connector.mock("http://mock.local/a");
-    let sock2 = connector.mock("http://mock.local/b");
+    let sock1 = connector.mock("http://mock.local");
+    let sock2 = connector.mock("http://mock.local");
 
     let client = Client::configure()
         .connector(connector)
@@ -62,7 +62,7 @@ fn conn_reset_after_write() {
 
     let mut connector = MockConnector::new();
 
-    let sock1 = connector.mock("http://mock.local/a");
+    let sock1 = connector.mock("http://mock.local");
 
     let client = Client::configure()
         .connector(connector)
