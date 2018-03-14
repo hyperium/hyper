@@ -168,7 +168,7 @@ macro_rules! test {
     ) => ({
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
-        let mut core = $core;
+        let core = $core;
 
         let mut config = Client::configure();
         if !$set_host {
