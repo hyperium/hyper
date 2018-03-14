@@ -898,23 +898,19 @@ mod tests {
     #[cfg(feature = "nightly")]
     #[bench]
     fn bench_server_transaction_encode(b: &mut Bencher) {
-        use header::{Headers, ContentLength, ContentType};
-        use ::{StatusCode, HttpVersion};
+        use http::header::HeaderValue;
+        use proto::BodyLength;
 
         let len = 108;
         b.bytes = len as u64;
 
-        let mut head = MessageHead {
-            subject: StatusCode::Ok,
-            headers: Headers::new(),
-            version: HttpVersion::Http11,
-        };
-        head.headers.set(ContentLength(10));
-        head.headers.set(ContentType::json());
+        let mut head = MessageHead::default();
+        head.headers.insert("content-length", HeaderValue::from_static("10"));
+        head.headers.insert("content-type", HeaderValue::from_static("application/json"));
 
         b.iter(|| {
             let mut vec = Vec::new();
-            Server::encode(head.clone(), true, &mut None, &mut vec).unwrap();
+            Server::encode(head.clone(), Some(BodyLength::Known(10)), &mut None, &mut vec).unwrap();
             assert_eq!(vec.len(), len);
             ::test::black_box(vec);
         })

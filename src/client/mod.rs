@@ -108,8 +108,29 @@ where C: Connect<Error=io::Error> + 'static,
       C::Future: 'static,
       B: Entity<Error=::Error> + 'static,
 {
+
+    /// Send a `GET` request to the supplied `Uri`.
+    ///
+    /// # Note
+    ///
+    /// This requires that the `Entity` type have a `Default` implementation.
+    /// It *should* return an "empty" version of itself, such that
+    /// `Entity::is_end_stream` is `true`.
+    pub fn get(&self, uri: Uri) -> FutureResponse
+    where
+        B: Default,
+    {
+        let body = B::default();
+        if !body.is_end_stream() {
+            warn!("default Entity used for get() does not return true for is_end_stream");
+        }
+
+        let mut req = Request::new(body);
+        *req.uri_mut() = uri;
+        self.request(req)
+    }
+
     /// Send a constructed Request using this Client.
-    #[inline]
     pub fn request(&self, mut req: Request<B>) -> FutureResponse {
         // TODO(0.12): do this at construction time.
         //
