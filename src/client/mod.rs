@@ -11,6 +11,7 @@ use futures::{Async, Future, Poll};
 use futures::future::{self, Executor};
 use http::{Method, Request, Response, Uri, Version};
 use http::header::{Entry, HeaderValue, HOST};
+use http::uri::Scheme;
 use tokio::reactor::Handle;
 pub use tokio_service::Service;
 
@@ -18,12 +19,13 @@ use proto::body::{Body, Entity};
 use proto;
 use self::pool::Pool;
 
-pub use self::connect::{HttpConnector, Connect};
+pub use self::connect::{Connect, HttpConnector};
 
 use self::background::{bg, Background};
+use self::connect::Destination;
 
 pub mod conn;
-mod connect;
+pub mod connect;
 //TODO(easy): move cancel and dispatch into common instead
 pub(crate) mod dispatch;
 mod dns;
@@ -101,7 +103,9 @@ impl<C, B> Client<C, B> {
 }
 
 impl<C, B> Client<C, B>
-where C: Connect,
+where C: Connect<Error=io::Error> + 'static,
+      C::Transport: 'static,
+      C::Future: 'static,
       B: Entity<Error=::Error> + 'static,
 {
 
@@ -180,13 +184,11 @@ where C: Connect,
 
 
         let client = self.clone();
-        //TODO: let is_proxy = req.is_proxy();
         let uri = req.uri().clone();
         let fut = RetryableSendRequest {
             client: client,
             future: self.send_request(req, &domain),
             domain: domain,
-            //is_proxy: is_proxy,
             uri: uri,
         };
         FutureResponse(Box::new(fut))
@@ -195,19 +197,6 @@ where C: Connect,
     //TODO: replace with `impl Future` when stable
     fn send_request(&self, mut req: Request<B>, domain: &str) -> Box<Future<Item=Response<Body>, Error=ClientError<B>>> {
         let url = req.uri().clone();
-
-        let path = match url.path_and_query() {
-            Some(path) => {
-                let mut parts = ::http::uri::Parts::default();
-                parts.path_and_query = Some(path.clone());
-                Uri::from_parts(parts).expect("path is valid uri")
-            },
-            None => {
-                "/".parse().expect("/ is valid path")
-            }
-        };
-        *req.uri_mut() = path;
-
         let checkout = self.pool.checkout(domain);
         let connect = {
             let executor = self.executor.clone();
@@ -215,18 +204,23 @@ where C: Connect,
             let pool_key = Arc::new(domain.to_string());
             let h1_writev = self.h1_writev;
             let connector = self.connector.clone();
+            let dst = Destination {
+                uri: url,
+            };
             future::lazy(move || {
-                connector.connect(url)
+                connector.connect(dst)
                     .from_err()
-                    .and_then(move |io| {
+                    .and_then(move |(io, connected)| {
                         conn::Builder::new()
                             .h1_writev(h1_writev)
                             .handshake_no_upgrades(io)
-                    }).and_then(move |(tx, conn)| {
-                        executor.execute(conn.map_err(|e| debug!("client connection error: {}", e)))?;
-                        Ok(pool.pooled(pool_key, PoolClient {
-                            tx: tx,
-                        }))
+                            .and_then(move |(tx, conn)| {
+                                executor.execute(conn.map_err(|e| debug!("client connection error: {}", e)))?;
+                                Ok(pool.pooled(pool_key, PoolClient {
+                                    is_proxied: connected.is_proxied,
+                                    tx: tx,
+                                }))
+                            })
                     })
             })
         };
@@ -245,13 +239,14 @@ where C: Connect,
         let executor = self.executor.clone();
         let resp = race.and_then(move |mut pooled| {
             let conn_reused = pooled.is_reused();
+            set_relative_uri(req.uri_mut(), pooled.is_proxied);
             let fut = pooled.tx.send_request_retryable(req)
                 .map_err(move |(err, orig_req)| {
                     if let Some(req) = orig_req {
                         ClientError::Canceled {
                             connection_reused: conn_reused,
                             reason: err,
-                            req: req,
+                            req,
                         }
                     } else {
                         ClientError::Normal(err)
@@ -292,7 +287,8 @@ where C: Connect,
 }
 
 impl<C, B> Service for Client<C, B>
-where C: Connect,
+where C: Connect<Error=io::Error> + 'static,
+      C::Future: 'static,
       B: Entity<Error=::Error> + 'static,
 {
     type Request = Request<B>;
@@ -348,13 +344,13 @@ struct RetryableSendRequest<C, B> {
     client: Client<C, B>,
     domain: String,
     future: Box<Future<Item=Response<Body>, Error=ClientError<B>>>,
-    //is_proxy: bool,
     uri: Uri,
 }
 
 impl<C, B> Future for RetryableSendRequest<C, B>
 where
-    C: Connect,
+    C: Connect<Error=io::Error> + 'static,
+    C::Future: 'static,
     B: Entity<Error=::Error> + 'static,
 {
     type Item = Response<Body>;
@@ -387,6 +383,7 @@ where
 }
 
 struct PoolClient<B> {
+    is_proxied: bool,
     tx: conn::SendRequest<B>,
 }
 
@@ -399,13 +396,30 @@ where
     }
 }
 
-pub(crate) enum ClientError<B> {
+enum ClientError<B> {
     Normal(::Error),
     Canceled {
         connection_reused: bool,
         req: Request<B>,
         reason: ::Error,
     }
+}
+
+fn set_relative_uri(uri: &mut Uri, is_proxied: bool) {
+    if is_proxied && uri.scheme_part() != Some(&Scheme::HTTPS) {
+        return;
+    }
+    let path = match uri.path_and_query() {
+        Some(path) => {
+            let mut parts = ::http::uri::Parts::default();
+            parts.path_and_query = Some(path.clone());
+            Uri::from_parts(parts).expect("path is valid uri")
+        },
+        None => {
+            "/".parse().expect("/ is valid path")
+        }
+    };
+    *uri = path;
 }
 
 /// Configuration for a Client
@@ -545,7 +559,9 @@ impl<C, B> Config<C, B> {
 }
 
 impl<C, B> Config<C, B>
-where C: Connect,
+where C: Connect<Error=io::Error>,
+      C::Transport: 'static,
+      C::Future: 'static,
       B: Entity<Error=::Error>,
 {
     /// Construct the Client with this configuration.
