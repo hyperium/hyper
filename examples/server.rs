@@ -24,7 +24,7 @@ impl Service for Echo {
                 Response::new(INDEX.into())
             },
             (&Method::POST, "/echo") => {
-                Response::new(req.into_parts().1)
+                Response::new(req.into_body())
             },
             _ => {
                 let mut res = Response::new(Body::empty());

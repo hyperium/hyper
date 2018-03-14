@@ -8,7 +8,7 @@ use futures::task::Task;
 use http::{Method, Version};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use proto::{Chunk, Decode, Http1Transaction, MessageHead};
+use proto::{BodyLength, Chunk, Decode, Http1Transaction, MessageHead};
 use super::io::{Cursor, Buffered};
 use super::{EncodedBuf, Encoder, Decoder};
 
@@ -418,7 +418,7 @@ where I: AsyncRead + AsyncWrite,
         self.io.can_buffer()
     }
 
-    pub fn write_head(&mut self, mut head: MessageHead<T::Outgoing>, body: bool) {
+    pub fn write_head(&mut self, mut head: MessageHead<T::Outgoing>, body: Option<BodyLength>) {
         debug_assert!(self.can_write_head());
 
         if !T::should_read_first() {
@@ -541,7 +541,7 @@ where I: AsyncRead + AsyncWrite,
         match self.state.writing {
             Writing::Init => {
                 if let Some(msg) = T::on_error(&err) {
-                    self.write_head(msg, false);
+                    self.write_head(msg, None);
                     self.state.error = Some(err);
                     return Ok(());
                 }

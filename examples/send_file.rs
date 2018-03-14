@@ -3,15 +3,15 @@ extern crate futures;
 extern crate hyper;
 extern crate pretty_env_logger;
 
-use futures::{Future, Sink};
+use futures::{Future/*, Sink*/};
 use futures::sync::oneshot;
 
-use hyper::{Body, Chunk, Method, Request, Response, StatusCode};
+use hyper::{Body, /*Chunk,*/ Method, Request, Response, StatusCode};
 use hyper::error::Error;
 use hyper::server::{Http, Service};
 
 use std::fs::File;
-use std::io::{self, copy, Read};
+use std::io::{self, copy/*, Read*/};
 use std::thread;
 
 static NOTFOUND: &[u8] = b"Not Found";
@@ -80,7 +80,7 @@ impl Service for ResponseExamples {
                 // a small test file.
                 let (tx, rx) = oneshot::channel();
                 thread::spawn(move || {
-                    let mut file = match File::open(INDEX) {
+                    let _file = match File::open(INDEX) {
                         Ok(f) => f,
                         Err(_) => {
                             tx.send(Response::builder()
@@ -91,9 +91,10 @@ impl Service for ResponseExamples {
                             return;
                         },
                     };
-                    let (mut tx_body, rx_body) = Body::pair();
+                    let (_tx_body, rx_body) = Body::channel();
                     let res = Response::new(rx_body.into());
                     tx.send(res).expect("Send error on successful file read");
+                    /* TODO: fix once we have futures 0.2 Sink working
                     let mut buf = [0u8; 16];
                     loop {
                         match file.read(&mut buf) {
@@ -104,7 +105,7 @@ impl Service for ResponseExamples {
                                     break;
                                 } else {
                                     let chunk: Chunk = buf[0..n].to_vec().into();
-                                    match tx_body.send(Ok(chunk)).wait() {
+                                    match tx_body.send_data(chunk).wait() {
                                         Ok(t) => { tx_body = t; },
                                         Err(_) => { break; }
                                     };
@@ -113,6 +114,7 @@ impl Service for ResponseExamples {
                             Err(_) => { break; }
                         }
                     }
+                    */
                 });
 
                 Box::new(rx.map_err(|e| Error::from(io::Error::new(io::ErrorKind::Other, e))))

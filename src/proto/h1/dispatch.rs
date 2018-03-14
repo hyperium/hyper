@@ -1,17 +1,18 @@
 use std::io;
 
 use bytes::Bytes;
-use futures::{Async, AsyncSink, Future, Poll, Stream};
+use futures::{Async, Future, Poll, Stream};
 use http::{Request, Response, StatusCode};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_service::Service;
 
-use proto::{Body, Conn, Http1Transaction, MessageHead, RequestHead, RequestLine, ResponseHead};
+use proto::body::Entity;
+use proto::{Body, BodyLength, Conn, Http1Transaction, MessageHead, RequestHead, RequestLine, ResponseHead};
 
 pub struct Dispatcher<D, Bs, I, B, T> {
     conn: Conn<I, B, T>,
     dispatch: D,
-    body_tx: Option<::proto::body::ChunkSender>,
+    body_tx: Option<::proto::body::Sender>,
     body_rx: Option<Bs>,
     is_closing: bool,
 }
@@ -46,7 +47,7 @@ where
     I: AsyncRead + AsyncWrite,
     B: AsRef<[u8]>,
     T: Http1Transaction,
-    Bs: Stream<Item=B, Error=::Error>,
+    Bs: Entity<Data=B, Error=::Error>,
 {
     pub fn new(dispatch: D, conn: Conn<I, B, T>) -> Self {
         Dispatcher {
@@ -130,13 +131,10 @@ where
                     }
                     match self.conn.read_body() {
                         Ok(Async::Ready(Some(chunk))) => {
-                            match body.start_send(Ok(chunk)) {
-                                Ok(AsyncSink::Ready) => {
+                            match body.send_data(chunk) {
+                                Ok(()) => {
                                     self.body_tx = Some(body);
                                 },
-                                Ok(AsyncSink::NotReady(_chunk)) => {
-                                    unreachable!("mpsc poll_ready was ready, start_send was not");
-                                }
                                 Err(_canceled) => {
                                     if self.conn.can_read_body() {
                                         trace!("body receiver dropped before eof, closing");
@@ -154,7 +152,7 @@ where
                             return Ok(Async::NotReady);
                         }
                         Err(e) => {
-                            let _ = body.start_send(Err(::Error::Io(e)));
+                            body.send_error(::Error::Io(e));
                         }
                     }
                 } else {
@@ -181,7 +179,7 @@ where
         match self.conn.read_head() {
             Ok(Async::Ready(Some((head, has_body)))) => {
                 let body = if has_body {
-                    let (mut tx, rx) = ::proto::body::channel();
+                    let (mut tx, rx) = Body::channel();
                     let _ = tx.poll_ready(); // register this task if rx is dropped
                     self.body_tx = Some(tx);
                     rx
@@ -213,7 +211,12 @@ where
                 return Ok(Async::Ready(()));
             } else if self.body_rx.is_none() && self.conn.can_write_head() && self.dispatch.should_poll() {
                 if let Some((head, body)) = try_ready!(self.dispatch.poll_msg()) {
-                    self.conn.write_head(head, body.is_some());
+                    let body_type = body.as_ref().map(|body| {
+                        body.content_length()
+                            .map(BodyLength::Known)
+                            .unwrap_or(BodyLength::Unknown)
+                    });
+                    self.conn.write_head(head, body_type);
                     self.body_rx = body;
                 } else {
                     self.close();
@@ -222,7 +225,7 @@ where
             } else if !self.conn.can_buffer_body() {
                 try_ready!(self.poll_flush());
             } else if let Some(mut body) = self.body_rx.take() {
-                let chunk = match body.poll()? {
+                let chunk = match body.poll_data()? {
                     Async::Ready(Some(chunk)) => {
                         self.body_rx = Some(body);
                         chunk
@@ -291,7 +294,7 @@ where
     I: AsyncRead + AsyncWrite,
     B: AsRef<[u8]>,
     T: Http1Transaction,
-    Bs: Stream<Item=B, Error=::Error>,
+    Bs: Entity<Data=B, Error=::Error>,
 {
     type Item = ();
     type Error = ::Error;
@@ -316,8 +319,7 @@ impl<S> Server<S> where S: Service {
 impl<S, Bs> Dispatch for Server<S>
 where
     S: Service<Request=Request<Body>, Response=Response<Bs>, Error=::Error>,
-    Bs: Stream<Error=::Error>,
-    Bs::Item: AsRef<[u8]>,
+    Bs: Entity<Error=::Error>,
 {
     type PollItem = MessageHead<StatusCode>;
     type PollBody = Bs;
@@ -338,7 +340,12 @@ where
                 subject: parts.status,
                 headers: parts.headers,
             };
-            Ok(Async::Ready(Some((head, Some(body)))))
+            let body = if body.is_end_stream() {
+                None
+            } else {
+                Some(body)
+            };
+            Ok(Async::Ready(Some((head, body))))
         } else {
             unreachable!("poll_msg shouldn't be called if no inflight");
         }
@@ -382,8 +389,7 @@ impl<B> Client<B> {
 
 impl<B> Dispatch for Client<B>
 where
-    B: Stream<Error=::Error>,
-    B::Item: AsRef<[u8]>,
+    B: Entity<Error=::Error>,
 {
     type PollItem = RequestHead;
     type PollBody = B;
@@ -405,8 +411,14 @@ where
                             subject: RequestLine(parts.method, parts.uri),
                             headers: parts.headers,
                         };
+
+                        let body = if body.is_end_stream() {
+                            None
+                        } else {
+                            Some(body)
+                        };
                         self.callback = Some(cb);
-                        Ok(Async::Ready(Some((head, Some(body)))))
+                        Ok(Async::Ready(Some((head, body))))
                     }
                 }
             },

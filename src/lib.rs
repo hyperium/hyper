@@ -44,7 +44,7 @@ pub use http::{
 
 pub use client::Client;
 pub use error::{Result, Error};
-pub use proto::{Body, Chunk};
+pub use proto::{body, Body, Chunk};
 pub use server::Server;
 
 mod common;

@@ -11,11 +11,12 @@ use std::fmt;
 use std::marker::PhantomData;
 
 use bytes::Bytes;
-use futures::{Async, Future, Poll, Stream};
+use futures::{Async, Future, Poll};
 use futures::future::{self, Either};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use proto;
+use proto::body::Entity;
 use super::dispatch;
 use {Body, Request, Response, StatusCode};
 
@@ -44,14 +45,13 @@ pub struct SendRequest<B> {
 pub struct Connection<T, B>
 where
     T: AsyncRead + AsyncWrite,
-    B: Stream<Error=::Error> + 'static,
-    B::Item: AsRef<[u8]>,
+    B: Entity<Error=::Error> + 'static,
 {
     inner: proto::dispatch::Dispatcher<
         proto::dispatch::Client<B>,
         B,
         T,
-        B::Item,
+        B::Data,
         proto::ClientUpgradeTransaction,
     >,
 }
@@ -134,8 +134,7 @@ impl<B> SendRequest<B>
 
 impl<B> SendRequest<B>
 where
-    B: Stream<Error=::Error> + 'static,
-    B::Item: AsRef<[u8]>,
+    B: Entity<Error=::Error> + 'static,
 {
     /// Sends a `Request` on the associated connection.
     ///
@@ -152,7 +151,7 @@ where
     ///   the `Host` header based on it. You must add a `Host` header yourself
     ///   before calling this method.
     /// - Since absolute-form `Uri`s are not required, if received, they will
-    ///   be serialized as-is, irregardless of calling `Request::set_proxy`.
+    ///   be serialized as-is.
     ///
     /// # Example
     ///
@@ -185,19 +184,6 @@ where
     /// # fn main() {}
     /// ```
     pub fn send_request(&mut self, req: Request<B>) -> ResponseFuture {
-        /* TODO?
-        // The Connection API does less things automatically than the Client
-        // API does. For instance, right here, we always assume set_proxy, so
-        // that if an absolute-form URI is provided, it is serialized as-is.
-        //
-        // Part of the reason for this is to prepare for the change to `http`
-        // types, where there is no more set_proxy.
-        //
-        // It's important that this method isn't called directly from the
-        // `Client`, so that `set_proxy` there is still respected.
-        req.set_proxy(true);
-        */
-
         let inner = match self.dispatch.send(req) {
             Ok(rx) => {
                 Either::A(rx.then(move |res| {
@@ -269,8 +255,7 @@ impl<B> fmt::Debug for SendRequest<B> {
 impl<T, B> Connection<T, B>
 where
     T: AsyncRead + AsyncWrite,
-    B: Stream<Error=::Error> + 'static,
-    B::Item: AsRef<[u8]>,
+    B: Entity<Error=::Error> + 'static,
 {
     /// Return the inner IO object, and additional information.
     pub fn into_parts(self) -> Parts<T> {
@@ -297,8 +282,7 @@ where
 impl<T, B> Future for Connection<T, B>
 where
     T: AsyncRead + AsyncWrite,
-    B: Stream<Error=::Error> + 'static,
-    B::Item: AsRef<[u8]>,
+    B: Entity<Error=::Error> + 'static,
 {
     type Item = ();
     type Error = ::Error;
@@ -311,8 +295,7 @@ where
 impl<T, B> fmt::Debug for Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + fmt::Debug,
-    B: Stream<Error=::Error> + 'static,
-    B::Item: AsRef<[u8]>,
+    B: Entity<Error=::Error> + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Connection")
@@ -341,8 +324,7 @@ impl Builder {
     pub fn handshake<T, B>(&self, io: T) -> Handshake<T, B>
     where
         T: AsyncRead + AsyncWrite,
-        B: Stream<Error=::Error> + 'static,
-        B::Item: AsRef<[u8]>,
+        B: Entity<Error=::Error> + 'static,
     {
         Handshake {
             inner: HandshakeInner {
@@ -356,8 +338,7 @@ impl Builder {
     pub(super) fn handshake_no_upgrades<T, B>(&self, io: T) -> HandshakeNoUpgrades<T, B>
     where
         T: AsyncRead + AsyncWrite,
-        B: Stream<Error=::Error> + 'static,
-        B::Item: AsRef<[u8]>,
+        B: Entity<Error=::Error> + 'static,
     {
         HandshakeNoUpgrades {
             inner: HandshakeInner {
@@ -374,8 +355,7 @@ impl Builder {
 impl<T, B> Future for Handshake<T, B>
 where
     T: AsyncRead + AsyncWrite,
-    B: Stream<Error=::Error> + 'static,
-    B::Item: AsRef<[u8]>,
+    B: Entity<Error=::Error> + 'static,
 {
     type Item = (SendRequest<B>, Connection<T, B>);
     type Error = ::Error;
@@ -400,14 +380,13 @@ impl<T, B> fmt::Debug for Handshake<T, B> {
 impl<T, B> Future for HandshakeNoUpgrades<T, B>
 where
     T: AsyncRead + AsyncWrite,
-    B: Stream<Error=::Error> + 'static,
-    B::Item: AsRef<[u8]>,
+    B: Entity<Error=::Error> + 'static,
 {
     type Item = (SendRequest<B>, proto::dispatch::Dispatcher<
         proto::dispatch::Client<B>,
         B,
         T,
-        B::Item,
+        B::Data,
         proto::ClientTransaction,
     >);
     type Error = ::Error;
@@ -420,8 +399,7 @@ where
 impl<T, B, R> Future for HandshakeInner<T, B, R>
 where
     T: AsyncRead + AsyncWrite,
-    B: Stream<Error=::Error> + 'static,
-    B::Item: AsRef<[u8]>,
+    B: Entity<Error=::Error> + 'static,
     R: proto::Http1Transaction<
         Incoming=StatusCode,
         Outgoing=proto::RequestLine,
@@ -431,7 +409,7 @@ where
         proto::dispatch::Client<B>,
         B,
         T,
-        B::Item,
+        B::Data,
         R,
     >);
     type Error = ::Error;
@@ -485,16 +463,16 @@ impl<B: Send> AssertSendSync for SendRequest<B> {}
 impl<T: Send, B: Send> AssertSend for Connection<T, B>
 where
     T: AsyncRead + AsyncWrite,
-    B: Stream<Error=::Error>,
-    B::Item: AsRef<[u8]> + Send,
+    B: Entity<Error=::Error> + 'static,
+    B::Data: Send + 'static,
 {}
 
 #[doc(hidden)]
 impl<T: Send + Sync, B: Send + Sync> AssertSendSync for Connection<T, B>
 where
     T: AsyncRead + AsyncWrite,
-    B: Stream<Error=::Error>,
-    B::Item: AsRef<[u8]> + Send + Sync,
+    B: Entity<Error=::Error> + 'static,
+    B::Data: Send + Sync + 'static,
 {}
 
 #[doc(hidden)]

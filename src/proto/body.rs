@@ -1,50 +1,236 @@
+//! Streaming bodies for Requests and Responses
+use std::borrow::Cow;
 use std::fmt;
 
 use bytes::Bytes;
-use futures::{Async, AsyncSink, Future, Poll, Sink, StartSend, Stream};
+use futures::{Async, Future, Poll, Stream};
 use futures::sync::{mpsc, oneshot};
-use std::borrow::Cow;
+use http::HeaderMap;
 
 use super::Chunk;
 
-pub type BodySender = mpsc::Sender<Result<Chunk, ::Error>>;
+type BodySender = mpsc::Sender<Result<Chunk, ::Error>>;
 
-/// A `Stream` for `Chunk`s used in requests and responses.
+/// This trait represents a streaming body of a `Request` or `Response`.
+pub trait Entity {
+    /// A buffer of bytes representing a single chunk of a body.
+    type Data: AsRef<[u8]>;
+
+    /// The error type of this stream.
+    //TODO: add bounds Into<::error::User> (or whatever it is called)
+    type Error;
+
+    /// Poll for a `Data` buffer.
+    ///
+    /// Similar to `Stream::poll_next`, this yields `Some(Data)` until
+    /// the body ends, when it yields `None`.
+    fn poll_data(&mut self) -> Poll<Option<Self::Data>, Self::Error>;
+
+    /// Poll for an optional **single** `HeaderMap` of trailers.
+    ///
+    /// This should **only** be called after `poll_data` has ended.
+    ///
+    /// Note: Trailers aren't currently used for HTTP/1, only for HTTP/2.
+    fn poll_trailers(&mut self) -> Poll<Option<HeaderMap>, Self::Error> {
+        Ok(Async::Ready(None))
+    }
+
+    /// A hint that the `Body` is complete, and doesn't need to be polled more.
+    ///
+    /// This can be useful to determine if the there is any body or trailers
+    /// without having to poll. An empty `Body` could return `true` and hyper
+    /// would be able to know that only the headers need to be sent. Or, it can
+    /// also be checked after each `poll_data` call, to allow hyper to try to
+    /// end the underlying stream with the last chunk, instead of needing to
+    /// send an extra `DATA` frame just to mark the stream as finished.
+    ///
+    /// As a hint, it is used to try to optimize, and thus is OK for a default
+    /// implementation to return `false`.
+    fn is_end_stream(&self) -> bool {
+        false
+    }
+
+    /// Return a length of the total bytes that will be streamed, if known.
+    ///
+    /// If an exact size of bytes is known, this would allow hyper to send a
+    /// `Content-Length` header automatically, not needing to fall back to
+    /// `Transfer-Encoding: chunked`.
+    ///
+    /// This does not need to be kept updated after polls, it will only be
+    /// called once to create the headers.
+    fn content_length(&self) -> Option<u64> {
+        None
+    }
+}
+
+impl<E: Entity> Entity for Box<E> {
+    type Data = E::Data;
+    type Error = E::Error;
+
+    fn poll_data(&mut self) -> Poll<Option<Self::Data>, Self::Error> {
+        (**self).poll_data()
+    }
+
+    fn poll_trailers(&mut self) -> Poll<Option<HeaderMap>, Self::Error> {
+        (**self).poll_trailers()
+    }
+
+    fn is_end_stream(&self) -> bool {
+        (**self).is_end_stream()
+    }
+
+    fn content_length(&self) -> Option<u64> {
+        (**self).content_length()
+    }
+}
+
+/// A wrapper to consume an `Entity` as a futures `Stream`.
+#[must_use = "streams do nothing unless polled"]
+#[derive(Debug)]
+pub struct EntityStream<E> {
+    is_data_eof: bool,
+    entity: E,
+}
+
+impl<E: Entity> Stream for EntityStream<E> {
+    type Item = E::Data;
+    type Error = E::Error;
+
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        loop {
+            if self.is_data_eof {
+                return self.entity.poll_trailers()
+                    .map(|async| {
+                        async.map(|_opt| {
+                            // drop the trailers and return that Stream is done
+                            None
+                        })
+                    });
+            }
+
+            let opt = try_ready!(self.entity.poll_data());
+            if let Some(data) = opt {
+                return Ok(Async::Ready(Some(data)));
+            } else {
+                self.is_data_eof = true;
+            }
+        }
+    }
+}
+
+/// An `Entity` of `Chunk`s, used when receiving bodies.
+///
+/// Also a good default `Entity` to use in many applications.
 #[must_use = "streams do nothing unless polled"]
 pub struct Body {
     kind: Kind,
 }
 
-#[derive(Debug)]
 enum Kind {
     Chan {
-        close_tx: oneshot::Sender<bool>,
+        _close_tx: oneshot::Sender<()>,
         rx: mpsc::Receiver<Result<Chunk, ::Error>>,
     },
+    Wrapped(Box<Stream<Item=Chunk, Error=::Error> + Send>),
     Once(Option<Chunk>),
     Empty,
 }
 
-//pub(crate)
+/// A sender half used with `Body::channel()`.
 #[derive(Debug)]
-pub struct ChunkSender {
-    close_rx: oneshot::Receiver<bool>,
-    close_rx_check: bool,
+pub struct Sender {
+    close_rx: oneshot::Receiver<()>,
     tx: BodySender,
 }
 
 impl Body {
-    /// Return an empty body stream
+    /// Create an empty `Body` stream.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use hyper::{Body, Request};
+    ///
+    /// // create a `GET /` request
+    /// let get = Request::new(Body::empty());
+    /// ```
     #[inline]
     pub fn empty() -> Body {
         Body::new(Kind::Empty)
     }
 
-    /// Return a body stream with an associated sender half
+    /// Create a `Body` stream with an associated sender half.
     #[inline]
-    pub fn pair() -> (mpsc::Sender<Result<Chunk, ::Error>>, Body) {
-        let (tx, rx) = channel();
-        (tx.tx, rx)
+    pub fn channel() -> (Sender, Body) {
+        let (tx, rx) = mpsc::channel(0);
+        let (close_tx, close_rx) = oneshot::channel();
+
+        let tx = Sender {
+            close_rx: close_rx,
+            tx: tx,
+        };
+        let rx = Body::new(Kind::Chan {
+            _close_tx: close_tx,
+            rx: rx,
+        });
+
+        (tx, rx)
+    }
+
+    /// Wrap a futures `Stream` in a box inside `Body`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # extern crate futures;
+    /// # extern crate hyper;
+    /// # use hyper::Body;
+    /// # fn main() {
+    /// let chunks = vec![
+    ///     "hello",
+    ///     " ",
+    ///     "world",
+    /// ];
+    /// let stream = futures::stream::iter_ok(chunks);
+    ///
+    /// let body = Body::wrap_stream(stream);
+    /// # }
+    /// ```
+    pub fn wrap_stream<S>(stream: S) -> Body
+    where
+        S: Stream<Error=::Error> + Send + 'static,
+        Chunk: From<S::Item>,
+    {
+        Body::new(Kind::Wrapped(Box::new(stream.map(Chunk::from))))
+    }
+
+    /// Convert this `Body` into a `Stream<Item=Chunk, Error=hyper::Error>`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # extern crate futures;
+    /// # extern crate hyper;
+    /// # use futures::{Future, Stream};
+    /// # use hyper::{Body, Request};
+    /// # fn request_concat(some_req: Request<Body>) {
+    /// let req: Request<Body> = some_req;
+    /// let body = req.into_body();
+    ///
+    /// let stream = body.into_stream();
+    /// stream.concat2()
+    ///     .map(|buf| {
+    ///         println!("body length: {}", buf.len());
+    ///     });
+    /// # }
+    /// # fn main() {}
+    /// ```
+    #[inline]
+    pub fn into_stream(self) -> EntityStream<Body> {
+        EntityStream {
+            is_data_eof: false,
+            entity: self,
+        }
     }
 
     /// Returns if this body was constructed via `Body::empty()`.
@@ -68,19 +254,6 @@ impl Body {
             kind: kind,
         }
     }
-
-    fn poll_inner(&mut self) -> Poll<Option<Chunk>, ::Error> {
-        match self.kind {
-            Kind::Chan { ref mut rx, .. } => match rx.poll().expect("mpsc cannot error") {
-                Async::Ready(Some(Ok(chunk))) => Ok(Async::Ready(Some(chunk))),
-                Async::Ready(Some(Err(err))) => Err(err),
-                Async::Ready(None) => Ok(Async::Ready(None)),
-                Async::NotReady => Ok(Async::NotReady),
-            },
-            Kind::Once(ref mut val) => Ok(Async::Ready(val.take())),
-            Kind::Empty => Ok(Async::Ready(None)),
-        }
-    }
 }
 
 impl Default for Body {
@@ -90,72 +263,87 @@ impl Default for Body {
     }
 }
 
-impl Stream for Body {
-    type Item = Chunk;
+impl Entity for Body {
+    type Data = Chunk;
     type Error = ::Error;
 
-    #[inline]
-    fn poll(&mut self) -> Poll<Option<Chunk>, ::Error> {
-        self.poll_inner()
+    fn poll_data(&mut self) -> Poll<Option<Self::Data>, Self::Error> {
+        match self.kind {
+            Kind::Chan { ref mut rx, .. } => match rx.poll().expect("mpsc cannot error") {
+                Async::Ready(Some(Ok(chunk))) => Ok(Async::Ready(Some(chunk))),
+                Async::Ready(Some(Err(err))) => Err(err),
+                Async::Ready(None) => Ok(Async::Ready(None)),
+                Async::NotReady => Ok(Async::NotReady),
+            },
+            Kind::Wrapped(ref mut s) => s.poll(),
+            Kind::Once(ref mut val) => Ok(Async::Ready(val.take())),
+            Kind::Empty => Ok(Async::Ready(None)),
+        }
+    }
+
+    fn is_end_stream(&self) -> bool {
+        match self.kind {
+            Kind::Chan { .. } => false,
+            Kind::Wrapped(..) => false,
+            Kind::Once(ref val) => val.is_none(),
+            Kind::Empty => true
+        }
+    }
+
+    fn content_length(&self) -> Option<u64> {
+        match self.kind {
+            Kind::Chan { .. } => None,
+            Kind::Wrapped(..) => None,
+            Kind::Once(Some(ref val)) => Some(val.len() as u64),
+            Kind::Once(None) => None,
+            Kind::Empty => Some(0)
+        }
     }
 }
 
 impl fmt::Debug for Body {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_tuple("Body")
-            .field(&self.kind)
+        f.debug_struct("Body")
             .finish()
     }
 }
 
-//pub(crate)
-pub fn channel() -> (ChunkSender, Body) {
-    let (tx, rx) = mpsc::channel(0);
-    let (close_tx, close_rx) = oneshot::channel();
-
-    let tx = ChunkSender {
-        close_rx: close_rx,
-        close_rx_check: true,
-        tx: tx,
-    };
-    let rx = Body::new(Kind::Chan {
-        close_tx: close_tx,
-        rx: rx,
-    });
-
-    (tx, rx)
-}
-
-impl ChunkSender {
+impl Sender {
+    /// Check to see if this `Sender` can send more data.
     pub fn poll_ready(&mut self) -> Poll<(), ()> {
-        if self.close_rx_check {
-            match self.close_rx.poll() {
-                Ok(Async::Ready(true)) | Err(_) => return Err(()),
-                Ok(Async::Ready(false)) => {
-                    // needed to allow converting into a plain mpsc::Receiver
-                    // if it has been, the tx will send false to disable this check
-                    self.close_rx_check = false;
-                }
-                Ok(Async::NotReady) => (),
-            }
+        match self.close_rx.poll() {
+            Ok(Async::Ready(())) | Err(_) => return Err(()),
+            Ok(Async::NotReady) => (),
         }
 
         self.tx.poll_ready().map_err(|_| ())
     }
 
-    pub fn start_send(&mut self, msg: Result<Chunk, ::Error>) -> StartSend<(), ()> {
-        match self.tx.start_send(msg) {
-            Ok(AsyncSink::Ready) => Ok(AsyncSink::Ready),
-            Ok(AsyncSink::NotReady(_)) => Ok(AsyncSink::NotReady(())),
-            Err(_) => Err(()),
-        }
+    /// Sends data on this channel.
+    ///
+    /// This should be called after `poll_ready` indicated the channel
+    /// could accept another `Chunk`.
+    ///
+    /// Returns `Err(Chunk)` if the channel could not (currently) accept
+    /// another `Chunk`.
+    pub fn send_data(&mut self, chunk: Chunk) -> Result<(), Chunk> {
+        self.tx.try_send(Ok(chunk))
+            .map_err(|err| err.into_inner().expect("just sent Ok"))
+    }
+
+    pub(crate) fn send_error(&mut self, err: ::Error) {
+        let _ = self.tx.try_send(Err(err));
     }
 }
 
 impl From<Chunk> for Body {
     #[inline]
-    fn from (chunk: Chunk) -> Body {
-        Body::new(Kind::Once(Some(chunk)))
+    fn from(chunk: Chunk) -> Body {
+        if chunk.is_empty() {
+            Body::empty()
+        } else {
+            Body::new(Kind::Once(Some(chunk)))
+        }
     }
 }
 
@@ -214,13 +402,6 @@ impl From<Cow<'static, str>> for Body {
     }
 }
 
-impl From<Option<Body>> for Body {
-    #[inline]
-    fn from (body: Option<Body>) -> Body {
-        body.unwrap_or_default()
-    }
-}
-
 fn _assert_send_sync() {
     fn _assert_send<T: Send>() {}
     fn _assert_sync<T: Sync>() {}
@@ -232,15 +413,14 @@ fn _assert_send_sync() {
 
 #[test]
 fn test_body_stream_concat() {
-    use futures::{Sink, Stream, Future};
-    let (tx, body) = Body::pair();
+    use futures::{Stream, Future};
 
-    ::std::thread::spawn(move || {
-        let tx = tx.send(Ok("hello ".into())).wait().unwrap();
-        tx.send(Ok("world".into())).wait().unwrap();
-    });
+    let body = Body::from("hello world");
 
-    let total = body.concat2().wait().unwrap();
+    let total = body.into_stream()
+        .concat2()
+        .wait()
+        .unwrap();
     assert_eq!(total.as_ref(), b"hello world");
 
 }

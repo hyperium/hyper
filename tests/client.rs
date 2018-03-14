@@ -34,7 +34,6 @@ macro_rules! test {
                 url: $client_url:expr,
                 headers: { $($request_header_name:expr => $request_header_val:expr,)* },
                 body: $request_body:expr,
-                proxy: $request_proxy:expr,
 
             response:
                 status: $client_status:ident,
@@ -53,7 +52,6 @@ macro_rules! test {
                     url: $client_url,
                     headers: { $($request_header_name => $request_header_val,)* },
                     body: $request_body,
-                    proxy: $request_proxy,
 
                 response:
                     status: $client_status,
@@ -73,7 +71,6 @@ macro_rules! test {
                 url: $client_url:expr,
                 headers: { $($request_header_name:expr => $request_header_val:expr,)* },
                 body: $request_body:expr,
-                proxy: $request_proxy:expr,
 
             response:
                 status: $client_status:ident,
@@ -99,7 +96,6 @@ macro_rules! test {
                         url: $client_url,
                         headers: { $($request_header_name => $request_header_val,)* },
                         body: $request_body,
-                        proxy: $request_proxy,
             }.unwrap();
 
 
@@ -108,7 +104,7 @@ macro_rules! test {
                 assert_eq!(res.headers()[$response_header_name], $response_header_val);
             )*
 
-            let body = core.run(res.into_parts().1.concat2()).unwrap();
+            let body = core.run(res.into_body().into_stream().concat2()).unwrap();
 
             let expected_res_body = Option::<&[u8]>::from($response_body)
                 .unwrap_or_default();
@@ -126,7 +122,6 @@ macro_rules! test {
                 url: $client_url:expr,
                 headers: { $($request_header_name:expr => $request_header_val:expr,)* },
                 body: $request_body:expr,
-                proxy: $request_proxy:expr,
 
             error: $err:expr,
     ) => (
@@ -149,7 +144,6 @@ macro_rules! test {
                         url: $client_url,
                         headers: { $($request_header_name => $request_header_val,)* },
                         body: $request_body,
-                        proxy: $request_proxy,
             }.unwrap_err();
             if !$err(&err) {
                 panic!("unexpected error: {:?}", err)
@@ -171,7 +165,6 @@ macro_rules! test {
                 url: $client_url:expr,
                 headers: { $($request_header_name:expr => $request_header_val:expr,)* },
                 body: $request_body:expr,
-                proxy: $request_proxy:expr,
     ) => ({
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
@@ -183,31 +176,20 @@ macro_rules! test {
         }
         let client = config.build(&core.handle());
 
-        let mut is_empty = false;
         let body = if let Some(body) = $request_body {
             let body: &'static str = body;
             body.into()
         } else {
-            is_empty = true;
             Body::empty()
         };
-        let mut req = Request::builder();
-        req
+        let req = Request::builder()
             .method(Method::$client_method)
+            .uri(&*format!($client_url, addr=addr))
         $(
             .header($request_header_name, $request_header_val)
         )*
-            .uri(&*format!($client_url, addr=addr));
-
-        //TODO: remove when client bodies are fixed
-        if is_empty {
-            req.header("content-length", "0");
-        }
-
-        let req = req.body(body)
+            .body(body)
             .unwrap();
-
-        // req.set_proxy($request_proxy);
 
         let res = client.request(req);
 
@@ -257,7 +239,6 @@ test! {
             url: "http://{addr}/",
             headers: {},
             body: None,
-            proxy: false,
         response:
             status: OK,
             headers: {
@@ -279,7 +260,6 @@ test! {
             url: "http://{addr}/foo?key=val#dont_send_me",
             headers: {},
             body: None,
-            proxy: false,
         response:
             status: OK,
             headers: {
@@ -301,7 +281,6 @@ test! {
             url: "http://{addr}/",
             headers: {},
             body: Some(""),
-            proxy: false,
         response:
             status: OK,
             headers: {
@@ -331,7 +310,6 @@ test! {
                 "Content-Length" => "7",
             },
             body: Some("foo bar"),
-            proxy: false,
         response:
             status: OK,
             headers: {},
@@ -361,7 +339,6 @@ test! {
                 "Transfer-Encoding" => "chunked",
             },
             body: Some("foo bar baz"),
-            proxy: false,
         response:
             status: OK,
             headers: {},
@@ -387,14 +364,14 @@ test! {
             headers: {
                 "Content-Length" => "0",
             },
-            body: Some(""),
-            proxy: false,
+            body: None,
         response:
             status: OK,
             headers: {},
             body: None,
 }
 
+/*TODO: when new Connect trait allows stating connection is proxied
 test! {
     name: client_http_proxy,
 
@@ -407,18 +384,18 @@ test! {
         reply: REPLY_OK,
 
     client:
+        proxy: true,
         request:
             method: GET,
             url: "http://{addr}/proxy",
             headers: {},
             body: None,
-            proxy: true,
         response:
             status: OK,
             headers: {},
             body: None,
 }
-
+*/
 
 test! {
     name: client_head_ignores_body,
@@ -442,7 +419,6 @@ test! {
             url: "http://{addr}/head",
             headers: {},
             body: None,
-            proxy: false,
         response:
             status: OK,
             headers: {},
@@ -473,7 +449,6 @@ test! {
             url: "http://{addr}/pipe",
             headers: {},
             body: None,
-            proxy: false,
         response:
             status: OK,
             headers: {},
@@ -500,7 +475,6 @@ test! {
             url: "http://{addr}/err",
             headers: {},
             body: None,
-            proxy: false,
         error: |err| match err {
             &hyper::Error::Incomplete => true,
             _ => false,
@@ -527,7 +501,6 @@ test! {
             url: "http://{addr}/err",
             headers: {},
             body: None,
-            proxy: false,
         error: |err| match err {
             &hyper::Error::Version => true,
             _ => false,
@@ -562,7 +535,6 @@ test! {
                 "Content-Length" => "7",
             },
             body: Some("foo bar"),
-            proxy: false,
         response:
             status: OK,
             headers: {},
@@ -592,7 +564,6 @@ test! {
             url: "http://{addr}/upgrade",
             headers: {},
             body: None,
-            proxy: false,
         error: |err| match err {
             &hyper::Error::Upgrade => true,
             _ => false,
@@ -618,7 +589,6 @@ test! {
             url: "http://{addr}/",
             headers: {},
             body: None,
-            proxy: false,
         error: |err| match err {
             &hyper::Error::Method => true,
             _ => false,
@@ -648,7 +618,6 @@ test! {
             url: "http://{addr}/no-host/{addr}",
             headers: {},
             body: None,
-            proxy: false,
         response:
             status: OK,
             headers: {},
@@ -755,7 +724,7 @@ mod dispatch_impl {
                 .unwrap();
             client.request(req).and_then(move |res| {
                 assert_eq!(res.status(), hyper::StatusCode::OK);
-                res.into_parts().1.concat2()
+                res.into_body().into_stream().concat2()
             }).and_then(|_| {
                 Timeout::new(Duration::from_secs(1), &handle).unwrap()
                     .from_err()
@@ -808,7 +777,7 @@ mod dispatch_impl {
             .unwrap();
         let res = client.request(req).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
-            res.into_parts().1.concat2()
+            res.into_body().into_stream().concat2()
         });
         let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
         core.run(res.join(rx).map(|r| r.0)).unwrap();
@@ -975,7 +944,7 @@ mod dispatch_impl {
             .unwrap();
         let res = client.request(req).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
-            res.into_parts().1.concat2()
+            res.into_body().into_stream().concat2()
         });
         let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
         core.run(res.join(rx).map(|r| r.0)).unwrap();
@@ -1023,7 +992,7 @@ mod dispatch_impl {
             .unwrap();
         let res = client.request(req).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
-            res.into_parts().1.concat2()
+            res.into_body().into_stream().concat2()
         });
         let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
         core.run(res.join(rx).map(|r| r.0)).unwrap();
@@ -1078,7 +1047,7 @@ mod dispatch_impl {
             .unwrap();
         let res = client.request(req).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
-            res.into_parts().1.concat2()
+            res.into_body().into_stream().concat2()
         });
 
         core.run(res).unwrap();
@@ -1130,7 +1099,7 @@ mod dispatch_impl {
             .unwrap();
         let res = client.request(req).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
-            res.into_parts().1.concat2()
+            res.into_body().into_stream().concat2()
         });
         let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
 
@@ -1215,8 +1184,6 @@ mod dispatch_impl {
         let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
         let req = Request::builder()
             .uri(&*format!("http://{}/a", addr))
-            //TODO: remove this header when auto lengths are fixed
-            .header("content-length", "0")
             .body(Body::empty())
             .unwrap();
         let res = client.request(req);
@@ -1227,8 +1194,6 @@ mod dispatch_impl {
         let rx = rx2.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
         let req = Request::builder()
             .uri(&*format!("http://{}/b", addr))
-            //TODO: remove this header when auto lengths are fixed
-            .header("content-length", "0")
             .body(Body::empty())
             .unwrap();
         let res = client.request(req);
@@ -1281,8 +1246,6 @@ mod dispatch_impl {
         let req = Request::builder()
             .method("HEAD")
             .uri(&*format!("http://{}/a", addr))
-            //TODO: remove this header when auto lengths are fixed
-            .header("content-length", "0")
             .body(Body::empty())
             .unwrap();
         let res = client.request(req);
@@ -1293,8 +1256,6 @@ mod dispatch_impl {
         let rx = rx2.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
         let req = Request::builder()
             .uri(&*format!("http://{}/b", addr))
-            //TODO: remove this header when auto lengths are fixed
-            .header("content-length", "0")
             .body(Body::empty())
             .unwrap();
         let res = client.request(req);
@@ -1434,7 +1395,7 @@ mod conn {
             .unwrap();
         let res = client.send_request(req).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
-            res.into_body().concat2()
+            res.into_body().into_stream().concat2()
         });
         let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
 
@@ -1481,7 +1442,7 @@ mod conn {
 
         let res = client.send_request(req).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
-            res.into_body().concat2()
+            res.into_body().into_stream().concat2()
         });
         let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
 
@@ -1522,7 +1483,7 @@ mod conn {
             .unwrap();
         let res1 = client.send_request(req).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
-            res.into_body().concat2()
+            res.into_body().into_stream().concat2()
         });
 
         // pipelined request will hit NotReady, and thus should return an Error::Cancel
@@ -1599,7 +1560,7 @@ mod conn {
             let res = client.send_request(req).and_then(move |res| {
                 assert_eq!(res.status(), hyper::StatusCode::SWITCHING_PROTOCOLS);
                 assert_eq!(res.headers()["Upgrade"], "foobar");
-                res.into_body().concat2()
+                res.into_body().into_stream().concat2()
             });
 
             let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
@@ -1680,7 +1641,7 @@ mod conn {
             let res = client.send_request(req)
                 .and_then(move |res| {
                     assert_eq!(res.status(), hyper::StatusCode::OK);
-                    res.into_body().concat2()
+                    res.into_body().into_stream().concat2()
                 })
                 .map(|body| {
                     assert_eq!(body.as_ref(), b"");
