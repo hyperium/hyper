@@ -12,9 +12,9 @@ use super::Chunk;
 type BodySender = mpsc::Sender<Result<Chunk, ::Error>>;
 
 /// This trait represents a streaming body of a `Request` or `Response`.
-pub trait Entity {
+pub trait Entity: Send {
     /// A buffer of bytes representing a single chunk of a body.
-    type Data: AsRef<[u8]>;
+    type Data: AsRef<[u8]> + Send;
 
     /// The error type of this stream.
     //TODO: add bounds Into<::error::User> (or whatever it is called)

@@ -28,7 +28,8 @@ pub struct Sender<T, U> {
     // response have been fully processed, and a connection is ready
     // for more.
     giver: signal::Giver,
-    inner: mpsc::Sender<(T, Callback<T, U>)>,
+    //inner: mpsc::Sender<(T, Callback<T, U>)>,
+    inner: mpsc::Sender<Envelope<T, U>>,
 }
 
 impl<T, U> Sender<T, U> {
@@ -51,21 +52,22 @@ impl<T, U> Sender<T, U> {
 
     pub fn try_send(&mut self, val: T) -> Result<RetryPromise<T, U>, T> {
         let (tx, rx) = oneshot::channel();
-        self.inner.try_send((val, Callback::Retry(tx)))
+        self.inner.try_send(Envelope(Some((val, Callback::Retry(tx)))))
             .map(move |_| rx)
-            .map_err(|e| e.into_inner().0)
+            .map_err(|e| e.into_inner().0.take().expect("envelope not dropped").0)
     }
 
     pub fn send(&mut self, val: T) -> Result<Promise<U>, T> {
         let (tx, rx) = oneshot::channel();
-        self.inner.try_send((val, Callback::NoRetry(tx)))
+        self.inner.try_send(Envelope(Some((val, Callback::NoRetry(tx)))))
             .map(move |_| rx)
-            .map_err(|e| e.into_inner().0)
+            .map_err(|e| e.into_inner().0.take().expect("envelope not dropped").0)
     }
 }
 
 pub struct Receiver<T, U> {
-    inner: mpsc::Receiver<(T, Callback<T, U>)>,
+    //inner: mpsc::Receiver<(T, Callback<T, U>)>,
+    inner: mpsc::Receiver<Envelope<T, U>>,
     taker: signal::Taker,
 }
 
@@ -75,7 +77,9 @@ impl<T, U> Stream for Receiver<T, U> {
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         match self.inner.poll() {
-            Ok(Async::Ready(item)) => Ok(Async::Ready(item)),
+            Ok(Async::Ready(item)) => Ok(Async::Ready(item.map(|mut env| {
+                env.0.take().expect("envelope not dropped")
+            }))),
             Ok(Async::NotReady) => {
                 self.taker.want();
                 Ok(Async::NotReady)
@@ -84,6 +88,16 @@ impl<T, U> Stream for Receiver<T, U> {
         }
     }
 }
+
+/*
+TODO: with futures 0.2, bring this Drop back and toss Envelope
+
+The problem is, there is a bug in futures 0.1 mpsc channel, where
+even though you may call `rx.close()`, `rx.poll()` may still think
+there are messages and so should park the current task. In futures
+0.2, we can use `try_next`, and not even risk such a bug.
+
+For now, use an `Envelope` that has this drop guard logic instead.
 
 impl<T, U> Drop for Receiver<T, U> {
     fn drop(&mut self) {
@@ -104,6 +118,17 @@ impl<T, U> Drop for Receiver<T, U> {
         }
     }
 
+}
+*/
+
+struct Envelope<T, U>(Option<(T, Callback<T, U>)>);
+
+impl<T, U> Drop for Envelope<T, U> {
+    fn drop(&mut self) {
+        if let Some((val, cb)) = self.0.take() {
+            let _ = cb.send(Err((::Error::new_canceled(None::<::Error>), Some(val))));
+        }
+    }
 }
 
 pub enum Callback<T, U> {

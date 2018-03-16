@@ -19,13 +19,16 @@
 extern crate bytes;
 #[macro_use] extern crate futures;
 extern crate futures_cpupool;
+extern crate futures_timer;
 extern crate http;
 extern crate httparse;
 extern crate iovec;
 #[macro_use] extern crate log;
+extern crate net2;
 extern crate relay;
 extern crate time;
-extern crate tokio_core as tokio;
+extern crate tokio;
+extern crate tokio_executor;
 #[macro_use] extern crate tokio_io;
 extern crate tokio_service;
 extern crate unicase;

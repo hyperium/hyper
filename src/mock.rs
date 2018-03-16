@@ -1,8 +1,7 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::cmp;
 use std::io::{self, Read, Write};
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 use bytes::Buf;
 use futures::{Async, Poll};
@@ -284,7 +283,7 @@ impl ::std::ops::Deref for AsyncIo<MockCursor> {
 }
 
 pub struct Duplex {
-    inner: Rc<RefCell<DuplexInner>>,
+    inner: Arc<Mutex<DuplexInner>>,
 }
 
 struct DuplexInner {
@@ -295,21 +294,22 @@ struct DuplexInner {
 
 impl Read for Duplex {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.inner.borrow_mut().read.read(buf)
+        self.inner.lock().unwrap().read.read(buf)
     }
 }
 
 impl Write for Duplex {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        if let Some(task) = self.inner.borrow_mut().handle_read_task.take() {
+        let mut inner = self.inner.lock().unwrap();
+        if let Some(task) = inner.handle_read_task.take() {
             trace!("waking DuplexHandle read");
             task.notify();
         }
-        self.inner.borrow_mut().write.write(buf)
+        inner.write.write(buf)
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        self.inner.borrow_mut().write.flush()
+        self.inner.lock().unwrap().write.flush()
     }
 }
 
@@ -323,20 +323,21 @@ impl AsyncWrite for Duplex {
     }
 
     fn write_buf<B: Buf>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
-        if let Some(task) = self.inner.borrow_mut().handle_read_task.take() {
+        let mut inner = self.inner.lock().unwrap();
+        if let Some(task) = inner.handle_read_task.take() {
             task.notify();
         }
-        self.inner.borrow_mut().write.write_buf(buf)
+        inner.write.write_buf(buf)
     }
 }
 
 pub struct DuplexHandle {
-    inner: Rc<RefCell<DuplexInner>>,
+    inner: Arc<Mutex<DuplexInner>>,
 }
 
 impl DuplexHandle {
     pub fn read(&self, buf: &mut [u8]) -> Poll<usize, io::Error> {
-        let mut inner = self.inner.borrow_mut();
+        let mut inner = self.inner.lock().unwrap();
         assert!(buf.len() >= inner.write.inner.len());
         if inner.write.inner.is_empty() {
             trace!("DuplexHandle read parking");
@@ -348,7 +349,7 @@ impl DuplexHandle {
     }
 
     pub fn write(&self, bytes: &[u8]) -> Poll<usize, io::Error> {
-        let mut inner = self.inner.borrow_mut();
+        let mut inner = self.inner.lock().unwrap();
         assert!(inner.read.inner.vec.is_empty());
         assert_eq!(inner.read.inner.pos, 0);
         inner
@@ -364,20 +365,20 @@ impl DuplexHandle {
 impl Drop for DuplexHandle {
     fn drop(&mut self) {
         trace!("mock duplex handle drop");
-        let mut inner = self.inner.borrow_mut();
+        let mut inner = self.inner.lock().unwrap();
         inner.read.close();
         inner.write.close();
     }
 }
 
 pub struct MockConnector {
-    mocks: RefCell<HashMap<String, Vec<Duplex>>>,
+    mocks: Mutex<HashMap<String, Vec<Duplex>>>,
 }
 
 impl MockConnector {
     pub fn new() -> MockConnector {
         MockConnector {
-            mocks: RefCell::new(HashMap::new()),
+            mocks: Mutex::new(HashMap::new()),
         }
     }
 
@@ -392,7 +393,7 @@ impl MockConnector {
         inner.read.park_tasks(true);
         inner.write.park_tasks(true);
 
-        let inner = Rc::new(RefCell::new(inner));
+        let inner = Arc::new(Mutex::new(inner));
 
         let duplex = Duplex {
             inner: inner.clone(),
@@ -401,7 +402,7 @@ impl MockConnector {
             inner: inner,
         };
 
-        self.mocks.borrow_mut().entry(key)
+        self.mocks.lock().unwrap().entry(key)
             .or_insert(Vec::new())
             .push(duplex);
 
@@ -422,7 +423,7 @@ impl Connect for MockConnector {
         } else {
             "".to_owned()
         });
-        let mut mocks = self.mocks.borrow_mut();
+        let mut mocks = self.mocks.lock().unwrap();
         let mocks = mocks.get_mut(&key)
             .expect(&format!("unknown mocks uri: {}", key));
         assert!(!mocks.is_empty(), "no additional mocks for {}", key);

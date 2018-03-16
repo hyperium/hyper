@@ -2,8 +2,10 @@
 extern crate futures;
 extern crate hyper;
 extern crate pretty_env_logger;
+extern crate tokio;
 
 use futures::{Future/*, Sink*/};
+use futures::future::lazy;
 use futures::sync::oneshot;
 
 use hyper::{Body, /*Chunk,*/ Method, Request, Response, StatusCode};
@@ -17,7 +19,7 @@ use std::thread;
 static NOTFOUND: &[u8] = b"Not Found";
 static INDEX: &str = "examples/send_file_index.html";
 
-fn simple_file_send(f: &str) -> Box<Future<Item = Response<Body>, Error = hyper::Error>> {
+fn simple_file_send(f: &str) -> Box<Future<Item = Response<Body>, Error = hyper::Error> + Send> {
     // Serve a file by reading it entirely into memory. As a result
     // this is limited to serving small files, but it is somewhat
     // simpler with a little less overhead.
@@ -63,7 +65,7 @@ impl Service for ResponseExamples {
     type Request = Request<Body>;
     type Response = Response<Body>;
     type Error = hyper::Error;
-    type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
+    type Future = Box<Future<Item = Self::Response, Error = Self::Error> + Send>;
 
     fn call(&self, req: Request<Body>) -> Self::Future {
         match (req.method(), req.uri().path()) {
@@ -139,7 +141,9 @@ fn main() {
     pretty_env_logger::init();
     let addr = "127.0.0.1:1337".parse().unwrap();
 
-    let server = Http::new().bind(&addr, || Ok(ResponseExamples)).unwrap();
-    println!("Listening on http://{} with 1 thread.", server.local_addr().unwrap());
-    server.run().unwrap();
+    tokio::run(lazy(move || {
+        let server = Http::new().bind(&addr, || Ok(ResponseExamples)).unwrap();
+        println!("Listening on http://{} with 1 thread.", server.local_addr().unwrap());
+        server.run().map_err(|err| eprintln!("Server error {}", err))
+    }));
 }
