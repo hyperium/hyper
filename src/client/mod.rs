@@ -26,11 +26,9 @@ use self::connect::Destination;
 
 pub mod conn;
 pub mod connect;
-//TODO(easy): move cancel and dispatch into common instead
 pub(crate) mod dispatch;
 mod dns;
 mod pool;
-mod signal;
 #[cfg(test)]
 mod tests;
 

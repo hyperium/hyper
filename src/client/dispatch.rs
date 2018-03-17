@@ -1,8 +1,8 @@
 use futures::{Async, Poll, Stream};
 use futures::sync::{mpsc, oneshot};
+use want;
 
 use common::Never;
-use super::signal;
 
 //pub type Callback<T, U> = oneshot::Sender<Result<U, (::Error, Option<T>)>>;
 pub type RetryPromise<T, U> = oneshot::Receiver<Result<U, (::Error, Option<T>)>>;
@@ -10,7 +10,7 @@ pub type Promise<T> = oneshot::Receiver<Result<T, ::Error>>;
 
 pub fn channel<T, U>() -> (Sender<T, U>, Receiver<T, U>) {
     let (tx, rx) = mpsc::channel(0);
-    let (giver, taker) = signal::new();
+    let (giver, taker) = want::new();
     let tx = Sender {
         giver: giver,
         inner: tx,
@@ -27,7 +27,7 @@ pub struct Sender<T, U> {
     // when the queue is empty. This helps us know when a request and
     // response have been fully processed, and a connection is ready
     // for more.
-    giver: signal::Giver,
+    giver: want::Giver,
     //inner: mpsc::Sender<(T, Callback<T, U>)>,
     inner: mpsc::Sender<Envelope<T, U>>,
 }
@@ -68,7 +68,7 @@ impl<T, U> Sender<T, U> {
 pub struct Receiver<T, U> {
     //inner: mpsc::Receiver<(T, Callback<T, U>)>,
     inner: mpsc::Receiver<Envelope<T, U>>,
-    taker: signal::Taker,
+    taker: want::Taker,
 }
 
 impl<T, U> Stream for Receiver<T, U> {
@@ -229,7 +229,7 @@ mod tests {
     #[cfg(feature = "nightly")]
     #[bench]
     fn giver_queue_cancel(b: &mut test::Bencher) {
-        let (_tx, rx) = super::channel::<i32, ()>();
+        let (_tx, mut rx) = super::channel::<i32, ()>();
 
         b.iter(move || {
             rx.taker.cancel();

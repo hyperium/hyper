@@ -30,6 +30,7 @@ extern crate tokio;
 extern crate tokio_executor;
 #[macro_use] extern crate tokio_io;
 extern crate tokio_service;
+extern crate want;
 
 #[cfg(all(test, feature = "nightly"))]
 extern crate test;
