@@ -25,13 +25,11 @@ extern crate httparse;
 extern crate iovec;
 #[macro_use] extern crate log;
 extern crate net2;
-extern crate relay;
 extern crate time;
 extern crate tokio;
 extern crate tokio_executor;
 #[macro_use] extern crate tokio_io;
 extern crate tokio_service;
-extern crate unicase;
 
 #[cfg(all(test, feature = "nightly"))]
 extern crate test;

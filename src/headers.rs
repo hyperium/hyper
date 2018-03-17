@@ -4,7 +4,6 @@ use bytes::BytesMut;
 use http::HeaderMap;
 use http::header::{CONNECTION, CONTENT_LENGTH, EXPECT, TRANSFER_ENCODING};
 use http::header::{HeaderValue, OccupiedEntry, ValueIter};
-use unicase;
 
 /// Maximum number of bytes needed to serialize a u64 into ASCII decimal.
 const MAX_DECIMAL_U64_BYTES: usize = 20;
@@ -13,7 +12,7 @@ pub fn connection_keep_alive(headers: &HeaderMap) -> bool {
     for line in headers.get_all(CONNECTION) {
         if let Ok(s) = line.to_str() {
             for val in s.split(',') {
-                if unicase::eq_ascii(val.trim(), "keep-alive") {
+                if eq_ascii(val.trim(), "keep-alive") {
                     return true;
                 }
             }
@@ -27,7 +26,7 @@ pub fn connection_close(headers: &HeaderMap) -> bool {
     for line in headers.get_all(CONNECTION) {
         if let Ok(s) = line.to_str() {
             for val in s.split(',') {
-                if unicase::eq_ascii(val.trim(), "close") {
+                if eq_ascii(val.trim(), "close") {
                     return true;
                 }
             }
@@ -98,7 +97,7 @@ pub fn is_chunked(mut encodings: ValueIter<HeaderValue>) -> bool {
     if let Some(line) = encodings.next_back() {
         if let Ok(s) = line.to_str() {
             if let Some(encoding) = s.rsplit(',').next() {
-                return unicase::eq_ascii(encoding.trim(), "chunked");
+                return eq_ascii(encoding.trim(), "chunked");
             }
         }
     }
@@ -123,6 +122,17 @@ pub fn add_chunked(mut entry: OccupiedEntry<HeaderValue>) {
     }
 
     entry.insert(HeaderValue::from_static(CHUNKED));
+}
+
+fn eq_ascii(left: &str, right: &str) -> bool {
+    // As of Rust 1.23, str gained this method inherently, and so the
+    // compiler says this trait is unused.
+    //
+    // Once our minimum Rust compiler version is >=1.23, this can be removed.
+    #[allow(unused)]
+    use std::ascii::AsciiExt;
+
+    left.eq_ignore_ascii_case(right)
 }
 
 #[cfg(test)]
