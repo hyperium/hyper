@@ -4,7 +4,6 @@
 //! them off to a `Service`.
 
 pub mod conn;
-mod service;
 
 use std::fmt;
 use std::io;
@@ -13,16 +12,15 @@ use std::net::{SocketAddr, TcpListener as StdTcpListener};
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
-use futures::task::{self, Task};
+use futures::task::{self, Waker};
 use futures::future::{self};
-use futures::{Future, Stream, Poll, Async};
+use futures::{Future, FutureExt, Stream, StreamExt, Poll, Async};
+use futures::io::{AsyncRead, AsyncWrite};
+use futures::executor::spawn;
 use futures_timer::Delay;
 use http::{Request, Response};
-use tokio_io::{AsyncRead, AsyncWrite};
-use tokio::spawn;
 use tokio::reactor::Handle;
 use tokio::net::TcpListener;
-pub use tokio_service::{NewService, Service};
 
 use proto::body::{Body, Entity};
 use proto;
@@ -30,7 +28,8 @@ use self::addr_stream::AddrStream;
 use self::hyper_service::HyperService;
 
 pub use self::conn::Connection;
-pub use self::service::{const_service, service_fn};
+pub use super::service::{NewService, Service};
+pub use super::service::{const_service, service_fn};
 
 /// A configuration of the HTTP protocol.
 ///
@@ -255,11 +254,10 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     /// # extern crate futures;
     /// # extern crate hyper;
     /// # extern crate tokio;
-    /// # extern crate tokio_io;
-    /// # use futures::Future;
+    /// # use futures::FutureExt;
+    /// # use futures::io::{AsyncRead, AsyncWrite};
     /// # use hyper::{Body, Request, Response};
     /// # use hyper::server::{Http, Service};
-    /// # use tokio_io::{AsyncRead, AsyncWrite};
     /// # use tokio::reactor::Handle;
     /// # fn run<I, S>(some_io: I, some_service: S)
     /// # where
@@ -272,9 +270,9 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     ///
     /// let fut = conn
     ///     .map(|_| ())
-    ///     .map_err(|e| eprintln!("server connection error: {}", e));
+    ///     .map_err(|e| panic!("server connection error: {}", e));
     ///
-    /// tokio::spawn(fut);
+    /// tokio::spawn2(fut);
     /// # }
     /// # fn main() {}
     /// ```
@@ -334,8 +332,8 @@ impl Future for Run {
     type Item = ();
     type Error = ::Error;
 
-    fn poll(&mut self) -> Poll<(), ::Error> {
-        self.0.poll()
+    fn poll(&mut self, cx: &mut task::Context) -> Poll<(), ::Error> {
+        self.0.poll(cx)
     }
 }
 
@@ -412,17 +410,21 @@ impl<S, B> Server<S, B>
             let addr = socket.remote_addr;
             debug!("accepted new connection ({})", addr);
 
-            let service = new_service.new_service()?;
+            let service = match new_service.new_service() {
+                Ok(service) => service,
+                Err(err) => return future::err(err).left()
+            };
+            
             let s = NotifyService {
                 inner: service,
                 info: Arc::downgrade(&info_cloned),
             };
             info_cloned.lock().unwrap().active += 1;
-            let fut = protocol.serve_connection(socket, s)
-                .map(|_| ())
-                .map_err(move |err| error!("server connection error: ({}) {}", addr, err));
-            spawn(fut);
-            Ok(())
+            let fut = protocol.serve_connection(socket, s).recover(move |err| {
+                error!("server connection error: ({}) {}", addr, err);
+            });
+            
+            spawn(fut).map_err(|err| err.never_into()).right()
         });
 
         // for now, we don't care if the shutdown signal succeeds or errors
@@ -438,8 +440,11 @@ impl<S, B> Server<S, B>
         // stop accepting incoming connections.
         let main_execution = shutdown_signal.select(srv).then(move |result| {
             match result {
-                Ok(((), _incoming)) => {},
-                Err((e, _other)) => return future::Either::A(future::err(e.into()))
+                Ok(_) => {},
+                Err(future::Either::Left((e, _other))) =>
+                    return future::Either::Left(future::err(e)),
+                Err(future::Either::Right((e, _other))) =>
+                    return future::Either::Left(future::err(e.into())),
             }
 
             // Ok we've stopped accepting new connections at this point, but we want
@@ -451,10 +456,11 @@ impl<S, B> Server<S, B>
             // here have been destroyed.
             let timeout = Delay::new(shutdown_timeout);
             let wait = WaitUntilZero { info: info.clone() };
-            future::Either::B(wait.select(timeout).then(|result| {
+            future::Either::Right(wait.select(timeout).then(|result| {
                 match result {
                     Ok(_) => Ok(()),
-                    Err((e, _)) => Err(e.into())
+                    Err(future::Either::Left((e, _))) => Err(e.into()),
+                    Err(future::Either::Right((e, _))) => Err(e.into())
                 }
             }))
         });
@@ -505,8 +511,8 @@ where
     type Item = Connection<I::Item, S::Instance>;
     type Error = ::Error;
 
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        if let Some(io) = try_ready!(self.incoming.poll()) {
+    fn poll_next(&mut self, cx: &mut task::Context) -> Poll<Option<Self::Item>, Self::Error> {
+        if let Some(io) = try_ready!(self.incoming.poll_next(cx)) {
             let service = self.new_service.new_service()?;
             Ok(Async::Ready(Some(self.protocol.serve_connection(io, service))))
         } else {
@@ -586,17 +592,17 @@ impl Stream for AddrIncoming {
     type Item = AddrStream;
     type Error = ::std::io::Error;
 
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+    fn poll_next(&mut self, cx: &mut task::Context) -> Poll<Option<Self::Item>, Self::Error> {
         // Check if a previous timeout is active that was set by IO errors.
         if let Some(ref mut to) = self.timeout {
-            match to.poll().expect("timeout never fails") {
+            match to.poll(cx).expect("timeout never fails") {
                 Async::Ready(_) => {}
-                Async::NotReady => return Ok(Async::NotReady),
+                Async::Pending => return Ok(Async::Pending),
             }
         }
         self.timeout = None;
         loop {
-            match self.listener.poll_accept() {
+            match self.listener.poll_accept2(cx) {
                 Ok(Async::Ready((socket, addr))) => {
                     if let Some(dur) = self.keep_alive_timeout {
                         if let Err(e) = socket.set_keepalive(Some(dur)) {
@@ -605,7 +611,7 @@ impl Stream for AddrIncoming {
                     }
                     return Ok(Async::Ready(Some(AddrStream::new(socket, addr))));
                 },
-                Ok(Async::NotReady) => return Ok(Async::NotReady),
+                Ok(Async::Pending) => return Ok(Async::Pending),
                 Err(ref e) if self.sleep_on_errors => {
                     // Connection errors can be ignored directly, continue by
                     // accepting the next request.
@@ -617,13 +623,13 @@ impl Stream for AddrIncoming {
                     debug!("accept error: {}; sleeping {:?}",
                         e, delay);
                     let mut timeout = Delay::new(delay);
-                    let result = timeout.poll()
+                    let result = timeout.poll(cx)
                         .expect("timeout never fails");
                     match result {
                         Async::Ready(()) => continue,
-                        Async::NotReady => {
+                        Async::Pending => {
                             self.timeout = Some(timeout);
-                            return Ok(Async::NotReady);
+                            return Ok(Async::Pending);
                         }
                     }
                 },
@@ -647,12 +653,13 @@ fn connection_error(e: &io::Error) -> bool {
 }
 
 mod addr_stream {
-    use std::io::{self, Read, Write};
+    use std::io;
     use std::net::SocketAddr;
-    use bytes::{Buf, BufMut};
     use futures::Poll;
+    use futures::task;
+    use futures::io::{AsyncRead, AsyncWrite, Initializer};
+    use iovec::IoVec;
     use tokio::net::TcpStream;
-    use tokio_io::{AsyncRead, AsyncWrite};
 
 
     #[derive(Debug)]
@@ -670,46 +677,42 @@ mod addr_stream {
         }
     }
 
-    impl Read for AddrStream {
-        #[inline]
-        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-            self.inner.read(buf)
-        }
-    }
-
-    impl Write for AddrStream {
-        #[inline]
-        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-            self.inner.write(buf)
-        }
-
-        #[inline]
-        fn flush(&mut self ) -> io::Result<()> {
-            self.inner.flush()
-        }
-    }
-
     impl AsyncRead for AddrStream {
         #[inline]
-        unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
-            self.inner.prepare_uninitialized_buffer(buf)
+        fn poll_read(&mut self, cx: &mut task::Context, buf: &mut [u8]) -> Poll<usize, io::Error> {
+            self.inner.poll_read(cx, buf)
         }
 
         #[inline]
-        fn read_buf<B: BufMut>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
-            self.inner.read_buf(buf)
+        unsafe fn initializer(&self) -> Initializer {
+            AsyncRead::initializer(&self.inner)
+        }
+
+        #[inline]
+        fn poll_vectored_read(&mut self, cx: &mut task::Context, vec: &mut [&mut IoVec]) -> Poll<usize, io::Error> {
+            self.inner.poll_vectored_read(cx, vec)
         }
     }
 
     impl AsyncWrite for AddrStream {
         #[inline]
-        fn shutdown(&mut self) -> Poll<(), io::Error> {
-            AsyncWrite::shutdown(&mut self.inner)
+        fn poll_write(&mut self, cx: &mut task::Context, buf: &[u8]) -> Poll<usize, io::Error> {
+            self.inner.poll_write(cx, buf)
         }
 
         #[inline]
-        fn write_buf<B: Buf>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
-            self.inner.write_buf(buf)
+        fn poll_flush(&mut self, cx: &mut task::Context) -> Poll<(), io::Error> {
+            self.inner.poll_flush(cx)
+        }
+
+        #[inline]
+        fn poll_close(&mut self, cx: &mut task::Context) -> Poll<(), io::Error> {
+            self.inner.poll_close(cx)
+        }
+
+        #[inline]
+        fn poll_vectored_write(&mut self, cx: &mut task::Context, vec: &[&IoVec]) -> Poll<usize, io::Error> {
+            self.inner.poll_vectored_write(cx, vec)
         }
     }
 }
@@ -727,7 +730,7 @@ struct WaitUntilZero {
 
 struct Info {
     active: usize,
-    blocker: Option<Task>,
+    blocker: Option<Waker>,
 }
 
 impl<S: Service> Service for NotifyService<S> {
@@ -750,8 +753,8 @@ impl<S> Drop for NotifyService<S> {
         let mut info = info.lock().unwrap();
         info.active -= 1;
         if info.active == 0 {
-            if let Some(task) = info.blocker.take() {
-                task.notify();
+            if let Some(waker) = info.blocker.take() {
+                waker.wake();
             }
         }
     }
@@ -761,13 +764,13 @@ impl Future for WaitUntilZero {
     type Item = ();
     type Error = io::Error;
 
-    fn poll(&mut self) -> Poll<(), io::Error> {
+    fn poll(&mut self, cx: &mut task::Context) -> Poll<(), io::Error> {
         let mut info = self.info.lock().unwrap();
         if info.active == 0 {
             Ok(().into())
         } else {
-            info.blocker = Some(task::current());
-            Ok(Async::NotReady)
+            info.blocker = Some(cx.waker().clone());
+            Ok(Async::Pending)
         }
     }
 }

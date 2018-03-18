@@ -1,12 +1,12 @@
-use std::cell::Cell;
 use std::collections::VecDeque;
 use std::fmt;
 use std::io;
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures::{Async, Poll};
+use futures::task;
+use futures::io::{AsyncRead, AsyncWrite};
 use iovec::IoVec;
-use tokio_io::{AsyncRead, AsyncWrite};
 
 use proto::{Http1Transaction, MessageHead};
 
@@ -108,7 +108,7 @@ where
         }
     }
 
-    pub fn parse<S: Http1Transaction>(&mut self) -> Poll<MessageHead<S::Incoming>, ::Error> {
+    pub fn parse<S: Http1Transaction>(&mut self, cx: &mut task::Context) -> Poll<MessageHead<S::Incoming>, ::Error> {
         loop {
             match try!(S::parse(&mut self.read_buf)) {
                 Some((head, len)) => {
@@ -122,7 +122,7 @@ where
                     }
                 },
             }
-            match try_ready!(self.read_from_io()) {
+            match try_ready!(self.read_from_io(cx)) {
                 0 => {
                     trace!("parse eof");
                     return Err(::Error::Incomplete);
@@ -132,21 +132,21 @@ where
         }
     }
 
-    pub fn read_from_io(&mut self) -> Poll<usize, io::Error> {
+    pub fn read_from_io(&mut self, cx: &mut task::Context) -> Poll<usize, io::Error> {
         use bytes::BufMut;
         self.read_blocked = false;
         if self.read_buf.remaining_mut() < INIT_BUFFER_SIZE {
             self.read_buf.reserve(INIT_BUFFER_SIZE);
         }
-        self.io.read_buf(&mut self.read_buf).map(|ok| {
+        read_buf(&mut self.io, cx, &mut self.read_buf).map(|ok| {
             match ok {
                 Async::Ready(n) => {
                     debug!("read {} bytes", n);
                     Async::Ready(n)
                 },
-                Async::NotReady => {
+                Async::Pending => {
                     self.read_blocked = true;
-                    Async::NotReady
+                    Async::Pending
                 }
             }
         })
@@ -164,14 +164,14 @@ where
         self.read_blocked
     }
 
-    pub fn flush(&mut self) -> Poll<(), io::Error> {
+    pub fn flush(&mut self, cx: &mut task::Context) -> Poll<(), io::Error> {
         if self.flush_pipeline && !self.read_buf.is_empty() {
             //Ok(())
         } else if self.write_buf.remaining() == 0 {
-            try_nb!(self.io.flush());
+            try_ready!(self.io.poll_flush(cx));
         } else {
             loop {
-                let n = try_ready!(self.io.write_buf(&mut self.write_buf.auto()));
+                let n = try_ready!(self.write_buf.poll_flush_into(&mut self.io, cx));
                 debug!("flushed {} bytes", n);
                 if self.write_buf.remaining() == 0 {
                     break;
@@ -180,14 +180,33 @@ where
                     return Err(io::ErrorKind::WriteZero.into())
                 }
             }
-            try_nb!(self.io.flush())
+            try_ready!(self.io.poll_flush(cx))
         }
         Ok(Async::Ready(()))
     }
 }
 
+fn read_buf<I: AsyncRead, B: BufMut>(io: &mut I, cx: &mut task::Context, buf: &mut B) -> Poll<usize, io::Error> {
+    if !buf.has_remaining_mut() {
+        return Ok(Async::Ready(0));
+    }
+
+    unsafe {
+        let n = {
+            let b = buf.bytes_mut();
+
+            io.initializer().initialize(b);
+
+            try_ready!(io.poll_read(cx, b))
+        };
+
+        buf.advance_mut(n);
+        Ok(Async::Ready(n))
+    }
+}
+
 pub trait MemRead {
-    fn read_mem(&mut self, len: usize) -> Poll<Bytes, io::Error>;
+    fn read_mem(&mut self, cx: &mut task::Context, len: usize) -> Poll<Bytes, io::Error>;
 }
 
 impl<T, B> MemRead for Buffered<T, B> 
@@ -195,12 +214,12 @@ where
     T: AsyncRead + AsyncWrite,
     B: Buf,
 {
-    fn read_mem(&mut self, len: usize) -> Poll<Bytes, io::Error> {
+    fn read_mem(&mut self, cx: &mut task::Context, len: usize) -> Poll<Bytes, io::Error> {
         if !self.read_buf.is_empty() {
             let n = ::std::cmp::min(len, self.read_buf.len());
             Ok(Async::Ready(self.read_buf.split_to(n).freeze()))
         } else {
-            let n = try_ready!(self.read_from_io());
+            let n = try_ready!(self.read_from_io(cx));
             Ok(Async::Ready(self.read_buf.split_to(::std::cmp::min(len, n)).freeze()))
         }
     }
@@ -294,11 +313,6 @@ where
         self.strategy = strategy;
     }
 
-    #[inline]
-    fn auto(&mut self) -> WriteBufAuto<B> {
-        WriteBufAuto::new(self)
-    }
-
     fn buffer(&mut self, buf: B) {
         match self.strategy {
             Strategy::Flatten => {
@@ -343,6 +357,48 @@ where
             unreachable!("head_buf just pushed on back");
         }
     }
+
+    fn poll_flush_into<I: AsyncWrite>(&mut self, io: &mut I, cx: &mut task::Context) -> Poll<usize, io::Error> {
+        if !self.has_remaining() {
+            return Ok(Async::Ready(0));
+        }
+
+        let (num_bufs_avail, num_bytes_written, len_first_buf) = {
+            static PLACEHOLDER: &[u8] = &[0];
+            let mut bufs = [From::from(PLACEHOLDER); 64];
+            let num_bufs_avail = self.bytes_vec(&mut bufs[..]);
+            let num_bytes_written = try_ready!(io.poll_vectored_write(cx, &bufs[..num_bufs_avail]));
+            (num_bufs_avail, num_bytes_written, bufs[0].len())
+        };
+        self.advance(num_bytes_written);
+
+        if let Strategy::Auto = self.strategy {
+            if num_bufs_avail > 1 {
+                // If there's more than one IoVec available, attempt to
+                // determine the best buffering strategy based on whether
+                // the underlying AsyncWrite object supports vectored I/O.
+                if num_bytes_written == len_first_buf {
+                    // If only the first of many IoVec was written, we can assume
+                    // with some certainty that vectored I/O _is not_ supported.
+                    //
+                    // Switch to a flattening strategy for buffering data.
+                    trace!("detected no usage of vectored write, flattening");
+                    let mut vec = Vec::new();
+                    vec.put(&mut self.buf);
+                    self.buf.bufs.push_back(VecOrBuf::Vec(Cursor::new(vec)));
+                    self.strategy = Strategy::Flatten;
+                } else if num_bytes_written > len_first_buf {
+                    // If more than the first IoVec was written, we can assume
+                    // with some certainty that vectored I/O _is_ supported.
+                    //
+                    // Switch to a queuing strategy for buffering data.
+                    self.strategy = Strategy::Queue;
+                }
+            }
+        }
+
+        Ok(Async::Ready(num_bytes_written))
+    }
 }
 
 impl<B: Buf> fmt::Debug for WriteBuf<B> {
@@ -375,65 +431,6 @@ impl<B: Buf> Buf for WriteBuf<B> {
         self.buf.bytes_vec(dst)
     }
 }
-
-/// Detects when wrapped `WriteBuf` is used for vectored IO, and
-/// adjusts the `WriteBuf` strategy if not.
-struct WriteBufAuto<'a, B: Buf + 'a> {
-    bytes_called: Cell<bool>,
-    bytes_vec_called: Cell<bool>,
-    inner: &'a mut WriteBuf<B>,
-}
-
-impl<'a, B: Buf> WriteBufAuto<'a, B> {
-    fn new(inner: &'a mut WriteBuf<B>) -> WriteBufAuto<'a, B> {
-        WriteBufAuto {
-            bytes_called: Cell::new(false),
-            bytes_vec_called: Cell::new(false),
-            inner: inner,
-        }
-    }
-}
-
-impl<'a, B: Buf> Buf for WriteBufAuto<'a, B> {
-    #[inline]
-    fn remaining(&self) -> usize {
-        self.inner.remaining()
-    }
-
-    #[inline]
-    fn bytes(&self) -> &[u8] {
-        self.bytes_called.set(true);
-        self.inner.bytes()
-    }
-
-    #[inline]
-    fn advance(&mut self, cnt: usize) {
-        self.inner.advance(cnt)
-    }
-
-    #[inline]
-    fn bytes_vec<'t>(&'t self, dst: &mut [&'t IoVec]) -> usize {
-        self.bytes_vec_called.set(true);
-        self.inner.bytes_vec(dst)
-    }
-}
-
-impl<'a, B: Buf + 'a> Drop for WriteBufAuto<'a, B> {
-    fn drop(&mut self) {
-        if let Strategy::Auto = self.inner.strategy {
-            if self.bytes_vec_called.get() {
-                self.inner.strategy = Strategy::Queue;
-            } else if self.bytes_called.get() {
-                trace!("detected no usage of vectored write, flattening");
-                self.inner.strategy = Strategy::Flatten;
-                let mut vec = Vec::new();
-                vec.put(&mut self.inner.buf);
-                self.inner.buf.bufs.push_back(VecOrBuf::Vec(Cursor::new(vec)));
-            }
-        }
-    }
-}
-
 
 #[derive(Debug)]
 enum Strategy {
@@ -568,51 +565,68 @@ impl<T: Buf> Buf for BufDeque<T> {
 mod tests {
     use super::*;
     use std::io::Read;
+    use futures::task;
+    use futures::future;
+    use futures::executor::block_on;
+    use futures::io::AsyncRead;
     use mock::AsyncIo;
 
     #[cfg(test)]
     impl<T: Read> MemRead for ::mock::AsyncIo<T> {
-        fn read_mem(&mut self, len: usize) -> Poll<Bytes, io::Error> {
+        fn read_mem(&mut self, cx: &mut task::Context, len: usize) -> Poll<Bytes, io::Error> {
             let mut v = vec![0; len];
-            let n = try_nb!(self.read(v.as_mut_slice()));
+            let n = try_ready!(self.poll_read(cx, v.as_mut_slice()));
             Ok(Async::Ready(BytesMut::from(&v[..n]).freeze()))
         }
     }
 
     #[test]
     fn iobuf_write_empty_slice() {
-        let mut mock = AsyncIo::new_buf(vec![], 256);
-        mock.error(io::Error::new(io::ErrorKind::Other, "logic error"));
+        block_on(future::lazy(|cx| {
+            let mut mock = AsyncIo::new_buf(vec![], 256);
+            mock.error(io::Error::new(io::ErrorKind::Other, "logic error"));
 
-        let mut io_buf = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
+            let mut io_buf = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
 
-        // underlying io will return the logic error upon write,
-        // so we are testing that the io_buf does not trigger a write
-        // when there is nothing to flush
-        io_buf.flush().expect("should short-circuit flush");
+            // underlying io will return the logic error upon write,
+            // so we are testing that the io_buf does not trigger a write
+            // when there is nothing to flush
+            io_buf.flush(cx).expect("should short-circuit flush");
+
+            Ok::<_, ()>(())
+        })).unwrap()
     }
 
     #[test]
     fn parse_reads_until_blocked() {
-        // missing last line ending
-        let raw = "HTTP/1.1 200 OK\r\n";
+        block_on(future::lazy(|cx| {
+            // missing last line ending
+            let raw = "HTTP/1.1 200 OK\r\n";
 
-        let mock = AsyncIo::new_buf(raw, raw.len());
-        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
-        assert_eq!(buffered.parse::<::proto::ClientTransaction>().unwrap(), Async::NotReady);
-        assert!(buffered.io.blocked());
+            let mock = AsyncIo::new_buf(raw, raw.len());
+            let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
+
+            assert_eq!(buffered.parse::<::proto::ClientTransaction>(cx).unwrap(), Async::Pending);
+            assert!(buffered.io.blocked());
+
+            Ok::<_, ()>(())
+        })).unwrap()
     }
 
     #[test]
     fn write_buf_skips_empty_bufs() {
-        let mut mock = AsyncIo::new_buf(vec![], 1024);
-        mock.max_read_vecs(0); // disable vectored IO
-        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
+        block_on(future::lazy(|cx| {
+            let mut mock = AsyncIo::new_buf(vec![], 1024);
+            mock.max_read_vecs(0); // disable vectored IO
+            let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
 
-        buffered.buffer(Cursor::new(Vec::new()));
-        buffered.buffer(Cursor::new(b"hello".to_vec()));
-        buffered.flush().unwrap();
-        assert_eq!(buffered.io, b"hello");
+            buffered.buffer(Cursor::new(Vec::new()));
+            buffered.buffer(Cursor::new(b"hello".to_vec()));
+            buffered.flush(cx).unwrap();
+            assert_eq!(buffered.io, b"hello");
+
+            Ok::<_, ()>(())
+        })).unwrap()
     }
 
     #[test]
@@ -620,17 +634,22 @@ mod tests {
         extern crate pretty_env_logger;
         let _ = pretty_env_logger::try_init();
 
-        let mock = AsyncIo::new_buf(vec![], 1024);
-        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
+        block_on(future::lazy(|cx| {
+            let mock = AsyncIo::new_buf(vec![], 1024);
+            let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
 
-        buffered.write_buf_mut().extend(b"hello ");
-        buffered.buffer(Cursor::new(b"world, ".to_vec()));
-        buffered.write_buf_mut().extend(b"it's ");
-        buffered.buffer(Cursor::new(b"hyper!".to_vec()));
-        buffered.flush().unwrap();
+            buffered.write_buf_mut().extend(b"hello ");
+            buffered.buffer(Cursor::new(b"world, ".to_vec()));
+            buffered.write_buf_mut().extend(b"it's ");
+            buffered.buffer(Cursor::new(b"hyper!".to_vec()));
+            assert_eq!(buffered.io.num_writes(), 0);
+            buffered.flush(cx).unwrap();
 
-        assert_eq!(buffered.io, b"hello world, it's hyper!");
-        assert_eq!(buffered.io.num_writes(), 1);
+            assert_eq!(buffered.io, b"hello world, it's hyper!");
+            assert_eq!(buffered.io.num_writes(), 1);
+
+            Ok::<_, ()>(())
+        })).unwrap()
     }
 
     #[test]
@@ -638,27 +657,31 @@ mod tests {
         extern crate pretty_env_logger;
         let _ = pretty_env_logger::try_init();
 
-        let mock = AsyncIo::new_buf(vec![], 1024);
-        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
+        block_on(future::lazy(|cx| {
+            let mock = AsyncIo::new_buf(vec![], 1024);
+            let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
 
-        buffered.write_buf_mut().extend(b"hello ");
-        assert_eq!(buffered.write_buf.buf.bufs.len(), 1);
-        buffered.write_buf_mut().extend(b"world, ");
-        assert_eq!(buffered.write_buf.buf.bufs.len(), 1);
+            buffered.write_buf_mut().extend(b"hello ");
+            assert_eq!(buffered.write_buf.buf.bufs.len(), 1);
+            buffered.write_buf_mut().extend(b"world, ");
+            assert_eq!(buffered.write_buf.buf.bufs.len(), 1);
 
-        // after flushing, reclaim the Vec
-        buffered.flush().unwrap();
-        assert_eq!(buffered.write_buf.remaining(), 0);
-        assert_eq!(buffered.write_buf.buf.bufs.len(), 1);
+            // after flushing, reclaim the Vec
+            buffered.flush(cx).unwrap();
+            assert_eq!(buffered.write_buf.remaining(), 0);
+            assert_eq!(buffered.write_buf.buf.bufs.len(), 1);
 
-        // add a user buf in the way
-        buffered.buffer(Cursor::new(b"it's ".to_vec()));
-        // and then add more hyper bytes
-        buffered.write_buf_mut().extend(b"hyper!");
-        buffered.flush().unwrap();
-        assert_eq!(buffered.write_buf.buf.bufs.len(), 1);
+            // add a user buf in the way
+            buffered.buffer(Cursor::new(b"it's ".to_vec()));
+            // and then add more hyper bytes
+            buffered.write_buf_mut().extend(b"hyper!");
+            buffered.flush(cx).unwrap();
+            assert_eq!(buffered.write_buf.buf.bufs.len(), 1);
 
-        assert_eq!(buffered.io, b"hello world, it's hyper!");
+            assert_eq!(buffered.io, b"hello world, it's hyper!");
+
+            Ok::<_, ()>(())
+        })).unwrap()
     }
 
     #[test]
@@ -666,21 +689,25 @@ mod tests {
         extern crate pretty_env_logger;
         let _ = pretty_env_logger::try_init();
 
-        let mock = AsyncIo::new_buf(vec![], 1024);
-        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
-        buffered.write_buf.set_strategy(Strategy::Flatten);
+        block_on(future::lazy(|cx| {
+            let mock = AsyncIo::new_buf(vec![], 1024);
+            let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
+            buffered.write_buf.set_strategy(Strategy::Flatten);
 
-        buffered.write_buf_mut().extend(b"hello ");
-        buffered.buffer(Cursor::new(b"world, ".to_vec()));
-        buffered.write_buf_mut().extend(b"it's ");
-        buffered.buffer(Cursor::new(b"hyper!".to_vec()));
-        assert_eq!(buffered.write_buf.buf.bufs.len(), 1);
+            buffered.write_buf_mut().extend(b"hello ");
+            buffered.buffer(Cursor::new(b"world, ".to_vec()));
+            buffered.write_buf_mut().extend(b"it's ");
+            buffered.buffer(Cursor::new(b"hyper!".to_vec()));
+            assert_eq!(buffered.write_buf.buf.bufs.len(), 1);
 
-        buffered.flush().unwrap();
+            buffered.flush(cx).unwrap();
 
-        assert_eq!(buffered.io, b"hello world, it's hyper!");
-        assert_eq!(buffered.io.num_writes(), 1);
-        assert_eq!(buffered.write_buf.buf.bufs.len(), 1);
+            assert_eq!(buffered.io, b"hello world, it's hyper!");
+            assert_eq!(buffered.io.num_writes(), 1);
+            assert_eq!(buffered.write_buf.buf.bufs.len(), 1);
+
+            Ok::<_, ()>(())
+        })).unwrap()
     }
 
     #[test]
@@ -688,22 +715,26 @@ mod tests {
         extern crate pretty_env_logger;
         let _ = pretty_env_logger::try_init();
 
-        let mut mock = AsyncIo::new_buf(vec![], 1024);
-        mock.max_read_vecs(0); // disable vectored IO
-        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
+        block_on(future::lazy(|cx| {
+            let mut mock = AsyncIo::new_buf(vec![], 1024);
+            mock.max_read_vecs(0); // disable vectored IO
+            let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
 
-        // we have 4 buffers, but hope to detect that vectored IO isn't
-        // being used, and switch to flattening automatically,
-        // resulting in only 2 writes
-        buffered.write_buf_mut().extend(b"hello ");
-        buffered.buffer(Cursor::new(b"world, ".to_vec()));
-        buffered.write_buf_mut().extend(b"it's hyper!");
-        //buffered.buffer(Cursor::new(b"hyper!".to_vec()));
-        buffered.flush().unwrap();
+            // we have 4 buffers, but hope to detect that vectored IO isn't
+            // being used, and switch to flattening automatically,
+            // resulting in only 2 writes
+            buffered.write_buf_mut().extend(b"hello ");
+            buffered.buffer(Cursor::new(b"world, ".to_vec()));
+            buffered.write_buf_mut().extend(b"it's hyper!");
+            //buffered.buffer(Cursor::new(b"hyper!".to_vec()));
+            buffered.flush(cx).unwrap();
 
-        assert_eq!(buffered.io, b"hello world, it's hyper!");
-        assert_eq!(buffered.io.num_writes(), 2);
-        assert_eq!(buffered.write_buf.buf.bufs.len(), 1);
+            assert_eq!(buffered.io, b"hello world, it's hyper!");
+            assert_eq!(buffered.io.num_writes(), 2);
+            assert_eq!(buffered.write_buf.buf.bufs.len(), 1);
+
+            Ok::<_, ()>(())
+        })).unwrap()
     }
 
     #[test]
@@ -711,20 +742,24 @@ mod tests {
         extern crate pretty_env_logger;
         let _ = pretty_env_logger::try_init();
 
-        let mut mock = AsyncIo::new_buf(vec![], 1024);
-        mock.max_read_vecs(0); // disable vectored IO
-        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
-        buffered.write_buf.set_strategy(Strategy::Queue);
+        block_on(future::lazy(move |cx| {
+            let mut mock = AsyncIo::new_buf(vec![], 1024);
+            mock.max_read_vecs(0); // disable vectored IO
+            let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
+            buffered.write_buf.set_strategy(Strategy::Queue);
 
-        // we have 4 buffers, and vec IO disabled, but explicitly said
-        // don't try to auto detect (via setting strategy above)
-        buffered.write_buf_mut().extend(b"hello ");
-        buffered.buffer(Cursor::new(b"world, ".to_vec()));
-        buffered.write_buf_mut().extend(b"it's ");
-        buffered.buffer(Cursor::new(b"hyper!".to_vec()));
-        buffered.flush().unwrap();
+            // we have 4 buffers, and vec IO disabled, but explicitly said
+            // don't try to auto detect (via setting strategy above)
+            buffered.write_buf_mut().extend(b"hello ");
+            buffered.buffer(Cursor::new(b"world, ".to_vec()));
+            buffered.write_buf_mut().extend(b"it's ");
+            buffered.buffer(Cursor::new(b"hyper!".to_vec()));
+            buffered.flush(cx).unwrap();
 
-        assert_eq!(buffered.io, b"hello world, it's hyper!");
-        assert_eq!(buffered.io.num_writes(), 4);
+            assert_eq!(buffered.io, b"hello world, it's hyper!");
+            assert_eq!(buffered.io.num_writes(), 4);
+
+            Ok::<_, ()>(())
+        })).unwrap()
     }
 }

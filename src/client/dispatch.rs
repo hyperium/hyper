@@ -1,8 +1,7 @@
-use futures::{Async, Poll, Stream};
-use futures::sync::{mpsc, oneshot};
+use futures::{Async, Never, Poll, Stream};
+use futures::channel::{mpsc, oneshot};
+use futures::task;
 use want;
-
-use common::Never;
 
 //pub type Callback<T, U> = oneshot::Sender<Result<U, (::Error, Option<T>)>>;
 pub type RetryPromise<T, U> = oneshot::Receiver<Result<U, (::Error, Option<T>)>>;
@@ -33,15 +32,15 @@ pub struct Sender<T, U> {
 }
 
 impl<T, U> Sender<T, U> {
-    pub fn poll_ready(&mut self) -> Poll<(), ::Error> {
-        match self.inner.poll_ready() {
+    pub fn poll_ready(&mut self, cx: &mut task::Context) -> Poll<(), ::Error> {
+        match self.inner.poll_ready(cx) {
             Ok(Async::Ready(())) => {
                 // there's room in the queue, but does the Connection
                 // want a message yet?
-                self.giver.poll_want()
+                self.giver.poll_want(cx)
                     .map_err(|_| ::Error::Closed)
             },
-            Ok(Async::NotReady) => Ok(Async::NotReady),
+            Ok(Async::Pending) => Ok(Async::Pending),
             Err(_) => Err(::Error::Closed),
         }
     }
@@ -75,16 +74,15 @@ impl<T, U> Stream for Receiver<T, U> {
     type Item = (T, Callback<T, U>);
     type Error = Never;
 
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        match self.inner.poll() {
-            Ok(Async::Ready(item)) => Ok(Async::Ready(item.map(|mut env| {
+    fn poll_next(&mut self, cx: &mut task::Context) -> Poll<Option<Self::Item>, Self::Error> {
+        match self.inner.poll_next(cx)? {
+            Async::Ready(item) => Ok(Async::Ready(item.map(|mut env| {
                 env.0.take().expect("envelope not dropped")
             }))),
-            Ok(Async::NotReady) => {
+            Async::Pending => {
                 self.taker.want();
-                Ok(Async::NotReady)
+                Ok(Async::Pending)
             }
-            Err(()) => unreachable!("mpsc never errors"),
         }
     }
 }
@@ -107,11 +105,11 @@ impl<T, U> Drop for Receiver<T, U> {
         // This poll() is safe to call in `Drop`, because we've
         // called, `close`, which promises that no new messages
         // will arrive, and thus, once we reach the end, we won't
-        // see a `NotReady` (and try to park), but a Ready(None).
+        // see a `Pending` (and try to park), but a Ready(None).
         //
         // All other variants:
         // - Ready(None): the end. we want to stop looping
-        // - NotReady: unreachable
+        // - Pending: unreachable
         // - Err: unreachable
         while let Ok(Async::Ready(Some((val, cb)))) = self.inner.poll() {
             let _ = cb.send(Err((::Error::new_canceled(None::<::Error>), Some(val))));
@@ -137,10 +135,10 @@ pub enum Callback<T, U> {
 }
 
 impl<T, U> Callback<T, U> {
-    pub fn poll_cancel(&mut self) -> Poll<(), ()> {
+    pub fn poll_cancel(&mut self, cx: &mut task::Context) -> Poll<(), Never> {
         match *self {
-            Callback::Retry(ref mut tx) => tx.poll_cancel(),
-            Callback::NoRetry(ref mut tx) => tx.poll_cancel(),
+            Callback::Retry(ref mut tx) => tx.poll_cancel(cx),
+            Callback::NoRetry(ref mut tx) => tx.poll_cancel(cx),
         }
     }
 
@@ -162,7 +160,8 @@ mod tests {
     #[cfg(feature = "nightly")]
     extern crate test;
 
-    use futures::{future, Future};
+    use futures::{future, FutureExt};
+    use futures::executor::block_on;
 
     #[cfg(feature = "nightly")]
     use futures::{Stream};
@@ -171,7 +170,7 @@ mod tests {
     fn drop_receiver_sends_cancel_errors() {
         let _ = pretty_env_logger::try_init();
 
-        future::lazy(|| {
+        block_on(future::lazy(|_| {
             #[derive(Debug)]
             struct Custom(i32);
             let (mut tx, rx) = super::channel::<Custom, ()>();
@@ -188,7 +187,7 @@ mod tests {
 
                 Ok::<(), ()>(())
             })
-        }).wait().unwrap();
+        })).unwrap();
     }
 
     #[cfg(feature = "nightly")]
@@ -197,18 +196,18 @@ mod tests {
         let (mut tx, mut rx) = super::channel::<i32, ()>();
 
         b.iter(move || {
-            ::futures::future::lazy(|| {
+            block_on(future::lazy(|cx| {
                 let _ = tx.send(1).unwrap();
                 loop {
-                    let async = rx.poll().unwrap();
-                    if async.is_not_ready() {
+                    let async = rx.poll_next(cx).unwrap();
+                    if async.is_pending() {
                         break;
                     }
                 }
 
 
                 Ok::<(), ()>(())
-            }).wait().unwrap();
+            })).unwrap();
         })
     }
 
@@ -218,11 +217,11 @@ mod tests {
         let (_tx, mut rx) = super::channel::<i32, ()>();
 
         b.iter(move || {
-            ::futures::future::lazy(|| {
-                assert!(rx.poll().unwrap().is_not_ready());
+            block_on(future::lazy(|cx| {
+                assert!(rx.poll_next(cx).unwrap().is_pending());
 
                 Ok::<(), ()>(())
-            }).wait().unwrap();
+            })).unwrap();
         })
     }
 

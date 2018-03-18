@@ -4,14 +4,13 @@ use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
 
-use futures::{Future, Async, Poll, Stream};
-use futures::sync::oneshot;
+use futures::{Future, Async, Never, Poll, Stream};
+use futures::channel::oneshot;
+use futures::task;
 use futures_timer::Interval;
 
-use super::Exec;
-
-pub struct Pool<T> {
-    inner: Arc<Mutex<PoolInner<T>>>,
+pub(super) struct Pool<T> {
+    inner: Arc<Mutex<PoolInner<T>>>
 }
 
 // Before using a pooled connection, make sure the sender is not dead.
@@ -48,7 +47,7 @@ struct PoolInner<T> {
 }
 
 impl<T> Pool<T> {
-    pub fn new(enabled: bool, timeout: Option<Duration>) -> Pool<T> {
+    pub(super) fn new(enabled: bool, timeout: Option<Duration>) -> Pool<T> {
         Pool {
             inner: Arc::new(Mutex::new(PoolInner {
                 enabled: enabled,
@@ -56,7 +55,7 @@ impl<T> Pool<T> {
                 parked: HashMap::new(),
                 timeout: timeout,
                 expired_timer_spawned: false,
-            })),
+            }))
         }
     }
 }
@@ -67,6 +66,7 @@ impl<T: Closed> Pool<T> {
             key: Arc::new(key.to_owned()),
             pool: self.clone(),
             parked: None,
+            spawned_expired_interval: false
         }
     }
 
@@ -221,38 +221,38 @@ impl<T: Closed> PoolInner<T> {
 
 
 impl<T: Closed + Send + 'static> Pool<T> {
-    pub(super) fn spawn_expired_interval(&self, exec: &Exec) {
+    fn spawn_expired_interval(&mut self, cx: &mut task::Context) -> Result<(), ::Error> {
         let dur = {
             let mut inner = self.inner.lock().unwrap();
 
             if !inner.enabled {
-                return;
+                return Ok(());
             }
 
             if inner.expired_timer_spawned {
-                return;
+                return Ok(());
             }
             inner.expired_timer_spawned = true;
 
             if let Some(dur) = inner.timeout {
                 dur
             } else {
-                return
+                return Ok(());
             }
         };
 
         let interval = Interval::new(dur);
-        exec.execute(IdleInterval {
+        super::execute(IdleInterval {
             interval: interval,
             pool: Arc::downgrade(&self.inner),
-        }).unwrap();
+        }, cx)
     }
 }
 
 impl<T> Clone for Pool<T> {
     fn clone(&self) -> Pool<T> {
         Pool {
-            inner: self.inner.clone(),
+            inner: self.inner.clone()
         }
     }
 }
@@ -322,22 +322,23 @@ pub struct Checkout<T> {
     key: Arc<String>,
     pool: Pool<T>,
     parked: Option<oneshot::Receiver<T>>,
+    spawned_expired_interval: bool
 }
 
 struct NotParked;
 
 impl<T: Closed> Checkout<T> {
-    fn poll_parked(&mut self) -> Poll<Pooled<T>, NotParked> {
+    fn poll_parked(&mut self, cx: &mut task::Context) -> Poll<Pooled<T>, NotParked> {
         let mut drop_parked = false;
         if let Some(ref mut rx) = self.parked {
-            match rx.poll() {
+            match rx.poll(cx) {
                 Ok(Async::Ready(value)) => {
                     if !value.is_closed() {
                         return Ok(Async::Ready(self.pool.reuse(&self.key, value)));
                     }
                     drop_parked = true;
                 },
-                Ok(Async::NotReady) => return Ok(Async::NotReady),
+                Ok(Async::Pending) => return Ok(Async::Pending),
                 Err(_canceled) => drop_parked = true,
             }
         }
@@ -347,22 +348,27 @@ impl<T: Closed> Checkout<T> {
         Err(NotParked)
     }
 
-    fn park(&mut self) {
+    fn park(&mut self, cx: &mut task::Context) {
         if self.parked.is_none() {
             let (tx, mut rx) = oneshot::channel();
-            let _ = rx.poll(); // park this task
+            let _ = rx.poll(cx); // park this task
             self.pool.park(self.key.clone(), tx);
             self.parked = Some(rx);
         }
     }
 }
 
-impl<T: Closed> Future for Checkout<T> {
+impl<T: Closed + Send + 'static> Future for Checkout<T> {
     type Item = Pooled<T>;
     type Error = ::Error;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match self.poll_parked() {
+    fn poll(&mut self, cx: &mut task::Context) -> Poll<Self::Item, Self::Error> {
+        if !self.spawned_expired_interval {
+            self.pool.spawn_expired_interval(cx)?;
+            self.spawned_expired_interval = true;
+        }
+
+        match self.poll_parked(cx) {
             Ok(async) => return Ok(async),
             Err(_not_parked) => (),
         }
@@ -372,8 +378,8 @@ impl<T: Closed> Future for Checkout<T> {
         if let Some(pooled) = entry {
             Ok(Async::Ready(pooled))
         } else {
-            self.park();
-            Ok(Async::NotReady)
+            self.park(cx);
+            Ok(Async::Pending)
         }
     }
 }
@@ -409,11 +415,11 @@ struct IdleInterval<T> {
 
 impl<T: Closed + 'static> Future for IdleInterval<T> {
     type Item = ();
-    type Error = ();
+    type Error = Never;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    fn poll(&mut self, cx: &mut task::Context) -> Poll<Self::Item, Self::Error> {
         loop {
-            try_ready!(self.interval.poll().map_err(|_| unreachable!("interval cannot error")));
+            try_ready!(self.interval.poll_next(cx).map_err(|_| unreachable!("interval cannot error")));
 
             if let Some(inner) = self.pool.upgrade() {
                 if let Ok(mut inner) = inner.lock() {
@@ -430,9 +436,10 @@ impl<T: Closed + 'static> Future for IdleInterval<T> {
 mod tests {
     use std::sync::Arc;
     use std::time::Duration;
-    use futures::{Async, Future};
+    use futures::{Async, Future, FutureExt};
     use futures::future;
-    use super::{Closed, Pool, Exec};
+    use futures::executor::block_on;
+    use super::{Closed, Pool};
 
     impl Closed for i32 {
         fn is_closed(&self) -> bool {
@@ -442,34 +449,37 @@ mod tests {
 
     #[test]
     fn test_pool_checkout_smoke() {
-        let pool = Pool::new(true, Some(Duration::from_secs(5)));
-        let key = Arc::new("foo".to_string());
-        let pooled = pool.pooled(key.clone(), 41);
+        block_on(future::lazy(|cx| {
+            let pool = Pool::new(true, Some(Duration::from_secs(5)));
+            let key = Arc::new("foo".to_string());
+            let pooled = pool.pooled(key.clone(), 41);
 
-        drop(pooled);
+            drop(pooled);
 
-        match pool.checkout(&key).poll().unwrap() {
-            Async::Ready(pooled) => assert_eq!(*pooled, 41),
-            _ => panic!("not ready"),
-        }
+            match pool.checkout(&key).poll(cx).unwrap() {
+                Async::Ready(pooled) => assert_eq!(*pooled, 41),
+                _ => panic!("not ready"),
+            }
+            Ok::<_, ()>(())
+        })).unwrap();
     }
 
     #[test]
     fn test_pool_checkout_returns_none_if_expired() {
-        future::lazy(|| {
+        block_on(future::lazy(|cx| {
             let pool = Pool::new(true, Some(Duration::from_millis(100)));
             let key = Arc::new("foo".to_string());
             let pooled = pool.pooled(key.clone(), 41);
             drop(pooled);
             ::std::thread::sleep(pool.inner.lock().unwrap().timeout.unwrap());
-            assert!(pool.checkout(&key).poll().unwrap().is_not_ready());
-            ::futures::future::ok::<(), ()>(())
-        }).wait().unwrap();
+            assert!(pool.checkout(&key).poll(cx).unwrap().is_pending());
+            Ok::<_, ()>(())
+        })).unwrap();
     }
 
     #[test]
     fn test_pool_checkout_removes_expired() {
-        future::lazy(|| {
+        block_on(future::lazy(|cx| {
             let pool = Pool::new(true, Some(Duration::from_millis(100)));
             let key = Arc::new("foo".to_string());
 
@@ -481,20 +491,20 @@ mod tests {
             ::std::thread::sleep(pool.inner.lock().unwrap().timeout.unwrap());
 
             // checkout.poll() should clean out the expired
-            pool.checkout(&key).poll().unwrap();
+            pool.checkout(&key).poll(cx).unwrap();
             assert!(pool.inner.lock().unwrap().idle.get(&key).is_none());
 
-            Ok::<(), ()>(())
-        }).wait().unwrap();
+            Ok::<_, ()>(())
+        })).unwrap();
     }
 
     #[test]
     fn test_pool_timer_removes_expired() {
-        let runtime = ::tokio::runtime::Runtime::new().unwrap();
-        let pool = Pool::new(true, Some(Duration::from_millis(100)));
+        let mut pool = Pool::new(true, Some(Duration::from_millis(100)));
 
-        let executor = runtime.executor();
-        pool.spawn_expired_interval(&Exec::new(executor));
+        block_on(future::lazy(|cx| {
+            pool.spawn_expired_interval(cx)
+        })).unwrap();
         let key = Arc::new("foo".to_string());
 
         pool.pooled(key.clone(), 41);
@@ -503,9 +513,9 @@ mod tests {
 
         assert_eq!(pool.inner.lock().unwrap().idle.get(&key).map(|entries| entries.len()), Some(3));
 
-        ::futures_timer::Delay::new(
+        block_on(::futures_timer::Delay::new(
             Duration::from_millis(400) // allow for too-good resolution
-        ).wait().unwrap();
+        )).unwrap();
 
         assert!(pool.inner.lock().unwrap().idle.get(&key).is_none());
     }
@@ -516,7 +526,7 @@ mod tests {
         let key = Arc::new("foo".to_string());
         let pooled = pool.pooled(key.clone(), 41);
 
-        let checkout = pool.checkout(&key).join(future::lazy(move || {
+        let checkout = pool.checkout(&key).join(future::lazy(move |_| {
             // the checkout future will park first,
             // and then this lazy future will be polled, which will insert
             // the pooled back into the pool
@@ -525,12 +535,12 @@ mod tests {
             drop(pooled);
             Ok(())
         })).map(|(entry, _)| entry);
-        assert_eq!(*checkout.wait().unwrap(), 41);
+        assert_eq!(*block_on(checkout).unwrap(), 41);
     }
 
     #[test]
     fn test_pool_checkout_drop_cleans_up_parked() {
-        future::lazy(|| {
+        block_on(future::lazy(|cx| {
             let pool = Pool::<i32>::new(true, Some(Duration::from_secs(10)));
             let key = Arc::new("localhost:12345".to_string());
 
@@ -538,9 +548,9 @@ mod tests {
             let mut checkout2 = pool.checkout(&key);
 
             // first poll needed to get into Pool's parked
-            checkout1.poll().unwrap();
+            checkout1.poll(cx).unwrap();
             assert_eq!(pool.inner.lock().unwrap().parked.get(&key).unwrap().len(), 1);
-            checkout2.poll().unwrap();
+            checkout2.poll(cx).unwrap();
             assert_eq!(pool.inner.lock().unwrap().parked.get(&key).unwrap().len(), 2);
 
             // on drop, clean up Pool
@@ -550,7 +560,7 @@ mod tests {
             drop(checkout2);
             assert!(pool.inner.lock().unwrap().parked.get(&key).is_none());
 
-            ::futures::future::ok::<(), ()>(())
-        }).wait().unwrap();
+            Ok::<_, ()>(())
+        })).unwrap();
     }
 }

@@ -11,8 +11,8 @@ use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::mpsc;
 
-use futures::{future, stream, Future, Stream};
-use futures::sync::oneshot;
+use futures::{future, stream, FutureExt, StreamExt};
+use futures::channel::oneshot;
 
 use hyper::{Body, Request, Response};
 use hyper::server::Service;
@@ -31,7 +31,7 @@ macro_rules! bench_server {
                 })).unwrap();
                 let addr = srv.local_addr().unwrap();
                 addr_tx.send(addr).unwrap();
-                tokio::run(srv.run_until(until_rx.map_err(|_| ())).map_err(|e| panic!("server error: {}", e)));
+                tokio::runtime::run2(srv.run_until(until_rx.map_err(|_| ())).map_err(|e| panic!("server error: {}", e)));
             });
 
             addr_rx.recv().unwrap()

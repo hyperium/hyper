@@ -3,8 +3,9 @@ use std::borrow::Cow;
 use std::fmt;
 
 use bytes::Bytes;
-use futures::{Async, Future, Poll, Stream};
-use futures::sync::{mpsc, oneshot};
+use futures::{Async, Future, Poll, Stream, StreamExt};
+use futures::task;
+use futures::channel::{mpsc, oneshot};
 use http::HeaderMap;
 
 use super::Chunk;
@@ -24,14 +25,14 @@ pub trait Entity {
     ///
     /// Similar to `Stream::poll_next`, this yields `Some(Data)` until
     /// the body ends, when it yields `None`.
-    fn poll_data(&mut self) -> Poll<Option<Self::Data>, Self::Error>;
+    fn poll_data(&mut self, cx: &mut task::Context) -> Poll<Option<Self::Data>, Self::Error>;
 
     /// Poll for an optional **single** `HeaderMap` of trailers.
     ///
     /// This should **only** be called after `poll_data` has ended.
     ///
     /// Note: Trailers aren't currently used for HTTP/1, only for HTTP/2.
-    fn poll_trailers(&mut self) -> Poll<Option<HeaderMap>, Self::Error> {
+    fn poll_trailers(&mut self, _cx: &mut task::Context) -> Poll<Option<HeaderMap>, Self::Error> {
         Ok(Async::Ready(None))
     }
 
@@ -67,12 +68,12 @@ impl<E: Entity> Entity for Box<E> {
     type Data = E::Data;
     type Error = E::Error;
 
-    fn poll_data(&mut self) -> Poll<Option<Self::Data>, Self::Error> {
-        (**self).poll_data()
+    fn poll_data(&mut self, cx: &mut task::Context) -> Poll<Option<Self::Data>, Self::Error> {
+        (**self).poll_data(cx)
     }
 
-    fn poll_trailers(&mut self) -> Poll<Option<HeaderMap>, Self::Error> {
-        (**self).poll_trailers()
+    fn poll_trailers(&mut self, cx: &mut task::Context) -> Poll<Option<HeaderMap>, Self::Error> {
+        (**self).poll_trailers(cx)
     }
 
     fn is_end_stream(&self) -> bool {
@@ -96,10 +97,10 @@ impl<E: Entity> Stream for EntityStream<E> {
     type Item = E::Data;
     type Error = E::Error;
 
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+    fn poll_next(&mut self, cx: &mut task::Context) -> Poll<Option<Self::Item>, Self::Error> {
         loop {
             if self.is_data_eof {
-                return self.entity.poll_trailers()
+                return self.entity.poll_trailers(cx)
                     .map(|async| {
                         async.map(|_opt| {
                             // drop the trailers and return that Stream is done
@@ -108,7 +109,7 @@ impl<E: Entity> Stream for EntityStream<E> {
                     });
             }
 
-            let opt = try_ready!(self.entity.poll_data());
+            let opt = try_ready!(self.entity.poll_data(cx));
             if let Some(data) = opt {
                 return Ok(Async::Ready(Some(data)));
             } else {
@@ -211,14 +212,14 @@ impl Body {
     /// ```
     /// # extern crate futures;
     /// # extern crate hyper;
-    /// # use futures::{Future, Stream};
+    /// # use futures::{FutureExt, StreamExt};
     /// # use hyper::{Body, Request};
     /// # fn request_concat(some_req: Request<Body>) {
     /// let req: Request<Body> = some_req;
     /// let body = req.into_body();
     ///
     /// let stream = body.into_stream();
-    /// stream.concat2()
+    /// stream.concat()
     ///     .map(|buf| {
     ///         println!("body length: {}", buf.len());
     ///     });
@@ -267,15 +268,15 @@ impl Entity for Body {
     type Data = Chunk;
     type Error = ::Error;
 
-    fn poll_data(&mut self) -> Poll<Option<Self::Data>, Self::Error> {
+    fn poll_data(&mut self, cx: &mut task::Context) -> Poll<Option<Self::Data>, Self::Error> {
         match self.kind {
-            Kind::Chan { ref mut rx, .. } => match rx.poll().expect("mpsc cannot error") {
+            Kind::Chan { ref mut rx, .. } => match rx.poll_next(cx).expect("mpsc cannot error") {
                 Async::Ready(Some(Ok(chunk))) => Ok(Async::Ready(Some(chunk))),
                 Async::Ready(Some(Err(err))) => Err(err),
                 Async::Ready(None) => Ok(Async::Ready(None)),
-                Async::NotReady => Ok(Async::NotReady),
+                Async::Pending => Ok(Async::Pending),
             },
-            Kind::Wrapped(ref mut s) => s.poll(),
+            Kind::Wrapped(ref mut s) => s.poll_next(cx),
             Kind::Once(ref mut val) => Ok(Async::Ready(val.take())),
             Kind::Empty => Ok(Async::Ready(None)),
         }
@@ -310,13 +311,13 @@ impl fmt::Debug for Body {
 
 impl Sender {
     /// Check to see if this `Sender` can send more data.
-    pub fn poll_ready(&mut self) -> Poll<(), ()> {
-        match self.close_rx.poll() {
+    pub fn poll_ready(&mut self, cx: &mut task::Context) -> Poll<(), ()> {
+        match self.close_rx.poll(cx) {
             Ok(Async::Ready(())) | Err(_) => return Err(()),
-            Ok(Async::NotReady) => (),
+            Ok(Async::Pending) => (),
         }
 
-        self.tx.poll_ready().map_err(|_| ())
+        self.tx.poll_ready(cx).map_err(|_| ())
     }
 
     /// Sends data on this channel.
@@ -413,13 +414,11 @@ fn _assert_send_sync() {
 
 #[test]
 fn test_body_stream_concat() {
-    use futures::{Stream, Future};
+    use futures::{StreamExt};
 
     let body = Body::from("hello world");
 
-    let total = body.into_stream()
-        .concat2()
-        .wait()
+    let total = ::futures::executor::block_on(body.into_stream().concat())
         .unwrap();
     assert_eq!(total.as_ref(), b"hello world");
 

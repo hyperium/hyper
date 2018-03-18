@@ -12,7 +12,8 @@ use std::fmt;
 
 use bytes::Bytes;
 use futures::{Future, Poll};
-use tokio_io::{AsyncRead, AsyncWrite};
+use futures::task;
+use futures::io::{AsyncRead, AsyncWrite};
 
 use proto;
 use proto::body::{Body, Entity};
@@ -89,8 +90,8 @@ where S: Service<Request = Request<Body>, Response = Response<B>, Error = ::Erro
     /// upgrade. Once the upgrade is completed, the connection would be "done",
     /// but it is not desired to actally shutdown the IO object. Instead you
     /// would take it back using `into_parts`.
-    pub fn poll_without_shutdown(&mut self) -> Poll<(), ::Error> {
-        try_ready!(self.conn.poll_without_shutdown());
+    pub fn poll_without_shutdown(&mut self, cx: &mut task::Context) -> Poll<(), ::Error> {
+        try_ready!(self.conn.poll_without_shutdown(cx));
         Ok(().into())
     }
 }
@@ -103,8 +104,8 @@ where S: Service<Request = Request<Body>, Response = Response<B>, Error = ::Erro
     type Item = ();
     type Error = ::Error;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        self.conn.poll()
+    fn poll(&mut self, cx: &mut task::Context) -> Poll<Self::Item, Self::Error> {
+        self.conn.poll(cx)
     }
 }
 
