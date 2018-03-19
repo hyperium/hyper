@@ -214,6 +214,7 @@ impl Server<()> {
                 match head.subject {
                     // TODO: support for 1xx codes needs improvement everywhere
                     // would be 100...199 => false
+                    StatusCode::SwitchingProtocols |
                     StatusCode::NoContent |
                     StatusCode::NotModified => false,
                     _ => true,
