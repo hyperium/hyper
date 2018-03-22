@@ -1,3 +1,20 @@
+### v0.11.23 (2018-03-22)
+
+
+#### Bug Fixes
+
+* **server:** prevent to output Transfer-encoding when server upgrade (#1465) ([eb105679](https://github.com/hyperium/hyper/commit/eb105679271a6e0ccc09f37978314a1a8d686217))
+
+
+#### Features
+
+* **client:** introduce lower-level Connection API ([1207c2b6](https://github.com/hyperium/hyper/commit/1207c2b62456fc729c3a29c56c3966b319b474a9), closes [#1449](https://github.com/hyperium/hyper/issues/1449))
+* **header:** add `text()` and `text_utf8()` constructors to `ContentType` ([45cf8c57](https://github.com/hyperium/hyper/commit/45cf8c57c932a2756365748dc1e598ad3ee4b8ef))
+* **server:**
+  * add `service` property to `server::conn::Parts` ([bf7c0bbf](https://github.com/hyperium/hyper/commit/bf7c0bbf4f55fdf465407874b0b2d4bd748e6783), closes [#1471](https://github.com/hyperium/hyper/issues/1471))
+  * add upgrade support to lower-level Connection API (#1459) ([d58aa732](https://github.com/hyperium/hyper/commit/d58aa73246112f69410cc3fe912622f284427067), closes [#1323](https://github.com/hyperium/hyper/issues/1323))
+
+
 ### v0.11.22 (2018-03-07)
 
 
