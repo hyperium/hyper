@@ -269,7 +269,7 @@ where
 {
     /// Return the inner IO object, and additional information.
     pub fn into_parts(self) -> Parts<T> {
-        let (io, read_buf) = self.inner.into_inner();
+        let (io, read_buf, _) = self.inner.into_inner();
         Parts {
             io: io,
             read_buf: read_buf,
