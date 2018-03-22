@@ -354,7 +354,7 @@ where
     ///
     /// Only works for HTTP/1 connections. HTTP/2 connections will panic.
     pub fn into_parts(self) -> Parts<T> {
-        let (io, read_buf) = match self.inner {
+        let (io, read_buf, _) = match self.inner {
             Either::A(h1) => h1.into_inner(),
             Either::B(_h2) => {
                 panic!("http2 cannot into_inner");

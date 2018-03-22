@@ -27,7 +27,7 @@ pub(crate) trait Dispatch {
 
 pub struct Server<S: Service> {
     in_flight: Option<S::Future>,
-    service: S,
+    pub(crate) service: S,
 }
 
 pub struct Client<B> {
@@ -58,8 +58,9 @@ where
         self.conn.disable_keep_alive()
     }
 
-    pub fn into_inner(self) -> (I, Bytes) {
-        self.conn.into_inner()
+    pub fn into_inner(self) -> (I, Bytes, D) {
+        let (io, buf) = self.conn.into_inner();
+        (io, buf, self.dispatch)
     }
 
     /// The "Future" poll function. Runs this dispatcher until the
