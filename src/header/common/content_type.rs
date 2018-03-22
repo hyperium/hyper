@@ -66,9 +66,23 @@ impl ContentType {
         ContentType(mime::APPLICATION_JSON)
     }
 
+    // Kind of deprecated, `text()` and `text_utf8()` are better.
+    // But don't bother with an actual #[deprecated], because the whole
+    // header system is changing in 0.12 anyways.
+    #[doc(hidden)]
+    pub fn plaintext() -> ContentType {
+        ContentType(mime::TEXT_PLAIN_UTF_8)
+    }
+
+    /// A constructor  to easily create a `Content-Type: text/plain` header.
+    #[inline]
+    pub fn text() -> ContentType {
+        ContentType(mime::TEXT_PLAIN_UTF_8)
+    }
+
     /// A constructor  to easily create a `Content-Type: text/plain; charset=utf-8` header.
     #[inline]
-    pub fn plaintext() -> ContentType {
+    pub fn text_utf8() -> ContentType {
         ContentType(mime::TEXT_PLAIN_UTF_8)
     }
 
