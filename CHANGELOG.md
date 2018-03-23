@@ -1,3 +1,11 @@
+### v0.11.24 (2018-03-22)
+
+
+#### Bug Fixes
+
+* **header:** remove charset=utf8 from `ContentType::text()` ([ba789e65](https://github.com/hyperium/hyper/commit/ba789e6552eb74afb98f4d462d5c06c6643535d3))
+
+
 ### v0.11.23 (2018-03-22)
 
 
