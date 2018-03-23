@@ -77,7 +77,7 @@ impl ContentType {
     /// A constructor  to easily create a `Content-Type: text/plain` header.
     #[inline]
     pub fn text() -> ContentType {
-        ContentType(mime::TEXT_PLAIN_UTF_8)
+        ContentType(mime::TEXT_PLAIN)
     }
 
     /// A constructor  to easily create a `Content-Type: text/plain; charset=utf-8` header.
