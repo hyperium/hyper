@@ -18,7 +18,6 @@
 
 extern crate bytes;
 #[macro_use] extern crate futures;
-extern crate futures_cpupool;
 extern crate futures_timer;
 extern crate http;
 extern crate httparse;
@@ -28,8 +27,6 @@ extern crate net2;
 extern crate time;
 extern crate tokio;
 extern crate tokio_executor;
-#[macro_use] extern crate tokio_io;
-extern crate tokio_service;
 extern crate want;
 
 #[cfg(all(test, feature = "nightly"))]
@@ -49,7 +46,8 @@ pub use error::{Result, Error};
 pub use proto::{body, Body, Chunk};
 pub use server::Server;
 
-mod common;
+mod executor;
+mod service;
 #[cfg(test)]
 mod mock;
 pub mod client;

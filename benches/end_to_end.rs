@@ -8,7 +8,8 @@ extern crate tokio;
 
 use std::net::SocketAddr;
 
-use futures::{Future, Stream};
+use futures::{FutureExt, StreamExt};
+use futures::executor::block_on;
 use tokio::runtime::Runtime;
 use tokio::net::TcpListener;
 
@@ -22,19 +23,20 @@ fn get_one_at_a_time(b: &mut test::Bencher) {
     let addr = spawn_hello(&mut rt);
 
     let client = hyper::Client::configure()
-        .build_with_executor(&rt.handle(), rt.executor());
+        .build(&rt.handle());
 
     let url: hyper::Uri = format!("http://{}/get", addr).parse().unwrap();
 
     b.bytes = 160 * 2 + PHRASE.len() as u64;
     b.iter(move || {
-        client.get(url.clone())
+        block_on(client.get(url.clone())
+            .with_executor(rt.executor())
             .and_then(|res| {
                 res.into_body().into_stream().for_each(|_chunk| {
                     Ok(())
-                })
+                }).map(|_| ())
             })
-            .wait().expect("client wait");
+        ).expect("client wait");
     });
 }
 
@@ -44,7 +46,7 @@ fn post_one_at_a_time(b: &mut test::Bencher) {
     let addr = spawn_hello(&mut rt);
 
     let client = hyper::Client::configure()
-        .build_with_executor(&rt.handle(), rt.executor());
+        .build(&rt.handle());
 
     let url: hyper::Uri = format!("http://{}/post", addr).parse().unwrap();
 
@@ -54,11 +56,14 @@ fn post_one_at_a_time(b: &mut test::Bencher) {
         let mut req = Request::new(post.into());
         *req.method_mut() = Method::POST;
         *req.uri_mut() = url.clone();
-        client.request(req).and_then(|res| {
-            res.into_body().into_stream().for_each(|_chunk| {
-                Ok(())
+        block_on(client.request(req)
+            .with_executor(rt.executor())
+            .and_then(|res| {
+                res.into_body().into_stream().for_each(|_chunk| {
+                    Ok(())
+                }).map(|_| ())
             })
-        }).wait().expect("client wait");
+        ).expect("client wait");
 
     });
 }
@@ -76,21 +81,22 @@ fn spawn_hello(rt: &mut Runtime) -> SocketAddr {
     let service = const_service(service_fn(|req: Request<Body>| {
         req.into_body()
             .into_stream()
-            .concat2()
+            .concat()
             .map(|_| {
                 Response::new(Body::from(PHRASE))
             })
     }));
 
     let srv = listener.incoming()
-        .into_future()
+        .next()
         .map_err(|(e, _inc)| panic!("accept error: {}", e))
         .and_then(move |(accepted, _inc)| {
             let socket = accepted.expect("accepted socket");
             http.serve_connection(socket, service.new_service().expect("new_service"))
                 .map(|_| ())
                 .map_err(|_| ())
-        });
-    rt.spawn(srv);
+        })
+        .map_err(|_| panic!("server error"));
+    rt.spawn2(srv);
     return addr
 }

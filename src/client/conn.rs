@@ -11,9 +11,10 @@ use std::fmt;
 use std::marker::PhantomData;
 
 use bytes::Bytes;
-use futures::{Async, Future, Poll};
+use futures::{Async, Future, FutureExt, Poll};
 use futures::future::{self, Either};
-use tokio_io::{AsyncRead, AsyncWrite};
+use futures::task;
+use futures::io::{AsyncRead, AsyncWrite};
 
 use proto;
 use proto::body::Entity;
@@ -123,8 +124,8 @@ impl<B> SendRequest<B>
     /// Polls to determine whether this sender can be used yet for a request.
     ///
     /// If the associated connection is closed, this returns an Error.
-    pub fn poll_ready(&mut self) -> Poll<(), ::Error> {
-        self.dispatch.poll_ready()
+    pub fn poll_ready(&mut self, cx: &mut task::Context) -> Poll<(), ::Error> {
+        self.dispatch.poll_ready(cx)
     }
 
     pub(super) fn is_closed(&self) -> bool {
@@ -162,7 +163,7 @@ where
     /// # use http::header::HOST;
     /// # use hyper::client::conn::SendRequest;
     /// # use hyper::Body;
-    /// use futures::Future;
+    /// use futures::FutureExt;
     /// use hyper::Request;
     ///
     /// # fn doc(mut tx: SendRequest<Body>) {
@@ -186,19 +187,19 @@ where
     pub fn send_request(&mut self, req: Request<B>) -> ResponseFuture {
         let inner = match self.dispatch.send(req) {
             Ok(rx) => {
-                Either::A(rx.then(move |res| {
+                rx.then(move |res| {
                     match res {
                         Ok(Ok(res)) => Ok(res),
                         Ok(Err(err)) => Err(err),
                         // this is definite bug if it happens, but it shouldn't happen!
                         Err(_) => panic!("dispatch dropped without returning error"),
                     }
-                }))
+                }).left()
             },
             Err(_req) => {
                 debug!("connection was not ready");
                 let err = ::Error::new_canceled(Some("connection was not ready"));
-                Either::B(future::err(err))
+                future::err(err).right()
             }
         };
 
@@ -214,7 +215,7 @@ where
     {
         let inner = match self.dispatch.try_send(req) {
             Ok(rx) => {
-                Either::A(rx.then(move |res| {
+                Either::Left(rx.then(move |res| {
                     match res {
                         Ok(Ok(res)) => Ok(res),
                         Ok(Err(err)) => Err(err),
@@ -226,7 +227,7 @@ where
             Err(req) => {
                 debug!("connection was not ready");
                 let err = ::Error::new_canceled(Some("connection was not ready"));
-                Either::B(future::err((err, Some(req))))
+                Either::Right(future::err((err, Some(req))))
             }
         };
         Box::new(inner)
@@ -277,8 +278,8 @@ where
     /// upgrade. Once the upgrade is completed, the connection would be "done",
     /// but it is not desired to actally shutdown the IO object. Instead you
     /// would take it back using `into_parts`.
-    pub fn poll_without_shutdown(&mut self) -> Poll<(), ::Error> {
-        self.inner.poll_without_shutdown()
+    pub fn poll_without_shutdown(&mut self, cx: &mut task::Context) -> Poll<(), ::Error> {
+        self.inner.poll_without_shutdown(cx)
     }
 }
 
@@ -290,8 +291,8 @@ where
     type Item = ();
     type Error = ::Error;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        self.inner.poll()
+    fn poll(&mut self, cx: &mut task::Context) -> Poll<Self::Item, Self::Error> {
+        self.inner.poll(cx)
     }
 }
 
@@ -363,8 +364,8 @@ where
     type Item = (SendRequest<B>, Connection<T, B>);
     type Error = ::Error;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        self.inner.poll()
+    fn poll(&mut self, cx: &mut task::Context) -> Poll<Self::Item, Self::Error> {
+        self.inner.poll(cx)
             .map(|async| {
                 async.map(|(tx, dispatch)| {
                     (tx, Connection { inner: dispatch })
@@ -394,8 +395,8 @@ where
     >);
     type Error = ::Error;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        self.inner.poll()
+    fn poll(&mut self, cx: &mut task::Context) -> Poll<Self::Item, Self::Error> {
+        self.inner.poll(cx)
     }
 }
 
@@ -417,7 +418,7 @@ where
     >);
     type Error = ::Error;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    fn poll(&mut self, _cx: &mut task::Context) -> Poll<Self::Item, Self::Error> {
         let io = self.io.take().expect("polled more than once");
         let (tx, rx) = dispatch::channel();
         let mut conn = proto::Conn::new(io);
@@ -441,8 +442,8 @@ impl Future for ResponseFuture {
     type Error = ::Error;
 
     #[inline]
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        self.inner.poll()
+    fn poll(&mut self, cx: &mut task::Context) -> Poll<Self::Item, Self::Error> {
+        self.inner.poll(cx)
     }
 }
 

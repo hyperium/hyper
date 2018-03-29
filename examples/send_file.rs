@@ -4,9 +4,9 @@ extern crate hyper;
 extern crate pretty_env_logger;
 extern crate tokio;
 
-use futures::{Future/*, Sink*/};
+use futures::{Future, FutureExt};
 use futures::future::lazy;
-use futures::sync::oneshot;
+use futures::channel::oneshot;
 
 use hyper::{Body, /*Chunk,*/ Method, Request, Response, StatusCode};
 use hyper::error::Error;
@@ -141,9 +141,9 @@ fn main() {
     pretty_env_logger::init();
     let addr = "127.0.0.1:1337".parse().unwrap();
 
-    tokio::run(lazy(move || {
+    tokio::runtime::run2(lazy(move |_| {
         let server = Http::new().bind(&addr, || Ok(ResponseExamples)).unwrap();
-        println!("Listening on http://{} with 1 thread.", server.local_addr().unwrap());
-        server.run().map_err(|err| eprintln!("Server error {}", err))
+        println!("Listening on http://{}", server.local_addr().unwrap());
+        server.run().map_err(|err| panic!("Server error {}", err))
     }));
 }

@@ -129,7 +129,7 @@ fn eq_ascii(left: &str, right: &str) -> bool {
     // compiler says this trait is unused.
     //
     // Once our minimum Rust compiler version is >=1.23, this can be removed.
-    #[allow(unused)]
+    #[allow(unused, deprecated)]
     use std::ascii::AsciiExt;
 
     left.eq_ignore_ascii_case(right)
