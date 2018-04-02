@@ -38,12 +38,9 @@ struct PoolInner<T> {
     // connection.
     parked: HashMap<Arc<String>, VecDeque<oneshot::Sender<T>>>,
     timeout: Option<Duration>,
-    // Used to prevent multiple intervals from being spawned to clear
-    // expired connections.
-    //
-    // TODO(0.12): Remove the need for this when Client::schedule_pool_timer
-    // can be done in Client::new.
-    expired_timer_spawned: bool,
+    // A oneshot channel is used to allow the interval to be notified when
+    // the Pool completely drops. That way, the interval can cancel immediately.
+    idle_interval_ref: Option<oneshot::Sender<Never>>,
 }
 
 impl<T> Pool<T> {
@@ -52,9 +49,9 @@ impl<T> Pool<T> {
             inner: Arc::new(Mutex::new(PoolInner {
                 enabled: enabled,
                 idle: HashMap::new(),
+                idle_interval_ref: None,
                 parked: HashMap::new(),
                 timeout: timeout,
-                expired_timer_spawned: false,
             }))
         }
     }
@@ -222,20 +219,21 @@ impl<T: Closed> PoolInner<T> {
 
 impl<T: Closed + Send + 'static> Pool<T> {
     fn spawn_expired_interval(&mut self, cx: &mut task::Context) -> Result<(), ::Error> {
-        let dur = {
+        let (dur, rx) = {
             let mut inner = self.inner.lock().unwrap();
 
             if !inner.enabled {
                 return Ok(());
             }
 
-            if inner.expired_timer_spawned {
+            if inner.idle_interval_ref.is_some() {
                 return Ok(());
             }
-            inner.expired_timer_spawned = true;
 
             if let Some(dur) = inner.timeout {
-                dur
+                let (tx, rx) = oneshot::channel();
+                inner.idle_interval_ref = Some(tx);
+                (dur, rx)
             } else {
                 return Ok(());
             }
@@ -245,6 +243,7 @@ impl<T: Closed + Send + 'static> Pool<T> {
         super::execute(IdleInterval {
             interval: interval,
             pool: Arc::downgrade(&self.inner),
+            pool_drop_notifier: rx,
         }, cx)
     }
 }
@@ -411,6 +410,10 @@ impl Expiration {
 struct IdleInterval<T> {
     interval: Interval,
     pool: Weak<Mutex<PoolInner<T>>>,
+    // This allows the IdleInterval to be notified as soon as the entire
+    // Pool is fully dropped, and shutdown. This channel is never sent on,
+    // but Err(Canceled) will be received when the Pool is dropped.
+    pool_drop_notifier: oneshot::Receiver<Never>,
 }
 
 impl<T: Closed + 'static> Future for IdleInterval<T> {
@@ -419,6 +422,15 @@ impl<T: Closed + 'static> Future for IdleInterval<T> {
 
     fn poll(&mut self, cx: &mut task::Context) -> Poll<Self::Item, Self::Error> {
         loop {
+            match self.pool_drop_notifier.poll(cx) {
+                Ok(Async::Ready(n)) => match n {},
+                Ok(Async::Pending) => (),
+                Err(_canceled) => {
+                    trace!("pool closed, canceling idle interval");
+                    return Ok(Async::Ready(()));
+                }
+            }
+
             try_ready!(self.interval.poll_next(cx).map_err(|_| unreachable!("interval cannot error")));
 
             if let Some(inner) = self.pool.upgrade() {
