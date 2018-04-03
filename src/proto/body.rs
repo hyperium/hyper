@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use std::fmt;
 
 use bytes::Bytes;
-use futures::{Async, Future, Poll, Stream, StreamExt};
+use futures::{Async, Future, Never, Poll, Stream, StreamExt};
 use futures::task;
 use futures::channel::{mpsc, oneshot};
 use http::HeaderMap;
@@ -125,6 +125,15 @@ impl<E: Entity> Stream for EntityStream<E> {
 #[must_use = "streams do nothing unless polled"]
 pub struct Body {
     kind: Kind,
+    /// Allow the client to pass a future to delay the `Body` from returning
+    /// EOF. This allows the `Client` to try to put the idle connection
+    /// back into the pool before the body is "finished".
+    ///
+    /// The reason for this is so that creating a new request after finishing
+    /// streaming the body of a response could sometimes result in creating
+    /// a brand new connection, since the pool didn't know about the idle
+    /// connection yet.
+    delayed_eof: Option<DelayEof>,
 }
 
 enum Kind {
@@ -135,6 +144,17 @@ enum Kind {
     Wrapped(Box<Stream<Item=Chunk, Error=::Error> + Send>),
     Once(Option<Chunk>),
     Empty,
+}
+
+type DelayEofUntil = oneshot::Receiver<Never>;
+
+enum DelayEof {
+    /// Initial state, stream hasn't seen EOF yet.
+    NotEof(DelayEofUntil),
+    /// Transitions to this state once we've seen `poll` try to
+    /// return EOF (`None`). This future is then polled, and
+    /// when it completes, the Body finally returns EOF (`None`).
+    Eof(DelayEofUntil),
 }
 
 /// A sender half used with `Body::channel()`.
@@ -253,6 +273,63 @@ impl Body {
     fn new(kind: Kind) -> Body {
         Body {
             kind: kind,
+            delayed_eof: None,
+        }
+    }
+
+    pub(crate) fn delayed_eof(&mut self, fut: DelayEofUntil) {
+        self.delayed_eof = Some(DelayEof::NotEof(fut));
+    }
+
+    fn poll_eof(&mut self, cx: &mut task::Context) -> Poll<Option<Chunk>, ::Error> {
+        match self.delayed_eof.take() {
+            Some(DelayEof::NotEof(mut delay)) => {
+                match self.poll_inner(cx) {
+                    ok @ Ok(Async::Ready(Some(..))) |
+                    ok @ Ok(Async::Pending) => {
+                        self.delayed_eof = Some(DelayEof::NotEof(delay));
+                        ok
+                    },
+                    Ok(Async::Ready(None)) => match delay.poll(cx) {
+                        Ok(Async::Ready(never)) => match never {},
+                        Ok(Async::Pending) => {
+                            self.delayed_eof = Some(DelayEof::Eof(delay));
+                            Ok(Async::Pending)
+                        },
+                        Err(_done) => {
+                            Ok(Async::Ready(None))
+                        },
+                    },
+                    Err(e) => Err(e),
+                }
+            },
+            Some(DelayEof::Eof(mut delay)) => {
+                match delay.poll(cx) {
+                    Ok(Async::Ready(never)) => match never {},
+                    Ok(Async::Pending) => {
+                        self.delayed_eof = Some(DelayEof::Eof(delay));
+                        Ok(Async::Pending)
+                    },
+                    Err(_done) => {
+                        Ok(Async::Ready(None))
+                    },
+                }
+            },
+            None => self.poll_inner(cx),
+        }
+    }
+
+    fn poll_inner(&mut self, cx: &mut task::Context) -> Poll<Option<Chunk>, ::Error> {
+        match self.kind {
+            Kind::Chan { ref mut rx, .. } => match rx.poll_next(cx).expect("mpsc cannot error") {
+                Async::Ready(Some(Ok(chunk))) => Ok(Async::Ready(Some(chunk))),
+                Async::Ready(Some(Err(err))) => Err(err),
+                Async::Ready(None) => Ok(Async::Ready(None)),
+                Async::Pending => Ok(Async::Pending),
+            },
+            Kind::Wrapped(ref mut s) => s.poll_next(cx),
+            Kind::Once(ref mut val) => Ok(Async::Ready(val.take())),
+            Kind::Empty => Ok(Async::Ready(None)),
         }
     }
 }
@@ -269,17 +346,7 @@ impl Entity for Body {
     type Error = ::Error;
 
     fn poll_data(&mut self, cx: &mut task::Context) -> Poll<Option<Self::Data>, Self::Error> {
-        match self.kind {
-            Kind::Chan { ref mut rx, .. } => match rx.poll_next(cx).expect("mpsc cannot error") {
-                Async::Ready(Some(Ok(chunk))) => Ok(Async::Ready(Some(chunk))),
-                Async::Ready(Some(Err(err))) => Err(err),
-                Async::Ready(None) => Ok(Async::Ready(None)),
-                Async::Pending => Ok(Async::Pending),
-            },
-            Kind::Wrapped(ref mut s) => s.poll_next(cx),
-            Kind::Once(ref mut val) => Ok(Async::Ready(val.take())),
-            Kind::Empty => Ok(Async::Ready(None)),
-        }
+        self.poll_eof(cx)
     }
 
     fn is_end_stream(&self) -> bool {
@@ -300,6 +367,7 @@ impl Entity for Body {
             Kind::Empty => Some(0)
         }
     }
+    
 }
 
 impl fmt::Debug for Body {

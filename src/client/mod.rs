@@ -7,6 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures::{Async, Future, FutureExt, Never, Poll};
+use futures::channel::oneshot;
 use futures::future;
 use futures::task;
 use http::{Method, Request, Response, Uri, Version};
@@ -235,7 +236,7 @@ where C: Connect<Error=io::Error> + Sync + 'static,
                         ClientError::Normal(err)
                     }
                 })
-                .and_then(move |res| {
+                .and_then(move |mut res| {
                     future::lazy(move |cx| {
                         // when pooled is dropped, it will try to insert back into the
                         // pool. To delay that, spawn a future that completes once the
@@ -245,14 +246,24 @@ where C: Connect<Error=io::Error> + Sync + 'static,
                         // for a new request to start.
                         //
                         // It won't be ready if there is a body to stream.
-                        if let Ok(Async::Pending) = pooled.tx.poll_ready(cx) {
+                        if pooled.tx.is_ready() {
+                            drop(pooled);
+                        } else if !res.body().is_empty() {
+                            let (delayed_tx, delayed_rx) = oneshot::channel();
+                            res.body_mut().delayed_eof(delayed_rx);
                             // If the executor doesn't have room, oh well. Things will likely
                             // be blowing up soon, but this specific task isn't required.
-                            execute(future::poll_fn(move |cx| {
-                                pooled.tx.poll_ready(cx).or(Ok(Async::Ready(())))
-                            }), cx).ok();
+                            let fut = future::poll_fn(move |cx| {
+                                pooled.tx.poll_ready(cx)
+                            })
+                                .then(move |_| {
+                                    // At this point, `pooled` is dropped, and had a chance
+                                    // to insert into the pool (if conn was idle)
+                                    drop(delayed_tx);
+                                    Ok(())
+                                });
+                            execute(fut, cx).ok();
                         }
-
                         Ok(res)
                     })
                 });
