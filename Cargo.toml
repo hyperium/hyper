@@ -44,4 +44,4 @@ url = "1.0"
 nightly = []
 
 [replace]
-"futures:0.2.0-beta" = { git = "https://github.com/srijs/futures-rs.git", branch = "with-executor" }
+"futures:0.2.0-beta" = { git = "https://github.com/rust-lang-nursery/futures-rs.git" }
