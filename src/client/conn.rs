@@ -126,6 +126,10 @@ impl<B> SendRequest<B>
         self.dispatch.poll_ready()
     }
 
+    pub(super) fn is_ready(&self) -> bool {
+        self.dispatch.is_ready()
+    }
+
     pub(super) fn is_closed(&self) -> bool {
         self.dispatch.is_closed()
     }

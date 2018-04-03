@@ -741,9 +741,11 @@ mod dispatch_impl {
             client.get(uri).and_then(move |res| {
                 assert_eq!(res.status(), hyper::StatusCode::Ok);
                 res.body().concat2()
+                    /*
             }).and_then(|_| {
                 Timeout::new(Duration::from_secs(1), &handle).unwrap()
                     .from_err()
+                    */
             })
         };
         // client is dropped

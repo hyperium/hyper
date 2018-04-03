@@ -88,6 +88,10 @@ impl Giver {
         }
     }
 
+    pub fn is_wanting(&self) -> bool {
+        self.inner.state.load(Ordering::SeqCst) == STATE_WANT
+    }
+
     pub fn is_canceled(&self) -> bool {
         self.inner.state.load(Ordering::SeqCst) == STATE_CLOSED
     }

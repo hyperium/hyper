@@ -45,6 +45,10 @@ impl<T, U> Sender<T, U> {
         }
     }
 
+    pub fn is_ready(&self) -> bool {
+        self.giver.is_wanting()
+    }
+
     pub fn is_closed(&self) -> bool {
         self.giver.is_canceled()
     }

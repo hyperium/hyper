@@ -9,6 +9,7 @@ use std::time::Duration;
 
 use futures::{Async, Future, Poll, Stream};
 use futures::future::{self, Executor};
+use futures::sync::oneshot;
 #[cfg(feature = "compat")]
 use http;
 use tokio::reactor::Handle;
@@ -244,7 +245,7 @@ where C: Connect,
                         ClientError::Normal(err)
                     }
                 })
-                .map(move |res| {
+                .map(move |mut res| {
                     // when pooled is dropped, it will try to insert back into the
                     // pool. To delay that, spawn a future that completes once the
                     // sender is ready again.
@@ -253,11 +254,20 @@ where C: Connect,
                     // for a new request to start.
                     //
                     // It won't be ready if there is a body to stream.
-                    if let Ok(Async::NotReady) = pooled.tx.poll_ready() {
+                    if pooled.tx.is_ready() {
+                        drop(pooled);
+                    } else if let Some(body) = res.body_mut() {
+                        let (delayed_tx, delayed_rx) = oneshot::channel();
+                        body.delayed_eof(delayed_rx);
                         // If the executor doesn't have room, oh well. Things will likely
                         // be blowing up soon, but this specific task isn't required.
                         let _ = executor.execute(future::poll_fn(move || {
                             pooled.tx.poll_ready().map_err(|_| ())
+                        }).then(move |_| {
+                            // At this point, `pooled` is dropped, and had a chance
+                            // to insert into the pool (if conn was idle)
+                            drop(delayed_tx);
+                            Ok(())
                         }));
                     }
 

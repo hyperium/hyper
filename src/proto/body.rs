@@ -7,6 +7,7 @@ use futures::sync::{mpsc, oneshot};
 use tokio_proto;
 use std::borrow::Cow;
 
+use common::Never;
 use super::Chunk;
 
 #[cfg(feature = "tokio-proto")]
@@ -17,6 +18,15 @@ pub type BodySender = mpsc::Sender<Result<Chunk, ::Error>>;
 #[must_use = "streams do nothing unless polled"]
 pub struct Body {
     kind: Kind,
+    /// Allow the client to pass a future to delay the `Body` from returning
+    /// EOF. This allows the `Client` to try to put the idle connection
+    /// back into the pool before the body is "finished".
+    ///
+    /// The reason for this is so that creating a new request after finishing
+    /// streaming the body of a response could sometimes result in creating
+    /// a brand new connection, since the pool didn't know about the idle
+    /// connection yet.
+    delayed_eof: Option<DelayEof>,
 }
 
 #[derive(Debug)]
@@ -29,6 +39,17 @@ enum Kind {
     },
     Once(Option<Chunk>),
     Empty,
+}
+
+type DelayEofUntil = oneshot::Receiver<Never>;
+
+enum DelayEof {
+    /// Initial state, stream hasn't seen EOF yet.
+    NotEof(DelayEofUntil),
+    /// Transitions to this state once we've seen `poll` try to
+    /// return EOF (`None`). This future is then polled, and
+    /// when it completes, the Body finally returns EOF (`None`).
+    Eof(DelayEofUntil),
 }
 
 //pub(crate)
@@ -72,6 +93,49 @@ impl Body {
     fn new(kind: Kind) -> Body {
         Body {
             kind: kind,
+            delayed_eof: None,
+        }
+    }
+
+    pub(crate) fn delayed_eof(&mut self, fut: DelayEofUntil) {
+        self.delayed_eof = Some(DelayEof::NotEof(fut));
+    }
+
+    fn poll_eof(&mut self) -> Poll<Option<Chunk>, ::Error> {
+        match self.delayed_eof.take() {
+            Some(DelayEof::NotEof(mut delay)) => {
+                match self.poll_inner() {
+                    ok @ Ok(Async::Ready(Some(..))) |
+                    ok @ Ok(Async::NotReady) => {
+                        self.delayed_eof = Some(DelayEof::NotEof(delay));
+                        ok
+                    },
+                    Ok(Async::Ready(None)) => match delay.poll() {
+                        Ok(Async::Ready(never)) => match never {},
+                        Ok(Async::NotReady) => {
+                            self.delayed_eof = Some(DelayEof::Eof(delay));
+                            Ok(Async::NotReady)
+                        },
+                        Err(_done) => {
+                            Ok(Async::Ready(None))
+                        },
+                    },
+                    Err(e) => Err(e),
+                }
+            },
+            Some(DelayEof::Eof(mut delay)) => {
+                match delay.poll() {
+                    Ok(Async::Ready(never)) => match never {},
+                    Ok(Async::NotReady) => {
+                        self.delayed_eof = Some(DelayEof::Eof(delay));
+                        Ok(Async::NotReady)
+                    },
+                    Err(_done) => {
+                        Ok(Async::Ready(None))
+                    },
+                }
+            },
+            None => self.poll_inner(),
         }
     }
 
@@ -104,7 +168,7 @@ impl Stream for Body {
 
     #[inline]
     fn poll(&mut self) -> Poll<Option<Chunk>, ::Error> {
-        self.poll_inner()
+        self.poll_eof()
     }
 }
 
