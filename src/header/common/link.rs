@@ -1,7 +1,7 @@
 use std::fmt;
 use std::borrow::Cow;
 use std::str::FromStr;
-#[allow(unused)]
+#[allow(unused, deprecated)]
 use std::ascii::AsciiExt;
 
 use mime::Mime;

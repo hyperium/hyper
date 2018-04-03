@@ -1,5 +1,5 @@
 use std::fmt;
-#[allow(unused)]
+#[allow(unused, deprecated)]
 use std::ascii::AsciiExt;
 
 use header::{Header, Raw, parsing};
