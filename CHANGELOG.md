@@ -1,3 +1,11 @@
+### v0.11.25 (2018-04-04)
+
+
+#### Bug Fixes
+
+* **client:** ensure idle connection is pooled before response body finishes ([7fe9710a](https://github.com/hyperium/hyper/commit/7fe9710a98650efc37f35bb21b19926c015f0631))
+
+
 ### v0.11.24 (2018-03-22)
 
 
