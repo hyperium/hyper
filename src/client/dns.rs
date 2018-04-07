@@ -6,44 +6,27 @@ use std::net::{
 };
 use std::vec;
 
-use futures::{Async, Future, Poll};
-use futures::task;
-use futures::future::lazy;
-use futures::executor::Executor;
-use futures::channel::oneshot;
+use ::futures::{Async, Future, Poll};
 
-pub struct Resolving {
-    receiver: oneshot::Receiver<Result<IpAddrs, io::Error>>
+pub struct Work {
+    host: String,
+    port: u16
 }
 
-impl Resolving {
-    pub fn spawn(host: String, port: u16, executor: &mut Executor) -> Resolving {
-        let (sender, receiver) = oneshot::channel();
-        // The `Resolving` future will return an error when the sender is dropped,
-        // so we can just ignore the spawn error here
-        executor.spawn(Box::new(lazy(move |_| {
-            debug!("resolving host={:?}, port={:?}", host, port);
-            let result = (host.as_ref(), port).to_socket_addrs()
-                .map(|i| IpAddrs { iter: i });
-            sender.send(result).ok();
-            Ok(())
-        }))).ok();
-        Resolving { receiver }
+impl Work {
+    pub fn new(host: String, port: u16) -> Work {
+        Work { host: host, port: port }
     }
 }
 
-impl Future for Resolving {
+impl Future for Work {
     type Item = IpAddrs;
     type Error = io::Error;
 
-    fn poll(&mut self, cx: &mut task::Context) -> Poll<IpAddrs, io::Error> {
-        match self.receiver.poll(cx) {
-            Ok(Async::Pending) => Ok(Async::Pending),
-            Ok(Async::Ready(Ok(ips))) => Ok(Async::Ready(ips)),
-            Ok(Async::Ready(Err(err))) => Err(err),
-            Err(_) =>
-                Err(io::Error::new(io::ErrorKind::Other, "dns task was cancelled"))
-        }
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        debug!("resolving host={:?}, port={:?}", self.host, self.port);
+        (&*self.host, self.port).to_socket_addrs()
+            .map(|i| Async::Ready(IpAddrs { iter: i }))
     }
 }
 

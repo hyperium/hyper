@@ -4,8 +4,7 @@ extern crate hyper;
 extern crate pretty_env_logger;
 extern crate tokio;
 
-use futures::{Future, FutureExt, StreamExt};
-use futures::executor::spawn;
+use futures::{Future, Stream};
 use futures::future::lazy;
 use tokio::reactor::Handle;
 
@@ -79,15 +78,13 @@ fn main() {
     pretty_env_logger::init();
     let addr = "127.0.0.1:1337".parse().unwrap();
 
-    tokio::runtime::run2(lazy(move |_| {
+    tokio::run(lazy(move || {
         let handle = Handle::current();
         let serve = Http::new().serve_addr(&addr, move || Ok(ResponseExamples(handle.clone()))).unwrap();
-        println!("Listening on http://{}", serve.incoming_ref().local_addr());
+        println!("Listening on http://{} with 1 thread.", serve.incoming_ref().local_addr());
 
-        serve.map_err(|err| panic!("server error {:?}", err)).for_each(move |conn| {
-            spawn(conn.recover(|err| {
-                println!("connection error: {:?}", err);
-            }))
-        }).map(|_| ())
+        serve.map_err(|_| ()).for_each(move |conn| {
+            tokio::spawn(conn.map(|_| ()).map_err(|err| println!("serve error: {:?}", err)))
+        })
     }));
 }

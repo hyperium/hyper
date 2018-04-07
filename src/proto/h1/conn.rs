@@ -3,10 +3,10 @@ use std::io::{self};
 use std::marker::PhantomData;
 
 use bytes::Bytes;
-use futures::{Async, Poll};
-use futures::task;
-use futures::io::{AsyncRead, AsyncWrite};
+use futures::{Async, AsyncSink, Poll, StartSend};
+use futures::task::Task;
 use http::{Method, Version};
+use tokio_io::{AsyncRead, AsyncWrite};
 
 use proto::{BodyLength, Chunk, Decode, Http1Transaction, MessageHead};
 use super::io::{Cursor, Buffered};
@@ -113,14 +113,14 @@ where I: AsyncRead + AsyncWrite,
         T::should_error_on_parse_eof() && !self.state.is_idle()
     }
 
-    pub fn read_head(&mut self, cx: &mut task::Context) -> Poll<Option<(MessageHead<T::Incoming>, bool)>, ::Error> {
+    pub fn read_head(&mut self) -> Poll<Option<(MessageHead<T::Incoming>, bool)>, ::Error> {
         debug_assert!(self.can_read_head());
         trace!("Conn::read_head");
 
         loop {
-            let (version, head) = match self.io.parse::<T>(cx) {
+            let (version, head) = match self.io.parse::<T>() {
                 Ok(Async::Ready(head)) => (head.version, head),
-                Ok(Async::Pending) => return Ok(Async::Pending),
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Err(e) => {
                     // If we are currently waiting on a message, then an empty
                     // message should be reported as an error. If not, it is just
@@ -132,7 +132,7 @@ where I: AsyncRead + AsyncWrite,
                     return if was_mid_parse || must_error {
                         debug!("parse error ({}) with {} bytes", e, self.io.read_buf().len());
                         self.on_parse_error(e)
-                            .map(|()| Async::Pending)
+                            .map(|()| Async::NotReady)
                     } else {
                         debug!("read eof");
                         Ok(Async::Ready(None))
@@ -169,7 +169,7 @@ where I: AsyncRead + AsyncWrite,
                     debug!("decoder error = {:?}", e);
                     self.state.close_read();
                     return self.on_parse_error(e)
-                        .map(|()| Async::Pending);
+                        .map(|()| Async::NotReady);
                 }
             };
 
@@ -193,20 +193,20 @@ where I: AsyncRead + AsyncWrite,
                 self.state.reading = reading;
             }
             if !body {
-                self.try_keep_alive(cx);
+                self.try_keep_alive();
             }
             return Ok(Async::Ready(Some((head, body))));
         }
     }
 
-    pub fn read_body(&mut self, cx: &mut task::Context) -> Poll<Option<Chunk>, io::Error> {
+    pub fn read_body(&mut self) -> Poll<Option<Chunk>, io::Error> {
         debug_assert!(self.can_read_body());
 
         trace!("Conn::read_body");
 
         let (reading, ret) = match self.state.reading {
             Reading::Body(ref mut decoder) => {
-                match decoder.decode(&mut self.io, cx) {
+                match decoder.decode(&mut self.io) {
                     Ok(Async::Ready(slice)) => {
                         let (reading, chunk) = if !slice.is_empty() {
                             return Ok(Async::Ready(Some(Chunk::from(slice))));
@@ -222,7 +222,7 @@ where I: AsyncRead + AsyncWrite,
                         };
                         (reading, Ok(Async::Ready(chunk)))
                     },
-                    Ok(Async::Pending) => return Ok(Async::Pending),
+                    Ok(Async::NotReady) => return Ok(Async::NotReady),
                     Err(e) => {
                         trace!("decode stream error: {}", e);
                         (Reading::Closed, Err(e))
@@ -233,19 +233,19 @@ where I: AsyncRead + AsyncWrite,
         };
 
         self.state.reading = reading;
-        self.try_keep_alive(cx);
+        self.try_keep_alive();
         ret
     }
 
-    pub fn read_keep_alive(&mut self, cx: &mut task::Context) -> Result<(), ::Error> {
+    pub fn read_keep_alive(&mut self) -> Result<(), ::Error> {
         debug_assert!(!self.can_read_head() && !self.can_read_body());
 
         trace!("read_keep_alive; is_mid_message={}", self.is_mid_message());
 
         if self.is_mid_message() {
-            self.maybe_park_read(cx);
+            self.maybe_park_read();
         } else {
-            self.require_empty_read(cx)?;
+            self.require_empty_read()?;
         }
         Ok(())
     }
@@ -257,19 +257,18 @@ where I: AsyncRead + AsyncWrite,
         }
     }
 
-    fn maybe_park_read(&mut self, cx: &mut task::Context) {
+    fn maybe_park_read(&mut self) {
         if !self.io.is_read_blocked() {
             // the Io object is ready to read, which means it will never alert
             // us that it is ready until we drain it. However, we're currently
             // finished reading, so we need to park the task to be able to
             // wake back up later when more reading should happen.
-            let current_waker = cx.waker();
             let park = self.state.read_task.as_ref()
-                .map(|t| !t.will_wake(current_waker))
+                .map(|t| !t.will_notify_current())
                 .unwrap_or(true);
             if park {
                 trace!("parking current task");
-                self.state.read_task = Some(current_waker.clone());
+                self.state.read_task = Some(::futures::task::current());
             }
         }
     }
@@ -278,14 +277,14 @@ where I: AsyncRead + AsyncWrite,
     //
     // This should only be called for Clients wanting to enter the idle
     // state.
-    fn require_empty_read(&mut self, cx: &mut task::Context) -> io::Result<()> {
+    fn require_empty_read(&mut self) -> io::Result<()> {
         assert!(!self.can_read_head() && !self.can_read_body());
 
         if !self.io.read_buf().is_empty() {
             debug!("received an unexpected {} bytes", self.io.read_buf().len());
             Err(io::Error::new(io::ErrorKind::InvalidData, "unexpected bytes after message ended"))
         } else {
-            match self.try_io_read(cx)? {
+            match self.try_io_read()? {
                 Async::Ready(0) => {
                     // case handled in try_io_read
                     Ok(())
@@ -299,15 +298,15 @@ where I: AsyncRead + AsyncWrite,
                     };
                     Err(io::Error::new(io::ErrorKind::InvalidData, desc))
                 },
-                Async::Pending => {
+                Async::NotReady => {
                     Ok(())
                 },
             }
         }
     }
 
-    fn try_io_read(&mut self, cx: &mut task::Context) -> Poll<usize, io::Error> {
-         match self.io.read_from_io(cx) {
+    fn try_io_read(&mut self) -> Poll<usize, io::Error> {
+         match self.io.read_from_io() {
             Ok(Async::Ready(0)) => {
                 trace!("try_io_read; found EOF on connection: {:?}", self.state);
                 let must_error = self.should_error_on_eof();
@@ -329,8 +328,8 @@ where I: AsyncRead + AsyncWrite,
             Ok(Async::Ready(n)) => {
                 Ok(Async::Ready(n))
             },
-            Ok(Async::Pending) => {
-                Ok(Async::Pending)
+            Ok(Async::NotReady) => {
+                Ok(Async::NotReady)
             },
             Err(e) => {
                 self.state.close();
@@ -340,8 +339,8 @@ where I: AsyncRead + AsyncWrite,
     }
 
 
-    fn maybe_notify(&mut self, cx: &mut task::Context) {
-        // its possible that we returned Pending from poll() without having
+    fn maybe_notify(&mut self) {
+        // its possible that we returned NotReady from poll() without having
         // exhausted the underlying Io. We would have done this when we
         // determined we couldn't keep reading until we knew how writing
         // would finish.
@@ -367,9 +366,9 @@ where I: AsyncRead + AsyncWrite,
 
         if !self.io.is_read_blocked() {
             if wants_read && self.io.read_buf().is_empty() {
-                match self.io.read_from_io(cx) {
+                match self.io.read_from_io() {
                     Ok(Async::Ready(_)) => (),
-                    Ok(Async::Pending) => {
+                    Ok(Async::NotReady) => {
                         trace!("maybe_notify; read_from_io blocked");
                         return
                     },
@@ -381,16 +380,16 @@ where I: AsyncRead + AsyncWrite,
             }
             if let Some(ref task) = self.state.read_task {
                 trace!("maybe_notify; notifying task");
-                task.wake();
+                task.notify();
             } else {
                 trace!("maybe_notify; no task to notify");
             }
         }
     }
 
-    fn try_keep_alive(&mut self, cx: &mut task::Context) {
+    fn try_keep_alive(&mut self) {
         self.state.try_keep_alive();
-        self.maybe_notify(cx);
+        self.maybe_notify();
     }
 
     pub fn can_write_head(&self) -> bool {
@@ -476,15 +475,17 @@ where I: AsyncRead + AsyncWrite,
         }
     }
 
-    pub fn write_body(&mut self, _cx: &mut task::Context, chunk: Option<B>) -> Poll<(), io::Error> {
+    pub fn write_body(&mut self, chunk: Option<B>) -> StartSend<Option<B>, io::Error> {
         debug_assert!(self.can_write_body());
 
         if !self.can_buffer_body() {
-            // if chunk is Some(&[]), aka empty, whatever, just skip it
-            if chunk.as_ref().map(|c| c.as_ref().is_empty()).unwrap_or(true) {
-                return Ok(Async::Ready(()));
-            } else {
-                return Err(io::Error::new(io::ErrorKind::Other, "tried to write chunk when body can't buffer"));
+            if let Async::NotReady = self.flush()? {
+                // if chunk is Some(&[]), aka empty, whatever, just skip it
+                if chunk.as_ref().map(|c| c.as_ref().is_empty()).unwrap_or(false) {
+                    return Ok(AsyncSink::Ready);
+                } else {
+                    return Ok(AsyncSink::NotReady(chunk));
+                }
             }
         }
 
@@ -492,7 +493,7 @@ where I: AsyncRead + AsyncWrite,
             Writing::Body(ref mut encoder) => {
                 if let Some(chunk) = chunk {
                     if chunk.as_ref().is_empty() {
-                        return Ok(Async::Ready(()));
+                        return Ok(AsyncSink::Ready);
                     }
 
                     let encoded = encoder.encode(Cursor::new(chunk));
@@ -505,7 +506,7 @@ where I: AsyncRead + AsyncWrite,
                             Writing::KeepAlive
                         }
                     } else {
-                        return Ok(Async::Ready(()));
+                        return Ok(AsyncSink::Ready);
                     }
                 } else {
                     // end of stream, that means we should try to eof
@@ -528,7 +529,7 @@ where I: AsyncRead + AsyncWrite,
         };
 
         self.state.writing = state;
-        Ok(Async::Ready(()))
+        Ok(AsyncSink::Ready)
     }
 
     // When we get a parse error, depending on what side we are, we might be able
@@ -552,16 +553,16 @@ where I: AsyncRead + AsyncWrite,
         Err(err)
     }
 
-    pub fn flush(&mut self, cx: &mut task::Context) -> Poll<(), io::Error> {
-        try_ready!(self.io.flush(cx));
-        self.try_keep_alive(cx);
+    pub fn flush(&mut self) -> Poll<(), io::Error> {
+        try_ready!(self.io.flush());
+        self.try_keep_alive();
         trace!("flushed {:?}", self.state);
         Ok(Async::Ready(()))
     }
 
-    pub fn shutdown(&mut self, cx: &mut task::Context) -> Poll<(), io::Error> {
-        match self.io.io_mut().poll_close(cx) {
-            Ok(Async::Pending) => Ok(Async::Pending),
+    pub fn shutdown(&mut self) -> Poll<(), io::Error> {
+        match self.io.io_mut().shutdown() {
+            Ok(Async::NotReady) => Ok(Async::NotReady),
             Ok(Async::Ready(())) => {
                 trace!("shut down IO");
                 Ok(Async::Ready(()))
@@ -611,7 +612,7 @@ struct State {
     error: Option<::Error>,
     keep_alive: KA,
     method: Option<Method>,
-    read_task: Option<task::Waker>,
+    read_task: Option<Task>,
     reading: Reading,
     writing: Writing,
     version: Version,
@@ -963,7 +964,7 @@ mod tests {
             }
 
             match conn.poll() {
-                Ok(Async::Pending) => (),
+                Ok(Async::NotReady) => (),
                 other => panic!("unexpected frame: {:?}", other)
             }
             Ok(())

@@ -4,7 +4,7 @@ extern crate futures;
 extern crate pretty_env_logger;
 extern crate tokio;
 
-use futures::FutureExt;
+use futures::Future;
 use futures::future::lazy;
 
 use hyper::{Body, Response};
@@ -20,13 +20,13 @@ fn main() {
         Ok(Response::new(Body::from(PHRASE)))
     }));
 
-    tokio::runtime::run2(lazy(move |_| {
+    tokio::run(lazy(move || {
         let server = Http::new()
             .sleep_on_errors(true)
             .bind(&addr, new_service)
             .unwrap();
 
-        println!("Listening on http://{}", server.local_addr().unwrap());
-        server.run().map_err(|err| panic!("Server error {}", err))
+        println!("Listening on http://{} with 1 thread.", server.local_addr().unwrap());
+        server.run().map_err(|err| eprintln!("Server error {}", err))
     }));
 }

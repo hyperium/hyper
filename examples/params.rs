@@ -5,7 +5,7 @@ extern crate pretty_env_logger;
 extern crate tokio;
 extern crate url;
 
-use futures::{Future, FutureExt, StreamExt};
+use futures::{Future, Stream};
 use futures::future::lazy;
 
 use hyper::{Body, Method, Request, Response, StatusCode};
@@ -32,7 +32,7 @@ impl Service for ParamExample {
                 Box::new(futures::future::ok(Response::new(INDEX.into())))
             },
             (&Method::POST, "/post") => {
-                Box::new(req.into_parts().1.into_stream().concat().map(|b| {
+                Box::new(req.into_parts().1.into_stream().concat2().map(|b| {
                     // Parse the request body. form_urlencoded::parse
                     // always succeeds, but in general parsing may
                     // fail (for example, an invalid post of json), so
@@ -98,11 +98,9 @@ fn main() {
     pretty_env_logger::init();
     let addr = "127.0.0.1:1337".parse().unwrap();
 
-    tokio::runtime::run2(lazy(move |_| {
+    tokio::run(lazy(move || {
         let server = Http::new().bind(&addr, || Ok(ParamExample)).unwrap();
-        println!("Listening on http://{}", server.local_addr().unwrap());
-        server.run().recover(|err| {
-            eprintln!("Server error {}", err)
-        })
+        println!("Listening on http://{} with 1 thread.", server.local_addr().unwrap());
+        server.run().map_err(|err| eprintln!("Server error {}", err))
     }));
 }
