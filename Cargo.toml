@@ -43,3 +43,6 @@ url = "1.0"
 
 [features]
 nightly = []
+
+[replace]
+"futures:0.2.0-beta" = { git = "https://github.com/rust-lang-nursery/futures-rs", rev = "30473ba" }
