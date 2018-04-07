@@ -22,8 +22,9 @@ include = [
 
 [dependencies]
 bytes = "0.4.4"
-futures = "0.2.0-beta"
-futures-timer = { git = "https://github.com/alexcrichton/futures-timer.git" }
+futures = "=0.2.0-beta"
+futures-core = "=0.2.0-beta"
+futures-timer = { git = "https://github.com/alexcrichton/futures-timer.git", rev = "682e792" }
 http = "0.1.5"
 httparse = "1.0"
 iovec = "0.1"
@@ -42,6 +43,3 @@ url = "1.0"
 
 [features]
 nightly = []
-
-[replace]
-"futures:0.2.0-beta" = { git = "https://github.com/rust-lang-nursery/futures-rs.git" }
