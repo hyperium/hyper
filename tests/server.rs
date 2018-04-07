@@ -78,7 +78,7 @@ fn get_with_body() {
 fn get_implicitly_empty() {
     // See https://github.com/hyperium/hyper/issues/1373
     let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.handle()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -755,7 +755,7 @@ fn http_10_request_receives_http_10_response() {
 #[test]
 fn disable_keep_alive_mid_request() {
     let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.handle()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     let (tx1, rx1) = oneshot::channel();
@@ -800,7 +800,7 @@ fn disable_keep_alive_mid_request() {
 fn disable_keep_alive_post_request() {
     let _ = pretty_env_logger::try_init();
     let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.handle()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     let (tx1, rx1) = oneshot::channel();
@@ -871,7 +871,7 @@ fn disable_keep_alive_post_request() {
 #[test]
 fn empty_parse_eof_does_not_return_error() {
     let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.handle()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -892,7 +892,7 @@ fn empty_parse_eof_does_not_return_error() {
 #[test]
 fn nonempty_parse_eof_returns_error() {
     let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.handle()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -915,7 +915,7 @@ fn nonempty_parse_eof_returns_error() {
 #[test]
 fn returning_1xx_response_is_error() {
     let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.handle()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -951,7 +951,7 @@ fn upgrades() {
     use tokio_io::io::{read_to_end, write_all};
     let _ = pretty_env_logger::try_init();
     let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.handle()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
     let addr = listener.local_addr().unwrap();
     let (tx, rx) = oneshot::channel();
 
@@ -1016,7 +1016,7 @@ fn upgrades() {
 #[test]
 fn parse_errors_send_4xx_response() {
     let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.handle()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -1045,7 +1045,7 @@ fn parse_errors_send_4xx_response() {
 #[test]
 fn illegal_request_length_returns_400_response() {
     let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.handle()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -1075,7 +1075,7 @@ fn illegal_request_length_returns_400_response() {
 fn max_buf_size() {
     let _ = pretty_env_logger::try_init();
     let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.handle()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     const MAX: usize = 16_000;
@@ -1109,7 +1109,7 @@ fn max_buf_size() {
 fn streaming_body() {
     let _ = pretty_env_logger::try_init();
     let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.handle()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     let (tx, rx) = oneshot::channel();

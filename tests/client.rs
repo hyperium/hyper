@@ -186,7 +186,7 @@ macro_rules! test {
         if !$set_host {
             config = config.set_host(false);
         }
-        let client = config.build_with_executor(&runtime.handle(), runtime.executor());
+        let client = config.build_with_executor(&runtime.reactor(), runtime.executor());
 
         let body = if let Some(body) = $request_body {
             let body: &'static str = body;
@@ -665,7 +665,7 @@ mod dispatch_impl {
         let runtime = Runtime::new().unwrap();
         let (closes_tx, closes) = mpsc::channel(10);
         let client = Client::configure()
-            .connector(DebugConnector::with_http_and_closes(HttpConnector::new(1, &runtime.handle()), closes_tx))
+            .connector(DebugConnector::with_http_and_closes(HttpConnector::new(1, &runtime.reactor()), closes_tx))
             .executor(runtime.executor());
 
         let (tx1, rx1) = oneshot::channel();
@@ -705,7 +705,7 @@ mod dispatch_impl {
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
         let runtime = Runtime::new().unwrap();
-        let handle = runtime.handle();
+        let handle = runtime.reactor();
         let (closes_tx, closes) = mpsc::channel(10);
 
         let (tx1, rx1) = oneshot::channel();
@@ -754,7 +754,7 @@ mod dispatch_impl {
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
         let runtime = Runtime::new().unwrap();
-        let handle = runtime.handle();
+        let handle = runtime.reactor();
         let (closes_tx, mut closes) = mpsc::channel(10);
 
         let (tx1, rx1) = oneshot::channel();
@@ -818,7 +818,7 @@ mod dispatch_impl {
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
         let runtime = Runtime::new().unwrap();
-        let handle = runtime.handle();
+        let handle = runtime.reactor();
         let (closes_tx, closes) = mpsc::channel(10);
 
         let (tx1, rx1) = oneshot::channel();
@@ -871,7 +871,7 @@ mod dispatch_impl {
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
         let runtime = Runtime::new().unwrap();
-        let handle = runtime.handle();
+        let handle = runtime.reactor();
         let (closes_tx, closes) = mpsc::channel(10);
 
         let (tx1, rx1) = oneshot::channel();
@@ -925,7 +925,7 @@ mod dispatch_impl {
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
         let runtime = Runtime::new().unwrap();
-        let handle = runtime.handle();
+        let handle = runtime.reactor();
         let (closes_tx, closes) = mpsc::channel(10);
 
         let (tx1, rx1) = oneshot::channel();
@@ -976,7 +976,7 @@ mod dispatch_impl {
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
         let runtime = Runtime::new().unwrap();
-        let handle = runtime.handle();
+        let handle = runtime.reactor();
         let (closes_tx, closes) = mpsc::channel(10);
 
         let (tx1, rx1) = oneshot::channel();
@@ -1018,72 +1018,11 @@ mod dispatch_impl {
     }
 
     #[test]
-    fn conn_drop_prevents_pool_checkout() {
-        // a drop might happen for any sort of reason, and we can protect
-        // against a lot of them, but if the `runtime` is dropped, we can't
-        // really catch that. So, this is case to always check.
-        //
-        // See https://github.com/hyperium/hyper/issues/1429
-
-        use std::error::Error;
-        let _ = pretty_env_logger::try_init();
-
-        let server = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = server.local_addr().unwrap();
-        let runtime = Runtime::new().unwrap();
-        let handle = runtime.handle().clone();
-
-        let (tx1, rx1) = oneshot::channel();
-
-        thread::spawn(move || {
-            let mut sock = server.accept().unwrap().0;
-            sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
-            sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
-            let mut buf = [0; 4096];
-            sock.read(&mut buf).expect("read 1");
-            sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").unwrap();
-            sock.read(&mut buf).expect("read 2");
-            let _ = tx1.send(());
-        });
-
-        let uri = format!("http://{}/a", addr).parse::<hyper::Uri>().unwrap();
-
-        let client = Client::configure().build_with_executor(&handle, runtime.executor());
-
-        let req = Request::builder()
-            .uri(uri.clone())
-            .body(Body::empty())
-            .unwrap();
-        let res = client.request(req).and_then(move |res| {
-            assert_eq!(res.status(), hyper::StatusCode::OK);
-            res.into_body().into_stream().concat2()
-        });
-
-        res.wait().unwrap();
-
-        // drop previous runtime
-        drop(runtime);
-        let timeout = Delay::new(Duration::from_millis(200));
-        let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
-        let rx = rx.and_then(move |_| timeout.map_err(|e| e.into()));
-
-        let req = Request::builder()
-            .uri(uri)
-            .body(Body::empty())
-            .unwrap();
-        let res = client.request(req);
-        // this does trigger an 'event loop gone' error, but before, it would
-        // panic internally on a `SendError`, which is what we're testing against.
-        let err = res.join(rx).map(|r| r.0).wait().unwrap_err();
-        assert_eq!(err.description(), "event loop gone");
-    }
-
-    #[test]
     fn client_custom_executor() {
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
         let runtime = Runtime::new().unwrap();
-        let handle = runtime.handle();
+        let handle = runtime.reactor();
         let (closes_tx, closes) = mpsc::channel(10);
 
         let (tx1, rx1) = oneshot::channel();
@@ -1134,7 +1073,7 @@ mod dispatch_impl {
         let _ = pretty_env_logger::try_init();
 
         let runtime = Runtime::new().unwrap();
-        let handle = runtime.handle();
+        let handle = runtime.reactor();
         let connector = DebugConnector::new(&handle);
         let connects = connector.connects.clone();
 
@@ -1159,7 +1098,7 @@ mod dispatch_impl {
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
         let runtime = Runtime::new().unwrap();
-        let handle = runtime.handle();
+        let handle = runtime.reactor();
         let connector = DebugConnector::new(&handle);
         let connects = connector.connects.clone();
 
@@ -1221,7 +1160,7 @@ mod dispatch_impl {
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
         let runtime = Runtime::new().unwrap();
-        let handle = runtime.handle();
+        let handle = runtime.reactor();
 
         let connector = DebugConnector::new(&handle);
         let connects = connector.connects.clone();
@@ -1283,7 +1222,7 @@ mod dispatch_impl {
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
         let runtime = Runtime::new().unwrap();
-        let handle = runtime.handle();
+        let handle = runtime.reactor();
         let connector = DebugConnector::new(&handle)
             .proxy();
 

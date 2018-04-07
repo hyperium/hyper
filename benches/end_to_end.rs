@@ -22,7 +22,7 @@ fn get_one_at_a_time(b: &mut test::Bencher) {
     let addr = spawn_hello(&mut rt);
 
     let client = hyper::Client::configure()
-        .build_with_executor(&rt.handle(), rt.executor());
+        .build_with_executor(&rt.reactor(), rt.executor());
 
     let url: hyper::Uri = format!("http://{}/get", addr).parse().unwrap();
 
@@ -44,7 +44,7 @@ fn post_one_at_a_time(b: &mut test::Bencher) {
     let addr = spawn_hello(&mut rt);
 
     let client = hyper::Client::configure()
-        .build_with_executor(&rt.handle(), rt.executor());
+        .build_with_executor(&rt.reactor(), rt.executor());
 
     let url: hyper::Uri = format!("http://{}/post", addr).parse().unwrap();
 
