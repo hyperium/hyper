@@ -18,7 +18,7 @@ use super::{EncodedBuf, Encoder, Decoder};
 /// `Transaction`s over HTTP.
 ///
 /// The connection will determine when a message begins and ends as well as
-/// determine if this  connection can be kept alive after the message,
+/// determine if this connection can be kept alive after the message,
 /// or if it is complete.
 pub struct Conn<I, B, T> {
     io: Buffered<I, EncodedBuf<Cursor<B>>>,
