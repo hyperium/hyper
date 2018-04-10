@@ -110,7 +110,7 @@ fn get_implicitly_empty() {
 
         fn call(&self, req: Request<Body>) -> Self::Future {
             Box::new(req.into_body()
-                .into_stream()
+                
                 .concat2()
                 .map(|buf| {
                     assert!(buf.is_empty());
@@ -256,7 +256,7 @@ mod response_body_lengths {
     fn get_auto_response_with_entity_unknown_length() {
         run_test(TestCase {
             version: 1,
-            // no headers means trying to guess from Entity
+            // no headers means trying to guess from Payload
             headers: &[],
             body: Bd::Unknown("foo bar baz"),
             expects_chunked: true,
@@ -268,7 +268,7 @@ mod response_body_lengths {
     fn get_auto_response_with_entity_known_length() {
         run_test(TestCase {
             version: 1,
-            // no headers means trying to guess from Entity
+            // no headers means trying to guess from Payload
             headers: &[],
             body: Bd::Known("foo bar baz"),
             expects_chunked: false,
@@ -281,7 +281,7 @@ mod response_body_lengths {
     fn http_10_get_auto_response_with_entity_unknown_length() {
         run_test(TestCase {
             version: 0,
-            // no headers means trying to guess from Entity
+            // no headers means trying to guess from Payload
             headers: &[],
             body: Bd::Unknown("foo bar baz"),
             expects_chunked: false,
@@ -1287,7 +1287,7 @@ impl Service for TestService {
         let tx2 = self.tx.clone();
 
         let replies = self.reply.clone();
-        Box::new(req.into_body().into_stream().for_each(move |chunk| {
+        Box::new(req.into_body().for_each(move |chunk| {
             tx1.lock().unwrap().send(Msg::Chunk(chunk.to_vec())).unwrap();
             Ok(())
         }).then(move |result| {

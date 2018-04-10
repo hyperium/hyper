@@ -44,7 +44,7 @@ impl Service for ResponseExamples {
                 let web_res_future = client.request(req);
 
                 Box::new(web_res_future.map(|web_res| {
-                    let body = Body::wrap_stream(web_res.into_body().into_stream().map(|b| {
+                    let body = Body::wrap_stream(web_res.into_body().map(|b| {
                         Chunk::from(format!("before: '{:?}'<br>after: '{:?}'",
                                             std::str::from_utf8(LOWERCASE).unwrap(),
                                             std::str::from_utf8(&b).unwrap()))
@@ -54,7 +54,7 @@ impl Service for ResponseExamples {
             },
             (&Method::POST, "/web_api") => {
                 // A web api to run against. Simple upcasing of the body.
-                let body = Body::wrap_stream(req.into_body().into_stream().map(|chunk| {
+                let body = Body::wrap_stream(req.into_body().map(|chunk| {
                     let upper = chunk.iter().map(|byte| byte.to_ascii_uppercase())
                         .collect::<Vec<u8>>();
                     Chunk::from(upper)

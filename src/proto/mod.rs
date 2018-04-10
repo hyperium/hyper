@@ -4,12 +4,8 @@ use http::{HeaderMap, Method, StatusCode, Uri, Version};
 
 use headers;
 
-pub use self::body::Body;
-pub use self::chunk::Chunk;
 pub(crate) use self::h1::{dispatch, Conn};
 
-pub mod body;
-mod chunk;
 mod h1;
 //mod h2;
 

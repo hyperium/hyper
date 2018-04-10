@@ -428,7 +428,7 @@ impl Client<()> {
 
 fn set_length(headers: &mut HeaderMap, body: BodyLength, can_chunked: bool) -> Encoder {
     // If the user already set specific headers, we should respect them, regardless
-    // of what the Entity knows about itself. They set them for a reason.
+    // of what the Payload knows about itself. They set them for a reason.
 
     // Because of the borrow checker, we can't check the for an existing
     // Content-Length header while holding an `Entry` for the Transfer-Encoding

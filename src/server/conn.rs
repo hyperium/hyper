@@ -15,7 +15,7 @@ use futures::{Future, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use proto;
-use proto::body::{Body, Entity};
+use body::{Body, Payload};
 use super::{HyperService, Request, Response, Service};
 
 /// A future binding a connection with a Service.
@@ -25,13 +25,13 @@ use super::{HyperService, Request, Response, Service};
 pub struct Connection<I, S>
 where
     S: HyperService,
-    S::ResponseBody: Entity,
+    S::ResponseBody: Payload,
 {
     pub(super) conn: proto::dispatch::Dispatcher<
         proto::dispatch::Server<S>,
         S::ResponseBody,
         I,
-        <S::ResponseBody as Entity>::Data,
+        <S::ResponseBody as Payload>::Data,
         proto::ServerTransaction,
     >,
 }
@@ -63,7 +63,7 @@ where
     S: Service<Request=Request<Body>, Response=Response<B>> + 'static,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
     I: AsyncRead + AsyncWrite + 'static,
-    B: Entity + 'static,
+    B: Payload + 'static,
 {
     /// Disables keep-alive for this connection.
     pub fn disable_keep_alive(&mut self) {
@@ -102,7 +102,7 @@ where
     S: Service<Request=Request<Body>, Response=Response<B>> + 'static,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
     I: AsyncRead + AsyncWrite + 'static,
-    B: Entity + 'static,
+    B: Payload + 'static,
 {
     type Item = ();
     type Error = ::Error;
@@ -115,7 +115,7 @@ where
 impl<I, S> fmt::Debug for Connection<I, S>
 where
     S: HyperService,
-    S::ResponseBody: Entity,
+    S::ResponseBody: Payload,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Connection")

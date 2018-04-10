@@ -30,7 +30,7 @@ fn get_one_at_a_time(b: &mut test::Bencher) {
     b.iter(move || {
         client.get(url.clone())
             .and_then(|res| {
-                res.into_body().into_stream().for_each(|_chunk| {
+                res.into_body().for_each(|_chunk| {
                     Ok(())
                 })
             })
@@ -55,7 +55,7 @@ fn post_one_at_a_time(b: &mut test::Bencher) {
         *req.method_mut() = Method::POST;
         *req.uri_mut() = url.clone();
         client.request(req).and_then(|res| {
-            res.into_body().into_stream().for_each(|_chunk| {
+            res.into_body().for_each(|_chunk| {
                 Ok(())
             })
         }).wait().expect("client wait");
@@ -75,7 +75,6 @@ fn spawn_hello(rt: &mut Runtime) -> SocketAddr {
 
     let service = const_service(service_fn(|req: Request<Body>| {
         req.into_body()
-            .into_stream()
             .concat2()
             .map(|_| {
                 Response::new(Body::from(PHRASE))

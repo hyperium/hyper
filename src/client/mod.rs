@@ -16,8 +16,7 @@ use tokio::reactor::Handle;
 use tokio_executor::spawn;
 pub use tokio_service::Service;
 
-use proto::body::{Body, Entity};
-use proto;
+use body::{Body, Payload};
 use self::pool::Pool;
 
 pub use self::connect::{Connect, HttpConnector};
@@ -34,7 +33,7 @@ mod pool;
 mod tests;
 
 /// A Client to make outgoing HTTP requests.
-pub struct Client<C, B = proto::Body> {
+pub struct Client<C, B = Body> {
     connector: Arc<C>,
     executor: Exec,
     h1_writev: bool,
@@ -43,21 +42,21 @@ pub struct Client<C, B = proto::Body> {
     set_host: bool,
 }
 
-impl Client<HttpConnector, proto::Body> {
+impl Client<HttpConnector, Body> {
     /// Create a new Client with the default config.
     #[inline]
-    pub fn new(handle: &Handle) -> Client<HttpConnector, proto::Body> {
+    pub fn new(handle: &Handle) -> Client<HttpConnector, Body> {
         Config::default().build(handle)
     }
 }
 
-impl Default for Client<HttpConnector, proto::Body> {
-    fn default() -> Client<HttpConnector, proto::Body> {
+impl Default for Client<HttpConnector, Body> {
+    fn default() -> Client<HttpConnector, Body> {
         Client::new(&Handle::current())
     }
 }
 
-impl Client<HttpConnector, proto::Body> {
+impl Client<HttpConnector, Body> {
     /// Configure a Client.
     ///
     /// # Example
@@ -76,7 +75,7 @@ impl Client<HttpConnector, proto::Body> {
     /// # }
     /// ```
     #[inline]
-    pub fn configure() -> Config<UseDefaultConnector, proto::Body> {
+    pub fn configure() -> Config<UseDefaultConnector, Body> {
         Config::default()
     }
 }
@@ -99,7 +98,7 @@ impl<C, B> Client<C, B>
 where C: Connect + Sync + 'static,
       C::Transport: 'static,
       C::Future: 'static,
-      B: Entity + Send + 'static,
+      B: Payload + Send + 'static,
       B::Data: Send,
 {
 
@@ -107,16 +106,16 @@ where C: Connect + Sync + 'static,
     ///
     /// # Note
     ///
-    /// This requires that the `Entity` type have a `Default` implementation.
+    /// This requires that the `Payload` type have a `Default` implementation.
     /// It *should* return an "empty" version of itself, such that
-    /// `Entity::is_end_stream` is `true`.
+    /// `Payload::is_end_stream` is `true`.
     pub fn get(&self, uri: Uri) -> FutureResponse
     where
         B: Default,
     {
         let body = B::default();
         if !body.is_end_stream() {
-            warn!("default Entity used for get() does not return true for is_end_stream");
+            warn!("default Payload used for get() does not return true for is_end_stream");
         }
 
         let mut req = Request::new(body);
@@ -291,7 +290,7 @@ where C: Connect + Sync + 'static,
 impl<C, B> Service for Client<C, B>
 where C: Connect + 'static,
       C::Future: 'static,
-      B: Entity + Send + 'static,
+      B: Payload + Send + 'static,
       B::Data: Send,
 {
     type Request = Request<B>;
@@ -354,7 +353,7 @@ impl<C, B> Future for RetryableSendRequest<C, B>
 where
     C: Connect + 'static,
     C::Future: 'static,
-    B: Entity + Send + 'static,
+    B: Payload + Send + 'static,
     B::Data: Send,
 {
     type Item = Response<Body>;
@@ -444,10 +443,10 @@ pub struct Config<C, B> {
 #[derive(Debug, Clone, Copy)]
 pub struct UseDefaultConnector(());
 
-impl Default for Config<UseDefaultConnector, proto::Body> {
-    fn default() -> Config<UseDefaultConnector, proto::Body> {
+impl Default for Config<UseDefaultConnector, Body> {
+    fn default() -> Config<UseDefaultConnector, Body> {
         Config {
-            _body_type: PhantomData::<proto::Body>,
+            _body_type: PhantomData::<Body>,
             connector: UseDefaultConnector(()),
             keep_alive: true,
             keep_alive_timeout: Some(Duration::from_secs(90)),
@@ -566,7 +565,7 @@ impl<C, B> Config<C, B>
 where C: Connect,
       C::Transport: 'static,
       C::Future: 'static,
-      B: Entity + Send,
+      B: Payload + Send,
       B::Data: Send,
 {
     /// Construct the Client with this configuration.
@@ -589,7 +588,7 @@ where C: Connect,
 
 impl<B> Config<UseDefaultConnector, B>
 where
-    B: Entity + Send,
+    B: Payload + Send,
     B::Data: Send,
 {
     /// Construct the Client with this configuration.

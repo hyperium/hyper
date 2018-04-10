@@ -50,7 +50,7 @@ pub(crate) enum Kind {
     Body,
     /// Error while writing a body to connection.
     BodyWrite,
-    /// Error calling user's Entity::poll_data().
+    /// Error calling user's Payload::poll_data().
     BodyUser,
     /// Error calling AsyncWrite::shutdown()
     Shutdown,
@@ -257,7 +257,7 @@ impl StdError for Error {
             Kind::Service => "error from user's server service",
             Kind::Body => "error reading a body from connection",
             Kind::BodyWrite => "error write a body to connection",
-            Kind::BodyUser => "error from user's Entity stream",
+            Kind::BodyUser => "error from user's Payload stream",
             Kind::Shutdown => "error shutting down connection",
             Kind::UnsupportedVersion => "request has unsupported HTTP version",
             Kind::UnsupportedRequestMethod => "request has unsupported HTTP method",

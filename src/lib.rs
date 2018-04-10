@@ -46,12 +46,15 @@ pub use http::{
 
 pub use client::Client;
 pub use error::{Result, Error};
-pub use proto::{body, Body, Chunk};
+pub use body::{Body};
+pub use chunk::Chunk;
 pub use server::Server;
 
 mod common;
 #[cfg(test)]
 mod mock;
+pub mod body;
+mod chunk;
 pub mod client;
 pub mod error;
 mod headers;

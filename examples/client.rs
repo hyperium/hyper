@@ -40,7 +40,7 @@ fn main() {
             println!("Response: {}", res.status());
             println!("Headers: {:#?}", res.headers());
 
-            res.into_body().into_stream().for_each(|chunk| {
+            res.into_body().for_each(|chunk| {
                 io::stdout().write_all(&chunk)
                     .map_err(|e| panic!("example expects stdout is open, error={}", e))
             })

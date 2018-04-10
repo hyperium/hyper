@@ -13,7 +13,7 @@ use super::Chunk;
 type BodySender = mpsc::Sender<Result<Chunk, ::Error>>;
 
 /// This trait represents a streaming body of a `Request` or `Response`.
-pub trait Entity {
+pub trait Payload {
     /// A buffer of bytes representing a single chunk of a body.
     type Data: AsRef<[u8]>;
 
@@ -63,7 +63,7 @@ pub trait Entity {
     }
 }
 
-impl<E: Entity> Entity for Box<E> {
+impl<E: Payload> Payload for Box<E> {
     type Data = E::Data;
     type Error = E::Error;
 
@@ -84,43 +84,10 @@ impl<E: Entity> Entity for Box<E> {
     }
 }
 
-/// A wrapper to consume an `Entity` as a futures `Stream`.
-#[must_use = "streams do nothing unless polled"]
-#[derive(Debug)]
-pub struct EntityStream<E> {
-    is_data_eof: bool,
-    entity: E,
-}
 
-impl<E: Entity> Stream for EntityStream<E> {
-    type Item = E::Data;
-    type Error = E::Error;
-
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        loop {
-            if self.is_data_eof {
-                return self.entity.poll_trailers()
-                    .map(|async| {
-                        async.map(|_opt| {
-                            // drop the trailers and return that Stream is done
-                            None
-                        })
-                    });
-            }
-
-            let opt = try_ready!(self.entity.poll_data());
-            if let Some(data) = opt {
-                return Ok(Async::Ready(Some(data)));
-            } else {
-                self.is_data_eof = true;
-            }
-        }
-    }
-}
-
-/// An `Entity` of `Chunk`s, used when receiving bodies.
+/// A `Payload` of `Chunk`s, used when receiving bodies.
 ///
-/// Also a good default `Entity` to use in many applications.
+/// Also a good default `Payload` to use in many applications.
 #[must_use = "streams do nothing unless polled"]
 pub struct Body {
     kind: Kind,
@@ -229,35 +196,6 @@ impl Body {
         Body::new(Kind::Wrapped(Box::new(mapped)))
     }
 
-    /// Convert this `Body` into a `Stream<Item=Chunk, Error=hyper::Error>`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # extern crate futures;
-    /// # extern crate hyper;
-    /// # use futures::{Future, Stream};
-    /// # use hyper::{Body, Request};
-    /// # fn request_concat(some_req: Request<Body>) {
-    /// let req: Request<Body> = some_req;
-    /// let body = req.into_body();
-    ///
-    /// let stream = body.into_stream();
-    /// stream.concat2()
-    ///     .map(|buf| {
-    ///         println!("body length: {}", buf.len());
-    ///     });
-    /// # }
-    /// # fn main() {}
-    /// ```
-    #[inline]
-    pub fn into_stream(self) -> EntityStream<Body> {
-        EntityStream {
-            is_data_eof: false,
-            entity: self,
-        }
-    }
-
     /// Returns if this body was constructed via `Body::empty()`.
     ///
     /// # Note
@@ -345,7 +283,7 @@ impl Default for Body {
     }
 }
 
-impl Entity for Body {
+impl Payload for Body {
     type Data = Chunk;
     type Error = ::Error;
 
@@ -370,6 +308,15 @@ impl Entity for Body {
             Kind::Once(None) => None,
             Kind::Empty => Some(0)
         }
+    }
+}
+
+impl Stream for Body {
+    type Item = Chunk;
+    type Error = ::Error;
+
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        self.poll_data()
     }
 }
 
@@ -489,10 +436,10 @@ fn test_body_stream_concat() {
 
     let body = Body::from("hello world");
 
-    let total = body.into_stream()
+    let total = body
         .concat2()
         .wait()
         .unwrap();
     assert_eq!(total.as_ref(), b"hello world");
-
 }
+

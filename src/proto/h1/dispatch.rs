@@ -4,13 +4,13 @@ use http::{Request, Response, StatusCode};
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_service::Service;
 
-use proto::body::Entity;
-use proto::{Body, BodyLength, Conn, Http1Transaction, MessageHead, RequestHead, RequestLine, ResponseHead};
+use body::{Body, Payload};
+use proto::{BodyLength, Conn, Http1Transaction, MessageHead, RequestHead, RequestLine, ResponseHead};
 
 pub(crate) struct Dispatcher<D, Bs, I, B, T> {
     conn: Conn<I, B, T>,
     dispatch: D,
-    body_tx: Option<::proto::body::Sender>,
+    body_tx: Option<::body::Sender>,
     body_rx: Option<Bs>,
     is_closing: bool,
 }
@@ -45,7 +45,7 @@ where
     I: AsyncRead + AsyncWrite,
     B: AsRef<[u8]>,
     T: Http1Transaction,
-    Bs: Entity<Data=B>,
+    Bs: Payload<Data=B>,
 {
     pub fn new(dispatch: D, conn: Conn<I, B, T>) -> Self {
         Dispatcher {
@@ -292,7 +292,7 @@ where
     I: AsyncRead + AsyncWrite,
     B: AsRef<[u8]>,
     T: Http1Transaction,
-    Bs: Entity<Data=B>,
+    Bs: Payload<Data=B>,
 {
     type Item = ();
     type Error = ::Error;
@@ -318,7 +318,7 @@ impl<S, Bs> Dispatch for Server<S>
 where
     S: Service<Request=Request<Body>, Response=Response<Bs>>,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-    Bs: Entity,
+    Bs: Payload,
 {
     type PollItem = MessageHead<StatusCode>;
     type PollBody = Bs;
@@ -388,7 +388,7 @@ impl<B> Client<B> {
 
 impl<B> Dispatch for Client<B>
 where
-    B: Entity,
+    B: Payload,
 {
     type PollItem = RequestHead;
     type PollBody = B;

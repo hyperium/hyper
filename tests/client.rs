@@ -113,7 +113,7 @@ macro_rules! test {
 
             let body = res
                 .into_body()
-                .into_stream()
+                
                 .concat2()
                 .wait()
                 .expect("body concat wait");
@@ -726,7 +726,7 @@ mod dispatch_impl {
                 .unwrap();
             client.request(req).and_then(move |res| {
                 assert_eq!(res.status(), hyper::StatusCode::OK);
-                res.into_body().into_stream().concat2()
+                res.into_body().concat2()
             }).and_then(|_| {
                 Delay::new(Duration::from_secs(1))
                     .expect("timeout")
@@ -779,7 +779,7 @@ mod dispatch_impl {
             .unwrap();
         let res = client.request(req).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
-            res.into_body().into_stream().concat2()
+            res.into_body().concat2()
         });
         let rx = rx1.expect("thread panicked");
         res.join(rx).map(|r| r.0).wait().unwrap();
@@ -946,7 +946,7 @@ mod dispatch_impl {
             .unwrap();
         let res = client.request(req).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
-            res.into_body().into_stream().concat2()
+            res.into_body().concat2()
         });
         let rx = rx1.expect("thread panicked");
         res.join(rx).map(|r| r.0).wait().unwrap();
@@ -994,7 +994,7 @@ mod dispatch_impl {
             .unwrap();
         let res = client.request(req).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
-            res.into_body().into_stream().concat2()
+            res.into_body().concat2()
         });
         let rx = rx1.expect("thread panicked");
         res.join(rx).map(|r| r.0).wait().unwrap();
@@ -1039,7 +1039,7 @@ mod dispatch_impl {
             .unwrap();
         let res = client.request(req).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
-            res.into_body().into_stream().concat2()
+            res.into_body().concat2()
         });
         let rx = rx1.expect("thread panicked");
 
@@ -1384,7 +1384,7 @@ mod conn {
             .unwrap();
         let res = client.send_request(req).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
-            res.into_body().into_stream().concat2()
+            res.into_body().concat2()
         });
         let rx = rx1.expect("thread panicked");
 
@@ -1430,7 +1430,7 @@ mod conn {
 
         let res = client.send_request(req).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
-            res.into_body().into_stream().concat2()
+            res.into_body().concat2()
         });
         let rx = rx1.expect("thread panicked");
 
@@ -1470,7 +1470,7 @@ mod conn {
             .unwrap();
         let res1 = client.send_request(req).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
-            res.into_body().into_stream().concat2()
+            res.into_body().concat2()
         });
 
         // pipelined request will hit NotReady, and thus should return an Error::Cancel
@@ -1543,7 +1543,7 @@ mod conn {
             let res = client.send_request(req).and_then(move |res| {
                 assert_eq!(res.status(), hyper::StatusCode::SWITCHING_PROTOCOLS);
                 assert_eq!(res.headers()["Upgrade"], "foobar");
-                res.into_body().into_stream().concat2()
+                res.into_body().concat2()
             });
 
             let rx = rx1.expect("thread panicked");
@@ -1623,7 +1623,7 @@ mod conn {
             let res = client.send_request(req)
                 .and_then(move |res| {
                     assert_eq!(res.status(), hyper::StatusCode::OK);
-                    res.into_body().into_stream().concat2()
+                    res.into_body().concat2()
                 })
                 .map(|body| {
                     assert_eq!(body.as_ref(), b"");

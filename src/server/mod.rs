@@ -24,7 +24,7 @@ use tokio::reactor::Handle;
 use tokio::net::TcpListener;
 pub use tokio_service::{NewService, Service};
 
-use proto::body::{Body, Entity};
+use body::{Body, Payload};
 use proto;
 use self::addr_stream::AddrStream;
 use self::hyper_service::HyperService;
@@ -51,7 +51,7 @@ pub struct Http<B = ::Chunk> {
 /// address and then serving TCP connections accepted with the service provided.
 pub struct Server<S, B>
 where
-    B: Entity,
+    B: Payload,
 {
     protocol: Http<B::Data>,
     new_service: S,
@@ -168,7 +168,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     where
         S: NewService<Request=Request<Body>, Response=Response<Bd>> + 'static,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-        Bd: Entity<Data=B>,
+        Bd: Payload<Data=B>,
     {
         let handle = Handle::current();
         let std_listener = StdTcpListener::bind(addr).map_err(::Error::new_listen)?;
@@ -193,7 +193,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     where
         S: NewService<Request=Request<Body>, Response=Response<Bd>>,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-        Bd: Entity<Data=B>,
+        Bd: Payload<Data=B>,
     {
         let handle = Handle::current();
         let std_listener = StdTcpListener::bind(addr).map_err(::Error::new_listen)?;
@@ -217,7 +217,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     where
         S: NewService<Request = Request<Body>, Response = Response<Bd>>,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-        Bd: Entity<Data=B>,
+        Bd: Payload<Data=B>,
     {
         let std_listener = StdTcpListener::bind(addr).map_err(::Error::new_listen)?;
         let listener = TcpListener::from_std(std_listener, &handle).map_err(::Error::new_listen)?;
@@ -238,7 +238,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
         I::Item: AsyncRead + AsyncWrite,
         S: NewService<Request = Request<Body>, Response = Response<Bd>>,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-        Bd: Entity<Data=B>,
+        Bd: Payload<Data=B>,
     {
         Serve {
             incoming: incoming,
@@ -291,7 +291,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     where
         S: Service<Request = Request<Body>, Response = Response<Bd>>,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-        Bd: Entity,
+        Bd: Payload,
         I: AsyncRead + AsyncWrite,
     {
         let mut conn = proto::Conn::new(io);
@@ -357,7 +357,7 @@ where
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
     <S as NewService>::Instance: Send,
     <<S as NewService>::Instance as Service>::Future: Send,
-    B: Entity + Send + 'static,
+    B: Payload + Send + 'static,
     B::Data: Send,
 {
     /// Returns the local address that this server is bound to.
@@ -479,7 +479,7 @@ where
     }
 }
 
-impl<S: fmt::Debug, B: Entity> fmt::Debug for Server<S, B>
+impl<S: fmt::Debug, B: Payload> fmt::Debug for Server<S, B>
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Server")
@@ -516,7 +516,7 @@ where
     I::Item: AsyncRead + AsyncWrite,
     S: NewService<Request=Request<Body>, Response=Response<B>>,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-    B: Entity,
+    B: Payload,
 {
     type Item = Connection<I::Item, S::Instance>;
     type Error = ::Error;
@@ -795,7 +795,7 @@ impl Future for WaitUntilZero {
 }
 
 mod hyper_service {
-    use super::{Body, Entity, Request, Response, Service};
+    use super::{Body, Payload, Request, Response, Service};
     /// A "trait alias" for any type that implements `Service` with hyper's
     /// Request, Response, and Error types, and a streaming body.
     ///
@@ -826,7 +826,7 @@ mod hyper_service {
             Response=Response<B>,
         >,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-        B: Entity,
+        B: Payload,
     {}
 
     impl<S, B> HyperService for S
@@ -837,7 +837,7 @@ mod hyper_service {
         >,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
         S: Sealed,
-        B: Entity,
+        B: Payload,
     {
         type ResponseBody = B;
         type Sealed = Opaque;

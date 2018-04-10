@@ -8,7 +8,8 @@ use futures::task::Task;
 use http::{Method, Version};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use proto::{BodyLength, Chunk, Decode, Http1Transaction, MessageHead};
+use ::Chunk;
+use proto::{BodyLength, Decode, Http1Transaction, MessageHead};
 use super::io::{Cursor, Buffered};
 use super::{EncodedBuf, Encoder, Decoder};
 
