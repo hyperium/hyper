@@ -20,7 +20,7 @@ use super::{EncodedBuf, Encoder, Decoder};
 /// The connection will determine when a message begins and ends as well as
 /// determine if this connection can be kept alive after the message,
 /// or if it is complete.
-pub struct Conn<I, B, T> {
+pub(crate) struct Conn<I, B, T> {
     io: Buffered<I, EncodedBuf<Cursor<B>>>,
     state: State,
     _marker: PhantomData<T>
@@ -146,7 +146,8 @@ where I: AsyncRead + AsyncWrite,
                 _ => {
                     error!("unimplemented HTTP Version = {:?}", version);
                     self.state.close_read();
-                    return Err(::Error::Version);
+                    //TODO: replace this with a more descriptive error
+                    return Err(::Error::new_version());
                 }
             };
             self.state.version = version;
@@ -245,7 +246,7 @@ where I: AsyncRead + AsyncWrite,
         if self.is_mid_message() {
             self.maybe_park_read();
         } else {
-            self.require_empty_read()?;
+            self.require_empty_read().map_err(::Error::new_io)?;
         }
         Ok(())
     }

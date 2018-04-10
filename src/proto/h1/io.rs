@@ -108,7 +108,7 @@ where
         }
     }
 
-    pub fn parse<S: Http1Transaction>(&mut self) -> Poll<MessageHead<S::Incoming>, ::Error> {
+    pub(super) fn parse<S: Http1Transaction>(&mut self) -> Poll<MessageHead<S::Incoming>, ::Error> {
         loop {
             match try!(S::parse(&mut self.read_buf)) {
                 Some((head, len)) => {
@@ -118,14 +118,14 @@ where
                 None => {
                     if self.read_buf.capacity() >= self.max_buf_size {
                         debug!("max_buf_size ({}) reached, closing", self.max_buf_size);
-                        return Err(::Error::TooLarge);
+                        return Err(::Error::new_too_large());
                     }
                 },
             }
-            match try_ready!(self.read_from_io()) {
+            match try_ready!(self.read_from_io().map_err(::Error::new_io)) {
                 0 => {
                     trace!("parse eof");
-                    return Err(::Error::Incomplete);
+                    return Err(::Error::new_incomplete());
                 }
                 _ => {},
             }

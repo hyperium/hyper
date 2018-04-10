@@ -17,7 +17,8 @@ fn main() {
     let addr = ([127, 0, 0, 1], 3000).into();
 
     let new_service = const_service(service_fn(|_| {
-        Ok(Response::new(Body::from(PHRASE)))
+        //TODO: when `!` is stable, replace error type
+        Ok::<_, hyper::Error>(Response::new(Body::from(PHRASE)))
     }));
 
     tokio::run(lazy(move || {

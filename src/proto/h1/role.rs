@@ -40,7 +40,7 @@ where
             let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
             trace!("Request.parse([Header; {}], [u8; {}])", headers.len(), buf.len());
             let mut req = httparse::Request::new(&mut headers);
-            match try!(req.parse(&buf)) {
+            match req.parse(&buf)? {
                 httparse::Status::Complete(len) => {
                     trace!("Request.parse Complete({})", len);
                     let method = Method::from_bytes(req.method.unwrap().as_bytes())?;
@@ -104,18 +104,18 @@ where
             // mal-formed. A server should respond with 400 Bad Request.
             if head.version == Version::HTTP_10 {
                 debug!("HTTP/1.0 cannot have Transfer-Encoding header");
-                Err(::Error::Header)
+                Err(::Error::new_header())
             } else if headers::transfer_encoding_is_chunked(&head.headers) {
                 Ok(Decode::Normal(Decoder::chunked()))
             } else {
                 debug!("request with transfer-encoding header, but not chunked, bad request");
-                Err(::Error::Header)
+                Err(::Error::new_header())
             }
         } else if let Some(len) = headers::content_length_parse(&head.headers) {
             Ok(Decode::Normal(Decoder::length(len)))
         } else if head.headers.contains_key(CONTENT_LENGTH) {
             debug!("illegal Content-Length header");
-            Err(::Error::Header)
+            Err(::Error::new_header())
         } else {
             Ok(Decode::Normal(Decoder::length(0)))
         }
@@ -146,7 +146,8 @@ where
             head = MessageHead::default();
             head.subject = StatusCode::INTERNAL_SERVER_ERROR;
             headers::content_length_zero(&mut head.headers);
-            Err(::Error::Status)
+            //TODO: change this to a more descriptive error than just a parse error
+            Err(::Error::new_status())
         } else {
             Ok(Server::set_length(&mut head, body, method.as_ref()))
         };
@@ -184,14 +185,15 @@ where
     }
 
     fn on_error(err: &::Error) -> Option<MessageHead<Self::Outgoing>> {
-        let status = match err {
-            &::Error::Method |
-            &::Error::Version |
-            &::Error::Header /*|
-            &::Error::Uri(_)*/ => {
+        use ::error::{Kind, Parse};
+        let status = match *err.kind() {
+            Kind::Parse(Parse::Method) |
+            Kind::Parse(Parse::Version) |
+            Kind::Parse(Parse::Header) |
+            Kind::Parse(Parse::Uri) => {
                 StatusCode::BAD_REQUEST
             },
-            &::Error::TooLarge => {
+            Kind::Parse(Parse::TooLarge) => {
                 StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE
             }
             _ => return None,
@@ -271,7 +273,7 @@ where
             match try!(res.parse(bytes)) {
                 httparse::Status::Complete(len) => {
                     trace!("Response.parse Complete({})", len);
-                    let status = try!(StatusCode::from_u16(res.code.unwrap()).map_err(|_| ::Error::Status));
+                    let status = StatusCode::from_u16(res.code.unwrap())?;
                     let version = if res.version.unwrap() == 1 {
                         Version::HTTP_11
                     } else {
@@ -343,7 +345,7 @@ where
             // mal-formed. A server should respond with 400 Bad Request.
             if inc.version == Version::HTTP_10 {
                 debug!("HTTP/1.0 cannot have Transfer-Encoding header");
-                Err(::Error::Header)
+                Err(::Error::new_header())
             } else if headers::transfer_encoding_is_chunked(&inc.headers) {
                 Ok(Decode::Normal(Decoder::chunked()))
             } else {
@@ -354,7 +356,7 @@ where
             Ok(Decode::Normal(Decoder::length(len)))
         } else if inc.headers.contains_key(CONTENT_LENGTH) {
             debug!("illegal Content-Length header");
-            Err(::Error::Header)
+            Err(::Error::new_header())
         } else {
             trace!("neither Transfer-Encoding nor Content-Length");
             Ok(Decode::Normal(Decoder::eof()))
@@ -577,12 +579,13 @@ impl OnUpgrade for NoUpgrades {
         *head = MessageHead::default();
         head.subject = ::StatusCode::INTERNAL_SERVER_ERROR;
         headers::content_length_zero(&mut head.headers);
-        Err(::Error::Status)
+        //TODO: replace with more descriptive error
+        return Err(::Error::new_status());
     }
 
     fn on_decode_upgrade() -> ::Result<Decoder> {
         debug!("received 101 upgrade response, not supported");
-        return Err(::Error::Upgrade);
+        return Err(::Error::new_upgrade());
     }
 }
 

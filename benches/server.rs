@@ -78,7 +78,7 @@ fn throughput_fixedsize_large_payload(b: &mut test::Bencher) {
 fn throughput_fixedsize_many_chunks(b: &mut test::Bencher) {
     bench_server!(b, ("content-length", "1000000"), || {
         static S: &'static [&'static [u8]] = &[&[b'x'; 1_000] as &[u8]; 1_000] as _;
-        Body::wrap_stream(stream::iter_ok(S.iter()).map(|&s| s))
+        Body::wrap_stream(stream::iter_ok::<_, String>(S.iter()).map(|&s| s))
     })
 }
 
@@ -96,7 +96,7 @@ fn throughput_chunked_large_payload(b: &mut test::Bencher) {
 fn throughput_chunked_many_chunks(b: &mut test::Bencher) {
     bench_server!(b, ("transfer-encoding", "chunked"), || {
         static S: &'static [&'static [u8]] = &[&[b'x'; 1_000] as &[u8]; 1_000] as _;
-        Body::wrap_stream(stream::iter_ok(S.iter()).map(|&s| s))
+        Body::wrap_stream(stream::iter_ok::<_, String>(S.iter()).map(|&s| s))
     })
 }
 

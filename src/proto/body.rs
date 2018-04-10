@@ -18,8 +18,7 @@ pub trait Entity {
     type Data: AsRef<[u8]>;
 
     /// The error type of this stream.
-    //TODO: add bounds Into<::error::User> (or whatever it is called)
-    type Error;
+    type Error: Into<Box<::std::error::Error + Send + Sync>>;
 
     /// Poll for a `Data` buffer.
     ///
@@ -141,7 +140,7 @@ enum Kind {
         _close_tx: oneshot::Sender<()>,
         rx: mpsc::Receiver<Result<Chunk, ::Error>>,
     },
-    Wrapped(Box<Stream<Item=Chunk, Error=::Error> + Send>),
+    Wrapped(Box<Stream<Item=Chunk, Error=Box<::std::error::Error + Send + Sync>> + Send>),
     Once(Option<Chunk>),
     Empty,
 }
@@ -212,17 +211,22 @@ impl Body {
     ///     " ",
     ///     "world",
     /// ];
-    /// let stream = futures::stream::iter_ok(chunks);
+    ///
+    /// let stream = futures::stream::iter_ok::<_, ::std::io::Error>(chunks);
     ///
     /// let body = Body::wrap_stream(stream);
     /// # }
     /// ```
     pub fn wrap_stream<S>(stream: S) -> Body
     where
-        S: Stream<Error=::Error> + Send + 'static,
+        S: Stream + Send + 'static,
+        S::Error: Into<Box<::std::error::Error + Send + Sync>>,
         Chunk: From<S::Item>,
     {
-        Body::new(Kind::Wrapped(Box::new(stream.map(Chunk::from))))
+        let mapped = stream
+            .map(Chunk::from)
+            .map_err(Into::into);
+        Body::new(Kind::Wrapped(Box::new(mapped)))
     }
 
     /// Convert this `Body` into a `Stream<Item=Chunk, Error=hyper::Error>`.
@@ -327,7 +331,7 @@ impl Body {
                 Async::Ready(None) => Ok(Async::Ready(None)),
                 Async::NotReady => Ok(Async::NotReady),
             },
-            Kind::Wrapped(ref mut s) => s.poll(),
+            Kind::Wrapped(ref mut s) => s.poll().map_err(::Error::new_body),
             Kind::Once(ref mut val) => Ok(Async::Ready(val.take())),
             Kind::Empty => Ok(Async::Ready(None)),
         }

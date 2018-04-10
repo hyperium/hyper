@@ -36,7 +36,7 @@ pub trait Connect: Send + Sync {
     /// The connected IO Stream.
     type Transport: AsyncRead + AsyncWrite + Send + 'static;
     /// An error occured when trying to connect.
-    type Error;
+    type Error: Into<Box<StdError + Send + Sync>>;
     /// A Future that will resolve to the connected Transport.
     type Future: Future<Item=(Self::Transport, Connected), Error=Self::Error> + Send;
     /// Connect to a destination.

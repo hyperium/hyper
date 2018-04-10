@@ -96,10 +96,10 @@ impl<C, B> Client<C, B> {
 }
 
 impl<C, B> Client<C, B>
-where C: Connect<Error=io::Error> + Sync + 'static,
+where C: Connect + Sync + 'static,
       C::Transport: 'static,
       C::Future: 'static,
-      B: Entity<Error=::Error> + Send + 'static,
+      B: Entity + Send + 'static,
       B::Data: Send,
 {
 
@@ -139,13 +139,14 @@ where C: Connect<Error=io::Error> + Sync + 'static,
             Version::HTTP_11 => (),
             other => {
                 error!("Request has unsupported version \"{:?}\"", other);
-                return FutureResponse(Box::new(future::err(::Error::Version)));
+                //TODO: replace this with a proper variant
+                return FutureResponse(Box::new(future::err(::Error::new_user_unsupported_version())));
             }
         }
 
         if req.method() == &Method::CONNECT {
             debug!("Client does not support CONNECT requests");
-            return FutureResponse(Box::new(future::err(::Error::Method)));
+            return FutureResponse(Box::new(future::err(::Error::new_user_unsupported_request_method())));
         }
 
         let uri = req.uri().clone();
@@ -154,7 +155,8 @@ where C: Connect<Error=io::Error> + Sync + 'static,
                 format!("{}://{}", scheme, auth)
             }
             _ => {
-                return FutureResponse(Box::new(future::err(::Error::Io(
+                //TODO: replace this with a proper variant
+                return FutureResponse(Box::new(future::err(::Error::new_io(
                     io::Error::new(
                         io::ErrorKind::InvalidInput,
                         "invalid URI for Client Request"
@@ -203,13 +205,13 @@ where C: Connect<Error=io::Error> + Sync + 'static,
             };
             future::lazy(move || {
                 connector.connect(dst)
-                    .from_err()
+                    .map_err(::Error::new_connect)
                     .and_then(move |(io, connected)| {
                         conn::Builder::new()
                             .h1_writev(h1_writev)
                             .handshake_no_upgrades(io)
                             .and_then(move |(tx, conn)| {
-                                executor.execute(conn.map_err(|e| debug!("client connection error: {}", e)))?;
+                                executor.execute(conn.map_err(|e| debug!("client connection error: {}", e)));
                                 Ok(pool.pooled(pool_key, PoolClient {
                                     is_proxied: connected.is_proxied,
                                     tx: tx,
@@ -260,9 +262,7 @@ where C: Connect<Error=io::Error> + Sync + 'static,
                     } else if !res.body().is_empty() {
                         let (delayed_tx, delayed_rx) = oneshot::channel();
                         res.body_mut().delayed_eof(delayed_rx);
-                        // If the executor doesn't have room, oh well. Things will likely
-                        // be blowing up soon, but this specific task isn't required.
-                        let _ = executor.execute(
+                        executor.execute(
                             future::poll_fn(move || {
                                 pooled.tx.poll_ready()
                             })
@@ -277,7 +277,6 @@ where C: Connect<Error=io::Error> + Sync + 'static,
                     Ok(res)
                 });
 
-
             fut
         });
 
@@ -290,9 +289,9 @@ where C: Connect<Error=io::Error> + Sync + 'static,
 }
 
 impl<C, B> Service for Client<C, B>
-where C: Connect<Error=io::Error> + 'static,
+where C: Connect + 'static,
       C::Future: 'static,
-      B: Entity<Error=::Error> + Send + 'static,
+      B: Entity + Send + 'static,
       B::Data: Send,
 {
     type Request = Request<B>;
@@ -353,9 +352,9 @@ struct RetryableSendRequest<C, B> {
 
 impl<C, B> Future for RetryableSendRequest<C, B>
 where
-    C: Connect<Error=io::Error> + 'static,
+    C: Connect + 'static,
     C::Future: 'static,
-    B: Entity<Error=::Error> + Send + 'static,
+    B: Entity + Send + 'static,
     B::Data: Send,
 {
     type Item = Response<Body>;
@@ -564,10 +563,10 @@ impl<C, B> Config<C, B> {
 }
 
 impl<C, B> Config<C, B>
-where C: Connect<Error=io::Error>,
+where C: Connect,
       C::Transport: 'static,
       C::Future: 'static,
-      B: Entity<Error=::Error> + Send,
+      B: Entity + Send,
       B::Data: Send,
 {
     /// Construct the Client with this configuration.
@@ -590,7 +589,7 @@ where C: Connect<Error=io::Error>,
 
 impl<B> Config<UseDefaultConnector, B>
 where
-    B: Entity<Error=::Error> + Send,
+    B: Entity + Send,
     B::Data: Send,
 {
     /// Construct the Client with this configuration.
@@ -640,7 +639,6 @@ impl<C: Clone, B> Clone for Config<C, B> {
     }
 }
 
-
 // ===== impl Exec =====
 
 #[derive(Clone)]
@@ -655,24 +653,19 @@ impl Exec {
         Exec::Executor(Arc::new(executor))
     }
 
-    fn execute<F>(&self, fut: F) -> io::Result<()>
+    fn execute<F>(&self, fut: F)
     where
         F: Future<Item=(), Error=()> + Send + 'static,
     {
         match *self {
             Exec::Default => spawn(fut),
             Exec::Executor(ref e) => {
-                e.execute(bg(Box::new(fut)))
+                let _ = e.execute(bg(Box::new(fut)))
                     .map_err(|err| {
-                        debug!("executor error: {:?}", err.kind());
-                        io::Error::new(
-                            io::ErrorKind::Other,
-                            "executor error",
-                        )
-                    })?
+                        panic!("executor error: {:?}", err.kind());
+                    });
             },
         }
-        Ok(())
     }
 }
 

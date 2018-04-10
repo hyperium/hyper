@@ -8,7 +8,7 @@ extern crate tokio;
 extern crate tokio_io;
 extern crate pretty_env_logger;
 
-use std::io::{self, Read, Write};
+use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener};
 use std::thread;
 use std::time::Duration;
@@ -142,7 +142,7 @@ macro_rules! test {
             let _ = pretty_env_logger::try_init();
             let runtime = Runtime::new().expect("runtime new");
 
-            let err = test! {
+            let err: ::hyper::Error = test! {
                 INNER;
                 name: $name,
                 runtime: &runtime,
@@ -157,7 +157,11 @@ macro_rules! test {
                         headers: { $($request_header_name => $request_header_val,)* },
                         body: $request_body,
             }.unwrap_err();
-            if !$err(&err) {
+
+            fn infer_closure<F: FnOnce(&::hyper::Error) -> bool>(f: F) -> F { f }
+
+            let closure = infer_closure($err);
+            if !closure(&err) {
                 panic!("expected error, unexpected variant: {:?}", err)
             }
         }
@@ -228,7 +232,7 @@ macro_rules! test {
             let _ = tx.send(());
         }).expect("thread spawn");
 
-        let rx = rx.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+        let rx = rx.expect("thread panicked");
 
         res.join(rx).map(|r| r.0).wait()
     });
@@ -485,10 +489,7 @@ test! {
             url: "http://{addr}/err",
             headers: {},
             body: None,
-        error: |err| match err {
-            &hyper::Error::Incomplete => true,
-            _ => false,
-        },
+        error: |err| err.to_string() == "message is incomplete",
 }
 
 test! {
@@ -511,10 +512,8 @@ test! {
             url: "http://{addr}/err",
             headers: {},
             body: None,
-        error: |err| match err {
-            &hyper::Error::Version => true,
-            _ => false,
-        },
+        // should get a Parse(Version) error
+        error: |err| err.is_parse(),
 
 }
 
@@ -574,10 +573,7 @@ test! {
             url: "http://{addr}/upgrade",
             headers: {},
             body: None,
-        error: |err| match err {
-            &hyper::Error::Upgrade => true,
-            _ => false,
-        },
+        error: |err| err.to_string() == "unsupported protocol upgrade",
 
 }
 
@@ -599,10 +595,7 @@ test! {
             url: "http://{addr}/",
             headers: {},
             body: None,
-        error: |err| match err {
-            &hyper::Error::Method => true,
-            _ => false,
-        },
+        error: |err| err.is_user(),
 
 }
 
@@ -689,9 +682,9 @@ mod dispatch_impl {
         let res = client.request(req).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
             Delay::new(Duration::from_secs(1))
-                .from_err()
+                .expect("timeout")
         });
-        let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+        let rx = rx1.expect("thread panicked");
         res.join(rx).map(|r| r.0).wait().unwrap();
 
         closes.into_future().wait().unwrap().0.expect("closes");
@@ -736,11 +729,11 @@ mod dispatch_impl {
                 res.into_body().into_stream().concat2()
             }).and_then(|_| {
                 Delay::new(Duration::from_secs(1))
-                    .from_err()
+                    .expect("timeout")
             })
         };
         // client is dropped
-        let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+        let rx = rx1.expect("thread panicked");
         res.join(rx).map(|r| r.0).wait().unwrap();
 
         closes.into_future().wait().unwrap().0.expect("closes");
@@ -788,7 +781,7 @@ mod dispatch_impl {
             assert_eq!(res.status(), hyper::StatusCode::OK);
             res.into_body().into_stream().concat2()
         });
-        let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+        let rx = rx1.expect("thread panicked");
         res.join(rx).map(|r| r.0).wait().unwrap();
 
         // not closed yet, just idle
@@ -904,7 +897,7 @@ mod dispatch_impl {
             client.request(req)
         };
 
-        let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+        let rx = rx1.expect("thread panicked");
         res.join(rx).map(|r| r.0).wait().unwrap();
 
         let t = Delay::new(Duration::from_millis(100))
@@ -955,7 +948,7 @@ mod dispatch_impl {
             assert_eq!(res.status(), hyper::StatusCode::OK);
             res.into_body().into_stream().concat2()
         });
-        let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+        let rx = rx1.expect("thread panicked");
         res.join(rx).map(|r| r.0).wait().unwrap();
 
         let t = Delay::new(Duration::from_millis(100))
@@ -1003,9 +996,8 @@ mod dispatch_impl {
             assert_eq!(res.status(), hyper::StatusCode::OK);
             res.into_body().into_stream().concat2()
         });
-        let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+        let rx = rx1.expect("thread panicked");
         res.join(rx).map(|r| r.0).wait().unwrap();
-
 
         let t = Delay::new(Duration::from_millis(100))
             .map(|_| panic!("time out"));
@@ -1049,12 +1041,11 @@ mod dispatch_impl {
             assert_eq!(res.status(), hyper::StatusCode::OK);
             res.into_body().into_stream().concat2()
         });
-        let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+        let rx = rx1.expect("thread panicked");
 
         let timeout = Delay::new(Duration::from_millis(200));
-        let rx = rx.and_then(move |_| timeout.map_err(|e| e.into()));
+        let rx = rx.and_then(move |_| timeout.expect("timeout"));
         res.join(rx).map(|r| r.0).wait().unwrap();
-
 
         let t = Delay::new(Duration::from_millis(100))
             .map(|_| panic!("time out"));
@@ -1129,7 +1120,7 @@ mod dispatch_impl {
 
         assert_eq!(connects.load(Ordering::SeqCst), 0);
 
-        let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+        let rx = rx1.expect("thread panicked");
         let req = Request::builder()
             .uri(&*format!("http://{}/a", addr))
             .body(Body::empty())
@@ -1143,7 +1134,7 @@ mod dispatch_impl {
         // state and back into client pool
         thread::sleep(Duration::from_millis(50));
 
-        let rx = rx2.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+        let rx = rx2.expect("thread panicked");
         let req = Request::builder()
             .uri(&*format!("http://{}/b", addr))
             .body(Body::empty())
@@ -1194,7 +1185,7 @@ mod dispatch_impl {
 
         assert_eq!(connects.load(Ordering::Relaxed), 0);
 
-        let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+        let rx = rx1.expect("thread panicked");
         let req = Request::builder()
             .method("HEAD")
             .uri(&*format!("http://{}/a", addr))
@@ -1205,7 +1196,7 @@ mod dispatch_impl {
 
         assert_eq!(connects.load(Ordering::Relaxed), 1);
 
-        let rx = rx2.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+        let rx = rx2.expect("thread panicked");
         let req = Request::builder()
             .uri(&*format!("http://{}/b", addr))
             .body(Body::empty())
@@ -1246,7 +1237,7 @@ mod dispatch_impl {
         });
 
 
-        let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+        let rx = rx1.expect("thread panicked");
         let req = Request::builder()
             .uri(&*format!("http://{}/foo/bar", addr))
             .body(Body::empty())
@@ -1354,7 +1345,7 @@ mod conn {
     use hyper::{self, Request};
     use hyper::client::conn;
 
-    use super::{s, tcp_connect};
+    use super::{s, tcp_connect, FutureHyperExt};
 
     #[test]
     fn get() {
@@ -1395,10 +1386,10 @@ mod conn {
             assert_eq!(res.status(), hyper::StatusCode::OK);
             res.into_body().into_stream().concat2()
         });
-        let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+        let rx = rx1.expect("thread panicked");
 
         let timeout = Delay::new(Duration::from_millis(200));
-        let rx = rx.and_then(move |_| timeout.map_err(|e| e.into()));
+        let rx = rx.and_then(move |_| timeout.expect("timeout"));
         res.join(rx).map(|r| r.0).wait().unwrap();
     }
 
@@ -1441,10 +1432,10 @@ mod conn {
             assert_eq!(res.status(), hyper::StatusCode::OK);
             res.into_body().into_stream().concat2()
         });
-        let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+        let rx = rx1.expect("thread panicked");
 
         let timeout = Delay::new(Duration::from_millis(200));
-        let rx = rx.and_then(move |_| timeout.map_err(|e| e.into()));
+        let rx = rx.and_then(move |_| timeout.expect("timeout"));
         res.join(rx).map(|r| r.0).wait().unwrap();
     }
 
@@ -1490,17 +1481,14 @@ mod conn {
         let res2 = client.send_request(req)
             .then(|result| {
                 let err = result.expect_err("res2");
-                match err {
-                    hyper::Error::Cancel(..) => (),
-                    other => panic!("expected Cancel, found {:?}", other),
-                }
+                assert!(err.is_canceled(), "err not canceled, {:?}", err);
                 Ok(())
             });
 
-        let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+        let rx = rx1.expect("thread panicked");
 
         let timeout = Delay::new(Duration::from_millis(200));
-        let rx = rx.and_then(move |_| timeout.map_err(|e| e.into()));
+        let rx = rx.and_then(move |_| timeout.expect("timeout"));
         res1.join(res2).join(rx).map(|r| r.0).wait().unwrap();
     }
 
@@ -1558,10 +1546,10 @@ mod conn {
                 res.into_body().into_stream().concat2()
             });
 
-            let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+            let rx = rx1.expect("thread panicked");
 
             let timeout = Delay::new(Duration::from_millis(200));
-            let rx = rx.and_then(move |_| timeout.map_err(|e| e.into()));
+            let rx = rx.and_then(move |_| timeout.expect("timeout"));
             until_upgrade.join(res).join(rx).map(|r| r.0).wait().unwrap();
 
             // should not be ready now
@@ -1641,10 +1629,10 @@ mod conn {
                     assert_eq!(body.as_ref(), b"");
                 });
 
-            let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
+            let rx = rx1.expect("thread panicked");
 
             let timeout = Delay::new(Duration::from_millis(200));
-            let rx = rx.and_then(move |_| timeout.map_err(|e| e.into()));
+            let rx = rx.and_then(move |_| timeout.expect("timeout"));
             until_tunneled.join(res).join(rx).map(|r| r.0).wait().unwrap();
 
             // should not be ready now
@@ -1696,4 +1684,18 @@ mod conn {
     }
 
     impl AsyncRead for DebugStream {}
+}
+
+trait FutureHyperExt: Future {
+    fn expect<E>(self, msg: &'static str) -> Box<Future<Item=Self::Item, Error=E>>;
+}
+
+impl<F> FutureHyperExt for F
+where
+    F: Future + 'static,
+    F::Error: ::std::fmt::Debug,
+{
+    fn expect<E>(self, msg: &'static str) -> Box<Future<Item=Self::Item, Error=E>> {
+        Box::new(self.map_err(move |e| panic!("expect: {}; error={:?}", msg, e)))
+    }
 }

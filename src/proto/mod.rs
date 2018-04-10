@@ -6,7 +6,7 @@ use headers;
 
 pub use self::body::Body;
 pub use self::chunk::Chunk;
-pub use self::h1::{dispatch, Conn};
+pub(crate) use self::h1::{dispatch, Conn};
 
 pub mod body;
 mod chunk;
@@ -60,14 +60,14 @@ pub fn expecting_continue(version: Version, headers: &HeaderMap) -> bool {
     version == Version::HTTP_11 && headers::expect_continue(headers)
 }
 
-pub type ServerTransaction = h1::role::Server<h1::role::YesUpgrades>;
+pub(crate) type ServerTransaction = h1::role::Server<h1::role::YesUpgrades>;
 //pub type ServerTransaction = h1::role::Server<h1::role::NoUpgrades>;
 //pub type ServerUpgradeTransaction = h1::role::Server<h1::role::YesUpgrades>;
 
-pub type ClientTransaction = h1::role::Client<h1::role::NoUpgrades>;
-pub type ClientUpgradeTransaction = h1::role::Client<h1::role::YesUpgrades>;
+pub(crate) type ClientTransaction = h1::role::Client<h1::role::NoUpgrades>;
+pub(crate) type ClientUpgradeTransaction = h1::role::Client<h1::role::YesUpgrades>;
 
-pub trait Http1Transaction {
+pub(crate) trait Http1Transaction {
     type Incoming;
     type Outgoing: Default;
     fn parse(bytes: &mut BytesMut) -> ParseResult<Self::Incoming>;
@@ -84,7 +84,7 @@ pub trait Http1Transaction {
     fn should_read_first() -> bool;
 }
 
-pub type ParseResult<T> = ::Result<Option<(MessageHead<T>, usize)>>;
+pub(crate) type ParseResult<T> = Result<Option<(MessageHead<T>, usize)>, ::error::Parse>;
 
 #[derive(Debug)]
 pub enum BodyLength {

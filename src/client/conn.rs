@@ -45,7 +45,7 @@ pub struct SendRequest<B> {
 pub struct Connection<T, B>
 where
     T: AsyncRead + AsyncWrite,
-    B: Entity<Error=::Error> + 'static,
+    B: Entity + 'static,
 {
     inner: proto::dispatch::Dispatcher<
         proto::dispatch::Client<B>,
@@ -138,7 +138,7 @@ impl<B> SendRequest<B>
 
 impl<B> SendRequest<B>
 where
-    B: Entity<Error=::Error> + 'static,
+    B: Entity + 'static,
 {
     /// Sends a `Request` on the associated connection.
     ///
@@ -262,7 +262,7 @@ impl<B> fmt::Debug for SendRequest<B> {
 impl<T, B> Connection<T, B>
 where
     T: AsyncRead + AsyncWrite,
-    B: Entity<Error=::Error> + 'static,
+    B: Entity + 'static,
 {
     /// Return the inner IO object, and additional information.
     pub fn into_parts(self) -> Parts<T> {
@@ -289,7 +289,7 @@ where
 impl<T, B> Future for Connection<T, B>
 where
     T: AsyncRead + AsyncWrite,
-    B: Entity<Error=::Error> + 'static,
+    B: Entity + 'static,
 {
     type Item = ();
     type Error = ::Error;
@@ -302,7 +302,7 @@ where
 impl<T, B> fmt::Debug for Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + fmt::Debug,
-    B: Entity<Error=::Error> + 'static,
+    B: Entity + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Connection")
@@ -331,7 +331,7 @@ impl Builder {
     pub fn handshake<T, B>(&self, io: T) -> Handshake<T, B>
     where
         T: AsyncRead + AsyncWrite,
-        B: Entity<Error=::Error> + 'static,
+        B: Entity + 'static,
     {
         Handshake {
             inner: HandshakeInner {
@@ -345,7 +345,7 @@ impl Builder {
     pub(super) fn handshake_no_upgrades<T, B>(&self, io: T) -> HandshakeNoUpgrades<T, B>
     where
         T: AsyncRead + AsyncWrite,
-        B: Entity<Error=::Error> + 'static,
+        B: Entity + 'static,
     {
         HandshakeNoUpgrades {
             inner: HandshakeInner {
@@ -362,7 +362,7 @@ impl Builder {
 impl<T, B> Future for Handshake<T, B>
 where
     T: AsyncRead + AsyncWrite,
-    B: Entity<Error=::Error> + 'static,
+    B: Entity + 'static,
 {
     type Item = (SendRequest<B>, Connection<T, B>);
     type Error = ::Error;
@@ -387,7 +387,7 @@ impl<T, B> fmt::Debug for Handshake<T, B> {
 impl<T, B> Future for HandshakeNoUpgrades<T, B>
 where
     T: AsyncRead + AsyncWrite,
-    B: Entity<Error=::Error> + 'static,
+    B: Entity + 'static,
 {
     type Item = (SendRequest<B>, proto::dispatch::Dispatcher<
         proto::dispatch::Client<B>,
@@ -406,7 +406,7 @@ where
 impl<T, B, R> Future for HandshakeInner<T, B, R>
 where
     T: AsyncRead + AsyncWrite,
-    B: Entity<Error=::Error> + 'static,
+    B: Entity + 'static,
     R: proto::Http1Transaction<
         Incoming=StatusCode,
         Outgoing=proto::RequestLine,
@@ -470,7 +470,7 @@ impl<B: Send> AssertSendSync for SendRequest<B> {}
 impl<T: Send, B: Send> AssertSend for Connection<T, B>
 where
     T: AsyncRead + AsyncWrite,
-    B: Entity<Error=::Error> + 'static,
+    B: Entity + 'static,
     B::Data: Send + 'static,
 {}
 
@@ -478,7 +478,7 @@ where
 impl<T: Send + Sync, B: Send + Sync> AssertSendSync for Connection<T, B>
 where
     T: AsyncRead + AsyncWrite,
-    B: Entity<Error=::Error> + 'static,
+    B: Entity + 'static,
     B::Data: Send + Sync + 'static,
 {}
 

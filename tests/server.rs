@@ -935,7 +935,7 @@ fn returning_1xx_response_is_error() {
             let socket = item.unwrap();
             Http::<hyper::Chunk>::new()
                 .serve_connection(socket, service_fn(|_| {
-                    Ok(Response::builder()
+                    Ok::<_, hyper::Error>(Response::builder()
                         .status(StatusCode::CONTINUE)
                         .body(Body::empty())
                         .unwrap())
@@ -988,7 +988,7 @@ fn upgrades() {
                         .header("upgrade", "foobar")
                         .body(hyper::Body::empty())
                         .unwrap();
-                    Ok(res)
+                    Ok::<_, hyper::Error>(res)
                 }));
 
             let mut conn_opt = Some(conn);
@@ -1144,10 +1144,10 @@ fn streaming_body() {
                 .keep_alive(false)
                 .serve_connection(socket, service_fn(|_| {
                     static S: &'static [&'static [u8]] = &[&[b'x'; 1_000] as &[u8]; 1_00] as _;
-                    let b = ::futures::stream::iter_ok(S.into_iter())
+                    let b = ::futures::stream::iter_ok::<_, String>(S.into_iter())
                         .map(|&s| s);
                     let b = hyper::Body::wrap_stream(b);
-                    Ok(Response::new(b))
+                    Ok::<_, hyper::Error>(Response::new(b))
                 }))
                 .map(|_| ())
         });
