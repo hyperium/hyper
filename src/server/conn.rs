@@ -25,7 +25,7 @@ use super::{HyperService, Request, Response, Service};
 pub struct Connection<I, S>
 where
     S: HyperService,
-    S::ResponseBody: Entity<Error=::Error>,
+    S::ResponseBody: Entity,
 {
     pub(super) conn: proto::dispatch::Dispatcher<
         proto::dispatch::Server<S>,
@@ -59,9 +59,11 @@ pub struct Parts<T> {
 // ===== impl Connection =====
 
 impl<I, B, S> Connection<I, S>
-where S: Service<Request = Request<Body>, Response = Response<B>, Error = ::Error> + 'static,
-      I: AsyncRead + AsyncWrite + 'static,
-      B: Entity<Error=::Error> + 'static,
+where
+    S: Service<Request=Request<Body>, Response=Response<B>> + 'static,
+    S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    I: AsyncRead + AsyncWrite + 'static,
+    B: Entity + 'static,
 {
     /// Disables keep-alive for this connection.
     pub fn disable_keep_alive(&mut self) {
@@ -96,9 +98,11 @@ where S: Service<Request = Request<Body>, Response = Response<B>, Error = ::Erro
 }
 
 impl<I, B, S> Future for Connection<I, S>
-where S: Service<Request = Request<Body>, Response = Response<B>, Error = ::Error> + 'static,
-      I: AsyncRead + AsyncWrite + 'static,
-      B: Entity<Error=::Error> + 'static,
+where
+    S: Service<Request=Request<Body>, Response=Response<B>> + 'static,
+    S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    I: AsyncRead + AsyncWrite + 'static,
+    B: Entity + 'static,
 {
     type Item = ();
     type Error = ::Error;
@@ -111,7 +115,7 @@ where S: Service<Request = Request<Body>, Response = Response<B>, Error = ::Erro
 impl<I, S> fmt::Debug for Connection<I, S>
 where
     S: HyperService,
-    S::ResponseBody: Entity<Error=::Error>,
+    S::ResponseBody: Entity,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Connection")

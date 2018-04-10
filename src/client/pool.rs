@@ -245,7 +245,7 @@ impl<T: Closed + Send + 'static> Pool<T> {
             interval: interval,
             pool: Arc::downgrade(&self.inner),
             pool_drop_notifier: rx,
-        }).unwrap();
+        });
     }
 }
 

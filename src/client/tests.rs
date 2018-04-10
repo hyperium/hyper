@@ -35,7 +35,7 @@ fn retryable_request() {
             try_ready!(sock1.read(&mut [0u8; 512]));
             try_ready!(sock1.write(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"));
             Ok(Async::Ready(()))
-        });
+        }).map_err(|e: ::std::io::Error| panic!("srv1 poll_fn error: {}", e));
         res1.join(srv1).wait().expect("res1");
     }
     drop(sock1);
@@ -52,7 +52,7 @@ fn retryable_request() {
         try_ready!(sock2.read(&mut [0u8; 512]));
         try_ready!(sock2.write(b"HTTP/1.1 222 OK\r\nContent-Length: 0\r\n\r\n"));
         Ok(Async::Ready(()))
-    });
+    }).map_err(|e: ::std::io::Error| panic!("srv2 poll_fn error: {}", e));
 
     res2.join(srv2).wait().expect("res2");
 }
@@ -82,7 +82,7 @@ fn conn_reset_after_write() {
             try_ready!(sock1.read(&mut [0u8; 512]));
             try_ready!(sock1.write(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"));
             Ok(Async::Ready(()))
-        });
+        }).map_err(|e: ::std::io::Error| panic!("srv1 poll_fn error: {}", e));
         res1.join(srv1).wait().expect("res1");
     }
 
@@ -105,10 +105,10 @@ fn conn_reset_after_write() {
         try_ready!(sock1.as_mut().unwrap().read(&mut [0u8; 512]));
         sock1.take();
         Ok(Async::Ready(()))
-    });
+    }).map_err(|e: ::std::io::Error| panic!("srv2 poll_fn error: {}", e));
     let err = res2.join(srv2).wait().expect_err("res2");
-    match err {
-        ::Error::Incomplete => (),
+    match err.kind() {
+        &::error::Kind::Incomplete => (),
         other => panic!("expected Incomplete, found {:?}", other)
     }
 }

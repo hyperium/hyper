@@ -9,7 +9,6 @@ use futures::future::lazy;
 use futures::sync::oneshot;
 
 use hyper::{Body, /*Chunk,*/ Method, Request, Response, StatusCode};
-use hyper::error::Error;
 use hyper::server::{Http, Service};
 
 use std::fs::File;
@@ -19,7 +18,7 @@ use std::thread;
 static NOTFOUND: &[u8] = b"Not Found";
 static INDEX: &str = "examples/send_file_index.html";
 
-fn simple_file_send(f: &str) -> Box<Future<Item = Response<Body>, Error = hyper::Error> + Send> {
+fn simple_file_send(f: &str) -> Box<Future<Item = Response<Body>, Error = io::Error> + Send> {
     // Serve a file by reading it entirely into memory. As a result
     // this is limited to serving small files, but it is somewhat
     // simpler with a little less overhead.
@@ -56,7 +55,7 @@ fn simple_file_send(f: &str) -> Box<Future<Item = Response<Body>, Error = hyper:
         };
     });
 
-    Box::new(rx.map_err(|e| Error::from(io::Error::new(io::ErrorKind::Other, e))))
+    Box::new(rx.map_err(|e| io::Error::new(io::ErrorKind::Other, e)))
 }
 
 struct ResponseExamples;
@@ -64,7 +63,7 @@ struct ResponseExamples;
 impl Service for ResponseExamples {
     type Request = Request<Body>;
     type Response = Response<Body>;
-    type Error = hyper::Error;
+    type Error = io::Error;
     type Future = Box<Future<Item = Self::Response, Error = Self::Error> + Send>;
 
     fn call(&self, req: Request<Body>) -> Self::Future {
@@ -119,7 +118,7 @@ impl Service for ResponseExamples {
                     */
                 });
 
-                Box::new(rx.map_err(|e| Error::from(io::Error::new(io::ErrorKind::Other, e))))
+                Box::new(rx.map_err(|e| io::Error::new(io::ErrorKind::Other, e)))
             },
             (&Method::GET, "/no_file.html") => {
                 // Test what happens when file cannot be be found
