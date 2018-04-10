@@ -128,7 +128,7 @@ fn eq_ascii(left: &str, right: &str) -> bool {
     // As of Rust 1.23, str gained this method inherently, and so the
     // compiler says this trait is unused.
     //
-    // Once our minimum Rust compiler version is >=1.23, this can be removed.
+    // TODO: Once our minimum Rust compiler version is >=1.23, this can be removed.
     #[allow(unused, deprecated)]
     use std::ascii::AsciiExt;
 

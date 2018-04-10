@@ -8,7 +8,7 @@ extern crate pretty_env_logger;
 use std::env;
 use std::io::{self, Write};
 
-use futures::{FutureExt, StreamExt};
+use futures::{Future, Stream};
 use futures::future::lazy;
 
 use hyper::{Body, Client, Request};
@@ -30,7 +30,7 @@ fn main() {
         return;
     }
 
-    tokio::runtime::run2(lazy(move |_| {
+    tokio::run(lazy(move || {
         let client = Client::default();
 
         let mut req = Request::new(Body::empty());
@@ -43,13 +43,10 @@ fn main() {
             res.into_parts().1.into_stream().for_each(|chunk| {
                 io::stdout().write_all(&chunk).map_err(From::from)
             })
-        }).then(|result| {
-            if let Some(err) = result.err() {
-                eprintln!("Error {}", err);
-            } else {
-                println!("\n\nDone.");
-            }
-            Ok(())
+        }).map(|_| {
+            println!("\n\nDone.");
+        }).map_err(|err| {
+            eprintln!("Error {}", err);
         })
     }));
 }

@@ -21,8 +21,7 @@ use self::Error::{
     Io,
     TooLarge,
     Incomplete,
-    Utf8,
-    Executor
+    Utf8
 };
 
 /// Result type often returned from methods that can have hyper `Error`s.
@@ -57,8 +56,6 @@ pub enum Error {
     Io(IoError),
     /// Parsing a field as string failed
     Utf8(Utf8Error),
-    /// Executing a future failed
-    Executor,
 
     #[doc(hidden)]
     __Nonexhaustive(Void)
@@ -130,7 +127,6 @@ impl StdError for Error {
             Cancel(ref e) => e.description(),
             Io(ref e) => e.description(),
             Utf8(ref e) => e.description(),
-            Executor => "executor is missing or failed to spawn",
             Error::__Nonexhaustive(..) =>  unreachable!(),
         }
     }

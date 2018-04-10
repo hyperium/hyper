@@ -3,10 +3,10 @@ use std::cmp;
 use std::io::{self, Read, Write};
 use std::sync::{Arc, Mutex};
 
+use bytes::Buf;
 use futures::{Async, Poll};
-use futures::task;
-use futures::io::{AsyncRead, AsyncWrite};
-use iovec::IoVec;
+use futures::task::{self, Task};
+use tokio_io::{AsyncRead, AsyncWrite};
 
 use ::client::connect::{Connect, Connected, Destination};
 
@@ -77,7 +77,7 @@ pub struct AsyncIo<T> {
     max_read_vecs: usize,
     num_writes: usize,
     park_tasks: bool,
-    task: Option<task::Waker>,
+    task: Option<Task>,
 }
 
 impl<T> AsyncIo<T> {
@@ -99,7 +99,7 @@ impl<T> AsyncIo<T> {
         self.bytes_until_block = bytes;
 
         if let Some(task) = self.task.take() {
-            task.wake();
+            task.notify();
         }
     }
 
@@ -130,12 +130,12 @@ impl<T> AsyncIo<T> {
         self.num_writes
     }
 
-    fn would_block<X, E>(&mut self, cx: &mut task::Context) -> Poll<X, E> {
+    fn would_block(&mut self) -> io::Error {
         self.blocked = true;
         if self.park_tasks {
-            self.task = Some(cx.waker().clone());
+            self.task = Some(task::current());
         }
-        Ok(Async::Pending)
+        io::ErrorKind::WouldBlock.into()
     }
 
 }
@@ -159,101 +159,118 @@ impl AsyncIo<MockCursor> {
     }
 }
 
+impl<T: Read + Write> AsyncIo<T> {
+    fn write_no_vecs<B: Buf>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
+        if !buf.has_remaining() {
+            return Ok(Async::Ready(0));
+        }
+
+        let n = try_nb!(self.write(buf.bytes()));
+        buf.advance(n);
+        Ok(Async::Ready(n))
+    }
+}
+
 impl<S: AsRef<[u8]>, T: AsRef<[u8]>> PartialEq<S> for AsyncIo<T> {
     fn eq(&self, other: &S) -> bool {
         self.inner.as_ref() == other.as_ref()
     }
 }
 
-impl<T: Read> AsyncRead for AsyncIo<T> {
-    fn poll_read(&mut self, cx: &mut task::Context, buf: &mut [u8]) -> Poll<usize, io::Error> {
+
+impl<T: Read> Read for AsyncIo<T> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.blocked = false;
         if let Some(err) = self.error.take() {
             Err(err)
         } else if self.bytes_until_block == 0 {
-            self.would_block(cx)
+            Err(self.would_block())
         } else {
             let n = cmp::min(self.bytes_until_block, buf.len());
             let n = try!(self.inner.read(&mut buf[..n]));
             self.bytes_until_block -= n;
-            Ok(Async::Ready(n))
+            Ok(n)
         }
     }
 }
 
-impl<T: Read + Write> AsyncIo<T> {
-    fn write_no_vecs(&mut self, cx: &mut task::Context, buf: &[u8]) -> Poll<usize, io::Error> {
-        if buf.len() == 0 {
-            return Ok(Async::Ready(0));
-        }
-
-        self.poll_write(cx, buf)
-    }
-}
-
-impl<T: Read + Write> AsyncWrite for AsyncIo<T> {
-    fn poll_write(&mut self, cx: &mut task::Context, buf: &[u8]) -> Poll<usize, io::Error> {
+impl<T: Write> Write for AsyncIo<T> {
+    fn write(&mut self, data: &[u8]) -> io::Result<usize> {
         self.num_writes += 1;
         if let Some(err) = self.error.take() {
             trace!("AsyncIo::write error");
             Err(err)
         } else if self.bytes_until_block == 0 {
             trace!("AsyncIo::write would block");
-            self.would_block(cx)
+            Err(self.would_block())
         } else {
-            trace!("AsyncIo::write; {} bytes", buf.len());
+            trace!("AsyncIo::write; {} bytes", data.len());
             self.flushed = false;
-            let n = cmp::min(self.bytes_until_block, buf.len());
-            let n = try!(self.inner.write(&buf[..n]));
+            let n = cmp::min(self.bytes_until_block, data.len());
+            let n = try!(self.inner.write(&data[..n]));
             self.bytes_until_block -= n;
-            Ok(Async::Ready(n))
+            Ok(n)
         }
     }
 
-    fn poll_flush(&mut self, _cx: &mut task::Context) -> Poll<(), io::Error> {
+    fn flush(&mut self) -> io::Result<()> {
         self.flushed = true;
-        try!(self.inner.flush());
-        Ok(Async::Ready(()))
+        self.inner.flush()
     }
+}
 
-    fn poll_close(&mut self, _cx: &mut task::Context) -> Poll<(), io::Error> {
+impl<T: Read + Write> AsyncRead for AsyncIo<T> {
+}
+
+impl<T: Read + Write> AsyncWrite for AsyncIo<T> {
+    fn shutdown(&mut self) -> Poll<(), io::Error> {
         Ok(().into())
     }
 
-    fn poll_vectored_write(&mut self, cx: &mut task::Context, vec: &[&IoVec]) -> Poll<usize, io::Error> {
+    fn write_buf<B: Buf>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
         if self.max_read_vecs == 0 {
-            if let Some(ref first_iovec) = vec.get(0) {
-                return self.write_no_vecs(cx, &*first_iovec)
-            } else {
-                return Ok(Async::Ready(0));
-            }
+            return self.write_no_vecs(buf);
         }
-
-        let mut n = 0;
-        let mut ret = Ok(Async::Ready(0));
-        // each call to poll_write() will increase our count, but we assume
-        // that if iovecs are used, its really only 1 write call.
-        let num_writes = self.num_writes;
-        for buf in vec {
-            match self.poll_write(cx, &buf) {
-                Ok(Async::Ready(num)) => {
-                    n += num;
-                    ret = Ok(Async::Ready(n));
-                },
-                Ok(Async::Pending) => {
-                    if let Ok(Async::Ready(0)) = ret {
-                        ret = Ok(Async::Pending);
+        let r = {
+            static DUMMY: &[u8] = &[0];
+            let mut bufs = [From::from(DUMMY); READ_VECS_CNT];
+            let i = Buf::bytes_vec(&buf, &mut bufs[..self.max_read_vecs]);
+            let mut n = 0;
+            let mut ret = Ok(0);
+            // each call to write() will increase our count, but we assume
+            // that if iovecs are used, its really only 1 write call.
+            let num_writes = self.num_writes;
+            for iovec in &bufs[..i] {
+                match self.write(iovec) {
+                    Ok(num) => {
+                        n += num;
+                        ret = Ok(n);
+                    },
+                    Err(e) => {
+                        if e.kind() == io::ErrorKind::WouldBlock {
+                            if let Ok(0) = ret {
+                                ret = Err(e);
+                            }
+                        } else {
+                            ret = Err(e);
+                        }
+                        break;
                     }
-                    break;
-                },
-                Err(err) => {
-                    ret = Err(err);
-                    break;
                 }
             }
+            self.num_writes = num_writes + 1;
+            ret
+        };
+        match r {
+            Ok(n) => {
+                Buf::advance(buf, n);
+                Ok(Async::Ready(n))
+            }
+            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                Ok(Async::NotReady)
+            }
+            Err(e) => Err(e),
         }
-        self.num_writes = num_writes + 1;
-        ret
     }
 }
 
@@ -270,33 +287,47 @@ pub struct Duplex {
 }
 
 struct DuplexInner {
-    handle_read_task: Option<task::Waker>,
+    handle_read_task: Option<Task>,
     read: AsyncIo<MockCursor>,
     write: AsyncIo<MockCursor>,
 }
 
-impl AsyncRead for Duplex {
-    fn poll_read(&mut self, cx: &mut task::Context, buf: &mut [u8]) -> Poll<usize, io::Error> {
-        self.inner.lock().unwrap().read.poll_read(cx, buf)
+impl Read for Duplex {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.inner.lock().unwrap().read.read(buf)
     }
 }
 
-impl AsyncWrite for Duplex {
-    fn poll_write(&mut self, cx: &mut task::Context, buf: &[u8]) -> Poll<usize, io::Error> {
+impl Write for Duplex {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let mut inner = self.inner.lock().unwrap();
         if let Some(task) = inner.handle_read_task.take() {
             trace!("waking DuplexHandle read");
-            task.wake();
+            task.notify();
         }
-        inner.write.poll_write(cx, buf)
+        inner.write.write(buf)
     }
 
-    fn poll_flush(&mut self, cx: &mut task::Context) -> Poll<(), io::Error> {
-        self.inner.lock().unwrap().write.poll_flush(cx)
+    fn flush(&mut self) -> io::Result<()> {
+        self.inner.lock().unwrap().write.flush()
     }
+}
 
-    fn poll_close(&mut self, _cx: &mut task::Context) -> Poll<(), io::Error> {
+impl AsyncRead for Duplex {
+
+}
+
+impl AsyncWrite for Duplex {
+    fn shutdown(&mut self) -> Poll<(), io::Error> {
         Ok(().into())
+    }
+
+    fn write_buf<B: Buf>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
+        let mut inner = self.inner.lock().unwrap();
+        if let Some(task) = inner.handle_read_task.take() {
+            task.notify();
+        }
+        inner.write.write_buf(buf)
     }
 }
 
@@ -305,13 +336,13 @@ pub struct DuplexHandle {
 }
 
 impl DuplexHandle {
-    pub fn read(&self, cx: &mut task::Context, buf: &mut [u8]) -> Poll<usize, io::Error> {
+    pub fn read(&self, buf: &mut [u8]) -> Poll<usize, io::Error> {
         let mut inner = self.inner.lock().unwrap();
         assert!(buf.len() >= inner.write.inner.len());
         if inner.write.inner.is_empty() {
             trace!("DuplexHandle read parking");
-            inner.handle_read_task = Some(cx.waker().clone());
-            return Ok(Async::Pending);
+            inner.handle_read_task = Some(task::current());
+            return Ok(Async::NotReady);
         }
         inner.write.inner.vec.truncate(0);
         Ok(Async::Ready(inner.write.inner.len()))

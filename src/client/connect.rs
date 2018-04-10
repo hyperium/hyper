@@ -8,21 +8,24 @@
 use std::error::Error as StdError;
 use std::fmt;
 use std::io;
+use std::mem;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::Duration;
 
-use futures::{Future, Never, Poll, Async};
-use futures::executor::{Executor, SpawnError, ThreadPoolBuilder};
-use futures::task;
-use futures::io::{AsyncRead, AsyncWrite};
+use futures::{Future, Poll, Async};
+use futures::future::{Executor, ExecuteError};
+use futures::sync::oneshot;
+use futures_cpupool::{Builder as CpuPoolBuilder};
 use http::Uri;
 use http::uri::Scheme;
 use net2::TcpBuilder;
+use tokio_io::{AsyncRead, AsyncWrite};
 use tokio::reactor::Handle;
 use tokio::net::{TcpStream, ConnectFuture};
 
-use executor::CloneBoxedExecutor;
 use super::dns;
+use self::http_connector::HttpConnectorBlockingTask;
 
 /// Connect to a destination, returning an IO transport.
 ///
@@ -171,7 +174,7 @@ impl HttpConnector {
     /// Takes number of DNS worker threads.
     #[inline]
     pub fn new(threads: usize, handle: &Handle) -> HttpConnector {
-        let pool = ThreadPoolBuilder::new()
+        let pool = CpuPoolBuilder::new()
             .name_prefix("hyper-dns")
             .pool_size(threads)
             .create();
@@ -183,10 +186,10 @@ impl HttpConnector {
     /// Takes an executor to run blocking tasks on.
     #[inline]
     pub fn new_with_executor<E: 'static>(executor: E, handle: &Handle) -> HttpConnector
-        where E: Executor + Clone + Send + Sync
+        where E: Executor<HttpConnectorBlockingTask> + Send + Sync
     {
         HttpConnector {
-            executor: HttpConnectExecutor(Box::new(executor)),
+            executor: HttpConnectExecutor(Arc::new(executor)),
             enforce_http: true,
             handle: handle.clone(),
             keep_alive_timeout: None,
@@ -295,7 +298,7 @@ pub struct HttpConnecting {
 
 enum State {
     Lazy(HttpConnectExecutor, String, u16),
-    Resolving(dns::Resolving),
+    Resolving(oneshot::SpawnHandle<dns::IpAddrs, io::Error>),
     Connecting(ConnectingTcp),
     Error(Option<io::Error>),
 }
@@ -304,11 +307,11 @@ impl Future for HttpConnecting {
     type Item = (TcpStream, Connected);
     type Error = io::Error;
 
-    fn poll(&mut self, cx: &mut task::Context) -> Poll<Self::Item, Self::Error> {
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         loop {
             let state;
             match self.state {
-                State::Lazy(ref mut executor, ref mut host, port) => {
+                State::Lazy(ref executor, ref mut host, port) => {
                     // If the host is already an IP addr (v4 or v6),
                     // skip resolving the dns and start connecting right away.
                     if let Some(addrs) = dns::IpAddrs::try_parse(host, port) {
@@ -317,19 +320,24 @@ impl Future for HttpConnecting {
                             current: None
                         })
                     } else {
-                        let host = ::std::mem::replace(host, String::new());
-                        state = State::Resolving(dns::Resolving::spawn(host, port, executor));
+                        let host = mem::replace(host, String::new());
+                        let work = dns::Work::new(host, port);
+                        state = State::Resolving(oneshot::spawn(work, executor));
                     }
                 },
                 State::Resolving(ref mut future) => {
-                    let addrs = try_ready!(future.poll(cx));
-                    state = State::Connecting(ConnectingTcp {
-                        addrs: addrs,
-                        current: None,
-                    });
+                    match try!(future.poll()) {
+                        Async::NotReady => return Ok(Async::NotReady),
+                        Async::Ready(addrs) => {
+                            state = State::Connecting(ConnectingTcp {
+                                addrs: addrs,
+                                current: None,
+                            })
+                        }
+                    };
                 },
                 State::Connecting(ref mut c) => {
-                    let sock = try_ready!(c.poll(cx, &self.handle));
+                    let sock = try_ready!(c.poll(&self.handle));
 
                     if let Some(dur) = self.keep_alive_timeout {
                         sock.set_keepalive(Some(dur))?;
@@ -357,11 +365,11 @@ struct ConnectingTcp {
 
 impl ConnectingTcp {
     // not a Future, since passing a &Handle to poll
-    fn poll(&mut self, cx: &mut task::Context, handle: &Handle) -> Poll<TcpStream, io::Error> {
+    fn poll(&mut self, handle: &Handle) -> Poll<TcpStream, io::Error> {
         let mut err = None;
         loop {
             if let Some(ref mut current) = self.current {
-                match current.poll(cx) {
+                match current.poll() {
                     Ok(ok) => return Ok(ok),
                     Err(e) => {
                         trace!("connect error {:?}", e);
@@ -384,19 +392,37 @@ impl ConnectingTcp {
     }
 }
 
-#[derive(Clone)]
-struct HttpConnectExecutor(Box<CloneBoxedExecutor>);
-
-impl Executor for HttpConnectExecutor {
-    fn spawn(
-        &mut self, 
-        f: Box<Future<Item = (), Error = Never> + 'static + Send>
-    ) -> Result<(), SpawnError> {
-        self.0.spawn(f)
+// Make this Future unnameable outside of this crate.
+mod http_connector {
+    use super::*;
+    // Blocking task to be executed on a thread pool.
+    pub struct HttpConnectorBlockingTask {
+        pub(super) work: oneshot::Execute<dns::Work>
     }
 
-    fn status(&self) -> Result<(), SpawnError> {
-        self.0.status()
+    impl fmt::Debug for HttpConnectorBlockingTask {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            f.pad("HttpConnectorBlockingTask")
+        }
+    }
+
+    impl Future for HttpConnectorBlockingTask {
+        type Item = ();
+        type Error = ();
+
+        fn poll(&mut self) -> Poll<(), ()> {
+            self.work.poll()
+        }
+    }
+}
+
+#[derive(Clone)]
+struct HttpConnectExecutor(Arc<Executor<HttpConnectorBlockingTask> + Send + Sync>);
+
+impl Executor<oneshot::Execute<dns::Work>> for HttpConnectExecutor {
+    fn execute(&self, future: oneshot::Execute<dns::Work>) -> Result<(), ExecuteError<oneshot::Execute<dns::Work>>> {
+        self.0.execute(HttpConnectorBlockingTask { work: future })
+            .map_err(|err| ExecuteError::new(err.kind(), err.into_future().work))
     }
 }
 
@@ -404,7 +430,7 @@ impl Executor for HttpConnectExecutor {
 mod tests {
     #![allow(deprecated)]
     use std::io;
-    use futures::executor::block_on;
+    use futures::Future;
     use tokio::runtime::Runtime;
     use super::{Connect, Destination, HttpConnector};
 
@@ -417,7 +443,7 @@ mod tests {
         };
         let connector = HttpConnector::new(1, runtime.handle());
 
-        assert_eq!(block_on(connector.connect(dst)).unwrap_err().kind(), io::ErrorKind::InvalidInput);
+        assert_eq!(connector.connect(dst).wait().unwrap_err().kind(), io::ErrorKind::InvalidInput);
     }
 
     #[test]
@@ -429,7 +455,7 @@ mod tests {
         };
         let connector = HttpConnector::new(1, runtime.handle());
 
-        assert_eq!(block_on(connector.connect(dst)).unwrap_err().kind(), io::ErrorKind::InvalidInput);
+        assert_eq!(connector.connect(dst).wait().unwrap_err().kind(), io::ErrorKind::InvalidInput);
     }
 
 
@@ -442,6 +468,6 @@ mod tests {
         };
         let connector = HttpConnector::new(1, runtime.handle());
 
-        assert_eq!(block_on(connector.connect(dst)).unwrap_err().kind(), io::ErrorKind::InvalidInput);
+        assert_eq!(connector.connect(dst).wait().unwrap_err().kind(), io::ErrorKind::InvalidInput);
     }
 }

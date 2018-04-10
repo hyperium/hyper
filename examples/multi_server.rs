@@ -4,9 +4,8 @@ extern crate futures;
 extern crate pretty_env_logger;
 extern crate tokio;
 
-use futures::{FutureExt, StreamExt};
+use futures::{Future, Stream};
 use futures::future::{FutureResult, lazy};
-use futures::executor::spawn;
 
 use hyper::{Body, Method, Request, Response, StatusCode};
 use hyper::server::{Http, Service};
@@ -44,20 +43,22 @@ fn main() {
     let addr1 = "127.0.0.1:1337".parse().unwrap();
     let addr2 = "127.0.0.1:1338".parse().unwrap();
 
-    tokio::runtime::run2(lazy(move |_| {
+    tokio::run(lazy(move || {
         let srv1 = Http::new().serve_addr(&addr1, || Ok(Srv(INDEX1))).unwrap();
         let srv2 = Http::new().serve_addr(&addr2, || Ok(Srv(INDEX2))).unwrap();
 
         println!("Listening on http://{}", srv1.incoming_ref().local_addr());
         println!("Listening on http://{}", srv2.incoming_ref().local_addr());
 
-        spawn(srv1.map_err(|err| panic!("srv1 error: {:?}", err)).for_each(move |conn| {
-            spawn(conn.map(|_| ()).map_err(|err| panic!("srv1 error: {:?}", err)))
-        }).map(|_| ()));
+        tokio::spawn(srv1.for_each(move |conn| {
+            tokio::spawn(conn.map(|_| ()).map_err(|err| println!("srv1 error: {:?}", err)));
+            Ok(())
+        }).map_err(|_| ()));
 
-        spawn(srv2.map_err(|err| panic!("srv2 error: {:?}", err)).for_each(move |conn| {
-            spawn(conn.map(|_| ()).map_err(|err| panic!("srv2 error: {:?}", err)))
-        }).map(|_| ()));
+        tokio::spawn(srv2.for_each(move |conn| {
+            tokio::spawn(conn.map(|_| ()).map_err(|err| println!("srv2 error: {:?}", err)));
+            Ok(())
+        }).map_err(|_| ()));
 
         Ok(())
     }));

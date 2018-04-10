@@ -8,6 +8,7 @@ extern crate net2;
 extern crate spmc;
 extern crate pretty_env_logger;
 extern crate tokio;
+extern crate tokio_io;
 
 use std::net::{TcpStream, Shutdown, SocketAddr};
 use std::io::{self, Read, Write};
@@ -18,18 +19,16 @@ use std::net::{TcpListener as StdTcpListener};
 use std::thread;
 use std::time::Duration;
 
-use futures::{Future, FutureExt, StreamExt};
+use futures::{Future, Stream};
 use futures::future::{self, FutureResult, Either};
-use futures::channel::oneshot;
-use futures::executor::block_on;
-use futures::task;
-use futures::io::{AsyncRead, AsyncWrite};
+use futures::sync::oneshot;
 use futures_timer::Delay;
 use http::header::{HeaderName, HeaderValue};
 //use net2::TcpBuilder;
 use tokio::net::TcpListener;
 use tokio::runtime::Runtime;
 use tokio::reactor::Handle;
+use tokio_io::{AsyncRead, AsyncWrite};
 
 
 use hyper::{Body, Request, Response, StatusCode};
@@ -79,7 +78,7 @@ fn get_with_body() {
 fn get_implicitly_empty() {
     // See https://github.com/hyperium/hyper/issues/1373
     let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.handle()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -92,14 +91,14 @@ fn get_implicitly_empty() {
     });
 
     let fut = listener.incoming()
-        .next()
+        .into_future()
         .map_err(|_| unreachable!())
         .and_then(|(item, _incoming)| {
             let socket = item.unwrap();
             Http::<hyper::Chunk>::new().serve_connection(socket, GetImplicitlyEmpty)
         });
 
-    block_on(fut).unwrap();
+    fut.wait().unwrap();
 
     struct GetImplicitlyEmpty;
 
@@ -112,7 +111,7 @@ fn get_implicitly_empty() {
         fn call(&self, req: Request<Body>) -> Self::Future {
             Box::new(req.into_body()
                 .into_stream()
-                .concat()
+                .concat2()
                 .map(|buf| {
                     assert!(buf.is_empty());
                     Response::new(Body::empty())
@@ -756,7 +755,7 @@ fn http_10_request_receives_http_10_response() {
 #[test]
 fn disable_keep_alive_mid_request() {
     let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.handle()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     let (tx1, rx1) = oneshot::channel();
@@ -766,34 +765,34 @@ fn disable_keep_alive_mid_request() {
         let mut req = connect(&addr);
         req.write_all(b"GET / HTTP/1.1\r\n").unwrap();
         tx1.send(()).unwrap();
-        block_on(rx2).unwrap();
+        rx2.wait().unwrap();
         req.write_all(b"Host: localhost\r\n\r\n").unwrap();
         let mut buf = vec![];
         req.read_to_end(&mut buf).unwrap();
     });
 
     let fut = listener.incoming()
-        .next()
+        .into_future()
         .map_err(|_| unreachable!())
         .and_then(|(item, _incoming)| {
             let socket = item.unwrap();
             Http::<hyper::Chunk>::new().serve_connection(socket, HelloWorld)
-                .select(rx1)
+                .select2(rx1)
                 .then(|r| {
                     match r {
-                        Ok(Either::Left(_)) => panic!("expected rx first"),
-                        Ok(Either::Right(((), mut conn))) => {
+                        Ok(Either::A(_)) => panic!("expected rx first"),
+                        Ok(Either::B(((), mut conn))) => {
                             conn.disable_keep_alive();
                             tx2.send(()).unwrap();
                             conn
                         }
-                        Err(Either::Left((e, _))) => panic!("unexpected error {}", e),
-                        Err(Either::Right((e, _))) => panic!("unexpected error {}", e),
+                        Err(Either::A((e, _))) => panic!("unexpected error {}", e),
+                        Err(Either::B((e, _))) => panic!("unexpected error {}", e),
                     }
                 })
         });
 
-    block_on(fut).unwrap();
+    fut.wait().unwrap();
     child.join().unwrap();
 }
 
@@ -801,7 +800,7 @@ fn disable_keep_alive_mid_request() {
 fn disable_keep_alive_post_request() {
     let _ = pretty_env_logger::try_init();
     let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.handle()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     let (tx1, rx1) = oneshot::channel();
@@ -834,7 +833,7 @@ fn disable_keep_alive_post_request() {
     let dropped = Dropped::new();
     let dropped2 = dropped.clone();
     let fut = listener.incoming()
-        .next()
+        .into_future()
         .map_err(|_| unreachable!())
         .and_then(|(item, _incoming)| {
             let socket = item.expect("accepted socket");
@@ -843,28 +842,28 @@ fn disable_keep_alive_post_request() {
                 _debug: dropped2,
             };
             Http::<hyper::Chunk>::new().serve_connection(transport, HelloWorld)
-                .select(rx1)
+                .select2(rx1)
                 .then(|r| {
                     match r {
-                        Ok(Either::Left(_)) => panic!("expected rx first"),
-                        Ok(Either::Right(((), mut conn))) => {
+                        Ok(Either::A(_)) => panic!("expected rx first"),
+                        Ok(Either::B(((), mut conn))) => {
                             conn.disable_keep_alive();
                             conn
                         }
-                        Err(Either::Left((e, _))) => panic!("unexpected error {}", e),
-                        Err(Either::Right((e, _))) => panic!("unexpected error {}", e),
+                        Err(Either::A((e, _))) => panic!("unexpected error {}", e),
+                        Err(Either::B((e, _))) => panic!("unexpected error {}", e),
                     }
                 })
         });
 
     assert!(!dropped.load());
-    block_on(fut).unwrap();
+    fut.wait().unwrap();
     // we must poll the Core one more time in order for Windows to drop
     // the read-blocked socket.
     //
     // See https://github.com/carllerche/mio/issues/776
     let timeout = Delay::new(Duration::from_millis(10));
-    block_on(timeout).unwrap();
+    timeout.wait().unwrap();
     assert!(dropped.load());
     child.join().unwrap();
 }
@@ -872,7 +871,7 @@ fn disable_keep_alive_post_request() {
 #[test]
 fn empty_parse_eof_does_not_return_error() {
     let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.handle()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -880,20 +879,20 @@ fn empty_parse_eof_does_not_return_error() {
     });
 
     let fut = listener.incoming()
-        .next()
+        .into_future()
         .map_err(|_| unreachable!())
         .and_then(|(item, _incoming)| {
             let socket = item.unwrap();
             Http::<hyper::Chunk>::new().serve_connection(socket, HelloWorld)
         });
 
-    block_on(fut).unwrap();
+    fut.wait().unwrap();
 }
 
 #[test]
 fn nonempty_parse_eof_returns_error() {
     let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.handle()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -902,7 +901,7 @@ fn nonempty_parse_eof_returns_error() {
     });
 
     let fut = listener.incoming()
-        .next()
+        .into_future()
         .map_err(|_| unreachable!())
         .and_then(|(item, _incoming)| {
             let socket = item.unwrap();
@@ -910,13 +909,13 @@ fn nonempty_parse_eof_returns_error() {
                 .map(|_| ())
         });
 
-    block_on(fut).unwrap_err();
+    fut.wait().unwrap_err();
 }
 
 #[test]
 fn returning_1xx_response_is_error() {
     let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.handle()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -930,7 +929,7 @@ fn returning_1xx_response_is_error() {
     });
 
     let fut = listener.incoming()
-        .next()
+        .into_future()
         .map_err(|_| unreachable!())
         .and_then(|(item, _incoming)| {
             let socket = item.unwrap();
@@ -944,15 +943,15 @@ fn returning_1xx_response_is_error() {
                 .map(|_| ())
         });
 
-    block_on(fut).unwrap_err();
+    fut.wait().unwrap_err();
 }
 
 #[test]
 fn upgrades() {
-    use futures::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio_io::io::{read_to_end, write_all};
     let _ = pretty_env_logger::try_init();
     let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.handle()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
     let addr = listener.local_addr().unwrap();
     let (tx, rx) = oneshot::channel();
 
@@ -978,7 +977,7 @@ fn upgrades() {
     });
 
     let fut = listener.incoming()
-        .next()
+        .into_future()
         .map_err(|_| -> hyper::Error { unreachable!() })
         .and_then(|(item, _incoming)| {
             let socket = item.unwrap();
@@ -993,31 +992,31 @@ fn upgrades() {
                 }));
 
             let mut conn_opt = Some(conn);
-            future::poll_fn(move |cx| {
-                try_ready!(conn_opt.as_mut().unwrap().poll_without_shutdown(cx));
+            future::poll_fn(move || {
+                try_ready!(conn_opt.as_mut().unwrap().poll_without_shutdown());
                 // conn is done with HTTP now
                 Ok(conn_opt.take().unwrap().into())
             })
         });
 
-    let conn = block_on(fut).unwrap();
+    let conn = fut.wait().unwrap();
 
     // wait so that we don't write until other side saw 101 response
-    block_on(rx).unwrap();
+    rx.wait().unwrap();
 
     let parts = conn.into_parts();
     let io = parts.io;
     assert_eq!(parts.read_buf, "eagerly optimistic");
 
-    let io = block_on(io.write_all(b"foo=bar")).unwrap().0;
-    let vec = block_on(io.read_to_end(vec![])).unwrap().1;
+    let io = write_all(io, b"foo=bar").wait().unwrap().0;
+    let vec = read_to_end(io, vec![]).wait().unwrap().1;
     assert_eq!(vec, b"bar=foo");
 }
 
 #[test]
 fn parse_errors_send_4xx_response() {
     let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.handle()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -1031,7 +1030,7 @@ fn parse_errors_send_4xx_response() {
     });
 
     let fut = listener.incoming()
-        .next()
+        .into_future()
         .map_err(|_| unreachable!())
         .and_then(|(item, _incoming)| {
             let socket = item.unwrap();
@@ -1040,13 +1039,13 @@ fn parse_errors_send_4xx_response() {
                 .map(|_| ())
         });
 
-    block_on(fut).unwrap_err();
+    fut.wait().unwrap_err();
 }
 
 #[test]
 fn illegal_request_length_returns_400_response() {
     let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.handle()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -1060,7 +1059,7 @@ fn illegal_request_length_returns_400_response() {
     });
 
     let fut = listener.incoming()
-        .next()
+        .into_future()
         .map_err(|_| unreachable!())
         .and_then(|(item, _incoming)| {
             let socket = item.unwrap();
@@ -1069,14 +1068,14 @@ fn illegal_request_length_returns_400_response() {
                 .map(|_| ())
         });
 
-    block_on(fut).unwrap_err();
+    fut.wait().unwrap_err();
 }
 
 #[test]
 fn max_buf_size() {
     let _ = pretty_env_logger::try_init();
     let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.handle()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     const MAX: usize = 16_000;
@@ -1093,7 +1092,7 @@ fn max_buf_size() {
     });
 
     let fut = listener.incoming()
-        .next()
+        .into_future()
         .map_err(|_| unreachable!())
         .and_then(|(item, _incoming)| {
             let socket = item.unwrap();
@@ -1103,14 +1102,14 @@ fn max_buf_size() {
                 .map(|_| ())
         });
 
-    block_on(fut).unwrap_err();
+    fut.wait().unwrap_err();
 }
 
 #[test]
 fn streaming_body() {
     let _ = pretty_env_logger::try_init();
     let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.handle()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     let (tx, rx) = oneshot::channel();
@@ -1137,7 +1136,7 @@ fn streaming_body() {
     let rx = rx.map_err(|_| panic!("thread panicked"));
 
     let fut = listener.incoming()
-        .next()
+        .into_future()
         .map_err(|_| unreachable!())
         .and_then(|(item, _incoming)| {
             let socket = item.unwrap();
@@ -1153,7 +1152,7 @@ fn streaming_body() {
                 .map(|_| ())
         });
 
-    block_on(fut.join(rx)).unwrap();
+    fut.join(rx).wait().unwrap();
 }
 
 // -------------------------------------------------
@@ -1293,7 +1292,7 @@ impl Service for TestService {
             Ok(())
         }).then(move |result| {
             let msg = match result {
-                Ok(_) => Msg::End,
+                Ok(()) => Msg::End,
                 Err(e) => Msg::Error(e),
             };
             tx2.lock().unwrap().send(msg).unwrap();
@@ -1380,7 +1379,7 @@ fn serve_with_options(options: ServeOptions) -> Serve {
 
     let thread_name = format!("test-server-{:?}", dur);
     let thread = thread::Builder::new().name(thread_name).spawn(move || {
-        tokio::runtime::run2(::futures::future::lazy(move |_| {
+        tokio::run(::futures::future::lazy(move || {
             let srv = Http::new()
                 .keep_alive(keep_alive)
                 .pipeline(pipeline)
@@ -1391,7 +1390,7 @@ fn serve_with_options(options: ServeOptions) -> Serve {
                 }).unwrap();
             addr_tx.send(srv.local_addr().unwrap()).unwrap();
             srv.run_until(shutdown_rx.then(|_| Ok(())))
-                .map_err(|err| panic!("error {}", err))
+                .map_err(|err| println!("error {}", err))
         }))
     }).unwrap();
 
@@ -1421,26 +1420,31 @@ struct DebugStream<T, D> {
     _debug: D,
 }
 
+impl<T: Read, D> Read for DebugStream<T, D> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.stream.read(buf)
+    }
+}
+
+impl<T: Write, D> Write for DebugStream<T, D> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.stream.write(buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.stream.flush()
+    }
+}
+
+
 impl<T: AsyncWrite, D> AsyncWrite for DebugStream<T, D> {
-    fn poll_write(&mut self, cx: &mut task::Context, buf: &[u8]) -> futures::Poll<usize, io::Error> {
-        self.stream.poll_write(cx, buf)
-    }
-
-    fn poll_flush(&mut self, cx: &mut task::Context) -> futures::Poll<(), io::Error> {
-        self.stream.poll_flush(cx)
-    }
-
-    fn poll_close(&mut self, cx: &mut task::Context) -> futures::Poll<(), io::Error> {
-        self.stream.poll_close(cx)
+    fn shutdown(&mut self) -> futures::Poll<(), io::Error> {
+        self.stream.shutdown()
     }
 }
 
 
-impl<T: AsyncRead, D> AsyncRead for DebugStream<T, D> {
-    fn poll_read(&mut self, cx: &mut task::Context, buf: &mut [u8]) -> futures::Poll<usize, io::Error> {
-        self.stream.poll_read(cx, buf)
-    }
-}
+impl<T: AsyncRead, D> AsyncRead for DebugStream<T, D> {}
 
 #[derive(Clone)]
 struct Dropped(Arc<AtomicBool>);

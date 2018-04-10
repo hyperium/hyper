@@ -6,22 +6,23 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::Duration;
 
-use futures::{Async, Future, FutureExt, Never, Poll};
-use futures::channel::oneshot;
-use futures::future;
-use futures::task;
+use futures::{Async, Future, Poll};
+use futures::future::{self, Executor};
+use futures::sync::oneshot;
 use http::{Method, Request, Response, Uri, Version};
 use http::header::{Entry, HeaderValue, HOST};
 use http::uri::Scheme;
 use tokio::reactor::Handle;
+use tokio_executor::spawn;
+pub use tokio_service::Service;
 
-pub use service::Service;
 use proto::body::{Body, Entity};
 use proto;
 use self::pool::Pool;
 
 pub use self::connect::{Connect, HttpConnector};
 
+use self::background::{bg, Background};
 use self::connect::Destination;
 
 pub mod conn;
@@ -35,6 +36,7 @@ mod tests;
 /// A Client to make outgoing HTTP requests.
 pub struct Client<C, B = proto::Body> {
     connector: Arc<C>,
+    executor: Exec,
     h1_writev: bool,
     pool: Pool<PoolClient<B>>,
     retry_canceled_requests: bool,
@@ -81,9 +83,10 @@ impl Client<HttpConnector, proto::Body> {
 
 impl<C, B> Client<C, B> {
     #[inline]
-    fn configured(config: Config<C, B>) -> Client<C, B> {
+    fn configured(config: Config<C, B>, exec: Exec) -> Client<C, B> {
         Client {
             connector: Arc::new(config.connector),
+            executor: exec,
             h1_writev: config.h1_writev,
             pool: Pool::new(config.keep_alive, config.keep_alive_timeout),
             retry_canceled_requests: config.retry_canceled_requests,
@@ -123,6 +126,14 @@ where C: Connect<Error=io::Error> + Sync + 'static,
 
     /// Send a constructed Request using this Client.
     pub fn request(&self, mut req: Request<B>) -> FutureResponse {
+        // TODO(0.12): do this at construction time.
+        //
+        // It cannot be done in the constructor because the Client::configured
+        // does not have `B: 'static` bounds, which are required to spawn
+        // the interval. In 0.12, add a static bounds to the constructor,
+        // and move this.
+        self.schedule_pool_timer();
+
         match req.version() {
             Version::HTTP_10 |
             Version::HTTP_11 => (),
@@ -165,6 +176,7 @@ where C: Connect<Error=io::Error> + Sync + 'static,
             }
         }
 
+
         let client = self.clone();
         let uri = req.uri().clone();
         let fut = RetryableSendRequest {
@@ -181,6 +193,7 @@ where C: Connect<Error=io::Error> + Sync + 'static,
         let url = req.uri().clone();
         let checkout = self.pool.checkout(domain);
         let connect = {
+            let executor = self.executor.clone();
             let pool = self.pool.clone();
             let pool_key = Arc::new(domain.to_string());
             let h1_writev = self.h1_writev;
@@ -188,39 +201,36 @@ where C: Connect<Error=io::Error> + Sync + 'static,
             let dst = Destination {
                 uri: url,
             };
-            future::lazy(move |_| {
+            future::lazy(move || {
                 connector.connect(dst)
-                    .err_into()
+                    .from_err()
                     .and_then(move |(io, connected)| {
                         conn::Builder::new()
                             .h1_writev(h1_writev)
                             .handshake_no_upgrades(io)
                             .and_then(move |(tx, conn)| {
-                                future::lazy(move |cx| {
-                                    execute(conn.recover(|e| {
-                                        debug!("client connection error: {}", e);
-                                    }), cx)?;
-                                    Ok(pool.pooled(pool_key, PoolClient {
-                                        is_proxied: connected.is_proxied,
-                                        tx: tx,
-                                    }))
-                                })
+                                executor.execute(conn.map_err(|e| debug!("client connection error: {}", e)))?;
+                                Ok(pool.pooled(pool_key, PoolClient {
+                                    is_proxied: connected.is_proxied,
+                                    tx: tx,
+                                }))
                             })
                     })
             })
         };
 
-        let race = checkout.select(connect).map(|either| {
-            either.either(|(pooled, _)| pooled, |(pooled, _)| pooled)
-        }).map_err(|either| {
-            // the Pool Checkout cannot error, so the only error
-            // is from the Connector
-            // XXX: should wait on the Checkout? Problem is
-            // that if the connector is failing, it may be that we
-            // never had a pooled stream at all
-            ClientError::Normal(either.either(|(e, _)| e, |(e, _)| e))
-        });
+        let race = checkout.select(connect)
+            .map(|(pooled, _work)| pooled)
+            .map_err(|(e, _checkout)| {
+                // the Pool Checkout cannot error, so the only error
+                // is from the Connector
+                // XXX: should wait on the Checkout? Problem is
+                // that if the connector is failing, it may be that we
+                // never had a pooled stream at all
+                ClientError::Normal(e)
+            });
 
+        let executor = self.executor.clone();
         let resp = race.and_then(move |mut pooled| {
             let conn_reused = pooled.is_reused();
             set_relative_uri(req.uri_mut(), pooled.is_proxied);
@@ -237,35 +247,34 @@ where C: Connect<Error=io::Error> + Sync + 'static,
                     }
                 })
                 .and_then(move |mut res| {
-                    future::lazy(move |cx| {
-                        // when pooled is dropped, it will try to insert back into the
-                        // pool. To delay that, spawn a future that completes once the
-                        // sender is ready again.
-                        //
-                        // This *should* only be once the related `Connection` has polled
-                        // for a new request to start.
-                        //
-                        // It won't be ready if there is a body to stream.
-                        if pooled.tx.is_ready() {
-                            drop(pooled);
-                        } else if !res.body().is_empty() {
-                            let (delayed_tx, delayed_rx) = oneshot::channel();
-                            res.body_mut().delayed_eof(delayed_rx);
-                            // If the executor doesn't have room, oh well. Things will likely
-                            // be blowing up soon, but this specific task isn't required.
-                            let fut = future::poll_fn(move |cx| {
-                                pooled.tx.poll_ready(cx)
+                    // when pooled is dropped, it will try to insert back into the
+                    // pool. To delay that, spawn a future that completes once the
+                    // sender is ready again.
+                    //
+                    // This *should* only be once the related `Connection` has polled
+                    // for a new request to start.
+                    //
+                    // It won't be ready if there is a body to stream.
+                    if pooled.tx.is_ready() {
+                        drop(pooled);
+                    } else if !res.body().is_empty() {
+                        let (delayed_tx, delayed_rx) = oneshot::channel();
+                        res.body_mut().delayed_eof(delayed_rx);
+                        // If the executor doesn't have room, oh well. Things will likely
+                        // be blowing up soon, but this specific task isn't required.
+                        let _ = executor.execute(
+                            future::poll_fn(move || {
+                                pooled.tx.poll_ready()
                             })
-                                .then(move |_| {
-                                    // At this point, `pooled` is dropped, and had a chance
-                                    // to insert into the pool (if conn was idle)
-                                    drop(delayed_tx);
-                                    Ok(())
-                                });
-                            execute(fut, cx).ok();
-                        }
-                        Ok(res)
-                    })
+                            .then(move |_| {
+                                // At this point, `pooled` is dropped, and had a chance
+                                // to insert into the pool (if conn was idle)
+                                drop(delayed_tx);
+                                Ok(())
+                            })
+                        );
+                    }
+                    Ok(res)
                 });
 
 
@@ -273,6 +282,10 @@ where C: Connect<Error=io::Error> + Sync + 'static,
         });
 
         Box::new(resp)
+    }
+
+    fn schedule_pool_timer(&self) {
+        self.pool.spawn_expired_interval(&self.executor);
     }
 }
 
@@ -296,6 +309,7 @@ impl<C, B> Clone for Client<C, B> {
     fn clone(&self) -> Client<C, B> {
         Client {
             connector: self.connector.clone(),
+            executor: self.executor.clone(),
             h1_writev: self.h1_writev,
             pool: self.pool.clone(),
             retry_canceled_requests: self.retry_canceled_requests,
@@ -325,8 +339,8 @@ impl Future for FutureResponse {
     type Item = Response<Body>;
     type Error = ::Error;
 
-    fn poll(&mut self, cx: &mut task::Context) -> Poll<Self::Item, Self::Error> {
-        self.0.poll(cx)
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        self.0.poll()
     }
 }
 
@@ -347,11 +361,11 @@ where
     type Item = Response<Body>;
     type Error = ::Error;
 
-    fn poll(&mut self, cx: &mut task::Context) -> Poll<Self::Item, Self::Error> {
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         loop {
-            match self.future.poll(cx) {
+            match self.future.poll() {
                 Ok(Async::Ready(resp)) => return Ok(Async::Ready(resp)),
-                Ok(Async::Pending) => return Ok(Async::Pending),
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Err(ClientError::Normal(err)) => return Err(err),
                 Err(ClientError::Canceled {
                     connection_reused,
@@ -559,7 +573,18 @@ where C: Connect<Error=io::Error>,
     /// Construct the Client with this configuration.
     #[inline]
     pub fn build(self) -> Client<C, B> {
-        Client::configured(self)
+        Client::configured(self, Exec::Default)
+    }
+
+    /// Construct a Client with this configuration and an executor.
+    ///
+    /// The executor will be used to spawn "background" connection tasks
+    /// to drive requests and responses.
+    pub fn executor<E>(self, executor: E) -> Client<C, B>
+    where
+        E: Executor<Background> + Send + Sync + 'static,
+    {
+        Client::configured(self, Exec::new(executor))
     }
 }
 
@@ -576,6 +601,21 @@ where
             connector.set_keepalive(self.keep_alive_timeout);
         }
         self.connector(connector).build()
+    }
+
+    /// Construct a Client with this configuration and an executor.
+    ///
+    /// The executor will be used to spawn "background" connection tasks
+    /// to drive requests and responses.
+    pub fn build_with_executor<E>(self, handle: &Handle, executor: E) -> Client<HttpConnector, B>
+    where
+        E: Executor<Background> + Send + Sync + 'static,
+    {
+        let mut connector = HttpConnector::new(4, handle);
+        if self.keep_alive {
+            connector.set_keepalive(self.keep_alive_timeout);
+        }
+        self.connector(connector).executor(executor)
     }
 }
 
@@ -601,15 +641,68 @@ impl<C: Clone, B> Clone for Config<C, B> {
 }
 
 
-fn execute<F>(fut: F, cx: &mut task::Context) -> Result<(), ::Error>
-    where F: Future<Item=(), Error=Never> + Send + 'static,
-{
-    if let Some(executor) = cx.executor() {
-        executor.spawn(Box::new(fut)).map_err(|err| {
-            debug!("executor error: {:?}", err);
-            ::Error::Executor
-        })
-    } else {
-        Err(::Error::Executor)
+// ===== impl Exec =====
+
+#[derive(Clone)]
+enum Exec {
+    Default,
+    Executor(Arc<Executor<Background> + Send + Sync>),
+}
+
+
+impl Exec {
+    pub(crate) fn new<E: Executor<Background> + Send + Sync + 'static>(executor: E) -> Exec {
+        Exec::Executor(Arc::new(executor))
+    }
+
+    fn execute<F>(&self, fut: F) -> io::Result<()>
+    where
+        F: Future<Item=(), Error=()> + Send + 'static,
+    {
+        match *self {
+            Exec::Default => spawn(fut),
+            Exec::Executor(ref e) => {
+                e.execute(bg(Box::new(fut)))
+                    .map_err(|err| {
+                        debug!("executor error: {:?}", err.kind());
+                        io::Error::new(
+                            io::ErrorKind::Other,
+                            "executor error",
+                        )
+                    })?
+            },
+        }
+        Ok(())
     }
 }
+
+// ===== impl Background =====
+
+// The types inside this module are not exported out of the crate,
+// so they are in essence un-nameable.
+mod background {
+    use futures::{Future, Poll};
+
+    // This is basically `impl Future`, since the type is un-nameable,
+    // and only implementeds `Future`.
+    #[allow(missing_debug_implementations)]
+    pub struct Background {
+        inner: Box<Future<Item=(), Error=()> + Send>,
+    }
+
+    pub fn bg(fut: Box<Future<Item=(), Error=()> + Send>) -> Background {
+        Background {
+            inner: fut,
+        }
+    }
+
+    impl Future for Background {
+        type Item = ();
+        type Error = ();
+
+        fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+            self.inner.poll()
+        }
+    }
+}
+
