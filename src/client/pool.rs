@@ -503,11 +503,12 @@ mod tests {
 
     #[test]
     fn test_pool_timer_removes_expired() {
+        use std::sync::Arc;
         let runtime = ::tokio::runtime::Runtime::new().unwrap();
         let pool = Pool::new(true, Some(Duration::from_millis(100)));
 
         let executor = runtime.executor();
-        pool.spawn_expired_interval(&Exec::new(executor));
+        pool.spawn_expired_interval(&Exec::Executor(Arc::new(executor)));
         let key = Arc::new("foo".to_string());
 
         pool.pooled(key.clone(), 41);

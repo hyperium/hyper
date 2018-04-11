@@ -31,7 +31,7 @@ fn main() {
     }
 
     tokio::run(lazy(move || {
-        let client = Client::default();
+        let client = Client::new();
 
         let mut req = Request::new(Body::empty());
         *req.uri_mut() = url;

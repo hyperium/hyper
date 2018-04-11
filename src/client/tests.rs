@@ -20,9 +20,9 @@ fn retryable_request() {
     let sock1 = connector.mock("http://mock.local");
     let sock2 = connector.mock("http://mock.local");
 
-    let client = Client::configure()
-        .connector(connector)
-        .executor(executor.sender().clone());
+    let client = Client::builder()
+        .executor(executor.sender().clone())
+        .build::<_, ::Body>(connector);
 
     {
 
@@ -66,9 +66,9 @@ fn conn_reset_after_write() {
 
     let sock1 = connector.mock("http://mock.local");
 
-    let client = Client::configure()
-        .connector(connector)
-        .executor(executor.sender().clone());
+    let client = Client::builder()
+        .executor(executor.sender().clone())
+        .build::<_, ::Body>(connector);
 
     {
         let req = Request::builder()

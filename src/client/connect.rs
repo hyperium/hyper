@@ -135,26 +135,30 @@ impl Connected {
     */
 }
 
-fn connect(addr: &SocketAddr, handle: &Handle) -> io::Result<ConnectFuture> {
-    let builder = match addr {
-        &SocketAddr::V4(_) => TcpBuilder::new_v4()?,
-        &SocketAddr::V6(_) => TcpBuilder::new_v6()?,
-    };
-
-    if cfg!(windows) {
-        // Windows requires a socket be bound before calling connect
-        let any: SocketAddr = match addr {
-            &SocketAddr::V4(_) => {
-                ([0, 0, 0, 0], 0).into()
-            },
-            &SocketAddr::V6(_) => {
-                ([0, 0, 0, 0, 0, 0, 0, 0], 0).into()
-            }
+fn connect(addr: &SocketAddr, handle: &Option<Handle>) -> io::Result<ConnectFuture> {
+    if let Some(ref handle) = *handle {
+        let builder = match addr {
+            &SocketAddr::V4(_) => TcpBuilder::new_v4()?,
+            &SocketAddr::V6(_) => TcpBuilder::new_v6()?,
         };
-        builder.bind(any)?;
-    }
 
-    Ok(TcpStream::connect_std(builder.to_tcp_stream()?, addr, handle))
+        if cfg!(windows) {
+            // Windows requires a socket be bound before calling connect
+            let any: SocketAddr = match addr {
+                &SocketAddr::V4(_) => {
+                    ([0, 0, 0, 0], 0).into()
+                },
+                &SocketAddr::V6(_) => {
+                    ([0, 0, 0, 0, 0, 0, 0, 0], 0).into()
+                }
+            };
+            builder.bind(any)?;
+        }
+
+        Ok(TcpStream::connect_std(builder.to_tcp_stream()?, addr, handle))
+    } else {
+        Ok(TcpStream::connect(addr))
+    }
 }
 
 /// A connector for the `http` scheme.
@@ -164,7 +168,7 @@ fn connect(addr: &SocketAddr, handle: &Handle) -> io::Result<ConnectFuture> {
 pub struct HttpConnector {
     executor: HttpConnectExecutor,
     enforce_http: bool,
-    handle: Handle,
+    handle: Option<Handle>,
     keep_alive_timeout: Option<Duration>,
 }
 
@@ -173,7 +177,16 @@ impl HttpConnector {
     ///
     /// Takes number of DNS worker threads.
     #[inline]
-    pub fn new(threads: usize, handle: &Handle) -> HttpConnector {
+    pub fn new(threads: usize) -> HttpConnector {
+        HttpConnector::new_with_handle_opt(threads, None)
+    }
+
+    /// Construct a new HttpConnector with a specific Tokio handle.
+    pub fn new_with_handle(threads: usize, handle: Handle) -> HttpConnector {
+        HttpConnector::new_with_handle_opt(threads, Some(handle))
+    }
+
+    fn new_with_handle_opt(threads: usize, handle: Option<Handle>) -> HttpConnector {
         let pool = CpuPoolBuilder::new()
             .name_prefix("hyper-dns")
             .pool_size(threads)
@@ -184,14 +197,13 @@ impl HttpConnector {
     /// Construct a new HttpConnector.
     ///
     /// Takes an executor to run blocking tasks on.
-    #[inline]
-    pub fn new_with_executor<E: 'static>(executor: E, handle: &Handle) -> HttpConnector
+    pub fn new_with_executor<E: 'static>(executor: E, handle: Option<Handle>) -> HttpConnector
         where E: Executor<HttpConnectorBlockingTask> + Send + Sync
     {
         HttpConnector {
             executor: HttpConnectExecutor(Arc::new(executor)),
             enforce_http: true,
-            handle: handle.clone(),
+            handle,
             keep_alive_timeout: None,
         }
     }
@@ -257,7 +269,7 @@ impl Connect for HttpConnector {
 }
 
 #[inline]
-fn invalid_url(err: InvalidUrl, handle: &Handle) -> HttpConnecting {
+fn invalid_url(err: InvalidUrl, handle: &Option<Handle>) -> HttpConnecting {
     HttpConnecting {
         state: State::Error(Some(io::Error::new(io::ErrorKind::InvalidInput, err))),
         handle: handle.clone(),
@@ -292,7 +304,7 @@ impl StdError for InvalidUrl {
 #[must_use = "futures do nothing unless polled"]
 pub struct HttpConnecting {
     state: State,
-    handle: Handle,
+    handle: Option<Handle>,
     keep_alive_timeout: Option<Duration>,
 }
 
@@ -365,7 +377,7 @@ struct ConnectingTcp {
 
 impl ConnectingTcp {
     // not a Future, since passing a &Handle to poll
-    fn poll(&mut self, handle: &Handle) -> Poll<TcpStream, io::Error> {
+    fn poll(&mut self, handle: &Option<Handle>) -> Poll<TcpStream, io::Error> {
         let mut err = None;
         loop {
             if let Some(ref mut current) = self.current {
@@ -431,29 +443,26 @@ mod tests {
     #![allow(deprecated)]
     use std::io;
     use futures::Future;
-    use tokio::runtime::Runtime;
     use super::{Connect, Destination, HttpConnector};
 
     #[test]
     fn test_errors_missing_authority() {
-        let runtime = Runtime::new().unwrap();
         let uri = "/foo/bar?baz".parse().unwrap();
         let dst = Destination {
             uri,
         };
-        let connector = HttpConnector::new(1, runtime.handle());
+        let connector = HttpConnector::new(1);
 
         assert_eq!(connector.connect(dst).wait().unwrap_err().kind(), io::ErrorKind::InvalidInput);
     }
 
     #[test]
     fn test_errors_enforce_http() {
-        let runtime = Runtime::new().unwrap();
         let uri = "https://example.domain/foo/bar?baz".parse().unwrap();
         let dst = Destination {
             uri,
         };
-        let connector = HttpConnector::new(1, runtime.handle());
+        let connector = HttpConnector::new(1);
 
         assert_eq!(connector.connect(dst).wait().unwrap_err().kind(), io::ErrorKind::InvalidInput);
     }
@@ -461,12 +470,11 @@ mod tests {
 
     #[test]
     fn test_errors_missing_scheme() {
-        let runtime = Runtime::new().unwrap();
         let uri = "example.domain".parse().unwrap();
         let dst = Destination {
             uri,
         };
-        let connector = HttpConnector::new(1, runtime.handle());
+        let connector = HttpConnector::new(1);
 
         assert_eq!(connector.connect(dst).wait().unwrap_err().kind(), io::ErrorKind::InvalidInput);
     }

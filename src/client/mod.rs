@@ -2,7 +2,6 @@
 
 use std::fmt;
 use std::io;
-use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -12,7 +11,6 @@ use futures::sync::oneshot;
 use http::{Method, Request, Response, Uri, Version};
 use http::header::{Entry, HeaderValue, HOST};
 use http::uri::Scheme;
-use tokio::reactor::Handle;
 use tokio_executor::spawn;
 pub use tokio_service::Service;
 
@@ -21,7 +19,6 @@ use self::pool::Pool;
 
 pub use self::connect::{Connect, HttpConnector};
 
-use self::background::{bg, Background};
 use self::connect::Destination;
 
 pub mod conn;
@@ -45,14 +42,14 @@ pub struct Client<C, B = Body> {
 impl Client<HttpConnector, Body> {
     /// Create a new Client with the default config.
     #[inline]
-    pub fn new(handle: &Handle) -> Client<HttpConnector, Body> {
-        Config::default().build(handle)
+    pub fn new() -> Client<HttpConnector, Body> {
+        Builder::default().build_http()
     }
 }
 
 impl Default for Client<HttpConnector, Body> {
     fn default() -> Client<HttpConnector, Body> {
-        Client::new(&Handle::current())
+        Client::new()
     }
 }
 
@@ -61,36 +58,18 @@ impl Client<HttpConnector, Body> {
     ///
     /// # Example
     ///
-    /// ```no_run
-    /// # extern crate hyper;
-    /// # extern crate tokio;
+    /// ```
+    /// use hyper::Client;
     ///
-    /// # fn main() {
-    /// # let runtime = tokio::runtime::Runtime::new().unwrap();
-    /// # let handle = runtime.handle();
-    /// let client = hyper::Client::configure()
+    /// let client = Client::builder()
     ///     .keep_alive(true)
-    ///     .build(&handle);
-    /// # drop(client);
-    /// # }
+    ///     .build_http();
+    /// # let infer: Client<_, hyper::Body> = client;
+    /// # drop(infer);
     /// ```
     #[inline]
-    pub fn configure() -> Config<UseDefaultConnector, Body> {
-        Config::default()
-    }
-}
-
-impl<C, B> Client<C, B> {
-    #[inline]
-    fn configured(config: Config<C, B>, exec: Exec) -> Client<C, B> {
-        Client {
-            connector: Arc::new(config.connector),
-            executor: exec,
-            h1_writev: config.h1_writev,
-            pool: Pool::new(config.keep_alive, config.keep_alive_timeout),
-            retry_canceled_requests: config.retry_canceled_requests,
-            set_host: config.set_host,
-        }
+    pub fn builder() -> Builder {
+        Builder::default()
     }
 }
 
@@ -425,11 +404,11 @@ fn set_relative_uri(uri: &mut Uri, is_proxied: bool) {
     *uri = path;
 }
 
-/// Configuration for a Client
-pub struct Config<C, B> {
-    _body_type: PhantomData<B>,
+/// Builder for a Client
+#[derive(Clone)]
+pub struct Builder {
     //connect_timeout: Duration,
-    connector: C,
+    exec: Exec,
     keep_alive: bool,
     keep_alive_timeout: Option<Duration>,
     h1_writev: bool,
@@ -439,15 +418,10 @@ pub struct Config<C, B> {
     set_host: bool,
 }
 
-/// Phantom type used to signal that `Config` should create a `HttpConnector`.
-#[derive(Debug, Clone, Copy)]
-pub struct UseDefaultConnector(());
-
-impl Default for Config<UseDefaultConnector, Body> {
-    fn default() -> Config<UseDefaultConnector, Body> {
-        Config {
-            _body_type: PhantomData::<Body>,
-            connector: UseDefaultConnector(()),
+impl Default for Builder {
+    fn default() -> Self {
+        Self {
+            exec: Exec::Default,
             keep_alive: true,
             keep_alive_timeout: Some(Duration::from_secs(90)),
             h1_writev: true,
@@ -458,50 +432,12 @@ impl Default for Config<UseDefaultConnector, Body> {
     }
 }
 
-impl<C, B> Config<C, B> {
-    /// Set the body stream to be used by the `Client`.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # use hyper::client::Config;
-    /// let cfg = Config::default()
-    ///     .body::<hyper::Body>();
-    /// # drop(cfg);
-    #[inline]
-    pub fn body<BB>(self) -> Config<C, BB> {
-        Config {
-            _body_type: PhantomData::<BB>,
-            connector: self.connector,
-            keep_alive: self.keep_alive,
-            keep_alive_timeout: self.keep_alive_timeout,
-            h1_writev: self.h1_writev,
-            max_idle: self.max_idle,
-            retry_canceled_requests: self.retry_canceled_requests,
-            set_host: self.set_host,
-        }
-    }
-
-    /// Set the `Connect` type to be used.
-    #[inline]
-    pub fn connector<CC>(self, val: CC) -> Config<CC, B> {
-        Config {
-            _body_type: self._body_type,
-            connector: val,
-            keep_alive: self.keep_alive,
-            keep_alive_timeout: self.keep_alive_timeout,
-            h1_writev: self.h1_writev,
-            max_idle: self.max_idle,
-            retry_canceled_requests: self.retry_canceled_requests,
-            set_host: self.set_host,
-        }
-    }
-
+impl Builder {
     /// Enable or disable keep-alive mechanics.
     ///
     /// Default is enabled.
     #[inline]
-    pub fn keep_alive(mut self, val: bool) -> Config<C, B> {
+    pub fn keep_alive(&mut self, val: bool) -> &mut Self {
         self.keep_alive = val;
         self
     }
@@ -512,7 +448,7 @@ impl<C, B> Config<C, B> {
     ///
     /// Default is 90 seconds.
     #[inline]
-    pub fn keep_alive_timeout(mut self, val: Option<Duration>) -> Config<C, B> {
+    pub fn keep_alive_timeout(&mut self, val: Option<Duration>) -> &mut Self {
         self.keep_alive_timeout = val;
         self
     }
@@ -526,7 +462,7 @@ impl<C, B> Config<C, B> {
     ///
     /// Default is `true`.
     #[inline]
-    pub fn http1_writev(mut self, val: bool) -> Config<C, B> {
+    pub fn http1_writev(&mut self, val: bool) -> &mut Self {
         self.h1_writev = val;
         self
     }
@@ -543,7 +479,7 @@ impl<C, B> Config<C, B> {
     ///
     /// Default is `true`.
     #[inline]
-    pub fn retry_canceled_requests(mut self, val: bool) -> Config<C, B> {
+    pub fn retry_canceled_requests(&mut self, val: bool) -> &mut Self {
         self.retry_canceled_requests = val;
         self
     }
@@ -555,71 +491,56 @@ impl<C, B> Config<C, B> {
     ///
     /// Default is `true`.
     #[inline]
-    pub fn set_host(mut self, val: bool) -> Config<C, B> {
+    pub fn set_host(&mut self, val: bool) -> &mut Self {
         self.set_host = val;
         self
     }
-}
 
-impl<C, B> Config<C, B>
-where C: Connect,
-      C::Transport: 'static,
-      C::Future: 'static,
-      B: Payload + Send,
-      B::Data: Send,
-{
-    /// Construct the Client with this configuration.
-    #[inline]
-    pub fn build(self) -> Client<C, B> {
-        Client::configured(self, Exec::Default)
-    }
-
-    /// Construct a Client with this configuration and an executor.
-    ///
-    /// The executor will be used to spawn "background" connection tasks
-    /// to drive requests and responses.
-    pub fn executor<E>(self, executor: E) -> Client<C, B>
+    /// Provide an executor to execute background `Connection` tasks.
+    pub fn executor<E>(&mut self, exec: E) -> &mut Self
     where
-        E: Executor<Background> + Send + Sync + 'static,
+        E: Executor<Box<Future<Item=(), Error=()> + Send>> + Send + Sync + 'static,
     {
-        Client::configured(self, Exec::new(executor))
+        self.exec = Exec::Executor(Arc::new(exec));
+        self
     }
-}
 
-impl<B> Config<UseDefaultConnector, B>
-where
-    B: Payload + Send,
-    B::Data: Send,
-{
-    /// Construct the Client with this configuration.
-    #[inline]
-    pub fn build(self, handle: &Handle) -> Client<HttpConnector, B> {
-        let mut connector = HttpConnector::new(4, handle);
+    /// Builder a client with this configuration and the default `HttpConnector`.
+    pub fn build_http<B>(&self) -> Client<HttpConnector, B>
+    where
+        B: Payload + Send,
+        B::Data: Send,
+    {
+        let mut connector = HttpConnector::new(4);
         if self.keep_alive {
             connector.set_keepalive(self.keep_alive_timeout);
         }
-        self.connector(connector).build()
+        self.build(connector)
     }
 
-    /// Construct a Client with this configuration and an executor.
-    ///
-    /// The executor will be used to spawn "background" connection tasks
-    /// to drive requests and responses.
-    pub fn build_with_executor<E>(self, handle: &Handle, executor: E) -> Client<HttpConnector, B>
+    /// Combine the configuration of this builder with a connector to create a `Client`.
+    pub fn build<C, B>(&self, connector: C) -> Client<C, B>
     where
-        E: Executor<Background> + Send + Sync + 'static,
+        C: Connect,
+        C::Transport: 'static,
+        C::Future: 'static,
+        B: Payload + Send,
+        B::Data: Send,
     {
-        let mut connector = HttpConnector::new(4, handle);
-        if self.keep_alive {
-            connector.set_keepalive(self.keep_alive_timeout);
+        Client {
+            connector: Arc::new(connector),
+            executor: self.exec.clone(),
+            h1_writev: self.h1_writev,
+            pool: Pool::new(self.keep_alive, self.keep_alive_timeout),
+            retry_canceled_requests: self.retry_canceled_requests,
+            set_host: self.set_host,
         }
-        self.connector(connector).executor(executor)
     }
 }
 
-impl<C, B> fmt::Debug for Config<C, B> {
+impl fmt::Debug for Builder {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Config")
+        f.debug_struct("Builder")
             .field("keep_alive", &self.keep_alive)
             .field("keep_alive_timeout", &self.keep_alive_timeout)
             .field("http1_writev", &self.h1_writev)
@@ -629,29 +550,16 @@ impl<C, B> fmt::Debug for Config<C, B> {
     }
 }
 
-impl<C: Clone, B> Clone for Config<C, B> {
-    fn clone(&self) -> Config<C, B> {
-        Config {
-            connector: self.connector.clone(),
-            .. *self
-        }
-    }
-}
-
 // ===== impl Exec =====
 
 #[derive(Clone)]
 enum Exec {
     Default,
-    Executor(Arc<Executor<Background> + Send + Sync>),
+    Executor(Arc<Executor<Box<Future<Item=(), Error=()> + Send>> + Send + Sync>),
 }
 
 
 impl Exec {
-    pub(crate) fn new<E: Executor<Background> + Send + Sync + 'static>(executor: E) -> Exec {
-        Exec::Executor(Arc::new(executor))
-    }
-
     fn execute<F>(&self, fut: F)
     where
         F: Future<Item=(), Error=()> + Send + 'static,
@@ -659,41 +567,11 @@ impl Exec {
         match *self {
             Exec::Default => spawn(fut),
             Exec::Executor(ref e) => {
-                let _ = e.execute(bg(Box::new(fut)))
+                let _ = e.execute(Box::new(fut))
                     .map_err(|err| {
                         panic!("executor error: {:?}", err.kind());
                     });
             },
-        }
-    }
-}
-
-// ===== impl Background =====
-
-// The types inside this module are not exported out of the crate,
-// so they are in essence un-nameable.
-mod background {
-    use futures::{Future, Poll};
-
-    // This is basically `impl Future`, since the type is un-nameable,
-    // and only implementeds `Future`.
-    #[allow(missing_debug_implementations)]
-    pub struct Background {
-        inner: Box<Future<Item=(), Error=()> + Send>,
-    }
-
-    pub fn bg(fut: Box<Future<Item=(), Error=()> + Send>) -> Background {
-        Background {
-            inner: fut,
-        }
-    }
-
-    impl Future for Background {
-        type Item = ();
-        type Error = ();
-
-        fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-            self.inner.poll()
         }
     }
 }

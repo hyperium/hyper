@@ -6,9 +6,9 @@ extern crate tokio;
 
 use futures::{Future, Stream};
 use futures::future::lazy;
-use tokio::reactor::Handle;
 
 use hyper::{Body, Chunk, Client, Method, Request, Response, StatusCode};
+use hyper::client::HttpConnector;
 use hyper::server::{Http, Service};
 
 #[allow(unused, deprecated)]
@@ -19,7 +19,7 @@ static URL: &str = "http://127.0.0.1:1337/web_api";
 static INDEX: &[u8] = b"<a href=\"test.html\">test.html</a>";
 static LOWERCASE: &[u8] = b"i am a lower case string";
 
-struct ResponseExamples(Handle);
+struct ResponseExamples(Client<HttpConnector>);
 
 impl Service for ResponseExamples {
     type Request = Request<Body>;
@@ -35,13 +35,12 @@ impl Service for ResponseExamples {
             },
             (&Method::GET, "/test.html") => {
                 // Run a web query against the web api below
-                let client = Client::configure().build(&self.0);
                 let req = Request::builder()
                     .method(Method::POST)
                     .uri(URL)
                     .body(LOWERCASE.into())
                     .unwrap();
-                let web_res_future = client.request(req);
+                let web_res_future = self.0.request(req);
 
                 Box::new(web_res_future.map(|web_res| {
                     let body = Body::wrap_stream(web_res.into_body().map(|b| {
@@ -79,8 +78,8 @@ fn main() {
     let addr = "127.0.0.1:1337".parse().unwrap();
 
     tokio::run(lazy(move || {
-        let handle = Handle::current();
-        let serve = Http::new().serve_addr(&addr, move || Ok(ResponseExamples(handle.clone()))).unwrap();
+        let client = Client::new();
+        let serve = Http::new().serve_addr(&addr, move || Ok(ResponseExamples(client.clone()))).unwrap();
         println!("Listening on http://{} with 1 thread.", serve.incoming_ref().local_addr());
 
         serve.map_err(|_| ()).for_each(move |conn| {
