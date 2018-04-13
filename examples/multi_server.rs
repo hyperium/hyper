@@ -51,12 +51,12 @@ fn main() {
         println!("Listening on http://{}", srv2.incoming_ref().local_addr());
 
         tokio::spawn(srv1.for_each(move |conn| {
-            tokio::spawn(conn.map(|_| ()).map_err(|err| println!("srv1 error: {:?}", err)));
+            tokio::spawn(conn.map_err(|err| println!("srv1 error: {:?}", err)));
             Ok(())
         }).map_err(|_| ()));
 
         tokio::spawn(srv2.for_each(move |conn| {
-            tokio::spawn(conn.map(|_| ()).map_err(|err| println!("srv2 error: {:?}", err)));
+            tokio::spawn(conn.map_err(|err| println!("srv2 error: {:?}", err)));
             Ok(())
         }).map_err(|_| ()));
 

@@ -129,7 +129,7 @@ where I: AsyncRead + AsyncWrite,
                     let must_error = self.should_error_on_eof();
                     self.state.close_read();
                     self.io.consume_leading_lines();
-                    let was_mid_parse = !self.io.read_buf().is_empty();
+                    let was_mid_parse = e.is_parse() || !self.io.read_buf().is_empty();
                     return if was_mid_parse || must_error {
                         debug!("parse error ({}) with {} bytes", e, self.io.read_buf().len());
                         self.on_parse_error(e)
@@ -566,7 +566,7 @@ where I: AsyncRead + AsyncWrite,
         match self.io.io_mut().shutdown() {
             Ok(Async::NotReady) => Ok(Async::NotReady),
             Ok(Async::Ready(())) => {
-                trace!("shut down IO");
+                trace!("shut down IO complete");
                 Ok(Async::Ready(()))
             }
             Err(e) => {
@@ -598,6 +598,12 @@ where I: AsyncRead + AsyncWrite,
         } else {
             Ok(())
         }
+    }
+
+    // Used in h1::dispatch tests
+    #[cfg(test)]
+    pub(super) fn io_mut(&mut self) -> &mut I {
+        self.io.io_mut()
     }
 }
 

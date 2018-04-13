@@ -6,8 +6,8 @@ use headers;
 
 pub(crate) use self::h1::{dispatch, Conn};
 
-mod h1;
-//mod h2;
+pub(crate) mod h1;
+pub(crate) mod h2;
 
 
 /// An Incoming Message head. Includes request/status line, and headers.

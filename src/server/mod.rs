@@ -8,13 +8,12 @@ mod service;
 
 use std::fmt;
 use std::io;
-use std::marker::PhantomData;
 use std::net::{SocketAddr, TcpListener as StdTcpListener};
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
 use futures::task::{self, Task};
-use futures::future::{self};
+use futures::future::{self, Either, Executor};
 use futures::{Future, Stream, Poll, Async};
 use futures_timer::Delay;
 use http::{Request, Response};
@@ -25,6 +24,7 @@ use tokio::net::TcpListener;
 pub use tokio_service::{NewService, Service};
 
 use body::{Body, Payload};
+use common::Exec;
 use proto;
 use self::addr_stream::AddrStream;
 use self::hyper_service::HyperService;
@@ -37,23 +37,22 @@ pub use self::service::{const_service, service_fn};
 /// This structure is used to create instances of `Server` or to spawn off tasks
 /// which handle a connection to an HTTP server. Each instance of `Http` can be
 /// configured with various protocol-level options such as keepalive.
-pub struct Http<B = ::Chunk> {
-    max_buf_size: Option<usize>,
+#[derive(Clone, Debug)]
+pub struct Http {
+    exec: Exec,
+    http2: bool,
     keep_alive: bool,
+    max_buf_size: Option<usize>,
     pipeline: bool,
     sleep_on_errors: bool,
-    _marker: PhantomData<B>,
 }
 
 /// An instance of a server created through `Http::bind`.
 ///
 /// This server is intended as a convenience for creating a TCP listener on an
 /// address and then serving TCP connections accepted with the service provided.
-pub struct Server<S, B>
-where
-    B: Payload,
-{
-    protocol: Http<B::Data>,
+pub struct Server<S> {
+    protocol: Http,
     new_service: S,
     handle: Handle,
     listener: TcpListener,
@@ -105,17 +104,26 @@ impl fmt::Debug for AddrIncoming {
 
 // ===== impl Http =====
 
-impl<B: AsRef<[u8]> + 'static> Http<B> {
+impl Http {
     /// Creates a new instance of the HTTP protocol, ready to spawn a server or
     /// start accepting connections.
-    pub fn new() -> Http<B> {
+    pub fn new() -> Http {
         Http {
+            exec: Exec::Default,
+            http2: false,
             keep_alive: true,
             max_buf_size: None,
             pipeline: false,
             sleep_on_errors: false,
-            _marker: PhantomData,
         }
+    }
+
+    /// Sets whether HTTP2 is required.
+    ///
+    /// Default is false
+    pub fn http2_only(&mut self, val: bool) -> &mut Self {
+        self.http2 = val;
+        self
     }
 
     /// Enables or disables HTTP keep-alive.
@@ -142,6 +150,17 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
         self
     }
 
+    /// Set the executor used to spawn background tasks.
+    ///
+    /// Default uses implicit default (like `tokio::spawn`).
+    pub fn executor<E>(&mut self, exec: E) -> &mut Self
+    where
+        E: Executor<Box<Future<Item=(), Error=()> + Send>> + Send + Sync + 'static
+    {
+        self.exec = Exec::Executor(Arc::new(exec));
+        self
+    }
+
     /// Swallow connection accept errors. Instead of passing up IO errors when
     /// the server is under heavy load the errors will be ignored. Some
     /// connection accept errors (like "connection reset") can be ignored, some
@@ -164,11 +183,11 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     ///
     /// The returned `Server` contains one method, `run`, which is used to
     /// actually run the server.
-    pub fn bind<S, Bd>(&self, addr: &SocketAddr, new_service: S) -> ::Result<Server<S, Bd>>
+    pub fn bind<S, Bd>(&self, addr: &SocketAddr, new_service: S) -> ::Result<Server<S>>
     where
         S: NewService<Request=Request<Body>, Response=Response<Bd>> + 'static,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-        Bd: Payload<Data=B>,
+        Bd: Payload,
     {
         let handle = Handle::current();
         let std_listener = StdTcpListener::bind(addr).map_err(::Error::new_listen)?;
@@ -193,7 +212,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     where
         S: NewService<Request=Request<Body>, Response=Response<Bd>>,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-        Bd: Payload<Data=B>,
+        Bd: Payload,
     {
         let handle = Handle::current();
         let std_listener = StdTcpListener::bind(addr).map_err(::Error::new_listen)?;
@@ -217,7 +236,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     where
         S: NewService<Request = Request<Body>, Response = Response<Bd>>,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-        Bd: Payload<Data=B>,
+        Bd: Payload,
     {
         let std_listener = StdTcpListener::bind(addr).map_err(::Error::new_listen)?;
         let listener = TcpListener::from_std(std_listener, &handle).map_err(::Error::new_listen)?;
@@ -238,18 +257,12 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
         I::Item: AsyncRead + AsyncWrite,
         S: NewService<Request = Request<Body>, Response = Response<Bd>>,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-        Bd: Payload<Data=B>,
+        Bd: Payload,
     {
         Serve {
             incoming: incoming,
             new_service: new_service,
-            protocol: Http {
-                keep_alive: self.keep_alive,
-                max_buf_size: self.max_buf_size,
-                pipeline: self.pipeline,
-                sleep_on_errors: self.sleep_on_errors,
-                _marker: PhantomData,
-            },
+            protocol: self.clone(),
         }
     }
 
@@ -276,11 +289,10 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     /// #     S: Service<Request=Request<Body>, Response=Response<Body>, Error=hyper::Error> + Send + 'static,
     /// #     S::Future: Send
     /// # {
-    /// let http = Http::<hyper::Chunk>::new();
+    /// let http = Http::new();
     /// let conn = http.serve_connection(some_io, some_service);
     ///
     /// let fut = conn
-    ///     .map(|_| ())
     ///     .map_err(|e| eprintln!("server connection error: {}", e));
     ///
     /// tokio::spawn(fut);
@@ -291,42 +303,31 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     where
         S: Service<Request = Request<Body>, Response = Response<Bd>>,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+        S::Future: Send + 'static,
         Bd: Payload,
         I: AsyncRead + AsyncWrite,
     {
-        let mut conn = proto::Conn::new(io);
-        if !self.keep_alive {
-            conn.disable_keep_alive();
-        }
-        conn.set_flush_pipeline(self.pipeline);
-        if let Some(max) = self.max_buf_size {
-            conn.set_max_buf_size(max);
-        }
+        let either = if !self.http2 {
+            let mut conn = proto::Conn::new(io);
+            if !self.keep_alive {
+                conn.disable_keep_alive();
+            }
+            conn.set_flush_pipeline(self.pipeline);
+            if let Some(max) = self.max_buf_size {
+                conn.set_max_buf_size(max);
+            }
+            let sd = proto::h1::dispatch::Server::new(service);
+            Either::A(proto::h1::Dispatcher::new(sd, conn))
+        } else {
+            let h2 = proto::h2::Server::new(io, service, self.exec.clone());
+            Either::B(h2)
+        };
+
         Connection {
-            conn: proto::dispatch::Dispatcher::new(proto::dispatch::Server::new(service), conn),
+            conn: either,
         }
     }
 }
-
-
-
-impl<B> Clone for Http<B> {
-    fn clone(&self) -> Http<B> {
-        Http {
-            ..*self
-        }
-    }
-}
-
-impl<B> fmt::Debug for Http<B> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Http")
-            .field("keep_alive", &self.keep_alive)
-            .field("pipeline", &self.pipeline)
-            .finish()
-    }
-}
-
 
 
 // ===== impl Server =====
@@ -351,12 +352,12 @@ impl Future for Run {
 }
 
 
-impl<S, B> Server<S, B>
+impl<S, B> Server<S>
 where
     S: NewService<Request = Request<Body>, Response = Response<B>> + Send + 'static,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
     <S as NewService>::Instance: Send,
-    <<S as NewService>::Instance as Service>::Future: Send,
+    <<S as NewService>::Instance as Service>::Future: Send + 'static,
     B: Payload + Send + 'static,
     B::Data: Send,
 {
@@ -479,7 +480,7 @@ where
     }
 }
 
-impl<S: fmt::Debug, B: Payload> fmt::Debug for Server<S, B>
+impl<S: fmt::Debug> fmt::Debug for Server<S>
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Server")
@@ -516,6 +517,7 @@ where
     I::Item: AsyncRead + AsyncWrite,
     S: NewService<Request=Request<Body>, Response=Response<B>>,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    <S::Instance as Service>::Future: Send + 'static,
     B: Payload,
 {
     type Item = Connection<I::Item, S::Instance>;

@@ -20,6 +20,7 @@ extern crate bytes;
 #[macro_use] extern crate futures;
 extern crate futures_cpupool;
 extern crate futures_timer;
+extern crate h2;
 extern crate http;
 extern crate httparse;
 extern crate iovec;
@@ -36,6 +37,7 @@ extern crate want;
 extern crate test;
 
 pub use http::{
+    HeaderMap,
     Method,
     Request,
     Response,

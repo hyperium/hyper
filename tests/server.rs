@@ -95,7 +95,7 @@ fn get_implicitly_empty() {
         .map_err(|_| unreachable!())
         .and_then(|(item, _incoming)| {
             let socket = item.unwrap();
-            Http::<hyper::Chunk>::new().serve_connection(socket, GetImplicitlyEmpty)
+            Http::new().serve_connection(socket, GetImplicitlyEmpty)
         });
 
     fut.wait().unwrap();
@@ -110,7 +110,6 @@ fn get_implicitly_empty() {
 
         fn call(&self, req: Request<Body>) -> Self::Future {
             Box::new(req.into_body()
-                
                 .concat2()
                 .map(|buf| {
                     assert!(buf.is_empty());
@@ -776,13 +775,13 @@ fn disable_keep_alive_mid_request() {
         .map_err(|_| unreachable!())
         .and_then(|(item, _incoming)| {
             let socket = item.unwrap();
-            Http::<hyper::Chunk>::new().serve_connection(socket, HelloWorld)
+            Http::new().serve_connection(socket, HelloWorld)
                 .select2(rx1)
                 .then(|r| {
                     match r {
                         Ok(Either::A(_)) => panic!("expected rx first"),
                         Ok(Either::B(((), mut conn))) => {
-                            conn.disable_keep_alive();
+                            conn.graceful_shutdown();
                             tx2.send(()).unwrap();
                             conn
                         }
@@ -841,13 +840,13 @@ fn disable_keep_alive_post_request() {
                 stream: socket,
                 _debug: dropped2,
             };
-            Http::<hyper::Chunk>::new().serve_connection(transport, HelloWorld)
+            Http::new().serve_connection(transport, HelloWorld)
                 .select2(rx1)
                 .then(|r| {
                     match r {
                         Ok(Either::A(_)) => panic!("expected rx first"),
                         Ok(Either::B(((), mut conn))) => {
-                            conn.disable_keep_alive();
+                            conn.graceful_shutdown();
                             conn
                         }
                         Err(Either::A((e, _))) => panic!("unexpected error {}", e),
@@ -883,7 +882,7 @@ fn empty_parse_eof_does_not_return_error() {
         .map_err(|_| unreachable!())
         .and_then(|(item, _incoming)| {
             let socket = item.unwrap();
-            Http::<hyper::Chunk>::new().serve_connection(socket, HelloWorld)
+            Http::new().serve_connection(socket, HelloWorld)
         });
 
     fut.wait().unwrap();
@@ -905,8 +904,7 @@ fn nonempty_parse_eof_returns_error() {
         .map_err(|_| unreachable!())
         .and_then(|(item, _incoming)| {
             let socket = item.unwrap();
-            Http::<hyper::Chunk>::new().serve_connection(socket, HelloWorld)
-                .map(|_| ())
+            Http::new().serve_connection(socket, HelloWorld)
         });
 
     fut.wait().unwrap_err();
@@ -933,14 +931,13 @@ fn returning_1xx_response_is_error() {
         .map_err(|_| unreachable!())
         .and_then(|(item, _incoming)| {
             let socket = item.unwrap();
-            Http::<hyper::Chunk>::new()
+            Http::new()
                 .serve_connection(socket, service_fn(|_| {
                     Ok::<_, hyper::Error>(Response::builder()
                         .status(StatusCode::CONTINUE)
                         .body(Body::empty())
                         .unwrap())
                 }))
-                .map(|_| ())
         });
 
     fut.wait().unwrap_err();
@@ -981,7 +978,7 @@ fn upgrades() {
         .map_err(|_| -> hyper::Error { unreachable!() })
         .and_then(|(item, _incoming)| {
             let socket = item.unwrap();
-            let conn = Http::<hyper::Chunk>::new()
+            let conn = Http::new()
                 .serve_connection(socket, service_fn(|_| {
                     let res = Response::builder()
                         .status(101)
@@ -1034,9 +1031,8 @@ fn parse_errors_send_4xx_response() {
         .map_err(|_| unreachable!())
         .and_then(|(item, _incoming)| {
             let socket = item.unwrap();
-            Http::<hyper::Chunk>::new()
+            Http::new()
                 .serve_connection(socket, HelloWorld)
-                .map(|_| ())
         });
 
     fut.wait().unwrap_err();
@@ -1063,9 +1059,8 @@ fn illegal_request_length_returns_400_response() {
         .map_err(|_| unreachable!())
         .and_then(|(item, _incoming)| {
             let socket = item.unwrap();
-            Http::<hyper::Chunk>::new()
+            Http::new()
                 .serve_connection(socket, HelloWorld)
-                .map(|_| ())
         });
 
     fut.wait().unwrap_err();
@@ -1096,10 +1091,9 @@ fn max_buf_size() {
         .map_err(|_| unreachable!())
         .and_then(|(item, _incoming)| {
             let socket = item.unwrap();
-            Http::<hyper::Chunk>::new()
+            Http::new()
                 .max_buf_size(MAX)
                 .serve_connection(socket, HelloWorld)
-                .map(|_| ())
         });
 
     fut.wait().unwrap_err();
@@ -1140,7 +1134,7 @@ fn streaming_body() {
         .map_err(|_| unreachable!())
         .and_then(|(item, _incoming)| {
             let socket = item.unwrap();
-            Http::<hyper::Chunk>::new()
+            Http::new()
                 .keep_alive(false)
                 .serve_connection(socket, service_fn(|_| {
                     static S: &'static [&'static [u8]] = &[&[b'x'; 1_000] as &[u8]; 1_00] as _;
@@ -1149,7 +1143,6 @@ fn streaming_body() {
                     let b = hyper::Body::wrap_stream(b);
                     Ok::<_, hyper::Error>(Response::new(b))
                 }))
-                .map(|_| ())
         });
 
     fut.join(rx).wait().unwrap();
