@@ -5,6 +5,7 @@ use std::fmt;
 use bytes::Bytes;
 use futures::{Async, Future, Poll, Stream};
 use futures::sync::{mpsc, oneshot};
+use h2;
 use http::HeaderMap;
 
 use common::Never;
@@ -13,9 +14,9 @@ use super::Chunk;
 type BodySender = mpsc::Sender<Result<Chunk, ::Error>>;
 
 /// This trait represents a streaming body of a `Request` or `Response`.
-pub trait Payload {
+pub trait Payload: Send + 'static {
     /// A buffer of bytes representing a single chunk of a body.
-    type Data: AsRef<[u8]>;
+    type Data: AsRef<[u8]> + Send;
 
     /// The error type of this stream.
     type Error: Into<Box<::std::error::Error + Send + Sync>>;
@@ -107,6 +108,7 @@ enum Kind {
         _close_tx: oneshot::Sender<()>,
         rx: mpsc::Receiver<Result<Chunk, ::Error>>,
     },
+    H2(h2::RecvStream),
     Wrapped(Box<Stream<Item=Chunk, Error=Box<::std::error::Error + Send + Sync>> + Send>),
     Once(Option<Chunk>),
     Empty,
@@ -219,6 +221,10 @@ impl Body {
         }
     }
 
+    pub(crate) fn h2(recv: h2::RecvStream) -> Self {
+        Body::new(Kind::H2(recv))
+    }
+
     pub(crate) fn delayed_eof(&mut self, fut: DelayEofUntil) {
         self.delayed_eof = Some(DelayEof::NotEof(fut));
     }
@@ -269,6 +275,17 @@ impl Body {
                 Async::Ready(None) => Ok(Async::Ready(None)),
                 Async::NotReady => Ok(Async::NotReady),
             },
+            Kind::H2(ref mut h2) => {
+                h2.poll()
+                    .map(|async| {
+                        async.map(|opt| {
+                            opt.map(|bytes| {
+                                Chunk::h2(bytes, h2.release_capacity())
+                            })
+                        })
+                    })
+                    .map_err(::Error::new_body)
+            },
             Kind::Wrapped(ref mut s) => s.poll().map_err(::Error::new_body),
             Kind::Once(ref mut val) => Ok(Async::Ready(val.take())),
             Kind::Empty => Ok(Async::Ready(None)),
@@ -291,9 +308,17 @@ impl Payload for Body {
         self.poll_eof()
     }
 
+    fn poll_trailers(&mut self) -> Poll<Option<HeaderMap>, Self::Error> {
+        match self.kind {
+            Kind::H2(ref mut h2) => h2.poll_trailers().map_err(::Error::new_h2),
+            _ => Ok(Async::Ready(None)),
+        }
+    }
+
     fn is_end_stream(&self) -> bool {
         match self.kind {
             Kind::Chan { .. } => false,
+            Kind::H2(..) => false,
             Kind::Wrapped(..) => false,
             Kind::Once(ref val) => val.is_none(),
             Kind::Empty => true
@@ -303,6 +328,7 @@ impl Payload for Body {
     fn content_length(&self) -> Option<u64> {
         match self.kind {
             Kind::Chan { .. } => None,
+            Kind::H2(..) => None,
             Kind::Wrapped(..) => None,
             Kind::Once(Some(ref val)) => Some(val.len() as u64),
             Kind::Once(None) => None,

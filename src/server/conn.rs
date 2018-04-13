@@ -12,6 +12,7 @@ use std::fmt;
 
 use bytes::Bytes;
 use futures::{Future, Poll};
+use futures::future::{Either};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use proto;
@@ -27,12 +28,18 @@ where
     S: HyperService,
     S::ResponseBody: Payload,
 {
-    pub(super) conn: proto::dispatch::Dispatcher<
-        proto::dispatch::Server<S>,
-        S::ResponseBody,
-        I,
-        <S::ResponseBody as Payload>::Data,
-        proto::ServerTransaction,
+    pub(super) conn: Either<
+        proto::h1::Dispatcher<
+            proto::h1::dispatch::Server<S>,
+            S::ResponseBody,
+            I,
+            proto::ServerTransaction,
+        >,
+        proto::h2::Server<
+            I,
+            S,
+            S::ResponseBody,
+        >,
     >,
 }
 
@@ -62,12 +69,23 @@ impl<I, B, S> Connection<I, S>
 where
     S: Service<Request=Request<Body>, Response=Response<B>> + 'static,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    S::Future: Send,
     I: AsyncRead + AsyncWrite + 'static,
     B: Payload + 'static,
 {
-    /// Disables keep-alive for this connection.
-    pub fn disable_keep_alive(&mut self) {
-        self.conn.disable_keep_alive()
+    /// Start a graceful shutdown process for this connection.
+    ///
+    /// This `Connection` should continue to be polled until shutdown
+    /// can finish.
+    pub fn graceful_shutdown(&mut self) {
+        match self.conn {
+            Either::A(ref mut h1) => {
+                h1.disable_keep_alive();
+            },
+            Either::B(ref mut h2) => {
+                h2.graceful_shutdown();
+            }
+        }
     }
 
     /// Return the inner IO object, and additional information.
@@ -76,7 +94,14 @@ where
     /// that the connection is "done". Otherwise, it may not have finished
     /// flushing all necessary HTTP bytes.
     pub fn into_parts(self) -> Parts<I> {
-        let (io, read_buf) = self.conn.into_inner();
+        let (io, read_buf) = match self.conn {
+            Either::A(h1) => {
+                h1.into_inner()
+            },
+            Either::B(_h2) => {
+                panic!("h2 cannot into_inner");
+            }
+        };
         Parts {
             io: io,
             read_buf: read_buf,
@@ -92,8 +117,13 @@ where
     /// but it is not desired to actally shutdown the IO object. Instead you
     /// would take it back using `into_parts`.
     pub fn poll_without_shutdown(&mut self) -> Poll<(), ::Error> {
-        try_ready!(self.conn.poll_without_shutdown());
-        Ok(().into())
+        match self.conn {
+            Either::A(ref mut h1) => {
+                try_ready!(h1.poll_without_shutdown());
+                Ok(().into())
+            },
+            Either::B(ref mut h2) => h2.poll(),
+        }
     }
 }
 
@@ -101,6 +131,7 @@ impl<I, B, S> Future for Connection<I, S>
 where
     S: Service<Request=Request<Body>, Response=Response<B>> + 'static,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    S::Future: Send,
     I: AsyncRead + AsyncWrite + 'static,
     B: Payload + 'static,
 {

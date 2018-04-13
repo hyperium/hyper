@@ -83,7 +83,7 @@ fn main() {
         println!("Listening on http://{} with 1 thread.", serve.incoming_ref().local_addr());
 
         serve.map_err(|_| ()).for_each(move |conn| {
-            tokio::spawn(conn.map(|_| ()).map_err(|err| println!("serve error: {:?}", err)))
+            tokio::spawn(conn.map_err(|err| println!("serve error: {:?}", err)))
         })
     }));
 }

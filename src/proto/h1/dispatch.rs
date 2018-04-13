@@ -7,8 +7,8 @@ use tokio_service::Service;
 use body::{Body, Payload};
 use proto::{BodyLength, Conn, Http1Transaction, MessageHead, RequestHead, RequestLine, ResponseHead};
 
-pub(crate) struct Dispatcher<D, Bs, I, B, T> {
-    conn: Conn<I, B, T>,
+pub(crate) struct Dispatcher<D, Bs: Payload, I, T> {
+    conn: Conn<I, Bs::Data, T>,
     dispatch: D,
     body_tx: Option<::body::Sender>,
     body_rx: Option<Bs>,
@@ -31,23 +31,20 @@ pub struct Server<S: Service> {
 }
 
 pub struct Client<B> {
-    callback: Option<::client::dispatch::Callback<ClientMsg<B>, Response<Body>>>,
+    callback: Option<::client::dispatch::Callback<Request<B>, Response<Body>>>,
     rx: ClientRx<B>,
 }
 
-pub type ClientMsg<B> = Request<B>;
+type ClientRx<B> = ::client::dispatch::Receiver<Request<B>, Response<Body>>;
 
-type ClientRx<B> = ::client::dispatch::Receiver<ClientMsg<B>, Response<Body>>;
-
-impl<D, Bs, I, B, T> Dispatcher<D, Bs, I, B, T>
+impl<D, Bs, I, T> Dispatcher<D, Bs, I, T>
 where
     D: Dispatch<PollItem=MessageHead<T::Outgoing>, PollBody=Bs, RecvItem=MessageHead<T::Incoming>>,
     I: AsyncRead + AsyncWrite,
-    B: AsRef<[u8]>,
     T: Http1Transaction,
-    Bs: Payload<Data=B>,
+    Bs: Payload,
 {
-    pub fn new(dispatch: D, conn: Conn<I, B, T>) -> Self {
+    pub fn new(dispatch: D, conn: Conn<I, Bs::Data, T>) -> Self {
         Dispatcher {
             conn: conn,
             dispatch: dispatch,
@@ -286,13 +283,12 @@ where
 }
 
 
-impl<D, Bs, I, B, T> Future for Dispatcher<D, Bs, I, B, T>
+impl<D, Bs, I, T> Future for Dispatcher<D, Bs, I, T>
 where
     D: Dispatch<PollItem=MessageHead<T::Outgoing>, PollBody=Bs, RecvItem=MessageHead<T::Incoming>>,
     I: AsyncRead + AsyncWrite,
-    B: AsRef<[u8]>,
     T: Http1Transaction,
-    Bs: Payload<Data=B>,
+    Bs: Payload,
 {
     type Item = ();
     type Error = ::Error;
@@ -493,10 +489,17 @@ mod tests {
     fn client_read_bytes_before_writing_request() {
         let _ = pretty_env_logger::try_init();
         ::futures::lazy(|| {
-            let io = AsyncIo::new_buf(b"HTTP/1.1 200 OK\r\n\r\n".to_vec(), 100);
+            // Block at 0 for now, but we will release this response before
+            // the request is ready to write later...
+            let io = AsyncIo::new_buf(b"HTTP/1.1 200 OK\r\n\r\n".to_vec(), 0);
             let (mut tx, rx) = ::client::dispatch::channel();
             let conn = Conn::<_, ::Chunk, ClientTransaction>::new(io);
             let mut dispatcher = Dispatcher::new(Client::new(rx), conn);
+
+            // First poll is needed to allow tx to send...
+            assert!(dispatcher.poll().expect("nothing is ready").is_not_ready());
+            // Unblock our IO, which has a response before we've sent request!
+            dispatcher.conn.io_mut().block_in(100);
 
             let res_rx = tx.try_send(::Request::new(::Body::empty())).unwrap();
 
@@ -505,13 +508,6 @@ mod tests {
             let err = res_rx.wait()
                 .expect("callback poll")
                 .expect_err("callback response");
-
-            /*
-            let err = match async {
-                Async::Ready(result) => result.unwrap_err(),
-                Async::Pending => panic!("callback should be ready"),
-            };
-            */
 
             match (err.0.kind(), err.1) {
                 (&::error::Kind::Canceled, Some(_)) => (),

@@ -55,6 +55,9 @@ pub(crate) enum Kind {
     /// Error calling AsyncWrite::shutdown()
     Shutdown,
 
+    /// A general error from h2.
+    Http2,
+
     /// User tried to create a Request with bad version.
     UnsupportedVersion,
     /// User tried to create a CONNECT Request with the Client.
@@ -215,6 +218,10 @@ impl Error {
     pub(crate) fn new_shutdown(cause: io::Error) -> Error {
         Error::new(Kind::Shutdown, Some(Box::new(cause)))
     }
+
+    pub(crate) fn new_h2(cause: ::h2::Error) -> Error {
+        Error::new(Kind::Http2, Some(Box::new(cause)))
+    }
 }
 
 impl fmt::Debug for Error {
@@ -259,6 +266,7 @@ impl StdError for Error {
             Kind::BodyWrite => "error write a body to connection",
             Kind::BodyUser => "error from user's Payload stream",
             Kind::Shutdown => "error shutting down connection",
+            Kind::Http2 => "http2 general error",
             Kind::UnsupportedVersion => "request has unsupported HTTP version",
             Kind::UnsupportedRequestMethod => "request has unsupported HTTP method",
 
@@ -319,3 +327,6 @@ trait AssertSendSync: Send + Sync + 'static {}
 #[doc(hidden)]
 impl AssertSendSync for Error {}
 
+#[cfg(test)]
+mod tests {
+}
