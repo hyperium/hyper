@@ -10,8 +10,19 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 use proto::{Http1Transaction, MessageHead};
 
-const INIT_BUFFER_SIZE: usize = 8192;
-pub const DEFAULT_MAX_BUFFER_SIZE: usize = 8192 + 4096 * 100;
+/// The initial buffer size allocated before trying to read from IO.
+pub(crate) const INIT_BUFFER_SIZE: usize = 8192;
+
+/// The default maximum read buffer size. If the buffer gets this big and
+/// a message is still not complete, a `TooLarge` error is triggered.
+// Note: if this changes, update server::conn::Http::max_buf_size docs.
+pub(crate) const DEFAULT_MAX_BUFFER_SIZE: usize = 8192 + 4096 * 100;
+
+/// The maximum number of distinct `Buf`s to hold in a list before requiring
+/// a flush. Only affects when the buffer strategy is to queue buffers.
+///
+/// Note that a flush can happen before reaching the maximum. This simply
+/// forces a flush if the queue gets this big.
 const MAX_BUF_LIST_BUFFERS: usize = 16;
 
 pub struct Buffered<T, B> {

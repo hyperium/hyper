@@ -9,7 +9,7 @@ use futures::future::lazy;
 
 use hyper::{Body, Chunk, Client, Method, Request, Response, StatusCode};
 use hyper::client::HttpConnector;
-use hyper::server::{Http, Service};
+use hyper::server::{Server, Service};
 
 #[allow(unused, deprecated)]
 use std::ascii::AsciiExt;
@@ -75,15 +75,17 @@ impl Service for ResponseExamples {
 
 fn main() {
     pretty_env_logger::init();
+
     let addr = "127.0.0.1:1337".parse().unwrap();
 
     tokio::run(lazy(move || {
         let client = Client::new();
-        let serve = Http::new().serve_addr(&addr, move || Ok(ResponseExamples(client.clone()))).unwrap();
-        println!("Listening on http://{} with 1 thread.", serve.incoming_ref().local_addr());
+        let server = Server::bind(&addr)
+            .serve(move || Ok(ResponseExamples(client.clone())))
+            .map_err(|e| eprintln!("server error: {}", e));
 
-        serve.map_err(|_| ()).for_each(move |conn| {
-            tokio::spawn(conn.map_err(|err| println!("serve error: {:?}", err)))
-        })
+        println!("Listening on http://{}", addr);
+
+        server
     }));
 }

@@ -171,12 +171,12 @@ impl Error {
         Error::new(Kind::Io, Some(cause.into()))
     }
 
-    pub(crate) fn new_listen(err: io::Error) -> Error {
-        Error::new(Kind::Listen, Some(err.into()))
+    pub(crate) fn new_listen<E: Into<Cause>>(cause: E) -> Error {
+        Error::new(Kind::Listen, Some(cause.into()))
     }
 
-    pub(crate) fn new_accept(err: io::Error) -> Error {
-        Error::new(Kind::Accept, Some(Box::new(err)))
+    pub(crate) fn new_accept<E: Into<Cause>>(cause: E) -> Error {
+        Error::new(Kind::Accept, Some(cause.into()))
     }
 
     pub(crate) fn new_connect<E: Into<Cause>>(cause: E) -> Error {

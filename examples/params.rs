@@ -6,10 +6,9 @@ extern crate tokio;
 extern crate url;
 
 use futures::{Future, Stream};
-use futures::future::lazy;
 
 use hyper::{Body, Method, Request, Response, StatusCode};
-use hyper::server::{Http, Service};
+use hyper::server::{Server, Service};
 
 use std::collections::HashMap;
 use url::form_urlencoded;
@@ -96,11 +95,12 @@ impl Service for ParamExample {
 
 fn main() {
     pretty_env_logger::init();
-    let addr = "127.0.0.1:1337".parse().unwrap();
 
-    tokio::run(lazy(move || {
-        let server = Http::new().bind(&addr, || Ok(ParamExample)).unwrap();
-        println!("Listening on http://{} with 1 thread.", server.local_addr().unwrap());
-        server.run().map_err(|err| eprintln!("Server error {}", err))
-    }));
+    let addr = ([127, 0, 0, 1], 1337).into();
+
+    let server = Server::bind(&addr)
+        .serve(|| Ok(ParamExample))
+        .map_err(|e| eprintln!("server error: {}", e));
+
+    tokio::run(server);
 }

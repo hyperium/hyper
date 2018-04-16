@@ -14,24 +14,28 @@ use std::sync::mpsc;
 use futures::{future, stream, Future, Stream};
 use futures::sync::oneshot;
 
-use hyper::{Body, Request, Response};
+use hyper::{Body, Request, Response, Server};
 use hyper::server::Service;
 
 macro_rules! bench_server {
     ($b:ident, $header:expr, $body:expr) => ({
         let _ = pretty_env_logger::try_init();
-        let (_until_tx, until_rx) = oneshot::channel();
+        let (_until_tx, until_rx) = oneshot::channel::<()>();
         let addr = {
             let (addr_tx, addr_rx) = mpsc::channel();
             ::std::thread::spawn(move || {
                 let addr = "127.0.0.1:0".parse().unwrap();
-                let srv = hyper::server::Http::new().bind(&addr, || Ok(BenchPayload {
-                    header: $header,
-                    body: $body,
-                })).unwrap();
-                let addr = srv.local_addr().unwrap();
-                addr_tx.send(addr).unwrap();
-                tokio::run(srv.run_until(until_rx.map_err(|_| ())).map_err(|e| panic!("server error: {}", e)));
+                let srv = Server::bind(&addr)
+                    .serve(|| Ok(BenchPayload {
+                        header: $header,
+                        body: $body,
+                    }));
+                addr_tx.send(srv.local_addr()).unwrap();
+                let fut = srv
+                    .map_err(|e| panic!("server error: {}", e))
+                    .select(until_rx.then(|_| Ok(())))
+                    .then(|_| Ok(()));
+                tokio::run(fut);
             });
 
             addr_rx.recv().unwrap()

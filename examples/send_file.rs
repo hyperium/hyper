@@ -5,11 +5,10 @@ extern crate pretty_env_logger;
 extern crate tokio;
 
 use futures::{Future/*, Sink*/};
-use futures::future::lazy;
 use futures::sync::oneshot;
 
 use hyper::{Body, /*Chunk,*/ Method, Request, Response, StatusCode};
-use hyper::server::{Http, Service};
+use hyper::server::{Server, Service};
 
 use std::fs::File;
 use std::io::{self, copy/*, Read*/};
@@ -138,11 +137,14 @@ impl Service for ResponseExamples {
 
 fn main() {
     pretty_env_logger::init();
+
     let addr = "127.0.0.1:1337".parse().unwrap();
 
-    tokio::run(lazy(move || {
-        let server = Http::new().bind(&addr, || Ok(ResponseExamples)).unwrap();
-        println!("Listening on http://{} with 1 thread.", server.local_addr().unwrap());
-        server.run().map_err(|err| eprintln!("Server error {}", err))
-    }));
+    let server = Server::bind(&addr)
+        .serve(|| Ok(ResponseExamples))
+        .map_err(|e| eprintln!("server error: {}", e));
+
+    println!("Listening on http://{}", addr);
+
+    tokio::run(server);
 }
