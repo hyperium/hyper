@@ -123,9 +123,11 @@ macro_rules! __internal_req_res_prop {
     );
     (headers: $map:tt) => ({
         #[allow(unused_mut)]
+        {
         let mut headers = HeaderMap::new();
         __internal_headers!(headers, $map);
         headers
+        }
     });
     ($prop_name:ident: $prop_val:expr) => (
         From::from($prop_val)
@@ -228,7 +230,7 @@ pub fn __run_test(cfg: __TestConfig) {
     });
     let new_service = hyper::server::const_service(service);
 
-    let serve = hyper::server::Http::new()
+    let serve = hyper::server::conn::Http::new()
         .http2_only(cfg.server_version == 2)
         .executor(rt.executor())
         .serve_addr_handle(
@@ -244,7 +246,7 @@ pub fn __run_test(cfg: __TestConfig) {
     let (success_tx, success_rx) = oneshot::channel();
     let expected_connections = cfg.connections;
     let server = serve
-        .fold(0, move |cnt, conn: hyper::server::Connection<_, _>| {
+        .fold(0, move |cnt, conn| {
             exe.spawn(conn.map_err(|e| panic!("server connection error: {}", e)));
             Ok::<_, hyper::Error>(cnt + 1)
         })

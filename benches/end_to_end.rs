@@ -13,7 +13,8 @@ use tokio::runtime::Runtime;
 use tokio::net::TcpListener;
 
 use hyper::{Body, Method, Request, Response};
-use hyper::server::Http;
+use hyper::client::HttpConnector;
+use hyper::server::conn::Http;
 
 
 #[bench]
@@ -21,8 +22,10 @@ fn get_one_at_a_time(b: &mut test::Bencher) {
     let mut rt = Runtime::new().unwrap();
     let addr = spawn_hello(&mut rt);
 
-    let client = hyper::Client::configure()
-        .build_with_executor(&rt.reactor(), rt.executor());
+    let connector = HttpConnector::new_with_handle(1, rt.reactor().clone());
+    let client = hyper::Client::builder()
+        .executor(rt.executor())
+        .build::<_, Body>(connector);
 
     let url: hyper::Uri = format!("http://{}/get", addr).parse().unwrap();
 
@@ -43,8 +46,10 @@ fn post_one_at_a_time(b: &mut test::Bencher) {
     let mut rt = Runtime::new().unwrap();
     let addr = spawn_hello(&mut rt);
 
-    let client = hyper::Client::configure()
-        .build_with_executor(&rt.reactor(), rt.executor());
+    let connector = HttpConnector::new_with_handle(1, rt.reactor().clone());
+    let client = hyper::Client::builder()
+        .executor(rt.executor())
+        .build::<_, Body>(connector);
 
     let url: hyper::Uri = format!("http://{}/post", addr).parse().unwrap();
 
@@ -71,7 +76,7 @@ fn spawn_hello(rt: &mut Runtime) -> SocketAddr {
     let listener = TcpListener::bind(&addr).unwrap();
     let addr = listener.local_addr().unwrap();
 
-    let http = Http::<hyper::Chunk>::new();
+    let http = Http::new();
 
     let service = const_service(service_fn(|req: Request<Body>| {
         req.into_body()
@@ -81,6 +86,7 @@ fn spawn_hello(rt: &mut Runtime) -> SocketAddr {
             })
     }));
 
+    // Specifically only accept 1 connection.
     let srv = listener.incoming()
         .into_future()
         .map_err(|(e, _inc)| panic!("accept error: {}", e))

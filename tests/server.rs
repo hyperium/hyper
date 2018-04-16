@@ -24,7 +24,6 @@ use futures::future::{self, FutureResult, Either};
 use futures::sync::oneshot;
 use futures_timer::Delay;
 use http::header::{HeaderName, HeaderValue};
-//use net2::TcpBuilder;
 use tokio::net::TcpListener;
 use tokio::runtime::Runtime;
 use tokio::reactor::Handle;
@@ -32,7 +31,8 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 
 use hyper::{Body, Request, Response, StatusCode};
-use hyper::server::{Http, Service, NewService, service_fn};
+use hyper::server::{Service, NewService, service_fn};
+use hyper::server::conn::Http;
 
 fn tcp_bind(addr: &SocketAddr, handle: &Handle) -> ::tokio::io::Result<TcpListener> {
     let std_listener = StdTcpListener::bind(addr).unwrap();
@@ -1363,8 +1363,9 @@ fn serve_with_options(options: ServeOptions) -> Serve {
     let (msg_tx, msg_rx) = mpsc::channel();
     let (reply_tx, reply_rx) = spmc::channel();
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
+    let shutdown_rx = shutdown_rx.then(|_| Ok(()));
 
-    let addr = "127.0.0.1:0".parse().unwrap();
+    let addr = ([127, 0, 0, 1], 0).into();
 
     let keep_alive = !options.keep_alive_disabled;
     let pipeline = options.pipeline;
@@ -1372,22 +1373,40 @@ fn serve_with_options(options: ServeOptions) -> Serve {
 
     let thread_name = format!("test-server-{:?}", dur);
     let thread = thread::Builder::new().name(thread_name).spawn(move || {
-        tokio::run(::futures::future::lazy(move || {
-            let srv = Http::new()
-                .keep_alive(keep_alive)
-                .pipeline(pipeline)
-                .bind(&addr, TestService {
-                    tx: Arc::new(Mutex::new(msg_tx.clone())),
-                    _timeout: dur,
-                    reply: reply_rx,
-                }).unwrap();
-            addr_tx.send(srv.local_addr().unwrap()).unwrap();
-            srv.run_until(shutdown_rx.then(|_| Ok(())))
-                .map_err(|err| println!("error {}", err))
-        }))
-    }).unwrap();
+        let serve = Http::new()
+            .keep_alive(keep_alive)
+            .pipeline_flush(pipeline)
+            .serve_addr(&addr, TestService {
+                tx: Arc::new(Mutex::new(msg_tx.clone())),
+                _timeout: dur,
+                reply: reply_rx,
+            })
+            .expect("bind to address");
 
-    let addr = addr_rx.recv().unwrap();
+        addr_tx.send(
+            serve
+                .incoming_ref()
+                .local_addr()
+        ).expect("server addr tx");
+
+        // spawn_all() is private for now, so just duplicate it here
+        let spawn_all = serve.for_each(|conn| {
+            tokio::spawn(conn.map_err(|e| {
+                println!("server error: {}", e);
+            }));
+            Ok(())
+        }).map_err(|e| {
+            println!("accept error: {}", e)
+        });
+
+        let fut = spawn_all
+            .select(shutdown_rx)
+            .then(|_| Ok(()));
+
+        tokio::run(fut);
+    }).expect("thread spawn");
+
+    let addr = addr_rx.recv().expect("server addr rx");
 
     Serve {
         msg_rx: msg_rx,

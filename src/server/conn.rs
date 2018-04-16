@@ -5,19 +5,59 @@
 //! are not handled at this level. This module provides the building blocks to
 //! customize those things externally.
 //!
-//! If don't have need to manage connections yourself, consider using the
+//! If you don't have need to manage connections yourself, consider using the
 //! higher-level [Server](super) API.
 
 use std::fmt;
+use std::net::SocketAddr;
+use std::sync::Arc;
+use std::time::Duration;
 
 use bytes::Bytes;
-use futures::{Future, Poll};
-use futures::future::{Either};
+use futures::{Async, Future, Poll, Stream};
+use futures::future::{Either, Executor};
 use tokio_io::{AsyncRead, AsyncWrite};
+//TODO: change these tokio:: to sub-crates
+use tokio::reactor::Handle;
 
+use common::Exec;
 use proto;
 use body::{Body, Payload};
-use super::{HyperService, Request, Response, Service};
+use super::{HyperService, NewService, Request, Response, Service};
+
+pub use super::tcp::AddrIncoming;
+
+/// A lower-level configuration of the HTTP protocol.
+///
+/// This structure is used to configure options for an HTTP server connection.
+///
+/// If don't have need to manage connections yourself, consider using the
+/// higher-level [Server](super) API.
+#[derive(Clone, Debug)]
+pub struct Http {
+    exec: Exec,
+    http2: bool,
+    keep_alive: bool,
+    max_buf_size: Option<usize>,
+    pipeline_flush: bool,
+}
+
+/// A stream mapping incoming IOs to new services.
+///
+/// Yields `Connection`s that are futures that should be put on a reactor.
+#[must_use = "streams do nothing unless polled"]
+#[derive(Debug)]
+pub struct Serve<I, S> {
+    incoming: I,
+    new_service: S,
+    protocol: Http,
+}
+
+#[must_use = "futures do nothing unless polled"]
+#[derive(Debug)]
+pub(super) struct SpawnAll<I, S> {
+    serve: Serve<I, S>,
+}
 
 /// A future binding a connection with a Service.
 ///
@@ -62,6 +102,187 @@ pub struct Parts<T> {
     pub read_buf: Bytes,
     _inner: (),
 }
+
+// ===== impl Http =====
+
+impl Http {
+    /// Creates a new instance of the HTTP protocol, ready to spawn a server or
+    /// start accepting connections.
+    pub fn new() -> Http {
+        Http {
+            exec: Exec::Default,
+            http2: false,
+            keep_alive: true,
+            max_buf_size: None,
+            pipeline_flush: false,
+        }
+    }
+
+    /// Sets whether HTTP2 is required.
+    ///
+    /// Default is false
+    pub fn http2_only(&mut self, val: bool) -> &mut Self {
+        self.http2 = val;
+        self
+    }
+
+    /// Enables or disables HTTP keep-alive.
+    ///
+    /// Default is true.
+    pub fn keep_alive(&mut self, val: bool) -> &mut Self {
+        self.keep_alive = val;
+        self
+    }
+
+    /// Set the maximum buffer size for the connection.
+    ///
+    /// Default is ~400kb.
+    pub fn max_buf_size(&mut self, max: usize) -> &mut Self {
+        self.max_buf_size = Some(max);
+        self
+    }
+
+    /// Aggregates flushes to better support pipelined responses.
+    ///
+    /// Experimental, may be have bugs.
+    ///
+    /// Default is false.
+    pub fn pipeline_flush(&mut self, enabled: bool) -> &mut Self {
+        self.pipeline_flush = enabled;
+        self
+    }
+
+    /// Set the executor used to spawn background tasks.
+    ///
+    /// Default uses implicit default (like `tokio::spawn`).
+    pub fn executor<E>(&mut self, exec: E) -> &mut Self
+    where
+        E: Executor<Box<Future<Item=(), Error=()> + Send>> + Send + Sync + 'static
+    {
+        self.exec = Exec::Executor(Arc::new(exec));
+        self
+    }
+
+    /// Bind a connection together with a `Service`.
+    ///
+    /// This returns a Future that must be polled in order for HTTP to be
+    /// driven on the connection.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # extern crate futures;
+    /// # extern crate hyper;
+    /// # extern crate tokio;
+    /// # extern crate tokio_io;
+    /// # use futures::Future;
+    /// # use hyper::{Body, Request, Response};
+    /// # use hyper::server::Service;
+    /// # use hyper::server::conn::Http;
+    /// # use tokio_io::{AsyncRead, AsyncWrite};
+    /// # use tokio::reactor::Handle;
+    /// # fn run<I, S>(some_io: I, some_service: S)
+    /// # where
+    /// #     I: AsyncRead + AsyncWrite + Send + 'static,
+    /// #     S: Service<Request=Request<Body>, Response=Response<Body>, Error=hyper::Error> + Send + 'static,
+    /// #     S::Future: Send
+    /// # {
+    /// let http = Http::new();
+    /// let conn = http.serve_connection(some_io, some_service);
+    ///
+    /// let fut = conn.map_err(|e| {
+    ///     eprintln!("server connection error: {}", e);
+    /// });
+    ///
+    /// tokio::spawn(fut);
+    /// # }
+    /// # fn main() {}
+    /// ```
+    pub fn serve_connection<S, I, Bd>(&self, io: I, service: S) -> Connection<I, S>
+    where
+        S: Service<Request = Request<Body>, Response = Response<Bd>>,
+        S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+        S::Future: Send + 'static,
+        Bd: Payload,
+        I: AsyncRead + AsyncWrite,
+    {
+        let either = if !self.http2 {
+            let mut conn = proto::Conn::new(io);
+            if !self.keep_alive {
+                conn.disable_keep_alive();
+            }
+            conn.set_flush_pipeline(self.pipeline_flush);
+            if let Some(max) = self.max_buf_size {
+                conn.set_max_buf_size(max);
+            }
+            let sd = proto::h1::dispatch::Server::new(service);
+            Either::A(proto::h1::Dispatcher::new(sd, conn))
+        } else {
+            let h2 = proto::h2::Server::new(io, service, self.exec.clone());
+            Either::B(h2)
+        };
+
+        Connection {
+            conn: either,
+        }
+    }
+
+    /// Bind the provided `addr` with the default `Handle` and return [`Serve`](Serve).
+    ///
+    /// This method will bind the `addr` provided with a new TCP listener ready
+    /// to accept connections. Each connection will be processed with the
+    /// `new_service` object provided, creating a new service per
+    /// connection.
+    pub fn serve_addr<S, Bd>(&self, addr: &SocketAddr, new_service: S) -> ::Result<Serve<AddrIncoming, S>>
+    where
+        S: NewService<Request=Request<Body>, Response=Response<Bd>>,
+        S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+        Bd: Payload,
+    {
+        let mut incoming = AddrIncoming::new(addr, None)?;
+        if self.keep_alive {
+            incoming.set_keepalive(Some(Duration::from_secs(90)));
+        }
+        Ok(self.serve_incoming(incoming, new_service))
+    }
+
+    /// Bind the provided `addr` with the `Handle` and return a [`Serve`](Serve)
+    ///
+    /// This method will bind the `addr` provided with a new TCP listener ready
+    /// to accept connections. Each connection will be processed with the
+    /// `new_service` object provided, creating a new service per
+    /// connection.
+    pub fn serve_addr_handle<S, Bd>(&self, addr: &SocketAddr, handle: &Handle, new_service: S) -> ::Result<Serve<AddrIncoming, S>>
+    where
+        S: NewService<Request = Request<Body>, Response = Response<Bd>>,
+        S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+        Bd: Payload,
+    {
+        let mut incoming = AddrIncoming::new(addr, Some(handle))?;
+        if self.keep_alive {
+            incoming.set_keepalive(Some(Duration::from_secs(90)));
+        }
+        Ok(self.serve_incoming(incoming, new_service))
+    }
+
+    /// Bind the provided stream of incoming IO objects with a `NewService`.
+    pub fn serve_incoming<I, S, Bd>(&self, incoming: I, new_service: S) -> Serve<I, S>
+    where
+        I: Stream,
+        I::Error: Into<Box<::std::error::Error + Send + Sync>>,
+        I::Item: AsyncRead + AsyncWrite,
+        S: NewService<Request = Request<Body>, Response = Response<Bd>>,
+        S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+        Bd: Payload,
+    {
+        Serve {
+            incoming: incoming,
+            new_service: new_service,
+            protocol: self.clone(),
+        }
+    }
+}
+
 
 // ===== impl Connection =====
 
@@ -154,3 +375,89 @@ where
     }
 }
 
+// ===== impl Serve =====
+
+impl<I, S> Serve<I, S> {
+    /// Spawn all incoming connections onto the executor in `Http`.
+    pub(super) fn spawn_all(self) -> SpawnAll<I, S> {
+        SpawnAll {
+            serve: self,
+        }
+    }
+
+    /// Get a reference to the incoming stream.
+    #[inline]
+    pub fn incoming_ref(&self) -> &I {
+        &self.incoming
+    }
+
+    /// Get a mutable reference to the incoming stream.
+    #[inline]
+    pub fn incoming_mut(&mut self) -> &mut I {
+        &mut self.incoming
+    }
+}
+
+impl<I, S, B> Stream for Serve<I, S>
+where
+    I: Stream,
+    I::Item: AsyncRead + AsyncWrite,
+    I::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    S: NewService<Request=Request<Body>, Response=Response<B>>,
+    S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    <S::Instance as Service>::Future: Send + 'static,
+    B: Payload,
+{
+    type Item = Connection<I::Item, S::Instance>;
+    type Error = ::Error;
+
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        if let Some(io) = try_ready!(self.incoming.poll().map_err(::Error::new_accept)) {
+            let service = self.new_service.new_service().map_err(::Error::new_user_new_service)?;
+            Ok(Async::Ready(Some(self.protocol.serve_connection(io, service))))
+        } else {
+            Ok(Async::Ready(None))
+        }
+    }
+}
+
+// ===== impl SpawnAll =====
+
+impl<S> SpawnAll<AddrIncoming, S> {
+    pub(super) fn local_addr(&self) -> SocketAddr {
+        self.serve.incoming.local_addr()
+    }
+}
+
+impl<I, S> SpawnAll<I, S> {
+    pub(super) fn incoming_ref(&self) -> &I {
+        self.serve.incoming_ref()
+    }
+}
+
+impl<I, S, B> Future for SpawnAll<I, S>
+where
+    I: Stream,
+    I::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    I::Item: AsyncRead + AsyncWrite + Send + 'static,
+    S: NewService<Request = Request<Body>, Response = Response<B>> + Send + 'static,
+    S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    <S as NewService>::Instance: Send,
+    <<S as NewService>::Instance as Service>::Future: Send + 'static,
+    B: Payload,
+{
+    type Item = ();
+    type Error = ::Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        loop {
+            if let Some(conn) = try_ready!(self.serve.poll()) {
+                let fut = conn
+                    .map_err(|err| debug!("conn error: {}", err));
+                self.serve.protocol.exec.execute(fut);
+            } else {
+                return Ok(Async::Ready(()))
+            }
+        }
+    }
+}
