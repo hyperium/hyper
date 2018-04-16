@@ -170,6 +170,7 @@ pub struct HttpConnector {
     enforce_http: bool,
     handle: Option<Handle>,
     keep_alive_timeout: Option<Duration>,
+    nodelay: bool,
 }
 
 impl HttpConnector {
@@ -205,6 +206,7 @@ impl HttpConnector {
             enforce_http: true,
             handle,
             keep_alive_timeout: None,
+            nodelay: false,
         }
     }
 
@@ -224,6 +226,14 @@ impl HttpConnector {
     #[inline]
     pub fn set_keepalive(&mut self, dur: Option<Duration>) {
         self.keep_alive_timeout = dur;
+    }
+
+    /// Set that all sockets have `SO_NODELAY` set to the supplied value `nodelay`.
+    ///
+    /// Default is `false`.
+    #[inline]
+    pub fn set_nodelay(&mut self, nodelay: bool) {
+        self.nodelay = nodelay;
     }
 }
 
@@ -264,6 +274,7 @@ impl Connect for HttpConnector {
             state: State::Lazy(self.executor.clone(), host.into(), port),
             handle: self.handle.clone(),
             keep_alive_timeout: self.keep_alive_timeout,
+            nodelay: self.nodelay,
         }
     }
 }
@@ -274,6 +285,7 @@ fn invalid_url(err: InvalidUrl, handle: &Option<Handle>) -> HttpConnecting {
         state: State::Error(Some(io::Error::new(io::ErrorKind::InvalidInput, err))),
         handle: handle.clone(),
         keep_alive_timeout: None,
+        nodelay: false,
     }
 }
 
@@ -306,6 +318,7 @@ pub struct HttpConnecting {
     state: State,
     handle: Option<Handle>,
     keep_alive_timeout: Option<Duration>,
+    nodelay: bool,
 }
 
 enum State {
@@ -354,6 +367,8 @@ impl Future for HttpConnecting {
                     if let Some(dur) = self.keep_alive_timeout {
                         sock.set_keepalive(Some(dur))?;
                     }
+
+                    sock.set_nodelay(self.nodelay)?;
 
                     return Ok(Async::Ready((sock, Connected::new())));
                 },
