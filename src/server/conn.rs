@@ -148,7 +148,15 @@ impl Http {
     /// Set the maximum buffer size for the connection.
     ///
     /// Default is ~400kb.
+    ///
+    /// # Panics
+    ///
+    /// The minimum value allowed is 8192. This method panics if the passed `max` is less than the minimum.
     pub fn max_buf_size(&mut self, max: usize) -> &mut Self {
+        assert!(
+            max >= proto::h1::MINIMUM_MAX_BUFFER_SIZE,
+            "the max_buf_size cannot be smaller than the minimum that h1 specifies."
+        );
         self.max_buf_size = Some(max);
         self
     }

@@ -1056,6 +1056,18 @@ fn illegal_request_length_returns_400_response() {
 }
 
 #[test]
+#[should_panic]
+fn max_buf_size_panic_too_small() {
+    const MAX: usize = 8191;
+    Http::new().max_buf_size(MAX);
+}
+#[test]
+fn max_buf_size_no_panic() {
+    const MAX: usize = 8193;
+    Http::new().max_buf_size(MAX);
+}
+
+#[test]
 fn max_buf_size() {
     let _ = pretty_env_logger::try_init();
     let runtime = Runtime::new().unwrap();
