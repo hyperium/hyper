@@ -5,10 +5,10 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 use ::body::Payload;
 use ::common::Exec;
-use ::server::Service;
+use ::service::Service;
 use super::{PipeToSendStream, SendBuf};
 
-use ::{Body, Request, Response};
+use ::{Body, Response};
 
 pub(crate) struct Server<T, S, B>
 where
@@ -39,7 +39,7 @@ where
 impl<T, S, B> Server<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request=Request<Body>, Response=Response<B>>,
+    S: Service<ReqBody=Body, ResBody=B>,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
     S::Future: Send + 'static,
     B: Payload,
@@ -62,7 +62,7 @@ where
 impl<T, S, B> Future for Server<T, S, B>
 where
     T: AsyncRead + AsyncWrite,
-    S: Service<Request=Request<Body>, Response=Response<B>>,
+    S: Service<ReqBody=Body, ResBody=B>,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
     S::Future: Send + 'static,
     B: Payload,
@@ -96,8 +96,8 @@ where
     fn poll_server<S>(&mut self, service: &mut S, exec: &Exec) -> Poll<(), ::Error>
     where
         S: Service<
-            Request=Request<Body>,
-            Response=Response<B>,
+            ReqBody=Body,
+            ResBody=B,
         >,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
         S::Future: Send + 'static,

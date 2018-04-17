@@ -11,11 +11,11 @@ use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::mpsc;
 
-use futures::{future, stream, Future, Stream};
+use futures::{stream, Future, Stream};
 use futures::sync::oneshot;
 
-use hyper::{Body, Request, Response, Server};
-use hyper::server::Service;
+use hyper::{Body, Response, Server};
+use hyper::service::service_fn_ok;
 
 macro_rules! bench_server {
     ($b:ident, $header:expr, $body:expr) => ({
@@ -26,10 +26,17 @@ macro_rules! bench_server {
             ::std::thread::spawn(move || {
                 let addr = "127.0.0.1:0".parse().unwrap();
                 let srv = Server::bind(&addr)
-                    .serve(|| Ok(BenchPayload {
-                        header: $header,
-                        body: $body,
-                    }));
+                    .serve(|| {
+                        let header = $header;
+                        let body = $body;
+                        service_fn_ok(move |_| {
+                            Response::builder()
+                                .header(header.0, header.1)
+                                .header("content-type", "text/plain")
+                                .body(body())
+                                .unwrap()
+                        })
+                    });
                 addr_tx.send(srv.local_addr()).unwrap();
                 let fut = srv
                     .map_err(|e| panic!("server error: {}", e))
@@ -182,26 +189,3 @@ fn raw_tcp_throughput_large_payload(b: &mut test::Bencher) {
     tx.send(()).unwrap();
 }
 
-struct BenchPayload<F> {
-    header: (&'static str, &'static str),
-    body: F,
-}
-
-impl<F, B> Service for BenchPayload<F>
-where
-    F: Fn() -> B,
-{
-    type Request = Request<Body>;
-    type Response = Response<B>;
-    type Error = hyper::Error;
-    type Future = future::FutureResult<Self::Response, hyper::Error>;
-    fn call(&self, _req: Self::Request) -> Self::Future {
-        future::ok(
-            Response::builder()
-                .header(self.header.0, self.header.1)
-                .header("content-type", "text/plain")
-                .body((self.body)())
-                .unwrap()
-        )
-    }
-}

@@ -203,8 +203,8 @@ impl Error {
         Error::new(Kind::UnsupportedRequestMethod, None)
     }
 
-    pub(crate) fn new_user_new_service(err: io::Error) -> Error {
-        Error::new(Kind::NewService, Some(Box::new(err)))
+    pub(crate) fn new_user_new_service<E: Into<Cause>>(cause: E) -> Error {
+        Error::new(Kind::NewService, Some(cause.into()))
     }
 
     pub(crate) fn new_user_service<E: Into<Cause>>(cause: E) -> Error {

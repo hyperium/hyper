@@ -1,6 +1,5 @@
 mod exec;
+mod never;
 
 pub(crate) use self::exec::Exec;
-
-#[derive(Debug)]
-pub enum Never {}
+pub use self::never::Never;

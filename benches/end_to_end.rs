@@ -71,20 +71,20 @@ fn post_one_at_a_time(b: &mut test::Bencher) {
 static PHRASE: &'static [u8] = include_bytes!("../CHANGELOG.md"); //b"Hello, World!";
 
 fn spawn_hello(rt: &mut Runtime) -> SocketAddr {
-    use hyper::server::{const_service, service_fn, NewService};
+    use hyper::service::{service_fn};
     let addr = "127.0.0.1:0".parse().unwrap();
     let listener = TcpListener::bind(&addr).unwrap();
     let addr = listener.local_addr().unwrap();
 
     let http = Http::new();
 
-    let service = const_service(service_fn(|req: Request<Body>| {
+    let service = service_fn(|req: Request<Body>| {
         req.into_body()
             .concat2()
             .map(|_| {
                 Response::new(Body::from(PHRASE))
             })
-    }));
+    });
 
     // Specifically only accept 1 connection.
     let srv = listener.incoming()
@@ -92,8 +92,7 @@ fn spawn_hello(rt: &mut Runtime) -> SocketAddr {
         .map_err(|(e, _inc)| panic!("accept error: {}", e))
         .and_then(move |(accepted, _inc)| {
             let socket = accepted.expect("accepted socket");
-            http.serve_connection(socket, service.new_service().expect("new_service"))
-                .map(|_| ())
+            http.serve_connection(socket, service)
                 .map_err(|_| ())
         });
     rt.spawn(srv);
