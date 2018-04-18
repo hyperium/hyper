@@ -64,7 +64,8 @@ where
                     // parked Connection.
                     let (tx, rx) = oneshot::channel();
                     let fut = conn
-                        .map_err(|e| debug!("client h2 connection error: {}", e))
+                        .inspect(|_| trace!("connection complete"))
+                        .map_err(|e| debug!("connection error: {}", e))
                         .select2(rx)
                         .then(|res| match res {
                             Ok(Either::A(((), _))) |
@@ -132,7 +133,7 @@ where
 
                         Ok(Async::Ready(None)) |
                         Err(_) => {
-                            trace!("client tx dropped");
+                            trace!("client::dispatch::Sender dropped");
                             return Ok(Async::Ready(()));
                         }
                     }

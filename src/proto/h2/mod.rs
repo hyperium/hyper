@@ -71,14 +71,25 @@ where
             // -   call self.body_tx.poll_capacity(), return if NotReady
             match self.stream.poll_data() {
                 Ok(Async::Ready(Some(chunk))) => {
-                    trace!("send body chunk: {}B", chunk.as_ref().len());
-                    self.body_tx.send_data(SendBuf(Some(Cursor::new(chunk))), false)
-                        .map_err(::Error::new_h2)?;
+                    let is_eos = self.stream.is_end_stream();
+                    trace!(
+                        "send body chunk: {} bytes, eos={}",
+                        chunk.as_ref().len(),
+                        is_eos,
+                    );
+
+                    let buf = SendBuf(Some(Cursor::new(chunk)));
+                    self.body_tx.send_data(buf, is_eos)
+                        .map_err(::Error::new_body_write)?;
+
+                    if is_eos {
+                        return Ok(Async::Ready(()))
+                    }
                 },
                 Ok(Async::Ready(None)) => {
                     trace!("send body eos");
                     self.body_tx.send_data(SendBuf(None), true)
-                        .map_err(::Error::new_h2)?;
+                        .map_err(::Error::new_body_write)?;
                     return Ok(Async::Ready(()));
                 },
                 Ok(Async::NotReady) => return Ok(Async::NotReady),

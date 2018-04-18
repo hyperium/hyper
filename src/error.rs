@@ -191,8 +191,8 @@ impl Error {
         Error::new(Kind::Body, Some(cause.into()))
     }
 
-    pub(crate) fn new_body_write(cause: io::Error) -> Error {
-        Error::new(Kind::BodyWrite, Some(Box::new(cause)))
+    pub(crate) fn new_body_write<E: Into<Cause>>(cause: E) -> Error {
+        Error::new(Kind::BodyWrite, Some(cause.into()))
     }
 
     pub(crate) fn new_user_unsupported_version() -> Error {
