@@ -187,7 +187,7 @@ pub fn __run_test(cfg: __TestConfig) {
     extern crate pretty_env_logger;
     use hyper::{Body, Client, Request, Response};
     use hyper::client::HttpConnector;
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
     let _ = pretty_env_logger::try_init();
     let rt = Runtime::new().expect("new rt");
     let handle = rt.reactor().clone();
@@ -198,37 +198,40 @@ pub fn __run_test(cfg: __TestConfig) {
         .executor(rt.executor())
         .build::<_, Body>(connector);
 
-    let serve_handles = ::std::sync::Mutex::new(
+    let serve_handles = Arc::new(Mutex::new(
         cfg.server_msgs
-    );
-    let service = hyper::server::service_fn(move |req: Request<Body>| -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
-        let (sreq, sres) = serve_handles.lock()
-            .unwrap()
-            .remove(0);
+    ));
+    let new_service = move || {
+        // Move a clone into the service_fn
+        let serve_handles = serve_handles.clone();
+        hyper::service::service_fn(move |req: Request<Body>| {
+            let (sreq, sres) = serve_handles.lock()
+                .unwrap()
+                .remove(0);
 
-        assert_eq!(req.uri().path(), sreq.uri);
-        assert_eq!(req.method(), &sreq.method);
-        for (name, value) in &sreq.headers {
-            assert_eq!(
-                req.headers()[name],
-                value
-            );
-        }
-        let sbody = sreq.body;
-        Box::new(req.into_body()
-            .concat2()
-            .map(move |body| {
-                assert_eq!(body.as_ref(), sbody.as_slice());
+            assert_eq!(req.uri().path(), sreq.uri);
+            assert_eq!(req.method(), &sreq.method);
+            for (name, value) in &sreq.headers {
+                assert_eq!(
+                    req.headers()[name],
+                    value
+                );
+            }
+            let sbody = sreq.body;
+            req.into_body()
+                .concat2()
+                .map(move |body| {
+                    assert_eq!(body.as_ref(), sbody.as_slice());
 
-                let mut res = Response::builder()
-                    .status(sres.status)
-                    .body(sres.body.into())
-                    .expect("Response::build");
-                *res.headers_mut() = sres.headers;
-                res
-            }))
-    });
-    let new_service = hyper::server::const_service(service);
+                    let mut res = Response::builder()
+                        .status(sres.status)
+                        .body(Body::from(sres.body))
+                        .expect("Response::build");
+                    *res.headers_mut() = sres.headers;
+                    res
+                })
+        })
+    };
 
     let serve = hyper::server::conn::Http::new()
         .http2_only(cfg.server_version == 2)
@@ -246,8 +249,12 @@ pub fn __run_test(cfg: __TestConfig) {
     let (success_tx, success_rx) = oneshot::channel();
     let expected_connections = cfg.connections;
     let server = serve
-        .fold(0, move |cnt, conn| {
-            exe.spawn(conn.map_err(|e| panic!("server connection error: {}", e)));
+        .fold(0, move |cnt, connecting| {
+            let fut = connecting
+                .map_err(|never| -> hyper::Error { match never {} })
+                .flatten()
+                .map_err(|e| panic!("server connection error: {}", e));
+            exe.spawn(fut);
             Ok::<_, hyper::Error>(cnt + 1)
         })
         .map(move |cnt| {

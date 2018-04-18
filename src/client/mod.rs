@@ -11,7 +11,6 @@ use futures::sync::oneshot;
 use http::{Method, Request, Response, Uri, Version};
 use http::header::{Entry, HeaderValue, HOST};
 use http::uri::Scheme;
-pub use tokio_service::Service;
 
 use body::{Body, Payload};
 use common::Exec;
@@ -292,22 +291,6 @@ where C: Connect + Sync + 'static,
 
     fn schedule_pool_timer(&self) {
         self.pool.spawn_expired_interval(&self.executor);
-    }
-}
-
-impl<C, B> Service for Client<C, B>
-where C: Connect + 'static,
-      C::Future: 'static,
-      B: Payload + Send + 'static,
-      B::Data: Send,
-{
-    type Request = Request<B>;
-    type Response = Response<Body>;
-    type Error = ::Error;
-    type Future = FutureResponse;
-
-    fn call(&self, req: Self::Request) -> Self::Future {
-        self.request(req)
     }
 }
 

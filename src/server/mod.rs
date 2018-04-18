@@ -7,9 +7,47 @@
 //!
 //! - The higher-level [`Server`](Server).
 //! - The lower-level [conn](conn) module.
+//!
+//! # Server
+//!
+//! The [`Server`](Server) is main way to start listening for HTTP requests.
+//! It wraps a listener with a [`NewService`](::service), and then should
+//! be executed to start serving requests.
+//!
+//! ## Example
+//!
+//! ```no_run
+//! extern crate futures;
+//! extern crate hyper;
+//! extern crate tokio;
+//!
+//! use futures::Future;
+//! use hyper::{Body, Response, Server};
+//! use hyper::service::service_fn_ok;
+//!
+//! fn main() {
+//!     // Construct our SocketAddr to listen on...
+//!     let addr = ([127, 0, 0, 1], 3000).into();
+//!
+//!     // And a NewService to handle each connection...
+//!     let new_service = || {
+//!         service_fn_ok(|_req| {
+//!             Response::new(Body::from("Hello World"))
+//!         })
+//!     };
+//!
+//!     // Then bind and serve...
+//!     let server = Server::bind(&addr)
+//!         .serve(new_service);
+//!
+//!     // Finally, spawn `server` onto an Executor...
+//!     tokio::run(server.map_err(|e| {
+//!         eprintln!("server error: {}", e);
+//!     }));
+//! }
+//! ```
 
 pub mod conn;
-mod service;
 mod tcp;
 
 use std::fmt;
@@ -17,18 +55,15 @@ use std::net::SocketAddr;
 use std::time::Duration;
 
 use futures::{Future, Stream, Poll};
-use http::{Request, Response};
 use tokio_io::{AsyncRead, AsyncWrite};
-pub use tokio_service::{NewService, Service};
 
 use body::{Body, Payload};
+use service::{NewService, Service};
 // Renamed `Http` as `Http_` for now so that people upgrading don't see an
 // error that `hyper::server::Http` is private...
 use self::conn::{Http as Http_, SpawnAll};
-use self::hyper_service::HyperService;
+//use self::hyper_service::HyperService;
 use self::tcp::{AddrIncoming};
-
-pub use self::service::{const_service, service_fn};
 
 /// A listening HTTP server.
 ///
@@ -93,10 +128,11 @@ where
     I: Stream,
     I::Error: Into<Box<::std::error::Error + Send + Sync>>,
     I::Item: AsyncRead + AsyncWrite + Send + 'static,
-    S: NewService<Request = Request<Body>, Response = Response<B>> + Send + 'static,
+    S: NewService<ReqBody=Body, ResBody=B> + Send + 'static,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-    <S as NewService>::Instance: Send,
-    <<S as NewService>::Instance as Service>::Future: Send + 'static,
+    S::Service: Send,
+    S::Future: Send + 'static,
+    <S::Service as Service>::Future: Send + 'static,
     B: Payload,
 {
     type Item = ();
@@ -137,15 +173,38 @@ impl<I> Builder<I> {
     }
 
     /// Consume this `Builder`, creating a [`Server`](Server).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use hyper::{Body, Response, Server};
+    /// use hyper::service::service_fn_ok;
+    ///
+    /// // Construct our SocketAddr to listen on...
+    /// let addr = ([127, 0, 0, 1], 3000).into();
+    ///
+    /// // And a NewService to handle each connection...
+    /// let new_service = || {
+    ///     service_fn_ok(|_req| {
+    ///         Response::new(Body::from("Hello World"))
+    ///     })
+    /// };
+    ///
+    /// // Then bind and serve...
+    /// let server = Server::bind(&addr)
+    ///     .serve(new_service);
+    ///
+    /// // Finally, spawn `server` onto an Executor...
+    /// ```
     pub fn serve<S, B>(self, new_service: S) -> Server<I, S>
     where
         I: Stream,
         I::Error: Into<Box<::std::error::Error + Send + Sync>>,
         I::Item: AsyncRead + AsyncWrite + Send + 'static,
-        S: NewService<Request = Request<Body>, Response = Response<B>>,
+        S: NewService<ReqBody=Body, ResBody=B> + Send + 'static,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-        <S as NewService>::Instance: Send,
-        <<S as NewService>::Instance as Service>::Future: Send + 'static,
+        S::Service: Send,
+        <S::Service as Service>::Future: Send + 'static,
         B: Payload,
     {
         let serve = self.protocol.serve_incoming(self.incoming, new_service);
@@ -174,52 +233,3 @@ impl Builder<AddrIncoming> {
     }
 }
 
-mod hyper_service {
-    use super::{Body, Payload, Request, Response, Service};
-    /// A "trait alias" for any type that implements `Service` with hyper's
-    /// Request, Response, and Error types, and a streaming body.
-    ///
-    /// There is an auto implementation inside hyper, so no one can actually
-    /// implement this trait. It simply exists to reduce the amount of generics
-    /// needed.
-    pub trait HyperService: Service + Sealed {
-        #[doc(hidden)]
-        type ResponseBody;
-        #[doc(hidden)]
-        type Sealed: Sealed2;
-    }
-
-    pub trait Sealed {}
-    pub trait Sealed2 {}
-
-    #[allow(missing_debug_implementations)]
-    pub struct Opaque {
-        _inner: (),
-    }
-
-    impl Sealed2 for Opaque {}
-
-    impl<S, B> Sealed for S
-    where
-        S: Service<
-            Request=Request<Body>,
-            Response=Response<B>,
-        >,
-        S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-        B: Payload,
-    {}
-
-    impl<S, B> HyperService for S
-    where
-        S: Service<
-            Request=Request<Body>,
-            Response=Response<B>,
-        >,
-        S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-        S: Sealed,
-        B: Payload,
-    {
-        type ResponseBody = B;
-        type Sealed = Opaque;
-    }
-}

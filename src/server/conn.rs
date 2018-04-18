@@ -23,7 +23,7 @@ use tokio::reactor::Handle;
 use common::Exec;
 use proto;
 use body::{Body, Payload};
-use super::{HyperService, NewService, Request, Response, Service};
+use service::{NewService, Service};
 
 pub use super::tcp::AddrIncoming;
 
@@ -44,12 +44,24 @@ pub struct Http {
 
 /// A stream mapping incoming IOs to new services.
 ///
-/// Yields `Connection`s that are futures that should be put on a reactor.
+/// Yields `Connecting`s that are futures that should be put on a reactor.
 #[must_use = "streams do nothing unless polled"]
 #[derive(Debug)]
 pub struct Serve<I, S> {
     incoming: I,
     new_service: S,
+    protocol: Http,
+}
+
+/// A future binding a `Service` to a `Connection`.
+///
+/// Wraps the future returned from `NewService` into one that returns
+/// a `Connection`.
+#[must_use = "futures do nothing unless polled"]
+#[derive(Debug)]
+pub struct Connecting<I, F> {
+    future: F,
+    io: Option<I>,
     protocol: Http,
 }
 
@@ -65,20 +77,19 @@ pub(super) struct SpawnAll<I, S> {
 #[must_use = "futures do nothing unless polled"]
 pub struct Connection<I, S>
 where
-    S: HyperService,
-    S::ResponseBody: Payload,
+    S: Service,
 {
     pub(super) conn: Either<
         proto::h1::Dispatcher<
             proto::h1::dispatch::Server<S>,
-            S::ResponseBody,
+            S::ResBody,
             I,
             proto::ServerTransaction,
         >,
         proto::h2::Server<
             I,
             S,
-            S::ResponseBody,
+            S::ResBody,
         >,
     >,
 }
@@ -163,7 +174,7 @@ impl Http {
         self
     }
 
-    /// Bind a connection together with a `Service`.
+    /// Bind a connection together with a [`Service`](::service::Service).
     ///
     /// This returns a Future that must be polled in order for HTTP to be
     /// driven on the connection.
@@ -177,14 +188,14 @@ impl Http {
     /// # extern crate tokio_io;
     /// # use futures::Future;
     /// # use hyper::{Body, Request, Response};
-    /// # use hyper::server::Service;
+    /// # use hyper::service::Service;
     /// # use hyper::server::conn::Http;
     /// # use tokio_io::{AsyncRead, AsyncWrite};
     /// # use tokio::reactor::Handle;
     /// # fn run<I, S>(some_io: I, some_service: S)
     /// # where
     /// #     I: AsyncRead + AsyncWrite + Send + 'static,
-    /// #     S: Service<Request=Request<Body>, Response=Response<Body>, Error=hyper::Error> + Send + 'static,
+    /// #     S: Service<ReqBody=Body, ResBody=Body> + Send + 'static,
     /// #     S::Future: Send
     /// # {
     /// let http = Http::new();
@@ -200,7 +211,7 @@ impl Http {
     /// ```
     pub fn serve_connection<S, I, Bd>(&self, io: I, service: S) -> Connection<I, S>
     where
-        S: Service<Request = Request<Body>, Response = Response<Bd>>,
+        S: Service<ReqBody=Body, ResBody=Bd>,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
         S::Future: Send + 'static,
         Bd: Payload,
@@ -235,7 +246,7 @@ impl Http {
     /// connection.
     pub fn serve_addr<S, Bd>(&self, addr: &SocketAddr, new_service: S) -> ::Result<Serve<AddrIncoming, S>>
     where
-        S: NewService<Request=Request<Body>, Response=Response<Bd>>,
+        S: NewService<ReqBody=Body, ResBody=Bd>,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
         Bd: Payload,
     {
@@ -254,7 +265,7 @@ impl Http {
     /// connection.
     pub fn serve_addr_handle<S, Bd>(&self, addr: &SocketAddr, handle: &Handle, new_service: S) -> ::Result<Serve<AddrIncoming, S>>
     where
-        S: NewService<Request = Request<Body>, Response = Response<Bd>>,
+        S: NewService<ReqBody=Body, ResBody=Bd>,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
         Bd: Payload,
     {
@@ -271,7 +282,7 @@ impl Http {
         I: Stream,
         I::Error: Into<Box<::std::error::Error + Send + Sync>>,
         I::Item: AsyncRead + AsyncWrite,
-        S: NewService<Request = Request<Body>, Response = Response<Bd>>,
+        S: NewService<ReqBody=Body, ResBody=Bd>,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
         Bd: Payload,
     {
@@ -288,7 +299,7 @@ impl Http {
 
 impl<I, B, S> Connection<I, S>
 where
-    S: Service<Request=Request<Body>, Response=Response<B>> + 'static,
+    S: Service<ReqBody=Body, ResBody=B> + 'static,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
     S::Future: Send,
     I: AsyncRead + AsyncWrite + 'static,
@@ -350,7 +361,7 @@ where
 
 impl<I, B, S> Future for Connection<I, S>
 where
-    S: Service<Request=Request<Body>, Response=Response<B>> + 'static,
+    S: Service<ReqBody=Body, ResBody=B> + 'static,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
     S::Future: Send,
     I: AsyncRead + AsyncWrite + 'static,
@@ -366,8 +377,7 @@ where
 
 impl<I, S> fmt::Debug for Connection<I, S>
 where
-    S: HyperService,
-    S::ResponseBody: Payload,
+    S: Service,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Connection")
@@ -403,21 +413,45 @@ where
     I: Stream,
     I::Item: AsyncRead + AsyncWrite,
     I::Error: Into<Box<::std::error::Error + Send + Sync>>,
-    S: NewService<Request=Request<Body>, Response=Response<B>>,
+    S: NewService<ReqBody=Body, ResBody=B>,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-    <S::Instance as Service>::Future: Send + 'static,
+    <S::Service as Service>::Future: Send + 'static,
     B: Payload,
 {
-    type Item = Connection<I::Item, S::Instance>;
+    type Item = Connecting<I::Item, S::Future>;
     type Error = ::Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         if let Some(io) = try_ready!(self.incoming.poll().map_err(::Error::new_accept)) {
-            let service = self.new_service.new_service().map_err(::Error::new_user_new_service)?;
-            Ok(Async::Ready(Some(self.protocol.serve_connection(io, service))))
+            let new_fut = self.new_service.new_service();
+            Ok(Async::Ready(Some(Connecting {
+                future: new_fut,
+                io: Some(io),
+                protocol: self.protocol.clone(),
+            })))
         } else {
             Ok(Async::Ready(None))
         }
+    }
+}
+
+// ===== impl Connecting =====
+
+impl<I, F, S, B> Future for Connecting<I, F>
+where
+    I: AsyncRead + AsyncWrite,
+    F: Future<Item=S>,
+    S: Service<ReqBody=Body, ResBody=B>,
+    S::Future: Send + 'static,
+    B: Payload,
+{
+    type Item = Connection<I, S>;
+    type Error = F::Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        let service = try_ready!(self.future.poll());
+        let io = self.io.take().expect("polled after complete");
+        Ok(self.protocol.serve_connection(io, service).into())
     }
 }
 
@@ -440,10 +474,11 @@ where
     I: Stream,
     I::Error: Into<Box<::std::error::Error + Send + Sync>>,
     I::Item: AsyncRead + AsyncWrite + Send + 'static,
-    S: NewService<Request = Request<Body>, Response = Response<B>> + Send + 'static,
+    S: NewService<ReqBody=Body, ResBody=B> + Send + 'static,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-    <S as NewService>::Instance: Send,
-    <<S as NewService>::Instance as Service>::Future: Send + 'static,
+    S::Service: Send,
+    S::Future: Send + 'static,
+    <S::Service as Service>::Future: Send + 'static,
     B: Payload,
 {
     type Item = ();
@@ -451,8 +486,11 @@ where
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         loop {
-            if let Some(conn) = try_ready!(self.serve.poll()) {
-                let fut = conn
+            if let Some(connecting) = try_ready!(self.serve.poll()) {
+                let fut = connecting
+                    .map_err(::Error::new_user_new_service)
+                    // flatten basically
+                    .and_then(|conn| conn)
                     .map_err(|err| debug!("conn error: {}", err));
                 self.serve.protocol.exec.execute(fut);
             } else {

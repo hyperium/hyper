@@ -30,7 +30,6 @@ extern crate time;
 extern crate tokio;
 extern crate tokio_executor;
 #[macro_use] extern crate tokio_io;
-extern crate tokio_service;
 extern crate want;
 
 #[cfg(all(test, feature = "nightly"))]
@@ -62,3 +61,4 @@ pub mod error;
 mod headers;
 mod proto;
 pub mod server;
+pub mod service;

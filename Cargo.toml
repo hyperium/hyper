@@ -34,7 +34,6 @@ net2 = "0.2.32"
 time = "0.1"
 tokio = "0.1.5"
 tokio-executor = "0.1.0"
-tokio-service = "0.1"
 tokio-io = "0.1"
 want = "0.0.3"
 

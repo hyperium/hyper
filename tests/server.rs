@@ -31,8 +31,8 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 
 use hyper::{Body, Request, Response, StatusCode};
-use hyper::server::{Service, NewService, service_fn};
 use hyper::server::conn::Http;
+use hyper::service::{service_fn, Service};
 
 fn tcp_bind(addr: &SocketAddr, handle: &Handle) -> ::tokio::io::Result<TcpListener> {
     let std_listener = StdTcpListener::bind(addr).unwrap();
@@ -95,28 +95,17 @@ fn get_implicitly_empty() {
         .map_err(|_| unreachable!())
         .and_then(|(item, _incoming)| {
             let socket = item.unwrap();
-            Http::new().serve_connection(socket, GetImplicitlyEmpty)
+            Http::new().serve_connection(socket, service_fn(|req: Request<Body>| {
+                req.into_body()
+                    .concat2()
+                    .map(|buf| {
+                        assert!(buf.is_empty());
+                        Response::new(Body::empty())
+                    })
+            }))
         });
 
     fut.wait().unwrap();
-
-    struct GetImplicitlyEmpty;
-
-    impl Service for GetImplicitlyEmpty {
-        type Request = Request<Body>;
-        type Response = Response<Body>;
-        type Error = hyper::Error;
-        type Future = Box<Future<Item=Self::Response, Error=Self::Error> + Send>;
-
-        fn call(&self, req: Request<Body>) -> Self::Future {
-            Box::new(req.into_body()
-                .concat2()
-                .map(|buf| {
-                    assert!(buf.is_empty());
-                    Response::new(Body::empty())
-                }))
-        }
-    }
 }
 
 mod response_body_lengths {
@@ -1258,24 +1247,9 @@ enum Msg {
     End,
 }
 
-impl NewService for TestService {
-    type Request = Request<Body>;
-    type Response = Response<Body>;
-    type Error = hyper::Error;
-
-    type Instance = TestService;
-
-    fn new_service(&self) -> std::io::Result<TestService> {
-        Ok(self.clone())
-    }
-}
-
-impl Service for TestService {
-    type Request = Request<Body>;
-    type Response = Response<Body>;
-    type Error = hyper::Error;
-    type Future = Box<Future<Item=Response<Body>, Error=hyper::Error> + Send>;
-    fn call(&self, req: Request<Body>) -> Self::Future {
+impl TestService {
+    // Box is needed until we can return `impl Future` from a fn
+    fn call(&self, req: Request<Body>) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
         let tx1 = self.tx.clone();
         let tx2 = self.tx.clone();
 
@@ -1309,7 +1283,6 @@ impl Service for TestService {
             res
         }))
     }
-
 }
 
 const HELLO: &'static str = "hello";
@@ -1317,12 +1290,12 @@ const HELLO: &'static str = "hello";
 struct HelloWorld;
 
 impl Service for HelloWorld {
-    type Request = Request<Body>;
-    type Response = Response<Body>;
+    type ReqBody = Body;
+    type ResBody = Body;
     type Error = hyper::Error;
-    type Future = FutureResult<Self::Response, Self::Error>;
+    type Future = FutureResult<Response<Body>, Self::Error>;
 
-    fn call(&self, _req: Request<Body>) -> Self::Future {
+    fn call(&mut self, _req: Request<Body>) -> Self::Future {
         let response = Response::new(HELLO.into());
         future::ok(response)
     }
@@ -1376,10 +1349,13 @@ fn serve_with_options(options: ServeOptions) -> Serve {
         let serve = Http::new()
             .keep_alive(keep_alive)
             .pipeline_flush(pipeline)
-            .serve_addr(&addr, TestService {
-                tx: Arc::new(Mutex::new(msg_tx.clone())),
-                _timeout: dur,
-                reply: reply_rx,
+            .serve_addr(&addr, move || {
+                let ts = TestService {
+                    tx: Arc::new(Mutex::new(msg_tx.clone())),
+                    _timeout: dur,
+                    reply: reply_rx.clone(),
+                };
+                service_fn(move |req| ts.call(req))
             })
             .expect("bind to address");
 
@@ -1390,10 +1366,12 @@ fn serve_with_options(options: ServeOptions) -> Serve {
         ).expect("server addr tx");
 
         // spawn_all() is private for now, so just duplicate it here
-        let spawn_all = serve.for_each(|conn| {
-            tokio::spawn(conn.map_err(|e| {
-                println!("server error: {}", e);
-            }));
+        let spawn_all = serve.for_each(|connecting| {
+            let fut = connecting
+                .map_err(|never| -> hyper::Error { match never {} })
+                .flatten()
+                .map_err(|e| println!("server error: {}", e));
+            tokio::spawn(fut);
             Ok(())
         }).map_err(|e| {
             println!("accept error: {}", e)

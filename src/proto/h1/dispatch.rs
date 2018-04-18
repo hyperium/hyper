@@ -2,10 +2,10 @@ use bytes::Bytes;
 use futures::{Async, Future, Poll, Stream};
 use http::{Request, Response, StatusCode};
 use tokio_io::{AsyncRead, AsyncWrite};
-use tokio_service::Service;
 
 use body::{Body, Payload};
 use proto::{BodyLength, Conn, Http1Transaction, MessageHead, RequestHead, RequestLine, ResponseHead};
+use service::Service;
 
 pub(crate) struct Dispatcher<D, Bs: Payload, I, T> {
     conn: Conn<I, Bs::Data, T>,
@@ -312,7 +312,7 @@ impl<S> Server<S> where S: Service {
 
 impl<S, Bs> Dispatch for Server<S>
 where
-    S: Service<Request=Request<Body>, Response=Response<Bs>>,
+    S: Service<ReqBody=Body, ResBody=Bs>,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
     Bs: Payload,
 {
