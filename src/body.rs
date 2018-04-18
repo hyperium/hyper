@@ -318,7 +318,7 @@ impl Payload for Body {
     fn is_end_stream(&self) -> bool {
         match self.kind {
             Kind::Chan { .. } => false,
-            Kind::H2(..) => false,
+            Kind::H2(ref h2) => h2.is_end_stream(),
             Kind::Wrapped(..) => false,
             Kind::Once(ref val) => val.is_none(),
             Kind::Empty => true
