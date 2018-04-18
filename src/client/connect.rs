@@ -251,7 +251,12 @@ impl Connect for HttpConnector {
     type Future = HttpConnecting;
 
     fn connect(&self, dst: Destination) -> Self::Future {
-        trace!("Http::connect({:?})", dst.uri);
+        trace!(
+            "Http::connect; scheme={}, host={}, port={:?}",
+            dst.scheme(),
+            dst.host(),
+            dst.port(),
+        );
 
         if self.enforce_http {
             if dst.uri.scheme_part() != Some(&Scheme::HTTP) {

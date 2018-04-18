@@ -255,6 +255,8 @@ where C: Connect + Sync + 'static,
                     }
                 })
                 .and_then(move |mut res| {
+                    // If pooled is HTTP/2, we can toss this reference immediately.
+                    //
                     // when pooled is dropped, it will try to insert back into the
                     // pool. To delay that, spawn a future that completes once the
                     // sender is ready again.
@@ -263,7 +265,7 @@ where C: Connect + Sync + 'static,
                     // for a new request to start.
                     //
                     // It won't be ready if there is a body to stream.
-                    if pooled.is_ready() {
+                    if ver == Ver::Http2 || pooled.is_ready() {
                         drop(pooled);
                     } else if !res.body().is_empty() {
                         let (delayed_tx, delayed_rx) = oneshot::channel();
