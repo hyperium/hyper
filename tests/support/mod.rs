@@ -23,18 +23,22 @@ macro_rules! t {
                 c.push((
                     __CReq {
                         uri: "/",
+                        body: vec![b'x'; 8192],
                         ..Default::default()
                     },
                     __CRes {
+                        body: vec![b'x'; 8192],
                         ..Default::default()
                     },
                 ));
                 s.push((
                     __SReq {
                         uri: "/",
+                        body: vec![b'x'; 8192],
                         ..Default::default()
                     },
                     __SRes {
+                        body: vec![b'x'; 8192],
                         ..Default::default()
                     },
                 ));
