@@ -13,6 +13,9 @@ use proto::{Http1Transaction, MessageHead};
 /// The initial buffer size allocated before trying to read from IO.
 pub(crate) const INIT_BUFFER_SIZE: usize = 8192;
 
+/// The minimum value that can be set to max buffer size.
+pub const MINIMUM_MAX_BUFFER_SIZE: usize = INIT_BUFFER_SIZE;
+
 /// The default maximum read buffer size. If the buffer gets this big and
 /// a message is still not complete, a `TooLarge` error is triggered.
 // Note: if this changes, update server::conn::Http::max_buf_size docs.
@@ -72,6 +75,10 @@ where
     }
 
     pub fn set_max_buf_size(&mut self, max: usize) {
+        assert!(
+            max >= MINIMUM_MAX_BUFFER_SIZE,
+            "The max_buf_size cannot be smaller than the initial buffer size."
+        );
         self.max_buf_size = max;
         self.write_buf.max_buf_size = max;
     }
