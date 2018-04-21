@@ -4,9 +4,9 @@
 [![Appveyor Build status](https://ci.appveyor.com/api/projects/status/tb0n55fjs5tohdfo/branch/master?svg=true)](https://ci.appveyor.com/project/seanmonstar/hyper)
 [![Coverage Status](https://coveralls.io/repos/hyperium/hyper/badge.svg?branch=master)](https://coveralls.io/r/hyperium/hyper?branch=master)
 [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-[![crates.io](http://meritbadge.herokuapp.com/hyper)](https://crates.io/crates/hyper)
-[![Released API docs](https://docs.rs/hyper/badge.svg)](http://docs.rs/hyper)
-[![Master API docs](https://img.shields.io/badge/docs-master-green.svg)](http://hyperium.github.io/hyper/master)
+[![crates.io](https://meritbadge.herokuapp.com/hyper)](https://crates.io/crates/hyper)
+[![Released API docs](https://docs.rs/hyper/badge.svg)](https://docs.rs/hyper)
+[![Master API docs](https://img.shields.io/badge/docs-master-green.svg)](https://hyper.rs/hyper/master/)
 
 A low-level HTTP implementation for Rust.
 
