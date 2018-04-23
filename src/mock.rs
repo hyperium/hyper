@@ -1,6 +1,8 @@
+#[cfg(feature = "runtime")]
 use std::collections::HashMap;
 use std::cmp;
 use std::io::{self, Read, Write};
+#[cfg(feature = "runtime")]
 use std::sync::{Arc, Mutex};
 
 use bytes::Buf;
@@ -8,6 +10,7 @@ use futures::{Async, Poll};
 use futures::task::{self, Task};
 use tokio_io::{AsyncRead, AsyncWrite};
 
+#[cfg(feature = "runtime")]
 use ::client::connect::{Connect, Connected, Destination};
 
 #[derive(Debug)]
@@ -112,6 +115,7 @@ impl<T> AsyncIo<T> {
         self.max_read_vecs = cnt;
     }
 
+    #[cfg(feature = "runtime")]
     pub fn park_tasks(&mut self, enabled: bool) {
         self.park_tasks = enabled;
     }
@@ -151,6 +155,7 @@ impl AsyncIo<MockCursor> {
     }
     */
 
+    #[cfg(feature = "runtime")]
     fn close(&mut self) {
         self.block_in(1);
         assert_eq!(self.inner.vec.len(), self.inner.pos);
@@ -282,22 +287,26 @@ impl ::std::ops::Deref for AsyncIo<MockCursor> {
     }
 }
 
+#[cfg(feature = "runtime")]
 pub struct Duplex {
     inner: Arc<Mutex<DuplexInner>>,
 }
 
+#[cfg(feature = "runtime")]
 struct DuplexInner {
     handle_read_task: Option<Task>,
     read: AsyncIo<MockCursor>,
     write: AsyncIo<MockCursor>,
 }
 
+#[cfg(feature = "runtime")]
 impl Read for Duplex {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.inner.lock().unwrap().read.read(buf)
     }
 }
 
+#[cfg(feature = "runtime")]
 impl Write for Duplex {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let mut inner = self.inner.lock().unwrap();
@@ -313,10 +322,11 @@ impl Write for Duplex {
     }
 }
 
+#[cfg(feature = "runtime")]
 impl AsyncRead for Duplex {
-
 }
 
+#[cfg(feature = "runtime")]
 impl AsyncWrite for Duplex {
     fn shutdown(&mut self) -> Poll<(), io::Error> {
         Ok(().into())
@@ -331,10 +341,12 @@ impl AsyncWrite for Duplex {
     }
 }
 
+#[cfg(feature = "runtime")]
 pub struct DuplexHandle {
     inner: Arc<Mutex<DuplexInner>>,
 }
 
+#[cfg(feature = "runtime")]
 impl DuplexHandle {
     pub fn read(&self, buf: &mut [u8]) -> Poll<usize, io::Error> {
         let mut inner = self.inner.lock().unwrap();
@@ -362,6 +374,7 @@ impl DuplexHandle {
     }
 }
 
+#[cfg(feature = "runtime")]
 impl Drop for DuplexHandle {
     fn drop(&mut self) {
         trace!("mock duplex handle drop");
@@ -371,10 +384,12 @@ impl Drop for DuplexHandle {
     }
 }
 
+#[cfg(feature = "runtime")]
 pub struct MockConnector {
     mocks: Mutex<HashMap<String, Vec<Duplex>>>,
 }
 
+#[cfg(feature = "runtime")]
 impl MockConnector {
     pub fn new() -> MockConnector {
         MockConnector {
@@ -410,6 +425,7 @@ impl MockConnector {
     }
 }
 
+#[cfg(feature = "runtime")]
 impl Connect for MockConnector {
     type Transport = Duplex;
     type Error = io::Error;

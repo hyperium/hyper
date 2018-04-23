@@ -2,7 +2,6 @@
 extern crate futures;
 extern crate hyper;
 extern crate pretty_env_logger;
-extern crate tokio;
 
 use futures::{future, Future, Stream};
 
@@ -68,7 +67,7 @@ fn main() {
 
     let addr = "127.0.0.1:1337".parse().unwrap();
 
-    tokio::run(future::lazy(move || {
+    hyper::rt::run(future::lazy(move || {
         // Share a `Client` with all `Service`s
         let client = Client::new();
 

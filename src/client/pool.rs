@@ -652,7 +652,7 @@ mod tests {
     use std::time::Duration;
     use futures::{Async, Future};
     use futures::future;
-    use super::{Connecting, Key, Poolable, Pool, Reservation, Exec, Ver};
+    use super::{Connecting, Key, Poolable, Pool, Reservation, Ver};
 
     /// Test unique reservations.
     #[derive(Debug, PartialEq, Eq)]
@@ -738,9 +738,11 @@ mod tests {
         }).wait().unwrap();
     }
 
+    #[cfg(feature = "runtime")]
     #[test]
     fn test_pool_timer_removes_expired() {
         use std::sync::Arc;
+        use common::Exec;
         let runtime = ::tokio::runtime::Runtime::new().unwrap();
         let pool = Pool::new(true, Some(Duration::from_millis(100)));
 

@@ -1,3 +1,4 @@
+#![cfg(feature = "runtime")]
 extern crate pretty_env_logger;
 
 use std::thread;

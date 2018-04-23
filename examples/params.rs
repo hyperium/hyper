@@ -2,7 +2,6 @@
 extern crate futures;
 extern crate hyper;
 extern crate pretty_env_logger;
-extern crate tokio;
 extern crate url;
 
 use futures::{future, Future, Stream};
@@ -93,5 +92,5 @@ fn main() {
         .serve(|| service_fn(param_example))
         .map_err(|e| eprintln!("server error: {}", e));
 
-    tokio::run(server);
+    hyper::rt::run(server);
 }

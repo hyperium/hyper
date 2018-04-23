@@ -1,17 +1,12 @@
-//#![deny(warnings)]
-extern crate futures;
+#![deny(warnings)]
 extern crate hyper;
-extern crate tokio;
-
 extern crate pretty_env_logger;
 
 use std::env;
 use std::io::{self, Write};
 
-use futures::{Future, Stream};
-use futures::future::lazy;
-
 use hyper::{Body, Client, Request};
+use hyper::rt::{self, Future, Stream};
 
 fn main() {
     pretty_env_logger::init();
@@ -30,7 +25,7 @@ fn main() {
         return;
     }
 
-    tokio::run(lazy(move || {
+    rt::run(rt::lazy(move || {
         let client = Client::new();
 
         let mut req = Request::new(Body::empty());

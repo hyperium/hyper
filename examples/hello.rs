@@ -1,13 +1,10 @@
 #![deny(warnings)]
 extern crate hyper;
-extern crate futures;
 extern crate pretty_env_logger;
-extern crate tokio;
-
-use futures::Future;
 
 use hyper::{Body, Response, Server};
 use hyper::service::service_fn_ok;
+use hyper::rt::{self, Future};
 
 static PHRASE: &'static [u8] = b"Hello World!";
 
@@ -33,5 +30,5 @@ fn main() {
 
     println!("Listening on http://{}", addr);
 
-    tokio::run(server);
+    rt::run(server);
 }
