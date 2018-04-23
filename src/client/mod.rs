@@ -16,14 +16,15 @@ use body::{Body, Payload};
 use common::Exec;
 use self::pool::{Pool, Poolable, Reservation};
 
-pub use self::connect::{Connect, HttpConnector};
+pub use self::connect::Connect;
+#[cfg(feature = "runtime")] pub use self::connect::HttpConnector;
 
 use self::connect::Destination;
 
 pub mod conn;
 pub mod connect;
 pub(crate) mod dispatch;
-mod dns;
+#[cfg(feature = "runtime")] mod dns;
 mod pool;
 #[cfg(test)]
 mod tests;
@@ -39,6 +40,7 @@ pub struct Client<C, B = Body> {
     ver: Ver,
 }
 
+#[cfg(feature = "runtime")]
 impl Client<HttpConnector, Body> {
     /// Create a new Client with the default config.
     #[inline]
@@ -47,18 +49,22 @@ impl Client<HttpConnector, Body> {
     }
 }
 
+#[cfg(feature = "runtime")]
 impl Default for Client<HttpConnector, Body> {
     fn default() -> Client<HttpConnector, Body> {
         Client::new()
     }
 }
 
-impl Client<HttpConnector, Body> {
+impl Client<(), Body> {
     /// Configure a Client.
     ///
     /// # Example
     ///
     /// ```
+    /// # extern crate hyper;
+    /// # #[cfg(feature  = "runtime")]
+    /// fn run () {
     /// use hyper::Client;
     ///
     /// let client = Client::builder()
@@ -66,6 +72,8 @@ impl Client<HttpConnector, Body> {
     ///     .build_http();
     /// # let infer: Client<_, hyper::Body> = client;
     /// # drop(infer);
+    /// # }
+    /// # fn main() {}
     /// ```
     #[inline]
     pub fn builder() -> Builder {
@@ -603,6 +611,7 @@ impl Builder {
     }
 
     /// Builder a client with this configuration and the default `HttpConnector`.
+    #[cfg(feature = "runtime")]
     pub fn build_http<B>(&self) -> Client<HttpConnector, B>
     where
         B: Payload + Send,

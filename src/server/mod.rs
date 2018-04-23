@@ -17,15 +17,14 @@
 //! ## Example
 //!
 //! ```no_run
-//! extern crate futures;
 //! extern crate hyper;
-//! extern crate tokio;
 //!
-//! use futures::Future;
 //! use hyper::{Body, Response, Server};
 //! use hyper::service::service_fn_ok;
 //!
+//! # #[cfg(feature = "runtime")]
 //! fn main() {
+//! # use hyper::rt::Future;
 //!     // Construct our SocketAddr to listen on...
 //!     let addr = ([127, 0, 0, 1], 3000).into();
 //!
@@ -41,18 +40,20 @@
 //!         .serve(new_service);
 //!
 //!     // Finally, spawn `server` onto an Executor...
-//!     tokio::run(server.map_err(|e| {
+//!     hyper::rt::run(server.map_err(|e| {
 //!         eprintln!("server error: {}", e);
 //!     }));
 //! }
+//! # #[cfg(not(feature = "runtime"))]
+//! # fn main() {}
 //! ```
 
 pub mod conn;
-mod tcp;
+#[cfg(feature = "runtime")] mod tcp;
 
 use std::fmt;
-use std::net::SocketAddr;
-use std::time::Duration;
+#[cfg(feature = "runtime")] use std::net::SocketAddr;
+#[cfg(feature = "runtime")] use std::time::Duration;
 
 use futures::{Future, Stream, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -62,8 +63,7 @@ use service::{NewService, Service};
 // Renamed `Http` as `Http_` for now so that people upgrading don't see an
 // error that `hyper::server::Http` is private...
 use self::conn::{Http as Http_, SpawnAll};
-//use self::hyper_service::HyperService;
-use self::tcp::{AddrIncoming};
+#[cfg(feature = "runtime")] use self::tcp::{AddrIncoming};
 
 /// A listening HTTP server.
 ///
@@ -94,6 +94,7 @@ impl<I> Server<I, ()> {
     }
 }
 
+#[cfg(feature = "runtime")]
 impl Server<AddrIncoming, ()> {
     /// Binds to the provided address, and returns a [`Builder`](Builder).
     ///
@@ -116,6 +117,7 @@ impl Server<AddrIncoming, ()> {
     }
 }
 
+#[cfg(feature = "runtime")]
 impl<S> Server<AddrIncoming, S> {
     /// Returns the local address that this server is bound to.
     pub fn local_addr(&self) -> SocketAddr {
@@ -176,7 +178,11 @@ impl<I> Builder<I> {
     ///
     /// # Example
     ///
-    /// ```rust
+    /// ```
+    /// # extern crate hyper;
+    /// # fn main() {}
+    /// # #[cfg(feature = "runtime")]
+    /// # fn run() {
     /// use hyper::{Body, Response, Server};
     /// use hyper::service::service_fn_ok;
     ///
@@ -195,6 +201,7 @@ impl<I> Builder<I> {
     ///     .serve(new_service);
     ///
     /// // Finally, spawn `server` onto an Executor...
+    /// # }
     /// ```
     pub fn serve<S, B>(self, new_service: S) -> Server<I, S>
     where
@@ -215,6 +222,7 @@ impl<I> Builder<I> {
     }
 }
 
+#[cfg(feature = "runtime")]
 impl Builder<AddrIncoming> {
     /// Set whether TCP keepalive messages are enabled on accepted connections.
     ///

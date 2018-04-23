@@ -18,18 +18,20 @@
 
 extern crate bytes;
 #[macro_use] extern crate futures;
-extern crate futures_cpupool;
+#[cfg(feature = "runtime")] extern crate futures_cpupool;
 extern crate futures_timer;
 extern crate h2;
 extern crate http;
 extern crate httparse;
 extern crate iovec;
 #[macro_use] extern crate log;
-extern crate net2;
+#[cfg(feature = "runtime")] extern crate net2;
 extern crate time;
-extern crate tokio;
-extern crate tokio_executor;
+#[cfg(feature = "runtime")] extern crate tokio;
+#[cfg(feature = "runtime")] extern crate tokio_executor;
 #[macro_use] extern crate tokio_io;
+#[cfg(feature = "runtime")] extern crate tokio_reactor;
+#[cfg(feature = "runtime")] extern crate tokio_tcp;
 extern crate want;
 
 #[cfg(all(test, feature = "nightly"))]
@@ -62,3 +64,4 @@ mod headers;
 mod proto;
 pub mod server;
 pub mod service;
+#[cfg(feature = "runtime")] pub mod rt;

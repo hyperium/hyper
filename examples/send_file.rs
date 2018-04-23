@@ -2,7 +2,6 @@
 extern crate futures;
 extern crate hyper;
 extern crate pretty_env_logger;
-extern crate tokio;
 
 use futures::{future, Future};
 use futures::sync::oneshot;
@@ -29,7 +28,7 @@ fn main() {
 
     println!("Listening on http://{}", addr);
 
-    tokio::run(server);
+    hyper::rt::run(server);
 }
 
 type ResponseFuture = Box<Future<Item=Response<Body>, Error=io::Error> + Send>;

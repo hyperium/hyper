@@ -2,7 +2,6 @@ use std::fmt;
 use std::sync::Arc;
 
 use futures::future::{Executor, Future};
-use tokio_executor::spawn;
 
 /// Either the user provides an executor for background tasks, or we use
 /// `tokio::spawn`.
@@ -19,7 +18,17 @@ impl Exec {
         F: Future<Item=(), Error=()> + Send + 'static,
     {
         match *self {
-            Exec::Default => spawn(fut),
+            Exec::Default => {
+                #[cfg(feature = "runtime")]
+                {
+                    ::tokio_executor::spawn(fut)
+                }
+                #[cfg(not(feature = "runtime"))]
+                {
+                    // If no runtime, we need an executor!
+                    panic!("executor must be set")
+                }
+            },
             Exec::Executor(ref e) => {
                 let _ = e.execute(Box::new(fut))
                     .map_err(|err| {

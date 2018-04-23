@@ -5,9 +5,8 @@ use std::time::Duration;
 
 use futures::{Async, Future, Poll, Stream};
 use futures_timer::Delay;
-//TODO: change to tokio_tcp::net::TcpListener
-use tokio::net::TcpListener;
-use tokio::reactor::Handle;
+use tokio_tcp::TcpListener;
+use tokio_reactor::Handle;
 
 use self::addr_stream::AddrStream;
 
@@ -170,7 +169,7 @@ mod addr_stream {
     use std::net::SocketAddr;
     use bytes::{Buf, BufMut};
     use futures::Poll;
-    use tokio::net::TcpStream;
+    use tokio_tcp::TcpStream;
     use tokio_io::{AsyncRead, AsyncWrite};
 
 

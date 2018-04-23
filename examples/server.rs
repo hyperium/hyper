@@ -1,13 +1,10 @@
 #![deny(warnings)]
-extern crate futures;
 extern crate hyper;
 extern crate pretty_env_logger;
-extern crate tokio;
-
-use futures::Future;
 
 use hyper::{Body, Method, Request, Response, Server, StatusCode};
 use hyper::service::service_fn_ok;
+use hyper::rt::Future;
 
 static INDEX: &'static [u8] = b"Try POST /echo";
 
@@ -40,5 +37,5 @@ fn main() {
 
     println!("Listening on http://{}", addr);
 
-    tokio::run(server);
+    hyper::rt::run(server);
 }

@@ -9,13 +9,12 @@ matrix:
         - rust: beta
         - rust: stable
           env: HYPER_DOCS=1
+        - rust: stable
+          env: FEATURES="--no-default-features"
         - rust: 1.21.0
 
 cache:
     apt: true
-    directories:
-        - target/debug/deps
-        - target/debug/build
 
 script:
   - ./.travis/readme.py

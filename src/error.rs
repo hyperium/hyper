@@ -39,6 +39,7 @@ pub(crate) enum Kind {
     /// Error occurred while connecting.
     Connect,
     /// Error creating a TcpListener.
+    #[cfg(feature = "runtime")]
     Listen,
     /// Error accepting on an Incoming stream.
     Accept,
@@ -171,6 +172,7 @@ impl Error {
         Error::new(Kind::Io, Some(cause.into()))
     }
 
+    #[cfg(feature = "runtime")]
     pub(crate) fn new_listen<E: Into<Cause>>(cause: E) -> Error {
         Error::new(Kind::Listen, Some(cause.into()))
     }
@@ -258,6 +260,7 @@ impl StdError for Error {
             Kind::Closed => "connection closed",
             Kind::Connect => "an error occurred trying to connect",
             Kind::Canceled => "an operation was canceled internally before starting",
+            #[cfg(feature = "runtime")]
             Kind::Listen => "error creating server listener",
             Kind::Accept => "error accepting connection",
             Kind::NewService => "calling user's new_service failed",
