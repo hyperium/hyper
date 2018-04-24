@@ -5,10 +5,9 @@ matrix:
     fast_finish: true
     include:
         - rust: nightly
-          env: FEATURES="--features nightly"
+          env: FEATURES="--features nightly" HYPER_DOCS="1"
         - rust: beta
         - rust: stable
-          env: HYPER_DOCS=1
         - rust: stable
           env: FEATURES="--no-default-features"
         - rust: 1.21.0
@@ -33,7 +32,7 @@ addons:
 
 
 after_success:
-  - '[ "$HYPER_DOCS" = "1" ] &&
+  - '[ "TRAVIS_RUST_VERSION" = "stable" ] &&
     LOCAL="~/.local" && export PATH=$LOCAL/bin:$PATH &&
     wget https://github.com/SimonKagstrom/kcov/archive/master.tar.gz &&
     tar xzf master.tar.gz && mkdir kcov-master/build && cd kcov-master/build &&
@@ -54,4 +53,5 @@ after_success:
 env:
     global:
         - RUST_BACKTRACE=1
+        - RUST_LOG=hyper
         - secure: KipdEhZsGIrb2W0HsDbC95x8FJ1RKEWPq8uSK8wSZwGw6MtvoZDX0edfrtf4o3/skA0h84yn35ZWF/rpo1ZEesgFY1g+l+me+jtyGvMwEsXTGjNP4oNR2MrDizjO8eYDm4hRUCLEmJVvsq4j7oNVdLGHfdrcnwqk8/NxJsRzqXM=
