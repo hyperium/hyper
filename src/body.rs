@@ -1,4 +1,19 @@
 //! Streaming bodies for Requests and Responses
+//!
+//! For both [Clients](::client) and [Servers](::server), requests and
+//! responses use streaming bodies, instead of complete buffering. This
+//! allows applications to not use memory they don't need, and allows exerting
+//! back-pressure on connections by only reading when asked.
+//!
+//! There are two pieces to this in hyper:
+//!
+//! - The [`Payload`](Payload) trait the describes all possible bodies. hyper
+//!   allows any body type that implements `Payload`, allowing applications to
+//!   have fine-grained control over their streaming.
+//! - The [`Body`](Body) concrete type, which is an implementation of `Payload`,
+//!  and returned by hyper as a "receive stream" (so, for server requests and
+//!  client responses). It is also a decent default implementation if you don't
+//!  have very custom needs of your send streams.
 use std::borrow::Cow;
 use std::fmt;
 
@@ -9,11 +24,14 @@ use h2;
 use http::HeaderMap;
 
 use common::Never;
-use super::Chunk;
+pub use super::Chunk;
 
 type BodySender = mpsc::Sender<Result<Chunk, ::Error>>;
 
 /// This trait represents a streaming body of a `Request` or `Response`.
+///
+/// The built-in implementation of this trait is [`Body`](Body), in case you
+/// don't need to customize a send stream for your own application.
 pub trait Payload: Send + 'static {
     /// A buffer of bytes representing a single chunk of a body.
     type Data: AsRef<[u8]> + Send;
@@ -86,9 +104,11 @@ impl<E: Payload> Payload for Box<E> {
 }
 
 
-/// A `Payload` of `Chunk`s, used when receiving bodies.
+/// A stream of `Chunk`s, used when receiving bodies.
 ///
-/// Also a good default `Payload` to use in many applications.
+/// A good default `Payload` to use in many applications.
+///
+/// Also implements `futures::Stream`, so stream combinators may be used.
 #[must_use = "streams do nothing unless polled"]
 pub struct Body {
     kind: Kind,
@@ -126,6 +146,10 @@ enum DelayEof {
 }
 
 /// A sender half used with `Body::channel()`.
+///
+/// Useful when wanting to stream chunks from another thread. See
+/// [`Body::channel`](Body::channel) for more.
+#[must_use = "Sender does nothing unless sent on"]
 #[derive(Debug)]
 pub struct Sender {
     close_rx: oneshot::Receiver<()>,
@@ -149,6 +173,8 @@ impl Body {
     }
 
     /// Create a `Body` stream with an associated sender half.
+    ///
+    /// Useful when wanting to stream chunks from another thread.
     #[inline]
     pub fn channel() -> (Sender, Body) {
         let (tx, rx) = mpsc::channel(0);
@@ -206,6 +232,8 @@ impl Body {
     /// if the stream will not yield any chunks, in all cases. For instance,
     /// a streaming body using `chunked` encoding is not able to tell if
     /// there are more chunks immediately.
+    ///
+    /// See [`is_end_stream`](Payload::is_end_stream) for a dynamic version.
     #[inline]
     pub fn is_empty(&self) -> bool {
         match self.kind {
@@ -294,6 +322,7 @@ impl Body {
 }
 
 impl Default for Body {
+    /// Returns [`Body::empty()`](Body::empty).
     #[inline]
     fn default() -> Body {
         Body::empty()
@@ -355,13 +384,13 @@ impl fmt::Debug for Body {
 
 impl Sender {
     /// Check to see if this `Sender` can send more data.
-    pub fn poll_ready(&mut self) -> Poll<(), ()> {
+    pub fn poll_ready(&mut self) -> Poll<(), ::Error> {
         match self.close_rx.poll() {
-            Ok(Async::Ready(())) | Err(_) => return Err(()),
+            Ok(Async::Ready(())) | Err(_) => return Err(::Error::new_closed()),
             Ok(Async::NotReady) => (),
         }
 
-        self.tx.poll_ready().map_err(|_| ())
+        self.tx.poll_ready().map_err(|_| ::Error::new_closed())
     }
 
     /// Sends data on this channel.
