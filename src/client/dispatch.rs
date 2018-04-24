@@ -156,37 +156,13 @@ impl<T, U> Stream for Receiver<T, U> {
     }
 }
 
-/*
-TODO: with futures 0.2, bring this Drop back and toss Envelope
-
-The problem is, there is a bug in futures 0.1 mpsc channel, where
-even though you may call `rx.close()`, `rx.poll()` may still think
-there are messages and so should park the current task. In futures
-0.2, we can use `try_next`, and not even risk such a bug.
-
-For now, use an `Envelope` that has this drop guard logic instead.
-
 impl<T, U> Drop for Receiver<T, U> {
     fn drop(&mut self) {
+        // Notify the giver about the closure first, before dropping
+        // the mpsc::Receiver.
         self.taker.cancel();
-        self.inner.close();
-
-        // This poll() is safe to call in `Drop`, because we've
-        // called, `close`, which promises that no new messages
-        // will arrive, and thus, once we reach the end, we won't
-        // see a `NotReady` (and try to park), but a Ready(None).
-        //
-        // All other variants:
-        // - Ready(None): the end. we want to stop looping
-        // - NotReady: unreachable
-        // - Err: unreachable
-        while let Ok(Async::Ready(Some((val, cb)))) = self.inner.poll() {
-            let _ = cb.send(Err((::Error::new_canceled(None::<::Error>), Some(val))));
-        }
     }
-
 }
-*/
 
 struct Envelope<T, U>(Option<(T, Callback<T, U>)>);
 
