@@ -4,10 +4,19 @@ use bytes::Bytes;
 use h2::ReleaseCapacity;
 
 /// A piece of a message body.
-pub struct Chunk(Inner);
-
-struct Inner {
+///
+/// These are returned by [`Body`](::Body). It is an efficient buffer type,
+/// and wraps auto-management of flow control in the case of HTTP2 messages.
+///
+/// A `Chunk` can be easily created by many of Rust's standard types that
+/// represent a collection of bytes, using `Chunk::from`.
+pub struct Chunk {
+    /// The buffer of bytes making up this body.
     bytes: Bytes,
+    /// A possible HTTP2 marker to ensure we release window capacity.
+    ///
+    /// This version just automatically releases all capacity when `Chunk`
+    /// is dropped.
     _flow_control: Option<AutoRelease>,
 }
 
@@ -25,13 +34,22 @@ impl Drop for AutoRelease {
 impl Chunk {
     pub(crate) fn h2(bytes: Bytes, rel_cap: &ReleaseCapacity) -> Chunk {
         let cap = bytes.len();
-        Chunk(Inner {
+        Chunk {
             bytes: bytes,
             _flow_control: Some(AutoRelease {
                 cap: cap,
                 release: rel_cap.clone(),
             }),
-        })
+        }
+    }
+
+    /// Converts this `Chunk` directly into the `Bytes` type without copies.
+    ///
+    /// This is simply an inherent alias for `Bytes::from(chunk)`, which exists,
+    /// but doesn't appear in rustdocs.
+    #[inline]
+    pub fn into_bytes(self) -> Bytes {
+        self.into()
     }
 }
 
@@ -66,17 +84,17 @@ impl From<&'static str> for Chunk {
 impl From<Bytes> for Chunk {
     #[inline]
     fn from(bytes: Bytes) -> Chunk {
-        Chunk(Inner {
+        Chunk {
             bytes: bytes,
             _flow_control: None,
-        })
+        }
     }
 }
 
 impl From<Chunk> for Bytes {
     #[inline]
     fn from(chunk: Chunk) -> Bytes {
-        chunk.0.bytes
+        chunk.bytes
     }
 }
 
@@ -92,7 +110,7 @@ impl ::std::ops::Deref for Chunk {
 impl AsRef<[u8]> for Chunk {
     #[inline]
     fn as_ref(&self) -> &[u8] {
-        &self.0.bytes
+        &self.bytes
     }
 }
 
@@ -116,13 +134,13 @@ impl IntoIterator for Chunk {
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
-        self.0.bytes.into_iter()
+        self.bytes.into_iter()
     }
 }
 
 impl Extend<u8> for Chunk {
     #[inline]
     fn extend<T>(&mut self, iter: T) where T: IntoIterator<Item=u8> {
-        self.0.bytes.extend(iter)
+        self.bytes.extend(iter)
     }
 }
