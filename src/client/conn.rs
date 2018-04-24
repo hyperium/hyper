@@ -67,6 +67,7 @@ where
 pub struct Builder {
     exec: Exec,
     h1_writev: bool,
+    h1_title_case_headers: bool,
     http2: bool,
 }
 
@@ -419,6 +420,7 @@ impl Builder {
         Builder {
             exec: Exec::Default,
             h1_writev: true,
+            h1_title_case_headers: false,
             http2: false,
         }
     }
@@ -432,6 +434,11 @@ impl Builder {
 
     pub(super) fn h1_writev(&mut self, enabled: bool) -> &mut Builder {
         self.h1_writev = enabled;
+        self
+    }
+
+    pub(super) fn h1_title_case_headers(&mut self, enabled: bool) -> &mut Builder {
+        self.h1_title_case_headers = enabled;
         self
     }
 
@@ -549,6 +556,9 @@ where
             let mut conn = proto::Conn::new(io);
             if !self.builder.h1_writev {
                 conn.set_write_strategy_flatten();
+            }
+            if self.builder.h1_title_case_headers {
+                conn.set_title_case_headers();
             }
             let cd = proto::h1::dispatch::Client::new(rx);
             let dispatch = proto::h1::Dispatcher::new(cd, conn);

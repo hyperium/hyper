@@ -50,6 +50,7 @@ where I: AsyncRead + AsyncWrite,
                 error: None,
                 keep_alive: KA::Busy,
                 method: None,
+                title_case_headers: false,
                 read_task: None,
                 reading: Reading::Init,
                 writing: Writing::Init,
@@ -71,6 +72,10 @@ where I: AsyncRead + AsyncWrite,
 
     pub fn set_write_strategy_flatten(&mut self) {
         self.io.set_write_strategy_flatten();
+    }
+
+    pub fn set_title_case_headers(&mut self) {
+        self.state.title_case_headers = true;
     }
 
     pub fn into_inner(self) -> (I, Bytes) {
@@ -430,7 +435,7 @@ where I: AsyncRead + AsyncWrite,
         self.enforce_version(&mut head);
 
         let buf = self.io.write_buf_mut();
-        self.state.writing = match T::encode(head, body, &mut self.state.method, buf) {
+        self.state.writing = match T::encode(head, body, &mut self.state.method, self.state.title_case_headers, buf) {
             Ok(encoder) => {
                 if !encoder.is_eof() {
                     Writing::Body(encoder)
@@ -620,6 +625,7 @@ struct State {
     error: Option<::Error>,
     keep_alive: KA,
     method: Option<Method>,
+    title_case_headers: bool,
     read_task: Option<Task>,
     reading: Reading,
     writing: Writing,
@@ -649,6 +655,7 @@ impl fmt::Debug for State {
             .field("keep_alive", &self.keep_alive)
             .field("error", &self.error)
             //.field("method", &self.method)
+            //.field("title_case_headers", &self.title_case_headers)
             .field("read_task", &self.read_task)
             .finish()
     }

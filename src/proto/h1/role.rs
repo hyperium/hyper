@@ -126,6 +126,7 @@ where
         mut head: MessageHead<Self::Outgoing>,
         body: Option<BodyLength>,
         method: &mut Option<Method>,
+        _title_case_headers: bool,
         dst: &mut Vec<u8>,
     ) -> ::Result<Encoder> {
         trace!("Server::encode body={:?}, method={:?}", body, method);
@@ -367,6 +368,7 @@ where
         mut head: MessageHead<Self::Outgoing>,
         body: Option<BodyLength>,
         method: &mut Option<Method>,
+        title_case_headers: bool,
         dst: &mut Vec<u8>,
     ) -> ::Result<Encoder> {
         trace!("Client::encode body={:?}, method={:?}", body, method);
@@ -391,7 +393,11 @@ where
         }
         extend(dst, b"\r\n");
 
-        write_headers(&head.headers, dst);
+        if title_case_headers {
+            write_headers_title_case(&head.headers, dst);
+        } else {
+            write_headers(&head.headers, dst);
+        }
         extend(dst, b"\r\n");
 
         Ok(body)
@@ -635,6 +641,44 @@ impl<'a> Iterator for HeadersAsBytesIter<'a> {
     }
 }
 
+// Write header names as title case. The header name is assumed to be ASCII,
+// therefore it is trivial to convert an ASCII character from lowercase to
+// uppercase. It is as simple as XORing the lowercase character byte with
+// space.
+fn title_case(dst: &mut Vec<u8>, name: &[u8]) {
+    dst.reserve(name.len());
+
+    let mut iter = name.iter();
+
+    // Uppercase the first character
+    if let Some(c) = iter.next() {
+        if *c >= b'a' && *c <= b'z' {
+            dst.push(*c ^ b' ');
+        }
+    }
+
+    while let Some(c) = iter.next() {
+      dst.push(*c);
+
+      if *c == b'-' {
+          if let Some(c) = iter.next() {
+              if *c >= b'a' && *c <= b'z' {
+                  dst.push(*c ^ b' ');
+              }
+          }
+      }
+    }
+}
+
+fn write_headers_title_case(headers: &HeaderMap, dst: &mut Vec<u8>) {
+    for (name, value) in headers {
+        title_case(dst, name.as_str().as_bytes());
+        extend(dst, b": ");
+        extend(dst, value.as_bytes());
+        extend(dst, b"\r\n");
+    }
+}
+
 fn write_headers(headers: &HeaderMap, dst: &mut Vec<u8>) {
     for (name, value) in headers {
         extend(dst, name.as_str().as_bytes());
@@ -857,6 +901,21 @@ mod tests {
         Client::decoder(&head, method).unwrap_err();
     }
 
+    #[test]
+    fn test_client_request_encode_title_case() {
+        use http::header::HeaderValue;
+        use proto::BodyLength;
+
+        let mut head = MessageHead::default();
+        head.headers.insert("content-length", HeaderValue::from_static("10"));
+        head.headers.insert("content-type", HeaderValue::from_static("application/json"));
+
+        let mut vec = Vec::new();
+        Client::encode(head, Some(BodyLength::Known(10)), &mut None, true, &mut vec).unwrap();
+
+        assert_eq!(vec, b"GET / HTTP/1.1\r\nContent-Length: 10\r\nContent-Type: application/json\r\n\r\n".to_vec());
+    }
+
     #[cfg(feature = "nightly")]
     use test::Bencher;
 
@@ -914,7 +973,7 @@ mod tests {
 
         b.iter(|| {
             let mut vec = Vec::new();
-            Server::encode(head.clone(), Some(BodyLength::Known(10)), &mut None, &mut vec).unwrap();
+            Server::encode(head.clone(), Some(BodyLength::Known(10)), &mut None, false, &mut vec).unwrap();
             assert_eq!(vec.len(), len);
             ::test::black_box(vec);
         })

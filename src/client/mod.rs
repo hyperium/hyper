@@ -34,6 +34,7 @@ pub struct Client<C, B = Body> {
     connector: Arc<C>,
     executor: Exec,
     h1_writev: bool,
+    h1_title_case_headers: bool,
     pool: Pool<PoolClient<B>>,
     retry_canceled_requests: bool,
     set_host: bool,
@@ -186,6 +187,7 @@ where C: Connect + Sync + 'static,
             let executor = self.executor.clone();
             let pool = self.pool.clone();
             let h1_writev = self.h1_writev;
+            let h1_title_case_headers = self.h1_title_case_headers;
             let connector = self.connector.clone();
             let dst = Destination {
                 uri: url,
@@ -197,6 +199,7 @@ where C: Connect + Sync + 'static,
                         .and_then(move |(io, connected)| {
                             conn::Builder::new()
                                 .h1_writev(h1_writev)
+                                .h1_title_case_headers(h1_title_case_headers)
                                 .http2_only(pool_key.1 == Ver::Http2)
                                 .handshake_no_upgrades(io)
                                 .and_then(move |(tx, conn)| {
@@ -335,6 +338,7 @@ impl<C, B> Clone for Client<C, B> {
             connector: self.connector.clone(),
             executor: self.executor.clone(),
             h1_writev: self.h1_writev,
+            h1_title_case_headers: self.h1_title_case_headers,
             pool: self.pool.clone(),
             retry_canceled_requests: self.retry_canceled_requests,
             set_host: self.set_host,
@@ -526,6 +530,7 @@ pub struct Builder {
     keep_alive: bool,
     keep_alive_timeout: Option<Duration>,
     h1_writev: bool,
+    h1_title_case_headers: bool,
     //TODO: make use of max_idle config
     max_idle: usize,
     retry_canceled_requests: bool,
@@ -540,6 +545,7 @@ impl Default for Builder {
             keep_alive: true,
             keep_alive_timeout: Some(Duration::from_secs(90)),
             h1_writev: true,
+            h1_title_case_headers: false,
             max_idle: 5,
             retry_canceled_requests: true,
             set_host: true,
@@ -580,6 +586,17 @@ impl Builder {
     #[inline]
     pub fn http1_writev(&mut self, val: bool) -> &mut Self {
         self.h1_writev = val;
+        self
+    }
+
+    /// Set whether HTTP/1 connections will write header names as title case at
+    /// the socket level.
+    ///
+    /// Note that this setting does not affect HTTP/2.
+    ///
+    /// Default is false.
+    pub fn http1_title_case_headers(&mut self, val: bool) -> &mut Self {
+        self.h1_title_case_headers = val;
         self
     }
 
@@ -662,6 +679,7 @@ impl Builder {
             connector: Arc::new(connector),
             executor: self.exec.clone(),
             h1_writev: self.h1_writev,
+            h1_title_case_headers: self.h1_title_case_headers,
             pool: Pool::new(self.keep_alive, self.keep_alive_timeout),
             retry_canceled_requests: self.retry_canceled_requests,
             set_host: self.set_host,

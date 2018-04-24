@@ -72,6 +72,7 @@ pub(crate) trait Http1Transaction {
         head: MessageHead<Self::Outgoing>,
         body: Option<BodyLength>,
         method: &mut Option<Method>,
+        title_case_headers: bool,
         dst: &mut Vec<u8>,
     ) -> ::Result<h1::Encoder>;
     fn on_error(err: &::Error) -> Option<MessageHead<Self::Outgoing>>;
