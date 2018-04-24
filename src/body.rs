@@ -24,7 +24,7 @@ use h2;
 use http::HeaderMap;
 
 use common::Never;
-pub use super::Chunk;
+pub use chunk::Chunk;
 
 type BodySender = mpsc::Sender<Result<Chunk, ::Error>>;
 
