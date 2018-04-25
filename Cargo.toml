@@ -37,7 +37,7 @@ tokio-executor = { version = "0.1.0", optional = true }
 tokio-io = "0.1"
 tokio-reactor = { version = "0.1", optional = true }
 tokio-tcp = { version = "0.1", optional = true }
-want = "0.0.3"
+want = "0.0.4"
 
 [dev-dependencies]
 num_cpus = "1.0"

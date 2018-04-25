@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use futures::{Async, Poll, Stream};
 use futures::sync::{mpsc, oneshot};
 use want;
@@ -47,8 +45,8 @@ pub struct Sender<T, U> {
 /// Cannot poll the Giver, but can still use it to determine if the Receiver
 /// has been dropped. However, this version can be cloned.
 pub struct UnboundedSender<T, U> {
-    // Only used for `is_closed`, since mpsc::UnboundedSender cannot be checked.
-    giver: Arc<want::Giver>,
+    /// Only used for `is_closed`, since mpsc::UnboundedSender cannot be checked.
+    giver: want::SharedGiver,
     inner: mpsc::UnboundedSender<Envelope<T, U>>,
 }
 
@@ -101,7 +99,7 @@ impl<T, U> Sender<T, U> {
 
     pub fn unbound(self) -> UnboundedSender<T, U> {
         UnboundedSender {
-            giver: Arc::new(self.giver),
+            giver: self.giver.shared(),
             inner: self.inner,
         }
     }
