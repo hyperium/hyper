@@ -192,12 +192,14 @@ pub fn __run_test(cfg: __TestConfig) {
     use hyper::{Body, Client, Request, Response};
     use hyper::client::HttpConnector;
     use std::sync::{Arc, Mutex};
+    use std::time::Duration;
     let _ = pretty_env_logger::try_init();
     let rt = Runtime::new().expect("new rt");
     let handle = rt.reactor().clone();
 
     let connector = HttpConnector::new_with_handle(1, handle.clone());
     let client = Client::builder()
+        .keep_alive_timeout(Duration::from_secs(10))
         .http2_only(cfg.client_version == 2)
         .executor(rt.executor())
         .build::<_, Body>(connector);

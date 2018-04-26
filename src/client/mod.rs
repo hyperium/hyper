@@ -571,8 +571,11 @@ impl Builder {
     ///
     /// Default is 90 seconds.
     #[inline]
-    pub fn keep_alive_timeout(&mut self, val: Option<Duration>) -> &mut Self {
-        self.keep_alive_timeout = val;
+    pub fn keep_alive_timeout<D>(&mut self, val: D) -> &mut Self
+    where
+        D: Into<Option<Duration>>,
+    {
+        self.keep_alive_timeout = val.into();
         self
     }
 
