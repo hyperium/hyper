@@ -425,12 +425,10 @@ impl Builder {
         }
     }
 
-    /*
     pub(super) fn exec(&mut self, exec: Exec) -> &mut Builder {
         self.exec = exec;
         self
     }
-    */
 
     pub(super) fn h1_writev(&mut self, enabled: bool) -> &mut Builder {
         self.h1_writev = enabled;

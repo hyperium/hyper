@@ -198,6 +198,7 @@ where C: Connect + Sync + 'static,
                         .map_err(::Error::new_connect)
                         .and_then(move |(io, connected)| {
                             conn::Builder::new()
+                                .exec(executor.clone())
                                 .h1_writev(h1_writev)
                                 .h1_title_case_headers(h1_title_case_headers)
                                 .http2_only(pool_key.1 == Ver::Http2)

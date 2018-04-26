@@ -37,7 +37,6 @@ pub(super) enum Reservation<T> {
     /// This connection could be used multiple times, the first one will be
     /// reinserted into the `idle` pool, and the second will be given to
     /// the `Checkout`.
-    #[allow(unused)]
     Shared(T, T),
     /// This connection requires unique access. It will be returned after
     /// use is complete.
@@ -65,7 +64,7 @@ struct PoolInner<T> {
     // this list is checked for any parked Checkouts, and tries to notify
     // them that the Conn could be used instead of waiting for a brand new
     // connection.
-    parked: HashMap<Key, VecDeque<oneshot::Sender<T>>>,
+    waiters: HashMap<Key, VecDeque<oneshot::Sender<T>>>,
     timeout: Option<Duration>,
     // A oneshot channel is used to allow the interval to be notified when
     // the Pool completely drops. That way, the interval can cancel immediately.
@@ -80,7 +79,7 @@ impl<T> Pool<T> {
                 enabled: enabled,
                 idle: HashMap::new(),
                 idle_interval_ref: None,
-                parked: HashMap::new(),
+                waiters: HashMap::new(),
                 timeout: timeout,
             })),
         }
@@ -94,7 +93,7 @@ impl<T: Poolable> Pool<T> {
         Checkout {
             key,
             pool: self.clone(),
-            parked: None,
+            waiter: None,
         }
     }
 
@@ -217,10 +216,10 @@ impl<T: Poolable> Pool<T> {
         }
     }
 
-    fn park(&mut self, key: Key, tx: oneshot::Sender<T>) {
+    fn waiter(&mut self, key: Key, tx: oneshot::Sender<T>) {
         trace!("checkout waiting for idle connection: {:?}", key);
         self.inner.lock().unwrap()
-            .parked.entry(key)
+            .waiters.entry(key)
             .or_insert(VecDeque::new())
             .push_back(tx);
     }
@@ -285,10 +284,10 @@ impl<T: Poolable> PoolInner<T> {
             return;
         }
         trace!("put; add idle connection for {:?}", key);
-        let mut remove_parked = false;
+        let mut remove_waiters = false;
         let mut value = Some(value);
-        if let Some(parked) = self.parked.get_mut(&key) {
-            while let Some(tx) = parked.pop_front() {
+        if let Some(waiters) = self.waiters.get_mut(&key) {
+            while let Some(tx) = waiters.pop_front() {
                 if !tx.is_canceled() {
                     let reserved = value.take().expect("value already sent");
                     let reserved = match reserved.reserve() {
@@ -314,10 +313,10 @@ impl<T: Poolable> PoolInner<T> {
 
                 trace!("put; removing canceled waiter for {:?}", key);
             }
-            remove_parked = parked.is_empty();
+            remove_waiters = waiters.is_empty();
         }
-        if remove_parked {
-            self.parked.remove(&key);
+        if remove_waiters {
+            self.waiters.remove(&key);
         }
 
         match value {
@@ -345,7 +344,7 @@ impl<T: Poolable> PoolInner<T> {
         // cancel any waiters. if there are any, it's because
         // this Connecting task didn't complete successfully.
         // those waiters would never receive a connection.
-        self.parked.remove(key);
+        self.waiters.remove(key);
     }
 }
 
@@ -354,16 +353,16 @@ impl<T> PoolInner<T> {
     /// and possibly inserted into the pool that it is waiting for an idle
     /// connection. If a user ever dropped that future, we need to clean out
     /// those parked senders.
-    fn clean_parked(&mut self, key: &Key) {
-        let mut remove_parked = false;
-        if let Some(parked) = self.parked.get_mut(key) {
-            parked.retain(|tx| {
+    fn clean_waiters(&mut self, key: &Key) {
+        let mut remove_waiters = false;
+        if let Some(waiters) = self.waiters.get_mut(key) {
+            waiters.retain(|tx| {
                 !tx.is_canceled()
             });
-            remove_parked = parked.is_empty();
+            remove_waiters = waiters.is_empty();
         }
-        if remove_parked {
-            self.parked.remove(key);
+        if remove_waiters {
+            self.waiters.remove(key);
         }
     }
 }
@@ -511,13 +510,13 @@ struct Idle<T> {
 pub(super) struct Checkout<T> {
     key: Key,
     pool: Pool<T>,
-    parked: Option<oneshot::Receiver<T>>,
+    waiter: Option<oneshot::Receiver<T>>,
 }
 
 impl<T: Poolable> Checkout<T> {
-    fn poll_parked(&mut self) -> Poll<Option<Pooled<T>>, ::Error> {
+    fn poll_waiter(&mut self) -> Poll<Option<Pooled<T>>, ::Error> {
         static CANCELED: &str = "pool checkout failed";
-        if let Some(ref mut rx) = self.parked {
+        if let Some(mut rx) = self.waiter.take() {
             match rx.poll() {
                 Ok(Async::Ready(value)) => {
                     if !value.is_closed() {
@@ -526,7 +525,10 @@ impl<T: Poolable> Checkout<T> {
                         Err(::Error::new_canceled(Some(CANCELED)))
                     }
                 },
-                Ok(Async::NotReady) => Ok(Async::NotReady),
+                Ok(Async::NotReady) => {
+                    self.waiter = Some(rx);
+                    Ok(Async::NotReady)
+                },
                 Err(_canceled) => Err(::Error::new_canceled(Some(CANCELED))),
             }
         } else {
@@ -534,12 +536,12 @@ impl<T: Poolable> Checkout<T> {
         }
     }
 
-    fn park(&mut self) {
-        if self.parked.is_none() {
+    fn add_waiter(&mut self) {
+        if self.waiter.is_none() {
             let (tx, mut rx) = oneshot::channel();
             let _ = rx.poll(); // park this task
-            self.pool.park(self.key.clone(), tx);
-            self.parked = Some(rx);
+            self.pool.waiter(self.key.clone(), tx);
+            self.waiter = Some(rx);
         }
     }
 }
@@ -549,7 +551,7 @@ impl<T: Poolable> Future for Checkout<T> {
     type Error = ::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if let Some(pooled) = try_ready!(self.poll_parked()) {
+        if let Some(pooled) = try_ready!(self.poll_waiter()) {
             return Ok(Async::Ready(pooled));
         }
 
@@ -558,7 +560,7 @@ impl<T: Poolable> Future for Checkout<T> {
         if let Some(pooled) = entry {
             Ok(Async::Ready(pooled))
         } else {
-            self.park();
+            self.add_waiter();
             Ok(Async::NotReady)
         }
     }
@@ -566,9 +568,10 @@ impl<T: Poolable> Future for Checkout<T> {
 
 impl<T> Drop for Checkout<T> {
     fn drop(&mut self) {
-        self.parked.take();
-        if let Ok(mut inner) = self.pool.inner.lock() {
-            inner.clean_parked(&self.key);
+        if self.waiter.take().is_some() {
+            if let Ok(mut inner) = self.pool.inner.lock() {
+                inner.clean_waiters(&self.key);
+            }
         }
     }
 }
@@ -782,7 +785,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pool_checkout_drop_cleans_up_parked() {
+    fn test_pool_checkout_drop_cleans_up_waiters() {
         future::lazy(|| {
             let pool = Pool::<Uniq<i32>>::new(true, Some(Duration::from_secs(10)));
             let key = (Arc::new("localhost:12345".to_string()), Ver::Http1);
@@ -792,16 +795,16 @@ mod tests {
 
             // first poll needed to get into Pool's parked
             checkout1.poll().unwrap();
-            assert_eq!(pool.inner.lock().unwrap().parked.get(&key).unwrap().len(), 1);
+            assert_eq!(pool.inner.lock().unwrap().waiters.get(&key).unwrap().len(), 1);
             checkout2.poll().unwrap();
-            assert_eq!(pool.inner.lock().unwrap().parked.get(&key).unwrap().len(), 2);
+            assert_eq!(pool.inner.lock().unwrap().waiters.get(&key).unwrap().len(), 2);
 
             // on drop, clean up Pool
             drop(checkout1);
-            assert_eq!(pool.inner.lock().unwrap().parked.get(&key).unwrap().len(), 1);
+            assert_eq!(pool.inner.lock().unwrap().waiters.get(&key).unwrap().len(), 1);
 
             drop(checkout2);
-            assert!(pool.inner.lock().unwrap().parked.get(&key).is_none());
+            assert!(pool.inner.lock().unwrap().waiters.get(&key).is_none());
 
             ::futures::future::ok::<(), ()>(())
         }).wait().unwrap();

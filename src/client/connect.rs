@@ -61,8 +61,8 @@ impl Destination {
     pub fn scheme(&self) -> &str {
         self.uri
             .scheme_part()
-            .expect("destination uri has scheme")
-            .as_str()
+            .map(|s| s.as_str())
+            .unwrap_or("")
     }
 
     /// Get the hostname.
@@ -70,7 +70,7 @@ impl Destination {
     pub fn host(&self) -> &str {
         self.uri
             .host()
-            .expect("destination uri has host")
+            .unwrap_or("")
     }
 
     /// Get the port, if specified.
@@ -470,7 +470,6 @@ mod http {
 
     #[cfg(test)]
     mod tests {
-        #![allow(deprecated)]
         use std::io;
         use futures::Future;
         use super::{Connect, Destination, HttpConnector};
