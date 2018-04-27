@@ -12,6 +12,7 @@ use proto::{BodyLength, Decode, Http1Transaction, MessageHead};
 use super::io::{Buffered};
 use super::{EncodedBuf, Encoder, Decoder};
 
+const H2_PREFACE: &'static [u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
 /// This handles a connection, which will have been established over an
 /// `AsyncRead + AsyncWrite` (like a socket), and will likely include multiple
@@ -107,6 +108,11 @@ where I: AsyncRead + AsyncWrite,
         T::should_error_on_parse_eof() && !self.state.is_idle()
     }
 
+    fn has_h2_prefix(&self) -> bool {
+        let read_buf = self.io.read_buf();
+        read_buf.len() >= 24 && read_buf[..24] == *H2_PREFACE
+    }
+
     pub fn read_head(&mut self) -> Poll<Option<(MessageHead<T::Incoming>, bool)>, ::Error> {
         debug_assert!(self.can_read_head());
         trace!("Conn::read_head");
@@ -124,6 +130,7 @@ where I: AsyncRead + AsyncWrite,
                     self.io.consume_leading_lines();
                     let was_mid_parse = e.is_parse() || !self.io.read_buf().is_empty();
                     return if was_mid_parse || must_error {
+                        // We check if the buf contains the h2 Preface
                         debug!("parse error ({}) with {} bytes", e, self.io.read_buf().len());
                         self.on_parse_error(e)
                             .map(|()| Async::NotReady)
@@ -529,8 +536,12 @@ where I: AsyncRead + AsyncWrite,
     // - Client: there is nothing we can do
     // - Server: if Response hasn't been written yet, we can send a 4xx response
     fn on_parse_error(&mut self, err: ::Error) -> ::Result<()> {
+
         match self.state.writing {
             Writing::Init => {
+                if self.has_h2_prefix() {
+                    return Err(::Error::new_version_h2())
+                }
                 if let Some(msg) = T::on_error(&err) {
                     self.write_head(msg, None);
                     self.state.error = Some(err);

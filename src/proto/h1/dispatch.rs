@@ -332,6 +332,9 @@ impl<S> Server<S> where S: Service {
             service: service,
         }
     }
+    pub fn into_service(self) -> S {
+        self.service
+    }
 }
 
 impl<S, Bs> Dispatch for Server<S>

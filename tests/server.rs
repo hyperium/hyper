@@ -31,12 +31,31 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 
 use hyper::{Body, Request, Response, StatusCode};
+use hyper::client::Client;
 use hyper::server::conn::Http;
 use hyper::service::{service_fn, Service};
 
 fn tcp_bind(addr: &SocketAddr, handle: &Handle) -> ::tokio::io::Result<TcpListener> {
     let std_listener = StdTcpListener::bind(addr).unwrap();
     TcpListener::from_std(std_listener, handle)
+}
+
+#[test]
+fn try_h2() {
+    let server = serve();
+    let addr_str = format!("http://{}", server.addr());
+
+    hyper::rt::run(hyper::rt::lazy(move || {
+        let client: Client<_, hyper::Body> = Client::builder().http2_only(true).build_http();
+        let uri = addr_str.parse::<hyper::Uri>().expect("server addr should parse");
+
+        client.get(uri)
+            .and_then(|_res| { Ok(()) })
+            .map(|_| { () })
+            .map_err(|_e| { () })
+    }));
+
+    assert_eq!(server.body(), b"");
 }
 
 #[test]

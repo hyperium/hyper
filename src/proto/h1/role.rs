@@ -186,14 +186,14 @@ where
         use ::error::{Kind, Parse};
         let status = match *err.kind() {
             Kind::Parse(Parse::Method) |
-            Kind::Parse(Parse::Version) |
             Kind::Parse(Parse::Header) |
-            Kind::Parse(Parse::Uri) => {
+            Kind::Parse(Parse::Uri)    |
+            Kind::Parse(Parse::Version) => {
                 StatusCode::BAD_REQUEST
             },
             Kind::Parse(Parse::TooLarge) => {
                 StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE
-            }
+            },
             _ => return None,
         };
 
