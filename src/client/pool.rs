@@ -21,7 +21,7 @@ pub(super) struct Pool<T> {
 //
 // See https://github.com/hyperium/hyper/issues/1429
 pub(super) trait Poolable: Sized {
-    fn is_closed(&self) -> bool;
+    fn is_open(&self) -> bool;
     /// Reserve this connection.
     ///
     /// Allows for HTTP/2 to return a shared reservation.
@@ -236,7 +236,7 @@ impl<'a, T: Poolable + 'a> IdlePopper<'a, T> {
         while let Some(entry) = self.list.pop() {
             // If the connection has been closed, or is older than our idle
             // timeout, simply drop it and keep looking...
-            if entry.value.is_closed() {
+            if !entry.value.is_open() {
                 trace!("removing closed connection for {:?}", self.key);
                 continue;
             }
@@ -377,7 +377,7 @@ impl<T: Poolable> PoolInner<T> {
 
         self.idle.retain(|key, values| {
             values.retain(|entry| {
-                if entry.value.is_closed() {
+                if !entry.value.is_open() {
                     trace!("idle interval evicting closed for {:?}", key);
                     return false;
                 }
@@ -475,7 +475,7 @@ impl<T: Poolable> DerefMut for Pooled<T> {
 impl<T: Poolable> Drop for Pooled<T> {
     fn drop(&mut self) {
         if let Some(value) = self.value.take() {
-            if value.is_closed() {
+            if !value.is_open() {
                 // If we *already* know the connection is done here,
                 // it shouldn't be re-inserted back into the pool.
                 return;
@@ -519,7 +519,7 @@ impl<T: Poolable> Checkout<T> {
         if let Some(mut rx) = self.waiter.take() {
             match rx.poll() {
                 Ok(Async::Ready(value)) => {
-                    if !value.is_closed() {
+                    if value.is_open() {
                         Ok(Async::Ready(Some(self.pool.reuse(&self.key, value))))
                     } else {
                         Err(::Error::new_canceled(Some(CANCELED)))
@@ -662,29 +662,14 @@ mod tests {
     struct Uniq<T>(T);
 
     impl<T> Poolable for Uniq<T> {
-        fn is_closed(&self) -> bool {
-            false
+        fn is_open(&self) -> bool {
+            true
         }
 
         fn reserve(self) -> Reservation<Self> {
             Reservation::Unique(self)
         }
     }
-
-    /*
-    #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-    struct Share<T>(T);
-
-    impl<T> Poolable for Share<T> {
-        fn is_closed(&self) -> bool {
-            false
-        }
-
-        fn reserve(self) -> Reservation<Self> {
-            Reservation::Shared(self.clone(), self)
-        }
-    }
-    */
 
     fn c<T: Poolable>(key: Key) -> Connecting<T> {
         Connecting {
@@ -817,8 +802,8 @@ mod tests {
     }
 
     impl Poolable for CanClose {
-        fn is_closed(&self) -> bool {
-            self.closed
+        fn is_open(&self) -> bool {
+            !self.closed
         }
 
         fn reserve(self) -> Reservation<Self> {

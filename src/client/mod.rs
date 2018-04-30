@@ -318,6 +318,15 @@ where C: Connect + Sync + 'static,
                                     Ok(())
                                 })
                             );
+                        } else {
+                            // There's no body to delay, but the connection isn't
+                            // ready yet. Only re-insert when it's ready
+                            executor.execute(
+                                future::poll_fn(move || {
+                                    pooled.poll_ready()
+                                })
+                                .then(|_| Ok(()))
+                            );
                         }
                         Ok(res)
                     });
@@ -441,6 +450,13 @@ impl<B> PoolClient<B> {
             PoolTx::Http2(ref tx) => tx.is_ready(),
         }
     }
+
+    fn is_closed(&self) -> bool {
+        match self.tx {
+            PoolTx::Http1(ref tx) => tx.is_closed(),
+            PoolTx::Http2(ref tx) => tx.is_closed(),
+        }
+    }
 }
 
 impl<B: Payload + 'static> PoolClient<B> {
@@ -460,10 +476,10 @@ impl<B> Poolable for PoolClient<B>
 where
     B: 'static,
 {
-    fn is_closed(&self) -> bool {
+    fn is_open(&self) -> bool {
         match self.tx {
-            PoolTx::Http1(ref tx) => tx.is_closed(),
-            PoolTx::Http2(ref tx) => tx.is_closed(),
+            PoolTx::Http1(ref tx) => tx.is_ready(),
+            PoolTx::Http2(ref tx) => tx.is_ready(),
         }
     }
 

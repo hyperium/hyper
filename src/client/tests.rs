@@ -88,7 +88,7 @@ fn conn_reset_after_write() {
     }
 
     // sleep to allow some time for the connection to return to the pool
-    thread::sleep(Duration::from_secs(1));
+    thread::sleep(Duration::from_millis(50));
 
     let req = Request::builder()
         .uri("http://mock.local/a")

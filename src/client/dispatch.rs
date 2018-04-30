@@ -107,7 +107,7 @@ impl<T, U> Sender<T, U> {
 
 impl<T, U> UnboundedSender<T, U> {
     pub fn is_ready(&self) -> bool {
-        self.giver.is_wanting()
+        !self.giver.is_canceled()
     }
 
     pub fn is_closed(&self) -> bool {
