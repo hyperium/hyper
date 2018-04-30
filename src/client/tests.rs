@@ -25,6 +25,8 @@ fn retryable_request() {
         .executor(executor.sender().clone())
         .build::<_, ::Body>(connector);
 
+    client.pool.no_timer();
+
     {
 
         let req = Request::builder()
@@ -71,6 +73,8 @@ fn conn_reset_after_write() {
         .executor(executor.sender().clone())
         .build::<_, ::Body>(connector);
 
+    client.pool.no_timer();
+
     {
         let req = Request::builder()
             .uri("http://mock.local/a")
@@ -88,7 +92,7 @@ fn conn_reset_after_write() {
     }
 
     // sleep to allow some time for the connection to return to the pool
-    thread::sleep(Duration::from_millis(50));
+    thread::sleep(Duration::from_millis(10));
 
     let req = Request::builder()
         .uri("http://mock.local/a")

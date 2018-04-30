@@ -113,14 +113,6 @@ where C: Connect + Sync + 'static,
 
     /// Send a constructed Request using this Client.
     pub fn request(&self, mut req: Request<B>) -> FutureResponse {
-        // TODO(0.12): do this at construction time.
-        //
-        // It cannot be done in the constructor because the Client::configured
-        // does not have `B: 'static` bounds, which are required to spawn
-        // the interval. In 0.12, add a static bounds to the constructor,
-        // and move this.
-        self.schedule_pool_timer();
-
         match req.version() {
             Version::HTTP_10 |
             Version::HTTP_11 => (),
@@ -302,7 +294,7 @@ where C: Connect + Sync + 'static,
                         // for a new request to start.
                         //
                         // It won't be ready if there is a body to stream.
-                        if ver == Ver::Http2 || pooled.is_ready() {
+                        if ver == Ver::Http2 || !pooled.is_pool_enabled() || pooled.is_ready() {
                             drop(pooled);
                         } else if !res.body().is_empty() {
                             let (delayed_tx, delayed_rx) = oneshot::channel();
@@ -335,10 +327,6 @@ where C: Connect + Sync + 'static,
         });
 
         Box::new(resp)
-    }
-
-    fn schedule_pool_timer(&self) {
-        self.pool.spawn_expired_interval(&self.executor);
     }
 }
 
@@ -474,7 +462,7 @@ impl<B: Payload + 'static> PoolClient<B> {
 
 impl<B> Poolable for PoolClient<B>
 where
-    B: 'static,
+    B: Send + 'static,
 {
     fn is_open(&self) -> bool {
         match self.tx {
@@ -700,7 +688,7 @@ impl Builder {
             executor: self.exec.clone(),
             h1_writev: self.h1_writev,
             h1_title_case_headers: self.h1_title_case_headers,
-            pool: Pool::new(self.keep_alive, self.keep_alive_timeout),
+            pool: Pool::new(self.keep_alive, self.keep_alive_timeout, &self.exec),
             retry_canceled_requests: self.retry_canceled_requests,
             set_host: self.set_host,
             ver: self.ver,

@@ -423,7 +423,7 @@ where
                 Ok(Async::Ready(None))
             },
             Ok(Async::NotReady) => return Ok(Async::NotReady),
-            Err(_) => unreachable!("receiver cannot error"),
+            Err(never) => match never {},
         }
     }
 
