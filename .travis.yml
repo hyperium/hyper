@@ -18,7 +18,7 @@ cache:
 script:
   - ./.travis/readme.py
   - cargo build $FEATURES
-  - 'if [ "$BUILD_ONLY" != "1" ]; then RUST_LOG=hyper cargo test $FEATURES; fi'
+  - 'if [ "$BUILD_ONLY" != "1" ]; then RUST_LOG=hyper cargo test $FEATURES -- --test-threads=1; fi'
   - 'if [ $TRAVIS_RUST_VERSION = nightly ]; then for f in ./benches/*.rs; do cargo test --bench $(basename $f .rs) $FEATURES; done; fi'
 
 addons:

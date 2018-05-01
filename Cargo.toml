@@ -24,7 +24,6 @@ include = [
 bytes = "0.4.4"
 futures = "0.1.21"
 futures-cpupool = { version = "0.1.6", optional = true }
-futures-timer = "0.1.0"
 http = "0.1.5"
 httparse = "1.0"
 h2 = "0.1.5"
@@ -37,9 +36,11 @@ tokio-executor = { version = "0.1.0", optional = true }
 tokio-io = "0.1"
 tokio-reactor = { version = "0.1", optional = true }
 tokio-tcp = { version = "0.1", optional = true }
+tokio-timer = { version = "0.2", optional = true }
 want = "0.0.4"
 
 [dev-dependencies]
+futures-timer = "0.1"
 num_cpus = "1.0"
 pretty_env_logger = "0.2.0"
 spmc = "0.2"
@@ -55,6 +56,7 @@ runtime = [
     "tokio-executor",
     "tokio-reactor",
     "tokio-tcp",
+    "tokio-timer",
 ]
 
 [[example]]

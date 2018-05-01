@@ -160,6 +160,8 @@ macro_rules! test {
             let expected_res_body = Option::<&[u8]>::from($response_body)
                 .unwrap_or_default();
             assert_eq!(body.as_ref(), expected_res_body);
+
+            runtime.shutdown_on_idle().wait().expect("rt shutdown");
         }
     );
     (
@@ -202,8 +204,10 @@ macro_rules! test {
 
             let closure = infer_closure($err);
             if !closure(&err) {
-                panic!("expected error, unexpected variant: {:?}", err)
+                panic!("expected error, unexpected variant: {:?}", err);
             }
+
+            runtime.shutdown_on_idle().wait().expect("rt shutdown");
         }
     );
 
@@ -227,11 +231,6 @@ macro_rules! test {
         let addr = server.local_addr().expect("local_addr");
         let runtime = $runtime;
 
-        let mut config = Client::builder();
-        config.http1_title_case_headers($title_case_headers);
-        if !$set_host {
-            config.set_host(false);
-        }
         let connector = ::hyper::client::HttpConnector::new_with_handle(1, runtime.reactor().clone());
         let client = Client::builder()
             .set_host($set_host)
@@ -923,7 +922,6 @@ mod dispatch_impl {
             client.request(req)
         };
 
-        //let rx = rx1.map_err(|_| hyper::Error::Io(io::Error::new(io::ErrorKind::Other, "thread panicked")));
         res.select2(rx1).wait().unwrap();
         // res now dropped
         let t = Delay::new(Duration::from_millis(100))
@@ -1089,54 +1087,6 @@ mod dispatch_impl {
     }
 
     #[test]
-    fn client_custom_executor() {
-        let server = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = server.local_addr().unwrap();
-        let runtime = Runtime::new().unwrap();
-        let handle = runtime.reactor();
-        let (closes_tx, closes) = mpsc::channel(10);
-
-        let (tx1, rx1) = oneshot::channel();
-
-        thread::spawn(move || {
-            let mut sock = server.accept().unwrap().0;
-            sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
-            sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
-            let mut buf = [0; 4096];
-            sock.read(&mut buf).expect("read 1");
-            sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").unwrap();
-            let _ = tx1.send(());
-        });
-
-        let client = Client::builder()
-            .executor(runtime.executor())
-            .build(DebugConnector::with_http_and_closes(HttpConnector::new_with_handle(1, handle.clone()), closes_tx));
-
-        let req = Request::builder()
-            .uri(&*format!("http://{}/a", addr))
-            .body(Body::empty())
-            .unwrap();
-        let res = client.request(req).and_then(move |res| {
-            assert_eq!(res.status(), hyper::StatusCode::OK);
-            res.into_body().concat2()
-        });
-        let rx = rx1.expect("thread panicked");
-
-        let timeout = Delay::new(Duration::from_millis(200));
-        let rx = rx.and_then(move |_| timeout.expect("timeout"));
-        res.join(rx).map(|r| r.0).wait().unwrap();
-
-        let t = Delay::new(Duration::from_millis(100))
-            .map(|_| panic!("time out"));
-        let close = closes.into_future()
-            .map(|(opt, _)| {
-                opt.expect("closes");
-            })
-            .map_err(|_| panic!("closes dropped"));
-        let _ = t.select(close).wait();
-    }
-
-    #[test]
     fn connect_call_is_lazy() {
         // We especially don't want connects() triggered if there's
         // idle connections that the Checkout would have found
@@ -1168,8 +1118,7 @@ mod dispatch_impl {
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
         let runtime = Runtime::new().unwrap();
-        let handle = runtime.reactor();
-        let connector = DebugConnector::new(&handle);
+        let connector = DebugConnector::new(runtime.reactor());
         let connects = connector.connects.clone();
 
         let client = Client::builder()
@@ -1222,6 +1171,9 @@ mod dispatch_impl {
         res.join(rx).map(|r| r.0).wait().unwrap();
 
         assert_eq!(connects.load(Ordering::SeqCst), 1, "second request should still only have 1 connect");
+        drop(client);
+
+        runtime.shutdown_on_idle().wait().expect("rt shutdown");
     }
 
     #[test]

@@ -1,12 +1,12 @@
 use std::fmt;
 use std::io;
 use std::net::{SocketAddr, TcpListener as StdTcpListener};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use futures::{Async, Future, Poll, Stream};
-use futures_timer::Delay;
-use tokio_tcp::TcpListener;
 use tokio_reactor::Handle;
+use tokio_tcp::TcpListener;
+use tokio_timer::Delay;
 
 use self::addr_stream::AddrStream;
 
@@ -93,9 +93,12 @@ impl Stream for AddrIncoming {
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         // Check if a previous timeout is active that was set by IO errors.
         if let Some(ref mut to) = self.timeout {
-            match to.poll().expect("timeout never fails") {
-                Async::Ready(_) => {}
-                Async::NotReady => return Ok(Async::NotReady),
+            match to.poll() {
+                Ok(Async::Ready(())) => {}
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
+                Err(err) => {
+                    error!("sleep timer error: {}", err);
+                }
             }
         }
         self.timeout = None;
@@ -113,28 +116,38 @@ impl Stream for AddrIncoming {
                     return Ok(Async::Ready(Some(AddrStream::new(socket, addr))));
                 },
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
-                Err(ref e) if self.sleep_on_errors => {
-                    // Connection errors can be ignored directly, continue by
-                    // accepting the next request.
-                    if is_connection_error(e) {
-                        debug!("accepted connection already errored: {}", e);
-                        continue;
-                    }
-                    // Sleep 1s.
-                    let delay = Duration::from_secs(1);
-                    error!("accept error: {}", e);
-                    let mut timeout = Delay::new(delay);
-                    let result = timeout.poll()
-                        .expect("timeout never fails");
-                    match result {
-                        Async::Ready(()) => continue,
-                        Async::NotReady => {
-                            self.timeout = Some(timeout);
-                            return Ok(Async::NotReady);
+                Err(e) => {
+                    if self.sleep_on_errors {
+                        // Connection errors can be ignored directly, continue by
+                        // accepting the next request.
+                        if is_connection_error(&e) {
+                            debug!("accepted connection already errored: {}", e);
+                            continue;
                         }
+                        // Sleep 1s.
+                        let delay = Instant::now() + Duration::from_secs(1);
+                        let mut timeout = Delay::new(delay);
+
+                        match timeout.poll() {
+                            Ok(Async::Ready(())) => {
+                                // Wow, it's been a second already? Ok then...
+                                error!("accept error: {}", e);
+                                continue
+                            },
+                            Ok(Async::NotReady) => {
+                                error!("accept error: {}", e);
+                                self.timeout = Some(timeout);
+                                return Ok(Async::NotReady);
+                            },
+                            Err(timer_err) => {
+                                error!("couldn't sleep on error, timer error: {}", timer_err);
+                                return Err(e);
+                            }
+                        }
+                    } else {
+                        return Err(e);
                     }
                 },
-                Err(e) => return Err(e),
             }
         }
     }
