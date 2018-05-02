@@ -189,13 +189,21 @@ pub struct __TestConfig {
 
 pub fn __run_test(cfg: __TestConfig) {
     extern crate pretty_env_logger;
-    use hyper::{Body, Client, Request, Response};
+    use hyper::{Body, Client, Request, Response, Version};
     use hyper::client::HttpConnector;
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
     let _ = pretty_env_logger::try_init();
     let rt = Runtime::new().expect("new rt");
     let handle = rt.reactor().clone();
+
+    assert_eq!(cfg.client_version, cfg.server_version);
+
+    let version = if cfg.client_version == 2 {
+        Version::HTTP_2
+    } else {
+        Version::HTTP_11
+    };
 
     let connector = HttpConnector::new_with_handle(1, handle.clone());
     let client = Client::builder()
@@ -217,6 +225,7 @@ pub fn __run_test(cfg: __TestConfig) {
 
             assert_eq!(req.uri().path(), sreq.uri);
             assert_eq!(req.method(), &sreq.method);
+            assert_eq!(req.version(), version);
             for (name, value) in &sreq.headers {
                 assert_eq!(
                     req.headers()[name],
@@ -275,6 +284,7 @@ pub fn __run_test(cfg: __TestConfig) {
 
     rt.executor().spawn(server);
 
+
     let make_request = Arc::new(move |client: &Client<HttpConnector>, creq: __CReq, cres: __CRes| {
         let uri = format!("http://{}{}", addr, creq.uri);
         let mut req = Request::builder()
@@ -291,7 +301,7 @@ pub fn __run_test(cfg: __TestConfig) {
         client.request(req)
             .and_then(move |res| {
                 assert_eq!(res.status(), cstatus);
-                //assert_eq!(res.version(), c_version);
+                assert_eq!(res.version(), version);
                 for (name, value) in &cheaders {
                     assert_eq!(
                         res.headers()[name],

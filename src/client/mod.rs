@@ -1,4 +1,76 @@
 //! HTTP Client
+//!
+//! There are two levels of APIs provided for construct HTTP clients:
+//!
+//! - The higher-level [`Client`](Client) type.
+//! - The lower-level [conn](conn) module.
+//!
+//! # Client
+//!
+//! The [`Client`](Client) is the main way to send HTTP requests to a server.
+//! The default `Client` provides these things on top of the lower-level API:
+//!
+//! - A default **connector**, able to resolve hostnames and connect to
+//!   destinations over plain-text TCP.
+//! - A **pool** of existing connections, allowing better performance when
+//!   making multiple requests to the same hostname.
+//! - Automatic setting of the `Host` header, based on the request `Uri`.
+//! - Automatic request **retries** when a pooled connection is closed by the
+//!   server before any bytes have been written.
+//!
+//! Many of these features can configured, by making use of
+//! [`Client::builder`](Client::builder).
+//!
+//! ## Example
+//!
+//! ```no_run
+//! extern crate hyper;
+//!
+//! use hyper::Client;
+//! # #[cfg(feature = "runtime")]
+//! use hyper::rt::{self, lazy, Future, Stream};
+//!
+//! # #[cfg(feature = "runtime")]
+//! fn main() {
+//!     // A runtime is needed to execute our asynchronous code.
+//!     rt::run(lazy(|| {
+//!         let client = Client::new();
+//!
+//!         client
+//!             // Make a GET /ip to 'http://httpbin.org'
+//!             .get("http://httpbin.org/ip".parse().unwrap())
+//!
+//!             // And then, if the request gets a response...
+//!             .and_then(|res| {
+//!                 println!("status: {}", res.status());
+//!
+//!                 // Concatenate the body stream into a single buffer...
+//!                 // This returns a new future, since we must stream body.
+//!                 res.into_body().concat2()
+//!             })
+//!
+//!             // And then, if reading the full body succeeds...
+//!             .and_then(|body| {
+//!                 // The body is just bytes, but let's print a string...
+//!                 let s = ::std::str::from_utf8(&body)
+//!                     .expect("httpbin sends utf-8 JSON");
+//!
+//!                 println!("body: {}", s);
+//!
+//!                 // and_then requires we return a new Future, and it turns
+//!                 // out that Result is a Future that is ready immediately.
+//!                 Ok(())
+//!             })
+//!
+//!             // Map any errors that might have happened...
+//!             .map_err(|err| {
+//!                 println!("error: {}", err);
+//!             })
+//!     }));
+//! }
+//! # #[cfg(not(feature = "runtime"))]
+//! # fn main () {}
+//! ```
 
 use std::fmt;
 use std::io;
@@ -14,12 +86,10 @@ use http::uri::Scheme;
 
 use body::{Body, Payload};
 use common::Exec;
+use self::connect::{Connect, Destination};
 use self::pool::{Pool, Poolable, Reservation};
 
-pub use self::connect::Connect;
 #[cfg(feature = "runtime")] pub use self::connect::HttpConnector;
-
-use self::connect::Destination;
 
 pub mod conn;
 pub mod connect;
@@ -44,6 +114,11 @@ pub struct Client<C, B = Body> {
 #[cfg(feature = "runtime")]
 impl Client<HttpConnector, Body> {
     /// Create a new Client with the default config.
+    ///
+    /// # Note
+    ///
+    /// The default connector does **not** handle TLS. Speaking to `https`
+    /// destinations will require configuring a connector that implements TLS.
     #[inline]
     pub fn new() -> Client<HttpConnector, Body> {
         Builder::default().build_http()
