@@ -51,7 +51,7 @@ pub trait Service {
 /// ```
 pub fn service_fn<F, R, S>(f: F) -> ServiceFn<F, R>
 where
-    F: FnMut(Request<R>) -> S,
+    F: Fn(Request<R>) -> S,
     S: IntoFuture,
 {
     ServiceFn {
@@ -75,7 +75,7 @@ where
 /// ```
 pub fn service_fn_ok<F, R, S>(f: F) -> ServiceFnOk<F, R>
 where
-    F: FnMut(Request<R>) -> Response<S>,
+    F: Fn(Request<R>) -> Response<S>,
     S: Payload,
 {
     ServiceFnOk {
@@ -92,7 +92,7 @@ pub struct ServiceFn<F, R> {
 
 impl<F, ReqBody, Ret, ResBody> Service for ServiceFn<F, ReqBody>
 where
-    F: FnMut(Request<ReqBody>) -> Ret,
+    F: Fn(Request<ReqBody>) -> Ret,
     ReqBody: Payload,
     Ret: IntoFuture<Item=Response<ResBody>>,
     Ret::Error: Into<Box<StdError + Send + Sync>>,
@@ -133,7 +133,7 @@ pub struct ServiceFnOk<F, R> {
 
 impl<F, ReqBody, ResBody> Service for ServiceFnOk<F, ReqBody>
 where
-    F: FnMut(Request<ReqBody>) -> Response<ResBody>,
+    F: Fn(Request<ReqBody>) -> Response<ResBody>,
     ReqBody: Payload,
     ResBody: Payload,
 {

@@ -5,7 +5,7 @@
 //!
 //! There are two levels of APIs provide for constructing HTTP servers:
 //!
-//! - The higher-level [`Server`](Server).
+//! - The higher-level [`Server`](Server) type.
 //! - The lower-level [conn](conn) module.
 //!
 //! # Server
