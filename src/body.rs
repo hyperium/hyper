@@ -421,6 +421,18 @@ impl From<Chunk> for Body {
     }
 }
 
+impl<S> From<Box<S>> for Body
+where
+    S: Stream + Send + 'static,
+    S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    Chunk: From<S::Item>,
+{
+    #[inline]
+    fn from(stream: Box<S>) -> Body {
+        Body::wrap_stream(stream)
+    }
+}
+
 impl From<Bytes> for Body {
     #[inline]
     fn from (bytes: Bytes) -> Body {
