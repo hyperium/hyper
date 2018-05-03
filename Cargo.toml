@@ -65,6 +65,11 @@ path = "examples/client.rs"
 required-features = ["runtime"]
 
 [[example]]
+name = "echo"
+path = "examples/echo.rs"
+required-features = ["runtime"]
+
+[[example]]
 name = "hello"
 path = "examples/hello.rs"
 required-features = ["runtime"]
@@ -82,11 +87,6 @@ required-features = ["runtime"]
 [[example]]
 name = "send_file"
 path = "examples/send_file.rs"
-required-features = ["runtime"]
-
-[[example]]
-name = "server"
-path = "examples/server.rs"
 required-features = ["runtime"]
 
 [[example]]
