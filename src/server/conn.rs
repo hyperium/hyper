@@ -98,7 +98,7 @@ where
 /// This allows taking apart a `Connection` at a later time, in order to
 /// reclaim the IO object, and additional related pieces.
 #[derive(Debug)]
-pub struct Parts<T> {
+pub struct Parts<T, S> {
     /// The original IO object used in the handshake.
     pub io: T,
     /// A buffer of bytes that have been read but not processed as HTTP.
@@ -110,6 +110,8 @@ pub struct Parts<T> {
     /// You will want to check for any existing bytes if you plan to continue
     /// communicating on the IO object.
     pub read_buf: Bytes,
+    /// The `Service` used to serve this connection.
+    pub service: S,
     _inner: (),
 }
 
@@ -335,8 +337,8 @@ where
     /// This should only be called after `poll_without_shutdown` signals
     /// that the connection is "done". Otherwise, it may not have finished
     /// flushing all necessary HTTP bytes.
-    pub fn into_parts(self) -> Parts<I> {
-        let (io, read_buf) = match self.conn {
+    pub fn into_parts(self) -> Parts<I, S> {
+        let (io, read_buf, dispatch) = match self.conn {
             Either::A(h1) => {
                 h1.into_inner()
             },
@@ -347,6 +349,7 @@ where
         Parts {
             io: io,
             read_buf: read_buf,
+            service: dispatch.service,
             _inner: (),
         }
     }
