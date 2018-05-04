@@ -5,7 +5,7 @@ extern crate pretty_env_logger;
 use std::env;
 use std::io::{self, Write};
 
-use hyper::{Body, Client, Request};
+use hyper::Client;
 use hyper::rt::{self, Future, Stream};
 
 fn main() {
