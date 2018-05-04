@@ -172,7 +172,7 @@ where C: Connect + Sync + 'static,
     /// This requires that the `Payload` type have a `Default` implementation.
     /// It *should* return an "empty" version of itself, such that
     /// `Payload::is_end_stream` is `true`.
-    pub fn get(&self, uri: Uri) -> FutureResponse
+    pub fn get(&self, uri: Uri) -> ResponseFuture
     where
         B: Default,
     {
@@ -187,20 +187,20 @@ where C: Connect + Sync + 'static,
     }
 
     /// Send a constructed Request using this Client.
-    pub fn request(&self, mut req: Request<B>) -> FutureResponse {
+    pub fn request(&self, mut req: Request<B>) -> ResponseFuture {
         match req.version() {
             Version::HTTP_10 |
             Version::HTTP_11 => (),
             other => {
                 error!("Request has unsupported version \"{:?}\"", other);
                 //TODO: replace this with a proper variant
-                return FutureResponse(Box::new(future::err(::Error::new_user_unsupported_version())));
+                return ResponseFuture::new(Box::new(future::err(::Error::new_user_unsupported_version())));
             }
         }
 
         if req.method() == &Method::CONNECT {
             debug!("Client does not support CONNECT requests");
-            return FutureResponse(Box::new(future::err(::Error::new_user_unsupported_request_method())));
+            return ResponseFuture::new(Box::new(future::err(::Error::new_user_unsupported_request_method())));
         }
 
         let uri = req.uri().clone();
@@ -210,7 +210,7 @@ where C: Connect + Sync + 'static,
             }
             _ => {
                 //TODO: replace this with a proper variant
-                return FutureResponse(Box::new(future::err(::Error::new_io(
+                return ResponseFuture::new(Box::new(future::err(::Error::new_io(
                     io::Error::new(
                         io::ErrorKind::InvalidInput,
                         "invalid URI for Client Request"
@@ -241,7 +241,7 @@ where C: Connect + Sync + 'static,
             domain: domain,
             uri: uri,
         };
-        FutureResponse(Box::new(fut))
+        ResponseFuture::new(Box::new(fut))
     }
 
     //TODO: replace with `impl Future` when stable
@@ -429,20 +429,30 @@ impl<C, B> fmt::Debug for Client<C, B> {
 
 /// A `Future` that will resolve to an HTTP Response.
 #[must_use = "futures do nothing unless polled"]
-pub struct FutureResponse(Box<Future<Item=Response<Body>, Error=::Error> + Send + 'static>);
+pub struct ResponseFuture {
+    inner: Box<Future<Item=Response<Body>, Error=::Error> + Send>,
+}
 
-impl fmt::Debug for FutureResponse {
+impl ResponseFuture {
+    fn new(fut: Box<Future<Item=Response<Body>, Error=::Error> + Send>) -> Self {
+        Self {
+            inner: fut,
+        }
+    }
+}
+
+impl fmt::Debug for ResponseFuture {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.pad("Future<Response>")
     }
 }
 
-impl Future for FutureResponse {
+impl Future for ResponseFuture {
     type Item = Response<Body>;
     type Error = ::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        self.0.poll()
+        self.inner.poll()
     }
 }
 
@@ -704,7 +714,7 @@ impl Builder {
     /// connection, and then encounters an error immediately as the idle
     /// connection was found to be unusable.
     ///
-    /// When this is set to `false`, the related `FutureResponse` would instead
+    /// When this is set to `false`, the related `ResponseFuture` would instead
     /// resolve to an `Error::Cancel`.
     ///
     /// Default is `true`.
