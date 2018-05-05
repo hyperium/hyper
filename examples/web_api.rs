@@ -11,7 +11,7 @@ use hyper::error::Error;
 use hyper::header::ContentLength;
 use hyper::server::{Http, Service, Request, Response};
 
-#[allow(unused)]
+#[allow(unused, deprecated)]
 use std::ascii::AsciiExt;
 
 static NOTFOUND: &[u8] = b"Not Found";
