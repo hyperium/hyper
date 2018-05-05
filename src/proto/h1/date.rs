@@ -26,7 +26,6 @@ pub(crate) fn update_interval() {
 }
 
 pub(crate) fn interval_off() {
-    trace!("interval_off");
     CACHED.with(|cache| {
         let mut cache = cache.borrow_mut();
         cache.interval = false;
@@ -53,7 +52,6 @@ impl CachedDate {
     }
 
     fn render(&mut self, now: time::Timespec) {
-        trace!("render: {:?}", now);
         self.pos = 0;
         write!(self, "{}", time::at_utc(now).rfc822()).unwrap();
         debug_assert!(self.pos == DATE_VALUE_LENGTH);
