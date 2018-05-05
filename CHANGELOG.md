@@ -1,3 +1,11 @@
+### v0.11.26 (2018-05-05)
+
+
+#### Features
+
+* **server:** add Server::run_threads to run on multiple threads ([8b644c1a](https://github.com/hyperium/hyper/commit/8b644c1a2a1a629be9b263d8fae5963a61af91cd))
+
+
 ### v0.11.25 (2018-04-04)
 
 
