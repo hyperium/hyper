@@ -14,11 +14,14 @@ use std::io;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::rc::{Rc, Weak};
+use std::sync::Arc;
+use std::thread;
 use std::time::Duration;
 
 use futures::task::{self, Task};
 use futures::future::{self};
 use futures::{Future, Stream, Poll, Async};
+use net2;
 
 #[cfg(feature = "compat")]
 use http;
@@ -60,7 +63,7 @@ pub struct Http<B = ::Chunk> {
     keep_alive: bool,
     pipeline: bool,
     sleep_on_errors: bool,
-    _marker: PhantomData<B>,
+    _marker: PhantomData<fn() -> B>,
 }
 
 /// An instance of a server created through `Http::bind`.
@@ -178,7 +181,7 @@ impl<B: AsRef<[u8]> + 'static> Http<B> {
     {
         let core = try!(Core::new());
         let handle = core.handle();
-        let listener = try!(TcpListener::bind(addr, &handle));
+        let listener = try!(thread_listener(addr, &handle));
 
         Ok(Server {
             new_service: new_service,
@@ -443,6 +446,88 @@ impl<S, B> Server<S, B>
             Err((e, _)) => Err(e.into())
         }
     }
+}
+
+
+impl<S, B> Server<S, B>
+    where S: NewService<Request = Request, Response = Response<B>, Error = ::Error> + Send + Sync + 'static,
+          B: Stream<Error=::Error> + 'static,
+          B::Item: AsRef<[u8]>,
+{
+    /// Run the server on multiple threads.
+    #[cfg(unix)]
+    pub fn run_threads(self, threads: usize) {
+        assert!(threads > 0, "threads must be more than 0");
+
+        let Server {
+            protocol,
+            new_service,
+            reactor,
+            listener,
+            shutdown_timeout,
+        } = self;
+
+        let new_service = Arc::new(new_service);
+        let addr = listener.local_addr().unwrap();
+
+        let threads = (1..threads).map(|i| {
+            let protocol = protocol.clone();
+            let new_service = new_service.clone();
+            thread::Builder::new()
+                .name(format!("hyper-server-thread-{}", i))
+                .spawn(move || {
+                    let reactor = Core::new().unwrap();
+                    let listener = thread_listener(&addr, &reactor.handle()).unwrap();
+                    let srv = Server {
+                        protocol,
+                        new_service,
+                        reactor,
+                        listener,
+                        shutdown_timeout,
+                    };
+                    srv.run().unwrap();
+                })
+                .unwrap()
+        }).collect::<Vec<_>>();
+
+        let srv = Server {
+            protocol,
+            new_service,
+            reactor,
+            listener,
+            shutdown_timeout,
+        };
+        srv.run().unwrap();
+
+        for thread in threads {
+            thread.join().unwrap();
+        }
+    }
+}
+
+fn thread_listener(addr: &SocketAddr, handle: &Handle) -> io::Result<TcpListener> {
+    let listener = match *addr {
+        SocketAddr::V4(_) => try!(net2::TcpBuilder::new_v4()),
+        SocketAddr::V6(_) => try!(net2::TcpBuilder::new_v6()),
+    };
+    try!(reuse_port(&listener));
+    try!(listener.reuse_address(true));
+    try!(listener.bind(addr));
+    listener.listen(1024).and_then(|l| {
+        TcpListener::from_listener(l, addr, handle)
+    })
+}
+
+#[cfg(unix)]
+fn reuse_port(tcp: &net2::TcpBuilder) -> io::Result<()> {
+    use net2::unix::*;
+    try!(tcp.reuse_port(true));
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn reuse_port(_tcp: &net2::TcpBuilder) -> io::Result<()> {
+    Ok(())
 }
 
 impl<S: fmt::Debug, B: Stream<Error=::Error>> fmt::Debug for Server<S, B>
