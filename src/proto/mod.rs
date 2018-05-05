@@ -16,7 +16,7 @@ pub use self::body::Body;
 #[cfg(feature = "tokio-proto")]
 pub use self::body::TokioBody;
 pub use self::chunk::Chunk;
-pub use self::h1::{dispatch, Conn};
+pub use self::h1::{date, dispatch, Conn};
 
 mod body;
 mod chunk;

@@ -3,7 +3,7 @@ pub use self::decode::Decoder;
 pub use self::encode::{EncodedBuf, Encoder};
 
 mod conn;
-mod date;
+pub mod date;
 mod decode;
 pub mod dispatch;
 mod encode;

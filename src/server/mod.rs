@@ -27,7 +27,7 @@ use net2;
 use http;
 
 use tokio_io::{AsyncRead, AsyncWrite};
-use tokio::reactor::{Core, Handle, Timeout};
+use tokio::reactor::{Core, Handle, Interval, Timeout};
 use tokio::net::TcpListener;
 pub use tokio_service::{NewService, Service};
 
@@ -392,6 +392,8 @@ impl<S, B> Server<S, B>
             incoming.set_keepalive(Some(Duration::from_secs(90)));
         }
 
+        date_render_interval(&handle);
+
         // Mini future to track the number of active services
         let info = Rc::new(RefCell::new(Info {
             active: 0,
@@ -516,6 +518,59 @@ fn thread_listener(addr: &SocketAddr, handle: &Handle) -> io::Result<TcpListener
     listener.listen(1024).and_then(|l| {
         TcpListener::from_listener(l, addr, handle)
     })
+}
+
+fn date_render_interval(handle: &Handle) {
+    // Since we own the executor, we can spawn an interval to update the
+    // thread_local rendered date, instead of checking the clock on every
+    // single response.
+    let mut date_interval = match Interval::new(Duration::from_secs(1), &handle) {
+        Ok(i) => i,
+        Err(e) => {
+            trace!("error spawning date rendering interval: {}", e);
+            // It'd be quite weird to error, but if it does, we
+            // don't actually need it, so just back out.
+            return;
+        }
+    };
+
+    let on_drop = IntervalDrop;
+
+    let fut =
+        future::poll_fn(move || {
+            try_ready!(date_interval.poll().map_err(|_| ()));
+            // If here, we were ready!
+            proto::date::update_interval();
+            // However, to prevent Interval from needing to clone its Task
+            // and check Instant::now() *again*, we just return NotReady
+            // always.
+            //
+            // The interval has already rescheduled itself, so it's a waste
+            // to poll the interval until it reports NotReady...
+            Ok(Async::NotReady)
+        })
+        .then(move |_: Result<(), ()>| {
+            // if this interval is ever dropped, the thread_local should be
+            // updated to know about that. Otherwise, starting a server on a
+            // thread, and then later closing it and then serving connections
+            // without a Server would mean the date would never be updated
+            // again.
+            //
+            // I know, I know, that'd be a super odd thing to do. But, just
+            // being careful...
+            drop(on_drop);
+            Ok(())
+        });
+
+    handle.spawn(fut);
+
+    struct IntervalDrop;
+
+    impl Drop for IntervalDrop {
+        fn drop(&mut self) {
+            proto::date::interval_off();
+        }
+    }
 }
 
 #[cfg(unix)]

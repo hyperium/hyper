@@ -7,14 +7,29 @@ use time::{self, Duration};
 // "Sun, 06 Nov 1994 08:49:37 GMT".len()
 pub const DATE_VALUE_LENGTH: usize = 29;
 
-pub fn extend(dst: &mut Vec<u8>) {
+pub(crate) fn extend(dst: &mut Vec<u8>) {
     CACHED.with(|cache| {
         let mut cache = cache.borrow_mut();
-        let now = time::get_time();
-        if now > cache.next_update {
-            cache.update(now);
+        if !cache.interval {
+            cache.update_without_interval();
         }
-        dst.extend_from_slice(cache.buffer());
+        dst.extend_from_slice(cache.bytes());
+    })
+}
+
+pub(crate) fn update_interval() {
+    CACHED.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        cache.interval = true;
+        cache.render(time::get_time());
+    })
+}
+
+pub(crate) fn interval_off() {
+    trace!("interval_off");
+    CACHED.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        cache.interval = false;
     })
 }
 
@@ -22,25 +37,35 @@ struct CachedDate {
     bytes: [u8; DATE_VALUE_LENGTH],
     pos: usize,
     next_update: time::Timespec,
+    interval: bool,
 }
 
 thread_local!(static CACHED: RefCell<CachedDate> = RefCell::new(CachedDate {
     bytes: [0; DATE_VALUE_LENGTH],
     pos: 0,
     next_update: time::Timespec::new(0, 0),
+    interval: false,
 }));
 
 impl CachedDate {
-    fn buffer(&self) -> &[u8] {
+    fn bytes(&self) -> &[u8] {
         &self.bytes[..]
     }
 
-    fn update(&mut self, now: time::Timespec) {
+    fn render(&mut self, now: time::Timespec) {
+        trace!("render: {:?}", now);
         self.pos = 0;
         write!(self, "{}", time::at_utc(now).rfc822()).unwrap();
-        assert!(self.pos == DATE_VALUE_LENGTH);
-        self.next_update = now + Duration::seconds(1);
-        self.next_update.nsec = 0;
+        debug_assert!(self.pos == DATE_VALUE_LENGTH);
+    }
+
+    fn update_without_interval(&mut self) {
+        let now = time::get_time();
+        if now > self.next_update {
+            self.render(now);
+            self.next_update = now + Duration::seconds(1);
+            self.next_update.nsec = 0;
+        }
     }
 }
 
