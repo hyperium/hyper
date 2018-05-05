@@ -1,4 +1,5 @@
 use std::fmt::{self, Write};
+use std::mem;
 
 use bytes::{BytesMut, Bytes};
 use http::header::{CONTENT_LENGTH, DATE, Entry, HeaderName, HeaderValue, TRANSFER_ENCODING};
@@ -32,12 +33,13 @@ where
         if buf.len() == 0 {
             return Ok(None);
         }
-        let mut headers_indices = [HeaderIndices {
-            name: (0, 0),
-            value: (0, 0)
-        }; MAX_HEADERS];
+        // Unsafe: both headers_indices and headers are using unitialized memory,
+        // but we *never* read any of it until after httparse has assigned
+        // values into it. By not zeroing out the stack memory, this saves
+        // a good ~5% on pipeline benchmarks.
+        let mut headers_indices: [HeaderIndices; MAX_HEADERS] = unsafe { mem::uninitialized() };
         let (len, method, path, version, headers_len) = {
-            let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
+            let mut headers: [httparse::Header; MAX_HEADERS] = unsafe { mem::uninitialized() };
             trace!("Request.parse([Header; {}], [u8; {}])", headers.len(), buf.len());
             let mut req = httparse::Request::new(&mut headers);
             match req.parse(&buf)? {
@@ -262,12 +264,10 @@ where
         if buf.len() == 0 {
             return Ok(None);
         }
-        let mut headers_indices = [HeaderIndices {
-            name: (0, 0),
-            value: (0, 0)
-        }; MAX_HEADERS];
+        // Unsafe: see comment in Server Http1Transaction, above.
+        let mut headers_indices: [HeaderIndices; MAX_HEADERS] = unsafe { mem::uninitialized() };
         let (len, status, version, headers_len) = {
-            let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
+            let mut headers: [httparse::Header; MAX_HEADERS] = unsafe { mem::uninitialized() };
             trace!("Response.parse([Header; {}], [u8; {}])", headers.len(), buf.len());
             let mut res = httparse::Response::new(&mut headers);
             let bytes = buf.as_ref();
