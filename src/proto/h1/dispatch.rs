@@ -88,9 +88,23 @@ where
     }
 
     fn poll_inner(&mut self, should_shutdown: bool) -> Poll<(), ::Error> {
-        self.poll_read()?;
-        self.poll_write()?;
-        self.poll_flush()?;
+        loop {
+            self.poll_read()?;
+            self.poll_write()?;
+            self.poll_flush()?;
+
+            // This could happen if reading paused before blocking on IO,
+            // such as getting to the end of a framed message, but then
+            // writing/flushing set the state back to Init. In that case,
+            // if the read buffer still had bytes, we'd want to try poll_read
+            // again, or else we wouldn't ever be woken up again.
+            //
+            // Using this instead of task::current() and notify() inside
+            // the Conn is noticeably faster in pipelined benchmarks.
+            if !self.conn.wants_read_again() {
+                break;
+            }
+        }
 
         if self.is_done() {
             if should_shutdown {
