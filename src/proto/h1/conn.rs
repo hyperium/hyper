@@ -6,6 +6,7 @@ use bytes::Bytes;
 use futures::{Async, AsyncSink, Poll, StartSend};
 #[cfg(feature = "tokio-proto")]
 use futures::{Sink, Stream};
+#[cfg(feature = "tokio-proto")]
 use futures::task::Task;
 use tokio_io::{AsyncRead, AsyncWrite};
 #[cfg(feature = "tokio-proto")]
@@ -52,8 +53,12 @@ where I: AsyncRead + AsyncWrite,
             io: Buffered::new(io),
             state: State {
                 error: None,
+                #[cfg(feature = "tokio-proto")]
+                is_tokio_proto: false,
                 keep_alive: KA::Busy,
                 method: None,
+                notify_read: false,
+                #[cfg(feature = "tokio-proto")]
                 read_task: None,
                 reading: Reading::Init,
                 writing: Writing::Init,
@@ -84,6 +89,7 @@ where I: AsyncRead + AsyncWrite,
     #[cfg(feature = "tokio-proto")]
     fn poll_incoming(&mut self) -> Poll<Option<Frame<MessageHead<T::Incoming>, Chunk, ::Error>>, io::Error> {
         trace!("Conn::poll_incoming()");
+        self.state.is_tokio_proto = true;
 
         #[derive(Debug)]
         struct ParseEof;
@@ -325,8 +331,16 @@ where I: AsyncRead + AsyncWrite,
         }
     }
 
+    pub fn wants_read_again(&mut self) -> bool {
+        let ret = self.state.notify_read;
+        self.state.notify_read = false;
+        trace!("wants_read_again? {}", ret);
+        ret
+    }
+
+    #[cfg(feature = "tokio-proto")]
     fn maybe_park_read(&mut self) {
-        if !self.io.is_read_blocked() {
+        if !self.io.is_read_blocked() && self.state.is_tokio_proto {
             // the Io object is ready to read, which means it will never alert
             // us that it is ready until we drain it. However, we're currently
             // finished reading, so we need to park the task to be able to
@@ -339,6 +353,12 @@ where I: AsyncRead + AsyncWrite,
                 self.state.read_task = Some(::futures::task::current());
             }
         }
+    }
+
+    #[cfg(not(feature = "tokio-proto"))]
+    #[inline]
+    fn maybe_park_read(&mut self) {
+        // A left over from the tokio-proto era, removable in 0.12.
     }
 
     // This will check to make sure the io object read is empty.
@@ -446,11 +466,18 @@ where I: AsyncRead + AsyncWrite,
                     }
                 }
             }
-            if let Some(ref task) = self.state.read_task {
-                trace!("maybe_notify; notifying task");
-                task.notify();
-            } else {
-                trace!("maybe_notify; no task to notify");
+            self.state.notify_read = wants_read;
+
+            #[cfg(feature = "tokio-proto")]
+            {
+            if self.state.is_tokio_proto {
+                if let Some(ref task) = self.state.read_task {
+                    trace!("maybe_notify; notifying task");
+                    task.notify();
+                } else {
+                    trace!("maybe_notify; no task to notify");
+                }
+            }
             }
         }
     }
@@ -773,8 +800,12 @@ impl<I, B: AsRef<[u8]>, T> fmt::Debug for Conn<I, B, T> {
 
 struct State {
     error: Option<::Error>,
+    #[cfg(feature = "tokio-proto")]
+    is_tokio_proto: bool,
     keep_alive: KA,
     method: Option<Method>,
+    notify_read: bool,
+    #[cfg(feature = "tokio-proto")]
     read_task: Option<Task>,
     reading: Reading,
     writing: Writing,
@@ -804,7 +835,7 @@ impl fmt::Debug for State {
             .field("keep_alive", &self.keep_alive)
             .field("error", &self.error)
             //.field("method", &self.method)
-            .field("read_task", &self.read_task)
+            //.field("read_task", &self.read_task)
             .finish()
     }
 }
@@ -872,7 +903,10 @@ impl State {
     fn close_read(&mut self) {
         trace!("State::close_read()");
         self.reading = Reading::Closed;
+        #[cfg(feature = "tokio-proto")]
+        {
         self.read_task = None;
+        }
         self.keep_alive.disable();
     }
 
