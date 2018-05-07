@@ -3,7 +3,7 @@ use std::io::{self};
 use std::marker::PhantomData;
 
 use bytes::{Buf, Bytes};
-use futures::{Async, AsyncSink, Poll, StartSend};
+use futures::{Async, Poll};
 use http::{Method, Version};
 use tokio_io::{AsyncRead, AsyncWrite};
 
@@ -451,25 +451,14 @@ where I: AsyncRead + AsyncWrite,
         }
     }
 
-    pub fn write_body(&mut self, chunk: Option<B>) -> StartSend<Option<B>, io::Error> {
-        debug_assert!(self.can_write_body());
-
-        if !self.can_buffer_body() {
-            if let Async::NotReady = self.flush()? {
-                // if chunk is Some(&[]), aka empty, whatever, just skip it
-                if chunk.as_ref().map(|c| c.remaining() == 0).unwrap_or(false) {
-                    return Ok(AsyncSink::Ready);
-                } else {
-                    return Ok(AsyncSink::NotReady(chunk));
-                }
-            }
-        }
+    pub fn write_body(&mut self, chunk: Option<B>) {
+        debug_assert!(self.can_write_body() && self.can_buffer_body());
 
         let state = match self.state.writing {
             Writing::Body(ref mut encoder) => {
                 if let Some(chunk) = chunk {
                     if chunk.remaining() == 0 {
-                        return Ok(AsyncSink::Ready);
+                        return;
                     }
 
                     let encoded = encoder.encode(chunk);
@@ -482,7 +471,7 @@ where I: AsyncRead + AsyncWrite,
                             Writing::KeepAlive
                         }
                     } else {
-                        return Ok(AsyncSink::Ready);
+                        return;
                     }
                 } else {
                     // end of stream, that means we should try to eof
@@ -505,7 +494,6 @@ where I: AsyncRead + AsyncWrite,
         };
 
         self.state.writing = state;
-        Ok(AsyncSink::Ready)
     }
 
     // When we get a parse error, depending on what side we are, we might be able

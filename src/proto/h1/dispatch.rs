@@ -242,7 +242,7 @@ where
                     },
                     Async::Ready(None) => {
                         if self.conn.can_write_body() {
-                            self.conn.write_body(None).map_err(::Error::new_body_write)?;
+                            self.conn.write_body(None);
                         }
                         continue;
                     },
@@ -253,7 +253,7 @@ where
                 };
 
                 if self.conn.can_write_body() {
-                    self.conn.write_body(Some(chunk)).map_err(::Error::new_body_write)?;
+                    self.conn.write_body(Some(chunk));
                 // This allows when chunk is `None`, or `Some([])`.
                 } else if chunk.remaining() == 0 {
                     // ok
