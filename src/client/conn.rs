@@ -626,7 +626,6 @@ impl<T: Send, B: Send> AssertSend for Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + Send + 'static,
     B: Payload + 'static,
-    B::Data: Send + 'static,
 {}
 
 #[doc(hidden)]

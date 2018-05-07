@@ -1,4 +1,4 @@
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use futures::{Async, Future, Poll, Stream};
 use http::{Request, Response, StatusCode};
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -241,7 +241,7 @@ where
                 if self.conn.can_write_body() {
                     self.conn.write_body(Some(chunk)).map_err(::Error::new_body_write)?;
                 // This allows when chunk is `None`, or `Some([])`.
-                } else if chunk.as_ref().len() == 0 {
+                } else if chunk.remaining() == 0 {
                     // ok
                 } else {
                     warn!("unexpected chunk when body cannot write");

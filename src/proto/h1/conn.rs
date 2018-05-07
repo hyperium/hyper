@@ -2,7 +2,7 @@ use std::fmt;
 use std::io::{self};
 use std::marker::PhantomData;
 
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use futures::{Async, AsyncSink, Poll, StartSend};
 use futures::task::Task;
 use http::{Method, Version};
@@ -10,7 +10,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 use ::Chunk;
 use proto::{BodyLength, Decode, Http1Transaction, MessageHead};
-use super::io::{Cursor, Buffered};
+use super::io::{Buffered};
 use super::{EncodedBuf, Encoder, Decoder};
 
 
@@ -22,25 +22,14 @@ use super::{EncodedBuf, Encoder, Decoder};
 /// determine if this connection can be kept alive after the message,
 /// or if it is complete.
 pub(crate) struct Conn<I, B, T> {
-    io: Buffered<I, EncodedBuf<Cursor<B>>>,
+    io: Buffered<I, EncodedBuf<B>>,
     state: State,
     _marker: PhantomData<T>
 }
 
-/*
-impl<I, B> Conn<I, B, ClientTransaction>
-where I: AsyncRead + AsyncWrite,
-      B: AsRef<[u8]>,
-{
-    pub fn new_client(io: I) -> Conn<I, B, ClientTransaction> {
-        Conn::new(io)
-    }
-}
-*/
-
 impl<I, B, T> Conn<I, B, T>
 where I: AsyncRead + AsyncWrite,
-      B: AsRef<[u8]>,
+      B: Buf,
       T: Http1Transaction,
 {
     pub fn new(io: I) -> Conn<I, B, T> {
@@ -488,7 +477,7 @@ where I: AsyncRead + AsyncWrite,
         if !self.can_buffer_body() {
             if let Async::NotReady = self.flush()? {
                 // if chunk is Some(&[]), aka empty, whatever, just skip it
-                if chunk.as_ref().map(|c| c.as_ref().is_empty()).unwrap_or(false) {
+                if chunk.as_ref().map(|c| c.remaining() == 0).unwrap_or(false) {
                     return Ok(AsyncSink::Ready);
                 } else {
                     return Ok(AsyncSink::NotReady(chunk));
@@ -499,11 +488,11 @@ where I: AsyncRead + AsyncWrite,
         let state = match self.state.writing {
             Writing::Body(ref mut encoder) => {
                 if let Some(chunk) = chunk {
-                    if chunk.as_ref().is_empty() {
+                    if chunk.remaining() == 0 {
                         return Ok(AsyncSink::Ready);
                     }
 
-                    let encoded = encoder.encode(Cursor::new(chunk));
+                    let encoded = encoder.encode(chunk);
                     self.io.buffer(encoded);
 
                     if encoder.is_eof() {
@@ -612,7 +601,7 @@ where I: AsyncRead + AsyncWrite,
     }
 }
 
-impl<I, B: AsRef<[u8]>, T> fmt::Debug for Conn<I, B, T> {
+impl<I, B: Buf, T> fmt::Debug for Conn<I, B, T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Conn")
             .field("state", &self.state)

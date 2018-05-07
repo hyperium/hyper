@@ -17,7 +17,7 @@
 use std::borrow::Cow;
 use std::fmt;
 
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use futures::{Async, Future, Poll, Stream};
 use futures::sync::{mpsc, oneshot};
 use h2;
@@ -34,7 +34,7 @@ type BodySender = mpsc::Sender<Result<Chunk, ::Error>>;
 /// don't need to customize a send stream for your own application.
 pub trait Payload: Send + 'static {
     /// A buffer of bytes representing a single chunk of a body.
-    type Data: AsRef<[u8]> + Send;
+    type Data: Buf + Send;
 
     /// The error type of this stream.
     type Error: Into<Box<::std::error::Error + Send + Sync>>;

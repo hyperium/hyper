@@ -5,7 +5,6 @@ use http::HeaderMap;
 use http::header::{CONNECTION, TRANSFER_ENCODING};
 
 use ::body::Payload;
-use ::proto::h1::Cursor;
 
 mod client;
 mod server;
@@ -74,11 +73,11 @@ where
                     let is_eos = self.stream.is_end_stream();
                     trace!(
                         "send body chunk: {} bytes, eos={}",
-                        chunk.as_ref().len(),
+                        chunk.remaining(),
                         is_eos,
                     );
 
-                    let buf = SendBuf(Some(Cursor::new(chunk)));
+                    let buf = SendBuf(Some(chunk));
                     self.body_tx.send_data(buf, is_eos)
                         .map_err(::Error::new_body_write)?;
 
@@ -104,9 +103,9 @@ where
     }
 }
 
-struct SendBuf<B>(Option<Cursor<B>>);
+struct SendBuf<B>(Option<B>);
 
-impl<B: AsRef<[u8]>> Buf for SendBuf<B> {
+impl<B: Buf> Buf for SendBuf<B> {
     #[inline]
     fn remaining(&self) -> usize {
         self.0

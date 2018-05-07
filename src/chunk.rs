@@ -1,6 +1,6 @@
 use std::fmt;
 
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use h2::ReleaseCapacity;
 
 /// A piece of a message body.
@@ -50,6 +50,23 @@ impl Chunk {
     #[inline]
     pub fn into_bytes(self) -> Bytes {
         self.into()
+    }
+}
+
+impl Buf for Chunk {
+    #[inline]
+    fn remaining(&self) -> usize {
+        self.bytes.len()
+    }
+
+    #[inline]
+    fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    #[inline]
+    fn advance(&mut self, cnt: usize) {
+        self.bytes.advance(cnt);
     }
 }
 
