@@ -482,20 +482,13 @@ where I: AsyncRead + AsyncWrite,
         debug_assert!(chunk.remaining() != 0);
 
         let state = match self.state.writing {
-            Writing::Body(ref mut encoder) => {
-                self.io.buffer(encoder.encode(chunk));
-                match encoder.end() {
-                    Ok(end) => {
-                        if let Some(end) = end {
-                            self.io.buffer(end);
-                        }
-                        if encoder.is_last() {
-                            Writing::Closed
-                        } else {
-                            Writing::KeepAlive
-                        }
-                    },
-                    Err(_not_eof) => Writing::Closed,
+            Writing::Body(ref encoder) => {
+                let (encoded, can_keep_alive) = encoder.encode_and_end(chunk);
+                self.io.buffer(encoded);
+                if can_keep_alive {
+                    Writing::KeepAlive
+                } else {
+                    Writing::Closed
                 }
             },
             _ => unreachable!("write_body invalid state: {:?}", self.state.writing),
