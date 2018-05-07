@@ -235,30 +235,39 @@ where
             } else if !self.conn.can_buffer_body() {
                 try_ready!(self.poll_flush());
             } else if let Some(mut body) = self.body_rx.take() {
-                let chunk = match body.poll_data().map_err(::Error::new_user_body)? {
+                if !self.conn.can_write_body() {
+                    trace!(
+                        "no more write body allowed, user body is_end_stream = {}",
+                        body.is_end_stream(),
+                    );
+                    continue;
+                }
+                match body.poll_data().map_err(::Error::new_user_body)? {
                     Async::Ready(Some(chunk)) => {
-                        self.body_rx = Some(body);
-                        chunk
+                        let eos = body.is_end_stream();
+                        if eos {
+                            if chunk.remaining() == 0 {
+                                trace!("discarding empty chunk");
+                                self.conn.end_body();
+                            } else {
+                                self.conn.write_body_and_end(chunk);
+                            }
+                        } else {
+                            self.body_rx = Some(body);
+                            if chunk.remaining() == 0 {
+                                trace!("discarding empty chunk");
+                                continue;
+                            }
+                            self.conn.write_body(chunk);
+                        }
                     },
                     Async::Ready(None) => {
-                        if self.conn.can_write_body() {
-                            self.conn.write_body(None);
-                        }
-                        continue;
+                        self.conn.end_body();
                     },
                     Async::NotReady => {
                         self.body_rx = Some(body);
                         return Ok(Async::NotReady);
                     }
-                };
-
-                if self.conn.can_write_body() {
-                    self.conn.write_body(Some(chunk));
-                // This allows when chunk is `None`, or `Some([])`.
-                } else if chunk.remaining() == 0 {
-                    // ok
-                } else {
-                    warn!("unexpected chunk when body cannot write");
                 }
             } else {
                 return Ok(Async::NotReady);
@@ -528,6 +537,27 @@ mod tests {
                 (&::error::Kind::Canceled, Some(_)) => (),
                 other => panic!("expected Canceled, got {:?}", other),
             }
+            Ok::<(), ()>(())
+        }).wait().unwrap();
+    }
+
+    #[test]
+    fn body_empty_chunks_ignored() {
+        let _ = pretty_env_logger::try_init();
+        ::futures::lazy(|| {
+            let io = AsyncIo::new_buf(vec![], 0);
+            let (mut tx, rx) = ::client::dispatch::channel();
+            let conn = Conn::<_, ::Chunk, ClientTransaction>::new(io);
+            let mut dispatcher = Dispatcher::new(Client::new(rx), conn);
+
+            // First poll is needed to allow tx to send...
+            assert!(dispatcher.poll().expect("nothing is ready").is_not_ready());
+
+            let body = ::Body::wrap_stream(::futures::stream::once(Ok::<_, ::Error>("")));
+
+            let _res_rx = tx.try_send(::Request::new(body)).unwrap();
+
+            dispatcher.poll().expect("empty body shouldn't panic");
             Ok::<(), ()>(())
         }).wait().unwrap();
     }

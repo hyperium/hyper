@@ -451,49 +451,84 @@ where I: AsyncRead + AsyncWrite,
         }
     }
 
-    pub fn write_body(&mut self, chunk: Option<B>) {
+    pub fn write_body(&mut self, chunk: B) {
         debug_assert!(self.can_write_body() && self.can_buffer_body());
+        // empty chunks should be discarded at Dispatcher level
+        debug_assert!(chunk.remaining() != 0);
 
         let state = match self.state.writing {
             Writing::Body(ref mut encoder) => {
-                if let Some(chunk) = chunk {
-                    if chunk.remaining() == 0 {
-                        return;
-                    }
+                self.io.buffer(encoder.encode(chunk));
 
-                    let encoded = encoder.encode(chunk);
-                    self.io.buffer(encoded);
-
-                    if encoder.is_eof() {
-                        if encoder.is_last() {
-                            Writing::Closed
-                        } else {
-                            Writing::KeepAlive
-                        }
+                if encoder.is_eof() {
+                    if encoder.is_last() {
+                        Writing::Closed
                     } else {
-                        return;
+                        Writing::KeepAlive
                     }
                 } else {
-                    // end of stream, that means we should try to eof
-                    match encoder.end() {
-                        Ok(end) => {
-                            if let Some(end) = end {
-                                self.io.buffer(end);
-                            }
-                            if encoder.is_last() {
-                                Writing::Closed
-                            } else {
-                                Writing::KeepAlive
-                            }
-                        },
-                        Err(_not_eof) => Writing::Closed,
-                    }
+                    return;
                 }
             },
             _ => unreachable!("write_body invalid state: {:?}", self.state.writing),
         };
 
         self.state.writing = state;
+    }
+
+    pub fn write_body_and_end(&mut self, chunk: B) {
+        debug_assert!(self.can_write_body() && self.can_buffer_body());
+        // empty chunks should be discarded at Dispatcher level
+        debug_assert!(chunk.remaining() != 0);
+
+        let state = match self.state.writing {
+            Writing::Body(ref mut encoder) => {
+                self.io.buffer(encoder.encode(chunk));
+                match encoder.end() {
+                    Ok(end) => {
+                        if let Some(end) = end {
+                            self.io.buffer(end);
+                        }
+                        if encoder.is_last() {
+                            Writing::Closed
+                        } else {
+                            Writing::KeepAlive
+                        }
+                    },
+                    Err(_not_eof) => Writing::Closed,
+                }
+            },
+            _ => unreachable!("write_body invalid state: {:?}", self.state.writing),
+        };
+
+        self.state.writing = state;
+    }
+
+    pub fn end_body(&mut self) {
+        debug_assert!(self.can_write_body());
+
+        let state = match self.state.writing {
+            Writing::Body(ref mut encoder) => {
+                // end of stream, that means we should try to eof
+                match encoder.end() {
+                    Ok(end) => {
+                        if let Some(end) = end {
+                            self.io.buffer(end);
+                        }
+                        if encoder.is_last() {
+                            Writing::Closed
+                        } else {
+                            Writing::KeepAlive
+                        }
+                    },
+                    Err(_not_eof) => Writing::Closed,
+                }
+            },
+            _ => return,
+        };
+
+        self.state.writing = state;
+
     }
 
     // When we get a parse error, depending on what side we are, we might be able

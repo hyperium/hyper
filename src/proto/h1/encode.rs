@@ -32,7 +32,7 @@ enum Kind {
     ///
     /// This is mostly only used with HTTP/1.0 with a length. This kind requires
     /// the connection to be closed when the body is finished.
-    Eof
+    CloseDelimited,
 }
 
 #[derive(Debug)]
@@ -58,8 +58,8 @@ impl Encoder {
         Encoder::new(Kind::Length(len))
     }
 
-    pub fn eof() -> Encoder {
-        Encoder::new(Kind::Eof)
+    pub fn close_delimited() -> Encoder {
+        Encoder::new(Kind::CloseDelimited)
     }
 
     pub fn is_eof(&self) -> bool {
@@ -112,8 +112,8 @@ impl Encoder {
                     BufKind::Exact(msg)
                 }
             },
-            Kind::Eof => {
-                trace!("eof write {}B", len);
+            Kind::CloseDelimited => {
+                trace!("close delimited write {}B", len);
                 BufKind::Exact(msg)
             }
         };
@@ -323,7 +323,7 @@ mod tests {
 
     #[test]
     fn eof() {
-        let mut encoder = Encoder::eof();
+        let mut encoder = Encoder::close_delimited();
         let mut dst = Vec::new();
 
 

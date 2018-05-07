@@ -514,13 +514,13 @@ fn set_length(headers: &mut HeaderMap, body: BodyLength, can_chunked: bool) -> E
         let encoder = if headers.remove(TRANSFER_ENCODING).is_some() {
             trace!("removing illegal transfer-encoding header");
             should_remove_con_len = true;
-            Encoder::eof()
+            Encoder::close_delimited()
         } else if let Some(len) = existing_con_len {
             Encoder::length(len)
         } else if let BodyLength::Known(len) = body {
             set_content_length(headers, len)
         } else {
-            Encoder::eof()
+            Encoder::close_delimited()
         };
 
         if should_remove_con_len && existing_con_len.is_some() {
