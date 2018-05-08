@@ -37,8 +37,8 @@ impl CachedDate {
 
     fn update(&mut self, now: time::Timespec) {
         self.pos = 0;
-        write!(self, "{}", time::at_utc(now).rfc822()).unwrap();
-        assert!(self.pos == DATE_VALUE_LENGTH);
+        let _ = write!(self, "{}", time::at_utc(now).rfc822());
+        debug_assert!(self.pos == DATE_VALUE_LENGTH);
         self.next_update = now + Duration::seconds(1);
         self.next_update.nsec = 0;
     }

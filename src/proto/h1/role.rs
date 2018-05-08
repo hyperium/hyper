@@ -1002,7 +1002,7 @@ mod tests {
         b.iter(|| {
             let mut vec = Vec::new();
             Server::encode(head.clone(), Some(BodyLength::Known(10)), &mut None, false, &mut vec).unwrap();
-            //assert_eq!(vec.len(), len);
+            assert_eq!(vec.len(), len);
             ::test::black_box(vec);
         })
     }

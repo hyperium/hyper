@@ -38,6 +38,7 @@ extern crate want;
 extern crate test;
 
 pub use http::{
+    header,
     HeaderMap,
     Method,
     Request,
