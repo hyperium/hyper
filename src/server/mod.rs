@@ -507,19 +507,6 @@ impl<S, B> Server<S, B>
     }
 }
 
-fn thread_listener(addr: &SocketAddr, handle: &Handle) -> io::Result<TcpListener> {
-    let listener = match *addr {
-        SocketAddr::V4(_) => try!(net2::TcpBuilder::new_v4()),
-        SocketAddr::V6(_) => try!(net2::TcpBuilder::new_v6()),
-    };
-    try!(reuse_port(&listener));
-    try!(listener.reuse_address(true));
-    try!(listener.bind(addr));
-    listener.listen(1024).and_then(|l| {
-        TcpListener::from_listener(l, addr, handle)
-    })
-}
-
 fn date_render_interval(handle: &Handle) {
     // Since we own the executor, we can spawn an interval to update the
     // thread_local rendered date, instead of checking the clock on every
@@ -573,16 +560,29 @@ fn date_render_interval(handle: &Handle) {
     }
 }
 
+fn thread_listener(addr: &SocketAddr, handle: &Handle) -> io::Result<TcpListener> {
+    let listener = match *addr {
+        SocketAddr::V4(_) => net2::TcpBuilder::new_v4()?,
+        SocketAddr::V6(_) => net2::TcpBuilder::new_v6()?,
+    };
+    reuse_port(&listener);
+    listener.reuse_address(true)?;
+    listener.bind(addr)?;
+    listener.listen(1024).and_then(|l| {
+        TcpListener::from_listener(l, addr, handle)
+    })
+}
+
 #[cfg(unix)]
-fn reuse_port(tcp: &net2::TcpBuilder) -> io::Result<()> {
+fn reuse_port(tcp: &net2::TcpBuilder) {
     use net2::unix::*;
-    try!(tcp.reuse_port(true));
-    Ok(())
+    if let Err(e) = tcp.reuse_port(true) {
+        debug!("error setting SO_REUSEPORT: {}", e);
+    }
 }
 
 #[cfg(not(unix))]
-fn reuse_port(_tcp: &net2::TcpBuilder) -> io::Result<()> {
-    Ok(())
+fn reuse_port(_tcp: &net2::TcpBuilder) {
 }
 
 impl<S: fmt::Debug, B: Stream<Error=::Error>> fmt::Debug for Server<S, B>
