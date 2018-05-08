@@ -253,7 +253,6 @@ where I: AsyncRead + AsyncWrite,
     pub fn wants_read_again(&mut self) -> bool {
         let ret = self.state.notify_read;
         self.state.notify_read = false;
-        trace!("wants_read_again? {}", ret);
         ret
     }
 

@@ -65,20 +65,15 @@ where
             }
         };
 
-        let mut headers = HeaderMap::with_capacity(headers_len);
         let slice = buf.split_to(len).freeze();
         let path = slice.slice(path.0, path.1);
-        // path was found to be utf8 by httparse
         let path = Uri::from_shared(path)?;
         let subject = RequestLine(
             method,
             path,
         );
 
-        headers.extend(HeadersAsBytesIter {
-            headers: headers_indices[..headers_len].iter(),
-            slice: slice,
-        });
+        let headers = fill_headers(slice, &headers_indices[..headers_len]);
 
         Ok(Some((MessageHead {
             version: version,
@@ -178,7 +173,7 @@ where
         // like req/s goes up about 10%
         if !head.headers.contains_key(DATE) {
             dst.reserve(date::DATE_VALUE_LENGTH + 8);
-            extend(dst, b"Date: ");
+            extend(dst, b"date: ");
             date::extend(dst);
             extend(dst, b"\r\n");
         }
@@ -288,12 +283,10 @@ where
             }
         };
 
-        let mut headers = HeaderMap::with_capacity(headers_len);
         let slice = buf.split_to(len).freeze();
-        headers.extend(HeadersAsBytesIter {
-            headers: headers_indices[..headers_len].iter(),
-            slice: slice,
-        });
+
+        let headers = fill_headers(slice, &headers_indices[..headers_len]);
+
         Ok(Some((MessageHead {
             version: version,
             subject: status,
@@ -535,26 +528,33 @@ fn set_content_length(headers: &mut HeaderMap, len: u64) -> Encoder {
     // At this point, there should not be a valid Content-Length
     // header. However, since we'll be indexing in anyways, we can
     // warn the user if there was an existing illegal header.
+    //
+    // Or at least, we can in theory. It's actually a little bit slower,
+    // so perhaps only do that while the user is developing/testing.
 
-    match headers.entry(CONTENT_LENGTH)
-        .expect("CONTENT_LENGTH is valid HeaderName") {
-        Entry::Occupied(mut cl) => {
-            // Uh oh, the user set `Content-Length` headers, but set bad ones.
-            // This would be an illegal message anyways, so let's try to repair
-            // with our known good length.
-            warn!("user provided content-length header was invalid");
+    if cfg!(debug_assertions) {
+        match headers.entry(CONTENT_LENGTH)
+            .expect("CONTENT_LENGTH is valid HeaderName") {
+            Entry::Occupied(mut cl) => {
+                // Internal sanity check, we should have already determined
+                // that the header was illegal before calling this function.
+                debug_assert!(headers::content_length_parse_all(cl.iter()).is_none());
+                // Uh oh, the user set `Content-Length` headers, but set bad ones.
+                // This would be an illegal message anyways, so let's try to repair
+                // with our known good length.
+                error!("user provided content-length header was invalid");
 
-            // Internal sanity check, we should have already determined
-            // that the header was illegal before calling this function.
-            debug_assert!(headers::content_length_parse_all(cl.iter()).is_none());
-
-            cl.insert(headers::content_length_value(len));
-            Encoder::length(len)
-        },
-        Entry::Vacant(cl) => {
-            cl.insert(headers::content_length_value(len));
-            Encoder::length(len)
+                cl.insert(headers::content_length_value(len));
+                Encoder::length(len)
+            },
+            Entry::Vacant(cl) => {
+                cl.insert(headers::content_length_value(len));
+                Encoder::length(len)
+            }
         }
+    } else {
+        headers.insert(CONTENT_LENGTH, headers::content_length_value(len));
+        Encoder::length(len)
     }
 }
 
@@ -613,32 +613,19 @@ fn record_header_indices(bytes: &[u8], headers: &[httparse::Header], indices: &m
     }
 }
 
-struct HeadersAsBytesIter<'a> {
-    headers: ::std::slice::Iter<'a, HeaderIndices>,
-    slice: Bytes,
-}
-
-impl<'a> Iterator for HeadersAsBytesIter<'a> {
-    type Item = (HeaderName, HeaderValue);
-    fn next(&mut self) -> Option<Self::Item> {
-        self.headers.next().map(|header| {
-            let name = unsafe {
-                let bytes = ::std::slice::from_raw_parts(
-                    self.slice.as_ref().as_ptr().offset(header.name.0 as isize),
-                    header.name.1 - header.name.0
-                );
-                ::std::str::from_utf8_unchecked(bytes)
-            };
-            let name = HeaderName::from_bytes(name.as_bytes())
-                .expect("header name already validated");
-            let value = unsafe {
-                HeaderValue::from_shared_unchecked(
-                    self.slice.slice(header.value.0, header.value.1)
-                )
-            };
-            (name, value)
-        })
+fn fill_headers(slice: Bytes, indices: &[HeaderIndices]) -> HeaderMap {
+    let mut headers = HeaderMap::with_capacity(indices.len());
+    for header in indices {
+        let name = HeaderName::from_bytes(&slice[header.name.0..header.name.1])
+            .expect("header name already validated");
+        let value = unsafe {
+            HeaderValue::from_shared_unchecked(
+                slice.slice(header.value.0, header.value.1)
+            )
+        };
+        headers.append(name, value);
     }
+    headers
 }
 
 // Write header names as title case. The header name is assumed to be ASCII,
@@ -960,7 +947,30 @@ mod tests {
 
     #[cfg(feature = "nightly")]
     #[bench]
-    fn bench_server_transaction_encode(b: &mut Bencher) {
+    fn bench_parse_short(b: &mut Bencher) {
+        let mut raw = BytesMut::from(
+            b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n".to_vec()
+        );
+        let len = raw.len();
+
+        b.bytes = len as u64;
+        b.iter(|| {
+            Server::parse(&mut raw).unwrap();
+            restart(&mut raw, len);
+        });
+
+
+        fn restart(b: &mut BytesMut, len: usize) {
+            b.reserve(1);
+            unsafe {
+                b.set_len(len);
+            }
+        }
+    }
+
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_server_encode_headers_preset(b: &mut Bencher) {
         use http::header::HeaderValue;
         use proto::BodyLength;
 
@@ -975,6 +985,24 @@ mod tests {
             let mut vec = Vec::new();
             Server::encode(head.clone(), Some(BodyLength::Known(10)), &mut None, false, &mut vec).unwrap();
             assert_eq!(vec.len(), len);
+            ::test::black_box(vec);
+        })
+    }
+
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_server_encode_no_headers(b: &mut Bencher) {
+        use proto::BodyLength;
+
+        let len = 76;
+        b.bytes = len as u64;
+
+        let head = MessageHead::default();
+
+        b.iter(|| {
+            let mut vec = Vec::new();
+            Server::encode(head.clone(), Some(BodyLength::Known(10)), &mut None, false, &mut vec).unwrap();
+            //assert_eq!(vec.len(), len);
             ::test::black_box(vec);
         })
     }

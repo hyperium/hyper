@@ -146,11 +146,11 @@ impl Encoder {
 
                 trace!("sized write, len = {}", len);
                 match (len as u64).cmp(&remaining) {
-                    Ordering::Greater => {
-                        (BufKind::Limited(msg.take(remaining as usize)), !self.is_last)
-                    },
                     Ordering::Equal => {
                         (BufKind::Exact(msg), !self.is_last)
+                    },
+                    Ordering::Greater => {
+                        (BufKind::Limited(msg.take(remaining as usize)), !self.is_last)
                     },
                     Ordering::Less => {
                         (BufKind::Exact(msg), false)
