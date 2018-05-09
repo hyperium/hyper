@@ -20,6 +20,12 @@ pub struct Chunk {
     _flow_control: Option<AutoRelease>,
 }
 
+// An unexported type to prevent locking `Chunk::into_iter()` to `Bytes::into_iter()`.
+#[derive(Debug)]
+pub struct IntoIter {
+    inner: <Bytes as IntoIterator>::IntoIter,
+}
+
 struct AutoRelease {
     cap: usize,
     release: ReleaseCapacity,
@@ -147,11 +153,13 @@ impl Default for Chunk {
 
 impl IntoIterator for Chunk {
     type Item = u8;
-    type IntoIter = <Bytes as IntoIterator>::IntoIter;
+    type IntoIter = IntoIter;
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
-        self.bytes.into_iter()
+        IntoIter {
+            inner: self.bytes.into_iter(),
+        }
     }
 }
 
@@ -161,3 +169,13 @@ impl Extend<u8> for Chunk {
         self.bytes.extend(iter)
     }
 }
+
+impl Iterator for IntoIter {
+    type Item = u8;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next()
+    }
+}
+
