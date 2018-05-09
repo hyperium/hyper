@@ -5,12 +5,15 @@ matrix:
     fast_finish: true
     include:
         - rust: nightly
-          env: FEATURES="--features nightly" HYPER_DOCS="1"
+          env: FEATURES="--no-default-features --features runtime,nightly" HYPER_DOCS="1"
         - rust: beta
+          env: FEATURES="--no-default-features --features runtime"
         - rust: stable
+          env: FEATURES="--no-default-features --features runtime"
         - rust: stable
           env: FEATURES="--no-default-features"
         - rust: 1.21.0
+          env: FEATURES="--no-default-features --features runtime"
 
 cache:
     apt: true
