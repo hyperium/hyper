@@ -69,6 +69,7 @@ pub(crate) enum Kind {
 pub(crate) enum Parse {
     Method,
     Version,
+    VersionH2,
     Uri,
     Header,
     TooLarge,
@@ -164,6 +165,10 @@ impl Error {
         Error::new(Kind::Parse(Parse::Version), None)
     }
 
+    pub(crate) fn new_version_h2() -> Error {
+        Error::new(Kind::Parse(Parse::VersionH2), None)
+    }
+
     pub(crate) fn new_mismatched_response() -> Error {
         Error::new(Kind::MismatchedResponse, None)
     }
@@ -250,6 +255,7 @@ impl StdError for Error {
         match self.inner.kind {
             Kind::Parse(Parse::Method) => "invalid Method specified",
             Kind::Parse(Parse::Version) => "invalid HTTP version specified",
+            Kind::Parse(Parse::VersionH2) => "invalid HTTP version specified (Http2)",
             Kind::Parse(Parse::Uri) => "invalid URI",
             Kind::Parse(Parse::Header) => "invalid Header provided",
             Kind::Parse(Parse::TooLarge) => "message head is too large",

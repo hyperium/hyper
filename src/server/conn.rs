@@ -13,6 +13,7 @@ use std::fmt;
 use std::sync::Arc;
 #[cfg(feature = "runtime")] use std::time::Duration;
 
+use super::rewind::Rewind;
 use bytes::Bytes;
 use futures::{Async, Future, Poll, Stream};
 use futures::future::{Either, Executor};
@@ -23,6 +24,7 @@ use common::Exec;
 use proto;
 use body::{Body, Payload};
 use service::{NewService, Service};
+use error::{Kind, Parse};
 
 #[cfg(feature = "runtime")] pub use super::tcp::AddrIncoming;
 
@@ -74,23 +76,24 @@ pub(super) struct SpawnAll<I, S> {
 ///
 /// Polling this future will drive HTTP forward.
 #[must_use = "futures do nothing unless polled"]
-pub struct Connection<I, S>
+pub struct Connection<T, S>
 where
     S: Service,
 {
-    pub(super) conn: Either<
+    pub(super) conn: Option<
+        Either<
         proto::h1::Dispatcher<
             proto::h1::dispatch::Server<S>,
             S::ResBody,
-            I,
+            T,
             proto::ServerTransaction,
         >,
         proto::h2::Server<
-            I,
+            Rewind<T>,
             S,
             S::ResBody,
         >,
-    >,
+    >>,
 }
 
 /// Deconstructed parts of a `Connection`.
@@ -98,7 +101,7 @@ where
 /// This allows taking apart a `Connection` at a later time, in order to
 /// reclaim the IO object, and additional related pieces.
 #[derive(Debug)]
-pub struct Parts<T, S> {
+pub struct Parts<T, S>  {
     /// The original IO object used in the handshake.
     pub io: T,
     /// A buffer of bytes that have been read but not processed as HTTP.
@@ -239,12 +242,13 @@ impl Http {
             let sd = proto::h1::dispatch::Server::new(service);
             Either::A(proto::h1::Dispatcher::new(sd, conn))
         } else {
-            let h2 = proto::h2::Server::new(io, service, self.exec.clone());
+            let rewind_io = Rewind::new(io);
+            let h2 = proto::h2::Server::new(rewind_io, service, self.exec.clone());
             Either::B(h2)
         };
 
         Connection {
-            conn: either,
+            conn: Some(either),
         }
     }
 
@@ -322,7 +326,7 @@ where
     /// This `Connection` should continue to be polled until shutdown
     /// can finish.
     pub fn graceful_shutdown(&mut self) {
-        match self.conn {
+        match *self.conn.as_mut().unwrap() {
             Either::A(ref mut h1) => {
                 h1.disable_keep_alive();
             },
@@ -334,11 +338,12 @@ where
 
     /// Return the inner IO object, and additional information.
     ///
+    /// If the IO object has been "rewound" the io will not contain those bytes rewound.
     /// This should only be called after `poll_without_shutdown` signals
     /// that the connection is "done". Otherwise, it may not have finished
     /// flushing all necessary HTTP bytes.
     pub fn into_parts(self) -> Parts<I, S> {
-        let (io, read_buf, dispatch) = match self.conn {
+        let (io, read_buf, dispatch) = match self.conn.unwrap() {
             Either::A(h1) => {
                 h1.into_inner()
             },
@@ -349,7 +354,7 @@ where
         Parts {
             io: io,
             read_buf: read_buf,
-            service: dispatch.service,
+            service: dispatch.into_service(),
             _inner: (),
         }
     }
@@ -362,13 +367,36 @@ where
     /// but it is not desired to actally shutdown the IO object. Instead you
     /// would take it back using `into_parts`.
     pub fn poll_without_shutdown(&mut self) -> Poll<(), ::Error> {
-        match self.conn {
+        match *self.conn.as_mut().unwrap() {
             Either::A(ref mut h1) => {
                 try_ready!(h1.poll_without_shutdown());
                 Ok(().into())
             },
             Either::B(ref mut h2) => h2.poll(),
         }
+    }
+
+    fn try_h2(&mut self) -> Poll<(), ::Error> {
+        trace!("Trying to upgrade connection to h2");
+        let conn = self.conn.take();
+
+        let (io, read_buf, dispatch) = match conn.unwrap() {
+            Either::A(h1) => {
+                h1.into_inner()
+            },
+            Either::B(_h2) => {
+                panic!("h2 cannot into_inner");
+            }
+        };
+        let mut rewind_io = Rewind::new(io);
+        rewind_io.rewind(read_buf);
+        let mut h2 = proto::h2::Server::new(rewind_io, dispatch.into_service(), Exec::Default);
+        let pr = h2.poll();
+
+        debug_assert!(self.conn.is_none());
+        self.conn = Some(Either::B(h2));
+        
+        pr
     }
 }
 
@@ -384,7 +412,16 @@ where
     type Error = ::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        self.conn.poll()
+        match self.conn.poll() {
+            Ok(x) => Ok(x.map(|o| o.unwrap_or_else(|| ()))),
+            Err(e) => {
+                debug!("error polling connection protocol: {}", e);
+                match *e.kind() {
+                    Kind::Parse(Parse::VersionH2) => self.try_h2(),
+                    _ => Err(e),
+                }
+            }
+        }
     }
 }
 
