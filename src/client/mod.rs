@@ -193,7 +193,6 @@ where C: Connect + Sync + 'static,
             Version::HTTP_11 => (),
             other => {
                 error!("Request has unsupported version \"{:?}\"", other);
-                //TODO: replace this with a proper variant
                 return ResponseFuture::new(Box::new(future::err(::Error::new_user_unsupported_version())));
             }
         }

@@ -181,6 +181,13 @@ mod response_body_lengths {
             has_header(&body, "transfer-encoding:"),
             "expects_chunked"
         );
+
+        assert_eq!(
+            case.expects_chunked,
+            has_header(&body, "chunked\r\n"),
+            "expects_chunked"
+        );
+
         assert_eq!(
             case.expects_con_len,
             has_header(&body, "content-length:"),
@@ -200,7 +207,7 @@ mod response_body_lengths {
     }
 
     #[test]
-    fn get_fixed_response_known() {
+    fn fixed_response_known() {
         run_test(TestCase {
             version: 1,
             headers: &[("content-length", "11")],
@@ -211,7 +218,7 @@ mod response_body_lengths {
     }
 
     #[test]
-    fn get_fixed_response_unknown() {
+    fn fixed_response_unknown() {
         run_test(TestCase {
             version: 1,
             headers: &[("content-length", "11")],
@@ -222,7 +229,18 @@ mod response_body_lengths {
     }
 
     #[test]
-    fn get_chunked_response_known() {
+    fn fixed_response_known_empty() {
+        run_test(TestCase {
+            version: 1,
+            headers: &[("content-length", "0")],
+            body: Bd::Known(""),
+            expects_chunked: false,
+            expects_con_len: true,
+        });
+    }
+
+    #[test]
+    fn chunked_response_known() {
         run_test(TestCase {
             version: 1,
             headers: &[("transfer-encoding", "chunked")],
@@ -234,7 +252,7 @@ mod response_body_lengths {
     }
 
     #[test]
-    fn get_chunked_response_unknown() {
+    fn chunked_response_unknown() {
         run_test(TestCase {
             version: 1,
             headers: &[("transfer-encoding", "chunked")],
@@ -245,7 +263,22 @@ mod response_body_lengths {
     }
 
     #[test]
-    fn get_chunked_response_trumps_length() {
+    fn te_response_adds_chunked() {
+        run_test(TestCase {
+            version: 1,
+            headers: &[("transfer-encoding", "gzip")],
+            body: Bd::Unknown("foo bar baz"),
+            expects_chunked: true,
+            expects_con_len: false,
+        });
+    }
+
+    #[test]
+    #[ignore]
+    // This used to be the case, but providing this functionality got in the
+    // way of performance. It can probably be brought back later, and doing
+    // so should be backwards-compatible...
+    fn chunked_response_trumps_length() {
         run_test(TestCase {
             version: 1,
             headers: &[
@@ -260,7 +293,7 @@ mod response_body_lengths {
     }
 
     #[test]
-    fn get_auto_response_with_entity_unknown_length() {
+    fn auto_response_with_unknown_length() {
         run_test(TestCase {
             version: 1,
             // no headers means trying to guess from Payload
@@ -272,7 +305,7 @@ mod response_body_lengths {
     }
 
     #[test]
-    fn get_auto_response_with_entity_known_length() {
+    fn auto_response_with_known_length() {
         run_test(TestCase {
             version: 1,
             // no headers means trying to guess from Payload
@@ -283,9 +316,20 @@ mod response_body_lengths {
         });
     }
 
+    #[test]
+    fn auto_response_known_empty() {
+        run_test(TestCase {
+            version: 1,
+            // no headers means trying to guess from Payload
+            headers: &[],
+            body: Bd::Known(""),
+            expects_chunked: false,
+            expects_con_len: true,
+        });
+    }
 
     #[test]
-    fn http_10_get_auto_response_with_entity_unknown_length() {
+    fn http10_auto_response_with_unknown_length() {
         run_test(TestCase {
             version: 0,
             // no headers means trying to guess from Payload
@@ -298,7 +342,7 @@ mod response_body_lengths {
 
 
     #[test]
-    fn http_10_get_chunked_response() {
+    fn http10_chunked_response() {
         run_test(TestCase {
             version: 0,
             // http/1.0 should strip this header
@@ -594,6 +638,62 @@ fn disable_keep_alive() {
     }
 
     // try again!
+
+    let quux = b"zar quux";
+    server.reply()
+        .header("content-length", quux.len().to_string())
+        .body(quux);
+
+    // the write can possibly succeed, since it fills the kernel buffer on the first write
+    let _ = req.write_all(b"\
+        GET /quux HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: close\r\n\
+        \r\n\
+    ");
+
+    let mut buf = [0; 1024 * 8];
+    match req.read(&mut buf[..]) {
+        // Ok(0) means EOF, so a proper shutdown
+        // Err(_) could mean ConnReset or something, also fine
+        Ok(0) |
+        Err(_) => {}
+        Ok(n) => {
+            panic!("read {} bytes on a disabled keep-alive socket", n);
+        }
+    }
+}
+
+#[test]
+fn header_connection_close() {
+    let foo_bar = b"foo bar baz";
+    let server = serve();
+    server.reply()
+        .header("content-length", foo_bar.len().to_string())
+        .header("connection", "close")
+        .body(foo_bar);
+    let mut req = connect(server.addr());
+    req.write_all(b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: keep-alive\r\n\
+        \r\n\
+    ").expect("writing 1");
+
+    let mut buf = [0; 1024 * 8];
+    loop {
+        let n = req.read(&mut buf[..]).expect("reading 1");
+        if n < buf.len() {
+            if &buf[n - foo_bar.len()..n] == foo_bar {
+                break;
+            } else {
+            }
+        }
+    }
+
+    // try again!
+    // but since the server responded with connection: close, the internal
+    // state should have noticed and shutdown
 
     let quux = b"zar quux";
     server.reply()

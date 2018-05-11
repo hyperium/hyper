@@ -7,7 +7,7 @@ use iovec::IoVec;
 use common::StaticBuf;
 
 /// Encoders to handle different Transfer-Encodings.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Encoder {
     kind: Kind,
     is_last: bool,
@@ -70,8 +70,9 @@ impl Encoder {
         }
     }
 
-    pub fn set_last(&mut self) {
-        self.is_last = true;
+    pub fn set_last(mut self, is_last: bool) -> Self {
+        self.is_last = is_last;
+        self
     }
 
     pub fn is_last(&self) -> bool {

@@ -4,7 +4,8 @@ use http::{Request, Response, StatusCode};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use body::{Body, Payload};
-use proto::{BodyLength, Conn, Http1Transaction, MessageHead, RequestHead, RequestLine, ResponseHead};
+use proto::{BodyLength, Conn, MessageHead, RequestHead, RequestLine, ResponseHead};
+use super::Http1Transaction;
 use service::Service;
 
 pub(crate) struct Dispatcher<D, Bs: Payload, I, T> {

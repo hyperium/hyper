@@ -531,7 +531,7 @@ impl<T, B, R> Future for HandshakeInner<T, B, R>
 where
     T: AsyncRead + AsyncWrite + Send + 'static,
     B: Payload,
-    R: proto::Http1Transaction<
+    R: proto::h1::Http1Transaction<
         Incoming=StatusCode,
         Outgoing=proto::RequestLine,
     >,

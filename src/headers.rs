@@ -2,45 +2,43 @@ use std::fmt::Write;
 
 use bytes::BytesMut;
 use http::HeaderMap;
-use http::header::{CONNECTION, CONTENT_LENGTH, EXPECT, TRANSFER_ENCODING};
+use http::header::{CONTENT_LENGTH, TRANSFER_ENCODING};
 use http::header::{HeaderValue, OccupiedEntry, ValueIter};
 
 /// Maximum number of bytes needed to serialize a u64 into ASCII decimal.
 const MAX_DECIMAL_U64_BYTES: usize = 20;
 
-pub fn connection_keep_alive(headers: &HeaderMap) -> bool {
-    for line in headers.get_all(CONNECTION) {
-        if let Ok(s) = line.to_str() {
-            for val in s.split(',') {
-                if eq_ascii(val.trim(), "keep-alive") {
-                    return true;
-                }
+pub fn connection_keep_alive(value: &HeaderValue) -> bool {
+    connection_has(value, "keep-alive")
+}
+
+pub fn connection_close(value: &HeaderValue) -> bool {
+    connection_has(value, "close")
+}
+
+fn connection_has(value: &HeaderValue, needle: &str) -> bool {
+    if let Ok(s) = value.to_str() {
+        for val in s.split(',') {
+            if eq_ascii(val.trim(), needle) {
+                return true;
             }
         }
     }
-
     false
 }
 
-pub fn connection_close(headers: &HeaderMap) -> bool {
-    for line in headers.get_all(CONNECTION) {
-        if let Ok(s) = line.to_str() {
-            for val in s.split(',') {
-                if eq_ascii(val.trim(), "close") {
-                    return true;
-                }
-            }
-        }
-    }
-
-    false
+pub fn content_length_parse(value: &HeaderValue) -> Option<u64> {
+    value
+        .to_str()
+        .ok()
+        .and_then(|s| s.parse().ok())
 }
 
-pub fn content_length_parse(headers: &HeaderMap) -> Option<u64> {
-    content_length_parse_all(headers.get_all(CONTENT_LENGTH).into_iter())
+pub fn content_length_parse_all(headers: &HeaderMap) -> Option<u64> {
+    content_length_parse_all_values(headers.get_all(CONTENT_LENGTH).into_iter())
 }
 
-pub fn content_length_parse_all(values: ValueIter<HeaderValue>) -> Option<u64> {
+pub fn content_length_parse_all_values(values: ValueIter<HeaderValue>) -> Option<u64> {
     // If multiple Content-Length headers were sent, everything can still
     // be alright if they all contain the same value, and all parse
     // correctly. If not, then it's an error.
@@ -70,10 +68,6 @@ pub fn content_length_parse_all(values: ValueIter<HeaderValue>) -> Option<u64> {
     }
 }
 
-pub fn content_length_zero(headers: &mut HeaderMap) {
-    headers.insert(CONTENT_LENGTH, HeaderValue::from_static("0"));
-}
-
 pub fn content_length_value(len: u64) -> HeaderValue {
     let mut len_buf = BytesMut::with_capacity(MAX_DECIMAL_U64_BYTES);
     write!(len_buf, "{}", len)
@@ -84,10 +78,6 @@ pub fn content_length_value(len: u64) -> HeaderValue {
     }
 }
 
-pub fn expect_continue(headers: &HeaderMap) -> bool {
-    Some(&b"100-continue"[..]) == headers.get(EXPECT).map(|v| v.as_bytes())
-}
-
 pub fn transfer_encoding_is_chunked(headers: &HeaderMap) -> bool {
     is_chunked(headers.get_all(TRANSFER_ENCODING).into_iter())
 }
@@ -95,10 +85,17 @@ pub fn transfer_encoding_is_chunked(headers: &HeaderMap) -> bool {
 pub fn is_chunked(mut encodings: ValueIter<HeaderValue>) -> bool {
     // chunked must always be the last encoding, according to spec
     if let Some(line) = encodings.next_back() {
-        if let Ok(s) = line.to_str() {
-            if let Some(encoding) = s.rsplit(',').next() {
-                return eq_ascii(encoding.trim(), "chunked");
-            }
+        return is_chunked_(line);
+    }
+
+    false
+}
+
+pub fn is_chunked_(value: &HeaderValue) -> bool {
+    // chunked must always be the last encoding, according to spec
+    if let Ok(s) = value.to_str() {
+        if let Some(encoding) = s.rsplit(',').next() {
+            return eq_ascii(encoding.trim(), "chunked");
         }
     }
 

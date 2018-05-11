@@ -26,8 +26,6 @@ pub(crate) enum Kind {
     Parse(Parse),
     /// A message reached EOF, but is not complete.
     Incomplete,
-    /// A protocol upgrade was encountered, but not yet supported in hyper.
-    Upgrade,
     /// A client connection received a response when not waiting for one.
     MismatchedResponse,
     /// A pending item was dropped before ever being processed.
@@ -74,6 +72,9 @@ pub(crate) enum Parse {
     Header,
     TooLarge,
     Status,
+
+    /// A protocol upgrade was encountered, but not yet supported in hyper.
+    UpgradeNotSupported,
 }
 
 /*
@@ -141,10 +142,6 @@ impl Error {
         Error::new(Kind::Canceled, cause.map(Into::into))
     }
 
-    pub(crate) fn new_upgrade() -> Error {
-        Error::new(Kind::Upgrade, None)
-    }
-
     pub(crate) fn new_incomplete() -> Error {
         Error::new(Kind::Incomplete, None)
     }
@@ -159,10 +156,6 @@ impl Error {
 
     pub(crate) fn new_status() -> Error {
         Error::new(Kind::Parse(Parse::Status), None)
-    }
-
-    pub(crate) fn new_version() -> Error {
-        Error::new(Kind::Parse(Parse::Version), None)
     }
 
     pub(crate) fn new_version_h2() -> Error {
@@ -260,8 +253,8 @@ impl StdError for Error {
             Kind::Parse(Parse::Header) => "invalid Header provided",
             Kind::Parse(Parse::TooLarge) => "message head is too large",
             Kind::Parse(Parse::Status) => "invalid Status provided",
+            Kind::Parse(Parse::UpgradeNotSupported) => "unsupported protocol upgrade",
             Kind::Incomplete => "message is incomplete",
-            Kind::Upgrade => "unsupported protocol upgrade",
             Kind::MismatchedResponse => "response received without matching request",
             Kind::Closed => "connection closed",
             Kind::Connect => "an error occurred trying to connect",
@@ -325,8 +318,8 @@ impl From<http::status::InvalidStatusCode> for Parse {
     }
 }
 
-impl From<http::uri::InvalidUriBytes> for Parse {
-    fn from(_: http::uri::InvalidUriBytes) -> Parse {
+impl From<http::uri::InvalidUri> for Parse {
+    fn from(_: http::uri::InvalidUri) -> Parse {
         Parse::Uri
     }
 }

@@ -4,13 +4,13 @@ use std::marker::PhantomData;
 
 use bytes::{Buf, Bytes};
 use futures::{Async, Poll};
-use http::{Method, Version};
+use http::{HeaderMap, Method, Version};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use ::Chunk;
-use proto::{BodyLength, Decode, Http1Transaction, MessageHead};
+use proto::{BodyLength, MessageHead};
 use super::io::{Buffered};
-use super::{EncodedBuf, Encoder, Decoder};
+use super::{EncodedBuf, Encode, Encoder, Decode, Decoder, Http1Transaction, ParseContext};
 
 const H2_PREFACE: &'static [u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
@@ -36,6 +36,7 @@ where I: AsyncRead + AsyncWrite,
         Conn {
             io: Buffered::new(io),
             state: State {
+                cached_headers: None,
                 error: None,
                 keep_alive: KA::Busy,
                 method: None,
@@ -118,8 +119,11 @@ where I: AsyncRead + AsyncWrite,
         trace!("Conn::read_head");
 
         loop {
-            let (version, head) = match self.io.parse::<T>() {
-                Ok(Async::Ready(head)) => (head.version, head),
+            let msg = match self.io.parse::<T>(ParseContext {
+                cached_headers: &mut self.state.cached_headers,
+                req_method: &mut self.state.method,
+            }) {
+                Ok(Async::Ready(msg)) => msg,
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Err(e) => {
                     // If we are currently waiting on a message, then an empty
@@ -141,48 +145,32 @@ where I: AsyncRead + AsyncWrite,
                 }
             };
 
-            match version {
-                Version::HTTP_10 |
-                Version::HTTP_11 => {},
-                _ => {
-                    error!("unimplemented HTTP Version = {:?}", version);
-                    self.state.close_read();
-                    //TODO: replace this with a more descriptive error
-                    return Err(::Error::new_version());
-                }
-            };
-            self.state.version = version;
-
-            let decoder = match T::decoder(&head, &mut self.state.method) {
-                Ok(Decode::Normal(d)) => {
+            self.state.version = msg.head.version;
+            let head = msg.head;
+            let decoder = match msg.decode {
+                Decode::Normal(d) => {
                     d
                 },
-                Ok(Decode::Final(d)) => {
+                Decode::Final(d) => {
                     trace!("final decoder, HTTP ending");
                     debug_assert!(d.is_eof());
                     self.state.close_read();
                     d
                 },
-                Ok(Decode::Ignore) => {
+                Decode::Ignore => {
                     // likely a 1xx message that we can ignore
                     continue;
-                }
-                Err(e) => {
-                    debug!("decoder error = {:?}", e);
-                    self.state.close_read();
-                    return self.on_parse_error(e)
-                        .map(|()| Async::NotReady);
                 }
             };
 
             debug!("incoming body is {}", decoder);
 
             self.state.busy();
-            if head.expecting_continue() {
-                let msg = b"HTTP/1.1 100 Continue\r\n\r\n";
-                self.io.write_buf_mut().extend_from_slice(msg);
+            if msg.expect_continue {
+                let cont = b"HTTP/1.1 100 Continue\r\n\r\n";
+                self.io.write_buf_mut().extend_from_slice(cont);
             }
-            let wants_keep_alive = head.should_keep_alive();
+            let wants_keep_alive = msg.keep_alive;
             self.state.keep_alive &= wants_keep_alive;
             let (body, reading) = if decoder.is_eof() {
                 (false, Reading::KeepAlive)
@@ -410,8 +398,17 @@ where I: AsyncRead + AsyncWrite,
         self.enforce_version(&mut head);
 
         let buf = self.io.write_buf_mut();
-        self.state.writing = match T::encode(head, body, &mut self.state.method, self.state.title_case_headers, buf) {
+        self.state.writing = match T::encode(Encode {
+            head: &mut head,
+            body,
+            keep_alive: self.state.wants_keep_alive(),
+            req_method: &mut self.state.method,
+            title_case_headers: self.state.title_case_headers,
+        }, buf) {
             Ok(encoder) => {
+                debug_assert!(self.state.cached_headers.is_none());
+                debug_assert!(head.headers.is_empty());
+                self.state.cached_headers = Some(head.headers);
                 if !encoder.is_eof() {
                     Writing::Body(encoder)
                 } else if encoder.is_last() {
@@ -430,24 +427,12 @@ where I: AsyncRead + AsyncWrite,
     // If we know the remote speaks an older version, we try to fix up any messages
     // to work with our older peer.
     fn enforce_version(&mut self, head: &mut MessageHead<T::Outgoing>) {
-        //use header::Connection;
-
-        let wants_keep_alive = if self.state.wants_keep_alive() {
-            let ka = head.should_keep_alive();
-            self.state.keep_alive &= ka;
-            ka
-        } else {
-            false
-        };
 
         match self.state.version {
             Version::HTTP_10 => {
                 // If the remote only knows HTTP/1.0, we should force ourselves
                 // to do only speak HTTP/1.0 as well.
                 head.version = Version::HTTP_10;
-                if wants_keep_alive {
-                    //TODO: head.headers.set(Connection::keep_alive());
-                }
             },
             _ => {
                 // If the remote speaks HTTP/1.1, then it *should* be fine with
@@ -617,13 +602,27 @@ impl<I, B: Buf, T> fmt::Debug for Conn<I, B, T> {
 }
 
 struct State {
+    /// Re-usable HeaderMap to reduce allocating new ones.
+    cached_headers: Option<HeaderMap>,
+    /// If an error occurs when there wasn't a direct way to return it
+    /// back to the user, this is set.
     error: Option<::Error>,
+    /// Current keep-alive status.
     keep_alive: KA,
+    /// If mid-message, the HTTP Method that started it.
+    ///
+    /// This is used to know things such as if the message can include
+    /// a body or not.
     method: Option<Method>,
     title_case_headers: bool,
+    /// Set to true when the Dispatcher should poll read operations
+    /// again. See the `maybe_notify` method for more.
     notify_read: bool,
+    /// State of allowed reads
     reading: Reading,
+    /// State of allowed writes
     writing: Writing,
+    /// Either HTTP/1.0 or 1.1 connection
     version: Version,
 }
 

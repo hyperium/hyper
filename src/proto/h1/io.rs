@@ -8,7 +8,7 @@ use futures::{Async, Poll};
 use iovec::IoVec;
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use proto::{Http1Transaction, MessageHead};
+use super::{Http1Transaction, ParseContext, ParsedMessage};
 
 /// The initial buffer size allocated before trying to read from IO.
 pub(crate) const INIT_BUFFER_SIZE: usize = 8192;
@@ -126,12 +126,16 @@ where
         }
     }
 
-    pub(super) fn parse<S: Http1Transaction>(&mut self) -> Poll<MessageHead<S::Incoming>, ::Error> {
+    pub(super) fn parse<S>(&mut self, ctx: ParseContext)
+        -> Poll<ParsedMessage<S::Incoming>, ::Error>
+    where
+        S: Http1Transaction,
+    {
         loop {
-            match try!(S::parse(&mut self.read_buf)) {
-                Some((head, len)) => {
-                    debug!("parsed {} headers ({} bytes)", head.headers.len(), len);
-                    return Ok(Async::Ready(head))
+            match try!(S::parse(&mut self.read_buf, ParseContext { cached_headers: ctx.cached_headers, req_method: ctx.req_method, })) {
+                Some(msg) => {
+                    debug!("parsed {} headers", msg.head.headers.len());
+                    return Ok(Async::Ready(msg))
                 },
                 None => {
                     if self.read_buf.capacity() >= self.max_buf_size {
@@ -617,7 +621,11 @@ mod tests {
 
         let mock = AsyncIo::new_buf(raw, raw.len());
         let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
-        assert_eq!(buffered.parse::<::proto::ClientTransaction>().unwrap(), Async::NotReady);
+        let ctx = ParseContext {
+            cached_headers: &mut None,
+            req_method: &mut None,
+        };
+        assert!(buffered.parse::<::proto::ClientTransaction>(ctx).unwrap().is_not_ready());
         assert!(buffered.io.blocked());
     }
 

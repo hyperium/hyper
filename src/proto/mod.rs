@@ -1,10 +1,7 @@
 //! Pieces pertaining to the HTTP message protocol.
-use bytes::BytesMut;
 use http::{HeaderMap, Method, StatusCode, Uri, Version};
 
-use headers;
-
-pub(crate) use self::h1::{dispatch, Conn};
+pub(crate) use self::h1::{dispatch, Conn, ClientTransaction, ClientUpgradeTransaction, ServerTransaction};
 
 pub(crate) mod h1;
 pub(crate) mod h2;
@@ -30,6 +27,7 @@ pub struct RequestLine(pub Method, pub Uri);
 /// An incoming response message.
 pub type ResponseHead = MessageHead<StatusCode>;
 
+/*
 impl<S> MessageHead<S> {
     pub fn should_keep_alive(&self) -> bool {
         should_keep_alive(self.version, &self.headers)
@@ -55,33 +53,7 @@ pub fn should_keep_alive(version: Version, headers: &HeaderMap) -> bool {
 pub fn expecting_continue(version: Version, headers: &HeaderMap) -> bool {
     version == Version::HTTP_11 && headers::expect_continue(headers)
 }
-
-pub(crate) type ServerTransaction = h1::role::Server<h1::role::YesUpgrades>;
-//pub type ServerTransaction = h1::role::Server<h1::role::NoUpgrades>;
-//pub type ServerUpgradeTransaction = h1::role::Server<h1::role::YesUpgrades>;
-
-pub(crate) type ClientTransaction = h1::role::Client<h1::role::NoUpgrades>;
-pub(crate) type ClientUpgradeTransaction = h1::role::Client<h1::role::YesUpgrades>;
-
-pub(crate) trait Http1Transaction {
-    type Incoming;
-    type Outgoing: Default;
-    fn parse(bytes: &mut BytesMut) -> ParseResult<Self::Incoming>;
-    fn decoder(head: &MessageHead<Self::Incoming>, method: &mut Option<Method>) -> ::Result<Decode>;
-    fn encode(
-        head: MessageHead<Self::Outgoing>,
-        body: Option<BodyLength>,
-        method: &mut Option<Method>,
-        title_case_headers: bool,
-        dst: &mut Vec<u8>,
-    ) -> ::Result<h1::Encoder>;
-    fn on_error(err: &::Error) -> Option<MessageHead<Self::Outgoing>>;
-
-    fn should_error_on_parse_eof() -> bool;
-    fn should_read_first() -> bool;
-}
-
-pub(crate) type ParseResult<T> = Result<Option<(MessageHead<T>, usize)>, ::error::Parse>;
+*/
 
 #[derive(Debug)]
 pub enum BodyLength {
@@ -91,17 +63,7 @@ pub enum BodyLength {
     Unknown,
 }
 
-
-#[derive(Debug)]
-pub enum Decode {
-    /// Decode normally.
-    Normal(h1::Decoder),
-    /// After this decoder is done, HTTP is done.
-    Final(h1::Decoder),
-    /// A header block that should be ignored, like unknown 1xx responses.
-    Ignore,
-}
-
+/*
 #[test]
 fn test_should_keep_alive() {
     let mut headers = HeaderMap::new();
@@ -129,3 +91,4 @@ fn test_expecting_continue() {
     assert!(!expecting_continue(Version::HTTP_10, &headers));
     assert!(expecting_continue(Version::HTTP_11, &headers));
 }
+*/

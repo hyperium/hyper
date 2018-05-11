@@ -1,6 +1,6 @@
 #![doc(html_root_url = "https://docs.rs/hyper/0.11.22")]
 #![deny(missing_docs)]
-#![deny(warnings)]
+//#![deny(warnings)]
 #![deny(missing_debug_implementations)]
 #![cfg_attr(all(test, feature = "nightly"), feature(test))]
 
