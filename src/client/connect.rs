@@ -130,21 +130,16 @@ mod http {
     use std::io;
     use std::mem;
     use std::net::{IpAddr, SocketAddr};
-    use std::sync::Arc;
     use std::time::Duration;
 
     use futures::{Async, Poll};
-    use futures::future::{Executor, ExecuteError};
-    use futures::sync::oneshot;
-    use futures_cpupool::{Builder as CpuPoolBuilder};
     use http::uri::Scheme;
     use net2::TcpBuilder;
     use tokio_reactor::Handle;
     use tokio_tcp::{TcpStream, ConnectFuture};
+    use tokio_threadpool::blocking;
 
     use super::super::dns;
-
-    use self::http_connector::HttpConnectorBlockingTask;
 
 
     fn connect(addr: &SocketAddr, local_addr: &Option<IpAddr>, handle: &Option<Handle>) -> io::Result<ConnectFuture> {
@@ -183,7 +178,6 @@ mod http {
     /// Performs DNS resolution in a thread pool, and then connects over TCP.
     #[derive(Clone)]
     pub struct HttpConnector {
-        executor: HttpConnectExecutor,
         enforce_http: bool,
         handle: Option<Handle>,
         keep_alive_timeout: Option<Duration>,
@@ -193,34 +187,18 @@ mod http {
 
     impl HttpConnector {
         /// Construct a new HttpConnector.
-        ///
-        /// Takes number of DNS worker threads.
         #[inline]
-        pub fn new(threads: usize) -> HttpConnector {
-            HttpConnector::new_with_handle_opt(threads, None)
+        pub fn new() -> HttpConnector {
+            HttpConnector::new_with_handle_opt(None)
         }
 
         /// Construct a new HttpConnector with a specific Tokio handle.
-        pub fn new_with_handle(threads: usize, handle: Handle) -> HttpConnector {
-            HttpConnector::new_with_handle_opt(threads, Some(handle))
+        pub fn new_with_handle(handle: Handle) -> HttpConnector {
+            HttpConnector::new_with_handle_opt(Some(handle))
         }
 
-        fn new_with_handle_opt(threads: usize, handle: Option<Handle>) -> HttpConnector {
-            let pool = CpuPoolBuilder::new()
-                .name_prefix("hyper-dns")
-                .pool_size(threads)
-                .create();
-            HttpConnector::new_with_executor(pool, handle)
-        }
-
-        /// Construct a new HttpConnector.
-        ///
-        /// Takes an executor to run blocking tasks on.
-        pub fn new_with_executor<E: 'static>(executor: E, handle: Option<Handle>) -> HttpConnector
-            where E: Executor<HttpConnectorBlockingTask> + Send + Sync
-        {
+        fn new_with_handle_opt(handle: Option<Handle>) -> HttpConnector {
             HttpConnector {
-                executor: HttpConnectExecutor(Arc::new(executor)),
                 enforce_http: true,
                 handle,
                 keep_alive_timeout: None,
@@ -305,7 +283,7 @@ mod http {
             };
 
             HttpConnecting {
-                state: State::Lazy(self.executor.clone(), host.into(), port, self.local_address),
+                state: State::Lazy(host.into(), port, self.local_address),
                 handle: self.handle.clone(),
                 keep_alive_timeout: self.keep_alive_timeout,
                 nodelay: self.nodelay,
@@ -355,8 +333,8 @@ mod http {
     }
 
     enum State {
-        Lazy(HttpConnectExecutor, String, u16, Option<IpAddr>),
-        Resolving(oneshot::SpawnHandle<dns::IpAddrs, io::Error>, Option<IpAddr>),
+        Lazy(String, u16, Option<IpAddr>),
+        Resolving(dns::Work, Option<IpAddr>),
         Connecting(ConnectingTcp),
         Error(Option<io::Error>),
     }
@@ -369,7 +347,7 @@ mod http {
             loop {
                 let state;
                 match self.state {
-                    State::Lazy(ref executor, ref mut host, port, local_addr) => {
+                    State::Lazy(ref mut host, port, local_addr) => {
                         // If the host is already an IP addr (v4 or v6),
                         // skip resolving the dns and start connecting right away.
                         if let Some(addrs) = dns::IpAddrs::try_parse(host, port) {
@@ -381,15 +359,15 @@ mod http {
                         } else {
                             let host = mem::replace(host, String::new());
                             let work = dns::Work::new(host, port);
-                            state = State::Resolving(oneshot::spawn(work, executor), local_addr);
+                            state = State::Resolving(work, local_addr);
                         }
                     },
-                    State::Resolving(ref mut future, local_addr) => {
-                        match try!(future.poll()) {
+                    State::Resolving(ref work, local_addr) => {
+                        match blocking(|| work.resolve()).expect("thread pool has shut down") {
                             Async::NotReady => return Ok(Async::NotReady),
                             Async::Ready(addrs) => {
                                 state = State::Connecting(ConnectingTcp {
-                                    addrs: addrs,
+                                    addrs: addrs?,
                                     local_addr: local_addr,
                                     current: None,
                                 })
@@ -455,40 +433,6 @@ mod http {
         }
     }
 
-    // Make this Future unnameable outside of this crate.
-    mod http_connector {
-        use super::*;
-        // Blocking task to be executed on a thread pool.
-        pub struct HttpConnectorBlockingTask {
-            pub(super) work: oneshot::Execute<dns::Work>
-        }
-
-        impl fmt::Debug for HttpConnectorBlockingTask {
-            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.pad("HttpConnectorBlockingTask")
-            }
-        }
-
-        impl Future for HttpConnectorBlockingTask {
-            type Item = ();
-            type Error = ();
-
-            fn poll(&mut self) -> Poll<(), ()> {
-                self.work.poll()
-            }
-        }
-    }
-
-    #[derive(Clone)]
-    struct HttpConnectExecutor(Arc<Executor<HttpConnectorBlockingTask> + Send + Sync>);
-
-    impl Executor<oneshot::Execute<dns::Work>> for HttpConnectExecutor {
-        fn execute(&self, future: oneshot::Execute<dns::Work>) -> Result<(), ExecuteError<oneshot::Execute<dns::Work>>> {
-            self.0.execute(HttpConnectorBlockingTask { work: future })
-                .map_err(|err| ExecuteError::new(err.kind(), err.into_future().work))
-        }
-    }
-
     #[cfg(test)]
     mod tests {
         use std::io;
@@ -501,7 +445,7 @@ mod http {
             let dst = Destination {
                 uri,
             };
-            let connector = HttpConnector::new(1);
+            let connector = HttpConnector::new();
 
             assert_eq!(connector.connect(dst).wait().unwrap_err().kind(), io::ErrorKind::InvalidInput);
         }
@@ -512,7 +456,7 @@ mod http {
             let dst = Destination {
                 uri,
             };
-            let connector = HttpConnector::new(1);
+            let connector = HttpConnector::new();
 
             assert_eq!(connector.connect(dst).wait().unwrap_err().kind(), io::ErrorKind::InvalidInput);
         }
@@ -524,7 +468,7 @@ mod http {
             let dst = Destination {
                 uri,
             };
-            let connector = HttpConnector::new(1);
+            let connector = HttpConnector::new();
 
             assert_eq!(connector.connect(dst).wait().unwrap_err().kind(), io::ErrorKind::InvalidInput);
         }

@@ -752,7 +752,7 @@ impl Builder {
         B: Payload + Send,
         B::Data: Send,
     {
-        let mut connector = HttpConnector::new(4);
+        let mut connector = HttpConnector::new();
         if self.keep_alive {
             connector.set_keepalive(self.keep_alive_timeout);
         }

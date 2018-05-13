@@ -22,7 +22,7 @@ fn get_one_at_a_time(b: &mut test::Bencher) {
     let mut rt = Runtime::new().unwrap();
     let addr = spawn_hello(&mut rt);
 
-    let connector = HttpConnector::new_with_handle(1, rt.reactor().clone());
+    let connector = HttpConnector::new_with_handle(rt.reactor().clone());
     let client = hyper::Client::builder()
         .executor(rt.executor())
         .build::<_, Body>(connector);
@@ -46,7 +46,7 @@ fn post_one_at_a_time(b: &mut test::Bencher) {
     let mut rt = Runtime::new().unwrap();
     let addr = spawn_hello(&mut rt);
 
-    let connector = HttpConnector::new_with_handle(1, rt.reactor().clone());
+    let connector = HttpConnector::new_with_handle(rt.reactor().clone());
     let client = hyper::Client::builder()
         .executor(rt.executor())
         .build::<_, Body>(connector);

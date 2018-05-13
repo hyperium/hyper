@@ -231,7 +231,7 @@ macro_rules! test {
         let addr = server.local_addr().expect("local_addr");
         let runtime = $runtime;
 
-        let connector = ::hyper::client::HttpConnector::new_with_handle(1, runtime.reactor().clone());
+        let connector = ::hyper::client::HttpConnector::new_with_handle(runtime.reactor().clone());
         let client = Client::builder()
             .set_host($set_host)
             .http1_title_case_headers($title_case_headers)
@@ -737,7 +737,7 @@ mod dispatch_impl {
         let (closes_tx, closes) = mpsc::channel(10);
         let client = Client::builder()
             .executor(runtime.executor())
-            .build(DebugConnector::with_http_and_closes(HttpConnector::new_with_handle(1, runtime.reactor().clone()), closes_tx));
+            .build(DebugConnector::with_http_and_closes(HttpConnector::new_with_handle(runtime.reactor().clone()), closes_tx));
 
         let (tx1, rx1) = oneshot::channel();
 
@@ -796,7 +796,7 @@ mod dispatch_impl {
         let res = {
             let client = Client::builder()
                 .executor(runtime.executor())
-                .build(DebugConnector::with_http_and_closes(HttpConnector::new_with_handle(1, handle.clone()), closes_tx));
+                .build(DebugConnector::with_http_and_closes(HttpConnector::new_with_handle(handle.clone()), closes_tx));
 
             let req = Request::builder()
                 .uri(&*format!("http://{}/a", addr))
@@ -849,7 +849,7 @@ mod dispatch_impl {
 
         let client = Client::builder()
             .executor(runtime.executor())
-            .build(DebugConnector::with_http_and_closes(HttpConnector::new_with_handle(1, handle.clone()), closes_tx));
+            .build(DebugConnector::with_http_and_closes(HttpConnector::new_with_handle(handle.clone()), closes_tx));
 
         let req = Request::builder()
             .uri(&*format!("http://{}/a", addr))
@@ -913,7 +913,7 @@ mod dispatch_impl {
         let res = {
             let client = Client::builder()
                 .executor(runtime.executor())
-                .build(DebugConnector::with_http_and_closes(HttpConnector::new_with_handle(1, handle.clone()), closes_tx));
+                .build(DebugConnector::with_http_and_closes(HttpConnector::new_with_handle(handle.clone()), closes_tx));
 
             let req = Request::builder()
                 .uri(&*format!("http://{}/a", addr))
@@ -964,7 +964,7 @@ mod dispatch_impl {
         let res = {
             let client = Client::builder()
                 .executor(runtime.executor())
-                .build(DebugConnector::with_http_and_closes(HttpConnector::new_with_handle(1, handle.clone()), closes_tx));
+                .build(DebugConnector::with_http_and_closes(HttpConnector::new_with_handle(handle.clone()), closes_tx));
 
             let req = Request::builder()
                 .uri(&*format!("http://{}/a", addr))
@@ -1015,7 +1015,7 @@ mod dispatch_impl {
         let client = Client::builder()
             .keep_alive(false)
             .executor(runtime.executor())
-            .build(DebugConnector::with_http_and_closes(HttpConnector::new_with_handle(1, handle.clone()), closes_tx));
+            .build(DebugConnector::with_http_and_closes(HttpConnector::new_with_handle(handle.clone()), closes_tx));
 
         let req = Request::builder()
             .uri(&*format!("http://{}/a", addr))
@@ -1063,7 +1063,7 @@ mod dispatch_impl {
 
         let client = Client::builder()
             .executor(runtime.executor())
-            .build(DebugConnector::with_http_and_closes(HttpConnector::new_with_handle(1, handle.clone()), closes_tx));
+            .build(DebugConnector::with_http_and_closes(HttpConnector::new_with_handle(handle.clone()), closes_tx));
 
         let req = Request::builder()
             .uri(&*format!("http://{}/a", addr))
@@ -1287,7 +1287,7 @@ mod dispatch_impl {
 
     impl DebugConnector {
         fn new(handle: &Handle) -> DebugConnector {
-            let http = HttpConnector::new_with_handle(1, handle.clone());
+            let http = HttpConnector::new_with_handle(handle.clone());
             let (tx, _) = mpsc::channel(10);
             DebugConnector::with_http_and_closes(http, tx)
         }

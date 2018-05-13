@@ -6,8 +6,6 @@ use std::net::{
 };
 use std::vec;
 
-use ::futures::{Async, Future, Poll};
-
 pub struct Work {
     host: String,
     port: u16
@@ -19,14 +17,11 @@ impl Work {
     }
 }
 
-impl Future for Work {
-    type Item = IpAddrs;
-    type Error = io::Error;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+impl Work {
+    pub fn resolve(&self) -> Result<IpAddrs, io::Error> {
         debug!("resolving host={:?}, port={:?}", self.host, self.port);
         (&*self.host, self.port).to_socket_addrs()
-            .map(|i| Async::Ready(IpAddrs { iter: i }))
+            .map(|i| IpAddrs { iter: i })
     }
 }
 

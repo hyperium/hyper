@@ -23,7 +23,6 @@ include = [
 [dependencies]
 bytes = "0.4.4"
 futures = "0.1.21"
-futures-cpupool = { version = "0.1.6", optional = true }
 http = "0.1.5"
 httparse = "1.0"
 h2 = "0.1.5"
@@ -37,6 +36,7 @@ tokio-io = "0.1"
 tokio-reactor = { version = "0.1", optional = true }
 tokio-tcp = { version = "0.1", optional = true }
 tokio-timer = { version = "0.2", optional = true }
+tokio-threadpool = { version = "0.1.3", optional = true }
 want = "0.0.4"
 
 [dev-dependencies]
@@ -53,13 +53,13 @@ default = [
     "runtime",
 ]
 runtime = [
-    "futures-cpupool",
     "net2",
     "tokio",
     "tokio-executor",
     "tokio-reactor",
     "tokio-tcp",
     "tokio-timer",
+    "tokio-threadpool",
 ]
 nightly = []
 __internal_flaky_tests = []
