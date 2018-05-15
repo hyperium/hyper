@@ -421,15 +421,17 @@ impl From<Chunk> for Body {
     }
 }
 
-impl<S> From<Box<S>> for Body
-where
-    S: Stream + Send + 'static,
-    S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-    Chunk: From<S::Item>,
+impl
+    From<Box<Stream<Item = Chunk, Error = Box<::std::error::Error + Send + Sync>> + Send + 'static>>
+    for Body
 {
     #[inline]
-    fn from(stream: Box<S>) -> Body {
-        Body::wrap_stream(stream)
+    fn from(
+        stream: Box<
+            Stream<Item = Chunk, Error = Box<::std::error::Error + Send + Sync>> + Send + 'static,
+        >,
+    ) -> Body {
+        Body::new(Kind::Wrapped(stream))
     }
 }
 
