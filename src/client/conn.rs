@@ -129,10 +129,6 @@ impl<B> SendRequest<B>
     pub(super) fn is_ready(&self) -> bool {
         self.dispatch.is_ready()
     }
-
-    pub(super) fn is_closed(&self) -> bool {
-        self.dispatch.is_closed()
-    }
 }
 
 impl<B> SendRequest<B>

@@ -37,7 +37,6 @@ mod dns;
 mod pool;
 #[cfg(feature = "compat")]
 pub mod compat;
-mod signal;
 #[cfg(test)]
 mod tests;
 
@@ -262,13 +261,22 @@ where C: Connect,
                         // If the executor doesn't have room, oh well. Things will likely
                         // be blowing up soon, but this specific task isn't required.
                         let _ = executor.execute(future::poll_fn(move || {
-                            pooled.tx.poll_ready().map_err(|_| ())
+                            pooled.tx.poll_ready()
                         }).then(move |_| {
                             // At this point, `pooled` is dropped, and had a chance
                             // to insert into the pool (if conn was idle)
                             drop(delayed_tx);
                             Ok(())
                         }));
+                    } else {
+                        // There's no body to delay, but the connection isn't
+                        // ready yet. Only re-insert when it's ready...
+                        let _ = executor.execute(
+                            future::poll_fn(move || {
+                                pooled.tx.poll_ready()
+                            })
+                            .then(|_| Ok(()))
+                        );
                     }
 
                     res
@@ -395,8 +403,8 @@ impl<B> self::pool::Closed for PoolClient<B>
 where
     B: 'static,
 {
-    fn is_closed(&self) -> bool {
-        self.tx.is_closed()
+    fn is_open(&self) -> bool {
+        self.tx.is_ready()
     }
 }
 

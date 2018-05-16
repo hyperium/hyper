@@ -18,7 +18,7 @@ pub struct Pool<T> {
 //
 // See https://github.com/hyperium/hyper/issues/1429
 pub trait Closed {
-    fn is_closed(&self) -> bool;
+    fn is_open(&self) -> bool;
 }
 
 struct PoolInner<T> {
@@ -77,7 +77,7 @@ impl<T: Closed> Pool<T> {
                 trace!("take; url = {:?}, expiration = {:?}", key, expiration.0);
                 while let Some(entry) = list.pop() {
                     if !expiration.expires(entry.idle_at) {
-                        if !entry.value.is_closed() {
+                        if entry.value.is_open() {
                             should_remove = list.is_empty();
                             return Some(entry);
                         }
@@ -205,7 +205,7 @@ impl<T: Closed> PoolInner<T> {
         self.idle.retain(|_key, values| {
 
             values.retain(|entry| {
-                if entry.value.is_closed() {
+                if !entry.value.is_open() {
                     return false;
                 }
                 now - entry.idle_at < dur
@@ -293,6 +293,11 @@ impl<T: Closed> DerefMut for Pooled<T> {
 impl<T: Closed> Drop for Pooled<T> {
     fn drop(&mut self) {
         if let Some(value) = self.value.take() {
+            if !value.is_open() {
+                // don't ever re-insert not-open connections back
+                // into the pool!
+                return;
+            }
             if let Some(inner) = self.pool.upgrade() {
                 if let Ok(mut inner) = inner.lock() {
                     inner.put(self.key.clone(), value);
@@ -331,7 +336,7 @@ impl<T: Closed> Checkout<T> {
         if let Some(ref mut rx) = self.parked {
             match rx.poll() {
                 Ok(Async::Ready(value)) => {
-                    if !value.is_closed() {
+                    if value.is_open() {
                         return Ok(Async::Ready(self.pool.reuse(&self.key, value)));
                     }
                     drop_parked = true;
@@ -434,8 +439,8 @@ mod tests {
     use super::{Closed, Pool};
 
     impl Closed for i32 {
-        fn is_closed(&self) -> bool {
-            false
+        fn is_open(&self) -> bool {
+            true
         }
     }
 
