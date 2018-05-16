@@ -1,3 +1,12 @@
+### v0.11.27 (2018-05-16)
+
+
+#### Bug Fixes
+
+* **client:** prevent pool checkout looping on not-ready connections ([ccec79da](https://github.com/hyperium/hyper/commit/ccec79dadc84f1e9fced9159189d9f8caa6e17a4), closes [#1519](https://github.com/hyperium/hyper/issues/1519))
+* **server:** skip SO_REUSEPORT errors ([2c48101a](https://github.com/hyperium/hyper/commit/2c48101a6ee1269d7c94a0c3e606b2d635b20615), closes [#1509](https://github.com/hyperium/hyper/issues/1509))
+
+
 ### v0.11.26 (2018-05-05)
 
 
