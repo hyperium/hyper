@@ -25,3 +25,5 @@ hyper makes use of "async IO" (non-blocking sockets) via the
 Be aware that hyper is still actively evolving towards 1.0, and is likely
 to experience breaking changes before stabilising. You can also see the
 [issues in the upcoming milestones](https://github.com/hyperium/hyper/milestones).
+Currently, the `examples/` directory relies on Hyper 0.12, which is the current
+development branch _not_ the version on crates.io.
