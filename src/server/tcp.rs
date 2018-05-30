@@ -215,8 +215,9 @@ mod addr_stream {
         }
 
         #[inline]
-        fn flush(&mut self ) -> io::Result<()> {
-            self.inner.flush()
+        fn flush(&mut self) -> io::Result<()> {
+            // TcpStream::flush is a noop, so skip calling it...
+            Ok(())
         }
     }
 
