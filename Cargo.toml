@@ -64,6 +64,10 @@ runtime = [
 nightly = []
 __internal_flaky_tests = []
 
+[profile.release]
+codegen-units = 1
+incremental = false
+
 [[example]]
 name = "client"
 path = "examples/client.rs"
