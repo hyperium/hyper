@@ -224,24 +224,6 @@ impl Body {
         Body::new(Kind::Wrapped(Box::new(mapped)))
     }
 
-    /// Returns if this body was constructed via `Body::empty()`.
-    ///
-    /// # Note
-    ///
-    /// This does **not** detect if the body stream may be at the end, or
-    /// if the stream will not yield any chunks, in all cases. For instance,
-    /// a streaming body using `chunked` encoding is not able to tell if
-    /// there are more chunks immediately.
-    ///
-    /// See [`is_end_stream`](Payload::is_end_stream) for a dynamic version.
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        match self.kind {
-            Kind::Empty => true,
-            _ => false,
-        }
-    }
-
     fn new(kind: Kind) -> Body {
         Body {
             kind: kind,

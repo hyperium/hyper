@@ -370,7 +370,7 @@ where C: Connect + Sync + 'static,
                         // It won't be ready if there is a body to stream.
                         if ver == Ver::Http2 || !pooled.is_pool_enabled() || pooled.is_ready() {
                             drop(pooled);
-                        } else if !res.body().is_empty() {
+                        } else if !res.body().is_end_stream() {
                             let (delayed_tx, delayed_rx) = oneshot::channel();
                             res.body_mut().delayed_eof(delayed_rx);
                             executor.execute(
