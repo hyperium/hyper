@@ -124,14 +124,13 @@ pub struct Body {
 }
 
 enum Kind {
+    Once(Option<Chunk>),
     Chan {
         _close_tx: oneshot::Sender<()>,
         rx: mpsc::Receiver<Result<Chunk, ::Error>>,
     },
     H2(h2::RecvStream),
     Wrapped(Box<Stream<Item=Chunk, Error=Box<::std::error::Error + Send + Sync>> + Send>),
-    Once(Option<Chunk>),
-    Empty,
 }
 
 type DelayEofUntil = oneshot::Receiver<Never>;
@@ -169,7 +168,7 @@ impl Body {
     /// ```
     #[inline]
     pub fn empty() -> Body {
-        Body::new(Kind::Empty)
+        Body::new(Kind::Once(None))
     }
 
     /// Create a `Body` stream with an associated sender half.
@@ -279,6 +278,7 @@ impl Body {
 
     fn poll_inner(&mut self) -> Poll<Option<Chunk>, ::Error> {
         match self.kind {
+            Kind::Once(ref mut val) => Ok(Async::Ready(val.take())),
             Kind::Chan { ref mut rx, .. } => match rx.poll().expect("mpsc cannot error") {
                 Async::Ready(Some(Ok(chunk))) => Ok(Async::Ready(Some(chunk))),
                 Async::Ready(Some(Err(err))) => Err(err),
@@ -297,8 +297,6 @@ impl Body {
                     .map_err(::Error::new_body)
             },
             Kind::Wrapped(ref mut s) => s.poll().map_err(::Error::new_body),
-            Kind::Once(ref mut val) => Ok(Async::Ready(val.take())),
-            Kind::Empty => Ok(Async::Ready(None)),
         }
     }
 }
@@ -328,22 +326,20 @@ impl Payload for Body {
 
     fn is_end_stream(&self) -> bool {
         match self.kind {
+            Kind::Once(ref val) => val.is_none(),
             Kind::Chan { .. } => false,
             Kind::H2(ref h2) => h2.is_end_stream(),
             Kind::Wrapped(..) => false,
-            Kind::Once(ref val) => val.is_none(),
-            Kind::Empty => true
         }
     }
 
     fn content_length(&self) -> Option<u64> {
         match self.kind {
+            Kind::Once(Some(ref val)) => Some(val.len() as u64),
+            Kind::Once(None) => Some(0),
             Kind::Chan { .. } => None,
             Kind::H2(..) => None,
             Kind::Wrapped(..) => None,
-            Kind::Once(Some(ref val)) => Some(val.len() as u64),
-            Kind::Once(None) => None,
-            Kind::Empty => Some(0)
         }
     }
 }
