@@ -1436,7 +1436,7 @@ mod tests {
         let len = 76;
         b.bytes = len as u64;
 
-        let head = MessageHead::default();
+        let mut head = MessageHead::default();
 
         b.iter(|| {
             let mut vec = Vec::new();
