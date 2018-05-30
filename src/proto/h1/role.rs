@@ -182,34 +182,6 @@ where
         }))
     }
 
-    /*
-    fn decoder(head: &MessageHead<Self::Incoming>, method: &mut Option<Method>) -> ::Result<Decode> {
-        *method = Some(head.subject.0.clone());
-        if head.headers.contains_key(TRANSFER_ENCODING) {
-            // https://tools.ietf.org/html/rfc7230#section-3.3.3
-            // If Transfer-Encoding header is present, and 'chunked' is
-            // not the final encoding, and this is a Request, then it is
-            // mal-formed. A server should respond with 400 Bad Request.
-            if head.version == Version::HTTP_10 {
-                debug!("HTTP/1.0 cannot have Transfer-Encoding header");
-                Err(::Error::new_header())
-            } else if headers::transfer_encoding_is_chunked(&head.headers) {
-                Ok(Decode::Normal(Decoder::chunked()))
-            } else {
-                debug!("request with transfer-encoding header, but not chunked, bad request");
-                Err(::Error::new_header())
-            }
-        } else if let Some(len) = headers::content_length_parse(&head.headers) {
-            Ok(Decode::Normal(Decoder::length(len)))
-        } else if head.headers.contains_key(CONTENT_LENGTH) {
-            debug!("illegal Content-Length header");
-            Err(::Error::new_header())
-        } else {
-            Ok(Decode::Normal(Decoder::length(0)))
-        }
-    }*/
-
-
     fn encode(mut msg: Encode<Self::Outgoing>, dst: &mut Vec<u8>) -> ::Result<Encoder> {
         trace!("Server::encode body={:?}, method={:?}", msg.body, msg.req_method);
         debug_assert!(!msg.title_case_headers, "no server config for title case headers");
@@ -463,6 +435,10 @@ where
 
     fn should_read_first() -> bool {
         true
+    }
+
+    fn update_date() {
+        date::update();
     }
 }
 

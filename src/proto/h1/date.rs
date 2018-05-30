@@ -9,12 +9,13 @@ pub const DATE_VALUE_LENGTH: usize = 29;
 
 pub fn extend(dst: &mut Vec<u8>) {
     CACHED.with(|cache| {
-        let mut cache = cache.borrow_mut();
-        let now = time::get_time();
-        if now > cache.next_update {
-            cache.update(now);
-        }
-        dst.extend_from_slice(cache.buffer());
+        dst.extend_from_slice(cache.borrow().buffer());
+    })
+}
+
+pub fn update() {
+    CACHED.with(|cache| {
+        cache.borrow_mut().check();
     })
 }
 
@@ -24,15 +25,28 @@ struct CachedDate {
     next_update: time::Timespec,
 }
 
-thread_local!(static CACHED: RefCell<CachedDate> = RefCell::new(CachedDate {
-    bytes: [0; DATE_VALUE_LENGTH],
-    pos: 0,
-    next_update: time::Timespec::new(0, 0),
-}));
+thread_local!(static CACHED: RefCell<CachedDate> = RefCell::new(CachedDate::new()));
 
 impl CachedDate {
+    fn new() -> Self {
+        let mut cache = CachedDate {
+            bytes: [0; DATE_VALUE_LENGTH],
+            pos: 0,
+            next_update: time::Timespec::new(0, 0),
+        };
+        cache.update(time::get_time());
+        cache
+    }
+
     fn buffer(&self) -> &[u8] {
         &self.bytes[..]
+    }
+
+    fn check(&mut self) {
+        let now = time::get_time();
+        if now > self.next_update {
+            self.update(now);
+        }
     }
 
     fn update(&mut self, now: time::Timespec) {

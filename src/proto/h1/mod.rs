@@ -36,6 +36,8 @@ pub(crate) trait Http1Transaction {
 
     fn should_error_on_parse_eof() -> bool;
     fn should_read_first() -> bool;
+
+    fn update_date() {}
 }
 
 pub(crate) type ParseResult<T> = Result<Option<ParsedMessage<T>>, ::error::Parse>;

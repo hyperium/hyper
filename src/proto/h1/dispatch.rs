@@ -89,6 +89,7 @@ where
     }
 
     fn poll_inner(&mut self, should_shutdown: bool) -> Poll<(), ::Error> {
+        T::update_date();
         loop {
             self.poll_read()?;
             self.poll_write()?;
