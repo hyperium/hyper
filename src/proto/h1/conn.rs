@@ -168,7 +168,7 @@ where I: AsyncRead + AsyncWrite,
             self.state.busy();
             if msg.expect_continue {
                 let cont = b"HTTP/1.1 100 Continue\r\n\r\n";
-                self.io.write_buf_mut().extend_from_slice(cont);
+                self.io.headers_buf().extend_from_slice(cont);
             }
             let wants_keep_alive = msg.keep_alive;
             self.state.keep_alive &= wants_keep_alive;
@@ -397,7 +397,7 @@ where I: AsyncRead + AsyncWrite,
 
         self.enforce_version(&mut head);
 
-        let buf = self.io.write_buf_mut();
+        let buf = self.io.headers_buf();
         self.state.writing = match T::encode(Encode {
             head: &mut head,
             body,
