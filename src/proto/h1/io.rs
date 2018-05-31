@@ -254,22 +254,12 @@ pub struct Cursor<T> {
 }
 
 impl<T: AsRef<[u8]>> Cursor<T> {
-    pub fn new(bytes: T) -> Cursor<T> {
+    #[inline]
+    pub(crate) fn new(bytes: T) -> Cursor<T> {
         Cursor {
             bytes: bytes,
             pos: 0,
         }
-    }
-
-    #[inline]
-    pub fn buf(&self) -> &[u8] {
-        &self.bytes.as_ref()[self.pos..]
-    }
-
-    #[inline]
-    pub fn consume(&mut self, num: usize) {
-        debug_assert!(self.pos + num <= self.bytes.as_ref().len());
-        self.pos += num;
     }
 }
 
@@ -299,12 +289,13 @@ impl<T: AsRef<[u8]>> Buf for Cursor<T> {
 
     #[inline]
     fn bytes(&self) -> &[u8] {
-        self.buf()
+        &self.bytes.as_ref()[self.pos..]
     }
 
     #[inline]
     fn advance(&mut self, cnt: usize) {
-        self.consume(cnt)
+        debug_assert!(self.pos + cnt <= self.bytes.as_ref().len());
+        self.pos += cnt;
     }
 }
 
