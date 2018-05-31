@@ -290,7 +290,8 @@ impl Body {
                     .map(|async| {
                         async.map(|opt| {
                             opt.map(|bytes| {
-                                Chunk::h2(bytes, h2.release_capacity())
+                                let _ = h2.release_capacity().release_capacity(bytes.len());
+                                Chunk::from(bytes)
                             })
                         })
                     })

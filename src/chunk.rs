@@ -1,23 +1,16 @@
 use std::fmt;
 
 use bytes::{Buf, Bytes};
-use h2::ReleaseCapacity;
 
 /// A piece of a message body.
 ///
-/// These are returned by [`Body`](::Body). It is an efficient buffer type,
-/// and wraps auto-management of flow control in the case of HTTP2 messages.
+/// These are returned by [`Body`](::Body). It is an efficient buffer type.
 ///
 /// A `Chunk` can be easily created by many of Rust's standard types that
 /// represent a collection of bytes, using `Chunk::from`.
 pub struct Chunk {
     /// The buffer of bytes making up this body.
     bytes: Bytes,
-    /// A possible HTTP2 marker to ensure we release window capacity.
-    ///
-    /// This version just automatically releases all capacity when `Chunk`
-    /// is dropped.
-    _flow_control: Option<AutoRelease>,
 }
 
 // An unexported type to prevent locking `Chunk::into_iter()` to `Bytes::into_iter()`.
@@ -26,29 +19,8 @@ pub struct IntoIter {
     inner: <Bytes as IntoIterator>::IntoIter,
 }
 
-struct AutoRelease {
-    cap: usize,
-    release: ReleaseCapacity,
-}
-
-impl Drop for AutoRelease {
-    fn drop(&mut self) {
-        let _ = self.release.release_capacity(self.cap);
-    }
-}
 
 impl Chunk {
-    pub(crate) fn h2(bytes: Bytes, rel_cap: &ReleaseCapacity) -> Chunk {
-        let cap = bytes.len();
-        Chunk {
-            bytes: bytes,
-            _flow_control: Some(AutoRelease {
-                cap: cap,
-                release: rel_cap.clone(),
-            }),
-        }
-    }
-
     /// Converts this `Chunk` directly into the `Bytes` type without copies.
     ///
     /// This is simply an inherent alias for `Bytes::from(chunk)`, which exists,
@@ -109,7 +81,6 @@ impl From<Bytes> for Chunk {
     fn from(bytes: Bytes) -> Chunk {
         Chunk {
             bytes: bytes,
-            _flow_control: None,
         }
     }
 }
