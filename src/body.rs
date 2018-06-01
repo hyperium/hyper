@@ -114,6 +114,11 @@ impl<E: Payload> Payload for Box<E> {
     fn content_length(&self) -> Option<u64> {
         (**self).content_length()
     }
+
+    #[doc(hidden)]
+    fn __hyper_full_data(&mut self, arg: FullDataArg) -> FullDataRet<Self::Data> {
+        (**self).__hyper_full_data(arg)
+    }
 }
 
 
@@ -358,6 +363,7 @@ impl Payload for Body {
     }
 
     // We can improve the performance of `Body` when we know it is a Once kind.
+    #[doc(hidden)]
     fn __hyper_full_data(&mut self, _: FullDataArg) -> FullDataRet<Self::Data> {
         match self.kind {
             Kind::Once(ref mut val) => FullDataRet(val.take()),
