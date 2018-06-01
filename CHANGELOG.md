@@ -1,3 +1,53 @@
+### v0.11.27 (2018-05-16)
+
+
+#### Bug Fixes
+
+* **client:** prevent pool checkout looping on not-ready connections ([ccec79da](https://github.com/hyperium/hyper/commit/ccec79dadc84f1e9fced9159189d9f8caa6e17a4), closes [#1519](https://github.com/hyperium/hyper/issues/1519))
+* **server:** skip SO_REUSEPORT errors ([2c48101a](https://github.com/hyperium/hyper/commit/2c48101a6ee1269d7c94a0c3e606b2d635b20615), closes [#1509](https://github.com/hyperium/hyper/issues/1509))
+
+
+### v0.11.26 (2018-05-05)
+
+
+#### Features
+
+* **server:** add Server::run_threads to run on multiple threads ([8b644c1a](https://github.com/hyperium/hyper/commit/8b644c1a2a1a629be9b263d8fae5963a61af91cd))
+
+
+### v0.11.25 (2018-04-04)
+
+
+#### Bug Fixes
+
+* **client:** ensure idle connection is pooled before response body finishes ([7fe9710a](https://github.com/hyperium/hyper/commit/7fe9710a98650efc37f35bb21b19926c015f0631))
+
+
+### v0.11.24 (2018-03-22)
+
+
+#### Bug Fixes
+
+* **header:** remove charset=utf8 from `ContentType::text()` ([ba789e65](https://github.com/hyperium/hyper/commit/ba789e6552eb74afb98f4d462d5c06c6643535d3))
+
+
+### v0.11.23 (2018-03-22)
+
+
+#### Bug Fixes
+
+* **server:** prevent to output Transfer-encoding when server upgrade (#1465) ([eb105679](https://github.com/hyperium/hyper/commit/eb105679271a6e0ccc09f37978314a1a8d686217))
+
+
+#### Features
+
+* **client:** introduce lower-level Connection API ([1207c2b6](https://github.com/hyperium/hyper/commit/1207c2b62456fc729c3a29c56c3966b319b474a9), closes [#1449](https://github.com/hyperium/hyper/issues/1449))
+* **header:** add `text()` and `text_utf8()` constructors to `ContentType` ([45cf8c57](https://github.com/hyperium/hyper/commit/45cf8c57c932a2756365748dc1e598ad3ee4b8ef))
+* **server:**
+  * add `service` property to `server::conn::Parts` ([bf7c0bbf](https://github.com/hyperium/hyper/commit/bf7c0bbf4f55fdf465407874b0b2d4bd748e6783), closes [#1471](https://github.com/hyperium/hyper/issues/1471))
+    * add upgrade support to lower-level Connection API (#1459) ([d58aa732](https://github.com/hyperium/hyper/commit/d58aa73246112f69410cc3fe912622f284427067), closes [#1323](https://github.com/hyperium/hyper/issues/1323))
+
+
 ### v0.11.22 (2018-03-07)
 
 
