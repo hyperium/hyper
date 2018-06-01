@@ -32,7 +32,7 @@ use error::{Kind, Parse};
 ///
 /// This structure is used to configure options for an HTTP server connection.
 ///
-/// If don't have need to manage connections yourself, consider using the
+/// If you don't have need to manage connections yourself, consider using the
 /// higher-level [Server](super) API.
 #[derive(Clone, Debug)]
 pub struct Http {
@@ -54,7 +54,7 @@ pub struct Serve<I, S> {
     protocol: Http,
 }
 
-/// A future binding a `Service` to a `Connection`.
+/// A future building a new `Service` to a `Connection`.
 ///
 /// Wraps the future returned from `NewService` into one that returns
 /// a `Connection`.
