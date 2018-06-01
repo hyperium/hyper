@@ -4,6 +4,7 @@ use http::{Request, Response, StatusCode};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use body::{Body, Payload};
+use body::internal::FullDataArg;
 use proto::{BodyLength, Conn, MessageHead, RequestHead, RequestLine, ResponseHead};
 use super::Http1Transaction;
 use service::Service;
@@ -20,7 +21,7 @@ pub(crate) trait Dispatch {
     type PollItem;
     type PollBody;
     type RecvItem;
-    fn poll_msg(&mut self) -> Poll<Option<(Self::PollItem, Option<Self::PollBody>)>, ::Error>;
+    fn poll_msg(&mut self) -> Poll<Option<(Self::PollItem, Self::PollBody)>, ::Error>;
     fn recv_msg(&mut self, msg: ::Result<(Self::RecvItem, Body)>) -> ::Result<()>;
     fn poll_ready(&mut self) -> Poll<(), ()>;
     fn should_poll(&self) -> bool;
@@ -222,14 +223,26 @@ where
             if self.is_closing {
                 return Ok(Async::Ready(()));
             } else if self.body_rx.is_none() && self.conn.can_write_head() && self.dispatch.should_poll() {
-                if let Some((head, body)) = try_ready!(self.dispatch.poll_msg()) {
-                    let body_type = body.as_ref().map(|body| {
-                        body.content_length()
+                if let Some((head, mut body)) = try_ready!(self.dispatch.poll_msg()) {
+                    // Check if the body knows its full data immediately.
+                    //
+                    // If so, we can skip a bit of bookkeeping that streaming
+                    // bodies need to do.
+                    if let Some(full) = body.__hyper_full_data(FullDataArg(())).0 {
+                        self.conn.write_full_msg(head, full);
+                        return Ok(Async::Ready(()));
+                    }
+                    let body_type = if body.is_end_stream() {
+                        self.body_rx = None;
+                        None
+                    } else {
+                        let btype = body.content_length()
                             .map(BodyLength::Known)
-                            .unwrap_or(BodyLength::Unknown)
-                    });
+                            .or_else(|| Some(BodyLength::Unknown));
+                        self.body_rx = Some(body);
+                        btype
+                    };
                     self.conn.write_head(head, body_type);
-                    self.body_rx = body;
                 } else {
                     self.close();
                     return Ok(Async::Ready(()));
@@ -349,7 +362,7 @@ where
     type PollBody = Bs;
     type RecvItem = RequestHead;
 
-    fn poll_msg(&mut self) -> Poll<Option<(Self::PollItem, Option<Self::PollBody>)>, ::Error> {
+    fn poll_msg(&mut self) -> Poll<Option<(Self::PollItem, Self::PollBody)>, ::Error> {
         if let Some(mut fut) = self.in_flight.take() {
             let resp = match fut.poll().map_err(::Error::new_user_service)? {
                 Async::Ready(res) => res,
@@ -363,11 +376,6 @@ where
                 version: parts.version,
                 subject: parts.status,
                 headers: parts.headers,
-            };
-            let body = if body.is_end_stream() {
-                None
-            } else {
-                Some(body)
             };
             Ok(Async::Ready(Some((head, body))))
         } else {
@@ -419,7 +427,7 @@ where
     type PollBody = B;
     type RecvItem = ResponseHead;
 
-    fn poll_msg(&mut self) -> Poll<Option<(Self::PollItem, Option<Self::PollBody>)>, ::Error> {
+    fn poll_msg(&mut self) -> Poll<Option<(Self::PollItem, Self::PollBody)>, ::Error> {
         match self.rx.poll() {
             Ok(Async::Ready(Some((req, mut cb)))) => {
                 // check that future hasn't been canceled already
@@ -434,12 +442,6 @@ where
                             version: parts.version,
                             subject: RequestLine(parts.method, parts.uri),
                             headers: parts.headers,
-                        };
-
-                        let body = if body.is_end_stream() {
-                            None
-                        } else {
-                            Some(body)
                         };
                         self.callback = Some(cb);
                         Ok(Async::Ready(Some((head, body))))

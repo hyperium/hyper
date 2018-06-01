@@ -26,7 +26,10 @@ use http::HeaderMap;
 use common::Never;
 pub use chunk::Chunk;
 
+use self::internal::{FullDataArg, FullDataRet};
+
 type BodySender = mpsc::Sender<Result<Chunk, ::Error>>;
+
 
 /// This trait represents a streaming body of a `Request` or `Response`.
 ///
@@ -79,6 +82,16 @@ pub trait Payload: Send + 'static {
     /// called once to create the headers.
     fn content_length(&self) -> Option<u64> {
         None
+    }
+
+    // This API is unstable, and is impossible to use outside of hyper. Some
+    // form of it may become stable in a later version.
+    //
+    // The only thing a user *could* do is reference the method, but DON'T
+    // DO THAT! :)
+    #[doc(hidden)]
+    fn __hyper_full_data(&mut self, FullDataArg) -> FullDataRet<Self::Data> {
+        FullDataRet(None)
     }
 }
 
@@ -343,6 +356,14 @@ impl Payload for Body {
             Kind::Wrapped(..) => None,
         }
     }
+
+    // We can improve the performance of `Body` when we know it is a Once kind.
+    fn __hyper_full_data(&mut self, _: FullDataArg) -> FullDataRet<Self::Data> {
+        match self.kind {
+            Kind::Once(ref mut val) => FullDataRet(val.take()),
+            _ => FullDataRet(None),
+        }
+    }
 }
 
 impl Stream for Body {
@@ -467,6 +488,22 @@ impl From<Cow<'static, str>> for Body {
             Cow::Owned(o) => Body::from(o)
         }
     }
+}
+
+// The full_data API is not stable, so these types are to try to prevent
+// users from being able to:
+//
+// - Implment `__hyper_full_data` on their own Payloads.
+// - Call `__hyper_full_data` on any Payload.
+//
+// That's because to implement it, they need to name these types, and
+// they can't because they aren't exported. And to call it, they would
+// need to create one of these values, which they also can't.
+pub(crate) mod internal {
+    #[allow(missing_debug_implementations)]
+    pub struct FullDataArg(pub(crate) ());
+    #[allow(missing_debug_implementations)]
+    pub struct FullDataRet<B>(pub(crate) Option<B>);
 }
 
 fn _assert_send_sync() {

@@ -431,6 +431,11 @@ where
             };
         }
 
+        if !Server::can_have_body(msg.req_method, msg.head.subject) {
+            trace!("body not allowed for {:?} {:?}", msg.req_method, msg.head.subject);
+            encoder = Encoder::length(0);
+        }
+
         // cached date is much faster than formatting every request
         if !wrote_date {
             dst.reserve(date::DATE_VALUE_LENGTH + 8);
@@ -479,41 +484,9 @@ where
 }
 
 impl Server<()> {
-    /*
-    fn set_length(head: &mut MessageHead<StatusCode>, body: Option<BodyLength>, method: Option<&Method>) -> Encoder {
-        // these are here thanks to borrowck
-        // `if method == Some(&Method::Get)` says the RHS doesn't live long enough
-        const HEAD: Option<&'static Method> = Some(&Method::HEAD);
-        const CONNECT: Option<&'static Method> = Some(&Method::CONNECT);
-
-        let can_have_body = {
-            if method == HEAD {
-                false
-            } else if method == CONNECT && head.subject.is_success() {
-                false
-            } else {
-                match head.subject {
-                    // TODO: support for 1xx codes needs improvement everywhere
-                    // would be 100...199 => false
-                    StatusCode::SWITCHING_PROTOCOLS |
-                    StatusCode::NO_CONTENT |
-                    StatusCode::NOT_MODIFIED => false,
-                    _ => true,
-                }
-            }
-        };
-
-        if let (Some(body), true) = (body, can_have_body) {
-            set_length(&mut head.headers, body, head.version == Version::HTTP_11)
-        } else {
-            head.headers.remove(header::TRANSFER_ENCODING);
-            if can_have_body {
-                headers::content_length_zero(&mut head.headers);
-            }
-            Encoder::length(0)
-        }
+    fn can_have_body(method: &Option<Method>, status: StatusCode) -> bool {
+        Server::can_chunked(method, status)
     }
-    */
 
     fn can_chunked(method: &Option<Method>, status: StatusCode) -> bool {
         if method == &Some(Method::HEAD) {

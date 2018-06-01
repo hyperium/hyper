@@ -388,7 +388,35 @@ where I: AsyncRead + AsyncWrite,
         self.io.can_buffer()
     }
 
-    pub fn write_head(&mut self, mut head: MessageHead<T::Outgoing>, body: Option<BodyLength>) {
+    pub fn write_head(&mut self, head: MessageHead<T::Outgoing>, body: Option<BodyLength>) {
+        if let Some(encoder) = self.encode_head(head, body) {
+            self.state.writing = if !encoder.is_eof() {
+                Writing::Body(encoder)
+            } else if encoder.is_last() {
+                Writing::Closed
+            } else {
+                Writing::KeepAlive
+            };
+        }
+    }
+
+    pub fn write_full_msg(&mut self, head: MessageHead<T::Outgoing>, body: B) {
+        if let Some(encoder) = self.encode_head(head, Some(BodyLength::Known(body.remaining() as u64))) {
+            let is_last = encoder.is_last();
+            // Make sure we don't write a body if we weren't actually allowed
+            // to do so, like because its a HEAD request.
+            if !encoder.is_eof() {
+                encoder.danger_full_buf(body, self.io.write_buf());
+            }
+            self.state.writing = if is_last {
+                Writing::Closed
+            } else {
+                Writing::KeepAlive
+            }
+        }
+    }
+
+    fn encode_head(&mut self, mut head: MessageHead<T::Outgoing>, body: Option<BodyLength>) -> Option<Encoder> {
         debug_assert!(self.can_write_head());
 
         if !T::should_read_first() {
@@ -398,7 +426,7 @@ where I: AsyncRead + AsyncWrite,
         self.enforce_version(&mut head);
 
         let buf = self.io.headers_buf();
-        self.state.writing = match T::encode(Encode {
+        match T::encode(Encode {
             head: &mut head,
             body,
             keep_alive: self.state.wants_keep_alive(),
@@ -409,19 +437,14 @@ where I: AsyncRead + AsyncWrite,
                 debug_assert!(self.state.cached_headers.is_none());
                 debug_assert!(head.headers.is_empty());
                 self.state.cached_headers = Some(head.headers);
-                if !encoder.is_eof() {
-                    Writing::Body(encoder)
-                } else if encoder.is_last() {
-                    Writing::Closed
-                } else {
-                    Writing::KeepAlive
-                }
+                Some(encoder)
             },
             Err(err) => {
                 self.state.error = Some(err);
-                Writing::Closed
-            }
-        };
+                self.state.writing = Writing::Closed;
+                None
+            },
+        }
     }
 
     // If we know the remote speaks an older version, we try to fix up any messages
@@ -474,8 +497,7 @@ where I: AsyncRead + AsyncWrite,
 
         let state = match self.state.writing {
             Writing::Body(ref encoder) => {
-                let (encoded, can_keep_alive) = encoder.encode_and_end(chunk);
-                self.io.buffer(encoded);
+                let can_keep_alive = encoder.encode_and_end(chunk, self.io.write_buf());
                 if can_keep_alive {
                     Writing::KeepAlive
                 } else {

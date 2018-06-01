@@ -481,6 +481,35 @@ fn head_response_can_send_content_length() {
 }
 
 #[test]
+fn head_response_doesnt_send_body() {
+    extern crate pretty_env_logger;
+    let _ = pretty_env_logger::try_init();
+    let foo_bar = b"foo bar baz";
+    let server = serve();
+    server.reply()
+        .body(foo_bar);
+    let mut req = connect(server.addr());
+    req.write_all(b"\
+        HEAD / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: close\r\n\
+        \r\n\
+    ").unwrap();
+
+    let mut response = String::new();
+    req.read_to_string(&mut response).unwrap();
+
+    assert!(response.contains("content-length: 11\r\n"));
+
+    let mut lines = response.lines();
+    assert_eq!(lines.next(), Some("HTTP/1.1 200 OK"));
+
+    let mut lines = lines.skip_while(|line| !line.is_empty());
+    assert_eq!(lines.next(), Some(""));
+    assert_eq!(lines.next(), None);
+}
+
+#[test]
 fn response_does_not_set_chunked_if_body_not_allowed() {
     extern crate pretty_env_logger;
     let _ = pretty_env_logger::try_init();

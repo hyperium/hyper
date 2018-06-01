@@ -5,6 +5,7 @@ use bytes::buf::{Chain, Take};
 use iovec::IoVec;
 
 use common::StaticBuf;
+use super::io::WriteBuf;
 
 /// Encoders to handle different Transfer-Encodings.
 #[derive(Debug, Clone, PartialEq)]
@@ -126,7 +127,7 @@ impl Encoder {
         }
     }
 
-    pub fn encode_and_end<B>(&self, msg: B) -> (EncodedBuf<B::Buf>, bool)
+    pub(super) fn encode_and_end<B>(&self, msg: B, dst: &mut WriteBuf<EncodedBuf<B::Buf>>) -> bool
     where
         B: IntoBuf,
     {
@@ -134,13 +135,14 @@ impl Encoder {
         let len = msg.remaining();
         debug_assert!(len > 0, "encode() called with empty buf");
 
-        let (kind, eof) = match self.kind {
+        match self.kind {
             Kind::Chunked => {
                 trace!("encoding chunked {}B", len);
                 let buf = ChunkSize::new(len)
                     .chain(msg)
                     .chain(StaticBuf(b"\r\n0\r\n\r\n"));
-                (BufKind::Chunked(buf), !self.is_last)
+                dst.buffer(buf);
+                !self.is_last
             },
             Kind::Length(remaining) => {
                 use std::cmp::Ordering;
@@ -148,25 +150,56 @@ impl Encoder {
                 trace!("sized write, len = {}", len);
                 match (len as u64).cmp(&remaining) {
                     Ordering::Equal => {
-                        (BufKind::Exact(msg), !self.is_last)
+                        dst.buffer(msg);
+                        !self.is_last
                     },
                     Ordering::Greater => {
-                        (BufKind::Limited(msg.take(remaining as usize)), !self.is_last)
+                        dst.buffer(msg.take(remaining as usize));
+                        !self.is_last
                     },
                     Ordering::Less => {
-                        (BufKind::Exact(msg), false)
+                        dst.buffer(msg);
+                        false
                     }
                 }
             },
             Kind::CloseDelimited => {
                 trace!("close delimited write {}B", len);
-                (BufKind::Exact(msg), false)
+                dst.buffer(msg);
+                false
             }
-        };
+        }
+    }
 
-        (EncodedBuf {
-            kind,
-        }, eof)
+    /// Encodes the full body, without verifying the remaining length matches.
+    ///
+    /// This is used in conjunction with Payload::__hyper_full_data(), which
+    /// means we can trust that the buf has the correct size (the buf itself
+    /// was checked to make the headers).
+    pub(super) fn danger_full_buf<B>(self, msg: B, dst: &mut WriteBuf<EncodedBuf<B::Buf>>)
+    where
+        B: IntoBuf,
+    {
+        let msg = msg.into_buf();
+        debug_assert!(msg.remaining() > 0, "encode() called with empty buf");
+        debug_assert!(match self.kind {
+            Kind::Length(len) => len == msg.remaining() as u64,
+            _ => true,
+        }, "danger_full_buf length mismatches");
+
+        match self.kind {
+            Kind::Chunked => {
+                let len = msg.remaining();
+                trace!("encoding chunked {}B", len);
+                let buf = ChunkSize::new(len)
+                    .chain(msg)
+                    .chain(StaticBuf(b"\r\n0\r\n\r\n"));
+                dst.buffer(buf);
+            },
+            _ => {
+                dst.buffer(msg);
+            },
+        }
     }
 }
 
@@ -280,6 +313,30 @@ impl fmt::Write for ChunkSize {
             .expect("&mut [u8].write() cannot error");
         self.len += num.len() as u8; // safe because bytes is never bigger than 256
         Ok(())
+    }
+}
+
+impl<B: Buf> From<B> for EncodedBuf<B> {
+    fn from(buf: B) -> Self {
+        EncodedBuf {
+            kind: BufKind::Exact(buf),
+        }
+    }
+}
+
+impl<B: Buf> From<Take<B>> for EncodedBuf<B> {
+    fn from(buf: Take<B>) -> Self {
+        EncodedBuf {
+            kind: BufKind::Limited(buf),
+        }
+    }
+}
+
+impl<B: Buf> From<Chain<Chain<ChunkSize, B>, StaticBuf>> for EncodedBuf<B> {
+    fn from(buf: Chain<Chain<ChunkSize, B>, StaticBuf>) -> Self {
+        EncodedBuf {
+            kind: BufKind::Chunked(buf),
+        }
     }
 }
 

@@ -99,7 +99,11 @@ where
         &mut buf.bytes
     }
 
-    pub fn buffer(&mut self, buf: B) {
+    pub(super) fn write_buf(&mut self) -> &mut WriteBuf<B> {
+        &mut self.write_buf
+    }
+
+    pub fn buffer<BB: Buf + Into<B>>(&mut self, buf: BB) {
         self.write_buf.buffer(buf)
     }
 
@@ -300,7 +304,7 @@ impl<T: AsRef<[u8]>> Buf for Cursor<T> {
 }
 
 // an internal buffer to collect writes before flushes
-struct WriteBuf<B> {
+pub(super) struct WriteBuf<B> {
     /// Re-usable buffer that holds message headers
     headers: Cursor<Vec<u8>>,
     max_buf_size: usize,
@@ -334,7 +338,7 @@ where
         WriteBufAuto::new(self)
     }
 
-    fn buffer(&mut self, buf: B) {
+    pub(super) fn buffer<BB: Buf + Into<B>>(&mut self, buf: BB) {
         debug_assert!(buf.has_remaining());
         match self.strategy {
             Strategy::Flatten => {
@@ -342,7 +346,7 @@ where
                 head.bytes.put(buf);
             },
             Strategy::Auto | Strategy::Queue => {
-                self.queue.bufs.push_back(buf);
+                self.queue.bufs.push_back(buf.into());
             },
         }
     }
