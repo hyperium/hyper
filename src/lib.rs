@@ -57,7 +57,6 @@ mod common;
 #[cfg(test)]
 mod mock;
 pub mod body;
-mod chunk;
 pub mod client;
 pub mod error;
 mod headers;
