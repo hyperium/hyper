@@ -43,7 +43,8 @@ where
             let mut headers: [httparse::Header; MAX_HEADERS] = unsafe { mem::uninitialized() };
             trace!("Request.parse([Header; {}], [u8; {}])", headers.len(), buf.len());
             let mut req = httparse::Request::new(&mut headers);
-            match req.parse(&buf)? {
+            let bytes = buf.as_ref();
+            match req.parse(bytes)? {
                 httparse::Status::Complete(len) => {
                     trace!("Request.parse Complete({})", len);
                     let method = Method::from_bytes(req.method.unwrap().as_bytes())?;
@@ -55,7 +56,7 @@ where
                         Version::HTTP_10
                     };
 
-                    record_header_indices(buf.as_ref(), &req.headers, &mut headers_indices);
+                    record_header_indices(bytes, &req.headers, &mut headers_indices);
                     let headers_len = req.headers.len();
                     (len, subject, version, headers_len)
                 }
@@ -550,7 +551,7 @@ where
             trace!("Response.parse([Header; {}], [u8; {}])", headers.len(), buf.len());
             let mut res = httparse::Response::new(&mut headers);
             let bytes = buf.as_ref();
-            match try!(res.parse(bytes)) {
+            match res.parse(bytes)? {
                 httparse::Status::Complete(len) => {
                     trace!("Response.parse Complete({})", len);
                     let status = StatusCode::from_u16(res.code.unwrap())?;
