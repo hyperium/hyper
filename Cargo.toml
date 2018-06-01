@@ -1,7 +1,7 @@
 [package]
 
 name = "hyper"
-version = "0.12.0-pre.0" # don't forget to update html_root_url
+version = "0.12.0" # don't forget to update html_root_url
 description = "A fast and correct HTTP library."
 readme = "README.md"
 homepage = "https://hyper.rs"
@@ -11,8 +11,6 @@ license = "MIT"
 authors = ["Sean McArthur <sean@seanmonstar.com>"]
 keywords = ["http", "hyper", "hyperium"]
 categories = ["network-programming", "web-programming::http-client", "web-programming::http-server"]
-
-publish = false # pre
 
 include = [
   "Cargo.toml",

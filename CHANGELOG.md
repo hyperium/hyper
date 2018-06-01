@@ -1,3 +1,130 @@
+## v0.12.0 (2018-06-01)
+
+
+#### Bug Fixes
+
+* **lib:** remove deprecated tokio-proto APIs ([a37e6b59](https://github.com/hyperium/hyper/commit/a37e6b59e6d6936ee31c6d52939869933c709c78))
+* **server:** panic on max_buf_size too small ([aac250f2](https://github.com/hyperium/hyper/commit/aac250f29d3b05d8c07681a407825811ec6a0b56))
+
+
+#### Features
+
+* **body:**
+  * remove `Body::is_empty()` ([19f90242](https://github.com/hyperium/hyper/commit/19f90242f8a3768b2d8d4bff4044a2d6c77d40aa))
+  * change `Payload::Data` to be a `Buf` ([a3be110a](https://github.com/hyperium/hyper/commit/a3be110a55571a1ee9a31b2335d7aec27c04e96a), closes [#1508](https://github.com/hyperium/hyper/issues/1508))
+  * add From<Box<Stream>> impl for Body ([45efba27](https://github.com/hyperium/hyper/commit/45efba27df90650bf4669738102ad6e432ddc75d))
+  * introduce a `Payload` trait to represent bodies ([fbc449e4](https://github.com/hyperium/hyper/commit/fbc449e49cc4a4f8319647dccfb288d3d83df2bd), closes [#1438](https://github.com/hyperium/hyper/issues/1438))
+* **client:**
+  * rename `FutureResponse` to `ResponseFuture` ([04c74ef5](https://github.com/hyperium/hyper/commit/04c74ef596eb313b785ecad6c42c0375ddbb1e96))
+  * support local bind for `HttpConnector` ([b6a3c85d](https://github.com/hyperium/hyper/commit/b6a3c85d0f9ede10759dc2309502e88ea3e513f7), closes [#1498](https://github.com/hyperium/hyper/issues/1498))
+  * add support for title case header names (#1497) ([a02fec8c](https://github.com/hyperium/hyper/commit/a02fec8c7898792cbeadde7e0f5bf111d55dd335), closes [#1492](https://github.com/hyperium/hyper/issues/1492))
+  * add support to set `SO_NODELAY` on client HTTP sockets ([016d79ed](https://github.com/hyperium/hyper/commit/016d79ed2633e3f939a2cd10454cbfc5882effb4), closes [#1473](https://github.com/hyperium/hyper/issues/1473))
+  * improve construction of `Client`s ([fe1578ac](https://github.com/hyperium/hyper/commit/fe1578acf628844d7cccb3e896c5e0bb2a0be729))
+  * redesign the `Connect` trait ([8c52c2df](https://github.com/hyperium/hyper/commit/8c52c2dfd342e798420a0b83cde7d54f3af5e351), closes [#1428](https://github.com/hyperium/hyper/issues/1428))
+* **error:** revamp `hyper::Error` type ([5d3c4722](https://github.com/hyperium/hyper/commit/5d3c472228d40b57e47ea26004b3710cfdd451f3), closes [#1128](https://github.com/hyperium/hyper/issues/1128), [#1130](https://github.com/hyperium/hyper/issues/1130), [#1431](https://github.com/hyperium/hyper/issues/1431), [#1338](https://github.com/hyperium/hyper/issues/1338))
+* **http2:** add HTTP/2 support for Client and Server ([c119097f](https://github.com/hyperium/hyper/commit/c119097fd072db51751b100fa186b6f64785954d))
+* **lib:**
+  * convert to use tokio 0.1 ([27b8db3a](https://github.com/hyperium/hyper/commit/27b8db3af8852ba8280a2868f703d3230a1db85e))
+  * replace types with those from http crate ([3cd48b45](https://github.com/hyperium/hyper/commit/3cd48b45fb622fb9e69ba773e7f92b9d3e9ac018))
+* **rt:** make tokio runtime optional ([d127201e](https://github.com/hyperium/hyper/commit/d127201ef22b10ab1d84b3f2215863eb2d03bfcb))
+* **server:**
+  * support HTTP1 and HTTP2 automatically ([bc6af88a](https://github.com/hyperium/hyper/commit/bc6af88a32e29e5a4f3719d8abc664f9ab10dddd), closes [#1486](https://github.com/hyperium/hyper/issues/1486))
+  * re-design `Server` as higher-level API ([c4974500](https://github.com/hyperium/hyper/commit/c4974500abee45b95b0b54109cad15978ef8ced9), closes [#1322](https://github.com/hyperium/hyper/issues/1322), [#1263](https://github.com/hyperium/hyper/issues/1263))
+* **service:** introduce hyper-specific `Service` ([2dc6202f](https://github.com/hyperium/hyper/commit/2dc6202fe7294fa74cf1ba58a45e48b8a927934f), closes [#1461](https://github.com/hyperium/hyper/issues/1461))
+
+
+#### Breaking Changes
+
+* `Body::is_empty()` is gone. Replace with
+  `Body::is_end_stream()`, from the `Payload` trait.
+
+ ([19f90242](https://github.com/hyperium/hyper/commit/19f90242f8a3768b2d8d4bff4044a2d6c77d40aa))
+* Each payload chunk must implement `Buf`, instead of
+  just `AsRef<[u8]>`.
+
+ ([a3be110a](https://github.com/hyperium/hyper/commit/a3be110a55571a1ee9a31b2335d7aec27c04e96a))
+* Replace any references of
+  `hyper::client::FutureResponse` to `hyper::client::ResponseFuture`.
+
+ ([04c74ef5](https://github.com/hyperium/hyper/commit/04c74ef596eb313b785ecad6c42c0375ddbb1e96))
+* The `Service` trait has changed: it has some changed
+  associated types, and `call` is now bound to `&mut self`.
+
+  The `NewService` trait has changed: it has some changed associated
+  types, and `new_service` now returns a `Future`.
+
+  `Client` no longer implements `Service` for now.
+
+  `hyper::server::conn::Serve` now returns `Connecting` instead of
+  `Connection`s, since `new_service` can now return a `Future`. The
+  `Connecting` is a future wrapping the new service future, returning
+  a `Connection` afterwards. In many cases, `Future::flatten` can be
+  used.
+
+ ([2dc6202f](https://github.com/hyperium/hyper/commit/2dc6202fe7294fa74cf1ba58a45e48b8a927934f))
+* The `Server` is no longer created from `Http::bind`,
+  nor is it `run`. It is a `Future` that must be polled by an
+  `Executor`.
+
+  The `hyper::server::Http` type has move to
+  `hyper::server::conn::Http`.
+
+ ([c4974500](https://github.com/hyperium/hyper/commit/c4974500abee45b95b0b54109cad15978ef8ced9))
+* `Client:new(&handle)` and `Client::configure()` are now
+  `Client::new()` and `Client::builder()`.
+
+ ([fe1578ac](https://github.com/hyperium/hyper/commit/fe1578acf628844d7cccb3e896c5e0bb2a0be729))
+* `Error` is no longer an enum to pattern match over, or
+  to construct. Code will need to be updated accordingly.
+
+  For body streams or `Service`s, inference might be unable to determine
+  what error type you mean to return. Starting in Rust 1.26, you could
+  just label that as `!` if you never return an error.
+
+ ([5d3c4722](https://github.com/hyperium/hyper/commit/5d3c472228d40b57e47ea26004b3710cfdd451f3))
+* All uses of `Handle` now need to be new-tokio `Handle`.
+
+ ([27b8db3a](https://github.com/hyperium/hyper/commit/27b8db3af8852ba8280a2868f703d3230a1db85e))
+* Custom connectors should now implement `Connect`
+  directly, instead of `Service`.
+
+  Calls to `connect` no longer take `Uri`s, but `Destination`. There
+  are `scheme`, `host`, and `port` methods to query relevant
+  information.
+
+  The returned future must be a tuple of the transport and `Connected`.
+  If no relevant extra information is needed, simply return
+  `Connected::new()`.
+
+ ([8c52c2df](https://github.com/hyperium/hyper/commit/8c52c2dfd342e798420a0b83cde7d54f3af5e351))
+* All code that was assuming the body was a `Stream` must
+  be adjusted to use a `Payload` instead.
+
+  `hyper::Body` can still be used as a `Stream`.
+
+  Passing a custom `impl Stream` will need to either implement
+  `Payload`, or as an easier option, switch to `Body::wrap_stream`.
+
+  `Body::pair` has been replaced with `Body::channel`, which returns a
+  `hyper::body::Sender` instead of a `futures::sync::mpsc::Sender`.
+
+ ([fbc449e4](https://github.com/hyperium/hyper/commit/fbc449e49cc4a4f8319647dccfb288d3d83df2bd))
+* `Method`, `Request`, `Response`, `StatusCode`,
+  `Version`, and `Uri` have been replaced with types from the `http`
+  crate. The `hyper::header` module is gone for now.
+
+  Removed `Client::get`, since it needed to construct a `Request<B>`
+  with an empty body. Just use `Client::request` instead.
+
+  Removed `compat` cargo feature, and `compat` related API.
+
+ ([3cd48b45](https://github.com/hyperium/hyper/commit/3cd48b45fb622fb9e69ba773e7f92b9d3e9ac018))
+* Many of these APIs have been deprecated for a while,
+  check the documentation for the recommended way to use hyper now.
+
+ ([a37e6b59](https://github.com/hyperium/hyper/commit/a37e6b59e6d6936ee31c6d52939869933c709c78))
+
+
 ### v0.11.27 (2018-05-16)
 
 
