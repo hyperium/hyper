@@ -241,7 +241,7 @@ where
                         return Err(::Error::new_header());
                     }
                     match msg.body {
-                        Some(BodyLength::Known(len)) => {
+                        Some(BodyLength::Known(known_len)) => {
                             // The Payload claims to know a length, and
                             // the headers are already set. For performance
                             // reasons, we are just going to trust that
@@ -249,7 +249,42 @@ where
                             //
                             // In debug builds, we'll assert they are the
                             // same to help developers find bugs.
-                            encoder = Encoder::length(len);
+                            encoder = Encoder::length(known_len);
+
+                            #[cfg(debug_assertions)]
+                            {
+                                let mut folded = None::<(u64, HeaderValue)>;
+                                for value in values {
+                                    if let Some(len) = headers::content_length_parse(&value) {
+                                        if let Some(fold) = folded {
+                                            if fold.0 != len {
+                                                panic!("multiple Content-Length values found: [{}, {}]", fold.0, len);
+                                            }
+                                            folded = Some(fold);
+                                        } else {
+                                            folded = Some((len, value));
+                                        }
+                                    } else {
+                                        panic!("illegal Content-Length value: {:?}", value);
+                                    }
+                                }
+                                if let Some((len, value)) = folded {
+                                    assert!(
+                                        len == known_len,
+                                        "payload claims content-length of {}, custom content-length header claims {}",
+                                        known_len,
+                                        len,
+                                    );
+                                    extend(dst, b"content-length: ");
+                                    extend(dst, value.as_bytes());
+                                    extend(dst, b"\r\n");
+                                    wrote_len = true;
+                                    continue 'headers;
+                                } else {
+                                    // No values in content-length... ignore?
+                                    continue 'headers;
+                                }
+                            }
                         },
                         Some(BodyLength::Unknown) => {
                             // The Payload impl didn't know how long the
