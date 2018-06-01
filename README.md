@@ -8,7 +8,7 @@
 [![Released API docs](https://docs.rs/hyper/badge.svg)](https://docs.rs/hyper)
 [![Master API docs](https://img.shields.io/badge/docs-master-green.svg)](https://hyper.rs/hyper/master/)
 
-A low-level HTTP implementation for Rust.
+A **fast** and **correct** HTTP implementation for Rust.
 
 **Get started** by looking over the [guides](https://hyper.rs/guides).
 

@@ -2,7 +2,7 @@
 
 name = "hyper"
 version = "0.12.0-pre.0" # don't forget to update html_root_url
-description = "A modern HTTP library."
+description = "A fast and correct HTTP library."
 readme = "README.md"
 homepage = "https://hyper.rs"
 documentation = "https://docs.rs/hyper"

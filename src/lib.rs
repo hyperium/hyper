@@ -4,13 +4,11 @@
 #![deny(missing_debug_implementations)]
 #![cfg_attr(all(test, feature = "nightly"), feature(test))]
 
-//! # Hyper
+//! # hyper
 //!
-//! Hyper is a fast, modern HTTP implementation written in and for Rust. It
-//! is a low-level typesafe abstraction over raw HTTP, providing an elegant
-//! layer over "stringly-typed" HTTP.
+//! hyper is a **fast** and **correct** HTTP implementation written in and for Rust.
 //!
-//! Hyper provides both a [Client](client/index.html) and a
+//! hyper provides both a [Client](client/index.html) and a
 //! [Server](server/index.html).
 //!
 //! If just starting out, **check out the [Guides](https://hyper.rs/guides)
