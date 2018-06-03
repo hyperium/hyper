@@ -99,11 +99,6 @@ path = "examples/send_file.rs"
 required-features = ["runtime"]
 
 [[example]]
-name = "send_file_blocking"
-path = "examples/send_file_blocking.rs"
-required-features = ["runtime"]
-
-[[example]]
 name = "web_api"
 path = "examples/web_api.rs"
 required-features = ["runtime"]

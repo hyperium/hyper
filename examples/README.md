@@ -14,8 +14,6 @@ Run examples with `cargo run --example example_name`.
 
 * [`params`](params.rs) - A webserver that accept a form, with a name and a number, checks the parameters are presents and validates the input.
 
-* [`send_file`](send_file.rs) - A server that sends back content of files either simply or streaming the response.
-
-* [`send_file_blocking`](send_file_blocking.rs) - A server that sends back content of files using blocking read with tokio_threadpool::blocking.
+* [`send_file`](send_file.rs) - A server that sends back content of files using blocking read with tokio_threadpool::blocking.
 
 * [`web_api`](web_api.rs) - A server consisting in a service that returns incoming POST request's content in the response in uppercase and a service that call that call the first service and includes the first service response in its own response.
