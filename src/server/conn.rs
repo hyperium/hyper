@@ -367,16 +367,28 @@ where
     /// but it is not desired to actally shutdown the IO object. Instead you
     /// would take it back using `into_parts`.
     pub fn poll_without_shutdown(&mut self) -> Poll<(), ::Error> {
-        match *self.conn.as_mut().unwrap() {
-            Either::A(ref mut h1) => {
-                try_ready!(h1.poll_without_shutdown());
-                Ok(().into())
-            },
-            Either::B(ref mut h2) => h2.poll(),
+        loop {
+            let polled = match *self.conn.as_mut().unwrap() {
+                Either::A(ref mut h1) => h1.poll_without_shutdown(),
+                Either::B(ref mut h2) => h2.poll(),
+            };
+            match polled {
+                Ok(x) => return Ok(x),
+                Err(e) => {
+                    debug!("error polling connection protocol without shutdown: {}", e);
+                    match *e.kind() {
+                        Kind::Parse(Parse::VersionH2) => {
+                            self.upgrade_h2();
+                            continue;
+                        }
+                        _ => return Err(e),
+                    }
+                }
+            }
         }
     }
 
-    fn try_h2(&mut self) -> Poll<(), ::Error> {
+    fn upgrade_h2(&mut self) {
         trace!("Trying to upgrade connection to h2");
         let conn = self.conn.take();
 
@@ -390,13 +402,10 @@ where
         };
         let mut rewind_io = Rewind::new(io);
         rewind_io.rewind(read_buf);
-        let mut h2 = proto::h2::Server::new(rewind_io, dispatch.into_service(), Exec::Default);
-        let pr = h2.poll();
+        let h2 = proto::h2::Server::new(rewind_io, dispatch.into_service(), Exec::Default);
 
         debug_assert!(self.conn.is_none());
         self.conn = Some(Either::B(h2));
-        
-        pr
     }
 }
 
@@ -412,13 +421,18 @@ where
     type Error = ::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match self.conn.poll() {
-            Ok(x) => Ok(x.map(|o| o.unwrap_or_else(|| ()))),
-            Err(e) => {
-                debug!("error polling connection protocol: {}", e);
-                match *e.kind() {
-                    Kind::Parse(Parse::VersionH2) => self.try_h2(),
-                    _ => Err(e),
+        loop {
+            match self.conn.poll() {
+                Ok(x) => return Ok(x.map(|o| o.unwrap_or_else(|| ()))),
+                Err(e) => {
+                    debug!("error polling connection protocol: {}", e);
+                    match *e.kind() {
+                        Kind::Parse(Parse::VersionH2) => {
+                            self.upgrade_h2();
+                            continue;
+                        }
+                        _ => return Err(e),
+                    }
                 }
             }
         }
