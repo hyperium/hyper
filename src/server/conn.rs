@@ -342,20 +342,28 @@ where
     /// This should only be called after `poll_without_shutdown` signals
     /// that the connection is "done". Otherwise, it may not have finished
     /// flushing all necessary HTTP bytes.
+    ///
+    /// # Panics
+    /// This method will panic if this connection is using an h2 protocol.
     pub fn into_parts(self) -> Parts<I, S> {
-        let (io, read_buf, dispatch) = match self.conn.unwrap() {
+        self.try_into_parts().unwrap_or_else(|| panic!("h2 cannot into_inner"))
+    }
+
+    /// Return the inner IO object, and additional information, if available.
+    ///
+    /// This method will return a `None` if this connection is using an h2 protocol.
+    pub fn try_into_parts(self) -> Option<Parts<I, S>> {
+        match self.conn.unwrap() {
             Either::A(h1) => {
-                h1.into_inner()
+                let (io, read_buf, dispatch) = h1.into_inner();
+                Some(Parts {
+                    io: io,
+                    read_buf: read_buf,
+                    service: dispatch.into_service(),
+                    _inner: (),
+                })
             },
-            Either::B(_h2) => {
-                panic!("h2 cannot into_inner");
-            }
-        };
-        Parts {
-            io: io,
-            read_buf: read_buf,
-            service: dispatch.into_service(),
-            _inner: (),
+            Either::B(_h2) => None,
         }
     }
 
