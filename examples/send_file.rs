@@ -2,17 +2,15 @@
 extern crate futures;
 extern crate hyper;
 extern crate pretty_env_logger;
-extern crate tokio_threadpool;
+extern crate tokio_fs;
+extern crate tokio_io;
 
 use futures::{future, Future};
 
 use hyper::{Body, Method, Request, Response, Server, StatusCode};
 use hyper::service::service_fn;
 
-use std::fs::File;
-use std::io::{self, copy/*, Read*/};
-
-use tokio_threadpool::blocking;
+use std::io;
 
 static NOTFOUND: &[u8] = b"Not Found";
 static INDEX: &str = "examples/send_file_index.html";
@@ -54,42 +52,28 @@ fn response_examples(req: Request<Body>) -> ResponseFuture {
 }
 
 fn simple_file_send(f: &str) -> ResponseFuture {
-    // Serve a file by reading it entirely into memory. As a result
-    // this is limited to serving small files, but it is somewhat
-    // simpler with a little less overhead.
-    //
-    // Wrap in tokio_threadpool::blocking to tell the ThreadPool
-    // that the call to read_file_blocking will block.
+    // Serve a file by asynchronously reading it entirely into memory.
+    // Uses tokio_fs to open file asynchronously, then tokio_io to read into
+    // memory asynchronously.
     let filename = f.to_string(); // we need to copy for lifetime issues
-    Box::new(
-        future::poll_fn(move || {
-            blocking(|| read_file_blocking(&filename))
-            .map_err(|e| ::std::io::Error::new(::std::io::ErrorKind::Other, e))
+    Box::new(tokio_fs::file::File::open(filename)
+        .and_then(|file| {
+            let buf: Vec<u8> = Vec::new();
+            tokio_io::io::read_to_end(file, buf)
+                .and_then(|item| {
+                    Ok(Response::new(item.1.into()))
+                })
+                .or_else(|_| {
+                    Ok(Response::builder()
+                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                        .body(NOTFOUND.into())
+                        .unwrap())
+                })
         })
-    )
-}
-
-fn read_file_blocking(filename: &str) -> Response<Body> {
-    // Open the file and read it using blocking read.
-    let mut file = match File::open(filename) {
-        Ok(f) => f,
-        Err(_) => {
-            return Response::builder()
-                   .status(StatusCode::NOT_FOUND)
-                   .body(NOTFOUND.into())
-                   .unwrap();
-        }
-    };
-    let mut buf: Vec<u8> = Vec::new();
-    match copy(&mut file, &mut buf) {
-        Ok(_) => {
-            Response::new(buf.into())
-        },
-        Err(_) => {
-            Response::builder()
-            .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .body(Body::empty())
-            .unwrap()
-        },
-    }
+        .or_else(|_| {
+            Ok(Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(NOTFOUND.into())
+                .unwrap())
+        }))
 }
