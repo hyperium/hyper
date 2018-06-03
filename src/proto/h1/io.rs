@@ -338,12 +338,24 @@ where
         WriteBufAuto::new(self)
     }
 
-    pub(super) fn buffer<BB: Buf + Into<B>>(&mut self, buf: BB) {
+    pub(super) fn buffer<BB: Buf + Into<B>>(&mut self, mut buf: BB) {
         debug_assert!(buf.has_remaining());
         match self.strategy {
             Strategy::Flatten => {
                 let head = self.headers_mut();
-                head.bytes.put(buf);
+                //perf: This is a little faster than <Vec as BufMut>>::put,
+                //but accomplishes the same result.
+                loop {
+                    let adv = {
+                        let slice = buf.bytes();
+                        if slice.is_empty() {
+                            return;
+                        }
+                        head.bytes.extend_from_slice(slice);
+                        slice.len()
+                    };
+                    buf.advance(adv);
+                }
             },
             Strategy::Auto | Strategy::Queue => {
                 self.queue.bufs.push_back(buf.into());
@@ -548,6 +560,9 @@ mod tests {
     use std::io::Read;
     use mock::AsyncIo;
 
+    #[cfg(feature = "nightly")]
+    use test::Bencher;
+
     #[cfg(test)]
     impl<T: Read> MemRead for ::mock::AsyncIo<T> {
         fn read_mem(&mut self, len: usize) -> Poll<Bytes, io::Error> {
@@ -683,5 +698,23 @@ mod tests {
         assert_eq!(buffered.io, b"hello world, it's hyper!");
         assert_eq!(buffered.io.num_writes(), 4);
         assert_eq!(buffered.write_buf.queue.bufs.len(), 0);
+    }
+
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_write_buf_flatten_buffer_chunk(b: &mut Bencher) {
+        let s = "Hello, World!";
+        b.bytes = s.len() as u64;
+
+        let mut write_buf = WriteBuf::<::Chunk>::new();
+        write_buf.set_strategy(Strategy::Flatten);
+        b.iter(|| {
+            let chunk = ::Chunk::from(s);
+            write_buf.buffer(chunk);
+            ::test::black_box(&write_buf);
+            unsafe {
+                write_buf.headers.bytes.set_len(0);
+            }
+        })
     }
 }
