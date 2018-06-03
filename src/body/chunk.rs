@@ -34,7 +34,10 @@ impl Chunk {
 impl Buf for Chunk {
     #[inline]
     fn remaining(&self) -> usize {
-        self.bytes.len()
+        //perf: Bytes::len() isn't inline yet,
+        //so it's slightly slower than checking
+        //the length of the slice.
+        self.bytes().len()
     }
 
     #[inline]
@@ -156,4 +159,30 @@ impl Iterator for IntoIter {
 }
 
 impl ExactSizeIterator for IntoIter {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(feature = "nightly")]
+    use test::Bencher;
+
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_chunk_static_buf(b: &mut Bencher) {
+        use bytes::BufMut;
+
+        let s = "Hello, World!";
+        b.bytes = s.len() as u64;
+
+        let mut dst = Vec::with_capacity(128);
+
+        b.iter(|| {
+            let chunk = Chunk::from(s);
+            dst.put(chunk);
+            ::test::black_box(&dst);
+            unsafe { dst.set_len(0); }
+        })
+    }
+}
 
