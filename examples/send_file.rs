@@ -66,7 +66,7 @@ fn simple_file_send(f: &str) -> ResponseFuture {
                 .or_else(|_| {
                     Ok(Response::builder()
                         .status(StatusCode::INTERNAL_SERVER_ERROR)
-                        .body(NOTFOUND.into())
+                        .body(Body::empty())
                         .unwrap())
                 })
         })
