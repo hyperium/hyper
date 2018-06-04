@@ -37,10 +37,21 @@ use error::{Kind, Parse};
 #[derive(Clone, Debug)]
 pub struct Http {
     exec: Exec,
-    http2: bool,
+    mode: ConnectionMode,
     keep_alive: bool,
     max_buf_size: Option<usize>,
     pipeline_flush: bool,
+}
+
+/// The internal mode of HTTP protocol which indicates the behavior when an parse error occurs.
+#[derive(Clone, Debug, PartialEq)]
+enum ConnectionMode {
+    /// Always use HTTP/1 and do not upgrade when an parse error occurs.
+    H1Only,
+    /// Always use HTTP/2.
+    H2Only,
+    /// Use HTTP/1 and try to upgrade to h2 when an parse error occurs.
+    Fallback,
 }
 
 /// A stream mapping incoming IOs to new services.
@@ -94,6 +105,7 @@ where
             S::ResBody,
         >,
     >>,
+    fallback: bool,
 }
 
 /// Deconstructed parts of a `Connection`.
@@ -126,18 +138,34 @@ impl Http {
     pub fn new() -> Http {
         Http {
             exec: Exec::Default,
-            http2: false,
+            mode: ConnectionMode::Fallback,
             keep_alive: true,
             max_buf_size: None,
             pipeline_flush: false,
         }
     }
 
+    /// Sets whether HTTP1 is required.
+    ///
+    /// Default is false
+    pub fn http1_only(&mut self, val: bool) -> &mut Self {
+        if val {
+            self.mode = ConnectionMode::H1Only;
+        } else {
+            self.mode = ConnectionMode::Fallback;
+        }
+        self
+    }
+
     /// Sets whether HTTP2 is required.
     ///
     /// Default is false
     pub fn http2_only(&mut self, val: bool) -> &mut Self {
-        self.http2 = val;
+        if val {
+            self.mode = ConnectionMode::H2Only;
+        } else {
+            self.mode = ConnectionMode::Fallback;
+        }
         self
     }
 
@@ -230,25 +258,29 @@ impl Http {
         Bd: Payload,
         I: AsyncRead + AsyncWrite,
     {
-        let either = if !self.http2 {
-            let mut conn = proto::Conn::new(io);
-            if !self.keep_alive {
-                conn.disable_keep_alive();
+        let either = match self.mode {
+            ConnectionMode::H1Only | ConnectionMode::Fallback => {
+                let mut conn = proto::Conn::new(io);
+                if !self.keep_alive {
+                    conn.disable_keep_alive();
+                }
+                conn.set_flush_pipeline(self.pipeline_flush);
+                if let Some(max) = self.max_buf_size {
+                    conn.set_max_buf_size(max);
+                }
+                let sd = proto::h1::dispatch::Server::new(service);
+                Either::A(proto::h1::Dispatcher::new(sd, conn))
             }
-            conn.set_flush_pipeline(self.pipeline_flush);
-            if let Some(max) = self.max_buf_size {
-                conn.set_max_buf_size(max);
+            ConnectionMode::H2Only => {
+                let rewind_io = Rewind::new(io);
+                let h2 = proto::h2::Server::new(rewind_io, service, self.exec.clone());
+                Either::B(h2)
             }
-            let sd = proto::h1::dispatch::Server::new(service);
-            Either::A(proto::h1::Dispatcher::new(sd, conn))
-        } else {
-            let rewind_io = Rewind::new(io);
-            let h2 = proto::h2::Server::new(rewind_io, service, self.exec.clone());
-            Either::B(h2)
         };
 
         Connection {
             conn: Some(either),
+            fallback: self.mode == ConnectionMode::Fallback,
         }
     }
 
@@ -385,7 +417,7 @@ where
                 Err(e) => {
                     debug!("error polling connection protocol without shutdown: {}", e);
                     match *e.kind() {
-                        Kind::Parse(Parse::VersionH2) => {
+                        Kind::Parse(Parse::VersionH2) if self.fallback => {
                             self.upgrade_h2();
                             continue;
                         }
@@ -435,7 +467,7 @@ where
                 Err(e) => {
                     debug!("error polling connection protocol: {}", e);
                     match *e.kind() {
-                        Kind::Parse(Parse::VersionH2) => {
+                        Kind::Parse(Parse::VersionH2) if self.fallback => {
                             self.upgrade_h2();
                             continue;
                         }
