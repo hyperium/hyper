@@ -162,8 +162,6 @@ impl ExactSizeIterator for IntoIter {}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[cfg(feature = "nightly")]
     use test::Bencher;
 
@@ -178,7 +176,7 @@ mod tests {
         let mut dst = Vec::with_capacity(128);
 
         b.iter(|| {
-            let chunk = Chunk::from(s);
+            let chunk = ::Chunk::from(s);
             dst.put(chunk);
             ::test::black_box(&dst);
             unsafe { dst.set_len(0); }

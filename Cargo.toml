@@ -66,6 +66,10 @@ __internal_flaky_tests = []
 codegen-units = 1
 incremental = false
 
+[profile.bench]
+codegen-units = 1
+incremental = false
+
 [[example]]
 name = "client"
 path = "examples/client.rs"
