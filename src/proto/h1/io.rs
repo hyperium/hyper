@@ -66,12 +66,11 @@ where
     }
 
     pub fn set_flush_pipeline(&mut self, enabled: bool) {
+        debug_assert!(!self.write_buf.has_remaining());
         self.flush_pipeline = enabled;
-        self.write_buf.set_strategy(if enabled {
-            Strategy::Flatten
-        } else {
-            Strategy::Auto
-        });
+        if enabled {
+            self.set_write_strategy_flatten();
+        }
     }
 
     pub fn set_max_buf_size(&mut self, max: usize) {

@@ -175,6 +175,21 @@ impl<I> Builder<I> {
         self
     }
 
+    /// Set whether HTTP/1 connections should try to use vectored writes,
+    /// or always flatten into a single buffer.
+    ///
+    /// # Note
+    ///
+    /// Setting this to `false` may mean more copies of body data,
+    /// but may also improve performance when an IO transport doesn't
+    /// support vectored writes well, such as most TLS implementations.
+    ///
+    /// Default is `true`.
+    pub fn http1_writev(mut self, val: bool) -> Self {
+        self.protocol.http1_writev(val);
+        self
+    }
+
     /// Sets whether HTTP/2 is required.
     ///
     /// Default is `false`.

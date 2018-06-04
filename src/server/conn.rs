@@ -37,6 +37,7 @@ use error::{Kind, Parse};
 #[derive(Clone, Debug)]
 pub struct Http {
     exec: Exec,
+    h1_writev: bool,
     mode: ConnectionMode,
     keep_alive: bool,
     max_buf_size: Option<usize>,
@@ -138,6 +139,7 @@ impl Http {
     pub fn new() -> Http {
         Http {
             exec: Exec::Default,
+            h1_writev: true,
             mode: ConnectionMode::Fallback,
             keep_alive: true,
             max_buf_size: None,
@@ -154,6 +156,20 @@ impl Http {
         } else {
             self.mode = ConnectionMode::Fallback;
         }
+        self
+    }
+
+    /// Set whether HTTP/1 connections should try to use vectored writes,
+    /// or always flatten into a single buffer.
+    ///
+    /// Note that setting this to false may mean more copies of body data,
+    /// but may also improve performance when an IO transport doesn't
+    /// support vectored writes well, such as most TLS implementations.
+    ///
+    /// Default is `true`.
+    #[inline]
+    pub fn http1_writev(&mut self, val: bool) -> &mut Self {
+        self.h1_writev = val;
         self
     }
 
@@ -263,6 +279,9 @@ impl Http {
                 let mut conn = proto::Conn::new(io);
                 if !self.keep_alive {
                     conn.disable_keep_alive();
+                }
+                if !self.h1_writev {
+                    conn.set_write_strategy_flatten();
                 }
                 conn.set_flush_pipeline(self.pipeline_flush);
                 if let Some(max) = self.max_buf_size {
