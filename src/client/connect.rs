@@ -30,7 +30,7 @@ pub trait Connect: Send + Sync {
 }
 
 /// A set of properties to describe where and how to try to connect.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Destination {
     //pub(super) alpn: Alpn,
     pub(super) uri: Uri,
