@@ -167,6 +167,14 @@ impl<I> Builder<I> {
         }
     }
 
+    /// Sets whether HTTP/1 is required.
+    ///
+    /// Default is `false`.
+    pub fn http1_only(mut self, val: bool) -> Self {
+        self.protocol.http1_only(val);
+        self
+    }
+
     /// Sets whether HTTP/2 is required.
     ///
     /// Default is `false`.
