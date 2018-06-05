@@ -125,6 +125,19 @@ impl Error {
         self.inner.kind == Kind::Closed
     }
 
+    /// Returns the error's cause.
+    /// 
+    /// This is identical to `Error::cause` except that it provides extra
+    /// bounds required to be able to downcast the error.
+    pub fn cause2(&self) -> Option<&(StdError + 'static + Sync + Send)> {
+        self.inner.cause.as_ref().map(|e| &**e)
+    }
+
+    /// Consumes the error, returning its cause.
+    pub fn into_cause(self) -> Option<Box<StdError + Sync + Send>> {
+        self.inner.cause
+    }
+
     pub(crate) fn new(kind: Kind, cause: Option<Cause>) -> Error {
         Error {
             inner: Box::new(ErrorImpl {
