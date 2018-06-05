@@ -13,7 +13,7 @@ matrix:
         - rust: stable
           env: FEATURES="--no-default-features"
         - rust: 1.21.0
-          env: FEATURES="--no-default-features --features runtime"
+          env: FEATURES="--no-default-features --features runtime" BUILD_ONLY="1"
 
 cache:
     apt: true
