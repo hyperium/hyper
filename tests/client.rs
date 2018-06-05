@@ -1373,7 +1373,7 @@ mod conn {
     use tokio::net::TcpStream;
     use tokio_io::{AsyncRead, AsyncWrite};
 
-    use hyper::{self, Request};
+    use hyper::{self, Request, Body, Method};
     use hyper::client::conn;
 
     use super::{s, tcp_connect, FutureHyperExt};
@@ -1422,6 +1422,53 @@ mod conn {
         let timeout = Delay::new(Duration::from_millis(200));
         let rx = rx.and_then(move |_| timeout.expect("timeout"));
         res.join(rx).map(|r| r.0).wait().unwrap();
+    }
+
+    #[test]
+    fn aborted_body_isnt_completed() {
+        let _ = ::pretty_env_logger::try_init();
+        let server = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = server.local_addr().unwrap();
+        let mut runtime = Runtime::new().unwrap();
+
+        let (tx, rx) = oneshot::channel();
+        let server = thread::spawn(move || {
+            let mut sock = server.accept().unwrap().0;
+            sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let expected = "POST / HTTP/1.1\r\ntransfer-encoding: chunked\r\n\r\n5\r\nhello\r\n";
+            let mut buf = vec![0; expected.len()];
+            sock.read_exact(&mut buf).expect("read 1");
+            assert_eq!(s(&buf), expected);
+
+            let _ = tx.send(());
+
+            assert_eq!(sock.read(&mut buf).expect("read 2"), 0);
+        });
+
+        let tcp = tcp_connect(&addr).wait().unwrap();
+
+        let (mut client, conn) = conn::handshake(tcp).wait().unwrap();
+
+        runtime.spawn(conn.map(|_| ()).map_err(|e| panic!("conn error: {}", e)));
+
+        let (mut sender, body) = Body::channel();
+        let sender = thread::spawn(move || {
+            sender.send_data("hello".into()).ok().unwrap();
+            rx.wait().unwrap();
+            sender.abort();
+        });
+
+        let req = Request::builder()
+            .method(Method::POST)
+            .uri("/")
+            .body(body)
+            .unwrap();
+        let res = client.send_request(req);
+        res.wait().unwrap_err();
+
+        server.join().expect("server thread panicked");
+        sender.join().expect("sender thread panicked");
     }
 
     #[test]

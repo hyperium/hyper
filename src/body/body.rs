@@ -11,7 +11,6 @@ use common::Never;
 use super::{Chunk, Payload};
 use super::internal::{FullDataArg, FullDataRet};
 
-
 type BodySender = mpsc::Sender<Result<Chunk, ::Error>>;
 
 /// A stream of `Chunk`s, used when receiving bodies.
@@ -36,7 +35,7 @@ pub struct Body {
 enum Kind {
     Once(Option<Chunk>),
     Chan {
-        _close_tx: oneshot::Sender<()>,
+        abort_rx: oneshot::Receiver<()>,
         rx: mpsc::Receiver<Result<Chunk, ::Error>>,
     },
     H2(h2::RecvStream),
@@ -61,7 +60,7 @@ enum DelayEof {
 #[must_use = "Sender does nothing unless sent on"]
 #[derive(Debug)]
 pub struct Sender {
-    close_rx: oneshot::Receiver<()>,
+    abort_tx: oneshot::Sender<()>,
     tx: BodySender,
 }
 
@@ -87,14 +86,14 @@ impl Body {
     #[inline]
     pub fn channel() -> (Sender, Body) {
         let (tx, rx) = mpsc::channel(0);
-        let (close_tx, close_rx) = oneshot::channel();
+        let (abort_tx, abort_rx) = oneshot::channel();
 
         let tx = Sender {
-            close_rx: close_rx,
+            abort_tx: abort_tx,
             tx: tx,
         };
         let rx = Body::new(Kind::Chan {
-            _close_tx: close_tx,
+            abort_rx: abort_rx,
             rx: rx,
         });
 
@@ -189,11 +188,17 @@ impl Body {
     fn poll_inner(&mut self) -> Poll<Option<Chunk>, ::Error> {
         match self.kind {
             Kind::Once(ref mut val) => Ok(Async::Ready(val.take())),
-            Kind::Chan { ref mut rx, .. } => match rx.poll().expect("mpsc cannot error") {
-                Async::Ready(Some(Ok(chunk))) => Ok(Async::Ready(Some(chunk))),
-                Async::Ready(Some(Err(err))) => Err(err),
-                Async::Ready(None) => Ok(Async::Ready(None)),
-                Async::NotReady => Ok(Async::NotReady),
+            Kind::Chan { ref mut rx, ref mut abort_rx } => {
+                if let Ok(Async::Ready(())) = abort_rx.poll() {
+                    return Err(::Error::new_body_write("body write aborted"));
+                }
+
+                match rx.poll().expect("mpsc cannot error") {
+                    Async::Ready(Some(Ok(chunk))) => Ok(Async::Ready(Some(chunk))),
+                    Async::Ready(Some(Err(err))) => Err(err),
+                    Async::Ready(None) => Ok(Async::Ready(None)),
+                    Async::NotReady => Ok(Async::NotReady),
+                }
             },
             Kind::H2(ref mut h2) => {
                 h2.poll()
@@ -283,7 +288,7 @@ impl fmt::Debug for Body {
 impl Sender {
     /// Check to see if this `Sender` can send more data.
     pub fn poll_ready(&mut self) -> Poll<(), ::Error> {
-        match self.close_rx.poll() {
+        match self.abort_tx.poll_cancel() {
             Ok(Async::Ready(())) | Err(_) => return Err(::Error::new_closed()),
             Ok(Async::NotReady) => (),
         }
@@ -301,6 +306,11 @@ impl Sender {
     pub fn send_data(&mut self, chunk: Chunk) -> Result<(), Chunk> {
         self.tx.try_send(Ok(chunk))
             .map_err(|err| err.into_inner().expect("just sent Ok"))
+    }
+
+    /// Aborts the body in an abnormal fashion.
+    pub fn abort(self) {
+        let _ = self.abort_tx.send(());
     }
 
     pub(crate) fn send_error(&mut self, err: ::Error) {
