@@ -1,3 +1,20 @@
+### v0.12.1 (2018-06-04)
+
+
+#### Bug Fixes
+
+* **server:** add upgrading process to `poll_without_shutdown()` (#1530) ([c6e90b7b](https://github.com/hyperium/hyper/commit/c6e90b7b6509276c744b531f8b1f7b043059c4ec))
+
+
+#### Features
+
+* **client:** implement `Clone` for `Destination` ([15188b7c](https://github.com/hyperium/hyper/commit/15188b7c7fc6774301a16923127df596486cc913))
+* **server:**
+  * add `http1_writev` config option for servers ([810435f1](https://github.com/hyperium/hyper/commit/810435f1469eb028c6a819368d63edb54d6c341c), closes [#1527](https://github.com/hyperium/hyper/issues/1527))
+  * add `http1_only` configuration ([14d9246d](https://github.com/hyperium/hyper/commit/14d9246de2e97908c915caf254a37fd62edb25d3), closes [#1512](https://github.com/hyperium/hyper/issues/1512))
+  * add `try_into_parts()` to `conn::Connection` (#1531) ([c615a324](https://github.com/hyperium/hyper/commit/c615a3242f2518bc8acf05116ebe87ea98773c28))
+
+
 ## v0.12.0 (2018-06-01)
 
 #### Features
