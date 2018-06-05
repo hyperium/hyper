@@ -1,41 +1,57 @@
-#![deny(warnings)]
+extern crate futures;
 extern crate hyper;
-extern crate pretty_env_logger;
 
+use futures::future;
+use hyper::rt::{Future, Stream};
+use hyper::service::service_fn;
 use hyper::{Body, Method, Request, Response, Server, StatusCode};
-use hyper::service::service_fn_ok;
-use hyper::rt::Future;
 
-static INDEX: &'static [u8] = b"Try POST /echo";
+type BoxFut = Box<Future<Item = Response<Body>, Error = hyper::Error> + Send>;
 
-// Using service_fn_ok, we can convert this function into a `Service`.
-fn echo(req: Request<Body>) -> Response<Body> {
-   match (req.method(), req.uri().path()) {
-        (&Method::GET, "/") | (&Method::POST, "/") => {
-            Response::new(INDEX.into())
-        },
-        (&Method::POST, "/echo") => {
-            Response::new(req.into_body())
-        },
-        _ => {
-            let mut res = Response::new(Body::empty());
-            *res.status_mut() = StatusCode::NOT_FOUND;
-            res
+fn echo(req: Request<Body>) -> BoxFut {
+    let mut response = Response::new(Body::empty());
+
+    match (req.method(), req.uri().path()) {
+        (&Method::GET, "/") => {
+            *response.body_mut() = Body::from("Try POSTing data to /echo");
         }
-    }
+        (&Method::POST, "/echo") => {
+            *response.body_mut() = req.into_body();
+        }
+        (&Method::POST, "/echo/uppercase") => {
+            let mapping = req.into_body().map(|chunk| {
+                chunk
+                    .iter()
+                    .map(|byte| byte.to_ascii_uppercase())
+                    .collect::<Vec<u8>>()
+            });
+
+            *response.body_mut() = Body::wrap_stream(mapping);
+        }
+        (&Method::POST, "/echo/reversed") => {
+            let reversed = req.into_body().concat2().map(move |chunk| {
+                let body = chunk.iter().rev().cloned().collect::<Vec<u8>>();
+                *response.body_mut() = Body::from(body);
+                response
+            });
+
+            return Box::new(reversed);
+        }
+        _ => {
+            *response.status_mut() = StatusCode::NOT_FOUND;
+        }
+    };
+
+    Box::new(future::ok(response))
 }
 
-
 fn main() {
-    pretty_env_logger::init();
-
-    let addr = ([127, 0, 0, 1], 1337).into();
+    let addr = ([127, 0, 0, 1], 3000).into();
 
     let server = Server::bind(&addr)
-        .serve(|| service_fn_ok(echo))
+        .serve(|| service_fn(echo))
         .map_err(|e| eprintln!("server error: {}", e));
 
-    println!("Listening on http://{}", addr);
-
+    println!("The magic happens on port {}", addr.port());
     hyper::rt::run(server);
 }
