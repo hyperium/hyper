@@ -21,17 +21,17 @@ fn echo(req: Request<Body>) -> BoxFut {
 
     match (req.method(), req.uri().path()) {
         // Serve some instructions at /
-        (Method::GET, "/") => {
+        (&Method::GET, "/") => {
             *response.body_mut() = Body::from("Try POSTing data to /echo");
         }
 
         // Simply echo the body back to the client.
-        (Method::POST, "/echo") => {
+        (&Method::POST, "/echo") => {
             *response.body_mut() = req.into_body();
         }
 
         // Convert to uppercase before sending back to client.
-        (Method::POST, "/echo/uppercase") => {
+        (&Method::POST, "/echo/uppercase") => {
             let mapping = req.into_body().map(|chunk| {
                 chunk
                     .iter()
@@ -48,7 +48,7 @@ fn echo(req: Request<Body>) -> BoxFut {
         // the chunks as they arrive. So, this returns a different
         // future, waiting on concatenating the full body, so that
         // it can be reversed. Only then can we return a `Response`.
-        (Method::POST, "/echo/reversed") => {
+        (&Method::POST, "/echo/reversed") => {
             let reversed = req.into_body().concat2().map(move |chunk| {
                 let body = chunk.iter().rev().cloned().collect::<Vec<u8>>();
                 *response.body_mut() = Body::from(body);
