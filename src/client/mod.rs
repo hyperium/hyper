@@ -1,6 +1,6 @@
 //! HTTP Client
 //!
-//! There are two levels of APIs provided for construct HTTP clients:
+//! There are two levels of APIs provided to construct HTTP clients:
 //!
 //! - The higher-level [`Client`](Client) type.
 //! - The lower-level [conn](conn) module.
@@ -25,51 +25,41 @@
 //!
 //! ```no_run
 //! extern crate hyper;
+//! # #[cfg(feature = "runtime")]
+//! extern crate tokio;
 //!
+//! use std::io::{stdout, Write};
 //! use hyper::Client;
 //! # #[cfg(feature = "runtime")]
-//! use hyper::rt::{self, lazy, Future, Stream};
+//! use hyper::rt::{Future, Stream};
+//! # #[cfg(feature = "runtime")]
+//! use tokio::runtime::Runtime;
 //!
 //! # #[cfg(feature = "runtime")]
 //! fn main() {
-//!     // A runtime is needed to execute our asynchronous code.
-//!     rt::run(lazy(|| {
-//!         let client = Client::new();
+//!     let mut rt = Runtime::new().unwrap();
+//!     let client = Client::new();
+//!     let job = client
+//!         // Make a GET /ip to 'http://httpbin.org'
+//!         .get("http://httpbin.org/ip".parse().unwrap())
 //!
-//!         client
-//!             // Make a GET /ip to 'http://httpbin.org'
-//!             .get("http://httpbin.org/ip".parse().unwrap())
+//!         // And then, if the request gets a response...
+//!         .and_then(|res| {
+//!             println!("status: {}", res.status());
 //!
-//!             // And then, if the request gets a response...
-//!             .and_then(|res| {
-//!                 println!("status: {}", res.status());
+//!             // Concatenate the body stream into a single buffer,
+//!             // returning a new future.
+//!             res.into_body().concat2()
+//!         });
 //!
-//!                 // Concatenate the body stream into a single buffer...
-//!                 // This returns a new future, since we must stream body.
-//!                 res.into_body().concat2()
-//!             })
-//!
-//!             // And then, if reading the full body succeeds...
-//!             .and_then(|body| {
-//!                 // The body is just bytes, but let's print a string...
-//!                 let s = ::std::str::from_utf8(&body)
-//!                     .expect("httpbin sends utf-8 JSON");
-//!
-//!                 println!("body: {}", s);
-//!
-//!                 // and_then requires we return a new Future, and it turns
-//!                 // out that Result is a Future that is ready immediately.
-//!                 Ok(())
-//!             })
-//!
-//!             // Map any errors that might have happened...
-//!             .map_err(|err| {
-//!                 println!("error: {}", err);
-//!             })
-//!     }));
+//!     // Run the job, blocking until it is complete
+//!     let body = rt.block_on(job).unwrap();
+//!     // Write body to stdout
+//!     stdout().write(&body).unwrap();
 //! }
+//! #
 //! # #[cfg(not(feature = "runtime"))]
-//! # fn main () {}
+//! # fn main() {}
 //! ```
 
 use std::fmt;
