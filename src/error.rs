@@ -265,7 +265,7 @@ impl StdError for Error {
             Kind::NewService => "calling user's new_service failed",
             Kind::Service => "error from user's server service",
             Kind::Body => "error reading a body from connection",
-            Kind::BodyWrite => "error write a body to connection",
+            Kind::BodyWrite => "error writing a body to connection",
             Kind::BodyUser => "error from user's Payload stream",
             Kind::Shutdown => "error shutting down connection",
             Kind::Http2 => "http2 general error",
