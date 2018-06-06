@@ -15,8 +15,7 @@ fn main() {
     let url = match env::args().nth(1) {
         Some(url) => url,
         None => {
-            println!("Usage: client <url>");
-            return;
+            "http://www.columbia.edu/~fdc/sample.html".to_owned()
         }
     };
 
