@@ -26,6 +26,7 @@ where
 {
     Handshaking(Handshake<T, SendBuf<B::Data>>),
     Serving(Serving<T, B>),
+    Closed,
 }
 
 struct Serving<T, B>
@@ -55,7 +56,20 @@ where
     }
 
     pub fn graceful_shutdown(&mut self) {
-        unimplemented!("h2 server graceful shutdown");
+        trace!("graceful_shutdown");
+        match self.state {
+            State::Handshaking(..) => {
+                // fall-through, to replace state with Closed
+            },
+            State::Serving(ref mut srv) => {
+                srv.conn.graceful_shutdown();
+                return;
+            },
+            State::Closed => {
+                return;
+            }
+        }
+        self.state = State::Closed;
     }
 }
 
@@ -81,6 +95,11 @@ where
                 },
                 State::Serving(ref mut srv) => {
                     return srv.poll_server(&mut self.service, &self.exec);
+                }
+                State::Closed => {
+                    // graceful_shutdown was called before handshaking finished,
+                    // nothing to do here...
+                    return Ok(Async::Ready(()));
                 }
             };
             self.state = next;
