@@ -191,7 +191,9 @@ where
         // This is because Service only allows returning a single Response, and
         // so if you try to reply with a e.g. 100 Continue, you have no way of
         // replying with the latter status code response.
-        let (ret, mut is_last) = if StatusCode::SWITCHING_PROTOCOLS == msg.head.subject {
+        let is_upgrade = msg.head.subject == StatusCode::SWITCHING_PROTOCOLS
+            || (msg.req_method == &Some(Method::CONNECT) && msg.head.subject.is_success());
+        let (ret, mut is_last) = if is_upgrade {
             (T::on_encode_upgrade(&mut msg), true)
         } else if msg.head.subject.is_informational() {
             error!("response with 1xx status code not supported");
@@ -851,12 +853,20 @@ impl OnUpgrade for YesUpgrades {
 
 impl OnUpgrade for NoUpgrades {
     fn on_encode_upgrade(msg: &mut Encode<StatusCode>) -> ::Result<()> {
-        error!("response with 101 status code not supported");
         *msg.head = MessageHead::default();
         msg.head.subject = ::StatusCode::INTERNAL_SERVER_ERROR;
         msg.body = None;
-        //TODO: replace with more descriptive error
-        Err(::Error::new_status())
+
+        if msg.head.subject == StatusCode::SWITCHING_PROTOCOLS {
+            error!("response with 101 status code not supported");
+            Err(Parse::UpgradeNotSupported.into())
+        } else if msg.req_method == &Some(Method::CONNECT) {
+            error!("200 response to CONNECT request not supported");
+            Err(::Error::new_user_unsupported_request_method())
+        } else {
+            debug_assert!(false, "upgrade incorrectly detected");
+            Err(::Error::new_status())
+        }
     }
 
     fn on_decode_upgrade() -> Result<Decoder, Parse> {
@@ -1307,6 +1317,39 @@ mod tests {
         }, &mut vec).unwrap();
 
         assert_eq!(vec, b"GET / HTTP/1.1\r\nContent-Length: 10\r\nContent-Type: application/json\r\n\r\n".to_vec());
+    }
+
+    #[test]
+    fn test_server_no_upgrades_connect_method() {
+        let mut head = MessageHead::default();
+
+        let mut vec = Vec::new();
+        let err = Server::encode(Encode {
+            head: &mut head,
+            body: None,
+            keep_alive: true,
+            req_method: &mut Some(Method::CONNECT),
+            title_case_headers: false,
+        }, &mut vec).unwrap_err();
+
+        assert!(err.is_user());
+        assert_eq!(err.kind(), &::error::Kind::UnsupportedRequestMethod);
+    }
+
+    #[test]
+    fn test_server_yes_upgrades_connect_method() {
+        let mut head = MessageHead::default();
+
+        let mut vec = Vec::new();
+        let encoder = S::<YesUpgrades>::encode(Encode {
+            head: &mut head,
+            body: None,
+            keep_alive: true,
+            req_method: &mut Some(Method::CONNECT),
+            title_case_headers: false,
+        }, &mut vec).unwrap();
+
+        assert!(encoder.is_last());
     }
 
     #[cfg(feature = "nightly")]
