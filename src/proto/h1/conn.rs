@@ -550,6 +550,9 @@ where I: AsyncRead + AsyncWrite,
                     return Err(::Error::new_version_h2())
                 }
                 if let Some(msg) = T::on_error(&err) {
+                    // Drop the cached headers so as to not trigger a debug
+                    // assert in `write_head`...
+                    self.state.cached_headers.take();
                     self.write_head(msg, None);
                     self.state.error = Some(err);
                     return Ok(());
