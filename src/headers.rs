@@ -78,6 +78,13 @@ pub fn content_length_value(len: u64) -> HeaderValue {
     }
 }
 
+pub fn set_content_length_if_missing(headers: &mut HeaderMap, len: u64) {
+    headers
+        .entry(CONTENT_LENGTH)
+        .unwrap()
+        .or_insert(content_length_value(len));
+}
+
 pub fn transfer_encoding_is_chunked(headers: &HeaderMap) -> bool {
     is_chunked(headers.get_all(TRANSFER_ENCODING).into_iter())
 }

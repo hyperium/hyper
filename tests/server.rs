@@ -353,6 +353,65 @@ mod response_body_lengths {
             expects_con_len: false,
         });
     }
+
+    #[test]
+    fn http2_auto_response_with_known_length() {
+        use hyper::body::Payload;
+
+        let server = serve();
+        let addr_str = format!("http://{}", server.addr());
+        server.reply().body("Hello, World!");
+
+        hyper::rt::run(hyper::rt::lazy(move || {
+            let client: Client<_, hyper::Body> = Client::builder().http2_only(true).build_http();
+            let uri = addr_str
+                .parse::<hyper::Uri>()
+                .expect("server addr should parse");
+
+            client
+                .get(uri)
+                .and_then(|res| {
+                    assert_eq!(res.headers().get("content-length").unwrap(), "13");
+                    // TODO: enable this after #1546
+                    let _ = res.body().content_length();
+                    // assert_eq!(res.body().content_length(), Some(13));
+                    Ok(())
+                })
+                .map(|_| ())
+                .map_err(|_e| ())
+        }));
+    }
+
+    #[test]
+    fn http2_auto_response_with_conflicting_lengths() {
+        use hyper::body::Payload;
+
+        let server = serve();
+        let addr_str = format!("http://{}", server.addr());
+        server
+            .reply()
+            .header("content-length", "10")
+            .body("Hello, World!");
+
+        hyper::rt::run(hyper::rt::lazy(move || {
+            let client: Client<_, hyper::Body> = Client::builder().http2_only(true).build_http();
+            let uri = addr_str
+                .parse::<hyper::Uri>()
+                .expect("server addr should parse");
+
+            client
+                .get(uri)
+                .and_then(|res| {
+                    assert_eq!(res.headers().get("content-length").unwrap(), "10");
+                    // TODO: enable or remove this after #1546
+                    let _ = res.body().content_length();
+                    // assert_eq!(res.body().content_length(), Some(10));
+                    Ok(())
+                })
+                .map(|_| ())
+                .map_err(|_e| ())
+        }));
+    }
 }
 
 #[test]

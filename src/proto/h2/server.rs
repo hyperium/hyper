@@ -5,6 +5,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 use ::body::Payload;
 use ::common::Exec;
+use ::headers;
 use ::service::Service;
 use super::{PipeToSendStream, SendBuf};
 
@@ -171,6 +172,9 @@ where
                     let (head, body) = res.into_parts();
                     let mut res = ::http::Response::from_parts(head, ());
                     super::strip_connection_headers(res.headers_mut());
+                    if let Some(len) = body.content_length() {
+                        headers::set_content_length_if_missing(res.headers_mut(), len);
+                    }
                     macro_rules! reply {
                         ($eos:expr) => ({
                             match self.reply.send_response(res, $eos) {
