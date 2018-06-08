@@ -1425,6 +1425,63 @@ mod conn {
     }
 
     #[test]
+    fn incoming_content_length() {
+        use hyper::body::Payload;
+
+        let server = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = server.local_addr().unwrap();
+        let mut runtime = Runtime::new().unwrap();
+
+        let (tx1, rx1) = oneshot::channel();
+
+        thread::spawn(move || {
+            let mut sock = server.accept().unwrap().0;
+            sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let mut buf = [0; 4096];
+            let n = sock.read(&mut buf).expect("read 1");
+
+            let expected = "GET / HTTP/1.1\r\n\r\n";
+            assert_eq!(s(&buf[..n]), expected);
+
+            sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello").unwrap();
+            let _ = tx1.send(());
+        });
+
+        let tcp = tcp_connect(&addr).wait().unwrap();
+
+        let (mut client, conn) = conn::handshake(tcp).wait().unwrap();
+
+        runtime.spawn(conn.map(|_| ()).map_err(|e| panic!("conn error: {}", e)));
+
+        let req = Request::builder()
+            .uri("/")
+            .body(Default::default())
+            .unwrap();
+        let res = client.send_request(req).and_then(move |mut res| {
+            assert_eq!(res.status(), hyper::StatusCode::OK);
+            assert_eq!(res.body().content_length(), Some(5));
+            assert!(!res.body().is_end_stream());
+            loop {
+                let chunk = res.body_mut().poll_data().unwrap();
+                match chunk {
+                    Async::Ready(Some(chunk)) => {
+                        assert_eq!(chunk.len(), 5);
+                        break;
+                    }
+                    _ => continue
+                }
+            }
+            res.into_body().concat2()
+        });
+        let rx = rx1.expect("thread panicked");
+
+        let timeout = Delay::new(Duration::from_millis(200));
+        let rx = rx.and_then(move |_| timeout.expect("timeout"));
+        res.join(rx).map(|r| r.0).wait().unwrap();
+    }
+
+    #[test]
     fn aborted_body_isnt_completed() {
         let _ = ::pretty_env_logger::try_init();
         let server = TcpListener::bind("127.0.0.1:0").unwrap();

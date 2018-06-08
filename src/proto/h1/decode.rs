@@ -7,6 +7,7 @@ use futures::{Async, Poll};
 use bytes::Bytes;
 
 use super::io::MemRead;
+use super::BodyLength;
 
 use self::Kind::{Length, Chunked, Eof};
 
@@ -81,6 +82,16 @@ impl Decoder {
             Chunked(ChunkedState::End, _) |
             Eof(true) => true,
             _ => false,
+        }
+    }
+
+    pub fn content_length(&self) -> Option<BodyLength> {
+        match self.kind {
+            Length(0) |
+            Chunked(ChunkedState::End, _) |
+            Eof(true) => None,
+            Length(len) => Some(BodyLength::Known(len)),
+            _ => Some(BodyLength::Unknown),
         }
     }
 

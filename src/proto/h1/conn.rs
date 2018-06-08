@@ -114,7 +114,7 @@ where I: AsyncRead + AsyncWrite,
         read_buf.len() >= 24 && read_buf[..24] == *H2_PREFACE
     }
 
-    pub fn read_head(&mut self) -> Poll<Option<(MessageHead<T::Incoming>, bool)>, ::Error> {
+    pub fn read_head(&mut self) -> Poll<Option<(MessageHead<T::Incoming>, Option<BodyLength>)>, ::Error> {
         debug_assert!(self.can_read_head());
         trace!("Conn::read_head");
 
@@ -162,7 +162,6 @@ where I: AsyncRead + AsyncWrite,
                     continue;
                 }
             };
-
             debug!("incoming body is {}", decoder);
 
             self.state.busy();
@@ -172,20 +171,23 @@ where I: AsyncRead + AsyncWrite,
             }
             let wants_keep_alive = msg.keep_alive;
             self.state.keep_alive &= wants_keep_alive;
-            let (body, reading) = if decoder.is_eof() {
-                (false, Reading::KeepAlive)
-            } else {
-                (true, Reading::Body(decoder))
-            };
+
+            let content_length = decoder.content_length();
+
             if let Reading::Closed = self.state.reading {
                 // actually want an `if not let ...`
             } else {
-                self.state.reading = reading;
+                self.state.reading = if content_length.is_none() {
+                    Reading::KeepAlive
+                } else {
+                    Reading::Body(decoder)
+                };
             }
-            if !body {
+            if content_length.is_none() {
                 self.try_keep_alive();
             }
-            return Ok(Async::Ready(Some((head, body))));
+
+            return Ok(Async::Ready(Some((head, content_length))));
         }
     }
 
