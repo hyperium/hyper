@@ -63,6 +63,84 @@ t! {
 }
 
 t! {
+    get_strip_connection_header,
+    client:
+        request:
+            uri: "/",
+            ;
+        response:
+            status: 200,
+            headers: {
+                // h2 doesn't actually receive the connection header
+            },
+            body: "hello world",
+            ;
+    server:
+        request:
+            uri: "/",
+            ;
+        response:
+            headers: {
+                // http2 should strip this header
+                "connection" => "close",
+            },
+            body: "hello world",
+            ;
+}
+
+t! {
+    get_strip_keep_alive_header,
+    client:
+        request:
+            uri: "/",
+            ;
+        response:
+            status: 200,
+            headers: {
+                // h2 doesn't actually receive the keep-alive header
+            },
+            body: "hello world",
+            ;
+    server:
+        request:
+            uri: "/",
+            ;
+        response:
+            headers: {
+                // http2 should strip this header
+                "keep-alive" => "timeout=5, max=1000",
+            },
+            body: "hello world",
+            ;
+}
+
+t! {
+    get_strip_upgrade_header,
+    client:
+        request:
+            uri: "/",
+            ;
+        response:
+            status: 200,
+            headers: {
+                // h2 doesn't actually receive the upgrade header
+            },
+            body: "hello world",
+            ;
+    server:
+        request:
+            uri: "/",
+            ;
+        response:
+            headers: {
+                // http2 should strip this header
+                "upgrade" => "h2c",
+            },
+            body: "hello world",
+            ;
+}
+
+t! {
     get_body_chunked,
     client:
         request:
