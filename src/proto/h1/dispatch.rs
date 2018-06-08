@@ -190,9 +190,14 @@ where
         }
         // dispatch is ready for a message, try to read one
         match self.conn.read_head() {
-            Ok(Async::Ready(Some((head, has_body)))) => {
-                let body = if has_body {
-                    let (mut tx, rx) = Body::channel();
+            Ok(Async::Ready(Some((head, body_len)))) => {
+                let body = if let Some(body_len) = body_len {
+                    let (mut tx, rx) =
+                        Body::new_channel(if let BodyLength::Known(len) = body_len {
+                            Some(len)
+                        } else {
+                            None
+                        });
                     let _ = tx.poll_ready(); // register this task if rx is dropped
                     self.body_tx = Some(tx);
                     rx
@@ -201,7 +206,7 @@ where
                 };
                 self.dispatch.recv_msg(Ok((head, body)))?;
                 Ok(Async::Ready(()))
-            },
+            }
             Ok(Async::Ready(None)) => {
                 // read eof, conn will start to shutdown automatically
                 Ok(Async::Ready(()))

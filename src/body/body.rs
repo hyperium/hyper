@@ -35,6 +35,7 @@ pub struct Body {
 enum Kind {
     Once(Option<Chunk>),
     Chan {
+        content_length: Option<u64>,
         abort_rx: oneshot::Receiver<()>,
         rx: mpsc::Receiver<Result<Chunk, ::Error>>,
     },
@@ -85,6 +86,11 @@ impl Body {
     /// Useful when wanting to stream chunks from another thread.
     #[inline]
     pub fn channel() -> (Sender, Body) {
+        Self::new_channel(None)
+    }
+
+    #[inline]
+    pub(crate) fn new_channel(content_length: Option<u64>) -> (Sender, Body) {
         let (tx, rx) = mpsc::channel(0);
         let (abort_tx, abort_rx) = oneshot::channel();
 
@@ -93,8 +99,9 @@ impl Body {
             tx: tx,
         };
         let rx = Body::new(Kind::Chan {
-            abort_rx: abort_rx,
-            rx: rx,
+            content_length,
+            abort_rx,
+            rx,
         });
 
         (tx, rx)
@@ -188,13 +195,19 @@ impl Body {
     fn poll_inner(&mut self) -> Poll<Option<Chunk>, ::Error> {
         match self.kind {
             Kind::Once(ref mut val) => Ok(Async::Ready(val.take())),
-            Kind::Chan { ref mut rx, ref mut abort_rx } => {
+            Kind::Chan { content_length: ref mut len, ref mut rx, ref mut abort_rx } => {
                 if let Ok(Async::Ready(())) = abort_rx.poll() {
                     return Err(::Error::new_body_write("body write aborted"));
                 }
 
                 match rx.poll().expect("mpsc cannot error") {
-                    Async::Ready(Some(Ok(chunk))) => Ok(Async::Ready(Some(chunk))),
+                    Async::Ready(Some(Ok(chunk))) => {
+                        if let Some(ref mut len) = *len {
+                            debug_assert!(*len >= chunk.len() as u64);
+                            *len = *len - chunk.len() as u64;
+                        }
+                        Ok(Async::Ready(Some(chunk)))
+                    }
                     Async::Ready(Some(Err(err))) => Err(err),
                     Async::Ready(None) => Ok(Async::Ready(None)),
                     Async::NotReady => Ok(Async::NotReady),
@@ -243,7 +256,7 @@ impl Payload for Body {
     fn is_end_stream(&self) -> bool {
         match self.kind {
             Kind::Once(ref val) => val.is_none(),
-            Kind::Chan { .. } => false,
+            Kind::Chan { content_length: len, .. } => len == Some(0),
             Kind::H2(ref h2) => h2.is_end_stream(),
             Kind::Wrapped(..) => false,
         }
@@ -253,7 +266,7 @@ impl Payload for Body {
         match self.kind {
             Kind::Once(Some(ref val)) => Some(val.len() as u64),
             Kind::Once(None) => Some(0),
-            Kind::Chan { .. } => None,
+            Kind::Chan { content_length: len, .. } => len,
             Kind::H2(..) => None,
             Kind::Wrapped(..) => None,
         }
