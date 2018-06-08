@@ -1,10 +1,13 @@
 use bytes::Buf;
 use futures::{Async, Future, Poll};
 use h2::{Reason, SendStream};
+use http::header::{
+    HeaderName, CONNECTION, PROXY_AUTHENTICATE, PROXY_AUTHORIZATION, TE, TRAILER,
+    TRANSFER_ENCODING, UPGRADE,
+};
 use http::HeaderMap;
-use http::header::{CONNECTION, TRANSFER_ENCODING};
 
-use ::body::Payload;
+use body::Payload;
 
 mod client;
 mod server;
@@ -13,13 +16,42 @@ pub(crate) use self::client::Client;
 pub(crate) use self::server::Server;
 
 fn strip_connection_headers(headers: &mut HeaderMap) {
-    if headers.remove(TRANSFER_ENCODING).is_some() {
-        trace!("removed illegal Transfer-Encoding header");
+    // List of connection headers from:
+    // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Connection
+    let connection_headers = [
+        HeaderName::from_lowercase(b"keep-alive").unwrap(),
+        HeaderName::from_lowercase(b"proxy-connection").unwrap(),
+        PROXY_AUTHENTICATE,
+        PROXY_AUTHORIZATION,
+        TE,
+        TRAILER,
+        TRANSFER_ENCODING,
+        UPGRADE,
+    ];
+
+    for header in connection_headers.iter() {
+        if headers.remove(header).is_some() {
+            warn!("Connection header illegal in HTTP/2: {}", header.as_str());
+        }
     }
-    if headers.contains_key(CONNECTION) {
-        warn!("Connection header illegal in HTTP/2");
-        //TODO: actually remove it, after checking the value
-        //and removing all related headers
+
+    if let Some(header) = headers.remove(CONNECTION) {
+        warn!(
+            "Connection header illegal in HTTP/2: {}",
+            CONNECTION.as_str()
+        );
+        let header_contents = header.to_str().unwrap();
+
+        // A `Connection` header may have a comma-separated list of names of other headers that
+        // are meant for only this specific connection.
+        //
+        // Iterate these names and remove them as headers. Connection-specific headers are
+        // forbidden in HTTP2, as that information has been moved into frame types of the h2
+        // protocol.
+        for name in header_contents.split(',') {
+            let name = name.trim();
+            headers.remove(name);
+        }
     }
 }
 
@@ -55,7 +87,8 @@ where
 
     fn send_eos_frame(&mut self) -> ::Result<()> {
         trace!("send body eos");
-        self.body_tx.send_data(SendBuf(None), true)
+        self.body_tx
+            .send_data(SendBuf(None), true)
             .map_err(::Error::new_body_write)
     }
 }
@@ -94,13 +127,14 @@ where
                         );
 
                         let buf = SendBuf(Some(chunk));
-                        self.body_tx.send_data(buf, is_eos)
+                        self.body_tx
+                            .send_data(buf, is_eos)
                             .map_err(::Error::new_body_write)?;
 
                         if is_eos {
-                            return Ok(Async::Ready(()))
+                            return Ok(Async::Ready(()));
                         }
-                    },
+                    }
                     None => {
                         let is_eos = self.stream.is_end_stream();
                         if is_eos {
@@ -109,19 +143,20 @@ where
                             self.data_done = true;
                             // loop again to poll_trailers
                         }
-                    },
+                    }
                 }
             } else {
                 match try_ready!(self.stream.poll_trailers().map_err(|e| self.on_err(e))) {
                     Some(trailers) => {
-                        self.body_tx.send_trailers(trailers)
+                        self.body_tx
+                            .send_trailers(trailers)
                             .map_err(::Error::new_body_write)?;
                         return Ok(Async::Ready(()));
-                    },
+                    }
                     None => {
                         // There were no trailers, so send an empty DATA frame...
                         return self.send_eos_frame().map(Async::Ready);
-                    },
+                    }
                 }
             }
         }
@@ -133,24 +168,16 @@ struct SendBuf<B>(Option<B>);
 impl<B: Buf> Buf for SendBuf<B> {
     #[inline]
     fn remaining(&self) -> usize {
-        self.0
-            .as_ref()
-            .map(|b| b.remaining())
-            .unwrap_or(0)
+        self.0.as_ref().map(|b| b.remaining()).unwrap_or(0)
     }
 
     #[inline]
     fn bytes(&self) -> &[u8] {
-        self.0
-            .as_ref()
-            .map(|b| b.bytes())
-            .unwrap_or(&[])
+        self.0.as_ref().map(|b| b.bytes()).unwrap_or(&[])
     }
 
     #[inline]
     fn advance(&mut self, cnt: usize) {
-        self.0
-            .as_mut()
-            .map(|b| b.advance(cnt));
+        self.0.as_mut().map(|b| b.advance(cnt));
     }
 }
