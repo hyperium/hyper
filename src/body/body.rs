@@ -34,7 +34,7 @@ enum Kind {
         abort_rx: oneshot::Receiver<()>,
         rx: mpsc::Receiver<Result<Chunk, ::Error>>,
     },
-    H2(h2::RecvStream),
+    H2(h2::RecvStream, Option<u64>),
     Wrapped(Box<Stream<Item=Chunk, Error=Box<::std::error::Error + Send + Sync>> + Send>),
 }
 
@@ -163,8 +163,8 @@ impl Body {
         }
     }
 
-    pub(crate) fn h2(recv: h2::RecvStream) -> Self {
-        Body::new(Kind::H2(recv))
+    pub(crate) fn h2(recv: h2::RecvStream, content_length: Option<u64>) -> Self {
+        Body::new(Kind::H2(recv, content_length))
     }
 
     pub(crate) fn set_on_upgrade(&mut self, upgrade: OnUpgrade) {
@@ -253,7 +253,7 @@ impl Body {
                     Async::NotReady => Ok(Async::NotReady),
                 }
             },
-            Kind::H2(ref mut h2) => {
+            Kind::H2(ref mut h2, _content_length) => {
                 h2.poll()
                     .map(|async| {
                         async.map(|opt| {
@@ -288,7 +288,7 @@ impl Payload for Body {
 
     fn poll_trailers(&mut self) -> Poll<Option<HeaderMap>, Self::Error> {
         match self.kind {
-            Kind::H2(ref mut h2) => h2.poll_trailers().map_err(::Error::new_h2),
+            Kind::H2(ref mut h2, _content_length) => h2.poll_trailers().map_err(::Error::new_h2),
             _ => Ok(Async::Ready(None)),
         }
     }
@@ -297,7 +297,7 @@ impl Payload for Body {
         match self.kind {
             Kind::Once(ref val) => val.is_none(),
             Kind::Chan { content_length: len, .. } => len == Some(0),
-            Kind::H2(ref h2) => h2.is_end_stream(),
+            Kind::H2(ref h2, _content_length) => h2.is_end_stream(),
             Kind::Wrapped(..) => false,
         }
     }

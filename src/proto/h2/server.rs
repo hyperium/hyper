@@ -3,6 +3,7 @@ use h2::Reason;
 use h2::server::{Builder, Connection, Handshake, SendResponse};
 use tokio_io::{AsyncRead, AsyncWrite};
 
+use ::headers::content_length_parse_all;
 use ::body::Payload;
 use ::common::Exec;
 use ::headers;
@@ -126,7 +127,10 @@ where
     {
         while let Some((req, respond)) = try_ready!(self.conn.poll().map_err(::Error::new_h2)) {
             trace!("incoming request");
-            let req = req.map(::Body::h2);
+            let content_length = content_length_parse_all(req.headers());
+            let req = req.map(|stream| {
+                ::Body::h2(stream, content_length)
+            });
             let fut = H2Stream::new(service.call(req), respond);
             exec.execute(fut);
         }
