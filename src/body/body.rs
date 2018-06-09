@@ -306,8 +306,8 @@ impl Payload for Body {
         match self.kind {
             Kind::Once(Some(ref val)) => Some(val.len() as u64),
             Kind::Once(None) => Some(0),
-            Kind::Chan { content_length: len, .. } => len,
-            Kind::H2(..) => None,
+            Kind::Chan { content_length, .. } => content_length,
+            Kind::H2(_, content_length) => content_length,
             Kind::Wrapped(..) => None,
         }
     }
