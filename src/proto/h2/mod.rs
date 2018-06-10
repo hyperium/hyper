@@ -103,20 +103,21 @@ where
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         loop {
             if !self.data_done {
-                // TODO: make use of flow control on SendStream
-                // If you're looking at this and thinking of trying to fix this TODO,
-                // you may want to look at:
-                // https://docs.rs/h2/0.1.*/h2/struct.SendStream.html
-                //
-                // With that doc open, we'd want to do these things:
-                // - check self.body_tx.capacity() to see if we can send *any* data
-                // - if > 0:
-                // -   poll self.stream
-                // -   reserve chunk.len() more capacity (because its about to be used)?
-                // -   send the chunk
-                // - else:
-                // -   try reserve a smallish amount of capacity
-                // -   call self.body_tx.poll_capacity(), return if NotReady
+                // we don't have the next chunk of data yet, so just reserve 1 byte to make
+                // sure there's some capacity available. h2 will handle the capacity management
+                // for the actual body chunk.
+                self.body_tx.reserve_capacity(1);
+
+                if self.body_tx.capacity() == 0 {
+                    loop {
+                        match try_ready!(self.body_tx.poll_capacity().map_err(::Error::new_h2)) {
+                            Some(0) => {}
+                            Some(_) => break,
+                            None => return Err(::Error::new_canceled(None::<::Error>)),
+                        }
+                    }
+                }
+
                 match try_ready!(self.stream.poll_data().map_err(|e| self.on_err(e))) {
                     Some(chunk) => {
                         let is_eos = self.stream.is_end_stream();
@@ -136,6 +137,7 @@ where
                         }
                     }
                     None => {
+                        self.body_tx.reserve_capacity(0);
                         let is_eos = self.stream.is_end_stream();
                         if is_eos {
                             return self.send_eos_frame().map(Async::Ready);
