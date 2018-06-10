@@ -7,6 +7,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 use body::Payload;
 use ::common::{Exec, Never};
+use headers;
 use super::{PipeToSendStream, SendBuf};
 use ::{Body, Request, Response};
 
@@ -106,6 +107,9 @@ where
                             let (head, body) = req.into_parts();
                             let mut req = ::http::Request::from_parts(head, ());
                             super::strip_connection_headers(req.headers_mut());
+                            if let Some(len) = body.content_length() {
+                                headers::set_content_length_if_missing(req.headers_mut(), len);
+                            }
                             let eos = body.is_end_stream();
                             let (fut, body_tx) = match tx.send_request(req, eos) {
                                 Ok(ok) => ok,
