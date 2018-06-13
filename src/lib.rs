@@ -62,3 +62,4 @@ mod proto;
 pub mod server;
 pub mod service;
 #[cfg(feature = "runtime")] pub mod rt;
+pub mod upgrade;

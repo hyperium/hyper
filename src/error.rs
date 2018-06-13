@@ -61,6 +61,12 @@ pub(crate) enum Kind {
     UnsupportedVersion,
     /// User tried to create a CONNECT Request with the Client.
     UnsupportedRequestMethod,
+
+    /// User tried polling for an upgrade that doesn't exist.
+    NoUpgrade,
+
+    /// User polled for an upgrade, but low-level API is not using upgrades.
+    ManualUpgrade,
 }
 
 #[derive(Debug, PartialEq)]
@@ -72,9 +78,6 @@ pub(crate) enum Parse {
     Header,
     TooLarge,
     Status,
-
-    /// A protocol upgrade was encountered, but not yet supported in hyper.
-    UpgradeNotSupported,
 }
 
 /*
@@ -110,7 +113,8 @@ impl Error {
             Kind::Service |
             Kind::Closed |
             Kind::UnsupportedVersion |
-            Kind::UnsupportedRequestMethod => true,
+            Kind::UnsupportedRequestMethod |
+            Kind::NoUpgrade => true,
             _ => false,
         }
     }
@@ -216,6 +220,14 @@ impl Error {
         Error::new(Kind::UnsupportedRequestMethod, None)
     }
 
+    pub(crate) fn new_user_no_upgrade() -> Error {
+        Error::new(Kind::NoUpgrade, None)
+    }
+
+    pub(crate) fn new_user_manual_upgrade() -> Error {
+        Error::new(Kind::ManualUpgrade, None)
+    }
+
     pub(crate) fn new_user_new_service<E: Into<Cause>>(cause: E) -> Error {
         Error::new(Kind::NewService, Some(cause.into()))
     }
@@ -266,7 +278,6 @@ impl StdError for Error {
             Kind::Parse(Parse::Header) => "invalid Header provided",
             Kind::Parse(Parse::TooLarge) => "message head is too large",
             Kind::Parse(Parse::Status) => "invalid Status provided",
-            Kind::Parse(Parse::UpgradeNotSupported) => "unsupported protocol upgrade",
             Kind::Incomplete => "message is incomplete",
             Kind::MismatchedResponse => "response received without matching request",
             Kind::Closed => "connection closed",
@@ -284,6 +295,8 @@ impl StdError for Error {
             Kind::Http2 => "http2 general error",
             Kind::UnsupportedVersion => "request has unsupported HTTP version",
             Kind::UnsupportedRequestMethod => "request has unsupported HTTP method",
+            Kind::NoUpgrade => "no upgrade available",
+            Kind::ManualUpgrade => "upgrade expected but low level API in use",
 
             Kind::Io => "an IO error occurred",
         }

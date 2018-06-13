@@ -24,7 +24,7 @@ use futures::future::{self, FutureResult, Either};
 use futures::sync::oneshot;
 use futures_timer::Delay;
 use http::header::{HeaderName, HeaderValue};
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream as TkTcpStream};
 use tokio::runtime::Runtime;
 use tokio::reactor::Handle;
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -33,7 +33,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use hyper::{Body, Request, Response, StatusCode};
 use hyper::client::Client;
 use hyper::server::conn::Http;
-use hyper::service::{service_fn, Service};
+use hyper::service::{service_fn, service_fn_ok, Service};
 
 fn tcp_bind(addr: &SocketAddr, handle: &Handle) -> ::tokio::io::Result<TcpListener> {
     let std_listener = StdTcpListener::bind(addr).unwrap();
@@ -1269,6 +1269,142 @@ fn http_connect() {
     let vec = read_to_end(io, vec![]).wait().unwrap().1;
     assert_eq!(vec, b"bar=foo");
 }
+
+#[test]
+fn upgrades_new() {
+    use tokio_io::io::{read_to_end, write_all};
+    let _ = pretty_env_logger::try_init();
+    let mut rt = Runtime::new().unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &rt.reactor()).unwrap();
+    let addr = listener.local_addr().unwrap();
+    let (read_101_tx, read_101_rx) = oneshot::channel();
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        tcp.write_all(b"\
+            GET / HTTP/1.1\r\n\
+            Upgrade: foobar\r\n\
+            Connection: upgrade\r\n\
+            \r\n\
+            eagerly optimistic\
+        ").expect("write 1");
+        let mut buf = [0; 256];
+        tcp.read(&mut buf).expect("read 1");
+
+        let expected = "HTTP/1.1 101 Switching Protocols\r\n";
+        assert_eq!(s(&buf[..expected.len()]), expected);
+        let _ = read_101_tx.send(());
+
+        let n = tcp.read(&mut buf).expect("read 2");
+        assert_eq!(s(&buf[..n]), "foo=bar");
+        tcp.write_all(b"bar=foo").expect("write 2");
+    });
+
+    let (upgrades_tx, upgrades_rx) = mpsc::channel();
+    let svc = service_fn_ok(move |req: Request<Body>| {
+        let on_upgrade = req
+            .into_body()
+            .on_upgrade();
+        let _ = upgrades_tx.send(on_upgrade);
+        Response::builder()
+            .status(101)
+            .header("upgrade", "foobar")
+            .body(hyper::Body::empty())
+            .unwrap()
+    });
+
+    let fut = listener.incoming()
+        .into_future()
+        .map_err(|_| -> hyper::Error { unreachable!() })
+        .and_then(move |(item, _incoming)| {
+            let socket = item.unwrap();
+            Http::new()
+                .serve_connection(socket, svc)
+                .with_upgrades()
+        });
+
+    rt.block_on(fut).unwrap();
+    let on_upgrade = upgrades_rx.recv().unwrap();
+
+    // wait so that we don't write until other side saw 101 response
+    rt.block_on(read_101_rx).unwrap();
+
+    let upgraded = rt.block_on(on_upgrade).unwrap();
+    let parts = upgraded.downcast::<TkTcpStream>().unwrap();
+    let io = parts.io;
+    assert_eq!(parts.read_buf, "eagerly optimistic");
+
+    let io = rt.block_on(write_all(io, b"foo=bar")).unwrap().0;
+    let vec = rt.block_on(read_to_end(io, vec![])).unwrap().1;
+    assert_eq!(s(&vec), "bar=foo");
+}
+
+#[test]
+fn http_connect_new() {
+    use tokio_io::io::{read_to_end, write_all};
+    let _ = pretty_env_logger::try_init();
+    let mut rt = Runtime::new().unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &rt.reactor()).unwrap();
+    let addr = listener.local_addr().unwrap();
+    let (read_200_tx, read_200_rx) = oneshot::channel();
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        tcp.write_all(b"\
+            CONNECT localhost HTTP/1.1\r\n\
+            \r\n\
+            eagerly optimistic\
+        ").expect("write 1");
+        let mut buf = [0; 256];
+        tcp.read(&mut buf).expect("read 1");
+
+        let expected = "HTTP/1.1 200 OK\r\n";
+        assert_eq!(s(&buf[..expected.len()]), expected);
+        let _ = read_200_tx.send(());
+
+        let n = tcp.read(&mut buf).expect("read 2");
+        assert_eq!(s(&buf[..n]), "foo=bar");
+        tcp.write_all(b"bar=foo").expect("write 2");
+    });
+
+    let (upgrades_tx, upgrades_rx) = mpsc::channel();
+    let svc = service_fn_ok(move |req: Request<Body>| {
+        let on_upgrade = req
+            .into_body()
+            .on_upgrade();
+        let _ = upgrades_tx.send(on_upgrade);
+        Response::builder()
+            .status(200)
+            .body(hyper::Body::empty())
+            .unwrap()
+    });
+
+    let fut = listener.incoming()
+        .into_future()
+        .map_err(|_| -> hyper::Error { unreachable!() })
+        .and_then(move |(item, _incoming)| {
+            let socket = item.unwrap();
+            Http::new()
+                .serve_connection(socket, svc)
+                .with_upgrades()
+        });
+
+    rt.block_on(fut).unwrap();
+    let on_upgrade = upgrades_rx.recv().unwrap();
+
+    // wait so that we don't write until other side saw 200
+    rt.block_on(read_200_rx).unwrap();
+
+    let upgraded = rt.block_on(on_upgrade).unwrap();
+    let parts = upgraded.downcast::<TkTcpStream>().unwrap();
+    let io = parts.io;
+    assert_eq!(parts.read_buf, "eagerly optimistic");
+
+    let io = rt.block_on(write_all(io, b"foo=bar")).unwrap().0;
+    let vec = rt.block_on(read_to_end(io, vec![])).unwrap().1;
+    assert_eq!(s(&vec), "bar=foo");
+}
+
 
 #[test]
 fn parse_errors_send_4xx_response() {

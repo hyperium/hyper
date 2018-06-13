@@ -596,33 +596,6 @@ test! {
             body: None,
 }
 
-
-test! {
-    name: client_101_upgrade,
-
-    server:
-        expected: "\
-            GET /upgrade HTTP/1.1\r\n\
-            host: {addr}\r\n\
-            \r\n\
-            ",
-        reply: "\
-            HTTP/1.1 101 Switching Protocols\r\n\
-            Upgrade: websocket\r\n\
-            Connection: upgrade\r\n\
-            \r\n\
-            ",
-
-    client:
-        request:
-            method: GET,
-            url: "http://{addr}/upgrade",
-            headers: {},
-            body: None,
-        error: |err| err.to_string() == "unsupported protocol upgrade",
-
-}
-
 test! {
     name: client_connect_method,
 
@@ -1275,6 +1248,68 @@ mod dispatch_impl {
             .unwrap();
         let res = client.request(req);
         res.join(rx).map(|r| r.0).wait().unwrap();
+    }
+
+    #[test]
+    fn client_upgrade() {
+        use tokio_io::io::{read_to_end, write_all};
+        let _ = pretty_env_logger::try_init();
+        let server = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = server.local_addr().unwrap();
+        let runtime = Runtime::new().unwrap();
+        let handle = runtime.reactor();
+
+        let connector = DebugConnector::new(&handle);
+
+        let client = Client::builder()
+            .executor(runtime.executor())
+            .build(connector);
+
+        let (tx1, rx1) = oneshot::channel();
+        thread::spawn(move || {
+            let mut sock = server.accept().unwrap().0;
+            sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let mut buf = [0; 4096];
+            sock.read(&mut buf).expect("read 1");
+            sock.write_all(b"\
+                HTTP/1.1 101 Switching Protocols\r\n\
+                Upgrade: foobar\r\n\
+                \r\n\
+                foobar=ready\
+            ").unwrap();
+            let _ = tx1.send(());
+
+            let n = sock.read(&mut buf).expect("read 2");
+            assert_eq!(&buf[..n], b"foo=bar");
+            sock.write_all(b"bar=foo").expect("write 2");
+        });
+
+        let rx = rx1.expect("thread panicked");
+
+        let req = Request::builder()
+            .method("GET")
+            .uri(&*format!("http://{}/up", addr))
+            .body(Body::empty())
+            .unwrap();
+
+        let res = client.request(req);
+        let res = res.join(rx).map(|r| r.0).wait().unwrap();
+
+        assert_eq!(res.status(), 101);
+        let upgraded = res
+            .into_body()
+            .on_upgrade()
+            .wait()
+            .expect("on_upgrade");
+
+        let parts = upgraded.downcast::<DebugStream>().unwrap();
+        assert_eq!(s(&parts.read_buf), "foobar=ready");
+
+        let io = parts.io;
+        let io  = write_all(io, b"foo=bar").wait().unwrap().0;
+        let vec = read_to_end(io, vec![]).wait().unwrap().1;
+        assert_eq!(vec, b"bar=foo");
     }
 
 

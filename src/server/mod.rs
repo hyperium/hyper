@@ -50,7 +50,6 @@
 
 pub mod conn;
 #[cfg(feature = "runtime")] mod tcp;
-mod rewind;
 
 use std::fmt;
 #[cfg(feature = "runtime")] use std::net::SocketAddr;

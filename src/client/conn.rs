@@ -9,6 +9,7 @@
 //! higher-level [Client](super) API.
 use std::fmt;
 use std::marker::PhantomData;
+use std::mem;
 
 use bytes::Bytes;
 use futures::{Async, Future, Poll};
@@ -17,9 +18,21 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 use body::Payload;
 use common::Exec;
+use upgrade::Upgraded;
 use proto;
 use super::dispatch;
-use {Body, Request, Response, StatusCode};
+use {Body, Request, Response};
+
+type Http1Dispatcher<T, B, R> = proto::dispatch::Dispatcher<
+    proto::dispatch::Client<B>,
+    B,
+    T,
+    R,
+>;
+type ConnEither<T, B> = Either<
+    Http1Dispatcher<T, B, proto::h1::ClientTransaction>,
+    proto::h2::Client<T, B>,
+>;
 
 /// Returns a `Handshake` future over some IO.
 ///
@@ -48,15 +61,7 @@ where
     T: AsyncRead + AsyncWrite + Send + 'static,
     B: Payload + 'static,
 {
-    inner: Either<
-        proto::dispatch::Dispatcher<
-            proto::dispatch::Client<B>,
-            B,
-            T,
-            proto::ClientUpgradeTransaction,
-        >,
-        proto::h2::Client<T, B>,
-    >,
+    inner: Option<ConnEither<T, B>>,
 }
 
 
@@ -76,7 +81,9 @@ pub struct Builder {
 /// If successful, yields a `(SendRequest, Connection)` pair.
 #[must_use = "futures do nothing unless polled"]
 pub struct Handshake<T, B> {
-    inner: HandshakeInner<T, B, proto::ClientUpgradeTransaction>,
+    builder: Builder,
+    io: Option<T>,
+    _marker: PhantomData<B>,
 }
 
 /// A future returned by `SendRequest::send_request`.
@@ -112,25 +119,16 @@ pub struct Parts<T> {
 // ========== internal client api
 
 /// A `Future` for when `SendRequest::poll_ready()` is ready.
+#[must_use = "futures do nothing unless polled"]
 pub(super) struct WhenReady<B> {
     tx: Option<SendRequest<B>>,
 }
 
 // A `SendRequest` that can be cloned to send HTTP2 requests.
 // private for now, probably not a great idea of a type...
+#[must_use = "futures do nothing unless polled"]
 pub(super) struct Http2SendRequest<B> {
     dispatch: dispatch::UnboundedSender<Request<B>, Response<Body>>,
-}
-
-#[must_use = "futures do nothing unless polled"]
-pub(super) struct HandshakeNoUpgrades<T, B> {
-    inner: HandshakeInner<T, B, proto::ClientTransaction>,
-}
-
-struct HandshakeInner<T, B, R> {
-    builder: Builder,
-    io: Option<T>,
-    _marker: PhantomData<(B, R)>,
 }
 
 // ===== impl SendRequest
@@ -354,7 +352,7 @@ where
     ///
     /// Only works for HTTP/1 connections. HTTP/2 connections will panic.
     pub fn into_parts(self) -> Parts<T> {
-        let (io, read_buf, _) = match self.inner {
+        let (io, read_buf, _) = match self.inner.expect("already upgraded") {
             Either::A(h1) => h1.into_inner(),
             Either::B(_h2) => {
                 panic!("http2 cannot into_inner");
@@ -376,12 +374,12 @@ where
     /// but it is not desired to actally shutdown the IO object. Instead you
     /// would take it back using `into_parts`.
     pub fn poll_without_shutdown(&mut self) -> Poll<(), ::Error> {
-        match self.inner {
-            Either::A(ref mut h1) => {
+        match self.inner.as_mut().expect("already upgraded") {
+            &mut Either::A(ref mut h1) => {
                 h1.poll_without_shutdown()
             },
-            Either::B(ref mut h2) => {
-                h2.poll()
+            &mut Either::B(ref mut h2) => {
+                h2.poll().map(|x| x.map(|_| ()))
             }
         }
     }
@@ -396,7 +394,22 @@ where
     type Error = ::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        self.inner.poll()
+        match try_ready!(self.inner.poll()) {
+            Some(proto::Dispatched::Shutdown) |
+            None => {
+                Ok(Async::Ready(()))
+            },
+            Some(proto::Dispatched::Upgrade(pending)) => {
+                let h1 = match mem::replace(&mut self.inner, None) {
+                    Some(Either::A(h1)) => h1,
+                    _ => unreachable!("Upgrade expects h1"),
+                };
+
+                let (io, buf, _) = h1.into_inner();
+                pending.fulfill(Upgraded::new(Box::new(io), buf));
+                Ok(Async::Ready(()))
+            }
+        }
     }
 }
 
@@ -456,25 +469,9 @@ impl Builder {
         B: Payload + 'static,
     {
         Handshake {
-            inner: HandshakeInner {
-                builder: self.clone(),
-                io: Some(io),
-                _marker: PhantomData,
-            }
-        }
-    }
-
-    pub(super) fn handshake_no_upgrades<T, B>(&self, io: T) -> HandshakeNoUpgrades<T, B>
-    where
-        T: AsyncRead + AsyncWrite + Send + 'static,
-        B: Payload + 'static,
-    {
-        HandshakeNoUpgrades {
-            inner: HandshakeInner {
-                builder: self.clone(),
-                io: Some(io),
-                _marker: PhantomData,
-            }
+            builder: self.clone(),
+            io: Some(io),
+            _marker: PhantomData,
         }
     }
 }
@@ -487,64 +484,6 @@ where
     B: Payload + 'static,
 {
     type Item = (SendRequest<B>, Connection<T, B>);
-    type Error = ::Error;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        self.inner.poll()
-            .map(|async| {
-                async.map(|(tx, dispatch)| {
-                    (tx, Connection { inner: dispatch })
-                })
-            })
-    }
-}
-
-impl<T, B> fmt::Debug for Handshake<T, B> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Handshake")
-            .finish()
-    }
-}
-
-impl<T, B> Future for HandshakeNoUpgrades<T, B>
-where
-    T: AsyncRead + AsyncWrite + Send + 'static,
-    B: Payload + 'static,
-{
-    type Item = (SendRequest<B>, Either<
-        proto::h1::Dispatcher<
-            proto::h1::dispatch::Client<B>,
-            B,
-            T,
-            proto::ClientTransaction,
-        >,
-        proto::h2::Client<T, B>,
-    >);
-    type Error = ::Error;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        self.inner.poll()
-    }
-}
-
-impl<T, B, R> Future for HandshakeInner<T, B, R>
-where
-    T: AsyncRead + AsyncWrite + Send + 'static,
-    B: Payload,
-    R: proto::h1::Http1Transaction<
-        Incoming=StatusCode,
-        Outgoing=proto::RequestLine,
-    >,
-{
-    type Item = (SendRequest<B>, Either<
-        proto::h1::Dispatcher<
-            proto::h1::dispatch::Client<B>,
-            B,
-            T,
-            R,
-        >,
-        proto::h2::Client<T, B>,
-    >);
     type Error = ::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -570,8 +509,17 @@ where
             SendRequest {
                 dispatch: tx,
             },
-            either,
+            Connection {
+                inner: Some(either),
+            },
         )))
+    }
+}
+
+impl<T, B> fmt::Debug for Handshake<T, B> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Handshake")
+            .finish()
     }
 }
 

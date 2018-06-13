@@ -10,6 +10,7 @@ use http::HeaderMap;
 use common::Never;
 use super::{Chunk, Payload};
 use super::internal::{FullDataArg, FullDataRet};
+use upgrade::OnUpgrade;
 
 type BodySender = mpsc::Sender<Result<Chunk, ::Error>>;
 
@@ -21,15 +22,9 @@ type BodySender = mpsc::Sender<Result<Chunk, ::Error>>;
 #[must_use = "streams do nothing unless polled"]
 pub struct Body {
     kind: Kind,
-    /// Allow the client to pass a future to delay the `Body` from returning
-    /// EOF. This allows the `Client` to try to put the idle connection
-    /// back into the pool before the body is "finished".
-    ///
-    /// The reason for this is so that creating a new request after finishing
-    /// streaming the body of a response could sometimes result in creating
-    /// a brand new connection, since the pool didn't know about the idle
-    /// connection yet.
-    delayed_eof: Option<DelayEof>,
+    /// Keep the extra bits in an `Option<Box<Extra>>`, so that
+    /// Body stays small in the common case (no extras needed).
+    extra: Option<Box<Extra>>,
 }
 
 enum Kind {
@@ -41,6 +36,19 @@ enum Kind {
     },
     H2(h2::RecvStream),
     Wrapped(Box<Stream<Item=Chunk, Error=Box<::std::error::Error + Send + Sync>> + Send>),
+}
+
+struct Extra {
+    /// Allow the client to pass a future to delay the `Body` from returning
+    /// EOF. This allows the `Client` to try to put the idle connection
+    /// back into the pool before the body is "finished".
+    ///
+    /// The reason for this is so that creating a new request after finishing
+    /// streaming the body of a response could sometimes result in creating
+    /// a brand new connection, since the pool didn't know about the idle
+    /// connection yet.
+    delayed_eof: Option<DelayEof>,
+    on_upgrade: OnUpgrade,
 }
 
 type DelayEofUntil = oneshot::Receiver<Never>;
@@ -89,7 +97,6 @@ impl Body {
         Self::new_channel(None)
     }
 
-    #[inline]
     pub(crate) fn new_channel(content_length: Option<u64>) -> (Sender, Body) {
         let (tx, rx) = mpsc::channel(0);
         let (abort_tx, abort_rx) = oneshot::channel();
@@ -139,10 +146,20 @@ impl Body {
         Body::new(Kind::Wrapped(Box::new(mapped)))
     }
 
+    /// Converts this `Body` into a `Future` of a pending HTTP upgrade.
+    ///
+    /// See [the `upgrade` module](::upgrade) for more.
+    pub fn on_upgrade(self) -> OnUpgrade {
+        self
+            .extra
+            .map(|ex| ex.on_upgrade)
+            .unwrap_or_else(OnUpgrade::none)
+    }
+
     fn new(kind: Kind) -> Body {
         Body {
             kind: kind,
-            delayed_eof: None,
+            extra: None,
         }
     }
 
@@ -150,23 +167,46 @@ impl Body {
         Body::new(Kind::H2(recv))
     }
 
+    pub(crate) fn set_on_upgrade(&mut self, upgrade: OnUpgrade) {
+        debug_assert!(!upgrade.is_none(), "set_on_upgrade with empty upgrade");
+        let extra = self.extra_mut();
+        debug_assert!(extra.on_upgrade.is_none(), "set_on_upgrade twice");
+        extra.on_upgrade = upgrade;
+    }
+
     pub(crate) fn delayed_eof(&mut self, fut: DelayEofUntil) {
-        self.delayed_eof = Some(DelayEof::NotEof(fut));
+        self.extra_mut().delayed_eof = Some(DelayEof::NotEof(fut));
+    }
+
+    fn take_delayed_eof(&mut self) -> Option<DelayEof> {
+        self
+            .extra
+            .as_mut()
+            .and_then(|extra| extra.delayed_eof.take())
+    }
+
+    fn extra_mut(&mut self) -> &mut Extra {
+        self
+            .extra
+            .get_or_insert_with(|| Box::new(Extra {
+                delayed_eof: None,
+                on_upgrade: OnUpgrade::none(),
+            }))
     }
 
     fn poll_eof(&mut self) -> Poll<Option<Chunk>, ::Error> {
-        match self.delayed_eof.take() {
+        match self.take_delayed_eof() {
             Some(DelayEof::NotEof(mut delay)) => {
                 match self.poll_inner() {
                     ok @ Ok(Async::Ready(Some(..))) |
                     ok @ Ok(Async::NotReady) => {
-                        self.delayed_eof = Some(DelayEof::NotEof(delay));
+                        self.extra_mut().delayed_eof = Some(DelayEof::NotEof(delay));
                         ok
                     },
                     Ok(Async::Ready(None)) => match delay.poll() {
                         Ok(Async::Ready(never)) => match never {},
                         Ok(Async::NotReady) => {
-                            self.delayed_eof = Some(DelayEof::Eof(delay));
+                            self.extra_mut().delayed_eof = Some(DelayEof::Eof(delay));
                             Ok(Async::NotReady)
                         },
                         Err(_done) => {
@@ -180,7 +220,7 @@ impl Body {
                 match delay.poll() {
                     Ok(Async::Ready(never)) => match never {},
                     Ok(Async::NotReady) => {
-                        self.delayed_eof = Some(DelayEof::Eof(delay));
+                        self.extra_mut().delayed_eof = Some(DelayEof::Eof(delay));
                         Ok(Async::NotReady)
                     },
                     Err(_done) => {

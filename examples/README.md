@@ -16,4 +16,6 @@ Run examples with `cargo run --example example_name`.
 
 * [`send_file`](send_file.rs) - A server that sends back content of files using tokio_fs to read the files asynchronously.
 
+* [`upgrades`](upgrades.rs) - A server and client demonstrating how to do HTTP upgrades (such as WebSockets or `CONNECT` tunneling).
+
 * [`web_api`](web_api.rs) - A server consisting in a service that returns incoming POST request's content in the response in uppercase and a service that call that call the first service and includes the first service response in its own response.

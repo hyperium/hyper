@@ -93,6 +93,12 @@ where
         self.read_buf.as_ref()
     }
 
+    #[cfg(test)]
+    #[cfg(feature = "nightly")]
+    pub(super) fn read_buf_mut(&mut self) -> &mut BytesMut {
+        &mut self.read_buf
+    }
+
     pub fn headers_buf(&mut self) -> &mut Vec<u8> {
         let buf = self.write_buf.headers_mut();
         &mut buf.bytes
@@ -595,7 +601,7 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut None,
         };
-        assert!(buffered.parse::<::proto::ClientTransaction>(ctx).unwrap().is_not_ready());
+        assert!(buffered.parse::<::proto::h1::ClientTransaction>(ctx).unwrap().is_not_ready());
         assert!(buffered.io.blocked());
     }
 

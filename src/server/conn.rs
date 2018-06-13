@@ -9,22 +9,26 @@
 //! higher-level [Server](super) API.
 
 use std::fmt;
+use std::mem;
 #[cfg(feature = "runtime")] use std::net::SocketAddr;
 use std::sync::Arc;
 #[cfg(feature = "runtime")] use std::time::Duration;
 
-use super::rewind::Rewind;
 use bytes::Bytes;
 use futures::{Async, Future, Poll, Stream};
 use futures::future::{Either, Executor};
 use tokio_io::{AsyncRead, AsyncWrite};
 #[cfg(feature = "runtime")] use tokio_reactor::Handle;
 
-use common::Exec;
-use proto;
 use body::{Body, Payload};
-use service::{NewService, Service};
+use common::Exec;
+use common::io::Rewind;
 use error::{Kind, Parse};
+use proto;
+use service::{NewService, Service};
+use upgrade::Upgraded;
+
+use self::upgrades::UpgradeableConnection;
 
 #[cfg(feature = "runtime")] pub use super::tcp::AddrIncoming;
 
@@ -108,6 +112,8 @@ where
     >>,
     fallback: bool,
 }
+
+
 
 /// Deconstructed parts of a `Connection`.
 ///
@@ -429,7 +435,7 @@ where
         loop {
             let polled = match *self.conn.as_mut().unwrap() {
                 Either::A(ref mut h1) => h1.poll_without_shutdown(),
-                Either::B(ref mut h2) => h2.poll(),
+                Either::B(ref mut h2) => return h2.poll().map(|x| x.map(|_| ())),
             };
             match polled {
                 Ok(x) => return Ok(x),
@@ -466,6 +472,18 @@ where
         debug_assert!(self.conn.is_none());
         self.conn = Some(Either::B(h2));
     }
+
+    /// Enable this connection to support higher-level HTTP upgrades.
+    ///
+    /// See [the `upgrade` module](::upgrade) for more.
+    pub fn with_upgrades(self) -> UpgradeableConnection<I, S>
+    where
+        I: Send,
+    {
+        UpgradeableConnection {
+            inner: self,
+        }
+    }
 }
 
 impl<I, B, S> Future for Connection<I, S>
@@ -482,7 +500,15 @@ where
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         loop {
             match self.conn.poll() {
-                Ok(x) => return Ok(x.map(|o| o.unwrap_or_else(|| ()))),
+                Ok(x) => return Ok(x.map(|opt| {
+                    if let Some(proto::Dispatched::Upgrade(pending)) = opt {
+                        // With no `Send` bound on `I`, we can't try to do
+                        // upgrades here. In case a user was trying to use
+                        // `Body::on_upgrade` with this API, send a special
+                        // error letting them know about that.
+                        pending.manual();
+                    }
+                })),
                 Err(e) => {
                     debug!("error polling connection protocol: {}", e);
                     match *e.kind() {
@@ -507,7 +533,6 @@ where
             .finish()
     }
 }
-
 // ===== impl Serve =====
 
 impl<I, S> Serve<I, S> {
@@ -614,7 +639,7 @@ where
                 let fut = connecting
                     .map_err(::Error::new_user_new_service)
                     // flatten basically
-                    .and_then(|conn| conn)
+                    .and_then(|conn| conn.with_upgrades())
                     .map_err(|err| debug!("conn error: {}", err));
                 self.serve.protocol.exec.execute(fut);
             } else {
@@ -623,3 +648,82 @@ where
         }
     }
 }
+
+mod upgrades {
+    use super::*;
+
+    // A future binding a connection with a Service with Upgrade support.
+    //
+    // This type is unnameable outside the crate, and so basically just an
+    // `impl Future`, without requiring Rust 1.26.
+    #[must_use = "futures do nothing unless polled"]
+    #[allow(missing_debug_implementations)]
+    pub struct UpgradeableConnection<T, S>
+    where
+        S: Service,
+    {
+        pub(super) inner: Connection<T, S>,
+    }
+
+    impl<I, B, S> UpgradeableConnection<I, S>
+    where
+        S: Service<ReqBody=Body, ResBody=B> + 'static,
+        S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+        S::Future: Send,
+        I: AsyncRead + AsyncWrite + Send + 'static,
+        B: Payload + 'static,
+    {
+        /// Start a graceful shutdown process for this connection.
+        ///
+        /// This `Connection` should continue to be polled until shutdown
+        /// can finish.
+        pub fn graceful_shutdown(&mut self) {
+            self.inner.graceful_shutdown()
+        }
+    }
+
+    impl<I, B, S> Future for UpgradeableConnection<I, S>
+    where
+        S: Service<ReqBody=Body, ResBody=B> + 'static,
+        S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+        S::Future: Send,
+        I: AsyncRead + AsyncWrite + Send + 'static,
+        B: Payload + 'static,
+    {
+        type Item = ();
+        type Error = ::Error;
+
+        fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+            loop {
+                match self.inner.conn.poll() {
+                    Ok(Async::NotReady) => return Ok(Async::NotReady),
+                    Ok(Async::Ready(Some(proto::Dispatched::Shutdown))) |
+                    Ok(Async::Ready(None)) => {
+                        return Ok(Async::Ready(()));
+                    },
+                    Ok(Async::Ready(Some(proto::Dispatched::Upgrade(pending)))) => {
+                        let h1 = match mem::replace(&mut self.inner.conn, None) {
+                            Some(Either::A(h1)) => h1,
+                            _ => unreachable!("Upgrade expects h1"),
+                        };
+
+                        let (io, buf, _) = h1.into_inner();
+                        pending.fulfill(Upgraded::new(Box::new(io), buf));
+                        return Ok(Async::Ready(()));
+                    },
+                    Err(e) => {
+                        debug!("error polling connection protocol: {}", e);
+                        match *e.kind() {
+                            Kind::Parse(Parse::VersionH2) if self.inner.fallback => {
+                                self.inner.upgrade_h2();
+                                continue;
+                            }
+                            _ => return Err(e),
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+

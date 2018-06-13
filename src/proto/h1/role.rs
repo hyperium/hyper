@@ -8,25 +8,19 @@ use httparse;
 
 use error::Parse;
 use headers;
-use proto::{BodyLength, MessageHead, RequestLine, RequestHead};
-use proto::h1::{Decode, Decoder, Encode, Encoder, Http1Transaction, ParseResult, ParseContext, ParsedMessage, date};
+use proto::{BodyLength, DecodedLength, MessageHead, RequestLine, RequestHead};
+use proto::h1::{Encode, Encoder, Http1Transaction, ParseResult, ParseContext, ParsedMessage, date};
 
 const MAX_HEADERS: usize = 100;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
 
 // There are 2 main roles, Client and Server.
-//
-// There is 1 modifier, OnUpgrade, which can wrap Client and Server,
-// to signal that HTTP upgrades are not supported.
 
-pub(crate) struct Client<T>(T);
+pub(crate) enum Client {}
 
-pub(crate) struct Server<T>(T);
+pub(crate) enum Server {}
 
-impl<T> Http1Transaction for Server<T>
-where
-    T: OnUpgrade,
-{
+impl Http1Transaction for Server {
     type Incoming = RequestLine;
     type Outgoing = StatusCode;
 
@@ -34,31 +28,45 @@ where
         if buf.len() == 0 {
             return Ok(None);
         }
+
+        let mut keep_alive;
+        let is_http_11;
+        let subject;
+        let version;
+        let len;
+        let headers_len;
+
         // Unsafe: both headers_indices and headers are using unitialized memory,
         // but we *never* read any of it until after httparse has assigned
         // values into it. By not zeroing out the stack memory, this saves
         // a good ~5% on pipeline benchmarks.
         let mut headers_indices: [HeaderIndices; MAX_HEADERS] = unsafe { mem::uninitialized() };
-        let (len, subject, version, headers_len) = {
+        {
             let mut headers: [httparse::Header; MAX_HEADERS] = unsafe { mem::uninitialized() };
             trace!("Request.parse([Header; {}], [u8; {}])", headers.len(), buf.len());
             let mut req = httparse::Request::new(&mut headers);
             let bytes = buf.as_ref();
             match req.parse(bytes)? {
-                httparse::Status::Complete(len) => {
-                    trace!("Request.parse Complete({})", len);
-                    let method = Method::from_bytes(req.method.unwrap().as_bytes())?;
-                    let path = req.path.unwrap().parse()?;
-                    let subject = RequestLine(method, path);
-                    let version = if req.version.unwrap() == 1 {
+                httparse::Status::Complete(parsed_len) => {
+                    trace!("Request.parse Complete({})", parsed_len);
+                    len = parsed_len;
+                    subject = RequestLine(
+                        Method::from_bytes(req.method.unwrap().as_bytes())?,
+                        req.path.unwrap().parse()?
+                    );
+                    version = if req.version.unwrap() == 1 {
+                        keep_alive = true;
+                        is_http_11 = true;
                         Version::HTTP_11
                     } else {
+                        keep_alive = false;
+                        is_http_11 = false;
                         Version::HTTP_10
                     };
 
                     record_header_indices(bytes, &req.headers, &mut headers_indices);
-                    let headers_len = req.headers.len();
-                    (len, subject, version, headers_len)
+                    headers_len = req.headers.len();
+                    //(len, subject, version, headers_len)
                 }
                 httparse::Status::Partial => return Ok(None),
             }
@@ -76,12 +84,12 @@ where
         // 7. (irrelevant to Request)
 
 
-        let mut decoder = None;
+        let mut decoder = DecodedLength::ZERO;
         let mut expect_continue = false;
-        let mut keep_alive = version == Version::HTTP_11;
         let mut con_len = None;
         let mut is_te = false;
         let mut is_te_chunked = false;
+        let mut wants_upgrade = subject.0 == Method::CONNECT;
 
         let mut headers = ctx.cached_headers
             .take()
@@ -104,16 +112,14 @@ where
                     // If Transfer-Encoding header is present, and 'chunked' is
                     // not the final encoding, and this is a Request, then it is
                     // mal-formed. A server should respond with 400 Bad Request.
-                    if version == Version::HTTP_10 {
+                    if !is_http_11 {
                         debug!("HTTP/1.0 cannot have Transfer-Encoding header");
                         return Err(Parse::Header);
                     }
                     is_te = true;
                     if headers::is_chunked_(&value) {
                         is_te_chunked = true;
-                        decoder = Some(Decoder::chunked());
-                        //debug!("request with transfer-encoding header, but not chunked, bad request");
-                        //return Err(Parse::Header);
+                        decoder = DecodedLength::CHUNKED;
                     }
                 },
                 header::CONTENT_LENGTH => {
@@ -135,8 +141,8 @@ where
                         // we don't need to append this secondary length
                         continue;
                     }
+                    decoder = DecodedLength::checked_new(len)?;
                     con_len = Some(len);
-                    decoder = Some(Decoder::length(len));
                 },
                 header::CONNECTION => {
                     // keep_alive was previously set to default for Version
@@ -152,6 +158,10 @@ where
                 header::EXPECT => {
                     expect_continue = value.as_bytes() == b"100-continue";
                 },
+                header::UPGRADE => {
+                    // Upgrades are only allowed with HTTP/1.1
+                    wants_upgrade = is_http_11;
+                },
 
                 _ => (),
             }
@@ -159,15 +169,10 @@ where
             headers.append(name, value);
         }
 
-        let decoder = if let Some(decoder) = decoder {
-            decoder
-        } else {
-            if is_te && !is_te_chunked {
-                debug!("request with transfer-encoding header, but not chunked, bad request");
-                return Err(Parse::Header);
-            }
-            Decoder::length(0)
-        };
+        if is_te && !is_te_chunked {
+            debug!("request with transfer-encoding header, but not chunked, bad request");
+            return Err(Parse::Header);
+        }
 
         *ctx.req_method = Some(subject.0.clone());
 
@@ -177,9 +182,10 @@ where
                 subject,
                 headers,
             },
-            decode: Decode::Normal(decoder),
+            decode: decoder,
             expect_continue,
             keep_alive,
+            wants_upgrade,
         }))
     }
 
@@ -194,7 +200,7 @@ where
         let is_upgrade = msg.head.subject == StatusCode::SWITCHING_PROTOCOLS
             || (msg.req_method == &Some(Method::CONNECT) && msg.head.subject.is_success());
         let (ret, mut is_last) = if is_upgrade {
-            (T::on_encode_upgrade(&mut msg), true)
+            (Ok(()), true)
         } else if msg.head.subject.is_informational() {
             error!("response with 1xx status code not supported");
             *msg.head = MessageHead::default();
@@ -485,7 +491,7 @@ where
     }
 }
 
-impl Server<()> {
+impl Server {
     fn can_have_body(method: &Option<Method>, status: StatusCode) -> bool {
         Server::can_chunked(method, status)
     }
@@ -508,65 +514,69 @@ impl Server<()> {
     }
 }
 
-impl<T> Http1Transaction for Client<T>
-where
-    T: OnUpgrade,
-{
+impl Http1Transaction for Client {
     type Incoming = StatusCode;
     type Outgoing = RequestLine;
 
     fn parse(buf: &mut BytesMut, ctx: ParseContext) -> ParseResult<StatusCode> {
-        if buf.len() == 0 {
-            return Ok(None);
-        }
-        // Unsafe: see comment in Server Http1Transaction, above.
-        let mut headers_indices: [HeaderIndices; MAX_HEADERS] = unsafe { mem::uninitialized() };
-        let (len, status, version, headers_len) = {
-            let mut headers: [httparse::Header; MAX_HEADERS] = unsafe { mem::uninitialized() };
-            trace!("Response.parse([Header; {}], [u8; {}])", headers.len(), buf.len());
-            let mut res = httparse::Response::new(&mut headers);
-            let bytes = buf.as_ref();
-            match res.parse(bytes)? {
-                httparse::Status::Complete(len) => {
-                    trace!("Response.parse Complete({})", len);
-                    let status = StatusCode::from_u16(res.code.unwrap())?;
-                    let version = if res.version.unwrap() == 1 {
-                        Version::HTTP_11
-                    } else {
-                        Version::HTTP_10
-                    };
-                    record_header_indices(bytes, &res.headers, &mut headers_indices);
-                    let headers_len = res.headers.len();
-                    (len, status, version, headers_len)
-                },
-                httparse::Status::Partial => return Ok(None),
+        // Loop to skip information status code headers (100 Continue, etc).
+        loop {
+            if buf.len() == 0 {
+                return Ok(None);
             }
-        };
+            // Unsafe: see comment in Server Http1Transaction, above.
+            let mut headers_indices: [HeaderIndices; MAX_HEADERS] = unsafe { mem::uninitialized() };
+            let (len, status, version, headers_len) = {
+                let mut headers: [httparse::Header; MAX_HEADERS] = unsafe { mem::uninitialized() };
+                trace!("Response.parse([Header; {}], [u8; {}])", headers.len(), buf.len());
+                let mut res = httparse::Response::new(&mut headers);
+                let bytes = buf.as_ref();
+                match res.parse(bytes)? {
+                    httparse::Status::Complete(len) => {
+                        trace!("Response.parse Complete({})", len);
+                        let status = StatusCode::from_u16(res.code.unwrap())?;
+                        let version = if res.version.unwrap() == 1 {
+                            Version::HTTP_11
+                        } else {
+                            Version::HTTP_10
+                        };
+                        record_header_indices(bytes, &res.headers, &mut headers_indices);
+                        let headers_len = res.headers.len();
+                        (len, status, version, headers_len)
+                    },
+                    httparse::Status::Partial => return Ok(None),
+                }
+            };
 
-        let slice = buf.split_to(len).freeze();
+            let slice = buf.split_to(len).freeze();
 
-        let mut headers = ctx.cached_headers
-            .take()
-            .unwrap_or_else(HeaderMap::new);
+            let mut headers = ctx.cached_headers
+                .take()
+                .unwrap_or_else(HeaderMap::new);
 
-        headers.reserve(headers_len);
-        fill_headers(&mut headers, slice, &headers_indices[..headers_len]);
+            headers.reserve(headers_len);
+            fill_headers(&mut headers, slice, &headers_indices[..headers_len]);
 
-        let keep_alive = version == Version::HTTP_11;
+            let keep_alive = version == Version::HTTP_11;
 
-        let head = MessageHead {
-            version,
-            subject: status,
-            headers,
-        };
-        let decode = Client::<T>::decoder(&head, ctx.req_method)?;
+            let head = MessageHead {
+                version,
+                subject: status,
+                headers,
+            };
+            if let Some((decode, is_upgrade)) = Client::decoder(&head, ctx.req_method)? {
+                return Ok(Some(ParsedMessage {
+                    head,
+                    decode,
+                    expect_continue: false,
+                    // a client upgrade means the connection can't be used
+                    // again, as it is definitely upgrading.
+                    keep_alive: keep_alive && !is_upgrade,
+                    wants_upgrade: is_upgrade,
+                }));
+            }
 
-        Ok(Some(ParsedMessage {
-            head,
-            decode,
-            expect_continue: false,
-            keep_alive,
-        }))
+        }
     }
 
     fn encode(msg: Encode<Self::Outgoing>, dst: &mut Vec<u8>) -> ::Result<Encoder> {
@@ -617,8 +627,11 @@ where
     }
 }
 
-impl<T: OnUpgrade> Client<T> {
-    fn decoder(inc: &MessageHead<StatusCode>, method: &mut Option<Method>) -> Result<Decode, Parse> {
+impl Client {
+    /// Returns Some(length, wants_upgrade) if successful.
+    ///
+    /// Returns None if this message head should be skipped (like a 100 status).
+    fn decoder(inc: &MessageHead<StatusCode>, method: &mut Option<Method>) -> Result<Option<(DecodedLength, bool)>, Parse> {
         // According to https://tools.ietf.org/html/rfc7230#section-3.3.3
         // 1. HEAD responses, and Status 1xx, 204, and 304 cannot have a body.
         // 2. Status 2xx to a CONNECT cannot have a body.
@@ -630,23 +643,23 @@ impl<T: OnUpgrade> Client<T> {
 
         match inc.subject.as_u16() {
             101 => {
-                return T::on_decode_upgrade().map(Decode::Final);
+                return Ok(Some((DecodedLength::ZERO, true)));
             },
             100...199 => {
                 trace!("ignoring informational response: {}", inc.subject.as_u16());
-                return Ok(Decode::Ignore);
+                return Ok(None);
             },
             204 |
-            304 => return Ok(Decode::Normal(Decoder::length(0))),
+            304 => return Ok(Some((DecodedLength::ZERO, false))),
             _ => (),
         }
         match *method {
             Some(Method::HEAD) => {
-                return Ok(Decode::Normal(Decoder::length(0)));
+                return Ok(Some((DecodedLength::ZERO, false)));
             }
             Some(Method::CONNECT) => match inc.subject.as_u16() {
                 200...299 => {
-                    return Ok(Decode::Final(Decoder::length(0)));
+                    return Ok(Some((DecodedLength::ZERO, true)));
                 },
                 _ => {},
             },
@@ -665,24 +678,24 @@ impl<T: OnUpgrade> Client<T> {
                 debug!("HTTP/1.0 cannot have Transfer-Encoding header");
                 Err(Parse::Header)
             } else if headers::transfer_encoding_is_chunked(&inc.headers) {
-                Ok(Decode::Normal(Decoder::chunked()))
+                Ok(Some((DecodedLength::CHUNKED, false)))
             } else {
                 trace!("not chunked, read till eof");
-                Ok(Decode::Normal(Decoder::eof()))
+                Ok(Some((DecodedLength::CHUNKED, false)))
             }
         } else if let Some(len) = headers::content_length_parse_all(&inc.headers) {
-            Ok(Decode::Normal(Decoder::length(len)))
+            Ok(Some((DecodedLength::checked_new(len)?, false)))
         } else if inc.headers.contains_key(header::CONTENT_LENGTH) {
             debug!("illegal Content-Length header");
             Err(Parse::Header)
         } else {
             trace!("neither Transfer-Encoding nor Content-Length");
-            Ok(Decode::Normal(Decoder::eof()))
+            Ok(Some((DecodedLength::CLOSE_DELIMITED, false)))
         }
     }
 }
 
-impl Client<()> {
+impl Client {
     fn set_length(head: &mut RequestHead, body: Option<BodyLength>) -> Encoder {
         if let Some(body) = body {
             let can_chunked = head.version == Version::HTTP_11
@@ -830,51 +843,6 @@ fn set_content_length(headers: &mut HeaderMap, len: u64) -> Encoder {
     }
 }
 
-pub(crate) trait OnUpgrade {
-    fn on_encode_upgrade(msg: &mut Encode<StatusCode>) -> ::Result<()>;
-    fn on_decode_upgrade() -> Result<Decoder, Parse>;
-}
-
-pub(crate) enum YesUpgrades {}
-
-pub(crate) enum NoUpgrades {}
-
-impl OnUpgrade for YesUpgrades {
-    fn on_encode_upgrade(_: &mut Encode<StatusCode>) -> ::Result<()> {
-        Ok(())
-    }
-
-    fn on_decode_upgrade() -> Result<Decoder, Parse> {
-        debug!("101 response received, upgrading");
-        // 101 upgrades always have no body
-        Ok(Decoder::length(0))
-    }
-}
-
-impl OnUpgrade for NoUpgrades {
-    fn on_encode_upgrade(msg: &mut Encode<StatusCode>) -> ::Result<()> {
-        *msg.head = MessageHead::default();
-        msg.head.subject = ::StatusCode::INTERNAL_SERVER_ERROR;
-        msg.body = None;
-
-        if msg.head.subject == StatusCode::SWITCHING_PROTOCOLS {
-            error!("response with 101 status code not supported");
-            Err(Parse::UpgradeNotSupported.into())
-        } else if msg.req_method == &Some(Method::CONNECT) {
-            error!("200 response to CONNECT request not supported");
-            Err(::Error::new_user_unsupported_request_method())
-        } else {
-            debug_assert!(false, "upgrade incorrectly detected");
-            Err(::Error::new_status())
-        }
-    }
-
-    fn on_decode_upgrade() -> Result<Decoder, Parse> {
-        debug!("received 101 upgrade response, not supported");
-        Err(Parse::UpgradeNotSupported)
-    }
-}
-
 #[derive(Clone, Copy)]
 struct HeaderIndices {
     name: (usize, usize),
@@ -978,10 +946,6 @@ mod tests {
     use bytes::BytesMut;
 
     use super::*;
-    use super::{Server as S, Client as C};
-
-    type Server = S<NoUpgrades>;
-    type Client = C<NoUpgrades>;
 
     #[test]
     fn test_parse_request() {
@@ -1033,8 +997,6 @@ mod tests {
 
     #[test]
     fn test_decoder_request() {
-        use super::Decoder;
-
         fn parse(s: &str) -> ParsedMessage<RequestLine> {
             let mut bytes = BytesMut::from(s);
             Server::parse(&mut bytes, ParseContext {
@@ -1058,39 +1020,39 @@ mod tests {
         assert_eq!(parse("\
             GET / HTTP/1.1\r\n\
             \r\n\
-        ").decode, Decode::Normal(Decoder::length(0)));
+        ").decode, DecodedLength::ZERO);
 
         assert_eq!(parse("\
             POST / HTTP/1.1\r\n\
             \r\n\
-        ").decode, Decode::Normal(Decoder::length(0)));
+        ").decode, DecodedLength::ZERO);
 
         // transfer-encoding: chunked
         assert_eq!(parse("\
             POST / HTTP/1.1\r\n\
             transfer-encoding: chunked\r\n\
             \r\n\
-        ").decode, Decode::Normal(Decoder::chunked()));
+        ").decode, DecodedLength::CHUNKED);
 
         assert_eq!(parse("\
             POST / HTTP/1.1\r\n\
             transfer-encoding: gzip, chunked\r\n\
             \r\n\
-        ").decode, Decode::Normal(Decoder::chunked()));
+        ").decode, DecodedLength::CHUNKED);
 
         assert_eq!(parse("\
             POST / HTTP/1.1\r\n\
             transfer-encoding: gzip\r\n\
             transfer-encoding: chunked\r\n\
             \r\n\
-        ").decode, Decode::Normal(Decoder::chunked()));
+        ").decode, DecodedLength::CHUNKED);
 
         // content-length
         assert_eq!(parse("\
             POST / HTTP/1.1\r\n\
             content-length: 10\r\n\
             \r\n\
-        ").decode, Decode::Normal(Decoder::length(10)));
+        ").decode, DecodedLength::new(10));
 
         // transfer-encoding and content-length = chunked
         assert_eq!(parse("\
@@ -1098,14 +1060,14 @@ mod tests {
             content-length: 10\r\n\
             transfer-encoding: chunked\r\n\
             \r\n\
-        ").decode, Decode::Normal(Decoder::chunked()));
+        ").decode, DecodedLength::CHUNKED);
 
         assert_eq!(parse("\
             POST / HTTP/1.1\r\n\
             transfer-encoding: chunked\r\n\
             content-length: 10\r\n\
             \r\n\
-        ").decode, Decode::Normal(Decoder::chunked()));
+        ").decode, DecodedLength::CHUNKED);
 
         assert_eq!(parse("\
             POST / HTTP/1.1\r\n\
@@ -1113,7 +1075,7 @@ mod tests {
             content-length: 10\r\n\
             transfer-encoding: chunked\r\n\
             \r\n\
-        ").decode, Decode::Normal(Decoder::chunked()));
+        ").decode, DecodedLength::CHUNKED);
 
 
         // multiple content-lengths of same value are fine
@@ -1122,7 +1084,7 @@ mod tests {
             content-length: 10\r\n\
             content-length: 10\r\n\
             \r\n\
-        ").decode, Decode::Normal(Decoder::length(10)));
+        ").decode, DecodedLength::new(10));
 
 
         // multiple content-lengths with different values is an error
@@ -1153,7 +1115,7 @@ mod tests {
             POST / HTTP/1.0\r\n\
             content-length: 10\r\n\
             \r\n\
-        ").decode, Decode::Normal(Decoder::length(10)));
+        ").decode, DecodedLength::new(10));
 
 
         // 1.0 doesn't understand chunked, so its an error
@@ -1169,6 +1131,16 @@ mod tests {
 
         fn parse(s: &str) -> ParsedMessage<StatusCode> {
             parse_with_method(s, Method::GET)
+        }
+
+        fn parse_ignores(s: &str) {
+            let mut bytes = BytesMut::from(s);
+            assert!(Client::parse(&mut bytes, ParseContext {
+                cached_headers: &mut None,
+                req_method: &mut Some(Method::GET),
+            })
+                .expect("parse ok")
+                .is_none())
         }
 
         fn parse_with_method(s: &str, m: Method) -> ParsedMessage<StatusCode> {
@@ -1195,32 +1167,32 @@ mod tests {
         assert_eq!(parse("\
             HTTP/1.1 200 OK\r\n\
             \r\n\
-        ").decode, Decode::Normal(Decoder::eof()));
+        ").decode, DecodedLength::CLOSE_DELIMITED);
 
         // 204 and 304 never have a body
         assert_eq!(parse("\
             HTTP/1.1 204 No Content\r\n\
             \r\n\
-        ").decode, Decode::Normal(Decoder::length(0)));
+        ").decode, DecodedLength::ZERO);
 
         assert_eq!(parse("\
             HTTP/1.1 304 Not Modified\r\n\
             \r\n\
-        ").decode, Decode::Normal(Decoder::length(0)));
+        ").decode, DecodedLength::ZERO);
 
         // content-length
         assert_eq!(parse("\
             HTTP/1.1 200 OK\r\n\
             content-length: 8\r\n\
             \r\n\
-        ").decode, Decode::Normal(Decoder::length(8)));
+        ").decode, DecodedLength::new(8));
 
         assert_eq!(parse("\
             HTTP/1.1 200 OK\r\n\
             content-length: 8\r\n\
             content-length: 8\r\n\
             \r\n\
-        ").decode, Decode::Normal(Decoder::length(8)));
+        ").decode, DecodedLength::new(8));
 
         parse_err("\
             HTTP/1.1 200 OK\r\n\
@@ -1235,7 +1207,7 @@ mod tests {
             HTTP/1.1 200 OK\r\n\
             transfer-encoding: chunked\r\n\
             \r\n\
-        ").decode, Decode::Normal(Decoder::chunked()));
+        ").decode, DecodedLength::CHUNKED);
 
         // transfer-encoding and content-length = chunked
         assert_eq!(parse("\
@@ -1243,7 +1215,7 @@ mod tests {
             content-length: 10\r\n\
             transfer-encoding: chunked\r\n\
             \r\n\
-        ").decode, Decode::Normal(Decoder::chunked()));
+        ").decode, DecodedLength::CHUNKED);
 
 
         // HEAD can have content-length, but not body
@@ -1251,44 +1223,54 @@ mod tests {
             HTTP/1.1 200 OK\r\n\
             content-length: 8\r\n\
             \r\n\
-        ", Method::HEAD).decode, Decode::Normal(Decoder::length(0)));
+        ", Method::HEAD).decode, DecodedLength::ZERO);
 
         // CONNECT with 200 never has body
-        assert_eq!(parse_with_method("\
-            HTTP/1.1 200 OK\r\n\
-            \r\n\
-        ", Method::CONNECT).decode, Decode::Final(Decoder::length(0)));
+        {
+            let msg = parse_with_method("\
+                HTTP/1.1 200 OK\r\n\
+                \r\n\
+            ", Method::CONNECT);
+            assert_eq!(msg.decode, DecodedLength::ZERO);
+            assert!(!msg.keep_alive, "should be upgrade");
+            assert!(msg.wants_upgrade, "should be upgrade");
+        }
 
         // CONNECT receiving non 200 can have a body
         assert_eq!(parse_with_method("\
             HTTP/1.1 400 Bad Request\r\n\
             \r\n\
-        ", Method::CONNECT).decode, Decode::Normal(Decoder::eof()));
+        ", Method::CONNECT).decode, DecodedLength::CLOSE_DELIMITED);
 
 
         // 1xx status codes
-        assert_eq!(parse("\
+        parse_ignores("\
             HTTP/1.1 100 Continue\r\n\
             \r\n\
-        ").decode, Decode::Ignore);
+        ");
 
-        assert_eq!(parse("\
+        parse_ignores("\
             HTTP/1.1 103 Early Hints\r\n\
             \r\n\
-        ").decode, Decode::Ignore);
+        ");
 
         // 101 upgrade not supported yet
-        parse_err("\
-            HTTP/1.1 101 Switching Protocols\r\n\
-            \r\n\
-        ");
+        {
+            let msg = parse("\
+                HTTP/1.1 101 Switching Protocols\r\n\
+                \r\n\
+            ");
+            assert_eq!(msg.decode, DecodedLength::ZERO);
+            assert!(!msg.keep_alive, "should be last");
+            assert!(msg.wants_upgrade, "should be upgrade");
+        }
 
 
         // http/1.0
         assert_eq!(parse("\
             HTTP/1.0 200 OK\r\n\
             \r\n\
-        ").decode, Decode::Normal(Decoder::eof()));
+        ").decode, DecodedLength::CLOSE_DELIMITED);
 
         // 1.0 doesn't understand chunked
         parse_err("\
@@ -1320,28 +1302,11 @@ mod tests {
     }
 
     #[test]
-    fn test_server_no_upgrades_connect_method() {
+    fn test_server_encode_connect_method() {
         let mut head = MessageHead::default();
 
         let mut vec = Vec::new();
-        let err = Server::encode(Encode {
-            head: &mut head,
-            body: None,
-            keep_alive: true,
-            req_method: &mut Some(Method::CONNECT),
-            title_case_headers: false,
-        }, &mut vec).unwrap_err();
-
-        assert!(err.is_user());
-        assert_eq!(err.kind(), &::error::Kind::UnsupportedRequestMethod);
-    }
-
-    #[test]
-    fn test_server_yes_upgrades_connect_method() {
-        let mut head = MessageHead::default();
-
-        let mut vec = Vec::new();
-        let encoder = S::<YesUpgrades>::encode(Encode {
+        let encoder = Server::encode(Encode {
             head: &mut head,
             body: None,
             keep_alive: true,
@@ -1382,10 +1347,12 @@ mod tests {
 
         b.bytes = len as u64;
         b.iter(|| {
-            let msg = Server::parse(&mut raw, ParseContext {
+            let mut msg = Server::parse(&mut raw, ParseContext {
                 cached_headers: &mut headers,
                 req_method: &mut None,
             }).unwrap().unwrap();
+            ::test::black_box(&msg);
+            msg.head.headers.clear();
             headers = Some(msg.head.headers);
             restart(&mut raw, len);
         });
@@ -1402,18 +1369,19 @@ mod tests {
     #[cfg(feature = "nightly")]
     #[bench]
     fn bench_parse_short(b: &mut Bencher) {
-        let mut raw = BytesMut::from(
-            b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n".to_vec()
-        );
+        let s = &b"GET / HTTP/1.1\r\nHost: localhost:8080\r\n\r\n"[..];
+        let mut raw = BytesMut::from(s.to_vec());
         let len = raw.len();
         let mut headers = Some(HeaderMap::new());
 
         b.bytes = len as u64;
         b.iter(|| {
-            let msg = Server::parse(&mut raw, ParseContext {
+            let mut msg = Server::parse(&mut raw, ParseContext {
                 cached_headers: &mut headers,
                 req_method: &mut None,
             }).unwrap().unwrap();
+            ::test::black_box(&msg);
+            msg.head.headers.clear();
             headers = Some(msg.head.headers);
             restart(&mut raw, len);
         });
@@ -1480,3 +1448,4 @@ mod tests {
         })
     }
 }
+
