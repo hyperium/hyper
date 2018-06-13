@@ -55,7 +55,7 @@
 //!     // Run the job, blocking until it is complete
 //!     let body = rt.block_on(job).unwrap();
 //!     // Write body to stdout
-//!     stdout().write(&body).unwrap();
+//!     stdout().write_all(&body).unwrap();
 //! }
 //! #
 //! # #[cfg(not(feature = "runtime"))]
