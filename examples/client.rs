@@ -11,16 +11,13 @@ use hyper::Client;
 use hyper::rt::{Future, Stream};
 use tokio::runtime::Runtime;
 
-
 fn main() {
     pretty_env_logger::init();
 
     // Pass URL as first argument, or use a default
     let url = match env::args().nth(1) {
         Some(url) => url,
-        None => {
-            "http://www.columbia.edu/~fdc/sample.html".to_owned()
-        }
+        None => "http://www.columbia.edu/~fdc/sample.html".to_owned()
     };
 
     // HTTPS requires picking a TLS implementation, so give a better warning
@@ -34,9 +31,8 @@ fn main() {
     let mut runtime = Runtime::new().unwrap();
     let client = Client::new();
 
-    let job = client
-        .get(url)         // HTTP GET request on URL
-        .and_then(|res| { // On successful (non-error) response
+    let job = client.get(url) // HTTP GET request on URL
+        .and_then(|res| {     // On successful (non-error) response
             println!("Response: {}", res.status());
             println!("Headers: {:#?}", res.headers());
 
@@ -51,10 +47,10 @@ fn main() {
                     })
             })
         })
-        .map(|_| {       // When done (success)
+        .map(|_| {           // When done (success)
             println!("\n\nDone.");
         })
-        .map_err(|err| { // When done (error)
+        .map_err(|err| {     // When done (error)
             eprintln!("Error {}", err);
         });
     runtime.spawn(job); // non-blocking
