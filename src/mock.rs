@@ -79,6 +79,7 @@ pub struct AsyncIo<T> {
     inner: T,
     max_read_vecs: usize,
     num_writes: usize,
+    panic: bool,
     park_tasks: bool,
     task: Option<Task>,
 }
@@ -93,6 +94,7 @@ impl<T> AsyncIo<T> {
             inner: inner,
             max_read_vecs: READ_VECS_CNT,
             num_writes: 0,
+            panic: false,
             park_tasks: false,
             task: None,
         }
@@ -108,6 +110,11 @@ impl<T> AsyncIo<T> {
 
     pub fn error(&mut self, err: io::Error) {
         self.error = Some(err);
+    }
+
+    #[cfg(feature = "nightly")]
+    pub fn panic(&mut self) {
+        self.panic = true;
     }
 
     pub fn max_read_vecs(&mut self, cnt: usize) {
@@ -185,6 +192,7 @@ impl<S: AsRef<[u8]>, T: AsRef<[u8]>> PartialEq<S> for AsyncIo<T> {
 
 impl<T: Read> Read for AsyncIo<T> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        assert!(!self.panic, "AsyncIo::read panic");
         self.blocked = false;
         if let Some(err) = self.error.take() {
             Err(err)
@@ -201,6 +209,7 @@ impl<T: Read> Read for AsyncIo<T> {
 
 impl<T: Write> Write for AsyncIo<T> {
     fn write(&mut self, data: &[u8]) -> io::Result<usize> {
+        assert!(!self.panic, "AsyncIo::write panic");
         self.num_writes += 1;
         if let Some(err) = self.error.take() {
             trace!("AsyncIo::write error");
@@ -233,6 +242,7 @@ impl<T: Read + Write> AsyncWrite for AsyncIo<T> {
     }
 
     fn write_buf<B: Buf>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
+        assert!(!self.panic, "AsyncIo::write_buf panic");
         if self.max_read_vecs == 0 {
             return self.write_no_vecs(buf);
         }

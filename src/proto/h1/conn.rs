@@ -8,9 +8,9 @@ use http::{HeaderMap, Method, Version};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use ::Chunk;
-use proto::{BodyLength, MessageHead};
+use proto::{BodyLength, DecodedLength, MessageHead};
 use super::io::{Buffered};
-use super::{EncodedBuf, Encode, Encoder, Decode, Decoder, Http1Transaction, ParseContext};
+use super::{EncodedBuf, Encode, Encoder, /*Decode,*/ Decoder, Http1Transaction, ParseContext};
 
 const H2_PREFACE: &'static [u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
@@ -44,6 +44,7 @@ where I: AsyncRead + AsyncWrite,
                 notify_read: false,
                 reading: Reading::Init,
                 writing: Writing::Init,
+                upgrade: None,
                 // We assume a modern world where the remote speaks HTTP/1.1.
                 // If they tell us otherwise, we'll downgrade in `read_head`.
                 version: Version::HTTP_11,
@@ -70,6 +71,10 @@ where I: AsyncRead + AsyncWrite,
 
     pub fn into_inner(self) -> (I, Bytes) {
         self.io.into_inner()
+    }
+
+    pub fn pending_upgrade(&mut self) -> Option<::upgrade::Pending> {
+        self.state.upgrade.take()
     }
 
     pub fn is_read_closed(&self) -> bool {
@@ -114,80 +119,61 @@ where I: AsyncRead + AsyncWrite,
         read_buf.len() >= 24 && read_buf[..24] == *H2_PREFACE
     }
 
-    pub fn read_head(&mut self) -> Poll<Option<(MessageHead<T::Incoming>, Option<BodyLength>)>, ::Error> {
+    pub fn read_head(&mut self) -> Poll<Option<(MessageHead<T::Incoming>, DecodedLength, bool)>, ::Error> {
         debug_assert!(self.can_read_head());
         trace!("Conn::read_head");
 
-        loop {
-            let msg = match self.io.parse::<T>(ParseContext {
-                cached_headers: &mut self.state.cached_headers,
-                req_method: &mut self.state.method,
-            }) {
-                Ok(Async::Ready(msg)) => msg,
-                Ok(Async::NotReady) => return Ok(Async::NotReady),
-                Err(e) => {
-                    // If we are currently waiting on a message, then an empty
-                    // message should be reported as an error. If not, it is just
-                    // the connection closing gracefully.
-                    let must_error = self.should_error_on_eof();
-                    self.state.close_read();
-                    self.io.consume_leading_lines();
-                    let was_mid_parse = e.is_parse() || !self.io.read_buf().is_empty();
-                    return if was_mid_parse || must_error {
-                        // We check if the buf contains the h2 Preface
-                        debug!("parse error ({}) with {} bytes", e, self.io.read_buf().len());
-                        self.on_parse_error(e)
-                            .map(|()| Async::NotReady)
-                    } else {
-                        debug!("read eof");
-                        Ok(Async::Ready(None))
-                    };
-                }
-            };
+        let msg = match self.io.parse::<T>(ParseContext {
+            cached_headers: &mut self.state.cached_headers,
+            req_method: &mut self.state.method,
+        }) {
+            Ok(Async::Ready(msg)) => msg,
+            Ok(Async::NotReady) => return Ok(Async::NotReady),
+            Err(e) => return self.on_read_head_error(e),
+        };
 
-            self.state.version = msg.head.version;
-            let head = msg.head;
-            let decoder = match msg.decode {
-                Decode::Normal(d) => {
-                    d
-                },
-                Decode::Final(d) => {
-                    trace!("final decoder, HTTP ending");
-                    debug_assert!(d.is_eof());
-                    self.state.close_read();
-                    d
-                },
-                Decode::Ignore => {
-                    // likely a 1xx message that we can ignore
-                    continue;
-                }
-            };
-            debug!("incoming body is {}", decoder);
+        // Note: don't deconstruct `msg` into local variables, it appears
+        // the optimizer doesn't remove the extra copies.
 
-            self.state.busy();
+        debug!("incoming body is {}", msg.decode);
+
+        self.state.busy();
+        self.state.keep_alive &= msg.keep_alive;
+        self.state.version = msg.head.version;
+
+        if msg.decode == DecodedLength::ZERO {
+            debug_assert!(!msg.expect_continue, "expect-continue needs a body");
+            self.state.reading = Reading::KeepAlive;
+            if !T::should_read_first() {
+                self.try_keep_alive();
+            }
+        } else {
             if msg.expect_continue {
                 let cont = b"HTTP/1.1 100 Continue\r\n\r\n";
                 self.io.headers_buf().extend_from_slice(cont);
             }
-            let wants_keep_alive = msg.keep_alive;
-            self.state.keep_alive &= wants_keep_alive;
+            self.state.reading = Reading::Body(Decoder::new(msg.decode));
+        };
 
-            let content_length = decoder.content_length();
+        Ok(Async::Ready(Some((msg.head, msg.decode, msg.wants_upgrade))))
+    }
 
-            if let Reading::Closed = self.state.reading {
-                // actually want an `if not let ...`
-            } else {
-                self.state.reading = if content_length.is_none() {
-                    Reading::KeepAlive
-                } else {
-                    Reading::Body(decoder)
-                };
-            }
-            if content_length.is_none() {
-                self.try_keep_alive();
-            }
-
-            return Ok(Async::Ready(Some((head, content_length))));
+    fn on_read_head_error<Z>(&mut self, e: ::Error) -> Poll<Option<Z>, ::Error> {
+        // If we are currently waiting on a message, then an empty
+        // message should be reported as an error. If not, it is just
+        // the connection closing gracefully.
+        let must_error = self.should_error_on_eof();
+        self.state.close_read();
+        self.io.consume_leading_lines();
+        let was_mid_parse = e.is_parse() || !self.io.read_buf().is_empty();
+        if was_mid_parse || must_error {
+            // We check if the buf contains the h2 Preface
+            debug!("parse error ({}) with {} bytes", e, self.io.read_buf().len());
+            self.on_parse_error(e)
+                .map(|()| Async::NotReady)
+        } else {
+            debug!("read eof");
+            Ok(Async::Ready(None))
         }
     }
 
@@ -612,6 +598,10 @@ where I: AsyncRead + AsyncWrite,
         }
     }
 
+    pub(super) fn on_upgrade(&mut self) -> ::upgrade::OnUpgrade {
+        self.state.prepare_upgrade()
+    }
+
     // Used in h1::dispatch tests
     #[cfg(test)]
     pub(super) fn io_mut(&mut self) -> &mut I {
@@ -649,6 +639,8 @@ struct State {
     reading: Reading,
     /// State of allowed writes
     writing: Writing,
+    /// An expected pending HTTP upgrade.
+    upgrade: Option<::upgrade::Pending>,
     /// Either HTTP/1.0 or 1.1 connection
     version: Version,
 }
@@ -697,6 +689,7 @@ impl fmt::Debug for Writing {
 impl ::std::ops::BitAndAssign<bool> for KA {
     fn bitand_assign(&mut self, enabled: bool) {
         if !enabled {
+            trace!("remote disabling keep-alive");
             *self = KA::Disabled;
         }
     }
@@ -821,11 +814,53 @@ impl State {
             _ => false
         }
     }
+
+    fn prepare_upgrade(&mut self) -> ::upgrade::OnUpgrade {
+        trace!("prepare possible HTTP upgrade");
+        debug_assert!(self.upgrade.is_none());
+        let (tx, rx) = ::upgrade::pending();
+        self.upgrade = Some(tx);
+        rx
+    }
 }
 
 #[cfg(test)]
 //TODO: rewrite these using dispatch
 mod tests {
+
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_read_head_short(b: &mut ::test::Bencher) {
+        use super::*;
+        let s = b"GET / HTTP/1.1\r\nHost: localhost:8080\r\n\r\n";
+        let len = s.len();
+        b.bytes = len as u64;
+
+        let mut io = ::mock::AsyncIo::new_buf(Vec::new(), 0);
+        io.panic();
+        let mut conn = Conn::<_, ::Chunk, ::proto::h1::ServerTransaction>::new(io);
+        *conn.io.read_buf_mut() = ::bytes::BytesMut::from(&s[..]);
+        conn.state.cached_headers = Some(HeaderMap::with_capacity(2));
+
+        b.iter(|| {
+            match conn.read_head().unwrap() {
+                Async::Ready(Some(x)) => {
+                    ::test::black_box(&x);
+                    let mut headers = x.0.headers;
+                    headers.clear();
+                    conn.state.cached_headers = Some(headers);
+                },
+                f => panic!("expected Ready(Some(..)): {:?}", f)
+            }
+
+
+            conn.io.read_buf_mut().reserve(1);
+            unsafe {
+                conn.io.read_buf_mut().set_len(len);
+            }
+            conn.state.reading = Reading::Init;
+        });
+    }
     /*
     use futures::{Async, Future, Stream, Sink};
     use futures::future;

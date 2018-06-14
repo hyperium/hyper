@@ -1,25 +1,39 @@
+use std::cmp;
+use std::io::{self, Read, Write};
+
 use bytes::{Buf, BufMut, Bytes, IntoBuf};
 use futures::{Async, Poll};
-use std::io::{self, Read, Write};
-use std::cmp;
 use tokio_io::{AsyncRead, AsyncWrite};
 
+/// Combine a buffer with an IO, rewinding reads to use the buffer.
 #[derive(Debug)]
-pub struct Rewind<T> {
+pub(crate) struct Rewind<T> {
     pre: Option<Bytes>,
     inner: T,
 }
 
 impl<T> Rewind<T> {
-    pub(super) fn new(tcp: T) -> Rewind<T> {
+    pub(crate) fn new(io: T) -> Self {
         Rewind {
             pre: None,
-            inner: tcp,
+            inner: io,
         }
     }
-    pub fn rewind(&mut self, bs: Bytes) {
+
+    pub(crate) fn new_buffered(io: T, buf: Bytes) -> Self {
+        Rewind {
+            pre: Some(buf),
+            inner: io,
+        }
+    }
+
+    pub(crate) fn rewind(&mut self, bs: Bytes) {
         debug_assert!(self.pre.is_none());
         self.pre = Some(bs);
+    }
+
+    pub(crate) fn into_inner(self) -> (T, Bytes) {
+        (self.inner, self.pre.unwrap_or_else(Bytes::new))
     }
 }
 

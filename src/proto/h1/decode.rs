@@ -7,7 +7,7 @@ use futures::{Async, Poll};
 use bytes::Bytes;
 
 use super::io::MemRead;
-use super::BodyLength;
+use super::{DecodedLength};
 
 use self::Kind::{Length, Chunked, Eof};
 
@@ -74,6 +74,14 @@ impl Decoder {
         Decoder { kind: Kind::Eof(false) }
     }
 
+    pub(super) fn new(len: DecodedLength) -> Self {
+        match len {
+            DecodedLength::CHUNKED => Decoder::chunked(),
+            DecodedLength::CLOSE_DELIMITED => Decoder::eof(),
+            length => Decoder::length(length.danger_len()),
+        }
+    }
+
     // methods
 
     pub fn is_eof(&self) -> bool {
@@ -82,16 +90,6 @@ impl Decoder {
             Chunked(ChunkedState::End, _) |
             Eof(true) => true,
             _ => false,
-        }
-    }
-
-    pub fn content_length(&self) -> Option<BodyLength> {
-        match self.kind {
-            Length(0) |
-            Chunked(ChunkedState::End, _) |
-            Eof(true) => None,
-            Length(len) => Some(BodyLength::Known(len)),
-            _ => Some(BodyLength::Unknown),
         }
     }
 
@@ -149,16 +147,6 @@ impl Decoder {
 impl fmt::Debug for Decoder {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Debug::fmt(&self.kind, f)
-    }
-}
-
-impl fmt::Display for Decoder {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.kind {
-            Kind::Length(n) => write!(f, "content-length ({} bytes)", n),
-            Kind::Chunked(..) => f.write_str("chunked encoded"),
-            Kind::Eof(..) => f.write_str("until end-of-file"),
-        }
     }
 }
 

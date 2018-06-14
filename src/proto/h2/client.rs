@@ -8,6 +8,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use body::Payload;
 use ::common::{Exec, Never};
 use headers;
+use ::proto::Dispatched;
 use super::{PipeToSendStream, SendBuf};
 use ::{Body, Request, Response};
 
@@ -16,7 +17,7 @@ type ClientRx<B> = ::client::dispatch::Receiver<Request<B>, Response<Body>>;
 /// other handles to it have been dropped, so that it can shutdown.
 type ConnDropRef = mpsc::Sender<Never>;
 
-pub struct Client<T, B>
+pub(crate) struct Client<T, B>
 where
     B: Payload,
 {
@@ -54,7 +55,7 @@ where
     T: AsyncRead + AsyncWrite + Send + 'static,
     B: Payload + 'static,
 {
-    type Item = ();
+    type Item = Dispatched;
     type Error = ::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -153,7 +154,7 @@ where
                         Ok(Async::Ready(None)) |
                         Err(_) => {
                             trace!("client::dispatch::Sender dropped");
-                            return Ok(Async::Ready(()));
+                            return Ok(Async::Ready(Dispatched::Shutdown));
                         }
                     }
                 },

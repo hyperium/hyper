@@ -1,5 +1,6 @@
 mod buf;
 mod exec;
+pub(crate) mod io;
 mod never;
 
 pub(crate) use self::buf::StaticBuf;

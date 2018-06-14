@@ -268,7 +268,7 @@ where C: Connect + Sync + 'static,
                                 .h1_writev(h1_writev)
                                 .h1_title_case_headers(h1_title_case_headers)
                                 .http2_only(pool_key.1 == Ver::Http2)
-                                .handshake_no_upgrades(io)
+                                .handshake(io)
                                 .and_then(move |(tx, conn)| {
                                     executor.execute(conn.map_err(|e| {
                                         debug!("client connection error: {}", e)

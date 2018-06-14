@@ -7,6 +7,7 @@ use ::body::Payload;
 use ::common::Exec;
 use ::headers;
 use ::service::Service;
+use ::proto::Dispatched;
 use super::{PipeToSendStream, SendBuf};
 
 use ::{Body, Response};
@@ -82,7 +83,7 @@ where
     S::Future: Send + 'static,
     B: Payload,
 {
-    type Item = ();
+    type Item = Dispatched;
     type Error = ::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -95,12 +96,13 @@ where
                     })
                 },
                 State::Serving(ref mut srv) => {
-                    return srv.poll_server(&mut self.service, &self.exec);
+                    try_ready!(srv.poll_server(&mut self.service, &self.exec));
+                    return Ok(Async::Ready(Dispatched::Shutdown));
                 }
                 State::Closed => {
                     // graceful_shutdown was called before handshaking finished,
                     // nothing to do here...
-                    return Ok(Async::Ready(()));
+                    return Ok(Async::Ready(Dispatched::Shutdown));
                 }
             };
             self.state = next;
