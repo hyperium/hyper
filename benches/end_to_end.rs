@@ -9,7 +9,7 @@ extern crate tokio;
 use std::net::SocketAddr;
 
 use futures::{Future, Stream};
-use tokio::runtime::Runtime;
+use tokio::runtime::current_thread::Runtime;
 use tokio::net::TcpListener;
 
 use hyper::{Body, Method, Request, Response};
@@ -22,22 +22,21 @@ fn get_one_at_a_time(b: &mut test::Bencher) {
     let mut rt = Runtime::new().unwrap();
     let addr = spawn_hello(&mut rt);
 
-    let connector = HttpConnector::new_with_handle(1, rt.reactor().clone());
+    let connector = HttpConnector::new(1);
     let client = hyper::Client::builder()
-        .executor(rt.executor())
         .build::<_, Body>(connector);
 
     let url: hyper::Uri = format!("http://{}/get", addr).parse().unwrap();
 
     b.bytes = 160 * 2 + PHRASE.len() as u64;
     b.iter(move || {
-        client.get(url.clone())
+        rt.block_on(client.get(url.clone())
             .and_then(|res| {
                 res.into_body().for_each(|_chunk| {
                     Ok(())
                 })
-            })
-            .wait().expect("client wait");
+            }))
+            .expect("client wait");
     });
 }
 
@@ -46,9 +45,8 @@ fn post_one_at_a_time(b: &mut test::Bencher) {
     let mut rt = Runtime::new().unwrap();
     let addr = spawn_hello(&mut rt);
 
-    let connector = HttpConnector::new_with_handle(1, rt.reactor().clone());
+    let connector = HttpConnector::new(1);
     let client = hyper::Client::builder()
-        .executor(rt.executor())
         .build::<_, Body>(connector);
 
     let url: hyper::Uri = format!("http://{}/post", addr).parse().unwrap();
@@ -59,12 +57,11 @@ fn post_one_at_a_time(b: &mut test::Bencher) {
         let mut req = Request::new(post.into());
         *req.method_mut() = Method::POST;
         *req.uri_mut() = url.clone();
-        client.request(req).and_then(|res| {
+        rt.block_on(client.request(req).and_then(|res| {
             res.into_body().for_each(|_chunk| {
                 Ok(())
             })
-        }).wait().expect("client wait");
-
+        })).expect("client wait");
     });
 }
 

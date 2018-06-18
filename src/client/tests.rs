@@ -1,12 +1,9 @@
 #![cfg(feature = "runtime")]
 extern crate pretty_env_logger;
 
-use std::thread;
-use std::time::Duration;
-
 use futures::Async;
 use futures::future::poll_fn;
-use tokio::executor::thread_pool::{Builder as ThreadPoolBuilder};
+use tokio::runtime::current_thread::Runtime;
 
 use mock::MockConnector;
 use super::*;
@@ -15,14 +12,13 @@ use super::*;
 fn retryable_request() {
     let _ = pretty_env_logger::try_init();
 
-    let executor = ThreadPoolBuilder::new().pool_size(1).build();
+    let mut rt = Runtime::new().expect("new rt");
     let mut connector = MockConnector::new();
 
     let sock1 = connector.mock("http://mock.local");
     let sock2 = connector.mock("http://mock.local");
 
     let client = Client::builder()
-        .executor(executor.sender().clone())
         .build::<_, ::Body>(connector);
 
     client.pool.no_timer();
@@ -39,7 +35,7 @@ fn retryable_request() {
             try_ready!(sock1.write(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"));
             Ok(Async::Ready(()))
         }).map_err(|e: ::std::io::Error| panic!("srv1 poll_fn error: {}", e));
-        res1.join(srv1).wait().expect("res1");
+        rt.block_on(res1.join(srv1)).expect("res1");
     }
     drop(sock1);
 
@@ -57,20 +53,19 @@ fn retryable_request() {
         Ok(Async::Ready(()))
     }).map_err(|e: ::std::io::Error| panic!("srv2 poll_fn error: {}", e));
 
-    res2.join(srv2).wait().expect("res2");
+    rt.block_on(res2.join(srv2)).expect("res2");
 }
 
 #[test]
 fn conn_reset_after_write() {
     let _ = pretty_env_logger::try_init();
 
-    let executor = ThreadPoolBuilder::new().pool_size(1).build();
+    let mut rt = Runtime::new().expect("new rt");
     let mut connector = MockConnector::new();
 
     let sock1 = connector.mock("http://mock.local");
 
     let client = Client::builder()
-        .executor(executor.sender().clone())
         .build::<_, ::Body>(connector);
 
     client.pool.no_timer();
@@ -88,11 +83,8 @@ fn conn_reset_after_write() {
             try_ready!(sock1.write(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"));
             Ok(Async::Ready(()))
         }).map_err(|e: ::std::io::Error| panic!("srv1 poll_fn error: {}", e));
-        res1.join(srv1).wait().expect("res1");
+        rt.block_on(res1.join(srv1)).expect("res1");
     }
-
-    // sleep to allow some time for the connection to return to the pool
-    thread::sleep(Duration::from_millis(10));
 
     let req = Request::builder()
         .uri("http://mock.local/a")
@@ -111,9 +103,10 @@ fn conn_reset_after_write() {
         sock1.take();
         Ok(Async::Ready(()))
     }).map_err(|e: ::std::io::Error| panic!("srv2 poll_fn error: {}", e));
-    let err = res2.join(srv2).wait().expect_err("res2");
+    let err = rt.block_on(res2.join(srv2)).expect_err("res2");
     match err.kind() {
         &::error::Kind::Incomplete => (),
         other => panic!("expected Incomplete, found {:?}", other)
     }
 }
+

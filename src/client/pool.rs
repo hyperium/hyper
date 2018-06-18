@@ -805,20 +805,29 @@ mod tests {
     #[cfg(feature = "runtime")]
     #[test]
     fn test_pool_timer_removes_expired() {
-        use std::sync::Arc;
-        let runtime = ::tokio::runtime::Runtime::new().unwrap();
-        let executor = runtime.executor();
-        let pool = Pool::new(true, Some(Duration::from_millis(100)), &Exec::Executor(Arc::new(executor)));
+        use std::time::Instant;
+        use tokio_timer::Delay;
+        let mut rt = ::tokio::runtime::current_thread::Runtime::new().unwrap();
+        let pool = Pool::new(true, Some(Duration::from_millis(100)), &Exec::Default);
 
         let key = (Arc::new("foo".to_string()), Ver::Http1);
 
-        pool.pooled(c(key.clone()), Uniq(41));
-        pool.pooled(c(key.clone()), Uniq(5));
-        pool.pooled(c(key.clone()), Uniq(99));
+        // Since pool.pooled() will be calling spawn on drop, need to be sure
+        // those drops are called while `rt` is the current executor. To do so,
+        // call those inside a future.
+        rt.block_on(::futures::future::lazy(|| {
+            pool.pooled(c(key.clone()), Uniq(41));
+            pool.pooled(c(key.clone()), Uniq(5));
+            pool.pooled(c(key.clone()), Uniq(99));
+            Ok::<_, ()>(())
+        })).unwrap();
 
         assert_eq!(pool.inner.connections.lock().unwrap().idle.get(&key).map(|entries| entries.len()), Some(3));
 
-        ::std::thread::sleep(Duration::from_millis(400)); // allow for too-good resolution
+        // Let the timer tick passed the expiration...
+        rt
+            .block_on(Delay::new(Instant::now() + Duration::from_millis(200)))
+            .expect("rt block_on 200ms");
 
         assert!(pool.inner.connections.lock().unwrap().idle.get(&key).is_none());
     }

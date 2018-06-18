@@ -25,7 +25,7 @@ use futures::sync::oneshot;
 use futures_timer::Delay;
 use http::header::{HeaderName, HeaderValue};
 use tokio::net::{TcpListener, TcpStream as TkTcpStream};
-use tokio::runtime::Runtime;
+use tokio::runtime::current_thread::Runtime;
 use tokio::reactor::Handle;
 use tokio_io::{AsyncRead, AsyncWrite};
 
@@ -35,9 +35,9 @@ use hyper::client::Client;
 use hyper::server::conn::Http;
 use hyper::service::{service_fn, service_fn_ok, Service};
 
-fn tcp_bind(addr: &SocketAddr, handle: &Handle) -> ::tokio::io::Result<TcpListener> {
+fn tcp_bind(addr: &SocketAddr) -> ::tokio::io::Result<TcpListener> {
     let std_listener = StdTcpListener::bind(addr).unwrap();
-    TcpListener::from_std(std_listener, handle)
+    TcpListener::from_std(std_listener, &Handle::default())
 }
 
 #[test]
@@ -45,7 +45,9 @@ fn try_h2() {
     let server = serve();
     let addr_str = format!("http://{}", server.addr());
 
-    hyper::rt::run(hyper::rt::lazy(move || {
+    let mut rt = Runtime::new().expect("runtime new");
+
+    rt.block_on(hyper::rt::lazy(move || {
         let client: Client<_, hyper::Body> = Client::builder().http2_only(true).build_http();
         let uri = addr_str.parse::<hyper::Uri>().expect("server addr should parse");
 
@@ -53,7 +55,7 @@ fn try_h2() {
             .and_then(|_res| { Ok(()) })
             .map(|_| { () })
             .map_err(|_e| { () })
-    }));
+    })).unwrap();
 
     assert_eq!(server.body(), b"");
 }
@@ -96,8 +98,8 @@ fn get_with_body() {
 #[test]
 fn get_implicitly_empty() {
     // See https://github.com/hyperium/hyper/issues/1373
-    let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
+    let mut rt = Runtime::new().unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -124,7 +126,7 @@ fn get_implicitly_empty() {
             }))
         });
 
-    fut.wait().unwrap();
+    rt.block_on(fut).unwrap();
 }
 
 mod response_body_lengths {
@@ -945,8 +947,8 @@ fn http_10_request_receives_http_10_response() {
 
 #[test]
 fn disable_keep_alive_mid_request() {
-    let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
+    let mut rt = Runtime::new().unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     let (tx1, rx1) = oneshot::channel();
@@ -983,15 +985,15 @@ fn disable_keep_alive_mid_request() {
                 })
         });
 
-    fut.wait().unwrap();
+    rt.block_on(fut).unwrap();
     child.join().unwrap();
 }
 
 #[test]
 fn disable_keep_alive_post_request() {
     let _ = pretty_env_logger::try_init();
-    let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
+    let mut rt = Runtime::new().unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     let (tx1, rx1) = oneshot::channel();
@@ -1048,21 +1050,21 @@ fn disable_keep_alive_post_request() {
         });
 
     assert!(!dropped.load());
-    fut.wait().unwrap();
+    rt.block_on(fut).unwrap();
     // we must poll the Core one more time in order for Windows to drop
     // the read-blocked socket.
     //
     // See https://github.com/carllerche/mio/issues/776
     let timeout = Delay::new(Duration::from_millis(10));
-    timeout.wait().unwrap();
+    rt.block_on(timeout).unwrap();
     assert!(dropped.load());
     child.join().unwrap();
 }
 
 #[test]
 fn empty_parse_eof_does_not_return_error() {
-    let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
+    let mut rt = Runtime::new().unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -1077,13 +1079,13 @@ fn empty_parse_eof_does_not_return_error() {
             Http::new().serve_connection(socket, HelloWorld)
         });
 
-    fut.wait().unwrap();
+    rt.block_on(fut).unwrap();
 }
 
 #[test]
 fn nonempty_parse_eof_returns_error() {
-    let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
+    let mut rt = Runtime::new().unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -1099,13 +1101,13 @@ fn nonempty_parse_eof_returns_error() {
             Http::new().serve_connection(socket, HelloWorld)
         });
 
-    fut.wait().unwrap_err();
+    rt.block_on(fut).unwrap_err();
 }
 
 #[test]
 fn returning_1xx_response_is_error() {
-    let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
+    let mut rt = Runtime::new().unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -1132,15 +1134,15 @@ fn returning_1xx_response_is_error() {
                 }))
         });
 
-    fut.wait().unwrap_err();
+    rt.block_on(fut).unwrap_err();
 }
 
 #[test]
 fn upgrades() {
     use tokio_io::io::{read_to_end, write_all};
     let _ = pretty_env_logger::try_init();
-    let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
+    let mut rt = Runtime::new().unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
     let (tx, rx) = oneshot::channel();
 
@@ -1188,17 +1190,17 @@ fn upgrades() {
             })
         });
 
-    let conn = fut.wait().unwrap();
+    let conn = rt.block_on(fut).unwrap();
 
     // wait so that we don't write until other side saw 101 response
-    rx.wait().unwrap();
+    rt.block_on(rx).unwrap();
 
     let parts = conn.into_parts();
     let io = parts.io;
     assert_eq!(parts.read_buf, "eagerly optimistic");
 
-    let io = write_all(io, b"foo=bar").wait().unwrap().0;
-    let vec = read_to_end(io, vec![]).wait().unwrap().1;
+    let io = rt.block_on(write_all(io, b"foo=bar")).unwrap().0;
+    let vec = rt.block_on(read_to_end(io, vec![])).unwrap().1;
     assert_eq!(vec, b"bar=foo");
 }
 
@@ -1206,8 +1208,8 @@ fn upgrades() {
 fn http_connect() {
     use tokio_io::io::{read_to_end, write_all};
     let _ = pretty_env_logger::try_init();
-    let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
+    let mut rt = Runtime::new().unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
     let (tx, rx) = oneshot::channel();
 
@@ -1252,17 +1254,17 @@ fn http_connect() {
             })
         });
 
-    let conn = fut.wait().unwrap();
+    let conn = rt.block_on(fut).unwrap();
 
     // wait so that we don't write until other side saw 101 response
-    rx.wait().unwrap();
+    rt.block_on(rx).unwrap();
 
     let parts = conn.into_parts();
     let io = parts.io;
     assert_eq!(parts.read_buf, "eagerly optimistic");
 
-    let io = write_all(io, b"foo=bar").wait().unwrap().0;
-    let vec = read_to_end(io, vec![]).wait().unwrap().1;
+    let io = rt.block_on(write_all(io, b"foo=bar")).unwrap().0;
+    let vec = rt.block_on(read_to_end(io, vec![])).unwrap().1;
     assert_eq!(vec, b"bar=foo");
 }
 
@@ -1271,7 +1273,7 @@ fn upgrades_new() {
     use tokio_io::io::{read_to_end, write_all};
     let _ = pretty_env_logger::try_init();
     let mut rt = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &rt.reactor()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
     let (read_101_tx, read_101_rx) = oneshot::channel();
 
@@ -1340,7 +1342,7 @@ fn http_connect_new() {
     use tokio_io::io::{read_to_end, write_all};
     let _ = pretty_env_logger::try_init();
     let mut rt = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &rt.reactor()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
     let (read_200_tx, read_200_rx) = oneshot::channel();
 
@@ -1404,8 +1406,8 @@ fn http_connect_new() {
 
 #[test]
 fn parse_errors_send_4xx_response() {
-    let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
+    let mut rt = Runtime::new().unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -1427,13 +1429,13 @@ fn parse_errors_send_4xx_response() {
                 .serve_connection(socket, HelloWorld)
         });
 
-    fut.wait().unwrap_err();
+    rt.block_on(fut).unwrap_err();
 }
 
 #[test]
 fn illegal_request_length_returns_400_response() {
-    let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
+    let mut rt = Runtime::new().unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -1455,7 +1457,7 @@ fn illegal_request_length_returns_400_response() {
                 .serve_connection(socket, HelloWorld)
         });
 
-    fut.wait().unwrap_err();
+    rt.block_on(fut).unwrap_err();
 }
 
 #[test]
@@ -1473,8 +1475,8 @@ fn max_buf_size_no_panic() {
 #[test]
 fn max_buf_size() {
     let _ = pretty_env_logger::try_init();
-    let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
+    let mut rt = Runtime::new().unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     const MAX: usize = 16_000;
@@ -1500,14 +1502,14 @@ fn max_buf_size() {
                 .serve_connection(socket, HelloWorld)
         });
 
-    fut.wait().unwrap_err();
+    rt.block_on(fut).unwrap_err();
 }
 
 #[test]
 fn streaming_body() {
     let _ = pretty_env_logger::try_init();
-    let runtime = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap(), &runtime.reactor()).unwrap();
+    let mut rt = Runtime::new().unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     let (tx, rx) = oneshot::channel();
@@ -1549,7 +1551,7 @@ fn streaming_body() {
                 }))
         });
 
-    fut.join(rx).wait().unwrap();
+    rt.block_on(fut.join(rx)).unwrap();
 }
 
 // -------------------------------------------------

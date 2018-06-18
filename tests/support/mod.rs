@@ -6,7 +6,7 @@ pub use std::net::SocketAddr;
 pub use self::futures::{future, Future, Stream};
 pub use self::futures::sync::oneshot;
 pub use self::hyper::{HeaderMap, StatusCode};
-pub use self::tokio::runtime::Runtime;
+pub use self::tokio::runtime::current_thread::Runtime;
 
 macro_rules! t {
     (
@@ -194,8 +194,7 @@ pub fn __run_test(cfg: __TestConfig) {
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
     let _ = pretty_env_logger::try_init();
-    let rt = Runtime::new().expect("new rt");
-    let handle = rt.reactor().clone();
+    let mut rt = Runtime::new().expect("new rt");
 
     assert_eq!(cfg.client_version, cfg.server_version);
 
@@ -205,11 +204,10 @@ pub fn __run_test(cfg: __TestConfig) {
         Version::HTTP_11
     };
 
-    let connector = HttpConnector::new_with_handle(1, handle.clone());
+    let connector = HttpConnector::new(1);
     let client = Client::builder()
         .keep_alive_timeout(Duration::from_secs(10))
         .http2_only(cfg.client_version == 2)
-        .executor(rt.executor())
         .build::<_, Body>(connector);
 
     let serve_handles = Arc::new(Mutex::new(
@@ -250,16 +248,13 @@ pub fn __run_test(cfg: __TestConfig) {
 
     let serve = hyper::server::conn::Http::new()
         .http2_only(cfg.server_version == 2)
-        .executor(rt.executor())
-        .serve_addr_handle(
+        .serve_addr(
             &SocketAddr::from(([127, 0, 0, 1], 0)),
-            &handle,
             new_service,
         )
-        .expect("serve_addr_handle");
+        .expect("serve_addr");
 
     let addr = serve.incoming_ref().local_addr();
-    let exe = rt.executor();
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
     let (success_tx, success_rx) = oneshot::channel();
     let expected_connections = cfg.connections;
@@ -269,7 +264,7 @@ pub fn __run_test(cfg: __TestConfig) {
                 .map_err(|never| -> hyper::Error { match never {} })
                 .flatten()
                 .map_err(|e| panic!("server connection error: {}", e));
-            exe.spawn(fut);
+            ::tokio::spawn(fut);
             Ok::<_, hyper::Error>(cnt + 1)
         })
         .map(move |cnt| {
@@ -282,7 +277,7 @@ pub fn __run_test(cfg: __TestConfig) {
         })
         .map_err(|_| panic!("shutdown not ok"));
 
-    rt.executor().spawn(server);
+    rt.spawn(server);
 
 
     let make_request = Arc::new(move |client: &Client<HttpConnector>, creq: __CReq, cres: __CRes| {
@@ -343,11 +338,9 @@ pub fn __run_test(cfg: __TestConfig) {
     let client_futures = client_futures.map(move |_| {
         let _ = shutdown_tx.send(());
     });
-    rt.executor().spawn(client_futures);
-    rt.shutdown_on_idle().wait().expect("rt");
-    success_rx
-        .map_err(|_| "something panicked")
-        .wait()
+    rt.spawn(client_futures);
+    rt.block_on(success_rx
+        .map_err(|_| "something panicked"))
         .expect("shutdown succeeded");
 }
 
