@@ -350,6 +350,12 @@ impl From<http::uri::InvalidUri> for Parse {
     }
 }
 
+impl From<http::uri::InvalidUriParts> for Parse {
+    fn from(_: http::uri::InvalidUriParts) -> Parse {
+        Parse::Uri
+    }
+}
+
 #[doc(hidden)]
 trait AssertSendSync: Send + Sync + 'static {}
 #[doc(hidden)]
