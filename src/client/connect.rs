@@ -56,6 +56,12 @@ pub(super) enum Alpn {
 */
 
 impl Destination {
+    /// Set the destination uri
+    #[inline]
+    pub fn set_uri(&mut self, uri: Uri) {
+        self.uri = uri;
+    }
+
     /// Get the protocol scheme.
     #[inline]
     pub fn scheme(&self) -> &str {
