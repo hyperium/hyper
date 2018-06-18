@@ -372,9 +372,7 @@ mod response_body_lengths {
                 .get(uri)
                 .and_then(|res| {
                     assert_eq!(res.headers().get("content-length").unwrap(), "13");
-                    // TODO: enable this after #1546
-                    let _ = res.body().content_length();
-                    // assert_eq!(res.body().content_length(), Some(13));
+                    assert_eq!(res.body().content_length(), Some(13));
                     Ok(())
                 })
                 .map(|_| ())
@@ -403,9 +401,7 @@ mod response_body_lengths {
                 .get(uri)
                 .and_then(|res| {
                     assert_eq!(res.headers().get("content-length").unwrap(), "10");
-                    // TODO: enable or remove this after #1546
-                    let _ = res.body().content_length();
-                    // assert_eq!(res.body().content_length(), Some(10));
+                    assert_eq!(res.body().content_length(), Some(10));
                     Ok(())
                 })
                 .map(|_| ())

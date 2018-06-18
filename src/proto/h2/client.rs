@@ -5,6 +5,7 @@ use futures::sync::mpsc;
 use h2::client::{Builder, Handshake, SendRequest};
 use tokio_io::{AsyncRead, AsyncWrite};
 
+use headers::content_length_parse_all;
 use body::Payload;
 use ::common::{Exec, Never};
 use headers;
@@ -135,7 +136,9 @@ where
                                 .then(move |result| {
                                     match result {
                                         Ok(res) => {
-                                            let res = res.map(::Body::h2);
+                                            let content_length = content_length_parse_all(res.headers());
+                                            let res = res.map(|stream|
+                                                ::Body::h2(stream, content_length));
                                             let _ = cb.send(Ok(res));
                                         },
                                         Err(err) => {
