@@ -67,6 +67,9 @@ pub(crate) enum Kind {
 
     /// User polled for an upgrade, but low-level API is not using upgrades.
     ManualUpgrade,
+
+    /// Error trying to call `Executor::execute`.
+    Execute,
 }
 
 #[derive(Debug, PartialEq)]
@@ -114,7 +117,8 @@ impl Error {
             Kind::Closed |
             Kind::UnsupportedVersion |
             Kind::UnsupportedRequestMethod |
-            Kind::NoUpgrade => true,
+            Kind::NoUpgrade |
+            Kind::Execute => true,
             _ => false,
         }
     }
@@ -130,7 +134,7 @@ impl Error {
     }
 
     /// Returns the error's cause.
-    /// 
+    ///
     /// This is identical to `Error::cause` except that it provides extra
     /// bounds required to be able to downcast the error.
     pub fn cause2(&self) -> Option<&(StdError + 'static + Sync + Send)> {
@@ -244,6 +248,10 @@ impl Error {
         Error::new(Kind::Shutdown, Some(Box::new(cause)))
     }
 
+    pub(crate) fn new_execute() -> Error {
+        Error::new(Kind::Execute, None)
+    }
+
     pub(crate) fn new_h2(cause: ::h2::Error) -> Error {
         Error::new(Kind::Http2, Some(Box::new(cause)))
     }
@@ -297,6 +305,7 @@ impl StdError for Error {
             Kind::UnsupportedRequestMethod => "request has unsupported HTTP method",
             Kind::NoUpgrade => "no upgrade available",
             Kind::ManualUpgrade => "upgrade expected but low level API in use",
+            Kind::Execute => "executor failed to spawn task",
 
             Kind::Io => "an IO error occurred",
         }

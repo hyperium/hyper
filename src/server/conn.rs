@@ -641,7 +641,7 @@ where
                     // flatten basically
                     .and_then(|conn| conn.with_upgrades())
                     .map_err(|err| debug!("conn error: {}", err));
-                self.serve.protocol.exec.execute(fut);
+                self.serve.protocol.exec.execute(fut)?;
             } else {
                 return Ok(Async::Ready(()))
             }

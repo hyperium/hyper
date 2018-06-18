@@ -94,7 +94,7 @@ where
                             }
                             Err(Either::B((never, _))) => match never {},
                         });
-                    self.executor.execute(fut);
+                    self.executor.execute(fut)?;
                     State::Ready(request_tx, tx)
                 },
                 State::Ready(ref mut tx, ref conn_dropper) => {
@@ -129,7 +129,7 @@ where
                                         drop(conn_drop_ref);
                                         x
                                     });
-                                self.executor.execute(pipe);
+                                self.executor.execute(pipe)?;
                             }
 
                             let fut = fut
@@ -148,7 +148,7 @@ where
                                     }
                                     Ok(())
                                 });
-                            self.executor.execute(fut);
+                            self.executor.execute(fut)?;
                             continue;
                         },
 

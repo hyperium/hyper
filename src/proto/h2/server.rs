@@ -132,7 +132,7 @@ where
                 ::Body::h2(stream, content_length)
             });
             let fut = H2Stream::new(service.call(req), respond);
-            exec.execute(fut);
+            exec.execute(fut)?;
         }
 
         // no more incoming streams...

@@ -270,13 +270,20 @@ where C: Connect + Sync + 'static,
                                 .http2_only(pool_key.1 == Ver::Http2)
                                 .handshake(io)
                                 .and_then(move |(tx, conn)| {
-                                    executor.execute(conn.map_err(|e| {
+                                    let bg = executor.execute(conn.map_err(|e| {
                                         debug!("client connection error: {}", e)
                                     }));
 
+                                    // This task is critical, so an execute error
+                                    // should be returned.
+                                    if let Err(err) = bg {
+                                        warn!("error spawning critical client task: {}", err);
+                                        return Either::A(future::err(err));
+                                    }
+
                                     // Wait for 'conn' to ready up before we
                                     // declare this tx as usable
-                                    tx.when_ready()
+                                    Either::B(tx.when_ready())
                                 })
                                 .map(move |tx| {
                                     pool.pooled(connecting, PoolClient {
@@ -373,26 +380,32 @@ where C: Connect + Sync + 'static,
                         } else if !res.body().is_end_stream() {
                             let (delayed_tx, delayed_rx) = oneshot::channel();
                             res.body_mut().delayed_eof(delayed_rx);
-                            executor.execute(
-                                future::poll_fn(move || {
-                                    pooled.poll_ready()
-                                })
+                            let on_idle = future::poll_fn(move || {
+                                pooled.poll_ready()
+                            })
                                 .then(move |_| {
                                     // At this point, `pooled` is dropped, and had a chance
                                     // to insert into the pool (if conn was idle)
                                     drop(delayed_tx);
                                     Ok(())
-                                })
-                            );
+                                });
+
+                            if let Err(err) = executor.execute(on_idle) {
+                                // This task isn't critical, so just log and ignore.
+                                warn!("error spawning task to insert idle connection: {}", err);
+                            }
                         } else {
                             // There's no body to delay, but the connection isn't
                             // ready yet. Only re-insert when it's ready
-                            executor.execute(
-                                future::poll_fn(move || {
-                                    pooled.poll_ready()
-                                })
-                                .then(|_| Ok(()))
-                            );
+                            let on_idle = future::poll_fn(move || {
+                                pooled.poll_ready()
+                            })
+                                .then(|_| Ok(()));
+
+                            if let Err(err) = executor.execute(on_idle) {
+                                // This task isn't critical, so just log and ignore.
+                                warn!("error spawning task to insert idle connection: {}", err);
+                            }
                         }
                         Ok(res)
                     });
