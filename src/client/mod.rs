@@ -23,52 +23,57 @@
 //!
 //! ## Example
 //!
-//! ```no_run
+//! For a small example program simply fetching a URL, take a look at the
+//! [full client example](https://github.com/hyperium/hyper/blob/master/examples/client.rs).
+//!
+//! ```
 //! extern crate hyper;
 //!
 //! use hyper::Client;
 //! # #[cfg(feature = "runtime")]
-//! use hyper::rt::{self, lazy, Future, Stream};
+//! use hyper::rt::{self, Future, Stream};
 //!
 //! # #[cfg(feature = "runtime")]
-//! fn main() {
-//!     // A runtime is needed to execute our asynchronous code.
-//!     rt::run(lazy(|| {
-//!         let client = Client::new();
+//! # fn fetch_httpbin() {
+//! let client = Client::new();
 //!
-//!         client
-//!             // Make a GET /ip to 'http://httpbin.org'
-//!             .get("http://httpbin.org/ip".parse().unwrap())
+//! let fut = client
 //!
-//!             // And then, if the request gets a response...
-//!             .and_then(|res| {
-//!                 println!("status: {}", res.status());
+//!     // Make a GET /ip to 'http://httpbin.org'
+//!     .get("http://httpbin.org/ip".parse().unwrap())
 //!
-//!                 // Concatenate the body stream into a single buffer...
-//!                 // This returns a new future, since we must stream body.
-//!                 res.into_body().concat2()
-//!             })
+//!     // And then, if the request gets a response...
+//!     .and_then(|res| {
+//!         println!("status: {}", res.status());
 //!
-//!             // And then, if reading the full body succeeds...
-//!             .and_then(|body| {
-//!                 // The body is just bytes, but let's print a string...
-//!                 let s = ::std::str::from_utf8(&body)
-//!                     .expect("httpbin sends utf-8 JSON");
+//!         // Concatenate the body stream into a single buffer...
+//!         // This returns a new future, since we must stream body.
+//!         res.into_body().concat2()
+//!     })
 //!
-//!                 println!("body: {}", s);
+//!     // And then, if reading the full body succeeds...
+//!     .and_then(|body| {
+//!         // The body is just bytes, but let's print a string...
+//!         let s = ::std::str::from_utf8(&body)
+//!             .expect("httpbin sends utf-8 JSON");
 //!
-//!                 // and_then requires we return a new Future, and it turns
-//!                 // out that Result is a Future that is ready immediately.
-//!                 Ok(())
-//!             })
+//!         println!("body: {}", s);
 //!
-//!             // Map any errors that might have happened...
-//!             .map_err(|err| {
-//!                 println!("error: {}", err);
-//!             })
-//!     }));
-//! }
-//! # #[cfg(not(feature = "runtime"))]
+//!         // and_then requires we return a new Future, and it turns
+//!         // out that Result is a Future that is ready immediately.
+//!         Ok(())
+//!     })
+//!
+//!     // Map any errors that might have happened...
+//!     .map_err(|err| {
+//!         println!("error: {}", err);
+//!     });
+//!
+//! // A runtime is needed to execute our asynchronous code. In order to
+//! // spawn the future into the runtime, it should already have been
+//! // started and running before calling this this code.
+//! rt::spawn(fut);
+//! # }
 //! # fn main () {}
 //! ```
 
