@@ -1,3 +1,32 @@
+### v0.12.2 (2018-06-19)
+
+
+#### Bug Fixes
+
+* **http2:**
+  * implement `graceful_shutdown` for HTTP2 server connections ([b7a0c2d5](https://github.com/hyperium/hyper/commit/b7a0c2d5967d9ca22bd5e031166876c81ae80606), closes [#1550](https://github.com/hyperium/hyper/issues/1550))
+  * send trailers if Payload includes them ([3affe2a0](https://github.com/hyperium/hyper/commit/3affe2a0af445a01acb75181b16e71eb9fef4ae2))
+* **lib:** return an error instead of panic if execute fails ([482a5f58](https://github.com/hyperium/hyper/commit/482a5f589ea2bdb798f01645653975089f40ef44), closes [#1566](https://github.com/hyperium/hyper/issues/1566))
+* **server:**
+  * fix debug assert failure when kept-alive connections see a parse error ([396fe80e](https://github.com/hyperium/hyper/commit/396fe80e76840dea9373ca448b20cf7a9babd2f8))
+  * correctly handle CONNECT requests ([d7ab0166](https://github.com/hyperium/hyper/commit/d7ab01667659290784bfe685951c83a6f69e415e))
+
+
+#### Features
+
+* **body:**
+  * make `Body` know about incoming `Content-Length` ([a0a0fcdd](https://github.com/hyperium/hyper/commit/a0a0fcdd9b126ee2c0810b2839c7ab847f5788ad), closes [#1545](https://github.com/hyperium/hyper/issues/1545))
+  * add `Sender::abort` ([a096799c](https://github.com/hyperium/hyper/commit/a096799c1b4581ce1a47ed0817069997a9031828))
+* **client:** add `set_scheme`, `set_host`, and `set_port` for `Destination` ([27db8b00](https://github.com/hyperium/hyper/commit/27db8b0061f85d89ec94e07295463e8d1030d94f), closes [#1564](https://github.com/hyperium/hyper/issues/1564))
+* **error:** add `Error::cause2` and `Error::into_cause` ([bc5e22f5](https://github.com/hyperium/hyper/commit/bc5e22f58095f294333f49f12eeb7e504cda666c), closes [#1542](https://github.com/hyperium/hyper/issues/1542))
+* **http1:** Add higher-level HTTP upgrade support to Client and Server (#1563) ([fea29b29](https://github.com/hyperium/hyper/commit/fea29b29e2bbbba10760917a234a8cf4a6133be4), closes [#1395](https://github.com/hyperium/hyper/issues/1395))
+* **http2:**
+  * implement flow control for h2 bodies ([1c3fbfd6](https://github.com/hyperium/hyper/commit/1c3fbfd6bf6b627f75ef694e69c8074745276e9b), closes [#1548](https://github.com/hyperium/hyper/issues/1548))
+  * Add `content_length()` value to incoming h2 `Body` ([9a28268b](https://github.com/hyperium/hyper/commit/9a28268b98f30fd25e862b4a182a853a9a6e1841), closes [#1546](https://github.com/hyperium/hyper/issues/1546))
+  * set Content-Length header on outgoing messages ([386fc0d7](https://github.com/hyperium/hyper/commit/386fc0d70b70d36ac44ec5562cd26babdfd46fc9), closes [#1547](https://github.com/hyperium/hyper/issues/1547))
+  * Strip connection headers before sending ([f20afba5](https://github.com/hyperium/hyper/commit/f20afba57d6fabb04085968342e5fd62b45bc8df))
+
+
 ### v0.12.1 (2018-06-04)
 
 
