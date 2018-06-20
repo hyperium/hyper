@@ -25,6 +25,7 @@ pub(crate) type ClientTransaction = role::Client;
 pub(crate) trait Http1Transaction {
     type Incoming;
     type Outgoing: Default;
+    const LOG: &'static str;
     fn parse(bytes: &mut BytesMut, ctx: ParseContext) -> ParseResult<Self::Incoming>;
     fn encode(enc: Encode<Self::Outgoing>, dst: &mut Vec<u8>) -> ::Result<Encoder>;
 

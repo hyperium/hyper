@@ -228,12 +228,14 @@ impl fmt::Debug for OnUpgrade {
 
 impl Pending {
     pub(crate) fn fulfill(self, upgraded: Upgraded) {
+        trace!("pending upgrade fulfill");
         let _ = self.tx.send(Ok(upgraded));
     }
 
     /// Don't fulfill the pending Upgrade, but instead signal that
     /// upgrades are handled manually.
     pub(crate) fn manual(self) {
+        trace!("pending upgrade handled manually");
         let _ = self.tx.send(Err(::Error::new_user_manual_upgrade()));
     }
 }

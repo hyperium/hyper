@@ -23,6 +23,7 @@ pub(crate) enum Server {}
 impl Http1Transaction for Server {
     type Incoming = RequestLine;
     type Outgoing = StatusCode;
+    const LOG: &'static str = "{role=server}";
 
     fn parse(buf: &mut BytesMut, ctx: ParseContext) -> ParseResult<RequestLine> {
         if buf.len() == 0 {
@@ -190,7 +191,12 @@ impl Http1Transaction for Server {
     }
 
     fn encode(mut msg: Encode<Self::Outgoing>, dst: &mut Vec<u8>) -> ::Result<Encoder> {
-        trace!("Server::encode body={:?}, method={:?}", msg.body, msg.req_method);
+        trace!(
+            "Server::encode status={:?}, body={:?}, req_method={:?}",
+            msg.head.subject,
+            msg.body,
+            msg.req_method
+        );
         debug_assert!(!msg.title_case_headers, "no server config for title case headers");
 
         // hyper currently doesn't support returning 1xx status codes as a Response
@@ -440,7 +446,11 @@ impl Http1Transaction for Server {
         }
 
         if !Server::can_have_body(msg.req_method, msg.head.subject) {
-            trace!("body not allowed for {:?} {:?}", msg.req_method, msg.head.subject);
+            trace!(
+                "server body forced to 0; method={:?}, status={:?}",
+                msg.req_method,
+                msg.head.subject
+            );
             encoder = Encoder::length(0);
         }
 
@@ -517,6 +527,7 @@ impl Server {
 impl Http1Transaction for Client {
     type Incoming = StatusCode;
     type Outgoing = RequestLine;
+    const LOG: &'static str = "{role=client}";
 
     fn parse(buf: &mut BytesMut, ctx: ParseContext) -> ParseResult<StatusCode> {
         // Loop to skip information status code headers (100 Continue, etc).
@@ -580,7 +591,7 @@ impl Http1Transaction for Client {
     }
 
     fn encode(msg: Encode<Self::Outgoing>, dst: &mut Vec<u8>) -> ::Result<Encoder> {
-        trace!("Client::encode body={:?}, method={:?}", msg.body, msg.req_method);
+        trace!("Client::encode method={:?}, body={:?}", msg.head.subject.0, msg.body);
 
         *msg.req_method = Some(msg.head.subject.0.clone());
 

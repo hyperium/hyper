@@ -298,6 +298,7 @@ where I: AsyncRead + AsyncWrite,
                 Ok(Async::NotReady)
             },
             Err(e) => {
+                trace!("try_io_read; error = {}", e);
                 self.state.close();
                 Err(e)
             }
@@ -346,7 +347,7 @@ where I: AsyncRead + AsyncWrite,
     }
 
     fn try_keep_alive(&mut self) {
-        self.state.try_keep_alive();
+        self.state.try_keep_alive::<T>();
         self.maybe_notify();
     }
 
@@ -556,7 +557,7 @@ where I: AsyncRead + AsyncWrite,
     pub fn flush(&mut self) -> Poll<(), io::Error> {
         try_ready!(self.io.flush());
         self.try_keep_alive();
-        trace!("flushed {:?}", self.state);
+        trace!("flushed({}): {:?}", T::LOG, self.state);
         Ok(Async::Ready(()))
     }
 
@@ -599,6 +600,7 @@ where I: AsyncRead + AsyncWrite,
     }
 
     pub(super) fn on_upgrade(&mut self) -> ::upgrade::OnUpgrade {
+        trace!("{}: prepare possible HTTP upgrade", T::LOG);
         self.state.prepare_upgrade()
     }
 
@@ -754,12 +756,13 @@ impl State {
         }
     }
 
-    fn try_keep_alive(&mut self) {
+    fn try_keep_alive<T: Http1Transaction>(&mut self) {
         match (&self.reading, &self.writing) {
             (&Reading::KeepAlive, &Writing::KeepAlive) => {
                 if let KA::Busy = self.keep_alive.status() {
                     self.idle();
                 } else {
+                    trace!("try_keep_alive({}): could keep-alive, but status = {:?}", T::LOG, self.keep_alive);
                     self.close();
                 }
             },
@@ -816,7 +819,6 @@ impl State {
     }
 
     fn prepare_upgrade(&mut self) -> ::upgrade::OnUpgrade {
-        trace!("prepare possible HTTP upgrade");
         debug_assert!(self.upgrade.is_none());
         let (tx, rx) = ::upgrade::pending();
         self.upgrade = Some(tx);
