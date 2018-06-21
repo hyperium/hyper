@@ -26,6 +26,7 @@ http = "0.1.5"
 httparse = "1.0"
 h2 = "0.1.5"
 iovec = "0.1"
+itoa = "0.4.1"
 log = "0.4"
 net2 = { version = "0.2.32", optional = true }
 time = "0.1"

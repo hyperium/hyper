@@ -190,7 +190,7 @@ impl Http1Transaction for Server {
         }))
     }
 
-    fn encode(mut msg: Encode<Self::Outgoing>, dst: &mut Vec<u8>) -> ::Result<Encoder> {
+    fn encode(mut msg: Encode<Self::Outgoing>, mut dst: &mut Vec<u8>) -> ::Result<Encoder> {
         trace!(
             "Server::encode status={:?}, body={:?}, req_method={:?}",
             msg.head.subject,
@@ -439,7 +439,9 @@ impl Http1Transaction for Server {
                     Encoder::length(0)
                 },
                 Some(BodyLength::Known(len)) => {
-                    let _ = write!(FastWrite(dst), "content-length: {}\r\n", len);
+                    extend(dst, b"content-length: ");
+                    let _ = ::itoa::write(&mut dst, len);
+                    extend(dst, b"\r\n");
                     Encoder::length(len)
                 },
             };
@@ -1444,9 +1446,9 @@ mod tests {
         b.bytes = len as u64;
 
         let mut head = MessageHead::default();
+        let mut vec = Vec::with_capacity(128);
 
         b.iter(|| {
-            let mut vec = Vec::new();
             Server::encode(Encode {
                 head: &mut head,
                 body: Some(BodyLength::Known(10)),
@@ -1455,7 +1457,12 @@ mod tests {
                 title_case_headers: false,
             }, &mut vec).unwrap();
             assert_eq!(vec.len(), len);
-            ::test::black_box(vec);
+            ::test::black_box(&vec);
+
+            // reset Vec<u8> to 0 (always safe)
+            unsafe {
+                vec.set_len(0);
+            }
         })
     }
 }

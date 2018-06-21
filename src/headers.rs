@@ -1,5 +1,3 @@
-use std::fmt::Write;
-
 use bytes::BytesMut;
 use http::HeaderMap;
 use http::header::{CONTENT_LENGTH, TRANSFER_ENCODING};
@@ -70,7 +68,7 @@ pub fn content_length_parse_all_values(values: ValueIter<HeaderValue>) -> Option
 
 pub fn content_length_value(len: u64) -> HeaderValue {
     let mut len_buf = BytesMut::with_capacity(MAX_DECIMAL_U64_BYTES);
-    write!(len_buf, "{}", len)
+    ::itoa::fmt(&mut len_buf, len)
         .expect("BytesMut can hold a decimal u64");
     // safe because u64 Display is ascii numerals
     unsafe {
@@ -141,11 +139,43 @@ fn eq_ascii(left: &str, right: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+
+    #[cfg(feature = "nightly")]
+    use test::Bencher;
+
     #[test]
     fn assert_max_decimal_u64_bytes() {
         assert_eq!(
             super::MAX_DECIMAL_U64_BYTES,
             ::std::u64::MAX.to_string().len()
         );
+    }
+
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_content_length_fmt_small(b: &mut Bencher) {
+        let n = 13;
+        let s = n.to_string();
+        b.bytes = s.len() as u64;
+
+        b.iter(|| {
+            let val = super::content_length_value(n);
+            debug_assert_eq!(val, s);
+            ::test::black_box(&val);
+        })
+    }
+
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_content_length_fmt_big(b: &mut Bencher) {
+        let n = 326_893_010;
+        let s = n.to_string();
+        b.bytes = s.len() as u64;
+
+        b.iter(|| {
+            let val = super::content_length_value(n);
+            debug_assert_eq!(val, s);
+            ::test::black_box(&val);
+        })
     }
 }

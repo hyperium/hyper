@@ -21,6 +21,7 @@ extern crate h2;
 extern crate http;
 extern crate httparse;
 extern crate iovec;
+extern crate itoa;
 #[macro_use] extern crate log;
 #[cfg(feature = "runtime")] extern crate net2;
 extern crate time;
