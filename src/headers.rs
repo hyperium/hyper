@@ -1,3 +1,5 @@
+use std::mem;
+
 use bytes::BytesMut;
 use http::HeaderMap;
 use http::header::{CONTENT_LENGTH, TRANSFER_ENCODING};
@@ -67,7 +69,25 @@ pub fn content_length_parse_all_values(values: ValueIter<HeaderValue>) -> Option
 }
 
 pub fn content_length_value(len: u64) -> HeaderValue {
-    let mut len_buf = BytesMut::with_capacity(MAX_DECIMAL_U64_BYTES);
+    let mut len_buf = if mem::size_of::<BytesMut>() - 1 < MAX_DECIMAL_U64_BYTES {
+        // when ptr size is 32bits...
+        // max bytes don't fit inline, but the likelihood of the length
+        // actually needing that many bytes is super tiny. So, only
+        // allocate if we really need to.
+        // constant version of 10.pow(15) - 1...
+        const MAX_DECIMAL_INLINE: u64 = 999_999_999_999_999;
+        if len <= MAX_DECIMAL_INLINE {
+            // Still fits inline of 15 bytes...
+            BytesMut::new()
+        } else {
+            // the number is huge, and doesn't fit into 15 bytes (on 32bit),
+            // so we gotta allocate ;_;
+            BytesMut::with_capacity(MAX_DECIMAL_U64_BYTES)
+        }
+    } else {
+        // max bytes fit inline
+        BytesMut::with_capacity(MAX_DECIMAL_U64_BYTES)
+    };
     ::itoa::fmt(&mut len_buf, len)
         .expect("BytesMut can hold a decimal u64");
     // safe because u64 Display is ascii numerals
