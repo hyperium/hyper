@@ -61,6 +61,8 @@ pub(crate) enum Kind {
     UnsupportedVersion,
     /// User tried to create a CONNECT Request with the Client.
     UnsupportedRequestMethod,
+    /// User tried to send a Request with Client with non-absolute URI.
+    AbsoluteUriRequired,
 
     /// User tried polling for an upgrade that doesn't exist.
     NoUpgrade,
@@ -117,6 +119,7 @@ impl Error {
             Kind::Closed |
             Kind::UnsupportedVersion |
             Kind::UnsupportedRequestMethod |
+            Kind::AbsoluteUriRequired |
             Kind::NoUpgrade |
             Kind::Execute => true,
             _ => false,
@@ -224,6 +227,10 @@ impl Error {
         Error::new(Kind::UnsupportedRequestMethod, None)
     }
 
+    pub(crate) fn new_user_absolute_uri_required() -> Error {
+        Error::new(Kind::AbsoluteUriRequired, None)
+    }
+
     pub(crate) fn new_user_no_upgrade() -> Error {
         Error::new(Kind::NoUpgrade, None)
     }
@@ -303,6 +310,7 @@ impl StdError for Error {
             Kind::Http2 => "http2 general error",
             Kind::UnsupportedVersion => "request has unsupported HTTP version",
             Kind::UnsupportedRequestMethod => "request has unsupported HTTP method",
+            Kind::AbsoluteUriRequired => "client requires absolute-form URIs",
             Kind::NoUpgrade => "no upgrade available",
             Kind::ManualUpgrade => "upgrade expected but low level API in use",
             Kind::Execute => "executor failed to spawn task",

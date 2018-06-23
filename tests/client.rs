@@ -425,32 +425,6 @@ test! {
             body: None,
 }
 
-/*TODO: when new Connect trait allows stating connection is proxied
-test! {
-    name: client_http_proxy,
-
-    server:
-        expected: "\
-            GET http://{addr}/proxy HTTP/1.1\r\n\
-            host: {addr}\r\n\
-            \r\n\
-            ",
-        reply: REPLY_OK,
-
-    client:
-        proxy: true,
-        request:
-            method: GET,
-            url: "http://{addr}/proxy",
-            headers: {},
-            body: None,
-        response:
-            status: OK,
-            headers: {},
-            body: None,
-}
-*/
-
 test! {
     name: client_head_ignores_body,
 
@@ -509,6 +483,21 @@ test! {
             body: None,
 }
 
+test! {
+    name: client_requires_absolute_uri,
+
+    server:
+        expected: "won't get here {addr}",
+        reply: "won't reply",
+
+    client:
+        request:
+            method: GET,
+            url: "/relative-{addr}",
+            headers: {},
+            body: None,
+        error: |err| err.to_string() == "client requires absolute-form URIs",
+}
 
 test! {
     name: client_error_unexpected_eof,
@@ -596,19 +585,51 @@ test! {
     server:
         expected: "\
             CONNECT {addr} HTTP/1.1\r\n\
-            Host: {addr}\r\n\
+            host: {addr}\r\n\
             \r\n\
             ",
-        // won't ever get to reply
-        reply: "",
+        reply: "\
+            HTTP/1.1 200 OK\r\n\
+            \r\n\
+            ",
 
     client:
         request:
             method: CONNECT,
-            url: "http://{addr}/",
+            url: "{addr}",
             headers: {},
             body: None,
-        error: |err| err.is_user(),
+        response:
+            status: OK,
+            headers: {},
+            body: None,
+
+}
+
+test! {
+    name: client_connect_method_with_absolute_uri,
+
+    server:
+        expected: "\
+            CONNECT {addr} HTTP/1.1\r\n\
+            host: {addr}\r\n\
+            \r\n\
+            ",
+        reply: "\
+            HTTP/1.1 200 OK\r\n\
+            \r\n\
+            ",
+
+    client:
+        request:
+            method: CONNECT,
+            url: "http://{addr}",
+            headers: {},
+            body: None,
+        response:
+            status: OK,
+            headers: {},
+            body: None,
 
 }
 
@@ -1216,6 +1237,44 @@ mod dispatch_impl {
         let rx = rx1.expect("thread panicked");
         let req = Request::builder()
             .uri(&*format!("http://{}/foo/bar", addr))
+            .body(Body::empty())
+            .unwrap();
+        let res = client.request(req);
+        rt.block_on(res.join(rx).map(|r| r.0)).unwrap();
+    }
+
+    #[test]
+    fn connect_proxy_http_connect_sends_authority_form() {
+        let _ = pretty_env_logger::try_init();
+        let server = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = server.local_addr().unwrap();
+        let mut rt = Runtime::new().unwrap();
+        let connector = DebugConnector::new()
+            .proxy();
+
+        let client = Client::builder()
+            .build(connector);
+
+        let (tx1, rx1) = oneshot::channel();
+        thread::spawn(move || {
+            let mut sock = server.accept().unwrap().0;
+            //drop(server);
+            sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let mut buf = [0; 4096];
+            let n = sock.read(&mut buf).expect("read 1");
+            let expected = format!("CONNECT {addr} HTTP/1.1\r\nhost: {addr}\r\n\r\n", addr=addr);
+            assert_eq!(s(&buf[..n]), expected);
+
+            sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").expect("write 1");
+            let _ = tx1.send(());
+        });
+
+
+        let rx = rx1.expect("thread panicked");
+        let req = Request::builder()
+            .method("CONNECT")
+            .uri(&*format!("http://{}/useless/path", addr))
             .body(Body::empty())
             .unwrap();
         let res = client.request(req);

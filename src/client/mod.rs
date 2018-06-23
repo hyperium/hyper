@@ -78,7 +78,7 @@
 //! ```
 
 use std::fmt;
-use std::io;
+use std::mem;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -193,33 +193,44 @@ where C: Connect + Sync + 'static,
 
     /// Send a constructed Request using this Client.
     pub fn request(&self, mut req: Request<B>) -> ResponseFuture {
-        match req.version() {
-            Version::HTTP_10 |
-            Version::HTTP_11 => (),
+        let is_http_11 = self.ver == Ver::Http1 && match req.version() {
+            Version::HTTP_11 => true,
+            Version::HTTP_10 => false,
             other => {
                 error!("Request has unsupported version \"{:?}\"", other);
                 return ResponseFuture::new(Box::new(future::err(::Error::new_user_unsupported_version())));
             }
-        }
+        };
 
-        if req.method() == &Method::CONNECT {
-            debug!("Client does not support CONNECT requests");
+        let is_http_connect = req.method() == &Method::CONNECT;
+
+        if !is_http_11 && is_http_connect {
+            debug!("client does not support CONNECT requests for {:?}", req.version());
             return ResponseFuture::new(Box::new(future::err(::Error::new_user_unsupported_request_method())));
         }
+
 
         let uri = req.uri().clone();
         let domain = match (uri.scheme_part(), uri.authority_part()) {
             (Some(scheme), Some(auth)) => {
                 format!("{}://{}", scheme, auth)
             }
+            (None, Some(auth)) if is_http_connect => {
+                let scheme = match auth.port() {
+                    Some(443) => {
+                        set_scheme(req.uri_mut(), Scheme::HTTPS);
+                        "https"
+                    },
+                    _ => {
+                        set_scheme(req.uri_mut(), Scheme::HTTP);
+                        "http"
+                    },
+                };
+                format!("{}://{}", scheme, auth)
+            },
             _ => {
-                //TODO: replace this with a proper variant
-                return ResponseFuture::new(Box::new(future::err(::Error::new_io(
-                    io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "invalid URI for Client Request"
-                    )
-                ))));
+                debug!("Client requires absolute-form URIs, received: {:?}", uri);
+                return ResponseFuture::new(Box::new(future::err(::Error::new_user_absolute_uri_required())))
             }
         };
 
@@ -319,7 +330,6 @@ where C: Connect + Sync + 'static,
                 //
                 // In both cases, we should just wait for the other future.
                 if e.is_canceled() {
-                    //trace!("checkout/connect race canceled: {}", e);
                     Either::A(other.map_err(ClientError::Normal))
                 } else {
                     Either::B(future::err(ClientError::Normal(e)))
@@ -330,8 +340,21 @@ where C: Connect + Sync + 'static,
         let resp = race.and_then(move |mut pooled| {
             let conn_reused = pooled.is_reused();
             if ver == Ver::Http1 {
-                set_relative_uri(req.uri_mut(), pooled.is_proxied);
+                // CONNECT always sends origin-form, so check it first...
+                if req.method() == &Method::CONNECT {
+                    authority_form(req.uri_mut());
+                } else if pooled.is_proxied {
+                    absolute_form(req.uri_mut());
+                } else {
+                    origin_form(req.uri_mut());
+                };
+            } else {
+                debug_assert!(
+                    req.method() != &Method::CONNECT,
+                    "Client should have returned Error for HTTP2 CONNECT"
+                );
             }
+
             let fut = pooled.send_request_retryable(req);
 
             // As of futures@0.1.21, there is a race condition in the mpsc
@@ -612,10 +635,7 @@ enum Ver {
     Http2,
 }
 
-fn set_relative_uri(uri: &mut Uri, is_proxied: bool) {
-    if is_proxied && uri.scheme_part() != Some(&Scheme::HTTPS) {
-        return;
-    }
+fn origin_form(uri: &mut Uri) {
     let path = match uri.path_and_query() {
         Some(path) if path.as_str() != "/" => {
             let mut parts = ::http::uri::Parts::default();
@@ -623,10 +643,56 @@ fn set_relative_uri(uri: &mut Uri, is_proxied: bool) {
             Uri::from_parts(parts).expect("path is valid uri")
         },
         _none_or_just_slash => {
-            "/".parse().expect("/ is valid path")
+            debug_assert!(Uri::default() == "/");
+            Uri::default()
         }
     };
-    *uri = path;
+    *uri = path
+}
+
+fn absolute_form(uri: &mut Uri) {
+    debug_assert!(uri.scheme_part().is_some(), "absolute_form needs a scheme");
+    debug_assert!(uri.authority_part().is_some(), "absolute_form needs an authority");
+    // If the URI is to HTTPS, and the connector claimed to be a proxy,
+    // then it *should* have tunneled, and so we don't want to send
+    // absolute-form in that case.
+    if uri.scheme_part() == Some(&Scheme::HTTPS) {
+        origin_form(uri);
+    }
+}
+
+fn authority_form(uri: &mut Uri) {
+    if log_enabled!(::log::Level::Warn) {
+        if let Some(path) = uri.path_and_query() {
+            // `https://hyper.rs` would parse with `/` path, don't
+            // annoy people about that...
+            if path != "/" {
+                warn!(
+                    "HTTP/1.1 CONNECT request stripping path: {:?}",
+                    path
+                );
+            }
+        }
+    }
+    *uri = match uri.authority_part() {
+        Some(auth) => {
+            let mut parts = ::http::uri::Parts::default();
+            parts.authority = Some(auth.clone());
+            Uri::from_parts(parts).expect("authority is valid")
+        },
+        None => {
+            unreachable!("authority_form with relative uri");
+        }
+    };
+}
+
+fn set_scheme(uri: &mut Uri, scheme: Scheme) {
+    debug_assert!(uri.scheme_part().is_none(), "set_scheme expects no existing scheme");
+    let old = mem::replace(uri, Uri::default());
+    let mut parts: ::http::uri::Parts = old.into();
+    parts.scheme = Some(scheme);
+    parts.path_and_query = Some("/".parse().expect("slash is a valid path"));
+    *uri = Uri::from_parts(parts).expect("scheme is valid");
 }
 
 /// Builder for a Client
@@ -818,8 +884,43 @@ mod unit_tests {
     #[test]
     fn set_relative_uri_with_implicit_path() {
         let mut uri = "http://hyper.rs".parse().unwrap();
-        set_relative_uri(&mut uri, false);
-
+        origin_form(&mut uri);
         assert_eq!(uri.to_string(), "/");
+    }
+
+    #[test]
+    fn test_origin_form() {
+        let mut uri = "http://hyper.rs/guides".parse().unwrap();
+        origin_form(&mut uri);
+        assert_eq!(uri.to_string(), "/guides");
+
+        let mut uri = "http://hyper.rs/guides?foo=bar".parse().unwrap();
+        origin_form(&mut uri);
+        assert_eq!(uri.to_string(), "/guides?foo=bar");
+    }
+
+    #[test]
+    fn test_absolute_form() {
+        let mut uri = "http://hyper.rs/guides".parse().unwrap();
+        absolute_form(&mut uri);
+        assert_eq!(uri.to_string(), "http://hyper.rs/guides");
+
+        let mut uri = "https://hyper.rs/guides".parse().unwrap();
+        absolute_form(&mut uri);
+        assert_eq!(uri.to_string(), "/guides");
+    }
+
+    #[test]
+    fn test_authority_form() {
+        extern crate pretty_env_logger;
+        let _ = pretty_env_logger::try_init();
+
+        let mut uri = "http://hyper.rs".parse().unwrap();
+        authority_form(&mut uri);
+        assert_eq!(uri.to_string(), "hyper.rs");
+
+        let mut uri = "hyper.rs".parse().unwrap();
+        authority_form(&mut uri);
+        assert_eq!(uri.to_string(), "hyper.rs");
     }
 }
