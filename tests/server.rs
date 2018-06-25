@@ -48,8 +48,10 @@ fn try_h2() {
     let mut rt = Runtime::new().expect("runtime new");
 
     rt.block_on(hyper::rt::lazy(move || {
-        let client: Client<_, hyper::Body> = Client::builder().http2_only(true).build_http();
-        let uri = addr_str.parse::<hyper::Uri>().expect("server addr should parse");
+        let client = Client::builder()
+            .http2_only(true)
+            .build_http::<hyper::Body>();
+        let uri = addr_str.parse().expect("server addr should parse");
 
         client.get(uri)
             .and_then(|_res| { Ok(()) })
@@ -364,8 +366,11 @@ mod response_body_lengths {
         let addr_str = format!("http://{}", server.addr());
         server.reply().body("Hello, World!");
 
-        hyper::rt::run(hyper::rt::lazy(move || {
-            let client: Client<_, hyper::Body> = Client::builder().http2_only(true).build_http();
+        let mut rt = Runtime::new().expect("rt new");
+        rt.block_on(hyper::rt::lazy(move || {
+            let client = Client::builder()
+                .http2_only(true)
+                .build_http::<hyper::Body>();
             let uri = addr_str
                 .parse::<hyper::Uri>()
                 .expect("server addr should parse");
@@ -379,7 +384,7 @@ mod response_body_lengths {
                 })
                 .map(|_| ())
                 .map_err(|_e| ())
-        }));
+        })).unwrap();
     }
 
     #[test]
@@ -393,8 +398,11 @@ mod response_body_lengths {
             .header("content-length", "10")
             .body("Hello, World!");
 
-        hyper::rt::run(hyper::rt::lazy(move || {
-            let client: Client<_, hyper::Body> = Client::builder().http2_only(true).build_http();
+        let mut rt = Runtime::new().expect("rt new");
+        rt.block_on(hyper::rt::lazy(move || {
+            let client = Client::builder()
+                .http2_only(true)
+                .build_http::<hyper::Body>();
             let uri = addr_str
                 .parse::<hyper::Uri>()
                 .expect("server addr should parse");
@@ -1796,9 +1804,10 @@ fn serve_with_options(options: ServeOptions) -> Serve {
 
         let fut = spawn_all
             .select(shutdown_rx)
-            .then(|_| Ok(()));
+            .then(|_| Ok::<(), ()>(()));
 
-        tokio::run(fut);
+        let mut rt = Runtime::new().expect("rt new");
+        rt.block_on(fut).unwrap();
     }).expect("thread spawn");
 
     let addr = addr_rx.recv().expect("server addr rx");
