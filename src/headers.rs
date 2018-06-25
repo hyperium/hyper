@@ -1,12 +1,7 @@
-use std::mem;
-
 use bytes::BytesMut;
 use http::HeaderMap;
 use http::header::{CONTENT_LENGTH, TRANSFER_ENCODING};
 use http::header::{HeaderValue, OccupiedEntry, ValueIter};
-
-/// Maximum number of bytes needed to serialize a u64 into ASCII decimal.
-const MAX_DECIMAL_U64_BYTES: usize = 20;
 
 pub fn connection_keep_alive(value: &HeaderValue) -> bool {
     connection_has(value, "keep-alive")
@@ -68,39 +63,11 @@ pub fn content_length_parse_all_values(values: ValueIter<HeaderValue>) -> Option
     }
 }
 
-pub fn content_length_value(len: u64) -> HeaderValue {
-    let mut len_buf = if mem::size_of::<BytesMut>() - 1 < MAX_DECIMAL_U64_BYTES {
-        // when ptr size is 32bits...
-        // max bytes don't fit inline, but the likelihood of the length
-        // actually needing that many bytes is super tiny. So, only
-        // allocate if we really need to.
-        // constant version of 10.pow(15) - 1...
-        const MAX_DECIMAL_INLINE: u64 = 999_999_999_999_999;
-        if len <= MAX_DECIMAL_INLINE {
-            // Still fits inline of 15 bytes...
-            BytesMut::new()
-        } else {
-            // the number is huge, and doesn't fit into 15 bytes (on 32bit),
-            // so we gotta allocate ;_;
-            BytesMut::with_capacity(MAX_DECIMAL_U64_BYTES)
-        }
-    } else {
-        // max bytes fit inline
-        BytesMut::with_capacity(MAX_DECIMAL_U64_BYTES)
-    };
-    ::itoa::fmt(&mut len_buf, len)
-        .expect("BytesMut can hold a decimal u64");
-    // safe because u64 Display is ascii numerals
-    unsafe {
-        HeaderValue::from_shared_unchecked(len_buf.freeze())
-    }
-}
-
 pub fn set_content_length_if_missing(headers: &mut HeaderMap, len: u64) {
     headers
         .entry(CONTENT_LENGTH)
         .unwrap()
-        .or_insert(content_length_value(len));
+        .or_insert_with(|| HeaderValue::from(len));
 }
 
 pub fn transfer_encoding_is_chunked(headers: &HeaderMap) -> bool {
@@ -155,47 +122,4 @@ fn eq_ascii(left: &str, right: &str) -> bool {
     use std::ascii::AsciiExt;
 
     left.eq_ignore_ascii_case(right)
-}
-
-#[cfg(test)]
-mod tests {
-
-    #[cfg(feature = "nightly")]
-    use test::Bencher;
-
-    #[test]
-    fn assert_max_decimal_u64_bytes() {
-        assert_eq!(
-            super::MAX_DECIMAL_U64_BYTES,
-            ::std::u64::MAX.to_string().len()
-        );
-    }
-
-    #[cfg(feature = "nightly")]
-    #[bench]
-    fn bench_content_length_fmt_small(b: &mut Bencher) {
-        let n = 13;
-        let s = n.to_string();
-        b.bytes = s.len() as u64;
-
-        b.iter(|| {
-            let val = super::content_length_value(n);
-            debug_assert_eq!(val, s);
-            ::test::black_box(&val);
-        })
-    }
-
-    #[cfg(feature = "nightly")]
-    #[bench]
-    fn bench_content_length_fmt_big(b: &mut Bencher) {
-        let n = 326_893_010;
-        let s = n.to_string();
-        b.bytes = s.len() as u64;
-
-        b.iter(|| {
-            let val = super::content_length_value(n);
-            debug_assert_eq!(val, s);
-            ::test::black_box(&val);
-        })
-    }
 }

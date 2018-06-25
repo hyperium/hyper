@@ -842,16 +842,16 @@ fn set_content_length(headers: &mut HeaderMap, len: u64) -> Encoder {
                 // with our known good length.
                 error!("user provided content-length header was invalid");
 
-                cl.insert(headers::content_length_value(len));
+                cl.insert(HeaderValue::from(len));
                 Encoder::length(len)
             },
             Entry::Vacant(cl) => {
-                cl.insert(headers::content_length_value(len));
+                cl.insert(HeaderValue::from(len));
                 Encoder::length(len)
             }
         }
     } else {
-        headers.insert(header::CONTENT_LENGTH, headers::content_length_value(len));
+        headers.insert(header::CONTENT_LENGTH, HeaderValue::from(len));
         Encoder::length(len)
     }
 }
