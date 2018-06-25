@@ -174,7 +174,22 @@ where
         loop {
             let next = match self.state {
                 H2StreamState::Service(ref mut h) => {
-                    let res = try_ready!(h.poll().map_err(::Error::new_user_service));
+                    let res = match h.poll() {
+                        Ok(Async::Ready(r)) => r,
+                        Ok(Async::NotReady) => {
+                            // Body is not yet ready, so we want to check if the client has sent a
+                            // RST_STREAM frame which would cancel the current request.
+                            if let Async::Ready(reason) =
+                                self.reply.poll_reset().map_err(|e| ::Error::new_h2(e))?
+                            {
+                                debug!("stream received RST_STREAM: {:?}", reason);
+                                return Err(::Error::new_h2(reason.into()));
+                            }
+                            return Ok(Async::NotReady);
+                        }
+                        Err(e) => return Err(::Error::new_user_service(e)),
+                    };
+
                     let (head, body) = res.into_parts();
                     let mut res = ::http::Response::from_parts(head, ());
                     super::strip_connection_headers(res.headers_mut());

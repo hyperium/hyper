@@ -116,6 +116,13 @@ where
                             None => return Err(::Error::new_canceled(None::<::Error>)),
                         }
                     }
+                } else {
+                    if let Async::Ready(reason) =
+                        self.body_tx.poll_reset().map_err(|e| ::Error::new_h2(e))?
+                    {
+                        debug!("stream received RST_STREAM: {:?}", reason);
+                        return Err(::Error::new_h2(reason.into()));
+                    }
                 }
 
                 match try_ready!(self.stream.poll_data().map_err(|e| self.on_err(e))) {
@@ -148,6 +155,13 @@ where
                     }
                 }
             } else {
+                if let Async::Ready(reason) =
+                    self.body_tx.poll_reset().map_err(|e| ::Error::new_h2(e))?
+                {
+                    debug!("stream received RST_STREAM: {:?}", reason);
+                    return Err(::Error::new_h2(reason.into()));
+                }
+
                 match try_ready!(self.stream.poll_trailers().map_err(|e| self.on_err(e))) {
                     Some(trailers) => {
                         self.body_tx
