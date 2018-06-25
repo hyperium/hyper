@@ -1,3 +1,12 @@
+### v0.12.3 (2018-06-25)
+
+
+#### Features
+
+* **client:** enable CONNECT requests through the `Client` ([2a3844ac](https://github.com/hyperium/hyper/commit/2a3844acc393d42ff1b75f798dcc321a20956bea))
+* **http2:** quickly cancel when receiving RST_STREAM ([ffdb4788](https://github.com/hyperium/hyper/commit/ffdb47883190a8889cf30b716294383392a763c5))
+
+
 ### v0.12.2 (2018-06-19)
 
 
