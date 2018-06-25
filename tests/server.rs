@@ -416,7 +416,7 @@ mod response_body_lengths {
                 })
                 .map(|_| ())
                 .map_err(|_e| ())
-        }));
+        })).unwrap();
     }
 }
 
