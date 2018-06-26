@@ -518,7 +518,7 @@ test! {
             url: "http://{addr}/err",
             headers: {},
             body: None,
-        error: |err| err.to_string() == "message is incomplete",
+        error: |err| err.to_string() == "parsed HTTP message from remote is incomplete",
 }
 
 test! {

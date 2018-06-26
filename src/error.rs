@@ -296,7 +296,7 @@ impl StdError for Error {
             Kind::Parse(Parse::Header) => "invalid Header provided",
             Kind::Parse(Parse::TooLarge) => "message head is too large",
             Kind::Parse(Parse::Status) => "invalid Status provided",
-            Kind::Incomplete => "message is incomplete",
+            Kind::Incomplete => "parsed HTTP message from remote is incomplete",
             Kind::MismatchedResponse => "response received without matching request",
             Kind::Closed => "connection closed",
             Kind::Connect => "an error occurred trying to connect",
