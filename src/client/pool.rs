@@ -151,7 +151,7 @@ impl<T: Poolable> Pool<T> {
         }
     }
 
-    fn take(&self, key: &Key) -> Option<Pooled<T>> {
+    pub(super) fn take(&self, key: &Key) -> Option<Pooled<T>> {
         let entry = {
             let mut inner = self.inner.connections.lock().unwrap();
             let expiration = Expiration::new(inner.timeout);

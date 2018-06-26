@@ -113,6 +113,7 @@ pub struct Client<C, B = Body> {
     pool: Pool<PoolClient<B>>,
     retry_canceled_requests: bool,
     set_host: bool,
+    avoid_socket_thrash: bool,
     ver: Ver,
 }
 
@@ -264,7 +265,29 @@ where C: Connect + Sync + 'static,
         let url = req.uri().clone();
         let ver = self.ver;
         let pool_key = (Arc::new(domain.to_string()), self.ver);
-        let checkout = self.pool.checkout(pool_key.clone());
+        let checkout = {
+            let pool = self.pool.clone();
+            let pool_key_clone = pool_key.clone();
+
+            if self.avoid_socket_thrash {
+                // instead of waiting for an idle connection,
+                // return an idle connection immediately, else error
+                Either::A(future::lazy(move || {
+                    if let Some(pooled) = pool.take(&pool_key_clone) {
+                        future::ok(pooled)
+                    } else {
+                        future::err(::Error::new_canceled(Some("Idle connection not found")))
+                    }
+                }))
+            } else {
+                // Return a future that will resolve if there
+                // is an idle connection available
+                Either::B(
+                    self.pool.checkout(pool_key_clone)
+                )
+            }
+        };
+
         let connect = {
             let executor = self.executor.clone();
             let pool = self.pool.clone();
@@ -326,7 +349,8 @@ where C: Connect + Sync + 'static,
                 // 1. Connect is canceled if this is HTTP/2 and there is
                 //    an outstanding HTTP/2 connecting task.
                 // 2. Checkout is canceled if the pool cannot deliver an
-                //    idle connection reliably.
+                //    idle connection reliably, or if avoid_socket_thrash is
+                //    enabled and no idle connection exists.
                 //
                 // In both cases, we should just wait for the other future.
                 if e.is_canceled() {
@@ -455,6 +479,7 @@ impl<C, B> Clone for Client<C, B> {
             pool: self.pool.clone(),
             retry_canceled_requests: self.retry_canceled_requests,
             set_host: self.set_host,
+            avoid_socket_thrash: self.avoid_socket_thrash,
             ver: self.ver,
         }
     }
@@ -708,6 +733,7 @@ pub struct Builder {
     max_idle: usize,
     retry_canceled_requests: bool,
     set_host: bool,
+    avoid_socket_thrash: bool,
     ver: Ver,
 }
 
@@ -723,6 +749,7 @@ impl Default for Builder {
             retry_canceled_requests: true,
             set_host: true,
             ver: Ver::Http1,
+            avoid_socket_thrash: false,
         }
     }
 }
@@ -819,6 +846,21 @@ impl Builder {
         self
     }
 
+    /// Determines whether to allow cancelling connections being established
+    /// if there is a free idle connection to use instead.
+    ///
+    /// If connections are allowed to be cancelled, requests re-using connections
+    /// should finish faster. On periods of high load / high connection re-use
+    /// this will end up cancelling a lot of connections, causing many sockets
+    /// to end up in the time-wait state.
+    ///
+    /// Default is `false`.
+    #[inline]
+    pub fn avoid_socket_thrash(&mut self, val: bool) -> &mut Self {
+        self.avoid_socket_thrash = val;
+        self
+    }
+
     /// Provide an executor to execute background `Connection` tasks.
     pub fn executor<E>(&mut self, exec: E) -> &mut Self
     where
@@ -859,6 +901,7 @@ impl Builder {
             pool: Pool::new(self.keep_alive, self.keep_alive_timeout, &self.exec),
             retry_canceled_requests: self.retry_canceled_requests,
             set_host: self.set_host,
+            avoid_socket_thrash: self.avoid_socket_thrash,
             ver: self.ver,
         }
     }
