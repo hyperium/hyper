@@ -212,8 +212,7 @@ impl Http1Transaction for Server {
             *msg.head = MessageHead::default();
             msg.head.subject = StatusCode::INTERNAL_SERVER_ERROR;
             msg.body = None;
-            //TODO: change this to a more descriptive error than just a parse error
-            (Err(::Error::new_status()), true)
+            (Err(::Error::new_user_unsupported_status_code()), true)
         } else {
             (Ok(()), !msg.keep_alive)
         };

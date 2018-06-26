@@ -61,6 +61,8 @@ pub(crate) enum Kind {
     UnsupportedVersion,
     /// User tried to create a CONNECT Request with the Client.
     UnsupportedRequestMethod,
+    /// User tried to respond with a 1xx (not 101) response code.
+    UnsupportedStatusCode,
     /// User tried to send a Request with Client with non-absolute URI.
     AbsoluteUriRequired,
 
@@ -119,6 +121,7 @@ impl Error {
             Kind::Closed |
             Kind::UnsupportedVersion |
             Kind::UnsupportedRequestMethod |
+            Kind::UnsupportedStatusCode |
             Kind::AbsoluteUriRequired |
             Kind::NoUpgrade |
             Kind::Execute => true,
@@ -178,10 +181,6 @@ impl Error {
         Error::new(Kind::Parse(Parse::Header), None)
     }
 
-    pub(crate) fn new_status() -> Error {
-        Error::new(Kind::Parse(Parse::Status), None)
-    }
-
     pub(crate) fn new_version_h2() -> Error {
         Error::new(Kind::Parse(Parse::VersionH2), None)
     }
@@ -225,6 +224,10 @@ impl Error {
 
     pub(crate) fn new_user_unsupported_request_method() -> Error {
         Error::new(Kind::UnsupportedRequestMethod, None)
+    }
+
+    pub(crate) fn new_user_unsupported_status_code() -> Error {
+        Error::new(Kind::UnsupportedStatusCode, None)
     }
 
     pub(crate) fn new_user_absolute_uri_required() -> Error {
@@ -310,6 +313,7 @@ impl StdError for Error {
             Kind::Http2 => "http2 general error",
             Kind::UnsupportedVersion => "request has unsupported HTTP version",
             Kind::UnsupportedRequestMethod => "request has unsupported HTTP method",
+            Kind::UnsupportedStatusCode => "response has 1xx status code, not supported by server",
             Kind::AbsoluteUriRequired => "client requires absolute-form URIs",
             Kind::NoUpgrade => "no upgrade available",
             Kind::ManualUpgrade => "upgrade expected but low level API in use",
