@@ -600,10 +600,29 @@ impl Http1Transaction for Client {
                 .take()
                 .unwrap_or_else(HeaderMap::new);
 
-            headers.reserve(headers_len);
-            fill_headers(&mut headers, slice, &headers_indices[..headers_len]);
+            let mut keep_alive = version == Version::HTTP_11;
 
-            let keep_alive = version == Version::HTTP_11;
+            headers.reserve(headers_len);
+            for header in &headers_indices[..headers_len] {
+                let name = header_name!(&slice[header.name.0..header.name.1]);
+                let value = header_value!(slice.slice(header.value.0, header.value.1));
+
+                match name {
+                    header::CONNECTION => {
+                        // keep_alive was previously set to default for Version
+                        if keep_alive {
+                            // HTTP/1.1
+                            keep_alive = !headers::connection_close(&value);
+
+                        } else {
+                            // HTTP/1.0
+                            keep_alive = headers::connection_keep_alive(&value);
+                        }
+                    },
+                    _ => (),
+                }
+                headers.append(name, value);
+            }
 
             let head = MessageHead {
                 version,
@@ -904,14 +923,6 @@ fn record_header_indices(bytes: &[u8], headers: &[httparse::Header], indices: &m
         let value_start = header.value.as_ptr() as usize - bytes_ptr;
         let value_end = value_start + header.value.len();
         indices.value = (value_start, value_end);
-    }
-}
-
-fn fill_headers(headers: &mut HeaderMap, slice: Bytes, indices: &[HeaderIndices]) {
-    for header in indices {
-        let name = header_name!(&slice[header.name.0..header.name.1]);
-        let value = header_value!(slice.slice(header.value.0, header.value.1));
-        headers.append(name, value);
     }
 }
 
@@ -1319,6 +1330,33 @@ mod tests {
             transfer-encoding: chunked\r\n\
             \r\n\
         ");
+
+        // keep-alive
+        assert!(parse("\
+            HTTP/1.1 200 OK\r\n\
+            content-length: 0\r\n\
+            \r\n\
+        ").keep_alive, "HTTP/1.1 keep-alive is default");
+
+        assert!(!parse("\
+            HTTP/1.1 200 OK\r\n\
+            content-length: 0\r\n\
+            connection: foo, close, bar\r\n\
+            \r\n\
+        ").keep_alive, "connection close is always close");
+
+        assert!(!parse("\
+            HTTP/1.0 200 OK\r\n\
+            content-length: 0\r\n\
+            \r\n\
+        ").keep_alive, "HTTP/1.0 close is default");
+
+        assert!(parse("\
+            HTTP/1.0 200 OK\r\n\
+            content-length: 0\r\n\
+            connection: foo, keep-alive, bar\r\n\
+            \r\n\
+        ").keep_alive, "connection keep-alive is always keep-alive");
     }
 
     #[test]
