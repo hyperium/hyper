@@ -1,3 +1,13 @@
+### v0.12.4 (2018-06-28)
+
+
+#### Bug Fixes
+
+* **client:**
+  * fix keep-alive header detection when parsing responses ([c03c39e0](https://github.com/hyperium/hyper/commit/c03c39e0ffca94bce265db92281a50b2abae6f2b))
+  * try to reuse connections when pool checkout wins ([f2d464ac](https://github.com/hyperium/hyper/commit/f2d464ac79b47f988bffc826b80cf7d107f80694))
+
+
 ### v0.12.3 (2018-06-25)
 
 
