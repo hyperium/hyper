@@ -14,6 +14,45 @@ use proto::h1::{Encode, Encoder, Http1Transaction, ParseResult, ParseContext, Pa
 const MAX_HEADERS: usize = 100;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
 
+macro_rules! header_name {
+    ($bytes:expr) => ({
+        #[cfg(debug_assertions)]
+        {
+            match HeaderName::from_bytes($bytes) {
+                Ok(name) => name,
+                Err(_) => panic!("illegal header name from httparse: {:?}", Bytes::from($bytes)),
+            }
+        }
+
+        #[cfg(not(debug_assertions))]
+        {
+            HeaderName::from_bytes($bytes)
+                .expect("header name validated by httparse")
+        }
+    });
+}
+
+macro_rules! header_value {
+    ($bytes:expr) => ({
+        #[cfg(debug_assertions)]
+        {
+            let __hvb: Bytes = $bytes;
+            match HeaderValue::from_shared(__hvb.clone()) {
+                Ok(name) => name,
+                Err(_) => panic!("illegal header value from httparse: {:?}", __hvb),
+            }
+        }
+
+        #[cfg(not(debug_assertions))]
+        {
+            // Unsafe: httparse already validated header value
+            unsafe {
+                HeaderValue::from_shared_unchecked($bytes)
+            }
+        }
+    });
+}
+
 // There are 2 main roles, Client and Server.
 
 pub(crate) enum Client {}
@@ -99,13 +138,8 @@ impl Http1Transaction for Server {
         headers.reserve(headers_len);
 
         for header in &headers_indices[..headers_len] {
-            let name = HeaderName::from_bytes(&slice[header.name.0..header.name.1])
-                .expect("header name already validated");
-            let val = slice.slice(header.value.0, header.value.1);
-            // Unsafe: httparse already validated header value
-            let value = unsafe {
-                HeaderValue::from_shared_unchecked(val)
-            };
+            let name = header_name!(&slice[header.name.0..header.name.1]);
+            let value = header_value!(slice.slice(header.value.0, header.value.1));
 
             match name {
                 header::TRANSFER_ENCODING => {
@@ -875,13 +909,8 @@ fn record_header_indices(bytes: &[u8], headers: &[httparse::Header], indices: &m
 
 fn fill_headers(headers: &mut HeaderMap, slice: Bytes, indices: &[HeaderIndices]) {
     for header in indices {
-        let name = HeaderName::from_bytes(&slice[header.name.0..header.name.1])
-            .expect("header name already validated");
-        let value = unsafe {
-            HeaderValue::from_shared_unchecked(
-                slice.slice(header.value.0, header.value.1)
-            )
-        };
+        let name = header_name!(&slice[header.name.0..header.name.1]);
+        let value = header_value!(slice.slice(header.value.0, header.value.1));
         headers.append(name, value);
     }
 }
