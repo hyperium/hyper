@@ -151,6 +151,26 @@ impl<T: Poolable> Pool<T> {
         }
     }
 
+    #[cfg(feature = "runtime")]
+    #[cfg(test)]
+    pub(super) fn h1_key(&self, s: &str) -> Key {
+        (Arc::new(s.to_string()), Ver::Http1)
+    }
+
+    #[cfg(feature = "runtime")]
+    #[cfg(test)]
+    pub(super) fn idle_count(&self, key: &Key) -> usize {
+        self
+            .inner
+            .connections
+            .lock()
+            .unwrap()
+            .idle
+            .get(key)
+            .map(|list| list.len())
+            .unwrap_or(0)
+    }
+
     fn take(&self, key: &Key) -> Option<Pooled<T>> {
         let entry = {
             let mut inner = self.inner.connections.lock().unwrap();

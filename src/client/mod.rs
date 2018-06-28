@@ -91,6 +91,7 @@ use http::uri::Scheme;
 
 use body::{Body, Payload};
 use common::Exec;
+use common::lazy as hyper_lazy;
 use self::connect::{Connect, Destination};
 use self::pool::{Pool, Poolable, Reservation};
 
@@ -274,7 +275,7 @@ where C: Connect + Sync + 'static,
             let dst = Destination {
                 uri: url,
             };
-            future::lazy(move || {
+            hyper_lazy(move || {
                 if let Some(connecting) = pool.connecting(&pool_key) {
                     Either::A(connector.connect(dst)
                         .map_err(::Error::new_connect)
@@ -318,9 +319,43 @@ where C: Connect + Sync + 'static,
             })
         };
 
-        let race = checkout.select(connect)
-            .map(|(pooled, _work)| pooled)
-            .or_else(|(e, other)| {
+        let executor = self.executor.clone();
+        // The order of the `select` is depended on below...
+        let race = checkout.select2(connect)
+            .map(move |either| match either {
+                // Checkout won, connect future may have been started or not.
+                //
+                // If it has, let it finish and insert back into the pool,
+                // so as to not waste the socket...
+                Either::A((checked_out, connecting)) => {
+                    // This depends on the `select` above having the correct
+                    // order, such that if the checkout future were ready
+                    // immediately, the connect future will never have been
+                    // started.
+                    //
+                    // If it *wasn't* ready yet, then the connect future will
+                    // have been started...
+                    if connecting.started() {
+                        let bg = connecting
+                            .map(|_pooled| {
+                                // dropping here should just place it in
+                                // the Pool for us...
+                            })
+                            .map_err(|err| {
+                                trace!("background connect error: {}", err);
+                            });
+                        // An execute error here isn't important, we're just trying
+                        // to prevent a waste of a socket...
+                        let _ = executor.execute(bg);
+                    }
+                    checked_out
+                },
+                // Connect won, checkout can just be dropped.
+                Either::B((connected, _checkout)) => {
+                    connected
+                },
+            })
+            .or_else(|either| match either {
                 // Either checkout or connect could get canceled:
                 //
                 // 1. Connect is canceled if this is HTTP/2 and there is
@@ -329,10 +364,19 @@ where C: Connect + Sync + 'static,
                 //    idle connection reliably.
                 //
                 // In both cases, we should just wait for the other future.
-                if e.is_canceled() {
-                    Either::A(other.map_err(ClientError::Normal))
-                } else {
-                    Either::B(future::err(ClientError::Normal(e)))
+                Either::A((err, connecting)) => {
+                    if err.is_canceled() {
+                        Either::A(Either::A(connecting.map_err(ClientError::Normal)))
+                    } else {
+                        Either::B(future::err(ClientError::Normal(err)))
+                    }
+                },
+                Either::B((err, checkout)) => {
+                    if err.is_canceled() {
+                        Either::A(Either::B(checkout.map_err(ClientError::Normal)))
+                    } else {
+                        Either::B(future::err(ClientError::Normal(err)))
+                    }
                 }
             });
 

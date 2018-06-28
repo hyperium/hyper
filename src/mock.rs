@@ -7,6 +7,8 @@ use std::sync::{Arc, Mutex};
 
 use bytes::Buf;
 use futures::{Async, Poll};
+#[cfg(feature = "runtime")]
+use futures::Future;
 use futures::task::{self, Task};
 use tokio_io::{AsyncRead, AsyncWrite};
 
@@ -50,6 +52,7 @@ impl<S: AsRef<[u8]>> PartialEq<S> for MockCursor {
 
 impl Write for MockCursor {
     fn write(&mut self, data: &[u8]) -> io::Result<usize> {
+        trace!("MockCursor::write; len={}", data.len());
         self.vec.extend(data);
         Ok(data.len())
     }
@@ -62,7 +65,13 @@ impl Write for MockCursor {
 impl Read for MockCursor {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         (&self.vec[self.pos..]).read(buf).map(|n| {
+            trace!("MockCursor::read; len={}", n);
             self.pos += n;
+            if self.pos == self.vec.len() {
+                trace!("MockCursor::read to end, clearing");
+                self.pos = 0;
+                self.vec.clear();
+            }
             n
         })
     }
@@ -165,7 +174,11 @@ impl AsyncIo<MockCursor> {
     #[cfg(feature = "runtime")]
     fn close(&mut self) {
         self.block_in(1);
-        assert_eq!(self.inner.vec.len(), self.inner.pos);
+        assert_eq!(
+            self.inner.vec.len(),
+            self.inner.pos,
+            "AsyncIo::close(), but cursor not consumed",
+        );
         self.inner.vec.truncate(0);
         self.inner.pos = 0;
     }
@@ -310,6 +323,31 @@ struct DuplexInner {
 }
 
 #[cfg(feature = "runtime")]
+impl Duplex {
+    pub(crate) fn channel() -> (Duplex, DuplexHandle) {
+        let mut inner = DuplexInner {
+            handle_read_task: None,
+            read: AsyncIo::new_buf(Vec::new(), 0),
+            write: AsyncIo::new_buf(Vec::new(), ::std::usize::MAX),
+        };
+
+        inner.read.park_tasks(true);
+        inner.write.park_tasks(true);
+
+        let inner = Arc::new(Mutex::new(inner));
+
+        let duplex = Duplex {
+            inner: inner.clone(),
+        };
+        let handle = DuplexHandle {
+            inner: inner,
+        };
+
+        (duplex, handle)
+    }
+}
+
+#[cfg(feature = "runtime")]
 impl Read for Duplex {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.inner.lock().unwrap().read.read(buf)
@@ -372,8 +410,8 @@ impl DuplexHandle {
 
     pub fn write(&self, bytes: &[u8]) -> Poll<usize, io::Error> {
         let mut inner = self.inner.lock().unwrap();
-        assert!(inner.read.inner.vec.is_empty());
         assert_eq!(inner.read.inner.pos, 0);
+        assert_eq!(inner.read.inner.vec.len(), 0, "write but read isn't empty");
         inner
             .read
             .inner
@@ -388,15 +426,20 @@ impl DuplexHandle {
 impl Drop for DuplexHandle {
     fn drop(&mut self) {
         trace!("mock duplex handle drop");
-        let mut inner = self.inner.lock().unwrap();
-        inner.read.close();
-        inner.write.close();
+        if !::std::thread::panicking() {
+            let mut inner = self.inner.lock().unwrap();
+            inner.read.close();
+            inner.write.close();
+        }
     }
 }
 
 #[cfg(feature = "runtime")]
+type BoxedConnectFut = Box<Future<Item=(Duplex, Connected), Error=io::Error> + Send>;
+
+#[cfg(feature = "runtime")]
 pub struct MockConnector {
-    mocks: Mutex<HashMap<String, Vec<Duplex>>>,
+    mocks: Mutex<HashMap<String, Vec<BoxedConnectFut>>>,
 }
 
 #[cfg(feature = "runtime")]
@@ -408,28 +451,25 @@ impl MockConnector {
     }
 
     pub fn mock(&mut self, key: &str) -> DuplexHandle {
+        use futures::future;
+        self.mock_fut(key, future::ok::<_, ()>(()))
+    }
+
+    pub fn mock_fut<F>(&mut self, key: &str, fut: F) -> DuplexHandle
+    where
+        F: Future + Send + 'static,
+    {
         let key = key.to_owned();
-        let mut inner = DuplexInner {
-            handle_read_task: None,
-            read: AsyncIo::new_buf(Vec::new(), 0),
-            write: AsyncIo::new_buf(Vec::new(), ::std::usize::MAX),
-        };
 
-        inner.read.park_tasks(true);
-        inner.write.park_tasks(true);
+        let (duplex, handle) = Duplex::channel();
 
-        let inner = Arc::new(Mutex::new(inner));
-
-        let duplex = Duplex {
-            inner: inner.clone(),
-        };
-        let handle = DuplexHandle {
-            inner: inner,
-        };
-
+        let fut = Box::new(fut.then(move |_| {
+            trace!("MockConnector mocked fut ready");
+            Ok((duplex, Connected::new()))
+        }));
         self.mocks.lock().unwrap().entry(key)
             .or_insert(Vec::new())
-            .push(duplex);
+            .push(fut);
 
         handle
     }
@@ -439,10 +479,9 @@ impl MockConnector {
 impl Connect for MockConnector {
     type Transport = Duplex;
     type Error = io::Error;
-    type Future = ::futures::future::FutureResult<(Self::Transport, Connected), Self::Error>;
+    type Future = BoxedConnectFut;
 
     fn connect(&self, dst: Destination) -> Self::Future {
-        use futures::future;
         trace!("mock connect: {:?}", dst);
         let key = format!("{}://{}{}", dst.scheme(), dst.host(), if let Some(port) = dst.port() {
             format!(":{}", port)
@@ -453,6 +492,24 @@ impl Connect for MockConnector {
         let mocks = mocks.get_mut(&key)
             .expect(&format!("unknown mocks uri: {}", key));
         assert!(!mocks.is_empty(), "no additional mocks for {}", key);
-        future::ok((mocks.remove(0), Connected::new()))
+        mocks.remove(0)
+    }
+}
+
+
+#[cfg(feature = "runtime")]
+impl Drop for MockConnector {
+    fn drop(&mut self) {
+        if !::std::thread::panicking() {
+            let mocks = self.mocks.lock().unwrap();
+            for (key, mocks) in mocks.iter() {
+                assert_eq!(
+                    mocks.len(),
+                    0,
+                    "not all mocked connects for {:?} were used",
+                    key,
+                );
+            }
+        }
     }
 }
