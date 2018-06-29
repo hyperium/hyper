@@ -23,11 +23,11 @@ impl Buf for StaticBuf {
 
     #[inline]
     fn bytes_vec<'t>(&'t self, dst: &mut [&'t IoVec]) -> usize {
-        if dst.is_empty() {
-            return 0;
+        if dst.is_empty() || self.0.is_empty() {
+            0
         } else {
             dst[0] = self.0.into();
-            return 1;
+            1
         }
     }
 }
