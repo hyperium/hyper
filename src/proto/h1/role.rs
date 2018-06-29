@@ -1,7 +1,7 @@
 use std::fmt::{self, Write};
 use std::mem;
 
-use bytes::{BytesMut, Bytes};
+use bytes::{BytesMut};
 use http::header::{self, Entry, HeaderName, HeaderValue};
 use http::{HeaderMap, Method, StatusCode, Version};
 use httparse;
@@ -20,7 +20,7 @@ macro_rules! header_name {
         {
             match HeaderName::from_bytes($bytes) {
                 Ok(name) => name,
-                Err(_) => panic!("illegal header name from httparse: {:?}", Bytes::from($bytes)),
+                Err(_) => panic!("illegal header name from httparse: {:?}", ::bytes::Bytes::from($bytes)),
             }
         }
 
@@ -36,7 +36,7 @@ macro_rules! header_value {
     ($bytes:expr) => ({
         #[cfg(debug_assertions)]
         {
-            let __hvb: Bytes = $bytes;
+            let __hvb: ::bytes::Bytes = $bytes;
             match HeaderValue::from_shared(__hvb.clone()) {
                 Ok(name) => name,
                 Err(_) => panic!("illegal header value from httparse: {:?}", __hvb),
