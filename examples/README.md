@@ -6,6 +6,9 @@ Run examples with `cargo run --example example_name`.
 
 * [`client`](client.rs) - A simple CLI http client that request the url passed in parameters and outputs the response content and details to the stdout, reading content chunk-by-chunk.
 
+* [`client_json`](client_json.rs) - A simple program that GETs some json, reads the body asynchronously,
+parses it with serde and outputs the result.
+
 * [`echo`](echo.rs) - An echo server that copies POST request's content to the response content.
 
 * [`hello`](hello.rs) - A simple server that returns "Hello World!" using a closure wrapped to provide a [`Service`](../src/service/service.rs).
