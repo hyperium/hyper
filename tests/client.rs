@@ -90,7 +90,48 @@ macro_rules! test {
                 expected: $server_expected,
                 reply: $server_reply,
             client:
+                set_conn_info: false,
                 set_host: $set_host,
+                title_case_headers: false,
+                request:
+                    method: $client_method,
+                    url: $client_url,
+                    headers: { $($request_header_name => $request_header_val,)* },
+                    body: $request_body,
+
+                response:
+                    status: $client_status,
+                    headers: { $($response_header_name => $response_header_val,)* },
+                    body: $response_body,
+        }
+    );
+
+    (
+        name: $name:ident,
+        server:
+            expected: $server_expected:expr,
+            reply: $server_reply:expr,
+        client:
+            set_conn_info: $set_conn_info:expr,
+            request:
+                method: $client_method:ident,
+                url: $client_url:expr,
+                headers: { $($request_header_name:expr => $request_header_val:expr,)* },
+                body: $request_body:expr,
+
+            response:
+                status: $client_status:ident,
+                headers: { $($response_header_name:expr => $response_header_val:expr,)* },
+                body: $response_body:expr,
+    ) => (
+        test! {
+            name: $name,
+            server:
+                expected: $server_expected,
+                reply: $server_reply,
+            client:
+                set_conn_info: $set_conn_info,
+                set_host: true,
                 title_case_headers: false,
                 request:
                     method: $client_method,
@@ -110,6 +151,7 @@ macro_rules! test {
             expected: $server_expected:expr,
             reply: $server_reply:expr,
         client:
+            set_conn_info: $set_conn_info:expr,
             set_host: $set_host:expr,
             title_case_headers: $title_case_headers:expr,
             request:
@@ -136,6 +178,7 @@ macro_rules! test {
                     expected: $server_expected,
                     reply: $server_reply,
                 client:
+                    set_conn_info: $set_conn_info,
                     set_host: $set_host,
                     title_case_headers: $title_case_headers,
                     request:
@@ -188,6 +231,7 @@ macro_rules! test {
                     expected: $server_expected,
                     reply: $server_reply,
                 client:
+                    set_conn_info: false,
                     set_host: true,
                     title_case_headers: false,
                     request:
@@ -214,6 +258,7 @@ macro_rules! test {
             expected: $server_expected:expr,
             reply: $server_reply:expr,
         client:
+            set_conn_info: $set_conn_info:expr,
             set_host: $set_host:expr,
             title_case_headers: $title_case_headers:expr,
             request:
@@ -229,6 +274,7 @@ macro_rules! test {
         let connector = ::hyper::client::HttpConnector::new_with_handle(1, Handle::default());
         let client = Client::builder()
             .set_host($set_host)
+            .set_conn_info($set_conn_info)
             .http1_title_case_headers($title_case_headers)
             .build(connector);
 
@@ -274,7 +320,20 @@ macro_rules! test {
 
         let rx = rx.expect("thread panicked");
 
-        rt.block_on(res.join(rx).map(|r| r.0))
+        let result = rt.block_on(res.join(rx).map(|r| r.0));
+
+        result.map(|resp| {
+            let info = ::hyper::ext::ConnectionInfo::get(&resp);
+
+            let expected = if $set_conn_info {
+                Some(addr)
+            } else {
+                None
+            };
+            assert_eq!(info.remote_addr(), expected);
+
+            resp
+        })
     });
 }
 
@@ -678,6 +737,7 @@ test! {
             ",
 
     client:
+        set_conn_info: false,
         set_host: true,
         title_case_headers: true,
         request:
@@ -686,6 +746,34 @@ test! {
             headers: {
                 "X-Test-Header" => "test",
             },
+            body: None,
+        response:
+            status: OK,
+            headers: {},
+            body: None,
+}
+
+test! {
+    name: client_with_conn_info,
+
+    server:
+        expected: "\
+            GET / HTTP/1.1\r\n\
+            host: {addr}\r\n\
+            \r\n\
+            ",
+        reply: "\
+            HTTP/1.1 200 OK\r\n\
+            Content-Length: 0\r\n\
+            \r\n\
+            ",
+
+    client:
+        set_conn_info: true,
+        request:
+            method: GET,
+            url: "http://{addr}/",
+            headers: {},
             body: None,
         response:
             status: OK,

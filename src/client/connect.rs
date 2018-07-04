@@ -7,6 +7,7 @@
 //! - The [`Connect`](Connect) trait and related types to build custom connectors.
 use std::error::Error as StdError;
 use std::mem;
+use std::net::SocketAddr;
 
 use bytes::{BufMut, BytesMut};
 use futures::Future;
@@ -42,10 +43,11 @@ pub struct Destination {
 ///
 /// This can be used to inform recipients about things like if ALPN
 /// was used, or if connected to an HTTP proxy.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Connected {
     //alpn: Alpn,
     pub(super) is_proxied: bool,
+    pub(super) remote_addr: Option<SocketAddr>,
 }
 
 /*TODO: when HTTP1 Upgrades to H2 are added, this will be needed
@@ -234,8 +236,8 @@ impl Connected {
     /// Create new `Connected` type with empty metadata.
     pub fn new() -> Connected {
         Connected {
-            //alpn: Alpn::Http1,
             is_proxied: false,
+            remote_addr: None,
         }
     }
 
@@ -248,6 +250,14 @@ impl Connected {
     /// Default is `false`.
     pub fn proxy(mut self, is_proxied: bool) -> Connected {
         self.is_proxied = is_proxied;
+        self
+    }
+
+    /// Set the remote address of the connected transport.
+    ///
+    /// Default is `None`.
+    pub fn remote_addr(mut self, addr: SocketAddr) -> Connected {
+        self.remote_addr = Some(addr);
         self
     }
 
@@ -640,16 +650,12 @@ mod http {
                         }
                     },
                     State::Resolving(ref mut future, local_addr) => {
-                        match try!(future.poll()) {
-                            Async::NotReady => return Ok(Async::NotReady),
-                            Async::Ready(addrs) => {
-                                state = State::Connecting(ConnectingTcp {
-                                    addrs: addrs,
-                                    local_addr: local_addr,
-                                    current: None,
-                                })
-                            }
-                        };
+                        let addrs = try_ready!(future.poll());
+                        state = State::Connecting(ConnectingTcp {
+                            addrs: addrs,
+                            local_addr: local_addr,
+                            current: None,
+                        });
                     },
                     State::Connecting(ref mut c) => {
                         let sock = try_ready!(c.poll(&self.handle));
@@ -659,8 +665,11 @@ mod http {
                         }
 
                         sock.set_nodelay(self.nodelay)?;
+                        let remote_addr = sock.peer_addr()?;
+                        let connected = Connected::new()
+                            .remote_addr(remote_addr);
 
-                        return Ok(Async::Ready((sock, Connected::new())));
+                        return Ok(Async::Ready((sock, connected)));
                     },
                     State::Error(ref mut e) => return Err(e.take().expect("polled more than once")),
                 }
