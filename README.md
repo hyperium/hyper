@@ -25,3 +25,18 @@ hyper makes use of "async IO" (non-blocking sockets) via the
 Be aware that hyper is still actively evolving towards 1.0, and is likely
 to experience breaking changes before stabilising. You can also see the
 [issues in the upcoming milestones](https://github.com/hyperium/hyper/milestones).
+
+## Contributing
+
+To get involved, take a look at [CONTRIBUTING](CONTRIBUTING.md).
+
+There are two main avenues for real-time chatting about hyper: a [Gitter room][gitter]
+and [irc.mozilla.org/hyper][irc]. They are mirrored, so choose whichever format you
+prefer.
+
+[gitter]: https://gitter.im/hyperium/hyper
+[irc]: https://kiwiirc.com/nextclient/irc.mozilla.org/#hyper
+
+## License
+
+hyper is provided under the MIT license. See [LICENSE](LICENSE).
