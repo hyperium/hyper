@@ -14,6 +14,8 @@
 //! It wraps a listener with a [`NewService`](::service), and then should
 //! be executed to start serving requests.
 //!
+//! [`Server`](Server) accepts connections in both HTTP1 and HTTP2 by default.
+//!
 //! ## Example
 //!
 //! ```no_run
@@ -65,7 +67,7 @@ use service::{NewService, Service};
 use self::conn::{Http as Http_, SpawnAll};
 #[cfg(feature = "runtime")] use self::tcp::{AddrIncoming};
 
-/// A listening HTTP server.
+/// A listening HTTP server that accepts connections in both HTTP1 and HTTP2 by default.
 ///
 /// `Server` is a `Future` mapping a bound listener with a set of service
 /// handlers. It is built using the [`Builder`](Builder), and the future
