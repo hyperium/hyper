@@ -111,6 +111,11 @@ path = "examples/send_file.rs"
 required-features = ["runtime"]
 
 [[example]]
+name = "state"
+path = "examples/state.rs"
+required-features = ["runtime"]
+
+[[example]]
 name = "upgrades"
 path = "examples/upgrades.rs"
 required-features = ["runtime"]
