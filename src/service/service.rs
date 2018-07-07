@@ -16,7 +16,7 @@ pub trait Service {
     /// The `Payload` body of the `http::Response`.
     type ResBody: Payload;
 
-    /// The error type that can occur within this `Service.
+    /// The error type that can occur within this `Service`.
     ///
     /// Note: Returning an `Error` to a hyper server will cause the connection
     /// to be abruptly aborted. In most cases, it is better to return a `Response`

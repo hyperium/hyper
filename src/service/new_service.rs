@@ -26,7 +26,7 @@ pub trait NewService {
     /// The future returned from `new_service` of a `Service`.
     type Future: Future<Item=Self::Service, Error=Self::InitError>;
 
-    /// The error type that can be returned when creating a new `Service.
+    /// The error type that can be returned when creating a new `Service`.
     type InitError: Into<Box<StdError + Send + Sync>>;
 
     /// Create a new `Service`.

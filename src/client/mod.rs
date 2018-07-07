@@ -71,7 +71,7 @@
 //!
 //! // A runtime is needed to execute our asynchronous code. In order to
 //! // spawn the future into the runtime, it should already have been
-//! // started and running before calling this this code.
+//! // started and running before calling this code.
 //! rt::spawn(fut);
 //! # }
 //! # fn main () {}

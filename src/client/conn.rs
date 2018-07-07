@@ -1,6 +1,6 @@
 //! Lower-level client connection API.
 //!
-//! The types in thie module are to provide a lower-level API based around a
+//! The types in this module are to provide a lower-level API based around a
 //! single connection. Connecting to a host, pooling connections, and the like
 //! are not handled at this level. This module provides the building blocks to
 //! customize those things externally.
@@ -177,7 +177,7 @@ where
     /// does for you that will not be done here:
     ///
     /// - `Client` requires absolute-form `Uri`s, since the scheme and
-    ///   authority are need to connect. They aren't required here.
+    ///   authority are needed to connect. They aren't required here.
     /// - Since the `Client` requires absolute-form `Uri`s, it can add
     ///   the `Host` header based on it. You must add a `Host` header yourself
     ///   before calling this method.
