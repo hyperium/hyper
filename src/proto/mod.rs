@@ -35,7 +35,7 @@ pub enum BodyLength {
     Unknown,
 }
 
-/// Status of when an Disaptcher future completes.
+/// Status of when a Disaptcher future completes.
 pub(crate) enum Dispatched {
     /// Dispatcher completely shutdown connection.
     Shutdown,

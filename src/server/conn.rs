@@ -1,6 +1,6 @@
 //! Lower-level Server connection API.
 //!
-//! The types in thie module are to provide a lower-level API based around a
+//! The types in this module are to provide a lower-level API based around a
 //! single connection. Accepting a connection and binding it with a service
 //! are not handled at this level. This module provides the building blocks to
 //! customize those things externally.
@@ -48,14 +48,14 @@ pub struct Http {
     pipeline_flush: bool,
 }
 
-/// The internal mode of HTTP protocol which indicates the behavior when an parse error occurs.
+/// The internal mode of HTTP protocol which indicates the behavior when a parse error occurs.
 #[derive(Clone, Debug, PartialEq)]
 enum ConnectionMode {
-    /// Always use HTTP/1 and do not upgrade when an parse error occurs.
+    /// Always use HTTP/1 and do not upgrade when a parse error occurs.
     H1Only,
     /// Always use HTTP/2.
     H2Only,
-    /// Use HTTP/1 and try to upgrade to h2 when an parse error occurs.
+    /// Use HTTP/1 and try to upgrade to h2 when a parse error occurs.
     Fallback,
 }
 
@@ -217,7 +217,7 @@ impl Http {
 
     /// Aggregates flushes to better support pipelined responses.
     ///
-    /// Experimental, may be have bugs.
+    /// Experimental, may have bugs.
     ///
     /// Default is false.
     pub fn pipeline_flush(&mut self, enabled: bool) -> &mut Self {
