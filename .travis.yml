@@ -1,5 +1,5 @@
 language: rust
-sudo: false
+sudo: true # Required for functional IPv6 (forces VM instead of Docker).
 dist: trusty
 matrix:
     fast_finish: true
@@ -17,6 +17,13 @@ matrix:
 
 cache:
     apt: true
+
+before_script:
+  # Add an IPv6 config - see the corresponding Travis issue
+  # https://github.com/travis-ci/travis-ci/issues/8361
+  - if [ "${TRAVIS_OS_NAME}" == "linux" ]; then
+      sudo sh -c 'echo 0 > /proc/sys/net/ipv6/conf/all/disable_ipv6';
+    fi
 
 script:
   - ./.travis/readme.py
