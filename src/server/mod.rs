@@ -176,6 +176,16 @@ impl<I> Builder<I> {
         self
     }
 
+    // Sets whether to bunch up HTTP/1 writes until the read buffer is empty.
+    //
+    // This isn't really desirable in most cases, only really being useful in
+    // silly pipeline benchmarks.
+    #[doc(hidden)]
+    pub fn http1_pipeline_flush(mut self, val: bool) -> Self {
+        self.protocol.pipeline_flush(val);
+        self
+    }
+
     /// Set whether HTTP/1 connections should try to use vectored writes,
     /// or always flatten into a single buffer.
     ///
