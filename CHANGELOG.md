@@ -1,3 +1,14 @@
+### v0.12.6 (2018-07-11)
+
+
+#### Features
+
+* **client:**
+  * add ability to include `SO_REUSEADDR` option on sockets ([13862d11](https://github.com/hyperium/hyper/commit/13862d11ad329e5198622ad3e924e1aa05ab2c8a), closes [#1599](https://github.com/hyperium/hyper/issues/1599))
+  * implement rfc 6555 (happy eyeballs) ([02a9c29e](https://github.com/hyperium/hyper/commit/02a9c29e2e816c8a583f65b372fcf7b8503e6bad))
+* **server:** add `Builder::http1_pipeline_flush` configuration ([5b5e3090](https://github.com/hyperium/hyper/commit/5b5e3090955c1b6c1e7a8cb97b43de8d099f5303))
+
+
 ### v0.12.5 (2018-06-28)
 
 
