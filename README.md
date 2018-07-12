@@ -23,7 +23,9 @@ hyper makes use of "async IO" (non-blocking sockets) via the
 [Tokio](https://tokio.rs) and [Futures](https://docs.rs/futures) crates.
 
 Be aware that hyper is still actively evolving towards 1.0, and is likely
-to experience breaking changes before stabilising. You can also see the
+to experience breaking changes before stabilising. However, this mostly now
+around the instability of `Future` and `async`. The rest of the API is rather
+stable now. You can also see the
 [issues in the upcoming milestones](https://github.com/hyperium/hyper/milestones).
 
 ## Contributing
