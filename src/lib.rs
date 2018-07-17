@@ -18,7 +18,7 @@ extern crate bytes;
 #[macro_use] extern crate futures;
 #[cfg(feature = "runtime")] extern crate futures_cpupool;
 extern crate h2;
-extern crate http;
+pub extern crate http;
 extern crate httparse;
 extern crate iovec;
 extern crate itoa;
@@ -36,6 +36,8 @@ extern crate want;
 #[cfg(all(test, feature = "nightly"))]
 extern crate test;
 
+#[deprecated(since = "0.12.7",
+note="Use items from the reexported `http` crate instead. ")]
 pub use http::{
     header,
     HeaderMap,
