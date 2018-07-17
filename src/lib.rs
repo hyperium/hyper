@@ -18,7 +18,7 @@ extern crate bytes;
 #[macro_use] extern crate futures;
 #[cfg(feature = "runtime")] extern crate futures_cpupool;
 extern crate h2;
-extern crate http;
+#[doc(hidden)] pub extern crate http;
 extern crate httparse;
 extern crate iovec;
 extern crate itoa;
