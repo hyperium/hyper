@@ -180,29 +180,31 @@ where I: AsyncRead + AsyncWrite,
     pub fn read_body(&mut self) -> Poll<Option<Chunk>, io::Error> {
         debug_assert!(self.can_read_body());
 
-        trace!("Conn::read_body");
-
         let (reading, ret) = match self.state.reading {
             Reading::Body(ref mut decoder) => {
                 match decoder.decode(&mut self.io) {
                     Ok(Async::Ready(slice)) => {
-                        let (reading, chunk) = if !slice.is_empty() {
-                            return Ok(Async::Ready(Some(Chunk::from(slice))));
-                        } else if decoder.is_eof() {
+                        let (reading, chunk) = if decoder.is_eof() {
                             debug!("incoming body completed");
-                            (Reading::KeepAlive, None)
-                        } else {
-                            trace!("decode stream unexpectedly ended");
-                            // this should actually be unreachable:
-                            // the decoder will return an UnexpectedEof if there were
-                            // no bytes to read and it isn't eof yet...
+                            (Reading::KeepAlive, if !slice.is_empty() {
+                                Some(Chunk::from(slice))
+                            } else {
+                                None
+                            })
+                        } else if slice.is_empty() {
+                            error!("decode stream unexpectedly ended");
+                            // This should be unreachable, since all 3 decoders
+                            // either set eof=true or return an Err when reading
+                            // an empty slice...
                             (Reading::Closed, None)
+                        } else {
+                            return Ok(Async::Ready(Some(Chunk::from(slice))));
                         };
                         (reading, Ok(Async::Ready(chunk)))
                     },
                     Ok(Async::NotReady) => return Ok(Async::NotReady),
                     Err(e) => {
-                        trace!("decode stream error: {}", e);
+                        debug!("decode stream error: {}", e);
                         (Reading::Closed, Err(e))
                     },
                 }

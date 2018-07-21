@@ -63,6 +63,50 @@ t! {
 }
 
 t! {
+    get_body_2_keeps_alive,
+    client:
+        request:
+            uri: "/",
+            ;
+        response:
+            status: 200,
+            headers: {
+                "content-length" => 11,
+            },
+            body: "hello world",
+            ;
+        request:
+            uri: "/",
+            ;
+        response:
+            status: 200,
+            headers: {
+                "content-length" => 11,
+            },
+            body: "hello world",
+            ;
+    server:
+        request:
+            uri: "/",
+            ;
+        response:
+            headers: {
+                "content-length" => 11,
+            },
+            body: "hello world",
+            ;
+        request:
+            uri: "/",
+            ;
+        response:
+            headers: {
+                "content-length" => 11,
+            },
+            body: "hello world",
+            ;
+}
+
+t! {
     get_strip_connection_header,
     client:
         request:
