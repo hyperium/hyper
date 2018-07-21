@@ -2,6 +2,13 @@ pub extern crate futures;
 pub extern crate hyper;
 pub extern crate tokio;
 
+use std::sync::{Arc, Mutex, atomic::{AtomicUsize, Ordering}};
+use std::time::Duration;
+
+use hyper::{Body, Client, Request, Response, Server, Version};
+use hyper::client::HttpConnector;
+use hyper::service::service_fn;
+
 pub use std::net::SocketAddr;
 pub use self::futures::{future, Future, Stream};
 pub use self::futures::sync::oneshot;
@@ -46,13 +53,23 @@ macro_rules! t {
 
             __run_test(__TestConfig {
                 client_version: 2,
+                client_msgs: c.clone(),
+                server_version: 2,
+                server_msgs: s.clone(),
+                parallel: true,
+                connections: 1,
+                proxy: false,
+            });
+
+            __run_test(__TestConfig {
+                client_version: 2,
                 client_msgs: c,
                 server_version: 2,
                 server_msgs: s,
                 parallel: true,
                 connections: 1,
+                proxy: true,
             });
-
         }
     );
     (
@@ -104,6 +121,27 @@ macro_rules! t {
                 server_msgs: s.clone(),
                 parallel: false,
                 connections: 1,
+                proxy: false,
+            });
+
+            __run_test(__TestConfig {
+                client_version: 2,
+                client_msgs: c.clone(),
+                server_version: 2,
+                server_msgs: s.clone(),
+                parallel: false,
+                connections: 1,
+                proxy: false,
+            });
+
+            __run_test(__TestConfig {
+                client_version: 1,
+                client_msgs: c.clone(),
+                server_version: 1,
+                server_msgs: s.clone(),
+                parallel: false,
+                connections: 1,
+                proxy: true,
             });
 
             __run_test(__TestConfig {
@@ -113,6 +151,7 @@ macro_rules! t {
                 server_msgs: s,
                 parallel: false,
                 connections: 1,
+                proxy: true,
             });
         }
     );
@@ -185,14 +224,11 @@ pub struct __TestConfig {
 
     pub parallel: bool,
     pub connections: usize,
+    pub proxy: bool,
 }
 
 pub fn __run_test(cfg: __TestConfig) {
     extern crate pretty_env_logger;
-    use hyper::{Body, Client, Request, Response, Version};
-    use hyper::client::HttpConnector;
-    use std::sync::{Arc, Mutex};
-    use std::time::Duration;
     let _ = pretty_env_logger::try_init();
     let mut rt = Runtime::new().expect("new rt");
 
@@ -254,30 +290,38 @@ pub fn __run_test(cfg: __TestConfig) {
         )
         .expect("serve_addr");
 
-    let addr = serve.incoming_ref().local_addr();
-    let (shutdown_tx, shutdown_rx) = oneshot::channel();
-    let (success_tx, success_rx) = oneshot::channel();
+    let mut addr = serve.incoming_ref().local_addr();
     let expected_connections = cfg.connections;
     let server = serve
         .fold(0, move |cnt, connecting| {
+            let cnt = cnt + 1;
+            assert!(
+                cnt <= expected_connections,
+                "server expected {} connections, received {}",
+                expected_connections,
+                cnt
+            );
             let fut = connecting
                 .map_err(|never| -> hyper::Error { match never {} })
                 .flatten()
                 .map_err(|e| panic!("server connection error: {}", e));
             ::tokio::spawn(fut);
-            Ok::<_, hyper::Error>(cnt + 1)
+            Ok::<_, hyper::Error>(cnt)
         })
-        .map(move |cnt| {
-            assert_eq!(cnt, expected_connections);
-        })
-        .map_err(|e| panic!("serve error: {}", e))
-        .select2(shutdown_rx)
-        .map(move |_| {
-            let _ = success_tx.send(());
-        })
-        .map_err(|_| panic!("shutdown not ok"));
+        .map(|_| ())
+        .map_err(|e| panic!("serve error: {}", e));
 
     rt.spawn(server);
+
+    if cfg.proxy {
+        let (proxy_addr, proxy) = naive_proxy(ProxyConfig {
+            connections: cfg.connections,
+            dst: addr,
+            version: cfg.server_version,
+        });
+        rt.spawn(proxy);
+        addr = proxy_addr;
+    }
 
 
     let make_request = Arc::new(move |client: &Client<HttpConnector>, creq: __CReq, cres: __CRes| {
@@ -335,12 +379,41 @@ pub fn __run_test(cfg: __TestConfig) {
         Box::new(client_futures.map(|_| ()))
     };
 
-    let client_futures = client_futures.map(move |_| {
-        let _ = shutdown_tx.send(());
-    });
-    rt.spawn(client_futures);
-    rt.block_on(success_rx
-        .map_err(|_| "something panicked"))
+    let client_futures = client_futures.map(|_| ());
+    rt.block_on(client_futures)
         .expect("shutdown succeeded");
 }
 
+struct ProxyConfig {
+    connections: usize,
+    dst: SocketAddr,
+    version: usize,
+}
+
+fn naive_proxy(cfg: ProxyConfig) -> (SocketAddr, impl Future<Item = (), Error = ()>) {
+    let client = Client::builder()
+        .keep_alive_timeout(Duration::from_secs(10))
+        .http2_only(cfg.version == 2)
+        .build_http::<Body>();
+
+    let dst_addr = cfg.dst;
+    let max_connections = cfg.connections;
+    let counter = AtomicUsize::new(0);
+
+    let srv = Server::bind(&([127, 0, 0, 1], 0).into())
+        .serve(move || {
+            let prev = counter.fetch_add(1, Ordering::Relaxed);
+            assert!(max_connections >= prev + 1, "proxy max connections");
+            let client = client.clone();
+            service_fn(move |mut req| {
+                let uri = format!("http://{}{}", dst_addr, req.uri().path())
+                    .parse()
+                    .expect("proxy new uri parse");
+                *req.uri_mut() = uri;
+                client.request(req)
+            })
+
+        });
+    let proxy_addr = srv.local_addr();
+    (proxy_addr, srv.map_err(|err| panic!("proxy error: {}", err)))
+}

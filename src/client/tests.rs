@@ -137,7 +137,14 @@ fn checkout_win_allows_connect_future_to_be_pooled() {
             .map(|res| res.into_body().concat2());
         let srv1 = poll_fn(|| {
             try_ready!(sock1.read(&mut [0u8; 512]));
-            try_ready!(sock1.write(b"HTTP/1.1 200 OK\r\nContent-Length: 1\r\n\r\nx"));
+            // Chunked is used so as to force 2 body reads.
+            try_ready!(sock1.write(b"\
+                HTTP/1.1 200 OK\r\n\
+                transfer-encoding: chunked\r\n\
+                \r\n\
+                1\r\nx\r\n\
+                0\r\n\r\n\
+            "));
             Ok(Async::Ready(()))
         }).map_err(|e: ::std::io::Error| panic!("srv1 poll_fn error: {}", e));
 
