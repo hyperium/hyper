@@ -1,3 +1,11 @@
+### v0.12.7 (2018-07-23)
+
+
+#### Bug Fixes
+
+* **http1:** reduce closed connections when body is dropped ([6530a00a](https://github.com/hyperium/hyper/commit/6530a00a8e3449a8fd7e4ed6ad1231b6b1579c38))
+
+
 ### v0.12.6 (2018-07-11)
 
 
