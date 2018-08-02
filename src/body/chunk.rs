@@ -179,7 +179,7 @@ mod tests {
             let chunk = ::Chunk::from(s);
             dst.put(chunk);
             ::test::black_box(&dst);
-            unsafe { dst.set_len(0); }
+            dst.clear();
         })
     }
 }
