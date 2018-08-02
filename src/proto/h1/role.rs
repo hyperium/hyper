@@ -1525,10 +1525,7 @@ mod tests {
             assert_eq!(vec.len(), len);
             ::test::black_box(&vec);
 
-            // reset Vec<u8> to 0 (always safe)
-            unsafe {
-                vec.set_len(0);
-            }
+            vec.clear();
         })
     }
 }

@@ -275,9 +275,7 @@ impl<T: AsRef<[u8]>> Cursor<T> {
 impl Cursor<Vec<u8>> {
     fn reset(&mut self) {
         self.pos = 0;
-        unsafe {
-            self.bytes.set_len(0);
-        }
+        self.bytes.clear();
     }
 }
 
@@ -717,9 +715,7 @@ mod tests {
             let chunk = ::Chunk::from(s);
             write_buf.buffer(chunk);
             ::test::black_box(&write_buf);
-            unsafe {
-                write_buf.headers.bytes.set_len(0);
-            }
+            write_buf.headers.bytes.clear();
         })
     }
 }
