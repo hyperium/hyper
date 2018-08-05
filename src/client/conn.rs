@@ -238,12 +238,11 @@ where
         }
     }
 
-    //TODO: replace with `impl Future` when stable
-    pub(crate) fn send_request_retryable(&mut self, req: Request<B>) -> Box<Future<Item=Response<Body>, Error=(::Error, Option<Request<B>>)> + Send>
+    pub(crate) fn send_request_retryable(&mut self, req: Request<B>) -> impl Future<Item = Response<Body>, Error = (::Error, Option<Request<B>>)> + Send
     where
         B: Send,
     {
-        let inner = match self.dispatch.try_send(req) {
+        match self.dispatch.try_send(req) {
             Ok(rx) => {
                 Either::A(rx.then(move |res| {
                     match res {
@@ -259,8 +258,7 @@ where
                 let err = ::Error::new_canceled(Some("connection was not ready"));
                 Either::B(future::err((err, Some(req))))
             }
-        };
-        Box::new(inner)
+        }
     }
 }
 
@@ -300,12 +298,11 @@ impl<B> Http2SendRequest<B>
 where
     B: Payload + 'static,
 {
-    //TODO: replace with `impl Future` when stable
-    pub(super) fn send_request_retryable(&mut self, req: Request<B>) -> Box<Future<Item=Response<Body>, Error=(::Error, Option<Request<B>>)> + Send>
+    pub(super) fn send_request_retryable(&mut self, req: Request<B>) -> impl Future<Item=Response<Body>, Error=(::Error, Option<Request<B>>)> + Send
     where
         B: Send,
     {
-        let inner = match self.dispatch.try_send(req) {
+        match self.dispatch.try_send(req) {
             Ok(rx) => {
                 Either::A(rx.then(move |res| {
                     match res {
@@ -321,8 +318,7 @@ where
                 let err = ::Error::new_canceled(Some("connection was not ready"));
                 Either::B(future::err((err, Some(req))))
             }
-        };
-        Box::new(inner)
+        }
     }
 }
 

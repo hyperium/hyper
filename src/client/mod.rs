@@ -547,6 +547,12 @@ struct RetryableSendRequest<C, B> {
     uri: Uri,
 }
 
+impl<C, B> fmt::Debug for RetryableSendRequest<C, B> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.pad("Future<Response>")
+    }
+}
+
 impl<C, B> Future for RetryableSendRequest<C, B>
 where
     C: Connect + 'static,
@@ -617,14 +623,13 @@ impl<B> PoolClient<B> {
 }
 
 impl<B: Payload + 'static> PoolClient<B> {
-    //TODO: replace with `impl Future` when stable
-    fn send_request_retryable(&mut self, req: Request<B>) -> Box<Future<Item=Response<Body>, Error=(::Error, Option<Request<B>>)> + Send>
+    fn send_request_retryable(&mut self, req: Request<B>) -> impl Future<Item = Response<Body>, Error = (::Error, Option<Request<B>>)> + Send
     where
         B: Send,
     {
         match self.tx {
-            PoolTx::Http1(ref mut tx) => tx.send_request_retryable(req),
-            PoolTx::Http2(ref mut tx) => tx.send_request_retryable(req),
+            PoolTx::Http1(ref mut tx) => Either::A(tx.send_request_retryable(req)),
+            PoolTx::Http2(ref mut tx) => Either::B(tx.send_request_retryable(req)),
         }
     }
 }
