@@ -8,6 +8,7 @@ use std::io::{self, Write};
 
 use hyper::Client;
 use hyper::rt::{Future, Stream};
+use tokio_current_thread::CurrentThread;
 
 fn main() {
     pretty_env_logger::init();
@@ -33,7 +34,7 @@ fn main() {
     //
     // Note that in more complicated use cases, the runtime should probably
     // run on its own, and futures should just be spawned into it.
-    match tokio_current_thread::block_on_all(fetch_url(url)) {
+    match CurrentThread::new().spawn(fetch_url(url)).run() {
         Ok(_) => println!("DONE"),
         Err(e) => println!("Error: {:?}", e),
     }
