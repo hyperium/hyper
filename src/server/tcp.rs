@@ -199,6 +199,12 @@ mod addr_stream {
                 remote_addr: addr,
             }
         }
+
+        /// Returns the remote (peer) address of this connection.
+        #[inline]
+        pub fn remote_addr(&self) -> SocketAddr {
+            self.remote_addr
+        }
     }
 
     impl Read for AddrStream {
