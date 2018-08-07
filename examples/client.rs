@@ -1,12 +1,13 @@
 #![deny(warnings)]
 extern crate hyper;
 extern crate pretty_env_logger;
+extern crate tokio_current_thread;
 
 use std::env;
 use std::io::{self, Write};
 
 use hyper::Client;
-use hyper::rt::{self, Future, Stream};
+use hyper::rt::{Future, Stream};
 
 fn main() {
     pretty_env_logger::init();
@@ -32,7 +33,10 @@ fn main() {
     //
     // Note that in more complicated use cases, the runtime should probably
     // run on its own, and futures should just be spawned into it.
-    rt::run(fetch_url(url));
+    match tokio_current_thread::block_on_all(fetch_url(url)) {
+        Ok(_) => println!("DONE"),
+        Err(e) => println!("Error: {:?}", e),
+    }
 }
 
 fn fetch_url(url: hyper::Uri) -> impl Future<Item=(), Error=()> {
