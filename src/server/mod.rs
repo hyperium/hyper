@@ -54,18 +54,20 @@ pub mod conn;
 #[cfg(feature = "runtime")] mod tcp;
 
 use std::fmt;
-#[cfg(feature = "runtime")] use std::net::SocketAddr;
+#[cfg(feature = "runtime")] use std::net::{SocketAddr, TcpListener as StdTcpListener};
+
 #[cfg(feature = "runtime")] use std::time::Duration;
 
 use futures::{Future, Stream, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
+#[cfg(feature = "runtime")] use tokio_reactor;
 
 use body::{Body, Payload};
 use service::{NewService, Service};
 // Renamed `Http` as `Http_` for now so that people upgrading don't see an
 // error that `hyper::server::Http` is private...
 use self::conn::{Http as Http_, SpawnAll};
-#[cfg(feature = "runtime")] use self::tcp::{AddrIncoming};
+#[cfg(feature = "runtime")] use self::tcp::AddrIncoming;
 
 /// A listening HTTP server that accepts connections in both HTTP1 and HTTP2 by default.
 ///
@@ -116,6 +118,16 @@ impl Server<AddrIncoming, ()> {
     pub fn try_bind(addr: &SocketAddr) -> ::Result<Builder<AddrIncoming>> {
         AddrIncoming::new(addr, None)
             .map(Server::builder)
+    }
+
+    /// Create a new instance from a `std::net::TcpListener` instance.
+    pub fn from_tcp(
+        listener: StdTcpListener,
+    ) -> Result<Builder<AddrIncoming>, ::Error> {
+        let handle = tokio_reactor::Handle::current();
+        let incoming = AddrIncoming::from_tcp(listener, &handle)
+          .map_err(|err| ::Error::new_listen(err))?;
+        Ok(Self::builder(incoming))
     }
 }
 
@@ -275,4 +287,3 @@ impl Builder<AddrIncoming> {
         self
     }
 }
-

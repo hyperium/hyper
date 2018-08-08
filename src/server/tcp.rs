@@ -44,6 +44,20 @@ impl AddrIncoming {
         })
     }
 
+    pub(super) fn from_tcp(std_listener: StdTcpListener, handle: &Handle) -> ::Result<Self>{
+        let listener = TcpListener::from_std(std_listener, &handle)
+            .map_err(::Error::new_listen)?;
+        let addr = listener.local_addr().map_err(::Error::new_listen)?;
+        Ok(AddrIncoming {
+            listener,
+            addr: addr,
+            sleep_on_errors: true,
+            tcp_keepalive_timeout: None,
+            tcp_nodelay: false,
+            timeout: None,
+        })
+    }
+
     /// Get the local address bound to this listener.
     pub fn local_addr(&self) -> SocketAddr {
         self.addr
