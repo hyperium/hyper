@@ -2,6 +2,8 @@ mod buf;
 mod exec;
 pub(crate) mod io;
 mod lazy;
+#[macro_use]
+mod macros;
 mod never;
 
 pub(crate) use self::buf::StaticBuf;

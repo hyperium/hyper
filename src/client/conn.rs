@@ -238,12 +238,11 @@ where
         }
     }
 
-    #[cfg(impl_trait_available)]
-    pub(crate) fn send_request_retryable(&mut self, req: Request<B>) -> impl Future<Item = Response<Body>, Error = (::Error, Option<Request<B>>)> + Send
+    pub(crate) fn send_request_retryable(&mut self, req: Request<B>) -> impl_trait!(ty: Future<Item = Response<Body>, Error = (::Error, Option<Request<B>>)> + Send)
     where
         B: Send,
     {
-        match self.dispatch.try_send(req) {
+        impl_trait!(e: match self.dispatch.try_send(req) {
             Ok(rx) => {
                 Either::A(rx.then(move |res| {
                     match res {
@@ -259,32 +258,7 @@ where
                 let err = ::Error::new_canceled(Some("connection was not ready"));
                 Either::B(future::err((err, Some(req))))
             }
-        }
-    }
-
-    #[cfg(not(impl_trait_available))]
-    pub(super) fn send_request_retryable(&mut self, req: Request<B>) -> Box<Future<Item=Response<Body>, Error=(::Error, Option<Request<B>>)> + Send>
-    where
-        B: Send,
-    {
-        let inner = match self.dispatch.try_send(req) {
-            Ok(rx) => {
-                Either::A(rx.then(move |res| {
-                    match res {
-                        Ok(Ok(res)) => Ok(res),
-                        Ok(Err(err)) => Err(err),
-                        // this is definite bug if it happens, but it shouldn't happen!
-                        Err(_) => panic!("dispatch dropped without returning error"),
-                    }
-                }))
-            },
-            Err(req) => {
-                debug!("connection was not ready");
-                let err = ::Error::new_canceled(Some("connection was not ready"));
-                Either::B(future::err((err, Some(req))))
-            }
-        };
-        Box::new(inner)
+        })
     }
 }
 
@@ -324,12 +298,11 @@ impl<B> Http2SendRequest<B>
 where
     B: Payload + 'static,
 {
-    #[cfg(impl_trait_available)]
-    pub(super) fn send_request_retryable(&mut self, req: Request<B>) -> impl Future<Item=Response<Body>, Error=(::Error, Option<Request<B>>)> + Send
+    pub(super) fn send_request_retryable(&mut self, req: Request<B>) -> impl_trait!(ty: Future<Item=Response<Body>, Error=(::Error, Option<Request<B>>)> + Send)
     where
         B: Send,
     {
-        match self.dispatch.try_send(req) {
+        impl_trait!(e: match self.dispatch.try_send(req) {
             Ok(rx) => {
                 Either::A(rx.then(move |res| {
                     match res {
@@ -345,32 +318,7 @@ where
                 let err = ::Error::new_canceled(Some("connection was not ready"));
                 Either::B(future::err((err, Some(req))))
             }
-        }
-    }
-
-    #[cfg(not(impl_trait_available))]
-    pub(crate) fn send_request_retryable(&mut self, req: Request<B>) -> Box<Future<Item=Response<Body>, Error=(::Error, Option<Request<B>>)> + Send>
-    where
-        B: Send,
-    {
-        let inner = match self.dispatch.try_send(req) {
-            Ok(rx) => {
-                Either::A(rx.then(move |res| {
-                    match res {
-                        Ok(Ok(res)) => Ok(res),
-                        Ok(Err(err)) => Err(err),
-                        // this is definite bug if it happens, but it shouldn't happen!
-                        Err(_) => panic!("dispatch dropped without returning error"),
-                    }
-                }))
-            },
-            Err(req) => {
-                debug!("connection was not ready");
-                let err = ::Error::new_canceled(Some("connection was not ready"));
-                Either::B(future::err((err, Some(req))))
-            }
-        };
-        Box::new(inner)
+        })
     }
 }
 

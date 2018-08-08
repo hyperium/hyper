@@ -52,6 +52,7 @@ pub use error::{Result, Error};
 pub use body::{Body, Chunk};
 pub use server::Server;
 
+#[macro_use]
 mod common;
 #[cfg(test)]
 mod mock;

@@ -2,7 +2,7 @@ use bytes::BytesMut;
 use http::HeaderMap;
 use http::header::{CONTENT_LENGTH, TRANSFER_ENCODING};
 use http::header::{HeaderValue, OccupiedEntry, ValueIter};
-#[cfg(not(inherent_ascii))]
+#[cfg(not(__hyper_inherent_ascii))]
 use std::ascii::AsciiExt;
 
 pub fn connection_keep_alive(value: &HeaderValue) -> bool {
