@@ -623,26 +623,14 @@ impl<B> PoolClient<B> {
 }
 
 impl<B: Payload + 'static> PoolClient<B> {
-    #[cfg(impl_trait_available)]
-    fn send_request_retryable(&mut self, req: Request<B>) -> impl Future<Item = Response<Body>, Error = (::Error, Option<Request<B>>)> + Send
+    fn send_request_retryable(&mut self, req: Request<B>) -> impl_trait!(ty: Future<Item = Response<Body>, Error = (::Error, Option<Request<B>>)> + Send)
     where
         B: Send,
     {
-        match self.tx {
+        impl_trait!(e: match self.tx {
             PoolTx::Http1(ref mut tx) => Either::A(tx.send_request_retryable(req)),
             PoolTx::Http2(ref mut tx) => Either::B(tx.send_request_retryable(req)),
-        }
-    }
-
-    #[cfg(not(impl_trait_available))]
-    fn send_request_retryable(&mut self, req: Request<B>) -> Box<Future<Item=Response<Body>, Error=(::Error, Option<Request<B>>)> + Send>
-    where
-        B: Send,
-    {
-        match self.tx {
-            PoolTx::Http1(ref mut tx) => tx.send_request_retryable(req),
-            PoolTx::Http2(ref mut tx) => tx.send_request_retryable(req),
-        }
+        })
     }
 }
 
