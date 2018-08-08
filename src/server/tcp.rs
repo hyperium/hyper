@@ -22,29 +22,19 @@ pub struct AddrIncoming {
 }
 
 impl AddrIncoming {
-    pub(super) fn new(addr: &SocketAddr, handle: Option<&Handle>) -> ::Result<AddrIncoming> {
-        let listener = if let Some(handle) = handle {
-            let std_listener = StdTcpListener::bind(addr)
+    pub(super) fn new(addr: &SocketAddr, handle: Option<&Handle>) -> ::Result<Self> {
+        let std_listener = StdTcpListener::bind(addr)
                 .map_err(::Error::new_listen)?;
-            TcpListener::from_std(std_listener, handle)
-                .map_err(::Error::new_listen)?
+
+        if let Some(handle) = handle {
+            AddrIncoming::from_std(std_listener, handle)
         } else {
-            TcpListener::bind(addr).map_err(::Error::new_listen)?
-        };
-
-        let addr = listener.local_addr().map_err(::Error::new_listen)?;
-
-        Ok(AddrIncoming {
-            addr: addr,
-            listener: listener,
-            sleep_on_errors: true,
-            tcp_keepalive_timeout: None,
-            tcp_nodelay: false,
-            timeout: None,
-        })
+            let handle = Handle::current();
+            AddrIncoming::from_std(std_listener, &handle)
+        }
     }
 
-    pub(super) fn from_tcp(std_listener: StdTcpListener, handle: &Handle) -> ::Result<Self>{
+    pub(super) fn from_std(std_listener: StdTcpListener, handle: &Handle) -> ::Result<Self> {
         let listener = TcpListener::from_std(std_listener, &handle)
             .map_err(::Error::new_listen)?;
         let addr = listener.local_addr().map_err(::Error::new_listen)?;

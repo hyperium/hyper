@@ -121,13 +121,10 @@ impl Server<AddrIncoming, ()> {
     }
 
     /// Create a new instance from a `std::net::TcpListener` instance.
-    pub fn from_tcp(
-        listener: StdTcpListener,
-    ) -> Result<Builder<AddrIncoming>, ::Error> {
+    pub fn from_tcp(listener: StdTcpListener) -> Result<Builder<AddrIncoming>, ::Error> {
         let handle = tokio_reactor::Handle::current();
-        let incoming = AddrIncoming::from_tcp(listener, &handle)
-          .map_err(|err| ::Error::new_listen(err))?;
-        Ok(Self::builder(incoming))
+        AddrIncoming::from_std(listener, &handle)
+            .map(Server::builder)
     }
 }
 
