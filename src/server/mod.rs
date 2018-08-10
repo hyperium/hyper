@@ -177,6 +177,14 @@ impl<I> Builder<I> {
         }
     }
 
+    /// Sets whether to use keep-alive for HTTP/1 connections.
+    ///
+    /// Default is `true`.
+    pub fn http1_keepalive(mut self, val: bool) -> Self {
+        self.protocol.keep_alive(val);
+        self
+    }
+
     /// Sets whether HTTP/1 is required.
     ///
     /// Default is `false`.
