@@ -33,6 +33,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use hyper::{Body, Request, Response, StatusCode};
 use hyper::client::Client;
 use hyper::server::conn::Http;
+use hyper::server::Server;
 use hyper::service::{service_fn, service_fn_ok, Service};
 
 fn tcp_bind(addr: &SocketAddr) -> ::tokio::io::Result<TcpListener> {
@@ -40,27 +41,6 @@ fn tcp_bind(addr: &SocketAddr) -> ::tokio::io::Result<TcpListener> {
     TcpListener::from_std(std_listener, &Handle::default())
 }
 
-#[test]
-fn try_h2() {
-    let server = serve();
-    let addr_str = format!("http://{}", server.addr());
-
-    let mut rt = Runtime::new().expect("runtime new");
-
-    rt.block_on(hyper::rt::lazy(move || {
-        let client = Client::builder()
-            .http2_only(true)
-            .build_http::<hyper::Body>();
-        let uri = addr_str.parse().expect("server addr should parse");
-
-        client.get(uri)
-            .and_then(|_res| { Ok(()) })
-            .map(|_| { () })
-            .map_err(|_e| { () })
-    })).unwrap();
-
-    assert_eq!(server.body(), b"");
-}
 
 #[test]
 fn get_should_ignore_body() {
@@ -706,7 +686,7 @@ fn http_10_keep_alive() {
 fn disable_keep_alive() {
     let foo_bar = b"foo bar baz";
     let server = serve_with_options(ServeOptions {
-        keep_alive_disabled: true,
+        keep_alive: false,
         .. Default::default()
     });
     server.reply()
@@ -1562,6 +1542,48 @@ fn streaming_body() {
     rt.block_on(fut.join(rx)).unwrap();
 }
 
+#[test]
+fn try_h2() {
+    let server = serve();
+    let addr_str = format!("http://{}", server.addr());
+
+    let mut rt = Runtime::new().expect("runtime new");
+
+    rt.block_on(hyper::rt::lazy(move || {
+        let client = Client::builder()
+            .http2_only(true)
+            .build_http::<hyper::Body>();
+        let uri = addr_str.parse().expect("server addr should parse");
+
+        client.get(uri)
+            .and_then(|_res| { Ok(()) })
+            .map(|_| { () })
+            .map_err(|_e| { () })
+    })).unwrap();
+
+    assert_eq!(server.body(), b"");
+}
+
+#[test]
+fn http1_only() {
+    let server = serve_with_options(ServeOptions {
+        http1_only: true,
+        .. Default::default()
+    });
+    let addr_str = format!("http://{}", server.addr());
+
+    let mut rt = Runtime::new().expect("runtime new");
+
+    rt.block_on(hyper::rt::lazy(move || {
+        let client = Client::builder()
+            .http2_only(true)
+            .build_http::<hyper::Body>();
+        let uri = addr_str.parse().expect("server addr should parse");
+
+        client.get(uri)
+    })).unwrap_err();
+}
+
 // -------------------------------------------------
 // the Server that is used to run all the tests with
 // -------------------------------------------------
@@ -1738,8 +1760,10 @@ fn serve() -> Serve {
     serve_with_options(Default::default())
 }
 
+#[derive(Clone, Copy)]
 struct ServeOptions {
-    keep_alive_disabled: bool,
+    keep_alive: bool,
+    http1_only: bool,
     pipeline: bool,
     timeout: Option<Duration>,
 }
@@ -1747,7 +1771,8 @@ struct ServeOptions {
 impl Default for ServeOptions {
     fn default() -> Self {
         ServeOptions {
-            keep_alive_disabled: false,
+            keep_alive: true,
+            http1_only: false,
             pipeline: false,
             timeout: None,
         }
@@ -1765,44 +1790,47 @@ fn serve_with_options(options: ServeOptions) -> Serve {
 
     let addr = ([127, 0, 0, 1], 0).into();
 
-    let keep_alive = !options.keep_alive_disabled;
-    let pipeline = options.pipeline;
-    let dur = options.timeout;
-
-    let thread_name = format!("test-server-{:?}", dur);
+    let thread_name = format!(
+        "test-server-{}",
+        thread::current()
+            .name()
+            .unwrap_or("<unknown test case name>")
+    );
     let thread = thread::Builder::new().name(thread_name).spawn(move || {
+        let server = Server::bind(&addr)
+            .http1_only(options.http1_only)
+            .http1_keepalive(options.keep_alive)
+            .http1_pipeline_flush(options.pipeline)
+            .serve(move || {
+                let ts = TestService {
+                    tx: Arc::new(Mutex::new(msg_tx.clone())),
+                    _timeout: options.timeout,
+                    reply: reply_rx.clone(),
+                };
+                service_fn(move |req| ts.call(req))
+            });
+
+        /*
         let serve = Http::new()
-            .keep_alive(keep_alive)
-            .pipeline_flush(pipeline)
+            .http1_only(options.http1_only)
+            .keep_alive(options.keep_alive)
+            .pipeline_flush(options.pipeline)
             .serve_addr(&addr, move || {
                 let ts = TestService {
                     tx: Arc::new(Mutex::new(msg_tx.clone())),
-                    _timeout: dur,
+                    _timeout: options.timeout,
                     reply: reply_rx.clone(),
                 };
                 service_fn(move |req| ts.call(req))
             })
             .expect("bind to address");
+            */
 
         addr_tx.send(
-            serve
-                .incoming_ref()
-                .local_addr()
+            server.local_addr()
         ).expect("server addr tx");
 
-        // spawn_all() is private for now, so just duplicate it here
-        let spawn_all = serve.for_each(|connecting| {
-            let fut = connecting
-                .map_err(|never| -> hyper::Error { match never {} })
-                .flatten()
-                .map_err(|e| println!("server error: {}", e));
-            tokio::spawn(fut);
-            Ok(())
-        }).map_err(|e| {
-            println!("accept error: {}", e)
-        });
-
-        let fut = spawn_all
+        let fut = server
             .select(shutdown_rx)
             .then(|_| Ok::<(), ()>(()));
 
