@@ -1543,6 +1543,25 @@ fn streaming_body() {
 }
 
 #[test]
+fn http1_response_with_http2_version() {
+    let server = serve();
+    let addr_str = format!("http://{}", server.addr());
+
+    let mut rt = Runtime::new().expect("runtime new");
+
+    server
+        .reply()
+        .version(hyper::Version::HTTP_2);
+
+    rt.block_on(hyper::rt::lazy(move || {
+        let client = Client::new();
+        let uri = addr_str.parse().expect("server addr should parse");
+
+        client.get(uri)
+    })).unwrap();
+}
+
+#[test]
 fn try_h2() {
     let server = serve();
     let addr_str = format!("http://{}", server.addr());
@@ -1641,6 +1660,11 @@ impl<'a> ReplyBuilder<'a> {
         self
     }
 
+    fn version(self, version: hyper::Version) -> Self {
+        self.tx.send(Reply::Version(version)).unwrap();
+        self
+    }
+
     fn header<V: AsRef<str>>(self, name: &str, value: V) -> Self {
         let name = HeaderName::from_bytes(name.as_bytes()).expect("header name");
         let value = HeaderValue::from_str(value.as_ref()).expect("header value");
@@ -1681,6 +1705,7 @@ struct TestService {
 #[derive(Debug)]
 enum Reply {
     Status(hyper::StatusCode),
+    Version(hyper::Version),
     Header(HeaderName, HeaderValue),
     Body(hyper::Body),
     End,
@@ -1717,6 +1742,9 @@ impl TestService {
                 match reply {
                     Reply::Status(s) => {
                         *res.status_mut() = s;
+                    },
+                    Reply::Version(v) => {
+                        *res.version_mut() = v;
                     },
                     Reply::Header(name, value) => {
                         res.headers_mut().insert(name, value);

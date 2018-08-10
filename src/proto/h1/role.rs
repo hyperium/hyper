@@ -267,6 +267,10 @@ impl Http1Transaction for Server {
             match msg.head.version {
                 Version::HTTP_10 => extend(dst, b"HTTP/1.0 "),
                 Version::HTTP_11 => extend(dst, b"HTTP/1.1 "),
+                Version::HTTP_2 => {
+                    warn!("response with HTTP2 version coerced to HTTP/1.1");
+                    extend(dst, b"HTTP/1.1 ");
+                },
                 _ => unreachable!(),
             }
 
