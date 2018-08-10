@@ -1,3 +1,19 @@
+### v0.12.8 (2018-08-10)
+
+
+#### Bug Fixes
+
+* **server:** coerce responses with HTTP2 version to HTTP/1.1 when protocol is 1.x ([195fbb2a](https://github.com/hyperium/hyper/commit/195fbb2a3728460e7f7eca2035461ce055db6cd0))
+
+
+#### Features
+
+* **server:**
+  * add Builder::http1_keepalive method ([b459adb4](https://github.com/hyperium/hyper/commit/b459adb43a753ba082f1fc03c90ff4e76625666f))
+  * add `Server::from_tcp` constructor ([bb4c5e24](https://github.com/hyperium/hyper/commit/bb4c5e24c846995b66e361d1c2446cb81984bbbd), closes [#1602](https://github.com/hyperium/hyper/issues/1602))
+  * add remote_addr method to AddrStream ([26f3a5ed](https://github.com/hyperium/hyper/commit/26f3a5ed317330db39dd33f49bafd859bc867d8a))
+
+
 ### v0.12.7 (2018-07-23)
 
 
