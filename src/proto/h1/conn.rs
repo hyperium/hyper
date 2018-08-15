@@ -5,10 +5,12 @@ use std::marker::PhantomData;
 use bytes::{Buf, Bytes};
 use futures::{Async, Poll};
 use http::{HeaderMap, Method, Version};
+use http::header::{HeaderValue, CONNECTION};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use ::Chunk;
 use proto::{BodyLength, DecodedLength, MessageHead};
+use headers::connection_keep_alive;
 use super::io::{Buffered};
 use super::{EncodedBuf, Encode, Encoder, /*Decode,*/ Decoder, Http1Transaction, ParseContext};
 
@@ -438,12 +440,38 @@ where I: AsyncRead + AsyncWrite,
         }
     }
 
+    // Fix keep-alives when Connection: keep-alive header is not present
+    fn fix_keep_alive(&mut self, head: &mut MessageHead<T::Outgoing>) {
+        let outgoing_is_keep_alive = head
+            .headers
+            .get(CONNECTION)
+            .and_then(|value| Some(connection_keep_alive(value)))
+            .unwrap_or(false);
+
+        if !outgoing_is_keep_alive {
+            match head.version {
+                // If response is version 1.0 and keep-alive is not present in the response,
+                // disable keep-alive so the server closes the connection
+                Version::HTTP_10 => self.state.disable_keep_alive(),
+                // If response is version 1.1 and keep-alive is wanted, add
+                // Connection: keep-alive header when not present
+                Version::HTTP_11 => if self.state.wants_keep_alive() {
+                    head.headers
+                        .insert(CONNECTION, HeaderValue::from_static("keep-alive"));
+                },
+                _ => (),
+            }
+        }
+    }
+
     // If we know the remote speaks an older version, we try to fix up any messages
     // to work with our older peer.
     fn enforce_version(&mut self, head: &mut MessageHead<T::Outgoing>) {
 
         match self.state.version {
             Version::HTTP_10 => {
+                // Fixes response or connection when keep-alive header is not present
+                self.fix_keep_alive(head);
                 // If the remote only knows HTTP/1.0, we should force ourselves
                 // to do only speak HTTP/1.0 as well.
                 head.version = Version::HTTP_10;
