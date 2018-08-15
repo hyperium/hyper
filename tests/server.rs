@@ -30,7 +30,7 @@ use tokio::reactor::Handle;
 use tokio_io::{AsyncRead, AsyncWrite};
 
 
-use hyper::{Body, Request, Response, StatusCode};
+use hyper::{Body, Request, Response, StatusCode, Version};
 use hyper::client::Client;
 use hyper::server::conn::Http;
 use hyper::server::Server;
@@ -637,6 +637,7 @@ fn keep_alive() {
 fn http_10_keep_alive() {
     let foo_bar = b"foo bar baz";
     let server = serve();
+    // Response version 1.1 with no keep-alive header will downgrade to 1.0 when served
     server.reply()
         .header("content-length", foo_bar.len().to_string())
         .body(foo_bar);
@@ -658,6 +659,10 @@ fn http_10_keep_alive() {
         }
     }
 
+    // Connection: keep-alive header should be added when downgrading to a 1.0 response
+    let response = String::from_utf8(buf.to_vec()).unwrap();
+    response.contains("Connection: keep-alive\r\n");
+
     // try again!
 
     let quux = b"zar quux";
@@ -678,6 +683,69 @@ fn http_10_keep_alive() {
             if &buf[n - quux.len()..n] == quux {
                 break;
             }
+        }
+    }
+}
+
+#[test]
+fn http_10_close_on_no_ka() {
+    let foo_bar = b"foo bar baz";
+    let server = serve();
+
+    // A server response with version 1.0 but no keep-alive header
+    server
+        .reply()
+        .version(Version::HTTP_10)
+        .header("content-length", foo_bar.len().to_string())
+        .body(foo_bar);
+    let mut req = connect(server.addr());
+
+    // The client request with version 1.0 that may have the keep-alive header
+    req.write_all(
+        b"\
+        GET / HTTP/1.0\r\n\
+        Host: example.domain\r\n\
+        Connection: keep-alive\r\n\
+        \r\n\
+    ",
+    ).expect("writing 1");
+
+    let mut buf = [0; 1024 * 8];
+    loop {
+        let n = req.read(&mut buf[..]).expect("reading 1");
+        if n < buf.len() {
+            if &buf[n - foo_bar.len()..n] == foo_bar {
+                break;
+            } else {
+            }
+        }
+    }
+
+    // try again!
+
+    let quux = b"zar quux";
+    server
+        .reply()
+        .header("content-length", quux.len().to_string())
+        .body(quux);
+
+    // the write can possibly succeed, since it fills the kernel buffer on the first write
+    let _ = req.write_all(
+        b"\
+        GET /quux HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: close\r\n\
+        \r\n\
+    ",
+    );
+
+    let mut buf = [0; 1024 * 8];
+    match req.read(&mut buf[..]) {
+        // Ok(0) means EOF, so a proper shutdown
+        // Err(_) could mean ConnReset or something, also fine
+        Ok(0) | Err(_) => {}
+        Ok(n) => {
+            panic!("read {} bytes on a disabled keep-alive socket", n);
         }
     }
 }
