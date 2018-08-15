@@ -206,7 +206,7 @@ mod tests {
     #[cfg(feature = "nightly")]
     #[bench]
     fn giver_queue_cancel(b: &mut test::Bencher) {
-        let (_tx, rx) = super::channel::<i32, ()>();
+        let (_tx, mut rx) = super::channel::<i32, ()>();
 
         b.iter(move || {
             rx.taker.cancel();
