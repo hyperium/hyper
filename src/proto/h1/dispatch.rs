@@ -439,7 +439,7 @@ where
                     trace!("canceling queued request with connection error: {}", err);
                     // in this case, the message was never even started, so it's safe to tell
                     // the user that the request was completely canceled
-                    let _ = cb.send(Err((::Error::new_canceled(Some(err)), Some(req))));
+                    let _ = cb.send(Err((::Error::__internal_new_canceled(Some(err)), Some(req))));
                     Ok(())
                 } else {
                     Err(err)

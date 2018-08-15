@@ -9,9 +9,10 @@ use header::{self, Headers, ContentLength, TransferEncoding};
 use proto::{Decode, MessageHead, RawStatus, Http1Transaction, ParseResult,
            RequestLine, RequestHead};
 use proto::h1::{Encoder, Decoder, date};
-use method::Method;
-use status::StatusCode;
-use version::HttpVersion::{Http10, Http11};
+use Method;
+use StatusCode;
+use Uri;
+use HttpVersion::{Http10, Http11};
 
 const MAX_HEADERS: usize = 100;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
@@ -68,7 +69,7 @@ where
         let slice = buf.split_to(len).freeze();
         let path = slice.slice(path.0, path.1);
         // path was found to be utf8 by httparse
-        let path = try!(unsafe { ::uri::from_utf8_unchecked(path) });
+        let path = try!(unsafe { Uri::__internal_from_utf8_unchecked(path) });
         let subject = RequestLine(
             method,
             path,

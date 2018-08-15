@@ -1,6 +1,6 @@
 #![doc(html_root_url = "https://docs.rs/hyper/0.11.27")]
 #![deny(missing_docs)]
-#![deny(warnings)]
+#![cfg_attr(test, deny(warnings))]
 #![deny(missing_debug_implementations)]
 #![cfg_attr(all(test, feature = "nightly"), feature(test))]
 
@@ -17,19 +17,16 @@
 //! If just starting out, **check out the [Guides](https://hyper.rs/guides)
 //! first.**
 
-extern crate base64;
 extern crate bytes;
 #[macro_use] extern crate futures;
 extern crate futures_cpupool;
 #[cfg(feature = "compat")]
 extern crate http;
 extern crate httparse;
+extern crate hyper_old_types;
 extern crate iovec;
-extern crate language_tags;
 #[macro_use] extern crate log;
-pub extern crate mime;
 extern crate net2;
-#[macro_use] extern crate percent_encoding;
 extern crate relay;
 extern crate time;
 extern crate tokio_core as tokio;
@@ -37,23 +34,32 @@ extern crate tokio_core as tokio;
 #[cfg(feature = "tokio-proto")]
 extern crate tokio_proto;
 extern crate tokio_service;
-extern crate unicase;
 extern crate want;
 
 #[cfg(all(test, feature = "nightly"))]
 extern crate test;
 
-pub use uri::Uri;
+pub use hyper_old_types::{
+    error,
+    header,
+    mime,
+
+    Error,
+    Headers,
+    HttpVersion,
+    Method,
+    Result,
+    StatusCode,
+    Uri,
+};
+
 pub use client::Client;
-pub use error::{Result, Error};
-pub use header::Headers;
 pub use proto::{Body, Chunk};
 pub use proto::request::Request;
 pub use proto::response::Response;
-pub use method::Method::{self, Get, Head, Post, Put, Delete};
-pub use status::StatusCode::{self, Ok, BadRequest, NotFound};
+pub use Method::{Get, Head, Post, Put, Delete};
+pub use StatusCode::{Ok, BadRequest, NotFound};
 pub use server::Server;
-pub use version::HttpVersion;
 #[cfg(feature = "raw_status")]
 pub use proto::RawStatus;
 
@@ -74,11 +80,18 @@ mod common;
 #[cfg(test)]
 mod mock;
 pub mod client;
-pub mod error;
-mod method;
-pub mod header;
+mod macros;
+mod method {
+    pub use super::Method;
+}
 mod proto;
 pub mod server;
-mod status;
-mod uri;
-mod version;
+mod status {
+    pub use super::StatusCode;
+}
+mod uri {
+    pub use super::Uri;
+}
+mod version {
+    pub use super::HttpVersion;
+}

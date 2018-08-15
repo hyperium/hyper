@@ -9,7 +9,7 @@ use http;
 use header::Headers;
 use proto::{Body, MessageHead, RequestHead, RequestLine};
 use method::Method;
-use uri::{self, Uri};
+use uri::{Uri};
 use version::HttpVersion;
 
 /// An HTTP Request
@@ -181,7 +181,7 @@ pub fn split<B>(req: Request<B>) -> (RequestHead, Option<B>) {
     let uri = if req.is_proxy {
         req.uri
     } else {
-        uri::origin_form(&req.uri)
+        req.uri.__internal_origin_form()
     };
     let head = RequestHead {
         subject: ::proto::RequestLine(req.method, uri),

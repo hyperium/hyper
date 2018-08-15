@@ -206,7 +206,7 @@ where
             },
             Err(_req) => {
                 debug!("connection was not ready");
-                let err = ::Error::new_canceled(Some("connection was not ready"));
+                let err = ::Error::__internal_new_canceled(Some("connection was not ready"));
                 Either::B(future::err(err))
             }
         };
@@ -231,7 +231,7 @@ where
             },
             Err(req) => {
                 debug!("connection was not ready");
-                let err = ::Error::new_canceled(Some("connection was not ready"));
+                let err = ::Error::__internal_new_canceled(Some("connection was not ready"));
                 Either::B(future::err((err, Some(req))))
             }
         };

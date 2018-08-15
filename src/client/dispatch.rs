@@ -102,7 +102,7 @@ impl<T, U> Drop for Receiver<T, U> {
         // - NotReady: unreachable
         // - Err: unreachable
         while let Ok(Async::Ready(Some((val, cb)))) = self.inner.poll() {
-            let _ = cb.send(Err((::Error::new_canceled(None::<::Error>), Some(val))));
+            let _ = cb.send(Err((::Error::__internal_new_canceled(None::<::Error>), Some(val))));
         }
     }
 

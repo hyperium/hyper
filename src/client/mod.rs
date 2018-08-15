@@ -18,10 +18,10 @@ pub use tokio_service::Service;
 use header::{Host};
 use proto;
 use proto::request;
-use method::Method;
+use Method;
 use self::pool::Pool;
-use uri::{self, Uri};
-use version::HttpVersion;
+use Uri;
+use HttpVersion;
 
 pub use proto::response::Response;
 pub use proto::request::Request;
@@ -144,7 +144,7 @@ where C: Connect,
             return FutureResponse(Box::new(future::err(::Error::Method)));
         }
 
-        let domain = match uri::scheme_and_authority(req.uri()) {
+        let domain = match req.uri().__internal_scheme_and_authority() {
             Some(uri) => uri,
             None => {
                 debug!("request uri does not include scheme and authority");
@@ -161,7 +161,7 @@ where C: Connect,
                 domain.host().expect("authority implies host").to_owned(),
                 domain.port(),
             );
-            req.headers_mut().set_pos(0, host);
+            req.headers_mut().__internal_set_pos(0, host);
         }
 
         let client = self.clone();
