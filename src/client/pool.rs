@@ -60,6 +60,7 @@ struct Connections<T> {
     // These are internal Conns sitting in the event loop in the KeepAlive
     // state, waiting to receive a new Request to send on the socket.
     idle: HashMap<Key, Vec<Idle<T>>>,
+    max_idle_per_host: usize,
     // These are outstanding Checkouts that are waiting for a socket to be
     // able to send a Request one. This is used when "racing" for a new
     // connection.
@@ -83,8 +84,13 @@ struct Connections<T> {
 // doesn't need it!
 struct WeakOpt<T>(Option<Weak<T>>);
 
+// Newtypes to act as keyword arguments for `Pool::new`...
+pub(super) struct Enabled(pub(super) bool);
+pub(super) struct IdleTimeout(pub(super) Option<Duration>);
+pub(super) struct MaxIdlePerHost(pub(super) usize);
+
 impl<T> Pool<T> {
-    pub fn new(enabled: bool, timeout: Option<Duration>, __exec: &Exec) -> Pool<T> {
+    pub fn new(enabled: Enabled, timeout: IdleTimeout, max_idle: MaxIdlePerHost, __exec: &Exec) -> Pool<T> {
         Pool {
             inner: Arc::new(PoolInner {
                 connections: Mutex::new(Connections {
@@ -92,12 +98,13 @@ impl<T> Pool<T> {
                     idle: HashMap::new(),
                     #[cfg(feature = "runtime")]
                     idle_interval_ref: None,
+                    max_idle_per_host: max_idle.0,
                     waiters: HashMap::new(),
                     #[cfg(feature = "runtime")]
                     exec: __exec.clone(),
-                    timeout,
+                    timeout: timeout.0,
                 }),
-                enabled,
+                enabled: enabled.0,
             }),
         }
     }
@@ -376,13 +383,23 @@ impl<T: Poolable> Connections<T> {
 
         match value {
             Some(value) => {
-                debug!("pooling idle connection for {:?}", key);
-                self.idle.entry(key)
-                     .or_insert(Vec::new())
-                     .push(Idle {
-                         value: value,
-                         idle_at: Instant::now(),
-                     });
+                // borrow-check scope...
+                {
+                    let idle_list = self
+                        .idle
+                        .entry(key.clone())
+                        .or_insert(Vec::new());
+                    if self.max_idle_per_host <= idle_list.len() {
+                        trace!("max idle per host for {:?}, dropping connection", key);
+                        return;
+                    }
+
+                    debug!("pooling idle connection for {:?}", key);
+                    idle_list.push(Idle {
+                        value: value,
+                        idle_at: Instant::now(),
+                    });
+                }
 
                 #[cfg(feature = "runtime")]
                 {
@@ -773,7 +790,16 @@ mod tests {
     }
 
     fn pool_no_timer<T>() -> Pool<T> {
-        let pool = Pool::new(true, Some(Duration::from_millis(100)), &Exec::Default);
+        pool_max_idle_no_timer(::std::usize::MAX)
+    }
+
+    fn pool_max_idle_no_timer<T>(max_idle: usize) -> Pool<T> {
+        let pool = Pool::new(
+            super::Enabled(true),
+            super::IdleTimeout(Some(Duration::from_millis(100))),
+            super::MaxIdlePerHost(max_idle),
+            &Exec::Default,
+        );
         pool.no_timer();
         pool
     }
@@ -826,13 +852,35 @@ mod tests {
         }).wait().unwrap();
     }
 
+    #[test]
+    fn test_pool_max_idle_per_host() {
+        future::lazy(|| {
+            let pool = pool_max_idle_no_timer(2);
+            let key = (Arc::new("foo".to_string()), Ver::Http1);
+
+            pool.pooled(c(key.clone()), Uniq(41));
+            pool.pooled(c(key.clone()), Uniq(5));
+            pool.pooled(c(key.clone()), Uniq(99));
+
+            // pooled and dropped 3, max_idle should only allow 2
+            assert_eq!(pool.inner.connections.lock().unwrap().idle.get(&key).map(|entries| entries.len()), Some(2));
+
+            Ok::<(), ()>(())
+        }).wait().unwrap();
+    }
+
     #[cfg(feature = "runtime")]
     #[test]
     fn test_pool_timer_removes_expired() {
         use std::time::Instant;
         use tokio_timer::Delay;
         let mut rt = ::tokio::runtime::current_thread::Runtime::new().unwrap();
-        let pool = Pool::new(true, Some(Duration::from_millis(100)), &Exec::Default);
+        let pool = Pool::new(
+            super::Enabled(true),
+            super::IdleTimeout(Some(Duration::from_millis(100))),
+            super::MaxIdlePerHost(::std::usize::MAX),
+            &Exec::Default,
+        );
 
         let key = (Arc::new("foo".to_string()), Ver::Http1);
 

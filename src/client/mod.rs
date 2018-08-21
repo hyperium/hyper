@@ -753,8 +753,7 @@ pub struct Builder {
     keep_alive_timeout: Option<Duration>,
     h1_writev: bool,
     h1_title_case_headers: bool,
-    //TODO: make use of max_idle config
-    max_idle: usize,
+    max_idle_per_host: usize,
     retry_canceled_requests: bool,
     set_host: bool,
     ver: Ver,
@@ -768,7 +767,7 @@ impl Default for Builder {
             keep_alive_timeout: Some(Duration::from_secs(90)),
             h1_writev: true,
             h1_title_case_headers: false,
-            max_idle: 5,
+            max_idle_per_host: ::std::usize::MAX,
             retry_canceled_requests: true,
             set_host: true,
             ver: Ver::Http1,
@@ -839,6 +838,14 @@ impl Builder {
         self
     }
 
+    /// Sets the maximum idle connection per host allowed in the pool.
+    ///
+    /// Default is `usize::MAX` (no limit).
+    pub fn max_idle_per_host(&mut self, max_idle: usize) -> &mut Self {
+        self.max_idle_per_host = max_idle;
+        self
+    }
+
     /// Set whether to retry requests that get disrupted before ever starting
     /// to write.
     ///
@@ -905,7 +912,12 @@ impl Builder {
             executor: self.exec.clone(),
             h1_writev: self.h1_writev,
             h1_title_case_headers: self.h1_title_case_headers,
-            pool: Pool::new(self.keep_alive, self.keep_alive_timeout, &self.exec),
+            pool: Pool::new(
+                pool::Enabled(self.keep_alive),
+                pool::IdleTimeout(self.keep_alive_timeout),
+                pool::MaxIdlePerHost(self.max_idle_per_host),
+                &self.exec,
+            ),
             retry_canceled_requests: self.retry_canceled_requests,
             set_host: self.set_host,
             ver: self.ver,
@@ -919,7 +931,7 @@ impl fmt::Debug for Builder {
             .field("keep_alive", &self.keep_alive)
             .field("keep_alive_timeout", &self.keep_alive_timeout)
             .field("http1_writev", &self.h1_writev)
-            .field("max_idle", &self.max_idle)
+            .field("max_idle_per_host", &self.max_idle_per_host)
             .field("set_host", &self.set_host)
             .field("version", &self.ver)
             .finish()
