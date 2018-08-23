@@ -85,7 +85,7 @@ pub struct Connecting<I, F> {
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
 pub(super) struct SpawnAll<I, S> {
-    serve: Serve<I, S>,
+    pub(super) serve: Serve<I, S>,
 }
 
 /// A future binding a connection with a Service.
@@ -618,7 +618,7 @@ impl<I, S> SpawnAll<I, S> {
     }
 }
 
-impl<I, S, B> Future for SpawnAll<I, S>
+impl<I, S, B> SpawnAll<I, S>
 where
     I: Stream,
     I::Error: Into<Box<::std::error::Error + Send + Sync>>,
@@ -630,16 +630,19 @@ where
     <S::Service as Service>::Future: Send + 'static,
     B: Payload,
 {
-    type Item = ();
-    type Error = ::Error;
-
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    pub(super) fn poll_with<F1, F2, R>(&mut self, per_connection: F1) -> Poll<(), ::Error>
+    where
+        F1: Fn() -> F2,
+        F2: FnOnce(UpgradeableConnection<I::Item, S::Service>) -> R + Send + 'static,
+        R: Future<Item=(), Error=::Error> + Send + 'static,
+    {
         loop {
             if let Some(connecting) = try_ready!(self.serve.poll()) {
+                let and_then = per_connection();
                 let fut = connecting
                     .map_err(::Error::new_user_new_service)
                     // flatten basically
-                    .and_then(|conn| conn.with_upgrades())
+                    .and_then(|conn| and_then(conn.with_upgrades()))
                     .map_err(|err| debug!("conn error: {}", err));
                 self.serve.protocol.exec.execute(fut)?;
             } else {
