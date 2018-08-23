@@ -51,6 +51,7 @@
 //! ```
 
 pub mod conn;
+mod shutdown;
 #[cfg(feature = "runtime")] mod tcp;
 
 use std::fmt;
@@ -67,6 +68,7 @@ use service::{NewService, Service};
 // Renamed `Http` as `Http_` for now so that people upgrading don't see an
 // error that `hyper::server::Http` is private...
 use self::conn::{Http as Http_, SpawnAll};
+use self::shutdown::Graceful;
 #[cfg(feature = "runtime")] use self::tcp::AddrIncoming;
 
 /// A listening HTTP server that accepts connections in both HTTP1 and HTTP2 by default.
@@ -136,6 +138,65 @@ impl<S> Server<AddrIncoming, S> {
     }
 }
 
+impl<I, S, B> Server<I, S>
+where
+    I: Stream,
+    I::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    I::Item: AsyncRead + AsyncWrite + Send + 'static,
+    S: NewService<ReqBody=Body, ResBody=B> + Send + 'static,
+    S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    S::Service: Send,
+    S::Future: Send + 'static,
+    <S::Service as Service>::Future: Send + 'static,
+    B: Payload,
+{
+    /// Prepares a server to handle graceful shutdown when the provided future
+    /// completes.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # extern crate hyper;
+    /// # extern crate futures;
+    /// # use futures::Future;
+    /// # fn main() {}
+    /// # #[cfg(feature = "runtime")]
+    /// # fn run() {
+    /// # use hyper::{Body, Response, Server};
+    /// # use hyper::service::service_fn_ok;
+    /// # let new_service = || {
+    /// #     service_fn_ok(|_req| {
+    /// #         Response::new(Body::from("Hello World"))
+    /// #     })
+    /// # };
+    ///
+    /// // Make a server from the previous examples...
+    /// let server = Server::bind(&([127, 0, 0, 1], 3000).into())
+    ///     .serve(new_service);
+    ///
+    /// // Prepare some signal for when the server should start
+    /// // shutting down...
+    /// let (tx, rx) = futures::sync::oneshot::channel::<()>();
+    ///
+    /// let graceful = server
+    ///     .with_graceful_shutdown(rx)
+    ///     .map_err(|err| eprintln!("server error: {}", err));
+    ///
+    /// // Spawn `server` onto an Executor...
+    /// hyper::rt::spawn(graceful);
+    ///
+    /// // And later, trigger the signal by calling `tx.send(())`.
+    /// let _ = tx.send(());
+    /// # }
+    /// ```
+    pub fn with_graceful_shutdown<F>(self, signal: F) -> Graceful<I, S, F>
+    where
+        F: Future<Item=()>
+    {
+        Graceful::new(self.spawn_all, signal)
+    }
+}
+
 impl<I, S, B> Future for Server<I, S>
 where
     I: Stream,
@@ -152,7 +213,7 @@ where
     type Error = ::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        self.spawn_all.poll()
+        self.spawn_all.poll_with(|| |conn| conn)
     }
 }
 
