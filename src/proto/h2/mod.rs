@@ -15,15 +15,17 @@ mod server;
 pub(crate) use self::client::Client;
 pub(crate) use self::server::Server;
 
-fn strip_connection_headers(headers: &mut HeaderMap) {
+fn strip_connection_headers(headers: &mut HeaderMap, is_request: bool) {
     // List of connection headers from:
     // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Connection
+    //
+    // TE headers are allowed in HTTP/2 requests as long as the value is "trailers", so they're
+    // tested separately.
     let connection_headers = [
         HeaderName::from_lowercase(b"keep-alive").unwrap(),
         HeaderName::from_lowercase(b"proxy-connection").unwrap(),
         PROXY_AUTHENTICATE,
         PROXY_AUTHORIZATION,
-        TE,
         TRAILER,
         TRANSFER_ENCODING,
         UPGRADE,
@@ -32,6 +34,17 @@ fn strip_connection_headers(headers: &mut HeaderMap) {
     for header in connection_headers.iter() {
         if headers.remove(header).is_some() {
             warn!("Connection header illegal in HTTP/2: {}", header.as_str());
+        }
+    }
+
+    if is_request {
+        if headers.get(TE).map(|te_header| te_header != "trailers").unwrap_or(false) {
+            warn!("TE headers not set to \"trailers\" are illegal in HTTP/2 requests");
+            headers.remove(TE);
+        }
+    } else {
+        if headers.remove(TE).is_some() {
+            warn!("TE headers illegal in HTTP/2 responses");
         }
     }
 

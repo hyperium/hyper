@@ -192,7 +192,7 @@ where
 
                     let (head, body) = res.into_parts();
                     let mut res = ::http::Response::from_parts(head, ());
-                    super::strip_connection_headers(res.headers_mut());
+                    super::strip_connection_headers(res.headers_mut(), false);
                     if let Some(len) = body.content_length() {
                         headers::set_content_length_if_missing(res.headers_mut(), len);
                     }

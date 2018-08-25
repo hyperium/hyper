@@ -185,6 +185,30 @@ t! {
 }
 
 t! {
+    get_allow_te_trailers_header,
+    client:
+        request:
+            uri: "/",
+            headers: {
+                // http2 strips connection headers other than TE "trailers"
+                "te" => "trailers",
+            },
+            ;
+        response:
+            status: 200,
+            ;
+    server:
+        request:
+            uri: "/",
+            headers: {
+                "te" => "trailers",
+            },
+            ;
+        response:
+            ;
+}
+
+t! {
     get_body_chunked,
     client:
         request:
