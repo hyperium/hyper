@@ -64,7 +64,7 @@ struct User {
     name: String,
 }
 
-// Define a type so we can return multile types of errors
+// Define a type so we can return multiple types of errors
 enum FetchError {
     Http(hyper::Error),
     Json(serde_json::Error),
