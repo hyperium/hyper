@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::fmt;
+use std::any::Any;
 
 use bytes::Bytes;
 use futures::sync::{mpsc, oneshot};
@@ -14,6 +15,8 @@ use upgrade::OnUpgrade;
 
 type BodySender = mpsc::Sender<Result<Chunk, ::Error>>;
 
+type Beacon = Vec<Box<Any + Send + Sync + 'static>>;
+
 /// A stream of `Chunk`s, used when receiving bodies.
 ///
 /// A good default `Payload` to use in many applications.
@@ -25,6 +28,8 @@ pub struct Body {
     /// Keep the extra bits in an `Option<Box<Extra>>`, so that
     /// Body stays small in the common case (no extras needed).
     extra: Option<Box<Extra>>,
+    /// A beacon uses to track response body completion.
+    beacon: Option<Beacon>
 }
 
 enum Kind {
@@ -157,10 +162,44 @@ impl Body {
             .unwrap_or_else(OnUpgrade::none)
     }
 
+    /// Attaches a beacon value to this body. The value will be drop when the whole body is
+    /// successfully written to the socket (but before flush the socket) or when the body ends
+    /// with an error.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # extern crate hyper;
+    /// # use hyper::{Body, Response};
+    /// struct LogOnBodyComplete;
+    ///
+    /// impl Drop for LogOnBodyComplete {
+    ///   fn drop(&mut self) {
+    ///     println!("body was finished")
+    ///   }
+    /// }
+    ///
+    /// let mut body = Body::from("pong");
+    /// body.set_beacon(LogOnBodyComplete);
+    /// let resp = Response::new(body);
+    /// ```
+    #[inline]
+    pub fn set_beacon<T>(&mut self, value: T)
+    where
+      T: Sized + Send + Sync + 'static
+    {
+        let value = Box::new(value);
+        match self.beacon {
+            Some(ref mut vec) => vec.push(value),
+            None => self.beacon = Some(vec!(value))
+        }
+    }
+
     fn new(kind: Kind) -> Body {
         Body {
             kind: kind,
             extra: None,
+            beacon: None,
         }
     }
 
