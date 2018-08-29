@@ -1,3 +1,18 @@
+### v0.12.9 (2018-08-28)
+
+
+#### Bug Fixes
+
+* **http2:** allow TE "trailers" request headers ([24f11a42](https://github.com/hyperium/hyper/commit/24f11a421d8422714bf023a602d7718b885a39a0), closes [#1642](https://github.com/hyperium/hyper/issues/1642))
+* **server:** properly handle keep-alive for HTTP/1.0 ([1448e406](https://github.com/hyperium/hyper/commit/1448e4067b10da6fe4584921314afc1f5f4e3c8d), closes [#1614](https://github.com/hyperium/hyper/issues/1614))
+
+
+#### Features
+
+* **client:** add `max_idle_per_host` configuration option ([a3c44ded](https://github.com/hyperium/hyper/commit/a3c44ded556b7ef9487ec48cf42fa948d64f5a83))
+* **server:** add `Server::with_graceful_shutdown` method ([168c7d21](https://github.com/hyperium/hyper/commit/168c7d2155952ba09f781c331fd67593b820af20), closes [#1575](https://github.com/hyperium/hyper/issues/1575))
+
+
 ### v0.12.8 (2018-08-10)
 
 
