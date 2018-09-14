@@ -1405,6 +1405,19 @@ mod tests {
         assert!(encoder.is_last());
     }
 
+    #[test]
+    fn parse_header_htabs() {
+        let mut bytes = BytesMut::from("HTTP/1.1 200 OK\r\nserver: hello\tworld\r\n\r\n");
+        let parsed = Client::parse(&mut bytes, ParseContext {
+            cached_headers: &mut None,
+            req_method: &mut Some(Method::GET),
+        })
+            .expect("parse ok")
+            .expect("parse complete");
+
+        assert_eq!(parsed.head.headers["server"], "hello\tworld");
+    }
+
     #[cfg(feature = "nightly")]
     use test::Bencher;
 

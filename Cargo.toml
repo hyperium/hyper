@@ -21,7 +21,7 @@ include = [
 bytes = "0.4.4"
 futures = "0.1.21"
 futures-cpupool = { version = "0.1.6", optional = true }
-http = "0.1.7"
+http = "0.1.13"
 httparse = "1.0"
 h2 = "0.1.10"
 iovec = "0.1"
