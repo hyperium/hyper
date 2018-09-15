@@ -943,6 +943,8 @@ fn title_case(dst: &mut Vec<u8>, name: &[u8]) {
     if let Some(c) = iter.next() {
         if *c >= b'a' && *c <= b'z' {
             dst.push(*c ^ b' ');
+        } else {
+            dst.push(*c);
         }
     }
 
@@ -953,6 +955,8 @@ fn title_case(dst: &mut Vec<u8>, name: &[u8]) {
           if let Some(c) = iter.next() {
               if *c >= b'a' && *c <= b'z' {
                   dst.push(*c ^ b' ');
+              } else {
+                  dst.push(*c);
               }
           }
       }
@@ -1371,6 +1375,7 @@ mod tests {
         let mut head = MessageHead::default();
         head.headers.insert("content-length", HeaderValue::from_static("10"));
         head.headers.insert("content-type", HeaderValue::from_static("application/json"));
+        head.headers.insert("*-*", HeaderValue::from_static("o_o"));
 
         let mut vec = Vec::new();
         Client::encode(Encode {
@@ -1381,7 +1386,7 @@ mod tests {
             title_case_headers: true,
         }, &mut vec).unwrap();
 
-        assert_eq!(vec, b"GET / HTTP/1.1\r\nContent-Length: 10\r\nContent-Type: application/json\r\n\r\n".to_vec());
+        assert_eq!(vec, b"GET / HTTP/1.1\r\nContent-Length: 10\r\nContent-Type: application/json\r\n*-*: o_o\r\n\r\n".to_vec());
     }
 
     #[test]
