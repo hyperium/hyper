@@ -1,3 +1,11 @@
+### v0.12.10 (2018-09-14)
+
+
+#### Bug Fixes
+
+* **http1:** fix title-case option when header names have symbols ([ca5e520e](https://github.com/hyperium/hyper/commit/ca5e520e7aa6d0a211e3c152c09095d35326ca12))
+
+
 ### v0.12.9 (2018-08-28)
 
 
