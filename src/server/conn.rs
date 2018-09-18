@@ -110,10 +110,23 @@ where
             S::ResBody,
         >,
     >>,
-    fallback: bool,
+    fallback: Fallback,
 }
 
+#[derive(Clone, Debug)]
+enum Fallback {
+    ToHttp2(Exec),
+    Http1Only,
+}
 
+impl Fallback {
+    fn to_h2(&self) -> bool {
+        match *self {
+            Fallback::ToHttp2(_) => true,
+            Fallback::Http1Only => false,
+        }
+    }
+}
 
 /// Deconstructed parts of a `Connection`.
 ///
@@ -305,7 +318,11 @@ impl Http {
 
         Connection {
             conn: Some(either),
-            fallback: self.mode == ConnectionMode::Fallback,
+            fallback: if self.mode == ConnectionMode::Fallback {
+                Fallback::ToHttp2(self.exec.clone())
+            } else {
+                Fallback::Http1Only
+            },
         }
     }
 
@@ -442,7 +459,7 @@ where
                 Err(e) => {
                     debug!("error polling connection protocol without shutdown: {}", e);
                     match *e.kind() {
-                        Kind::Parse(Parse::VersionH2) if self.fallback => {
+                        Kind::Parse(Parse::VersionH2) if self.fallback.to_h2() => {
                             self.upgrade_h2();
                             continue;
                         }
@@ -467,7 +484,11 @@ where
         };
         let mut rewind_io = Rewind::new(io);
         rewind_io.rewind(read_buf);
-        let h2 = proto::h2::Server::new(rewind_io, dispatch.into_service(), Exec::Default);
+        let exec = match self.fallback {
+            Fallback::ToHttp2(ref exec) => exec.clone(),
+            Fallback::Http1Only => unreachable!("upgrade_h2 with Fallback::Http1Only"),
+        };
+        let h2 = proto::h2::Server::new(rewind_io, dispatch.into_service(), exec);
 
         debug_assert!(self.conn.is_none());
         self.conn = Some(Either::B(h2));
@@ -512,7 +533,7 @@ where
                 Err(e) => {
                     debug!("error polling connection protocol: {}", e);
                     match *e.kind() {
-                        Kind::Parse(Parse::VersionH2) if self.fallback => {
+                        Kind::Parse(Parse::VersionH2) if self.fallback.to_h2() => {
                             self.upgrade_h2();
                             continue;
                         }
@@ -717,7 +738,7 @@ mod upgrades {
                     Err(e) => {
                         debug!("error polling connection protocol: {}", e);
                         match *e.kind() {
-                            Kind::Parse(Parse::VersionH2) if self.inner.fallback => {
+                            Kind::Parse(Parse::VersionH2) if self.inner.fallback.to_h2() => {
                                 self.inner.upgrade_h2();
                                 continue;
                             }
