@@ -450,6 +450,7 @@ mod http {
         nodelay: bool,
         local_address: Option<IpAddr>,
         happy_eyeballs_timeout: Option<Duration>,
+        global_destination_only: bool,
         reuse_address: bool,
     }
 
@@ -489,6 +490,7 @@ mod http {
                 nodelay: false,
                 local_address: None,
                 happy_eyeballs_timeout: Some(Duration::from_millis(300)),
+                global_destination_only: false,
                 reuse_address: false,
             }
         }
@@ -546,6 +548,25 @@ mod http {
             self.happy_eyeballs_timeout = dur;
         }
 
+        /// Restricts connections to addresses that appear to be globally
+        /// routable.
+        ///
+        /// This can be useful as a defense when connecting to user defined
+        /// URLs.
+        ///
+        /// See the documentation of [`Ipv4Addr::is_global`][IPv4] and
+        /// [`Ipv6Addr::is_unicast_global`][IPv6] for the exact definition
+        /// of the excluded addresses.
+        ///
+        /// [IPv4]: https://doc.rust-lang.org/std/net/struct.Ipv4Addr.html#method.is_global
+        /// [IPv6]: https://doc.rust-lang.org/std/net/struct.Ipv6Addr.html#method.is_unicast_global
+        ///
+        /// Default is `false`.
+        #[inline]
+        pub fn set_global_destination_only(&mut self, global_destination_only: bool) {
+            self.global_destination_only = global_destination_only;
+        }
+
         /// Set that all socket have `SO_REUSEADDR` set to the supplied value `reuse_address`.
         ///
         /// Default is `false`.
@@ -600,6 +621,7 @@ mod http {
                 keep_alive_timeout: self.keep_alive_timeout,
                 nodelay: self.nodelay,
                 happy_eyeballs_timeout: self.happy_eyeballs_timeout,
+                global_destination_only: self.global_destination_only,
                 reuse_address: self.reuse_address,
             }
         }
@@ -613,6 +635,7 @@ mod http {
             keep_alive_timeout: None,
             nodelay: false,
             happy_eyeballs_timeout: None,
+            global_destination_only: false,
             reuse_address: false,
         }
     }
@@ -647,6 +670,7 @@ mod http {
         keep_alive_timeout: Option<Duration>,
         nodelay: bool,
         happy_eyeballs_timeout: Option<Duration>,
+        global_destination_only: bool,
         reuse_address: bool,
     }
 
@@ -670,7 +694,8 @@ mod http {
                         // skip resolving the dns and start connecting right away.
                         if let Some(addrs) = dns::IpAddrs::try_parse(host, port) {
                             state = State::Connecting(ConnectingTcp::new(
-                                local_addr, addrs, self.happy_eyeballs_timeout, self.reuse_address));
+                                local_addr, addrs, self.happy_eyeballs_timeout,
+                                self.global_destination_only, self.reuse_address));
                         } else {
                             let host = mem::replace(host, String::new());
                             let work = dns::Work::new(host, port);
@@ -682,7 +707,8 @@ mod http {
                             Async::NotReady => return Ok(Async::NotReady),
                             Async::Ready(addrs) => {
                                 state = State::Connecting(ConnectingTcp::new(
-                                    local_addr, addrs, self.happy_eyeballs_timeout, self.reuse_address));
+                                    local_addr, addrs, self.happy_eyeballs_timeout,
+                                    self.global_destination_only, self.reuse_address));
                             }
                         };
                     },
@@ -722,8 +748,14 @@ mod http {
             local_addr: Option<IpAddr>,
             remote_addrs: dns::IpAddrs,
             fallback_timeout: Option<Duration>,
+            global_destination_only: bool,
             reuse_address: bool,
         ) -> ConnectingTcp {
+            let remote_addrs = match global_destination_only {
+                true => remote_addrs.global_only(),
+                false => remote_addrs,
+            };
+
             if let Some(fallback_timeout) = fallback_timeout {
                 let (preferred_addrs, fallback_addrs) = remote_addrs.split_by_preference();
                 if fallback_addrs.is_empty() {
@@ -782,7 +814,7 @@ mod http {
             handle: &Option<Handle>,
             reuse_address: bool,
         ) -> Poll<TcpStream, io::Error> {
-            let mut err = None;
+            let mut err = Some(io::Error::new(io::ErrorKind::Other, "no globally routable address"));
             loop {
                 if let Some(ref mut current) = self.current {
                     match current.poll() {
@@ -1004,7 +1036,7 @@ mod http {
                 }
 
                 let addrs = hosts.iter().map(|host| (host.clone(), addr.port()).into()).collect();
-                let connecting_tcp = ConnectingTcp::new(None, dns::IpAddrs::new(addrs), Some(fallback_timeout), false);
+                let connecting_tcp = ConnectingTcp::new(None, dns::IpAddrs::new(addrs), Some(fallback_timeout), false, false);
                 let fut = ConnectingTcpFuture(connecting_tcp);
 
                 let start = Instant::now();
