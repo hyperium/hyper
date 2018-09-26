@@ -105,6 +105,11 @@ path = "examples/params.rs"
 required-features = ["runtime"]
 
 [[example]]
+name = "proxy"
+path = "examples/proxy.rs"
+required-features = ["runtime"]
+
+[[example]]
 name = "send_file"
 path = "examples/send_file.rs"
 required-features = ["runtime"]
