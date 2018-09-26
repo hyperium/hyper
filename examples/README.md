@@ -17,6 +17,8 @@ parses it with serde and outputs the result.
 
 * [`params`](params.rs) - A webserver that accept a form, with a name and a number, checks the parameters are presents and validates the input.
 
+* [`proxy`](proxy.rs) - A webserver that proxies to the hello service above.
+
 * [`send_file`](send_file.rs) - A server that sends back content of files using tokio_fs to read the files asynchronously.
 
 * [`state`](state.rs) - A webserver showing basic state sharing among requests. A counter is shared, incremented for every request, and every response is sent the last count.
