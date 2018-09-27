@@ -19,7 +19,7 @@ use futures::{Future, Stream};
 use futures::sync::oneshot;
 use tokio::reactor::Handle;
 use tokio::runtime::current_thread::Runtime;
-use tokio::net::{ConnectFuture, TcpStream};
+use tokio::net::tcp::{ConnectFuture, TcpStream};
 
 fn s(buf: &[u8]) -> &str {
     ::std::str::from_utf8(buf).expect("from_utf8")
