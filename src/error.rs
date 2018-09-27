@@ -371,6 +371,12 @@ impl From<http::uri::InvalidUri> for Parse {
     }
 }
 
+impl From<http::uri::InvalidUriBytes> for Parse {
+    fn from(_: http::uri::InvalidUriBytes) -> Parse {
+        Parse::Uri
+    }
+}
+
 impl From<http::uri::InvalidUriParts> for Parse {
     fn from(_: http::uri::InvalidUriParts) -> Parse {
         Parse::Uri

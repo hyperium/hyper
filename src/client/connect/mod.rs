@@ -8,7 +8,7 @@
 use std::error::Error as StdError;
 use std::mem;
 
-use bytes::{BufMut, BytesMut};
+use bytes::{BufMut, Bytes, BytesMut};
 use futures::Future;
 use http::{uri, Uri};
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -131,13 +131,20 @@ impl Destination {
     ///
     /// Returns an error if the string is not a valid hostname.
     pub fn set_host(&mut self, host: &str) -> ::Result<()> {
-        if host.contains(&['@',':'][..]) {
+        // Prevent any userinfo setting, it's bad!
+        if host.contains('@') {
             return Err(::error::Parse::Uri.into());
         }
         let auth = if let Some(port) = self.port() {
-            format!("{}:{}", host, port).parse().map_err(::error::Parse::from)?
+            let bytes = Bytes::from(format!("{}:{}", host, port));
+            uri::Authority::from_shared(bytes)
+                .map_err(::error::Parse::from)?
         } else {
-            host.parse().map_err(::error::Parse::from)?
+            let auth = host.parse::<uri::Authority>().map_err(::error::Parse::from)?;
+            if auth.port().is_some() {
+                return Err(::error::Parse::Uri.into());
+            }
+            auth
         };
         self.update_uri(move |parts| {
             parts.authority = Some(auth);
@@ -305,6 +312,30 @@ mod tests {
         assert_eq!(dst.host(), "seanmonstar.com", "error doesn't modify dst");
         assert_eq!(dst.port(), None, "error doesn't modify dst");
 
+        // Check port isn't snuck into `set_host`.
+        dst.set_host("seanmonstar.com:3030").expect_err("set_host sneaky port");
+        assert_eq!(dst.scheme(), "http", "error doesn't modify dst");
+        assert_eq!(dst.host(), "seanmonstar.com", "error doesn't modify dst");
+        assert_eq!(dst.port(), None, "error doesn't modify dst");
+
+        // Check userinfo isn't snuck into `set_host`.
+        dst.set_host("sean@nope").expect_err("set_host sneaky userinfo");
+        assert_eq!(dst.scheme(), "http", "error doesn't modify dst");
+        assert_eq!(dst.host(), "seanmonstar.com", "error doesn't modify dst");
+        assert_eq!(dst.port(), None, "error doesn't modify dst");
+
+        // Allow IPv6 hosts
+        dst.set_host("[::1]").expect("set_host with IPv6");
+        assert_eq!(dst.host(), "::1");
+        assert_eq!(dst.port(), None, "IPv6 didn't affect port");
+
+        // However, IPv6 with a port is rejected.
+        dst.set_host("[::2]:1337").expect_err("set_host with IPv6 and sneaky port");
+        assert_eq!(dst.host(), "::1");
+        assert_eq!(dst.port(), None);
+
+        // -----------------
+
         // Also test that an exist port is set correctly.
         let mut dst = Destination {
             uri: "http://hyper.rs:8080".parse().expect("initial parse 2"),
@@ -335,6 +366,16 @@ mod tests {
         assert_eq!(dst.scheme(), "http", "error doesn't modify dst");
         assert_eq!(dst.host(), "seanmonstar.com", "error doesn't modify dst");
         assert_eq!(dst.port(), Some(8080), "error doesn't modify dst");
+
+        // Allow IPv6 hosts
+        dst.set_host("[::1]").expect("set_host with IPv6");
+        assert_eq!(dst.host(), "::1");
+        assert_eq!(dst.port(), Some(8080), "IPv6 didn't affect port");
+
+        // However, IPv6 with a port is rejected.
+        dst.set_host("[::2]:1337").expect_err("set_host with IPv6 and sneaky port");
+        assert_eq!(dst.host(), "::1");
+        assert_eq!(dst.port(), Some(8080));
     }
 
     #[test]
