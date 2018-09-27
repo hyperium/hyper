@@ -100,7 +100,6 @@ use self::pool::{Pool, Poolable, Reservation};
 pub mod conn;
 pub mod connect;
 pub(crate) mod dispatch;
-#[cfg(feature = "runtime")] mod dns;
 mod pool;
 #[cfg(test)]
 mod tests;
