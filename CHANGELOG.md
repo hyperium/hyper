@@ -1,3 +1,12 @@
+### v0.12.11 (2018-09-28)
+
+
+#### Bug Fixes
+
+* **client:** allow calling `Destination::set_host` with IPv6 addresses ([af5e4f3e](https://github.com/hyperium/hyper/commit/af5e4f3ec24a490e209e3e73f86207b63ce7191a), closes [#1661](https://github.com/hyperium/hyper/issues/1661))
+* **server:** use provided executor if fallback to HTTP2 ([1370a6f8](https://github.com/hyperium/hyper/commit/1370a6f8f06f9906ff75dec904ab9c6d763e37f0))
+
+
 ### v0.12.10 (2018-09-14)
 
 
