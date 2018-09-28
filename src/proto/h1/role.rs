@@ -231,7 +231,12 @@ impl Http1Transaction for Server {
             msg.body,
             msg.req_method
         );
-        debug_assert!(!msg.title_case_headers, "no server config for title case headers");
+
+        let write_header_name = if msg.title_case_headers { 
+            title_case 
+        } else { 
+            extend
+        };
 
         // hyper currently doesn't support returning 1xx status codes as a Response
         // This is because Service only allows returning a single Response, and
@@ -327,7 +332,8 @@ impl Http1Transaction for Server {
                                         known_len,
                                         len,
                                     );
-                                    extend(dst, b"content-length: ");
+                                    write_header_name(dst, b"content-length");
+                                    extend(dst, b": ");
                                     extend(dst, value.as_bytes());
                                     extend(dst, b"\r\n");
                                     wrote_len = true;
@@ -364,7 +370,8 @@ impl Http1Transaction for Server {
                             }
                             if let Some((len, value)) = folded {
                                 encoder = Encoder::length(len);
-                                extend(dst, b"content-length: ");
+                                write_header_name(dst, b"content-length");
+                                extend(dst, b": ");
                                 extend(dst, value.as_bytes());
                                 extend(dst, b"\r\n");
                                 wrote_len = true;
@@ -408,7 +415,8 @@ impl Http1Transaction for Server {
                     wrote_len = true;
                     encoder = Encoder::chunked();
 
-                    extend(dst, b"transfer-encoding: ");
+                    write_header_name(dst, b"transfer-encoding");
+                    extend(dst, b": ");
 
                     let mut saw_chunked;
                     if let Some(te) = values.next() {
@@ -433,7 +441,7 @@ impl Http1Transaction for Server {
                 header::CONNECTION => {
                     if !is_last {
                         for value in values {
-                            extend(dst, name.as_str().as_bytes());
+                            write_header_name(dst, name.as_str().as_bytes());
                             extend(dst, b": ");
                             extend(dst, value.as_bytes());
                             extend(dst, b"\r\n");
@@ -453,7 +461,7 @@ impl Http1Transaction for Server {
             //TODO: this should perhaps instead combine them into
             //single lines, as RFC7230 suggests is preferable.
             for value in values {
-                extend(dst, name.as_str().as_bytes());
+                write_header_name(dst, name.as_str().as_bytes());
                 extend(dst, b": ");
                 extend(dst, value.as_bytes());
                 extend(dst, b"\r\n");
@@ -466,17 +474,20 @@ impl Http1Transaction for Server {
                     if msg.head.version == Version::HTTP_10 || !Server::can_chunked(msg.req_method, msg.head.subject) {
                         Encoder::close_delimited()
                     } else {
-                        extend(dst, b"transfer-encoding: chunked\r\n");
+                        write_header_name(dst, b"transfer-encoding");
+                        extend(dst, b": chunked\r\n");
                         Encoder::chunked()
                     }
                 },
                 None |
                 Some(BodyLength::Known(0)) => {
-                    extend(dst, b"content-length: 0\r\n");
+                    write_header_name(dst, b"content-length");
+                    extend(dst, b": 0\r\n");
                     Encoder::length(0)
                 },
                 Some(BodyLength::Known(len)) => {
-                    extend(dst, b"content-length: ");
+                    write_header_name(dst, b"content-length");
+                    extend(dst, b": ");
                     let _ = ::itoa::write(&mut dst, len);
                     extend(dst, b"\r\n");
                     Encoder::length(len)
@@ -496,7 +507,8 @@ impl Http1Transaction for Server {
         // cached date is much faster than formatting every request
         if !wrote_date {
             dst.reserve(date::DATE_VALUE_LENGTH + 8);
-            extend(dst, b"date: ");
+            write_header_name(dst, b"date");
+            extend(dst, b": ");
             date::extend(dst);
             extend(dst, b"\r\n\r\n");
         } else {
@@ -1365,6 +1377,30 @@ mod tests {
             connection: foo, keep-alive, bar\r\n\
             \r\n\
         ").keep_alive, "connection keep-alive is always keep-alive");
+    }
+
+    #[test]
+    fn test_server_request_encode_title_case() {
+        use http::header::HeaderValue;
+        use proto::BodyLength;
+
+        let mut head = MessageHead::default();
+        head.headers.insert("content-length", HeaderValue::from_static("10"));
+        head.headers.insert("content-type", HeaderValue::from_static("application/json"));
+        head.headers.insert("*-*", HeaderValue::from_static("o_o"));
+
+        let mut vec = Vec::new();
+        Server::encode(Encode {
+            head: &mut head,
+            body: Some(BodyLength::Known(10)),
+            keep_alive: true,
+            req_method: &mut None,
+            title_case_headers: true,
+        }, &mut vec).unwrap();
+
+        // Getting rid of the Date at the end.
+        vec.truncate(79);
+        assert_eq!(vec, b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\nContent-Type: application/json\r\n*-*: o_o\r\n".to_vec());
     }
 
     #[test]
