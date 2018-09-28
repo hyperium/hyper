@@ -281,11 +281,11 @@ where C: Connect + Sync + 'static,
     }
 
     fn send_request(&self, mut req: Request<B>, pool_key: PoolKey) -> impl Future<Item=Response<Body>, Error=ClientError<B>> {
-        let race = self.pool_checkout_or_connect(req.uri().clone(), pool_key);
+        let conn = self.connection_for(req.uri().clone(), pool_key);
 
         let ver = self.ver;
         let executor = self.executor.clone();
-        race.and_then(move |mut pooled| {
+        conn.and_then(move |mut pooled| {
             if ver == Ver::Http1 {
                 // CONNECT always sends origin-form, so check it first...
                 if req.method() == &Method::CONNECT {
@@ -365,9 +365,22 @@ where C: Connect + Sync + 'static,
         })
     }
 
-    fn pool_checkout_or_connect(&self, uri: Uri, pool_key: PoolKey)
+    fn connection_for(&self, uri: Uri, pool_key: PoolKey)
         -> impl Future<Item=Pooled<PoolClient<B>>, Error=ClientError<B>>
     {
+        // This actually races 2 different futures to try to get a ready
+        // connection the fastest, and to reduce connection churn.
+        //
+        // - If the pool has an idle connection waiting, that's used
+        //   immediately.
+        // - Otherwise, the Connector is asked to start connecting to
+        //   the destination Uri.
+        // - Meanwhile, the pool Checkout is watching to see if any other
+        //   request finishes and tries to insert an idle connection.
+        // - If a new connection is started, but the Checkout wins after
+        //   (an idle connection becamse available first), the started
+        //   connection future is spawned into the runtime to complete,
+        //   and then be inserted into the pool as an idle connection.
         let checkout = self.pool.checkout(pool_key.clone());
         let connect = self.connect_to(uri, pool_key);
 
