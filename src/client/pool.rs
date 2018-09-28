@@ -12,6 +12,8 @@ use tokio_timer::Interval;
 use common::Exec;
 use super::Ver;
 
+// FIXME: allow() required due to `impl Trait` leaking types to this lint
+#[allow(missing_debug_implementations)]
 pub(super) struct Pool<T> {
     inner: Arc<PoolInner<T>>,
 }
@@ -34,6 +36,8 @@ pub(super) trait Poolable: Send + Sized + 'static {
 ///
 /// Specifically, HTTP/1 requires a unique reservation, but HTTP/2 can be
 /// used for multiple requests.
+// FIXME: allow() required due to `impl Trait` leaking types to this lint
+#[allow(missing_debug_implementations)]
 pub(super) enum Reservation<T> {
     /// This connection could be used multiple times, the first one will be
     /// reinserted into the `idle` pool, and the second will be given to
@@ -45,7 +49,7 @@ pub(super) enum Reservation<T> {
 }
 
 /// Simple type alias in case the key type needs to be adjusted.
-type Key = (Arc<String>, Ver);
+pub(super) type Key = (Arc<String>, Ver);
 
 struct PoolInner<T> {
     connections: Mutex<Connections<T>>,
@@ -85,8 +89,17 @@ struct Connections<T> {
 struct WeakOpt<T>(Option<Weak<T>>);
 
 // Newtypes to act as keyword arguments for `Pool::new`...
+
+// FIXME: allow() required due to `impl Trait` leaking types to this lint
+#[allow(missing_debug_implementations)]
 pub(super) struct Enabled(pub(super) bool);
+
+// FIXME: allow() required due to `impl Trait` leaking types to this lint
+#[allow(missing_debug_implementations)]
 pub(super) struct IdleTimeout(pub(super) Option<Duration>);
+
+// FIXME: allow() required due to `impl Trait` leaking types to this lint
+#[allow(missing_debug_implementations)]
 pub(super) struct MaxIdlePerHost(pub(super) usize);
 
 impl<T> Pool<T> {
@@ -593,6 +606,8 @@ struct Idle<T> {
     value: T,
 }
 
+// FIXME: allow() required due to `impl Trait` leaking types to this lint
+#[allow(missing_debug_implementations)]
 pub(super) struct Checkout<T> {
     key: Key,
     pool: Pool<T>,
@@ -662,6 +677,8 @@ impl<T> Drop for Checkout<T> {
     }
 }
 
+// FIXME: allow() required due to `impl Trait` leaking types to this lint
+#[allow(missing_debug_implementations)]
 pub(super) struct Connecting<T: Poolable> {
     key: Key,
     pool: WeakOpt<PoolInner<T>>,

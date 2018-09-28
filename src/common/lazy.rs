@@ -2,6 +2,10 @@ use std::mem;
 
 use futures::{Future, IntoFuture, Poll};
 
+pub(crate) trait Started: Future {
+    fn started(&self) -> bool;
+}
+
 pub(crate) fn lazy<F, R>(func: F) -> Lazy<F, R>
 where
     F: FnOnce() -> R,
@@ -12,7 +16,9 @@ where
     }
 }
 
-pub struct Lazy<F, R: IntoFuture> {
+// FIXME: allow() required due to `impl Trait` leaking types to this lint
+#[allow(missing_debug_implementations)]
+pub(crate) struct Lazy<F, R: IntoFuture> {
     inner: Inner<F, R::Future>
 }
 
@@ -22,12 +28,12 @@ enum Inner<F, R> {
     Empty,
 }
 
-impl<F, R> Lazy<F, R>
+impl<F, R> Started for Lazy<F, R>
 where
     F: FnOnce() -> R,
     R: IntoFuture,
 {
-    pub fn started(&self) -> bool {
+    fn started(&self) -> bool {
         match self.inner {
             Inner::Init(_) => false,
             Inner::Fut(_) |
@@ -61,3 +67,4 @@ where
         }
     }
 }
+

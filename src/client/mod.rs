@@ -90,10 +90,9 @@ use http::header::{Entry, HeaderValue, HOST};
 use http::uri::Scheme;
 
 use body::{Body, Payload};
-use common::Exec;
-use common::lazy as hyper_lazy;
+use common::{Exec, lazy as hyper_lazy, Lazy};
 use self::connect::{Connect, Destination};
-use self::pool::{Pool, Poolable, Reservation};
+use self::pool::{Key as PoolKey, Pool, Poolable, Pooled, Reservation};
 
 #[cfg(feature = "runtime")] pub use self::connect::HttpConnector;
 
@@ -261,62 +260,10 @@ where C: Connect + Sync + 'static,
 
     //TODO: replace with `impl Future` when stable
     fn send_request(&self, mut req: Request<B>, domain: &str) -> Box<Future<Item=Response<Body>, Error=ClientError<B>> + Send> {
-        let url = req.uri().clone();
         let ver = self.ver;
         let pool_key = (Arc::new(domain.to_string()), self.ver);
         let checkout = self.pool.checkout(pool_key.clone());
-        let connect = {
-            let executor = self.executor.clone();
-            let pool = self.pool.clone();
-            let h1_writev = self.h1_writev;
-            let h1_title_case_headers = self.h1_title_case_headers;
-            let connector = self.connector.clone();
-            let dst = Destination {
-                uri: url,
-            };
-            hyper_lazy(move || {
-                if let Some(connecting) = pool.connecting(&pool_key) {
-                    Either::A(connector.connect(dst)
-                        .map_err(::Error::new_connect)
-                        .and_then(move |(io, connected)| {
-                            conn::Builder::new()
-                                .exec(executor.clone())
-                                .h1_writev(h1_writev)
-                                .h1_title_case_headers(h1_title_case_headers)
-                                .http2_only(pool_key.1 == Ver::Http2)
-                                .handshake(io)
-                                .and_then(move |(tx, conn)| {
-                                    let bg = executor.execute(conn.map_err(|e| {
-                                        debug!("client connection error: {}", e)
-                                    }));
-
-                                    // This task is critical, so an execute error
-                                    // should be returned.
-                                    if let Err(err) = bg {
-                                        warn!("error spawning critical client task: {}", err);
-                                        return Either::A(future::err(err));
-                                    }
-
-                                    // Wait for 'conn' to ready up before we
-                                    // declare this tx as usable
-                                    Either::B(tx.when_ready())
-                                })
-                                .map(move |tx| {
-                                    pool.pooled(connecting, PoolClient {
-                                        is_proxied: connected.is_proxied,
-                                        tx: match ver {
-                                            Ver::Http1 => PoolTx::Http1(tx),
-                                            Ver::Http2 => PoolTx::Http2(tx.into_http2()),
-                                        },
-                                    })
-                                })
-                        }))
-                } else {
-                    let canceled = ::Error::new_canceled(Some("HTTP/2 connection in progress"));
-                    Either::B(future::err(canceled))
-                }
-            })
-        };
+        let connect = self.connect_to(req.uri().clone(), pool_key);
 
         let executor = self.executor.clone();
         // The order of the `select` is depended on below...
@@ -486,6 +433,69 @@ where C: Connect + Sync + 'static,
 
         Box::new(resp)
     }
+
+    fn connect_to(&self, uri: Uri, pool_key: PoolKey)
+        -> impl Lazy<Item=Pooled<PoolClient<B>>, Error=::Error>
+    {
+        let executor = self.executor.clone();
+        let pool = self.pool.clone();
+        let h1_writev = self.h1_writev;
+        let h1_title_case_headers = self.h1_title_case_headers;
+        let connector = self.connector.clone();
+        let ver = pool_key.1;
+        let dst = Destination {
+            uri,
+        };
+        hyper_lazy(move || {
+            // Try to take a "connecting lock".
+            //
+            // If the pool_key is for HTTP/2, and there is already a
+            // connection being estabalished, then this can't take a
+            // second lock. The "connect_to" future is Canceled.
+            let connecting = match pool.connecting(&pool_key) {
+                Some(lock) => lock,
+                None => {
+                    let canceled = ::Error::new_canceled(Some("HTTP/2 connection in progress"));
+                    return Either::B(future::err(canceled));
+                }
+            };
+            Either::A(connector.connect(dst)
+                .map_err(::Error::new_connect)
+                .and_then(move |(io, connected)| {
+                    conn::Builder::new()
+                        .exec(executor.clone())
+                        .h1_writev(h1_writev)
+                        .h1_title_case_headers(h1_title_case_headers)
+                        .http2_only(pool_key.1 == Ver::Http2)
+                        .handshake(io)
+                        .and_then(move |(tx, conn)| {
+                            let bg = executor.execute(conn.map_err(|e| {
+                                debug!("client connection error: {}", e)
+                            }));
+
+                            // This task is critical, so an execute error
+                            // should be returned.
+                            if let Err(err) = bg {
+                                warn!("error spawning critical client task: {}", err);
+                                return Either::A(future::err(err));
+                            }
+
+                            // Wait for 'conn' to ready up before we
+                            // declare this tx as usable
+                            Either::B(tx.when_ready())
+                        })
+                        .map(move |tx| {
+                            pool.pooled(connecting, PoolClient {
+                                is_proxied: connected.is_proxied,
+                                tx: match ver {
+                                    Ver::Http1 => PoolTx::Http1(tx),
+                                    Ver::Http2 => PoolTx::Http2(tx.into_http2()),
+                                },
+                            })
+                        })
+                }))
+        })
+    }
 }
 
 impl<C, B> Clone for Client<C, B> {
@@ -588,6 +598,8 @@ where
     }
 }
 
+// FIXME: allow() required due to `impl Trait` leaking types to this lint
+#[allow(missing_debug_implementations)]
 struct PoolClient<B> {
     is_proxied: bool,
     tx: PoolTx<B>,

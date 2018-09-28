@@ -119,6 +119,8 @@ pub struct Parts<T> {
 // ========== internal client api
 
 /// A `Future` for when `SendRequest::poll_ready()` is ready.
+// FIXME: allow() required due to `impl Trait` leaking types to this lint
+#[allow(missing_debug_implementations)]
 #[must_use = "futures do nothing unless polled"]
 pub(super) struct WhenReady<B> {
     tx: Option<SendRequest<B>>,
