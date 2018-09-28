@@ -49,9 +49,6 @@ serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
 
-[build-dependencies]
-rustc_version = "0.2.3"
-
 [features]
 default = [
     "__internal_flaky_tests",
