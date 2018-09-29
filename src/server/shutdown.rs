@@ -39,7 +39,7 @@ where
     I: Stream,
     I::Error: Into<Box<::std::error::Error + Send + Sync>>,
     I::Item: AsyncRead + AsyncWrite + Send + 'static,
-    S: NewService<ReqBody=Body, ResBody=B> + Send + 'static,
+    S: NewService<Incoming=I::Item, ReqBody=Body, ResBody=B> + Send + 'static,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
     S::Service: Send,
     S::Future: Send + 'static,

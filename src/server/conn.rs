@@ -335,7 +335,7 @@ impl Http {
     #[cfg(feature = "runtime")]
     pub fn serve_addr<S, Bd>(&self, addr: &SocketAddr, new_service: S) -> ::Result<Serve<AddrIncoming, S>>
     where
-        S: NewService<ReqBody=Body, ResBody=Bd>,
+        S: NewService<Incoming=<AddrIncoming as Stream>::Item, ReqBody=Body, ResBody=Bd>,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
         Bd: Payload,
     {
@@ -355,7 +355,7 @@ impl Http {
     #[cfg(feature = "runtime")]
     pub fn serve_addr_handle<S, Bd>(&self, addr: &SocketAddr, handle: &Handle, new_service: S) -> ::Result<Serve<AddrIncoming, S>>
     where
-        S: NewService<ReqBody=Body, ResBody=Bd>,
+        S: NewService<Incoming=<AddrIncoming as Stream>::Item, ReqBody=Body, ResBody=Bd>,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
         Bd: Payload,
     {
@@ -372,7 +372,7 @@ impl Http {
         I: Stream,
         I::Error: Into<Box<::std::error::Error + Send + Sync>>,
         I::Item: AsyncRead + AsyncWrite,
-        S: NewService<ReqBody=Body, ResBody=Bd>,
+        S: NewService<Incoming=I::Item, ReqBody=Body, ResBody=Bd>,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
         Bd: Payload,
     {
@@ -582,7 +582,7 @@ where
     I: Stream,
     I::Item: AsyncRead + AsyncWrite,
     I::Error: Into<Box<::std::error::Error + Send + Sync>>,
-    S: NewService<ReqBody=Body, ResBody=B>,
+    S: NewService<Incoming=I::Item, ReqBody=Body, ResBody=B>,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
     <S::Service as Service>::Future: Send + 'static,
     B: Payload,
@@ -592,7 +592,7 @@ where
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         if let Some(io) = try_ready!(self.incoming.poll().map_err(::Error::new_accept)) {
-            let new_fut = self.new_service.new_service();
+            let new_fut = self.new_service.new_service(&io);
             Ok(Async::Ready(Some(Connecting {
                 future: new_fut,
                 io: Some(io),
@@ -644,7 +644,7 @@ where
     I: Stream,
     I::Error: Into<Box<::std::error::Error + Send + Sync>>,
     I::Item: AsyncRead + AsyncWrite + Send + 'static,
-    S: NewService<ReqBody=Body, ResBody=B> + Send + 'static,
+    S: NewService<Incoming=I::Item, ReqBody=Body, ResBody=B> + Send + 'static,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
     S::Service: Send,
     S::Future: Send + 'static,

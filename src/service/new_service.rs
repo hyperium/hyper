@@ -2,11 +2,17 @@ use std::error::Error as StdError;
 
 use futures::{Future, IntoFuture};
 
+use tokio::io::{AsyncRead, AsyncWrite};
+use futures::Stream;
 use body::Payload;
 use super::Service;
+use server::conn::AddrIncoming;
 
 /// An asynchronous constructor of `Service`s.
 pub trait NewService {
+    /// Incoming connections.
+    type Incoming: AsyncRead + AsyncWrite;
+
     /// The `Payload` body of the `http::Request`.
     type ReqBody: Payload;
 
@@ -30,16 +36,17 @@ pub trait NewService {
     type InitError: Into<Box<StdError + Send + Sync>>;
 
     /// Create a new `Service`.
-    fn new_service(&self) -> Self::Future;
+    fn new_service(&self, remote: &Self::Incoming) -> Self::Future;
 }
 
 impl<F, R, S> NewService for F
 where
-    F: Fn() -> R,
+    F: Fn(&<AddrIncoming as Stream>::Item) -> R,
     R: IntoFuture<Item=S>,
     R::Error: Into<Box<StdError + Send + Sync>>,
     S: Service,
 {
+    type Incoming = <AddrIncoming as Stream>::Item;
     type ReqBody = S::ReqBody;
     type ResBody = S::ResBody;
     type Error = S::Error;
@@ -48,8 +55,8 @@ where
     type InitError = R::Error;
 
 
-    fn new_service(&self) -> Self::Future {
-        (*self)().into_future()
+    fn new_service(&self, remote: &Self::Incoming) -> Self::Future {
+        (*self)(remote).into_future()
     }
 }
 
