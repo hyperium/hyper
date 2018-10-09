@@ -11,7 +11,7 @@ pub use self::io::Cursor; //TODO: move out of h1::io
 pub use self::io::MINIMUM_MAX_BUFFER_SIZE;
 
 mod conn;
-mod date;
+pub(super) mod date;
 mod decode;
 pub(crate) mod dispatch;
 mod encode;

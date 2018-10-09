@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::fmt::{self, Write};
 use std::str;
 
+use http::header::HeaderValue;
 use time::{self, Duration};
 
 // "Sun, 06 Nov 1994 08:49:37 GMT".len()
@@ -16,6 +17,15 @@ pub fn extend(dst: &mut Vec<u8>) {
 pub fn update() {
     CACHED.with(|cache| {
         cache.borrow_mut().check();
+    })
+}
+
+pub(crate) fn update_and_header_value() -> HeaderValue {
+    CACHED.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        cache.check();
+        HeaderValue::from_bytes(cache.buffer())
+            .expect("Date format should be valid HeaderValue")
     })
 }
 

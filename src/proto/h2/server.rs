@@ -193,6 +193,15 @@ where
                     let (head, body) = res.into_parts();
                     let mut res = ::http::Response::from_parts(head, ());
                     super::strip_connection_headers(res.headers_mut(), false);
+
+                    // set Date header if it isn't already set...
+                    res
+                        .headers_mut()
+                        .entry(::http::header::DATE)
+                        .expect("DATE is a valid HeaderName")
+                        .or_insert_with(::proto::h1::date::update_and_header_value);
+
+                    // automatically set Content-Length from body...
                     if let Some(len) = body.content_length() {
                         headers::set_content_length_if_missing(res.headers_mut(), len);
                     }

@@ -95,21 +95,21 @@ macro_rules! t {
         fn $name() {
             let c = vec![$((
                 __CReq {
-                    $($c_req_prop: __internal_req_res_prop!($c_req_prop: $c_req_val),)*
+                    $($c_req_prop: __internal_map_prop!($c_req_prop: $c_req_val),)*
                     ..Default::default()
                 },
                 __CRes {
-                    $($c_res_prop: __internal_req_res_prop!($c_res_prop: $c_res_val),)*
+                    $($c_res_prop: __internal_eq_prop!($c_res_prop: $c_res_val),)*
                     ..Default::default()
                 }
             ),)*];
             let s = vec![$((
                 __SReq {
-                    $($s_req_prop: __internal_req_res_prop!($s_req_prop: $s_req_val),)*
+                    $($s_req_prop: __internal_eq_prop!($s_req_prop: $s_req_val),)*
                     ..Default::default()
                 },
                 __SRes {
-                    $($s_res_prop: __internal_req_res_prop!($s_res_prop: $s_res_val),)*
+                    $($s_res_prop: __internal_map_prop!($s_res_prop: $s_res_val),)*
                     ..Default::default()
                 }
             ),)*];
@@ -157,6 +157,34 @@ macro_rules! t {
     );
 }
 
+macro_rules! __internal_map_prop {
+    (headers: $map:tt) => ({
+        #[allow(unused_mut)]
+        {
+        let mut headers = HeaderMap::new();
+        __internal_headers_map!(headers, $map);
+        headers
+        }
+    });
+    ($name:tt: $val:tt) => ({
+        __internal_req_res_prop!($name: $val)
+    });
+}
+
+macro_rules! __internal_eq_prop {
+    (headers: $map:tt) => ({
+        #[allow(unused_mut)]
+        {
+        let mut headers = Vec::new();
+        __internal_headers_eq!(headers, $map);
+        headers
+        }
+    });
+    ($name:tt: $val:tt) => ({
+        __internal_req_res_prop!($name: $val)
+    });
+}
+
 macro_rules! __internal_req_res_prop {
     (method: $prop_val:expr) => (
         $prop_val
@@ -164,20 +192,12 @@ macro_rules! __internal_req_res_prop {
     (status: $prop_val:expr) => (
         StatusCode::from_u16($prop_val).expect("status code")
     );
-    (headers: $map:tt) => ({
-        #[allow(unused_mut)]
-        {
-        let mut headers = HeaderMap::new();
-        __internal_headers!(headers, $map);
-        headers
-        }
-    });
     ($prop_name:ident: $prop_val:expr) => (
         From::from($prop_val)
     )
 }
 
-macro_rules! __internal_headers {
+macro_rules! __internal_headers_map {
     ($headers:ident, { $($name:expr => $val:expr,)* }) => {
         $(
         $headers.insert($name, $val.to_string().parse().expect("header value"));
@@ -185,7 +205,39 @@ macro_rules! __internal_headers {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+macro_rules! __internal_headers_eq {
+    (@pat $name: expr, $pat:pat) => {
+        ::std::sync::Arc::new(move |__hdrs: &::hyper::HeaderMap| {
+            match __hdrs.get($name) {
+                $pat => (),
+                other => panic!("headers[{}] was not {}: {:?}", stringify!($name), stringify!($pat), other),
+            }
+        }) as ::std::sync::Arc<Fn(&::hyper::HeaderMap) + Send + Sync>
+    };
+    (@val $name: expr, NONE) => {
+        __internal_headers_eq!(@pat $name, None);
+    };
+    (@val $name: expr, SOME) => {
+        __internal_headers_eq!(@pat $name, Some(_));
+    };
+    (@val $name: expr, $val:expr) => ({
+        let __val = Option::from($val);
+        ::std::sync::Arc::new(move |__hdrs: &::hyper::HeaderMap| {
+            if let Some(ref val) = __val {
+                assert_eq!(__hdrs.get($name).expect(stringify!($name)), val.to_string().as_str(), stringify!($name));
+            } else {
+                assert_eq!(__hdrs.get($name), None, stringify!($name));
+            }
+        }) as ::std::sync::Arc<Fn(&::hyper::HeaderMap) + Send + Sync>
+    });
+    ($headers:ident, { $($name:expr => $val:tt,)* }) => {
+        $(
+        $headers.push(__internal_headers_eq!(@val $name, $val));
+        )*
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct __CReq {
     pub method: &'static str,
     pub uri: &'static str,
@@ -193,19 +245,41 @@ pub struct __CReq {
     pub body: Vec<u8>,
 }
 
-#[derive(Clone, Debug, Default)]
+impl Default for __CReq {
+    fn default() -> __CReq {
+        __CReq {
+            method: "GET",
+            uri: "/",
+            headers: HeaderMap::new(),
+            body: Vec::new(),
+        }
+    }
+}
+
+#[derive(Clone, Default)]
 pub struct __CRes {
     pub status: hyper::StatusCode,
     pub body: Vec<u8>,
-    pub headers: HeaderMap,
+    pub headers: __HeadersEq,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone)]
 pub struct __SReq {
     pub method: &'static str,
     pub uri: &'static str,
-    pub headers: HeaderMap,
+    pub headers: __HeadersEq,
     pub body: Vec<u8>,
+}
+
+impl Default for __SReq {
+    fn default() -> __SReq {
+        __SReq {
+            method: "GET",
+            uri: "/",
+            headers: Vec::new(),
+            body: Vec::new(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -214,6 +288,8 @@ pub struct __SRes {
     pub body: Vec<u8>,
     pub headers: HeaderMap,
 }
+
+pub type __HeadersEq = Vec<Arc<Fn(&HeaderMap) + Send + Sync>>;
 
 pub struct __TestConfig {
     pub client_version: usize,
@@ -257,20 +333,17 @@ pub fn __run_test(cfg: __TestConfig) {
                 .unwrap()
                 .remove(0);
 
-            assert_eq!(req.uri().path(), sreq.uri);
-            assert_eq!(req.method(), &sreq.method);
-            assert_eq!(req.version(), version);
-            for (name, value) in &sreq.headers {
-                assert_eq!(
-                    req.headers()[name],
-                    value
-                );
+            assert_eq!(req.uri().path(), sreq.uri, "client path");
+            assert_eq!(req.method(), &sreq.method, "client method");
+            assert_eq!(req.version(), version, "client version");
+            for func in &sreq.headers {
+                func(&req.headers());
             }
             let sbody = sreq.body;
             req.into_body()
                 .concat2()
                 .map(move |body| {
-                    assert_eq!(body.as_ref(), sbody.as_slice());
+                    assert_eq!(body.as_ref(), sbody.as_slice(), "client body");
 
                     let mut res = Response::builder()
                         .status(sres.status)
@@ -339,18 +412,15 @@ pub fn __run_test(cfg: __TestConfig) {
 
         client.request(req)
             .and_then(move |res| {
-                assert_eq!(res.status(), cstatus);
-                assert_eq!(res.version(), version);
-                for (name, value) in &cheaders {
-                    assert_eq!(
-                        res.headers()[name],
-                        value
-                    );
+                assert_eq!(res.status(), cstatus, "server status");
+                assert_eq!(res.version(), version, "server version");
+                for func in &cheaders {
+                    func(&res.headers());
                 }
                 res.into_body().concat2()
             })
             .map(move |body| {
-                assert_eq!(body.as_ref(), cbody.as_slice());
+                assert_eq!(body.as_ref(), cbody.as_slice(), "server body");
             })
             .map_err(|e| panic!("client error: {}", e))
     });
