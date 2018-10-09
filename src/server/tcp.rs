@@ -121,13 +121,14 @@ impl Stream for AddrIncoming {
                 },
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Err(e) => {
+                    // Connection errors can be ignored directly, continue by
+                    // accepting the next request.
+                    if is_connection_error(&e) {
+                        debug!("accepted connection already errored: {}", e);
+                        continue;
+                    }
+
                     if self.sleep_on_errors {
-                        // Connection errors can be ignored directly, continue by
-                        // accepting the next request.
-                        if is_connection_error(&e) {
-                            debug!("accepted connection already errored: {}", e);
-                            continue;
-                        }
                         // Sleep 1s.
                         let delay = Instant::now() + Duration::from_secs(1);
                         let mut timeout = Delay::new(delay);
@@ -165,9 +166,12 @@ impl Stream for AddrIncoming {
 /// The timeout is useful to handle resource exhaustion errors like ENFILE
 /// and EMFILE. Otherwise, could enter into tight loop.
 fn is_connection_error(e: &io::Error) -> bool {
-    e.kind() == io::ErrorKind::ConnectionRefused ||
-    e.kind() == io::ErrorKind::ConnectionAborted ||
-    e.kind() == io::ErrorKind::ConnectionReset
+    match e.kind() {
+        io::ErrorKind::ConnectionRefused |
+        io::ErrorKind::ConnectionAborted |
+        io::ErrorKind::ConnectionReset => true,
+        _ => false,
+    }
 }
 
 impl fmt::Debug for AddrIncoming {
