@@ -21,14 +21,17 @@ use tokio_io::{AsyncRead, AsyncWrite};
 #[cfg(feature = "runtime")] use tokio_reactor::Handle;
 
 use body::{Body, Payload};
-use common::Exec;
+use common::exec::{Exec, H2Exec, NewSvcExec};
 use common::io::Rewind;
 use error::{Kind, Parse};
 use proto;
 use service::{NewService, Service};
 use upgrade::Upgraded;
 
-use self::upgrades::UpgradeableConnection;
+pub(super) use self::spawn_all::NoopWatcher;
+use self::spawn_all::NewSvcTask;
+pub(super) use self::spawn_all::Watcher;
+pub(super) use self::upgrades::UpgradeableConnection;
 
 #[cfg(feature = "runtime")] pub use super::tcp::AddrIncoming;
 
@@ -39,8 +42,8 @@ use self::upgrades::UpgradeableConnection;
 /// If you don't have need to manage connections yourself, consider using the
 /// higher-level [Server](super) API.
 #[derive(Clone, Debug)]
-pub struct Http {
-    exec: Exec,
+pub struct Http<E = Exec> {
+    exec: E,
     h1_writev: bool,
     mode: ConnectionMode,
     keep_alive: bool,
@@ -64,10 +67,10 @@ enum ConnectionMode {
 /// Yields `Connecting`s that are futures that should be put on a reactor.
 #[must_use = "streams do nothing unless polled"]
 #[derive(Debug)]
-pub struct Serve<I, S> {
+pub struct Serve<I, S, E = Exec> {
     incoming: I,
     new_service: S,
-    protocol: Http,
+    protocol: Http<E>,
 }
 
 /// A future building a new `Service` to a `Connection`.
@@ -76,23 +79,23 @@ pub struct Serve<I, S> {
 /// a `Connection`.
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
-pub struct Connecting<I, F> {
+pub struct Connecting<I, F, E = Exec> {
     future: F,
     io: Option<I>,
-    protocol: Http,
+    protocol: Http<E>,
 }
 
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
-pub(super) struct SpawnAll<I, S> {
-    pub(super) serve: Serve<I, S>,
+pub(super) struct SpawnAll<I, S, E> {
+    pub(super) serve: Serve<I, S, E>,
 }
 
 /// A future binding a connection with a Service.
 ///
 /// Polling this future will drive HTTP forward.
 #[must_use = "futures do nothing unless polled"]
-pub struct Connection<T, S>
+pub struct Connection<T, S, E = Exec>
 where
     S: Service,
 {
@@ -108,18 +111,19 @@ where
             Rewind<T>,
             S,
             S::ResBody,
+            E,
         >,
     >>,
-    fallback: Fallback,
+    fallback: Fallback<E>,
 }
 
 #[derive(Clone, Debug)]
-enum Fallback {
-    ToHttp2(Exec),
+enum Fallback<E> {
+    ToHttp2(E),
     Http1Only,
 }
 
-impl Fallback {
+impl<E> Fallback<E> {
     fn to_h2(&self) -> bool {
         match *self {
             Fallback::ToHttp2(_) => true,
@@ -166,6 +170,18 @@ impl Http {
         }
     }
 
+    #[doc(hidden)]
+    #[deprecated(note = "use Http::with_executor instead")]
+    pub fn executor<E>(&mut self, exec: E) -> &mut Self
+    where
+        E: Executor<Box<Future<Item=(), Error=()> + Send>> + Send + Sync + 'static
+    {
+        self.exec = Exec::Executor(Arc::new(exec));
+        self
+    }
+}
+
+impl<E> Http<E> {
     /// Sets whether HTTP1 is required.
     ///
     /// Default is false
@@ -241,12 +257,15 @@ impl Http {
     /// Set the executor used to spawn background tasks.
     ///
     /// Default uses implicit default (like `tokio::spawn`).
-    pub fn executor<E>(&mut self, exec: E) -> &mut Self
-    where
-        E: Executor<Box<Future<Item=(), Error=()> + Send>> + Send + Sync + 'static
-    {
-        self.exec = Exec::Executor(Arc::new(exec));
-        self
+    pub fn with_executor<E2>(self, exec: E2) -> Http<E2> {
+        Http {
+            exec,
+            h1_writev: self.h1_writev,
+            mode: self.mode,
+            keep_alive: self.keep_alive,
+            max_buf_size: self.max_buf_size,
+            pipeline_flush: self.pipeline_flush,
+        }
     }
 
     /// Bind a connection together with a [`Service`](::service::Service).
@@ -285,13 +304,14 @@ impl Http {
     /// # }
     /// # fn main() {}
     /// ```
-    pub fn serve_connection<S, I, Bd>(&self, io: I, service: S) -> Connection<I, S>
+    pub fn serve_connection<S, I, Bd>(&self, io: I, service: S) -> Connection<I, S, E>
     where
         S: Service<ReqBody=Body, ResBody=Bd>,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-        S::Future: Send + 'static,
+        //S::Future: Send + 'static,
         Bd: Payload,
         I: AsyncRead + AsyncWrite,
+        E: H2Exec<S::Future, Bd>//Box<Future<Item=(), Error=()> + Send>>,
     {
         let either = match self.mode {
             ConnectionMode::H1Only | ConnectionMode::Fallback => {
@@ -333,11 +353,12 @@ impl Http {
     /// `new_service` object provided, creating a new service per
     /// connection.
     #[cfg(feature = "runtime")]
-    pub fn serve_addr<S, Bd>(&self, addr: &SocketAddr, new_service: S) -> ::Result<Serve<AddrIncoming, S>>
+    pub fn serve_addr<S, Bd>(&self, addr: &SocketAddr, new_service: S) -> ::Result<Serve<AddrIncoming, S, E>>
     where
         S: NewService<ReqBody=Body, ResBody=Bd>,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
         Bd: Payload,
+        E: H2Exec<<S::Service as Service>::Future, Bd>,
     {
         let mut incoming = AddrIncoming::new(addr, None)?;
         if self.keep_alive {
@@ -353,11 +374,12 @@ impl Http {
     /// `new_service` object provided, creating a new service per
     /// connection.
     #[cfg(feature = "runtime")]
-    pub fn serve_addr_handle<S, Bd>(&self, addr: &SocketAddr, handle: &Handle, new_service: S) -> ::Result<Serve<AddrIncoming, S>>
+    pub fn serve_addr_handle<S, Bd>(&self, addr: &SocketAddr, handle: &Handle, new_service: S) -> ::Result<Serve<AddrIncoming, S, E>>
     where
         S: NewService<ReqBody=Body, ResBody=Bd>,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
         Bd: Payload,
+        E: H2Exec<<S::Service as Service>::Future, Bd>,
     {
         let mut incoming = AddrIncoming::new(addr, Some(handle))?;
         if self.keep_alive {
@@ -367,7 +389,7 @@ impl Http {
     }
 
     /// Bind the provided stream of incoming IO objects with a `NewService`.
-    pub fn serve_incoming<I, S, Bd>(&self, incoming: I, new_service: S) -> Serve<I, S>
+    pub fn serve_incoming<I, S, Bd>(&self, incoming: I, new_service: S) -> Serve<I, S, E>
     where
         I: Stream,
         I::Error: Into<Box<::std::error::Error + Send + Sync>>,
@@ -375,6 +397,7 @@ impl Http {
         S: NewService<ReqBody=Body, ResBody=Bd>,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
         Bd: Payload,
+        E: H2Exec<<S::Service as Service>::Future, Bd>,
     {
         Serve {
             incoming: incoming,
@@ -387,13 +410,13 @@ impl Http {
 
 // ===== impl Connection =====
 
-impl<I, B, S> Connection<I, S>
+impl<I, B, S, E> Connection<I, S, E>
 where
-    S: Service<ReqBody=Body, ResBody=B> + 'static,
+    S: Service<ReqBody=Body, ResBody=B>,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-    S::Future: Send,
-    I: AsyncRead + AsyncWrite + 'static,
+    I: AsyncRead + AsyncWrite,
     B: Payload + 'static,
+    E: H2Exec<S::Future, B>,
 {
     /// Start a graceful shutdown process for this connection.
     ///
@@ -497,7 +520,7 @@ where
     /// Enable this connection to support higher-level HTTP upgrades.
     ///
     /// See [the `upgrade` module](::upgrade) for more.
-    pub fn with_upgrades(self) -> UpgradeableConnection<I, S>
+    pub fn with_upgrades(self) -> UpgradeableConnection<I, S, E>
     where
         I: Send,
     {
@@ -507,13 +530,13 @@ where
     }
 }
 
-impl<I, B, S> Future for Connection<I, S>
+impl<I, B, S, E> Future for Connection<I, S, E>
 where
     S: Service<ReqBody=Body, ResBody=B> + 'static,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-    S::Future: Send,
     I: AsyncRead + AsyncWrite + 'static,
     B: Payload + 'static,
+    E: H2Exec<S::Future, B>,
 {
     type Item = ();
     type Error = ::Error;
@@ -556,9 +579,9 @@ where
 }
 // ===== impl Serve =====
 
-impl<I, S> Serve<I, S> {
+impl<I, S, E> Serve<I, S, E> {
     /// Spawn all incoming connections onto the executor in `Http`.
-    pub(super) fn spawn_all(self) -> SpawnAll<I, S> {
+    pub(super) fn spawn_all(self) -> SpawnAll<I, S, E> {
         SpawnAll {
             serve: self,
         }
@@ -577,17 +600,17 @@ impl<I, S> Serve<I, S> {
     }
 }
 
-impl<I, S, B> Stream for Serve<I, S>
+impl<I, S, B, E> Stream for Serve<I, S, E>
 where
     I: Stream,
     I::Item: AsyncRead + AsyncWrite,
     I::Error: Into<Box<::std::error::Error + Send + Sync>>,
     S: NewService<ReqBody=Body, ResBody=B>,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-    <S::Service as Service>::Future: Send + 'static,
     B: Payload,
+    E: H2Exec<<S::Service as Service>::Future, B>,
 {
-    type Item = Connecting<I::Item, S::Future>;
+    type Item = Connecting<I::Item, S::Future, E>;
     type Error = ::Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
@@ -606,15 +629,15 @@ where
 
 // ===== impl Connecting =====
 
-impl<I, F, S, B> Future for Connecting<I, F>
+impl<I, F, E, S, B> Future for Connecting<I, F, E>
 where
     I: AsyncRead + AsyncWrite,
     F: Future<Item=S>,
     S: Service<ReqBody=Body, ResBody=B>,
-    S::Future: Send + 'static,
     B: Payload,
+    E: H2Exec<S::Future, B>,
 {
-    type Item = Connection<I, S>;
+    type Item = Connection<I, S, E>;
     type Error = F::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -627,47 +650,147 @@ where
 // ===== impl SpawnAll =====
 
 #[cfg(feature = "runtime")]
-impl<S> SpawnAll<AddrIncoming, S> {
+impl<S, E> SpawnAll<AddrIncoming, S, E> {
     pub(super) fn local_addr(&self) -> SocketAddr {
         self.serve.incoming.local_addr()
     }
 }
 
-impl<I, S> SpawnAll<I, S> {
+impl<I, S, E> SpawnAll<I, S, E> {
     pub(super) fn incoming_ref(&self) -> &I {
         self.serve.incoming_ref()
     }
 }
 
-impl<I, S, B> SpawnAll<I, S>
+impl<I, S, B, E> SpawnAll<I, S, E>
 where
     I: Stream,
     I::Error: Into<Box<::std::error::Error + Send + Sync>>,
     I::Item: AsyncRead + AsyncWrite + Send + 'static,
-    S: NewService<ReqBody=Body, ResBody=B> + Send + 'static,
+    S: NewService<ReqBody=Body, ResBody=B>,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-    S::Service: Send,
-    S::Future: Send + 'static,
-    <S::Service as Service>::Future: Send + 'static,
     B: Payload,
+    E: H2Exec<<S::Service as Service>::Future, B>,
 {
-    pub(super) fn poll_with<F1, F2, R>(&mut self, per_connection: F1) -> Poll<(), ::Error>
+    pub(super) fn poll_watch<W>(&mut self, watcher: &W) -> Poll<(), ::Error>
     where
-        F1: Fn() -> F2,
-        F2: FnOnce(UpgradeableConnection<I::Item, S::Service>) -> R + Send + 'static,
-        R: Future<Item=(), Error=::Error> + Send + 'static,
+        E: NewSvcExec<I::Item, S::Future, S::Service, E, W>,
+        W: Watcher<I::Item, S::Service, E>,
     {
         loop {
             if let Some(connecting) = try_ready!(self.serve.poll()) {
-                let and_then = per_connection();
-                let fut = connecting
-                    .map_err(::Error::new_user_new_service)
-                    // flatten basically
-                    .and_then(|conn| and_then(conn.with_upgrades()))
-                    .map_err(|err| debug!("conn error: {}", err));
-                self.serve.protocol.exec.execute(fut)?;
+                let fut = NewSvcTask::new(connecting, watcher.clone());
+                self.serve.protocol.exec.execute_new_svc(fut)?;
             } else {
                 return Ok(Async::Ready(()))
+            }
+        }
+    }
+}
+
+pub(crate) mod spawn_all {
+    use futures::{Future, Poll};
+    use tokio_io::{AsyncRead, AsyncWrite};
+
+    use body::{Body, Payload};
+    use common::exec::H2Exec;
+    use service::Service;
+    use super::{Connecting, UpgradeableConnection};
+
+    // Used by `SpawnAll` to optionally watch a `Connection` future.
+    //
+    // The regular `hyper::Server` just uses a `NoopWatcher`, which does
+    // not need to watch anything, and so returns the `Connection` untouched.
+    //
+    // The `Server::with_graceful_shutdown` needs to keep track of all active
+    // connections, and signal that they start to shutdown when prompted, so
+    // it has a `GracefulWatcher` implementation to do that.
+    pub trait Watcher<I, S: Service, E>: Clone {
+        type Future: Future<Item=(), Error=::Error>;
+
+        fn watch(&self, conn: UpgradeableConnection<I, S, E>) -> Self::Future;
+    }
+
+    #[allow(missing_debug_implementations)]
+    #[derive(Copy, Clone)]
+    pub struct NoopWatcher;
+
+    impl<I, S, E> Watcher<I, S, E> for NoopWatcher
+    where
+        I: AsyncRead + AsyncWrite + Send + 'static,
+        S: Service<ReqBody=Body> + 'static,
+        E: H2Exec<S::Future, S::ResBody>,
+    {
+        type Future = UpgradeableConnection<I, S, E>;
+
+        fn watch(&self, conn: UpgradeableConnection<I, S, E>) -> Self::Future {
+            conn
+        }
+    }
+
+    // This is a `Future<Item=(), Error=()>` spawned to an `Executor` inside
+    // the `SpawnAll`. By being a nameable type, we can be generic over the
+    // user's `Service::Future`, and thus an `Executor` can execute it.
+    //
+    // Doing this allows for the server to conditionally require `Send` futures,
+    // depending on the `Executor` configured.
+    //
+    // Users cannot import this type, nor the associated `NewSvcExec`. Instead,
+    // a blanket implementation for `Executor<impl Future>` is sufficient.
+    #[allow(missing_debug_implementations)]
+    pub struct NewSvcTask<I, N, S: Service, E, W: Watcher<I, S, E>> {
+        state: State<I, N, S, E, W>,
+    }
+
+    enum State<I, N, S: Service, E, W: Watcher<I, S, E>> {
+        Connecting(Connecting<I, N, E>, W),
+        Connected(W::Future),
+    }
+
+    impl<I, N, S: Service, E, W: Watcher<I, S, E>> NewSvcTask<I, N, S, E, W> {
+        pub(super) fn new(connecting: Connecting<I, N, E>, watcher: W) -> Self {
+            NewSvcTask {
+                state: State::Connecting(connecting, watcher),
+            }
+        }
+    }
+
+    impl<I, N, S, B, E, W> Future for NewSvcTask<I, N, S, E, W>
+    where
+        I: AsyncRead + AsyncWrite + Send + 'static,
+        N: Future<Item=S>,
+        N::Error: Into<Box<::std::error::Error + Send + Sync>>,
+        S: Service<ReqBody=Body, ResBody=B>,
+        B: Payload,
+        E: H2Exec<S::Future, B>,
+        W: Watcher<I, S, E>,
+    {
+        type Item = ();
+        type Error = ();
+
+        fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+            loop {
+                let next = match self.state {
+                    State::Connecting(ref mut connecting, ref watcher) => {
+                        let conn = try_ready!(connecting
+                            .poll()
+                            .map_err(|err| {
+                                let err = ::Error::new_user_new_service(err);
+                                debug!("connection error: {}", err);
+                            }));
+                        let connected = watcher.watch(conn.with_upgrades());
+                        State::Connected(connected)
+                    },
+                    State::Connected(ref mut future) => {
+                        return future
+                            .poll()
+                            .map_err(|err| {
+                                debug!("connection error: {}", err);
+                            });
+                    }
+                };
+
+                self.state = next;
             }
         }
     }
@@ -682,20 +805,20 @@ mod upgrades {
     // `impl Future`, without requiring Rust 1.26.
     #[must_use = "futures do nothing unless polled"]
     #[allow(missing_debug_implementations)]
-    pub struct UpgradeableConnection<T, S>
+    pub struct UpgradeableConnection<T, S, E>
     where
         S: Service,
     {
-        pub(super) inner: Connection<T, S>,
+        pub(super) inner: Connection<T, S, E>,
     }
 
-    impl<I, B, S> UpgradeableConnection<I, S>
+    impl<I, B, S, E> UpgradeableConnection<I, S, E>
     where
-        S: Service<ReqBody=Body, ResBody=B> + 'static,
+        S: Service<ReqBody=Body, ResBody=B>,// + 'static,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-        S::Future: Send,
-        I: AsyncRead + AsyncWrite + Send + 'static,
+        I: AsyncRead + AsyncWrite,
         B: Payload + 'static,
+        E: H2Exec<S::Future, B>,
     {
         /// Start a graceful shutdown process for this connection.
         ///
@@ -706,13 +829,13 @@ mod upgrades {
         }
     }
 
-    impl<I, B, S> Future for UpgradeableConnection<I, S>
+    impl<I, B, S, E> Future for UpgradeableConnection<I, S, E>
     where
         S: Service<ReqBody=Body, ResBody=B> + 'static,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-        S::Future: Send,
         I: AsyncRead + AsyncWrite + Send + 'static,
         B: Payload + 'static,
+        E: super::H2Exec<S::Future, B>,
     {
         type Item = ();
         type Error = ::Error;
