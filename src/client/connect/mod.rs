@@ -6,16 +6,16 @@
 //!   establishes connections over TCP.
 //! - The [`Connect`](Connect) trait and related types to build custom connectors.
 use std::error::Error as StdError;
-use std::mem;
+use std::{fmt, mem};
 
 use bytes::{BufMut, Bytes, BytesMut};
 use futures::Future;
-use http::{uri, Uri};
+use http::{uri, Response, Uri};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 #[cfg(feature = "runtime")] mod dns;
 #[cfg(feature = "runtime")] mod http;
-#[cfg(feature = "runtime")] pub use self::http::HttpConnector;
+#[cfg(feature = "runtime")] pub use self::http::{HttpConnector, HttpInfo};
 
 /// Connect to a destination, returning an IO transport.
 ///
@@ -48,7 +48,10 @@ pub struct Destination {
 pub struct Connected {
     //alpn: Alpn,
     pub(super) is_proxied: bool,
+    pub(super) extra: Option<Extra>,
 }
+
+pub(super) struct Extra(Box<ExtraInner>);
 
 /*TODO: when HTTP1 Upgrades to H2 are added, this will be needed
 #[derive(Debug)]
@@ -245,6 +248,7 @@ impl Connected {
         Connected {
             //alpn: Alpn::Http1,
             is_proxied: false,
+            extra: None,
         }
     }
 
@@ -260,6 +264,12 @@ impl Connected {
         self
     }
 
+    /// Set extra connection information to be set in the extensions of every `Response`.
+    pub fn extra<T: Clone + Send + Sync + 'static>(mut self, extra: T) -> Connected {
+        self.extra = Some(Extra(Box::new(ExtraEnvelope(extra))));
+        self
+    }
+
     /*
     /// Set that the connected transport negotiated HTTP/2 as it's
     /// next protocol.
@@ -268,6 +278,61 @@ impl Connected {
         self
     }
     */
+
+    // Don't public expose that `Connected` is `Clone`, unsure if we want to
+    // keep that contract...
+    pub(super) fn clone(&self) -> Connected {
+        Connected {
+            is_proxied: self.is_proxied,
+            extra: self.extra.clone(),
+        }
+    }
+}
+
+// ===== impl Extra =====
+
+impl Extra {
+    pub(super) fn set(&self, res: &mut Response<::Body>) {
+        self.0.set(res);
+    }
+}
+
+impl Clone for Extra {
+    fn clone(&self) -> Extra {
+        Extra(self.0.clone_box())
+    }
+}
+
+impl fmt::Debug for Extra {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Extra")
+            .finish()
+    }
+}
+
+// This indirection allows the `Connected` to have a type-erased "extra" value,
+// while that type still knows its inner extra type. This allows the correct
+// TypeId to be used when inserting into `res.extensions_mut()`.
+#[derive(Clone)]
+struct ExtraEnvelope<T>(T);
+
+trait ExtraInner: Send + Sync {
+    fn clone_box(&self) -> Box<ExtraInner>;
+    fn set(&self, res: &mut Response<::Body>);
+}
+
+impl<T> ExtraInner for ExtraEnvelope<T>
+where
+    T: Clone + Send + Sync + 'static
+{
+    fn clone_box(&self) -> Box<ExtraInner> {
+        Box::new(self.clone())
+    }
+
+    fn set(&self, res: &mut Response<::Body>) {
+        let extra = self.0.clone();
+        res.extensions_mut().insert(extra);
+    }
 }
 
 #[cfg(test)]

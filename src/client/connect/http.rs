@@ -24,6 +24,11 @@ use self::sealed::HttpConnectorBlockingTask;
 /// A connector for the `http` scheme.
 ///
 /// Performs DNS resolution in a thread pool, and then connects over TCP.
+///
+/// # Note
+///
+/// Sets the [`HttpInfo`](HttpInfo) value on responses, which includes
+/// transport information such as the remote socket address used.
 #[derive(Clone)]
 pub struct HttpConnector {
     executor: HttpConnectExecutor,
@@ -34,6 +39,37 @@ pub struct HttpConnector {
     local_address: Option<IpAddr>,
     happy_eyeballs_timeout: Option<Duration>,
     reuse_address: bool,
+}
+
+/// Extra information about the transport when an HttpConnector is used.
+///
+/// # Example
+///
+/// ```rust
+/// use hyper::client::{Client, connect::HttpInfo};
+/// use hyper::rt::Future;
+///
+/// let client = Client::new();
+///
+/// let fut = client.get("http://example.local".parse().unwrap())
+///     .inspect(|resp| {
+///         resp
+///             .extensions()
+///             .get::<HttpInfo>()
+///             .map(|info| {
+///                 println!("remote addr = {}", info.remote_addr());
+///             });
+///     });
+/// ```
+///
+/// # Note
+///
+/// If a different connector is used besides [`HttpConnector`](HttpConnector),
+/// this value will not exist in the extensions. Consult that specific
+/// connector to see what "extra" information it might provide to responses.
+#[derive(Clone, Debug)]
+pub struct HttpInfo {
+    remote_addr: SocketAddr,
 }
 
 impl HttpConnector {
@@ -187,6 +223,13 @@ impl Connect for HttpConnector {
     }
 }
 
+impl HttpInfo {
+    /// Get the remote address of the transport used.
+    pub fn remote_addr(&self) -> SocketAddr {
+        self.remote_addr
+    }
+}
+
 #[inline]
 fn invalid_url(err: InvalidUrl, handle: &Option<Handle>) -> HttpConnecting {
     HttpConnecting {
@@ -277,7 +320,13 @@ impl Future for HttpConnecting {
 
                     sock.set_nodelay(self.nodelay)?;
 
-                    return Ok(Async::Ready((sock, Connected::new())));
+                    let extra = HttpInfo {
+                        remote_addr: sock.peer_addr()?,
+                    };
+                    let connected = Connected::new()
+                        .extra(extra);
+
+                    return Ok(Async::Ready((sock, connected)));
                 },
                 State::Error(ref mut e) => return Err(e.take().expect("polled more than once")),
             }

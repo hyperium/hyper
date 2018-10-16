@@ -274,7 +274,17 @@ macro_rules! test {
 
         let rx = rx.expect("thread panicked");
 
-        rt.block_on(res.join(rx).map(|r| r.0))
+        rt.block_on(res.join(rx).map(|r| r.0)).map(move |mut resp| {
+            // Always check that HttpConnector has set the "extra" info...
+            let extra = resp
+                .extensions_mut()
+                .remove::<::hyper::client::connect::HttpInfo>()
+                .expect("HttpConnector should set HttpInfo");
+
+            assert_eq!(extra.remote_addr(), addr, "HttpInfo should have server addr");
+
+            resp
+        })
     });
 }
 
