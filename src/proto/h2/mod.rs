@@ -10,7 +10,7 @@ use http::HeaderMap;
 use body::Payload;
 
 mod client;
-mod server;
+pub(crate) mod server;
 
 pub(crate) use self::client::Client;
 pub(crate) use self::server::Server;

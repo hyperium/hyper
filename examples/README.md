@@ -21,6 +21,8 @@ parses it with serde and outputs the result.
 
 * [`send_file`](send_file.rs) - A server that sends back content of files using tokio_fs to read the files asynchronously.
 
+* [`single_threaded`](single_threaded.rs) - A server only running on 1 thread, so it can make use of `!Send` app state (like an `Rc` counter).
+
 * [`state`](state.rs) - A webserver showing basic state sharing among requests. A counter is shared, incremented for every request, and every response is sent the last count.
 
 * [`upgrades`](upgrades.rs) - A server and client demonstrating how to do HTTP upgrades (such as WebSockets or `CONNECT` tunneling).

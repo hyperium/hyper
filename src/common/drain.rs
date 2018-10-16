@@ -36,6 +36,7 @@ pub struct Watch {
     rx: Shared<oneshot::Receiver<()>>,
 }
 
+#[allow(missing_debug_implementations)]
 pub struct Watching<F, FN> {
     future: F,
     state: State<FN>,
