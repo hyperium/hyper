@@ -1,3 +1,13 @@
+### v0.12.12 (2018-10-16)
+
+
+#### Bug Fixes
+
+* **armv7:** split record_header_indices loop to work around rustc/LLVM bug ([30a4f237](https://github.com/hyperium/hyper/commit/30a4f2376a392e50ade48685f92e930385ebb68f))
+* **http2:** add Date header if not present for HTTP2 server responses ([37ec724f](https://github.com/hyperium/hyper/commit/37ec724fd6405dd97c5873dddc956df1711b29ab))
+* **server:** log and ignore connection errors on newly accepted sockets ([66a857d8](https://github.com/hyperium/hyper/commit/66a857d801c1fc82d35b6da2d27441aa046aae47))
+
+
 ### v0.12.11 (2018-09-28)
 
 
