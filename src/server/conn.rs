@@ -308,10 +308,9 @@ impl<E> Http<E> {
     where
         S: Service<ReqBody=Body, ResBody=Bd>,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-        //S::Future: Send + 'static,
         Bd: Payload,
         I: AsyncRead + AsyncWrite,
-        E: H2Exec<S::Future, Bd>//Box<Future<Item=(), Error=()> + Send>>,
+        E: H2Exec<S::Future, Bd>,
     {
         let either = match self.mode {
             ConnectionMode::H1Only | ConnectionMode::Fallback => {
