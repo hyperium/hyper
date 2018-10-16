@@ -1,3 +1,4 @@
+use std::error::Error as StdError;
 use std::fmt;
 use std::sync::Arc;
 
@@ -40,7 +41,7 @@ impl Exec {
                         .spawn(Box::new(fut))
                         .map_err(|err| {
                             warn!("executor error: {:?}", err);
-                            ::Error::new_execute()
+                            ::Error::new_execute(TokioSpawnError)
                         })
                 }
                 #[cfg(not(feature = "runtime"))]
@@ -53,7 +54,7 @@ impl Exec {
                 e.execute(Box::new(fut))
                     .map_err(|err| {
                         warn!("executor error: {:?}", err.kind());
-                        ::Error::new_execute()
+                        ::Error::new_execute("custom executor failed")
                     })
             },
         }
@@ -101,7 +102,7 @@ where
         self.execute(fut)
             .map_err(|err| {
                 warn!("executor error: {:?}", err.kind());
-                ::Error::new_execute()
+                ::Error::new_execute("custom executor failed")
             })
     }
 }
@@ -117,7 +118,30 @@ where
         self.execute(fut)
             .map_err(|err| {
                 warn!("executor error: {:?}", err.kind());
-                ::Error::new_execute()
+                ::Error::new_execute("custom executor failed")
             })
     }
 }
+
+// ===== StdError impls =====
+
+struct TokioSpawnError;
+
+impl fmt::Debug for TokioSpawnError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt("tokio::spawn failed (is a tokio runtime running this future?)", f)
+    }
+}
+
+impl fmt::Display for TokioSpawnError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt("tokio::spawn failed (is a tokio runtime running this future?)", f)
+    }
+}
+
+impl StdError for TokioSpawnError {
+    fn description(&self) -> &str {
+        "tokio::spawn failed"
+    }
+}
+
