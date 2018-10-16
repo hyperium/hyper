@@ -920,13 +920,41 @@ struct HeaderIndices {
 
 fn record_header_indices(bytes: &[u8], headers: &[httparse::Header], indices: &mut [HeaderIndices]) {
     let bytes_ptr = bytes.as_ptr() as usize;
-    for (header, indices) in headers.iter().zip(indices.iter_mut()) {
-        let name_start = header.name.as_ptr() as usize - bytes_ptr;
-        let name_end = name_start + header.name.len();
-        indices.name = (name_start, name_end);
-        let value_start = header.value.as_ptr() as usize - bytes_ptr;
-        let value_end = value_start + header.value.len();
-        indices.value = (value_start, value_end);
+
+    // FIXME: This should be a single plain `for` loop.
+    // Splitting it is a work-around for https://github.com/rust-lang/rust/issues/55105
+    macro_rules! split_loops_if {
+        (
+            cfg($($cfg: tt)+)
+            for $i: pat in ($iter: expr) {
+                $body1: block
+                $body2: block
+            }
+        ) => {
+            for $i in $iter {
+                $body1
+                #[cfg(not($($cfg)+))] $body2
+            }
+            #[cfg($($cfg)+)]
+            for $i in $iter {
+                $body2
+            }
+        }
+    }
+    split_loops_if! {
+        cfg(all(target_arch = "arm", target_feature = "v7", target_feature = "neon"))
+        for (header, indices) in (headers.iter().zip(indices.iter_mut())) {
+            {
+                let name_start = header.name.as_ptr() as usize - bytes_ptr;
+                let name_end = name_start + header.name.len();
+                indices.name = (name_start, name_end);
+            }
+            {
+                let value_start = header.value.as_ptr() as usize - bytes_ptr;
+                let value_end = value_start + header.value.len();
+                indices.value = (value_start, value_end);
+            }
+        }
     }
 }
 
