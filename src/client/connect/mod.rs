@@ -15,6 +15,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 #[cfg(feature = "runtime")] mod dns;
 #[cfg(feature = "runtime")] mod http;
+#[cfg(feature = "runtime")] pub use self::dns::{GaiResolver, Name, Resolve};
 #[cfg(feature = "runtime")] pub use self::http::{HttpConnector, HttpInfo};
 
 /// Connect to a destination, returning an IO transport.

@@ -17,7 +17,6 @@ use hyper::{Body, Client, Method, Request, StatusCode};
 
 use futures::{Future, Stream};
 use futures::sync::oneshot;
-use tokio::reactor::Handle;
 use tokio::runtime::current_thread::Runtime;
 use tokio::net::tcp::{ConnectFuture, TcpStream};
 
@@ -226,7 +225,7 @@ macro_rules! test {
         let addr = server.local_addr().expect("local_addr");
         let mut rt = $runtime;
 
-        let connector = ::hyper::client::HttpConnector::new_with_handle(1, Handle::default());
+        let connector = ::hyper::client::HttpConnector::new(1);
         let client = Client::builder()
             .set_host($set_host)
             .http1_title_case_headers($title_case_headers)
