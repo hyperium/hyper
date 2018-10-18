@@ -267,7 +267,11 @@ impl Connected {
 
     /// Set extra connection information to be set in the extensions of every `Response`.
     pub fn extra<T: Clone + Send + Sync + 'static>(mut self, extra: T) -> Connected {
-        self.extra = Some(Extra(Box::new(ExtraEnvelope(extra))));
+        if let Some(prev) = self.extra {
+            self.extra = Some(Extra(Box::new(ExtraChain(prev.0, extra))));
+        } else {
+            self.extra = Some(Extra(Box::new(ExtraEnvelope(extra))));
+        }
         self
     }
 
@@ -311,16 +315,16 @@ impl fmt::Debug for Extra {
     }
 }
 
+trait ExtraInner: Send + Sync {
+    fn clone_box(&self) -> Box<ExtraInner>;
+    fn set(&self, res: &mut Response<::Body>);
+}
+
 // This indirection allows the `Connected` to have a type-erased "extra" value,
 // while that type still knows its inner extra type. This allows the correct
 // TypeId to be used when inserting into `res.extensions_mut()`.
 #[derive(Clone)]
 struct ExtraEnvelope<T>(T);
-
-trait ExtraInner: Send + Sync {
-    fn clone_box(&self) -> Box<ExtraInner>;
-    fn set(&self, res: &mut Response<::Body>);
-}
 
 impl<T> ExtraInner for ExtraEnvelope<T>
 where
@@ -331,14 +335,35 @@ where
     }
 
     fn set(&self, res: &mut Response<::Body>) {
-        let extra = self.0.clone();
-        res.extensions_mut().insert(extra);
+        res.extensions_mut().insert(self.0.clone());
+    }
+}
+
+struct ExtraChain<T>(Box<ExtraInner>, T);
+
+impl<T: Clone> Clone for ExtraChain<T> {
+    fn clone(&self) -> Self {
+        ExtraChain(self.0.clone_box(), self.1.clone())
+    }
+}
+
+impl<T> ExtraInner for ExtraChain<T>
+where
+    T: Clone + Send + Sync + 'static
+{
+    fn clone_box(&self) -> Box<ExtraInner> {
+        Box::new(self.clone())
+    }
+
+    fn set(&self, res: &mut Response<::Body>) {
+        self.0.set(res);
+        res.extensions_mut().insert(self.1.clone());
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::Destination;
+    use super::{Connected, Destination};
 
     #[test]
     fn test_destination_set_scheme() {
@@ -482,6 +507,77 @@ mod tests {
         assert_eq!(dst.scheme(), "http");
         assert_eq!(dst.host(), "hyper.rs");
         assert_eq!(dst.port(), None);
+    }
+
+    #[derive(Clone, Debug, PartialEq)]
+    struct Ex1(usize);
+
+    #[derive(Clone, Debug, PartialEq)]
+    struct Ex2(&'static str);
+
+    #[derive(Clone, Debug, PartialEq)]
+    struct Ex3(&'static str);
+
+    #[test]
+    fn test_connected_extra() {
+        let c1 = Connected::new()
+            .extra(Ex1(41));
+
+        let mut res1 = ::Response::new(::Body::empty());
+
+        assert_eq!(res1.extensions().get::<Ex1>(), None);
+
+        c1
+            .extra
+            .as_ref()
+            .expect("c1 extra")
+            .set(&mut res1);
+
+        assert_eq!(res1.extensions().get::<Ex1>(), Some(&Ex1(41)));
+    }
+
+    #[test]
+    fn test_connected_extra_chain() {
+        // If a user composes connectors and at each stage, there's "extra"
+        // info to attach, it shouldn't override the previous extras.
+
+        let c1 = Connected::new()
+            .extra(Ex1(45))
+            .extra(Ex2("zoom"))
+            .extra(Ex3("pew pew"));
+
+        let mut res1 = ::Response::new(::Body::empty());
+
+        assert_eq!(res1.extensions().get::<Ex1>(), None);
+        assert_eq!(res1.extensions().get::<Ex2>(), None);
+        assert_eq!(res1.extensions().get::<Ex3>(), None);
+
+        c1
+            .extra
+            .as_ref()
+            .expect("c1 extra")
+            .set(&mut res1);
+
+        assert_eq!(res1.extensions().get::<Ex1>(), Some(&Ex1(45)));
+        assert_eq!(res1.extensions().get::<Ex2>(), Some(&Ex2("zoom")));
+        assert_eq!(res1.extensions().get::<Ex3>(), Some(&Ex3("pew pew")));
+
+        // Just like extensions, inserting the same type overrides previous type.
+        let c2 = Connected::new()
+            .extra(Ex1(33))
+            .extra(Ex2("hiccup"))
+            .extra(Ex1(99));
+
+        let mut res2 = ::Response::new(::Body::empty());
+
+        c2
+            .extra
+            .as_ref()
+            .expect("c2 extra")
+            .set(&mut res2);
+
+        assert_eq!(res2.extensions().get::<Ex1>(), Some(&Ex1(99)));
+        assert_eq!(res2.extensions().get::<Ex2>(), Some(&Ex2("hiccup")));
     }
 }
 
