@@ -13,6 +13,9 @@ use futures_cpupool::{Builder as CpuPoolBuilder};
 
 use self::sealed::GaiTask;
 
+#[cfg(feature = "runtime")]
+pub use self::blocking::{TokioThreadpoolGaiFuture, TokioThreadpoolGaiResolver};
+
 /// Resolve a hostname to a set of IP addresses.
 pub trait Resolve {
     /// The set of IP addresses to try to connect to.
@@ -235,6 +238,50 @@ pub(super) mod sealed {
 
         fn poll(&mut self) -> Poll<(), ()> {
             self.work.poll()
+        }
+    }
+}
+
+#[cfg(feature = "runtime")]
+mod blocking {
+    use futures::{Async, Future, Poll};
+    use std::io;
+    use std::net::ToSocketAddrs;
+    use tokio_threadpool;
+
+    use super::{Name, IpAddrs, GaiAddrs, Resolve};
+
+    /// A resolver using `getaddrinfo` calls via the `tokio_threadpool::blocking` API.
+    /// 
+    /// Unlike the `GaiResolver` this will not spawn dedicated threads, but only works when running on the
+    /// multi-threaded Tokio runtime.
+    #[derive(Clone)]
+    pub struct TokioThreadpoolGaiResolver(());
+
+    pub struct TokioThreadpoolGaiFuture {
+        name: Name,
+    }
+
+    impl Resolve for TokioThreadpoolGaiResolver {
+        type Addrs = GaiAddrs;
+        type Future = TokioThreadpoolGaiFuture;
+
+        fn resolve(&self, name: Name) -> TokioThreadpoolGaiFuture {
+            TokioThreadpoolGaiFuture { name }
+        }
+    }
+
+    impl Future for TokioThreadpoolGaiFuture {
+        type Item = GaiAddrs;
+        type Error = io::Error;
+
+        fn poll(&mut self) -> Poll<GaiAddrs, io::Error> {
+            match tokio_threadpool::blocking(|| (self.name.as_str(), 0).to_socket_addrs()) {
+                Ok(Async::Ready(Ok(iter))) => Ok(Async::Ready(GaiAddrs { inner: IpAddrs { iter } })),
+                Ok(Async::Ready(Err(e))) => Err(e),
+                Ok(Async::NotReady) => Ok(Async::NotReady),
+                Err(e) => Err(io::Error::new(io::ErrorKind::Other, e)),
+            }
         }
     }
 }

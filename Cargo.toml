@@ -35,6 +35,7 @@ tokio-io = "0.1"
 tokio-reactor = { version = "0.1", optional = true }
 tokio-tcp = { version = "0.1", optional = true }
 tokio-timer = { version = "0.2", optional = true }
+tokio-threadpool = { version = "0.1", optional = true }
 want = "0.0.6"
 
 [dev-dependencies]
@@ -62,6 +63,7 @@ runtime = [
     "tokio-reactor",
     "tokio-tcp",
     "tokio-timer",
+    "tokio-threadpool",
 ]
 nightly = []
 __internal_flaky_tests = []
