@@ -60,14 +60,15 @@ impl<R: Read> BufReader<R> {
     /// This operation does not copy the buffer. Instead, it directly returns
     /// the internal buffer. As a result, this reader will no longer have any
     /// buffered contents and any subsequent read from this reader will not
-    /// include the returned buffered contents.
+    /// include the returned buffered contents. Note that subsequent reads may
+    /// buffer.
     #[inline]
     pub fn take_buf(&mut self) -> (Vec<u8>, usize, usize) {
         let (pos, cap) = (self.pos, self.cap);
         self.pos = 0;
         self.cap = 0;
 
-        let mut output = vec![0; INIT_BUFFER_SIZE];
+        let mut output = vec![];
         ::std::mem::swap(&mut self.buf, &mut output);
         (output, pos, cap)
     }
