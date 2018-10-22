@@ -109,7 +109,7 @@
 //! implement `Write`.
 use std::fmt;
 use std::io::{self, ErrorKind, BufWriter, Write};
-use std::net::{SocketAddr, ToSocketAddrs};
+use std::net::{SocketAddr, ToSocketAddrs, Shutdown};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
@@ -276,9 +276,10 @@ impl<H: Handler + 'static> Worker<H> {
         };
 
         // FIXME: Use Type ascription
-        let stream_clone: &mut NetworkStream = &mut stream.clone();
-        let mut rdr = BufReader::new(stream_clone);
-        let mut wrt = BufWriter::new(stream);
+        let stream2: &mut NetworkStream = &mut stream.clone();
+        let stream3: &mut NetworkStream = &mut stream.clone();
+        let mut rdr = BufReader::new(stream2);
+        let mut wrt = BufWriter::new(stream3);
 
         while self.keep_alive_loop(&mut rdr, &mut wrt, addr) {
             if let Err(e) = self.set_read_timeout(*rdr.get_ref(), self.timeouts.keep_alive) {
@@ -290,6 +291,10 @@ impl<H: Handler + 'static> Worker<H> {
         self.handler.on_connection_end();
 
         debug!("keep_alive loop ending for {}", addr);
+
+        if let Err(e) = stream.close(Shutdown::Both) {
+            info!("failed to close stream: {}", e);
+        }
     }
 
     fn set_read_timeout(&self, s: &NetworkStream, timeout: Option<Duration>) -> io::Result<()> {
