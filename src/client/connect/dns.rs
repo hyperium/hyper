@@ -270,7 +270,7 @@ impl TokioThreadpoolGaiResolver {
     ///
     /// **Requires** its futures to be run on the threadpool runtime.
     pub fn new() -> Self {
-        TokioThreadpoolGaiResolver::new()
+        TokioThreadpoolGaiResolver(())
     }
 }
 
