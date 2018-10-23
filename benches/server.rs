@@ -42,7 +42,9 @@ macro_rules! bench_server {
                     .map_err(|e| panic!("server error: {}", e))
                     .select(until_rx.then(|_| Ok(())))
                     .then(|_| Ok(()));
-                tokio::run(fut);
+                let mut rt = tokio::runtime::current_thread::Runtime::new().unwrap();
+                rt.spawn(fut);
+                rt.run().unwrap();
             });
 
             addr_rx.recv().unwrap()
