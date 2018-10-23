@@ -15,7 +15,7 @@ use tokio_tcp::{TcpStream, ConnectFuture};
 use tokio_timer::Delay;
 
 use super::{Connect, Connected, Destination};
-use super::dns::{self, GaiResolver, Resolve};
+use super::dns::{self, GaiResolver, Resolve, TokioThreadpoolGaiResolver};
 
 /// A connector for the `http` scheme.
 ///
@@ -96,6 +96,15 @@ impl HttpConnector {
         let mut http = HttpConnector::new_with_resolver(resolver);
         http.set_reactor(handle);
         http
+    }
+}
+
+impl HttpConnector<TokioThreadpoolGaiResolver> {
+    /// Construct a new HttpConnector using the `TokioThreadpoolGaiResolver`.
+    ///
+    /// This resolver **requires** the threadpool runtime to be used.
+    pub fn new_with_tokio_threadpool_resolver() -> Self {
+        HttpConnector::new_with_resolver(TokioThreadpoolGaiResolver::new())
     }
 }
 

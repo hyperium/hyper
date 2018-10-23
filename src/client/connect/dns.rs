@@ -1,3 +1,11 @@
+//! The `Resolve` trait, support types, and some basic implementations.
+//!
+//! This module contains:
+//!
+//! - A [`GaiResolver`](GaiResolver) that is the default resolver for the
+//!   `HttpConnector`.
+//! - The [`Resolve`](Resolve) trait and related types to build a custom
+//!   resolver for use with the `HttpConnector`.
 use std::{fmt, io, vec};
 use std::net::{
     IpAddr, Ipv4Addr, Ipv6Addr,
@@ -10,11 +18,9 @@ use futures::{Async, Future, Poll};
 use futures::future::{Executor, ExecuteError};
 use futures::sync::oneshot;
 use futures_cpupool::{Builder as CpuPoolBuilder};
+use tokio_threadpool;
 
 use self::sealed::GaiTask;
-
-#[cfg(feature = "runtime")]
-pub use self::blocking::{TokioThreadpoolGaiFuture, TokioThreadpoolGaiResolver};
 
 /// Resolve a hostname to a set of IP addresses.
 pub trait Resolve {
@@ -37,10 +43,12 @@ pub struct GaiResolver {
     executor: GaiExecutor,
 }
 
+/// An iterator of IP addresses returned from `getaddrinfo`.
 pub struct GaiAddrs {
     inner: IpAddrs,
 }
 
+/// A future to resole a name returned by `GaiResolver`.
 pub struct GaiFuture {
     rx: oneshot::SpawnHandle<IpAddrs, io::Error>,
 }
@@ -242,46 +250,49 @@ pub(super) mod sealed {
     }
 }
 
-#[cfg(feature = "runtime")]
-mod blocking {
-    use futures::{Async, Future, Poll};
-    use std::io;
-    use std::net::ToSocketAddrs;
-    use tokio_threadpool;
 
-    use super::{Name, IpAddrs, GaiAddrs, Resolve};
+/// A resolver using `getaddrinfo` calls via the `tokio_threadpool::blocking` API.
+///
+/// Unlike the `GaiResolver` this will not spawn dedicated threads, but only works when running on the
+/// multi-threaded Tokio runtime.
+#[derive(Clone, Debug)]
+pub struct TokioThreadpoolGaiResolver(());
 
-    /// A resolver using `getaddrinfo` calls via the `tokio_threadpool::blocking` API.
-    /// 
-    /// Unlike the `GaiResolver` this will not spawn dedicated threads, but only works when running on the
-    /// multi-threaded Tokio runtime.
-    #[derive(Clone)]
-    pub struct TokioThreadpoolGaiResolver(());
+/// The future returned by `TokioThreadpoolGaiResolver`.
+#[derive(Debug)]
+pub struct TokioThreadpoolGaiFuture {
+    name: Name,
+}
 
-    pub struct TokioThreadpoolGaiFuture {
-        name: Name,
+impl TokioThreadpoolGaiResolver {
+    /// Creates a new DNS resolver that will use tokio threadpool's blocking
+    /// feature.
+    ///
+    /// **Requires** its futures to be run on the threadpool runtime.
+    pub fn new() -> Self {
+        TokioThreadpoolGaiResolver::new()
     }
+}
 
-    impl Resolve for TokioThreadpoolGaiResolver {
-        type Addrs = GaiAddrs;
-        type Future = TokioThreadpoolGaiFuture;
+impl Resolve for TokioThreadpoolGaiResolver {
+    type Addrs = GaiAddrs;
+    type Future = TokioThreadpoolGaiFuture;
 
-        fn resolve(&self, name: Name) -> TokioThreadpoolGaiFuture {
-            TokioThreadpoolGaiFuture { name }
-        }
+    fn resolve(&self, name: Name) -> TokioThreadpoolGaiFuture {
+        TokioThreadpoolGaiFuture { name }
     }
+}
 
-    impl Future for TokioThreadpoolGaiFuture {
-        type Item = GaiAddrs;
-        type Error = io::Error;
+impl Future for TokioThreadpoolGaiFuture {
+    type Item = GaiAddrs;
+    type Error = io::Error;
 
-        fn poll(&mut self) -> Poll<GaiAddrs, io::Error> {
-            match tokio_threadpool::blocking(|| (self.name.as_str(), 0).to_socket_addrs()) {
-                Ok(Async::Ready(Ok(iter))) => Ok(Async::Ready(GaiAddrs { inner: IpAddrs { iter } })),
-                Ok(Async::Ready(Err(e))) => Err(e),
-                Ok(Async::NotReady) => Ok(Async::NotReady),
-                Err(e) => Err(io::Error::new(io::ErrorKind::Other, e)),
-            }
+    fn poll(&mut self) -> Poll<GaiAddrs, io::Error> {
+        match tokio_threadpool::blocking(|| (self.name.as_str(), 0).to_socket_addrs()) {
+            Ok(Async::Ready(Ok(iter))) => Ok(Async::Ready(GaiAddrs { inner: IpAddrs { iter } })),
+            Ok(Async::Ready(Err(e))) => Err(e),
+            Ok(Async::NotReady) => Ok(Async::NotReady),
+            Err(e) => Err(io::Error::new(io::ErrorKind::Other, e)),
         }
     }
 }

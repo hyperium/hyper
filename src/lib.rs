@@ -30,8 +30,8 @@ extern crate time;
 #[macro_use] extern crate tokio_io;
 #[cfg(feature = "runtime")] extern crate tokio_reactor;
 #[cfg(feature = "runtime")] extern crate tokio_tcp;
-#[cfg(feature = "runtime")] extern crate tokio_timer;
 #[cfg(feature = "runtime")] extern crate tokio_threadpool;
+#[cfg(feature = "runtime")] extern crate tokio_timer;
 extern crate want;
 
 #[cfg(all(test, feature = "nightly"))]
