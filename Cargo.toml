@@ -144,6 +144,11 @@ path = "benches/end_to_end.rs"
 required-features = ["runtime"]
 
 [[bench]]
+name = "pipeline"
+path = "benches/pipeline.rs"
+required-features = ["runtime"]
+
+[[bench]]
 name = "server"
 path = "benches/server.rs"
 required-features = ["runtime"]
