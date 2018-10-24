@@ -226,6 +226,11 @@ where
                         })
                     }
 
+                    // automatically set Content-Length from body...
+                    if let Some(len) = body.content_length() {
+                        headers::set_content_length_if_missing(res.headers_mut(), len);
+                    }
+
                     if let Some(full) = body.__hyper_full_data(FullDataArg(())).0 {
                         let mut body_tx = reply!(false);
                         let buf = SendBuf(Some(full));
@@ -235,10 +240,6 @@ where
                         return Ok(Async::Ready(()));
                     }
 
-                    // automatically set Content-Length from body...
-                    if let Some(len) = body.content_length() {
-                        headers::set_content_length_if_missing(res.headers_mut(), len);
-                    }
                     if !body.is_end_stream() {
                         let body_tx = reply!(false);
                         H2StreamState::Body(PipeToSendStream::new(body, body_tx))
