@@ -122,14 +122,22 @@ where
                                 }
                             };
                             if !eos {
-                                let conn_drop_ref = conn_dropper.clone();
-                                let pipe = PipeToSendStream::new(body, body_tx)
-                                    .map_err(|e| debug!("client request body error: {}", e))
-                                    .then(move |x| {
-                                        drop(conn_drop_ref);
-                                        x
-                                    });
-                                self.executor.execute(pipe)?;
+                                let mut pipe = PipeToSendStream::new(body, body_tx)
+                                    .map_err(|e| debug!("client request body error: {}", e));
+
+                                // eagerly see if the body pipe is ready and
+                                // can thus skip allocating in the executor
+                                match pipe.poll() {
+                                    Ok(Async::Ready(())) | Err(()) => (),
+                                    Ok(Async::NotReady) => {
+                                        let conn_drop_ref = conn_dropper.clone();
+                                        let pipe = pipe.then(move |x| {
+                                                drop(conn_drop_ref);
+                                                x
+                                            });
+                                        self.executor.execute(pipe)?;
+                                    }
+                                }
                             }
 
                             let fut = fut

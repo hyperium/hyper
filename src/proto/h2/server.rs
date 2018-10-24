@@ -5,6 +5,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 use ::headers::content_length_parse_all;
 use ::body::Payload;
+use body::internal::FullDataArg;
 use ::common::exec::H2Exec;
 use ::headers;
 use ::service::Service;
@@ -133,8 +134,16 @@ where
             let req = req.map(|stream| {
                 ::Body::h2(stream, content_length)
             });
-            let fut = H2Stream::new(service.call(req), respond);
-            exec.execute_h2stream(fut)?;
+            let mut fut = H2Stream::new(service.call(req), respond);
+
+            // try to eagerly poll the future, so that we might
+            // not need to allocate a new task...
+            match fut.poll() {
+                Ok(Async::Ready(())) | Err(()) => (),
+                Ok(Async::NotReady) => {
+                    exec.execute_h2stream(fut)?;
+                }
+            }
         }
 
         // no more incoming streams...
@@ -193,7 +202,7 @@ where
                         Err(e) => return Err(::Error::new_user_service(e)),
                     };
 
-                    let (head, body) = res.into_parts();
+                    let (head, mut body) = res.into_parts();
                     let mut res = ::http::Response::from_parts(head, ());
                     super::strip_connection_headers(res.headers_mut(), false);
 
@@ -204,10 +213,6 @@ where
                         .expect("DATE is a valid HeaderName")
                         .or_insert_with(::proto::h1::date::update_and_header_value);
 
-                    // automatically set Content-Length from body...
-                    if let Some(len) = body.content_length() {
-                        headers::set_content_length_if_missing(res.headers_mut(), len);
-                    }
                     macro_rules! reply {
                         ($eos:expr) => ({
                             match self.reply.send_response(res, $eos) {
@@ -219,6 +224,20 @@ where
                                 }
                             }
                         })
+                    }
+
+                    if let Some(full) = body.__hyper_full_data(FullDataArg(())).0 {
+                        let mut body_tx = reply!(false);
+                        let buf = SendBuf(Some(full));
+                        body_tx
+                            .send_data(buf, true)
+                            .map_err(::Error::new_body_write)?;
+                        return Ok(Async::Ready(()));
+                    }
+
+                    // automatically set Content-Length from body...
+                    if let Some(len) = body.content_length() {
+                        headers::set_content_length_if_missing(res.headers_mut(), len);
                     }
                     if !body.is_end_stream() {
                         let body_tx = reply!(false);
