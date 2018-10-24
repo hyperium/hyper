@@ -34,6 +34,13 @@ fn http1_post(b: &mut test::Bencher) {
 }
 
 #[bench]
+fn http1_get_parallel(b: &mut test::Bencher) {
+    bench_parallel_with(b, Version::HTTP_11, || {
+        Request::new(Body::empty())
+    });
+}
+
+#[bench]
 fn http2_get(b: &mut test::Bencher) {
     bench_with(b, Version::HTTP_2, || {
         Request::new(Body::empty())
@@ -49,10 +56,18 @@ fn http2_post(b: &mut test::Bencher) {
     });
 }
 
+#[bench]
+fn http2_get_parallel(b: &mut test::Bencher) {
+    bench_parallel_with(b, Version::HTTP_2, || {
+        Request::new(Body::empty())
+    });
+}
+
 fn bench_with<F>(b: &mut test::Bencher, version: Version, make_request: F)
 where
     F: Fn() -> Request<Body>,
 {
+    let _ = pretty_env_logger::try_init();
     let mut rt = Runtime::new().unwrap();
     let body = b"Hello";
     let addr = spawn_hello(&mut rt, body);
@@ -73,6 +88,39 @@ where
                 Ok(())
             })
         })).expect("client wait");
+    });
+}
+
+fn bench_parallel_with<F>(b: &mut test::Bencher, version: Version, make_request: F)
+where
+    F: Fn() -> Request<Body>,
+{
+    let _ = pretty_env_logger::try_init();
+    let mut rt = Runtime::new().unwrap();
+    let body = b"Hello";
+    let addr = spawn_hello(&mut rt, body);
+
+    let connector = HttpConnector::new(1);
+    let client = hyper::Client::builder()
+        .http2_only(version == Version::HTTP_2)
+        .build::<_, Body>(connector);
+
+    let url: hyper::Uri = format!("http://{}/hello", addr).parse().unwrap();
+
+    b.bytes = body.len() as u64;
+    b.iter(move || {
+        let futs = (0..10)
+            .into_iter()
+            .map(|_| {
+                let mut req = make_request();
+                *req.uri_mut() = url.clone();
+                client.request(req).and_then(|res| {
+                    res.into_body().for_each(|_chunk| {
+                        Ok(())
+                    })
+                }).map_err(|_e| ())
+            });
+        let _ = rt.block_on(::futures::future::join_all(futs));
     });
 }
 

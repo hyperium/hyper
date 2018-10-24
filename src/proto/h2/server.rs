@@ -134,16 +134,8 @@ where
             let req = req.map(|stream| {
                 ::Body::h2(stream, content_length)
             });
-            let mut fut = H2Stream::new(service.call(req), respond);
-
-            // try to eagerly poll the future, so that we might
-            // not need to allocate a new task...
-            match fut.poll() {
-                Ok(Async::Ready(())) | Err(()) => (),
-                Ok(Async::NotReady) => {
-                    exec.execute_h2stream(fut)?;
-                }
-            }
+            let fut = H2Stream::new(service.call(req), respond);
+            exec.execute_h2stream(fut)?;
         }
 
         // no more incoming streams...
