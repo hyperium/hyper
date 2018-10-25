@@ -275,11 +275,9 @@ impl<H: Handler + 'static> Worker<H> {
             }
         };
 
-        // FIXME: Use Type ascription
         let stream2: &mut NetworkStream = &mut stream.clone();
-        let stream3: &mut NetworkStream = &mut stream.clone();
         let mut rdr = BufReader::new(stream2);
-        let mut wrt = BufWriter::new(stream3);
+        let mut wrt = BufWriter::new(stream);
 
         while self.keep_alive_loop(&mut rdr, &mut wrt, addr) {
             if let Err(e) = self.set_read_timeout(*rdr.get_ref(), self.timeouts.keep_alive) {
@@ -292,7 +290,7 @@ impl<H: Handler + 'static> Worker<H> {
 
         debug!("keep_alive loop ending for {}", addr);
 
-        if let Err(e) = stream.close(Shutdown::Both) {
+        if let Err(e) = rdr.get_mut().close(Shutdown::Both) {
             info!("failed to close stream: {}", e);
         }
     }
