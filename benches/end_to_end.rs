@@ -160,8 +160,11 @@ fn spawn_hello(rt: &mut Runtime, body: &'static [u8]) -> SocketAddr {
     let srv = Server::bind(&addr)
         .serve(move || {
             service_fn(move |req: Request<Body>| {
-                req.into_body()
-                    .concat2()
+                req
+                    .into_body()
+                    .for_each(|_chunk| {
+                        Ok(())
+                    })
                     .map(move |_| {
                         Response::new(Body::from(body))
                     })
