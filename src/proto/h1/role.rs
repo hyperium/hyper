@@ -242,7 +242,7 @@ impl Http1Transaction for Server {
         let (ret, mut is_last) = if is_upgrade {
             (Ok(()), true)
         } else if msg.head.subject.is_informational() {
-            error!("response with 1xx status code not supported");
+            warn!("response with 1xx status code not supported");
             *msg.head = MessageHead::default();
             msg.head.subject = StatusCode::INTERNAL_SERVER_ERROR;
             msg.body = None;
