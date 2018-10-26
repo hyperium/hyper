@@ -1,3 +1,18 @@
+### v0.12.13 (2018-10-26)
+
+
+#### Features
+
+* **client:**
+  * add `Resolve`, used by `HttpConnector` ([2d5af177](https://github.com/hyperium/hyper/commit/2d5af177c1f0cfa3f592eec56f3a971fd9770f72), closes [#1517](https://github.com/hyperium/hyper/issues/1517))
+  * adds `HttpInfo` to responses when `HttpConnector` is used ([13d53e1d](https://github.com/hyperium/hyper/commit/13d53e1d0c095a61f64ff1712042aa615122d33d), closes [#1402](https://github.com/hyperium/hyper/issues/1402))
+* **dns:**
+  * export `client::connect::dns` module, and `TokioThreadpoolGaiResolver` type. ([34d780ac](https://github.com/hyperium/hyper/commit/34d780acd0fd7fe6a41b3eca1641791c7a33b366))
+  * tokio_threadpool::blocking resolver ([1e8d6439](https://github.com/hyperium/hyper/commit/1e8d6439cf4f9c7224fe80f0aeee32e2af1adbb0), closes [#1676](https://github.com/hyperium/hyper/issues/1676))
+* **http:** reexport `http` crate ([d55b5efb](https://github.com/hyperium/hyper/commit/d55b5efb890ef04e37825221deae9c57e9e602fa))
+* **server:** allow `!Send` Servers ([ced949cb](https://github.com/hyperium/hyper/commit/ced949cb6b798f25c2ffbdb3ebda6858c18393a7))
+
+
 ### v0.12.12 (2018-10-16)
 
 
