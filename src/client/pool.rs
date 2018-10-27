@@ -30,6 +30,7 @@ pub(super) trait Poolable: Send + Sized + 'static {
     ///
     /// Allows for HTTP/2 to return a shared reservation.
     fn reserve(self) -> Reservation<Self>;
+    fn can_share(&self) -> bool;
 }
 
 /// When checking out a pooled connection, it might be that the connection
@@ -50,7 +51,7 @@ pub(super) enum Reservation<T> {
 }
 
 /// Simple type alias in case the key type needs to be adjusted.
-pub(super) type Key = (Arc<String>, Ver);
+pub(super) type Key = Arc<String>;
 
 struct PoolInner<T> {
     // A flag that a connection is being estabilished, and the connection
@@ -151,8 +152,8 @@ impl<T: Poolable> Pool<T> {
 
     /// Ensure that there is only ever 1 connecting task for HTTP/2
     /// connections. This does nothing for HTTP/1.
-    pub(super) fn connecting(&self, key: &Key) -> Option<Connecting<T>> {
-        if key.1 == Ver::Http2 {
+    pub(super) fn connecting(&self, key: &Key, ver: Ver) -> Option<Connecting<T>> {
+        if ver == Ver::Http2 {
             if let Some(ref enabled) = self.inner {
                 let mut inner = enabled.lock().unwrap();
                 return if inner.connecting.insert(key.clone()) {
@@ -162,7 +163,7 @@ impl<T: Poolable> Pool<T> {
                     };
                     Some(connecting)
                 } else {
-                    trace!("HTTP/2 connecting already in progress for {:?}", key.0);
+                    trace!("HTTP/2 connecting already in progress for {:?}", key);
                     None
                 };
             }
@@ -190,7 +191,7 @@ impl<T: Poolable> Pool<T> {
     #[cfg(feature = "runtime")]
     #[cfg(test)]
     pub(super) fn h1_key(&self, s: &str) -> Key {
-        (Arc::new(s.to_string()), Ver::Http1)
+        Arc::new(s.to_string())
     }
 
     #[cfg(feature = "runtime")]
@@ -243,11 +244,6 @@ impl<T: Poolable> Pool<T> {
         let (value, pool_ref) = if let Some(ref enabled) = self.inner {
             match value.reserve() {
                 Reservation::Shared(to_insert, to_return) => {
-                    debug_assert_eq!(
-                        connecting.key.1,
-                        Ver::Http2,
-                        "shared reservation without Http2"
-                    );
                     let mut inner = enabled.lock().unwrap();
                     inner.put(connecting.key.clone(), to_insert, enabled);
                     // Do this here instead of Drop for Connecting because we
@@ -294,7 +290,7 @@ impl<T: Poolable> Pool<T> {
         // unique or shared. So, the hack is to just assume Ver::Http2 means
         // shared... :(
         let mut pool_ref = WeakOpt::none();
-        if key.1 == Ver::Http1 {
+        if !value.can_share() {
             if let Some(ref enabled) = self.inner {
                 pool_ref = WeakOpt::downgrade(enabled);
             }
@@ -377,7 +373,7 @@ impl<'a, T: Poolable + 'a> IdlePopper<'a, T> {
 
 impl<T: Poolable> PoolInner<T> {
     fn put(&mut self, key: Key, value: T, __pool_ref: &Arc<Mutex<PoolInner<T>>>) {
-        if key.1 == Ver::Http2 && self.idle.contains_key(&key) {
+        if value.can_share() && self.idle.contains_key(&key) {
             trace!("put; existing idle HTTP/2 connection for {:?}", key);
             return;
         }
@@ -601,7 +597,7 @@ impl<T: Poolable> Drop for Pooled<T> {
                 if let Ok(mut inner) = pool.lock() {
                     inner.put(self.key.clone(), value, &pool);
                 }
-            } else if self.key.1 == Ver::Http1 {
+            } else if !value.can_share() {
                 trace!("pool dropped, dropping pooled ({:?})", self.key);
             }
             // Ver::Http2 is already in the Pool (or dead), so we wouldn't
@@ -705,16 +701,22 @@ pub(super) struct Connecting<T: Poolable> {
     pool: WeakOpt<Mutex<PoolInner<T>>>,
 }
 
+impl<T: Poolable> Connecting<T> {
+    pub(super) fn alpn_h2(self, pool: &Pool<T>) -> Option<Self> {
+        debug_assert!(
+            self.pool.0.is_none(),
+            "Connecting::alpn_h2 but already Http2"
+        );
+
+        pool.connecting(&self.key, Ver::Http2)
+    }
+}
+
 impl<T: Poolable> Drop for Connecting<T> {
     fn drop(&mut self) {
         if let Some(pool) = self.pool.upgrade() {
             // No need to panic on drop, that could abort!
             if let Ok(mut inner) = pool.lock() {
-                debug_assert_eq!(
-                    self.key.1,
-                    Ver::Http2,
-                    "Connecting constructed without Http2"
-                );
                 inner.connected(&self.key);
             }
         }
@@ -804,7 +806,7 @@ mod tests {
     use futures::{Async, Future};
     use futures::future;
     use common::Exec;
-    use super::{Connecting, Key, Poolable, Pool, Reservation, Ver, WeakOpt};
+    use super::{Connecting, Key, Poolable, Pool, Reservation, WeakOpt};
 
     /// Test unique reservations.
     #[derive(Debug, PartialEq, Eq)]
@@ -817,6 +819,10 @@ mod tests {
 
         fn reserve(self) -> Reservation<Self> {
             Reservation::Unique(self)
+        }
+
+        fn can_share(&self) -> bool {
+            false
         }
     }
 
@@ -845,7 +851,7 @@ mod tests {
     #[test]
     fn test_pool_checkout_smoke() {
         let pool = pool_no_timer();
-        let key = (Arc::new("foo".to_string()), Ver::Http1);
+        let key = Arc::new("foo".to_string());
         let pooled = pool.pooled(c(key.clone()), Uniq(41));
 
         drop(pooled);
@@ -860,7 +866,7 @@ mod tests {
     fn test_pool_checkout_returns_none_if_expired() {
         future::lazy(|| {
             let pool = pool_no_timer();
-            let key = (Arc::new("foo".to_string()), Ver::Http1);
+            let key = Arc::new("foo".to_string());
             let pooled = pool.pooled(c(key.clone()), Uniq(41));
             drop(pooled);
             ::std::thread::sleep(pool.locked().timeout.unwrap());
@@ -873,7 +879,7 @@ mod tests {
     fn test_pool_checkout_removes_expired() {
         future::lazy(|| {
             let pool = pool_no_timer();
-            let key = (Arc::new("foo".to_string()), Ver::Http1);
+            let key = Arc::new("foo".to_string());
 
             pool.pooled(c(key.clone()), Uniq(41));
             pool.pooled(c(key.clone()), Uniq(5));
@@ -894,7 +900,7 @@ mod tests {
     fn test_pool_max_idle_per_host() {
         future::lazy(|| {
             let pool = pool_max_idle_no_timer(2);
-            let key = (Arc::new("foo".to_string()), Ver::Http1);
+            let key = Arc::new("foo".to_string());
 
             pool.pooled(c(key.clone()), Uniq(41));
             pool.pooled(c(key.clone()), Uniq(5));
@@ -920,7 +926,7 @@ mod tests {
             &Exec::Default,
         );
 
-        let key = (Arc::new("foo".to_string()), Ver::Http1);
+        let key = Arc::new("foo".to_string());
 
         // Since pool.pooled() will be calling spawn on drop, need to be sure
         // those drops are called while `rt` is the current executor. To do so,
@@ -945,7 +951,7 @@ mod tests {
     #[test]
     fn test_pool_checkout_task_unparked() {
         let pool = pool_no_timer();
-        let key = (Arc::new("foo".to_string()), Ver::Http1);
+        let key = Arc::new("foo".to_string());
         let pooled = pool.pooled(c(key.clone()), Uniq(41));
 
         let checkout = pool.checkout(key).join(future::lazy(move || {
@@ -964,7 +970,7 @@ mod tests {
     fn test_pool_checkout_drop_cleans_up_waiters() {
         future::lazy(|| {
             let pool = pool_no_timer::<Uniq<i32>>();
-            let key = (Arc::new("localhost:12345".to_string()), Ver::Http1);
+            let key = Arc::new("localhost:12345".to_string());
 
             let mut checkout1 = pool.checkout(key.clone());
             let mut checkout2 = pool.checkout(key.clone());
@@ -1000,12 +1006,16 @@ mod tests {
         fn reserve(self) -> Reservation<Self> {
             Reservation::Unique(self)
         }
+
+        fn can_share(&self) -> bool {
+            false
+        }
     }
 
     #[test]
     fn pooled_drop_if_closed_doesnt_reinsert() {
         let pool = pool_no_timer();
-        let key = (Arc::new("localhost:12345".to_string()), Ver::Http1);
+        let key = Arc::new("localhost:12345".to_string());
         pool.pooled(c(key.clone()), CanClose {
             val: 57,
             closed: true,

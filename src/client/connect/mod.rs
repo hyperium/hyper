@@ -36,7 +36,6 @@ pub trait Connect: Send + Sync {
 /// A set of properties to describe where and how to try to connect.
 #[derive(Clone, Debug)]
 pub struct Destination {
-    //pub(super) alpn: Alpn,
     pub(super) uri: Uri,
 }
 
@@ -46,21 +45,18 @@ pub struct Destination {
 /// was used, or if connected to an HTTP proxy.
 #[derive(Debug)]
 pub struct Connected {
-    //alpn: Alpn,
+    pub(super) alpn: Alpn,
     pub(super) is_proxied: bool,
     pub(super) extra: Option<Extra>,
 }
 
 pub(super) struct Extra(Box<ExtraInner>);
 
-/*TODO: when HTTP1 Upgrades to H2 are added, this will be needed
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum Alpn {
-    Http1,
-    //H2,
-    //Http1OrH2
+    H2,
+    None,
 }
-*/
 
 impl Destination {
     /// Get the protocol scheme.
@@ -246,7 +242,7 @@ impl Connected {
     /// Create new `Connected` type with empty metadata.
     pub fn new() -> Connected {
         Connected {
-            //alpn: Alpn::Http1,
+            alpn: Alpn::None,
             is_proxied: false,
             extra: None,
         }
@@ -274,19 +270,18 @@ impl Connected {
         self
     }
 
-    /*
     /// Set that the connected transport negotiated HTTP/2 as it's
     /// next protocol.
-    pub fn h2(mut self) -> Connected {
+    pub fn negotiated_h2(mut self) -> Connected {
         self.alpn = Alpn::H2;
         self
     }
-    */
 
     // Don't public expose that `Connected` is `Clone`, unsure if we want to
     // keep that contract...
     pub(super) fn clone(&self) -> Connected {
         Connected {
+            alpn: self.alpn.clone(),
             is_proxied: self.is_proxied,
             extra: self.extra.clone(),
         }
