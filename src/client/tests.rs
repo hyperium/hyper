@@ -207,4 +207,3 @@ fn checkout_win_allows_connect_future_to_be_pooled() {
     }
 }
 
-

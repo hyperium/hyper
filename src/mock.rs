@@ -358,11 +358,12 @@ impl Read for Duplex {
 impl Write for Duplex {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let mut inner = self.inner.lock().unwrap();
+        let ret = inner.write.write(buf);
         if let Some(task) = inner.handle_read_task.take() {
             trace!("waking DuplexHandle read");
             task.notify();
         }
-        inner.write.write(buf)
+        ret
     }
 
     fn flush(&mut self) -> io::Result<()> {
@@ -404,8 +405,7 @@ impl DuplexHandle {
             inner.handle_read_task = Some(task::current());
             return Ok(Async::NotReady);
         }
-        inner.write.inner.vec.truncate(0);
-        Ok(Async::Ready(inner.write.inner.len()))
+        inner.write.read(buf).map(Async::Ready)
     }
 
     pub fn write(&self, bytes: &[u8]) -> Poll<usize, io::Error> {
@@ -459,13 +459,20 @@ impl MockConnector {
     where
         F: Future + Send + 'static,
     {
+        self.mock_opts(key, Connected::new(), fut)
+    }
+
+    pub fn mock_opts<F>(&mut self, key: &str, connected: Connected, fut: F) -> DuplexHandle
+    where
+        F: Future + Send + 'static,
+    {
         let key = key.to_owned();
 
         let (duplex, handle) = Duplex::channel();
 
         let fut = Box::new(fut.then(move |_| {
             trace!("MockConnector mocked fut ready");
-            Ok((duplex, Connected::new()))
+            Ok((duplex, connected))
         }));
         self.mocks.lock().unwrap().entry(key)
             .or_insert(Vec::new())

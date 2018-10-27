@@ -18,7 +18,7 @@ use hyper::{Body, Client, Method, Request, StatusCode};
 use futures::{Future, Stream};
 use futures::sync::oneshot;
 use tokio::runtime::current_thread::Runtime;
-use tokio::net::tcp::{ConnectFuture, TcpStream};
+use tokio::net::tcp::{ConnectFuture, TcpListener as TkTcpListener, TcpStream};
 
 fn s(buf: &[u8]) -> &str {
     ::std::str::from_utf8(buf).expect("from_utf8")
@@ -1349,12 +1349,66 @@ mod dispatch_impl {
         assert_eq!(vec, b"bar=foo");
     }
 
+    #[test]
+    fn alpn_h2() {
+        use hyper::Response;
+        use hyper::server::conn::Http;
+        use hyper::service::service_fn_ok;
+
+        let _ = pretty_env_logger::try_init();
+        let mut rt = Runtime::new().unwrap();
+        let listener = TkTcpListener::bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+        let addr = listener.local_addr().unwrap();
+        let mut connector = DebugConnector::new();
+        connector.alpn_h2 = true;
+        let connects = connector.connects.clone();
+
+        let client = Client::builder()
+            .build::<_, ::hyper::Body>(connector);
+
+        let srv = listener.incoming()
+            .into_future()
+            .map_err(|_| unreachable!())
+            .and_then(|(item, _incoming)| {
+                let socket = item.unwrap();
+                Http::new()
+                    .http2_only(true)
+                    .serve_connection(socket, service_fn_ok(|req| {
+                        assert_eq!(req.headers().get("host"), None);
+                        Response::new(Body::empty())
+                    }))
+            })
+            .map_err(|e| panic!("server error: {}", e));
+        rt.spawn(srv);
+
+
+        assert_eq!(connects.load(Ordering::SeqCst), 0);
+
+        let url = format!("http://{}/a", addr).parse::<::hyper::Uri>().unwrap();
+        let res1 = client.get(url.clone());
+        let res2 = client.get(url.clone());
+        let res3 = client.get(url.clone());
+        rt.block_on(res1.join(res2).join(res3)).unwrap();
+
+        // Since the client doesn't know it can ALPN at first, it will have
+        // started 3 connections. But, the server above will only handle 1,
+        // so the unwrapped responses futures show it still worked.
+        assert_eq!(connects.load(Ordering::SeqCst), 3);
+
+        let res4 = client.get(url.clone());
+        rt.block_on(res4).unwrap();
+
+        assert_eq!(connects.load(Ordering::SeqCst), 3, "after ALPN, no more connects");
+        drop(client);
+    }
+
 
     struct DebugConnector {
         http: HttpConnector,
         closes: mpsc::Sender<()>,
         connects: Arc<AtomicUsize>,
         is_proxy: bool,
+        alpn_h2: bool,
     }
 
     impl DebugConnector {
@@ -1370,6 +1424,7 @@ mod dispatch_impl {
                 closes: closes,
                 connects: Arc::new(AtomicUsize::new(0)),
                 is_proxy: false,
+                alpn_h2: false,
             }
         }
 
@@ -1388,7 +1443,11 @@ mod dispatch_impl {
             self.connects.fetch_add(1, Ordering::SeqCst);
             let closes = self.closes.clone();
             let is_proxy = self.is_proxy;
-            Box::new(self.http.connect(dst).map(move |(s, c)| {
+            let is_alpn_h2 = self.alpn_h2;
+            Box::new(self.http.connect(dst).map(move |(s, mut c)| {
+                if is_alpn_h2 {
+                    c = c.negotiated_h2();
+                }
                 (DebugStream(s, closes), c.proxy(is_proxy))
             }))
         }

@@ -466,6 +466,7 @@ impl Builder {
         T: AsyncRead + AsyncWrite + Send + 'static,
         B: Payload + 'static,
     {
+        trace!("client handshake HTTP/{}", if self.http2 { 2 } else { 1 });
         Handshake {
             builder: self.clone(),
             io: Some(io),
