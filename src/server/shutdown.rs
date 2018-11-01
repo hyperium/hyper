@@ -4,8 +4,8 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use body::{Body, Payload};
 use common::drain::{self, Draining, Signal, Watch, Watching};
 use common::exec::{H2Exec, NewSvcExec};
-use service::{Service, NewService};
-use super::conn::{SpawnAll, UpgradeableConnection, Watcher};
+use service::Service;
+use super::conn::{MakeServiceRef, SpawnAll, UpgradeableConnection, Watcher};
 
 #[allow(missing_debug_implementations)]
 pub struct Graceful<I, S, F, E> {
@@ -40,7 +40,7 @@ where
     I: Stream,
     I::Error: Into<Box<::std::error::Error + Send + Sync>>,
     I::Item: AsyncRead + AsyncWrite + Send + 'static,
-    S: NewService<ReqBody=Body, ResBody=B>,
+    S: MakeServiceRef<I::Item, ReqBody=Body, ResBody=B>,
     S::Service: 'static,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
     B: Payload,

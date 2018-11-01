@@ -8,7 +8,7 @@ use tokio_reactor::Handle;
 use tokio_tcp::TcpListener;
 use tokio_timer::Delay;
 
-use self::addr_stream::AddrStream;
+pub use self::addr_stream::AddrStream;
 
 /// A stream of connections from binding to an address.
 #[must_use = "streams do nothing unless polled"]
@@ -194,6 +194,7 @@ mod addr_stream {
     use tokio_io::{AsyncRead, AsyncWrite};
 
 
+    /// A transport returned yieled by `AddrIncoming`.
     #[derive(Debug)]
     pub struct AddrStream {
         inner: TcpStream,

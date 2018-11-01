@@ -11,7 +11,7 @@
 //! # Server
 //!
 //! The [`Server`](Server) is main way to start listening for HTTP requests.
-//! It wraps a listener with a [`NewService`](::service), and then should
+//! It wraps a listener with a [`MakeService`](::service), and then should
 //! be executed to start serving requests.
 //!
 //! [`Server`](Server) accepts connections in both HTTP1 and HTTP2 by default.
@@ -30,8 +30,8 @@
 //!     // Construct our SocketAddr to listen on...
 //!     let addr = ([127, 0, 0, 1], 3000).into();
 //!
-//!     // And a NewService to handle each connection...
-//!     let new_service = || {
+//!     // And a MakeService to handle each connection...
+//!     let make_service = || {
 //!         service_fn_ok(|_req| {
 //!             Response::new(Body::from("Hello World"))
 //!         })
@@ -39,7 +39,7 @@
 //!
 //!     // Then bind and serve...
 //!     let server = Server::bind(&addr)
-//!         .serve(new_service);
+//!         .serve(make_service);
 //!
 //!     // Finally, spawn `server` onto an Executor...
 //!     hyper::rt::run(server.map_err(|e| {
@@ -65,10 +65,10 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 use body::{Body, Payload};
 use common::exec::{Exec, H2Exec, NewSvcExec};
-use service::{NewService, Service};
+use service::Service;
 // Renamed `Http` as `Http_` for now so that people upgrading don't see an
 // error that `hyper::server::Http` is private...
-use self::conn::{Http as Http_, NoopWatcher, SpawnAll};
+use self::conn::{Http as Http_, MakeServiceRef, NoopWatcher, SpawnAll};
 use self::shutdown::{Graceful, GracefulWatcher};
 #[cfg(feature = "runtime")] use self::tcp::AddrIncoming;
 
@@ -144,7 +144,7 @@ where
     I: Stream,
     I::Error: Into<Box<::std::error::Error + Send + Sync>>,
     I::Item: AsyncRead + AsyncWrite + Send + 'static,
-    S: NewService<ReqBody=Body, ResBody=B>,
+    S: MakeServiceRef<I::Item, ReqBody=Body, ResBody=B>,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
     S::Service: 'static,
     B: Payload,
@@ -203,7 +203,7 @@ where
     I: Stream,
     I::Error: Into<Box<::std::error::Error + Send + Sync>>,
     I::Item: AsyncRead + AsyncWrite + Send + 'static,
-    S: NewService<ReqBody=Body, ResBody=B>,
+    S: MakeServiceRef<I::Item, ReqBody=Body, ResBody=B>,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
     S::Service: 'static,
     B: Payload,
@@ -332,7 +332,7 @@ impl<I, E> Builder<I, E> {
         I: Stream,
         I::Error: Into<Box<::std::error::Error + Send + Sync>>,
         I::Item: AsyncRead + AsyncWrite + Send + 'static,
-        S: NewService<ReqBody=Body, ResBody=B>,
+        S: MakeServiceRef<I::Item, ReqBody=Body, ResBody=B>,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
         S::Service: 'static,
         B: Payload,

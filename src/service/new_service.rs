@@ -3,7 +3,7 @@ use std::error::Error as StdError;
 use futures::{Future, IntoFuture};
 
 use body::Payload;
-use super::Service;
+use super::{MakeService, Service};
 
 /// An asynchronous constructor of `Service`s.
 pub trait NewService {
@@ -47,9 +47,24 @@ where
     type Future = R::Future;
     type InitError = R::Error;
 
-
     fn new_service(&self) -> Self::Future {
         (*self)().into_future()
+    }
+}
+
+impl<N, Ctx> MakeService<Ctx> for N
+where
+    N: NewService,
+{
+    type ReqBody = N::ReqBody;
+    type ResBody = N::ResBody;
+    type Error = N::Error;
+    type Service = N::Service;
+    type Future = N::Future;
+    type MakeError = N::InitError;
+
+    fn make_service(&mut self, _: Ctx) -> Self::Future {
+        self.new_service()
     }
 }
 
