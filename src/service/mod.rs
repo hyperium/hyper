@@ -1,9 +1,9 @@
-//! Services and NewServices
+//! Services and MakeServices
 //!
 //! - A [`Service`](Service) is a trait representing an asynchronous function
 //!   of a request to a response. It's similar to
 //!   `async fn(Request) -> Result<Response, Error>`.
-//! - A [`NewService`](NewService) is a trait creating specific instances of a
+//! - A [`MakeService`](MakeService) is a trait creating specific instances of a
 //!   `Service`.
 //!
 //! These types are conceptually similar to those in
@@ -19,17 +19,21 @@
 //! [`service_fn`](service_fn) and [`service_fn_ok`](service_fn_ok) should be
 //! sufficient for most cases.
 //!
-//! # NewService
+//! # MakeService
 //!
 //! Since a `Service` is bound to a single connection, a [`Server`](::Server)
 //! needs a way to make them as it accepts connections. This is what a
-//! `NewService` does.
+//! `MakeService` does.
 //!
 //! Resources that need to be shared by all `Service`s can be put into a
-//! `NewService`, and then passed to individual `Service`s when `new_service`
+//! `MakeService`, and then passed to individual `Service`s when `make_service`
 //! is called.
+
+mod make_service;
 mod new_service;
 mod service;
 
-pub use self::new_service::{NewService};
+pub use self::make_service::{make_service_fn, MakeService};
+#[doc(hidden)]
+pub use self::new_service::NewService;
 pub use self::service::{service_fn, service_fn_ok, Service};
