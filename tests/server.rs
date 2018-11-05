@@ -1025,6 +1025,24 @@ fn returning_1xx_response_is_error() {
 }
 
 #[test]
+fn header_name_too_long() {
+    let server = serve();
+
+    let mut req = connect(server.addr());
+    let mut write = Vec::with_capacity(1024 * 66);
+    write.extend_from_slice(b"GET / HTTP/1.1\r\n");
+    for _ in 0..(1024 * 65) {
+        write.push(b'x');
+    }
+    write.extend_from_slice(b": foo\r\n\r\n");
+    req.write_all(&write).unwrap();
+
+    let mut buf = [0; 1024];
+    let n = req.read(&mut buf).unwrap();
+    assert!(s(&buf[..n]).starts_with("HTTP/1.1 431 Request Header Fields Too Large\r\n"));
+}
+
+#[test]
 fn upgrades() {
     use tokio_io::io::{read_to_end, write_all};
     let _ = pretty_env_logger::try_init();
