@@ -104,7 +104,7 @@ impl Http1Transaction for Server {
                         Version::HTTP_10
                     };
 
-                    record_header_indices(bytes, &req.headers, &mut headers_indices);
+                    record_header_indices(bytes, &req.headers, &mut headers_indices)?;
                     headers_len = req.headers.len();
                     //(len, subject, version, headers_len)
                 }
@@ -590,7 +590,7 @@ impl Http1Transaction for Client {
                         } else {
                             Version::HTTP_10
                         };
-                        record_header_indices(bytes, &res.headers, &mut headers_indices);
+                        record_header_indices(bytes, &res.headers, &mut headers_indices)?;
                         let headers_len = res.headers.len();
                         (len, status, version, headers_len)
                     },
@@ -918,7 +918,11 @@ struct HeaderIndices {
     value: (usize, usize),
 }
 
-fn record_header_indices(bytes: &[u8], headers: &[httparse::Header], indices: &mut [HeaderIndices]) {
+fn record_header_indices(
+    bytes: &[u8],
+    headers: &[httparse::Header],
+    indices: &mut [HeaderIndices]
+) -> Result<(), ::error::Parse> {
     let bytes_ptr = bytes.as_ptr() as usize;
 
     // FIXME: This should be a single plain `for` loop.
@@ -945,6 +949,10 @@ fn record_header_indices(bytes: &[u8], headers: &[httparse::Header], indices: &m
         cfg(all(target_arch = "arm", target_feature = "v7", target_feature = "neon"))
         for (header, indices) in (headers.iter().zip(indices.iter_mut())) {
             {
+                if header.name.len() >= (1 << 16) {
+                    debug!("header name larger than 64kb: {:?}", header.name);
+                    return Err(::error::Parse::TooLarge);
+                }
                 let name_start = header.name.as_ptr() as usize - bytes_ptr;
                 let name_end = name_start + header.name.len();
                 indices.name = (name_start, name_end);
@@ -956,6 +964,8 @@ fn record_header_indices(bytes: &[u8], headers: &[httparse::Header], indices: &m
             }
         }
     }
+
+    Ok(())
 }
 
 // Write header names as title case. The header name is assumed to be ASCII,
