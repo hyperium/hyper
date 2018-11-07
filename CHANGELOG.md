@@ -1,3 +1,16 @@
+### v0.12.14 (2018-11-07)
+
+
+#### Bug Fixes
+
+* **header:** fix panic when parsing header names larger than 64kb ([9245e940](https://github.com/hyperium/hyper/commit/9245e9409aeb5bb3e31b7f7c0e125583d1318465))
+
+
+#### Features
+
+* **client:** add ALPN h2 support for client connectors ([976a77a6](https://github.com/hyperium/hyper/commit/976a77a67360a2590699c0b2bb3a4c3ccc0ff1ba))
+
+
 ### v0.12.13 (2018-10-26)
 
 
