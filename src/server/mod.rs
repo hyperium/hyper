@@ -53,9 +53,13 @@
 pub mod conn;
 mod shutdown;
 #[cfg(feature = "runtime")] mod tcp;
+#[cfg(feature = "uds")] mod uds;
 
 use std::fmt;
 #[cfg(feature = "runtime")] use std::net::{SocketAddr, TcpListener as StdTcpListener};
+
+#[cfg(feature = "uds")] use std::os::unix::net::{SocketAddr as UnixSocketAddr,
+    UnixListener as StdUnixListener};
 
 #[cfg(feature = "runtime")] use std::time::Duration;
 
@@ -71,6 +75,8 @@ use service::{NewService, Service};
 use self::conn::{Http as Http_, NoopWatcher, SpawnAll};
 use self::shutdown::{Graceful, GracefulWatcher};
 #[cfg(feature = "runtime")] use self::tcp::AddrIncoming;
+#[cfg(feature = "uds")] use self::uds::UnixAddrIncoming;
+#[cfg(feature = "uds")] use std::path::Path;
 
 /// A listening HTTP server that accepts connections in both HTTP1 and HTTP2 by default.
 ///
@@ -135,6 +141,44 @@ impl Server<AddrIncoming, ()> {
 impl<S> Server<AddrIncoming, S> {
     /// Returns the local address that this server is bound to.
     pub fn local_addr(&self) -> SocketAddr {
+        self.spawn_all.local_addr()
+    }
+}
+
+#[cfg(feature = "uds")]
+impl Server<UnixAddrIncoming, ()> {
+    /// Binds to the provided address, and returns a [`Builder`](Builder).
+    ///
+    /// # Panics
+    ///
+    /// This method will panic if binding to the address fails. For a method
+    /// to bind to an address and return a `Result`, see `Server::try_bind`.
+    pub fn bind_unix<P: AsRef<Path>>(path: P) -> Builder<UnixAddrIncoming> {
+        let incoming = UnixAddrIncoming::new(path.as_ref(), None)
+            .unwrap_or_else(|e| {
+                panic!("error binding to {}: {}", path.as_ref().display(), e);
+            });
+        Server::builder(incoming)
+    }
+
+    /// Tries to bind to the provided address, and returns a [`Builder`](Builder).
+    pub fn try_bind_unix<P: AsRef<Path>>(path: P) -> ::Result<Builder<UnixAddrIncoming>> {
+        UnixAddrIncoming::new(path, None)
+            .map(Server::builder)
+    }
+
+    /// Create a new instance from a `std::os::unix::net::UnixListener` instance.
+    pub fn from_socket(listener: StdUnixListener) -> Result<Builder<UnixAddrIncoming>, ::Error> {
+        let handle = tokio_reactor::Handle::current();
+        UnixAddrIncoming::from_std(listener, &handle)
+            .map(Server::builder)
+    }
+}
+
+#[cfg(feature = "uds")]
+impl<S> Server<UnixAddrIncoming, S> {
+    /// Returns the local address that this server is bound to.
+    pub fn local_addr(&self) -> &UnixSocketAddr {
         self.spawn_all.local_addr()
     }
 }
@@ -366,3 +410,6 @@ impl<E> Builder<AddrIncoming, E> {
     }
 }
 
+#[cfg(feature = "uds")]
+impl<E> Builder<AddrIncoming, E> {
+}
