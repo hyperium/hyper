@@ -36,7 +36,6 @@ tokio-reactor = { version = "0.1", optional = true }
 tokio-tcp = { version = "0.1", optional = true }
 tokio-threadpool = { version = "0.1.3", optional = true }
 tokio-timer = { version = "0.2", optional = true }
-tokio-uds = { version = "0.2", optional = true }
 want = "0.0.6"
 
 [dev-dependencies]
@@ -66,11 +65,11 @@ runtime = [
     "tokio-threadpool",
     "tokio-timer",
 ]
-uds = [
-    "tokio-uds",
-]
 nightly = []
 __internal_flaky_tests = []
+
+[target.'cfg(unix)'.dependencies]
+tokio-uds = "0.2"
 
 [profile.release]
 codegen-units = 1

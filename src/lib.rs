@@ -30,7 +30,7 @@ extern crate time;
 #[macro_use] extern crate tokio_io;
 #[cfg(feature = "runtime")] extern crate tokio_reactor;
 #[cfg(feature = "runtime")] extern crate tokio_tcp;
-#[cfg(feature = "uds")] extern crate tokio_uds;
+#[cfg(all(unix,feature = "runtime"))] extern crate tokio_uds;
 #[cfg(feature = "runtime")] extern crate tokio_threadpool;
 #[cfg(feature = "runtime")] extern crate tokio_timer;
 extern crate want;

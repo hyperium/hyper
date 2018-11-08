@@ -53,12 +53,12 @@
 pub mod conn;
 mod shutdown;
 #[cfg(feature = "runtime")] mod tcp;
-#[cfg(feature = "uds")] mod uds;
+#[cfg(all(unix,feature = "runtime"))] mod uds;
 
 use std::fmt;
 #[cfg(feature = "runtime")] use std::net::{SocketAddr, TcpListener as StdTcpListener};
 
-#[cfg(feature = "uds")] use std::os::unix::net::{SocketAddr as UnixSocketAddr,
+#[cfg(all(unix,feature = "runtime"))] use std::os::unix::net::{SocketAddr as UnixSocketAddr,
     UnixListener as StdUnixListener};
 
 #[cfg(feature = "runtime")] use std::time::Duration;
@@ -75,8 +75,8 @@ use service::{NewService, Service};
 use self::conn::{Http as Http_, NoopWatcher, SpawnAll};
 use self::shutdown::{Graceful, GracefulWatcher};
 #[cfg(feature = "runtime")] use self::tcp::AddrIncoming;
-#[cfg(feature = "uds")] use self::uds::UnixIncoming;
-#[cfg(feature = "uds")] use std::path::Path;
+#[cfg(all(unix,feature = "runtime"))] use self::uds::UnixIncoming;
+#[cfg(all(unix,feature = "runtime"))] use std::path::Path;
 
 /// A listening HTTP server that accepts connections in both HTTP1 and HTTP2 by default.
 ///
@@ -145,7 +145,7 @@ impl<S> Server<AddrIncoming, S> {
     }
 }
 
-#[cfg(feature = "uds")]
+#[cfg(all(unix,feature = "runtime"))]
 impl Server<UnixIncoming, ()> {
     /// Binds to the provided address, and returns a [`Builder`](Builder).
     ///
@@ -175,7 +175,7 @@ impl Server<UnixIncoming, ()> {
     }
 }
 
-#[cfg(feature = "uds")]
+#[cfg(all(unix,feature = "runtime"))]
 impl<S> Server<UnixIncoming, S> {
     /// Returns the local address that this server is bound to.
     pub fn local_addr(&self) -> &UnixSocketAddr {

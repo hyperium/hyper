@@ -11,7 +11,7 @@
 use std::fmt;
 use std::mem;
 #[cfg(feature = "runtime")] use std::net::SocketAddr;
-#[cfg(feature = "uds")] use std::os::unix::net::SocketAddr as UnixSocketAddr;
+#[cfg(all(unix,feature = "runtime"))] use std::os::unix::net::SocketAddr as UnixSocketAddr;
 use std::sync::Arc;
 #[cfg(feature = "runtime")] use std::time::Duration;
 
@@ -35,7 +35,7 @@ pub(super) use self::spawn_all::Watcher;
 pub(super) use self::upgrades::UpgradeableConnection;
 
 #[cfg(feature = "runtime")] pub use super::tcp::AddrIncoming;
-#[cfg(feature = "uds")] pub use super::uds::UnixIncoming;
+#[cfg(all(unix,feature = "runtime"))] pub use super::uds::UnixIncoming;
 
 /// A lower-level configuration of the HTTP protocol.
 ///
@@ -657,7 +657,7 @@ impl<S, E> SpawnAll<AddrIncoming, S, E> {
     }
 }
 
-#[cfg(feature = "uds")]
+#[cfg(all(unix,feature = "runtime"))]
 impl<S, E> SpawnAll<UnixIncoming, S, E> {
     pub(super) fn local_addr(&self) -> &UnixSocketAddr {
         self.serve.incoming.local_addr()
