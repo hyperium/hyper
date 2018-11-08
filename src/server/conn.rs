@@ -35,7 +35,7 @@ pub(super) use self::spawn_all::Watcher;
 pub(super) use self::upgrades::UpgradeableConnection;
 
 #[cfg(feature = "runtime")] pub use super::tcp::AddrIncoming;
-#[cfg(feature = "uds")] pub use super::uds::UnixAddrIncoming;
+#[cfg(feature = "uds")] pub use super::uds::UnixIncoming;
 
 /// A lower-level configuration of the HTTP protocol.
 ///
@@ -658,7 +658,7 @@ impl<S, E> SpawnAll<AddrIncoming, S, E> {
 }
 
 #[cfg(feature = "uds")]
-impl<S, E> SpawnAll<UnixAddrIncoming, S, E> {
+impl<S, E> SpawnAll<UnixIncoming, S, E> {
     pub(super) fn local_addr(&self) -> &UnixSocketAddr {
         self.serve.incoming.local_addr()
     }

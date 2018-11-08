@@ -10,27 +10,27 @@ use tokio_uds::UnixListener;
 use tokio_timer::Delay;
 use std::path::Path;
 
-use self::addr_stream::AddrStream;
+use self::uds_stream::UdsStream;
 
 /// A stream of connections from binding to an address.
 #[must_use = "streams do nothing unless polled"]
-pub struct UnixAddrIncoming {
+pub struct UnixIncoming {
     addr: UnixSocketAddr,
     listener: UnixListener,
     sleep_on_errors: bool,
     timeout: Option<Delay>,
 }
 
-impl UnixAddrIncoming {
+impl UnixIncoming {
     pub(super) fn new<P: AsRef<Path>>(path: P, handle: Option<&Handle>) -> ::Result<Self> {
         let std_listener = StdUnixListener::bind(path)
                 .map_err(::Error::new_listen)?;
 
         if let Some(handle) = handle {
-            UnixAddrIncoming::from_std(std_listener, handle)
+            UnixIncoming::from_std(std_listener, handle)
         } else {
             let handle = Handle::current();
-            UnixAddrIncoming::from_std(std_listener, &handle)
+            UnixIncoming::from_std(std_listener, &handle)
         }
     }
 
@@ -38,7 +38,7 @@ impl UnixAddrIncoming {
         let listener = UnixListener::from_std(std_listener, &handle)
             .map_err(::Error::new_listen)?;
         let addr = listener.local_addr().map_err(::Error::new_listen)?;
-        Ok(UnixAddrIncoming {
+        Ok(UnixIncoming {
             listener,
             addr: addr,
             sleep_on_errors: true,
@@ -71,9 +71,9 @@ impl UnixAddrIncoming {
     }
 }
 
-impl Stream for UnixAddrIncoming {
+impl Stream for UnixIncoming {
     // currently unnameable...
-    type Item = AddrStream;
+    type Item = UdsStream;
     type Error = ::std::io::Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
@@ -91,7 +91,7 @@ impl Stream for UnixAddrIncoming {
         loop {
             match self.listener.poll_accept() {
                 Ok(Async::Ready((socket, addr))) => {
-                    return Ok(Async::Ready(Some(AddrStream::new(socket, addr))));
+                    return Ok(Async::Ready(Some(UdsStream::new(socket, addr))));
                 },
                 Ok(Async::NotReady) => return Ok(Async::NotReady),
                 Err(e) => {
@@ -148,16 +148,16 @@ fn is_connection_error(e: &io::Error) -> bool {
     }
 }
 
-impl fmt::Debug for UnixAddrIncoming {
+impl fmt::Debug for UnixIncoming {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("UnixAddrIncoming")
+        f.debug_struct("UnixIncoming")
             .field("addr", &self.addr)
             .field("sleep_on_errors", &self.sleep_on_errors)
             .finish()
     }
 }
 
-mod addr_stream {
+mod uds_stream {
     use std::io::{self, Read, Write};
     use std::os::unix::net::SocketAddr;
     use bytes::{Buf, BufMut};
@@ -167,15 +167,15 @@ mod addr_stream {
 
 
     #[derive(Debug)]
-    pub struct AddrStream {
+    pub struct UdsStream {
         inner: UnixStream,
         pub(super) remote_addr: SocketAddr,
     }
 
-    impl AddrStream {
-        pub(super) fn new(tcp: UnixStream, addr: SocketAddr) -> AddrStream {
-            AddrStream {
-                inner: tcp,
+    impl UdsStream {
+        pub(super) fn new(unix: UnixStream, addr: SocketAddr) -> UdsStream {
+            UdsStream {
+                inner: unix,
                 remote_addr: addr,
             }
         }
@@ -187,14 +187,14 @@ mod addr_stream {
         }
     }
 
-    impl Read for AddrStream {
+    impl Read for UdsStream {
         #[inline]
         fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
             self.inner.read(buf)
         }
     }
 
-    impl Write for AddrStream {
+    impl Write for UdsStream {
         #[inline]
         fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
             self.inner.write(buf)
@@ -207,7 +207,7 @@ mod addr_stream {
         }
     }
 
-    impl AsyncRead for AddrStream {
+    impl AsyncRead for UdsStream {
         #[inline]
         unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
             self.inner.prepare_uninitialized_buffer(buf)
@@ -219,7 +219,7 @@ mod addr_stream {
         }
     }
 
-    impl AsyncWrite for AddrStream {
+    impl AsyncWrite for UdsStream {
         #[inline]
         fn shutdown(&mut self) -> Poll<(), io::Error> {
             AsyncWrite::shutdown(&mut self.inner)
