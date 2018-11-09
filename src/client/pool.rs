@@ -759,7 +759,7 @@ impl<T: Poolable + 'static> Future for IdleInterval<T> {
 
         loop {
             match self.pool_drop_notifier.poll() {
-                Ok(Async::Ready(n)) => match n {},
+                Ok(Async::Ready(_)) => (),
                 Ok(Async::NotReady) => (),
                 Err(_canceled) => {
                     trace!("pool closed, canceling idle interval");
