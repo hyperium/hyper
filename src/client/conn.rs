@@ -10,10 +10,11 @@
 use std::fmt;
 use std::marker::PhantomData;
 use std::mem;
+use std::sync::Arc;
 
 use bytes::Bytes;
 use futures::{Async, Future, Poll};
-use futures::future::{self, Either};
+use futures::future::{self, Either, Executor};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use body::Payload;
@@ -438,6 +439,15 @@ impl Builder {
 
     pub(super) fn exec(&mut self, exec: Exec) -> &mut Builder {
         self.exec = exec;
+        self
+    }
+
+    /// Provide an executor to execute background HTTP2 tasks.
+    pub fn executor<E>(&mut self, exec: E) -> &mut Builder
+    where
+        E: Executor<Box<Future<Item=(), Error=()> + Send>> + Send + Sync + 'static,
+    {
+        self.exec = Exec::Executor(Arc::new(exec));
         self
     }
 
