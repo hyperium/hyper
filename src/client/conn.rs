@@ -73,6 +73,7 @@ pub struct Builder {
     exec: Exec,
     h1_writev: bool,
     h1_title_case_headers: bool,
+    read_chunk_size: Option<usize>,
     http2: bool,
 }
 
@@ -431,6 +432,7 @@ impl Builder {
         Builder {
             exec: Exec::Default,
             h1_writev: true,
+            read_chunk_size: None,
             h1_title_case_headers: false,
             http2: false,
         }
@@ -451,11 +453,23 @@ impl Builder {
         self
     }
 
+    pub(super) fn set_read_chunk_size(&mut self, sz: Option<usize>) -> &mut Builder {
+        self.read_chunk_size = sz;
+        self
+    }
     /// Sets whether HTTP2 is required.
     ///
     /// Default is false.
     pub fn http2_only(&mut self, enabled: bool) -> &mut Builder {
         self.http2 = enabled;
+        self
+    }
+
+    /// Sets the default chunk size when reading from the io buffer
+    ///
+    /// Default is 64kb
+    pub fn read_chunk_size(&mut self, size: usize) -> &mut Builder {
+        self.read_chunk_size = Some(size);
         self
     }
 
@@ -496,6 +510,8 @@ where
             if self.builder.h1_title_case_headers {
                 conn.set_title_case_headers();
             }
+            println!("Creating connection where chunk size is {:?}", self.builder.read_chunk_size);
+            self.builder.read_chunk_size.map(|sz| conn.set_read_chunk_size(sz));
             let cd = proto::h1::dispatch::Client::new(rx);
             let dispatch = proto::h1::Dispatcher::new(cd, conn);
             Either::A(dispatch)

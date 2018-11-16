@@ -11,7 +11,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use super::{Http1Transaction, ParseContext, ParsedMessage};
 
 /// The initial buffer size allocated before trying to read from IO.
-pub(crate) const INIT_BUFFER_SIZE: usize = 8192;
+pub(crate) const INIT_BUFFER_SIZE: usize = 64 * 1024;
 
 /// The minimum value that can be set to max buffer size.
 pub const MINIMUM_MAX_BUFFER_SIZE: usize = INIT_BUFFER_SIZE;
@@ -19,7 +19,7 @@ pub const MINIMUM_MAX_BUFFER_SIZE: usize = INIT_BUFFER_SIZE;
 /// The default maximum read buffer size. If the buffer gets this big and
 /// a message is still not complete, a `TooLarge` error is triggered.
 // Note: if this changes, update server::conn::Http::max_buf_size docs.
-pub(crate) const DEFAULT_MAX_BUFFER_SIZE: usize = 8192 + 4096 * 100;
+pub(crate) const DEFAULT_MAX_BUFFER_SIZE: usize = 8192 * 1024;
 
 /// The maximum number of distinct `Buf`s to hold in a list before requiring
 /// a flush. Only affects when the buffer strategy is to queue buffers.
@@ -31,6 +31,7 @@ const MAX_BUF_LIST_BUFFERS: usize = 16;
 pub struct Buffered<T, B> {
     flush_pipeline: bool,
     io: T,
+    read_chunk_size: usize,
     max_buf_size: usize,
     read_blocked: bool,
     read_buf: BytesMut,
@@ -59,6 +60,7 @@ where
             flush_pipeline: false,
             io: io,
             max_buf_size: DEFAULT_MAX_BUFFER_SIZE,
+            read_chunk_size: INIT_BUFFER_SIZE,
             read_buf: BytesMut::with_capacity(0),
             write_buf: WriteBuf::new(),
             read_blocked: false,
@@ -80,6 +82,14 @@ where
         );
         self.max_buf_size = max;
         self.write_buf.max_buf_size = max;
+    }
+    
+    pub fn set_read_chunk_size(&mut self, sz: usize) {
+        assert!(
+            sz <= self.max_buf_size,
+            "The read_chunk_size cannot be larger than the max buffer size."
+        );
+        self.read_chunk_size = sz;
     }
 
     pub fn set_write_strategy_flatten(&mut self) {
@@ -160,8 +170,8 @@ where
     pub fn read_from_io(&mut self) -> Poll<usize, io::Error> {
         use bytes::BufMut;
         self.read_blocked = false;
-        if self.read_buf.remaining_mut() < INIT_BUFFER_SIZE {
-            self.read_buf.reserve(INIT_BUFFER_SIZE);
+        if self.read_buf.remaining_mut() < self.read_chunk_size {
+            self.read_buf.reserve(self.read_chunk_size);
         }
         self.io.read_buf(&mut self.read_buf).map(|ok| {
             match ok {

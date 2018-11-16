@@ -110,6 +110,7 @@ pub struct Client<C, B = Body> {
     h1_writev: bool,
     h1_title_case_headers: bool,
     pool: Pool<PoolClient<B>>,
+    read_chunk_size: Option<usize>,
     retry_canceled_requests: bool,
     set_host: bool,
     ver: Ver,
@@ -461,6 +462,7 @@ where C: Connect + Sync + 'static,
         let h1_writev = self.h1_writev;
         let h1_title_case_headers = self.h1_title_case_headers;
         let ver = self.ver;
+        let chunk_sz = self.read_chunk_size;
         let is_ver_h2 = self.ver == Ver::Http2;
         let connector = self.connector.clone();
         let dst = Destination {
@@ -506,6 +508,7 @@ where C: Connect + Sync + 'static,
                         .exec(executor.clone())
                         .h1_writev(h1_writev)
                         .h1_title_case_headers(h1_title_case_headers)
+                        .set_read_chunk_size(chunk_sz)
                         .http2_only(is_h2)
                         .handshake(io)
                         .and_then(move |(tx, conn)| {
@@ -545,6 +548,7 @@ impl<C, B> Clone for Client<C, B> {
             connector: self.connector.clone(),
             executor: self.executor.clone(),
             h1_writev: self.h1_writev,
+            read_chunk_size: self.read_chunk_size,
             h1_title_case_headers: self.h1_title_case_headers,
             pool: self.pool.clone(),
             retry_canceled_requests: self.retry_canceled_requests,
@@ -791,6 +795,7 @@ pub struct Builder {
     keep_alive_timeout: Option<Duration>,
     h1_writev: bool,
     h1_title_case_headers: bool,
+    read_chunk_size: Option<usize>,
     max_idle_per_host: usize,
     retry_canceled_requests: bool,
     set_host: bool,
@@ -805,6 +810,7 @@ impl Default for Builder {
             keep_alive_timeout: Some(Duration::from_secs(90)),
             h1_writev: true,
             h1_title_case_headers: false,
+            read_chunk_size: None,
             max_idle_per_host: ::std::usize::MAX,
             retry_canceled_requests: true,
             set_host: true,
@@ -848,6 +854,17 @@ impl Builder {
     #[inline]
     pub fn http1_writev(&mut self, val: bool) -> &mut Self {
         self.h1_writev = val;
+        self
+    }
+
+    /// Sets the default amount that the client will attempt to read
+    /// when consuming data from the io socket. 
+    ///
+    /// Default is 64kb
+    ///
+    #[inline]
+    pub fn read_chunk_size(&mut self, sz: usize) -> &mut Self {
+        self.read_chunk_size = Some(sz);
         self
     }
 
@@ -950,6 +967,7 @@ impl Builder {
             executor: self.exec.clone(),
             h1_writev: self.h1_writev,
             h1_title_case_headers: self.h1_title_case_headers,
+            read_chunk_size: self.read_chunk_size,
             pool: Pool::new(
                 pool::Enabled(self.keep_alive),
                 pool::IdleTimeout(self.keep_alive_timeout),
@@ -972,6 +990,7 @@ impl fmt::Debug for Builder {
             .field("max_idle_per_host", &self.max_idle_per_host)
             .field("set_host", &self.set_host)
             .field("version", &self.ver)
+            .field("read_chunk_size", &self.read_chunk_size)
             .finish()
     }
 }
