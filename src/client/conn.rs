@@ -510,7 +510,6 @@ where
             if self.builder.h1_title_case_headers {
                 conn.set_title_case_headers();
             }
-            println!("Creating connection where chunk size is {:?}", self.builder.read_chunk_size);
             self.builder.read_chunk_size.map(|sz| conn.set_read_chunk_size(sz));
             let cd = proto::h1::dispatch::Client::new(rx);
             let dispatch = proto::h1::Dispatcher::new(cd, conn);
