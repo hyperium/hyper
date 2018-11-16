@@ -74,6 +74,7 @@ pub struct Builder {
     exec: Exec,
     h1_writev: bool,
     h1_title_case_headers: bool,
+    h1_read_buf_exact_size: Option<usize>,
     http2: bool,
 }
 
@@ -432,6 +433,7 @@ impl Builder {
         Builder {
             exec: Exec::Default,
             h1_writev: true,
+            h1_read_buf_exact_size: None,
             h1_title_case_headers: false,
             http2: false,
         }
@@ -461,6 +463,10 @@ impl Builder {
         self
     }
 
+    pub(super) fn h1_read_buf_exact_size(&mut self, sz: Option<usize>) -> &mut Builder {
+        self.h1_read_buf_exact_size = sz;
+        self
+    }
     /// Sets whether HTTP2 is required.
     ///
     /// Default is false.
@@ -505,6 +511,9 @@ where
             }
             if self.builder.h1_title_case_headers {
                 conn.set_title_case_headers();
+            }
+            if let Some(sz) = self.builder.h1_read_buf_exact_size {
+                conn.set_read_buf_exact_size(sz);
             }
             let cd = proto::h1::dispatch::Client::new(rx);
             let dispatch = proto::h1::Dispatcher::new(cd, conn);

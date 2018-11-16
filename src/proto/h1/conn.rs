@@ -63,6 +63,10 @@ where I: AsyncRead + AsyncWrite,
         self.io.set_max_buf_size(max);
     }
 
+    pub fn set_read_buf_exact_size(&mut self, sz: usize) {
+        self.io.set_read_buf_exact_size(sz);
+    }
+
     pub fn set_write_strategy_flatten(&mut self) {
         self.io.set_write_strategy_flatten();
     }

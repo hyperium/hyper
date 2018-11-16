@@ -110,6 +110,7 @@ pub struct Client<C, B = Body> {
     h1_writev: bool,
     h1_title_case_headers: bool,
     pool: Pool<PoolClient<B>>,
+    h1_read_buf_exact_size: Option<usize>,
     retry_canceled_requests: bool,
     set_host: bool,
     ver: Ver,
@@ -460,6 +461,7 @@ where C: Connect + Sync + 'static,
         let pool = self.pool.clone();
         let h1_writev = self.h1_writev;
         let h1_title_case_headers = self.h1_title_case_headers;
+        let h1_read_buf_exact_size = self.h1_read_buf_exact_size;
         let ver = self.ver;
         let is_ver_h2 = self.ver == Ver::Http2;
         let connector = self.connector.clone();
@@ -506,6 +508,7 @@ where C: Connect + Sync + 'static,
                         .exec(executor.clone())
                         .h1_writev(h1_writev)
                         .h1_title_case_headers(h1_title_case_headers)
+                        .h1_read_buf_exact_size(h1_read_buf_exact_size)
                         .http2_only(is_h2)
                         .handshake(io)
                         .and_then(move |(tx, conn)| {
@@ -545,6 +548,7 @@ impl<C, B> Clone for Client<C, B> {
             connector: self.connector.clone(),
             executor: self.executor.clone(),
             h1_writev: self.h1_writev,
+            h1_read_buf_exact_size: self.h1_read_buf_exact_size,
             h1_title_case_headers: self.h1_title_case_headers,
             pool: self.pool.clone(),
             retry_canceled_requests: self.retry_canceled_requests,
@@ -791,6 +795,7 @@ pub struct Builder {
     keep_alive_timeout: Option<Duration>,
     h1_writev: bool,
     h1_title_case_headers: bool,
+    h1_read_buf_exact_size: Option<usize>,
     max_idle_per_host: usize,
     retry_canceled_requests: bool,
     set_host: bool,
@@ -805,6 +810,7 @@ impl Default for Builder {
             keep_alive_timeout: Some(Duration::from_secs(90)),
             h1_writev: true,
             h1_title_case_headers: false,
+            h1_read_buf_exact_size: None,
             max_idle_per_host: ::std::usize::MAX,
             retry_canceled_requests: true,
             set_host: true,
@@ -848,6 +854,15 @@ impl Builder {
     #[inline]
     pub fn http1_writev(&mut self, val: bool) -> &mut Self {
         self.h1_writev = val;
+        self
+    }
+
+    /// Sets the exact size of the read buffer to *always* use.
+    ///
+    /// Default is an adaptive read buffer.
+    #[inline]
+    pub fn http1_read_buf_exact_size(&mut self, sz: usize) -> &mut Self {
+        self.h1_read_buf_exact_size = Some(sz);
         self
     }
 
@@ -950,6 +965,7 @@ impl Builder {
             executor: self.exec.clone(),
             h1_writev: self.h1_writev,
             h1_title_case_headers: self.h1_title_case_headers,
+            h1_read_buf_exact_size: self.h1_read_buf_exact_size,
             pool: Pool::new(
                 pool::Enabled(self.keep_alive),
                 pool::IdleTimeout(self.keep_alive_timeout),
@@ -968,6 +984,7 @@ impl fmt::Debug for Builder {
         f.debug_struct("Builder")
             .field("keep_alive", &self.keep_alive)
             .field("keep_alive_timeout", &self.keep_alive_timeout)
+            .field("http1_read_buf_exact_size", &self.h1_read_buf_exact_size)
             .field("http1_writev", &self.h1_writev)
             .field("max_idle_per_host", &self.max_idle_per_host)
             .field("set_host", &self.set_host)
