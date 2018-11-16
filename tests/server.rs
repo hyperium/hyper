@@ -1373,7 +1373,7 @@ fn max_buf_size_panic_too_small() {
 }
 #[test]
 fn max_buf_size_no_panic() {
-    const MAX: usize = 8193;
+    const MAX: usize = 1024 * 64 + 1;
     Http::new().max_buf_size(MAX);
 }
 
@@ -1384,7 +1384,7 @@ fn max_buf_size() {
     let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
-    const MAX: usize = 16_000;
+    const MAX: usize = 1024 * 64;
 
     thread::spawn(move || {
         let mut tcp = connect(&addr);
