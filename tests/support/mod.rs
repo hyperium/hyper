@@ -375,7 +375,6 @@ pub fn __run_test(cfg: __TestConfig) {
                 cnt
             );
             let fut = connecting
-                .map_err(|never| -> hyper::Error { match never {} })
                 .flatten()
                 .map_err(|e| panic!("server connection error: {}", e));
             ::tokio::spawn(fut);

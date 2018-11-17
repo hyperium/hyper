@@ -131,6 +131,10 @@ name = "upgrades"
 path = "examples/upgrades.rs"
 required-features = ["runtime"]
 
+[[example]]
+name = "custom_acceptor"
+path = "examples/custom_acceptor.rs"
+required-features = ["runtime"]
 
 [[example]]
 name = "web_api"

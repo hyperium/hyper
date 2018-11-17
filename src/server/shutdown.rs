@@ -5,24 +5,25 @@ use body::{Body, Payload};
 use common::drain::{self, Draining, Signal, Watch, Watching};
 use common::exec::{H2Exec, NewSvcExec};
 use service::Service;
+use super::acceptor::Acceptor;
 use super::conn::{MakeServiceRef, SpawnAll, UpgradeableConnection, Watcher};
 
 #[allow(missing_debug_implementations)]
-pub struct Graceful<I, S, F, E> {
-    state: State<I, S, F, E>,
+pub struct Graceful<I, S, F, E, A> {
+    state: State<I, S, F, E, A>,
 }
 
-enum State<I, S, F, E> {
+enum State<I, S, F, E, A> {
     Running {
         drain: Option<(Signal, Watch)>,
-        spawn_all: SpawnAll<I, S, E>,
+        spawn_all: SpawnAll<I, S, E, A>,
         signal: F,
     },
     Draining(Draining),
 }
 
-impl<I, S, F, E> Graceful<I, S, F, E> {
-    pub(super) fn new(spawn_all: SpawnAll<I, S, E>, signal: F) -> Self {
+impl<I, S, F, E, A> Graceful<I, S, F, E, A> {
+    pub(super) fn new(spawn_all: SpawnAll<I, S, E, A>, signal: F) -> Self {
         let drain = Some(drain::channel());
         Graceful {
             state: State::Running {
@@ -35,18 +36,20 @@ impl<I, S, F, E> Graceful<I, S, F, E> {
 }
 
 
-impl<I, S, B, F, E> Future for Graceful<I, S, F, E>
+impl<I, S, B, F, E, A> Future for Graceful<I, S, F, E, A>
 where
     I: Stream,
     I::Error: Into<Box<::std::error::Error + Send + Sync>>,
     I::Item: AsyncRead + AsyncWrite + Send + 'static,
+    A: Acceptor<I::Item>,
+    A::Item: Send + 'static,
     S: MakeServiceRef<I::Item, ReqBody=Body, ResBody=B>,
     S::Service: 'static,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
     B: Payload,
     F: Future<Item=()>,
     E: H2Exec<<S::Service as Service>::Future, B>,
-    E: NewSvcExec<I::Item, S::Future, S::Service, E, GracefulWatcher>,
+    E: NewSvcExec<A::Accept, S::Future, S::Service, E, GracefulWatcher>,
 {
     type Item = ();
     type Error = ::Error;

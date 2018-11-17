@@ -12,7 +12,7 @@ pub trait H2Exec<F, B: Payload>: Clone {
     fn execute_h2stream(&self, fut: H2Stream<F, B>) -> ::Result<()>;
 }
 
-pub trait NewSvcExec<I, N, S: Service, E, W: Watcher<I, S, E>>: Clone {
+pub trait NewSvcExec<I: Future, N: Future<Item=S>, S: Service, E, W: Watcher<I::Item, S, E>>: Clone {
     fn execute_new_svc(&self, fut: NewSvcTask<I, N, S, E, W>) -> ::Result<()>;
 }
 
@@ -102,9 +102,11 @@ where
 
 impl<I, N, S, E, W> NewSvcExec<I, N, S, E, W> for Exec
 where
+    I: Future,
+    N: Future<Item = S>,
     NewSvcTask<I, N, S, E, W>: Future<Item=(), Error=()> + Send + 'static,
     S: Service,
-    W: Watcher<I, S, E>,
+    W: Watcher<I::Item, S, E>,
 {
     fn execute_new_svc(&self, fut: NewSvcTask<I, N, S, E, W>) -> ::Result<()> {
         self.execute(fut)
@@ -130,10 +132,12 @@ where
 
 impl<I, N, S, E, W> NewSvcExec<I, N, S, E, W> for E
 where
+    I: Future,
+    N: Future<Item = S>,
     E: Executor<NewSvcTask<I, N, S, E, W>> + Clone,
     NewSvcTask<I, N, S, E, W>: Future<Item=(), Error=()>,
     S: Service,
-    W: Watcher<I, S, E>,
+    W: Watcher<I::Item, S, E>,
 {
     fn execute_new_svc(&self, fut: NewSvcTask<I, N, S, E, W>) -> ::Result<()> {
         self.execute(fut)

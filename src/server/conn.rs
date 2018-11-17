@@ -29,6 +29,8 @@ use service::Service;
 use upgrade::Upgraded;
 
 pub(super) use self::make_service::MakeServiceRef;
+use super::acceptor::{Acceptor, Raw};
+
 pub(super) use self::spawn_all::NoopWatcher;
 use self::spawn_all::NewSvcTask;
 pub(super) use self::spawn_all::Watcher;
@@ -69,10 +71,11 @@ enum ConnectionMode {
 /// Yields `Connecting`s that are futures that should be put on a reactor.
 #[must_use = "streams do nothing unless polled"]
 #[derive(Debug)]
-pub struct Serve<I, S, E = Exec> {
+pub struct Serve<I, S, E = Exec, A = Raw> {
     incoming: I,
     make_service: S,
     protocol: Http<E>,
+    acceptor: A,
 }
 
 /// A future building a new `Service` to a `Connection`.
@@ -80,17 +83,33 @@ pub struct Serve<I, S, E = Exec> {
 /// Wraps the future returned from `MakeService` into one that returns
 /// a `Connection`.
 #[must_use = "futures do nothing unless polled"]
-#[derive(Debug)]
-pub struct Connecting<I, F, E = Exec> {
-    future: F,
-    io: Option<I>,
+pub struct Connecting<I: Future, F: Future, E = Exec> {
+    future: MaybeDone<F>,
+    io: MaybeDone<I>,
     protocol: Http<E>,
+}
+
+impl<I, F, E> fmt::Debug for Connecting<I, F, E>
+where
+    I: Future + fmt::Debug,
+    F: Future + fmt::Debug,
+    I::Item: fmt::Debug,
+    F::Item: fmt::Debug,
+    E: fmt::Debug,
+{
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.debug_struct("Connecting")
+            .field("future", &self.future)
+            .field("io", &self.io)
+            .field("protocol", &self.protocol)
+            .finish()
+    }
 }
 
 #[must_use = "futures do nothing unless polled"]
 #[derive(Debug)]
-pub(super) struct SpawnAll<I, S, E> {
-    pub(super) serve: Serve<I, S, E>,
+pub(super) struct SpawnAll<I, S, E, A> {
+    pub(super) serve: Serve<I, S, E, A>,
 }
 
 /// A future binding a connection with a Service.
@@ -431,10 +450,29 @@ impl<E> Http<E> {
         Bd: Payload,
         E: H2Exec<<S::Service as Service>::Future, Bd>,
     {
+        self.serve_incoming_with_acceptor(incoming, make_service, Raw::new())
+    }
+
+    /// Bind the provided stream of incoming IO objects with a `NewService`.
+    pub fn serve_incoming_with_acceptor<I, S, A, Bd>(&self, incoming: I, make_service: S, acceptor: A) -> Serve<I, S, E, A>
+    where
+        I: Stream,
+        I::Error: Into<Box<::std::error::Error + Send + Sync>>,
+        A: Acceptor<I::Item>,
+        S: MakeServiceRef<
+            I::Item,
+            ReqBody=Body,
+            ResBody=Bd,
+        >,
+        S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+        Bd: Payload,
+        E: H2Exec<<S::Service as Service>::Future, Bd>,
+    {
         Serve {
             incoming,
             make_service,
             protocol: self.clone(),
+            acceptor,
         }
     }
 }
@@ -611,9 +649,9 @@ where
 }
 // ===== impl Serve =====
 
-impl<I, S, E> Serve<I, S, E> {
+impl<I, S, E, A> Serve<I, S, E, A> {
     /// Spawn all incoming connections onto the executor in `Http`.
-    pub(super) fn spawn_all(self) -> SpawnAll<I, S, E> {
+    pub(super) fn spawn_all(self) -> SpawnAll<I, S, E, A> {
         SpawnAll {
             serve: self,
         }
@@ -630,28 +668,42 @@ impl<I, S, E> Serve<I, S, E> {
     pub fn incoming_mut(&mut self) -> &mut I {
         &mut self.incoming
     }
+
+    /// Get a reference to the acceptor.
+    #[inline]
+    pub fn acceptor_ref(&self) -> &A {
+        &self.acceptor
+    }
+
+    /// Get a mutable reference to the acceptor.
+    #[inline]
+    pub fn acceptor_mut(&mut self) -> &mut A {
+        &mut self.acceptor
+    }
 }
 
-impl<I, S, B, E> Stream for Serve<I, S, E>
+impl<I, S, B, E, A> Stream for Serve<I, S, E, A>
 where
     I: Stream,
-    I::Item: AsyncRead + AsyncWrite,
     I::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    A: Acceptor<I::Item>,
     S: MakeServiceRef<I::Item, ReqBody=Body, ResBody=B>,
+    S::Error: Into<Box<::std::error::Error + Send + Sync>>,
     //S::Error2: Into<Box<::std::error::Error + Send + Sync>>,
     //SME: Into<Box<::std::error::Error + Send + Sync>>,
     B: Payload,
     E: H2Exec<<S::Service as Service>::Future, B>,
 {
-    type Item = Connecting<I::Item, S::Future, E>;
+    type Item = Connecting<A::Accept, S::Future, E>;
     type Error = ::Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         if let Some(io) = try_ready!(self.incoming.poll().map_err(::Error::new_accept)) {
             let new_fut = self.make_service.make_service_ref(&io);
+            let accept = self.acceptor.accept(io);
             Ok(Async::Ready(Some(Connecting {
-                future: new_fut,
-                io: Some(io),
+                future: MaybeDone::Pending(new_fut),
+                io: MaybeDone::Pending(accept),
                 protocol: self.protocol.clone(),
             })))
         } else {
@@ -664,18 +716,23 @@ where
 
 impl<I, F, E, S, B> Future for Connecting<I, F, E>
 where
-    I: AsyncRead + AsyncWrite,
+    I: Future,
+    I::Item: AsyncRead + AsyncWrite,
+    I::Error: Into<Box<::std::error::Error + Send + Sync + 'static>>,
     F: Future<Item=S>,
+    F::Error: Into<Box<::std::error::Error + Send + Sync + 'static>>,
     S: Service<ReqBody=Body, ResBody=B>,
     B: Payload,
     E: H2Exec<S::Future, B>,
 {
-    type Item = Connection<I, S, E>;
-    type Error = F::Error;
+    type Item = Connection<I::Item, S, E>;
+    type Error = ::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        let service = try_ready!(self.future.poll());
-        let io = self.io.take().expect("polled after complete");
+        try_ready!(self.future.poll_ready().map_err(::Error::new_user_new_service));
+        try_ready!(self.io.poll_ready().map_err(::Error::new_accept));
+        let service = self.future.take_item().expect("polled after complete");
+        let io = self.io.take_item().expect("polled after complete");
         Ok(self.protocol.serve_connection(io, service).into())
     }
 }
@@ -683,35 +740,37 @@ where
 // ===== impl SpawnAll =====
 
 #[cfg(feature = "runtime")]
-impl<S, E> SpawnAll<AddrIncoming, S, E> {
+impl<S, E, A> SpawnAll<AddrIncoming, S, E, A> {
     pub(super) fn local_addr(&self) -> SocketAddr {
         self.serve.incoming.local_addr()
     }
 }
 
-impl<I, S, E> SpawnAll<I, S, E> {
+impl<I, S, E, A> SpawnAll<I, S, E, A> {
     pub(super) fn incoming_ref(&self) -> &I {
         self.serve.incoming_ref()
     }
 }
 
-impl<I, S, B, E> SpawnAll<I, S, E>
+impl<I, S, B, E, A> SpawnAll<I, S, E, A>
 where
     I: Stream,
     I::Error: Into<Box<::std::error::Error + Send + Sync>>,
-    I::Item: AsyncRead + AsyncWrite + Send + 'static,
+    A: Acceptor<I::Item>,
+    A::Item: Send + 'static,
     S: MakeServiceRef<
         I::Item,
         ReqBody=Body,
         ResBody=B,
     >,
+    S::Error: Into<Box<::std::error::Error + Send + Sync>>,
     B: Payload,
     E: H2Exec<<S::Service as Service>::Future, B>,
 {
     pub(super) fn poll_watch<W>(&mut self, watcher: &W) -> Poll<(), ::Error>
     where
-        E: NewSvcExec<I::Item, S::Future, S::Service, E, W>,
-        W: Watcher<I::Item, S::Service, E>,
+        E: NewSvcExec<A::Accept, S::Future, S::Service, E, W>,
+        W: Watcher<A::Item, S::Service, E>,
     {
         loop {
             if let Some(connecting) = try_ready!(self.serve.poll()) {
@@ -774,16 +833,16 @@ pub(crate) mod spawn_all {
     // Users cannot import this type, nor the associated `NewSvcExec`. Instead,
     // a blanket implementation for `Executor<impl Future>` is sufficient.
     #[allow(missing_debug_implementations)]
-    pub struct NewSvcTask<I, N, S: Service, E, W: Watcher<I, S, E>> {
+    pub struct NewSvcTask<I: Future, N: Future<Item = S>, S: Service, E, W: Watcher<I::Item, S, E>> {
         state: State<I, N, S, E, W>,
     }
 
-    enum State<I, N, S: Service, E, W: Watcher<I, S, E>> {
+    enum State<I: Future, N: Future<Item = S>, S: Service, E, W: Watcher<I::Item, S, E>> {
         Connecting(Connecting<I, N, E>, W),
         Connected(W::Future),
     }
 
-    impl<I, N, S: Service, E, W: Watcher<I, S, E>> NewSvcTask<I, N, S, E, W> {
+    impl<I: Future, N: Future<Item = S>, S: Service, E, W: Watcher<I::Item, S, E>> NewSvcTask<I, N, S, E, W> {
         pub(super) fn new(connecting: Connecting<I, N, E>, watcher: W) -> Self {
             NewSvcTask {
                 state: State::Connecting(connecting, watcher),
@@ -793,13 +852,15 @@ pub(crate) mod spawn_all {
 
     impl<I, N, S, B, E, W> Future for NewSvcTask<I, N, S, E, W>
     where
-        I: AsyncRead + AsyncWrite + Send + 'static,
+        I: Future,
+        I::Item: AsyncRead + AsyncWrite + Send + 'static,
+        I::Error: Into<Box<::std::error::Error + Send + Sync>>,
         N: Future<Item=S>,
         N::Error: Into<Box<::std::error::Error + Send + Sync>>,
         S: Service<ReqBody=Body, ResBody=B>,
         B: Payload,
         E: H2Exec<S::Future, B>,
-        W: Watcher<I, S, E>,
+        W: Watcher<I::Item, S, E>,
     {
         type Item = ();
         type Error = ();
@@ -811,8 +872,7 @@ pub(crate) mod spawn_all {
                         let conn = try_ready!(connecting
                             .poll()
                             .map_err(|err| {
-                                let err = ::Error::new_user_new_service(err);
-                                debug!("connection error: {}", err);
+                                debug!("connecting error: {}", err);
                             }));
                         let connected = watcher.watch(conn.with_upgrades());
                         State::Connected(connected)
@@ -941,6 +1001,36 @@ pub(crate) mod make_service {
 
         fn make_service_ref(&mut self, ctx: &Ctx) -> Self::Future {
             self.make_service(ctx)
+        }
+    }
+}
+
+#[derive(Debug)]
+enum MaybeDone<F: Future> {
+    Ready(F::Item),
+    Pending(F),
+    Gone,
+}
+
+impl<F: Future> MaybeDone<F> {
+    fn poll_ready(&mut self) -> Poll<(), F::Error> {
+        let async_ = match self {
+            MaybeDone::Ready(..) => return Ok(Async::Ready(())),
+            MaybeDone::Pending(ref mut future) => future.poll()?,
+            MaybeDone::Gone => panic!("polled after completed"),
+        };
+        if let Async::Ready(item) = async_ {
+            *self = MaybeDone::Ready(item);
+            Ok(Async::Ready(()))
+        } else {
+            Ok(Async::NotReady)
+        }
+    }
+
+    fn take_item(&mut self) -> Option<F::Item> {
+        match mem::replace(self, MaybeDone::Gone) {
+            MaybeDone::Ready(item) => Some(item),
+            _ => None,
         }
     }
 }

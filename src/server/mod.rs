@@ -50,6 +50,7 @@
 //! # fn main() {}
 //! ```
 
+mod acceptor;
 pub mod conn;
 mod shutdown;
 #[cfg(feature = "runtime")] mod tcp;
@@ -66,6 +67,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use body::{Body, Payload};
 use common::exec::{Exec, H2Exec, NewSvcExec};
 use service::Service;
+use self::acceptor::{Acceptor, Raw};
 // Renamed `Http` as `Http_` for now so that people upgrading don't see an
 // error that `hyper::server::Http` is private...
 use self::conn::{Http as Http_, MakeServiceRef, NoopWatcher, SpawnAll};
@@ -78,15 +80,16 @@ use self::shutdown::{Graceful, GracefulWatcher};
 /// handlers. It is built using the [`Builder`](Builder), and the future
 /// completes when the server has been shutdown. It should be run by an
 /// `Executor`.
-pub struct Server<I, S, E = Exec> {
-    spawn_all: SpawnAll<I, S, E>,
+pub struct Server<I, S, E = Exec, A = Raw> {
+    spawn_all: SpawnAll<I, S, E, A>,
 }
 
 /// A builder for a [`Server`](Server).
 #[derive(Debug)]
-pub struct Builder<I, E = Exec> {
+pub struct Builder<I, E = Exec, A = Raw> {
     incoming: I,
     protocol: Http_<E>,
+    acceptor: A,
 }
 
 // ===== impl Server =====
@@ -97,6 +100,7 @@ impl<I> Server<I, ()> {
         Builder {
             incoming,
             protocol: Http_::new(),
+            acceptor: Raw::new(),
         }
     }
 }
@@ -139,17 +143,19 @@ impl<S> Server<AddrIncoming, S> {
     }
 }
 
-impl<I, S, E, B> Server<I, S, E>
+impl<I, S, E, B, A> Server<I, S, E, A>
 where
     I: Stream,
     I::Error: Into<Box<::std::error::Error + Send + Sync>>,
     I::Item: AsyncRead + AsyncWrite + Send + 'static,
+    A: Acceptor<I::Item>,
+    A::Item: Send + 'static,
     S: MakeServiceRef<I::Item, ReqBody=Body, ResBody=B>,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
     S::Service: 'static,
     B: Payload,
     E: H2Exec<<S::Service as Service>::Future, B>,
-    E: NewSvcExec<I::Item, S::Future, S::Service, E, GracefulWatcher>,
+    E: NewSvcExec<A::Accept, S::Future, S::Service, E, GracefulWatcher>,
 {
     /// Prepares a server to handle graceful shutdown when the provided future
     /// completes.
@@ -190,7 +196,7 @@ where
     /// let _ = tx.send(());
     /// # }
     /// ```
-    pub fn with_graceful_shutdown<F>(self, signal: F) -> Graceful<I, S, F, E>
+    pub fn with_graceful_shutdown<F>(self, signal: F) -> Graceful<I, S, F, E, A>
     where
         F: Future<Item=()>
     {
@@ -198,17 +204,18 @@ where
     }
 }
 
-impl<I, S, B, E> Future for Server<I, S, E>
+impl<I, S, B, E, A> Future for Server<I, S, E, A>
 where
     I: Stream,
     I::Error: Into<Box<::std::error::Error + Send + Sync>>,
-    I::Item: AsyncRead + AsyncWrite + Send + 'static,
+    A: Acceptor<I::Item>,
+    A::Item: Send + 'static,
     S: MakeServiceRef<I::Item, ReqBody=Body, ResBody=B>,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
     S::Service: 'static,
     B: Payload,
     E: H2Exec<<S::Service as Service>::Future, B>,
-    E: NewSvcExec<I::Item, S::Future, S::Service, E, NoopWatcher>,
+    E: NewSvcExec<A::Accept, S::Future, S::Service, E, NoopWatcher>,
 {
     type Item = ();
     type Error = ::Error;
@@ -233,9 +240,19 @@ impl<I, E> Builder<I, E> {
     ///
     /// For a more convenient constructor, see [`Server::bind`](Server::bind).
     pub fn new(incoming: I, protocol: Http_<E>) -> Self {
+        Builder::new_with_acceptor(incoming, protocol, Raw::new())
+    }
+}
+
+impl<I, E, A> Builder<I, E, A> {
+    /// Start a new builder, wrapping an incoming stream and low-level options.
+    ///
+    /// For a more convenient constructor, see [`Server::bind`](Server::bind).
+    pub fn new_with_acceptor(incoming: I, protocol: Http_<E>, acceptor: A) -> Self {
         Builder {
             incoming,
             protocol,
+            acceptor,
         }
     }
 
@@ -305,10 +322,20 @@ impl<I, E> Builder<I, E> {
     /// Sets the `Executor` to deal with connection tasks.
     ///
     /// Default is `tokio::spawn`.
-    pub fn executor<E2>(self, executor: E2) -> Builder<I, E2> {
+    pub fn executor<E2>(self, executor: E2) -> Builder<I, E2, A> {
         Builder {
             incoming: self.incoming,
             protocol: self.protocol.with_executor(executor),
+            acceptor: self.acceptor,
+        }
+    }
+
+    /// Sets the `Acceptor` to converts the incoming I/O.
+    pub fn acceptor<A2>(self, acceptor: A2) -> Builder<I, E, A2> {
+        Builder {
+            incoming: self.incoming,
+            protocol: self.protocol,
+            acceptor,
         }
     }
 
@@ -341,19 +368,20 @@ impl<I, E> Builder<I, E> {
     /// // Finally, spawn `server` onto an Executor...
     /// # }
     /// ```
-    pub fn serve<S, B>(self, new_service: S) -> Server<I, S, E>
+    pub fn serve<S, B>(self, new_service: S) -> Server<I, S, E, A>
     where
         I: Stream,
         I::Error: Into<Box<::std::error::Error + Send + Sync>>,
-        I::Item: AsyncRead + AsyncWrite + Send + 'static,
+        A: Acceptor<I::Item>,
+        A::Item: Send + 'static,
         S: MakeServiceRef<I::Item, ReqBody=Body, ResBody=B>,
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
         S::Service: 'static,
         B: Payload,
-        E: NewSvcExec<I::Item, S::Future, S::Service, E, NoopWatcher>,
+        E: NewSvcExec<A::Accept, S::Future, S::Service, E, NoopWatcher>,
         E: H2Exec<<S::Service as Service>::Future, B>,
     {
-        let serve = self.protocol.serve_incoming(self.incoming, new_service);
+        let serve = self.protocol.serve_incoming_with_acceptor(self.incoming, new_service, self.acceptor);
         let spawn_all = serve.spawn_all();
         Server {
             spawn_all,
