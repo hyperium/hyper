@@ -1,3 +1,12 @@
+### v0.12.15 (2018-11-20)
+
+
+#### Features
+
+* **client:** add client::conn::Builder::executor method ([95446cc3](https://github.com/hyperium/hyper/commit/95446cc338f8055539dd3503c482d649f42a531c))
+* **server:** change `NewService` to `MakeService` with connection context ([30870029](https://github.com/hyperium/hyper/commit/30870029b9eb162f566d8dddd007fb6df9cd69af), closes [#1650](https://github.com/hyperium/hyper/issues/1650))
+
+
 ### v0.12.14 (2018-11-07)
 
 
