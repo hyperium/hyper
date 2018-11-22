@@ -1,3 +1,16 @@
+### v0.12.16 (2018-11-21)
+
+
+#### Bug Fixes
+
+* **client:** fix connection leak when Response finishes before Request body ([e455fa24](https://github.com/hyperium/hyper/commit/e455fa2452cf45d66de6b4c3dc567e2b5d2368a4), closes [#1717](https://github.com/hyperium/hyper/issues/1717))
+
+
+#### Features
+
+* **client:** add `http1_read_buf_exact_size` Builder option ([2e7250b6](https://github.com/hyperium/hyper/commit/2e7250b6698407b97961b8fcae78696e94d6ea57))
+
+
 ### v0.12.15 (2018-11-20)
 
 
