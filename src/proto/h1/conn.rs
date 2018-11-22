@@ -794,7 +794,7 @@ impl State {
         match (&self.reading, &self.writing) {
             (&Reading::KeepAlive, &Writing::KeepAlive) => {
                 if let KA::Busy = self.keep_alive.status() {
-                    self.idle();
+                    self.idle::<T>();
                 } else {
                     trace!("try_keep_alive({}): could keep-alive, but status = {:?}", T::LOG, self.keep_alive);
                     self.close();
@@ -819,12 +819,23 @@ impl State {
         self.keep_alive.busy();
     }
 
-    fn idle(&mut self) {
+    fn idle<T: Http1Transaction>(&mut self) {
+        debug_assert!(!self.is_idle(), "State::idle() called while idle");
+
         self.method = None;
         self.keep_alive.idle();
         if self.is_idle() {
             self.reading = Reading::Init;
             self.writing = Writing::Init;
+
+            // !T::should_read_first() means Client.
+            //
+            // If Client connection has just gone idle, the Dispatcher
+            // should try the poll loop one more time, so as to poll the
+            // pending requests stream.
+            if !T::should_read_first() {
+                self.notify_read = true;
+            }
         } else {
             self.close();
         }
