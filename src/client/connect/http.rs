@@ -234,8 +234,8 @@ where
             Some(s) => s,
             None => return invalid_url(InvalidUrl::MissingAuthority, &self.handle),
         };
-        let port = match dst.uri.port() {
-            Some(port) => port,
+        let port = match dst.uri.port_part() {
+            Some(port) => port.as_u16(),
             None => if dst.uri.scheme_part() == Some(&Scheme::HTTPS) { 443 } else { 80 },
         };
 
