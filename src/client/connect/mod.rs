@@ -80,13 +80,7 @@ impl Destination {
     #[inline]
     pub fn port(&self) -> Option<u16> {
          match self.uri.port_part() {
-            Some(port) => {
-                let string_port = port.as_str();
-                match string_port.parse::<u16>() {
-                    Ok(p) => Some(p),
-                    Err(_err) => None
-                }
-            },
+            Some(port) => Some(port.as_u16()),
             None => None
         }
     }
