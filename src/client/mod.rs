@@ -212,8 +212,9 @@ where C: Connect + Sync + 'static,
                 format!("{}://{}", scheme, auth)
             }
             (None, Some(auth)) if is_http_connect => {
-                let scheme = match auth.port() {
-                    Some(443) => {
+                let port = auth.port_part().unwrap();
+                let scheme = match port.as_str() {
+                    "443" => {
                         set_scheme(req.uri_mut(), Scheme::HTTPS);
                         "https"
                     },
@@ -278,7 +279,7 @@ where C: Connect + Sync + 'static,
                         .expect("HOST is always valid header name")
                         .or_insert_with(|| {
                             let hostname = uri.host().expect("authority implies host");
-                            if let Some(port) = uri.port() {
+                            if let Some(port) = uri.port_part() {
                                 let s = format!("{}:{}", hostname, port);
                                 HeaderValue::from_str(&s)
                             } else {
