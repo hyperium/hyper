@@ -378,5 +378,25 @@ impl<E> Builder<AddrIncoming, E> {
         self.incoming.set_nodelay(enabled);
         self
     }
+
+    /// Set whether to sleep on accept errors.
+    ///
+    /// A possible scenario is that the process has hit the max open files
+    /// allowed, and so trying to accept a new connection will fail with
+    /// EMFILE. In some cases, it's preferable to just wait for some time, if
+    /// the application will likely close some files (or connections), and try
+    /// to accept the connection again. If this option is true, the error will
+    /// be logged at the error level, since it is still a big deal, and then
+    /// the listener will sleep for 1 second.
+    ///
+    /// In other cases, hitting the max open files should be treat similarly
+    /// to being out-of-memory, and simply error (and shutdown). Setting this
+    /// option to false will allow that.
+    ///
+    /// For more details see [`AddrIncoming::set_sleep_on_errors`]
+    pub fn tcp_sleep_on_accept_errors(mut self, val: bool) -> Self {
+        self.incoming.set_sleep_on_errors(val);
+        self
+    }
 }
 
