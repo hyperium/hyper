@@ -992,6 +992,71 @@ fn nonempty_parse_eof_returns_error() {
 }
 
 #[test]
+fn socket_half_closed() {
+    let _ = pretty_env_logger::try_init();
+    let mut rt = Runtime::new().unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        tcp.write_all(b"GET / HTTP/1.1\r\n\r\n").unwrap();
+        tcp.shutdown(::std::net::Shutdown::Write).expect("SHDN_WR");
+
+        let mut buf = [0; 256];
+        tcp.read(&mut buf).unwrap();
+        let expected = "HTTP/1.1 200 OK\r\n";
+        assert_eq!(s(&buf[..expected.len()]), expected);
+    });
+
+    let fut = listener.incoming()
+        .into_future()
+        .map_err(|_| unreachable!())
+        .and_then(|(item, _incoming)| {
+            let socket = item.unwrap();
+            Http::new()
+                .serve_connection(socket, service_fn(|_| {
+                    Delay::new(Duration::from_millis(500))
+                        .map(|_| {
+                            Response::new(Body::empty())
+                        })
+                }))
+        });
+
+    rt.block_on(fut).unwrap();
+}
+
+#[test]
+fn disconnect_after_reading_request_before_responding() {
+    let _ = pretty_env_logger::try_init();
+    let mut rt = Runtime::new().unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        tcp.write_all(b"GET / HTTP/1.1\r\n\r\n").unwrap();
+    });
+
+    let fut = listener.incoming()
+        .into_future()
+        .map_err(|_| unreachable!())
+        .and_then(|(item, _incoming)| {
+            let socket = item.unwrap();
+            Http::new()
+                .http1_half_close(false)
+                .serve_connection(socket, service_fn(|_| {
+                    Delay::new(Duration::from_secs(2))
+                        .map(|_| -> Response<Body> {
+                            panic!("response future should have been dropped");
+                        })
+                }))
+        });
+
+    rt.block_on(fut).expect_err("socket disconnected");
+}
+
+#[test]
 fn returning_1xx_response_is_error() {
     let mut rt = Runtime::new().unwrap();
     let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
