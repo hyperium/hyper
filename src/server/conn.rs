@@ -45,6 +45,7 @@ pub(super) use self::upgrades::UpgradeableConnection;
 #[derive(Clone, Debug)]
 pub struct Http<E = Exec> {
     exec: E,
+    h1_half_close: bool,
     h1_writev: bool,
     mode: ConnectionMode,
     keep_alive: bool,
@@ -163,6 +164,7 @@ impl Http {
     pub fn new() -> Http {
         Http {
             exec: Exec::Default,
+            h1_half_close: true,
             h1_writev: true,
             mode: ConnectionMode::Fallback,
             keep_alive: true,
@@ -192,6 +194,20 @@ impl<E> Http<E> {
         } else {
             self.mode = ConnectionMode::Fallback;
         }
+        self
+    }
+
+    /// Set whether HTTP/1 connections should support half-closures.
+    ///
+    /// Clients can chose to shutdown their write-side while waiting
+    /// for the server to respond. Setting this to `false` will
+    /// automatically close any connection immediately if `read`
+    /// detects an EOF.
+    ///
+    /// Default is `true`.
+    #[inline]
+    pub fn http1_half_close(&mut self, val: bool) -> &mut Self {
+        self.h1_half_close = val;
         self
     }
 
@@ -261,6 +277,7 @@ impl<E> Http<E> {
     pub fn with_executor<E2>(self, exec: E2) -> Http<E2> {
         Http {
             exec,
+            h1_half_close: self.h1_half_close,
             h1_writev: self.h1_writev,
             mode: self.mode,
             keep_alive: self.keep_alive,
@@ -318,6 +335,9 @@ impl<E> Http<E> {
                 let mut conn = proto::Conn::new(io);
                 if !self.keep_alive {
                     conn.disable_keep_alive();
+                }
+                if !self.h1_half_close {
+                    conn.set_disable_half_close();
                 }
                 if !self.h1_writev {
                     conn.set_write_strategy_flatten();

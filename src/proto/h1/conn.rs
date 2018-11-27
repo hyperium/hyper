@@ -38,6 +38,7 @@ where I: AsyncRead + AsyncWrite,
         Conn {
             io: Buffered::new(io),
             state: State {
+                allow_half_close: true,
                 cached_headers: None,
                 error: None,
                 keep_alive: KA::Busy,
@@ -73,6 +74,10 @@ where I: AsyncRead + AsyncWrite,
 
     pub fn set_title_case_headers(&mut self) {
         self.state.title_case_headers = true;
+    }
+
+    pub(crate) fn set_disable_half_close(&mut self) {
+        self.state.allow_half_close = false;
     }
 
     pub fn into_inner(self) -> (I, Bytes) {
@@ -228,10 +233,11 @@ where I: AsyncRead + AsyncWrite,
 
         trace!("read_keep_alive; is_mid_message={}", self.is_mid_message());
 
-        if !self.is_mid_message() {
-            self.require_empty_read().map_err(::Error::new_io)?;
+        if self.is_mid_message() {
+            self.mid_message_detect_eof().map_err(::Error::new_io)
+        } else {
+            self.require_empty_read().map_err(::Error::new_io)
         }
-        Ok(())
     }
 
     fn is_mid_message(&self) -> bool {
@@ -252,7 +258,7 @@ where I: AsyncRead + AsyncWrite,
     // This should only be called for Clients wanting to enter the idle
     // state.
     fn require_empty_read(&mut self) -> io::Result<()> {
-        assert!(!self.can_read_head() && !self.can_read_body());
+        debug_assert!(!self.can_read_head() && !self.can_read_body());
 
         if !self.io.read_buf().is_empty() {
             debug!("received an unexpected {} bytes", self.io.read_buf().len());
@@ -279,11 +285,21 @@ where I: AsyncRead + AsyncWrite,
         }
     }
 
+    fn mid_message_detect_eof(&mut self) -> io::Result<()> {
+        debug_assert!(!self.can_read_head() && !self.can_read_body());
+
+        if self.state.allow_half_close || !self.io.read_buf().is_empty() {
+            Ok(())
+        } else {
+            self.try_io_read().map(|_| ())
+        }
+    }
+
     fn try_io_read(&mut self) -> Poll<usize, io::Error> {
          match self.io.read_from_io() {
             Ok(Async::Ready(0)) => {
                 trace!("try_io_read; found EOF on connection: {:?}", self.state);
-                let must_error = self.should_error_on_eof();
+                let must_error = !self.state.is_idle();
                 let ret = if must_error {
                     let desc = if self.is_mid_message() {
                         "unexpected EOF waiting for response"
@@ -655,6 +671,7 @@ impl<I, B: Buf, T> fmt::Debug for Conn<I, B, T> {
 }
 
 struct State {
+    allow_half_close: bool,
     /// Re-usable HeaderMap to reduce allocating new ones.
     cached_headers: Option<HeaderMap>,
     /// If an error occurs when there wasn't a direct way to return it
