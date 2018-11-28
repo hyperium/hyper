@@ -30,6 +30,26 @@ fn http1_post(b: &mut test::Bencher) {
 }
 
 #[bench]
+fn http1_body_100kb(b: &mut test::Bencher) {
+    let body = &[b'x'; 1024 * 100];
+    opts()
+        .method(Method::POST)
+        .request_body(body)
+        .response_body(body)
+        .bench(b)
+}
+
+#[bench]
+fn http1_body_10mb(b: &mut test::Bencher) {
+    let body = &[b'x'; 1024 * 1024 * 10];
+    opts()
+        .method(Method::POST)
+        .request_body(body)
+        .response_body(body)
+        .bench(b)
+}
+
+#[bench]
 fn http1_get_parallel(b: &mut test::Bencher) {
     opts()
         .parallel(10)
@@ -96,6 +116,11 @@ impl Opts {
         self
     }
 
+    fn response_body(mut self, body: &'static [u8]) -> Self {
+        self.response_body = body;
+        self
+    }
+
     fn parallel(mut self, cnt: u32) -> Self {
         assert!(cnt > 0, "parallel count must be larger than 0");
         self.parallel_cnt = cnt;
@@ -105,6 +130,9 @@ impl Opts {
     fn bench(self, b: &mut test::Bencher) {
         let _ = pretty_env_logger::try_init();
         let mut rt = Runtime::new().unwrap();
+
+        b.bytes = self.response_body.len() as u64 + self.request_body.map(|b| b.len()).unwrap_or(0) as u64;
+
         let addr = spawn_hello(&mut rt, self.response_body);
 
         let connector = HttpConnector::new(1);
