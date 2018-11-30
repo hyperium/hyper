@@ -34,6 +34,68 @@ pub trait MakeService<Ctx> {
     fn make_service(&mut self, ctx: Ctx) -> Self::Future;
 }
 
+// Just a sort-of "trait alias" of `MakeService`, not to be implemented
+// by anyone, only used as bounds.
+#[doc(hidden)]
+pub trait MakeServiceRef<Ctx>: self::sealed::Sealed<Ctx> {
+    type ReqBody: Payload;
+    type ResBody: Payload;
+    type Error: Into<Box<StdError + Send + Sync>>;
+    type Service: Service<
+        ReqBody=Self::ReqBody,
+        ResBody=Self::ResBody,
+        Error=Self::Error,
+    >;
+    type Future: Future<Item=Self::Service>;
+
+    // Acting like a #[non_exhaustive] for associated types of this trait.
+    //
+    // Basically, no one outside of hyper should be able to set this type
+    // or declare bounds on it, so it should prevent people from creating
+    // trait objects or otherwise writing code that requires using *all*
+    // of the associated types.
+    //
+    // Why? So we can add new associated types to this alias in the future,
+    // if necessary.
+    type __DontNameMe: self::sealed::CantImpl;
+
+    fn make_service_ref(&mut self, ctx: &Ctx) -> Self::Future;
+}
+
+impl<T, Ctx, E, ME, S, F, IB, OB> MakeServiceRef<Ctx> for T
+where
+    T: for<'a> MakeService<&'a Ctx, Error=E, MakeError=ME, Service=S, Future=F, ReqBody=IB, ResBody=OB>,
+    E: Into<Box<StdError + Send + Sync>>,
+    ME: Into<Box<StdError + Send + Sync>>,
+    S: Service<ReqBody=IB, ResBody=OB, Error=E>,
+    F: Future<Item=S, Error=ME>,
+    IB: Payload,
+    OB: Payload,
+{
+    type Error = E;
+    type Service = S;
+    type ReqBody = IB;
+    type ResBody = OB;
+    type Future = F;
+
+    type __DontNameMe = self::sealed::CantName;
+
+    fn make_service_ref(&mut self, ctx: &Ctx) -> Self::Future {
+        self.make_service(ctx)
+    }
+}
+
+impl<T, Ctx, E, ME, S, F, IB, OB> self::sealed::Sealed<Ctx> for T
+where
+    T: for<'a> MakeService<&'a Ctx, Error=E, MakeError=ME, Service=S, Future=F, ReqBody=IB, ResBody=OB>,
+    E: Into<Box<StdError + Send + Sync>>,
+    ME: Into<Box<StdError + Send + Sync>>,
+    S: Service<ReqBody=IB, ResBody=OB, Error=E>,
+    F: Future<Item=S, Error=ME>,
+    IB: Payload,
+    OB: Payload,
+{}
+
 
 /// Create a `MakeService` from a function.
 ///
@@ -94,3 +156,13 @@ impl<F> fmt::Debug for MakeServiceFn<F> {
     }
 }
 
+mod sealed {
+    pub trait Sealed<T> {}
+
+    pub trait CantImpl {}
+
+    #[allow(missing_debug_implementations)]
+    pub enum CantName {}
+
+    impl CantImpl for CantName {}
+}
