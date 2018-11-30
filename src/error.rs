@@ -97,13 +97,6 @@ pub(crate) enum User {
 */
 
 impl Error {
-    //TODO(error): should there be these kinds of inspection methods?
-    //
-    // - is_io()
-    // - is_connect()
-    // - is_closed()
-    // - etc?
-
     /// Returns true if this was an HTTP parse error.
     pub fn is_parse(&self) -> bool {
         match self.inner.kind {
@@ -137,6 +130,11 @@ impl Error {
     /// Returns true if a sender's channel is closed.
     pub fn is_closed(&self) -> bool {
         self.inner.kind == Kind::Closed
+    }
+
+    /// Returns true if this was an error from `Connect`.
+    pub fn is_connect(&self) -> bool {
+        self.inner.kind == Kind::Connect
     }
 
     /// Returns the error's cause.
