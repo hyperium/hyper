@@ -4,8 +4,8 @@ use tokio_io::{AsyncRead, AsyncWrite};
 use body::{Body, Payload};
 use common::drain::{self, Draining, Signal, Watch, Watching};
 use common::exec::{H2Exec, NewSvcExec};
-use service::Service;
-use super::conn::{MakeServiceRef, SpawnAll, UpgradeableConnection, Watcher};
+use service::{MakeServiceRef, Service};
+use super::conn::{SpawnAll, UpgradeableConnection, Watcher};
 
 #[allow(missing_debug_implementations)]
 pub struct Graceful<I, S, F, E> {

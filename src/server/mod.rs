@@ -65,10 +65,10 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 use body::{Body, Payload};
 use common::exec::{Exec, H2Exec, NewSvcExec};
-use service::Service;
+use service::{MakeServiceRef, Service};
 // Renamed `Http` as `Http_` for now so that people upgrading don't see an
 // error that `hyper::server::Http` is private...
-use self::conn::{Http as Http_, MakeServiceRef, NoopWatcher, SpawnAll};
+use self::conn::{Http as Http_, NoopWatcher, SpawnAll};
 use self::shutdown::{Graceful, GracefulWatcher};
 #[cfg(feature = "runtime")] use self::tcp::AddrIncoming;
 

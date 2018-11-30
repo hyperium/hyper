@@ -25,10 +25,9 @@ use common::exec::{Exec, H2Exec, NewSvcExec};
 use common::io::Rewind;
 use error::{Kind, Parse};
 use proto;
-use service::Service;
+use service::{MakeServiceRef, Service};
 use upgrade::Upgraded;
 
-pub(super) use self::make_service::MakeServiceRef;
 pub(super) use self::spawn_all::NoopWatcher;
 use self::spawn_all::NewSvcTask;
 pub(super) use self::spawn_all::Watcher;
@@ -910,37 +909,3 @@ mod upgrades {
     }
 }
 
-pub(crate) mod make_service {
-    use std::error::Error as StdError;
-
-    pub trait MakeServiceRef<Ctx> {
-        type Error: Into<Box<StdError + Send + Sync>>;
-        type ReqBody: ::body::Payload;
-        type ResBody: ::body::Payload;
-        type Service: ::service::Service<ReqBody=Self::ReqBody, ResBody=Self::ResBody, Error=Self::Error>;
-        type Future: ::futures::Future<Item=Self::Service>;
-
-        fn make_service_ref(&mut self, ctx: &Ctx) -> Self::Future;
-    }
-
-    impl<T, Ctx, E, ME, S, F, IB, OB> MakeServiceRef<Ctx> for T
-    where
-        T: for<'a> ::service::MakeService<&'a Ctx, Error=E, MakeError=ME, Service=S, Future=F, ReqBody=IB, ResBody=OB>,
-        E: Into<Box<StdError + Send + Sync>>,
-        ME: Into<Box<StdError + Send + Sync>>,
-        S: ::service::Service<ReqBody=IB, ResBody=OB, Error=E>,
-        F: ::futures::Future<Item=S, Error=ME>,
-        IB: ::body::Payload,
-        OB: ::body::Payload,
-    {
-        type Error = E;
-        type Service = S;
-        type ReqBody = IB;
-        type ResBody = OB;
-        type Future = F;
-
-        fn make_service_ref(&mut self, ctx: &Ctx) -> Self::Future {
-            self.make_service(ctx)
-        }
-    }
-}
