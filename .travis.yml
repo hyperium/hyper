@@ -16,9 +16,6 @@ matrix:
         - rust: 1.26.0
           env: FEATURES="--no-default-features --features runtime" BUILD_ONLY="1"
 
-cache:
-    apt: true
-
 before_script:
   # Add an IPv6 config - see the corresponding Travis issue
   # https://github.com/travis-ci/travis-ci/issues/8361
@@ -27,36 +24,9 @@ before_script:
     fi
 
 script:
-  - ./.travis/readme.py
   - cargo build $FEATURES
   - 'if [ "$BUILD_ONLY" != "1" ]; then cargo test $FEATURES -- --test-threads=1; fi'
   - 'if [ $TRAVIS_RUST_VERSION = nightly ]; then for f in ./benches/*.rs; do cargo test --bench $(basename $f .rs) $FEATURES; done; fi'
-
-addons:
-  apt:
-    packages:
-      - libcurl4-openssl-dev
-      - libelf-dev
-      - libdw-dev
-      - binutils-dev
-      - libiberty-dev
-
-
-after_success:
-  - '[ "TRAVIS_RUST_VERSION" = "stable" ] &&
-    LOCAL="~/.local" && export PATH=$LOCAL/bin:$PATH &&
-    wget https://github.com/SimonKagstrom/kcov/archive/master.tar.gz &&
-    tar xzf master.tar.gz && mkdir kcov-master/build && cd kcov-master/build &&
-    cmake -DCMAKE_INSTALL_PREFIX:PATH=$LOCAL .. && make && make install && cd ../.. &&
-    ls target/debug &&
-    RUSTFLAGS="-C link-dead-code" cargo test --no-run &&
-    for file in target/debug/*; do
-      if [[ -x $file ]]; then
-        mkdir -p "target/cov/$(basename $file)";
-        kcov --exclude-pattern=/.cargo,/usr/lib --verify "target/cov/$(basename $file)" "$file";
-      fi;
-    done &&
-    kcov --coveralls-id=$TRAVIS_JOB_ID --merge target/cov target/cov/*'
 
 env:
     global:

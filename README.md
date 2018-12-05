@@ -1,7 +1,6 @@
 # [hyper](https://hyper.rs)
 
 [![Travis Build Status](https://travis-ci.org/hyperium/hyper.svg?branch=master)](https://travis-ci.org/hyperium/hyper)
-[![Coverage Status](https://coveralls.io/repos/hyperium/hyper/badge.svg?branch=master)](https://coveralls.io/r/hyperium/hyper?branch=master)
 [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![crates.io](https://meritbadge.herokuapp.com/hyper)](https://crates.io/crates/hyper)
 [![Released API docs](https://docs.rs/hyper/badge.svg)](https://docs.rs/hyper)
