@@ -67,6 +67,7 @@ runtime = [
 ]
 nightly = []
 __internal_flaky_tests = []
+__internal_happy_eyeballs_tests = []
 
 [profile.release]
 codegen-units = 1

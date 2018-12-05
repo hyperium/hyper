@@ -5,11 +5,11 @@ matrix:
     fast_finish: true
     include:
         - rust: nightly
-          env: FEATURES="--no-default-features --features runtime,nightly" HYPER_DOCS="1"
+          env: FEATURES="--no-default-features --features runtime,nightly"
         - rust: beta
-          env: FEATURES="--no-default-features --features runtime"
+          env: FEATURES="--no-default-features --features runtime,__internal_happy_eyeballs_tests"
         - rust: stable
-          env: FEATURES="--no-default-features --features runtime"
+          env: FEATURES="--no-default-features --features runtime,__internal_happy_eyeballs_tests"
         - rust: stable
           env: FEATURES="--no-default-features"
         # Minimum Supported Rust Version
@@ -57,9 +57,6 @@ after_success:
       fi;
     done &&
     kcov --coveralls-id=$TRAVIS_JOB_ID --merge target/cov target/cov/*'
-  - '[ $TRAVIS_PULL_REQUEST = false ] && [ "$HYPER_DOCS" = "1" ] &&
-    { [ "$TRAVIS_TAG" != "" ] || [ "$TRAVIS_BRANCH" == "master" ]; } &&
-    ./.travis/docs.sh'
 
 env:
     global:

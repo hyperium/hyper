@@ -597,6 +597,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(not(feature = "__internal_happy_eyeballs_tests"), ignore)]
     fn client_happy_eyeballs() {
         extern crate pretty_env_logger;
 
