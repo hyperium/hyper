@@ -71,7 +71,7 @@ where
 /// After setting options, the builder is used to create a `Handshake` future.
 #[derive(Clone, Debug)]
 pub struct Builder {
-    exec: Exec,
+    pub(super) exec: Exec,
     h1_writev: bool,
     h1_title_case_headers: bool,
     h1_read_buf_exact_size: Option<usize>,
