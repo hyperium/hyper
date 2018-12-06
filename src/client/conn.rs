@@ -439,11 +439,6 @@ impl Builder {
         }
     }
 
-    pub(super) fn exec(&mut self, exec: Exec) -> &mut Builder {
-        self.exec = exec;
-        self
-    }
-
     /// Provide an executor to execute background HTTP2 tasks.
     pub fn executor<E>(&mut self, exec: E) -> &mut Builder
     where
