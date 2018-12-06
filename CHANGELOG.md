@@ -1,3 +1,18 @@
+### v0.12.17 (2018-12-05)
+
+
+#### Features
+
+* **error:** add `Error::is_connect` method ([01f64983](https://github.com/hyperium/hyper/commit/01f64983559602b9ebaaeecf6d33e97a88185676))
+* **server:**
+  * add `tcp_sleep_on_accept_errors` builder method ([a6fff13a](https://github.com/hyperium/hyper/commit/a6fff13a392d3394cacb1215f83bd8ec87671566), closes [#1713](https://github.com/hyperium/hyper/issues/1713))
+  * add `http1_half_close(bool)` option ([73345be6](https://github.com/hyperium/hyper/commit/73345be65f895660492e28e718786b66034a4d03), closes [#1716](https://github.com/hyperium/hyper/issues/1716))
+* **service:** export `hyper::service::MakeServiceRef` ([a522c315](https://github.com/hyperium/hyper/commit/a522c3151abd11795d3263f6607a7caf7c19a585))
+
+#### Performance
+
+* **http1:** implement an adaptive read buffer strategy which helps with throughput and memory management ([fd25129d](https://github.com/hyperium/hyper/commit/fd25129dc0e543538ccbd1794d22014bc187e050), closes [#1708](https://github.com/hyperium/hyper/issues/1708))
+
 ### v0.12.16 (2018-11-21)
 
 

@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/hyper/0.12.16")]
+#![doc(html_root_url = "https://docs.rs/hyper/0.12.17")]
 #![deny(missing_docs)]
 #![deny(missing_debug_implementations)]
 #![cfg_attr(test, deny(warnings))]
