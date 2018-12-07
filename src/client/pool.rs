@@ -831,10 +831,11 @@ mod tests {
     }
 
     fn pool_max_idle_no_timer<T>(max_idle: usize) -> Pool<T> {
-        let pool = Pool::new(
-            super::Enabled(true),
-            super::IdleTimeout(Some(Duration::from_millis(100))),
-            super::MaxIdlePerHost(max_idle),
+        let pool = Pool::new(super::Config {
+                enabled: true,
+                keep_alive_timeout: Some(Duration::from_millis(100)),
+                max_idle_per_host: max_idle,
+            },
             &Exec::Default,
         );
         pool.no_timer();
@@ -912,10 +913,11 @@ mod tests {
         use std::time::Instant;
         use tokio_timer::Delay;
         let mut rt = ::tokio::runtime::current_thread::Runtime::new().unwrap();
-        let pool = Pool::new(
-            super::Enabled(true),
-            super::IdleTimeout(Some(Duration::from_millis(100))),
-            super::MaxIdlePerHost(::std::usize::MAX),
+        let pool = Pool::new(super::Config {
+                enabled: true,
+                keep_alive_timeout: Some(Duration::from_millis(100)),
+                max_idle_per_host: ::std::usize::MAX,
+            },
             &Exec::Default,
         );
 
