@@ -714,7 +714,7 @@ impl<B> ClientError<B> {
 /// A marker to identify what version a pooled connection is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Ver {
-    Http1,
+    Auto,
     Http2,
 }
 
@@ -792,7 +792,7 @@ impl Default for Builder {
             client_config: Config {
                 retry_canceled_requests: true,
                 set_host: true,
-                ver: Ver::Http1,
+                ver: Ver::Auto,
             },
             conn_builder: conn::Builder::new(),
             pool_config: pool::Config {
@@ -864,6 +864,11 @@ impl Builder {
 
     /// Set whether the connection **must** use HTTP/2.
     ///
+    /// The destination must either allow HTTP2 Prior Knowledge, or the
+    /// `Connect` should be configured to do use ALPN to upgrade to `h2`
+    /// as part of the connection process. This will not make the `Client`
+    /// utilize ALPN by itself.
+    ///
     /// Note that setting this to true prevents HTTP/1 from being allowed.
     ///
     /// Default is false.
@@ -871,7 +876,7 @@ impl Builder {
         self.client_config.ver = if val {
             Ver::Http2
         } else {
-            Ver::Http1
+            Ver::Auto
         };
         self
     }
