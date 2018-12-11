@@ -48,6 +48,11 @@ impl AddrIncoming {
         })
     }
 
+    /// Creates a new `AddrIncoming` binding to provided socket address.
+    pub fn bind(addr: &SocketAddr) -> ::Result<Self> {
+        AddrIncoming::new(addr, None)
+    }
+
     /// Get the local address bound to this listener.
     pub fn local_addr(&self) -> SocketAddr {
         self.addr
