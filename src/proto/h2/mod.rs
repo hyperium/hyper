@@ -123,7 +123,7 @@ where
 
                 if self.body_tx.capacity() == 0 {
                     loop {
-                        match try_ready!(self.body_tx.poll_capacity().map_err(::Error::new_h2)) {
+                        match try_ready!(self.body_tx.poll_capacity().map_err(::Error::new_body_write)) {
                             Some(0) => {}
                             Some(_) => break,
                             None => return Err(::Error::new_canceled(None::<::Error>)),
@@ -131,10 +131,10 @@ where
                     }
                 } else {
                     if let Async::Ready(reason) =
-                        self.body_tx.poll_reset().map_err(|e| ::Error::new_h2(e))?
+                        self.body_tx.poll_reset().map_err(::Error::new_body_write)?
                     {
                         debug!("stream received RST_STREAM: {:?}", reason);
-                        return Err(::Error::new_h2(reason.into()));
+                        return Err(::Error::new_body_write(::h2::Error::from(reason)));
                     }
                 }
 
@@ -169,10 +169,10 @@ where
                 }
             } else {
                 if let Async::Ready(reason) =
-                    self.body_tx.poll_reset().map_err(|e| ::Error::new_h2(e))?
+                    self.body_tx.poll_reset().map_err(|e| ::Error::new_body_write(e))?
                 {
                     debug!("stream received RST_STREAM: {:?}", reason);
-                    return Err(::Error::new_h2(reason.into()));
+                    return Err(::Error::new_body_write(::h2::Error::from(reason)));
                 }
 
                 match try_ready!(self.stream.poll_trailers().map_err(|e| self.on_err(e))) {
