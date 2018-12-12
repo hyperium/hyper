@@ -1,3 +1,11 @@
+### v0.12.18 (2018-12-11)
+
+
+#### Features
+
+* **server:** add `server::conn::AddrIncoming::bind` constructor ([2d5eabde](https://github.com/hyperium/hyper/commit/2d5eabdeed06ea1c88d88dff464929616710ee9a))
+
+
 ### v0.12.17 (2018-12-05)
 
 
