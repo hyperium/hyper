@@ -117,7 +117,7 @@ where
                                 Ok(ok) => ok,
                                 Err(err) => {
                                     debug!("client send request error: {}", err);
-                                    let _ = cb.send(Err((::Error::new_canceled(err), None)));
+                                    let _ = cb.send(Err((::Error::new_canceled(Some(err)), None)));
                                     continue;
                                 }
                             };
