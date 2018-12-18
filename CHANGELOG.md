@@ -1,3 +1,11 @@
+### v0.12.19 (2018-12-18)
+
+
+#### Bug Fixes
+
+* **rt:** prevent fallback reactor thread from being created accidentally ([1d253b4d](https://github.com/hyperium/hyper/commit/1d253b4d4759e045409fcf140adda7d327a05c8a))
+
+
 ### v0.12.18 (2018-12-11)
 
 
