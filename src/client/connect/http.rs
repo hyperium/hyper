@@ -502,7 +502,7 @@ fn connect(addr: &SocketAddr, local_addr: &Option<IpAddr>, handle: &Option<Handl
 
     let handle = match *handle {
         Some(ref handle) => Cow::Borrowed(handle),
-        None => Cow::Owned(Handle::current()),
+        None => Cow::Owned(Handle::default()),
     };
 
     Ok(TcpStream::connect_std(builder.to_tcp_stream()?, addr, &handle))

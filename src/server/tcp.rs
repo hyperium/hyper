@@ -29,7 +29,7 @@ impl AddrIncoming {
         if let Some(handle) = handle {
             AddrIncoming::from_std(std_listener, handle)
         } else {
-            let handle = Handle::current();
+            let handle = Handle::default();
             AddrIncoming::from_std(std_listener, &handle)
         }
     }
