@@ -1,19 +1,34 @@
 language: rust
-sudo: true # Required for functional IPv6 (forces VM instead of Docker).
-dist: trusty
+# sudo: true # Required for functional IPv6 (forces VM instead of Docker).
+# dist: trusty
 matrix:
     fast_finish: true
     include:
         - rust: nightly
+          os: linux
+          dist: trusty
+          sudo: required
           env: FEATURES="--no-default-features --features runtime,nightly"
         - rust: beta
+          os: linux
+          dist: trusty
+          sudo: required
           env: FEATURES="--no-default-features --features runtime,__internal_happy_eyeballs_tests"
         - rust: stable
+          os: linux
+          dist: trusty
+          sudo: required
           env: FEATURES="--no-default-features --features runtime,__internal_happy_eyeballs_tests"
         - rust: stable
+          os: linux
+          dist: trusty
+          sudo: required
           env: FEATURES="--no-default-features"
         # Minimum Supported Rust Version
         - rust: 1.26.0
+          os: linux
+          dist: trusty
+          sudo: required
           env: FEATURES="--no-default-features --features runtime" BUILD_ONLY="1"
 
 before_script:
