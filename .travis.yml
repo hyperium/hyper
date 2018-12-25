@@ -30,6 +30,14 @@ matrix:
           dist: trusty
           sudo: required
           env: FEATURES="--no-default-features --features runtime" BUILD_ONLY="1"
+        # Stable on Windows
+        - rust: stable
+          os: windows
+          env: FEATURES="--no-default-features --features runtime"
+        # Stable on macOS
+        - rust: stable
+          os: osx
+          env: FEATURES="--no-default-features --features runtime"
 
 before_script:
   # Add an IPv6 config - see the corresponding Travis issue
