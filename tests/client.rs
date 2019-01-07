@@ -6,6 +6,7 @@ extern crate futures_timer;
 extern crate net2;
 extern crate tokio;
 extern crate tokio_io;
+extern crate tokio_tcp;
 extern crate pretty_env_logger;
 
 use std::io::{Read, Write};
@@ -18,7 +19,7 @@ use hyper::{Body, Client, Method, Request, StatusCode};
 use futures::{Future, Stream};
 use futures::sync::oneshot;
 use tokio::runtime::current_thread::Runtime;
-use tokio::net::tcp::{ConnectFuture, TcpListener as TkTcpListener, TcpStream};
+use tokio_tcp::{ConnectFuture, TcpListener as TkTcpListener, TcpStream};
 
 fn s(buf: &[u8]) -> &str {
     ::std::str::from_utf8(buf).expect("from_utf8")
@@ -713,7 +714,7 @@ mod dispatch_impl {
     use futures::{self, Future};
     use futures::sync::{mpsc, oneshot};
     use futures_timer::Delay;
-    use tokio::net::TcpStream;
+    use tokio_tcp::TcpStream;
     use tokio::runtime::current_thread::Runtime;
     use tokio_io::{AsyncRead, AsyncWrite};
 
@@ -1578,7 +1579,7 @@ mod conn {
     use futures::sync::oneshot;
     use futures_timer::Delay;
     use tokio::runtime::current_thread::Runtime;
-    use tokio::net::TcpStream;
+    use tokio_tcp::TcpStream;
     use tokio_io::{AsyncRead, AsyncWrite};
 
     use hyper::{self, Request, Body, Method};
