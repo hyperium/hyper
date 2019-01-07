@@ -1,3 +1,12 @@
+### v0.12.20 (2019-01-07)
+
+
+#### Bug Fixes
+
+* **dependencies:** disable unneeded optional tokio features ([e5135dd6](https://github.com/hyperium/hyper/commit/e5135dd6f619b5817e31572c98b45d7c4b34f43a), closes [#1739](https://github.com/hyperium/hyper/issues/1739))
+* **http2:** don't consider an h2 send request error as canceled ([cf034e99](https://github.com/hyperium/hyper/commit/cf034e99fa895fdf4b66edf392f8c7ca366448fd))
+
+
 ### v0.12.19 (2018-12-18)
 
 
