@@ -13,6 +13,9 @@
 //!
 //! If just starting out, **check out the [Guides](https://hyper.rs/guides)
 //! first.**
+//!
+//! If looking for just a convenient HTTP client, consider the
+//! [reqwest](https://crates.io/crates/reqwest) crate.
 
 extern crate bytes;
 #[macro_use] extern crate futures;
