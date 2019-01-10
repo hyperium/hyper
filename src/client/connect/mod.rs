@@ -34,6 +34,8 @@ pub trait Connect: Send + Sync {
 }
 
 /// A set of properties to describe where and how to try to connect.
+///
+/// This type is passed an argument for the [`Connect`](Connect) trait.
 #[derive(Clone, Debug)]
 pub struct Destination {
     pub(super) uri: Uri,
@@ -254,8 +256,19 @@ impl Connected {
     /// Set whether the connected transport is to an HTTP proxy.
     ///
     /// This setting will affect if HTTP/1 requests written on the transport
-    /// will have the request-target in absolute-form or origin-form (such as
-    /// `GET http://hyper.rs/guide HTTP/1.1` or `GET /guide HTTP/1.1`).
+    /// will have the request-target in absolute-form or origin-form:
+    ///
+    /// - When `proxy(false)`:
+    ///
+    /// ```http
+    /// GET /guide HTTP/1.1
+    /// ```
+    ///
+    /// - When `proxy(true)`:
+    ///
+    /// ```http
+    /// GET http://hyper.rs/guide HTTP/1.1
+    /// ```
     ///
     /// Default is `false`.
     pub fn proxy(mut self, is_proxied: bool) -> Connected {

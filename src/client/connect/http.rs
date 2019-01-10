@@ -41,13 +41,14 @@ pub struct HttpConnector<R = GaiResolver> {
 ///
 /// # Example
 ///
-/// ```rust
+/// ```
+/// use hyper::Uri;
 /// use hyper::client::{Client, connect::HttpInfo};
 /// use hyper::rt::Future;
 ///
 /// let client = Client::new();
 ///
-/// let fut = client.get("http://example.local".parse().unwrap())
+/// let fut = client.get(Uri::from_static("http://example.local"))
 ///     .inspect(|resp| {
 ///         resp
 ///             .extensions()

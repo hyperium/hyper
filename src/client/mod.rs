@@ -29,7 +29,7 @@
 //! ```
 //! extern crate hyper;
 //!
-//! use hyper::Client;
+//! use hyper::{Client, Uri};
 //! # #[cfg(feature = "runtime")]
 //! use hyper::rt::{self, Future, Stream};
 //!
@@ -40,7 +40,7 @@
 //! let fut = client
 //!
 //!     // Make a GET /ip to 'http://httpbin.org'
-//!     .get("http://httpbin.org/ip".parse().unwrap())
+//!     .get(Uri::from_static("http://httpbin.org/ip"))
 //!
 //!     // And then, if the request gets a response...
 //!     .and_then(|res| {
@@ -120,12 +120,13 @@ struct Config {
 
 #[cfg(feature = "runtime")]
 impl Client<HttpConnector, Body> {
-    /// Create a new Client with the default config.
+    /// Create a new Client with the default [config](Builder).
     ///
     /// # Note
     ///
     /// The default connector does **not** handle TLS. Speaking to `https`
-    /// destinations will require configuring a connector that implements TLS.
+    /// destinations will require [configuring a connector that implements
+    /// TLS](https://hyper.rs/guides/client/configuration).
     #[inline]
     pub fn new() -> Client<HttpConnector, Body> {
         Builder::default().build_http()
@@ -140,18 +141,19 @@ impl Default for Client<HttpConnector, Body> {
 }
 
 impl Client<(), Body> {
-    /// Configure a Client.
+    /// Create a builder to configure a new `Client`.
     ///
     /// # Example
     ///
     /// ```
     /// # extern crate hyper;
     /// # #[cfg(feature  = "runtime")]
-    /// fn run () {
+    /// # fn run () {
     /// use hyper::Client;
     ///
     /// let client = Client::builder()
     ///     .keep_alive(true)
+    ///     .http2_only(true)
     ///     .build_http();
     /// # let infer: Client<_, hyper::Body> = client;
     /// # drop(infer);
@@ -171,7 +173,6 @@ where C: Connect + Sync + 'static,
       B: Payload + Send + 'static,
       B::Data: Send,
 {
-
     /// Send a `GET` request to the supplied `Uri`.
     ///
     /// # Note
@@ -179,6 +180,21 @@ where C: Connect + Sync + 'static,
     /// This requires that the `Payload` type have a `Default` implementation.
     /// It *should* return an "empty" version of itself, such that
     /// `Payload::is_end_stream` is `true`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # extern crate hyper;
+    /// # #[cfg(feature  = "runtime")]
+    /// # fn run () {
+    /// use hyper::{Client, Uri};
+    ///
+    /// let client = Client::new();
+    ///
+    /// let future = client.get(Uri::from_static("http://httpbin.org/ip"));
+    /// # }
+    /// # fn main() {}
+    /// ```
     pub fn get(&self, uri: Uri) -> ResponseFuture
     where
         B: Default,
@@ -193,7 +209,28 @@ where C: Connect + Sync + 'static,
         self.request(req)
     }
 
-    /// Send a constructed Request using this Client.
+    /// Send a constructed `Request` using this `Client`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # extern crate hyper;
+    /// # #[cfg(feature  = "runtime")]
+    /// # fn run () {
+    /// use hyper::{Body, Client, Request};
+    ///
+    /// let client = Client::new();
+    ///
+    /// let req = Request::builder()
+    ///     .method("POST")
+    ///     .uri("http://httpin.org/post")
+    ///     .body(Body::from("Hallo!"))
+    ///     .expect("request builder");
+    ///
+    /// let future = client.request(req);
+    /// # }
+    /// # fn main() {}
+    /// ```
     pub fn request(&self, mut req: Request<B>) -> ResponseFuture {
         let is_http_connect = req.method() == &Method::CONNECT;
         match req.version() {
@@ -558,6 +595,8 @@ impl<C, B> fmt::Debug for Client<C, B> {
 }
 
 /// A `Future` that will resolve to an HTTP Response.
+///
+/// This is returned by `Client::request` (and `Client::get`).
 #[must_use = "futures do nothing unless polled"]
 pub struct ResponseFuture {
     inner: Box<Future<Item=Response<Body>, Error=::Error> + Send>,
@@ -778,7 +817,25 @@ fn set_scheme(uri: &mut Uri, scheme: Scheme) {
     *uri = Uri::from_parts(parts).expect("scheme is valid");
 }
 
-/// Builder for a Client
+/// A builder to configure a new [`Client`](Client).
+///
+/// # Example
+///
+/// ```
+/// # extern crate hyper;
+/// # #[cfg(feature  = "runtime")]
+/// # fn run () {
+/// use hyper::Client;
+///
+/// let client = Client::builder()
+///     .keep_alive(true)
+///     .http2_only(true)
+///     .build_http();
+/// # let infer: Client<_, hyper::Body> = client;
+/// # drop(infer);
+/// # }
+/// # fn main() {}
+/// ```
 #[derive(Clone)]
 pub struct Builder {
     client_config: Config,
