@@ -7,11 +7,13 @@
 //! - The [`Resolve`](Resolve) trait and related types to build a custom
 //!   resolver for use with the `HttpConnector`.
 use std::{fmt, io, vec};
+use std::error::Error;
 use std::net::{
     IpAddr, Ipv4Addr, Ipv6Addr,
     SocketAddr, ToSocketAddrs,
     SocketAddrV4, SocketAddrV6,
 };
+use std::str::FromStr;
 use std::sync::Arc;
 
 use futures::{Async, Future, Poll};
@@ -71,6 +73,32 @@ impl fmt::Debug for Name {
         fmt::Debug::fmt(&self.host, f)
     }
 }
+
+impl FromStr for Name {
+    type Err = InvalidNameError;
+
+    fn from_str(host: &str) -> Result<Self, Self::Err> {
+        // Possibly add validation later
+        Ok(Name::new(host.to_owned()))
+    }
+}
+
+/// Error indicating a given string was not a valid domain name.
+#[derive(Debug)]
+pub struct InvalidNameError(());
+
+impl fmt::Display for InvalidNameError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.description().fmt(f)
+    }
+}
+
+impl Error for InvalidNameError {
+    fn description(&self) -> &str {
+        "Not a valid domain name"
+    }
+}
+
 
 impl GaiResolver {
     /// Construct a new `GaiResolver`.
@@ -316,5 +344,11 @@ mod tests {
             IpAddrs { iter: vec![v6_addr, v4_addr].into_iter() }.split_by_preference();
         assert!(preferred.next().unwrap().is_ipv6());
         assert!(fallback.next().unwrap().is_ipv4());
+    }
+
+    #[test]
+    fn test_name_from_str() {
+        let name = Name::from_str("test.example.com").expect("Should be a valid domain");
+        assert_eq!(name.as_str(), "test.example.com");
     }
 }
