@@ -35,6 +35,7 @@ pub trait Resolve {
 }
 
 /// A domain name to resolve into IP addresses.
+#[derive(Clone, Hash, Eq, PartialEq)]
 pub struct Name {
     host: String,
 }
@@ -71,6 +72,12 @@ impl Name {
 impl fmt::Debug for Name {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Debug::fmt(&self.host, f)
+    }
+}
+
+impl fmt::Display for Name {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.host, f)
     }
 }
 
@@ -348,7 +355,9 @@ mod tests {
 
     #[test]
     fn test_name_from_str() {
-        let name = Name::from_str("test.example.com").expect("Should be a valid domain");
-        assert_eq!(name.as_str(), "test.example.com");
+        const DOMAIN: &str = "test.example.com";
+        let name = Name::from_str(DOMAIN).expect("Should be a valid domain");
+        assert_eq!(name.as_str(), DOMAIN);
+        assert_eq!(name.to_string(), DOMAIN);
     }
 }
