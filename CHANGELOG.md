@@ -1,3 +1,14 @@
+### v0.12.21 (2019-01-15)
+
+
+#### Features
+
+* **client:**
+  * add `Destination::try_from_uri` constructor ([c809542c](https://github.com/hyperium/hyper/commit/c809542c830c8d542877a22dd54b1c5c679ae433))
+  * Add useful trait impls to Name ([be5ec455](https://github.com/hyperium/hyper/commit/be5ec45571e0b1c6c2b20fe4ab49ef1b0226a004))
+  * add FromStr impl for Name ([607c4da0](https://github.com/hyperium/hyper/commit/607c4da0b96ca430593599c928c882a17a7914d5))
+
+
 ### v0.12.20 (2019-01-07)
 
 
