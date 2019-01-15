@@ -61,6 +61,18 @@ pub(super) enum Alpn {
 }
 
 impl Destination {
+    /// Try to convert a `Uri` into a `Destination`
+    ///
+    /// # Error
+    ///
+    /// Returns an error if the uri contains no authority or
+    /// no scheme.
+    pub fn try_from_uri(uri: Uri) -> ::Result<Self> {
+        uri.authority_part().ok_or(::error::Parse::Uri)?;
+        uri.scheme_part().ok_or(::error::Parse::Uri)?;
+        Ok(Destination { uri })
+    }
+
     /// Get the protocol scheme.
     #[inline]
     pub fn scheme(&self) -> &str {
@@ -590,4 +602,3 @@ mod tests {
         assert_eq!(res2.extensions().get::<Ex2>(), Some(&Ex2("hiccup")));
     }
 }
-
