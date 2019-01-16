@@ -88,6 +88,7 @@ use futures::sync::oneshot;
 use http::{Method, Request, Response, Uri, Version};
 use http::header::{HeaderValue, HOST};
 use http::uri::Scheme;
+use tower_service::Service;
 
 use body::{Body, Payload};
 use common::{lazy as hyper_lazy, Lazy};
@@ -591,6 +592,27 @@ impl<C, B> fmt::Debug for Client<C, B> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Client")
             .finish()
+    }
+}
+
+impl<C, B> Service<Request<B>> for Client<C, B>
+where
+    C: Connect + Sync + 'static,
+    C::Transport: 'static,
+    C::Future: 'static,
+    B: Payload + Send + 'static,
+    B::Data: Send,
+{
+    type Response = Response<Body>;
+    type Error = ::Error;
+    type Future = ResponseFuture;
+
+    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+        Ok(Async::Ready(()))
+    }
+
+    fn call(&mut self, req: Request<B>) -> Self::Future {
+        self.request(req)
     }
 }
 

@@ -35,6 +35,7 @@ extern crate time;
 #[cfg(feature = "runtime")] extern crate tokio_tcp;
 #[cfg(feature = "runtime")] extern crate tokio_threadpool;
 #[cfg(feature = "runtime")] extern crate tokio_timer;
+extern crate tower_service;
 extern crate want;
 
 #[cfg(all(test, feature = "nightly"))]
