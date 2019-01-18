@@ -141,7 +141,10 @@ where
         S: Http1Transaction,
     {
         loop {
-            match try!(S::parse(&mut self.read_buf, ParseContext { cached_headers: ctx.cached_headers, req_method: ctx.req_method, })) {
+            match S::parse(&mut self.read_buf, ParseContext {
+                cached_headers: ctx.cached_headers,
+                req_method: ctx.req_method,
+            })? {
                 Some(msg) => {
                     debug!("parsed {} headers", msg.head.headers.len());
                     return Ok(Async::Ready(msg))

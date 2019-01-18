@@ -213,7 +213,7 @@ impl<T: Read> Read for AsyncIo<T> {
             Err(self.would_block())
         } else {
             let n = cmp::min(self.bytes_until_block, buf.len());
-            let n = try!(self.inner.read(&mut buf[..n]));
+            let n = self.inner.read(&mut buf[..n])?;
             self.bytes_until_block -= n;
             Ok(n)
         }
@@ -234,7 +234,7 @@ impl<T: Write> Write for AsyncIo<T> {
             trace!("AsyncIo::write; {} bytes", data.len());
             self.flushed = false;
             let n = cmp::min(self.bytes_until_block, data.len());
-            let n = try!(self.inner.write(&data[..n]));
+            let n = self.inner.write(&data[..n])?;
             self.bytes_until_block -= n;
             Ok(n)
         }

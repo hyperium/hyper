@@ -333,7 +333,7 @@ impl<R: Resolve> Future for HttpConnecting<R> {
                     }
                 },
                 State::Resolving(ref mut future, local_addr) => {
-                    match try!(future.poll()) {
+                    match future.poll()? {
                         Async::NotReady => return Ok(Async::NotReady),
                         Async::Ready(addrs) => {
                             let port = self.port;
