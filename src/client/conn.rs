@@ -75,6 +75,7 @@ pub struct Builder {
     h1_writev: bool,
     h1_title_case_headers: bool,
     h1_read_buf_exact_size: Option<usize>,
+    h1_max_buf_size: Option<usize>,
     http2: bool,
 }
 
@@ -435,6 +436,7 @@ impl Builder {
             h1_writev: true,
             h1_read_buf_exact_size: None,
             h1_title_case_headers: false,
+            h1_max_buf_size: None,
             http2: false,
         }
     }
@@ -460,8 +462,21 @@ impl Builder {
 
     pub(super) fn h1_read_buf_exact_size(&mut self, sz: Option<usize>) -> &mut Builder {
         self.h1_read_buf_exact_size = sz;
+        self.h1_max_buf_size = None;
         self
     }
+
+    pub(super) fn h1_max_buf_size(&mut self, max: usize) -> &mut Self {
+        assert!(
+            max >= proto::h1::MINIMUM_MAX_BUFFER_SIZE,
+            "the max_buf_size cannot be smaller than the minimum that h1 specifies."
+        );
+
+        self.h1_max_buf_size = Some(max);
+        self.h1_read_buf_exact_size = None;
+        self
+    }
+
     /// Sets whether HTTP2 is required.
     ///
     /// Default is false.
@@ -509,6 +524,9 @@ where
             }
             if let Some(sz) = self.builder.h1_read_buf_exact_size {
                 conn.set_read_buf_exact_size(sz);
+            }
+            if let Some(max) = self.builder.h1_max_buf_size {
+                conn.set_max_buf_size(max);
             }
             let cd = proto::h1::dispatch::Client::new(rx);
             let dispatch = proto::h1::Dispatcher::new(cd, conn);

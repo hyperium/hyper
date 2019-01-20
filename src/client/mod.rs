@@ -901,10 +901,27 @@ impl Builder {
 
     /// Sets the exact size of the read buffer to *always* use.
     ///
+    /// Note that setting this option unsets the `http1_max_buf_size` option.
+    ///
     /// Default is an adaptive read buffer.
     #[inline]
     pub fn http1_read_buf_exact_size(&mut self, sz: usize) -> &mut Self {
         self.conn_builder.h1_read_buf_exact_size(Some(sz));
+        self
+    }
+
+    /// Set the maximum buffer size for the connection.
+    ///
+    /// Default is ~400kb.
+    ///
+    /// Note that setting this option unsets the `http1_read_exact_buf_size` option.
+    ///
+    /// # Panics
+    ///
+    /// The minimum value allowed is 8192. This method panics if the passed `max` is less than the minimum.
+    #[inline]
+    pub fn http1_max_buf_size(&mut self, max: usize) -> &mut Self {
+        self.conn_builder.h1_max_buf_size(max);
         self
     }
 
