@@ -77,8 +77,7 @@ impl Destination {
     #[inline]
     pub fn scheme(&self) -> &str {
         self.uri
-            .scheme_part()
-            .map(|s| s.as_str())
+            .scheme_str()
             .unwrap_or("")
     }
 
@@ -93,10 +92,7 @@ impl Destination {
     /// Get the port, if specified.
     #[inline]
     pub fn port(&self) -> Option<u16> {
-         match self.uri.port_part() {
-            Some(port) => Some(port.as_u16()),
-            None => None
-        }
+        self.uri.port_u16()
     }
 
     /// Update the scheme of this destination.
@@ -439,12 +435,12 @@ mod tests {
 
         // Allow IPv6 hosts
         dst.set_host("[::1]").expect("set_host with IPv6");
-        assert_eq!(dst.host(), "::1");
+        assert_eq!(dst.host(), "[::1]");
         assert_eq!(dst.port(), None, "IPv6 didn't affect port");
 
         // However, IPv6 with a port is rejected.
         dst.set_host("[::2]:1337").expect_err("set_host with IPv6 and sneaky port");
-        assert_eq!(dst.host(), "::1");
+        assert_eq!(dst.host(), "[::1]");
         assert_eq!(dst.port(), None);
 
         // -----------------
@@ -482,12 +478,12 @@ mod tests {
 
         // Allow IPv6 hosts
         dst.set_host("[::1]").expect("set_host with IPv6");
-        assert_eq!(dst.host(), "::1");
+        assert_eq!(dst.host(), "[::1]");
         assert_eq!(dst.port(), Some(8080), "IPv6 didn't affect port");
 
         // However, IPv6 with a port is rejected.
         dst.set_host("[::2]:1337").expect_err("set_host with IPv6 and sneaky port");
-        assert_eq!(dst.host(), "::1");
+        assert_eq!(dst.host(), "[::1]");
         assert_eq!(dst.port(), Some(8080));
     }
 
