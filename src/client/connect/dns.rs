@@ -228,6 +228,16 @@ impl IpAddrs {
             let addr = SocketAddrV4::new(addr, port);
             return Some(IpAddrs { iter: vec![SocketAddr::V4(addr)].into_iter() })
         }
+        let host = {
+            // trim_left/trim_right deprecated...
+            // TODO: use trim_start/trim_end in Rust 1.30
+            #[allow(deprecated)]
+            {
+                host
+                .trim_left_matches('[')
+                .trim_right_matches(']')
+            }
+        };
         if let Ok(addr) = host.parse::<Ipv6Addr>() {
             let addr = SocketAddrV6::new(addr, port, 0, 0);
             return Some(IpAddrs { iter: vec![SocketAddr::V6(addr)].into_iter() })
@@ -359,5 +369,20 @@ mod tests {
         let name = Name::from_str(DOMAIN).expect("Should be a valid domain");
         assert_eq!(name.as_str(), DOMAIN);
         assert_eq!(name.to_string(), DOMAIN);
+    }
+
+    #[test]
+    fn ip_addrs_try_parse_v6() {
+        let uri = ::http::Uri::from_static("http://[::1]:8080/");
+        let dst = super::super::Destination { uri };
+
+        let mut addrs = IpAddrs::try_parse(
+            dst.host(),
+            dst.port().expect("port")
+        ).expect("try_parse");
+
+        let expected = "[::1]:8080".parse::<SocketAddr>().expect("expected");
+
+        assert_eq!(addrs.next(), Some(expected));
     }
 }
