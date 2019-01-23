@@ -1,3 +1,11 @@
+### v0.12.22 (2019-01-23)
+
+
+#### Bug Fixes
+
+* **client:** parse IPv6 hosts correctly in HttpConnector ([c328c62e](https://github.com/hyperium/hyper/commit/c328c62ec29cd328c1c7331bb316fe4a548f11d7))
+
+
 ### v0.12.21 (2019-01-15)
 
 
