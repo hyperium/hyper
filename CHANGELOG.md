@@ -1,3 +1,16 @@
+### v0.12.23 (2019-01-24)
+
+
+#### Bug Fixes
+
+* **http2:** revert http2 refactor causing a client hang ([9aa7e990](https://github.com/hyperium/hyper/commit/9aa7e99010a1a0f086ade27f99cf4b8da00ae750))
+
+
+#### Features
+
+* **client:** add `conn::Builder::max_buf_size()` ([078ed82d](https://github.com/hyperium/hyper/commit/078ed82dd5fed2f6c4399ff041ef116c712eaaf8), closes [#1748](https://github.com/hyperium/hyper/issues/1748))
+
+
 ### v0.12.22 (2019-01-23)
 
 
