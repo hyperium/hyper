@@ -6,7 +6,7 @@ use super::internal::{FullDataArg, FullDataRet};
 
 /// This trait represents a streaming body of a `Request` or `Response`.
 ///
-/// The built-in implementation of this trait is [`Body`](Body), in case you
+/// The built-in implementation of this trait is [`Body`](::Body), in case you
 /// don't need to customize a send stream for your own application.
 pub trait Payload: Send + 'static {
     /// A buffer of bytes representing a single chunk of a body.

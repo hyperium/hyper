@@ -1,10 +1,10 @@
 //! Services and MakeServices
 //!
-//! - A [`Service`](Service) is a trait representing an asynchronous function
-//!   of a request to a response. It's similar to
+//! - A [`Service`](service::Service) is a trait representing an asynchronous
+//!   function of a request to a response. It's similar to
 //!   `async fn(Request) -> Result<Response, Error>`.
-//! - A [`MakeService`](MakeService) is a trait creating specific instances of a
-//!   `Service`.
+//! - A [`MakeService`](service::MakeService) is a trait creating specific
+//!   instances of a `Service`.
 //!
 //! These types are conceptually similar to those in
 //! [tower](https://crates.io/crates/tower), while being specific to hyper.
@@ -16,8 +16,9 @@
 //! connection will receive.
 //!
 //! While it's possible to implement `Service` for a type manually, the helpers
-//! [`service_fn`](service_fn) and [`service_fn_ok`](service_fn_ok) should be
-//! sufficient for most cases.
+//! [`service_fn`](service::service_fn) and
+//! [`service_fn_ok`](service::service_fn_ok) should be sufficient for most
+//! cases.
 //!
 //! # MakeService
 //!

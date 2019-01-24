@@ -7,7 +7,7 @@
 //!
 //! There are two pieces to this in hyper:
 //!
-//! - The [`Payload`](Payload) trait the describes all possible bodies. hyper
+//! - The [`Payload`](body::Payload) trait the describes all possible bodies. hyper
 //!   allows any body type that implements `Payload`, allowing applications to
 //!   have fine-grained control over their streaming.
 //! - The [`Body`](Body) concrete type, which is an implementation of `Payload`,

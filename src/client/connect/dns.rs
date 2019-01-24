@@ -2,9 +2,9 @@
 //!
 //! This module contains:
 //!
-//! - A [`GaiResolver`](GaiResolver) that is the default resolver for the
+//! - A [`GaiResolver`](dns::GaiResolver) that is the default resolver for the
 //!   `HttpConnector`.
-//! - The [`Resolve`](Resolve) trait and related types to build a custom
+//! - The [`Resolve`](dns::Resolve) trait and related types to build a custom
 //!   resolver for use with the `HttpConnector`.
 use std::{fmt, io, vec};
 use std::error::Error;
