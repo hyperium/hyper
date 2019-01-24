@@ -23,7 +23,7 @@ futures = "0.1.21"
 futures-cpupool = { version = "0.1.6", optional = true }
 http = "0.1.15"
 httparse = "1.0"
-h2 = "0.1.15"
+h2 = "0.1.10"
 iovec = "0.1"
 itoa = "0.4.1"
 log = "0.4"
@@ -52,6 +52,7 @@ serde_json = "1.0"
 
 [features]
 default = [
+    "__internal_flaky_tests",
     "runtime",
 ]
 runtime = [
@@ -65,6 +66,7 @@ runtime = [
     "tokio-timer",
 ]
 nightly = []
+__internal_flaky_tests = []
 __internal_happy_eyeballs_tests = []
 
 [profile.release]

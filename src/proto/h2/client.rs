@@ -1,17 +1,22 @@
 use bytes::IntoBuf;
 use futures::{Async, Future, Poll, Stream};
+use futures::future::{self, Either};
+use futures::sync::mpsc;
 use h2::client::{Builder, Handshake, SendRequest};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use headers::content_length_parse_all;
 use body::Payload;
-use ::common::Exec;
+use ::common::{Exec, Never};
 use headers;
 use ::proto::Dispatched;
 use super::{PipeToSendStream, SendBuf};
 use ::{Body, Request, Response};
 
 type ClientRx<B> = ::client::dispatch::Receiver<Request<B>, Response<Body>>;
+/// An mpsc channel is used to help notify the `Connection` task when *all*
+/// other handles to it have been dropped, so that it can shutdown.
+type ConnDropRef = mpsc::Sender<Never>;
 
 pub(crate) struct Client<T, B>
 where
@@ -24,7 +29,7 @@ where
 
 enum State<T, B> where B: IntoBuf {
     Handshaking(Handshake<T, B>),
-    Ready(SendRequest<B>),
+    Ready(SendRequest<B>, ConnDropRef),
 }
 
 impl<T, B> Client<T, B>
@@ -59,13 +64,40 @@ where
             let next = match self.state {
                 State::Handshaking(ref mut h) => {
                     let (request_tx, conn) = try_ready!(h.poll().map_err(::Error::new_h2));
+                    // An mpsc channel is used entirely to detect when the
+                    // 'Client' has been dropped. This is to get around a bug
+                    // in h2 where dropping all SendRequests won't notify a
+                    // parked Connection.
+                    let (tx, rx) = mpsc::channel(0);
+                    let rx = rx.into_future()
+                        .map(|(msg, _)| match msg {
+                            Some(never) => match never {},
+                            None => (),
+                        })
+                        .map_err(|_| -> Never { unreachable!("mpsc cannot error") });
                     let fut = conn
                         .inspect(|_| trace!("connection complete"))
-                        .map_err(|e| debug!("connection error: {}", e));
+                        .map_err(|e| debug!("connection error: {}", e))
+                        .select2(rx)
+                        .then(|res| match res {
+                            Ok(Either::A(((), _))) |
+                            Err(Either::A(((), _))) => {
+                                // conn has finished either way
+                                Either::A(future::ok(()))
+                            },
+                            Ok(Either::B(((), conn))) => {
+                                // mpsc has been dropped, hopefully polling
+                                // the connection some more should start shutdown
+                                // and then close
+                                trace!("send_request dropped, starting conn shutdown");
+                                Either::B(conn)
+                            }
+                            Err(Either::B((never, _))) => match never {},
+                        });
                     self.executor.execute(fut)?;
-                    State::Ready(request_tx)
+                    State::Ready(request_tx, tx)
                 },
-                State::Ready(ref mut tx) => {
+                State::Ready(ref mut tx, ref conn_dropper) => {
                     try_ready!(tx.poll_ready().map_err(::Error::new_h2));
                     match self.rx.poll() {
                         Ok(Async::Ready(Some((req, mut cb)))) => {
@@ -98,6 +130,11 @@ where
                                 match pipe.poll() {
                                     Ok(Async::Ready(())) | Err(()) => (),
                                     Ok(Async::NotReady) => {
+                                        let conn_drop_ref = conn_dropper.clone();
+                                        let pipe = pipe.then(move |x| {
+                                                drop(conn_drop_ref);
+                                                x
+                                            });
                                         self.executor.execute(pipe)?;
                                     }
                                 }
