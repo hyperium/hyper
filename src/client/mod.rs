@@ -245,28 +245,10 @@ where C: Connect + Sync + 'static,
             }
         };
 
-        let uri = req.uri().clone();
-        let domain = match (uri.scheme_part(), uri.authority_part()) {
-            (Some(scheme), Some(auth)) => {
-                format!("{}://{}", scheme, auth)
-            }
-            (None, Some(auth)) if is_http_connect => {
-                let port = auth.port_part().unwrap();
-                let scheme = match port.as_str() {
-                    "443" => {
-                        set_scheme(req.uri_mut(), Scheme::HTTPS);
-                        "https"
-                    },
-                    _ => {
-                        set_scheme(req.uri_mut(), Scheme::HTTP);
-                        "http"
-                    },
-                };
-                format!("{}://{}", scheme, auth)
-            },
-            _ => {
-                debug!("Client requires absolute-form URIs, received: {:?}", uri);
-                return ResponseFuture::new(Box::new(future::err(::Error::new_user_absolute_uri_required())))
+        let domain = match extract_domain(req.uri_mut(), is_http_connect) {
+            Ok(s) => s,
+            Err(err) => {
+                return ResponseFuture::new(Box::new(future::err(err)));
             }
         };
 
@@ -808,6 +790,33 @@ fn authority_form(uri: &mut Uri) {
     };
 }
 
+fn extract_domain(uri: &mut Uri, is_http_connect: bool) -> ::Result<String> {
+    let uri_clone = uri.clone();
+    match (uri_clone.scheme_part(), uri_clone.authority_part()) {
+        (Some(scheme), Some(auth)) => {
+            Ok(format!("{}://{}", scheme, auth))
+        }
+        (None, Some(auth)) if is_http_connect => {
+            let port = auth.port_part();
+            let scheme = match port.as_ref().map(|p| p.as_str()) {
+                Some("443") => {
+                    set_scheme(uri, Scheme::HTTPS);
+                    "https"
+                }
+                _ => {
+                    set_scheme(uri, Scheme::HTTP);
+                    "http"
+                },
+            };
+            Ok(format!("{}://{}", scheme, auth))
+        },
+        _ => {
+            debug!("Client requires absolute-form URIs, received: {:?}", uri);
+            Err(::Error::new_user_absolute_uri_required())
+        }
+    }
+}
+
 fn set_scheme(uri: &mut Uri, scheme: Scheme) {
     debug_assert!(uri.scheme_part().is_none(), "set_scheme expects no existing scheme");
     let old = mem::replace(uri, Uri::default());
@@ -1088,5 +1097,12 @@ mod unit_tests {
         let mut uri = "hyper.rs".parse().unwrap();
         authority_form(&mut uri);
         assert_eq!(uri.to_string(), "hyper.rs");
+    }
+
+    #[test]
+    fn test_extract_domain_connect_no_port() {
+        let mut uri = "hyper.rs".parse().unwrap();
+        let domain = extract_domain(&mut uri, true).expect("extract domain");
+        assert_eq!(domain, "http://hyper.rs");
     }
 }
