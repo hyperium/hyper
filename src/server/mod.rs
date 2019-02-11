@@ -302,6 +302,14 @@ impl<I, E> Builder<I, E> {
         self
     }
 
+    /// Set the maximum buffer size.
+    ///
+    /// Default is ~ 400kb.
+    pub fn http1_max_buf_size(mut self, val: usize) -> Self {
+        self.protocol.max_buf_size(val);
+        self
+    }
+
     /// Sets the `Executor` to deal with connection tasks.
     ///
     /// Default is `tokio::spawn`.
