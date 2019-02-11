@@ -219,6 +219,12 @@ mod addr_stream {
         pub fn remote_addr(&self) -> SocketAddr {
             self.remote_addr
         }
+
+        /// Consumes the AddrStream and returns the underlying IO object
+        #[inline]
+        pub fn into_inner(self) -> TcpStream {
+            self.inner
+        }
     }
 
     impl Read for AddrStream {
