@@ -1,3 +1,18 @@
+### v0.12.24 (2019-02-11)
+
+
+#### Bug Fixes
+
+* **client:** fix panic when CONNECT request doesn't have a port ([d16b2c30](https://github.com/hyperium/hyper/commit/d16b2c30810a2d96ab226997930d953b2fc2626b))
+
+
+#### Features
+
+* **server:**
+  * add `http1_max_buf_size` in the `server::Builder` (#1761) ([3e9782c2](https://github.com/hyperium/hyper/commit/3e9782c2a9501a3122df8a54775a1fa7f2386fea))
+  * add `into_inner` to `AddrStream` (#1762) ([e52f80df](https://github.com/hyperium/hyper/commit/e52f80df5a114844d239561218112a650067f006))
+
+
 ### v0.12.23 (2019-01-24)
 
 
