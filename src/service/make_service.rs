@@ -115,7 +115,7 @@ where
 /// ```
 pub fn make_service_fn<F, Ctx, Ret>(f: F) -> MakeServiceFn<F>
 where
-    F: Fn(&Ctx) -> Ret,
+    F: FnMut(&Ctx) -> Ret,
     Ret: IntoFuture,
 {
     MakeServiceFn {
@@ -130,7 +130,7 @@ pub struct MakeServiceFn<F> {
 
 impl<'c, F, Ctx, Ret, ReqBody, ResBody> MakeService<&'c Ctx> for MakeServiceFn<F>
 where
-    F: Fn(&Ctx) -> Ret,
+    F: FnMut(&Ctx) -> Ret,
     Ret: IntoFuture,
     Ret::Item: Service<ReqBody=ReqBody, ResBody=ResBody>,
     Ret::Error: Into<Box<StdError + Send + Sync>>,
