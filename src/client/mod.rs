@@ -528,6 +528,7 @@ where C: Connect + Sync + 'static,
                         .http2_only(is_h2)
                         .handshake(io)
                         .and_then(move |(tx, conn)| {
+                            trace!("handshake complete, spawning background dispatcher task");
                             let bg = executor.execute(conn.map_err(|e| {
                                 debug!("client connection error: {}", e)
                             }));

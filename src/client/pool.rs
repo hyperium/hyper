@@ -680,6 +680,7 @@ impl<T: Poolable> Future for Checkout<T> {
 impl<T> Drop for Checkout<T> {
     fn drop(&mut self) {
         if self.waiter.take().is_some() {
+            trace!("checkout dropped for {:?}", self.key);
             if let Some(Ok(mut inner)) = self.pool.inner.as_ref().map(|i| i.lock()) {
                 inner.clean_waiters(&self.key);
             }

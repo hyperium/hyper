@@ -452,7 +452,11 @@ impl ConnectingTcpRemote {
         loop {
             if let Some(ref mut current) = self.current {
                 match current.poll() {
-                    Ok(ok) => return Ok(ok),
+                    Ok(Async::Ready(tcp)) => {
+                        debug!("connected to {:?}", tcp.peer_addr().ok());
+                        return Ok(Async::Ready(tcp));
+                    },
+                    Ok(Async::NotReady) => return Ok(Async::NotReady),
                     Err(e) => {
                         trace!("connect error {:?}", e);
                         err = Some(e);

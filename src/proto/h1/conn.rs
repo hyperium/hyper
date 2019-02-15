@@ -231,8 +231,6 @@ where I: AsyncRead + AsyncWrite,
     pub fn read_keep_alive(&mut self) -> Result<(), ::Error> {
         debug_assert!(!self.can_read_head() && !self.can_read_body());
 
-        trace!("read_keep_alive; is_mid_message={}", self.is_mid_message());
-
         if self.is_mid_message() {
             self.mid_message_detect_eof().map_err(::Error::new_io)
         } else {
@@ -279,6 +277,7 @@ where I: AsyncRead + AsyncWrite,
                     Err(io::Error::new(io::ErrorKind::InvalidData, desc))
                 },
                 Async::NotReady => {
+                    trace!("read_keep_alive check: ok, nothing to read yet");
                     Ok(())
                 },
             }
@@ -715,14 +714,20 @@ enum Writing {
 
 impl fmt::Debug for State {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("State")
+        let mut builder = f.debug_struct("State");
+        builder
             .field("reading", &self.reading)
             .field("writing", &self.writing)
-            .field("keep_alive", &self.keep_alive)
-            .field("error", &self.error)
-            //.field("method", &self.method)
-            //.field("title_case_headers", &self.title_case_headers)
-            .finish()
+            .field("keep_alive", &self.keep_alive);
+
+        // Only show error field if it's interesting...
+        if let Some(ref error) = self.error {
+            builder.field("error", error);
+        }
+
+        // Purposefully leaving off other fields..
+
+        builder.finish()
     }
 }
 
