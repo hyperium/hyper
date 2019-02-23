@@ -189,7 +189,7 @@ where
         // can dispatch receive, or does it still care about, an incoming message?
         match self.dispatch.poll_ready() {
             Ok(Async::Ready(())) => (),
-            Ok(Async::NotReady) => unreachable!("dispatch not ready when conn is"),
+            Ok(Async::NotReady) => return Ok(Async::NotReady), // service might not be ready
             Err(()) => {
                 trace!("dispatch no longer receiving messages");
                 self.close();
@@ -410,7 +410,11 @@ where
         if self.in_flight.is_some() {
             Ok(Async::NotReady)
         } else {
-            Ok(Async::Ready(()))
+            self.service.poll_ready()
+                .map_err(|_e| {
+                    // FIXME: return error value.
+                    trace!("service closed");
+                })
         }
     }
 

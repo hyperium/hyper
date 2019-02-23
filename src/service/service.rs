@@ -2,7 +2,7 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::marker::PhantomData;
 
-use futures::{future, Future, IntoFuture};
+use futures::{future, Async, Future, IntoFuture, Poll};
 
 use body::Payload;
 use common::Never;
@@ -25,6 +25,15 @@ pub trait Service {
 
     /// The `Future` returned by this `Service`.
     type Future: Future<Item=Response<Self::ResBody>, Error=Self::Error>;
+
+    /// Returns `Ready` when the service is able to process requests.
+    ///
+    /// The implementation of this method is allowed to return a `Ready` even if
+    /// the service is not ready to process. In this case, the future returned
+    /// from `call` will resolve to an error.
+    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+        Ok(Async::Ready(()))
+    }
 
     /// Calls this `Service` with a request, returning a `Future` of the response.
     fn call(&mut self, req: Request<Self::ReqBody>) -> Self::Future;
