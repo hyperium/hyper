@@ -207,3 +207,66 @@ fn checkout_win_allows_connect_future_to_be_pooled() {
     }
 }
 
+#[cfg(feature = "nightly")]
+#[bench]
+fn bench_http1_get_0b(b: &mut test::Bencher) {
+    let _ = pretty_env_logger::try_init();
+
+    let mut rt = Runtime::new().expect("new rt");
+    let mut connector = MockConnector::new();
+
+
+    let client = Client::builder()
+        .build::<_, ::Body>(connector.clone());
+
+    client.pool.no_timer();
+
+    let uri = Uri::from_static("http://mock.local/a");
+
+    b.iter(move || {
+        let sock1 = connector.mock("http://mock.local");
+        let res1 = client
+            .get(uri.clone())
+            .and_then(|res| {
+                res.into_body().for_each(|_| Ok(()))
+            });
+        let srv1 = poll_fn(|| {
+            try_ready!(sock1.read(&mut [0u8; 512]));
+            try_ready!(sock1.write(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"));
+            Ok(Async::Ready(()))
+        }).map_err(|e: ::std::io::Error| panic!("srv1 poll_fn error: {}", e));
+        rt.block_on(res1.join(srv1)).expect("res1");
+    });
+}
+
+#[cfg(feature = "nightly")]
+#[bench]
+fn bench_http1_get_10b(b: &mut test::Bencher) {
+    let _ = pretty_env_logger::try_init();
+
+    let mut rt = Runtime::new().expect("new rt");
+    let mut connector = MockConnector::new();
+
+
+    let client = Client::builder()
+        .build::<_, ::Body>(connector.clone());
+
+    client.pool.no_timer();
+
+    let uri = Uri::from_static("http://mock.local/a");
+
+    b.iter(move || {
+        let sock1 = connector.mock("http://mock.local");
+        let res1 = client
+            .get(uri.clone())
+            .and_then(|res| {
+                res.into_body().for_each(|_| Ok(()))
+            });
+        let srv1 = poll_fn(|| {
+            try_ready!(sock1.read(&mut [0u8; 512]));
+            try_ready!(sock1.write(b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\n0123456789"));
+            Ok(Async::Ready(()))
+        }).map_err(|e: ::std::io::Error| panic!("srv1 poll_fn error: {}", e));
+        rt.block_on(res1.join(srv1)).expect("res1");
+    });
+}

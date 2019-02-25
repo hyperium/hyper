@@ -438,15 +438,19 @@ impl Drop for DuplexHandle {
 type BoxedConnectFut = Box<Future<Item=(Duplex, Connected), Error=io::Error> + Send>;
 
 #[cfg(feature = "runtime")]
+#[derive(Clone)]
 pub struct MockConnector {
-    mocks: Mutex<HashMap<String, Vec<BoxedConnectFut>>>,
+    mocks: Arc<Mutex<MockedConnections>>,
 }
+
+#[cfg(feature = "runtime")]
+struct MockedConnections(HashMap<String, Vec<BoxedConnectFut>>);
 
 #[cfg(feature = "runtime")]
 impl MockConnector {
     pub fn new() -> MockConnector {
         MockConnector {
-            mocks: Mutex::new(HashMap::new()),
+            mocks: Arc::new(Mutex::new(MockedConnections(HashMap::new()))),
         }
     }
 
@@ -474,7 +478,7 @@ impl MockConnector {
             trace!("MockConnector mocked fut ready");
             Ok((duplex, connected))
         }));
-        self.mocks.lock().unwrap().entry(key)
+        self.mocks.lock().unwrap().0.entry(key)
             .or_insert(Vec::new())
             .push(fut);
 
@@ -496,7 +500,7 @@ impl Connect for MockConnector {
             "".to_owned()
         });
         let mut mocks = self.mocks.lock().unwrap();
-        let mocks = mocks.get_mut(&key)
+        let mocks = mocks.0.get_mut(&key)
             .expect(&format!("unknown mocks uri: {}", key));
         assert!(!mocks.is_empty(), "no additional mocks for {}", key);
         mocks.remove(0)
@@ -505,11 +509,10 @@ impl Connect for MockConnector {
 
 
 #[cfg(feature = "runtime")]
-impl Drop for MockConnector {
+impl Drop for MockedConnections {
     fn drop(&mut self) {
         if !::std::thread::panicking() {
-            let mocks = self.mocks.lock().unwrap();
-            for (key, mocks) in mocks.iter() {
+            for (key, mocks) in self.0.iter() {
                 assert_eq!(
                     mocks.len(),
                     0,
