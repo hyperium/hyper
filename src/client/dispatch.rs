@@ -178,14 +178,21 @@ pub enum Callback<T, U> {
 }
 
 impl<T, U> Callback<T, U> {
-    pub fn poll_cancel(&mut self) -> Poll<(), ()> {
+    pub(crate) fn is_canceled(&self) -> bool {
+        match *self {
+            Callback::Retry(ref tx) => tx.is_canceled(),
+            Callback::NoRetry(ref tx) => tx.is_canceled(),
+        }
+    }
+
+    pub(crate) fn poll_cancel(&mut self) -> Poll<(), ()> {
         match *self {
             Callback::Retry(ref mut tx) => tx.poll_cancel(),
             Callback::NoRetry(ref mut tx) => tx.poll_cancel(),
         }
     }
 
-    pub fn send(self, val: Result<U, (::Error, Option<T>)>) {
+    pub(crate) fn send(self, val: Result<U, (::Error, Option<T>)>) {
         match self {
             Callback::Retry(tx) => {
                 let _ = tx.send(val);

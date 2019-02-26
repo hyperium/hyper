@@ -102,7 +102,7 @@ where
                     match self.rx.poll() {
                         Ok(Async::Ready(Some((req, mut cb)))) => {
                             // check that future hasn't been canceled already
-                            if let Async::Ready(()) = cb.poll_cancel().expect("poll_cancel cannot error") {
+                            if cb.is_canceled() {
                                 trace!("request canceled");
                                 continue;
                             }
@@ -117,7 +117,7 @@ where
                                 Ok(ok) => ok,
                                 Err(err) => {
                                     debug!("client send request error: {}", err);
-                                    let _ = cb.send(Err((::Error::new_h2(err), None)));
+                                    cb.send(Err((::Error::new_h2(err), None)));
                                     continue;
                                 }
                             };
@@ -147,11 +147,11 @@ where
                                             let content_length = content_length_parse_all(res.headers());
                                             let res = res.map(|stream|
                                                 ::Body::h2(stream, content_length));
-                                            let _ = cb.send(Ok(res));
+                                            cb.send(Ok(res));
                                         },
                                         Err(err) => {
                                             debug!("client response error: {}", err);
-                                            let _ = cb.send(Err((::Error::new_h2(err), None)));
+                                            cb.send(Err((::Error::new_h2(err), None)));
                                         }
                                     }
                                     Ok(())
