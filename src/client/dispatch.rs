@@ -281,20 +281,21 @@ mod tests {
     #[cfg(feature = "nightly")]
     #[bench]
     fn giver_queue_throughput(b: &mut test::Bencher) {
-        let (mut tx, mut rx) = super::channel::<i32, ()>();
+        use {Body, Request, Response};
+        let (mut tx, mut rx) = super::channel::<Request<Body>, Response<Body>>();
 
         b.iter(move || {
             ::futures::future::lazy(|| {
-                let _ = tx.send(1).unwrap();
+                let _ = tx.send(Request::default()).unwrap();
                 loop {
-                    let async = rx.poll().unwrap();
-                    if async.is_not_ready() {
+                    let ok = rx.poll().unwrap();
+                    if ok.is_not_ready() {
                         break;
                     }
                 }
 
 
-                Ok::<(), ()>(())
+                Ok::<_, ()>(())
             }).wait().unwrap();
         })
     }
