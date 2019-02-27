@@ -1,7 +1,7 @@
 use std::error::Error as StdError;
 use std::fmt;
 
-use futures::{Future, IntoFuture};
+use futures::{Async, Future, IntoFuture, Poll};
 
 use body::Payload;
 use super::Service;
@@ -30,6 +30,15 @@ pub trait MakeService<Ctx> {
     /// The error type that can be returned when creating a new `Service`.
     type MakeError: Into<Box<StdError + Send + Sync>>;
 
+    /// Returns `Ready` when the constructor is ready to create a new `Service`.
+    ///
+    /// The implementation of this method is allowed to return a `Ready` even if
+    /// the factory is not ready to create a new service. In this case, the future
+    /// returned from `make_service` will resolve to an error.
+    fn poll_ready(&mut self) -> Poll<(), Self::MakeError> {
+        Ok(Async::Ready(()))
+    }
+
     /// Create a new `Service`.
     fn make_service(&mut self, ctx: Ctx) -> Self::Future;
 }
@@ -46,7 +55,8 @@ pub trait MakeServiceRef<Ctx>: self::sealed::Sealed<Ctx> {
         ResBody=Self::ResBody,
         Error=Self::Error,
     >;
-    type Future: Future<Item=Self::Service>;
+    type MakeError: Into<Box<StdError + Send + Sync>>;
+    type Future: Future<Item=Self::Service, Error=Self::MakeError>;
 
     // Acting like a #[non_exhaustive] for associated types of this trait.
     //
@@ -58,6 +68,8 @@ pub trait MakeServiceRef<Ctx>: self::sealed::Sealed<Ctx> {
     // Why? So we can add new associated types to this alias in the future,
     // if necessary.
     type __DontNameMe: self::sealed::CantImpl;
+
+    fn poll_ready_ref(&mut self) -> Poll<(), Self::MakeError>;
 
     fn make_service_ref(&mut self, ctx: &Ctx) -> Self::Future;
 }
@@ -76,9 +88,14 @@ where
     type Service = S;
     type ReqBody = IB;
     type ResBody = OB;
+    type MakeError = ME;
     type Future = F;
 
     type __DontNameMe = self::sealed::CantName;
+
+    fn poll_ready_ref(&mut self) -> Poll<(), Self::MakeError> {
+        self.poll_ready()
+    }
 
     fn make_service_ref(&mut self, ctx: &Ctx) -> Self::Future {
         self.make_service(ctx)

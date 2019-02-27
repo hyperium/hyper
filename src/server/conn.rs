@@ -646,6 +646,15 @@ where
     type Error = ::Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        match self.make_service.poll_ready_ref() {
+            Ok(Async::Ready(())) => (),
+            Ok(Async::NotReady) => return Ok(Async::NotReady),
+            Err(e) => {
+                trace!("make_service closed");
+                return Err(::Error::new_user_new_service(e));
+            }
+        }
+
         if let Some(io) = try_ready!(self.incoming.poll().map_err(::Error::new_accept)) {
             let new_fut = self.make_service.make_service_ref(&io);
             Ok(Async::Ready(Some(Connecting {

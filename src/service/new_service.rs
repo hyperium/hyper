@@ -1,6 +1,6 @@
 use std::error::Error as StdError;
 
-use futures::{Future, IntoFuture};
+use futures::{Async, Future, IntoFuture, Poll};
 
 use body::Payload;
 use super::{MakeService, Service};
@@ -28,6 +28,11 @@ pub trait NewService {
 
     /// The error type that can be returned when creating a new `Service`.
     type InitError: Into<Box<StdError + Send + Sync>>;
+
+    #[doc(hidden)]
+    fn poll_ready(&mut self) -> Poll<(), Self::InitError> {
+        Ok(Async::Ready(()))
+    }
 
     /// Create a new `Service`.
     fn new_service(&self) -> Self::Future;
@@ -62,6 +67,10 @@ where
     type Service = N::Service;
     type Future = N::Future;
     type MakeError = N::InitError;
+
+    fn poll_ready(&mut self) -> Poll<(), Self::MakeError> {
+        NewService::poll_ready(self)
+    }
 
     fn make_service(&mut self, _: Ctx) -> Self::Future {
         self.new_service()

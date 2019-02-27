@@ -128,19 +128,37 @@ where
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
         E: H2Exec<S::Future, B>,
     {
-        while let Some((req, respond)) = try_ready!(self.conn.poll().map_err(::Error::new_h2)) {
-            trace!("incoming request");
-            let content_length = content_length_parse_all(req.headers());
-            let req = req.map(|stream| {
-                ::Body::h2(stream, content_length)
-            });
-            let fut = H2Stream::new(service.call(req), respond);
-            exec.execute_h2stream(fut)?;
-        }
+        loop {
+            // At first, polls the readiness of supplied service.
+            match service.poll_ready() {
+                Ok(Async::Ready(())) => (),
+                Ok(Async::NotReady) => {
+                    // use `poll_close` instead of `poll`, in order to avoid accepting a request.
+                    try_ready!(self.conn.poll_close().map_err(::Error::new_h2));
+                    trace!("incoming connection complete");
+                    return Ok(Async::Ready(()));
+                }
+                Err(err) => {
+                    trace!("service closed");
+                    return Err(::Error::new_user_service(err));
+                }
+            }
 
-        // no more incoming streams...
-        trace!("incoming connection complete");
-        Ok(Async::Ready(()))
+            // When the service is ready, accepts an incoming request.
+            if let Some((req, respond)) = try_ready!(self.conn.poll().map_err(::Error::new_h2)) {
+                trace!("incoming request");
+                let content_length = content_length_parse_all(req.headers());
+                let req = req.map(|stream| {
+                    ::Body::h2(stream, content_length)
+                });
+                let fut = H2Stream::new(service.call(req), respond);
+                exec.execute_h2stream(fut)?;
+            } else {
+                // no more incoming streams...
+                trace!("incoming connection complete");
+                return Ok(Async::Ready(()))
+            }
+        }
     }
 }
 
