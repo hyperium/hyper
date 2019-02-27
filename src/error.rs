@@ -323,12 +323,22 @@ impl StdError for Error {
         }
     }
 
+    #[cfg(not(error_source))]
     fn cause(&self) -> Option<&StdError> {
         self
             .inner
             .cause
             .as_ref()
             .map(|cause| &**cause as &StdError)
+    }
+
+    #[cfg(error_source)]
+    fn source(&self) -> Option<&(StdError + 'static)> {
+        self
+            .inner
+            .cause
+            .as_ref()
+            .map(|cause| &**cause as &(StdError + 'static))
     }
 }
 
