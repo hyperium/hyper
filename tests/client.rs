@@ -36,11 +36,16 @@ macro_rules! test {
             expected: $server_expected:expr,
             reply: $server_reply:expr,
         client:
-            request:
+            request: {$(
+                $c_req_prop:ident: $c_req_val: tt,
+            )*},
+            /*
                 method: $client_method:ident,
                 url: $client_url:expr,
                 headers: { $($request_header_name:expr => $request_header_val:expr,)* },
                 body: $request_body:expr,
+            },
+            */
 
             response:
                 status: $client_status:ident,
@@ -54,11 +59,9 @@ macro_rules! test {
                 reply: $server_reply,
             client:
                 set_host: true,
-                request:
-                    method: $client_method,
-                    url: $client_url,
-                    headers: { $($request_header_name => $request_header_val,)* },
-                    body: $request_body,
+                request: {$(
+                    $c_req_prop: $c_req_val,
+                )*},
 
                 response:
                     status: $client_status,
@@ -73,11 +76,9 @@ macro_rules! test {
             reply: $server_reply:expr,
         client:
             set_host: $set_host:expr,
-            request:
-                method: $client_method:ident,
-                url: $client_url:expr,
-                headers: { $($request_header_name:expr => $request_header_val:expr,)* },
-                body: $request_body:expr,
+            request: {$(
+                $c_req_prop:ident: $c_req_val:tt,
+            )*},
 
             response:
                 status: $client_status:ident,
@@ -92,11 +93,9 @@ macro_rules! test {
             client:
                 set_host: $set_host,
                 title_case_headers: false,
-                request:
-                    method: $client_method,
-                    url: $client_url,
-                    headers: { $($request_header_name => $request_header_val,)* },
-                    body: $request_body,
+                request: {$(
+                    $c_req_prop: $c_req_val,
+                )*},
 
                 response:
                     status: $client_status,
@@ -112,11 +111,9 @@ macro_rules! test {
         client:
             set_host: $set_host:expr,
             title_case_headers: $title_case_headers:expr,
-            request:
-                method: $client_method:ident,
-                url: $client_url:expr,
-                headers: { $($request_header_name:expr => $request_header_val:expr,)* },
-                body: $request_body:expr,
+            request: {$(
+                $c_req_prop:ident: $c_req_val:tt,
+            )*},
 
             response:
                 status: $client_status:ident,
@@ -138,17 +135,23 @@ macro_rules! test {
                 client:
                     set_host: $set_host,
                     title_case_headers: $title_case_headers,
-                    request:
-                        method: $client_method,
-                        url: $client_url,
-                        headers: { $($request_header_name => $request_header_val,)* },
-                        body: $request_body,
+                    request: {$(
+                        $c_req_prop: $c_req_val,
+                    )*},
             }.expect("test");
 
 
             assert_eq!(res.status(), StatusCode::$client_status);
             $(
-                assert_eq!(res.headers()[$response_header_name], $response_header_val);
+                assert_eq!(
+                    res
+                        .headers()
+                        .get($response_header_name)
+                        .expect(concat!("response header '", stringify!($response_header_name), "'")),
+                    $response_header_val,
+                    "response header '{}'",
+                    stringify!($response_header_name),
+                );
             )*
 
             let body = rt.block_on(res
@@ -167,11 +170,9 @@ macro_rules! test {
             expected: $server_expected:expr,
             reply: $server_reply:expr,
         client:
-            request:
-                method: $client_method:ident,
-                url: $client_url:expr,
-                headers: { $($request_header_name:expr => $request_header_val:expr,)* },
-                body: $request_body:expr,
+            request: {$(
+                $c_req_prop:ident: $c_req_val:tt,
+            )*},
 
             error: $err:expr,
     ) => (
@@ -190,11 +191,9 @@ macro_rules! test {
                 client:
                     set_host: true,
                     title_case_headers: false,
-                    request:
-                        method: $client_method,
-                        url: $client_url,
-                        headers: { $($request_header_name => $request_header_val,)* },
-                        body: $request_body,
+                    request: {$(
+                        $c_req_prop: $c_req_val,
+                    )*},
             }.unwrap_err();
 
             fn infer_closure<F: FnOnce(&::hyper::Error) -> bool>(f: F) -> F { f }
@@ -216,11 +215,9 @@ macro_rules! test {
         client:
             set_host: $set_host:expr,
             title_case_headers: $title_case_headers:expr,
-            request:
-                method: $client_method:ident,
-                url: $client_url:expr,
-                headers: { $($request_header_name:expr => $request_header_val:expr,)* },
-                body: $request_body:expr,
+            request: {$(
+                $c_req_prop:ident: $c_req_val:tt,
+            )*},
     ) => ({
         let server = TcpListener::bind("127.0.0.1:0").expect("bind");
         let addr = server.local_addr().expect("local_addr");
@@ -232,18 +229,13 @@ macro_rules! test {
             .http1_title_case_headers($title_case_headers)
             .build(connector);
 
-        let body = if let Some(body) = $request_body {
-            let body: &'static str = body;
-            body.into()
-        } else {
-            Body::empty()
-        };
-        let req = Request::builder()
-            .method(Method::$client_method)
-            .uri(&*format!($client_url, addr=addr))
+        #[allow(unused_assignments)]
+        let mut body = Body::empty();
+        let mut req_builder = Request::builder();
         $(
-            .header($request_header_name, $request_header_val)
+            test!(@client_request; req_builder, body, addr, $c_req_prop: $c_req_val);
         )*
+        let req = req_builder
             .body(body)
             .expect("request builder");
 
@@ -286,6 +278,42 @@ macro_rules! test {
             resp
         })
     });
+
+    (
+        @client_request;
+        $req_builder:ident,
+        $body:ident,
+        $addr:ident,
+        $c_req_prop:ident: $c_req_val:tt
+    ) => ({
+        __client_req_prop!($req_builder, $body, $addr, $c_req_prop: $c_req_val)
+    });
+}
+
+macro_rules! __client_req_prop {
+    ($req_builder:ident, $body:ident, $addr:ident, headers: $map:tt) => ({
+        __client_req_header!($req_builder, $map)
+    });
+
+    ($req_builder:ident, $body:ident, $addr:ident, method: $method:ident) => ({
+        $req_builder.method(Method::$method);
+    });
+
+    ($req_builder:ident, $body:ident, $addr:ident, url: $url:expr) => ({
+        $req_builder.uri(format!($url, addr=$addr));
+    });
+
+    ($req_builder:ident, $body:ident, $addr:ident, body: $body_e:expr) => ({
+        $body = $body_e.into();
+    });
+}
+
+macro_rules! __client_req_header {
+    ($req_builder:ident, { $($name:expr => $val:expr,)* }) => {
+        $(
+        $req_builder.header($name, $val);
+        )*
+    }
 }
 
 static REPLY_OK: &'static str = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
@@ -298,11 +326,10 @@ test! {
         reply: REPLY_OK,
 
     client:
-        request:
+        request: {
             method: GET,
             url: "http://{addr}/",
-            headers: {},
-            body: None,
+        },
         response:
             status: OK,
             headers: {
@@ -319,11 +346,10 @@ test! {
         reply: REPLY_OK,
 
     client:
-        request:
+        request: {
             method: GET,
             url: "http://{addr}/foo?key=val#dont_send_me",
-            headers: {},
-            body: None,
+        },
         response:
             status: OK,
             headers: {
@@ -340,11 +366,11 @@ test! {
         reply: REPLY_OK,
 
     client:
-        request:
+        request: {
             method: GET,
             url: "http://{addr}/",
-            headers: {},
-            body: Some(""),
+            body: "", // not Body::empty
+        },
         response:
             status: OK,
             headers: {
@@ -367,13 +393,14 @@ test! {
         reply: REPLY_OK,
 
     client:
-        request:
+        request: {
             method: POST,
             url: "http://{addr}/length",
             headers: {
                 "Content-Length" => "7",
             },
-            body: Some("foo bar"),
+            body: "foo bar",
+        },
         response:
             status: OK,
             headers: {},
@@ -396,13 +423,14 @@ test! {
         reply: REPLY_OK,
 
     client:
-        request:
+        request: {
             method: POST,
             url: "http://{addr}/chunks",
             headers: {
                 "Transfer-Encoding" => "chunked",
             },
-            body: Some("foo bar baz"),
+            body: "foo bar baz",
+        },
         response:
             status: OK,
             headers: {},
@@ -422,13 +450,13 @@ test! {
         reply: REPLY_OK,
 
     client:
-        request:
+        request: {
             method: POST,
             url: "http://{addr}/empty",
             headers: {
                 "Content-Length" => "0",
             },
-            body: None,
+        },
         response:
             status: OK,
             headers: {},
@@ -452,11 +480,10 @@ test! {
             ",
 
     client:
-        request:
+        request: {
             method: HEAD,
             url: "http://{addr}/head",
-            headers: {},
-            body: None,
+        },
         response:
             status: OK,
             headers: {},
@@ -482,11 +509,10 @@ test! {
             ",
 
     client:
-        request:
+        request: {
             method: GET,
             url: "http://{addr}/pipe",
-            headers: {},
-            body: None,
+        },
         response:
             status: OK,
             headers: {},
@@ -501,11 +527,10 @@ test! {
         reply: "won't reply",
 
     client:
-        request:
+        request: {
             method: GET,
             url: "/relative-{addr}",
-            headers: {},
-            body: None,
+        },
         error: |err| err.to_string() == "client requires absolute-form URIs",
 }
 
@@ -523,11 +548,10 @@ test! {
             ", // unexpected eof before double CRLF
 
     client:
-        request:
+        request: {
             method: GET,
             url: "http://{addr}/err",
-            headers: {},
-            body: None,
+        },
         error: |err| err.to_string() == "parsed HTTP message from remote is incomplete",
 }
 
@@ -546,11 +570,10 @@ test! {
             ",
 
     client:
-        request:
+        request: {
             method: GET,
             url: "http://{addr}/err",
-            headers: {},
-            body: None,
+        },
         // should get a Parse(Version) error
         error: |err| err.is_parse(),
 
@@ -576,13 +599,14 @@ test! {
             ",
 
     client:
-        request:
+        request: {
             method: POST,
             url: "http://{addr}/continue",
             headers: {
                 "Content-Length" => "7",
             },
-            body: Some("foo bar"),
+            body: "foo bar",
+        },
         response:
             status: OK,
             headers: {},
@@ -604,11 +628,10 @@ test! {
             ",
 
     client:
-        request:
+        request: {
             method: CONNECT,
             url: "{addr}",
-            headers: {},
-            body: None,
+        },
         response:
             status: OK,
             headers: {},
@@ -631,11 +654,10 @@ test! {
             ",
 
     client:
-        request:
+        request: {
             method: CONNECT,
             url: "http://{addr}",
-            headers: {},
-            body: None,
+        },
         response:
             status: OK,
             headers: {},
@@ -660,11 +682,10 @@ test! {
 
     client:
         set_host: false,
-        request:
+        request: {
             method: GET,
             url: "http://{addr}/no-host/{addr}",
-            headers: {},
-            body: None,
+        },
         response:
             status: OK,
             headers: {},
@@ -690,13 +711,13 @@ test! {
     client:
         set_host: true,
         title_case_headers: true,
-        request:
+        request: {
             method: GET,
             url: "http://{addr}/",
             headers: {
                 "X-Test-Header" => "test",
             },
-            body: None,
+        },
         response:
             status: OK,
             headers: {},
