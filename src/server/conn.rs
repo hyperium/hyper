@@ -17,6 +17,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 use futures::{Async, Future, Poll, Stream};
 use futures::future::{Either, Executor};
+use h2;
 use tokio_io::{AsyncRead, AsyncWrite};
 #[cfg(feature = "runtime")] use tokio_reactor::Handle;
 
@@ -46,6 +47,7 @@ pub struct Http<E = Exec> {
     exec: E,
     h1_half_close: bool,
     h1_writev: bool,
+    h2_builder: h2::server::Builder,
     mode: ConnectionMode,
     keep_alive: bool,
     max_buf_size: Option<usize>,
@@ -120,14 +122,14 @@ where
 
 #[derive(Clone, Debug)]
 enum Fallback<E> {
-    ToHttp2(E),
+    ToHttp2(h2::server::Builder, E),
     Http1Only,
 }
 
 impl<E> Fallback<E> {
     fn to_h2(&self) -> bool {
         match *self {
-            Fallback::ToHttp2(_) => true,
+            Fallback::ToHttp2(..) => true,
             Fallback::Http1Only => false,
         }
     }
@@ -165,6 +167,7 @@ impl Http {
             exec: Exec::Default,
             h1_half_close: true,
             h1_writev: true,
+            h2_builder: h2::server::Builder::default(),
             mode: ConnectionMode::Fallback,
             keep_alive: true,
             max_buf_size: None,
@@ -236,6 +239,19 @@ impl<E> Http<E> {
         self
     }
 
+    /// Sets the [`SETTINGS_MAX_CONCURRENT_STREAMS`][spec] option for HTTP2
+    /// connections.
+    ///
+    /// Default is no limit (`None`).
+    ///
+    /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_MAX_CONCURRENT_STREAMS
+    pub fn http2_max_concurrent_streams(&mut self, max: impl Into<Option<u32>>) -> &mut Self {
+        if let Some(max) = max.into() {
+            self.h2_builder.max_concurrent_streams(max);
+        }
+        self
+    }
+
     /// Enables or disables HTTP keep-alive.
     ///
     /// Default is true.
@@ -278,6 +294,7 @@ impl<E> Http<E> {
             exec,
             h1_half_close: self.h1_half_close,
             h1_writev: self.h1_writev,
+            h2_builder: self.h2_builder,
             mode: self.mode,
             keep_alive: self.keep_alive,
             max_buf_size: self.max_buf_size,
@@ -350,7 +367,7 @@ impl<E> Http<E> {
             }
             ConnectionMode::H2Only => {
                 let rewind_io = Rewind::new(io);
-                let h2 = proto::h2::Server::new(rewind_io, service, self.exec.clone());
+                let h2 = proto::h2::Server::new(rewind_io, service, &self.h2_builder, self.exec.clone());
                 Either::B(h2)
             }
         };
@@ -358,7 +375,7 @@ impl<E> Http<E> {
         Connection {
             conn: Some(either),
             fallback: if self.mode == ConnectionMode::Fallback {
-                Fallback::ToHttp2(self.exec.clone())
+                Fallback::ToHttp2(self.h2_builder.clone(), self.exec.clone())
             } else {
                 Fallback::Http1Only
             },
@@ -538,11 +555,16 @@ where
         };
         let mut rewind_io = Rewind::new(io);
         rewind_io.rewind(read_buf);
-        let exec = match self.fallback {
-            Fallback::ToHttp2(ref exec) => exec.clone(),
+        let (builder, exec) = match self.fallback {
+            Fallback::ToHttp2(ref builder, ref exec) => (builder, exec),
             Fallback::Http1Only => unreachable!("upgrade_h2 with Fallback::Http1Only"),
         };
-        let h2 = proto::h2::Server::new(rewind_io, dispatch.into_service(), exec);
+        let h2 = proto::h2::Server::new(
+            rewind_io,
+            dispatch.into_service(),
+            builder,
+            exec.clone(),
+        );
 
         debug_assert!(self.conn.is_none());
         self.conn = Some(Either::B(h2));

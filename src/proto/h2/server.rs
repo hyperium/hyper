@@ -50,9 +50,8 @@ where
     B: Payload,
     E: H2Exec<S::Future, B>,
 {
-    pub(crate) fn new(io: T, service: S, exec: E) -> Server<T, S, B, E> {
-        let handshake = Builder::new()
-            .handshake(io);
+    pub(crate) fn new(io: T, service: S, builder: &Builder, exec: E) -> Server<T, S, B, E> {
+        let handshake = builder.handshake(io);
         Server {
             exec,
             state: State::Handshaking(handshake),
