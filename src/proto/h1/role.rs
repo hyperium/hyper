@@ -271,7 +271,7 @@ impl Http1Transaction for Server {
                     warn!("response with HTTP2 version coerced to HTTP/1.1");
                     extend(dst, b"HTTP/1.1 ");
                 },
-                _ => unreachable!(),
+                other => panic!("unexpected response version: {:?}", other),
             }
 
             extend(dst, msg.head.subject.as_str().as_bytes());
@@ -667,7 +667,11 @@ impl Http1Transaction for Client {
         match msg.head.version {
             Version::HTTP_10 => extend(dst, b"HTTP/1.0"),
             Version::HTTP_11 => extend(dst, b"HTTP/1.1"),
-            _ => unreachable!(),
+            Version::HTTP_2 => {
+                warn!("request with HTTP2 version coerced to HTTP/1.1");
+                extend(dst, b"HTTP/1.1");
+            },
+            other => panic!("unexpected request version: {:?}", other),
         }
         extend(dst, b"\r\n");
 

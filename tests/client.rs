@@ -39,13 +39,6 @@ macro_rules! test {
             request: {$(
                 $c_req_prop:ident: $c_req_val: tt,
             )*},
-            /*
-                method: $client_method:ident,
-                url: $client_url:expr,
-                headers: { $($request_header_name:expr => $request_header_val:expr,)* },
-                body: $request_body:expr,
-            },
-            */
 
             response:
                 status: $client_status:ident,
@@ -297,6 +290,10 @@ macro_rules! __client_req_prop {
 
     ($req_builder:ident, $body:ident, $addr:ident, method: $method:ident) => ({
         $req_builder.method(Method::$method);
+    });
+
+    ($req_builder:ident, $body:ident, $addr:ident, version: $version:ident) => ({
+        $req_builder.version(hyper::Version::$version);
     });
 
     ($req_builder:ident, $body:ident, $addr:ident, url: $url:expr) => ({
@@ -722,6 +719,38 @@ test! {
             status: OK,
             headers: {},
             body: None,
+}
+
+test! {
+    name: client_h1_rejects_http2,
+
+    server:
+        expected: "won't get here {addr}",
+        reply: "won't reply",
+
+    client:
+        request: {
+            method: GET,
+            url: "http://{addr}/",
+            version: HTTP_2,
+        },
+        error: |err| err.to_string() == "request has unsupported HTTP version",
+}
+
+test! {
+    name: client_always_rejects_http09,
+
+    server:
+        expected: "won't get here {addr}",
+        reply: "won't reply",
+
+    client:
+        request: {
+            method: GET,
+            url: "http://{addr}/",
+            version: HTTP_09,
+        },
+        error: |err| err.to_string() == "request has unsupported HTTP version",
 }
 
 mod dispatch_impl {
@@ -1790,6 +1819,52 @@ mod conn {
 
         let req = Request::builder()
             .uri("http://hyper.local/a")
+            .body(Default::default())
+            .unwrap();
+
+        let res = client.send_request(req).and_then(move |res| {
+            assert_eq!(res.status(), hyper::StatusCode::OK);
+            res.into_body().concat2()
+        });
+        let rx = rx1.expect("thread panicked");
+
+        let timeout = Delay::new(Duration::from_millis(200));
+        let rx = rx.and_then(move |_| timeout.expect("timeout"));
+        rt.block_on(res.join(rx).map(|r| r.0)).unwrap();
+    }
+
+    #[test]
+    fn http1_conn_coerces_http2_request() {
+        let server = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = server.local_addr().unwrap();
+        let mut rt = Runtime::new().unwrap();
+
+        let (tx1, rx1) = oneshot::channel();
+
+        thread::spawn(move || {
+            let mut sock = server.accept().unwrap().0;
+            sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let mut buf = [0; 4096];
+            let n = sock.read(&mut buf).expect("read 1");
+
+            // Not HTTP/2, nor panicked
+            let expected = "GET /a HTTP/1.1\r\n\r\n";
+            assert_eq!(s(&buf[..n]), expected);
+
+            sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").unwrap();
+            let _ = tx1.send(());
+        });
+
+        let tcp = rt.block_on(tcp_connect(&addr)).unwrap();
+
+        let (mut client, conn) = rt.block_on(conn::handshake(tcp)).unwrap();
+
+        rt.spawn(conn.map(|_| ()).map_err(|e| panic!("conn error: {}", e)));
+
+        let req = Request::builder()
+            .uri("/a")
+            .version(hyper::Version::HTTP_2)
             .body(Default::default())
             .unwrap();
 

@@ -236,13 +236,14 @@ where C: Connect + Sync + 'static,
         match req.version() {
             Version::HTTP_11 => (),
             Version::HTTP_10 => if is_http_connect {
-                debug!("CONNECT is not allowed for HTTP/1.0");
+                warn!("CONNECT is not allowed for HTTP/1.0");
                 return ResponseFuture::new(Box::new(future::err(::Error::new_user_unsupported_request_method())));
             },
-            other => if self.config.ver != Ver::Http2 {
-                error!("Request has unsupported version \"{:?}\"", other);
-                return ResponseFuture::new(Box::new(future::err(::Error::new_user_unsupported_version())));
-            }
+            other_h2 @ Version::HTTP_2 => if self.config.ver != Ver::Http2 {
+                return ResponseFuture::error_version(other_h2);
+            },
+            // completely unsupported HTTP version (like HTTP/0.9)!
+            other => return ResponseFuture::error_version(other),
         };
 
         let domain = match extract_domain(req.uri_mut(), is_http_connect) {
@@ -590,6 +591,11 @@ impl ResponseFuture {
         Self {
             inner: fut,
         }
+    }
+
+    fn error_version(ver: Version) -> Self {
+        warn!("Request has unsupported version \"{:?}\"", ver);
+        ResponseFuture::new(Box::new(future::err(::Error::new_user_unsupported_version())))
     }
 }
 
