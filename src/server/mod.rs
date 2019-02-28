@@ -302,6 +302,17 @@ impl<I, E> Builder<I, E> {
         self
     }
 
+    /// Sets the [`SETTINGS_MAX_CONCURRENT_STREAMS`][spec] option for HTTP2
+    /// connections.
+    ///
+    /// Default is no limit (`None`).
+    ///
+    /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_MAX_CONCURRENT_STREAMS
+    pub fn http2_max_concurrent_streams(mut self, max: impl Into<Option<u32>>) -> Self {
+        self.protocol.http2_max_concurrent_streams(max.into());
+        self
+    }
+
     /// Set the maximum buffer size.
     ///
     /// Default is ~ 400kb.
