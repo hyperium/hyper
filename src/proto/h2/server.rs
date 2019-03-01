@@ -209,7 +209,12 @@ where
                             }
                             return Ok(Async::NotReady);
                         }
-                        Err(e) => return Err(::Error::new_user_service(e)),
+                        Err(e) => {
+                            let err = ::Error::new_user_service(e);
+                            warn!("http2 service errored: {}", err);
+                            self.reply.send_reset(Reason::INTERNAL_ERROR);
+                            return Err(err);
+                        },
                     };
 
                     let (head, mut body) = res.into_parts();
