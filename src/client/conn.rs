@@ -15,6 +15,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 use futures::{Async, Future, Poll};
 use futures::future::{self, Either, Executor};
+use h2;
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use body::Payload;
@@ -77,6 +78,7 @@ pub struct Builder {
     h1_read_buf_exact_size: Option<usize>,
     h1_max_buf_size: Option<usize>,
     http2: bool,
+    h2_builder: h2::client::Builder,
 }
 
 /// A future setting up HTTP over an IO object.
@@ -431,6 +433,9 @@ impl Builder {
     /// Creates a new connection builder.
     #[inline]
     pub fn new() -> Builder {
+        let mut h2_builder = h2::client::Builder::default();
+        h2_builder.enable_push(false);
+
         Builder {
             exec: Exec::Default,
             h1_writev: true,
@@ -438,6 +443,7 @@ impl Builder {
             h1_title_case_headers: false,
             h1_max_buf_size: None,
             http2: false,
+            h2_builder,
         }
     }
 
@@ -482,6 +488,29 @@ impl Builder {
     /// Default is false.
     pub fn http2_only(&mut self, enabled: bool) -> &mut Builder {
         self.http2 = enabled;
+        self
+    }
+
+    /// Sets the [`SETTINGS_INITIAL_WINDOW_SIZE`][spec] option for HTTP2
+    /// stream-level flow control.
+    ///
+    /// Default is 65,535
+    ///
+    /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_INITIAL_WINDOW_SIZE
+    pub fn http2_initial_stream_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
+        if let Some(sz) = sz.into() {
+            self.h2_builder.initial_window_size(sz);
+        }
+        self
+    }
+
+    /// Sets the max connection-level flow control for HTTP2
+    ///
+    /// Default is 65,535
+    pub fn http2_initial_connection_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
+        if let Some(sz) = sz.into() {
+            self.h2_builder.initial_connection_window_size(sz);
+        }
         self
     }
 
@@ -532,7 +561,7 @@ where
             let dispatch = proto::h1::Dispatcher::new(cd, conn);
             Either::A(dispatch)
         } else {
-            let h2 = proto::h2::Client::new(io, rx, self.builder.exec.clone());
+            let h2 = proto::h2::Client::new(io, rx, &self.builder.h2_builder, self.builder.exec.clone());
             Either::B(h2)
         };
 

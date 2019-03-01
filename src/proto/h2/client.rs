@@ -37,11 +37,8 @@ where
     T: AsyncRead + AsyncWrite + Send + 'static,
     B: Payload,
 {
-    pub(crate) fn new(io: T, rx: ClientRx<B>, exec: Exec) -> Client<T, B> {
-        let handshake = Builder::new()
-            // we don't expose PUSH promises yet
-            .enable_push(false)
-            .handshake(io);
+    pub(crate) fn new(io: T, rx: ClientRx<B>, builder: &Builder, exec: Exec) -> Client<T, B> {
+        let handshake = builder.handshake(io);
 
         Client {
             executor: exec,
