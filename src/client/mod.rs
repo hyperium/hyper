@@ -982,12 +982,9 @@ impl Builder {
         self
     }
 
-    /// Sets the [`SETTINGS_INITIAL_WINDOW_SIZE`][spec] option for HTTP2
-    /// connection-level flow control.
+    /// Sets the max connection-level flow control for HTTP2
     ///
     /// Default is 65,535
-    ///
-    /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_INITIAL_WINDOW_SIZE
     pub fn http2_initial_connection_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
         self.conn_builder.http2_initial_connection_window_size(sz.into());
         self
