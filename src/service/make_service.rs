@@ -118,17 +118,33 @@ where
 ///
 /// # Example
 ///
-/// ```rust
+/// ```rust,no_run
+/// # #[cfg(feature = "runtime")] fn main() {
 /// use std::net::TcpStream;
-/// use hyper::{Body, Request, Response};
+/// use hyper::{Body, Request, Response, Server};
+/// use hyper::rt::{self, Future};
+/// use hyper::server::conn::AddrStream;
 /// use hyper::service::{make_service_fn, service_fn_ok};
 ///
-/// let make_svc = make_service_fn(|socket: &TcpStream| {
-///     let remote_addr = socket.peer_addr().unwrap();
+/// let addr = ([127, 0, 0, 1], 3000).into();
+///
+/// let make_svc = make_service_fn(|socket: &AddrStream| {
+///     let remote_addr = socket.remote_addr();
 ///     service_fn_ok(move |_: Request<Body>| {
 ///         Response::new(Body::from(format!("Hello, {}", remote_addr)))
 ///     })
 /// });
+///
+/// // Then bind and serve...
+/// let server = Server::bind(&addr)
+///     .serve(make_svc);
+///
+/// // Finally, spawn `server` onto an Executor...
+/// rt::run(server.map_err(|e| {
+///     eprintln!("server error: {}", e);
+/// }));
+/// # }
+/// # #[cfg(not(feature = "runtime"))] fn main() {}
 /// ```
 pub fn make_service_fn<F, Ctx, Ret>(f: F) -> MakeServiceFn<F>
 where
