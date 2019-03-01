@@ -1,3 +1,22 @@
+### v0.12.25 (2019-03-01)
+
+
+#### Bug Fixes
+
+* **client:** coerce HTTP_2 requests to HTTP_11 ([3a6080b1](https://github.com/hyperium/hyper/commit/3a6080b14abecc29c9aed77be6d60d34a12b368c), closes [#1770](https://github.com/hyperium/hyper/issues/1770))
+* **http2:** send INTERNAL_ERROR when user's Service errors ([8f926a0d](https://github.com/hyperium/hyper/commit/8f926a0daeaf4716cfb2e6db143c524da34421de))
+
+
+#### Features
+
+* **error:** implement `Error::source` when available ([4cf22dfa](https://github.com/hyperium/hyper/commit/4cf22dfa2139f072e0ee937de343a0b0b0a77a22), closes [#1768](https://github.com/hyperium/hyper/issues/1768))
+* **http2:** Add window size config options for Client and Server ([7dcd4618](https://github.com/hyperium/hyper/commit/7dcd4618c059cc76987a32d3acb75e2aaed4419e), closes [#1771](https://github.com/hyperium/hyper/issues/1771))
+* **server:** add `http2_max_concurrent_streams` builder option ([cbae4294](https://github.com/hyperium/hyper/commit/cbae4294c416a64b56f30be7b6494f9934016d1e), closes [#1772](https://github.com/hyperium/hyper/issues/1772))
+* **service:**
+  * add `poll_ready` to `Service` and `MakeService` (#1767) ([0bf30ccc](https://github.com/hyperium/hyper/commit/0bf30ccc68feefb0196d2db9536232e5913598da))
+  * allow `FnMut` with `service_fn` ([877606d5](https://github.com/hyperium/hyper/commit/877606d5c81195374259561aa98b973a00fa6056))
+
+
 ### v0.12.24 (2019-02-11)
 
 
