@@ -17,10 +17,12 @@
 pub use self::body::{Body, Sender};
 pub use self::chunk::Chunk;
 pub use self::payload::Payload;
+pub use self::take_bytes::{TakeBytes, TakeBytesExt};
 
 mod body;
 mod chunk;
 mod payload;
+mod take_bytes;
 
 // The full_data API is not stable, so these types are to try to prevent
 // users from being able to:
