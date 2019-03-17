@@ -233,13 +233,18 @@ impl Http1Transaction for Server {
         );
         debug_assert!(!msg.title_case_headers, "no server config for title case headers");
 
+        let mut wrote_len = false;
+
         // hyper currently doesn't support returning 1xx status codes as a Response
         // This is because Service only allows returning a single Response, and
         // so if you try to reply with a e.g. 100 Continue, you have no way of
         // replying with the latter status code response.
-        let is_upgrade = msg.head.subject == StatusCode::SWITCHING_PROTOCOLS
-            || (msg.req_method == &Some(Method::CONNECT) && msg.head.subject.is_success());
-        let (ret, mut is_last) = if is_upgrade {
+        let (ret, mut is_last) = if msg.head.subject == StatusCode::SWITCHING_PROTOCOLS {
+            (Ok(()), true)
+        } else if msg.req_method == &Some(Method::CONNECT) && msg.head.subject.is_success() {
+            // Sending content-length or transfer-encoding header on 2xx response
+            // to CONNECT is forbidden in RFC 7231.
+            wrote_len = true;
             (Ok(()), true)
         } else if msg.head.subject.is_informational() {
             warn!("response with 1xx status code not supported");
@@ -282,13 +287,12 @@ impl Http1Transaction for Server {
         }
 
         let mut encoder = Encoder::length(0);
-        let mut wrote_len = false;
         let mut wrote_date = false;
         'headers: for (name, mut values) in msg.head.headers.drain() {
             match name {
                 header::CONTENT_LENGTH => {
                     if wrote_len {
-                        warn!("transfer-encoding and content-length both found, canceling");
+                        warn!("unexpected content-length found, canceling");
                         rewind(dst);
                         return Err(::Error::new_header());
                     }
@@ -397,7 +401,7 @@ impl Http1Transaction for Server {
                 },
                 header::TRANSFER_ENCODING => {
                     if wrote_len {
-                        warn!("transfer-encoding and content-length both found, canceling");
+                        warn!("unexpected transfer-encoding found, canceling");
                         rewind(dst);
                         return Err(::Error::new_header());
                     }
