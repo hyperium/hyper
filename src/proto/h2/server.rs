@@ -211,7 +211,7 @@ where
                         Err(e) => {
                             let err = ::Error::new_user_service(e);
                             warn!("http2 service errored: {}", err);
-                            self.reply.send_reset(Reason::INTERNAL_ERROR);
+                            self.reply.send_reset(err.h2_reason());
                             return Err(err);
                         },
                     };
@@ -232,7 +232,7 @@ where
                             match self.reply.send_response(res, $eos) {
                                 Ok(tx) => tx,
                                 Err(e) => {
-                                    trace!("send response error: {}", e);
+                                    debug!("send response error: {}", e);
                                     self.reply.send_reset(Reason::INTERNAL_ERROR);
                                     return Err(::Error::new_h2(e));
                                 }
