@@ -5,6 +5,7 @@ use std::io;
 
 use httparse;
 use http;
+use h2;
 
 /// Result type often returned from methods that can have hyper `Error`s.
 pub type Result<T> = ::std::result::Result<T, Error>;
@@ -137,10 +138,8 @@ impl Error {
         self.inner.kind == Kind::Connect
     }
 
-    /// Returns the error's cause.
-    ///
-    /// This is identical to `Error::cause` except that it provides extra
-    /// bounds required to be able to downcast the error.
+    #[doc(hidden)]
+    #[cfg_attr(error_source, deprecated(note = "use Error::source instead"))]
     pub fn cause2(&self) -> Option<&(StdError + 'static + Sync + Send)> {
         self.inner.cause.as_ref().map(|e| &**e)
     }
@@ -161,6 +160,45 @@ impl Error {
 
     pub(crate) fn kind(&self) -> &Kind {
         &self.inner.kind
+    }
+
+    #[cfg(not(error_source))]
+    pub(crate) fn h2_reason(&self) -> h2::Reason {
+        // Since we don't have access to `Error::source`, we can only
+        // look so far...
+        let mut cause = self.cause2();
+        while let Some(err) = cause {
+            if let Some(h2_err) = err.downcast_ref::<h2::Error>() {
+                return h2_err
+                    .reason()
+                    .unwrap_or(h2::Reason::INTERNAL_ERROR);
+            }
+
+            cause = err
+                .downcast_ref::<Error>()
+                .and_then(Error::cause2);
+        }
+
+        // else
+        h2::Reason::INTERNAL_ERROR
+    }
+
+    #[cfg(error_source)]
+    pub(crate) fn h2_reason(&self) -> h2::Reason {
+        // Find an h2::Reason somewhere in the cause stack, if it exists,
+        // otherwise assume an INTERNAL_ERROR.
+        let mut cause = self.source();
+        while let Some(err) = cause {
+            if let Some(h2_err) = err.downcast_ref::<h2::Error>() {
+                return h2_err
+                    .reason()
+                    .unwrap_or(h2::Reason::INTERNAL_ERROR);
+            }
+            cause = err.source();
+        }
+
+        // else
+        h2::Reason::INTERNAL_ERROR
     }
 
     pub(crate) fn new_canceled<E: Into<Cause>>(cause: Option<E>) -> Error {
@@ -400,4 +438,25 @@ impl AssertSendSync for Error {}
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    #[test]
+    fn h2_reason_unknown() {
+        let closed = Error::new_closed();
+        assert_eq!(closed.h2_reason(), h2::Reason::INTERNAL_ERROR);
+    }
+
+    #[test]
+    fn h2_reason_one_level() {
+        let body_err = Error::new_user_body(h2::Error::from(h2::Reason::ENHANCE_YOUR_CALM));
+        assert_eq!(body_err.h2_reason(), h2::Reason::ENHANCE_YOUR_CALM);
+    }
+
+    #[test]
+    fn h2_reason_nested() {
+        let recvd = Error::new_h2(h2::Error::from(h2::Reason::HTTP_1_1_REQUIRED));
+        // Suppose a user were proxying the received error
+        let svc_err = Error::new_user_service(recvd);
+        assert_eq!(svc_err.h2_reason(), h2::Reason::HTTP_1_1_REQUIRED);
+    }
 }

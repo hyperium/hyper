@@ -1,6 +1,6 @@
 use bytes::Buf;
 use futures::{Async, Future, Poll};
-use h2::{Reason, SendStream};
+use h2::{SendStream};
 use http::header::{
     HeaderName, CONNECTION, PROXY_AUTHENTICATE, PROXY_AUTHORIZATION, TE, TRAILER,
     TRANSFER_ENCODING, UPGRADE,
@@ -91,10 +91,10 @@ where
         }
     }
 
-    fn on_err(&mut self, err: S::Error) -> ::Error {
+    fn on_user_err(&mut self, err: S::Error) -> ::Error {
         let err = ::Error::new_user_body(err);
-        trace!("send body user stream error: {}", err);
-        self.body_tx.send_reset(Reason::INTERNAL_ERROR);
+        debug!("send body user stream error: {}", err);
+        self.body_tx.send_reset(err.h2_reason());
         err
     }
 
@@ -138,7 +138,7 @@ where
                     }
                 }
 
-                match try_ready!(self.stream.poll_data().map_err(|e| self.on_err(e))) {
+                match try_ready!(self.stream.poll_data().map_err(|e| self.on_user_err(e))) {
                     Some(chunk) => {
                         let is_eos = self.stream.is_end_stream();
                         trace!(
@@ -175,7 +175,7 @@ where
                     return Err(::Error::new_body_write(::h2::Error::from(reason)));
                 }
 
-                match try_ready!(self.stream.poll_trailers().map_err(|e| self.on_err(e))) {
+                match try_ready!(self.stream.poll_trailers().map_err(|e| self.on_user_err(e))) {
                     Some(trailers) => {
                         self.body_tx
                             .send_trailers(trailers)

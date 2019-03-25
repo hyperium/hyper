@@ -1,6 +1,7 @@
 #![deny(warnings)]
 extern crate http;
 extern crate hyper;
+extern crate h2;
 #[macro_use]
 extern crate futures;
 extern crate futures_timer;
@@ -1562,6 +1563,73 @@ fn http1_only() {
     })).unwrap_err();
 }
 
+#[test]
+fn http2_service_error_sends_reset_reason() {
+    use std::error::Error;
+    let server = serve();
+    let addr_str = format!("http://{}", server.addr());
+
+    server
+        .reply()
+        .error(h2::Error::from(h2::Reason::INADEQUATE_SECURITY));
+
+    let mut rt = Runtime::new().expect("runtime new");
+
+    let err = rt.block_on(hyper::rt::lazy(move || {
+        let client = Client::builder()
+            .http2_only(true)
+            .build_http::<hyper::Body>();
+        let uri = addr_str.parse().expect("server addr should parse");
+
+        client.get(uri)
+    })).unwrap_err();
+
+    let h2_err = err
+        .source()
+        .unwrap()
+        .downcast_ref::<h2::Error>()
+        .unwrap();
+
+    assert_eq!(h2_err.reason(), Some(h2::Reason::INADEQUATE_SECURITY));
+}
+
+#[test]
+fn http2_body_user_error_sends_reset_reason() {
+    use std::error::Error;
+    let server = serve();
+    let addr_str = format!("http://{}", server.addr());
+
+    let b = ::futures::stream::once::<String, h2::Error>(Err(
+        h2::Error::from(h2::Reason::INADEQUATE_SECURITY)
+    ));
+    let b = hyper::Body::wrap_stream(b);
+
+    server
+        .reply()
+        .body_stream(b);
+
+    let mut rt = Runtime::new().expect("runtime new");
+
+    let err = rt.block_on(hyper::rt::lazy(move || {
+        let client = Client::builder()
+            .http2_only(true)
+            .build_http::<hyper::Body>();
+        let uri = addr_str.parse().expect("server addr should parse");
+
+        client
+            .get(uri)
+            .and_then(|res| res.into_body().concat2())
+    })).unwrap_err();
+
+    let h2_err = err
+        .source()
+        .unwrap()
+        .downcast_ref::<h2::Error>()
+        .unwrap();
+
+    assert_eq!(h2_err.reason(), Some(h2::Reason::INADEQUATE_SECURITY));
+}
+
 // -------------------------------------------------
 // the Server that is used to run all the tests with
 // -------------------------------------------------
@@ -1609,6 +1677,8 @@ impl Serve {
     }
 }
 
+type BoxError = Box<::std::error::Error + Send + Sync>;
+
 struct ReplyBuilder<'a> {
     tx: &'a spmc::Sender<Reply>,
 }
@@ -1635,9 +1705,12 @@ impl<'a> ReplyBuilder<'a> {
         self.tx.send(Reply::Body(body.as_ref().to_vec().into())).unwrap();
     }
 
-    fn body_stream(self, body: Body)
-    {
+    fn body_stream(self, body: Body) {
         self.tx.send(Reply::Body(body)).unwrap();
+    }
+
+    fn error<E: Into<BoxError>>(self, err: E) {
+        self.tx.send(Reply::Error(err.into())).unwrap();
     }
 }
 
@@ -1666,6 +1739,7 @@ enum Reply {
     Version(hyper::Version),
     Header(HeaderName, HeaderValue),
     Body(hyper::Body),
+    Error(BoxError),
     End,
 }
 
@@ -1677,7 +1751,7 @@ enum Msg {
 }
 
 impl TestService {
-    fn call(&self, req: Request<Body>) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
+    fn call(&self, req: Request<Body>) -> Box<Future<Item=Response<Body>, Error=BoxError> + Send> {
         let tx1 = self.tx.clone();
         let tx2 = self.tx.clone();
         let replies = self.reply.clone();
@@ -1691,12 +1765,12 @@ impl TestService {
             };
             tx2.send(msg).unwrap();
             Ok(())
-        }).map(move |_| {
+        }).and_then(move |_| {
             TestService::build_reply(replies)
         }))
     }
 
-    fn build_reply(replies: spmc::Receiver<Reply>) -> Response<Body> {
+    fn build_reply(replies: spmc::Receiver<Reply>) -> Result<Response<Body>, BoxError> {
         let mut res = Response::new(Body::empty());
         while let Ok(reply) = replies.try_recv() {
             match reply {
@@ -1712,10 +1786,11 @@ impl TestService {
                 Reply::Body(body) => {
                     *res.body_mut() = body;
                 },
+                Reply::Error(err) => return Err(err),
                 Reply::End => break,
             }
         }
-        res
+        Ok(res)
     }
 }
 
