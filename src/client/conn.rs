@@ -376,6 +376,10 @@ where
     /// upgrade. Once the upgrade is completed, the connection would be "done",
     /// but it is not desired to actally shutdown the IO object. Instead you
     /// would take it back using `into_parts`.
+    ///
+    /// Use [`poll_fn`](https://docs.rs/futures/0.1.25/futures/future/fn.poll_fn.html)
+    /// and [`try_ready!`](https://docs.rs/futures/0.1.25/futures/macro.try_ready.html)
+    /// to work with this function; or use the `without_shutdown` wrapper.
     pub fn poll_without_shutdown(&mut self) -> Poll<(), ::Error> {
         match self.inner.as_mut().expect("already upgraded") {
             &mut Either::A(ref mut h1) => {
