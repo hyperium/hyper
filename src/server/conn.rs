@@ -570,11 +570,9 @@ where
 
     /// Prevent shutdown of the underlying IO object at the end of service the request,
     /// instead run `into_parts`. This is a convenience wrapper over `poll_without_shutdown`.
-    pub fn without_shutdown(self) -> impl Future<Item=Parts<I,S>, Error=::Error>
-            where S:'static, I:'static
-    {
+    pub fn without_shutdown(self) -> impl Future<Item=Parts<I,S>, Error=::Error> {
         let mut conn = Some(self);
-        futures::future::poll_fn(move || -> ::Result<_> {
+        ::futures::future::poll_fn(move || -> ::Result<_> {
             try_ready!(conn.as_mut().unwrap().poll_without_shutdown());
             Ok(conn.take().unwrap().into_parts().into())
         })
