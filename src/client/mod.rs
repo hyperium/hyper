@@ -323,15 +323,22 @@ where C: Connect + Sync + 'static,
                 return Either::A(future::err(ClientError::Normal(::Error::new_user_unsupported_request_method())));
             }
 
+            //Carry extensions to response
+            let mut req_ext = http::Extensions::new();
+            std::mem::swap(&mut req_ext, req.extensions_mut());
+
             let fut = pooled.send_request_retryable(req)
                 .map_err(ClientError::map_with_reused(pooled.is_reused()));
 
             // If the Connector included 'extra' info, add to Response...
             let extra_info = pooled.conn_info.extra.clone();
             let fut = fut.map(move |mut res| {
+                std::mem::swap(&mut req_ext, res.extensions_mut());
+
                 if let Some(extra) = extra_info {
                     extra.set(&mut res);
                 }
+
                 res
             });
 
