@@ -511,7 +511,7 @@ impl Http1Transaction for Server {
     }
 
     fn on_error(err: &::Error) -> Option<MessageHead<Self::Outgoing>> {
-        use ::error::{Kind, Parse};
+        use ::error::Kind;
         let status = match *err.kind() {
             Kind::Parse(Parse::Method) |
             Kind::Parse(Parse::Header) |

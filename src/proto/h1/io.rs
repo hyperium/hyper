@@ -168,7 +168,6 @@ where
     }
 
     pub fn read_from_io(&mut self) -> Poll<usize, io::Error> {
-        use bytes::BufMut;
         self.read_blocked = false;
         let next = self.read_buf_strategy.next();
         if self.read_buf.remaining_mut() < next {
