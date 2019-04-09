@@ -555,7 +555,6 @@ where
             match polled {
                 Ok(x) => return Ok(x),
                 Err(e) => {
-                    debug!("error polling connection protocol without shutdown: {}", e);
                     match *e.kind() {
                         Kind::Parse(Parse::VersionH2) if self.fallback.to_h2() => {
                             self.upgrade_h2();
@@ -644,7 +643,6 @@ where
                     }
                 })),
                 Err(e) => {
-                    debug!("error polling connection protocol: {}", e);
                     match *e.kind() {
                         Kind::Parse(Parse::VersionH2) if self.fallback.to_h2() => {
                             self.upgrade_h2();
@@ -962,7 +960,6 @@ mod upgrades {
                         return Ok(Async::Ready(()));
                     },
                     Err(e) => {
-                        debug!("error polling connection protocol: {}", e);
                         match *e.kind() {
                             Kind::Parse(Parse::VersionH2) if self.inner.fallback.to_h2() => {
                                 self.inner.upgrade_h2();

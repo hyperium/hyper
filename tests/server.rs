@@ -1630,6 +1630,63 @@ fn http2_body_user_error_sends_reset_reason() {
     assert_eq!(h2_err.reason(), Some(h2::Reason::INADEQUATE_SECURITY));
 }
 
+#[test]
+fn http2_service_poll_ready_error_sends_goaway() {
+    use std::error::Error;
+
+    struct Svc;
+
+    impl hyper::service::Service for Svc {
+        type ReqBody = hyper::Body;
+        type ResBody = hyper::Body;
+        type Error = h2::Error;
+        type Future = Box<dyn Future<
+            Item = hyper::Response<Self::ResBody>,
+            Error = Self::Error
+        > + Send + Sync>;
+
+        fn poll_ready(&mut self) -> futures::Poll<(), Self::Error> {
+            Err(h2::Error::from(h2::Reason::INADEQUATE_SECURITY))
+        }
+
+        fn call(&mut self, _: hyper::Request<Self::ResBody>) -> Self::Future {
+            unreachable!("poll_ready error should have shutdown conn");
+        }
+    }
+
+    let _ = pretty_env_logger::try_init();
+
+    let server = hyper::Server::bind(&([127, 0, 0, 1], 0).into())
+        .http2_only(true)
+        .serve(|| Ok::<_, BoxError>(Svc));
+
+    let addr_str = format!("http://{}", server.local_addr());
+
+
+    let mut rt = Runtime::new().expect("runtime new");
+
+    rt.spawn(server.map_err(|e| unreachable!("server shouldn't error: {:?}", e)));
+
+    let err = rt.block_on(hyper::rt::lazy(move || {
+        let client = Client::builder()
+            .http2_only(true)
+            .build_http::<hyper::Body>();
+        let uri = addr_str.parse().expect("server addr should parse");
+
+        client
+            .get(uri)
+    })).unwrap_err();
+
+    // client request should have gotten the specific GOAWAY error...
+    let h2_err = err
+        .source()
+        .expect("source")
+        .downcast_ref::<h2::Error>()
+        .expect("downcast");
+
+    assert_eq!(h2_err.reason(), Some(h2::Reason::INADEQUATE_SECURITY));
+}
+
 // -------------------------------------------------
 // the Server that is used to run all the tests with
 // -------------------------------------------------

@@ -38,6 +38,7 @@ where
     B: Payload,
 {
     conn: Connection<T, SendBuf<B::Data>>,
+    closing: Option<::Error>,
 }
 
 
@@ -46,7 +47,6 @@ where
     T: AsyncRead + AsyncWrite,
     S: Service<ReqBody=Body, ResBody=B>,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-    //S::Future: Send + 'static,
     B: Payload,
     E: H2Exec<S::Future, B>,
 {
@@ -66,7 +66,9 @@ where
                 // fall-through, to replace state with Closed
             },
             State::Serving(ref mut srv) => {
-                srv.conn.graceful_shutdown();
+                if srv.closing.is_none() {
+                    srv.conn.graceful_shutdown();
+                }
                 return;
             },
             State::Closed => {
@@ -82,7 +84,6 @@ where
     T: AsyncRead + AsyncWrite,
     S: Service<ReqBody=Body, ResBody=B>,
     S::Error: Into<Box<::std::error::Error + Send + Sync>>,
-    //S::Future: Send + 'static,
     B: Payload,
     E: H2Exec<S::Future, B>,
 {
@@ -95,7 +96,8 @@ where
                 State::Handshaking(ref mut h) => {
                     let conn = try_ready!(h.poll().map_err(::Error::new_h2));
                     State::Serving(Serving {
-                        conn: conn,
+                        conn,
+                        closing: None,
                     })
                 },
                 State::Serving(ref mut srv) => {
@@ -127,37 +129,57 @@ where
         S::Error: Into<Box<::std::error::Error + Send + Sync>>,
         E: H2Exec<S::Future, B>,
     {
-        loop {
-            // At first, polls the readiness of supplied service.
-            match service.poll_ready() {
-                Ok(Async::Ready(())) => (),
-                Ok(Async::NotReady) => {
-                    // use `poll_close` instead of `poll`, in order to avoid accepting a request.
-                    try_ready!(self.conn.poll_close().map_err(::Error::new_h2));
-                    trace!("incoming connection complete");
-                    return Ok(Async::Ready(()));
-                }
-                Err(err) => {
-                    trace!("service closed");
-                    return Err(::Error::new_user_service(err));
-                }
-            }
+        if self.closing.is_none() {
+            loop {
+                // At first, polls the readiness of supplied service.
+                match service.poll_ready() {
+                    Ok(Async::Ready(())) => (),
+                    Ok(Async::NotReady) => {
+                        // use `poll_close` instead of `poll`, in order to avoid accepting a request.
+                        try_ready!(self.conn.poll_close().map_err(::Error::new_h2));
+                        trace!("incoming connection complete");
+                        return Ok(Async::Ready(()));
+                    }
+                    Err(err) => {
+                        let err = ::Error::new_user_service(err);
+                        debug!("service closed: {}", err);
 
-            // When the service is ready, accepts an incoming request.
-            if let Some((req, respond)) = try_ready!(self.conn.poll().map_err(::Error::new_h2)) {
-                trace!("incoming request");
-                let content_length = content_length_parse_all(req.headers());
-                let req = req.map(|stream| {
-                    ::Body::h2(stream, content_length)
-                });
-                let fut = H2Stream::new(service.call(req), respond);
-                exec.execute_h2stream(fut)?;
-            } else {
-                // no more incoming streams...
-                trace!("incoming connection complete");
-                return Ok(Async::Ready(()))
+                        let reason = err.h2_reason();
+                        if reason == h2::Reason::NO_ERROR {
+                            // NO_ERROR is only used for graceful shutdowns...
+                            trace!("interpretting NO_ERROR user error as graceful_shutdown");
+                            self.conn.graceful_shutdown();
+                        } else {
+                            trace!("abruptly shutting down with {:?}", reason);
+                            self.conn.abrupt_shutdown(reason);
+                        }
+                        self.closing = Some(err);
+                        break;
+                    }
+                }
+
+                // When the service is ready, accepts an incoming request.
+                if let Some((req, respond)) = try_ready!(self.conn.poll().map_err(::Error::new_h2)) {
+                    trace!("incoming request");
+                    let content_length = content_length_parse_all(req.headers());
+                    let req = req.map(|stream| {
+                        ::Body::h2(stream, content_length)
+                    });
+                    let fut = H2Stream::new(service.call(req), respond);
+                    exec.execute_h2stream(fut)?;
+                } else {
+                    // no more incoming streams...
+                    trace!("incoming connection complete");
+                    return Ok(Async::Ready(()))
+                }
             }
         }
+
+        debug_assert!(self.closing.is_some(), "poll_server broke loop without closing");
+
+        try_ready!(self.conn.poll_close().map_err(::Error::new_h2));
+
+        Err(self.closing.take().expect("polled after error"))
     }
 }
 
