@@ -1,3 +1,17 @@
+### v0.12.26 (2019-04-09)
+
+
+#### Bug Fixes
+
+* **http2:** send a GOAWAY when the user's Service::poll_ready errors ([42c5efc0](https://github.com/hyperium/hyper/commit/42c5efc085ac71223e4b57d0e1b866e64d41f4e5))
+* **server:** prohibit the length headers on successful CONNECT ([d1501a0f](https://github.com/hyperium/hyper/commit/d1501a0fd3b616d3e42459fc83bdd7ebd01d217e), closes [#1783](https://github.com/hyperium/hyper/issues/1783))
+
+
+#### Features
+
+* **http2:** check `Error::source()` for an HTTP2 error code to send in reset ([fc18b680](https://github.com/hyperium/hyper/commit/fc18b680a5656a0c31bc09c1c70571956a1fd013))
+
+
 ### v0.12.25 (2019-03-01)
 
 
