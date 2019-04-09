@@ -145,7 +145,7 @@ where
                         debug!("service closed: {}", err);
 
                         let reason = err.h2_reason();
-                        if reason == h2::Reason::NO_ERROR {
+                        if reason == Reason::NO_ERROR {
                             // NO_ERROR is only used for graceful shutdowns...
                             trace!("interpretting NO_ERROR user error as graceful_shutdown");
                             self.conn.graceful_shutdown();
