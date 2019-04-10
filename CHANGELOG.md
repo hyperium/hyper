@@ -1,3 +1,11 @@
+### v0.12.27 (2019-04-10)
+
+
+#### Bug Fixes
+
+* **http2:** fix import of h2::Reason to work on 1.26 ([5680d944](https://github.com/hyperium/hyper/commit/5680d9441903d6c8d17c19b3ea1e054af76bb08d))
+
+
 ### v0.12.26 (2019-04-09)
 
 
