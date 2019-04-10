@@ -3,7 +3,7 @@ use std::fmt;
 
 use bytes::Bytes;
 use futures::sync::{mpsc, oneshot};
-use futures::{Async, Future, Poll, Stream};
+use futures::{Async, Future, Poll, Stream, Sink, AsyncSink, StartSend};
 use h2;
 use http::HeaderMap;
 
@@ -378,6 +378,25 @@ impl Sender {
 
     pub(crate) fn send_error(&mut self, err: ::Error) {
         let _ = self.tx.try_send(Err(err));
+    }
+}
+
+impl Sink for Sender {
+    type SinkItem = Chunk;
+    type SinkError = ::Error;
+
+    fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
+        Ok(Async::Ready(()))
+    }
+
+    fn start_send(&mut self, msg: Chunk) -> StartSend<Self::SinkItem, Self::SinkError> {
+        match self.poll_ready()? {
+            Async::Ready(_) => {
+                self.send_data(msg).map_err(|_| ::Error::new_closed())?;
+                Ok(AsyncSink::Ready)
+            }
+            Async::NotReady => Ok(AsyncSink::NotReady(msg)),
+        }
     }
 }
 
