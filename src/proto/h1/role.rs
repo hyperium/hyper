@@ -1,15 +1,15 @@
 use std::fmt::{self, Write};
 use std::mem;
 
-use bytes::{BytesMut};
-use http::header::{self, Entry, HeaderName, HeaderValue};
+use bytes::BytesMut;
 use http::{HeaderMap, Method, StatusCode, Version};
+use http::header::{self, Entry, HeaderName, HeaderValue};
 use httparse;
 
 use error::Parse;
 use headers;
-use proto::{BodyLength, DecodedLength, MessageHead, RequestLine, RequestHead};
-use proto::h1::{Encode, Encoder, Http1Transaction, ParseResult, ParseContext, ParsedMessage, date};
+use proto::{BodyLength, DecodedLength, MessageHead, RequestHead, RequestLine};
+use proto::h1::{date, Encode, Encoder, Http1Transaction, ParseContext, ParsedMessage, ParseResult};
 
 const MAX_HEADERS: usize = 100;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
@@ -65,7 +65,7 @@ impl Http1Transaction for Server {
     const LOG: &'static str = "{role=server}";
 
     fn parse(buf: &mut BytesMut, ctx: ParseContext) -> ParseResult<RequestLine> {
-        if buf.len() == 0 {
+        if buf.is_empty() {
             return Ok(None);
         }
 
@@ -92,7 +92,7 @@ impl Http1Transaction for Server {
                     len = parsed_len;
                     subject = RequestLine(
                         Method::from_bytes(req.method.unwrap().as_bytes())?,
-                        req.path.unwrap().parse()?
+                        req.path.unwrap().parse()?,
                     );
                     version = if req.version.unwrap() == 1 {
                         keep_alive = true;
@@ -156,7 +156,7 @@ impl Http1Transaction for Server {
                         is_te_chunked = true;
                         decoder = DecodedLength::CHUNKED;
                     }
-                },
+                }
                 header::CONTENT_LENGTH => {
                     if is_te {
                         continue;
@@ -178,25 +178,24 @@ impl Http1Transaction for Server {
                     }
                     decoder = DecodedLength::checked_new(len)?;
                     con_len = Some(len);
-                },
+                }
                 header::CONNECTION => {
                     // keep_alive was previously set to default for Version
                     if keep_alive {
                         // HTTP/1.1
                         keep_alive = !headers::connection_close(&value);
-
                     } else {
                         // HTTP/1.0
                         keep_alive = headers::connection_keep_alive(&value);
                     }
-                },
+                }
                 header::EXPECT => {
                     expect_continue = value.as_bytes() == b"100-continue";
-                },
+                }
                 header::UPGRADE => {
                     // Upgrades are only allowed with HTTP/1.1
                     wants_upgrade = is_http_11;
-                },
+                }
 
                 _ => (),
             }
@@ -275,7 +274,7 @@ impl Http1Transaction for Server {
                 Version::HTTP_2 => {
                     warn!("response with HTTP2 version coerced to HTTP/1.1");
                     extend(dst, b"HTTP/1.1 ");
-                },
+                }
                 other => panic!("unexpected response version: {:?}", other),
             }
 
@@ -308,40 +307,40 @@ impl Http1Transaction for Server {
                             encoder = Encoder::length(known_len);
 
                             #[cfg(debug_assertions)]
-                            {
-                                let mut folded = None::<(u64, HeaderValue)>;
-                                for value in values {
-                                    if let Some(len) = headers::content_length_parse(&value) {
-                                        if let Some(fold) = folded {
-                                            if fold.0 != len {
-                                                panic!("multiple Content-Length values found: [{}, {}]", fold.0, len);
+                                {
+                                    let mut folded = None::<(u64, HeaderValue)>;
+                                    for value in values {
+                                        if let Some(len) = headers::content_length_parse(&value) {
+                                            if let Some(fold) = folded {
+                                                if fold.0 != len {
+                                                    panic!("multiple Content-Length values found: [{}, {}]", fold.0, len);
+                                                }
+                                                folded = Some(fold);
+                                            } else {
+                                                folded = Some((len, value));
                                             }
-                                            folded = Some(fold);
                                         } else {
-                                            folded = Some((len, value));
+                                            panic!("illegal Content-Length value: {:?}", value);
                                         }
+                                    }
+                                    if let Some((len, value)) = folded {
+                                        assert!(
+                                            len == known_len,
+                                            "payload claims content-length of {}, custom content-length header claims {}",
+                                            known_len,
+                                            len,
+                                        );
+                                        extend(dst, b"content-length: ");
+                                        extend(dst, value.as_bytes());
+                                        extend(dst, b"\r\n");
+                                        wrote_len = true;
+                                        continue 'headers;
                                     } else {
-                                        panic!("illegal Content-Length value: {:?}", value);
+                                        // No values in content-length... ignore?
+                                        continue 'headers;
                                     }
                                 }
-                                if let Some((len, value)) = folded {
-                                    assert!(
-                                        len == known_len,
-                                        "payload claims content-length of {}, custom content-length header claims {}",
-                                        known_len,
-                                        len,
-                                    );
-                                    extend(dst, b"content-length: ");
-                                    extend(dst, value.as_bytes());
-                                    extend(dst, b"\r\n");
-                                    wrote_len = true;
-                                    continue 'headers;
-                                } else {
-                                    // No values in content-length... ignore?
-                                    continue 'headers;
-                                }
-                            }
-                        },
+                        }
                         Some(BodyLength::Unknown) => {
                             // The Payload impl didn't know how long the
                             // body is, but a length header was included.
@@ -377,7 +376,7 @@ impl Http1Transaction for Server {
                                 // No values in content-length... ignore?
                                 continue 'headers;
                             }
-                        },
+                        }
                         None => {
                             // We have no body to actually send,
                             // but the headers claim a content-length.
@@ -398,7 +397,7 @@ impl Http1Transaction for Server {
                         }
                     }
                     wrote_len = true;
-                },
+                }
                 header::TRANSFER_ENCODING => {
                     if wrote_len {
                         warn!("unexpected transfer-encoding found, canceling");
@@ -433,7 +432,7 @@ impl Http1Transaction for Server {
                         extend(dst, b"chunked\r\n");
                     }
                     continue 'headers;
-                },
+                }
                 header::CONNECTION => {
                     if !is_last {
                         for value in values {
@@ -448,10 +447,10 @@ impl Http1Transaction for Server {
                         }
                         continue 'headers;
                     }
-                },
+                }
                 header::DATE => {
                     wrote_date = true;
-                },
+                }
                 _ => (),
             }
             //TODO: this should perhaps instead combine them into
@@ -473,18 +472,18 @@ impl Http1Transaction for Server {
                         extend(dst, b"transfer-encoding: chunked\r\n");
                         Encoder::chunked()
                     }
-                },
+                }
                 None |
                 Some(BodyLength::Known(0)) => {
                     extend(dst, b"content-length: 0\r\n");
                     Encoder::length(0)
-                },
+                }
                 Some(BodyLength::Known(len)) => {
                     extend(dst, b"content-length: ");
                     let _ = ::itoa::write(&mut dst, len);
                     extend(dst, b"\r\n");
                     Encoder::length(len)
-                },
+                }
             };
         }
 
@@ -515,13 +514,13 @@ impl Http1Transaction for Server {
         let status = match *err.kind() {
             Kind::Parse(Parse::Method) |
             Kind::Parse(Parse::Header) |
-            Kind::Parse(Parse::Uri)    |
+            Kind::Parse(Parse::Uri) |
             Kind::Parse(Parse::Version) => {
                 StatusCode::BAD_REQUEST
-            },
+            }
             Kind::Parse(Parse::TooLarge) => {
                 StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE
-            },
+            }
             _ => return None,
         };
 
@@ -575,7 +574,7 @@ impl Http1Transaction for Client {
     fn parse(buf: &mut BytesMut, ctx: ParseContext) -> ParseResult<StatusCode> {
         // Loop to skip information status code headers (100 Continue, etc).
         loop {
-            if buf.len() == 0 {
+            if buf.is_empty() {
                 return Ok(None);
             }
             // Unsafe: see comment in Server Http1Transaction, above.
@@ -597,7 +596,7 @@ impl Http1Transaction for Client {
                         record_header_indices(bytes, &res.headers, &mut headers_indices)?;
                         let headers_len = res.headers.len();
                         (len, status, version, headers_len)
-                    },
+                    }
                     httparse::Status::Partial => return Ok(None),
                 }
             };
@@ -615,19 +614,16 @@ impl Http1Transaction for Client {
                 let name = header_name!(&slice[header.name.0..header.name.1]);
                 let value = header_value!(slice.slice(header.value.0, header.value.1));
 
-                match name {
-                    header::CONNECTION => {
-                        // keep_alive was previously set to default for Version
-                        if keep_alive {
-                            // HTTP/1.1
-                            keep_alive = !headers::connection_close(&value);
+                if let header::CONNECTION = name {
 
-                        } else {
-                            // HTTP/1.0
-                            keep_alive = headers::connection_keep_alive(&value);
-                        }
-                    },
-                    _ => (),
+                    // keep_alive was previously set to default for Version
+                    if keep_alive {
+                        // HTTP/1.1
+                        keep_alive = !headers::connection_close(&value);
+                    } else {
+                        // HTTP/1.0
+                        keep_alive = headers::connection_keep_alive(&value);
+                    }
                 }
                 headers.append(name, value);
             }
@@ -648,7 +644,6 @@ impl Http1Transaction for Client {
                     wants_upgrade: is_upgrade,
                 }));
             }
-
         }
     }
 
@@ -674,7 +669,7 @@ impl Http1Transaction for Client {
             Version::HTTP_2 => {
                 warn!("request with HTTP2 version coerced to HTTP/1.1");
                 extend(dst, b"HTTP/1.1");
-            },
+            }
             other => panic!("unexpected request version: {:?}", other),
         }
         extend(dst, b"\r\n");
@@ -721,11 +716,11 @@ impl Client {
         match inc.subject.as_u16() {
             101 => {
                 return Ok(Some((DecodedLength::ZERO, true)));
-            },
+            }
             100...199 => {
                 trace!("ignoring informational response: {}", inc.subject.as_u16());
                 return Ok(None);
-            },
+            }
             204 |
             304 => return Ok(Some((DecodedLength::ZERO, false))),
             _ => (),
@@ -734,13 +729,10 @@ impl Client {
             Some(Method::HEAD) => {
                 return Ok(Some((DecodedLength::ZERO, false)));
             }
-            Some(Method::CONNECT) => match inc.subject.as_u16() {
-                200...299 => {
-                    return Ok(Some((DecodedLength::ZERO, true)));
-                },
-                _ => {},
+            Some(Method::CONNECT) => if let 200...299 = inc.subject.as_u16() {
+                return Ok(Some((DecodedLength::ZERO, true)));
             },
-            Some(_) => {},
+            Some(_) => {}
             None => {
                 trace!("Client::decoder is missing the Method");
             }
@@ -829,7 +821,7 @@ fn set_length(headers: &mut HeaderMap, body: BodyLength, can_chunked: bool) -> E
                     headers::add_chunked(te);
                     Some(Encoder::chunked())
                 }
-            },
+            }
             Entry::Vacant(te) => {
                 if let Some(len) = existing_con_len {
                     Some(Encoder::length(len))
@@ -840,7 +832,7 @@ fn set_length(headers: &mut HeaderMap, body: BodyLength, can_chunked: bool) -> E
                 } else {
                     None
                 }
-            },
+            }
         };
 
         // This is because we need a second mutable borrow to remove
@@ -908,7 +900,7 @@ fn set_content_length(headers: &mut HeaderMap, len: u64) -> Encoder {
 
                 cl.insert(HeaderValue::from(len));
                 Encoder::length(len)
-            },
+            }
             Entry::Vacant(cl) => {
                 cl.insert(HeaderValue::from(len));
                 Encoder::length(len)
@@ -929,7 +921,7 @@ struct HeaderIndices {
 fn record_header_indices(
     bytes: &[u8],
     headers: &[httparse::Header],
-    indices: &mut [HeaderIndices]
+    indices: &mut [HeaderIndices],
 ) -> Result<(), ::error::Parse> {
     let bytes_ptr = bytes.as_ptr() as usize;
 
@@ -995,17 +987,17 @@ fn title_case(dst: &mut Vec<u8>, name: &[u8]) {
     }
 
     while let Some(c) = iter.next() {
-      dst.push(*c);
+        dst.push(*c);
 
-      if *c == b'-' {
-          if let Some(c) = iter.next() {
-              if *c >= b'a' && *c <= b'z' {
-                  dst.push(*c ^ b' ');
-              } else {
-                  dst.push(*c);
-              }
-          }
-      }
+        if *c == b'-' {
+            if let Some(c) = iter.next() {
+                if *c >= b'a' && *c <= b'z' {
+                    dst.push(*c ^ b' ');
+                } else {
+                    dst.push(*c);
+                }
+            }
+        }
     }
 }
 
@@ -1049,6 +1041,9 @@ fn extend(dst: &mut Vec<u8>, data: &[u8]) {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "nightly")]
+    use test::Bencher;
+
     use bytes::BytesMut;
 
     use super::*;
@@ -1234,7 +1229,6 @@ mod tests {
 
     #[test]
     fn test_decoder_response() {
-
         fn parse(s: &str) -> ParsedMessage<StatusCode> {
             parse_with_method(s, Method::GET)
         }
@@ -1463,9 +1457,6 @@ mod tests {
 
         assert_eq!(parsed.head.headers["server"], "hello\tworld");
     }
-
-    #[cfg(feature = "nightly")]
-    use test::Bencher;
 
     #[cfg(feature = "nightly")]
     #[bench]
