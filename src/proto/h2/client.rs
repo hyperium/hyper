@@ -97,7 +97,7 @@ where
                 State::Ready(ref mut tx, ref conn_dropper) => {
                     try_ready!(tx.poll_ready().map_err(::Error::new_h2));
                     match self.rx.poll() {
-                        Ok(Async::Ready(Some((req, mut cb)))) => {
+                        Ok(Async::Ready(Some((req, cb)))) => {
                             // check that future hasn't been canceled already
                             if cb.is_canceled() {
                                 trace!("request canceled");
