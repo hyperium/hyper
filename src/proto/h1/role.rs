@@ -65,7 +65,7 @@ impl Http1Transaction for Server {
     const LOG: &'static str = "{role=server}";
 
     fn parse(buf: &mut BytesMut, ctx: ParseContext) -> ParseResult<RequestLine> {
-        if buf.len() == 0 {
+        if buf.is_empty() {
             return Ok(None);
         }
 
@@ -575,7 +575,7 @@ impl Http1Transaction for Client {
     fn parse(buf: &mut BytesMut, ctx: ParseContext) -> ParseResult<StatusCode> {
         // Loop to skip information status code headers (100 Continue, etc).
         loop {
-            if buf.len() == 0 {
+            if buf.is_empty() {
                 return Ok(None);
             }
             // Unsafe: see comment in Server Http1Transaction, above.
@@ -615,9 +615,8 @@ impl Http1Transaction for Client {
                 let name = header_name!(&slice[header.name.0..header.name.1]);
                 let value = header_value!(slice.slice(header.value.0, header.value.1));
 
-                match name {
-                    header::CONNECTION => {
-                        // keep_alive was previously set to default for Version
+                if let header::CONNECTION = name {
+                    // keep_alive was previously set to default for Version
                         if keep_alive {
                             // HTTP/1.1
                             keep_alive = !headers::connection_close(&value);
@@ -626,9 +625,7 @@ impl Http1Transaction for Client {
                             // HTTP/1.0
                             keep_alive = headers::connection_keep_alive(&value);
                         }
-                    },
-                    _ => (),
-                }
+                    }
                 headers.append(name, value);
             }
 
@@ -734,12 +731,9 @@ impl Client {
             Some(Method::HEAD) => {
                 return Ok(Some((DecodedLength::ZERO, false)));
             }
-            Some(Method::CONNECT) => match inc.subject.as_u16() {
-                200...299 => {
-                    return Ok(Some((DecodedLength::ZERO, true)));
-                },
-                _ => {},
-            },
+            Some(Method::CONNECT) => if let 200...299 = inc.subject.as_u16() {
+                return Ok(Some((DecodedLength::ZERO, true)));
+            }
             Some(_) => {},
             None => {
                 trace!("Client::decoder is missing the Method");
