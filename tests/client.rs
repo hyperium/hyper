@@ -214,7 +214,7 @@ macro_rules! test {
     ) => ({
         let server = TcpListener::bind("127.0.0.1:0").expect("bind");
         let addr = server.local_addr().expect("local_addr");
-        let mut rt = $runtime;
+        let rt = $runtime;
 
         let connector = ::hyper::client::HttpConnector::new(1);
         let client = Client::builder()
@@ -222,7 +222,7 @@ macro_rules! test {
             .http1_title_case_headers($title_case_headers)
             .build(connector);
 
-        #[allow(unused_assignments)]
+        #[allow(unused_assignments, unused_mut)]
         let mut body = Body::empty();
         let mut req_builder = Request::builder();
         $(
