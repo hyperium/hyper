@@ -1687,6 +1687,51 @@ fn http2_service_poll_ready_error_sends_goaway() {
     assert_eq!(h2_err.reason(), Some(h2::Reason::INADEQUATE_SECURITY));
 }
 
+#[test]
+fn skips_content_length_for_304_responses() {
+    let server = serve();
+    server.reply()
+
+        .status(hyper::StatusCode::NOT_MODIFIED)
+        .body("foo");
+    let mut req = connect(server.addr());
+    req.write_all(b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: close\r\n\
+        \r\n\
+    ").unwrap();
+
+    let mut response = String::new();
+    req.read_to_string(&mut response).unwrap();
+    assert!(!response.contains("content-length:"));
+}
+
+#[test]
+fn skips_content_length_and_body_for_304_responses() {
+    let server = serve();
+    server.reply()
+
+        .status(hyper::StatusCode::NOT_MODIFIED)
+        .body("foo");
+    let mut req = connect(server.addr());
+    req.write_all(b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: close\r\n\
+        \r\n\
+    ").unwrap();
+
+    let mut response = String::new();
+    req.read_to_string(&mut response).unwrap();
+    assert!(!response.contains("content-length:"));
+    let mut lines = response.lines();
+    assert_eq!(lines.next(), Some("HTTP/1.1 304 Not Modified"));
+
+    let mut lines = lines.skip_while(|line| !line.is_empty());
+    assert_eq!(lines.next(), Some(""));
+    assert_eq!(lines.next(), None);
+}
 // -------------------------------------------------
 // the Server that is used to run all the tests with
 // -------------------------------------------------
@@ -2058,4 +2103,3 @@ impl Drop for Dropped {
         self.0.store(true, Ordering::SeqCst);
     }
 }
-
