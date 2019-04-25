@@ -167,7 +167,7 @@ struct Envelope<T, U>(Option<(T, Callback<T, U>)>);
 impl<T, U> Drop for Envelope<T, U> {
     fn drop(&mut self) {
         if let Some((val, cb)) = self.0.take() {
-            let _ = cb.send(Err((::Error::new_canceled(None::<::Error>), Some(val))));
+            let _ = cb.send(Err((::Error::new_canceled().with("connection closed"), Some(val))));
         }
     }
 }

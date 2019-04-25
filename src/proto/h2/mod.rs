@@ -126,7 +126,7 @@ where
                         match try_ready!(self.body_tx.poll_capacity().map_err(::Error::new_body_write)) {
                             Some(0) => {}
                             Some(_) => break,
-                            None => return Err(::Error::new_canceled(None::<::Error>)),
+                            None => return Err(::Error::new_canceled()),
                         }
                     }
                 } else {

@@ -708,7 +708,7 @@ where
             Ok(Async::NotReady) => return Ok(Async::NotReady),
             Err(e) => {
                 trace!("make_service closed");
-                return Err(::Error::new_user_new_service(e));
+                return Err(::Error::new_user_make_service(e));
             }
         }
 
@@ -876,8 +876,8 @@ pub(crate) mod spawn_all {
                         let conn = try_ready!(connecting
                             .poll()
                             .map_err(|err| {
-                                let err = ::Error::new_user_new_service(err);
-                                debug!("connection error: {}", err);
+                                let err = ::Error::new_user_make_service(err);
+                                debug!("connecting error: {}", err);
                             }));
                         let connected = watcher.watch(conn.with_upgrades());
                         State::Connected(connected)

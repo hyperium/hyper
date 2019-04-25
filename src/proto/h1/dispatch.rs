@@ -162,7 +162,6 @@ where
                                         self.conn.close_read();
                                     }
                                 }
-
                             }
                         },
                         Ok(Async::Ready(None)) => {
@@ -180,7 +179,7 @@ where
                     // just drop, the body will close automatically
                 }
             } else {
-                return self.conn.read_keep_alive().map(Async::Ready);
+                return self.conn.read_keep_alive();
             }
         }
     }
@@ -486,7 +485,10 @@ where
                     let _ = cb.send(Ok(res));
                     Ok(())
                 } else {
-                    Err(::Error::new_mismatched_response())
+                    // Getting here is likely a bug! An error should have happened
+                    // in Conn::require_empty_read() before ever parsing a
+                    // full message!
+                    Err(::Error::new_unexpected_message())
                 }
             },
             Err(err) => {
@@ -497,7 +499,7 @@ where
                     trace!("canceling queued request with connection error: {}", err);
                     // in this case, the message was never even started, so it's safe to tell
                     // the user that the request was completely canceled
-                    let _ = cb.send(Err((::Error::new_canceled(Some(err)), Some(req))));
+                    let _ = cb.send(Err((::Error::new_canceled().with(err), Some(req))));
                     Ok(())
                 } else {
                     Err(err)

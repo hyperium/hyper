@@ -103,10 +103,7 @@ fn conn_reset_after_write() {
         Ok(Async::Ready(()))
     }).map_err(|e: ::std::io::Error| panic!("srv2 poll_fn error: {}", e));
     let err = rt.block_on(res2.join(srv2)).expect_err("res2");
-    match err.kind() {
-        &::error::Kind::Incomplete => (),
-        other => panic!("expected Incomplete, found {:?}", other)
-    }
+    assert!(err.is_incomplete_message(), "{:?}", err);
 }
 
 #[test]

@@ -549,7 +549,7 @@ test! {
             method: GET,
             url: "http://{addr}/err",
         },
-        error: |err| err.to_string() == "parsed HTTP message from remote is incomplete",
+        error: |err| err.is_incomplete_message(),
 }
 
 test! {
