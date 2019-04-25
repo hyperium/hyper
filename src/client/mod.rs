@@ -498,7 +498,7 @@ where C: Connect + Sync + 'static,
             let connecting = match pool.connecting(&pool_key, ver) {
                 Some(lock) => lock,
                 None => {
-                    let canceled = ::Error::new_canceled(Some("HTTP/2 connection in progress"));
+                    let canceled = ::Error::new_canceled().with("HTTP/2 connection in progress");
                     return Either::B(future::err(canceled));
                 }
             };
@@ -517,7 +517,7 @@ where C: Connect + Sync + 'static,
                             None => {
                                 // Another connection has already upgraded,
                                 // the pool checkout should finish up for us.
-                                let canceled = ::Error::new_canceled(Some("ALPN upgraded to HTTP/2"));
+                                let canceled = ::Error::new_canceled().with("ALPN upgraded to HTTP/2");
                                 return Either::B(future::err(canceled));
                             }
                         }

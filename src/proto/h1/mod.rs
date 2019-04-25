@@ -31,8 +31,21 @@ pub(crate) trait Http1Transaction {
 
     fn on_error(err: &::Error) -> Option<MessageHead<Self::Outgoing>>;
 
-    fn should_error_on_parse_eof() -> bool;
-    fn should_read_first() -> bool;
+    fn is_client() -> bool {
+        !Self::is_server()
+    }
+
+    fn is_server() -> bool {
+        !Self::is_client()
+    }
+
+    fn should_error_on_parse_eof() -> bool {
+        Self::is_client()
+    }
+
+    fn should_read_first() -> bool {
+        Self::is_server()
+    }
 
     fn update_date() {}
 }

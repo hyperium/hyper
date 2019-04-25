@@ -294,7 +294,7 @@ impl Http1Transaction for Server {
                     if wrote_len {
                         warn!("unexpected content-length found, canceling");
                         rewind(dst);
-                        return Err(::Error::new_header());
+                        return Err(::Error::new_user_header());
                     }
                     match msg.body {
                         Some(BodyLength::Known(known_len)) => {
@@ -354,7 +354,7 @@ impl Http1Transaction for Server {
                                         if fold.0 != len {
                                             warn!("multiple Content-Length values found: [{}, {}]", fold.0, len);
                                             rewind(dst);
-                                            return Err(::Error::new_header());
+                                            return Err(::Error::new_user_header());
                                         }
                                         folded = Some(fold);
                                     } else {
@@ -363,7 +363,7 @@ impl Http1Transaction for Server {
                                 } else {
                                     warn!("illegal Content-Length value: {:?}", value);
                                     rewind(dst);
-                                    return Err(::Error::new_header());
+                                    return Err(::Error::new_user_header());
                                 }
                             }
                             if let Some((len, value)) = folded {
@@ -403,7 +403,7 @@ impl Http1Transaction for Server {
                     if wrote_len {
                         warn!("unexpected transfer-encoding found, canceling");
                         rewind(dst);
-                        return Err(::Error::new_header());
+                        return Err(::Error::new_user_header());
                     }
                     // check that we actually can send a chunked body...
                     if msg.head.version == Version::HTTP_10 || !Server::can_chunked(msg.req_method, msg.head.subject) {
@@ -531,11 +531,7 @@ impl Http1Transaction for Server {
         Some(msg)
     }
 
-    fn should_error_on_parse_eof() -> bool {
-        false
-    }
-
-    fn should_read_first() -> bool {
+    fn is_server() -> bool {
         true
     }
 
@@ -692,12 +688,8 @@ impl Http1Transaction for Client {
         None
     }
 
-    fn should_error_on_parse_eof() -> bool {
+    fn is_client() -> bool {
         true
-    }
-
-    fn should_read_first() -> bool {
-        false
     }
 }
 

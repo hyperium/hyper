@@ -209,7 +209,7 @@ impl Future for OnUpgrade {
                 Ok(Async::Ready(Ok(upgraded))) => Ok(Async::Ready(upgraded)),
                 Ok(Async::Ready(Err(err))) => Err(err),
                 Err(_oneshot_canceled) => Err(
-                    ::Error::new_canceled(Some(UpgradeExpected(())))
+                    ::Error::new_canceled().with(UpgradeExpected(()))
                 ),
             },
             None => Err(::Error::new_user_no_upgrade()),

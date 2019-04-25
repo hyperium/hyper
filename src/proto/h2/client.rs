@@ -100,7 +100,7 @@ where
                         Ok(Async::Ready(Some((req, cb)))) => {
                             // check that future hasn't been canceled already
                             if cb.is_canceled() {
-                                trace!("request canceled");
+                                trace!("request callback is canceled");
                                 continue;
                             }
                             let (head, body) = req.into_parts();
@@ -159,11 +159,11 @@ where
 
                         Ok(Async::NotReady) => return Ok(Async::NotReady),
 
-                        Ok(Async::Ready(None)) |
-                        Err(_) => {
+                        Ok(Async::Ready(None)) => {
                             trace!("client::dispatch::Sender dropped");
                             return Ok(Async::Ready(Dispatched::Shutdown));
-                        }
+                        },
+                        Err(never) => match never {},
                     }
                 },
             };
