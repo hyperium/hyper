@@ -1,3 +1,10 @@
+### v0.10.16 (2019-04-26)
+
+#### Bug Fixes
+
+* **server** HttpWriter::SizedWriter would record bytes as sent even if writing failed. It now only records successful bytes, allowing retries to work.
+
+
 ### v0.10.10 (2017-05-08)
 
 

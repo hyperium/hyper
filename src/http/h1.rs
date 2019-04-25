@@ -820,12 +820,12 @@ impl<W: Write> Write for HttpWriter<W> {
                 let len = msg.len() as u64;
                 if len > *remaining {
                     let len = *remaining;
-                    *remaining = 0;
                     try!(w.write_all(&msg[..len as usize]));
+                    *remaining = 0;
                     Ok(len as usize)
                 } else {
-                    *remaining -= len;
                     try!(w.write_all(msg));
+                    *remaining -= len;
                     Ok(len as usize)
                 }
             },
