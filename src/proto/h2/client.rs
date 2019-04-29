@@ -1,7 +1,7 @@
 use bytes::IntoBuf;
 use futures::{Async, Future, Poll, Stream};
 use futures::future::{self, Either};
-use futures::sync::mpsc;
+use futures::sync::{mpsc, oneshot};
 use h2::client::{Builder, Handshake, SendRequest};
 use tokio_io::{AsyncRead, AsyncWrite};
 
@@ -18,6 +18,10 @@ type ClientRx<B> = ::client::dispatch::Receiver<Request<B>, Response<Body>>;
 /// other handles to it have been dropped, so that it can shutdown.
 type ConnDropRef = mpsc::Sender<Never>;
 
+/// A oneshot channel watches the `Connection` task, and when it completes,
+/// the "dispatch" task will be notified and can shutdown sooner.
+type ConnEof = oneshot::Receiver<Never>;
+
 pub(crate) struct Client<T, B>
 where
     B: Payload,
@@ -29,7 +33,7 @@ where
 
 enum State<T, B> where B: IntoBuf {
     Handshaking(Handshake<T, B>),
-    Ready(SendRequest<B>, ConnDropRef),
+    Ready(SendRequest<B>, ConnDropRef, ConnEof),
 }
 
 impl<T, B> Client<T, B>
@@ -66,6 +70,7 @@ where
                     // in h2 where dropping all SendRequests won't notify a
                     // parked Connection.
                     let (tx, rx) = mpsc::channel(0);
+                    let (cancel_tx, cancel_rx) = oneshot::channel();
                     let rx = rx.into_future()
                         .map(|(msg, _)| match msg {
                             Some(never) => match never {},
@@ -73,7 +78,10 @@ where
                         })
                         .map_err(|_| -> Never { unreachable!("mpsc cannot error") });
                     let fut = conn
-                        .inspect(|_| trace!("connection complete"))
+                        .inspect(move |_| {
+                            drop(cancel_tx);
+                            trace!("connection complete")
+                        })
                         .map_err(|e| debug!("connection error: {}", e))
                         .select2(rx)
                         .then(|res| match res {
@@ -92,10 +100,21 @@ where
                             Err(Either::B((never, _))) => match never {},
                         });
                     self.executor.execute(fut)?;
-                    State::Ready(request_tx, tx)
+                    State::Ready(request_tx, tx, cancel_rx)
                 },
-                State::Ready(ref mut tx, ref conn_dropper) => {
-                    try_ready!(tx.poll_ready().map_err(::Error::new_h2));
+                State::Ready(ref mut tx, ref conn_dropper, ref mut cancel_rx) => {
+                    match tx.poll_ready() {
+                        Ok(Async::Ready(())) => (),
+                        Ok(Async::NotReady) => return Ok(Async::NotReady),
+                        Err(err) => {
+                            return if err.reason() == Some(::h2::Reason::NO_ERROR) {
+                                trace!("connection gracefully shutdown");
+                                Ok(Async::Ready(Dispatched::Shutdown))
+                            } else {
+                                Err(::Error::new_h2(err))
+                            };
+                        }
+                    }
                     match self.rx.poll() {
                         Ok(Async::Ready(Some((req, cb)))) => {
                             // check that future hasn't been canceled already
@@ -157,7 +176,16 @@ where
                             continue;
                         },
 
-                        Ok(Async::NotReady) => return Ok(Async::NotReady),
+                        Ok(Async::NotReady) => {
+                            match cancel_rx.poll() {
+                                Ok(Async::Ready(never)) => match never {},
+                                Ok(Async::NotReady) => return Ok(Async::NotReady),
+                                Err(_conn_is_eof) => {
+                                    trace!("connection task is closed, closing dispatch task");
+                                    return Ok(Async::Ready(Dispatched::Shutdown));
+                                }
+                            }
+                        },
 
                         Ok(Async::Ready(None)) => {
                             trace!("client::dispatch::Sender dropped");
