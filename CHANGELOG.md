@@ -1,3 +1,18 @@
+### v0.12.28 (2019-04-29)
+
+
+#### Bug Fixes
+
+* **client:**
+  * detect HTTP2 connection closures sooner ([e0ec5cad](https://github.com/hyperium/hyper/commit/e0ec5cad9ae3eaa5d9fffeeb636b1363029fcb9c))
+  * fix a rare connection pool race condition ([4133181b](https://github.com/hyperium/hyper/commit/4133181bb20f8d7e990994b2119c590f832a95f1))
+
+
+#### Features
+
+* **server:** impl Sink for Body::Sender ([8d70baca](https://github.com/hyperium/hyper/commit/8d70baca611869c1997571e8513717396b13328b), closes [#1781](https://github.com/hyperium/hyper/issues/1781))
+
+
 ### v0.12.27 (2019-04-10)
 
 
