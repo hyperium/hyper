@@ -2095,6 +2095,57 @@ mod conn {
         assert_eq!(vec, b"bar=foo");
     }
 
+
+    #[test]
+    fn http2_detect_conn_eof() {
+        use futures::future;
+        use hyper::{Response, Server};
+        use hyper::service::service_fn_ok;
+        use tokio::timer::Delay;
+
+        let _ = pretty_env_logger::try_init();
+
+        let mut rt = Runtime::new().unwrap();
+
+        let server = Server::bind(&([127, 0, 0, 1], 0).into())
+            .http2_only(true)
+            .serve(|| service_fn_ok(|_req| {
+                Response::new(Body::empty())
+            }));
+        let addr = server.local_addr();
+        let (shdn_tx, shdn_rx) = oneshot::channel();
+        rt.spawn(server.with_graceful_shutdown(shdn_rx).map_err(|e| panic!("server error: {:?}", e)));
+
+        let io = rt.block_on(tcp_connect(&addr)).expect("tcp connect");
+        let (mut client, conn) = rt.block_on(
+            conn::Builder::new().http2_only(true).handshake::<_, Body>(io)
+        ).expect("http handshake");
+        rt.spawn(conn.map_err(|e| panic!("client conn error: {:?}", e)));
+
+
+        // Sanity check that client is ready
+        rt.block_on(future::poll_fn(|| client.poll_ready())).expect("client poll ready sanity");
+
+        let req = Request::builder()
+            .uri(format!("http://{}/", addr))
+            .body(Body::empty())
+            .expect("request builder");
+
+        rt.block_on(client.send_request(req)).expect("req1 send");
+
+        // Sanity check that client is STILL ready
+        rt.block_on(future::poll_fn(|| client.poll_ready())).expect("client poll ready after");
+
+        // Trigger the server shutdown...
+        let _ = shdn_tx.send(());
+
+        // Allow time for graceful shutdown roundtrips...
+        rt.block_on(Delay::new(::std::time::Instant::now() + Duration::from_millis(100)).map_err(|e| panic!("delay error: {:?}", e))).expect("delay");
+
+        // After graceful shutdown roundtrips, the client should be closed...
+        rt.block_on(future::poll_fn(|| client.poll_ready())).expect_err("client should be closed");
+    }
+
     struct DebugStream {
         tcp: TcpStream,
         shutdown_called: bool,
