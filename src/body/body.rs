@@ -343,7 +343,21 @@ impl Stream for Body {
 
 impl fmt::Debug for Body {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Body").finish()
+        #[derive(Debug)]
+        struct Streaming;
+        #[derive(Debug)]
+        struct Empty;
+        #[derive(Debug)]
+        struct Once<'a>(&'a Chunk);
+
+        let mut builder = f.debug_tuple("Body");
+        match self.kind {
+            Kind::Once(None) => builder.field(&Empty),
+            Kind::Once(Some(ref chunk)) => builder.field(&Once(chunk)),
+            _ => builder.field(&Streaming),
+        };
+
+        builder.finish()
     }
 }
 
