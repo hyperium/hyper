@@ -49,9 +49,10 @@ pub(crate) enum Kind {
     BodyWrite,
     /// Error calling AsyncWrite::shutdown()
     Shutdown,
-
     /// A general error from h2.
     Http2,
+    /// An external error exposed for the purpose of mapping
+    External,
 }
 
 #[derive(Debug, PartialEq)]
@@ -309,6 +310,12 @@ impl Error {
             Error::new(Kind::Http2).with(cause)
         }
     }
+
+    /// Generates a new external Error which is intended primarily to be used
+    /// for mapping external errors to a hyper error.
+    pub fn new_external() -> Error {
+        Error::new(Kind::External)
+    }
 }
 
 impl fmt::Debug for Error {
@@ -355,6 +362,7 @@ impl StdError for Error {
             Kind::Shutdown => "error shutting down connection",
             Kind::Http2 => "http2 error",
             Kind::Io => "connection error",
+            Kind::External => "unknown external error",
 
             Kind::User(User::Body) => "error from user's Payload stream",
             Kind::User(User::MakeService) => "error from user's MakeService",
