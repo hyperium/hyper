@@ -476,14 +476,20 @@ impl Http1Transaction for Server {
                 },
                 None |
                 Some(BodyLength::Known(0)) => {
-                    extend(dst, b"content-length: 0\r\n");
+                    if msg.head.subject != StatusCode::NOT_MODIFIED {
+                        extend(dst, b"content-length: 0\r\n");
+                    }
                     Encoder::length(0)
                 },
                 Some(BodyLength::Known(len)) => {
-                    extend(dst, b"content-length: ");
-                    let _ = ::itoa::write(&mut dst, len);
-                    extend(dst, b"\r\n");
-                    Encoder::length(len)
+                    if msg.head.subject == StatusCode::NOT_MODIFIED {
+                        Encoder::length(0)
+                    } else {
+                        extend(dst, b"content-length: ");
+                        let _ = ::itoa::write(&mut dst, len);
+                        extend(dst, b"\r\n");
+                        Encoder::length(len)
+                    }
                 },
             };
         }
@@ -1583,4 +1589,3 @@ mod tests {
         })
     }
 }
-
