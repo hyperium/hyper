@@ -7,7 +7,7 @@
 //! - The [`Connect`](Connect) trait and related types to build custom connectors.
 use std::error::Error as StdError;
 use std::{fmt, mem};
-use std::convert::TryFrom;
+#[cfg(try_from)] use std::convert::TryFrom;
 
 use bytes::{BufMut, Bytes, BytesMut};
 use futures::Future;
