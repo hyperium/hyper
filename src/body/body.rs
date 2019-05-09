@@ -4,6 +4,7 @@ use std::fmt;
 use bytes::Bytes;
 use futures::sync::{mpsc, oneshot};
 use futures::{Async, Future, Poll, Stream, Sink, AsyncSink, StartSend};
+use tokio_buf::SizeHint;
 use h2;
 use http::HeaderMap;
 
@@ -329,6 +330,36 @@ impl Payload for Body {
             Kind::Once(ref mut val) => FullDataRet(val.take()),
             _ => FullDataRet(None),
         }
+    }
+}
+
+impl ::http_body::Body for Body {
+    type Data = Chunk;
+    type Error = ::Error;
+
+    fn poll_data(&mut self) -> Poll<Option<Self::Data>, Self::Error> {
+        <Self as Payload>::poll_data(self)
+    }
+
+    fn poll_trailers(&mut self) -> Poll<Option<HeaderMap>, Self::Error> {
+        <Self as Payload>::poll_trailers(self)
+    }
+
+    fn is_end_stream(&self) -> bool {
+        <Self as Payload>::is_end_stream(self)
+    }
+
+    fn size_hint(&self) -> SizeHint {
+        let mut hint = SizeHint::default();
+
+        let content_length = <Self as Payload>::content_length(self);
+
+        if let Some(size) = content_length {
+            hint.set_upper(size);
+            hint.set_lower(size)
+        }
+
+        hint
     }
 }
 
