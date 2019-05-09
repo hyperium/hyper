@@ -257,9 +257,7 @@ impl TryFrom<Uri> for Destination {
     type Error = ::error::Error;
 
     fn try_from(uri: Uri) -> Result<Self, Self::Error> {
-        uri.authority_part().ok_or(::error::Parse::Uri)?;
-        uri.scheme_part().ok_or(::error::Parse::Uri)?;
-        Ok(Destination { uri })
+        Destination::try_from_uri(uri)
     }
 }
 
