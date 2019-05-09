@@ -7,6 +7,7 @@
 //! - The [`Connect`](Connect) trait and related types to build custom connectors.
 use std::error::Error as StdError;
 use std::{fmt, mem};
+#[cfg(try_from)] use std::convert::TryFrom;
 
 use bytes::{BufMut, Bytes, BytesMut};
 use futures::Future;
@@ -251,6 +252,15 @@ impl Destination {
     */
 }
 
+#[cfg(try_from)]
+impl TryFrom<Uri> for Destination {
+    type Error = ::error::Error;
+
+    fn try_from(uri: Uri) -> Result<Self, Self::Error> {
+        Destination::try_from_uri(uri)
+    }
+}
+
 impl Connected {
     /// Create new `Connected` type with empty metadata.
     pub fn new() -> Connected {
@@ -381,7 +391,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{Connected, Destination};
+    use super::{Connected, Destination, TryFrom};
 
     #[test]
     fn test_destination_set_scheme() {
@@ -525,6 +535,22 @@ mod tests {
         assert_eq!(dst.scheme(), "http");
         assert_eq!(dst.host(), "hyper.rs");
         assert_eq!(dst.port(), None);
+    }
+
+    #[cfg(try_from)]
+    #[test]
+    fn test_try_from_destination() {
+        let uri: http::Uri = "http://hyper.rs".parse().expect("initial parse");
+        let result = Destination::try_from(uri);
+        assert_eq!(result.is_ok(), true);
+    }
+    
+    #[cfg(try_from)]    
+    #[test]
+    fn test_try_from_no_scheme() {
+        let uri: http::Uri = "hyper.rs".parse().expect("initial parse error");
+        let result = Destination::try_from(uri);
+        assert_eq!(result.is_err(), true);
     }
 
     #[derive(Clone, Debug, PartialEq)]
