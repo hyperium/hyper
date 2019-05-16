@@ -30,7 +30,7 @@ fn http1_post(b: &mut test::Bencher) {
 }
 
 #[bench]
-fn http1_body_100kb(b: &mut test::Bencher) {
+fn http1_body_both_100kb(b: &mut test::Bencher) {
     let body = &[b'x'; 1024 * 100];
     opts()
         .method(Method::POST)
@@ -40,7 +40,7 @@ fn http1_body_100kb(b: &mut test::Bencher) {
 }
 
 #[bench]
-fn http1_body_10mb(b: &mut test::Bencher) {
+fn http1_body_both_10mb(b: &mut test::Bencher) {
     let body = &[b'x'; 1024 * 1024 * 10];
     opts()
         .method(Method::POST)
@@ -50,9 +50,19 @@ fn http1_body_10mb(b: &mut test::Bencher) {
 }
 
 #[bench]
-fn http1_get_parallel(b: &mut test::Bencher) {
+fn http1_parallel_x10_empty(b: &mut test::Bencher) {
     opts()
         .parallel(10)
+        .bench(b)
+}
+
+#[bench]
+fn http1_parallel_x10_req_10mb(b: &mut test::Bencher) {
+    let body = &[b'x'; 1024 * 1024 * 10];
+    opts()
+        .parallel(10)
+        .method(Method::POST)
+        .request_body(body)
         .bench(b)
 }
 
@@ -73,10 +83,33 @@ fn http2_post(b: &mut test::Bencher) {
 }
 
 #[bench]
-fn http2_get_parallel(b: &mut test::Bencher) {
+fn http2_req_100kb(b: &mut test::Bencher) {
+    let body = &[b'x'; 1024 * 100];
+    opts()
+        .http2()
+        .method(Method::POST)
+        .request_body(body)
+        .bench(b)
+}
+
+#[bench]
+fn http2_parallel_x10_empty(b: &mut test::Bencher) {
     opts()
         .http2()
         .parallel(10)
+        .bench(b)
+}
+
+#[bench]
+fn http2_parallel_x10_req_10mb(b: &mut test::Bencher) {
+    let body = &[b'x'; 1024 * 1024 * 10];
+    opts()
+        .http2()
+        .parallel(10)
+        .method(Method::POST)
+        .request_body(body)
+        .http2_stream_window(std::u32::MAX >> 1)
+        .http2_conn_window(std::u32::MAX >> 1)
         .bench(b)
 }
 
@@ -84,6 +117,8 @@ fn http2_get_parallel(b: &mut test::Bencher) {
 
 struct Opts {
     http2: bool,
+    http2_stream_window: Option<u32>,
+    http2_conn_window: Option<u32>,
     parallel_cnt: u32,
     request_method: Method,
     request_body: Option<&'static [u8]>,
@@ -93,6 +128,8 @@ struct Opts {
 fn opts() -> Opts {
     Opts {
         http2: false,
+        http2_stream_window: None,
+        http2_conn_window: None,
         parallel_cnt: 1,
         request_method: Method::GET,
         request_body: None,
@@ -103,6 +140,16 @@ fn opts() -> Opts {
 impl Opts {
     fn http2(mut self) -> Self {
         self.http2 = true;
+        self
+    }
+
+    fn http2_stream_window(mut self, sz: impl Into<Option<u32>>) -> Self {
+        self.http2_stream_window = sz.into();
+        self
+    }
+
+    fn http2_conn_window(mut self, sz: impl Into<Option<u32>>) -> Self {
+        self.http2_conn_window = sz.into();
         self
     }
 
@@ -133,11 +180,13 @@ impl Opts {
 
         b.bytes = self.response_body.len() as u64 + self.request_body.map(|b| b.len()).unwrap_or(0) as u64;
 
-        let addr = spawn_hello(&mut rt, self.response_body);
+        let addr = spawn_hello(&mut rt, &self);
 
         let connector = HttpConnector::new(1);
         let client = hyper::Client::builder()
             .http2_only(self.http2)
+            .http2_initial_stream_window_size(self.http2_stream_window)
+            .http2_initial_connection_window_size(self.http2_conn_window)
             .build::<_, Body>(connector);
 
         let url: hyper::Uri = format!("http://{}/hello", addr).parse().unwrap();
@@ -181,12 +230,19 @@ impl Opts {
     }
 }
 
-fn spawn_hello(rt: &mut Runtime, body: &'static [u8]) -> SocketAddr {
+fn spawn_hello(rt: &mut Runtime, opts: &Opts) -> SocketAddr {
     use hyper::service::{service_fn};
     let addr = "127.0.0.1:0".parse().unwrap();
 
-    let srv = Server::bind(&addr)
-        .serve(move || {
+    let body = opts.response_body;
+    let mut builder = Server::bind(&addr)
+        .http2_only(opts.http2);
+    // api woopsie
+    builder
+        .http2_initial_stream_window_size(opts.http2_stream_window)
+        .http2_initial_connection_window_size(opts.http2_conn_window);
+
+    let srv = builder.serve(move || {
             service_fn(move |req: Request<Body>| {
                 req
                     .into_body()
