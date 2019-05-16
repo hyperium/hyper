@@ -1,3 +1,18 @@
+### v0.12.29 (2019-05-16)
+
+
+#### Bug Fixes
+
+* **server:** skip automatic Content-Length header for HTTP 304 responses ([b342c38f](https://github.com/hyperium/hyper/commit/b342c38f08972fe8be4ef9844e30f1e7a121bbc4), closes [#1797](https://github.com/hyperium/hyper/issues/1797))
+
+
+#### Features
+
+* **body:** implement `http_body::Body` for `hyper::Body` ([2d9f3490](https://github.com/hyperium/hyper/commit/2d9f3490aa04393a12854680aa3e6d6117ba2407))
+* **client:** Implement `TryFrom` for `Destination` (#1810) ([d1183a80](https://github.com/hyperium/hyper/commit/d1183a80278decf3955874629e9cff427edecb05), closes [#1808](https://github.com/hyperium/hyper/issues/1808))
+* **server:** add initial window builder methods that take self by-val (#1817) ([8b45af7f](https://github.com/hyperium/hyper/commit/8b45af7f314cea7d1db5cb6990088dd8442aa87b))
+
+
 ### v0.12.28 (2019-04-29)
 
 
