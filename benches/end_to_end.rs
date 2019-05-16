@@ -235,14 +235,11 @@ fn spawn_hello(rt: &mut Runtime, opts: &Opts) -> SocketAddr {
     let addr = "127.0.0.1:0".parse().unwrap();
 
     let body = opts.response_body;
-    let mut builder = Server::bind(&addr)
+    let srv = Server::bind(&addr)
         .http2_only(opts.http2);
-    // api woopsie
-    builder
-        .http2_initial_stream_window_size(opts.http2_stream_window)
-        .http2_initial_connection_window_size(opts.http2_conn_window);
-
-    let srv = builder.serve(move || {
+        .http2_initial_stream_window_size_(opts.http2_stream_window)
+        .http2_initial_connection_window_size_(opts.http2_conn_window)
+        .serve(move || {
             service_fn(move |req: Request<Body>| {
                 req
                     .into_body()
