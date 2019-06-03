@@ -17,7 +17,7 @@ static MISSING: &[u8] = b"Missing field";
 static NOTNUMERIC: &[u8] = b"Number field is not numeric";
 
 // Using service_fn, we can turn this function into a `Service`.
-fn param_example(req: Request<Body>) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
+fn param_example(req: Request<Body>) -> Box<dyn Future<Item=Response<Body>, Error=hyper::Error> + Send> {
     match (req.method(), req.uri().path()) {
         (&Method::GET, "/") | (&Method::GET, "/post") => {
             Box::new(future::ok(Response::new(INDEX.into())))

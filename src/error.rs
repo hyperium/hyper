@@ -10,7 +10,7 @@ use h2;
 /// Result type often returned from methods that can have hyper `Error`s.
 pub type Result<T> = ::std::result::Result<T, Error>;
 
-type Cause = Box<StdError + Send + Sync>;
+type Cause = Box<dyn StdError + Send + Sync>;
 
 /// Represents errors that can occur handling HTTP streams.
 pub struct Error {
@@ -135,12 +135,12 @@ impl Error {
 
     #[doc(hidden)]
     #[cfg_attr(error_source, deprecated(note = "use Error::source instead"))]
-    pub fn cause2(&self) -> Option<&(StdError + 'static + Sync + Send)> {
+    pub fn cause2(&self) -> Option<&(dyn StdError + 'static + Sync + Send)> {
         self.inner.cause.as_ref().map(|e| &**e)
     }
 
     /// Consumes the error, returning its cause.
-    pub fn into_cause(self) -> Option<Box<StdError + Sync + Send>> {
+    pub fn into_cause(self) -> Option<Box<dyn StdError + Sync + Send>> {
         self.inner.cause
     }
 
@@ -380,12 +380,12 @@ impl StdError for Error {
     }
 
     #[cfg(error_source)]
-    fn source(&self) -> Option<&(StdError + 'static)> {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
         self
             .inner
             .cause
             .as_ref()
-            .map(|cause| &**cause as &(StdError + 'static))
+            .map(|cause| &**cause as &(dyn StdError + 'static))
     }
 }
 

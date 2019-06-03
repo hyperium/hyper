@@ -14,7 +14,7 @@ pub trait NewService {
     type ResBody: Payload;
 
     /// The error type that can be returned by `Service`s.
-    type Error: Into<Box<StdError + Send + Sync>>;
+    type Error: Into<Box<dyn StdError + Send + Sync>>;
 
     /// The resolved `Service` from `new_service()`.
     type Service: Service<
@@ -27,7 +27,7 @@ pub trait NewService {
     type Future: Future<Item=Self::Service, Error=Self::InitError>;
 
     /// The error type that can be returned when creating a new `Service`.
-    type InitError: Into<Box<StdError + Send + Sync>>;
+    type InitError: Into<Box<dyn StdError + Send + Sync>>;
 
     #[doc(hidden)]
     fn poll_ready(&mut self) -> Poll<(), Self::InitError> {
@@ -42,7 +42,7 @@ impl<F, R, S> NewService for F
 where
     F: Fn() -> R,
     R: IntoFuture<Item=S>,
-    R::Error: Into<Box<StdError + Send + Sync>>,
+    R::Error: Into<Box<dyn StdError + Send + Sync>>,
     S: Service,
 {
     type ReqBody = S::ReqBody;

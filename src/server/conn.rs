@@ -8,6 +8,7 @@
 //! If you don't have need to manage connections yourself, consider using the
 //! higher-level [Server](super) API.
 
+use std::error::Error as StdError;
 use std::fmt;
 use std::mem;
 #[cfg(feature = "runtime")] use std::net::SocketAddr;
@@ -179,7 +180,7 @@ impl Http {
     #[deprecated(note = "use Http::with_executor instead")]
     pub fn executor<E>(&mut self, exec: E) -> &mut Self
     where
-        E: Executor<Box<Future<Item=(), Error=()> + Send>> + Send + Sync + 'static
+        E: Executor<Box<dyn Future<Item=(), Error=()> + Send>> + Send + Sync + 'static
     {
         self.exec = Exec::Executor(Arc::new(exec));
         self
@@ -364,7 +365,7 @@ impl<E> Http<E> {
     pub fn serve_connection<S, I, Bd>(&self, io: I, service: S) -> Connection<I, S, E>
     where
         S: Service<ReqBody=Body, ResBody=Bd>,
-        S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+        S::Error: Into<Box<dyn StdError + Send + Sync>>,
         Bd: Payload,
         I: AsyncRead + AsyncWrite,
         E: H2Exec<S::Future, Bd>,
@@ -419,7 +420,7 @@ impl<E> Http<E> {
             ReqBody=Body,
             ResBody=Bd,
         >,
-        S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+        S::Error: Into<Box<dyn StdError + Send + Sync>>,
         Bd: Payload,
         E: H2Exec<<S::Service as Service>::Future, Bd>,
     {
@@ -444,7 +445,7 @@ impl<E> Http<E> {
             ReqBody=Body,
             ResBody=Bd,
         >,
-        S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+        S::Error: Into<Box<dyn StdError + Send + Sync>>,
         Bd: Payload,
         E: H2Exec<<S::Service as Service>::Future, Bd>,
     {
@@ -459,14 +460,14 @@ impl<E> Http<E> {
     pub fn serve_incoming<I, S, Bd>(&self, incoming: I, make_service: S) -> Serve<I, S, E>
     where
         I: Stream,
-        I::Error: Into<Box<::std::error::Error + Send + Sync>>,
+        I::Error: Into<Box<dyn StdError + Send + Sync>>,
         I::Item: AsyncRead + AsyncWrite,
         S: MakeServiceRef<
             I::Item,
             ReqBody=Body,
             ResBody=Bd,
         >,
-        S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+        S::Error: Into<Box<dyn StdError + Send + Sync>>,
         Bd: Payload,
         E: H2Exec<<S::Service as Service>::Future, Bd>,
     {
@@ -484,7 +485,7 @@ impl<E> Http<E> {
 impl<I, B, S, E> Connection<I, S, E>
 where
     S: Service<ReqBody=Body, ResBody=B>,
-    S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite,
     B: Payload + 'static,
     E: H2Exec<S::Future, B>,
@@ -622,7 +623,7 @@ where
 impl<I, B, S, E> Future for Connection<I, S, E>
 where
     S: Service<ReqBody=Body, ResBody=B> + 'static,
-    S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + 'static,
     B: Payload + 'static,
     E: H2Exec<S::Future, B>,
@@ -692,10 +693,10 @@ impl<I, S, B, E> Stream for Serve<I, S, E>
 where
     I: Stream,
     I::Item: AsyncRead + AsyncWrite,
-    I::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    I::Error: Into<Box<dyn StdError + Send + Sync>>,
     S: MakeServiceRef<I::Item, ReqBody=Body, ResBody=B>,
-    //S::Error2: Into<Box<::std::error::Error + Send + Sync>>,
-    //SME: Into<Box<::std::error::Error + Send + Sync>>,
+    //S::Error2: Into<Box<StdError + Send + Sync>>,
+    //SME: Into<Box<StdError + Send + Sync>>,
     B: Payload,
     E: H2Exec<<S::Service as Service>::Future, B>,
 {
@@ -763,7 +764,7 @@ impl<I, S, E> SpawnAll<I, S, E> {
 impl<I, S, B, E> SpawnAll<I, S, E>
 where
     I: Stream,
-    I::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    I::Error: Into<Box<dyn StdError + Send + Sync>>,
     I::Item: AsyncRead + AsyncWrite + Send + 'static,
     S: MakeServiceRef<
         I::Item,
@@ -790,6 +791,7 @@ where
 }
 
 pub(crate) mod spawn_all {
+    use std::error::Error as StdError;
     use futures::{Future, Poll};
     use tokio_io::{AsyncRead, AsyncWrite};
 
@@ -860,7 +862,7 @@ pub(crate) mod spawn_all {
     where
         I: AsyncRead + AsyncWrite + Send + 'static,
         N: Future<Item=S>,
-        N::Error: Into<Box<::std::error::Error + Send + Sync>>,
+        N::Error: Into<Box<dyn StdError + Send + Sync>>,
         S: Service<ReqBody=Body, ResBody=B>,
         B: Payload,
         E: H2Exec<S::Future, B>,
@@ -916,7 +918,7 @@ mod upgrades {
     impl<I, B, S, E> UpgradeableConnection<I, S, E>
     where
         S: Service<ReqBody=Body, ResBody=B>,// + 'static,
-        S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+        S::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: AsyncRead + AsyncWrite,
         B: Payload + 'static,
         E: H2Exec<S::Future, B>,
@@ -933,7 +935,7 @@ mod upgrades {
     impl<I, B, S, E> Future for UpgradeableConnection<I, S, E>
     where
         S: Service<ReqBody=Body, ResBody=B> + 'static,
-        S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+        S::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: AsyncRead + AsyncWrite + Send + 'static,
         B: Payload + 'static,
         E: super::H2Exec<S::Future, B>,

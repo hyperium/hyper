@@ -15,7 +15,7 @@ pub trait MakeService<Ctx> {
     type ResBody: Payload;
 
     /// The error type that can be returned by `Service`s.
-    type Error: Into<Box<StdError + Send + Sync>>;
+    type Error: Into<Box<dyn StdError + Send + Sync>>;
 
     /// The resolved `Service` from `new_service()`.
     type Service: Service<
@@ -28,7 +28,7 @@ pub trait MakeService<Ctx> {
     type Future: Future<Item=Self::Service, Error=Self::MakeError>;
 
     /// The error type that can be returned when creating a new `Service`.
-    type MakeError: Into<Box<StdError + Send + Sync>>;
+    type MakeError: Into<Box<dyn StdError + Send + Sync>>;
 
     /// Returns `Ready` when the constructor is ready to create a new `Service`.
     ///
@@ -49,13 +49,13 @@ pub trait MakeService<Ctx> {
 pub trait MakeServiceRef<Ctx>: self::sealed::Sealed<Ctx> {
     type ReqBody: Payload;
     type ResBody: Payload;
-    type Error: Into<Box<StdError + Send + Sync>>;
+    type Error: Into<Box<dyn StdError + Send + Sync>>;
     type Service: Service<
         ReqBody=Self::ReqBody,
         ResBody=Self::ResBody,
         Error=Self::Error,
     >;
-    type MakeError: Into<Box<StdError + Send + Sync>>;
+    type MakeError: Into<Box<dyn StdError + Send + Sync>>;
     type Future: Future<Item=Self::Service, Error=Self::MakeError>;
 
     // Acting like a #[non_exhaustive] for associated types of this trait.
@@ -77,8 +77,8 @@ pub trait MakeServiceRef<Ctx>: self::sealed::Sealed<Ctx> {
 impl<T, Ctx, E, ME, S, F, IB, OB> MakeServiceRef<Ctx> for T
 where
     T: for<'a> MakeService<&'a Ctx, Error=E, MakeError=ME, Service=S, Future=F, ReqBody=IB, ResBody=OB>,
-    E: Into<Box<StdError + Send + Sync>>,
-    ME: Into<Box<StdError + Send + Sync>>,
+    E: Into<Box<dyn StdError + Send + Sync>>,
+    ME: Into<Box<dyn StdError + Send + Sync>>,
     S: Service<ReqBody=IB, ResBody=OB, Error=E>,
     F: Future<Item=S, Error=ME>,
     IB: Payload,
@@ -105,8 +105,8 @@ where
 impl<T, Ctx, E, ME, S, F, IB, OB> self::sealed::Sealed<Ctx> for T
 where
     T: for<'a> MakeService<&'a Ctx, Error=E, MakeError=ME, Service=S, Future=F, ReqBody=IB, ResBody=OB>,
-    E: Into<Box<StdError + Send + Sync>>,
-    ME: Into<Box<StdError + Send + Sync>>,
+    E: Into<Box<dyn StdError + Send + Sync>>,
+    ME: Into<Box<dyn StdError + Send + Sync>>,
     S: Service<ReqBody=IB, ResBody=OB, Error=E>,
     F: Future<Item=S, Error=ME>,
     IB: Payload,
@@ -166,7 +166,7 @@ where
     F: FnMut(&Ctx) -> Ret,
     Ret: IntoFuture,
     Ret::Item: Service<ReqBody=ReqBody, ResBody=ResBody>,
-    Ret::Error: Into<Box<StdError + Send + Sync>>,
+    Ret::Error: Into<Box<dyn StdError + Send + Sync>>,
     ReqBody: Payload,
     ResBody: Payload,
 {

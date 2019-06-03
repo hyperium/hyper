@@ -26,7 +26,7 @@ use common::io::Rewind;
 /// Alternatively, if the exact type is known, this can be deconstructed
 /// into its parts.
 pub struct Upgraded {
-    io: Rewind<Box<Io + Send>>,
+    io: Rewind<Box<dyn Io + Send>>,
 }
 
 /// A future for a possible HTTP upgrade.
@@ -85,7 +85,7 @@ pub(crate) trait Io: AsyncRead + AsyncWrite + 'static {
     }
 }
 
-impl Io + Send {
+impl dyn Io + Send {
     fn __hyper_is<T: Io>(&self) -> bool {
         let t = TypeId::of::<T>();
         self.__hyper_type_id() == t
@@ -95,7 +95,7 @@ impl Io + Send {
         if self.__hyper_is::<T>() {
             // Taken from `std::error::Error::downcast()`.
             unsafe {
-                let raw: *mut Io = Box::into_raw(self);
+                let raw: *mut dyn Io = Box::into_raw(self);
                 Ok(Box::from_raw(raw as *mut T))
             }
         } else {
@@ -109,7 +109,7 @@ impl<T: AsyncRead + AsyncWrite + 'static> Io for T {}
 // ===== impl Upgraded =====
 
 impl Upgraded {
-    pub(crate) fn new(io: Box<Io + Send>, read_buf: Bytes) -> Self {
+    pub(crate) fn new(io: Box<dyn Io + Send>, read_buf: Bytes) -> Self {
         Upgraded {
             io: Rewind::new_buffered(io, read_buf),
         }

@@ -717,7 +717,7 @@ impl Client {
             101 => {
                 return Ok(Some((DecodedLength::ZERO, true)));
             },
-            100...199 => {
+            100..=199 => {
                 trace!("ignoring informational response: {}", inc.subject.as_u16());
                 return Ok(None);
             },
@@ -729,7 +729,7 @@ impl Client {
             Some(Method::HEAD) => {
                 return Ok(Some((DecodedLength::ZERO, false)));
             }
-            Some(Method::CONNECT) => if let 200...299 = inc.subject.as_u16() {
+            Some(Method::CONNECT) => if let 200..=299 = inc.subject.as_u16() {
                 return Ok(Some((DecodedLength::ZERO, true)));
             }
             Some(_) => {},

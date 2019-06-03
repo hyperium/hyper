@@ -1779,7 +1779,7 @@ impl Serve {
     }
 }
 
-type BoxError = Box<::std::error::Error + Send + Sync>;
+type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
 struct ReplyBuilder<'a> {
     tx: &'a spmc::Sender<Reply>,
@@ -1853,7 +1853,7 @@ enum Msg {
 }
 
 impl TestService {
-    fn call(&self, req: Request<Body>) -> Box<Future<Item=Response<Body>, Error=BoxError> + Send> {
+    fn call(&self, req: Request<Body>) -> Box<dyn Future<Item=Response<Body>, Error=BoxError> + Send> {
         let tx1 = self.tx.clone();
         let tx2 = self.tx.clone();
         let replies = self.reply.clone();

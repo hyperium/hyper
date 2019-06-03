@@ -54,6 +54,7 @@ pub mod conn;
 mod shutdown;
 #[cfg(feature = "runtime")] mod tcp;
 
+use std::error::Error as StdError;
 use std::fmt;
 #[cfg(feature = "runtime")] use std::net::{SocketAddr, TcpListener as StdTcpListener};
 
@@ -142,10 +143,10 @@ impl<S> Server<AddrIncoming, S> {
 impl<I, S, E, B> Server<I, S, E>
 where
     I: Stream,
-    I::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    I::Error: Into<Box<dyn StdError + Send + Sync>>,
     I::Item: AsyncRead + AsyncWrite + Send + 'static,
     S: MakeServiceRef<I::Item, ReqBody=Body, ResBody=B>,
-    S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    S::Error: Into<Box<dyn StdError + Send + Sync>>,
     S::Service: 'static,
     B: Payload,
     E: H2Exec<<S::Service as Service>::Future, B>,
@@ -201,10 +202,10 @@ where
 impl<I, S, B, E> Future for Server<I, S, E>
 where
     I: Stream,
-    I::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    I::Error: Into<Box<dyn StdError + Send + Sync>>,
     I::Item: AsyncRead + AsyncWrite + Send + 'static,
     S: MakeServiceRef<I::Item, ReqBody=Body, ResBody=B>,
-    S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    S::Error: Into<Box<dyn StdError + Send + Sync>>,
     S::Service: 'static,
     B: Payload,
     E: H2Exec<<S::Service as Service>::Future, B>,
@@ -398,10 +399,10 @@ impl<I, E> Builder<I, E> {
     pub fn serve<S, B>(self, new_service: S) -> Server<I, S, E>
     where
         I: Stream,
-        I::Error: Into<Box<::std::error::Error + Send + Sync>>,
+        I::Error: Into<Box<dyn StdError + Send + Sync>>,
         I::Item: AsyncRead + AsyncWrite + Send + 'static,
         S: MakeServiceRef<I::Item, ReqBody=Body, ResBody=B>,
-        S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+        S::Error: Into<Box<dyn StdError + Send + Sync>>,
         S::Service: 'static,
         B: Payload,
         E: NewSvcExec<I::Item, S::Future, S::Service, E, NoopWatcher>,

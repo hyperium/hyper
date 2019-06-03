@@ -1,3 +1,5 @@
+use std::error::Error as StdError;
+
 use bytes::{Buf, Bytes};
 use futures::{Async, Future, Poll, Stream};
 use http::{Request, Response, StatusCode};
@@ -44,7 +46,7 @@ type ClientRx<B> = ::client::dispatch::Receiver<Request<B>, Response<Body>>;
 impl<D, Bs, I, T> Dispatcher<D, Bs, I, T>
 where
     D: Dispatch<PollItem=MessageHead<T::Outgoing>, PollBody=Bs, RecvItem=MessageHead<T::Incoming>>,
-    D::PollError: Into<Box<::std::error::Error + Send + Sync>>,
+    D::PollError: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite,
     T: Http1Transaction,
     Bs: Payload,
@@ -334,7 +336,7 @@ where
 impl<D, Bs, I, T> Future for Dispatcher<D, Bs, I, T>
 where
     D: Dispatch<PollItem=MessageHead<T::Outgoing>, PollBody=Bs, RecvItem=MessageHead<T::Incoming>>,
-    D::PollError: Into<Box<::std::error::Error + Send + Sync>>,
+    D::PollError: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite,
     T: Http1Transaction,
     Bs: Payload,
@@ -365,7 +367,7 @@ impl<S> Server<S> where S: Service {
 impl<S, Bs> Dispatch for Server<S>
 where
     S: Service<ReqBody=Body, ResBody=Bs>,
-    S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    S::Error: Into<Box<dyn StdError + Send + Sync>>,
     Bs: Payload,
 {
     type PollItem = MessageHead<StatusCode>;

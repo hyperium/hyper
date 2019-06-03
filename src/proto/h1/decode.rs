@@ -186,15 +186,15 @@ impl ChunkedState {
         trace!("Read chunk hex size");
         let radix = 16;
         match byte!(rdr) {
-            b @ b'0'...b'9' => {
+            b @ b'0'..=b'9' => {
                 *size *= radix;
                 *size += (b - b'0') as u64;
             }
-            b @ b'a'...b'f' => {
+            b @ b'a'..=b'f' => {
                 *size *= radix;
                 *size += (b + 10 - b'a') as u64;
             }
-            b @ b'A'...b'F' => {
+            b @ b'A'..=b'F' => {
                 *size *= radix;
                 *size += (b + 10 - b'A') as u64;
             }

@@ -16,7 +16,7 @@ static INDEX: &[u8] = b"<a href=\"test.html\">test.html</a>";
 static POST_DATA: &str = r#"{"original": "data"}"#;
 
 type GenericError = Box<dyn std::error::Error + Send + Sync>;
-type ResponseFuture = Box<Future<Item=Response<Body>, Error=GenericError> + Send>;
+type ResponseFuture = Box<dyn Future<Item=Response<Body>, Error=GenericError> + Send>;
 
 fn client_request_response(client: &Client<HttpConnector>) -> ResponseFuture {
      let req = Request::builder()

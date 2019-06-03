@@ -21,7 +21,7 @@ pub trait NewSvcExec<I, N, S: Service, E, W: Watcher<I, S, E>>: Clone {
 #[derive(Clone)]
 pub enum Exec {
     Default,
-    Executor(Arc<Executor<Box<Future<Item=(), Error=()> + Send>> + Send + Sync>),
+    Executor(Arc<dyn Executor<Box<dyn Future<Item=(), Error=()> + Send>> + Send + Sync>),
 }
 
 // ===== impl Exec =====

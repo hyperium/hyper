@@ -27,7 +27,7 @@ pub trait Connect: Send + Sync {
     /// The connected IO Stream.
     type Transport: AsyncRead + AsyncWrite + Send + 'static;
     /// An error occured when trying to connect.
-    type Error: Into<Box<StdError + Send + Sync>>;
+    type Error: Into<Box<dyn StdError + Send + Sync>>;
     /// A Future that will resolve to the connected Transport.
     type Future: Future<Item=(Self::Transport, Connected), Error=Self::Error> + Send;
     /// Connect to a destination.
@@ -53,7 +53,7 @@ pub struct Connected {
     pub(super) extra: Option<Extra>,
 }
 
-pub(super) struct Extra(Box<ExtraInner>);
+pub(super) struct Extra(Box<dyn ExtraInner>);
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum Alpn {
@@ -344,7 +344,7 @@ impl fmt::Debug for Extra {
 }
 
 trait ExtraInner: Send + Sync {
-    fn clone_box(&self) -> Box<ExtraInner>;
+    fn clone_box(&self) -> Box<dyn ExtraInner>;
     fn set(&self, res: &mut Response<::Body>);
 }
 
@@ -358,7 +358,7 @@ impl<T> ExtraInner for ExtraEnvelope<T>
 where
     T: Clone + Send + Sync + 'static
 {
-    fn clone_box(&self) -> Box<ExtraInner> {
+    fn clone_box(&self) -> Box<dyn ExtraInner> {
         Box::new(self.clone())
     }
 
@@ -367,7 +367,7 @@ where
     }
 }
 
-struct ExtraChain<T>(Box<ExtraInner>, T);
+struct ExtraChain<T>(Box<dyn ExtraInner>, T);
 
 impl<T: Clone> Clone for ExtraChain<T> {
     fn clone(&self) -> Self {
@@ -379,7 +379,7 @@ impl<T> ExtraInner for ExtraChain<T>
 where
     T: Clone + Send + Sync + 'static
 {
-    fn clone_box(&self) -> Box<ExtraInner> {
+    fn clone_box(&self) -> Box<dyn ExtraInner> {
         Box::new(self.clone())
     }
 
