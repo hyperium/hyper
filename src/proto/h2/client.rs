@@ -163,16 +163,15 @@ where
                                             let content_length = content_length_parse_all(res.headers());
                                             let res = res.map(|stream|
                                                 ::Body::h2(stream, content_length));
-                                            cb.send(Ok(res));
+                                            Ok(res)
                                         },
                                         Err(err) => {
                                             debug!("client response error: {}", err);
-                                            cb.send(Err((::Error::new_h2(err), None)));
+                                            Err((::Error::new_h2(err), None))
                                         }
                                     }
-                                    Ok(())
                                 });
-                            self.executor.execute(fut)?;
+                            self.executor.execute(cb.send_when(fut))?;
                             continue;
                         },
 

@@ -1,4 +1,4 @@
-use futures::{Async, Poll, Stream};
+use futures::{future, Async, Future, Poll, Stream};
 use futures::sync::{mpsc, oneshot};
 use want;
 
@@ -201,6 +201,37 @@ impl<T, U> Callback<T, U> {
                 let _ = tx.send(val.map_err(|e| e.0));
             }
         }
+    }
+
+    pub(crate) fn send_when(
+        self,
+        mut when: impl Future<Item=U, Error=(::Error, Option<T>)>,
+    ) -> impl Future<Item=(), Error=()> {
+        let mut cb = Some(self);
+
+        // "select" on this callback being canceled, and the future completing
+        future::poll_fn(move || {
+            match when.poll() {
+                Ok(Async::Ready(res)) => {
+                    cb.take()
+                        .expect("polled after complete")
+                        .send(Ok(res));
+                    Ok(().into())
+                },
+                Ok(Async::NotReady) => {
+                    // check if the callback is canceled
+                    try_ready!(cb.as_mut().unwrap().poll_cancel());
+                    trace!("send_when canceled");
+                    Ok(().into())
+                },
+                Err(err) => {
+                    cb.take()
+                        .expect("polled after complete")
+                        .send(Err(err));
+                    Ok(().into())
+                }
+            }
+        })
     }
 }
 
