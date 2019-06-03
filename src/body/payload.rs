@@ -1,3 +1,5 @@
+use std::error::Error as StdError;
+
 use bytes::Buf;
 use futures::{Async, Poll};
 use http::HeaderMap;
@@ -13,7 +15,7 @@ pub trait Payload: Send + 'static {
     type Data: Buf + Send;
 
     /// The error type of this stream.
-    type Error: Into<Box<::std::error::Error + Send + Sync>>;
+    type Error: Into<Box<dyn StdError + Send + Sync>>;
 
     /// Poll for a `Data` buffer.
     ///

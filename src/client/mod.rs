@@ -583,11 +583,11 @@ impl<C, B> fmt::Debug for Client<C, B> {
 /// This is returned by `Client::request` (and `Client::get`).
 #[must_use = "futures do nothing unless polled"]
 pub struct ResponseFuture {
-    inner: Box<Future<Item=Response<Body>, Error=::Error> + Send>,
+    inner: Box<dyn Future<Item=Response<Body>, Error=::Error> + Send>,
 }
 
 impl ResponseFuture {
-    fn new(fut: Box<Future<Item=Response<Body>, Error=::Error> + Send>) -> Self {
+    fn new(fut: Box<dyn Future<Item=Response<Body>, Error=::Error> + Send>) -> Self {
         Self {
             inner: fut,
         }
@@ -1030,7 +1030,7 @@ impl Builder {
     /// Provide an executor to execute background `Connection` tasks.
     pub fn executor<E>(&mut self, exec: E) -> &mut Self
     where
-        E: Executor<Box<Future<Item=(), Error=()> + Send>> + Send + Sync + 'static,
+        E: Executor<Box<dyn Future<Item=(), Error=()> + Send>> + Send + Sync + 'static,
     {
         self.conn_builder.executor(exec);
         self

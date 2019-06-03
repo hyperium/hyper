@@ -184,7 +184,7 @@ impl fmt::Debug for GaiAddrs {
 }
 
 #[derive(Clone)]
-struct GaiExecutor(Arc<Executor<GaiTask> + Send + Sync>);
+struct GaiExecutor(Arc<dyn Executor<GaiTask> + Send + Sync>);
 
 impl Executor<oneshot::Execute<GaiBlocking>> for GaiExecutor {
     fn execute(&self, future: oneshot::Execute<GaiBlocking>) -> Result<(), ExecuteError<oneshot::Execute<GaiBlocking>>> {

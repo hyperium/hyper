@@ -98,7 +98,7 @@ pub struct Handshake<T, B> {
 pub struct ResponseFuture {
     // for now, a Box is used to hide away the internal `B`
     // that can be returned if canceled
-    inner: Box<Future<Item=Response<Body>, Error=::Error> + Send>,
+    inner: Box<dyn Future<Item=Response<Body>, Error=::Error> + Send>,
 }
 
 /// Deconstructed parts of a `Connection`.
@@ -464,7 +464,7 @@ impl Builder {
     /// Provide an executor to execute background HTTP2 tasks.
     pub fn executor<E>(&mut self, exec: E) -> &mut Builder
     where
-        E: Executor<Box<Future<Item=(), Error=()> + Send>> + Send + Sync + 'static,
+        E: Executor<Box<dyn Future<Item=(), Error=()> + Send>> + Send + Sync + 'static,
     {
         self.exec = Exec::Executor(Arc::new(exec));
         self

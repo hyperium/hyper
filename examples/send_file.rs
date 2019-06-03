@@ -30,7 +30,7 @@ fn main() {
     hyper::rt::run(server);
 }
 
-type ResponseFuture = Box<Future<Item=Response<Body>, Error=io::Error> + Send>;
+type ResponseFuture = Box<dyn Future<Item=Response<Body>, Error=io::Error> + Send>;
 
 fn response_examples(req: Request<Body>) -> ResponseFuture {
     match (req.method(), req.uri().path()) {

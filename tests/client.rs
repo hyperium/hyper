@@ -1565,7 +1565,7 @@ mod dispatch_impl {
     impl Connect for DebugConnector {
         type Transport = DebugStream;
         type Error = io::Error;
-        type Future = Box<Future<Item = (DebugStream, Connected), Error = io::Error> + Send>;
+        type Future = Box<dyn Future<Item = (DebugStream, Connected), Error = io::Error> + Send>;
 
         fn connect(&self, dst: Destination) -> Self::Future {
             self.connects.fetch_add(1, Ordering::SeqCst);
@@ -2178,7 +2178,7 @@ mod conn {
 }
 
 trait FutureHyperExt: Future {
-    fn expect<E>(self, msg: &'static str) -> Box<Future<Item=Self::Item, Error=E>>;
+    fn expect<E>(self, msg: &'static str) -> Box<dyn Future<Item=Self::Item, Error=E>>;
 }
 
 impl<F> FutureHyperExt for F
@@ -2186,7 +2186,7 @@ where
     F: Future + 'static,
     F::Error: ::std::fmt::Debug,
 {
-    fn expect<E>(self, msg: &'static str) -> Box<Future<Item=Self::Item, Error=E>> {
+    fn expect<E>(self, msg: &'static str) -> Box<dyn Future<Item=Self::Item, Error=E>> {
         Box::new(self.map_err(move |e| panic!("expect: {}; error={:?}", msg, e)))
     }
 }

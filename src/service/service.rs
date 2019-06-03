@@ -21,7 +21,7 @@ pub trait Service {
     /// Note: Returning an `Error` to a hyper server will cause the connection
     /// to be abruptly aborted. In most cases, it is better to return a `Response`
     /// with a 4xx or 5xx status code.
-    type Error: Into<Box<StdError + Send + Sync>>;
+    type Error: Into<Box<dyn StdError + Send + Sync>>;
 
     /// The `Future` returned by this `Service`.
     type Future: Future<Item=Response<Self::ResBody>, Error=Self::Error>;
@@ -104,7 +104,7 @@ where
     F: FnMut(Request<ReqBody>) -> Ret,
     ReqBody: Payload,
     Ret: IntoFuture<Item=Response<ResBody>>,
-    Ret::Error: Into<Box<StdError + Send + Sync>>,
+    Ret::Error: Into<Box<dyn StdError + Send + Sync>>,
     ResBody: Payload,
 {
     type ReqBody = ReqBody;

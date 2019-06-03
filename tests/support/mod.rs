@@ -212,7 +212,7 @@ macro_rules! __internal_headers_eq {
                 $pat => (),
                 other => panic!("headers[{}] was not {}: {:?}", stringify!($name), stringify!($pat), other),
             }
-        }) as ::std::sync::Arc<Fn(&::hyper::HeaderMap) + Send + Sync>
+        }) as ::std::sync::Arc<dyn Fn(&::hyper::HeaderMap) + Send + Sync>
     };
     (@val $name: expr, NONE) => {
         __internal_headers_eq!(@pat $name, None);
@@ -228,7 +228,7 @@ macro_rules! __internal_headers_eq {
             } else {
                 assert_eq!(__hdrs.get($name), None, stringify!($name));
             }
-        }) as ::std::sync::Arc<Fn(&::hyper::HeaderMap) + Send + Sync>
+        }) as ::std::sync::Arc<dyn Fn(&::hyper::HeaderMap) + Send + Sync>
     });
     ($headers:ident, { $($name:expr => $val:tt,)* }) => {
         $(
@@ -289,7 +289,7 @@ pub struct __SRes {
     pub headers: HeaderMap,
 }
 
-pub type __HeadersEq = Vec<Arc<Fn(&HeaderMap) + Send + Sync>>;
+pub type __HeadersEq = Vec<Arc<dyn Fn(&HeaderMap) + Send + Sync>>;
 
 pub struct __TestConfig {
     pub client_version: usize,
@@ -426,7 +426,7 @@ pub fn __run_test(cfg: __TestConfig) {
     });
 
 
-    let client_futures: Box<Future<Item=(), Error=()> + Send> = if cfg.parallel {
+    let client_futures: Box<dyn Future<Item=(), Error=()> + Send> = if cfg.parallel {
         let mut client_futures = vec![];
         for (creq, cres) in cfg.client_msgs {
             client_futures.push(make_request(&client, creq, cres));
@@ -434,7 +434,7 @@ pub fn __run_test(cfg: __TestConfig) {
         drop(client);
         Box::new(future::join_all(client_futures).map(|_| ()))
     } else {
-        let mut client_futures: Box<Future<Item=Client<HttpConnector>, Error=()> + Send> =
+        let mut client_futures: Box<dyn Future<Item=Client<HttpConnector>, Error=()> + Send> =
             Box::new(future::ok(client));
         for (creq, cres) in cfg.client_msgs {
             let mk_request = make_request.clone();

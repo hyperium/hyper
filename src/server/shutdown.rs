@@ -1,3 +1,5 @@
+use std::error::Error as StdError;
+
 use futures::{Async, Future, Stream, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 
@@ -38,11 +40,11 @@ impl<I, S, F, E> Graceful<I, S, F, E> {
 impl<I, S, B, F, E> Future for Graceful<I, S, F, E>
 where
     I: Stream,
-    I::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    I::Error: Into<Box<dyn StdError + Send + Sync>>,
     I::Item: AsyncRead + AsyncWrite + Send + 'static,
     S: MakeServiceRef<I::Item, ReqBody=Body, ResBody=B>,
     S::Service: 'static,
-    S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
     F: Future<Item=()>,
     E: H2Exec<<S::Service as Service>::Future, B>,
@@ -109,7 +111,7 @@ where
 fn on_drain<I, S, E>(conn: &mut UpgradeableConnection<I, S, E>)
 where
     S: Service<ReqBody=Body>,
-    S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite,
     S::ResBody: Payload + 'static,
     E: H2Exec<S::Future, S::ResBody>,

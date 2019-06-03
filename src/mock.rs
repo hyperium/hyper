@@ -435,7 +435,7 @@ impl Drop for DuplexHandle {
 }
 
 #[cfg(feature = "runtime")]
-type BoxedConnectFut = Box<Future<Item=(Duplex, Connected), Error=io::Error> + Send>;
+type BoxedConnectFut = Box<dyn Future<Item=(Duplex, Connected), Error=io::Error> + Send>;
 
 #[cfg(feature = "runtime")]
 #[derive(Clone)]

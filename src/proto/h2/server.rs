@@ -1,3 +1,5 @@
+use std::error::Error as StdError;
+
 use futures::{Async, Future, Poll, Stream};
 use h2::Reason;
 use h2::server::{Builder, Connection, Handshake, SendResponse};
@@ -46,7 +48,7 @@ impl<T, S, B, E> Server<T, S, B, E>
 where
     T: AsyncRead + AsyncWrite,
     S: Service<ReqBody=Body, ResBody=B>,
-    S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
     E: H2Exec<S::Future, B>,
 {
@@ -83,7 +85,7 @@ impl<T, S, B, E> Future for Server<T, S, B, E>
 where
     T: AsyncRead + AsyncWrite,
     S: Service<ReqBody=Body, ResBody=B>,
-    S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
     E: H2Exec<S::Future, B>,
 {
@@ -126,7 +128,7 @@ where
             ReqBody=Body,
             ResBody=B,
         >,
-        S::Error: Into<Box<::std::error::Error + Send + Sync>>,
+        S::Error: Into<Box<dyn StdError + Send + Sync>>,
         E: H2Exec<S::Future, B>,
     {
         if self.closing.is_none() {
@@ -203,7 +205,7 @@ where
 impl<F, B> H2Stream<F, B>
 where
     F: Future<Item=Response<B>>,
-    F::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    F::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
 {
     fn new(fut: F, respond: SendResponse<SendBuf<B::Data>>) -> H2Stream<F, B> {
@@ -296,7 +298,7 @@ where
 impl<F, B> Future for H2Stream<F, B>
 where
     F: Future<Item=Response<B>>,
-    F::Error: Into<Box<::std::error::Error + Send + Sync>>,
+    F::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
 {
     type Item = ();
