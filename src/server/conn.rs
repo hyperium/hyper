@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use futures::{Async, Future, Poll, Stream};
-use futures::future::{Either, Executor};
+use futures::future::Executor;
 use h2;
 use tokio_io::{AsyncRead, AsyncWrite};
 #[cfg(feature = "runtime")] use tokio_reactor::Handle;
@@ -103,22 +103,45 @@ pub struct Connection<T, S, E = Exec>
 where
     S: Service,
 {
-    pub(super) conn: Option<
-        Either<
-        proto::h1::Dispatcher<
-            proto::h1::dispatch::Server<S>,
-            S::ResBody,
-            T,
-            proto::ServerTransaction,
-        >,
-        proto::h2::Server<
-            Rewind<T>,
-            S,
-            S::ResBody,
-            E,
-        >,
-    >>,
+    pub(super) conn: Option<ProtoServer<T, S, E>>,
     fallback: Fallback<E>,
+}
+
+pub(super) enum ProtoServer<T, S, E = Exec>
+where
+    S: Service,
+{
+    H1(proto::h1::Dispatcher<
+        proto::h1::dispatch::Server<S>,
+        S::ResBody,
+        T,
+        proto::ServerTransaction,
+    >),
+    H2(proto::h2::Server<
+        Rewind<T>,
+        S,
+        S::ResBody,
+        E,
+    >),
+}
+
+impl<T, S, B, E> Future for ProtoServer<T, S, E>
+where
+    T: AsyncRead + AsyncWrite,
+    S: Service<ReqBody=Body, ResBody=B>,
+    S::Error: Into<Box<dyn StdError + Send + Sync>>,
+    B: Payload,
+    E: H2Exec<S::Future, B>,
+{
+    type Item = proto::Dispatched;
+    type Error = ::Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        match self {
+            ProtoServer::H1(s) => s.poll(),
+            ProtoServer::H2(s) => s.poll(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -387,12 +410,12 @@ impl<E> Http<E> {
                     conn.set_max_buf_size(max);
                 }
                 let sd = proto::h1::dispatch::Server::new(service);
-                Either::A(proto::h1::Dispatcher::new(sd, conn))
+                ProtoServer::H1(proto::h1::Dispatcher::new(sd, conn))
             }
             ConnectionMode::H2Only => {
                 let rewind_io = Rewind::new(io);
                 let h2 = proto::h2::Server::new(rewind_io, service, &self.h2_builder, self.exec.clone());
-                Either::B(h2)
+                ProtoServer::H2(h2)
             }
         };
 
@@ -496,10 +519,10 @@ where
     /// can finish.
     pub fn graceful_shutdown(&mut self) {
         match *self.conn.as_mut().unwrap() {
-            Either::A(ref mut h1) => {
+            ProtoServer::H1(ref mut h1) => {
                 h1.disable_keep_alive();
             },
-            Either::B(ref mut h2) => {
+            ProtoServer::H2(ref mut h2) => {
                 h2.graceful_shutdown();
             }
         }
@@ -523,7 +546,7 @@ where
     /// This method will return a `None` if this connection is using an h2 protocol.
     pub fn try_into_parts(self) -> Option<Parts<I, S>> {
         match self.conn.unwrap() {
-            Either::A(h1) => {
+            ProtoServer::H1(h1) => {
                 let (io, read_buf, dispatch) = h1.into_inner();
                 Some(Parts {
                     io: io,
@@ -532,7 +555,7 @@ where
                     _inner: (),
                 })
             },
-            Either::B(_h2) => None,
+            ProtoServer::H2(_h2) => None,
         }
     }
 
@@ -550,8 +573,8 @@ where
     pub fn poll_without_shutdown(&mut self) -> Poll<(), ::Error> {
         loop {
             let polled = match *self.conn.as_mut().unwrap() {
-                Either::A(ref mut h1) => h1.poll_without_shutdown(),
-                Either::B(ref mut h2) => return h2.poll().map(|x| x.map(|_| ())),
+                ProtoServer::H1(ref mut h1) => h1.poll_without_shutdown(),
+                ProtoServer::H2(ref mut h2) => return h2.poll().map(|x| x.map(|_| ())),
             };
             match polled {
                 Ok(x) => return Ok(x),
@@ -583,10 +606,10 @@ where
         let conn = self.conn.take();
 
         let (io, read_buf, dispatch) = match conn.unwrap() {
-            Either::A(h1) => {
+            ProtoServer::H1(h1) => {
                 h1.into_inner()
             },
-            Either::B(_h2) => {
+            ProtoServer::H2(_h2) => {
                 panic!("h2 cannot into_inner");
             }
         };
@@ -604,7 +627,7 @@ where
         );
 
         debug_assert!(self.conn.is_none());
-        self.conn = Some(Either::B(h2));
+        self.conn = Some(ProtoServer::H2(h2));
     }
 
     /// Enable this connection to support higher-level HTTP upgrades.
@@ -953,7 +976,7 @@ mod upgrades {
                     },
                     Ok(Async::Ready(Some(proto::Dispatched::Upgrade(pending)))) => {
                         let h1 = match mem::replace(&mut self.inner.conn, None) {
-                            Some(Either::A(h1)) => h1,
+                            Some(ProtoServer::H1(h1)) => h1,
                             _ => unreachable!("Upgrade expects h1"),
                         };
 

@@ -31,10 +31,31 @@ type Http1Dispatcher<T, B, R> = proto::dispatch::Dispatcher<
     T,
     R,
 >;
-type ConnEither<T, B> = Either<
-    Http1Dispatcher<T, B, proto::h1::ClientTransaction>,
-    proto::h2::Client<T, B>,
->;
+
+enum ProtoClient<T, B>
+where
+    B: Payload,
+    T: AsyncRead + AsyncWrite
+{
+    H1(Http1Dispatcher<T, B, proto::h1::ClientTransaction>),
+    H2(proto::h2::Client<T, B>),
+}
+
+impl<T, B> Future for ProtoClient<T, B>
+where
+    B: Payload + 'static,
+    T: AsyncRead + AsyncWrite + Send + 'static
+{
+    type Item = proto::Dispatched;
+    type Error = ::Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        match self {
+            ProtoClient::H1(c) => c.poll(),
+            ProtoClient::H2(c) => c.poll(),
+        }
+    }
+}
 
 /// Returns a `Handshake` future over some IO.
 ///
@@ -63,7 +84,7 @@ where
     T: AsyncRead + AsyncWrite + Send + 'static,
     B: Payload + 'static,
 {
-    inner: Option<ConnEither<T, B>>,
+    inner: Option<ProtoClient<T, B>>,
 }
 
 
@@ -356,8 +377,8 @@ where
     /// Only works for HTTP/1 connections. HTTP/2 connections will panic.
     pub fn into_parts(self) -> Parts<T> {
         let (io, read_buf, _) = match self.inner.expect("already upgraded") {
-            Either::A(h1) => h1.into_inner(),
-            Either::B(_h2) => {
+            ProtoClient::H1(h1) => h1.into_inner(),
+            ProtoClient::H2(_h2) => {
                 panic!("http2 cannot into_inner");
             }
         };
@@ -382,10 +403,10 @@ where
     /// to work with this function; or use the `without_shutdown` wrapper.
     pub fn poll_without_shutdown(&mut self) -> Poll<(), ::Error> {
         match self.inner.as_mut().expect("already upgraded") {
-            &mut Either::A(ref mut h1) => {
+            &mut ProtoClient::H1(ref mut h1) => {
                 h1.poll_without_shutdown()
             },
-            &mut Either::B(ref mut h2) => {
+            &mut ProtoClient::H2(ref mut h2) => {
                 h2.poll().map(|x| x.map(|_| ()))
             }
         }
@@ -418,7 +439,7 @@ where
             },
             Some(proto::Dispatched::Upgrade(pending)) => {
                 let h1 = match mem::replace(&mut self.inner, None) {
-                    Some(Either::A(h1)) => h1,
+                    Some(ProtoClient::H1(h1)) => h1,
                     _ => unreachable!("Upgrade expects h1"),
                 };
 
@@ -573,10 +594,10 @@ where
             }
             let cd = proto::h1::dispatch::Client::new(rx);
             let dispatch = proto::h1::Dispatcher::new(cd, conn);
-            Either::A(dispatch)
+            ProtoClient::H1(dispatch)
         } else {
             let h2 = proto::h2::Client::new(io, rx, &self.builder.h2_builder, self.builder.exec.clone());
-            Either::B(h2)
+            ProtoClient::H2(h2)
         };
 
         Ok(Async::Ready((
