@@ -1,3 +1,5 @@
+//! HTTP Client Pool
+
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt;
 use std::ops::{Deref, DerefMut};
@@ -19,17 +21,21 @@ pub(super) struct Pool<T> {
     inner: Option<Arc<Mutex<PoolInner<T>>>>,
 }
 
-// Before using a pooled connection, make sure the sender is not dead.
-//
-// This is a trait to allow the `client::pool::tests` to work for `i32`.
-//
-// See https://github.com/hyperium/hyper/issues/1429
-pub(super) trait Poolable: Send + Sized + 'static {
+/// Before using a pooled connection, make sure the sender is not dead.
+///
+/// This is a trait to allow the `client::pool::tests` to work for `i32`.
+///
+/// See https://github.com/hyperium/hyper/issues/1429
+pub trait Poolable: Send + Sized + 'static {
+    /// FIXME: document me
     fn is_open(&self) -> bool;
+
     /// Reserve this connection.
     ///
     /// Allows for HTTP/2 to return a shared reservation.
     fn reserve(self) -> Reservation<Self>;
+
+    /// FIXME: document me
     fn can_share(&self) -> bool;
 }
 
@@ -40,7 +46,7 @@ pub(super) trait Poolable: Send + Sized + 'static {
 /// used for multiple requests.
 // FIXME: allow() required due to `impl Trait` leaking types to this lint
 #[allow(missing_debug_implementations)]
-pub(super) enum Reservation<T> {
+pub enum Reservation<T> {
     /// This connection could be used multiple times, the first one will be
     /// reinserted into the `idle` pool, and the second will be given to
     /// the `Checkout`.
@@ -487,7 +493,7 @@ impl<T> Clone for Pool<T> {
 
 /// A wrapped poolable value that tries to reinsert to the Pool on Drop.
 // Note: The bounds `T: Poolable` is needed for the Drop impl.
-pub(super) struct Pooled<T: Poolable> {
+pub struct Pooled<T: Poolable> {
     value: Option<T>,
     is_reused: bool,
     key: Key,
@@ -495,10 +501,12 @@ pub(super) struct Pooled<T: Poolable> {
 }
 
 impl<T: Poolable> Pooled<T> {
+    /// FIXME: document me
     pub fn is_reused(&self) -> bool {
         self.is_reused
     }
 
+    /// FIXME: document me
     pub fn is_pool_enabled(&self) -> bool {
         self.pool.0.is_some()
     }
