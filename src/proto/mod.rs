@@ -6,6 +6,8 @@ use self::body_length::DecodedLength;
 
 pub(crate) mod h1;
 pub(crate) mod h2;
+#[cfg(feature = "quinn-h3")]
+pub(crate) mod h3;
 
 /// An Incoming Message head. Includes request/status line, and headers.
 #[derive(Clone, Debug, Default, PartialEq)]

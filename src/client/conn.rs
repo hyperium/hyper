@@ -15,6 +15,8 @@ use std::sync::Arc;
 use bytes::Bytes;
 use futures::{Async, Future, Poll};
 use futures::future::{self, Either, Executor};
+#[cfg(feature = "quinn-h3")]
+use quinn_h3;
 use h2;
 use tokio_io::{AsyncRead, AsyncWrite};
 
@@ -39,6 +41,8 @@ where
 {
     H1(Http1Dispatcher<T, B, proto::h1::ClientTransaction>),
     H2(proto::h2::Client<T, B>),
+    #[cfg(feature = "quinn-h3")]
+    H3(proto::h3::Client<B>),
 }
 
 impl<T, B> Future for ProtoClient<T, B>
@@ -53,6 +57,8 @@ where
         match self {
             ProtoClient::H1(c) => c.poll(),
             ProtoClient::H2(c) => c.poll(),
+            #[cfg(feature = "quinn-h3")]
+            ProtoClient::H3(c) => c.poll(),
         }
     }
 }
@@ -100,6 +106,10 @@ pub struct Builder {
     h1_max_buf_size: Option<usize>,
     http2: bool,
     h2_builder: h2::client::Builder,
+    #[cfg(feature = "quinn-h3")]
+    http3: bool,
+    #[cfg(feature = "quinn-h3")]
+    h3_builder: quinn_h3::client::Builder,
 }
 
 /// A future setting up HTTP over an IO object.
@@ -378,8 +388,8 @@ where
     pub fn into_parts(self) -> Parts<T> {
         let (io, read_buf, _) = match self.inner.expect("already upgraded") {
             ProtoClient::H1(h1) => h1.into_inner(),
-            ProtoClient::H2(_h2) => {
-                panic!("http2 cannot into_inner");
+            _ => {
+                panic!("into_inner only allowed for HTTP 1");
             }
         };
 
@@ -409,6 +419,8 @@ where
             &mut ProtoClient::H2(ref mut h2) => {
                 h2.poll().map(|x| x.map(|_| ()))
             }
+            #[cfg(feature = "quinn-h3")]
+            &mut ProtoClient::H3(_) => Ok(Async::Ready(())),
         }
     }
 
@@ -479,6 +491,10 @@ impl Builder {
             h1_max_buf_size: None,
             http2: false,
             h2_builder,
+            #[cfg(feature = "quinn-h3")]
+            http3: false,
+            #[cfg(feature = "quinn-h3")]
+            h3_builder: quinn_h3::client::Builder::default(),
         }
     }
 
@@ -549,17 +565,31 @@ impl Builder {
         self
     }
 
+    /// Sets whether HTTP 3 is required.
+    ///
+    /// Default is false.
+    pub fn http3_only(&mut self, enabled: bool) -> &mut Builder {
+        self.http3 = enabled;
+        self
+    }
+
     /// Constructs a connection with the configured options and IO.
     #[inline]
-    pub fn handshake<T, B>(&self, io: T) -> Handshake<T, B>
+    pub fn handshake<T, B>(&self, io: Option<T>) -> Handshake<T, B>
     where
         T: AsyncRead + AsyncWrite + Send + 'static,
         B: Payload + 'static,
     {
-        trace!("client handshake HTTP/{}", if self.http2 { 2 } else { 1 });
+        trace!("client handshake HTTP/{}", if self.http3 {
+            3
+        } else if self.http2 {
+            2
+        } else {
+            1
+        });
         Handshake {
             builder: self.clone(),
-            io: Some(io),
+            io,
             _marker: PhantomData,
         }
     }

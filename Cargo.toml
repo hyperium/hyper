@@ -21,7 +21,7 @@ include = [
 bytes = "0.4.4"
 futures = "0.1.21"
 futures-cpupool = { version = "0.1.6", optional = true }
-http = "0.1.15"
+http = { git = "https://github.com/hyperium/http/", rev = "912534f1ef27d8a9050a4bd40d5ea0ee35136ea7" }
 http-body = "0.1"
 httparse = "1.0"
 h2 = "0.1.10"
@@ -29,6 +29,7 @@ iovec = "0.1"
 itoa = "0.4.1"
 log = "0.4"
 net2 = { version = "0.2.32", optional = true }
+quinn-h3 = { path = "../quinn/quinn-h3", optional = true }
 time = "0.1"
 tokio = { version = "0.1.14", optional = true, default-features = false, features = ["rt-full"] }
 tokio-buf = "0.1"

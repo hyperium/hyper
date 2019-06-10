@@ -27,6 +27,7 @@ extern crate httparse;
 extern crate iovec;
 extern crate itoa;
 #[macro_use] extern crate log;
+#[cfg(feature = "quinn-h3")] extern crate quinn_h3;
 #[cfg(feature = "runtime")] extern crate net2;
 extern crate time;
 #[cfg(feature = "runtime")] extern crate tokio;
