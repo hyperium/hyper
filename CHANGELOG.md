@@ -1,3 +1,12 @@
+### v0.12.30 (2019-06-14)
+
+
+#### Bug Fixes
+
+* **http1:** force always-ready connections to yield after a few spins ([8316f96d](https://github.com/hyperium/hyper/commit/8316f96d807454b76cde3cc6a7be552c02000529))
+* **http2:** correctly propagate HTTP2 request cancellation ([50198851](https://github.com/hyperium/hyper/commit/50198851a2b1e47c5ad60565eacb712fb3df1ad6))
+
+
 ### v0.12.29 (2019-05-16)
 
 
