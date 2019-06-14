@@ -96,6 +96,12 @@ impl Destination {
         self.uri.port_u16()
     }
 
+    /// Get the authority part of the URI.
+    #[inline]
+    pub fn authority(&self) -> Option<&uri::Authority> {
+        self.uri.authority_part()
+    }
+
     /// Update the scheme of this destination.
     ///
     /// # Example
@@ -420,33 +426,39 @@ mod tests {
         assert_eq!(dst.scheme(), "http");
         assert_eq!(dst.host(), "hyper.rs");
         assert_eq!(dst.port(), None);
+        assert_eq!(dst.authority().unwrap(), "hyper.rs");
 
         dst.set_host("seanmonstar.com").expect("set https");
         assert_eq!(dst.scheme(), "http");
         assert_eq!(dst.host(), "seanmonstar.com");
         assert_eq!(dst.port(), None);
+        assert_eq!(dst.authority().unwrap(), "seanmonstar.com");
 
         dst.set_host("/im-not a host! >:)").unwrap_err();
         assert_eq!(dst.scheme(), "http", "error doesn't modify dst");
         assert_eq!(dst.host(), "seanmonstar.com", "error doesn't modify dst");
         assert_eq!(dst.port(), None, "error doesn't modify dst");
+        assert_eq!(dst.authority().unwrap(), "seanmonstar.com", "error doesn't modify dst");
 
         // Check port isn't snuck into `set_host`.
         dst.set_host("seanmonstar.com:3030").expect_err("set_host sneaky port");
         assert_eq!(dst.scheme(), "http", "error doesn't modify dst");
         assert_eq!(dst.host(), "seanmonstar.com", "error doesn't modify dst");
         assert_eq!(dst.port(), None, "error doesn't modify dst");
+        assert_eq!(dst.authority().unwrap(), "seanmonstar.com", "error doesn't modify dst");
 
         // Check userinfo isn't snuck into `set_host`.
         dst.set_host("sean@nope").expect_err("set_host sneaky userinfo");
         assert_eq!(dst.scheme(), "http", "error doesn't modify dst");
         assert_eq!(dst.host(), "seanmonstar.com", "error doesn't modify dst");
         assert_eq!(dst.port(), None, "error doesn't modify dst");
+        assert_eq!(dst.authority().unwrap(), "seanmonstar.com", "error doesn't modify dst");
 
         // Allow IPv6 hosts
         dst.set_host("[::1]").expect("set_host with IPv6");
         assert_eq!(dst.host(), "[::1]");
         assert_eq!(dst.port(), None, "IPv6 didn't affect port");
+        assert_eq!(dst.authority().unwrap(), "[::1]");
 
         // However, IPv6 with a port is rejected.
         dst.set_host("[::2]:1337").expect_err("set_host with IPv6 and sneaky port");
@@ -463,33 +475,39 @@ mod tests {
         assert_eq!(dst.scheme(), "http");
         assert_eq!(dst.host(), "hyper.rs");
         assert_eq!(dst.port(), Some(8080));
+        assert_eq!(dst.authority().unwrap(), "hyper.rs:8080");
 
         dst.set_host("seanmonstar.com").expect("set host");
         assert_eq!(dst.scheme(), "http");
         assert_eq!(dst.host(), "seanmonstar.com");
         assert_eq!(dst.port(), Some(8080));
+        assert_eq!(dst.authority().unwrap(), "seanmonstar.com:8080");
 
         dst.set_host("/im-not a host! >:)").unwrap_err();
         assert_eq!(dst.scheme(), "http", "error doesn't modify dst");
         assert_eq!(dst.host(), "seanmonstar.com", "error doesn't modify dst");
         assert_eq!(dst.port(), Some(8080), "error doesn't modify dst");
+        assert_eq!(dst.authority().unwrap(), "seanmonstar.com:8080", "error doesn't modify dst");
 
         // Check port isn't snuck into `set_host`.
         dst.set_host("seanmonstar.com:3030").expect_err("set_host sneaky port");
         assert_eq!(dst.scheme(), "http", "error doesn't modify dst");
         assert_eq!(dst.host(), "seanmonstar.com", "error doesn't modify dst");
         assert_eq!(dst.port(), Some(8080), "error doesn't modify dst");
+        assert_eq!(dst.authority().unwrap(), "seanmonstar.com:8080", "error doesn't modify dst");
 
         // Check userinfo isn't snuck into `set_host`.
         dst.set_host("sean@nope").expect_err("set_host sneaky userinfo");
         assert_eq!(dst.scheme(), "http", "error doesn't modify dst");
         assert_eq!(dst.host(), "seanmonstar.com", "error doesn't modify dst");
         assert_eq!(dst.port(), Some(8080), "error doesn't modify dst");
+        assert_eq!(dst.authority().unwrap(), "seanmonstar.com:8080", "error doesn't modify dst");
 
         // Allow IPv6 hosts
         dst.set_host("[::1]").expect("set_host with IPv6");
         assert_eq!(dst.host(), "[::1]");
         assert_eq!(dst.port(), Some(8080), "IPv6 didn't affect port");
+        assert_eq!(dst.authority().unwrap(), "[::1]:8080");
 
         // However, IPv6 with a port is rejected.
         dst.set_host("[::2]:1337").expect_err("set_host with IPv6 and sneaky port");
