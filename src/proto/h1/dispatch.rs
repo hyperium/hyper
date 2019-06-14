@@ -7,7 +7,7 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 use body::{Body, Payload};
 use body::internal::FullDataArg;
-use common::Never;
+use common::{Never, YieldNow};
 use proto::{BodyLength, DecodedLength, Conn, Dispatched, MessageHead, RequestHead, RequestLine, ResponseHead};
 use super::Http1Transaction;
 use service::Service;
@@ -18,6 +18,10 @@ pub(crate) struct Dispatcher<D, Bs: Payload, I, T> {
     body_tx: Option<::body::Sender>,
     body_rx: Option<Bs>,
     is_closing: bool,
+    /// If the poll loop reaches its max spin count, it will yield by notifying
+    /// the task immediately. This will cache that `Task`, since it usually is
+    /// the same one.
+    yield_now: YieldNow,
 }
 
 pub(crate) trait Dispatch {
@@ -58,6 +62,7 @@ where
             body_tx: None,
             body_rx: None,
             is_closing: false,
+            yield_now: YieldNow::new(),
         }
     }
 
@@ -98,7 +103,29 @@ where
     fn poll_inner(&mut self, should_shutdown: bool) -> Poll<Dispatched, ::Error> {
         T::update_date();
 
-        loop {
+        try_ready!(self.poll_loop());
+
+        if self.is_done() {
+            if let Some(pending) = self.conn.pending_upgrade() {
+                self.conn.take_error()?;
+                return Ok(Async::Ready(Dispatched::Upgrade(pending)));
+            } else if should_shutdown {
+                try_ready!(self.conn.shutdown().map_err(::Error::new_shutdown));
+            }
+            self.conn.take_error()?;
+            Ok(Async::Ready(Dispatched::Shutdown))
+        } else {
+            Ok(Async::NotReady)
+        }
+    }
+
+    fn poll_loop(&mut self) -> Poll<(), ::Error> {
+        // Limit the looping on this connection, in case it is ready far too
+        // often, so that other futures don't starve.
+        //
+        // 16 was chosen arbitrarily, as that is number of pipelined requests
+        // benchmarks often use. Perhaps it should be a config option instead.
+        for _ in 0..16 {
             self.poll_read()?;
             self.poll_write()?;
             self.poll_flush()?;
@@ -112,21 +139,19 @@ where
             // Using this instead of task::current() and notify() inside
             // the Conn is noticeably faster in pipelined benchmarks.
             if !self.conn.wants_read_again() {
-                break;
+                //break;
+                return Ok(Async::Ready(()));
             }
         }
 
-        if self.is_done() {
-            if let Some(pending) = self.conn.pending_upgrade() {
-                self.conn.take_error()?;
-                return Ok(Async::Ready(Dispatched::Upgrade(pending)));
-            } else if should_shutdown {
-                try_ready!(self.conn.shutdown().map_err(::Error::new_shutdown));
-            }
-            self.conn.take_error()?;
-            Ok(Async::Ready(Dispatched::Shutdown))
-        } else {
-            Ok(Async::NotReady)
+        trace!("poll_loop yielding (self = {:p})", self);
+
+        match self.yield_now.poll_yield() {
+            Ok(Async::NotReady) => Ok(Async::NotReady),
+            // maybe with `!` this can be cleaner...
+            // but for now, just doing this to eliminate branches
+            Ok(Async::Ready(never)) |
+            Err(never) => match never {}
         }
     }
 
