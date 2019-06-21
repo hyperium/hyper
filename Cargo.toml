@@ -46,7 +46,7 @@ rustc_version = "0.2"
 [dev-dependencies]
 futures-timer = "0.1"
 num_cpus = "1.0"
-pretty_env_logger = "0.2.0"
+pretty_env_logger = "0.3"
 spmc = "0.2"
 url = "1.0"
 tokio-fs = "0.1"
