@@ -14,7 +14,8 @@ categories = ["network-programming", "web-programming::http-client", "web-progra
 include = [
   "Cargo.toml",
   "LICENSE",
-  "src/**/*"
+  "src/**/*",
+  "build.rs",
 ]
 
 [dependencies]
