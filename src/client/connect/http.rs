@@ -35,6 +35,8 @@ pub struct HttpConnector<R = GaiResolver> {
     nodelay: bool,
     resolver: R,
     reuse_address: bool,
+    send_buf_size: Option<usize>,
+    recv_buf_size: Option<usize>,
 }
 
 /// Extra information about the transport when an HttpConnector is used.
@@ -124,6 +126,8 @@ impl<R> HttpConnector<R> {
             nodelay: false,
             resolver,
             reuse_address: false,
+            send_buf_size: None,
+            recv_buf_size: None,
         }
     }
 
@@ -159,6 +163,18 @@ impl<R> HttpConnector<R> {
     #[inline]
     pub fn set_nodelay(&mut self, nodelay: bool) {
         self.nodelay = nodelay;
+    }
+
+    /// Sets the value of the SO_SNDBUF option on the socket.
+    #[inline]
+    pub fn set_send_buf_size(&mut self, size: Option<usize>) {
+        self.send_buf_size = size;
+    }
+
+    /// Sets the value of the SO_RCVBUF option on the socket.
+    #[inline]
+    pub fn set_recv_buf_size(&mut self, size: Option<usize>) {
+        self.recv_buf_size = size;
     }
 
     /// Set that all sockets are bound to the configured address before connection.
@@ -248,6 +264,8 @@ where
             nodelay: self.nodelay,
             port,
             reuse_address: self.reuse_address,
+            send_buf_size: self.send_buf_size,
+            recv_buf_size: self.recv_buf_size,
         }
     }
 }
@@ -269,6 +287,8 @@ fn invalid_url<R: Resolve>(err: InvalidUrl, handle: &Option<Handle>) -> HttpConn
         port: 0,
         happy_eyeballs_timeout: None,
         reuse_address: false,
+        send_buf_size: None,
+        recv_buf_size: None,
     }
 }
 
@@ -304,6 +324,8 @@ pub struct HttpConnecting<R: Resolve = GaiResolver> {
     nodelay: bool,
     port: u16,
     reuse_address: bool,
+    send_buf_size: Option<usize>,
+    recv_buf_size: Option<usize>,
 }
 
 enum State<R: Resolve> {
@@ -351,6 +373,14 @@ impl<R: Resolve> Future for HttpConnecting<R> {
 
                     if let Some(dur) = self.keep_alive_timeout {
                         sock.set_keepalive(Some(dur))?;
+                    }
+
+                    if let Some(size) = self.send_buf_size {
+                        sock.set_send_buffer_size(size)?;
+                    }
+
+                    if let Some(size) = self.recv_buf_size {
+                        sock.set_recv_buffer_size(size)?;
                     }
 
                     sock.set_nodelay(self.nodelay)?;
