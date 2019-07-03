@@ -86,8 +86,8 @@ impl Http1Transaction for Server {
             trace!("Request.parse([Header; {}], [u8; {}])", headers.len(), buf.len());
             let mut req = httparse::Request::new(&mut headers);
             let bytes = buf.as_ref();
-            match req.parse(bytes)? {
-                httparse::Status::Complete(parsed_len) => {
+            match req.parse(bytes) {
+                Ok(httparse::Status::Complete(parsed_len)) => {
                     trace!("Request.parse Complete({})", parsed_len);
                     len = parsed_len;
                     subject = RequestLine(
@@ -106,9 +106,20 @@ impl Http1Transaction for Server {
 
                     record_header_indices(bytes, &req.headers, &mut headers_indices)?;
                     headers_len = req.headers.len();
-                    //(len, subject, version, headers_len)
                 }
-                httparse::Status::Partial => return Ok(None),
+                Ok(httparse::Status::Partial) => return Ok(None),
+                Err(err) => return Err(match err {
+                    // if invalid Token, try to determine if for method or path
+                    httparse::Error::Token => {
+                        if req.method.is_none() {
+                            Parse::Method
+                        } else {
+                            debug_assert!(req.path.is_none());
+                            Parse::Uri
+                        }
+                    },
+                    other => other.into(),
+                }),
             }
         };
 
