@@ -1,3 +1,7 @@
+// `mem::uninitialized` replaced with `mem::MaybeUninit`,
+// can't upgrade yet
+#![allow(deprecated)]
+
 use std::fmt::{self, Write};
 use std::mem;
 
