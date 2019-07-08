@@ -1,0 +1,36 @@
+steps:
+  # Linux and macOS.
+  - script: |
+      set -e
+      cargo build $FEATURES
+      cargo test $FEATURES
+    env:
+      FEATURES: ${{parameters.features}}
+    displayName: "Build & Test (*nix)"
+    condition: ne( variables['Agent.OS'], 'Windows_NT' )
+
+  # Windows.
+  - script: |
+      cargo build %FEATURES%
+      cargo test %FEATURES%
+    env:
+      FEATURES: ${{parameters.features}}
+    displayName: "Build & Test (Windows)"
+    condition: eq( variables['Agent.OS'], 'Windows_NT' )
+
+
+  # Linux and macOS.
+  - ${{ if eq(parameters.bench, 'true') }}:
+    - script: cargo bench $FEATURES
+      env:
+        FEATURES: ${{parameters.features}}
+      displayName: "Benchmark (*nix)"
+      condition: ne( variables['Agent.OS'], 'Windows_NT' )
+
+  # Windows.
+  - ${{ if eq(parameters.bench, 'true') }}:
+    - script: cargo bench %FEATURES%
+      env:
+        FEATURES: ${{parameters.features}}
+      displayName: "Benchmark (Windows)"
+      condition: eq( variables['Agent.OS'], 'Windows_NT' )
