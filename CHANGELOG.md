@@ -1,3 +1,11 @@
+### v0.12.32 (2019-07-08)
+
+
+#### Features
+
+* **client:** `HttpConnector`: allow to set socket buffer sizes ([386109c4](https://github.com/hyperium/hyper/commit/386109c421c21e6e2d70e76d7dd072ef3bb62c58))
+
+
 ### v0.12.31 (2019-06-25)
 
 
