@@ -3,10 +3,12 @@ use std::io;
 use std::net::{SocketAddr, TcpListener as StdTcpListener};
 use std::time::{Duration, Instant};
 
-use futures::{Async, Future, Poll, Stream};
+use futures_core::Stream;
 use tokio_reactor::Handle;
 use tokio_tcp::TcpListener;
 use tokio_timer::Delay;
+
+use crate::common::{Future, Pin, Poll, task};
 
 pub use self::addr_stream::AddrStream;
 
@@ -92,28 +94,20 @@ impl AddrIncoming {
     pub fn set_sleep_on_errors(&mut self, val: bool) {
         self.sleep_on_errors = val;
     }
-}
 
-impl Stream for AddrIncoming {
-    // currently unnameable...
-    type Item = AddrStream;
-    type Error = ::std::io::Error;
-
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+    fn poll_next_(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<AddrStream>> {
         // Check if a previous timeout is active that was set by IO errors.
         if let Some(ref mut to) = self.timeout {
-            match to.poll() {
-                Ok(Async::Ready(())) => {}
-                Ok(Async::NotReady) => return Ok(Async::NotReady),
-                Err(err) => {
-                    error!("sleep timer error: {}", err);
-                }
+            match Pin::new(to).poll(cx) {
+                Poll::Ready(()) => {}
+                Poll::Pending => return Poll::Pending,
             }
         }
         self.timeout = None;
+
         loop {
-            match self.listener.poll_accept() {
-                Ok(Async::Ready((socket, addr))) => {
+            match Pin::new(&mut self.listener).poll_accept(cx) {
+                Poll::Ready(Ok((socket, addr))) => {
                     if let Some(dur) = self.tcp_keepalive_timeout {
                         if let Err(e) = socket.set_keepalive(Some(dur)) {
                             trace!("error trying to set TCP keepalive: {}", e);
@@ -122,10 +116,10 @@ impl Stream for AddrIncoming {
                     if let Err(e) = socket.set_nodelay(self.tcp_nodelay) {
                         trace!("error trying to set TCP nodelay: {}", e);
                     }
-                    return Ok(Async::Ready(Some(AddrStream::new(socket, addr))));
+                    return Poll::Ready(Ok(AddrStream::new(socket, addr)));
                 },
-                Ok(Async::NotReady) => return Ok(Async::NotReady),
-                Err(e) => {
+                Poll::Pending => return Poll::Pending,
+                Poll::Ready(Err(e)) => {
                     // Connection errors can be ignored directly, continue by
                     // accepting the next request.
                     if is_connection_error(&e) {
@@ -134,32 +128,37 @@ impl Stream for AddrIncoming {
                     }
 
                     if self.sleep_on_errors {
+                        error!("accept error: {}", e);
+
                         // Sleep 1s.
                         let delay = Instant::now() + Duration::from_secs(1);
                         let mut timeout = Delay::new(delay);
 
-                        match timeout.poll() {
-                            Ok(Async::Ready(())) => {
+                        match Pin::new(&mut timeout).poll(cx) {
+                            Poll::Ready(()) => {
                                 // Wow, it's been a second already? Ok then...
-                                error!("accept error: {}", e);
                                 continue
                             },
-                            Ok(Async::NotReady) => {
-                                error!("accept error: {}", e);
+                            Poll::Pending => {
                                 self.timeout = Some(timeout);
-                                return Ok(Async::NotReady);
+                                return Poll::Pending;
                             },
-                            Err(timer_err) => {
-                                error!("couldn't sleep on error, timer error: {}", timer_err);
-                                return Err(e);
-                            }
                         }
                     } else {
-                        return Err(e);
+                        return Poll::Ready(Err(e));
                     }
                 },
             }
         }
+    }
+}
+
+impl Stream for AddrIncoming {
+    type Item = io::Result<AddrStream>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
+        let result = ready!(self.poll_next_(cx));
+        Poll::Ready(Some(result))
     }
 }
 
@@ -191,12 +190,13 @@ impl fmt::Debug for AddrIncoming {
 }
 
 mod addr_stream {
-    use std::io::{self, Read, Write};
+    use std::io;
     use std::net::SocketAddr;
     use bytes::{Buf, BufMut};
-    use futures::Poll;
     use tokio_tcp::TcpStream;
     use tokio_io::{AsyncRead, AsyncWrite};
+
+    use crate::common::{Pin, Poll, task};
 
 
     /// A transport returned yieled by `AddrIncoming`.
@@ -227,26 +227,6 @@ mod addr_stream {
         }
     }
 
-    impl Read for AddrStream {
-        #[inline]
-        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-            self.inner.read(buf)
-        }
-    }
-
-    impl Write for AddrStream {
-        #[inline]
-        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-            self.inner.write(buf)
-        }
-
-        #[inline]
-        fn flush(&mut self) -> io::Result<()> {
-            // TcpStream::flush is a noop, so skip calling it...
-            Ok(())
-        }
-    }
-
     impl AsyncRead for AddrStream {
         #[inline]
         unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
@@ -254,20 +234,36 @@ mod addr_stream {
         }
 
         #[inline]
-        fn read_buf<B: BufMut>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
-            self.inner.read_buf(buf)
+        fn poll_read(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+            Pin::new(&mut self.inner).poll_read(cx, buf)
+        }
+
+        #[inline]
+        fn poll_read_buf<B: BufMut>(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>, buf: &mut B) -> Poll<io::Result<usize>> {
+            Pin::new(&mut self.inner).poll_read_buf(cx, buf)
         }
     }
 
     impl AsyncWrite for AddrStream {
         #[inline]
-        fn shutdown(&mut self) -> Poll<(), io::Error> {
-            AsyncWrite::shutdown(&mut self.inner)
+        fn poll_write(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+            Pin::new(&mut self.inner).poll_write(cx, buf)
         }
 
         #[inline]
-        fn write_buf<B: Buf>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
-            self.inner.write_buf(buf)
+        fn poll_write_buf<B: Buf>(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>, buf: &mut B) -> Poll<io::Result<usize>> {
+            Pin::new(&mut self.inner).poll_write_buf(cx, buf)
+        }
+
+        #[inline]
+        fn poll_flush(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+            // TCP flush is a noop
+            Poll::Ready(Ok(()))
+        }
+
+        #[inline]
+        fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+            Pin::new(&mut self.inner).poll_shutdown(cx)
         }
     }
 }

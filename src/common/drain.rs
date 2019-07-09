@@ -1,14 +1,19 @@
 use std::mem;
 
-use futures::{Async, Future, Poll, Stream};
-use futures::future::Shared;
-use futures::sync::{mpsc, oneshot};
+use tokio_sync::{mpsc, watch};
 
-use super::Never;
+use super::{Future, Never, Poll, Pin, task};
+
+// Sentinel value signaling that the watch is still open
+enum Action {
+    Open,
+    // Closed isn't sent via the `Action` type, but rather once
+    // the watch::Sender is dropped.
+}
 
 pub fn channel() -> (Signal, Watch) {
-    let (tx, rx) = oneshot::channel();
-    let (drained_tx, drained_rx) = mpsc::channel(0);
+    let (tx, rx) = watch::channel(Action::Open);
+    let (drained_tx, drained_rx) = mpsc::channel(1);
     (
         Signal {
             drained_rx,
@@ -16,14 +21,14 @@ pub fn channel() -> (Signal, Watch) {
         },
         Watch {
             drained_tx,
-            rx: rx.shared(),
+            rx,
         },
     )
 }
 
 pub struct Signal {
     drained_rx: mpsc::Receiver<Never>,
-    tx: oneshot::Sender<()>,
+    tx: watch::Sender<Action>,
 }
 
 pub struct Draining {
@@ -33,7 +38,7 @@ pub struct Draining {
 #[derive(Clone)]
 pub struct Watch {
     drained_tx: mpsc::Sender<Never>,
-    rx: Shared<oneshot::Receiver<()>>,
+    rx: watch::Receiver<Action>,
 }
 
 #[allow(missing_debug_implementations)]
@@ -50,7 +55,7 @@ enum State<F> {
 
 impl Signal {
     pub fn drain(self) -> Draining {
-        let _ = self.tx.send(());
+        // Simply dropping `self.tx` will signal the watchers
         Draining {
             drained_rx: self.drained_rx,
         }
@@ -58,13 +63,12 @@ impl Signal {
 }
 
 impl Future for Draining {
-    type Item = ();
-    type Error = ();
+    type Output = ();
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match try_ready!(self.drained_rx.poll()) {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        match ready!(self.drained_rx.poll_recv(cx)) {
             Some(never) => match never {},
-            None => Ok(Async::Ready(())),
+            None => Poll::Ready(()),
         }
     }
 }
@@ -73,7 +77,7 @@ impl Watch {
     pub fn watch<F, FN>(self, future: F, on_drain: FN) -> Watching<F, FN>
     where
         F: Future,
-        FN: FnOnce(&mut F),
+        FN: FnOnce(Pin<&mut F>),
     {
         Watching {
             future,
@@ -86,28 +90,29 @@ impl Watch {
 impl<F, FN> Future for Watching<F, FN>
 where
     F: Future,
-    FN: FnOnce(&mut F),
+    FN: FnOnce(Pin<&mut F>),
 {
-    type Item = F::Item;
-    type Error = F::Error;
+    type Output = F::Output;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let me = unsafe { self.get_unchecked_mut() };
         loop {
-            match mem::replace(&mut self.state, State::Draining) {
+            match mem::replace(&mut me.state, State::Draining) {
                 State::Watch(on_drain) => {
-                    match self.watch.rx.poll() {
-                        Ok(Async::Ready(_)) | Err(_) => {
+                    match me.watch.rx.poll_ref(cx) {
+                        Poll::Ready(None) => {
                             // Drain has been triggered!
-                            on_drain(&mut self.future);
+                            on_drain(unsafe { Pin::new_unchecked(&mut me.future) });
                         },
-                        Ok(Async::NotReady) => {
-                            self.state = State::Watch(on_drain);
-                            return self.future.poll();
+                        Poll::Ready(Some(_/*State::Open*/)) |
+                        Poll::Pending => {
+                            me.state = State::Watch(on_drain);
+                            return unsafe { Pin::new_unchecked(&mut me.future) }.poll(cx);
                         },
                     }
                 },
                 State::Draining => {
-                    return self.future.poll();
+                    return unsafe { Pin::new_unchecked(&mut me.future) }.poll(cx);
                 },
             }
         }

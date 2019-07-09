@@ -1,8 +1,9 @@
-use futures::{future, Async, Future, Poll, Stream};
-use futures::sync::{mpsc, oneshot};
+use futures_core::Stream;
+use futures_channel::{mpsc, oneshot};
+use futures_util::future;
 use want;
 
-use crate::common::Never;
+use crate::common::{Future, Never, Pin, Poll, task};
 
 pub type RetryPromise<T, U> = oneshot::Receiver<Result<U, (crate::Error, Option<T>)>>;
 pub type Promise<T> = oneshot::Receiver<Result<T, crate::Error>>;
@@ -51,8 +52,8 @@ pub struct UnboundedSender<T, U> {
 }
 
 impl<T, U> Sender<T, U> {
-    pub fn poll_ready(&mut self) -> Poll<(), crate::Error> {
-        self.giver.poll_want()
+    pub fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+        self.giver.poll_want(cx)
             .map_err(|_| crate::Error::new_closed())
     }
 
@@ -136,20 +137,32 @@ pub struct Receiver<T, U> {
     taker: want::Taker,
 }
 
-impl<T, U> Stream for Receiver<T, U> {
-    type Item = (T, Callback<T, U>);
-    type Error = Never;
+//impl<T, U> Stream for Receiver<T, U> {
+//    type Item = (T, Callback<T, U>);
 
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        match self.inner.poll() {
-            Ok(Async::Ready(item)) => Ok(Async::Ready(item.map(|mut env| {
+impl<T, U> Receiver<T, U> {
+    pub(crate) fn poll_next(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<(T, Callback<T, U>)>> {
+        match Pin::new(&mut self.inner).poll_next(cx) {
+            Poll::Ready(item) => Poll::Ready(item.map(|mut env| {
                 env.0.take().expect("envelope not dropped")
-            }))),
-            Ok(Async::NotReady) => {
+            })),
+            Poll::Pending => {
                 self.taker.want();
-                Ok(Async::NotReady)
-            }
-            Err(()) => unreachable!("mpsc never errors"),
+                Poll::Pending
+            },
+        }
+    }
+
+    pub(crate) fn close(&mut self) {
+        self.taker.cancel();
+        self.inner.close();
+    }
+
+    pub(crate) fn try_recv(&mut self) -> Option<(T, Callback<T, U>)> {
+        match self.inner.try_next() {
+            Ok(Some(mut env)) => env.0.take(),
+            Ok(None) => None,
+            Err(_) => None,
         }
     }
 }
@@ -185,10 +198,10 @@ impl<T, U> Callback<T, U> {
         }
     }
 
-    pub(crate) fn poll_cancel(&mut self) -> Poll<(), ()> {
+    pub(crate) fn poll_cancel(&mut self, cx: &mut task::Context<'_>) -> Poll<()> {
         match *self {
-            Callback::Retry(ref mut tx) => tx.poll_cancel(),
-            Callback::NoRetry(ref mut tx) => tx.poll_cancel(),
+            Callback::Retry(ref mut tx) => tx.poll_cancel(cx),
+            Callback::NoRetry(ref mut tx) => tx.poll_cancel(cx),
         }
     }
 
@@ -205,30 +218,30 @@ impl<T, U> Callback<T, U> {
 
     pub(crate) fn send_when(
         self,
-        mut when: impl Future<Item=U, Error=(crate::Error, Option<T>)>,
-    ) -> impl Future<Item=(), Error=()> {
+        mut when: impl Future<Output=Result<U, (crate::Error, Option<T>)>> + Unpin,
+    ) -> impl Future<Output=()> {
         let mut cb = Some(self);
 
         // "select" on this callback being canceled, and the future completing
-        future::poll_fn(move || {
-            match when.poll() {
-                Ok(Async::Ready(res)) => {
+        future::poll_fn(move |cx| {
+            match Pin::new(&mut when).poll(cx) {
+                Poll::Ready(Ok(res)) => {
                     cb.take()
                         .expect("polled after complete")
                         .send(Ok(res));
-                    Ok(().into())
+                    Poll::Ready(())
                 },
-                Ok(Async::NotReady) => {
+                Poll::Pending => {
                     // check if the callback is canceled
-                    try_ready!(cb.as_mut().unwrap().poll_cancel());
+                    ready!(cb.as_mut().unwrap().poll_cancel(cx));
                     trace!("send_when canceled");
-                    Ok(().into())
+                    Poll::Ready(())
                 },
-                Err(err) => {
+                Poll::Ready(Err(err)) => {
                     cb.take()
                         .expect("polled after complete")
                         .send(Err(err));
-                    Ok(().into())
+                    Poll::Ready(())
                 }
             }
         })

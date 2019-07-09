@@ -1,11 +1,12 @@
 use std::error::Error as StdError;
 
-use futures::{Async, Future, Stream, Poll};
+use futures_core::Stream;
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use crate::body::{Body, Payload};
 use crate::common::drain::{self, Draining, Signal, Watch, Watching};
 use crate::common::exec::{H2Exec, NewSvcExec};
+use crate::common::{Future, Pin, Poll, Unpin, task};
 use crate::service::{MakeServiceRef, Service};
 use super::conn::{SpawnAll, UpgradeableConnection, Watcher};
 
@@ -37,31 +38,32 @@ impl<I, S, F, E> Graceful<I, S, F, E> {
 }
 
 
-impl<I, S, B, F, E> Future for Graceful<I, S, F, E>
+impl<I, IO, IE, S, B, F, E> Future for Graceful<I, S, F, E>
 where
-    I: Stream,
-    I::Error: Into<Box<dyn StdError + Send + Sync>>,
-    I::Item: AsyncRead + AsyncWrite + Send + 'static,
-    S: MakeServiceRef<I::Item, ReqBody=Body, ResBody=B>,
+    I: Stream<Item=Result<IO, IE>>,
+    IE: Into<Box<dyn StdError + Send + Sync>>,
+    IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    S: MakeServiceRef<IO, ReqBody=Body, ResBody=B>,
     S::Service: 'static,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
-    F: Future<Item=()>,
+    F: Future<Output=()>,
     E: H2Exec<<S::Service as Service>::Future, B>,
-    E: NewSvcExec<I::Item, S::Future, S::Service, E, GracefulWatcher>,
+    E: NewSvcExec<IO, S::Future, S::Service, E, GracefulWatcher>,
 {
-    type Item = ();
-    type Error = crate::Error;
+    type Output = crate::Result<()>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        // Safety: the futures are NEVER moved, self.state is overwritten instead.
+        let me = unsafe { self.get_unchecked_mut() };
         loop {
-            let next = match self.state {
+            let next = match me.state {
                 State::Running {
                     ref mut drain,
                     ref mut spawn_all,
                     ref mut signal,
-                } => match signal.poll() {
-                    Ok(Async::Ready(())) | Err(_) => {
+                } => match unsafe { Pin::new_unchecked(signal) }.poll(cx) {
+                    Poll::Ready(()) => {
                         debug!("signal received, starting graceful shutdown");
                         let sig = drain
                             .take()
@@ -69,21 +71,21 @@ where
                             .0;
                         State::Draining(sig.drain())
                     },
-                    Ok(Async::NotReady) => {
+                    Poll::Pending => {
                         let watch = drain
                             .as_ref()
                             .expect("drain channel")
                             .1
                             .clone();
-                        return spawn_all.poll_watch(&GracefulWatcher(watch));
+                        return unsafe { Pin::new_unchecked(spawn_all) }.poll_watch(cx, &GracefulWatcher(watch));
                     },
                 },
                 State::Draining(ref mut draining) => {
-                    return draining.poll()
-                        .map_err(|()| unreachable!("drain mpsc rx never errors"));
+                    return Pin::new(draining).poll(cx).map(Ok);
                 }
             };
-            self.state = next;
+            // It's important to just assign, not mem::replace or anything.
+            me.state = next;
         }
     }
 }
@@ -94,11 +96,11 @@ pub struct GracefulWatcher(Watch);
 
 impl<I, S, E> Watcher<I, S, E> for GracefulWatcher
 where
-    I: AsyncRead + AsyncWrite + Send + 'static,
+    I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     S: Service<ReqBody=Body> + 'static,
     E: H2Exec<S::Future, S::ResBody>,
 {
-    type Future = Watching<UpgradeableConnection<I, S, E>, fn(&mut UpgradeableConnection<I, S, E>)>;
+    type Future = Watching<UpgradeableConnection<I, S, E>, fn(Pin<&mut UpgradeableConnection<I, S, E>>)>;
 
     fn watch(&self, conn: UpgradeableConnection<I, S, E>) -> Self::Future {
         self
@@ -108,11 +110,11 @@ where
     }
 }
 
-fn on_drain<I, S, E>(conn: &mut UpgradeableConnection<I, S, E>)
+fn on_drain<I, S, E>(conn: Pin<&mut UpgradeableConnection<I, S, E>>)
 where
     S: Service<ReqBody=Body>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
-    I: AsyncRead + AsyncWrite,
+    I: AsyncRead + AsyncWrite + Unpin,
     S::ResBody: Payload + 'static,
     E: H2Exec<S::Future, S::ResBody>,
 {

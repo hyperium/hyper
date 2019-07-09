@@ -1,15 +1,15 @@
 use std::error::Error as StdError;
 
-use futures::{Async, Future, Poll, Stream};
 use h2::Reason;
 use h2::server::{Builder, Connection, Handshake, SendResponse};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use crate::headers::content_length_parse_all;
 use crate::body::Payload;
 use crate::body::internal::FullDataArg;
 use crate::common::exec::H2Exec;
+use crate::common::{Future, Pin, Poll, task};
 use crate::headers;
+use crate::headers::content_length_parse_all;
 use crate::service::Service;
 use crate::proto::Dispatched;
 use super::{PipeToSendStream, SendBuf};
@@ -25,6 +25,9 @@ where
     service: S,
     state: State<T, B>,
 }
+
+// TODO: fix me
+impl<T, S: Service, B: Payload, E> Unpin for Server<T, S, B, E> {}
 
 enum State<T, B>
 where
@@ -53,15 +56,20 @@ where
     E: H2Exec<S::Future, B>,
 {
     pub(crate) fn new(io: T, service: S, builder: &Builder, exec: E) -> Server<T, S, B, E> {
+        unimplemented!("proto::h2::Server::new")
+        /*
         let handshake = builder.handshake(io);
         Server {
             exec,
             state: State::Handshaking(handshake),
             service,
         }
+        */
     }
 
     pub fn graceful_shutdown(&mut self) {
+        unimplemented!("proto::h2::Server::graceful_shutdown")
+        /*
         trace!("graceful_shutdown");
         match self.state {
             State::Handshaking(..) => {
@@ -78,6 +86,7 @@ where
             }
         }
         self.state = State::Closed;
+        */
     }
 }
 
@@ -89,10 +98,11 @@ where
     B: Payload,
     E: H2Exec<S::Future, B>,
 {
-    type Item = Dispatched;
-    type Error = crate::Error;
+    type Output = crate::Result<Dispatched>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        unimplemented!("h2 server future")
+        /*
         loop {
             let next = match self.state {
                 State::Handshaking(ref mut h) => {
@@ -114,6 +124,7 @@ where
             };
             self.state = next;
         }
+        */
     }
 }
 
@@ -122,7 +133,7 @@ where
     T: AsyncRead + AsyncWrite,
     B: Payload,
 {
-    fn poll_server<S, E>(&mut self, service: &mut S, exec: &E) -> Poll<(), crate::Error>
+    fn poll_server<S, E>(&mut self, service: &mut S, exec: &E) -> Poll<crate::Result<()>>
     where
         S: Service<
             ReqBody=Body,
@@ -131,6 +142,7 @@ where
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         E: H2Exec<S::Future, B>,
     {
+        /*
         if self.closing.is_none() {
             loop {
                 // At first, polls the readiness of supplied service.
@@ -182,6 +194,8 @@ where
         try_ready!(self.conn.poll_close().map_err(crate::Error::new_h2));
 
         Err(self.closing.take().expect("polled after error"))
+        */
+        unimplemented!("h2 server poll_server")
     }
 }
 
@@ -204,8 +218,8 @@ where
 
 impl<F, B> H2Stream<F, B>
 where
-    F: Future<Item=Response<B>>,
-    F::Error: Into<Box<dyn StdError + Send + Sync>>,
+    //F: Future<Item=Response<B>>,
+    //F::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
 {
     fn new(fut: F, respond: SendResponse<SendBuf<B::Data>>) -> H2Stream<F, B> {
@@ -214,8 +228,19 @@ where
             state: H2StreamState::Service(fut),
         }
     }
+}
 
-    fn poll2(&mut self) -> Poll<(), crate::Error> {
+impl<F, B> Future for H2Stream<F, B>
+where
+    //F: Future<Item=Response<B>>,
+    //F::Error: Into<Box<dyn StdError + Send + Sync>>,
+    B: Payload,
+{
+    type Output = ();
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        unimplemented!("impl Future for H2Stream");
+        /*
         loop {
             let next = match self.state {
                 H2StreamState::Service(ref mut h) => {
@@ -292,9 +317,10 @@ where
             };
             self.state = next;
         }
+        */
     }
 }
-
+/*
 impl<F, B> Future for H2Stream<F, B>
 where
     F: Future<Item=Response<B>>,
@@ -309,4 +335,5 @@ where
             .map_err(|e| debug!("stream error: {}", e))
     }
 }
+*/
 

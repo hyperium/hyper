@@ -1,9 +1,10 @@
-use std::cmp;
-use std::io::{self, Read, Write};
+use std::io::{self, Read};
+use std::marker::Unpin;
 
 use bytes::{Buf, BufMut, Bytes, IntoBuf};
-use futures::{Async, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
+
+use crate::common::{Pin, Poll, task};
 
 /// Combine a buffer with an IO, rewinding reads to use the buffer.
 #[derive(Debug)]
@@ -37,12 +38,16 @@ impl<T> Rewind<T> {
     }
 }
 
-impl<T> Read for Rewind<T>
+impl<T> AsyncRead for Rewind<T>
 where
-    T: Read,
+    T: AsyncRead + Unpin,
 {
     #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
+        self.inner.prepare_uninitialized_buffer(buf)
+    }
+
+    fn poll_read(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         if let Some(pre_bs) = self.pre.take() {
             // If there are no remaining bytes, let the bytes get dropped.
             if pre_bs.len() > 0 {
@@ -57,39 +62,17 @@ where
                     self.pre = Some(new_pre);
                 }
 
-                return Ok(read_cnt);
+                return Poll::Ready(Ok(read_cnt));
             }
         }
-        self.inner.read(buf)
-    }
-}
-
-impl<T> Write for Rewind<T>
-where
-    T: Write,
-{
-    #[inline]
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.inner.write(buf)
+        Pin::new(&mut self.inner).poll_read(cx, buf)
     }
 
-    #[inline]
-    fn flush(&mut self) -> io::Result<()> {
-        self.inner.flush()
-    }
-}
-
-impl<T> AsyncRead for Rewind<T>
-where
-    T: AsyncRead,
-{
-    #[inline]
-    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
-        self.inner.prepare_uninitialized_buffer(buf)
-    }
-
+    /*
     #[inline]
     fn read_buf<B: BufMut>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
+        use std::cmp;
+
         if let Some(bs) = self.pre.take() {
             let pre_len = bs.len();
             // If there are no remaining bytes, let the bytes get dropped.
@@ -112,21 +95,31 @@ where
         }
         self.inner.read_buf(buf)
     }
+    */
 }
 
 impl<T> AsyncWrite for Rewind<T>
 where
-    T: AsyncWrite,
+    T: AsyncWrite + Unpin,
 {
-    #[inline]
-    fn shutdown(&mut self) -> Poll<(), io::Error> {
-        AsyncWrite::shutdown(&mut self.inner)
+    fn poll_write(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+        Pin::new(&mut self.inner).poll_write(cx, buf)
     }
 
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.inner).poll_flush(cx)
+    }
+
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.inner).poll_shutdown(cx)
+    }
+
+    /*
     #[inline]
     fn write_buf<B: Buf>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
         self.inner.write_buf(buf)
     }
+    */
 }
 
 #[cfg(test)]

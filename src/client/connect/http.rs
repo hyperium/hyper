@@ -6,16 +6,18 @@ use std::mem;
 use std::net::{IpAddr, SocketAddr};
 use std::time::{Duration, Instant};
 
-use futures::{Async, Future, Poll};
-use futures::future::{Executor};
 use http::uri::Scheme;
 use net2::TcpBuilder;
 use tokio_reactor::Handle;
-use tokio_tcp::{TcpStream, ConnectFuture};
+use tokio_tcp::{TcpStream/*, ConnectFuture*/};
 use tokio_timer::Delay;
 
+use crate::common::{Future, Pin, Poll, task};
 use super::{Connect, Connected, Destination};
 use super::dns::{self, GaiResolver, Resolve, TokioThreadpoolGaiResolver};
+
+// TODO: unbox me?
+type ConnectFuture = Pin<Box<dyn Future<Output = io::Result<TcpStream>> + Send>>;
 
 /// A connector for the `http` scheme.
 ///
@@ -89,6 +91,7 @@ impl HttpConnector {
         http
     }
 
+    /*
     /// Construct a new HttpConnector.
     ///
     /// Takes an executor to run blocking `getaddrinfo` tasks on.
@@ -100,6 +103,7 @@ impl HttpConnector {
         http.set_reactor(handle);
         http
     }
+    */
 }
 
 impl HttpConnector<TokioThreadpoolGaiResolver> {
@@ -335,55 +339,54 @@ enum State<R: Resolve> {
     Error(Option<io::Error>),
 }
 
-impl<R: Resolve> Future for HttpConnecting<R> {
-    type Item = (TcpStream, Connected);
-    type Error = io::Error;
+impl<R: Resolve> Future for HttpConnecting<R>
+where
+    R::Future: Unpin,
+{
+    type Output = Result<(TcpStream, Connected), io::Error>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let me = &mut *self;
         loop {
             let state;
-            match self.state {
+            match me.state {
                 State::Lazy(ref resolver, ref mut host, local_addr) => {
                     // If the host is already an IP addr (v4 or v6),
                     // skip resolving the dns and start connecting right away.
-                    if let Some(addrs) = dns::IpAddrs::try_parse(host, self.port) {
+                    if let Some(addrs) = dns::IpAddrs::try_parse(host, me.port) {
                         state = State::Connecting(ConnectingTcp::new(
-                            local_addr, addrs, self.happy_eyeballs_timeout, self.reuse_address));
+                            local_addr, addrs, me.happy_eyeballs_timeout, me.reuse_address));
                     } else {
                         let name = dns::Name::new(mem::replace(host, String::new()));
                         state = State::Resolving(resolver.resolve(name), local_addr);
                     }
                 },
                 State::Resolving(ref mut future, local_addr) => {
-                    match future.poll()? {
-                        Async::NotReady => return Ok(Async::NotReady),
-                        Async::Ready(addrs) => {
-                            let port = self.port;
-                            let addrs = addrs
-                                .map(|addr| SocketAddr::new(addr, port))
-                                .collect();
-                            let addrs = dns::IpAddrs::new(addrs);
-                            state = State::Connecting(ConnectingTcp::new(
-                                local_addr, addrs, self.happy_eyeballs_timeout, self.reuse_address));
-                        }
-                    };
+                    let addrs =  ready!(Pin::new(future).poll(cx))?;
+                    let port = me.port;
+                    let addrs = addrs
+                        .map(|addr| SocketAddr::new(addr, port))
+                        .collect();
+                    let addrs = dns::IpAddrs::new(addrs);
+                    state = State::Connecting(ConnectingTcp::new(
+                        local_addr, addrs, me.happy_eyeballs_timeout, me.reuse_address));
                 },
                 State::Connecting(ref mut c) => {
-                    let sock = try_ready!(c.poll(&self.handle));
+                    let sock = ready!(c.poll(cx, &me.handle))?;
 
-                    if let Some(dur) = self.keep_alive_timeout {
+                    if let Some(dur) = me.keep_alive_timeout {
                         sock.set_keepalive(Some(dur))?;
                     }
 
-                    if let Some(size) = self.send_buffer_size {
+                    if let Some(size) = me.send_buffer_size {
                         sock.set_send_buffer_size(size)?;
                     }
 
-                    if let Some(size) = self.recv_buffer_size {
+                    if let Some(size) = me.recv_buffer_size {
                         sock.set_recv_buffer_size(size)?;
                     }
 
-                    sock.set_nodelay(self.nodelay)?;
+                    sock.set_nodelay(me.nodelay)?;
 
                     let extra = HttpInfo {
                         remote_addr: sock.peer_addr()?,
@@ -391,11 +394,11 @@ impl<R: Resolve> Future for HttpConnecting<R> {
                     let connected = Connected::new()
                         .extra(extra);
 
-                    return Ok(Async::Ready((sock, connected)));
+                    return Poll::Ready(Ok((sock, connected)));
                 },
-                State::Error(ref mut e) => return Err(e.take().expect("polled more than once")),
+                State::Error(ref mut e) => return Poll::Ready(Err(e.take().expect("polled more than once"))),
             }
-            self.state = state;
+            me.state = state;
         }
     }
 }
@@ -474,20 +477,21 @@ impl ConnectingTcpRemote {
     // not a Future, since passing a &Handle to poll
     fn poll(
         &mut self,
+        cx: &mut task::Context<'_>,
         local_addr: &Option<IpAddr>,
         handle: &Option<Handle>,
         reuse_address: bool,
-    ) -> Poll<TcpStream, io::Error> {
+    ) -> Poll<io::Result<TcpStream>> {
         let mut err = None;
         loop {
             if let Some(ref mut current) = self.current {
-                match current.poll() {
-                    Ok(Async::Ready(tcp)) => {
+                match current.as_mut().poll(cx) {
+                    Poll::Ready(Ok(tcp)) => {
                         debug!("connected to {:?}", tcp.peer_addr().ok());
-                        return Ok(Async::Ready(tcp));
+                        return Poll::Ready(Ok(tcp));
                     },
-                    Ok(Async::NotReady) => return Ok(Async::NotReady),
-                    Err(e) => {
+                    Poll::Pending => return Poll::Pending,
+                    Poll::Ready(Err(e)) => {
                         trace!("connect error {:?}", e);
                         err = Some(e);
                         if let Some(addr) = self.addrs.next() {
@@ -503,7 +507,7 @@ impl ConnectingTcpRemote {
                 continue;
             }
 
-            return Err(err.take().expect("missing connect error"));
+            return Poll::Ready(Err(err.take().expect("missing connect error")));
         }
     }
 }
@@ -540,51 +544,46 @@ fn connect(addr: &SocketAddr, local_addr: &Option<IpAddr>, handle: &Option<Handl
         None => Cow::Owned(Handle::default()),
     };
 
-    Ok(TcpStream::connect_std(builder.to_tcp_stream()?, addr, &handle))
+    Ok(Box::pin(TcpStream::connect_std(builder.to_tcp_stream()?, addr, &handle)))
 }
 
 impl ConnectingTcp {
-    // not a Future, since passing a &Handle to poll
-    fn poll(&mut self, handle: &Option<Handle>) -> Poll<TcpStream, io::Error> {
+    fn poll(&mut self, cx: &mut task::Context<'_>, handle: &Option<Handle>) -> Poll<io::Result<TcpStream>> {
         match self.fallback.take() {
-            None => self.preferred.poll(&self.local_addr, handle, self.reuse_address),
-            Some(mut fallback) => match self.preferred.poll(&self.local_addr, handle, self.reuse_address) {
-                Ok(Async::Ready(stream)) => {
+            None => self.preferred.poll(cx, &self.local_addr, handle, self.reuse_address),
+            Some(mut fallback) => match self.preferred.poll(cx, &self.local_addr, handle, self.reuse_address) {
+                Poll::Ready(Ok(stream)) => {
                     // Preferred successful - drop fallback.
-                    Ok(Async::Ready(stream))
+                    Poll::Ready(Ok(stream))
                 }
-                Ok(Async::NotReady) => match fallback.delay.poll() {
-                    Ok(Async::Ready(_)) => match fallback.remote.poll(&self.local_addr, handle, self.reuse_address) {
-                        Ok(Async::Ready(stream)) => {
+                Poll::Pending => match Pin::new(&mut fallback.delay).poll(cx) {
+                    Poll::Ready(()) => match fallback.remote.poll(cx, &self.local_addr, handle, self.reuse_address) {
+                        Poll::Ready(Ok(stream)) => {
                             // Fallback successful - drop current preferred,
                             // but keep fallback as new preferred.
                             self.preferred = fallback.remote;
-                            Ok(Async::Ready(stream))
+                            Poll::Ready(Ok(stream))
                         }
-                        Ok(Async::NotReady) => {
+                        Poll::Pending => {
                             // Neither preferred nor fallback are ready.
                             self.fallback = Some(fallback);
-                            Ok(Async::NotReady)
+                            Poll::Pending
                         }
-                        Err(_) => {
+                        Poll::Ready(Err(_)) => {
                             // Fallback failed - resume with preferred only.
-                            Ok(Async::NotReady)
+                            Poll::Pending
                         }
                     },
-                    Ok(Async::NotReady) => {
+                    Poll::Pending => {
                         // Too early to attempt fallback.
                         self.fallback = Some(fallback);
-                        Ok(Async::NotReady)
-                    }
-                    Err(_) => {
-                        // Fallback delay failed - resume with preferred only.
-                        Ok(Async::NotReady)
+                        Poll::Pending
                     }
                 }
-                Err(_) => {
+                Poll::Ready(Err(_)) => {
                     // Preferred failed - use fallback as new preferred.
                     self.preferred = fallback.remote;
-                    self.preferred.poll(&self.local_addr, handle, self.reuse_address)
+                    self.preferred.poll(cx, &self.local_addr, handle, self.reuse_address)
                 }
             }
         }
@@ -734,10 +733,10 @@ mod tests {
 
             fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
                 match self.0.poll(&Some(Handle::default())) {
-                    Ok(Async::Ready(stream)) => Ok(Async::Ready(
+                    Poll::Ready(Ok(stream)) => Poll::Ready(Ok(
                         if stream.peer_addr().unwrap().is_ipv4() { 4 } else { 6 }
                     )),
-                    Ok(Async::NotReady) => Ok(Async::NotReady),
+                    Poll::Pending => Poll::Pending,
                     Err(err) => Err(err),
                 }
             }

@@ -10,9 +10,10 @@ use std::{fmt, mem};
 #[cfg(try_from)] use std::convert::TryFrom;
 
 use bytes::{BufMut, Bytes, BytesMut};
-use futures::Future;
 use ::http::{uri, Response, Uri};
 use tokio_io::{AsyncRead, AsyncWrite};
+
+use crate::common::{Future, Unpin};
 
 #[cfg(feature = "runtime")] pub mod dns;
 #[cfg(feature = "runtime")] mod http;
@@ -25,11 +26,11 @@ use tokio_io::{AsyncRead, AsyncWrite};
 /// ready connection.
 pub trait Connect: Send + Sync {
     /// The connected IO Stream.
-    type Transport: AsyncRead + AsyncWrite + Send + 'static;
+    type Transport: AsyncRead + AsyncWrite + Unpin + Send + 'static;
     /// An error occured when trying to connect.
     type Error: Into<Box<dyn StdError + Send + Sync>>;
     /// A Future that will resolve to the connected Transport.
-    type Future: Future<Item=(Self::Transport, Connected), Error=Self::Error> + Send;
+    type Future: Future<Output=Result<(Self::Transport, Connected), Self::Error>> + Unpin + Send;
     /// Connect to a destination.
     fn connect(&self, dst: Destination) -> Self::Future;
 }

@@ -3,12 +3,12 @@ use std::io::{self};
 use std::marker::PhantomData;
 
 use bytes::{Buf, Bytes};
-use futures::{Async, Poll};
 use http::{HeaderMap, Method, Version};
 use http::header::{HeaderValue, CONNECTION};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use crate::Chunk;
+use crate::common::{Pin, Poll, Unpin, task};
 use crate::proto::{BodyLength, DecodedLength, MessageHead};
 use crate::headers::connection_keep_alive;
 use super::io::{Buffered};
@@ -26,11 +26,11 @@ const H2_PREFACE: &'static [u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 pub(crate) struct Conn<I, B, T> {
     io: Buffered<I, EncodedBuf<B>>,
     state: State,
-    _marker: PhantomData<T>
+    _marker: PhantomData<fn(T)>
 }
 
 impl<I, B, T> Conn<I, B, T>
-where I: AsyncRead + AsyncWrite,
+where I: AsyncRead + AsyncWrite + Unpin,
       B: Buf,
       T: Http1Transaction,
 {
@@ -129,16 +129,15 @@ where I: AsyncRead + AsyncWrite,
         read_buf.len() >= 24 && read_buf[..24] == *H2_PREFACE
     }
 
-    pub fn read_head(&mut self) -> Poll<Option<(MessageHead<T::Incoming>, DecodedLength, bool)>, crate::Error> {
+    pub fn poll_read_head(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<crate::Result<(MessageHead<T::Incoming>, DecodedLength, bool)>>> {
         debug_assert!(self.can_read_head());
         trace!("Conn::read_head");
 
-        let msg = match self.io.parse::<T>(ParseContext {
+        let msg = match ready!(self.io.parse::<T>(cx, ParseContext {
             cached_headers: &mut self.state.cached_headers,
             req_method: &mut self.state.method,
-        }) {
-            Ok(Async::Ready(msg)) => msg,
-            Ok(Async::NotReady) => return Ok(Async::NotReady),
+        })) {
+            Ok(msg) => msg,
             Err(e) => return self.on_read_head_error(e),
         };
 
@@ -155,7 +154,7 @@ where I: AsyncRead + AsyncWrite,
             debug_assert!(!msg.expect_continue, "expect-continue needs a body");
             self.state.reading = Reading::KeepAlive;
             if !T::should_read_first() {
-                self.try_keep_alive();
+                self.try_keep_alive(cx);
             }
         } else {
             if msg.expect_continue {
@@ -165,10 +164,10 @@ where I: AsyncRead + AsyncWrite,
             self.state.reading = Reading::Body(Decoder::new(msg.decode));
         };
 
-        Ok(Async::Ready(Some((msg.head, msg.decode, msg.wants_upgrade))))
+        Poll::Ready(Some(Ok((msg.head, msg.decode, msg.wants_upgrade))))
     }
 
-    fn on_read_head_error<Z>(&mut self, e: crate::Error) -> Poll<Option<Z>, crate::Error> {
+    fn on_read_head_error<Z>(&mut self, e: crate::Error) -> Poll<Option<crate::Result<Z>>> {
         // If we are currently waiting on a message, then an empty
         // message should be reported as an error. If not, it is just
         // the connection closing gracefully.
@@ -179,25 +178,28 @@ where I: AsyncRead + AsyncWrite,
         if was_mid_parse || must_error {
             // We check if the buf contains the h2 Preface
             debug!("parse error ({}) with {} bytes", e, self.io.read_buf().len());
-            self.on_parse_error(e)
-                .map(|()| Async::NotReady)
+            match self.on_parse_error(e) {
+                Ok(()) => Poll::Pending, // XXX: wat?
+                Err(e) => Poll::Ready(Some(Err(e))),
+
+            }
         } else {
             debug!("read eof");
-            Ok(Async::Ready(None))
+            Poll::Ready(None)
         }
     }
 
-    pub fn read_body(&mut self) -> Poll<Option<Chunk>, io::Error> {
+    pub fn poll_read_body(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<io::Result<Chunk>>> {
         debug_assert!(self.can_read_body());
 
         let (reading, ret) = match self.state.reading {
             Reading::Body(ref mut decoder) => {
-                match decoder.decode(&mut self.io) {
-                    Ok(Async::Ready(slice)) => {
+                match decoder.decode(cx, &mut self.io) {
+                    Poll::Ready(Ok(slice)) => {
                         let (reading, chunk) = if decoder.is_eof() {
                             debug!("incoming body completed");
                             (Reading::KeepAlive, if !slice.is_empty() {
-                                Some(Chunk::from(slice))
+                                Some(Ok(Chunk::from(slice)))
                             } else {
                                 None
                             })
@@ -208,14 +210,14 @@ where I: AsyncRead + AsyncWrite,
                             // an empty slice...
                             (Reading::Closed, None)
                         } else {
-                            return Ok(Async::Ready(Some(Chunk::from(slice))));
+                            return Poll::Ready(Some(Ok(Chunk::from(slice))));
                         };
-                        (reading, Ok(Async::Ready(chunk)))
+                        (reading, Poll::Ready(chunk))
                     },
-                    Ok(Async::NotReady) => return Ok(Async::NotReady),
-                    Err(e) => {
+                    Poll::Pending => return Poll::Pending,
+                    Poll::Ready(Err(e)) => {
                         debug!("decode stream error: {}", e);
-                        (Reading::Closed, Err(e))
+                        (Reading::Closed, Poll::Ready(Some(Err(e))))
                     },
                 }
             },
@@ -223,7 +225,7 @@ where I: AsyncRead + AsyncWrite,
         };
 
         self.state.reading = reading;
-        self.try_keep_alive();
+        self.try_keep_alive(cx);
         ret
     }
 
@@ -233,13 +235,13 @@ where I: AsyncRead + AsyncWrite,
         ret
     }
 
-    pub fn read_keep_alive(&mut self) -> Poll<(), crate::Error> {
+    pub fn poll_read_keep_alive(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
         debug_assert!(!self.can_read_head() && !self.can_read_body());
 
         if self.is_mid_message() {
-            self.mid_message_detect_eof()
+            self.mid_message_detect_eof(cx)
         } else {
-            self.require_empty_read()
+            self.require_empty_read(cx)
         }
     }
 
@@ -254,25 +256,25 @@ where I: AsyncRead + AsyncWrite,
     //
     // This should only be called for Clients wanting to enter the idle
     // state.
-    fn require_empty_read(&mut self) -> Poll<(), crate::Error> {
+    fn require_empty_read(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
         debug_assert!(!self.can_read_head() && !self.can_read_body());
         debug_assert!(!self.is_mid_message());
         debug_assert!(T::is_client());
 
         if !self.io.read_buf().is_empty() {
             debug!("received an unexpected {} bytes", self.io.read_buf().len());
-            return Err(crate::Error::new_unexpected_message());
+            return Poll::Ready(Err(crate::Error::new_unexpected_message()));
         }
 
-        let num_read = try_ready!(self.force_io_read().map_err(crate::Error::new_io));
+        let num_read = ready!(self.force_io_read(cx)).map_err(crate::Error::new_io)?;
 
         if num_read == 0 {
             let ret = if self.should_error_on_eof() {
                 trace!("found unexpected EOF on busy connection: {:?}", self.state);
-                Err(crate::Error::new_incomplete())
+                Poll::Ready(Err(crate::Error::new_incomplete()))
             } else {
                 trace!("found EOF on idle connection, closing");
-                Ok(Async::Ready(()))
+                Poll::Ready(Ok(()))
             };
 
             // order is important: should_error needs state BEFORE close_read
@@ -281,38 +283,39 @@ where I: AsyncRead + AsyncWrite,
         }
 
         debug!("received unexpected {} bytes on an idle connection", num_read);
-        Err(crate::Error::new_unexpected_message())
+        Poll::Ready(Err(crate::Error::new_unexpected_message()))
     }
 
-    fn mid_message_detect_eof(&mut self) -> Poll<(), crate::Error> {
+    fn mid_message_detect_eof(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
         debug_assert!(!self.can_read_head() && !self.can_read_body());
         debug_assert!(self.is_mid_message());
 
         if self.state.allow_half_close || !self.io.read_buf().is_empty() {
-            return Ok(Async::NotReady);
+            return Poll::Pending;
         }
 
-        let num_read = try_ready!(self.force_io_read().map_err(crate::Error::new_io));
+        let num_read = ready!(self.force_io_read(cx)).map_err(crate::Error::new_io)?;
 
         if num_read == 0 {
             trace!("found unexpected EOF on busy connection: {:?}", self.state);
             self.state.close_read();
-            Err(crate::Error::new_incomplete())
+            Poll::Ready(Err(crate::Error::new_incomplete()))
         } else {
-            Ok(Async::Ready(()))
+            Poll::Ready(Ok(()))
         }
     }
 
-    fn force_io_read(&mut self) -> Poll<usize, io::Error> {
-         self.io.read_from_io().map_err(|e| {
+    fn force_io_read(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<usize>> {
+        let result = ready!(self.io.poll_read_from_io(cx));
+        Poll::Ready(result.map_err(|e| {
             trace!("force_io_read; io error = {:?}", e);
             self.state.close();
             e
-         })
+         }))
     }
 
 
-    fn maybe_notify(&mut self) {
+    fn maybe_notify(&mut self, cx: &mut task::Context<'_>) {
         // its possible that we returned NotReady from poll() without having
         // exhausted the underlying Io. We would have done this when we
         // determined we couldn't keep reading until we knew how writing
@@ -336,13 +339,13 @@ where I: AsyncRead + AsyncWrite,
 
         if !self.io.is_read_blocked() {
             if self.io.read_buf().is_empty() {
-                match self.io.read_from_io() {
-                    Ok(Async::Ready(_)) => (),
-                    Ok(Async::NotReady) => {
+                match self.io.poll_read_from_io(cx) {
+                    Poll::Ready(Ok(_)) => (),
+                    Poll::Pending => {
                         trace!("maybe_notify; read_from_io blocked");
                         return
                     },
-                    Err(e) => {
+                    Poll::Ready(Err(e)) => {
                         trace!("maybe_notify; read_from_io error: {}", e);
                         self.state.close();
                     }
@@ -352,9 +355,9 @@ where I: AsyncRead + AsyncWrite,
         }
     }
 
-    fn try_keep_alive(&mut self) {
+    fn try_keep_alive(&mut self, cx: &mut task::Context<'_>) {
         self.state.try_keep_alive::<T>();
-        self.maybe_notify();
+        self.maybe_notify(cx);
     }
 
     pub fn can_write_head(&self) -> bool {
@@ -586,23 +589,22 @@ where I: AsyncRead + AsyncWrite,
         Err(err)
     }
 
-    pub fn flush(&mut self) -> Poll<(), io::Error> {
-        try_ready!(self.io.flush());
-        self.try_keep_alive();
+    pub fn poll_flush(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+        ready!(Pin::new(&mut self.io).poll_flush(cx))?;
+        self.try_keep_alive(cx);
         trace!("flushed({}): {:?}", T::LOG, self.state);
-        Ok(Async::Ready(()))
+        Poll::Ready(Ok(()))
     }
 
-    pub fn shutdown(&mut self) -> Poll<(), io::Error> {
-        match self.io.io_mut().shutdown() {
-            Ok(Async::NotReady) => Ok(Async::NotReady),
-            Ok(Async::Ready(())) => {
+    pub fn poll_shutdown(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+        match ready!(Pin::new(self.io.io_mut()).poll_shutdown(cx)) {
+            Ok(()) => {
                 trace!("shut down IO complete");
-                Ok(Async::Ready(()))
-            }
+                Poll::Ready(Ok(()))
+            },
             Err(e) => {
                 debug!("error shutting down IO: {}", e);
-                Err(e)
+                Poll::Ready(Err(e))
             }
         }
     }
@@ -651,6 +653,9 @@ impl<I, B: Buf, T> fmt::Debug for Conn<I, B, T> {
             .finish()
     }
 }
+
+// B and T are never pinned
+impl<I: Unpin, B, T> Unpin for Conn<I, B, T> {}
 
 struct State {
     allow_half_close: bool,

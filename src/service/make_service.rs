@@ -1,13 +1,12 @@
 use std::error::Error as StdError;
 use std::fmt;
 
-use futures::{Async, Future, IntoFuture, Poll};
-
 use crate::body::Payload;
+use crate::common::{Future, Poll, task};
 use super::Service;
 
 /// An asynchronous constructor of `Service`s.
-pub trait MakeService<Ctx> {
+pub trait MakeService<Target> {
     /// The `Payload` body of the `http::Request`.
     type ReqBody: Payload;
 
@@ -25,7 +24,7 @@ pub trait MakeService<Ctx> {
     >;
 
     /// The future returned from `new_service` of a `Service`.
-    type Future: Future<Item=Self::Service, Error=Self::MakeError>;
+    type Future: Future<Output=Result<Self::Service, Self::MakeError>>;
 
     /// The error type that can be returned when creating a new `Service`.
     type MakeError: Into<Box<dyn StdError + Send + Sync>>;
@@ -35,18 +34,18 @@ pub trait MakeService<Ctx> {
     /// The implementation of this method is allowed to return a `Ready` even if
     /// the factory is not ready to create a new service. In this case, the future
     /// returned from `make_service` will resolve to an error.
-    fn poll_ready(&mut self) -> Poll<(), Self::MakeError> {
-        Ok(Async::Ready(()))
+    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::MakeError>> {
+        Poll::Ready(Ok(()))
     }
 
     /// Create a new `Service`.
-    fn make_service(&mut self, ctx: Ctx) -> Self::Future;
+    fn make_service(&mut self, target: Target) -> Self::Future;
 }
 
 // Just a sort-of "trait alias" of `MakeService`, not to be implemented
 // by anyone, only used as bounds.
 #[doc(hidden)]
-pub trait MakeServiceRef<Ctx>: self::sealed::Sealed<Ctx> {
+pub trait MakeServiceRef<Target>: self::sealed::Sealed<Target> {
     type ReqBody: Payload;
     type ResBody: Payload;
     type Error: Into<Box<dyn StdError + Send + Sync>>;
@@ -56,7 +55,7 @@ pub trait MakeServiceRef<Ctx>: self::sealed::Sealed<Ctx> {
         Error=Self::Error,
     >;
     type MakeError: Into<Box<dyn StdError + Send + Sync>>;
-    type Future: Future<Item=Self::Service, Error=Self::MakeError>;
+    type Future: Future<Output=Result<Self::Service, Self::MakeError>>;
 
     // Acting like a #[non_exhaustive] for associated types of this trait.
     //
@@ -69,18 +68,18 @@ pub trait MakeServiceRef<Ctx>: self::sealed::Sealed<Ctx> {
     // if necessary.
     type __DontNameMe: self::sealed::CantImpl;
 
-    fn poll_ready_ref(&mut self) -> Poll<(), Self::MakeError>;
+    fn poll_ready_ref(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::MakeError>>;
 
-    fn make_service_ref(&mut self, ctx: &Ctx) -> Self::Future;
+    fn make_service_ref(&mut self, target: &Target) -> Self::Future;
 }
 
-impl<T, Ctx, E, ME, S, F, IB, OB> MakeServiceRef<Ctx> for T
+impl<T, Target, E, ME, S, F, IB, OB> MakeServiceRef<Target> for T
 where
-    T: for<'a> MakeService<&'a Ctx, Error=E, MakeError=ME, Service=S, Future=F, ReqBody=IB, ResBody=OB>,
+    T: for<'a> MakeService<&'a Target, Error=E, MakeError=ME, Service=S, Future=F, ReqBody=IB, ResBody=OB>,
     E: Into<Box<dyn StdError + Send + Sync>>,
     ME: Into<Box<dyn StdError + Send + Sync>>,
     S: Service<ReqBody=IB, ResBody=OB, Error=E>,
-    F: Future<Item=S, Error=ME>,
+    F: Future<Output=Result<S, ME>>,
     IB: Payload,
     OB: Payload,
 {
@@ -93,22 +92,22 @@ where
 
     type __DontNameMe = self::sealed::CantName;
 
-    fn poll_ready_ref(&mut self) -> Poll<(), Self::MakeError> {
-        self.poll_ready()
+    fn poll_ready_ref(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::MakeError>> {
+        self.poll_ready(cx)
     }
 
-    fn make_service_ref(&mut self, ctx: &Ctx) -> Self::Future {
-        self.make_service(ctx)
+    fn make_service_ref(&mut self, target: &Target) -> Self::Future {
+        self.make_service(target)
     }
 }
 
-impl<T, Ctx, E, ME, S, F, IB, OB> self::sealed::Sealed<Ctx> for T
+impl<T, Target, E, ME, S, F, IB, OB> self::sealed::Sealed<Target> for T
 where
-    T: for<'a> MakeService<&'a Ctx, Error=E, MakeError=ME, Service=S, Future=F, ReqBody=IB, ResBody=OB>,
+    T: for<'a> MakeService<&'a Target, Error=E, MakeError=ME, Service=S, Future=F, ReqBody=IB, ResBody=OB>,
     E: Into<Box<dyn StdError + Send + Sync>>,
     ME: Into<Box<dyn StdError + Send + Sync>>,
     S: Service<ReqBody=IB, ResBody=OB, Error=E>,
-    F: Future<Item=S, Error=ME>,
+    F: Future<Output=Result<S, ME>>,
     IB: Payload,
     OB: Payload,
 {}
@@ -146,10 +145,10 @@ where
 /// # }
 /// # #[cfg(not(feature = "runtime"))] fn main() {}
 /// ```
-pub fn make_service_fn<F, Ctx, Ret>(f: F) -> MakeServiceFn<F>
+pub fn make_service_fn<F, Target, Ret>(f: F) -> MakeServiceFn<F>
 where
-    F: FnMut(&Ctx) -> Ret,
-    Ret: IntoFuture,
+    F: FnMut(&Target) -> Ret,
+    Ret: Future,
 {
     MakeServiceFn {
         f,
@@ -161,24 +160,24 @@ pub struct MakeServiceFn<F> {
     f: F,
 }
 
-impl<'c, F, Ctx, Ret, ReqBody, ResBody> MakeService<&'c Ctx> for MakeServiceFn<F>
+impl<'t, F, Target, Ret, ReqBody, ResBody, Svc, MkErr> MakeService<&'t Target> for MakeServiceFn<F>
 where
-    F: FnMut(&Ctx) -> Ret,
-    Ret: IntoFuture,
-    Ret::Item: Service<ReqBody=ReqBody, ResBody=ResBody>,
-    Ret::Error: Into<Box<dyn StdError + Send + Sync>>,
+    F: FnMut(&Target) -> Ret,
+    Ret: Future<Output=Result<Svc, MkErr>>,
+    Svc: Service<ReqBody=ReqBody, ResBody=ResBody>,
+    MkErr: Into<Box<dyn StdError + Send + Sync>>,
     ReqBody: Payload,
     ResBody: Payload,
 {
     type ReqBody = ReqBody;
     type ResBody = ResBody;
-    type Error = <Ret::Item as Service>::Error;
-    type Service = Ret::Item;
-    type Future = Ret::Future;
-    type MakeError = Ret::Error;
+    type Error = Svc::Error;
+    type Service = Svc;
+    type Future = Ret;
+    type MakeError = MkErr;
 
-    fn make_service(&mut self, ctx: &'c Ctx) -> Self::Future {
-        (self.f)(ctx).into_future()
+    fn make_service(&mut self, target: &'t Target) -> Self::Future {
+        (self.f)(target)
     }
 }
 

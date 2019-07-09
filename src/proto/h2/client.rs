@@ -1,26 +1,26 @@
 use bytes::IntoBuf;
-use futures::{Async, Future, Poll, Stream};
-use futures::future::{self, Either};
-use futures::sync::{mpsc, oneshot};
+//use futures::{Async, Future, Poll, Stream};
+//use futures::future::{self, Either};
+//use futures::sync::{mpsc, oneshot};
 use h2::client::{Builder, Handshake, SendRequest};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use crate::headers::content_length_parse_all;
 use crate::body::Payload;
-use crate::common::{Exec, Never};
+use crate::common::{Exec, Future, Never, Pin, Poll, task};
 use crate::headers;
 use crate::proto::Dispatched;
 use super::{PipeToSendStream, SendBuf};
 use crate::{Body, Request, Response};
 
 type ClientRx<B> = crate::client::dispatch::Receiver<Request<B>, Response<Body>>;
-/// An mpsc channel is used to help notify the `Connection` task when *all*
-/// other handles to it have been dropped, so that it can shutdown.
-type ConnDropRef = mpsc::Sender<Never>;
+///// An mpsc channel is used to help notify the `Connection` task when *all*
+///// other handles to it have been dropped, so that it can shutdown.
+//type ConnDropRef = mpsc::Sender<Never>;
 
-/// A oneshot channel watches the `Connection` task, and when it completes,
-/// the "dispatch" task will be notified and can shutdown sooner.
-type ConnEof = oneshot::Receiver<Never>;
+///// A oneshot channel watches the `Connection` task, and when it completes,
+///// the "dispatch" task will be notified and can shutdown sooner.
+//type ConnEof = oneshot::Receiver<Never>;
 
 pub(crate) struct Client<T, B>
 where
@@ -33,7 +33,7 @@ where
 
 enum State<T, B> where B: IntoBuf {
     Handshaking(Handshake<T, B>),
-    Ready(SendRequest<B>, ConnDropRef, ConnEof),
+    //Ready(SendRequest<B>, ConnDropRef, ConnEof),
 }
 
 impl<T, B> Client<T, B>
@@ -42,6 +42,8 @@ where
     B: Payload,
 {
     pub(crate) fn new(io: T, rx: ClientRx<B>, builder: &Builder, exec: Exec) -> Client<T, B> {
+        unimplemented!("proto::h2::Client::new");
+        /*
         let handshake = builder.handshake(io);
 
         Client {
@@ -49,6 +51,7 @@ where
             rx: rx,
             state: State::Handshaking(handshake),
         }
+        */
     }
 }
 
@@ -57,10 +60,11 @@ where
     T: AsyncRead + AsyncWrite + Send + 'static,
     B: Payload + 'static,
 {
-    type Item = Dispatched;
-    type Error = crate::Error;
+    type Output = crate::Result<Dispatched>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        unimplemented!("impl Future for proto::h2::Client");
+        /*
         loop {
             let next = match self.state {
                 State::Handshaking(ref mut h) => {
@@ -196,5 +200,6 @@ where
             };
             self.state = next;
         }
+        */
     }
 }
