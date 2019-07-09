@@ -3,13 +3,13 @@ use std::error::Error as StdError;
 use std::fmt;
 
 use bytes::Bytes;
-use futures::sync::{mpsc, oneshot};
-use futures::{Async, Future, Poll, Stream, Sink, AsyncSink, StartSend};
+use futures_core::Stream;
+use futures_channel::{mpsc, oneshot};
 use tokio_buf::SizeHint;
 use h2;
 use http::HeaderMap;
 
-use crate::common::Never;
+use crate::common::{Future, Never, Pin, Poll, task};
 use super::internal::{FullDataArg, FullDataRet};
 use super::{Chunk, Payload};
 use crate::upgrade::OnUpgrade;
@@ -40,7 +40,7 @@ enum Kind {
         content_length: Option<u64>,
         recv: h2::RecvStream,
     },
-    Wrapped(Box<dyn Stream<Item = Chunk, Error = Box<dyn StdError + Send + Sync>> + Send>),
+    Wrapped(Pin<Box<dyn Stream<Item = Result<Chunk, Box<dyn StdError + Send + Sync>>> + Send>>),
 }
 
 struct Extra {
@@ -119,6 +119,7 @@ impl Body {
         (tx, rx)
     }
 
+    /*
     /// Wrap a futures `Stream` in a box inside `Body`.
     ///
     /// # Example
@@ -147,6 +148,12 @@ impl Body {
     {
         let mapped = stream.map(Chunk::from).map_err(Into::into);
         Body::new(Kind::Wrapped(Box::new(mapped)))
+    }
+    */
+
+    /// dox
+    pub async fn next(&mut self) -> Option<crate::Result<Chunk>> {
+        futures_util::future::poll_fn(|cx| self.poll_eof(cx)).await
     }
 
     /// Converts this `Body` into a `Future` of a pending HTTP upgrade.
@@ -200,83 +207,91 @@ impl Body {
             }))
     }
 
-    fn poll_eof(&mut self) -> Poll<Option<Chunk>, crate::Error> {
+    fn poll_eof(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<crate::Result<Chunk>>> {
         match self.take_delayed_eof() {
             Some(DelayEof::NotEof(mut delay)) => {
-                match self.poll_inner() {
-                    ok @ Ok(Async::Ready(Some(..))) |
-                    ok @ Ok(Async::NotReady) => {
+                match self.poll_inner(cx) {
+                    ok @ Poll::Ready(Some(Ok(..))) |
+                    ok @ Poll::Pending => {
                         self.extra_mut().delayed_eof = Some(DelayEof::NotEof(delay));
                         ok
                     },
-                    Ok(Async::Ready(None)) => match delay.poll() {
-                        Ok(Async::Ready(never)) => match never {},
-                        Ok(Async::NotReady) => {
+                    Poll::Ready(None) => match Pin::new(&mut delay).poll(cx) {
+                        Poll::Ready(Ok(never)) => match never {},
+                        Poll::Pending => {
                             self.extra_mut().delayed_eof = Some(DelayEof::Eof(delay));
-                            Ok(Async::NotReady)
+                            Poll::Pending
                         },
-                        Err(_done) => {
-                            Ok(Async::Ready(None))
+                        Poll::Ready(Err(_done)) => {
+                            Poll::Ready(None)
                         },
                     },
-                    Err(e) => Err(e),
+                    Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e))),
                 }
             },
             Some(DelayEof::Eof(mut delay)) => {
-                match delay.poll() {
-                    Ok(Async::Ready(never)) => match never {},
-                    Ok(Async::NotReady) => {
+                match Pin::new(&mut delay).poll(cx) {
+                    Poll::Ready(Ok(never)) => match never {},
+                    Poll::Pending => {
                         self.extra_mut().delayed_eof = Some(DelayEof::Eof(delay));
-                        Ok(Async::NotReady)
+                        Poll::Pending
                     },
-                    Err(_done) => {
-                        Ok(Async::Ready(None))
+                    Poll::Ready(Err(_done)) => {
+                        Poll::Ready(None)
                     },
                 }
             },
-            None => self.poll_inner(),
+            None => self.poll_inner(cx),
         }
     }
 
-    fn poll_inner(&mut self) -> Poll<Option<Chunk>, crate::Error> {
+    fn poll_inner(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<crate::Result<Chunk>>> {
         match self.kind {
-            Kind::Once(ref mut val) => Ok(Async::Ready(val.take())),
+            Kind::Once(ref mut val) => Poll::Ready(val.take().map(Ok)),
             Kind::Chan {
                 content_length: ref mut len,
                 ref mut rx,
                 ref mut abort_rx,
             } => {
-                if let Ok(Async::Ready(())) = abort_rx.poll() {
-                    return Err(crate::Error::new_body_write("body write aborted"));
+                if let Poll::Ready(Ok(())) = Pin::new(abort_rx).poll(cx) {
+                    return Poll::Ready(Some(Err(crate::Error::new_body_write("body write aborted"))));
                 }
 
-                match rx.poll().expect("mpsc cannot error") {
-                    Async::Ready(Some(Ok(chunk))) => {
+                match ready!(Pin::new(rx).poll_next(cx)?) {
+                    Some(chunk) => {
                         if let Some(ref mut len) = *len {
                             debug_assert!(*len >= chunk.len() as u64);
                             *len = *len - chunk.len() as u64;
                         }
-                        Ok(Async::Ready(Some(chunk)))
+                        Poll::Ready(Some(Ok(chunk)))
                     }
-                    Async::Ready(Some(Err(err))) => Err(err),
-                    Async::Ready(None) => Ok(Async::Ready(None)),
-                    Async::NotReady => Ok(Async::NotReady),
+                    None => Poll::Ready(None),
                 }
             }
             Kind::H2 {
-                recv: ref mut h2, ..
-            } => h2
-                .poll()
-                .map(|r#async| {
-                    r#async.map(|opt| {
-                        opt.map(|bytes| {
-                            let _ = h2.release_capacity().release_capacity(bytes.len());
-                            Chunk::from(bytes)
+                /*recv: ref mut h2,*/ ..
+            } => {
+                unimplemented!("h2.poll_inner");
+                /*
+                h2
+                    .poll()
+                    .map(|r#async| {
+                        r#async.map(|opt| {
+                            opt.map(|bytes| {
+                                let _ = h2.release_capacity().release_capacity(bytes.len());
+                                Chunk::from(bytes)
+                            })
                         })
                     })
-                })
-                .map_err(crate::Error::new_body),
-            Kind::Wrapped(ref mut s) => s.poll().map_err(crate::Error::new_body),
+                    .map_err(crate::Error::new_body)
+                    */
+            }
+            Kind::Wrapped(ref mut s) => {
+                match ready!(s.as_mut().poll_next(cx)) {
+                    Some(res) => Poll::Ready(Some(res.map_err(crate::Error::new_body))),
+                    None => Poll::Ready(None),
+                }
+            }
         }
     }
 }
@@ -293,16 +308,17 @@ impl Payload for Body {
     type Data = Chunk;
     type Error = crate::Error;
 
-    fn poll_data(&mut self) -> Poll<Option<Self::Data>, Self::Error> {
-        self.poll_eof()
+    fn poll_data(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Result<Self::Data, Self::Error>>> {
+        self.poll_eof(cx)
     }
 
-    fn poll_trailers(&mut self) -> Poll<Option<HeaderMap>, Self::Error> {
+    fn poll_trailers(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Result<HeaderMap, Self::Error>>> {
         match self.kind {
-            Kind::H2 {
-                recv: ref mut h2, ..
-            } => h2.poll_trailers().map_err(crate::Error::new_h2),
-            _ => Ok(Async::Ready(None)),
+            Kind::H2 { /*recv: ref mut h2,*/ .. } => {
+                unimplemented!("h2.poll_trailers");
+                //h2.poll_trailers().map_err(crate::Error::new_h2)
+            },
+            _ => Poll::Ready(None),
         }
     }
 
@@ -334,6 +350,27 @@ impl Payload for Body {
     }
 }
 
+impl fmt::Debug for Body {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        #[derive(Debug)]
+        struct Streaming;
+        #[derive(Debug)]
+        struct Empty;
+        #[derive(Debug)]
+        struct Once<'a>(&'a Chunk);
+
+        let mut builder = f.debug_tuple("Body");
+        match self.kind {
+            Kind::Once(None) => builder.field(&Empty),
+            Kind::Once(Some(ref chunk)) => builder.field(&Once(chunk)),
+            _ => builder.field(&Streaming),
+        };
+
+        builder.finish()
+    }
+}
+
+/*
 impl ::http_body::Body for Body {
     type Data = Chunk;
     type Error = crate::Error;
@@ -363,86 +400,28 @@ impl ::http_body::Body for Body {
         hint
     }
 }
+*/
 
 impl Stream for Body {
-    type Item = Chunk;
-    type Error = crate::Error;
+    type Item = crate::Result<Chunk>;
 
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        self.poll_data()
+    fn poll_next(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
+        self.poll_data(cx)
     }
 }
 
-impl fmt::Debug for Body {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        #[derive(Debug)]
-        struct Streaming;
-        #[derive(Debug)]
-        struct Empty;
-        #[derive(Debug)]
-        struct Once<'a>(&'a Chunk);
 
-        let mut builder = f.debug_tuple("Body");
-        match self.kind {
-            Kind::Once(None) => builder.field(&Empty),
-            Kind::Once(Some(ref chunk)) => builder.field(&Once(chunk)),
-            _ => builder.field(&Streaming),
-        };
-
-        builder.finish()
-    }
-}
-
-impl Sender {
-    /// Check to see if this `Sender` can send more data.
-    pub fn poll_ready(&mut self) -> Poll<(), crate::Error> {
-        match self.abort_tx.poll_cancel() {
-            Ok(Async::Ready(())) | Err(_) => return Err(crate::Error::new_closed()),
-            Ok(Async::NotReady) => (),
-        }
-
-        self.tx.poll_ready().map_err(|_| crate::Error::new_closed())
-    }
-
-    /// Sends data on this channel.
-    ///
-    /// This should be called after `poll_ready` indicated the channel
-    /// could accept another `Chunk`.
-    ///
-    /// Returns `Err(Chunk)` if the channel could not (currently) accept
-    /// another `Chunk`.
-    pub fn send_data(&mut self, chunk: Chunk) -> Result<(), Chunk> {
-        self.tx
-            .try_send(Ok(chunk))
-            .map_err(|err| err.into_inner().expect("just sent Ok"))
-    }
-
-    /// Aborts the body in an abnormal fashion.
-    pub fn abort(self) {
-        let _ = self.abort_tx.send(());
-    }
-
-    pub(crate) fn send_error(&mut self, err: crate::Error) {
-        let _ = self.tx.try_send(Err(err));
-    }
-}
-
-impl Sink for Sender {
-    type SinkItem = Chunk;
-    type SinkError = crate::Error;
-
-    fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
-        Ok(Async::Ready(()))
-    }
-
-    fn start_send(&mut self, msg: Chunk) -> StartSend<Self::SinkItem, Self::SinkError> {
-        match self.poll_ready()? {
-            Async::Ready(_) => {
-                self.send_data(msg).map_err(|_| crate::Error::new_closed())?;
-                Ok(AsyncSink::Ready)
-            }
-            Async::NotReady => Ok(AsyncSink::NotReady(msg)),
-        }
+impl
+    From<Box<dyn Stream<Item = Result<Chunk, Box<dyn StdError + Send + Sync>>> + Send>>
+    for Body
+{
+    #[inline]
+    fn from(
+        stream: Box<
+            dyn Stream<Item = Result<Chunk, Box<dyn StdError + Send + Sync>>> + Send,
+        >,
+    ) -> Body {
+        Body::new(Kind::Wrapped(stream.into()))
     }
 }
 
@@ -454,20 +433,6 @@ impl From<Chunk> for Body {
         } else {
             Body::new(Kind::Once(Some(chunk)))
         }
-    }
-}
-
-impl
-    From<Box<dyn Stream<Item = Chunk, Error = Box<dyn StdError + Send + Sync>> + Send + 'static>>
-    for Body
-{
-    #[inline]
-    fn from(
-        stream: Box<
-            dyn Stream<Item = Chunk, Error = Box<dyn StdError + Send + Sync>> + Send + 'static,
-        >,
-    ) -> Body {
-        Body::new(Kind::Wrapped(stream))
     }
 }
 
@@ -525,6 +490,61 @@ impl From<Cow<'static, str>> for Body {
         }
     }
 }
+
+impl Sender {
+    /// Check to see if this `Sender` can send more data.
+    pub fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+        match self.abort_tx.poll_cancel(cx) {
+            Poll::Ready(()) => return Poll::Ready(Err(crate::Error::new_closed())),
+            Poll::Pending => (), // fallthrough
+        }
+
+        self.tx.poll_ready(cx).map_err(|_| crate::Error::new_closed())
+    }
+
+    /// Sends data on this channel.
+    ///
+    /// This should be called after `poll_ready` indicated the channel
+    /// could accept another `Chunk`.
+    ///
+    /// Returns `Err(Chunk)` if the channel could not (currently) accept
+    /// another `Chunk`.
+    pub fn send_data(&mut self, chunk: Chunk) -> Result<(), Chunk> {
+        self.tx
+            .try_send(Ok(chunk))
+            .map_err(|err| err.into_inner().expect("just sent Ok"))
+    }
+
+    /// Aborts the body in an abnormal fashion.
+    pub fn abort(self) {
+        let _ = self.abort_tx.send(());
+    }
+
+    pub(crate) fn send_error(&mut self, err: crate::Error) {
+        let _ = self.tx.try_send(Err(err));
+    }
+}
+
+/*
+impl Sink for Sender {
+    type SinkItem = Chunk;
+    type SinkError = crate::Error;
+
+    fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn start_send(&mut self, msg: Chunk) -> StartSend<Self::SinkItem, Self::SinkError> {
+        match self.poll_ready()? {
+            Async::Ready(_) => {
+                self.send_data(msg).map_err(|_| crate::Error::new_closed())?;
+                Ok(AsyncSink::Ready)
+            }
+            Async::NotReady => Ok(AsyncSink::NotReady(msg)),
+        }
+    }
+}
+*/
 
 #[test]
 fn test_body_stream_concat() {

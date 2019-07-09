@@ -60,12 +60,14 @@ use std::fmt;
 
 #[cfg(feature = "runtime")] use std::time::Duration;
 
-use futures::{Future, Stream, Poll};
+use futures_core::Stream;
+use pin_utils::unsafe_pinned;
 use tokio_io::{AsyncRead, AsyncWrite};
 #[cfg(feature = "runtime")] use tokio_reactor;
 
 use crate::body::{Body, Payload};
 use crate::common::exec::{Exec, H2Exec, NewSvcExec};
+use crate::common::{Future, Pin, Poll, Unpin, task};
 use crate::service::{MakeServiceRef, Service};
 // Renamed `Http` as `Http_` for now so that people upgrading don't see an
 // error that `hyper::server::Http` is private...
@@ -100,6 +102,11 @@ impl<I> Server<I, ()> {
             protocol: Http_::new(),
         }
     }
+}
+
+impl<I, S, E> Server<I, S, E> {
+    // Never moved, just projected
+    unsafe_pinned!(spawn_all: SpawnAll<I, S, E>);
 }
 
 #[cfg(feature = "runtime")]
@@ -140,17 +147,17 @@ impl<S> Server<AddrIncoming, S> {
     }
 }
 
-impl<I, S, E, B> Server<I, S, E>
+impl<I, IO, IE, S, E, B> Server<I, S, E>
 where
-    I: Stream,
-    I::Error: Into<Box<dyn StdError + Send + Sync>>,
-    I::Item: AsyncRead + AsyncWrite + Send + 'static,
-    S: MakeServiceRef<I::Item, ReqBody=Body, ResBody=B>,
+    I: Stream<Item=Result<IO, IE>>,
+    IE: Into<Box<dyn StdError + Send + Sync>>,
+    IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    S: MakeServiceRef<IO, ReqBody=Body, ResBody=B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     S::Service: 'static,
     B: Payload,
     E: H2Exec<<S::Service as Service>::Future, B>,
-    E: NewSvcExec<I::Item, S::Future, S::Service, E, GracefulWatcher>,
+    E: NewSvcExec<IO, S::Future, S::Service, E, GracefulWatcher>,
 {
     /// Prepares a server to handle graceful shutdown when the provided future
     /// completes.
@@ -193,29 +200,28 @@ where
     /// ```
     pub fn with_graceful_shutdown<F>(self, signal: F) -> Graceful<I, S, F, E>
     where
-        F: Future<Item=()>
+        F: Future<Output=()>
     {
         Graceful::new(self.spawn_all, signal)
     }
 }
 
-impl<I, S, B, E> Future for Server<I, S, E>
+impl<I, IO, IE, S, B, E> Future for Server<I, S, E>
 where
-    I: Stream,
-    I::Error: Into<Box<dyn StdError + Send + Sync>>,
-    I::Item: AsyncRead + AsyncWrite + Send + 'static,
-    S: MakeServiceRef<I::Item, ReqBody=Body, ResBody=B>,
+    I: Stream<Item=Result<IO, IE>>,
+    IE: Into<Box<dyn StdError + Send + Sync>>,
+    IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    S: MakeServiceRef<IO, ReqBody=Body, ResBody=B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     S::Service: 'static,
     B: Payload,
     E: H2Exec<<S::Service as Service>::Future, B>,
-    E: NewSvcExec<I::Item, S::Future, S::Service, E, NoopWatcher>,
+    E: NewSvcExec<IO, S::Future, S::Service, E, NoopWatcher>,
 {
-    type Item = ();
-    type Error = crate::Error;
+    type Output = crate::Result<()>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        self.spawn_all.poll_watch(&NoopWatcher)
+    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        self.spawn_all().poll_watch(cx, &NoopWatcher)
     }
 }
 
@@ -396,16 +402,16 @@ impl<I, E> Builder<I, E> {
     /// // Finally, spawn `server` onto an Executor...
     /// # }
     /// ```
-    pub fn serve<S, B>(self, new_service: S) -> Server<I, S, E>
+    pub fn serve<S, B, IO, IE>(self, new_service: S) -> Server<I, S, E>
     where
-        I: Stream,
-        I::Error: Into<Box<dyn StdError + Send + Sync>>,
-        I::Item: AsyncRead + AsyncWrite + Send + 'static,
-        S: MakeServiceRef<I::Item, ReqBody=Body, ResBody=B>,
+        I: Stream<Item=Result<IO, IE>>,
+        IE: Into<Box<dyn StdError + Send + Sync>>,
+        IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+        S: MakeServiceRef<IO, ReqBody=Body, ResBody=B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         S::Service: 'static,
         B: Payload,
-        E: NewSvcExec<I::Item, S::Future, S::Service, E, NoopWatcher>,
+        E: NewSvcExec<IO, S::Future, S::Service, E, NoopWatcher>,
         E: H2Exec<<S::Service as Service>::Future, B>,
     {
         let serve = self.protocol.serve_incoming(self.incoming, new_service);

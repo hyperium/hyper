@@ -1,5 +1,5 @@
 use bytes::Buf;
-use futures::{Async, Future, Poll};
+//use futures::{Async, Future, Poll};
 use h2::{SendStream};
 use http::header::{
     HeaderName, CONNECTION, PROXY_AUTHENTICATE, PROXY_AUTHORIZATION, TE, TRAILER,
@@ -106,6 +106,7 @@ where
     }
 }
 
+/*
 impl<S> Future for PipeToSendStream<S>
 where
     S: Payload,
@@ -114,6 +115,8 @@ where
     type Error = crate::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        unimplemented!("impl Future for PipeToSendStream");
+        /*
         loop {
             if !self.data_done {
                 // we don't have the next chunk of data yet, so just reserve 1 byte to make
@@ -189,8 +192,10 @@ where
                 }
             }
         }
+        */
     }
 }
+*/
 
 struct SendBuf<B>(Option<B>);
 

@@ -6,8 +6,9 @@
 //! The inclusion of a default runtime can be disabled by turning off hyper's
 //! `runtime` Cargo feature.
 
-pub use futures::{Future, Stream};
-pub use futures::future::{lazy, poll_fn};
+pub use std::future::Future;
+pub use futures_core::Stream;
+
 use tokio;
 
 use self::inner::Spawn;
@@ -25,7 +26,7 @@ use self::inner::Spawn;
 /// ignored for now.
 pub fn spawn<F>(f: F) -> Spawn
 where
-    F: Future<Item=(), Error=()> + Send + 'static,
+    F: Future<Output = ()> + Send + 'static,
 {
     tokio::spawn(f);
     Spawn {
@@ -40,7 +41,7 @@ where
 /// See the [server documentation](::server) for an example of its usage.
 pub fn run<F>(f: F)
 where
-    F: Future<Item=(), Error=()> + Send + 'static
+    F: Future<Output = ()> + Send + 'static
 {
     tokio::run(f);
 }

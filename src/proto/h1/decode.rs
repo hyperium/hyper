@@ -3,8 +3,9 @@ use std::fmt;
 use std::usize;
 use std::io;
 
-use futures::{Async, Poll};
 use bytes::Bytes;
+
+use crate::common::{Poll, task};
 
 use super::io::MemRead;
 use super::{DecodedLength};
@@ -93,50 +94,51 @@ impl Decoder {
         }
     }
 
-    pub fn decode<R: MemRead>(&mut self, body: &mut R) -> Poll<Bytes, io::Error> {
+    pub fn decode<R: MemRead>(&mut self, cx: &mut task::Context<'_>, body: &mut R) -> Poll<Result<Bytes, io::Error>> {
         trace!("decode; state={:?}", self.kind);
         match self.kind {
             Length(ref mut remaining) => {
                 if *remaining == 0 {
-                    Ok(Async::Ready(Bytes::new()))
+                    Poll::Ready(Ok(Bytes::new()))
                 } else {
                     let to_read = *remaining as usize;
-                    let buf = try_ready!(body.read_mem(to_read));
+                    let buf = ready!(body.read_mem(cx, to_read))?;
                     let num = buf.as_ref().len() as u64;
                     if num > *remaining {
                         *remaining = 0;
                     } else if num == 0 {
-                        return Err(io::Error::new(io::ErrorKind::UnexpectedEof, IncompleteBody));
+                        return Poll::Ready(Err(io::Error::new(io::ErrorKind::UnexpectedEof, IncompleteBody)));
                     } else {
                         *remaining -= num;
                     }
-                    Ok(Async::Ready(buf))
+                    Poll::Ready(Ok(buf))
                 }
             }
             Chunked(ref mut state, ref mut size) => {
                 loop {
                     let mut buf = None;
                     // advances the chunked state
-                    *state = try_ready!(state.step(body, size, &mut buf));
+                    *state = ready!(state.step(cx, body, size, &mut buf))?;
                     if *state == ChunkedState::End {
                         trace!("end of chunked");
-                        return Ok(Async::Ready(Bytes::new()));
+                        return Poll::Ready(Ok(Bytes::new()));
                     }
                     if let Some(buf) = buf {
-                        return Ok(Async::Ready(buf));
+                        return Poll::Ready(Ok(buf));
                     }
                 }
             }
             Eof(ref mut is_eof) => {
                 if *is_eof {
-                    Ok(Async::Ready(Bytes::new()))
+                    Poll::Ready(Ok(Bytes::new()))
                 } else {
                     // 8192 chosen because its about 2 packets, there probably
                     // won't be that much available, so don't have MemReaders
                     // allocate buffers to big
-                    let slice = try_ready!(body.read_mem(8192));
-                    *is_eof = slice.is_empty();
-                    Ok(Async::Ready(slice))
+                    body.read_mem(cx, 8192).map_ok(|slice| {
+                        *is_eof = slice.is_empty();
+                        slice
+                    })
                 }
             }
         }
@@ -151,41 +153,42 @@ impl fmt::Debug for Decoder {
 }
 
 macro_rules! byte (
-    ($rdr:ident) => ({
-        let buf = try_ready!($rdr.read_mem(1));
+    ($rdr:ident, $cx:expr) => ({
+        let buf = ready!($rdr.read_mem($cx, 1))?;
         if !buf.is_empty() {
             buf[0]
         } else {
-            return Err(io::Error::new(io::ErrorKind::UnexpectedEof,
-                                      "Unexpected eof during chunk size line"));
+            return Poll::Ready(Err(io::Error::new(io::ErrorKind::UnexpectedEof,
+                                      "unexpected EOF during chunk size line")));
         }
     })
 );
 
 impl ChunkedState {
     fn step<R: MemRead>(&self,
+                        cx: &mut task::Context<'_>,
                         body: &mut R,
                         size: &mut u64,
                         buf: &mut Option<Bytes>)
-                        -> Poll<ChunkedState, io::Error> {
+                        -> Poll<Result<ChunkedState, io::Error>> {
         use self::ChunkedState::*;
         match *self {
-            Size => ChunkedState::read_size(body, size),
-            SizeLws => ChunkedState::read_size_lws(body),
-            Extension => ChunkedState::read_extension(body),
-            SizeLf => ChunkedState::read_size_lf(body, *size),
-            Body => ChunkedState::read_body(body, size, buf),
-            BodyCr => ChunkedState::read_body_cr(body),
-            BodyLf => ChunkedState::read_body_lf(body),
-            EndCr => ChunkedState::read_end_cr(body),
-            EndLf => ChunkedState::read_end_lf(body),
-            End => Ok(Async::Ready(ChunkedState::End)),
+            Size => ChunkedState::read_size(cx, body, size),
+            SizeLws => ChunkedState::read_size_lws(cx, body),
+            Extension => ChunkedState::read_extension(cx, body),
+            SizeLf => ChunkedState::read_size_lf(cx, body, *size),
+            Body => ChunkedState::read_body(cx, body, size, buf),
+            BodyCr => ChunkedState::read_body_cr(cx, body),
+            BodyLf => ChunkedState::read_body_lf(cx, body),
+            EndCr => ChunkedState::read_end_cr(cx, body),
+            EndLf => ChunkedState::read_end_lf(cx, body),
+            End => Poll::Ready(Ok(ChunkedState::End)),
         }
     }
-    fn read_size<R: MemRead>(rdr: &mut R, size: &mut u64) -> Poll<ChunkedState, io::Error> {
+    fn read_size<R: MemRead>(cx: &mut task::Context<'_>, rdr: &mut R, size: &mut u64) -> Poll<Result<ChunkedState, io::Error>> {
         trace!("Read chunk hex size");
         let radix = 16;
-        match byte!(rdr) {
+        match byte!(rdr, cx) {
             b @ b'0'..=b'9' => {
                 *size *= radix;
                 *size += (b - b'0') as u64;
@@ -198,55 +201,55 @@ impl ChunkedState {
                 *size *= radix;
                 *size += (b + 10 - b'A') as u64;
             }
-            b'\t' | b' ' => return Ok(Async::Ready(ChunkedState::SizeLws)),
-            b';' => return Ok(Async::Ready(ChunkedState::Extension)),
-            b'\r' => return Ok(Async::Ready(ChunkedState::SizeLf)),
+            b'\t' | b' ' => return Poll::Ready(Ok(ChunkedState::SizeLws)),
+            b';' => return Poll::Ready(Ok(ChunkedState::Extension)),
+            b'\r' => return Poll::Ready(Ok(ChunkedState::SizeLf)),
             _ => {
-                return Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                          "Invalid chunk size line: Invalid Size"));
+                return Poll::Ready(Err(io::Error::new(io::ErrorKind::InvalidInput,
+                                          "Invalid chunk size line: Invalid Size")));
             }
         }
-        Ok(Async::Ready(ChunkedState::Size))
+        Poll::Ready(Ok(ChunkedState::Size))
     }
-    fn read_size_lws<R: MemRead>(rdr: &mut R) -> Poll<ChunkedState, io::Error> {
+    fn read_size_lws<R: MemRead>(cx: &mut task::Context<'_>, rdr: &mut R) -> Poll<Result<ChunkedState, io::Error>> {
         trace!("read_size_lws");
-        match byte!(rdr) {
+        match byte!(rdr, cx) {
             // LWS can follow the chunk size, but no more digits can come
-            b'\t' | b' ' => Ok(Async::Ready(ChunkedState::SizeLws)),
-            b';' => Ok(Async::Ready(ChunkedState::Extension)),
-            b'\r' => Ok(Async::Ready(ChunkedState::SizeLf)),
+            b'\t' | b' ' => Poll::Ready(Ok(ChunkedState::SizeLws)),
+            b';' => Poll::Ready(Ok(ChunkedState::Extension)),
+            b'\r' => Poll::Ready(Ok(ChunkedState::SizeLf)),
             _ => {
-                Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                   "Invalid chunk size linear white space"))
+                Poll::Ready(Err(io::Error::new(io::ErrorKind::InvalidInput,
+                                   "Invalid chunk size linear white space")))
             }
         }
     }
-    fn read_extension<R: MemRead>(rdr: &mut R) -> Poll<ChunkedState, io::Error> {
+    fn read_extension<R: MemRead>(cx: &mut task::Context<'_>, rdr: &mut R) -> Poll<Result<ChunkedState, io::Error>> {
         trace!("read_extension");
-        match byte!(rdr) {
-            b'\r' => Ok(Async::Ready(ChunkedState::SizeLf)),
-            _ => Ok(Async::Ready(ChunkedState::Extension)), // no supported extensions
+        match byte!(rdr, cx) {
+            b'\r' => Poll::Ready(Ok(ChunkedState::SizeLf)),
+            _ => Poll::Ready(Ok(ChunkedState::Extension)), // no supported extensions
         }
     }
-    fn read_size_lf<R: MemRead>(rdr: &mut R, size: u64) -> Poll<ChunkedState, io::Error> {
+    fn read_size_lf<R: MemRead>(cx: &mut task::Context<'_>, rdr: &mut R, size: u64) -> Poll<Result<ChunkedState, io::Error>> {
         trace!("Chunk size is {:?}", size);
-        match byte!(rdr) {
+        match byte!(rdr, cx) {
             b'\n' => {
                 if size == 0 {
-                    Ok(Async::Ready(ChunkedState::EndCr))
+                    Poll::Ready(Ok(ChunkedState::EndCr))
                 } else {
                     debug!("incoming chunked header: {0:#X} ({0} bytes)", size);
-                    Ok(Async::Ready(ChunkedState::Body))
+                    Poll::Ready(Ok(ChunkedState::Body))
                 }
             },
-            _ => Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk size LF")),
+            _ => Poll::Ready(Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk size LF"))),
         }
     }
 
-    fn read_body<R: MemRead>(rdr: &mut R,
+    fn read_body<R: MemRead>(cx: &mut task::Context<'_>, rdr: &mut R,
                           rem: &mut u64,
                           buf: &mut Option<Bytes>)
-                          -> Poll<ChunkedState, io::Error> {
+                          -> Poll<Result<ChunkedState, io::Error>> {
         trace!("Chunked read, remaining={:?}", rem);
 
         // cap remaining bytes at the max capacity of usize
@@ -256,45 +259,45 @@ impl ChunkedState {
         };
 
         let to_read = rem_cap;
-        let slice = try_ready!(rdr.read_mem(to_read));
+        let slice = ready!(rdr.read_mem(cx, to_read))?;
         let count = slice.len();
 
         if count == 0 {
             *rem = 0;
-            return Err(io::Error::new(io::ErrorKind::UnexpectedEof, IncompleteBody));
+            return Poll::Ready(Err(io::Error::new(io::ErrorKind::UnexpectedEof, IncompleteBody)));
         }
         *buf = Some(slice);
         *rem -= count as u64;
 
         if *rem > 0 {
-            Ok(Async::Ready(ChunkedState::Body))
+            Poll::Ready(Ok(ChunkedState::Body))
         } else {
-            Ok(Async::Ready(ChunkedState::BodyCr))
+            Poll::Ready(Ok(ChunkedState::BodyCr))
         }
     }
-    fn read_body_cr<R: MemRead>(rdr: &mut R) -> Poll<ChunkedState, io::Error> {
-        match byte!(rdr) {
-            b'\r' => Ok(Async::Ready(ChunkedState::BodyLf)),
-            _ => Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk body CR")),
+    fn read_body_cr<R: MemRead>(cx: &mut task::Context<'_>, rdr: &mut R) -> Poll<Result<ChunkedState, io::Error>> {
+        match byte!(rdr, cx) {
+            b'\r' => Poll::Ready(Ok(ChunkedState::BodyLf)),
+            _ => Poll::Ready(Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk body CR"))),
         }
     }
-    fn read_body_lf<R: MemRead>(rdr: &mut R) -> Poll<ChunkedState, io::Error> {
-        match byte!(rdr) {
-            b'\n' => Ok(Async::Ready(ChunkedState::Size)),
-            _ => Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk body LF")),
+    fn read_body_lf<R: MemRead>(cx: &mut task::Context<'_>, rdr: &mut R) -> Poll<Result<ChunkedState, io::Error>> {
+        match byte!(rdr, cx) {
+            b'\n' => Poll::Ready(Ok(ChunkedState::Size)),
+            _ => Poll::Ready(Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk body LF"))),
         }
     }
 
-    fn read_end_cr<R: MemRead>(rdr: &mut R) -> Poll<ChunkedState, io::Error> {
-        match byte!(rdr) {
-            b'\r' => Ok(Async::Ready(ChunkedState::EndLf)),
-            _ => Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk end CR")),
+    fn read_end_cr<R: MemRead>(cx: &mut task::Context<'_>, rdr: &mut R) -> Poll<Result<ChunkedState, io::Error>> {
+        match byte!(rdr, cx) {
+            b'\r' => Poll::Ready(Ok(ChunkedState::EndLf)),
+            _ => Poll::Ready(Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk end CR"))),
         }
     }
-    fn read_end_lf<R: MemRead>(rdr: &mut R) -> Poll<ChunkedState, io::Error> {
-        match byte!(rdr) {
-            b'\n' => Ok(Async::Ready(ChunkedState::End)),
-            _ => Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk end LF")),
+    fn read_end_lf<R: MemRead>(cx: &mut task::Context<'_>, rdr: &mut R) -> Poll<Result<ChunkedState, io::Error>> {
+        match byte!(rdr, cx) {
+            b'\n' => Poll::Ready(Ok(ChunkedState::End)),
+            _ => Poll::Ready(Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid chunk end LF"))),
         }
     }
 }
@@ -326,15 +329,15 @@ mod tests {
     use crate::mock::AsyncIo;
 
     impl<'a> MemRead for &'a [u8] {
-        fn read_mem(&mut self, len: usize) -> Poll<Bytes, io::Error> {
+        fn read_mem(&mut self, len: usize) -> Poll<Result<Bytes, io::Error>> {
             let n = ::std::cmp::min(len, self.len());
             if n > 0 {
                 let (a, b) = self.split_at(n);
                 let mut buf = BytesMut::from(a);
                 *self = b;
-                Ok(Async::Ready(buf.split_to(n).freeze()))
+                Poll::Ready(Ok(buf.split_to(n).freeze()))
             } else {
-                Ok(Async::Ready(Bytes::new()))
+                Poll::Ready(Ok(Bytes::new()))
             }
         }
     }

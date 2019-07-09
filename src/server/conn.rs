@@ -16,15 +16,16 @@ use std::sync::Arc;
 #[cfg(feature = "runtime")] use std::time::Duration;
 
 use bytes::Bytes;
-use futures::{Async, Future, Poll, Stream};
-use futures::future::{Either, Executor};
+use futures_core::Stream;
 use h2;
+use pin_utils::{unsafe_pinned, unsafe_unpinned};
 use tokio_io::{AsyncRead, AsyncWrite};
 #[cfg(feature = "runtime")] use tokio_reactor::Handle;
 
 use crate::body::{Body, Payload};
 use crate::common::exec::{Exec, H2Exec, NewSvcExec};
 use crate::common::io::Rewind;
+use crate::common::{Future, Pin, Poll, Unpin, task};
 use crate::error::{Kind, Parse};
 use crate::proto;
 use crate::service::{MakeServiceRef, Service};
@@ -103,8 +104,7 @@ pub struct Connection<T, S, E = Exec>
 where
     S: Service,
 {
-    pub(super) conn: Option<
-        Either<
+    pub(super) conn: Option<Either<
         proto::h1::Dispatcher<
             proto::h1::dispatch::Server<S>,
             S::ResBody,
@@ -121,6 +121,11 @@ where
     fallback: Fallback<E>,
 }
 
+pub(super) enum Either<A, B> {
+    A(A),
+    B(B),
+}
+
 #[derive(Clone, Debug)]
 enum Fallback<E> {
     ToHttp2(h2::server::Builder, E),
@@ -135,6 +140,8 @@ impl<E> Fallback<E> {
         }
     }
 }
+
+impl<E> Unpin for Fallback<E> {}
 
 /// Deconstructed parts of a `Connection`.
 ///
@@ -174,16 +181,6 @@ impl Http {
             max_buf_size: None,
             pipeline_flush: false,
         }
-    }
-
-    #[doc(hidden)]
-    #[deprecated(note = "use Http::with_executor instead")]
-    pub fn executor<E>(&mut self, exec: E) -> &mut Self
-    where
-        E: Executor<Box<dyn Future<Item=(), Error=()> + Send>> + Send + Sync + 'static
-    {
-        self.exec = Exec::Executor(Arc::new(exec));
-        self
     }
 }
 
@@ -367,7 +364,7 @@ impl<E> Http<E> {
         S: Service<ReqBody=Body, ResBody=Bd>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         Bd: Payload,
-        I: AsyncRead + AsyncWrite,
+        I: AsyncRead + AsyncWrite + Unpin,
         E: H2Exec<S::Future, Bd>,
     {
         let either = match self.mode {
@@ -457,13 +454,13 @@ impl<E> Http<E> {
     }
 
     /// Bind the provided stream of incoming IO objects with a `MakeService`.
-    pub fn serve_incoming<I, S, Bd>(&self, incoming: I, make_service: S) -> Serve<I, S, E>
+    pub fn serve_incoming<I, IO, IE, S, Bd>(&self, incoming: I, make_service: S) -> Serve<I, S, E>
     where
-        I: Stream,
-        I::Error: Into<Box<dyn StdError + Send + Sync>>,
-        I::Item: AsyncRead + AsyncWrite,
+        I: Stream<Item = Result<IO, IE>>,
+        IE: Into<Box<dyn StdError + Send + Sync>>,
+        IO: AsyncRead + AsyncWrite + Unpin,
         S: MakeServiceRef<
-            I::Item,
+            IO,
             ReqBody=Body,
             ResBody=Bd,
         >,
@@ -486,7 +483,7 @@ impl<I, B, S, E> Connection<I, S, E>
 where
     S: Service<ReqBody=Body, ResBody=B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
-    I: AsyncRead + AsyncWrite,
+    I: AsyncRead + AsyncWrite + Unpin,
     B: Payload + 'static,
     E: H2Exec<S::Future, B>,
 {
@@ -494,8 +491,10 @@ where
     ///
     /// This `Connection` should continue to be polled until shutdown
     /// can finish.
-    pub fn graceful_shutdown(&mut self) {
-        match *self.conn.as_mut().unwrap() {
+    pub fn graceful_shutdown(self: Pin<&mut Self>) {
+        // Safety: neither h1 nor h2 poll any of the generic futures
+        // in these methods.
+        match unsafe { self.get_unchecked_mut() }.conn.as_mut().unwrap() {
             Either::A(ref mut h1) => {
                 h1.disable_keep_alive();
             },
@@ -547,21 +546,26 @@ where
     /// Use [`poll_fn`](https://docs.rs/futures/0.1.25/futures/future/fn.poll_fn.html)
     /// and [`try_ready!`](https://docs.rs/futures/0.1.25/futures/macro.try_ready.html)
     /// to work with this function; or use the `without_shutdown` wrapper.
-    pub fn poll_without_shutdown(&mut self) -> Poll<(), crate::Error> {
+    pub fn poll_without_shutdown(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>>
+    where
+        S: Unpin,
+        S::Future: Unpin,
+        B: Unpin,
+    {
         loop {
             let polled = match *self.conn.as_mut().unwrap() {
-                Either::A(ref mut h1) => h1.poll_without_shutdown(),
-                Either::B(ref mut h2) => return h2.poll().map(|x| x.map(|_| ())),
+                Either::A(ref mut h1) => h1.poll_without_shutdown(cx),
+                Either::B(ref mut h2) => unimplemented!("Connection::poll_without_shutdown h2"),//return h2.poll().map(|x| x.map(|_| ())),
             };
-            match polled {
-                Ok(x) => return Ok(x),
+            match ready!(polled) {
+                Ok(x) => return Poll::Ready(Ok(x)),
                 Err(e) => {
                     match *e.kind() {
                         Kind::Parse(Parse::VersionH2) if self.fallback.to_h2() => {
                             self.upgrade_h2();
                             continue;
                         }
-                        _ => return Err(e),
+                        _ => return Poll::Ready(Err(e)),
                     }
                 }
             }
@@ -570,11 +574,16 @@ where
 
     /// Prevent shutdown of the underlying IO object at the end of service the request,
     /// instead run `into_parts`. This is a convenience wrapper over `poll_without_shutdown`.
-    pub fn without_shutdown(self) -> impl Future<Item=Parts<I,S>, Error=crate::Error> {
+    pub fn without_shutdown(self) -> impl Future<Output=crate::Result<Parts<I, S>>>
+    where
+        S: Unpin,
+        S::Future: Unpin,
+        B: Unpin,
+    {
         let mut conn = Some(self);
-        ::futures::future::poll_fn(move || -> crate::Result<_> {
-            try_ready!(conn.as_mut().unwrap().poll_without_shutdown());
-            Ok(conn.take().unwrap().into_parts().into())
+        futures_util::future::poll_fn(move |cx| {
+            ready!(conn.as_mut().unwrap().poll_without_shutdown(cx))?;
+            Poll::Ready(Ok(conn.take().unwrap().into_parts()))
         })
     }
 
@@ -624,32 +633,32 @@ impl<I, B, S, E> Future for Connection<I, S, E>
 where
     S: Service<ReqBody=Body, ResBody=B> + 'static,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
-    I: AsyncRead + AsyncWrite + 'static,
+    I: AsyncRead + AsyncWrite + Unpin + 'static,
     B: Payload + 'static,
     E: H2Exec<S::Future, B>,
 {
-    type Item = ();
-    type Error = crate::Error;
+    type Output = crate::Result<()>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         loop {
-            match self.conn.poll() {
-                Ok(x) => return Ok(x.map(|opt| {
-                    if let Some(proto::Dispatched::Upgrade(pending)) = opt {
+            match ready!(Pin::new(self.conn.as_mut().unwrap()).poll(cx)) {
+                Ok(done) => {
+                    if let proto::Dispatched::Upgrade(pending) = done {
                         // With no `Send` bound on `I`, we can't try to do
                         // upgrades here. In case a user was trying to use
                         // `Body::on_upgrade` with this API, send a special
                         // error letting them know about that.
                         pending.manual();
                     }
-                })),
+                    return Poll::Ready(Ok(()));
+                },
                 Err(e) => {
                     match *e.kind() {
                         Kind::Parse(Parse::VersionH2) if self.fallback.to_h2() => {
                             self.upgrade_h2();
                             continue;
                         }
-                        _ => return Err(e),
+                        _ => return Poll::Ready(Err(e)),
                     }
                 }
             }
@@ -669,6 +678,9 @@ where
 // ===== impl Serve =====
 
 impl<I, S, E> Serve<I, S, E> {
+    unsafe_pinned!(incoming: I);
+    unsafe_unpinned!(make_service: S);
+
     /// Spawn all incoming connections onto the executor in `Http`.
     pub(super) fn spawn_all(self) -> SpawnAll<I, S, E> {
         SpawnAll {
@@ -689,60 +701,63 @@ impl<I, S, E> Serve<I, S, E> {
     }
 }
 
-impl<I, S, B, E> Stream for Serve<I, S, E>
+impl<I, IO, IE, S, B, E> Stream for Serve<I, S, E>
 where
-    I: Stream,
-    I::Item: AsyncRead + AsyncWrite,
-    I::Error: Into<Box<dyn StdError + Send + Sync>>,
-    S: MakeServiceRef<I::Item, ReqBody=Body, ResBody=B>,
+    I: Stream<Item = Result<IO, IE>>,
+    IO: AsyncRead + AsyncWrite + Unpin,
+    IE: Into<Box<dyn StdError + Send + Sync>>,
+    S: MakeServiceRef<IO, ReqBody=Body, ResBody=B>,
     //S::Error2: Into<Box<StdError + Send + Sync>>,
     //SME: Into<Box<StdError + Send + Sync>>,
     B: Payload,
     E: H2Exec<<S::Service as Service>::Future, B>,
 {
-    type Item = Connecting<I::Item, S::Future, E>;
-    type Error = crate::Error;
+    type Item = crate::Result<Connecting<IO, S::Future, E>>;
 
-    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        match self.make_service.poll_ready_ref() {
-            Ok(Async::Ready(())) => (),
-            Ok(Async::NotReady) => return Ok(Async::NotReady),
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
+        match ready!(self.as_mut().make_service().poll_ready_ref(cx)) {
+            Ok(()) => (),
             Err(e) => {
                 trace!("make_service closed");
-                return Err(crate::Error::new_user_make_service(e));
+                return Poll::Ready(Some(Err(crate::Error::new_user_make_service(e))));
             }
         }
 
-        if let Some(io) = try_ready!(self.incoming.poll().map_err(crate::Error::new_accept)) {
-            let new_fut = self.make_service.make_service_ref(&io);
-            Ok(Async::Ready(Some(Connecting {
+        if let Some(item) = ready!(self.as_mut().incoming().poll_next(cx)) {
+            let io = item.map_err(crate::Error::new_accept)?;
+            let new_fut = self.as_mut().make_service().make_service_ref(&io);
+            Poll::Ready(Some(Ok(Connecting {
                 future: new_fut,
                 io: Some(io),
                 protocol: self.protocol.clone(),
             })))
         } else {
-            Ok(Async::Ready(None))
+            Poll::Ready(None)
         }
     }
 }
 
 // ===== impl Connecting =====
 
-impl<I, F, E, S, B> Future for Connecting<I, F, E>
+impl<I, F, E> Connecting<I, F, E> {
+    unsafe_pinned!(future: F);
+    unsafe_unpinned!(io: Option<I>);
+}
+
+impl<I, F, S, FE, E, B> Future for Connecting<I, F, E>
 where
-    I: AsyncRead + AsyncWrite,
-    F: Future<Item=S>,
+    I: AsyncRead + AsyncWrite + Unpin,
+    F: Future<Output=Result<S, FE>>,
     S: Service<ReqBody=Body, ResBody=B>,
     B: Payload,
     E: H2Exec<S::Future, B>,
 {
-    type Item = Connection<I, S, E>;
-    type Error = F::Error;
+    type Output = Result<Connection<I, S, E>, FE>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        let service = try_ready!(self.future.poll());
-        let io = self.io.take().expect("polled after complete");
-        Ok(self.protocol.serve_connection(io, service).into())
+    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let service = ready!(self.as_mut().future().poll(cx))?;
+        let io = self.as_mut().io().take().expect("polled after complete");
+        Poll::Ready(Ok(self.protocol.serve_connection(io, service)))
     }
 }
 
@@ -761,30 +776,51 @@ impl<I, S, E> SpawnAll<I, S, E> {
     }
 }
 
-impl<I, S, B, E> SpawnAll<I, S, E>
+impl<I, IO, IE, S, B, E> SpawnAll<I, S, E>
 where
-    I: Stream,
-    I::Error: Into<Box<dyn StdError + Send + Sync>>,
-    I::Item: AsyncRead + AsyncWrite + Send + 'static,
+    I: Stream<Item=Result<IO, IE>>,
+    IE: Into<Box<dyn StdError + Send + Sync>>,
+    IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     S: MakeServiceRef<
-        I::Item,
+        IO,
         ReqBody=Body,
         ResBody=B,
     >,
     B: Payload,
     E: H2Exec<<S::Service as Service>::Future, B>,
 {
-    pub(super) fn poll_watch<W>(&mut self, watcher: &W) -> Poll<(), crate::Error>
+    pub(super) fn poll_watch<W>(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>, watcher: &W) -> Poll<crate::Result<()>>
     where
-        E: NewSvcExec<I::Item, S::Future, S::Service, E, W>,
-        W: Watcher<I::Item, S::Service, E>,
+        E: NewSvcExec<IO, S::Future, S::Service, E, W>,
+        W: Watcher<IO, S::Service, E>,
     {
+        // Safety: futures are never moved... lolwtf
+        let me = unsafe { self.get_unchecked_mut() };
         loop {
-            if let Some(connecting) = try_ready!(self.serve.poll()) {
+            if let Some(connecting) = ready!(unsafe { Pin::new_unchecked(&mut me.serve) }.poll_next(cx)?) {
                 let fut = NewSvcTask::new(connecting, watcher.clone());
-                self.serve.protocol.exec.execute_new_svc(fut)?;
+                me.serve.protocol.exec.execute_new_svc(fut)?;
             } else {
-                return Ok(Async::Ready(()))
+                return Poll::Ready(Ok(()));
+            }
+        }
+    }
+}
+
+
+impl<A, B> Future for Either<A, B>
+where
+    A: Future,
+    B: Future<Output=A::Output>,
+{
+    type Output = A::Output;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        // Just simple pin projection to the inner variants
+        unsafe {
+            match self.get_unchecked_mut() {
+                Either::A(a) => Pin::new_unchecked(a).poll(cx),
+                Either::B(b) => Pin::new_unchecked(b).poll(cx),
             }
         }
     }
@@ -792,11 +828,11 @@ where
 
 pub(crate) mod spawn_all {
     use std::error::Error as StdError;
-    use futures::{Future, Poll};
     use tokio_io::{AsyncRead, AsyncWrite};
 
     use crate::body::{Body, Payload};
     use crate::common::exec::H2Exec;
+    use crate::common::{Future, Pin, Poll, Unpin, task};
     use crate::service::Service;
     use super::{Connecting, UpgradeableConnection};
 
@@ -809,7 +845,7 @@ pub(crate) mod spawn_all {
     // connections, and signal that they start to shutdown when prompted, so
     // it has a `GracefulWatcher` implementation to do that.
     pub trait Watcher<I, S: Service, E>: Clone {
-        type Future: Future<Item=(), Error=crate::Error>;
+        type Future: Future<Output = crate::Result<()>>;
 
         fn watch(&self, conn: UpgradeableConnection<I, S, E>) -> Self::Future;
     }
@@ -820,7 +856,7 @@ pub(crate) mod spawn_all {
 
     impl<I, S, E> Watcher<I, S, E> for NoopWatcher
     where
-        I: AsyncRead + AsyncWrite + Send + 'static,
+        I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         S: Service<ReqBody=Body> + 'static,
         E: H2Exec<S::Future, S::ResBody>,
     {
@@ -858,42 +894,51 @@ pub(crate) mod spawn_all {
         }
     }
 
-    impl<I, N, S, B, E, W> Future for NewSvcTask<I, N, S, E, W>
+    impl<I, N, S, NE, B, E, W> Future for NewSvcTask<I, N, S, E, W>
     where
-        I: AsyncRead + AsyncWrite + Send + 'static,
-        N: Future<Item=S>,
-        N::Error: Into<Box<dyn StdError + Send + Sync>>,
+        I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+        N: Future<Output=Result<S, NE>>,
+        NE: Into<Box<dyn StdError + Send + Sync>>,
         S: Service<ReqBody=Body, ResBody=B>,
         B: Payload,
         E: H2Exec<S::Future, B>,
         W: Watcher<I, S, E>,
     {
-        type Item = ();
-        type Error = ();
+        type Output = ();
 
-        fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+            // If it weren't for needing to name this type so the `Send` bounds
+            // could be projected to the `Serve` executor, this could just be
+            // an `async fn`, and much safer. Woe is me.
+
+            let me = unsafe { self.get_unchecked_mut() };
             loop {
-                let next = match self.state {
+                let next = match me.state {
                     State::Connecting(ref mut connecting, ref watcher) => {
-                        let conn = try_ready!(connecting
-                            .poll()
-                            .map_err(|err| {
+                        let res = ready!(unsafe { Pin::new_unchecked(connecting).poll(cx) });
+                        let conn = match res {
+                            Ok(conn) => conn,
+                            Err(err) => {
                                 let err = crate::Error::new_user_make_service(err);
                                 debug!("connecting error: {}", err);
-                            }));
+                                return Poll::Ready(());
+                            }
+                        };
                         let connected = watcher.watch(conn.with_upgrades());
                         State::Connected(connected)
                     },
                     State::Connected(ref mut future) => {
-                        return future
-                            .poll()
-                            .map_err(|err| {
-                                debug!("connection error: {}", err);
+                        return unsafe { Pin::new_unchecked(future) }
+                            .poll(cx)
+                            .map(|res| {
+                                if let Err(err) = res {
+                                    debug!("connection error: {}", err);
+                                }
                             });
                     }
                 };
 
-                self.state = next;
+                me.state = next;
             }
         }
     }
@@ -919,7 +964,7 @@ mod upgrades {
     where
         S: Service<ReqBody=Body, ResBody=B>,// + 'static,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
-        I: AsyncRead + AsyncWrite,
+        I: AsyncRead + AsyncWrite + Unpin,
         B: Payload + 'static,
         E: H2Exec<S::Future, B>,
     {
@@ -927,8 +972,8 @@ mod upgrades {
         ///
         /// This `Connection` should continue to be polled until shutdown
         /// can finish.
-        pub fn graceful_shutdown(&mut self) {
-            self.inner.graceful_shutdown()
+        pub fn graceful_shutdown(mut self: Pin<&mut Self>) {
+            Pin::new(&mut self.inner).graceful_shutdown()
         }
     }
 
@@ -936,22 +981,17 @@ mod upgrades {
     where
         S: Service<ReqBody=Body, ResBody=B> + 'static,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
-        I: AsyncRead + AsyncWrite + Send + 'static,
+        I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         B: Payload + 'static,
         E: super::H2Exec<S::Future, B>,
     {
-        type Item = ();
-        type Error = crate::Error;
+        type Output = crate::Result<()>;
 
-        fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
             loop {
-                match self.inner.conn.poll() {
-                    Ok(Async::NotReady) => return Ok(Async::NotReady),
-                    Ok(Async::Ready(Some(proto::Dispatched::Shutdown))) |
-                    Ok(Async::Ready(None)) => {
-                        return Ok(Async::Ready(()));
-                    },
-                    Ok(Async::Ready(Some(proto::Dispatched::Upgrade(pending)))) => {
+                match ready!(Pin::new(self.inner.conn.as_mut().unwrap()).poll(cx)) {
+                    Ok(proto::Dispatched::Shutdown) => return Poll::Ready(Ok(())),
+                    Ok(proto::Dispatched::Upgrade(pending)) => {
                         let h1 = match mem::replace(&mut self.inner.conn, None) {
                             Some(Either::A(h1)) => h1,
                             _ => unreachable!("Upgrade expects h1"),
@@ -959,7 +999,7 @@ mod upgrades {
 
                         let (io, buf, _) = h1.into_inner();
                         pending.fulfill(Upgraded::new(Box::new(io), buf));
-                        return Ok(Async::Ready(()));
+                        return Poll::Ready(Ok(()));
                     },
                     Err(e) => {
                         match *e.kind() {
@@ -967,7 +1007,7 @@ mod upgrades {
                                 self.inner.upgrade_h2();
                                 continue;
                             }
-                            _ => return Err(e),
+                            _ => return Poll::Ready(Err(e)),
                         }
                     }
                 }

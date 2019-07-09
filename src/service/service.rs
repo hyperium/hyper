@@ -2,10 +2,8 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::marker::PhantomData;
 
-use futures::{future, Async, Future, IntoFuture, Poll};
-
 use crate::body::Payload;
-use crate::common::Never;
+use crate::common::{Future, Never, Poll, task};
 use crate::{Request, Response};
 
 /// An asynchronous function from `Request` to `Response`.
@@ -24,15 +22,15 @@ pub trait Service {
     type Error: Into<Box<dyn StdError + Send + Sync>>;
 
     /// The `Future` returned by this `Service`.
-    type Future: Future<Item=Response<Self::ResBody>, Error=Self::Error>;
+    type Future: Future<Output=Result<Response<Self::ResBody>, Self::Error>>;
 
     /// Returns `Ready` when the service is able to process requests.
     ///
     /// The implementation of this method is allowed to return a `Ready` even if
     /// the service is not ready to process. In this case, the future returned
     /// from `call` will resolve to an error.
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        Ok(Async::Ready(()))
+    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
     }
 
     /// Calls this `Service` with a request, returning a `Future` of the response.
@@ -61,33 +59,9 @@ pub trait Service {
 pub fn service_fn<F, R, S>(f: F) -> ServiceFn<F, R>
 where
     F: FnMut(Request<R>) -> S,
-    S: IntoFuture,
+    S: Future,
 {
     ServiceFn {
-        f,
-        _req: PhantomData,
-    }
-}
-
-/// Create a `Service` from a function that never errors.
-///
-/// # Example
-///
-/// ```rust
-/// use hyper::{Body, Request, Response};
-/// use hyper::service::service_fn_ok;
-///
-/// let service = service_fn_ok(|req: Request<Body>| {
-///     println!("request: {} {}", req.method(), req.uri());
-///     Response::new(Body::from("Hello World"))
-/// });
-/// ```
-pub fn service_fn_ok<F, R, S>(f: F) -> ServiceFnOk<F, R>
-where
-    F: FnMut(Request<R>) -> Response<S>,
-    S: Payload,
-{
-    ServiceFnOk {
         f,
         _req: PhantomData,
     }
@@ -99,31 +73,21 @@ pub struct ServiceFn<F, R> {
     _req: PhantomData<fn(R)>,
 }
 
-impl<F, ReqBody, Ret, ResBody> Service for ServiceFn<F, ReqBody>
+impl<F, ReqBody, Ret, ResBody, E> Service for ServiceFn<F, ReqBody>
 where
     F: FnMut(Request<ReqBody>) -> Ret,
     ReqBody: Payload,
-    Ret: IntoFuture<Item=Response<ResBody>>,
-    Ret::Error: Into<Box<dyn StdError + Send + Sync>>,
+    Ret: Future<Output=Result<Response<ResBody>, E>>,
+    E: Into<Box<dyn StdError + Send + Sync>>,
     ResBody: Payload,
 {
     type ReqBody = ReqBody;
     type ResBody = ResBody;
-    type Error = Ret::Error;
-    type Future = Ret::Future;
+    type Error = E;
+    type Future = Ret;
 
     fn call(&mut self, req: Request<Self::ReqBody>) -> Self::Future {
-        (self.f)(req).into_future()
-    }
-}
-
-impl<F, R> IntoFuture for ServiceFn<F, R> {
-    type Future = future::FutureResult<Self::Item, Self::Error>;
-    type Item = Self;
-    type Error = Never;
-
-    fn into_future(self) -> Self::Future {
-        future::ok(self)
+        (self.f)(req)
     }
 }
 
@@ -132,64 +96,4 @@ impl<F, R> fmt::Debug for ServiceFn<F, R> {
         f.debug_struct("impl Service")
             .finish()
     }
-}
-
-// Not exported from crate as this will likely be replaced with `impl Service`.
-pub struct ServiceFnOk<F, R> {
-    f: F,
-    _req: PhantomData<fn(R)>,
-}
-
-impl<F, ReqBody, ResBody> Service for ServiceFnOk<F, ReqBody>
-where
-    F: FnMut(Request<ReqBody>) -> Response<ResBody>,
-    ReqBody: Payload,
-    ResBody: Payload,
-{
-    type ReqBody = ReqBody;
-    type ResBody = ResBody;
-    type Error = Never;
-    type Future = future::FutureResult<Response<ResBody>, Never>;
-
-    fn call(&mut self, req: Request<Self::ReqBody>) -> Self::Future {
-        future::ok((self.f)(req))
-    }
-}
-
-impl<F, R> IntoFuture for ServiceFnOk<F, R> {
-    type Future = future::FutureResult<Self::Item, Self::Error>;
-    type Item = Self;
-    type Error = Never;
-
-    fn into_future(self) -> Self::Future {
-        future::ok(self)
-    }
-}
-
-impl<F, R> fmt::Debug for ServiceFnOk<F, R> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("impl Service")
-            .finish()
-    }
-}
-
-//#[cfg(test)]
-fn _assert_fn_mut() {
-    fn assert_service<T: Service>(_t: &T) {}
-
-    let mut val = 0;
-
-    let svc = service_fn(move |_req: Request<crate::Body>| {
-        val += 1;
-        future::ok::<_, Never>(Response::new(crate::Body::empty()))
-    });
-
-    assert_service(&svc);
-
-    let svc = service_fn_ok(move |_req: Request<crate::Body>| {
-        val += 1;
-        Response::new(crate::Body::empty())
-    });
-
-    assert_service(&svc);
 }

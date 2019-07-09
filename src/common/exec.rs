@@ -1,7 +1,9 @@
 use std::fmt;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
-use futures::future::{Executor, Future};
+use tokio_executor::TypedExecutor;
 
 use crate::body::Payload;
 use crate::proto::h2::server::H2Stream;
@@ -9,11 +11,11 @@ use crate::server::conn::spawn_all::{NewSvcTask, Watcher};
 use crate::service::Service;
 
 pub trait H2Exec<F, B: Payload>: Clone {
-    fn execute_h2stream(&self, fut: H2Stream<F, B>) -> crate::Result<()>;
+    fn execute_h2stream(&mut self, fut: H2Stream<F, B>) -> crate::Result<()>;
 }
 
 pub trait NewSvcExec<I, N, S: Service, E, W: Watcher<I, S, E>>: Clone {
-    fn execute_new_svc(&self, fut: NewSvcTask<I, N, S, E, W>) -> crate::Result<()>;
+    fn execute_new_svc(&mut self, fut: NewSvcTask<I, N, S, E, W>) -> crate::Result<()>;
 }
 
 // Either the user provides an executor for background tasks, or we use
@@ -21,7 +23,7 @@ pub trait NewSvcExec<I, N, S: Service, E, W: Watcher<I, S, E>>: Clone {
 #[derive(Clone)]
 pub enum Exec {
     Default,
-    Executor(Arc<dyn Executor<Box<dyn Future<Item=(), Error=()> + Send>> + Send + Sync>),
+    Executor(Arc<dyn TypedExecutor<Pin<Box<dyn Future<Output=()> + Send>>> + Send + Sync>),
 }
 
 // ===== impl Exec =====
@@ -29,14 +31,13 @@ pub enum Exec {
 impl Exec {
     pub(crate) fn execute<F>(&self, fut: F) -> crate::Result<()>
     where
-        F: Future<Item=(), Error=()> + Send + 'static,
+        F: Future<Output=()> + Send + 'static,
     {
         match *self {
             Exec::Default => {
                 #[cfg(feature = "runtime")]
                 {
                     use std::error::Error as StdError;
-                    use ::tokio_executor::Executor;
 
                     struct TokioSpawnError;
 
@@ -59,7 +60,7 @@ impl Exec {
                     }
 
                     ::tokio_executor::DefaultExecutor::current()
-                        .spawn(Box::new(fut))
+                        .spawn(Box::pin(fut))
                         .map_err(|err| {
                             warn!("executor error: {:?}", err);
                             crate::Error::new_execute(TokioSpawnError)
@@ -72,11 +73,14 @@ impl Exec {
                 }
             },
             Exec::Executor(ref e) => {
-                e.execute(Box::new(fut))
+                unimplemented!("custom executor exec");
+                /* XXX: needs mut
+                e.spawn(Box::pin(fut))
                     .map_err(|err| {
-                        warn!("executor error: {:?}", err.kind());
+                        warn!("executor error: {:?}", err);
                         crate::Error::new_execute("custom executor failed")
                     })
+                    */
             },
         }
     }
@@ -92,21 +96,21 @@ impl fmt::Debug for Exec {
 
 impl<F, B> H2Exec<F, B> for Exec
 where
-    H2Stream<F, B>: Future<Item=(), Error=()> + Send + 'static,
+    H2Stream<F, B>: Future<Output = ()> + Send + 'static,
     B: Payload,
 {
-    fn execute_h2stream(&self, fut: H2Stream<F, B>) -> crate::Result<()> {
+    fn execute_h2stream(&mut self, fut: H2Stream<F, B>) -> crate::Result<()> {
         self.execute(fut)
     }
 }
 
 impl<I, N, S, E, W> NewSvcExec<I, N, S, E, W> for Exec
 where
-    NewSvcTask<I, N, S, E, W>: Future<Item=(), Error=()> + Send + 'static,
+    NewSvcTask<I, N, S, E, W>: Future<Output=()> + Send + 'static,
     S: Service,
     W: Watcher<I, S, E>,
 {
-    fn execute_new_svc(&self, fut: NewSvcTask<I, N, S, E, W>) -> crate::Result<()> {
+    fn execute_new_svc(&mut self, fut: NewSvcTask<I, N, S, E, W>) -> crate::Result<()> {
         self.execute(fut)
     }
 }
@@ -115,14 +119,14 @@ where
 
 impl<E, F, B> H2Exec<F, B> for E
 where
-    E: Executor<H2Stream<F, B>> + Clone,
-    H2Stream<F, B>: Future<Item=(), Error=()>,
+    E: TypedExecutor<H2Stream<F, B>> + Clone,
+    H2Stream<F, B>: Future<Output=()>,
     B: Payload,
 {
-    fn execute_h2stream(&self, fut: H2Stream<F, B>) -> crate::Result<()> {
-        self.execute(fut)
+    fn execute_h2stream(&mut self, fut: H2Stream<F, B>) -> crate::Result<()> {
+        self.spawn(fut)
             .map_err(|err| {
-                warn!("executor error: {:?}", err.kind());
+                warn!("executor error: {:?}", err);
                 crate::Error::new_execute("custom executor failed")
             })
     }
@@ -130,15 +134,15 @@ where
 
 impl<I, N, S, E, W> NewSvcExec<I, N, S, E, W> for E
 where
-    E: Executor<NewSvcTask<I, N, S, E, W>> + Clone,
-    NewSvcTask<I, N, S, E, W>: Future<Item=(), Error=()>,
+    E: TypedExecutor<NewSvcTask<I, N, S, E, W>> + Clone,
+    NewSvcTask<I, N, S, E, W>: Future<Output=()>,
     S: Service,
     W: Watcher<I, S, E>,
 {
-    fn execute_new_svc(&self, fut: NewSvcTask<I, N, S, E, W>) -> crate::Result<()> {
-        self.execute(fut)
+    fn execute_new_svc(&mut self, fut: NewSvcTask<I, N, S, E, W>) -> crate::Result<()> {
+        self.spawn(fut)
             .map_err(|err| {
-                warn!("executor error: {:?}", err.kind());
+                warn!("executor error: {:?}", err);
                 crate::Error::new_execute("custom executor failed")
             })
     }

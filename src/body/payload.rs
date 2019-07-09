@@ -1,9 +1,9 @@
 use std::error::Error as StdError;
 
 use bytes::Buf;
-use futures::{Async, Poll};
 use http::HeaderMap;
 
+use crate::common::{Pin, Poll, task};
 use super::internal::{FullDataArg, FullDataRet};
 
 /// This trait represents a streaming body of a `Request` or `Response`.
@@ -21,15 +21,15 @@ pub trait Payload: Send + 'static {
     ///
     /// Similar to `Stream::poll_next`, this yields `Some(Data)` until
     /// the body ends, when it yields `None`.
-    fn poll_data(&mut self) -> Poll<Option<Self::Data>, Self::Error>;
+    fn poll_data(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Result<Self::Data, Self::Error>>>;
 
     /// Poll for an optional **single** `HeaderMap` of trailers.
     ///
     /// This should **only** be called after `poll_data` has ended.
     ///
     /// Note: Trailers aren't currently used for HTTP/1, only for HTTP/2.
-    fn poll_trailers(&mut self) -> Poll<Option<HeaderMap>, Self::Error> {
-        Ok(Async::Ready(None))
+    fn poll_trailers(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Result<HeaderMap, Self::Error>>> {
+        Poll::Ready(None)
     }
 
     /// A hint that the `Body` is complete, and doesn't need to be polled more.
@@ -70,6 +70,7 @@ pub trait Payload: Send + 'static {
     }
 }
 
+/*
 impl<E: Payload> Payload for Box<E> {
     type Data = E::Data;
     type Error = E::Error;
@@ -95,5 +96,6 @@ impl<E: Payload> Payload for Box<E> {
         (**self).__hyper_full_data(arg)
     }
 }
+*/
 
 

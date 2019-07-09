@@ -8,14 +8,15 @@
 use std::any::TypeId;
 use std::error::Error as StdError;
 use std::fmt;
-use std::io::{self, Read, Write};
+use std::io;
+use std::marker::Unpin;
 
-use bytes::{Buf, BufMut, Bytes};
-use futures::{Async, Future, Poll};
-use futures::sync::oneshot;
+use bytes::{/*Buf, BufMut, */Bytes};
 use tokio_io::{AsyncRead, AsyncWrite};
+use tokio_sync::oneshot;
 
 use crate::common::io::Rewind;
+use crate::common::{Future, Pin, Poll, task};
 
 /// An upgraded HTTP connection.
 ///
@@ -79,7 +80,7 @@ pub(crate) fn pending() -> (Pending, OnUpgrade) {
     )
 }
 
-pub(crate) trait Io: AsyncRead + AsyncWrite + 'static {
+pub(crate) trait Io: AsyncRead + AsyncWrite + Unpin + 'static {
     fn __hyper_type_id(&self) -> TypeId {
         TypeId::of::<Self>()
     }
@@ -104,7 +105,7 @@ impl dyn Io + Send {
     }
 }
 
-impl<T: AsyncRead + AsyncWrite + 'static> Io for T {}
+impl<T: AsyncRead + AsyncWrite + Unpin + 'static> Io for T {}
 
 // ===== impl Upgraded =====
 
@@ -119,7 +120,7 @@ impl Upgraded {
     ///
     /// On success, returns the downcasted parts. On error, returns the
     /// `Upgraded` back.
-    pub fn downcast<T: AsyncRead + AsyncWrite + 'static>(self) -> Result<Parts<T>, Self> {
+    pub fn downcast<T: AsyncRead + AsyncWrite + Unpin + 'static>(self) -> Result<Parts<T>, Self> {
         let (io, buf) = self.io.into_inner();
         match io.__hyper_downcast() {
             Ok(t) => Ok(Parts {
@@ -134,46 +135,27 @@ impl Upgraded {
     }
 }
 
-impl Read for Upgraded {
-    #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.io.read(buf)
-    }
-}
-
-impl Write for Upgraded {
-    #[inline]
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.io.write(buf)
-    }
-
-    #[inline]
-    fn flush(&mut self) -> io::Result<()> {
-        self.io.flush()
-    }
-}
-
 impl AsyncRead for Upgraded {
-    #[inline]
     unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
         self.io.prepare_uninitialized_buffer(buf)
     }
 
-    #[inline]
-    fn read_buf<B: BufMut>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
-        self.io.read_buf(buf)
+    fn poll_read(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+        Pin::new(&mut self.io).poll_read(cx, buf)
     }
 }
 
 impl AsyncWrite for Upgraded {
-    #[inline]
-    fn shutdown(&mut self) -> Poll<(), io::Error> {
-        AsyncWrite::shutdown(&mut self.io)
+    fn poll_write(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+        Pin::new(&mut self.io).poll_write(cx, buf)
     }
 
-    #[inline]
-    fn write_buf<B: Buf>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
-        self.io.write_buf(buf)
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.io).poll_flush(cx)
+    }
+
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.io).poll_shutdown(cx)
     }
 }
 
@@ -199,20 +181,18 @@ impl OnUpgrade {
 }
 
 impl Future for OnUpgrade {
-    type Item = Upgraded;
-    type Error = crate::Error;
+    type Output = Result<Upgraded, crate::Error>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         match self.rx {
-            Some(ref mut rx) => match rx.poll() {
-                Ok(Async::NotReady) => Ok(Async::NotReady),
-                Ok(Async::Ready(Ok(upgraded))) => Ok(Async::Ready(upgraded)),
-                Ok(Async::Ready(Err(err))) => Err(err),
+            Some(ref mut rx) => Pin::new(rx).poll(cx).map(|res| match res {
+                Ok(Ok(upgraded)) => Ok(upgraded),
+                Ok(Err(err)) => Err(err),
                 Err(_oneshot_canceled) => Err(
                     crate::Error::new_canceled().with(UpgradeExpected(()))
                 ),
-            },
-            None => Err(crate::Error::new_user_no_upgrade()),
+            }),
+            None => Poll::Ready(Err(crate::Error::new_user_no_upgrade())),
         }
     }
 }

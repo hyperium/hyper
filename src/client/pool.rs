@@ -4,12 +4,11 @@ use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
 
-use futures::{Future, Async, Poll};
-use futures::sync::oneshot;
+use futures_channel::oneshot;
 #[cfg(feature = "runtime")]
 use tokio_timer::Interval;
 
-use crate::common::Exec;
+use crate::common::{Exec, Future, Pin, Poll, Unpin, task};
 use super::Ver;
 
 // FIXME: allow() required due to `impl Trait` leaking types to this lint
@@ -24,7 +23,7 @@ pub(super) struct Pool<T> {
 // This is a trait to allow the `client::pool::tests` to work for `i32`.
 //
 // See https://github.com/hyperium/hyper/issues/1429
-pub(super) trait Poolable: Send + Sized + 'static {
+pub(super) trait Poolable: Unpin + Send + Sized + 'static {
     fn is_open(&self) -> bool;
     /// Reserve this connection.
     ///
@@ -415,7 +414,7 @@ impl<T: Poolable> PoolInner<T> {
 
         let start = Instant::now() + dur;
 
-        let interval = IdleInterval {
+        let interval = IdleTask {
             interval: Interval::new(start, dur),
             pool: WeakOpt::downgrade(pool_ref),
             pool_drop_notifier: rx,
@@ -449,7 +448,7 @@ impl<T> PoolInner<T> {
 
 #[cfg(feature = "runtime")]
 impl<T: Poolable> PoolInner<T> {
-    /// This should *only* be called by the IdleInterval.
+    /// This should *only* be called by the IdleTask
     fn clear_expired(&mut self) {
         let dur = self.timeout.expect("interval assumes timeout");
 
@@ -569,25 +568,25 @@ pub(super) struct Checkout<T> {
 }
 
 impl<T: Poolable> Checkout<T> {
-    fn poll_waiter(&mut self) -> Poll<Option<Pooled<T>>, crate::Error> {
+    fn poll_waiter(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<crate::Result<Pooled<T>>>> {
         static CANCELED: &str = "pool checkout failed";
         if let Some(mut rx) = self.waiter.take() {
-            match rx.poll() {
-                Ok(Async::Ready(value)) => {
+            match Pin::new(&mut rx).poll(cx) {
+                Poll::Ready(Ok(value)) => {
                     if value.is_open() {
-                        Ok(Async::Ready(Some(self.pool.reuse(&self.key, value))))
+                        Poll::Ready(Some(Ok(self.pool.reuse(&self.key, value))))
                     } else {
-                        Err(crate::Error::new_canceled().with(CANCELED))
+                        Poll::Ready(Some(Err(crate::Error::new_canceled().with(CANCELED))))
                     }
                 },
-                Ok(Async::NotReady) => {
+                Poll::Pending => {
                     self.waiter = Some(rx);
-                    Ok(Async::NotReady)
+                    Poll::Pending
                 },
-                Err(_canceled) => Err(crate::Error::new_canceled().with(CANCELED)),
+                Poll::Ready(Err(_canceled)) => Poll::Ready(Some(Err(crate::Error::new_canceled().with(CANCELED)))),
             }
         } else {
-            Ok(Async::Ready(None))
+            Poll::Ready(None)
         }
     }
 
@@ -622,9 +621,7 @@ impl<T: Poolable> Checkout<T> {
             }
 
             if entry.is_none() && self.waiter.is_none() {
-                let (tx, mut rx) = oneshot::channel();
-                let _ = rx.poll(); // park this task
-
+                let (tx, rx) = oneshot::channel();
                 trace!("checkout waiting for idle connection: {:?}", self.key);
                 inner
                     .waiters
@@ -643,20 +640,21 @@ impl<T: Poolable> Checkout<T> {
 }
 
 impl<T: Poolable> Future for Checkout<T> {
-    type Item = Pooled<T>;
-    type Error = crate::Error;
+    type Output = crate::Result<Pooled<T>>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if let Some(pooled) = try_ready!(self.poll_waiter()) {
-            return Ok(Async::Ready(pooled));
+    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        if let Some(pooled) = ready!(self.poll_waiter(cx)?) {
+            return Poll::Ready(Ok(pooled));
         }
 
         if let Some(pooled) = self.checkout() {
-            Ok(Async::Ready(pooled))
+            Poll::Ready(Ok(pooled))
         } else if !self.pool.is_enabled() {
-            Err(crate::Error::new_canceled().with("pool is disabled"))
+            Poll::Ready(Err(crate::Error::new_canceled().with("pool is disabled")))
         } else {
-            Ok(Async::NotReady)
+            // There's a new waiter, but there's no way it should be ready yet.
+            // We just need to register the waker.
+            self.poll_waiter(cx).map(|_| unreachable!())
         }
     }
 }
@@ -717,37 +715,34 @@ impl Expiration {
 }
 
 #[cfg(feature = "runtime")]
-struct IdleInterval<T> {
+struct IdleTask<T> {
     interval: Interval,
     pool: WeakOpt<Mutex<PoolInner<T>>>,
-    // This allows the IdleInterval to be notified as soon as the entire
+    // This allows the IdleTask to be notified as soon as the entire
     // Pool is fully dropped, and shutdown. This channel is never sent on,
     // but Err(Canceled) will be received when the Pool is dropped.
     pool_drop_notifier: oneshot::Receiver<crate::common::Never>,
 }
 
 #[cfg(feature = "runtime")]
-impl<T: Poolable + 'static> Future for IdleInterval<T> {
-    type Item = ();
-    type Error = ();
+impl<T: Poolable + 'static> Future for IdleTask<T> {
+    type Output = ();
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         // Interval is a Stream
-        use futures::Stream;
+        use futures_core::Stream;
 
         loop {
-            match self.pool_drop_notifier.poll() {
-                Ok(Async::Ready(n)) => match n {},
-                Ok(Async::NotReady) => (),
-                Err(_canceled) => {
+            match Pin::new(&mut self.pool_drop_notifier).poll(cx) {
+                Poll::Ready(Ok(n)) => match n {},
+                Poll::Pending => (),
+                Poll::Ready(Err(_canceled)) => {
                     trace!("pool closed, canceling idle interval");
-                    return Ok(Async::Ready(()));
+                    return Poll::Ready(());
                 }
             }
 
-            try_ready!(self.interval.poll().map_err(|err| {
-                error!("idle interval timer error: {}", err);
-            }));
+            ready!(Pin::new(&mut self.interval).poll_next(cx));
 
             if let Some(inner) = self.pool.upgrade() {
                 if let Ok(mut inner) = inner.lock() {
@@ -756,7 +751,7 @@ impl<T: Poolable + 'static> Future for IdleInterval<T> {
                     continue;
                 }
             }
-            return Ok(Async::Ready(()));
+            return Poll::Ready(());
         }
     }
 }
