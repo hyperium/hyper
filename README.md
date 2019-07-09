@@ -9,7 +9,14 @@ A **fast** and **correct** HTTP implementation for Rust.
 
 **Get started** by looking over the [guides](https://hyper.rs/guides).
 
-**Hyper is a relatively low-level library, if you are looking for simple high-level HTTP client, then you may wish to consider [reqwest](https://github.com/seanmonstar/reqwest), which is built on top of this library.**
+**Hyper is a relatively low-level library, if you are looking for simple
+high-level HTTP client, then you may wish to consider
+[reqwest](https://github.com/seanmonstar/reqwest), which is built on top of
+this library.**
+
+*NOTE*: hyper's [master](https://github.com/hyperium/hyper) branch is currently
+preparing breaking changes, for most recently released code, look to the
+[0.12.x](https://github.com/hyperium/hyper/tree/0.12.x) branch.
 
 ## Overview
 
