@@ -22,9 +22,9 @@ pub struct AddrIncoming {
 }
 
 impl AddrIncoming {
-    pub(super) fn new(addr: &SocketAddr, handle: Option<&Handle>) -> ::Result<Self> {
+    pub(super) fn new(addr: &SocketAddr, handle: Option<&Handle>) -> crate::Result<Self> {
         let std_listener = StdTcpListener::bind(addr)
-                .map_err(::Error::new_listen)?;
+                .map_err(crate::Error::new_listen)?;
 
         if let Some(handle) = handle {
             AddrIncoming::from_std(std_listener, handle)
@@ -34,10 +34,10 @@ impl AddrIncoming {
         }
     }
 
-    pub(super) fn from_std(std_listener: StdTcpListener, handle: &Handle) -> ::Result<Self> {
+    pub(super) fn from_std(std_listener: StdTcpListener, handle: &Handle) -> crate::Result<Self> {
         let listener = TcpListener::from_std(std_listener, &handle)
-            .map_err(::Error::new_listen)?;
-        let addr = listener.local_addr().map_err(::Error::new_listen)?;
+            .map_err(crate::Error::new_listen)?;
+        let addr = listener.local_addr().map_err(crate::Error::new_listen)?;
         Ok(AddrIncoming {
             listener,
             addr: addr,
@@ -49,7 +49,7 @@ impl AddrIncoming {
     }
 
     /// Creates a new `AddrIncoming` binding to provided socket address.
-    pub fn bind(addr: &SocketAddr) -> ::Result<Self> {
+    pub fn bind(addr: &SocketAddr) -> crate::Result<Self> {
         AddrIncoming::new(addr, None)
     }
 

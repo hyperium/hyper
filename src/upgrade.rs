@@ -15,7 +15,7 @@ use futures::{Async, Future, Poll};
 use futures::sync::oneshot;
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use common::io::Rewind;
+use crate::common::io::Rewind;
 
 /// An upgraded HTTP connection.
 ///
@@ -33,7 +33,7 @@ pub struct Upgraded {
 ///
 /// If no upgrade was available, or it doesn't succeed, yields an `Error`.
 pub struct OnUpgrade {
-    rx: Option<oneshot::Receiver<::Result<Upgraded>>>,
+    rx: Option<oneshot::Receiver<crate::Result<Upgraded>>>,
 }
 
 /// The deconstructed parts of an [`Upgraded`](Upgraded) type.
@@ -57,7 +57,7 @@ pub struct Parts<T> {
 }
 
 pub(crate) struct Pending {
-    tx: oneshot::Sender<::Result<Upgraded>>
+    tx: oneshot::Sender<crate::Result<Upgraded>>
 }
 
 /// Error cause returned when an upgrade was expected but canceled
@@ -200,7 +200,7 @@ impl OnUpgrade {
 
 impl Future for OnUpgrade {
     type Item = Upgraded;
-    type Error = ::Error;
+    type Error = crate::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         match self.rx {
@@ -209,10 +209,10 @@ impl Future for OnUpgrade {
                 Ok(Async::Ready(Ok(upgraded))) => Ok(Async::Ready(upgraded)),
                 Ok(Async::Ready(Err(err))) => Err(err),
                 Err(_oneshot_canceled) => Err(
-                    ::Error::new_canceled().with(UpgradeExpected(()))
+                    crate::Error::new_canceled().with(UpgradeExpected(()))
                 ),
             },
-            None => Err(::Error::new_user_no_upgrade()),
+            None => Err(crate::Error::new_user_no_upgrade()),
         }
     }
 }
@@ -236,7 +236,7 @@ impl Pending {
     /// upgrades are handled manually.
     pub(crate) fn manual(self) {
         trace!("pending upgrade handled manually");
-        let _ = self.tx.send(Err(::Error::new_user_manual_upgrade()));
+        let _ = self.tx.send(Err(crate::Error::new_user_manual_upgrade()));
     }
 }
 

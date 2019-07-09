@@ -176,7 +176,7 @@ mod tests {
         let mut dst = Vec::with_capacity(128);
 
         b.iter(|| {
-            let chunk = ::Chunk::from(s);
+            let chunk = crate::Chunk::from(s);
             dst.put(chunk);
             ::test::black_box(&dst);
             dst.clear();

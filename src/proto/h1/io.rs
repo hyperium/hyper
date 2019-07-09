@@ -136,7 +136,7 @@ where
     }
 
     pub(super) fn parse<S>(&mut self, ctx: ParseContext)
-        -> Poll<ParsedMessage<S::Incoming>, ::Error>
+        -> Poll<ParsedMessage<S::Incoming>, crate::Error>
     where
         S: Http1Transaction,
     {
@@ -153,14 +153,14 @@ where
                     let max = self.read_buf_strategy.max();
                     if self.read_buf.len() >= max {
                         debug!("max_buf_size ({}) reached, closing", max);
-                        return Err(::Error::new_too_large());
+                        return Err(crate::Error::new_too_large());
                     }
                 },
             }
-            match try_ready!(self.read_from_io().map_err(::Error::new_io)) {
+            match try_ready!(self.read_from_io().map_err(crate::Error::new_io)) {
                 0 => {
                     trace!("parse eof");
-                    return Err(::Error::new_incomplete());
+                    return Err(crate::Error::new_incomplete());
                 }
                 _ => {},
             }
@@ -651,13 +651,13 @@ impl<T: Buf> Buf for BufDeque<T> {
 mod tests {
     use super::*;
     use std::io::Read;
-    use mock::AsyncIo;
+    use crate::mock::AsyncIo;
 
     #[cfg(feature = "nightly")]
     use test::Bencher;
 
     #[cfg(test)]
-    impl<T: Read> MemRead for ::mock::AsyncIo<T> {
+    impl<T: Read> MemRead for crate::mock::AsyncIo<T> {
         fn read_mem(&mut self, len: usize) -> Poll<Bytes, io::Error> {
             let mut v = vec![0; len];
             let n = try_nb!(self.read(v.as_mut_slice()));
@@ -689,7 +689,7 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut None,
         };
-        assert!(buffered.parse::<::proto::h1::ClientTransaction>(ctx).unwrap().is_not_ready());
+        assert!(buffered.parse::<crate::proto::h1::ClientTransaction>(ctx).unwrap().is_not_ready());
         assert!(buffered.io.blocked());
     }
 
@@ -890,10 +890,10 @@ mod tests {
         let s = "Hello, World!";
         b.bytes = s.len() as u64;
 
-        let mut write_buf = WriteBuf::<::Chunk>::new();
+        let mut write_buf = WriteBuf::<crate::Chunk>::new();
         write_buf.set_strategy(WriteStrategy::Flatten);
         b.iter(|| {
-            let chunk = ::Chunk::from(s);
+            let chunk = crate::Chunk::from(s);
             write_buf.buffer(chunk);
             ::test::black_box(&write_buf);
             write_buf.headers.bytes.clear();

@@ -4,9 +4,9 @@ use std::marker::PhantomData;
 
 use futures::{future, Async, Future, IntoFuture, Poll};
 
-use body::Payload;
-use common::Never;
-use ::{Request, Response};
+use crate::body::Payload;
+use crate::common::Never;
+use crate::{Request, Response};
 
 /// An asynchronous function from `Request` to `Response`.
 pub trait Service {
@@ -179,16 +179,16 @@ fn _assert_fn_mut() {
 
     let mut val = 0;
 
-    let svc = service_fn(move |_req: Request<::Body>| {
+    let svc = service_fn(move |_req: Request<crate::Body>| {
         val += 1;
-        future::ok::<_, Never>(Response::new(::Body::empty()))
+        future::ok::<_, Never>(Response::new(crate::Body::empty()))
     });
 
     assert_service(&svc);
 
-    let svc = service_fn_ok(move |_req: Request<::Body>| {
+    let svc = service_fn_ok(move |_req: Request<crate::Body>| {
         val += 1;
-        Response::new(::Body::empty())
+        Response::new(crate::Body::empty())
     });
 
     assert_service(&svc);

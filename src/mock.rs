@@ -13,7 +13,7 @@ use futures::task::{self, Task};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 #[cfg(feature = "runtime")]
-use ::client::connect::{Connect, Connected, Destination};
+use crate::client::connect::{Connect, Connected, Destination};
 
 #[derive(Debug)]
 pub struct MockCursor {

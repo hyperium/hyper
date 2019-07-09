@@ -4,7 +4,7 @@ use bytes::{Buf, IntoBuf};
 use bytes::buf::{Chain, Take};
 use iovec::IoVec;
 
-use common::StaticBuf;
+use crate::common::StaticBuf;
 use super::io::WriteBuf;
 
 /// Encoders to handle different Transfer-Encodings.

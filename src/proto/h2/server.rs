@@ -5,16 +5,16 @@ use h2::Reason;
 use h2::server::{Builder, Connection, Handshake, SendResponse};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use ::headers::content_length_parse_all;
-use ::body::Payload;
-use body::internal::FullDataArg;
-use ::common::exec::H2Exec;
-use ::headers;
-use ::service::Service;
-use ::proto::Dispatched;
+use crate::headers::content_length_parse_all;
+use crate::body::Payload;
+use crate::body::internal::FullDataArg;
+use crate::common::exec::H2Exec;
+use crate::headers;
+use crate::service::Service;
+use crate::proto::Dispatched;
 use super::{PipeToSendStream, SendBuf};
 
-use ::{Body, Response};
+use crate::{Body, Response};
 
 pub(crate) struct Server<T, S, B, E>
 where
@@ -40,7 +40,7 @@ where
     B: Payload,
 {
     conn: Connection<T, SendBuf<B::Data>>,
-    closing: Option<::Error>,
+    closing: Option<crate::Error>,
 }
 
 
@@ -90,13 +90,13 @@ where
     E: H2Exec<S::Future, B>,
 {
     type Item = Dispatched;
-    type Error = ::Error;
+    type Error = crate::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         loop {
             let next = match self.state {
                 State::Handshaking(ref mut h) => {
-                    let conn = try_ready!(h.poll().map_err(::Error::new_h2));
+                    let conn = try_ready!(h.poll().map_err(crate::Error::new_h2));
                     State::Serving(Serving {
                         conn,
                         closing: None,
@@ -122,7 +122,7 @@ where
     T: AsyncRead + AsyncWrite,
     B: Payload,
 {
-    fn poll_server<S, E>(&mut self, service: &mut S, exec: &E) -> Poll<(), ::Error>
+    fn poll_server<S, E>(&mut self, service: &mut S, exec: &E) -> Poll<(), crate::Error>
     where
         S: Service<
             ReqBody=Body,
@@ -138,12 +138,12 @@ where
                     Ok(Async::Ready(())) => (),
                     Ok(Async::NotReady) => {
                         // use `poll_close` instead of `poll`, in order to avoid accepting a request.
-                        try_ready!(self.conn.poll_close().map_err(::Error::new_h2));
+                        try_ready!(self.conn.poll_close().map_err(crate::Error::new_h2));
                         trace!("incoming connection complete");
                         return Ok(Async::Ready(()));
                     }
                     Err(err) => {
-                        let err = ::Error::new_user_service(err);
+                        let err = crate::Error::new_user_service(err);
                         debug!("service closed: {}", err);
 
                         let reason = err.h2_reason();
@@ -161,11 +161,11 @@ where
                 }
 
                 // When the service is ready, accepts an incoming request.
-                if let Some((req, respond)) = try_ready!(self.conn.poll().map_err(::Error::new_h2)) {
+                if let Some((req, respond)) = try_ready!(self.conn.poll().map_err(crate::Error::new_h2)) {
                     trace!("incoming request");
                     let content_length = content_length_parse_all(req.headers());
                     let req = req.map(|stream| {
-                        ::Body::h2(stream, content_length)
+                        crate::Body::h2(stream, content_length)
                     });
                     let fut = H2Stream::new(service.call(req), respond);
                     exec.execute_h2stream(fut)?;
@@ -179,7 +179,7 @@ where
 
         debug_assert!(self.closing.is_some(), "poll_server broke loop without closing");
 
-        try_ready!(self.conn.poll_close().map_err(::Error::new_h2));
+        try_ready!(self.conn.poll_close().map_err(crate::Error::new_h2));
 
         Err(self.closing.take().expect("polled after error"))
     }
@@ -215,7 +215,7 @@ where
         }
     }
 
-    fn poll2(&mut self) -> Poll<(), ::Error> {
+    fn poll2(&mut self) -> Poll<(), crate::Error> {
         loop {
             let next = match self.state {
                 H2StreamState::Service(ref mut h) => {
@@ -225,15 +225,15 @@ where
                             // Body is not yet ready, so we want to check if the client has sent a
                             // RST_STREAM frame which would cancel the current request.
                             if let Async::Ready(reason) =
-                                self.reply.poll_reset().map_err(|e| ::Error::new_h2(e))?
+                                self.reply.poll_reset().map_err(|e| crate::Error::new_h2(e))?
                             {
                                 debug!("stream received RST_STREAM: {:?}", reason);
-                                return Err(::Error::new_h2(reason.into()));
+                                return Err(crate::Error::new_h2(reason.into()));
                             }
                             return Ok(Async::NotReady);
                         }
                         Err(e) => {
-                            let err = ::Error::new_user_service(e);
+                            let err = crate::Error::new_user_service(e);
                             warn!("http2 service errored: {}", err);
                             self.reply.send_reset(err.h2_reason());
                             return Err(err);
@@ -249,7 +249,7 @@ where
                         .headers_mut()
                         .entry(::http::header::DATE)
                         .expect("DATE is a valid HeaderName")
-                        .or_insert_with(::proto::h1::date::update_and_header_value);
+                        .or_insert_with(crate::proto::h1::date::update_and_header_value);
 
                     macro_rules! reply {
                         ($eos:expr) => ({
@@ -258,7 +258,7 @@ where
                                 Err(e) => {
                                     debug!("send response error: {}", e);
                                     self.reply.send_reset(Reason::INTERNAL_ERROR);
-                                    return Err(::Error::new_h2(e));
+                                    return Err(crate::Error::new_h2(e));
                                 }
                             }
                         })
@@ -274,7 +274,7 @@ where
                         let buf = SendBuf(Some(full));
                         body_tx
                             .send_data(buf, true)
-                            .map_err(::Error::new_body_write)?;
+                            .map_err(crate::Error::new_body_write)?;
                         return Ok(Async::Ready(()));
                     }
 
