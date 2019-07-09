@@ -64,9 +64,9 @@ use futures::{Future, Stream, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 #[cfg(feature = "runtime")] use tokio_reactor;
 
-use body::{Body, Payload};
-use common::exec::{Exec, H2Exec, NewSvcExec};
-use service::{MakeServiceRef, Service};
+use crate::body::{Body, Payload};
+use crate::common::exec::{Exec, H2Exec, NewSvcExec};
+use crate::service::{MakeServiceRef, Service};
 // Renamed `Http` as `Http_` for now so that people upgrading don't see an
 // error that `hyper::server::Http` is private...
 use self::conn::{Http as Http_, NoopWatcher, SpawnAll};
@@ -119,13 +119,13 @@ impl Server<AddrIncoming, ()> {
     }
 
     /// Tries to bind to the provided address, and returns a [`Builder`](Builder).
-    pub fn try_bind(addr: &SocketAddr) -> ::Result<Builder<AddrIncoming>> {
+    pub fn try_bind(addr: &SocketAddr) -> crate::Result<Builder<AddrIncoming>> {
         AddrIncoming::new(addr, None)
             .map(Server::builder)
     }
 
     /// Create a new instance from a `std::net::TcpListener` instance.
-    pub fn from_tcp(listener: StdTcpListener) -> Result<Builder<AddrIncoming>, ::Error> {
+    pub fn from_tcp(listener: StdTcpListener) -> Result<Builder<AddrIncoming>, crate::Error> {
         let handle = tokio_reactor::Handle::default();
         AddrIncoming::from_std(listener, &handle)
             .map(Server::builder)
@@ -212,7 +212,7 @@ where
     E: NewSvcExec<I::Item, S::Future, S::Service, E, NoopWatcher>,
 {
     type Item = ();
-    type Error = ::Error;
+    type Error = crate::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         self.spawn_all.poll_watch(&NoopWatcher)

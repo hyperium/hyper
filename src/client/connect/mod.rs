@@ -11,7 +11,7 @@ use std::{fmt, mem};
 
 use bytes::{BufMut, Bytes, BytesMut};
 use futures::Future;
-use http::{uri, Response, Uri};
+use ::http::{uri, Response, Uri};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 #[cfg(feature = "runtime")] pub mod dns;
@@ -68,9 +68,9 @@ impl Destination {
     ///
     /// Returns an error if the uri contains no authority or
     /// no scheme.
-    pub fn try_from_uri(uri: Uri) -> ::Result<Self> {
-        uri.authority_part().ok_or(::error::Parse::Uri)?;
-        uri.scheme_part().ok_or(::error::Parse::Uri)?;
+    pub fn try_from_uri(uri: Uri) -> crate::Result<Self> {
+        uri.authority_part().ok_or(crate::error::Parse::Uri)?;
+        uri.scheme_part().ok_or(crate::error::Parse::Uri)?;
         Ok(Destination { uri })
     }
 
@@ -116,8 +116,8 @@ impl Destination {
     /// # Error
     ///
     /// Returns an error if the string is not a valid scheme.
-    pub fn set_scheme(&mut self, scheme: &str) -> ::Result<()> {
-        let scheme = scheme.parse().map_err(::error::Parse::from)?;
+    pub fn set_scheme(&mut self, scheme: &str) -> crate::Result<()> {
+        let scheme = scheme.parse().map_err(crate::error::Parse::from)?;
         self.update_uri(move |parts| {
             parts.scheme = Some(scheme);
         })
@@ -143,19 +143,19 @@ impl Destination {
     /// # Error
     ///
     /// Returns an error if the string is not a valid hostname.
-    pub fn set_host(&mut self, host: &str) -> ::Result<()> {
+    pub fn set_host(&mut self, host: &str) -> crate::Result<()> {
         // Prevent any userinfo setting, it's bad!
         if host.contains('@') {
-            return Err(::error::Parse::Uri.into());
+            return Err(crate::error::Parse::Uri.into());
         }
         let auth = if let Some(port) = self.port() {
             let bytes = Bytes::from(format!("{}:{}", host, port));
             uri::Authority::from_shared(bytes)
-                .map_err(::error::Parse::from)?
+                .map_err(crate::error::Parse::from)?
         } else {
-            let auth = host.parse::<uri::Authority>().map_err(::error::Parse::from)?;
+            let auth = host.parse::<uri::Authority>().map_err(crate::error::Parse::from)?;
             if auth.port_part().is_some() { // std::uri::Authority::Uri
-                return Err(::error::Parse::Uri.into());
+                return Err(crate::error::Parse::Uri.into());
             }
             auth
         };
@@ -218,7 +218,7 @@ impl Destination {
             .expect("valid uri should be valid with port");
     }
 
-    fn update_uri<F>(&mut self, f: F) -> ::Result<()>
+    fn update_uri<F>(&mut self, f: F) -> crate::Result<()>
     where
         F: FnOnce(&mut uri::Parts)
     {
@@ -236,7 +236,7 @@ impl Destination {
             },
             Err(err) => {
                 self.uri = old_uri;
-                Err(::error::Parse::from(err).into())
+                Err(crate::error::Parse::from(err).into())
             },
         }
     }
@@ -254,7 +254,7 @@ impl Destination {
 
 #[cfg(try_from)]
 impl TryFrom<Uri> for Destination {
-    type Error = ::error::Error;
+    type Error = crate::error::Error;
 
     fn try_from(uri: Uri) -> Result<Self, Self::Error> {
         Destination::try_from_uri(uri)
@@ -325,7 +325,7 @@ impl Connected {
 // ===== impl Extra =====
 
 impl Extra {
-    pub(super) fn set(&self, res: &mut Response<::Body>) {
+    pub(super) fn set(&self, res: &mut Response<crate::Body>) {
         self.0.set(res);
     }
 }
@@ -345,7 +345,7 @@ impl fmt::Debug for Extra {
 
 trait ExtraInner: Send + Sync {
     fn clone_box(&self) -> Box<dyn ExtraInner>;
-    fn set(&self, res: &mut Response<::Body>);
+    fn set(&self, res: &mut Response<crate::Body>);
 }
 
 // This indirection allows the `Connected` to have a type-erased "extra" value,
@@ -362,7 +362,7 @@ where
         Box::new(self.clone())
     }
 
-    fn set(&self, res: &mut Response<::Body>) {
+    fn set(&self, res: &mut Response<crate::Body>) {
         res.extensions_mut().insert(self.0.clone());
     }
 }
@@ -383,7 +383,7 @@ where
         Box::new(self.clone())
     }
 
-    fn set(&self, res: &mut Response<::Body>) {
+    fn set(&self, res: &mut Response<crate::Body>) {
         self.0.set(res);
         res.extensions_mut().insert(self.1.clone());
     }
@@ -567,7 +567,7 @@ mod tests {
         let c1 = Connected::new()
             .extra(Ex1(41));
 
-        let mut res1 = ::Response::new(::Body::empty());
+        let mut res1 = crate::Response::new(crate::Body::empty());
 
         assert_eq!(res1.extensions().get::<Ex1>(), None);
 
@@ -590,7 +590,7 @@ mod tests {
             .extra(Ex2("zoom"))
             .extra(Ex3("pew pew"));
 
-        let mut res1 = ::Response::new(::Body::empty());
+        let mut res1 = crate::Response::new(crate::Body::empty());
 
         assert_eq!(res1.extensions().get::<Ex1>(), None);
         assert_eq!(res1.extensions().get::<Ex2>(), None);
@@ -612,7 +612,7 @@ mod tests {
             .extra(Ex2("hiccup"))
             .extra(Ex1(99));
 
-        let mut res2 = ::Response::new(::Body::empty());
+        let mut res2 = crate::Response::new(crate::Body::empty());
 
         c2
             .extra

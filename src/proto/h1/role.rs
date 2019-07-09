@@ -10,10 +10,10 @@ use http::header::{self, Entry, HeaderName, HeaderValue};
 use http::{HeaderMap, Method, StatusCode, Version};
 use httparse;
 
-use error::Parse;
-use headers;
-use proto::{BodyLength, DecodedLength, MessageHead, RequestLine, RequestHead};
-use proto::h1::{Encode, Encoder, Http1Transaction, ParseResult, ParseContext, ParsedMessage, date};
+use crate::error::Parse;
+use crate::headers;
+use crate::proto::{BodyLength, DecodedLength, MessageHead, RequestLine, RequestHead};
+use crate::proto::h1::{Encode, Encoder, Http1Transaction, ParseResult, ParseContext, ParsedMessage, date};
 
 const MAX_HEADERS: usize = 100;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
@@ -239,7 +239,7 @@ impl Http1Transaction for Server {
         }))
     }
 
-    fn encode(mut msg: Encode<Self::Outgoing>, mut dst: &mut Vec<u8>) -> ::Result<Encoder> {
+    fn encode(mut msg: Encode<Self::Outgoing>, mut dst: &mut Vec<u8>) -> crate::Result<Encoder> {
         trace!(
             "Server::encode status={:?}, body={:?}, req_method={:?}",
             msg.head.subject,
@@ -266,7 +266,7 @@ impl Http1Transaction for Server {
             *msg.head = MessageHead::default();
             msg.head.subject = StatusCode::INTERNAL_SERVER_ERROR;
             msg.body = None;
-            (Err(::Error::new_user_unsupported_status_code()), true)
+            (Err(crate::Error::new_user_unsupported_status_code()), true)
         } else {
             (Ok(()), !msg.keep_alive)
         };
@@ -309,7 +309,7 @@ impl Http1Transaction for Server {
                     if wrote_len {
                         warn!("unexpected content-length found, canceling");
                         rewind(dst);
-                        return Err(::Error::new_user_header());
+                        return Err(crate::Error::new_user_header());
                     }
                     match msg.body {
                         Some(BodyLength::Known(known_len)) => {
@@ -369,7 +369,7 @@ impl Http1Transaction for Server {
                                         if fold.0 != len {
                                             warn!("multiple Content-Length values found: [{}, {}]", fold.0, len);
                                             rewind(dst);
-                                            return Err(::Error::new_user_header());
+                                            return Err(crate::Error::new_user_header());
                                         }
                                         folded = Some(fold);
                                     } else {
@@ -378,7 +378,7 @@ impl Http1Transaction for Server {
                                 } else {
                                     warn!("illegal Content-Length value: {:?}", value);
                                     rewind(dst);
-                                    return Err(::Error::new_user_header());
+                                    return Err(crate::Error::new_user_header());
                                 }
                             }
                             if let Some((len, value)) = folded {
@@ -418,7 +418,7 @@ impl Http1Transaction for Server {
                     if wrote_len {
                         warn!("unexpected transfer-encoding found, canceling");
                         rewind(dst);
-                        return Err(::Error::new_user_header());
+                        return Err(crate::Error::new_user_header());
                     }
                     // check that we actually can send a chunked body...
                     if msg.head.version == Version::HTTP_10 || !Server::can_chunked(msg.req_method, msg.head.subject) {
@@ -531,8 +531,8 @@ impl Http1Transaction for Server {
         ret.map(|()| encoder.set_last(is_last))
     }
 
-    fn on_error(err: &::Error) -> Option<MessageHead<Self::Outgoing>> {
-        use ::error::Kind;
+    fn on_error(err: &crate::Error) -> Option<MessageHead<Self::Outgoing>> {
+        use crate::error::Kind;
         let status = match *err.kind() {
             Kind::Parse(Parse::Method) |
             Kind::Parse(Parse::Header) |
@@ -666,7 +666,7 @@ impl Http1Transaction for Client {
         }
     }
 
-    fn encode(msg: Encode<Self::Outgoing>, dst: &mut Vec<u8>) -> ::Result<Encoder> {
+    fn encode(msg: Encode<Self::Outgoing>, dst: &mut Vec<u8>) -> crate::Result<Encoder> {
         trace!("Client::encode method={:?}, body={:?}", msg.head.subject.0, msg.body);
 
         *msg.req_method = Some(msg.head.subject.0.clone());
@@ -704,7 +704,7 @@ impl Http1Transaction for Client {
         Ok(body)
     }
 
-    fn on_error(_err: &::Error) -> Option<MessageHead<Self::Outgoing>> {
+    fn on_error(_err: &crate::Error) -> Option<MessageHead<Self::Outgoing>> {
         // we can't tell the server about any errors it creates
         None
     }
@@ -937,7 +937,7 @@ fn record_header_indices(
     bytes: &[u8],
     headers: &[httparse::Header],
     indices: &mut [HeaderIndices]
-) -> Result<(), ::error::Parse> {
+) -> Result<(), crate::error::Parse> {
     let bytes_ptr = bytes.as_ptr() as usize;
 
     // FIXME: This should be a single plain `for` loop.
@@ -966,7 +966,7 @@ fn record_header_indices(
             {
                 if header.name.len() >= (1 << 16) {
                     debug!("header name larger than 64kb: {:?}", header.name);
-                    return Err(::error::Parse::TooLarge);
+                    return Err(crate::error::Parse::TooLarge);
                 }
                 let name_start = header.name.as_ptr() as usize - bytes_ptr;
                 let name_end = name_start + header.name.len();
@@ -1071,12 +1071,12 @@ mod tests {
             req_method: &mut method,
         }).unwrap().unwrap();
         assert_eq!(raw.len(), 0);
-        assert_eq!(msg.head.subject.0, ::Method::GET);
+        assert_eq!(msg.head.subject.0, crate::Method::GET);
         assert_eq!(msg.head.subject.1, "/echo");
-        assert_eq!(msg.head.version, ::Version::HTTP_11);
+        assert_eq!(msg.head.version, crate::Version::HTTP_11);
         assert_eq!(msg.head.headers.len(), 1);
         assert_eq!(msg.head.headers["Host"], "hyper.rs");
-        assert_eq!(method, Some(::Method::GET));
+        assert_eq!(method, Some(crate::Method::GET));
     }
 
 
@@ -1087,12 +1087,12 @@ mod tests {
         let mut raw = BytesMut::from(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n".to_vec());
         let ctx = ParseContext {
             cached_headers: &mut None,
-            req_method: &mut Some(::Method::GET),
+            req_method: &mut Some(crate::Method::GET),
         };
         let msg = Client::parse(&mut raw, ctx).unwrap().unwrap();
         assert_eq!(raw.len(), 0);
-        assert_eq!(msg.head.subject, ::StatusCode::OK);
-        assert_eq!(msg.head.version, ::Version::HTTP_11);
+        assert_eq!(msg.head.subject, crate::StatusCode::OK);
+        assert_eq!(msg.head.version, crate::Version::HTTP_11);
         assert_eq!(msg.head.headers.len(), 1);
         assert_eq!(msg.head.headers["Content-Length"], "0");
     }
@@ -1120,7 +1120,7 @@ mod tests {
                 .expect("parse complete")
         }
 
-        fn parse_err(s: &str, comment: &str) -> ::error::Parse {
+        fn parse_err(s: &str, comment: &str) -> crate::error::Parse {
             let mut bytes = BytesMut::from(s);
             Server::parse(&mut bytes, ParseContext {
                 cached_headers: &mut None,
@@ -1266,7 +1266,7 @@ mod tests {
                 .expect("parse complete")
         }
 
-        fn parse_err(s: &str) -> ::error::Parse {
+        fn parse_err(s: &str) -> crate::error::Parse {
             let mut bytes = BytesMut::from(s);
             Client::parse(&mut bytes, ParseContext {
                 cached_headers: &mut None,
@@ -1423,7 +1423,7 @@ mod tests {
     #[test]
     fn test_client_request_encode_title_case() {
         use http::header::HeaderValue;
-        use proto::BodyLength;
+        use crate::proto::BodyLength;
 
         let mut head = MessageHead::default();
         head.headers.insert("content-length", HeaderValue::from_static("10"));
@@ -1553,7 +1553,7 @@ mod tests {
     #[bench]
     fn bench_server_encode_headers_preset(b: &mut Bencher) {
         use http::header::HeaderValue;
-        use proto::BodyLength;
+        use crate::proto::BodyLength;
 
         let len = 108;
         b.bytes = len as u64;
@@ -1581,7 +1581,7 @@ mod tests {
     #[cfg(feature = "nightly")]
     #[bench]
     fn bench_server_encode_no_headers(b: &mut Bencher) {
-        use proto::BodyLength;
+        use crate::proto::BodyLength;
 
         let len = 76;
         b.bytes = len as u64;

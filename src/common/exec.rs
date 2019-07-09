@@ -3,17 +3,17 @@ use std::sync::Arc;
 
 use futures::future::{Executor, Future};
 
-use body::Payload;
-use proto::h2::server::H2Stream;
-use server::conn::spawn_all::{NewSvcTask, Watcher};
-use service::Service;
+use crate::body::Payload;
+use crate::proto::h2::server::H2Stream;
+use crate::server::conn::spawn_all::{NewSvcTask, Watcher};
+use crate::service::Service;
 
 pub trait H2Exec<F, B: Payload>: Clone {
-    fn execute_h2stream(&self, fut: H2Stream<F, B>) -> ::Result<()>;
+    fn execute_h2stream(&self, fut: H2Stream<F, B>) -> crate::Result<()>;
 }
 
 pub trait NewSvcExec<I, N, S: Service, E, W: Watcher<I, S, E>>: Clone {
-    fn execute_new_svc(&self, fut: NewSvcTask<I, N, S, E, W>) -> ::Result<()>;
+    fn execute_new_svc(&self, fut: NewSvcTask<I, N, S, E, W>) -> crate::Result<()>;
 }
 
 // Either the user provides an executor for background tasks, or we use
@@ -27,7 +27,7 @@ pub enum Exec {
 // ===== impl Exec =====
 
 impl Exec {
-    pub(crate) fn execute<F>(&self, fut: F) -> ::Result<()>
+    pub(crate) fn execute<F>(&self, fut: F) -> crate::Result<()>
     where
         F: Future<Item=(), Error=()> + Send + 'static,
     {
@@ -62,7 +62,7 @@ impl Exec {
                         .spawn(Box::new(fut))
                         .map_err(|err| {
                             warn!("executor error: {:?}", err);
-                            ::Error::new_execute(TokioSpawnError)
+                            crate::Error::new_execute(TokioSpawnError)
                         })
                 }
                 #[cfg(not(feature = "runtime"))]
@@ -75,7 +75,7 @@ impl Exec {
                 e.execute(Box::new(fut))
                     .map_err(|err| {
                         warn!("executor error: {:?}", err.kind());
-                        ::Error::new_execute("custom executor failed")
+                        crate::Error::new_execute("custom executor failed")
                     })
             },
         }
@@ -95,7 +95,7 @@ where
     H2Stream<F, B>: Future<Item=(), Error=()> + Send + 'static,
     B: Payload,
 {
-    fn execute_h2stream(&self, fut: H2Stream<F, B>) -> ::Result<()> {
+    fn execute_h2stream(&self, fut: H2Stream<F, B>) -> crate::Result<()> {
         self.execute(fut)
     }
 }
@@ -106,7 +106,7 @@ where
     S: Service,
     W: Watcher<I, S, E>,
 {
-    fn execute_new_svc(&self, fut: NewSvcTask<I, N, S, E, W>) -> ::Result<()> {
+    fn execute_new_svc(&self, fut: NewSvcTask<I, N, S, E, W>) -> crate::Result<()> {
         self.execute(fut)
     }
 }
@@ -119,11 +119,11 @@ where
     H2Stream<F, B>: Future<Item=(), Error=()>,
     B: Payload,
 {
-    fn execute_h2stream(&self, fut: H2Stream<F, B>) -> ::Result<()> {
+    fn execute_h2stream(&self, fut: H2Stream<F, B>) -> crate::Result<()> {
         self.execute(fut)
             .map_err(|err| {
                 warn!("executor error: {:?}", err.kind());
-                ::Error::new_execute("custom executor failed")
+                crate::Error::new_execute("custom executor failed")
             })
     }
 }
@@ -135,11 +135,11 @@ where
     S: Service,
     W: Watcher<I, S, E>,
 {
-    fn execute_new_svc(&self, fut: NewSvcTask<I, N, S, E, W>) -> ::Result<()> {
+    fn execute_new_svc(&self, fut: NewSvcTask<I, N, S, E, W>) -> crate::Result<()> {
         self.execute(fut)
             .map_err(|err| {
                 warn!("executor error: {:?}", err.kind());
-                ::Error::new_execute("custom executor failed")
+                crate::Error::new_execute("custom executor failed")
             })
     }
 }

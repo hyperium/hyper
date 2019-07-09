@@ -65,7 +65,7 @@ pub trait Payload: Send + 'static {
     // The only thing a user *could* do is reference the method, but DON'T
     // DO THAT! :)
     #[doc(hidden)]
-    fn __hyper_full_data(&mut self, FullDataArg) -> FullDataRet<Self::Data> {
+    fn __hyper_full_data(&mut self, _: FullDataArg) -> FullDataRet<Self::Data> {
         FullDataRet(None)
     }
 }

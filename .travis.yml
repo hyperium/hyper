@@ -13,7 +13,7 @@ matrix:
         - rust: stable
           env: FEATURES="--no-default-features"
         # Minimum Supported Rust Version
-        - rust: 1.27.0
+        - rust: 1.31.0
           env: FEATURES="--no-default-features --features runtime" BUILD_ONLY="1"
 
 before_script:

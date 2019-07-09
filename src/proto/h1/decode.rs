@@ -323,7 +323,7 @@ mod tests {
     use super::super::io::MemRead;
     use futures::{Async, Poll};
     use bytes::{BytesMut, Bytes};
-    use mock::AsyncIo;
+    use crate::mock::AsyncIo;
 
     impl<'a> MemRead for &'a [u8] {
         fn read_mem(&mut self, len: usize) -> Poll<Bytes, io::Error> {

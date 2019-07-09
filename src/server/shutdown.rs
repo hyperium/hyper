@@ -3,10 +3,10 @@ use std::error::Error as StdError;
 use futures::{Async, Future, Stream, Poll};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use body::{Body, Payload};
-use common::drain::{self, Draining, Signal, Watch, Watching};
-use common::exec::{H2Exec, NewSvcExec};
-use service::{MakeServiceRef, Service};
+use crate::body::{Body, Payload};
+use crate::common::drain::{self, Draining, Signal, Watch, Watching};
+use crate::common::exec::{H2Exec, NewSvcExec};
+use crate::service::{MakeServiceRef, Service};
 use super::conn::{SpawnAll, UpgradeableConnection, Watcher};
 
 #[allow(missing_debug_implementations)]
@@ -51,7 +51,7 @@ where
     E: NewSvcExec<I::Item, S::Future, S::Service, E, GracefulWatcher>,
 {
     type Item = ();
-    type Error = ::Error;
+    type Error = crate::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         loop {

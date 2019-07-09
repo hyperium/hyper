@@ -1,7 +1,7 @@
 use bytes::BytesMut;
 use http::{HeaderMap, Method};
 
-use proto::{MessageHead, BodyLength, DecodedLength};
+use crate::proto::{MessageHead, BodyLength, DecodedLength};
 
 pub(crate) use self::conn::Conn;
 pub(crate) use self::dispatch::Dispatcher;
@@ -27,9 +27,9 @@ pub(crate) trait Http1Transaction {
     type Outgoing: Default;
     const LOG: &'static str;
     fn parse(bytes: &mut BytesMut, ctx: ParseContext) -> ParseResult<Self::Incoming>;
-    fn encode(enc: Encode<Self::Outgoing>, dst: &mut Vec<u8>) -> ::Result<Encoder>;
+    fn encode(enc: Encode<Self::Outgoing>, dst: &mut Vec<u8>) -> crate::Result<Encoder>;
 
-    fn on_error(err: &::Error) -> Option<MessageHead<Self::Outgoing>>;
+    fn on_error(err: &crate::Error) -> Option<MessageHead<Self::Outgoing>>;
 
     fn is_client() -> bool {
         !Self::is_server()
@@ -51,7 +51,7 @@ pub(crate) trait Http1Transaction {
 }
 
 /// Result newtype for Http1Transaction::parse.
-pub(crate) type ParseResult<T> = Result<Option<ParsedMessage<T>>, ::error::Parse>;
+pub(crate) type ParseResult<T> = Result<Option<ParsedMessage<T>>, crate::error::Parse>;
 
 #[derive(Debug)]
 pub(crate) struct ParsedMessage<T> {

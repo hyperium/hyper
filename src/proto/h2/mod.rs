@@ -7,7 +7,7 @@ use http::header::{
 };
 use http::HeaderMap;
 
-use body::Payload;
+use crate::body::Payload;
 
 mod client;
 pub(crate) mod server;
@@ -91,18 +91,18 @@ where
         }
     }
 
-    fn on_user_err(&mut self, err: S::Error) -> ::Error {
-        let err = ::Error::new_user_body(err);
+    fn on_user_err(&mut self, err: S::Error) -> crate::Error {
+        let err = crate::Error::new_user_body(err);
         debug!("send body user stream error: {}", err);
         self.body_tx.send_reset(err.h2_reason());
         err
     }
 
-    fn send_eos_frame(&mut self) -> ::Result<()> {
+    fn send_eos_frame(&mut self) -> crate::Result<()> {
         trace!("send body eos");
         self.body_tx
             .send_data(SendBuf(None), true)
-            .map_err(::Error::new_body_write)
+            .map_err(crate::Error::new_body_write)
     }
 }
 
@@ -111,7 +111,7 @@ where
     S: Payload,
 {
     type Item = ();
-    type Error = ::Error;
+    type Error = crate::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         loop {
@@ -123,18 +123,18 @@ where
 
                 if self.body_tx.capacity() == 0 {
                     loop {
-                        match try_ready!(self.body_tx.poll_capacity().map_err(::Error::new_body_write)) {
+                        match try_ready!(self.body_tx.poll_capacity().map_err(crate::Error::new_body_write)) {
                             Some(0) => {}
                             Some(_) => break,
-                            None => return Err(::Error::new_canceled()),
+                            None => return Err(crate::Error::new_canceled()),
                         }
                     }
                 } else {
                     if let Async::Ready(reason) =
-                        self.body_tx.poll_reset().map_err(::Error::new_body_write)?
+                        self.body_tx.poll_reset().map_err(crate::Error::new_body_write)?
                     {
                         debug!("stream received RST_STREAM: {:?}", reason);
-                        return Err(::Error::new_body_write(::h2::Error::from(reason)));
+                        return Err(crate::Error::new_body_write(::h2::Error::from(reason)));
                     }
                 }
 
@@ -150,7 +150,7 @@ where
                         let buf = SendBuf(Some(chunk));
                         self.body_tx
                             .send_data(buf, is_eos)
-                            .map_err(::Error::new_body_write)?;
+                            .map_err(crate::Error::new_body_write)?;
 
                         if is_eos {
                             return Ok(Async::Ready(()));
@@ -169,17 +169,17 @@ where
                 }
             } else {
                 if let Async::Ready(reason) =
-                    self.body_tx.poll_reset().map_err(|e| ::Error::new_body_write(e))?
+                    self.body_tx.poll_reset().map_err(|e| crate::Error::new_body_write(e))?
                 {
                     debug!("stream received RST_STREAM: {:?}", reason);
-                    return Err(::Error::new_body_write(::h2::Error::from(reason)));
+                    return Err(crate::Error::new_body_write(::h2::Error::from(reason)));
                 }
 
                 match try_ready!(self.stream.poll_trailers().map_err(|e| self.on_user_err(e))) {
                     Some(trailers) => {
                         self.body_tx
                             .send_trailers(trailers)
-                            .map_err(::Error::new_body_write)?;
+                            .map_err(crate::Error::new_body_write)?;
                         return Ok(Async::Ready(()));
                     }
                     None => {

@@ -5,9 +5,9 @@ pub extern crate tokio;
 use std::sync::{Arc, Mutex, atomic::{AtomicUsize, Ordering}};
 use std::time::Duration;
 
-use hyper::{Body, Client, Request, Response, Server, Version};
-use hyper::client::HttpConnector;
-use hyper::service::service_fn;
+use crate::hyper::{Body, Client, Request, Response, Server, Version};
+use crate::hyper::client::HttpConnector;
+use crate::hyper::service::service_fn;
 
 pub use std::net::SocketAddr;
 pub use self::futures::{future, Future, Stream};
@@ -207,12 +207,12 @@ macro_rules! __internal_headers_map {
 
 macro_rules! __internal_headers_eq {
     (@pat $name: expr, $pat:pat) => {
-        ::std::sync::Arc::new(move |__hdrs: &::hyper::HeaderMap| {
+        ::std::sync::Arc::new(move |__hdrs: &crate::hyper::HeaderMap| {
             match __hdrs.get($name) {
                 $pat => (),
                 other => panic!("headers[{}] was not {}: {:?}", stringify!($name), stringify!($pat), other),
             }
-        }) as ::std::sync::Arc<dyn Fn(&::hyper::HeaderMap) + Send + Sync>
+        }) as ::std::sync::Arc<dyn Fn(&crate::hyper::HeaderMap) + Send + Sync>
     };
     (@val $name: expr, NONE) => {
         __internal_headers_eq!(@pat $name, None);
@@ -222,13 +222,13 @@ macro_rules! __internal_headers_eq {
     };
     (@val $name: expr, $val:expr) => ({
         let __val = Option::from($val);
-        ::std::sync::Arc::new(move |__hdrs: &::hyper::HeaderMap| {
+        ::std::sync::Arc::new(move |__hdrs: &crate::hyper::HeaderMap| {
             if let Some(ref val) = __val {
                 assert_eq!(__hdrs.get($name).expect(stringify!($name)), val.to_string().as_str(), stringify!($name));
             } else {
                 assert_eq!(__hdrs.get($name), None, stringify!($name));
             }
-        }) as ::std::sync::Arc<dyn Fn(&::hyper::HeaderMap) + Send + Sync>
+        }) as ::std::sync::Arc<dyn Fn(&crate::hyper::HeaderMap) + Send + Sync>
     });
     ($headers:ident, { $($name:expr => $val:tt,)* }) => {
         $(
@@ -378,7 +378,7 @@ pub fn __run_test(cfg: __TestConfig) {
                 .map_err(|never| -> hyper::Error { match never {} })
                 .flatten()
                 .map_err(|e| panic!("server connection error: {}", e));
-            ::tokio::spawn(fut);
+            crate::tokio::spawn(fut);
             Ok::<_, hyper::Error>(cnt)
         })
         .map(|_| ())

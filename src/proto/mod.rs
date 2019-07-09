@@ -40,7 +40,7 @@ pub(crate) enum Dispatched {
     /// Dispatcher completely shutdown connection.
     Shutdown,
     /// Dispatcher has pending upgrade, and so did not shutdown.
-    Upgrade(::upgrade::Pending),
+    Upgrade(crate::upgrade::Pending),
 }
 
 /// A separate module to encapsulate the invariants of the DecodedLength type.
@@ -83,12 +83,12 @@ mod body_length {
         }
 
         /// Checks the `u64` is within the maximum allowed for content-length.
-        pub(crate) fn checked_new(len: u64) -> Result<Self, ::error::Parse> {
+        pub(crate) fn checked_new(len: u64) -> Result<Self, crate::error::Parse> {
             if len <= MAX_LEN {
                 Ok(DecodedLength(len))
             } else {
                 warn!("content-length bigger than maximum: {} > {}", len, MAX_LEN);
-                Err(::error::Parse::TooLarge)
+                Err(crate::error::Parse::TooLarge)
             }
         }
     }

@@ -133,14 +133,8 @@ impl Error {
         self.inner.kind == Kind::IncompleteMessage
     }
 
-    #[doc(hidden)]
-    #[cfg_attr(error_source, deprecated(note = "use Error::source instead"))]
-    pub fn cause2(&self) -> Option<&(dyn StdError + 'static + Sync + Send)> {
-        self.inner.cause.as_ref().map(|e| &**e)
-    }
-
     /// Consumes the error, returning its cause.
-    pub fn into_cause(self) -> Option<Box<dyn StdError + Sync + Send>> {
+    pub fn into_cause(self) -> Option<Box<dyn StdError + Send + Sync>> {
         self.inner.cause
     }
 
@@ -162,28 +156,6 @@ impl Error {
         &self.inner.kind
     }
 
-    #[cfg(not(error_source))]
-    pub(crate) fn h2_reason(&self) -> h2::Reason {
-        // Since we don't have access to `Error::source`, we can only
-        // look so far...
-        let mut cause = self.cause2();
-        while let Some(err) = cause {
-            if let Some(h2_err) = err.downcast_ref::<h2::Error>() {
-                return h2_err
-                    .reason()
-                    .unwrap_or(h2::Reason::INTERNAL_ERROR);
-            }
-
-            cause = err
-                .downcast_ref::<Error>()
-                .and_then(Error::cause2);
-        }
-
-        // else
-        h2::Reason::INTERNAL_ERROR
-    }
-
-    #[cfg(error_source)]
     pub(crate) fn h2_reason(&self) -> h2::Reason {
         // Find an h2::Reason somewhere in the cause stack, if it exists,
         // otherwise assume an INTERNAL_ERROR.
@@ -370,16 +342,6 @@ impl StdError for Error {
         }
     }
 
-    #[cfg(not(error_source))]
-    fn cause(&self) -> Option<&StdError> {
-        self
-            .inner
-            .cause
-            .as_ref()
-            .map(|cause| &**cause as &StdError)
-    }
-
-    #[cfg(error_source)]
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         self
             .inner
