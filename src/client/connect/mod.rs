@@ -5,9 +5,9 @@
 //! - A default [`HttpConnector`](HttpConnector) that does DNS resolution and
 //!   establishes connections over TCP.
 //! - The [`Connect`](Connect) trait and related types to build custom connectors.
+use std::convert::TryFrom;
 use std::error::Error as StdError;
 use std::{fmt, mem};
-#[cfg(try_from)] use std::convert::TryFrom;
 
 use bytes::{BufMut, Bytes, BytesMut};
 use ::http::{uri, Response, Uri};
@@ -253,7 +253,6 @@ impl Destination {
     */
 }
 
-#[cfg(try_from)]
 impl TryFrom<Uri> for Destination {
     type Error = crate::error::Error;
 
@@ -538,15 +537,13 @@ mod tests {
         assert_eq!(dst.port(), None);
     }
 
-    #[cfg(try_from)]
     #[test]
     fn test_try_from_destination() {
         let uri: http::Uri = "http://hyper.rs".parse().expect("initial parse");
         let result = Destination::try_from(uri);
         assert_eq!(result.is_ok(), true);
     }
-    
-    #[cfg(try_from)]    
+
     #[test]
     fn test_try_from_no_scheme() {
         let uri: http::Uri = "hyper.rs".parse().expect("initial parse error");
