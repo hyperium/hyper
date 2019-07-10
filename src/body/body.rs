@@ -3,8 +3,9 @@ use std::error::Error as StdError;
 use std::fmt;
 
 use bytes::Bytes;
-use futures_core::Stream;
+use futures_core::{Stream, TryStream};
 use futures_channel::{mpsc, oneshot};
+use futures_util::TryStreamExt;
 use tokio_buf::SizeHint;
 use h2;
 use http::HeaderMap;
@@ -119,7 +120,6 @@ impl Body {
         (tx, rx)
     }
 
-    /*
     /// Wrap a futures `Stream` in a box inside `Body`.
     ///
     /// # Example
@@ -142,14 +142,13 @@ impl Body {
     /// ```
     pub fn wrap_stream<S>(stream: S) -> Body
     where
-        S: Stream + Send + 'static,
+        S: TryStream + Send + 'static,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
-        Chunk: From<S::Item>,
+        Chunk: From<S::Ok>,
     {
-        let mapped = stream.map(Chunk::from).map_err(Into::into);
-        Body::new(Kind::Wrapped(Box::new(mapped)))
+        let mapped = stream.map_ok(Chunk::from).map_err(Into::into);
+        Body::new(Kind::Wrapped(Box::pin(mapped)))
     }
-    */
 
     /// dox
     pub async fn next(&mut self) -> Option<crate::Result<Chunk>> {
