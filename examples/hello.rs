@@ -1,7 +1,5 @@
 #![feature(async_await)]
 #![deny(warnings)]
-extern crate hyper;
-extern crate pretty_env_logger;
 
 use hyper::{Body, Request, Response, Server};
 use hyper::service::{make_service_fn, service_fn};
@@ -10,8 +8,8 @@ async fn hello(_: Request<Body>) -> Result<Response<Body>, hyper::Error> {
     Ok(Response::new(Body::from("Hello World!")))
 }
 
-#[tokio::main]
-pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[hyper::rt::main]
+pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     pretty_env_logger::init();
 
     let addr = ([127, 0, 0, 1], 3000).into();

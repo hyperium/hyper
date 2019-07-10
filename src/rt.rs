@@ -11,6 +11,8 @@ pub use futures_core::Stream;
 
 use tokio;
 
+pub use tokio::main;
+
 use self::inner::Spawn;
 
 /// Spawns a future on the default executor.
@@ -32,18 +34,6 @@ where
     Spawn {
         _inner: (),
     }
-}
-
-/// Start the Tokio runtime using the supplied future to bootstrap execution.
-///
-/// # Example
-///
-/// See the [server documentation](::server) for an example of its usage.
-pub fn run<F>(f: F)
-where
-    F: Future<Output = ()> + Send + 'static
-{
-    tokio::run(f);
 }
 
 // Make the `Spawn` type an unnameable, so we can add
