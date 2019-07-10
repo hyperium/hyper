@@ -41,7 +41,11 @@ enum Kind {
         content_length: Option<u64>,
         recv: h2::RecvStream,
     },
-    Wrapped(Pin<Box<dyn Stream<Item = Result<Chunk, Box<dyn StdError + Send + Sync>>> + Send>>),
+    // NOTE: This requires `Sync` because of how easy it is to use `await`
+    // while a borrow of a `Request<Body>` exists.
+    //
+    // See https://github.com/rust-lang/rust/issues/57017
+    Wrapped(Pin<Box<dyn Stream<Item = Result<Chunk, Box<dyn StdError + Send + Sync>>> + Send + Sync>>),
 }
 
 struct Extra {
@@ -142,7 +146,7 @@ impl Body {
     /// ```
     pub fn wrap_stream<S>(stream: S) -> Body
     where
-        S: TryStream + Send + 'static,
+        S: TryStream + Send + Sync + 'static,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         Chunk: From<S::Ok>,
     {
@@ -411,13 +415,13 @@ impl Stream for Body {
 
 
 impl
-    From<Box<dyn Stream<Item = Result<Chunk, Box<dyn StdError + Send + Sync>>> + Send>>
+    From<Box<dyn Stream<Item = Result<Chunk, Box<dyn StdError + Send + Sync>>> + Send + Sync>>
     for Body
 {
     #[inline]
     fn from(
         stream: Box<
-            dyn Stream<Item = Result<Chunk, Box<dyn StdError + Send + Sync>>> + Send,
+            dyn Stream<Item = Result<Chunk, Box<dyn StdError + Send + Sync>>> + Send + Sync,
         >,
     ) -> Body {
         Body::new(Kind::Wrapped(stream.into()))
