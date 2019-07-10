@@ -11,7 +11,7 @@ async fn hello(_: Request<Body>) -> Result<Response<Body>, hyper::Error> {
 }
 
 #[tokio::main]
-pub async fn main() {
+pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
     pretty_env_logger::init();
 
     let addr = ([127, 0, 0, 1], 3000).into();
@@ -28,7 +28,7 @@ pub async fn main() {
 
     println!("Listening on http://{}", addr);
 
-    if let Err(e) = server.await {
-        eprintln!("server error: {}", e);
-    }
+    server.await?;
+
+    Ok(())
 }
