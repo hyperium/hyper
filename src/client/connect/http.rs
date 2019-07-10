@@ -81,29 +81,6 @@ impl HttpConnector {
     pub fn new(threads: usize) -> HttpConnector {
         HttpConnector::new_with_resolver(GaiResolver::new(threads))
     }
-
-    #[doc(hidden)]
-    #[deprecated(note = "Use HttpConnector::set_reactor to set a reactor handle")]
-    pub fn new_with_handle(threads: usize, handle: Handle) -> HttpConnector {
-        let resolver = GaiResolver::new(threads);
-        let mut http = HttpConnector::new_with_resolver(resolver);
-        http.set_reactor(Some(handle));
-        http
-    }
-
-    /*
-    /// Construct a new HttpConnector.
-    ///
-    /// Takes an executor to run blocking `getaddrinfo` tasks on.
-    pub fn new_with_executor<E: 'static>(executor: E, handle: Option<Handle>) -> HttpConnector
-        where E: Executor<dns::sealed::GaiTask> + Send + Sync
-    {
-        let resolver = GaiResolver::new_with_executor(executor);
-        let mut http = HttpConnector::new_with_resolver(resolver);
-        http.set_reactor(handle);
-        http
-    }
-    */
 }
 
 impl HttpConnector<TokioThreadpoolGaiResolver> {
