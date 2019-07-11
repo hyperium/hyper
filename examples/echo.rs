@@ -24,13 +24,13 @@ async fn echo(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
 
         // Convert to uppercase before sending back to client using a stream.
         (&Method::POST, "/echo/uppercase") => {
-            let mapping = req.into_body().map_ok(|chunk| {
+            let chunk_stream = req.into_body().map_ok(|chunk| {
                 chunk
                     .iter()
                     .map(|byte| byte.to_ascii_uppercase())
                     .collect::<Vec<u8>>()
             });
-            Ok(Response::new(Body::wrap_stream(mapping)))
+            Ok(Response::new(Body::wrap_stream(chunk_stream)))
         }
 
         // Reverse the entire body before sending back to the client.
@@ -40,16 +40,16 @@ async fn echo(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
         // So here we do `.await` on the future, waiting on concatenating the full body,
         // then afterwards the content can be reversed. Only then can we return a `Response`.
         (&Method::POST, "/echo/reversed") => {
-            let chunks = req.into_body().try_concat().await;
+            let whole_chunk = req.into_body().try_concat().await;
 
-            let reversed_body = chunks.map(move |chunk| {
+            let reversed_chunk = whole_chunk.map(move |chunk| {
                 chunk.iter().rev().cloned().collect::<Vec<u8>>()
 
             })?;
-            Ok(Response::new(Body::from(reversed_body)))
+            Ok(Response::new(Body::from(reversed_chunk)));
         }
 
-        // Return The 404 Not Found for other routes.
+        // Return the 404 Not Found for other routes.
         _ => {
             let mut not_found = Response::new(Body::empty());
             *not_found.status_mut() = StatusCode::NOT_FOUND;
