@@ -46,12 +46,12 @@ async fn echo(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
                 chunk.iter().rev().cloned().collect::<Vec<u8>>()
 
             })?;
-            Ok(Response::new(Body::from(reversed_chunk)));
+            Ok(Response::new(Body::from(reversed_chunk)))
         }
 
         // Return the 404 Not Found for other routes.
         _ => {
-            let mut not_found = Response::new(Body::empty());
+            let mut not_found = Response::default();
             *not_found.status_mut() = StatusCode::NOT_FOUND;
             Ok(not_found)
         }
