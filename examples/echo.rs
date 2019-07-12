@@ -1,80 +1,80 @@
+#![feature(async_await)]
 #![deny(warnings)]
-extern crate futures;
+
 extern crate hyper;
 
-use futures::future;
-use hyper::rt::{Future, Stream};
-use hyper::service::service_fn;
 use hyper::{Body, Method, Request, Response, Server, StatusCode};
-
-/// We need to return different futures depending on the route matched,
-/// and we can do that with an enum, such as `futures::Either`, or with
-/// trait objects.
-///
-/// A boxed Future (trait object) is used as it is easier to understand
-/// and extend with more types. Advanced users could switch to `Either`.
-type BoxFut = Box<dyn Future<Item = Response<Body>, Error = hyper::Error> + Send>;
+use hyper::service::{make_service_fn, service_fn};
+use futures_util::TryStreamExt;
 
 /// This is our service handler. It receives a Request, routes on its
 /// path, and returns a Future of a Response.
-fn echo(req: Request<Body>) -> BoxFut {
-    let mut response = Response::new(Body::empty());
+async fn echo(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
 
     match (req.method(), req.uri().path()) {
         // Serve some instructions at /
         (&Method::GET, "/") => {
-            *response.body_mut() = Body::from("Try POSTing data to /echo");
+            Ok(Response::new(Body::from("Try POSTing data to /echo such as: `curl localhost:3000/echo -XPOST -d 'hello world'`")))
         }
 
         // Simply echo the body back to the client.
         (&Method::POST, "/echo") => {
-            *response.body_mut() = req.into_body();
+            Ok(Response::new(req.into_body()))
         }
 
-        // Convert to uppercase before sending back to client.
+        // Convert to uppercase before sending back to client using a stream.
         (&Method::POST, "/echo/uppercase") => {
-            let mapping = req.into_body().map(|chunk| {
+            let chunk_stream = req.into_body().map_ok(|chunk| {
                 chunk
                     .iter()
                     .map(|byte| byte.to_ascii_uppercase())
                     .collect::<Vec<u8>>()
             });
-
-            *response.body_mut() = Body::wrap_stream(mapping);
+            Ok(Response::new(Body::wrap_stream(chunk_stream)))
         }
 
         // Reverse the entire body before sending back to the client.
         //
         // Since we don't know the end yet, we can't simply stream
-        // the chunks as they arrive. So, this returns a different
-        // future, waiting on concatenating the full body, so that
-        // it can be reversed. Only then can we return a `Response`.
+        // the chunks as they arrive as we did with the above uppercase endpoint.
+        // So here we do `.await` on the future, waiting on concatenating the full body,
+        // then afterwards the content can be reversed. Only then can we return a `Response`.
         (&Method::POST, "/echo/reversed") => {
-            let reversed = req.into_body().concat2().map(move |chunk| {
-                let body = chunk.iter().rev().cloned().collect::<Vec<u8>>();
-                *response.body_mut() = Body::from(body);
-                response
-            });
+            let whole_chunk = req.into_body().try_concat().await;
 
-            return Box::new(reversed);
+            let reversed_chunk = whole_chunk.map(move |chunk| {
+                chunk.iter().rev().cloned().collect::<Vec<u8>>()
+
+            })?;
+            Ok(Response::new(Body::from(reversed_chunk)))
         }
 
-        // The 404 Not Found route...
+        // Return the 404 Not Found for other routes.
         _ => {
-            *response.status_mut() = StatusCode::NOT_FOUND;
+            let mut not_found = Response::default();
+            *not_found.status_mut() = StatusCode::NOT_FOUND;
+            Ok(not_found)
         }
-    };
-
-    Box::new(future::ok(response))
+    }
 }
 
-fn main() {
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let addr = ([127, 0, 0, 1], 3000).into();
 
+    let service = make_service_fn(|_| {
+        async {
+            Ok::<_, hyper::Error>(service_fn(echo))
+        }
+    });
+
     let server = Server::bind(&addr)
-        .serve(|| service_fn(echo))
-        .map_err(|e| eprintln!("server error: {}", e));
+        .serve(service);
 
     println!("Listening on http://{}", addr);
-    hyper::rt::run(server);
+
+    server.await?;
+
+    Ok(())
 }
