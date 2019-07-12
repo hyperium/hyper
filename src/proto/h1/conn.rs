@@ -884,7 +884,7 @@ impl State {
 #[cfg(test)]
 //TODO: rewrite these using dispatch
 mod tests {
-
+    /*
     #[cfg(feature = "nightly")]
     #[bench]
     fn bench_read_head_short(b: &mut ::test::Bencher) {
@@ -918,6 +918,7 @@ mod tests {
             conn.state.reading = Reading::Init;
         });
     }
+    */
     /*
     use futures::{Async, Future, Stream, Sink};
     use futures::future;

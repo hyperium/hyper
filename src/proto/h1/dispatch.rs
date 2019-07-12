@@ -598,6 +598,10 @@ where
 
 #[cfg(test)]
 mod tests {
+    // FIXME: re-implement tests with `async/await`, this import should
+    // trigger a warning to remind us
+    use crate::Error;
+    /*
     extern crate pretty_env_logger;
 
     use super::*;
@@ -656,4 +660,5 @@ mod tests {
             Ok::<(), ()>(())
         }).wait().unwrap();
     }
+    */
 }

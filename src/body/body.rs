@@ -549,10 +549,20 @@ impl Sink for Sender {
 }
 */
 
-#[test]
-fn test_body_stream_concat() {
-    let body = Body::from("hello world");
+#[cfg(test)]
+mod tests {
+    // FIXME: re-implement tests with `async/await`, this import should
+    // trigger a warning to remind us
+    use crate::Error;
 
-    let total = body.concat2().wait().unwrap();
-    assert_eq!(total.as_ref(), b"hello world");
+    /*
+    use super::*;
+    #[test]
+    fn test_body_stream_concat() {
+        let body = Body::from("hello world");
+
+        let total = body.concat2().wait().unwrap();
+        assert_eq!(total.as_ref(), b"hello world");
+    }
+    */
 }

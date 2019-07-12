@@ -1,7 +1,5 @@
 #![feature(async_await)]
-#![deny(warnings)]
-
-extern crate hyper;
+//#![deny(warnings)]
 
 use hyper::{Body, Method, Request, Response, Server, StatusCode};
 use hyper::service::{make_service_fn, service_fn};

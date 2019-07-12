@@ -319,6 +319,10 @@ impl StdError for IncompleteBody {
 
 #[cfg(test)]
 mod tests {
+    // FIXME: re-implement tests with `async/await`, this import should
+    // trigger a warning to remind us
+    use crate::Error;
+    /*
     use std::io;
     use std::io::Write;
     use super::Decoder;
@@ -535,5 +539,5 @@ mod tests {
         let content = "foobar";
         all_async_cases(content, content, Decoder::eof());
     }
-
+    */
 }

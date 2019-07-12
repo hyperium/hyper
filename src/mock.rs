@@ -1,3 +1,7 @@
+// FIXME: re-implement tests with `async/await`, this import should
+// trigger a warning to remind us
+use crate::Error;
+/*
 #[cfg(feature = "runtime")]
 use std::collections::HashMap;
 use std::cmp;
@@ -523,3 +527,4 @@ impl Drop for MockedConnections {
         }
     }
 }
+*/
