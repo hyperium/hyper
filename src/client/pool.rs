@@ -774,6 +774,11 @@ impl<T> WeakOpt<T> {
 
 #[cfg(test)]
 mod tests {
+    // FIXME: re-implement tests with `async/await`, this import should
+    // trigger a warning to remind us
+    use crate::Error;
+
+    /*
     use std::sync::Arc;
     use std::time::Duration;
     use futures::{Async, Future};
@@ -998,4 +1003,5 @@ mod tests {
 
         assert!(!pool.locked().idle.contains_key(&key));
     }
+    */
 }

@@ -650,6 +650,10 @@ impl<T: Buf> Buf for BufDeque<T> {
 
 #[cfg(test)]
 mod tests {
+    // FIXME: re-implement tests with `async/await`, this import should
+    // trigger a warning to remind us
+    use crate::Error;
+    /*
     use super::*;
     use std::io::Read;
     use crate::mock::AsyncIo;
@@ -657,8 +661,7 @@ mod tests {
     #[cfg(feature = "nightly")]
     use test::Bencher;
 
-    #[cfg(test)]
-    impl<T: Read> MemRead for crate::mock::AsyncIo<T> {
+    impl<T: Read> MemRead for AsyncIo<T> {
         fn read_mem(&mut self, len: usize) -> Poll<Bytes, io::Error> {
             let mut v = vec![0; len];
             let n = try_nb!(self.read(v.as_mut_slice()));
@@ -900,4 +903,5 @@ mod tests {
             write_buf.headers.bytes.clear();
         })
     }
+    */
 }

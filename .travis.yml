@@ -25,7 +25,7 @@ matrix:
   #  fi
 
 script:
-  - cargo build $FEATURES
+  - cargo build $FEATURES --all-targets
   # Disable tests temporarily
   # - 'if [ "$BUILD_ONLY" != "1" ]; then cargo test $FEATURES -- --test-threads=1; fi'
   # - 'if [ $TRAVIS_RUST_VERSION = nightly ]; then for f in ./benches/*.rs; do cargo test --bench $(basename $f .rs) $FEATURES; done; fi'

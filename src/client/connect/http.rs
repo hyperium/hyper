@@ -569,6 +569,10 @@ impl ConnectingTcp {
 
 #[cfg(test)]
 mod tests {
+    // FIXME: re-implement tests with `async/await`, this import should
+    // trigger a warning to remind us
+    use crate::Error;
+    /*
     use std::io;
     use futures::Future;
     use super::{Connect, Destination, HttpConnector};
@@ -755,5 +759,6 @@ mod tests {
             (reachable, duration)
         }
     }
+    */
 }
 
