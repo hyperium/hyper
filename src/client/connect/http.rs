@@ -46,21 +46,23 @@ pub struct HttpConnector<R = GaiResolver> {
 /// # Example
 ///
 /// ```
+/// # #![feature(async_await)]
+/// # async fn doc() -> hyper::Result<()> {
 /// use hyper::Uri;
 /// use hyper::client::{Client, connect::HttpInfo};
-/// use hyper::rt::Future;
 ///
 /// let client = Client::new();
+/// let uri = Uri::from_static("http://example.com");
 ///
-/// let fut = client.get(Uri::from_static("http://example.local"))
-///     .inspect(|resp| {
-///         resp
-///             .extensions()
-///             .get::<HttpInfo>()
-///             .map(|info| {
-///                 println!("remote addr = {}", info.remote_addr());
-///             });
+/// let res = client.get(uri).await?;
+/// res
+///     .extensions()
+///     .get::<HttpInfo>()
+///     .map(|info| {
+///         println!("remote addr = {}", info.remote_addr());
 ///     });
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Note
