@@ -378,26 +378,28 @@ impl<I, E> Builder<I, E> {
     /// # Example
     ///
     /// ```
-    /// # extern crate hyper;
+    /// # #![feature(async_await)]
+    /// # #[cfg(not(feature = "runtime"))]
     /// # fn main() {}
     /// # #[cfg(feature = "runtime")]
-    /// # fn run() {
-    /// use hyper::{Body, Response, Server};
-    /// use hyper::service::service_fn_ok;
+    /// # #[hyper::rt::main]
+    /// # async fn main() {
+    /// use hyper::{Body, Error, Response, Server};
+    /// use hyper::service::{make_service_fn, service_fn};
     ///
     /// // Construct our SocketAddr to listen on...
     /// let addr = ([127, 0, 0, 1], 3000).into();
     ///
-    /// // And a NewService to handle each connection...
-    /// let new_service = || {
-    ///     service_fn_ok(|_req| {
-    ///         Response::new(Body::from("Hello World"))
-    ///     })
-    /// };
+    /// // And a MakeService to handle each connection...
+    /// let make_svc = make_service_fn(|_| async {
+    ///     Ok::<_, Error>(service_fn(|_req| async {
+    ///         Ok::<_, Error>(Response::new(Body::from("Hello World")))
+    ///     }))
+    /// });
     ///
     /// // Then bind and serve...
     /// let server = Server::bind(&addr)
-    ///     .serve(new_service);
+    ///     .serve(make_svc);
     ///
     /// // Finally, spawn `server` onto an Executor...
     /// # }
