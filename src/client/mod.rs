@@ -27,52 +27,34 @@
 //! [full client example](https://github.com/hyperium/hyper/blob/master/examples/client.rs).
 //!
 //! ```
-//! extern crate hyper;
-//!
+//! # #![feature(async_await)]
 //! use hyper::{Client, Uri};
-//! # #[cfg(feature = "runtime")]
-//! use hyper::rt::{self, Future, Stream};
 //!
 //! # #[cfg(feature = "runtime")]
-//! # fn fetch_httpbin() {
+//! # async fn fetch_httpbin() -> hyper::Result<()> {
 //! let client = Client::new();
 //!
-//! let fut = client
+//! // Make a GET /ip to 'http://httpbin.org'
+//! let res = client.get(Uri::from_static("http://httpbin.org/ip")).await?;
 //!
-//!     // Make a GET /ip to 'http://httpbin.org'
-//!     .get(Uri::from_static("http://httpbin.org/ip"))
+//! // And then, if the request gets a response...
+//! println!("status: {}", res.status());
 //!
-//!     // And then, if the request gets a response...
-//!     .and_then(|res| {
-//!         println!("status: {}", res.status());
+//! // Concatenate the body stream into a single buffer...
+//! let mut body = res.into_body();
+//! let mut bytes = Vec::new();
+//! while let Some(next) = body.next().await {
+//!     let chunk = next?;
+//!     bytes.extend(chunk);
+//! }
 //!
-//!         // Concatenate the body stream into a single buffer...
-//!         // This returns a new future, since we must stream body.
-//!         res.into_body().concat2()
-//!     })
+//! // And then, if reading the full body succeeds...
+//! // The body is just bytes, but let's print a string...
+//! let s = std::str::from_utf8(&bytes)
+//!     .expect("httpbin sends utf-8 JSON");
 //!
-//!     // And then, if reading the full body succeeds...
-//!     .and_then(|body| {
-//!         // The body is just bytes, but let's print a string...
-//!         let s = ::std::str::from_utf8(&body)
-//!             .expect("httpbin sends utf-8 JSON");
-//!
-//!         println!("body: {}", s);
-//!
-//!         // and_then requires we return a new Future, and it turns
-//!         // out that Result is a Future that is ready immediately.
-//!         Ok(())
-//!     })
-//!
-//!     // Map any errors that might have happened...
-//!     .map_err(|err| {
-//!         println!("error: {}", err);
-//!     });
-//!
-//! // A runtime is needed to execute our asynchronous code. In order to
-//! // spawn the future into the runtime, it should already have been
-//! // started and running before calling this code.
-//! rt::spawn(fut);
+//! println!("body: {}", s);
+//! # Ok(())
 //! # }
 //! # fn main () {}
 //! ```
