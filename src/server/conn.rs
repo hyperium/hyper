@@ -331,31 +331,25 @@ impl<E> Http<E> {
     /// # Example
     ///
     /// ```
-    /// # extern crate hyper;
-    /// # extern crate tokio_io;
-    /// # #[cfg(feature = "runtime")]
-    /// # extern crate tokio;
+    /// # #![feature(async_await)]
     /// # use hyper::{Body, Request, Response};
     /// # use hyper::service::Service;
     /// # use hyper::server::conn::Http;
+    /// # #[cfg(feature = "runtime")]
     /// # use tokio_io::{AsyncRead, AsyncWrite};
     /// # #[cfg(feature = "runtime")]
-    /// # fn run<I, S>(some_io: I, some_service: S)
+    /// # async fn run<I, S>(some_io: I, some_service: S)
     /// # where
-    /// #     I: AsyncRead + AsyncWrite + Send + 'static,
+    /// #     I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     /// #     S: Service<ReqBody=Body, ResBody=Body> + Send + 'static,
     /// #     S::Future: Send
     /// # {
-    /// # use hyper::rt::Future;
-    /// # use tokio::reactor::Handle;
     /// let http = Http::new();
     /// let conn = http.serve_connection(some_io, some_service);
     ///
-    /// let fut = conn.map_err(|e| {
+    /// if let Err(e) = conn.await {
     ///     eprintln!("server connection error: {}", e);
-    /// });
-    ///
-    /// hyper::rt::spawn(fut);
+    /// }
     /// # }
     /// # fn main() {}
     /// ```
