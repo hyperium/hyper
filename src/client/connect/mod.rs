@@ -17,7 +17,7 @@ use crate::common::{Future, Unpin};
 
 #[cfg(feature = "runtime")] pub mod dns;
 #[cfg(feature = "runtime")] mod http;
-#[cfg(feature = "runtime")] pub use self::http::{HttpConnector, HttpInfo};
+#[cfg(feature = "runtime")] pub use self::http::{HttpConnecting, HttpConnector, HttpInfo};
 
 /// Connect to a destination, returning an IO transport.
 ///
