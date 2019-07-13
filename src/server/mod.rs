@@ -164,34 +164,32 @@ where
     /// # Example
     ///
     /// ```
-    /// # extern crate hyper;
-    /// # extern crate futures;
-    /// # use futures::Future;
+    /// # #![feature(async_await)]
     /// # fn main() {}
     /// # #[cfg(feature = "runtime")]
-    /// # fn run() {
-    /// # use hyper::{Body, Response, Server};
-    /// # use hyper::service::service_fn_ok;
-    /// # let new_service = || {
-    /// #     service_fn_ok(|_req| {
-    /// #         Response::new(Body::from("Hello World"))
-    /// #     })
-    /// # };
-    ///
+    /// # async fn run() {
+    /// # use hyper::{Body, Response, Server, Error};
+    /// # use hyper::service::{make_service_fn, service_fn};
+    /// # let make_service = make_service_fn(|_| async {
+    /// #     Ok::<_, Error>(service_fn(|_req| async {
+    /// #         Ok::<_, Error>(Response::new(Body::from("Hello World")))
+    /// #     }))
+    /// # });
     /// // Make a server from the previous examples...
     /// let server = Server::bind(&([127, 0, 0, 1], 3000).into())
-    ///     .serve(new_service);
+    ///     .serve(make_service);
     ///
-    /// // Prepare some signal for when the server should start
-    /// // shutting down...
-    /// let (tx, rx) = futures::sync::oneshot::channel::<()>();
-    ///
+    /// // Prepare some signal for when the server should start shutting down...
+    /// let (tx, rx) = tokio::sync::oneshot::channel::<()>();
     /// let graceful = server
-    ///     .with_graceful_shutdown(rx)
-    ///     .map_err(|err| eprintln!("server error: {}", err));
+    ///     .with_graceful_shutdown(async {
+    ///         rx.await.ok();
+    ///     });
     ///
-    /// // Spawn `server` onto an Executor...
-    /// hyper::rt::spawn(graceful);
+    /// // Await the `server` receiving the signal...
+    /// if let Err(e) = graceful.await {
+    ///     eprintln!("server error: {}", e);
+    /// }
     ///
     /// // And later, trigger the signal by calling `tx.send(())`.
     /// let _ = tx.send(());
