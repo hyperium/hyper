@@ -19,32 +19,31 @@
 //! ## Example
 //!
 //! ```no_run
-//! extern crate hyper;
-//!
-//! use hyper::{Body, Response, Server};
-//! use hyper::service::service_fn_ok;
+//! # #![feature(async_await)]
+//! use hyper::{Body, Error, Response, Server};
+//! use hyper::service::{make_service_fn, service_fn};
 //!
 //! # #[cfg(feature = "runtime")]
-//! fn main() {
-//! # use hyper::rt::Future;
+//! # #[hyper::rt::main]
+//! async fn main() {
 //!     // Construct our SocketAddr to listen on...
 //!     let addr = ([127, 0, 0, 1], 3000).into();
 //!
 //!     // And a MakeService to handle each connection...
-//!     let make_service = || {
-//!         service_fn_ok(|_req| {
-//!             Response::new(Body::from("Hello World"))
-//!         })
-//!     };
+//!     let make_service = make_service_fn(|_| async {
+//!         Ok::<_, Error>(service_fn(|_req| async {
+//!             Ok::<_, Error>(Response::new(Body::from("Hello World")))
+//!         }))
+//!     });
 //!
 //!     // Then bind and serve...
 //!     let server = Server::bind(&addr)
 //!         .serve(make_service);
 //!
 //!     // Finally, spawn `server` onto an Executor...
-//!     hyper::rt::run(server.map_err(|e| {
+//!     if let Err(e) = server.await {
 //!         eprintln!("server error: {}", e);
-//!     }));
+//!     }
 //! }
 //! # #[cfg(not(feature = "runtime"))]
 //! # fn main() {}
