@@ -118,20 +118,27 @@ where
 /// # Example
 ///
 /// ```rust,no_run
-/// # #[cfg(feature = "runtime")] fn main() {
+/// # #![feature(async_await)]
+/// # #[cfg(feature = "runtime")]
+/// # #[hyper::rt::main]
+/// # async fn main() {
 /// use std::net::TcpStream;
-/// use hyper::{Body, Request, Response, Server};
+/// use hyper::{Body, Error, Request, Response, Server};
 /// use hyper::rt::{self, Future};
 /// use hyper::server::conn::AddrStream;
-/// use hyper::service::{make_service_fn, service_fn_ok};
+/// use hyper::service::{make_service_fn, service_fn};
 ///
 /// let addr = ([127, 0, 0, 1], 3000).into();
 ///
 /// let make_svc = make_service_fn(|socket: &AddrStream| {
 ///     let remote_addr = socket.remote_addr();
-///     service_fn_ok(move |_: Request<Body>| {
-///         Response::new(Body::from(format!("Hello, {}", remote_addr)))
-///     })
+///     async move {
+///         Ok::<_, Error>(service_fn(move |_: Request<Body>| async move {
+///             Ok::<_, Error>(
+///                 Response::new(Body::from(format!("Hello, {}!", remote_addr)))
+///             )
+///         }))
+///     }
 /// });
 ///
 /// // Then bind and serve...
@@ -139,9 +146,9 @@ where
 ///     .serve(make_svc);
 ///
 /// // Finally, spawn `server` onto an Executor...
-/// rt::run(server.map_err(|e| {
+/// if let Err(e) = server.await {
 ///     eprintln!("server error: {}", e);
-/// }));
+/// }
 /// # }
 /// # #[cfg(not(feature = "runtime"))] fn main() {}
 /// ```
