@@ -53,7 +53,7 @@ num_cpus = "1.0"
 pretty_env_logger = "0.3"
 spmc = "0.2"
 url = "1.0"
-#tokio-fs = "0.1"
+tokio-fs = { git = "https://github.com/tokio-rs/tokio" }
 #tokio-mockstream = "1.1.0"
 serde = "1.0"
 serde_derive = "1.0"
