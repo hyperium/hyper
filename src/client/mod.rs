@@ -24,7 +24,7 @@
 //! ## Example
 //!
 //! For a small example program simply fetching a URL, take a look at the
-//! [full client example](https://github.com/hyperium/hyper/blob/master/examples/client.rs).
+//! [full client example](https://github.com/hyperium/hyper/blob/0.12.x/examples/client.rs).
 //!
 //! ```
 //! extern crate hyper;

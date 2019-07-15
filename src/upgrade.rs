@@ -3,7 +3,7 @@
 //! See [this example][example] showing how upgrades work with both
 //! Clients and Servers.
 //!
-//! [example]: https://github.com/hyperium/hyper/blob/master/examples/upgrades.rs
+//! [example]: https://github.com/hyperium/hyper/blob/0.12.x/examples/upgrades.rs
 
 use std::any::TypeId;
 use std::error::Error as StdError;
