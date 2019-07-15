@@ -191,16 +191,13 @@ where
     /// # Example
     ///
     /// ```
-    /// # extern crate futures;
-    /// # extern crate hyper;
-    /// # extern crate http;
+    /// # #![feature(async_await)]
     /// # use http::header::HOST;
     /// # use hyper::client::conn::SendRequest;
     /// # use hyper::Body;
-    /// use futures::Future;
     /// use hyper::Request;
     ///
-    /// # fn doc(mut tx: SendRequest<Body>) {
+    /// # async fn doc(mut tx: SendRequest<Body>) -> hyper::Result<()> {
     /// // build a Request
     /// let req = Request::builder()
     ///     .uri("/foo/bar")
@@ -208,13 +205,11 @@ where
     ///     .body(Body::empty())
     ///     .unwrap();
     ///
-    /// // send it and get a future back
-    /// let fut = tx.send_request(req)
-    ///     .map(|res| {
-    ///         // got the Response
-    ///         assert!(res.status().is_success());
-    ///     });
-    /// # drop(fut);
+    /// // send it and await a Response
+    /// let res = tx.send_request(req).await?;
+    /// // assert the Response
+    /// assert!(res.status().is_success());
+    /// # Ok(())
     /// # }
     /// # fn main() {}
     /// ```

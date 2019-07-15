@@ -43,10 +43,11 @@ pub trait Service {
 /// # Example
 ///
 /// ```rust
+/// # #![feature(async_await)]
 /// use hyper::{Body, Request, Response, Version};
 /// use hyper::service::service_fn;
 ///
-/// let service = service_fn(|req: Request<Body>| {
+/// let service = service_fn(|req: Request<Body>| async move{
 ///     if req.version() == Version::HTTP_11 {
 ///         Ok(Response::new(Body::from("Hello World")))
 ///     } else {
