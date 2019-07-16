@@ -1,32 +1,31 @@
 #![feature(async_await)]
 #![deny(warnings)]
-extern crate hyper;
-extern crate pretty_env_logger;
-extern crate serde_json;
 
 use hyper::{Body, Chunk, Client, Method, Request, Response, Server, StatusCode, header};
 use hyper::client::HttpConnector;
-use hyper::service::{service_fn, make_service_fn};
+use hyper::service::{make_service_fn, service_fn};
 use futures_util::{TryStreamExt};
 
 type GenericError = Box<dyn std::error::Error + Send + Sync>;
+type Result<T> = std::result::Result<T, GenericError>;
 
-static NOTFOUND: &[u8] = b"Not Found";
-static URL: &str = "http://127.0.0.1:1337/json_api";
 static INDEX: &[u8] = b"<a href=\"test.html\">test.html</a>";
+static INTERNAL_SERVER_ERROR: &[u8] = b"Internal Server Error";
+static NOTFOUND: &[u8] = b"Not Found";
 static POST_DATA: &str = r#"{"original": "data"}"#;
+static URL: &str = "http://127.0.0.1:1337/json_api";
 
-async fn client_request_response(client: &Client<HttpConnector>)
-    -> Result<Response<Body>, GenericError>
-{
-     let req = Request::builder()
-         .method(Method::POST)
-         .uri(URL)
-         .header(header::CONTENT_TYPE, "application/json")
-         .body(POST_DATA.into())
-         .unwrap();
+async fn client_request_response(
+    client: &Client<HttpConnector>
+) -> Result<Response<Body>> {
+    let req = Request::builder()
+        .method(Method::POST)
+        .uri(URL)
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(POST_DATA.into())
+        .unwrap();
 
-     let web_res = client.request(req).await?;
+    let web_res = client.request(req).await?;
     // Compare the JSON we sent (before) with what we received (after):
     let body = Body::wrap_stream(web_res.into_body().map_ok(|b| {
         Chunk::from(format!("<b>POST request body</b>: {}<br><b>Response</b>: {}",
@@ -37,9 +36,7 @@ async fn client_request_response(client: &Client<HttpConnector>)
     Ok(Response::new(body))
 }
 
-async fn api_post_response(req: Request<Body>)
-    -> Result<Response<Body>, GenericError>
-{
+async fn api_post_response(req: Request<Body>) -> Result<Response<Body>> {
     // A web api to run against
     let entire_body = req.into_body().try_concat().await?;
     // TODO: Replace all unwraps with proper error handling
@@ -54,7 +51,7 @@ async fn api_post_response(req: Request<Body>)
     Ok(response)
 }
 
-async fn api_get_response() -> Result<Response<Body>, GenericError> {
+async fn api_get_response() -> Result<Response<Body>> {
     let data = vec!["foo", "bar"];
     let res = match serde_json::to_string(&data) {
         Ok(json) => {
@@ -66,20 +63,21 @@ async fn api_get_response() -> Result<Response<Body>, GenericError> {
         Err(_) => {
             Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(Body::from("Internal Server Error"))
+                .body(INTERNAL_SERVER_ERROR.into())
                 .unwrap()
         }
     };
     Ok(res)
 }
 
-async fn response_examples(req: Request<Body>, client: Client<HttpConnector>)
-    -> Result<Response<Body>, GenericError>
-{
+async fn response_examples(
+    req: Request<Body>,
+    client: Client<HttpConnector>
+) -> Result<Response<Body>> {
     match (req.method(), req.uri().path()) {
-        (&Method::GET, "/") | (&Method::GET, "/index.html") => {
-            let body = Body::from(INDEX);
-            Ok(Response::new(body))
+        (&Method::GET, "/") |
+        (&Method::GET, "/index.html") => {
+            Ok(Response::new(INDEX.into()))
         },
         (&Method::GET, "/test.html") => {
             client_request_response(&client).await
@@ -92,17 +90,16 @@ async fn response_examples(req: Request<Body>, client: Client<HttpConnector>)
         }
         _ => {
             // Return 404 not found response.
-            let body = Body::from(NOTFOUND);
             Ok(Response::builder()
-                        .status(StatusCode::NOT_FOUND)
-                        .body(body)
-                        .unwrap())
+                .status(StatusCode::NOT_FOUND)
+                .body(NOTFOUND.into())
+                .unwrap())
         }
     }
 }
 
 #[hyper::rt::main]
-async fn main() -> Result<(), GenericError> {
+async fn main() -> Result<()> {
     pretty_env_logger::init();
 
     let addr = "127.0.0.1:1337".parse().unwrap();
