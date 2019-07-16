@@ -48,16 +48,16 @@ tokio-timer = { git = "https://github.com/tokio-rs/tokio", optional = true }
 want = { git = "https://github.com/seanmonstar/want", branch = "std-future" }
 
 [dev-dependencies]
-#futures-timer = "0.1"
 num_cpus = "1.0"
 pretty_env_logger = "0.3"
 spmc = "0.2"
-url = "1.0"
-tokio-fs = { git = "https://github.com/tokio-rs/tokio" }
-#tokio-mockstream = "1.1.0"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
+tokio-fs = { git = "https://github.com/tokio-rs/tokio" }
+tokio-test = { git = "https://github.com/tokio-rs/tokio" }
+url = "1.0"
+
 
 [features]
 default = [
