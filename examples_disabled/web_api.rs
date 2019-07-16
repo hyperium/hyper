@@ -73,7 +73,7 @@ async fn api_get_response() -> Result<Response<Body>, GenericError> {
     Ok(res)
 }
 
-async fn response_examples(req: Request<Body>, client: &Client<HttpConnector>)
+async fn response_examples(req: Request<Body>, client: Client<HttpConnector>)
     -> Result<Response<Body>, GenericError>
 {
     match (req.method(), req.uri().path()) {
@@ -82,7 +82,7 @@ async fn response_examples(req: Request<Body>, client: &Client<HttpConnector>)
             Ok(Response::new(body))
         },
         (&Method::GET, "/test.html") => {
-           client_request_response(client).await
+            client_request_response(&client).await
         },
         (&Method::POST, "/json_api") => {
             api_post_response(req).await
@@ -115,7 +115,8 @@ async fn main() -> Result<(), GenericError> {
         let client = client.clone();
         async {
             Ok::<_, GenericError>(service_fn(move |req| {
-                response_examples(req, &client)
+                // Clone again to ensure that client outlives this closure.
+                response_examples(req, client.to_owned())
             }))
         }
     });
