@@ -156,10 +156,10 @@ name = "pipeline"
 path = "benches/pipeline.rs"
 required-features = ["runtime"]
 
-#[[bench]]
-#name = "server"
-#path = "benches/server.rs"
-#required-features = ["runtime"]
+[[bench]]
+name = "server"
+path = "benches/server.rs"
+required-features = ["runtime"]
 
 
 #[[test]]
