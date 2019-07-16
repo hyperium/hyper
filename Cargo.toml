@@ -114,36 +114,36 @@ name = "params"
 path = "examples/params.rs"
 required-features = ["runtime"]
 
-#[[example]]
-#name = "proxy"
-#path = "examples/proxy.rs"
-#required-features = ["runtime"]
+[[example]]
+name = "proxy"
+path = "examples/proxy.rs"
+required-features = ["runtime"]
 
-#[[example]]
-#name = "send_file"
-#path = "examples/send_file.rs"
-#required-features = ["runtime"]
+[[example]]
+name = "send_file"
+path = "examples/send_file.rs"
+required-features = ["runtime"]
 
-#[[example]]
-#name = "single_threaded"
-#path = "examples/single_threaded.rs"
-#required-features = ["runtime"]
+[[example]]
+name = "single_threaded"
+path = "examples/single_threaded.rs"
+required-features = ["runtime"]
 
-#[[example]]
-#name = "state"
-#path = "examples/state.rs"
-#required-features = ["runtime"]
+[[example]]
+name = "state"
+path = "examples/state.rs"
+required-features = ["runtime"]
 
-#[[example]]
-#name = "upgrades"
-#path = "examples/upgrades.rs"
-#required-features = ["runtime"]
+[[example]]
+name = "upgrades"
+path = "examples/upgrades.rs"
+required-features = ["runtime"]
 
 
-#[[example]]
-#name = "web_api"
-#path = "examples/web_api.rs"
-#required-features = ["runtime"]
+[[example]]
+name = "web_api"
+path = "examples/web_api.rs"
+required-features = ["runtime"]
 
 
 #[[bench]]
