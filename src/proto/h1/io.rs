@@ -242,6 +242,11 @@ where
         }
         Pin::new(&mut self.io).poll_flush(cx)
     }
+
+    #[cfg(test)]
+    fn flush<'a>(&'a mut self) -> impl std::future::Future<Output = io::Result<()>> + 'a {
+        futures_util::future::poll_fn(move |cx| self.poll_flush(cx))
+    }
 }
 
 // The `B` is a `Buf`, we never project a pin to it
@@ -252,7 +257,7 @@ pub trait MemRead {
     fn read_mem(&mut self, cx: &mut task::Context<'_>, len: usize) -> Poll<io::Result<Bytes>>;
 }
 
-impl<T, B> MemRead for Buffered<T, B> 
+impl<T, B> MemRead for Buffered<T, B>
 where
     T: AsyncRead + AsyncWrite + Unpin,
     B: Buf,
@@ -650,17 +655,15 @@ impl<T: Buf> Buf for BufDeque<T> {
 
 #[cfg(test)]
 mod tests {
-    // FIXME: re-implement tests with `async/await`, this import should
-    // trigger a warning to remind us
-    use crate::Error;
-    /*
     use super::*;
-    use std::io::Read;
-    use crate::mock::AsyncIo;
+    use std::time::Duration;
+
+    use tokio_test::io::Builder as Mock;
 
     #[cfg(feature = "nightly")]
     use test::Bencher;
 
+    /*
     impl<T: Read> MemRead for AsyncIo<T> {
         fn read_mem(&mut self, len: usize) -> Poll<Bytes, io::Error> {
             let mut v = vec![0; len];
@@ -668,33 +671,51 @@ mod tests {
             Ok(Async::Ready(BytesMut::from(&v[..n]).freeze()))
         }
     }
+    */
 
-    #[test]
-    fn iobuf_write_empty_slice() {
-        let mut mock = AsyncIo::new_buf(vec![], 256);
-        mock.error(io::Error::new(io::ErrorKind::Other, "logic error"));
-
-        let mut io_buf = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
+    #[tokio::test]
+    async fn iobuf_write_empty_slice() {
+        // First, let's just check that the Mock would normally return an
+        // error on an unexpected write, even if the buffer is empty...
+        let mut mock = Mock::new().build();
+        futures_util::future::poll_fn(|cx| Pin::new(&mut mock).poll_write_buf(cx, &mut Cursor::new(&[])))
+            .await
+            .expect_err("should be a broken pipe");
 
         // underlying io will return the logic error upon write,
         // so we are testing that the io_buf does not trigger a write
         // when there is nothing to flush
-        io_buf.flush().expect("should short-circuit flush");
+        let mock = Mock::new().build();
+        let mut io_buf = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
+        io_buf.flush().await.expect("should short-circuit flush");
     }
 
-    #[test]
-    fn parse_reads_until_blocked() {
-        // missing last line ending
-        let raw = "HTTP/1.1 200 OK\r\n";
+    #[tokio::test]
+    async fn parse_reads_until_blocked() {
+        use crate::proto::h1::ClientTransaction;
 
-        let mock = AsyncIo::new_buf(raw, raw.len());
+        let mock = Mock::new()
+            // Split over multiple reads will read all of it
+            .read(b"HTTP/1.1 200 OK\r\n")
+            .read(b"Server: hyper\r\n")
+            // missing last line ending
+            .wait(Duration::from_secs(1))
+            .build();
+
         let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
-        let ctx = ParseContext {
-            cached_headers: &mut None,
-            req_method: &mut None,
-        };
-        assert!(buffered.parse::<crate::proto::h1::ClientTransaction>(ctx).unwrap().is_not_ready());
-        assert!(buffered.io.blocked());
+
+        // We expect a `parse` to be not ready, and so can't await it directly.
+        // Rather, this `poll_fn` will wrap the `Poll` result.
+        futures_util::future::poll_fn(|cx| {
+            let parse_ctx = ParseContext {
+                cached_headers: &mut None,
+                req_method: &mut None,
+            };
+            assert!(buffered.parse::<ClientTransaction>(cx, parse_ctx).is_pending());
+            Poll::Ready(())
+        }).await;
+
+        assert_eq!(buffered.read_buf, b"HTTP/1.1 200 OK\r\nServer: hyper\r\n"[..]);
     }
 
     #[test]
@@ -791,12 +812,14 @@ mod tests {
     #[test]
     #[should_panic]
     fn write_buf_requires_non_empty_bufs() {
-        let mock = AsyncIo::new_buf(vec![], 1024);
+        let mock = Mock::new().build();
         let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
 
         buffered.buffer(Cursor::new(Vec::new()));
     }
 
+    /*
+    TODO: needs tokio_test::io to allow configure write_buf calls
     #[test]
     fn write_buf_queue() {
         extern crate pretty_env_logger;
@@ -817,13 +840,18 @@ mod tests {
         assert_eq!(buffered.io.num_writes(), 1);
         assert_eq!(buffered.write_buf.queue.bufs.len(), 0);
     }
+    */
 
-    #[test]
-    fn write_buf_flatten() {
+    #[tokio::test]
+    async fn write_buf_flatten() {
         extern crate pretty_env_logger;
         let _ = pretty_env_logger::try_init();
 
-        let mock = AsyncIo::new_buf(vec![], 1024);
+        let mock = Mock::new()
+            // Just a single write
+            .write(b"hello world, it's hyper!")
+            .build();
+
         let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
         buffered.write_buf.set_strategy(WriteStrategy::Flatten);
 
@@ -833,19 +861,21 @@ mod tests {
         buffered.buffer(Cursor::new(b"hyper!".to_vec()));
         assert_eq!(buffered.write_buf.queue.bufs.len(), 0);
 
-        buffered.flush().unwrap();
-
-        assert_eq!(buffered.io, b"hello world, it's hyper!");
-        assert_eq!(buffered.io.num_writes(), 1);
+        buffered.flush().await.expect("flush");
     }
 
-    #[test]
-    fn write_buf_auto_flatten() {
+    #[tokio::test]
+    async fn write_buf_auto_flatten() {
         extern crate pretty_env_logger;
         let _ = pretty_env_logger::try_init();
 
-        let mut mock = AsyncIo::new_buf(vec![], 1024);
-        mock.max_read_vecs(0); // disable vectored IO
+        let mock = Mock::new()
+            // Expects write_buf to only consume first buffer
+            .write(b"hello ")
+            // And then the Auto strategy will have flattened
+            .write(b"world, it's hyper!")
+            .build();
+
         let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
 
         // we have 4 buffers, but hope to detect that vectored IO isn't
@@ -856,20 +886,24 @@ mod tests {
         buffered.buffer(Cursor::new(b"it's ".to_vec()));
         buffered.buffer(Cursor::new(b"hyper!".to_vec()));
         assert_eq!(buffered.write_buf.queue.bufs.len(), 3);
-        buffered.flush().unwrap();
 
-        assert_eq!(buffered.io, b"hello world, it's hyper!");
-        assert_eq!(buffered.io.num_writes(), 2);
+        buffered.flush().await.expect("flush");
+
         assert_eq!(buffered.write_buf.queue.bufs.len(), 0);
     }
 
-    #[test]
-    fn write_buf_queue_disable_auto() {
+    #[tokio::test]
+    async fn write_buf_queue_disable_auto() {
         extern crate pretty_env_logger;
         let _ = pretty_env_logger::try_init();
 
-        let mut mock = AsyncIo::new_buf(vec![], 1024);
-        mock.max_read_vecs(0); // disable vectored IO
+        let mock = Mock::new()
+            .write(b"hello ")
+            .write(b"world, ")
+            .write(b"it's ")
+            .write(b"hyper!")
+            .build();
+
         let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
         buffered.write_buf.set_strategy(WriteStrategy::Queue);
 
@@ -881,10 +915,9 @@ mod tests {
         buffered.buffer(Cursor::new(b"it's ".to_vec()));
         buffered.buffer(Cursor::new(b"hyper!".to_vec()));
         assert_eq!(buffered.write_buf.queue.bufs.len(), 3);
-        buffered.flush().unwrap();
 
-        assert_eq!(buffered.io, b"hello world, it's hyper!");
-        assert_eq!(buffered.io.num_writes(), 4);
+        buffered.flush().await.expect("flush");
+
         assert_eq!(buffered.write_buf.queue.bufs.len(), 0);
     }
 
@@ -903,5 +936,4 @@ mod tests {
             write_buf.headers.bytes.clear();
         })
     }
-    */
 }
