@@ -48,16 +48,16 @@ tokio-timer = { git = "https://github.com/tokio-rs/tokio", optional = true }
 want = { git = "https://github.com/seanmonstar/want", branch = "std-future" }
 
 [dev-dependencies]
-#futures-timer = "0.1"
 num_cpus = "1.0"
 pretty_env_logger = "0.3"
 spmc = "0.2"
-url = "1.0"
-#tokio-fs = "0.1"
-#tokio-mockstream = "1.1.0"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
+tokio-fs = { git = "https://github.com/tokio-rs/tokio" }
+tokio-test = { git = "https://github.com/tokio-rs/tokio" }
+url = "1.0"
+
 
 [features]
 default = [
@@ -114,36 +114,36 @@ name = "params"
 path = "examples/params.rs"
 required-features = ["runtime"]
 
-#[[example]]
-#name = "proxy"
-#path = "examples/proxy.rs"
-#required-features = ["runtime"]
+[[example]]
+name = "proxy"
+path = "examples/proxy.rs"
+required-features = ["runtime"]
 
-#[[example]]
-#name = "send_file"
-#path = "examples/send_file.rs"
-#required-features = ["runtime"]
+[[example]]
+name = "send_file"
+path = "examples/send_file.rs"
+required-features = ["runtime"]
 
-#[[example]]
-#name = "single_threaded"
-#path = "examples/single_threaded.rs"
-#required-features = ["runtime"]
+[[example]]
+name = "single_threaded"
+path = "examples/single_threaded.rs"
+required-features = ["runtime"]
 
-#[[example]]
-#name = "state"
-#path = "examples/state.rs"
-#required-features = ["runtime"]
+[[example]]
+name = "state"
+path = "examples/state.rs"
+required-features = ["runtime"]
 
-#[[example]]
-#name = "upgrades"
-#path = "examples/upgrades.rs"
-#required-features = ["runtime"]
+[[example]]
+name = "upgrades"
+path = "examples/upgrades.rs"
+required-features = ["runtime"]
 
 
-#[[example]]
-#name = "web_api"
-#path = "examples/web_api.rs"
-#required-features = ["runtime"]
+[[example]]
+name = "web_api"
+path = "examples/web_api.rs"
+required-features = ["runtime"]
 
 
 #[[bench]]
@@ -151,15 +151,15 @@ required-features = ["runtime"]
 #path = "benches/end_to_end.rs"
 #required-features = ["runtime"]
 
-#[[bench]]
-#name = "pipeline"
-#path = "benches/pipeline.rs"
-#required-features = ["runtime"]
+[[bench]]
+name = "pipeline"
+path = "benches/pipeline.rs"
+required-features = ["runtime"]
 
-#[[bench]]
-#name = "server"
-#path = "benches/server.rs"
-#required-features = ["runtime"]
+[[bench]]
+name = "server"
+path = "benches/server.rs"
+required-features = ["runtime"]
 
 
 #[[test]]

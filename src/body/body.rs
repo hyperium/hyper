@@ -129,17 +129,16 @@ impl Body {
     /// # Example
     ///
     /// ```
-    /// # extern crate futures;
-    /// # extern crate hyper;
     /// # use hyper::Body;
+    /// # use futures_util;
     /// # fn main() {
-    /// let chunks = vec![
-    ///     "hello",
-    ///     " ",
-    ///     "world",
+    /// let chunks: Vec<Result<_, ::std::io::Error>> = vec![
+    ///     Ok("hello"),
+    ///     Ok(" "),
+    ///     Ok("world"),
     /// ];
     ///
-    /// let stream = futures::stream::iter_ok::<_, ::std::io::Error>(chunks);
+    /// let stream = futures_util::stream::iter(chunks);
     ///
     /// let body = Body::wrap_stream(stream);
     /// # }
