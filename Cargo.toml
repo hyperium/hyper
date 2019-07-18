@@ -23,9 +23,9 @@ include = [
 
 [dependencies]
 bytes = "0.4.4"
-futures-core-preview = { version = "0.3.0-alpha.16" }
-futures-channel-preview = { version = "0.3.0-alpha.16" }
-futures-util-preview = { version = "0.3.0-alpha.16" }
+futures-core-preview = { version = "0.3.0-alpha.17" }
+futures-channel-preview = { version = "0.3.0-alpha.17" }
+futures-util-preview = { version = "0.3.0-alpha.17" }
 http = "0.1.15"
 http-body = "0.1"
 httparse = "1.0"
