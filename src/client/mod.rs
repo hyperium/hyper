@@ -1011,16 +1011,15 @@ impl Builder {
         self
     }
 
-    /*
     /// Provide an executor to execute background `Connection` tasks.
     pub fn executor<E>(&mut self, exec: E) -> &mut Self
     where
-        E: Executor<Box<dyn Future<Item=(), Error=()> + Send>> + Send + Sync + 'static,
+        for<'a> &'a E: tokio_executor::Executor,
+        E: Send + Sync + 'static,
     {
         self.conn_builder.executor(exec);
         self
     }
-    */
 
     /// Builder a client with this configuration and the default `HttpConnector`.
     #[cfg(feature = "runtime")]
