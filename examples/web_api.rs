@@ -98,7 +98,7 @@ async fn response_examples(
     }
 }
 
-#[hyper::rt::main]
+#[tokio::main]
 async fn main() -> Result<()> {
     pretty_env_logger::init();
 

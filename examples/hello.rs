@@ -8,7 +8,7 @@ async fn hello(_: Request<Body>) -> Result<Response<Body>, hyper::Error> {
     Ok(Response::new(Body::from("Hello World!")))
 }
 
-#[hyper::rt::main]
+#[tokio::main]
 pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     pretty_env_logger::init();
 

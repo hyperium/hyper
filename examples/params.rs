@@ -80,7 +80,7 @@ async fn param_example(req: Request<Body>) -> Result<Response<Body>, hyper::Erro
     }
 }
 
-#[hyper::rt::main]
+#[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     pretty_env_logger::init();
 
