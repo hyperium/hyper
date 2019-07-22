@@ -1,9 +1,8 @@
-pub extern crate futures;
 pub extern crate hyper;
 pub extern crate tokio;
 
 use std::sync::{Arc, Mutex, atomic::{AtomicUsize, Ordering}};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::hyper::{Body, Client, Request, Response, Server, Version};
 use crate::hyper::client::HttpConnector;
@@ -11,7 +10,7 @@ use crate::hyper::service::service_fn;
 
 pub use std::net::SocketAddr;
 pub use self::futures::{future, Future, Stream};
-pub use self::futures::sync::oneshot;
+pub use self::futures_channel::oneshot;
 pub use self::hyper::{HeaderMap, StatusCode};
 pub use self::tokio::runtime::current_thread::Runtime;
 
@@ -341,7 +340,7 @@ pub fn __run_test(cfg: __TestConfig) {
             }
             let sbody = sreq.body;
             req.into_body()
-                .concat2()
+                .try_concat()
                 .map(move |body| {
                     assert_eq!(body.as_ref(), sbody.as_slice(), "client body");
 
@@ -417,7 +416,7 @@ pub fn __run_test(cfg: __TestConfig) {
                 for func in &cheaders {
                     func(&res.headers());
                 }
-                res.into_body().concat2()
+                res.into_body().try_concat()
             })
             .map(move |body| {
                 assert_eq!(body.as_ref(), cbody.as_slice(), "server body");

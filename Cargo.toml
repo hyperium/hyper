@@ -38,16 +38,18 @@ pin-utils = "0.1.0-alpha.4"
 time = "0.1"
 tokio = { git = "https://github.com/tokio-rs/tokio", optional = true, default-features = false, features = ["rt-full"] }
 tokio-buf = "0.1"
+tokio-current-thread = { git = "https://github.com/tokio-rs/tokio" }
 tokio-executor = { git = "https://github.com/tokio-rs/tokio" }
 tokio-io = { git = "https://github.com/tokio-rs/tokio" }
 tokio-reactor = { git = "https://github.com/tokio-rs/tokio", optional = true }
 tokio-sync = { git = "https://github.com/tokio-rs/tokio" }
-tokio-tcp = { git = "https://github.com/tokio-rs/tokio", optional = true }
+tokio-tcp = { git = "https://github.com/tokio-rs/tokio", optional = true, features = ["async-traits"] }
 tokio-threadpool = { git = "https://github.com/tokio-rs/tokio", optional = true }
 tokio-timer = { git = "https://github.com/tokio-rs/tokio", optional = true }
 want = { git = "https://github.com/seanmonstar/want", branch = "std-future" }
 
 [dev-dependencies]
+matches = "0.1"
 num_cpus = "1.0"
 pretty_env_logger = "0.3"
 spmc = "0.2"
