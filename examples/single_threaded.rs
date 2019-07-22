@@ -10,7 +10,7 @@ use tokio::runtime::current_thread;
 
 // Configure a runtime that runs everything on the current thread,
 // which means it can spawn !Send futures...
-#[hyper::rt::main(single_thread)]
+#[tokio::main(single_thread)]
 async fn main() {
     pretty_env_logger::init();
 

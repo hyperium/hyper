@@ -109,7 +109,7 @@ async fn client_upgrade_request(addr: SocketAddr) -> Result<()> {
     Ok(())
 }
 
-#[hyper::rt::main]
+#[tokio::main]
 async fn main() {
     // For this example, we just make a server and our own client to talk to
     // it, so the exact port isn't important. Instead, let the OS give us an

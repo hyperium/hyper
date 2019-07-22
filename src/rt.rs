@@ -9,10 +9,6 @@
 pub use std::future::Future;
 pub use futures_core::Stream;
 
-use tokio;
-
-pub use tokio::main;
-
 use self::inner::Spawn;
 
 /// Spawns a future on the default executor.

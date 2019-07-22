@@ -120,7 +120,7 @@ where
 /// ```rust,no_run
 /// # #![feature(async_await)]
 /// # #[cfg(feature = "runtime")]
-/// # #[hyper::rt::main]
+/// # #[tokio::main]
 /// # async fn main() {
 /// use std::net::TcpStream;
 /// use hyper::{Body, Error, Request, Response, Server};

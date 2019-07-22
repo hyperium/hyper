@@ -6,7 +6,7 @@ use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
 use hyper::{Body, Error, Response, Server};
 use hyper::service::{make_service_fn, service_fn};
 
-#[hyper::rt::main]
+#[tokio::main]
 async fn main() {
     pretty_env_logger::init();
 
