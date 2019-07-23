@@ -940,7 +940,7 @@ mod dispatch_impl {
         let (closes_tx, closes) = mpsc::channel(10);
 
         let (tx1, rx1) = oneshot::channel();
-        let (_client_drop_tx, client_drop_rx) = oneshot::channel::<()>();
+        let (_client_drop_tx, client_drop_rx) = std::sync::mpsc::channel::<()>();
 
         thread::spawn(move || {
             let mut sock = server.accept().unwrap().0;
@@ -954,7 +954,7 @@ mod dispatch_impl {
 
             // prevent this thread from closing until end of test, so the connection
             // stays open and idle until Client is dropped
-            Runtime::new().unwrap().block_on(client_drop_rx.into_future()).unwrap();
+            let _ = client_drop_rx.recv();
         });
 
         let res = {
@@ -989,7 +989,7 @@ mod dispatch_impl {
         let (closes_tx, closes) = mpsc::channel(10);
 
         let (tx1, rx1) = oneshot::channel();
-        let (_client_drop_tx, client_drop_rx) = oneshot::channel::<()>();
+        let (_client_drop_tx, client_drop_rx) = std::sync::mpsc::channel::<()>();
 
         thread::spawn(move || {
             let mut sock = server.accept().unwrap().0;
@@ -1002,7 +1002,7 @@ mod dispatch_impl {
 
             // prevent this thread from closing until end of test, so the connection
             // stays open and idle until Client is dropped
-            Runtime::new().unwrap().block_on(client_drop_rx.into_future()).unwrap();
+            let _ = client_drop_rx.recv();
         });
 
         let res = {
@@ -1039,7 +1039,7 @@ mod dispatch_impl {
         let (closes_tx, closes) = mpsc::channel(10);
 
         let (tx1, rx1) = oneshot::channel();
-        let (_tx2, rx2) = oneshot::channel::<()>();
+        let (_tx2, rx2) = std::sync::mpsc::channel::<()>();
 
         thread::spawn(move || {
             let mut sock = server.accept().unwrap().0;
@@ -1049,7 +1049,10 @@ mod dispatch_impl {
             sock.read(&mut buf).expect("read 1");
             sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").unwrap();
             let _ = tx1.send(());
-            let _ = Runtime::new().unwrap().block_on(rx2).unwrap();
+
+            // prevent this thread from closing until end of test, so the connection
+            // stays open and idle until Client is dropped
+            let _ = rx2.recv();
         });
 
         let client = Client::builder()
