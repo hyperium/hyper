@@ -24,7 +24,7 @@
 //! use hyper::service::{make_service_fn, service_fn};
 //!
 //! # #[cfg(feature = "runtime")]
-//! # #[hyper::rt::main]
+//! # #[tokio::main]
 //! async fn main() {
 //!     // Construct our SocketAddr to listen on...
 //!     let addr = ([127, 0, 0, 1], 3000).into();
@@ -379,7 +379,7 @@ impl<I, E> Builder<I, E> {
     /// # #[cfg(not(feature = "runtime"))]
     /// # fn main() {}
     /// # #[cfg(feature = "runtime")]
-    /// # #[hyper::rt::main]
+    /// # #[tokio::main]
     /// # async fn main() {
     /// use hyper::{Body, Error, Response, Server};
     /// use hyper::service::{make_service_fn, service_fn};

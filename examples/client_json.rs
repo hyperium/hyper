@@ -12,7 +12,7 @@ use futures_util::TryStreamExt;
 // A simple type alias so as to DRY.
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-#[hyper::rt::main]
+#[tokio::main]
 async fn main() -> Result<()> {
     let url = "http://jsonplaceholder.typicode.com/users".parse().unwrap();
     let users = fetch_json(url).await?;

@@ -18,7 +18,7 @@ async fn index2(_: Request<Body>) -> Result<Response<Body>, hyper::Error> {
     Ok(Response::new(Body::from(INDEX2)))
 }
 
-#[hyper::rt::main]
+#[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     pretty_env_logger::init();
 

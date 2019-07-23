@@ -5,7 +5,7 @@ use hyper::{Client, Error, Server};
 use hyper::service::{make_service_fn, service_fn};
 use std::net::SocketAddr;
 
-#[hyper::rt::main]
+#[tokio::main]
 async fn main() {
     pretty_env_logger::init();
 

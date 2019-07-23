@@ -11,7 +11,7 @@ static INDEX: &str = "examples/send_file_index.html";
 static INTERNAL_SERVER_ERROR: &[u8] = b"Internal Server Error";
 static NOTFOUND: &[u8] = b"Not Found";
 
-#[hyper::rt::main]
+#[tokio::main]
 async fn main() {
     pretty_env_logger::init();
 
