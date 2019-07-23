@@ -38,7 +38,6 @@ pin-utils = "0.1.0-alpha.4"
 time = "0.1"
 tokio = { git = "https://github.com/tokio-rs/tokio", optional = true, default-features = false, features = ["rt-full"] }
 tokio-buf = "0.1"
-tokio-current-thread = { git = "https://github.com/tokio-rs/tokio" }
 tokio-executor = { git = "https://github.com/tokio-rs/tokio" }
 tokio-io = { git = "https://github.com/tokio-rs/tokio" }
 tokio-reactor = { git = "https://github.com/tokio-rs/tokio", optional = true }

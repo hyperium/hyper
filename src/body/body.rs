@@ -547,22 +547,3 @@ impl Sink for Sender {
     }
 }
 */
-
-#[cfg(test)]
-mod tests {
-    // FIXME: re-implement tests with `async/await`, this import should
-    // trigger a warning to remind us
-    use crate::Error;
-    use futures_util::try_stream::TryStreamExt;
-    use tokio::runtime::current_thread::Runtime;
-
-    use super::*;
-    #[test]
-    fn test_body_stream_concat() {
-        let body = Body::from("hello world");
-
-        let mut rt = Runtime::new().unwrap();
-        let total = rt.block_on(body.try_concat()).unwrap();
-        assert_eq!(total.as_ref(), b"hello world");
-    }
-}
