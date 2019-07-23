@@ -64,14 +64,18 @@ fn http1_parallel_x10_req_10mb(b: &mut test::Bencher) {
 }
 
 #[bench]
+#[ignore]
 fn http2_get(b: &mut test::Bencher) {
+    // FIXME: re-implement tests when `h2` upgrades to `async/await`
     opts()
         .http2()
         .bench(b)
 }
 
 #[bench]
+#[ignore]
 fn http2_post(b: &mut test::Bencher) {
+    // FIXME: re-implement tests when `h2` upgrades to `async/await`
     opts()
         .http2()
         .method(Method::POST)
@@ -80,7 +84,9 @@ fn http2_post(b: &mut test::Bencher) {
 }
 
 #[bench]
+#[ignore]
 fn http2_req_100kb(b: &mut test::Bencher) {
+    // FIXME: re-implement tests when `h2` upgrades to `async/await`
     let body = &[b'x'; 1024 * 100];
     opts()
         .http2()
@@ -90,7 +96,9 @@ fn http2_req_100kb(b: &mut test::Bencher) {
 }
 
 #[bench]
+#[ignore]
 fn http2_parallel_x10_empty(b: &mut test::Bencher) {
+    // FIXME: re-implement tests when `h2` upgrades to `async/await`
     opts()
         .http2()
         .parallel(10)
@@ -98,7 +106,9 @@ fn http2_parallel_x10_empty(b: &mut test::Bencher) {
 }
 
 #[bench]
+#[ignore]
 fn http2_parallel_x10_req_10mb(b: &mut test::Bencher) {
+    // FIXME: re-implement tests when `h2` upgrades to `async/await`
     let body = &[b'x'; 1024 * 1024 * 10];
     opts()
         .http2()
