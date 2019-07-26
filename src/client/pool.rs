@@ -844,9 +844,9 @@ mod tests {
     }
 
     /// Helper to check if the future is ready after polling once.
-    struct PollOnce<F>(F);
+    struct PollOnce<'a, F>(&'a mut F);
 
-    impl<F, T, U> Future for PollOnce<F>
+    impl<F, T, U> Future for PollOnce<'_, F>
         where F: Future<Output = Result<T, U>> + Unpin
     {
         type Output = Option<()>;
@@ -870,7 +870,8 @@ mod tests {
         drop(pooled);
         std::thread::sleep(pool.locked().timeout.unwrap());
         rt.block_on(async {
-            let poll_once = PollOnce(pool.checkout(key));
+            let mut checkout = pool.checkout(key);
+            let poll_once = PollOnce(&mut checkout);
             let is_not_ready = poll_once.await.is_none();
             assert!(is_not_ready);
         });
@@ -891,7 +892,8 @@ mod tests {
         std::thread::sleep(pool.locked().timeout.unwrap());
 
         rt.block_on(async {
-            let poll_once = PollOnce(pool.checkout(key.clone()));
+            let mut checkout = pool.checkout(key.clone());
+            let poll_once = PollOnce(&mut checkout);
             // checkout.await should clean out the expired
             poll_once.await;
             assert!(pool.locked().idle.get(&key).is_none());
@@ -977,31 +979,30 @@ mod tests {
 
     #[test]
     fn test_pool_checkout_drop_cleans_up_waiters() {
-        assert!(false);
-//        let mut rt = Runtime::new().unwrap();
-//        let pool = pool_no_timer::<Uniq<i32>>();
-//        let key = Arc::new("localhost:12345".to_string());
-//
-//        let mut checkout1 = pool.checkout(key.clone());
-//        let mut checkout2 = pool.checkout(key.clone());
-//
-//        let poll_once1 = PollOnce(checkout1);
-//        let poll_once2 = PollOnce(checkout2);
-//
-//        // first poll needed to get into Pool's parked
-//        rt.block_on(async move {
-//            poll_once1.await;
-//            assert_eq!(pool.locked().waiters.get(&key).unwrap().len(), 1);
-//            poll_once2.await;
-//            assert_eq!(pool.locked().waiters.get(&key).unwrap().len(), 2);
-//        });
-//
-//        // on drop, clean up Pool
-//        drop(poll_once1);
-//        assert_eq!(pool.locked().waiters.get(&key).unwrap().len(), 1);
-//
-//        drop(poll_once2);
-//        assert!(pool.locked().waiters.get(&key).is_none());
+        let mut rt = Runtime::new().unwrap();
+        let pool = pool_no_timer::<Uniq<i32>>();
+        let key = Arc::new("localhost:12345".to_string());
+
+        let mut checkout1 = pool.checkout(key.clone());
+        let mut checkout2 = pool.checkout(key.clone());
+
+        let poll_once1 = PollOnce(&mut checkout1);
+        let poll_once2 = PollOnce(&mut checkout2);
+
+        // first poll needed to get into Pool's parked
+        rt.block_on(async {
+            poll_once1.await;
+            assert_eq!(pool.locked().waiters.get(&key).unwrap().len(), 1);
+            poll_once2.await;
+            assert_eq!(pool.locked().waiters.get(&key).unwrap().len(), 2);
+        });
+
+        // on drop, clean up Pool
+        drop(checkout1);
+        assert_eq!(pool.locked().waiters.get(&key).unwrap().len(), 1);
+
+        drop(checkout2);
+        assert!(pool.locked().waiters.get(&key).is_none());
     }
 
     #[derive(Debug)]
