@@ -1478,15 +1478,17 @@ mod dispatch_impl {
         assert_eq!(vec, b"bar=foo");
     }
 
-    /*#[test]
+    #[ignore] // Re-enable as soon as HTTP/2.0 is supported again.
+    #[test]
     fn alpn_h2() {
         use hyper::Response;
         use hyper::server::conn::Http;
         use hyper::service::service_fn;
+        use tokio_tcp::TcpListener;
 
         let _ = pretty_env_logger::try_init();
         let mut rt = Runtime::new().unwrap();
-        let listener = TkTcpListener::bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+        let listener = TcpListener::bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
         let addr = listener.local_addr().unwrap();
         let mut connector = DebugConnector::new();
         connector.alpn_h2 = true;
@@ -1495,7 +1497,8 @@ mod dispatch_impl {
         let client = Client::builder()
             .build::<_, ::hyper::Body>(connector);
 
-        let srv = listener.incoming()
+        let mut incoming = listener.incoming();
+        let srv = incoming
             .try_next()
             .map_err(|_| unreachable!())
             .and_then(|item| {
@@ -1504,7 +1507,7 @@ mod dispatch_impl {
                     .http2_only(true)
                     .serve_connection(socket, service_fn(|req| async move {
                         assert_eq!(req.headers().get("host"), None);
-                        Ok(Response::new(Body::empty()))
+                        Ok::<_, hyper::Error>(Response::new(Body::empty()))
                     }))
             })
             .map_err(|e| panic!("server error: {}", e));
@@ -1529,7 +1532,7 @@ mod dispatch_impl {
 
         assert_eq!(connects.load(Ordering::SeqCst), 3, "after ALPN, no more connects");
         drop(client);
-    }*/
+    }
 
 
     struct DebugConnector {
@@ -2094,12 +2097,12 @@ mod conn {
         assert_eq!(vec, b"bar=foo");
     }
 
-    // DISABLED
-    // #[test]
-    /*fn http2_detect_conn_eof() {
+    #[ignore] // Re-enable as soon as HTTP/2.0 is supported again.
+    #[test]
+    fn http2_detect_conn_eof() {
         use futures_util::future;
         use hyper::{Response, Server};
-        use hyper::service::service_fn;
+        use hyper::service::{make_service_fn, service_fn};
         use tokio::timer::Delay;
 
         let _ = pretty_env_logger::try_init();
@@ -2108,19 +2111,23 @@ mod conn {
 
         let server = Server::bind(&([127, 0, 0, 1], 0).into())
             .http2_only(true)
-            .serve(|| service_fn(|_req| {
-                Ok(Response::new(Body::empty()))
+            .serve(make_service_fn(|_| async move {
+                Ok::<_, hyper::Error>(service_fn(|_req| future::ok::<_, hyper::Error>(Response::new(Body::empty()))))
             }));
         let addr = server.local_addr();
         let (shdn_tx, shdn_rx) = oneshot::channel();
-        rt.spawn(server.with_graceful_shutdown(shdn_rx).map_err(|e| panic!("server error: {:?}", e)));
+        rt.spawn(server.with_graceful_shutdown(async {
+            shdn_rx.await.ok();
+        }).map(|_| ()));
 
         let io = rt.block_on(tcp_connect(&addr)).expect("tcp connect");
         let (mut client, conn) = rt.block_on(
             conn::Builder::new().http2_only(true).handshake::<_, Body>(io)
         ).expect("http handshake");
-        rt.spawn(conn.map_err(|e| panic!("client conn error: {:?}", e)));
 
+        rt.spawn(conn
+            .map_err(|e| panic!("client conn error: {:?}", e))
+            .map(|_| ()));
 
         // Sanity check that client is ready
         rt.block_on(future::poll_fn(|ctx| client.poll_ready(ctx))).expect("client poll ready sanity");
@@ -2139,26 +2146,16 @@ mod conn {
         let _ = shdn_tx.send(());
 
         // Allow time for graceful shutdown roundtrips...
-        rt.block_on(Delay::new(::std::time::Instant::now() + Duration::from_millis(100)).map_err(|e| panic!("delay error: {:?}", e))).expect("delay");
+        rt.block_on(Delay::new(::std::time::Instant::now() + Duration::from_millis(100)));
 
         // After graceful shutdown roundtrips, the client should be closed...
         rt.block_on(future::poll_fn(|ctx| client.poll_ready(ctx))).expect_err("client should be closed");
-    }*/
+    }
 
     struct DebugStream {
         tcp: TcpStream,
         shutdown_called: bool,
     }
-
-    /*impl Write for DebugStream {
-        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-            self.tcp.write(buf)
-        }
-
-        fn flush(&mut self) -> io::Result<()> {
-            self.tcp.flush()
-        }
-    }*/
 
     impl AsyncWrite for DebugStream {
         fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
