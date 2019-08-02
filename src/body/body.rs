@@ -372,17 +372,21 @@ impl fmt::Debug for Body {
     }
 }
 
-/*
+
 impl ::http_body::Body for Body {
     type Data = Chunk;
     type Error = crate::Error;
 
-    fn poll_data(&mut self) -> Poll<Option<Self::Data>, Self::Error> {
-        <Self as Payload>::poll_data(self)
+    fn poll_data(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<Result<Self::Data, Self::Error>>> {
+        <Self as Payload>::poll_data(Pin::new(self), cx)
     }
 
-    fn poll_trailers(&mut self) -> Poll<Option<HeaderMap>, Self::Error> {
-        <Self as Payload>::poll_trailers(self)
+    fn poll_trailers(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<Option<HeaderMap>, Self::Error>> {
+        match ready!(<Self as Payload>::poll_trailers(Pin::new(self), cx)) {
+            Some(Ok(header)) => Ok(Some(header)),
+            Some(Err(e)) => Err(e),
+            None => Ok(None),
+        }.into()
     }
 
     fn is_end_stream(&self) -> bool {
@@ -402,7 +406,6 @@ impl ::http_body::Body for Body {
         hint
     }
 }
-*/
 
 impl Stream for Body {
     type Item = crate::Result<Chunk>;
