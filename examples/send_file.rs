@@ -2,7 +2,7 @@
 #![deny(warnings)]
 
 use tokio::io::AsyncReadExt;
-use tokio_fs::file::File;
+use tokio_fs::File;
 
 use hyper::{Body, Method, Result, Request, Response, Server, StatusCode};
 use hyper::service::{make_service_fn, service_fn};
