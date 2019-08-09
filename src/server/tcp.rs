@@ -4,6 +4,7 @@ use std::net::{SocketAddr, TcpListener as StdTcpListener};
 use std::time::{Duration, Instant};
 
 use futures_core::Stream;
+use futures_util::FutureExt as _;
 use tokio_reactor::Handle;
 use tokio_tcp::TcpListener;
 use tokio_timer::Delay;
@@ -11,6 +12,7 @@ use tokio_timer::Delay;
 use crate::common::{Future, Pin, Poll, task};
 
 pub use self::addr_stream::AddrStream;
+use futures_util::FutureExt;
 
 /// A stream of connections from binding to an address.
 #[must_use = "streams do nothing unless polled"]
@@ -106,7 +108,10 @@ impl AddrIncoming {
         self.timeout = None;
 
         loop {
-            match Pin::new(&mut self.listener).poll_accept(cx) {
+            let mut future = self.listener.accept();
+            let mut pin = unsafe { Pin::new_unchecked(&mut future) };
+
+            match Future::poll(pin, cx) {
                 Poll::Ready(Ok((socket, addr))) => {
                     if let Some(dur) = self.tcp_keepalive_timeout {
                         if let Err(e) = socket.set_keepalive(Some(dur)) {

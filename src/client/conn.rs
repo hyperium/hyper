@@ -404,7 +404,7 @@ where
     type Output = crate::Result<()>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        match ready!(Pin::new(self.inner.as_mut().unwrap()).poll(cx))? {
+        match ready!(Box::pin(self.inner.as_mut().unwrap()).poll_unpin(cx))? {
             proto::Dispatched::Shutdown => {
                 Poll::Ready(Ok(()))
             },

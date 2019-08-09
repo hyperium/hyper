@@ -7,7 +7,6 @@ use std::io;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use iovec::IoVec;
 use tokio_io::{AsyncRead, AsyncWrite};
-
 use crate::common::{Pin, Poll, Unpin, task};
 use super::{Http1Transaction, ParseContext, ParsedMessage};
 
