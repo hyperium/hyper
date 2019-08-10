@@ -1,6 +1,7 @@
 use std::mem;
 
 use tokio_sync::{mpsc, watch};
+use pin_utils::pin_mut;
 
 use super::{Future, Never, Poll, Pin, task};
 
@@ -99,7 +100,9 @@ where
         loop {
             match mem::replace(&mut me.state, State::Draining) {
                 State::Watch(on_drain) => {
-                    match me.watch.rx.poll_ref(cx) {
+                    let recv_ref = me.watch.rx.recv_ref();
+                    pin_mut!(recv_ref);
+                    match recv_ref.poll(cx) {
                         Poll::Ready(None) => {
                             // Drain has been triggered!
                             on_drain(unsafe { Pin::new_unchecked(&mut me.future) });

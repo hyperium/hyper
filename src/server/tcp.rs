@@ -7,6 +7,7 @@ use futures_core::Stream;
 use tokio_reactor::Handle;
 use tokio_tcp::TcpListener;
 use tokio_timer::Delay;
+use pin_utils::pin_mut;
 
 use crate::common::{Future, Pin, Poll, task};
 
@@ -106,7 +107,9 @@ impl AddrIncoming {
         self.timeout = None;
 
         loop {
-            match Pin::new(&mut self.listener).poll_accept(cx) {
+            let accept = self.listener.accept();
+            pin_mut!(accept);
+            match accept.poll(cx) {
                 Poll::Ready(Ok((socket, addr))) => {
                     if let Some(dur) = self.tcp_keepalive_timeout {
                         if let Err(e) = socket.set_keepalive(Some(dur)) {
