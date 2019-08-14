@@ -36,15 +36,15 @@ log = "0.4"
 net2 = { version = "0.2.32", optional = true }
 pin-utils = "0.1.0-alpha.4"
 time = "0.1"
-tokio = { git = "https://github.com/tokio-rs/tokio", optional = true, default-features = false, features = ["rt-full"] }
-tokio-buf = "0.1"
-tokio-executor = { git = "https://github.com/tokio-rs/tokio" }
-tokio-io = { git = "https://github.com/tokio-rs/tokio" }
-tokio-reactor = { git = "https://github.com/tokio-rs/tokio", optional = true }
-tokio-sync = { git = "https://github.com/tokio-rs/tokio" }
-tokio-tcp = { git = "https://github.com/tokio-rs/tokio", optional = true, features = ["async-traits"] }
-tokio-threadpool = { git = "https://github.com/tokio-rs/tokio", optional = true }
-tokio-timer = { git = "https://github.com/tokio-rs/tokio", optional = true }
+tokio = { version = "0.2.0-alpha.1", optional = true, default-features = false, features = ["rt-full"] }
+tokio-buf = "0.2.0-alpha.1"
+tokio-executor = "0.2.0-alpha.1"
+tokio-io = "0.2.0-alpha.1"
+tokio-reactor = { version = "0.2.0-alpha.1", optional = true }
+tokio-sync = "0.2.0-alpha.1"
+tokio-tcp = { version = "0.2.0-alpha.1", optional = true, features = ["async-traits"] }
+tokio-threadpool = { version = "0.2.0-alpha.1", optional = true }
+tokio-timer = { version = "0.3.0-alpha.1", optional = true }
 want = { git = "https://github.com/seanmonstar/want", branch = "std-future" }
 
 [dev-dependencies]
@@ -55,8 +55,8 @@ spmc = "0.2"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
-tokio-fs = { git = "https://github.com/tokio-rs/tokio" }
-tokio-test = { git = "https://github.com/tokio-rs/tokio" }
+tokio-fs = "0.2.0-alpha.1"
+tokio-test = "0.2.0-alpha.1"
 url = "1.0"
 
 
@@ -177,4 +177,3 @@ required-features = ["runtime"]
 #name = "server"
 #path = "tests/server.rs"
 #required-features = ["runtime"]
-
