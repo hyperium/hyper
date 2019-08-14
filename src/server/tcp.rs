@@ -4,6 +4,7 @@ use std::net::{SocketAddr, TcpListener as StdTcpListener};
 use std::time::{Duration, Instant};
 
 use futures_core::Stream;
+use futures_util::FutureExt as _;
 use tokio_reactor::Handle;
 use tokio_tcp::TcpListener;
 use tokio_timer::Delay;
@@ -105,8 +106,10 @@ impl AddrIncoming {
         }
         self.timeout = None;
 
+        let mut accept_fut = self.listener.accept().boxed();
+
         loop {
-            match Pin::new(&mut self.listener).poll_accept(cx) {
+            match accept_fut.poll_unpin(cx) {
                 Poll::Ready(Ok((socket, addr))) => {
                     if let Some(dur) = self.tcp_keepalive_timeout {
                         if let Err(e) = socket.set_keepalive(Some(dur)) {
