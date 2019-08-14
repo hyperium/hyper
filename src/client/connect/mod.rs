@@ -35,6 +35,15 @@ pub trait Connect: Send + Sync {
     fn connect(&self, dst: Destination) -> Self::Future;
 }
 
+impl<T: Connect + ?Sized> Connect for Box<T> {
+    type Transport = <T as Connect>::Transport;
+    type Error = <T as Connect>::Error;
+    type Future = <T as Connect>::Future;
+    fn connect(&self, dst: Destination) -> Self::Future {
+        <T as Connect>::connect(self, dst)
+    }
+}
+
 /// A set of properties to describe where and how to try to connect.
 ///
 /// This type is passed an argument for the [`Connect`](Connect) trait.
