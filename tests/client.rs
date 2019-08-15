@@ -846,7 +846,7 @@ mod dispatch_impl {
             let _ = tx1.send(());
         });
 
-        let res = {
+        let res = async {
             let client = Client::builder()
                 .build(DebugConnector::with_http_and_closes(HttpConnector::new(1), closes_tx));
 
@@ -854,16 +854,14 @@ mod dispatch_impl {
                 .uri(&*format!("http://{}/a", addr))
                 .body(Body::empty())
                 .unwrap();
-            client.request(req).and_then(move |res| {
-                assert_eq!(res.status(), hyper::StatusCode::OK);
-                res.into_body().try_concat()
-            }).map_ok(|_| {
-                Delay::new(Instant::now() + Duration::from_secs(1))
-            })
+            let res = client.request(req).await.unwrap();
+            assert_eq!(res.status(), hyper::StatusCode::OK);
+            let _ = res.into_body().try_concat().await.unwrap();
+            Delay::new(Instant::now() + Duration::from_secs(1)).await;
         };
         // client is dropped
         let rx = rx1.expect("thread panicked");
-        rt.block_on(future::join(res, rx).map(|r| r.0)).unwrap();
+        rt.block_on(future::join(res, rx));
 
         rt.block_on(closes.into_future()).0.expect("closes");
     }
@@ -957,7 +955,7 @@ mod dispatch_impl {
             let _ = client_drop_rx.recv();
         });
 
-        let res = {
+        let res = async {
             let client = Client::builder()
                 .build(DebugConnector::with_http_and_closes(HttpConnector::new(1), closes_tx));
 
@@ -965,10 +963,10 @@ mod dispatch_impl {
                 .uri(&*format!("http://{}/a", addr))
                 .body(Body::empty())
                 .unwrap();
-            client.request(req)
+            client.request(req).await
         };
 
-        rt.block_on(future::select(res, rx1));
+        rt.block_on(future::select(Box::pin(res), rx1));
 
         // res now dropped
         let t = Delay::new(Instant::now() + Duration::from_millis(100))
@@ -1005,7 +1003,7 @@ mod dispatch_impl {
             let _ = client_drop_rx.recv();
         });
 
-        let res = {
+        let res = async {
             let client = Client::builder()
                 .build(DebugConnector::with_http_and_closes(HttpConnector::new(1), closes_tx));
 
@@ -1014,11 +1012,11 @@ mod dispatch_impl {
                 .body(Body::empty())
                 .unwrap();
             // notably, havent read body yet
-            client.request(req)
+            client.request(req).await.unwrap();
         };
 
         let rx = rx1.expect("thread panicked");
-        rt.block_on(future::join(res, rx).map(|r| r.0)).unwrap();
+        rt.block_on(future::join(res, rx));
 
         let t = Delay::new(Instant::now() + Duration::from_millis(100))
             .map(|_| panic!("time out"));
@@ -1321,23 +1319,24 @@ mod dispatch_impl {
             .uri(&*format!("http://{}/a", addr))
             .body(Body::wrap_stream(delayed_body))
             .unwrap();
-        let client2 = client.clone();
 
         // req 1
-        let fut = future::join(client.request(req), rx)
-            .then(|_| Delay::new(Instant::now() + Duration::from_millis(200)))
+        let fut = async move {
+            let req = async { client.request(req).await.unwrap() };
+            future::join(req, rx).await;
+            Delay::new(Instant::now() + Duration::from_millis(200)).await;
             // req 2
-            .then(move |()| {
-                let rx = rx3.expect("thread panicked");
-                let req = Request::builder()
-                    .uri(&*format!("http://{}/b", addr))
-                    .body(Body::empty())
-                    .unwrap();
-                future::join(client2.request(req), rx)
-                    .map(|r| r.0)
-            });
+            
+            let rx = rx3.expect("thread panicked");
+            let req = Request::builder()
+                .uri(&*format!("http://{}/b", addr))
+                .body(Body::empty())
+                .unwrap();
+            let req = async { client.request(req).await.unwrap() };
+            future::join(req, rx).await;
+        };
 
-        rt.block_on(fut).unwrap();
+        rt.block_on(Box::pin(fut));
 
         assert_eq!(connects.load(Ordering::Relaxed), 1);
     }

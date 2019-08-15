@@ -26,12 +26,15 @@ async fn main() {
             // `service_fn` is a helper to convert a function that
             // returns a Response into a `Service`.
             Ok::<_, Error>(service_fn(move |mut req| {
-                let uri_string = format!("http://{}/{}",
-                                         out_addr_clone,
-                                         req.uri().path_and_query().map(|x| x.as_str()).unwrap_or(""));
-                let uri = uri_string.parse().unwrap();
-                *req.uri_mut() = uri;
-                client.request(req)
+                let client = client.clone();
+                async move {
+                    let uri_string = format!("http://{}/{}",
+                                                out_addr_clone,
+                                                req.uri().path_and_query().map(|x| x.as_str()).unwrap_or(""));
+                    let uri = uri_string.parse().unwrap();
+                    *req.uri_mut() = uri;
+                    client.request(req).await
+                }
             }))
         }
     });

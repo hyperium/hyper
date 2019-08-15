@@ -91,8 +91,9 @@ async fn client_upgrade_request(addr: SocketAddr) -> Result<()> {
         .header(UPGRADE, "foobar")
         .body(Body::empty())
         .unwrap();
-
-    let res = Client::new().request(req).await?;
+    
+    let client = Client::new();
+    let res = client.request(req).await?;
     if res.status() != StatusCode::SWITCHING_PROTOCOLS {
         panic!("Our server didn't upgrade: {}", res.status());
     }
