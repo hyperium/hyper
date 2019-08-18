@@ -10,7 +10,7 @@ extern crate spmc;
 extern crate pretty_env_logger;
 extern crate tokio;
 extern crate tokio_io;
-extern crate tokio_tcp;
+extern crate tokio_net;
 
 use std::net::{TcpStream, Shutdown, SocketAddr};
 use std::io::{self, Read, Write};
@@ -26,7 +26,7 @@ use futures::future::{self, FutureResult, Either};
 use futures::sync::oneshot;
 use futures_timer::Delay;
 use http::header::{HeaderName, HeaderValue};
-use tokio_tcp::{TcpListener, TcpStream as TkTcpStream};
+use tokio_net::tcp::{TcpListener, TcpStream as TkTcpStream};
 use tokio::runtime::current_thread::Runtime;
 use tokio::reactor::Handle;
 use tokio_io::{AsyncRead, AsyncWrite};

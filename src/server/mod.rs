@@ -62,7 +62,6 @@ use std::fmt;
 use futures_core::Stream;
 use pin_utils::unsafe_pinned;
 use tokio_io::{AsyncRead, AsyncWrite};
-#[cfg(feature = "runtime")] use tokio_reactor;
 
 use crate::body::{Body, Payload};
 use crate::common::exec::{Exec, H2Exec, NewSvcExec};
@@ -132,7 +131,7 @@ impl Server<AddrIncoming, ()> {
 
     /// Create a new instance from a `std::net::TcpListener` instance.
     pub fn from_tcp(listener: StdTcpListener) -> Result<Builder<AddrIncoming>, crate::Error> {
-        let handle = tokio_reactor::Handle::default();
+        let handle = tokio_net::driver::Handle::default();
         AddrIncoming::from_std(listener, &handle)
             .map(Server::builder)
     }

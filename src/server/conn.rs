@@ -20,7 +20,7 @@ use futures_core::Stream;
 use h2;
 use pin_utils::{unsafe_pinned, unsafe_unpinned};
 use tokio_io::{AsyncRead, AsyncWrite};
-#[cfg(feature = "runtime")] use tokio_reactor::Handle;
+#[cfg(feature = "runtime")] use tokio_net::driver::Handle;
 
 use crate::body::{Body, Payload};
 use crate::common::exec::{Exec, H2Exec, NewSvcExec};

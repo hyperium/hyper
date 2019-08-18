@@ -5,8 +5,8 @@ use std::time::{Duration, Instant};
 
 use futures_core::Stream;
 use futures_util::FutureExt as _;
-use tokio_reactor::Handle;
-use tokio_tcp::TcpListener;
+use tokio_net::driver::Handle;
+use tokio_net::tcp::TcpListener;
 use tokio_timer::Delay;
 
 use crate::common::{Future, Pin, Poll, task};
@@ -196,7 +196,7 @@ mod addr_stream {
     use std::io;
     use std::net::SocketAddr;
     use bytes::{Buf, BufMut};
-    use tokio_tcp::TcpStream;
+    use tokio_net::tcp::TcpStream;
     use tokio_io::{AsyncRead, AsyncWrite};
 
     use crate::common::{Pin, Poll, task};
