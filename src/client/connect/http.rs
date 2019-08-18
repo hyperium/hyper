@@ -8,8 +8,8 @@ use std::time::{Duration, Instant};
 
 use http::uri::Scheme;
 use net2::TcpBuilder;
-use tokio_reactor::Handle;
-use tokio_tcp::{TcpStream/*, ConnectFuture*/};
+use tokio_net::driver::Handle;
+use tokio_net::tcp::{TcpStream/*, ConnectFuture*/};
 use tokio_timer::Delay;
 
 use crate::common::{Future, Pin, Poll, task};
@@ -623,7 +623,7 @@ mod tests {
 
         use futures::{Async, Poll};
         use tokio::runtime::current_thread::Runtime;
-        use tokio_reactor::Handle;
+        use tokio_net::driver::Handle;
 
         use super::dns;
         use super::ConnectingTcp;

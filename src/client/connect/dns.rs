@@ -19,7 +19,6 @@ use std::sync::Arc;
 use futures_util::{FutureExt, StreamExt};
 use tokio_executor::TypedExecutor;
 use tokio_sync::{mpsc, oneshot};
-use tokio_threadpool;
 
 use crate::common::{Future, Never, Pin, Poll, Unpin, task};
 
@@ -42,7 +41,7 @@ pub struct Name {
 /// A resolver using blocking `getaddrinfo` calls in a threadpool.
 #[derive(Clone)]
 pub struct GaiResolver {
-    tx: tokio_threadpool::Sender,
+    tx: tokio_executor::threadpool::Sender,
     /// A handle to keep the threadpool alive until all `GaiResolver` clones
     /// have been dropped.
     _threadpool_keep_alive: ThreadPoolKeepAlive,
@@ -114,7 +113,7 @@ impl GaiResolver {
     ///
     /// Takes number of DNS worker threads.
     pub fn new(threads: usize) -> Self {
-        let pool = tokio_threadpool::Builder::new()
+        let pool = tokio_executor::threadpool::Builder::new()
             .name_prefix("hyper-dns-gai-resolver")
             // not for CPU tasks, so only spawn workers
             // in blocking mode
@@ -296,7 +295,7 @@ impl Iterator for IpAddrs {
     }
 }
 
-/// A resolver using `getaddrinfo` calls via the `tokio_threadpool::blocking` API.
+/// A resolver using `getaddrinfo` calls via the `tokio_executor::threadpool::blocking` API.
 ///
 /// Unlike the `GaiResolver` this will not spawn dedicated threads, but only works when running on the
 /// multi-threaded Tokio runtime.
@@ -332,10 +331,10 @@ impl Future for TokioThreadpoolGaiFuture {
     type Output = Result<GaiAddrs, io::Error>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        match ready!(tokio_threadpool::blocking(|| (self.name.as_str(), 0).to_socket_addrs())) {
+        match ready!(tokio_executor::threadpool::blocking(|| (self.name.as_str(), 0).to_socket_addrs())) {
             Ok(Ok(iter)) => Poll::Ready(Ok(GaiAddrs { inner: IpAddrs { iter } })),
             Ok(Err(e)) => Poll::Ready(Err(e)),
-            // a BlockingError, meaning not on a tokio_threadpool :(
+            // a BlockingError, meaning not on a tokio_executor::threadpool :(
             Err(e) => Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, e))),
         }
     }
