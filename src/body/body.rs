@@ -6,7 +6,7 @@ use bytes::Bytes;
 use futures_core::{Stream, TryStream};
 use futures_channel::{mpsc, oneshot};
 use futures_util::TryStreamExt;
-use tokio_buf::SizeHint;
+//use tokio_buf::SizeHint;
 use h2;
 use http::HeaderMap;
 
