@@ -1,8 +1,11 @@
 use bytes::IntoBuf;
-//use futures::{Async, Future, Poll, Stream};
+use futures_channel::{mpsc, oneshot};
+use futures_util::future::{self, FutureExt as _, Either};
+use futures_util::stream::StreamExt as _;
+use futures_util::try_future::TryFutureExt as _;
 //use futures::future::{self, Either};
 //use futures::sync::{mpsc, oneshot};
-use h2::client::{Builder, Handshake, SendRequest};
+use h2::client::{Builder, SendRequest};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use crate::headers::content_length_parse_all;
@@ -14,192 +17,187 @@ use super::{PipeToSendStream, SendBuf};
 use crate::{Body, Request, Response};
 
 type ClientRx<B> = crate::client::dispatch::Receiver<Request<B>, Response<Body>>;
+
 ///// An mpsc channel is used to help notify the `Connection` task when *all*
 ///// other handles to it have been dropped, so that it can shutdown.
-//type ConnDropRef = mpsc::Sender<Never>;
+type ConnDropRef = mpsc::Sender<Never>;
 
 ///// A oneshot channel watches the `Connection` task, and when it completes,
 ///// the "dispatch" task will be notified and can shutdown sooner.
-//type ConnEof = oneshot::Receiver<Never>;
+type ConnEof = oneshot::Receiver<Never>;
 
-pub(crate) struct Client<T, B>
+pub(crate) async fn handshake<T, B>(
+    io: T,
+    req_rx: ClientRx<B>,
+    builder: &Builder,
+    exec: Exec,
+) -> crate::Result<ClientTask<B>>
 where
+    T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
     B: Payload,
+    B::Data: Unpin,
 {
-    executor: Exec,
-    rx: ClientRx<B>,
-    state: State<T, SendBuf<B::Data>>,
-}
+    let (h2_tx, conn) = builder
+        .handshake::<_, SendBuf<B::Data>>(io)
+        .await
+        .map_err(crate::Error::new_h2)?;
 
-enum State<T, B> where B: IntoBuf {
-    Handshaking(Handshake<T, B>),
-    //Ready(SendRequest<B>, ConnDropRef, ConnEof),
-}
+    // An mpsc channel is used entirely to detect when the
+    // 'Client' has been dropped. This is to get around a bug
+    // in h2 where dropping all SendRequests won't notify a
+    // parked Connection.
+    let (conn_drop_ref, rx) = mpsc::channel(1);
+    let (cancel_tx, conn_eof) = oneshot::channel();
 
-impl<T, B> Client<T, B>
-where
-    T: AsyncRead + AsyncWrite + Send + 'static,
-    B: Payload,
-{
-    pub(crate) fn new(io: T, rx: ClientRx<B>, builder: &Builder, exec: Exec) -> Client<T, B> {
-        unimplemented!("proto::h2::Client::new");
-        /*
-        let handshake = builder.handshake(io);
+    let conn_drop_rx = rx.into_future()
+        .map(|(item, _rx)| {
+            match item {
+                Some(never) => match never {},
+                None => (),
+            }
+        });
 
-        Client {
-            executor: exec,
-            rx: rx,
-            state: State::Handshaking(handshake),
+    let conn = conn.map_err(|e| debug!("connection error: {}", e));
+
+    let conn_task = async move {
+        match future::select(conn, conn_drop_rx).await {
+            Either::Left(_) => {
+                // ok or err, the `conn` has finished
+            }
+            Either::Right(((), conn)) => {
+                // mpsc has been dropped, hopefully polling
+                // the connection some more should start shutdown
+                // and then close
+                trace!("send_request dropped, starting conn shutdown");
+                drop(cancel_tx);
+                let _ = conn.await;
+            }
         }
-        */
-    }
+    };
+
+    exec.execute(conn_task)?;
+
+    Ok(ClientTask {
+        conn_drop_ref,
+        conn_eof,
+        executor: exec,
+        h2_tx,
+        req_rx,
+    })
 }
 
-impl<T, B> Future for Client<T, B>
+pub(crate) struct ClientTask<B>
 where
-    T: AsyncRead + AsyncWrite + Send + 'static,
-    B: Payload + 'static,
+    B: Payload,
+{
+    conn_drop_ref: ConnDropRef,
+    conn_eof: ConnEof,
+    executor: Exec,
+    h2_tx: SendRequest<SendBuf<B::Data>>,
+    req_rx: ClientRx<B>,
+}
+
+impl<B> Future for ClientTask<B>
+where
+    B: Payload + Unpin + 'static,
+    B::Data: Unpin,
 {
     type Output = crate::Result<Dispatched>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        unimplemented!("impl Future for proto::h2::Client");
-        /*
         loop {
-            let next = match self.state {
-                State::Handshaking(ref mut h) => {
-                    let (request_tx, conn) = try_ready!(h.poll().map_err(crate::Error::new_h2));
-                    // An mpsc channel is used entirely to detect when the
-                    // 'Client' has been dropped. This is to get around a bug
-                    // in h2 where dropping all SendRequests won't notify a
-                    // parked Connection.
-                    let (tx, rx) = mpsc::channel(0);
-                    let (cancel_tx, cancel_rx) = oneshot::channel();
-                    let rx = rx.into_future()
-                        .map(|(msg, _)| match msg {
-                            Some(never) => match never {},
-                            None => (),
-                        })
-                        .map_err(|_| -> Never { unreachable!("mpsc cannot error") });
-                    let fut = conn
-                        .inspect(move |_| {
-                            drop(cancel_tx);
-                            trace!("connection complete")
-                        })
-                        .map_err(|e| debug!("connection error: {}", e))
-                        .select2(rx)
-                        .then(|res| match res {
-                            Ok(Either::A(((), _))) |
-                            Err(Either::A(((), _))) => {
-                                // conn has finished either way
-                                Either::A(future::ok(()))
-                            },
-                            Ok(Either::B(((), conn))) => {
-                                // mpsc has been dropped, hopefully polling
-                                // the connection some more should start shutdown
-                                // and then close
-                                trace!("send_request dropped, starting conn shutdown");
-                                Either::B(conn)
-                            }
-                            Err(Either::B((never, _))) => match never {},
-                        });
-                    self.executor.execute(fut)?;
-                    State::Ready(request_tx, tx, cancel_rx)
-                },
-                State::Ready(ref mut tx, ref conn_dropper, ref mut cancel_rx) => {
-                    match tx.poll_ready() {
-                        Ok(Async::Ready(())) => (),
-                        Ok(Async::NotReady) => return Ok(Async::NotReady),
+            match ready!(self.h2_tx.poll_ready(cx)) {
+                Ok(()) => (),
+                Err(err) => {
+                    return if err.reason() == Some(::h2::Reason::NO_ERROR) {
+                        trace!("connection gracefully shutdown");
+                        Poll::Ready(Ok(Dispatched::Shutdown))
+                    } else {
+                        Poll::Ready(Err(crate::Error::new_h2(err)))
+                    };
+                }
+            };
+
+            match Pin::new(&mut self.req_rx).poll_next(cx) {
+                Poll::Ready(Some((req, cb))) => {
+                    // check that future hasn't been canceled already
+                    if cb.is_canceled() {
+                        trace!("request callback is canceled");
+                        continue;
+                    }
+                    let (head, body) = req.into_parts();
+                    let mut req = ::http::Request::from_parts(head, ());
+                    super::strip_connection_headers(req.headers_mut(), true);
+                    if let Some(len) = body.content_length() {
+                        headers::set_content_length_if_missing(req.headers_mut(), len);
+                    }
+                    let eos = body.is_end_stream();
+                    let (fut, body_tx) = match self.h2_tx.send_request(req, eos) {
+                        Ok(ok) => ok,
                         Err(err) => {
-                            return if err.reason() == Some(::h2::Reason::NO_ERROR) {
-                                trace!("connection gracefully shutdown");
-                                Ok(Async::Ready(Dispatched::Shutdown))
-                            } else {
-                                Err(crate::Error::new_h2(err))
-                            };
+                            debug!("client send request error: {}", err);
+                            cb.send(Err((crate::Error::new_h2(err), None)));
+                            continue;
+                        }
+                    };
+
+                    if !eos {
+                        let mut pipe = PipeToSendStream::new(body, body_tx)
+                            .map(|res| {
+                                if let Err(e) = res {
+                                    debug!("client request body error: {}", e);
+                                }
+                            });
+
+                        // eagerly see if the body pipe is ready and
+                        // can thus skip allocating in the executor
+                        match Pin::new(&mut pipe).poll(cx) {
+                            Poll::Ready(_) => (),
+                            Poll::Pending => {
+                                let conn_drop_ref = self.conn_drop_ref.clone();
+                                let pipe = pipe.map(move |x| {
+                                        drop(conn_drop_ref);
+                                        x
+                                    });
+                                self.executor.execute(pipe)?;
+                            }
                         }
                     }
-                    match self.rx.poll() {
-                        Ok(Async::Ready(Some((req, cb)))) => {
-                            // check that future hasn't been canceled already
-                            if cb.is_canceled() {
-                                trace!("request callback is canceled");
-                                continue;
-                            }
-                            let (head, body) = req.into_parts();
-                            let mut req = ::http::Request::from_parts(head, ());
-                            super::strip_connection_headers(req.headers_mut(), true);
-                            if let Some(len) = body.content_length() {
-                                headers::set_content_length_if_missing(req.headers_mut(), len);
-                            }
-                            let eos = body.is_end_stream();
-                            let (fut, body_tx) = match tx.send_request(req, eos) {
-                                Ok(ok) => ok,
+
+                    let fut = fut
+                        .map(move |result| {
+                            match result {
+                                Ok(res) => {
+                                    let content_length = content_length_parse_all(res.headers());
+                                    let res = res.map(|stream|
+                                        crate::Body::h2(stream, content_length));
+                                    Ok(res)
+                                },
                                 Err(err) => {
-                                    debug!("client send request error: {}", err);
-                                    cb.send(Err((crate::Error::new_h2(err), None)));
-                                    continue;
-                                }
-                            };
-                            if !eos {
-                                let mut pipe = PipeToSendStream::new(body, body_tx)
-                                    .map_err(|e| debug!("client request body error: {}", e));
-
-                                // eagerly see if the body pipe is ready and
-                                // can thus skip allocating in the executor
-                                match pipe.poll() {
-                                    Ok(Async::Ready(())) | Err(()) => (),
-                                    Ok(Async::NotReady) => {
-                                        let conn_drop_ref = conn_dropper.clone();
-                                        let pipe = pipe.then(move |x| {
-                                                drop(conn_drop_ref);
-                                                x
-                                            });
-                                        self.executor.execute(pipe)?;
-                                    }
+                                    debug!("client response error: {}", err);
+                                    Err((crate::Error::new_h2(err), None))
                                 }
                             }
+                        });
+                    self.executor.execute(cb.send_when(fut))?;
+                    continue;
+                },
 
-                            let fut = fut
-                                .then(move |result| {
-                                    match result {
-                                        Ok(res) => {
-                                            let content_length = content_length_parse_all(res.headers());
-                                            let res = res.map(|stream|
-                                                crate::Body::h2(stream, content_length));
-                                            Ok(res)
-                                        },
-                                        Err(err) => {
-                                            debug!("client response error: {}", err);
-                                            Err((crate::Error::new_h2(err), None))
-                                        }
-                                    }
-                                });
-                            self.executor.execute(cb.send_when(fut))?;
-                            continue;
-                        },
+                Poll::Ready(None) => {
+                    trace!("client::dispatch::Sender dropped");
+                    return Poll::Ready(Ok(Dispatched::Shutdown));
+                }
 
-                        Ok(Async::NotReady) => {
-                            match cancel_rx.poll() {
-                                Ok(Async::Ready(never)) => match never {},
-                                Ok(Async::NotReady) => return Ok(Async::NotReady),
-                                Err(_conn_is_eof) => {
-                                    trace!("connection task is closed, closing dispatch task");
-                                    return Ok(Async::Ready(Dispatched::Shutdown));
-                                }
-                            }
-                        },
-
-                        Ok(Async::Ready(None)) => {
-                            trace!("client::dispatch::Sender dropped");
-                            return Ok(Async::Ready(Dispatched::Shutdown));
-                        },
-                        Err(never) => match never {},
+                Poll::Pending => {
+                    match ready!(Pin::new(&mut self.conn_eof).poll(cx)) {
+                        Ok(never) => match never {},
+                        Err(_conn_is_eof) => {
+                            trace!("connection task is closed, closing dispatch task");
+                            return Poll::Ready(Ok(Dispatched::Shutdown));
+                        }
                     }
                 },
-            };
-            self.state = next;
+            }
         }
-        */
     }
 }

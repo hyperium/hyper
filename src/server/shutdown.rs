@@ -47,6 +47,7 @@ where
     S::Service: 'static,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
+    B::Data: Unpin,
     F: Future<Output=()>,
     E: H2Exec<<S::Service as Service>::Future, B>,
     E: NewSvcExec<IO, S::Future, S::Service, E, GracefulWatcher>,
@@ -98,6 +99,7 @@ impl<I, S, E> Watcher<I, S, E> for GracefulWatcher
 where
     I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     S: Service<ReqBody=Body> + 'static,
+    <S::ResBody as Payload>::Data: Unpin,
     E: H2Exec<S::Future, S::ResBody>,
 {
     type Future = Watching<UpgradeableConnection<I, S, E>, fn(Pin<&mut UpgradeableConnection<I, S, E>>)>;
@@ -116,6 +118,7 @@ where
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin,
     S::ResBody: Payload + 'static,
+    <S::ResBody as Payload>::Data: Unpin,
     E: H2Exec<S::Future, S::ResBody>,
 {
     conn.graceful_shutdown()
