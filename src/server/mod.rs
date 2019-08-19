@@ -154,6 +154,7 @@ where
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     S::Service: 'static,
     B: Payload,
+    B::Data: Unpin,
     E: H2Exec<<S::Service as Service>::Future, B>,
     E: NewSvcExec<IO, S::Future, S::Service, E, GracefulWatcher>,
 {
@@ -211,6 +212,7 @@ where
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     S::Service: 'static,
     B: Payload,
+    B::Data: Unpin,
     E: H2Exec<<S::Service as Service>::Future, B>,
     E: NewSvcExec<IO, S::Future, S::Service, E, NoopWatcher>,
 {
@@ -409,6 +411,7 @@ impl<I, E> Builder<I, E> {
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         S::Service: 'static,
         B: Payload,
+        B::Data: Unpin,
         E: NewSvcExec<IO, S::Future, S::Service, E, NoopWatcher>,
         E: H2Exec<<S::Service as Service>::Future, B>,
     {

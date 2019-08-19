@@ -1,5 +1,4 @@
 use bytes::Buf;
-//use futures::{Async, Future, Poll};
 use h2::{SendStream};
 use http::header::{
     HeaderName, CONNECTION, PROXY_AUTHENTICATE, PROXY_AUTHORIZATION, TE, TRAILER,
@@ -8,11 +7,12 @@ use http::header::{
 use http::HeaderMap;
 
 use crate::body::Payload;
+use crate::common::{Future, Pin, Poll, task};
 
-mod client;
+pub(crate) mod client;
 pub(crate) mod server;
 
-pub(crate) use self::client::Client;
+pub(crate) use self::client::ClientTask;
 pub(crate) use self::server::Server;
 
 fn strip_connection_headers(headers: &mut HeaderMap, is_request: bool) {
@@ -106,17 +106,13 @@ where
     }
 }
 
-/*
 impl<S> Future for PipeToSendStream<S>
 where
-    S: Payload,
+    S: Payload + Unpin,
 {
-    type Item = ();
-    type Error = crate::Error;
+    type Output = crate::Result<()>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        unimplemented!("impl Future for PipeToSendStream");
-        /*
+    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         loop {
             if !self.data_done {
                 // we don't have the next chunk of data yet, so just reserve 1 byte to make
@@ -126,23 +122,25 @@ where
 
                 if self.body_tx.capacity() == 0 {
                     loop {
-                        match try_ready!(self.body_tx.poll_capacity().map_err(crate::Error::new_body_write)) {
-                            Some(0) => {}
-                            Some(_) => break,
-                            None => return Err(crate::Error::new_canceled()),
+                        match ready!(self.body_tx.poll_capacity(cx)) {
+
+                            Some(Ok(0)) => {},
+                            Some(Ok(_)) => break,
+                            Some(Err(e)) => return Poll::Ready(Err(crate::Error::new_body_write(e))) ,
+                            None => return Poll::Ready(Err(crate::Error::new_canceled())),
                         }
                     }
                 } else {
-                    if let Async::Ready(reason) =
-                        self.body_tx.poll_reset().map_err(crate::Error::new_body_write)?
+                    if let Poll::Ready(reason) =
+                        self.body_tx.poll_reset(cx).map_err(crate::Error::new_body_write)?
                     {
                         debug!("stream received RST_STREAM: {:?}", reason);
-                        return Err(crate::Error::new_body_write(::h2::Error::from(reason)));
+                        return Poll::Ready(Err(crate::Error::new_body_write(::h2::Error::from(reason))));
                     }
                 }
 
-                match try_ready!(self.stream.poll_data().map_err(|e| self.on_user_err(e))) {
-                    Some(chunk) => {
+                match ready!(Pin::new(&mut self.stream).poll_data(cx)) {
+                    Some(Ok(chunk)) => {
                         let is_eos = self.stream.is_end_stream();
                         trace!(
                             "send body chunk: {} bytes, eos={}",
@@ -156,14 +154,15 @@ where
                             .map_err(crate::Error::new_body_write)?;
 
                         if is_eos {
-                            return Ok(Async::Ready(()));
+                            return Poll::Ready(Ok(()));
                         }
                     }
+                    Some(Err(e)) => return Poll::Ready(Err(self.on_user_err(e))),
                     None => {
                         self.body_tx.reserve_capacity(0);
                         let is_eos = self.stream.is_end_stream();
                         if is_eos {
-                            return self.send_eos_frame().map(Async::Ready);
+                            return Poll::Ready(self.send_eos_frame());
                         } else {
                             self.data_done = true;
                             // loop again to poll_trailers
@@ -171,31 +170,30 @@ where
                     }
                 }
             } else {
-                if let Async::Ready(reason) =
-                    self.body_tx.poll_reset().map_err(|e| crate::Error::new_body_write(e))?
+                if let Poll::Ready(reason) =
+                    self.body_tx.poll_reset(cx).map_err(|e| crate::Error::new_body_write(e))?
                 {
                     debug!("stream received RST_STREAM: {:?}", reason);
-                    return Err(crate::Error::new_body_write(::h2::Error::from(reason)));
+                    return Poll::Ready(Err(crate::Error::new_body_write(::h2::Error::from(reason))));
                 }
 
-                match try_ready!(self.stream.poll_trailers().map_err(|e| self.on_user_err(e))) {
-                    Some(trailers) => {
+                match ready!(Pin::new(&mut self.stream).poll_trailers(cx)) {
+                    Some(Ok(trailers)) => {
                         self.body_tx
                             .send_trailers(trailers)
                             .map_err(crate::Error::new_body_write)?;
-                        return Ok(Async::Ready(()));
+                        return Poll::Ready(Ok(()));
                     }
+                    Some(Err(e)) => return Poll::Ready(Err(self.on_user_err(e))),
                     None => {
                         // There were no trailers, so send an empty DATA frame...
-                        return self.send_eos_frame().map(Async::Ready);
+                        return Poll::Ready(self.send_eos_frame());
                     }
                 }
             }
         }
-        */
     }
 }
-*/
 
 struct SendBuf<B>(Option<B>);
 

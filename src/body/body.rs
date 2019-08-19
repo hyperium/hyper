@@ -269,25 +269,17 @@ impl Body {
                     }
                     None => Poll::Ready(None),
                 }
-            }
+            },
             Kind::H2 {
-                /*recv: ref mut h2,*/ ..
-            } => {
-                unimplemented!("h2.poll_inner");
-                /*
-                h2
-                    .poll()
-                    .map(|r#async| {
-                        r#async.map(|opt| {
-                            opt.map(|bytes| {
-                                let _ = h2.release_capacity().release_capacity(bytes.len());
-                                Chunk::from(bytes)
-                            })
-                        })
-                    })
-                    .map_err(crate::Error::new_body)
-                    */
-            }
+                recv: ref mut h2, ..
+            } => match ready!(Pin::new(&mut *h2).poll_next(cx)) {
+                Some(Ok(bytes)) => {
+                    let _ = h2.release_capacity().release_capacity(bytes.len());
+                    Poll::Ready(Some(Ok(Chunk::from(bytes))))
+                },
+                Some(Err(e)) => Poll::Ready(Some(Err(crate::Error::new_body(e)))),
+                None => Poll::Ready(None),
+            },
             Kind::Wrapped(ref mut s) => {
                 match ready!(s.as_mut().poll_next(cx)) {
                     Some(res) => Poll::Ready(Some(res.map_err(crate::Error::new_body))),
@@ -314,11 +306,12 @@ impl Payload for Body {
         self.poll_eof(cx)
     }
 
-    fn poll_trailers(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Result<HeaderMap, Self::Error>>> {
+    fn poll_trailers(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Result<HeaderMap, Self::Error>>> {
         match self.kind {
-            Kind::H2 { /*recv: ref mut h2,*/ .. } => {
-                unimplemented!("h2.poll_trailers");
-                //h2.poll_trailers().map_err(crate::Error::new_h2)
+            Kind::H2 { recv: ref mut h2, .. } => match ready!(h2.poll_trailers(cx)) {
+                Some(Ok(t)) => Poll::Ready(Some(Ok(t))),
+                Some(Err(e)) => Poll::Ready(Some(Err(crate::Error::new_h2(e)))),
+                None => Poll::Ready(None),
             },
             _ => Poll::Ready(None),
         }

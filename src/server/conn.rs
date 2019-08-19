@@ -358,6 +358,7 @@ impl<E> Http<E> {
         S: Service<ReqBody=Body, ResBody=Bd>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         Bd: Payload,
+        Bd::Data: Unpin,
         I: AsyncRead + AsyncWrite + Unpin,
         E: H2Exec<S::Future, Bd>,
     {
@@ -479,6 +480,7 @@ where
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin,
     B: Payload + 'static,
+    B::Data: Unpin,
     E: H2Exec<S::Future, B>,
 {
     /// Start a graceful shutdown process for this connection.
@@ -549,7 +551,7 @@ where
         loop {
             let polled = match *self.conn.as_mut().unwrap() {
                 Either::A(ref mut h1) => h1.poll_without_shutdown(cx),
-                Either::B(ref mut h2) => unimplemented!("Connection::poll_without_shutdown h2"),//return h2.poll().map(|x| x.map(|_| ())),
+                Either::B(ref mut h2) => return Pin::new(h2).poll(cx).map_ok(|_| ()),
             };
             match ready!(polled) {
                 Ok(x) => return Poll::Ready(Ok(x)),
@@ -629,6 +631,7 @@ where
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin + 'static,
     B: Payload + 'static,
+    B::Data: Unpin,
     E: H2Exec<S::Future, B>,
 {
     type Output = crate::Result<()>;
@@ -744,6 +747,7 @@ where
     F: Future<Output=Result<S, FE>>,
     S: Service<ReqBody=Body, ResBody=B>,
     B: Payload,
+    B::Data: Unpin,
     E: H2Exec<S::Future, B>,
 {
     type Output = Result<Connection<I, S, E>, FE>;
@@ -852,6 +856,7 @@ pub(crate) mod spawn_all {
     where
         I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         S: Service<ReqBody=Body> + 'static,
+        <S::ResBody as Payload>::Data: Unpin,
         E: H2Exec<S::Future, S::ResBody>,
     {
         type Future = UpgradeableConnection<I, S, E>;
@@ -895,6 +900,7 @@ pub(crate) mod spawn_all {
         NE: Into<Box<dyn StdError + Send + Sync>>,
         S: Service<ReqBody=Body, ResBody=B>,
         B: Payload,
+        B::Data: Unpin,
         E: H2Exec<S::Future, B>,
         W: Watcher<I, S, E>,
     {
@@ -960,6 +966,7 @@ mod upgrades {
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: AsyncRead + AsyncWrite + Unpin,
         B: Payload + 'static,
+        B::Data: Unpin,
         E: H2Exec<S::Future, B>,
     {
         /// Start a graceful shutdown process for this connection.
@@ -977,6 +984,7 @@ mod upgrades {
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         B: Payload + 'static,
+        B::Data: Unpin,
         E: super::H2Exec<S::Future, B>,
     {
         type Output = crate::Result<()>;

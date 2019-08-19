@@ -1,5 +1,7 @@
 use std::error::Error as StdError;
+use std::marker::Unpin;
 
+use futures_core::Stream;
 use h2::Reason;
 use h2::server::{Builder, Connection, Handshake, SendResponse};
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -49,27 +51,23 @@ where
 
 impl<T, S, B, E> Server<T, S, B, E>
 where
-    T: AsyncRead + AsyncWrite,
+    T: AsyncRead + AsyncWrite + Unpin,
     S: Service<ReqBody=Body, ResBody=B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
+    B::Data: Unpin,
     E: H2Exec<S::Future, B>,
 {
     pub(crate) fn new(io: T, service: S, builder: &Builder, exec: E) -> Server<T, S, B, E> {
-        unimplemented!("proto::h2::Server::new")
-        /*
         let handshake = builder.handshake(io);
         Server {
             exec,
             state: State::Handshaking(handshake),
             service,
         }
-        */
     }
 
     pub fn graceful_shutdown(&mut self) {
-        unimplemented!("proto::h2::Server::graceful_shutdown")
-        /*
         trace!("graceful_shutdown");
         match self.state {
             State::Handshaking(..) => {
@@ -86,54 +84,53 @@ where
             }
         }
         self.state = State::Closed;
-        */
     }
 }
 
 impl<T, S, B, E> Future for Server<T, S, B, E>
 where
-    T: AsyncRead + AsyncWrite,
+    T: AsyncRead + AsyncWrite + Unpin,
     S: Service<ReqBody=Body, ResBody=B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
+    B::Data: Unpin,
     E: H2Exec<S::Future, B>,
 {
     type Output = crate::Result<Dispatched>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        unimplemented!("h2 server future")
-        /*
+        let me = &mut *self;
         loop {
-            let next = match self.state {
+            let next = match me.state {
                 State::Handshaking(ref mut h) => {
-                    let conn = try_ready!(h.poll().map_err(crate::Error::new_h2));
+                    let conn = ready!(Pin::new(h).poll(cx).map_err(crate::Error::new_h2))?;
                     State::Serving(Serving {
                         conn,
                         closing: None,
                     })
                 },
                 State::Serving(ref mut srv) => {
-                    try_ready!(srv.poll_server(&mut self.service, &self.exec));
-                    return Ok(Async::Ready(Dispatched::Shutdown));
+                    ready!(srv.poll_server(cx, &mut me.service, &mut me.exec))?;
+                    return Poll::Ready(Ok(Dispatched::Shutdown));
                 }
                 State::Closed => {
                     // graceful_shutdown was called before handshaking finished,
                     // nothing to do here...
-                    return Ok(Async::Ready(Dispatched::Shutdown));
+                    return Poll::Ready(Ok(Dispatched::Shutdown));
                 }
             };
-            self.state = next;
+            me.state = next;
         }
-        */
     }
 }
 
 impl<T, B> Serving<T, B>
 where
-    T: AsyncRead + AsyncWrite,
+    T: AsyncRead + AsyncWrite + Unpin,
     B: Payload,
+    B::Data: Unpin,
 {
-    fn poll_server<S, E>(&mut self, service: &mut S, exec: &E) -> Poll<crate::Result<()>>
+    fn poll_server<S, E>(&mut self, cx: &mut task::Context<'_>, service: &mut S, exec: &mut E) -> Poll<crate::Result<()>>
     where
         S: Service<
             ReqBody=Body,
@@ -142,19 +139,18 @@ where
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         E: H2Exec<S::Future, B>,
     {
-        /*
         if self.closing.is_none() {
             loop {
                 // At first, polls the readiness of supplied service.
-                match service.poll_ready() {
-                    Ok(Async::Ready(())) => (),
-                    Ok(Async::NotReady) => {
+                match service.poll_ready(cx) {
+                    Poll::Ready(Ok(())) => (),
+                    Poll::Pending => {
                         // use `poll_close` instead of `poll`, in order to avoid accepting a request.
-                        try_ready!(self.conn.poll_close().map_err(crate::Error::new_h2));
+                        ready!(self.conn.poll_close(cx).map_err(crate::Error::new_h2))?;
                         trace!("incoming connection complete");
-                        return Ok(Async::Ready(()));
+                        return Poll::Ready(Ok(()));
                     }
-                    Err(err) => {
+                    Poll::Ready(Err(err)) => {
                         let err = crate::Error::new_user_service(err);
                         debug!("service closed: {}", err);
 
@@ -173,29 +169,33 @@ where
                 }
 
                 // When the service is ready, accepts an incoming request.
-                if let Some((req, respond)) = try_ready!(self.conn.poll().map_err(crate::Error::new_h2)) {
-                    trace!("incoming request");
-                    let content_length = content_length_parse_all(req.headers());
-                    let req = req.map(|stream| {
-                        crate::Body::h2(stream, content_length)
-                    });
-                    let fut = H2Stream::new(service.call(req), respond);
-                    exec.execute_h2stream(fut)?;
-                } else {
-                    // no more incoming streams...
-                    trace!("incoming connection complete");
-                    return Ok(Async::Ready(()))
+                match ready!(Pin::new(&mut self.conn).poll_next(cx)) {
+                    Some(Ok((req, respond))) => {
+                        trace!("incoming request");
+                        let content_length = content_length_parse_all(req.headers());
+                        let req = req.map(|stream| {
+                            crate::Body::h2(stream, content_length)
+                        });
+                        let fut = H2Stream::new(service.call(req), respond);
+                        exec.execute_h2stream(fut)?;
+                    },
+                    Some(Err(e)) => {
+                        return Poll::Ready(Err(crate::Error::new_h2(e)));
+                    },
+                    None => {
+                        // no more incoming streams...
+                        trace!("incoming connection complete");
+                        return Poll::Ready(Ok(()));
+                    },
                 }
             }
         }
 
         debug_assert!(self.closing.is_some(), "poll_server broke loop without closing");
 
-        try_ready!(self.conn.poll_close().map_err(crate::Error::new_h2));
+        ready!(self.conn.poll_close(cx).map_err(crate::Error::new_h2))?;
 
-        Err(self.closing.take().expect("polled after error"))
-        */
-        unimplemented!("h2 server poll_server")
+        Poll::Ready(Err(self.closing.take().expect("polled after error")))
     }
 }
 
@@ -230,38 +230,37 @@ where
     }
 }
 
-impl<F, B> Future for H2Stream<F, B>
+impl<F, B, E> H2Stream<F, B>
 where
-    //F: Future<Item=Response<B>>,
-    //F::Error: Into<Box<dyn StdError + Send + Sync>>,
-    B: Payload,
+    F: Future<Output = Result<Response<B>, E>>,
+    B: Payload + Unpin,
+    B::Data: Unpin,
+    E: Into<Box<dyn StdError + Send + Sync>>,
 {
-    type Output = ();
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        unimplemented!("impl Future for H2Stream");
-        /*
+    fn poll2(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+        // Safety: State::{Service, Body} futures are never moved
+        let me = unsafe { self.get_unchecked_mut() };
         loop {
-            let next = match self.state {
+            let next = match me.state {
                 H2StreamState::Service(ref mut h) => {
-                    let res = match h.poll() {
-                        Ok(Async::Ready(r)) => r,
-                        Ok(Async::NotReady) => {
-                            // Body is not yet ready, so we want to check if the client has sent a
+                    let res = match unsafe { Pin::new_unchecked(h) }.poll(cx) {
+                        Poll::Ready(Ok(r)) => r,
+                        Poll::Pending => {
+                            // Response is not yet ready, so we want to check if the client has sent a
                             // RST_STREAM frame which would cancel the current request.
-                            if let Async::Ready(reason) =
-                                self.reply.poll_reset().map_err(|e| crate::Error::new_h2(e))?
+                            if let Poll::Ready(reason) =
+                                me.reply.poll_reset(cx).map_err(|e| crate::Error::new_h2(e))?
                             {
                                 debug!("stream received RST_STREAM: {:?}", reason);
-                                return Err(crate::Error::new_h2(reason.into()));
+                                return Poll::Ready(Err(crate::Error::new_h2(reason.into())));
                             }
-                            return Ok(Async::NotReady);
+                            return Poll::Pending;
                         }
-                        Err(e) => {
+                        Poll::Ready(Err(e)) => {
                             let err = crate::Error::new_user_service(e);
                             warn!("http2 service errored: {}", err);
-                            self.reply.send_reset(err.h2_reason());
-                            return Err(err);
+                            me.reply.send_reset(err.h2_reason());
+                            return Poll::Ready(Err(err));
                         },
                     };
 
@@ -278,12 +277,12 @@ where
 
                     macro_rules! reply {
                         ($eos:expr) => ({
-                            match self.reply.send_response(res, $eos) {
+                            match me.reply.send_response(res, $eos) {
                                 Ok(tx) => tx,
                                 Err(e) => {
                                     debug!("send response error: {}", e);
-                                    self.reply.send_reset(Reason::INTERNAL_ERROR);
-                                    return Err(crate::Error::new_h2(e));
+                                    me.reply.send_reset(Reason::INTERNAL_ERROR);
+                                    return Poll::Ready(Err(crate::Error::new_h2(e)));
                                 }
                             }
                         })
@@ -300,7 +299,7 @@ where
                         body_tx
                             .send_data(buf, true)
                             .map_err(crate::Error::new_body_write)?;
-                        return Ok(Async::Ready(()));
+                        return Poll::Ready(Ok(()));
                     }
 
                     if !body.is_end_stream() {
@@ -308,32 +307,32 @@ where
                         H2StreamState::Body(PipeToSendStream::new(body, body_tx))
                     } else {
                         reply!(true);
-                        return Ok(Async::Ready(()));
+                        return Poll::Ready(Ok(()));
                     }
                 },
                 H2StreamState::Body(ref mut pipe) => {
-                    return pipe.poll();
+                    return Pin::new(pipe).poll(cx);
                 }
             };
-            self.state = next;
+            me.state = next;
         }
-        */
     }
 }
-/*
-impl<F, B> Future for H2Stream<F, B>
+
+impl<F, B, E> Future for H2Stream<F, B>
 where
-    F: Future<Item=Response<B>>,
-    F::Error: Into<Box<dyn StdError + Send + Sync>>,
-    B: Payload,
+    F: Future<Output = Result<Response<B>, E>>,
+    B: Payload + Unpin,
+    B::Data: Unpin,
+    E: Into<Box<dyn StdError + Send + Sync>>,
 {
-    type Item = ();
-    type Error = ();
+    type Output = ();
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        self.poll2()
-            .map_err(|e| debug!("stream error: {}", e))
+    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        self.poll2(cx).map(|res| {
+            if let Err(e) = res {
+                debug!("stream error: {}", e);
+            }
+        })
     }
 }
-*/
-

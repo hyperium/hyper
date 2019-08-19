@@ -163,7 +163,7 @@ where C: Connect + Sync + 'static,
       C::Transport: 'static,
       C::Future: 'static,
       B: Payload + Unpin + Send + 'static,
-      B::Data: Send,
+      B::Data: Send + Unpin,
 {
     /// Send a `GET` request to the supplied `Uri`.
     ///
@@ -512,8 +512,10 @@ where C: Connect + Sync + 'static,
                         connecting
                     };
                     let is_h2 = is_ver_h2 || connected.alpn == Alpn::H2;
-                    Either::Left(conn_builder
+                    Either::Left(Box::pin(conn_builder
                         .http2_only(is_h2)
+                        // TODO: convert client::conn::Builder to be by-value?
+                        .clone()
                         .handshake(io)
                         .and_then(move |(tx, conn)| {
                             trace!("handshake complete, spawning background dispatcher task");
@@ -541,7 +543,7 @@ where C: Connect + Sync + 'static,
                                     PoolTx::Http1(tx)
                                 },
                             })
-                        }))
+                        })))
                 }))
         })
     }

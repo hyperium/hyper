@@ -32,18 +32,19 @@ type Http1Dispatcher<T, B, R> = proto::dispatch::Dispatcher<
 >;
 type ConnEither<T, B> = Either<
     Http1Dispatcher<T, B, proto::h1::ClientTransaction>,
-    proto::h2::Client<T, B>,
+    proto::h2::ClientTask<B>,
 >;
 
-/// Returns a `Handshake` future over some IO.
+/// Returns a handshake future over some IO.
 ///
 /// This is a shortcut for `Builder::new().handshake(io)`.
-pub fn handshake<T>(io: T) -> Handshake<T, crate::Body>
+pub async fn handshake<T>(io: T) -> crate::Result<(SendRequest<crate::Body>, Connection<T, crate::Body>)>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     Builder::new()
         .handshake(io)
+        .await
 }
 
 /// The sender side of an established connection.
@@ -68,7 +69,7 @@ where
 
 /// A builder to configure an HTTP connection.
 ///
-/// After setting options, the builder is used to create a `Handshake` future.
+/// After setting options, the builder is used to create a handshake future.
 #[derive(Clone, Debug)]
 pub struct Builder {
     pub(super) exec: Exec,
@@ -78,16 +79,6 @@ pub struct Builder {
     h1_max_buf_size: Option<usize>,
     http2: bool,
     h2_builder: h2::client::Builder,
-}
-
-/// A future setting up HTTP over an IO object.
-///
-/// If successful, yields a `(SendRequest, Connection)` pair.
-#[must_use = "futures do nothing unless polled"]
-pub struct Handshake<T, B> {
-    builder: Builder,
-    io: Option<T>,
-    _marker: PhantomData<fn(B)>,
 }
 
 /// A future returned by `SendRequest::send_request`.
@@ -334,7 +325,8 @@ impl<B> Clone for Http2SendRequest<B> {
 impl<T, B> Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    B: Payload + 'static,
+    B: Payload + Unpin + 'static,
+    B::Data: Unpin,
 {
     /// Return the inner IO object, and additional information.
     ///
@@ -365,29 +357,20 @@ where
     /// Use [`poll_fn`](https://docs.rs/futures/0.1.25/futures/future/fn.poll_fn.html)
     /// and [`try_ready!`](https://docs.rs/futures/0.1.25/futures/macro.try_ready.html)
     /// to work with this function; or use the `without_shutdown` wrapper.
-    pub fn poll_without_shutdown(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>>
-    where
-        B: Unpin,
-    {
+    pub fn poll_without_shutdown(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
         match self.inner.as_mut().expect("already upgraded") {
             &mut Either::Left(ref mut h1) => {
                 h1.poll_without_shutdown(cx)
             },
             &mut Either::Right(ref mut h2) => {
-                unimplemented!("h2 poll_without_shutdown");
-                /*
-                h2.poll().map(|x| x.map(|_| ()))
-                */
+                Pin::new(h2).poll(cx).map_ok(|_| ())
             }
         }
     }
 
     /// Prevent shutdown of the underlying IO object at the end of service the request,
     /// instead run `into_parts`. This is a convenience wrapper over `poll_without_shutdown`.
-    pub fn without_shutdown(self) -> impl Future<Output=crate::Result<Parts<T>>>
-    where
-        B: Unpin,
-    {
+    pub fn without_shutdown(self) -> impl Future<Output=crate::Result<Parts<T>>> {
         let mut conn = Some(self);
         future::poll_fn(move |cx| -> Poll<crate::Result<Parts<T>>> {
             ready!(conn.as_mut().unwrap().poll_without_shutdown(cx))?;
@@ -400,6 +383,7 @@ impl<T, B> Future for Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     B: Payload + Unpin + 'static,
+    B::Data: Unpin,
 {
     type Output = crate::Result<()>;
 
@@ -522,70 +506,46 @@ impl Builder {
     }
 
     /// Constructs a connection with the configured options and IO.
-    #[inline]
-    pub fn handshake<T, B>(&self, io: T) -> Handshake<T, B>
+    pub async fn handshake<T, B>(self, io: T) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
     where
         T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         B: Payload + 'static,
+        B::Data: Unpin,
     {
         trace!("client handshake HTTP/{}", if self.http2 { 2 } else { 1 });
-        Handshake {
-            builder: self.clone(),
-            io: Some(io),
-            _marker: PhantomData,
-        }
-    }
-}
 
-// ===== impl Handshake
-
-impl<T, B> Future for Handshake<T, B>
-where
-    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    B: Payload + 'static,
-{
-    type Output = crate::Result<(SendRequest<B>, Connection<T, B>)>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        let io = self.io.take().expect("polled more than once");
         let (tx, rx) = dispatch::channel();
-        let either = if !self.builder.http2 {
+        let either = if !self.http2 {
             let mut conn = proto::Conn::new(io);
-            if !self.builder.h1_writev {
+            if !self.h1_writev {
                 conn.set_write_strategy_flatten();
             }
-            if self.builder.h1_title_case_headers {
+            if self.h1_title_case_headers {
                 conn.set_title_case_headers();
             }
-            if let Some(sz) = self.builder.h1_read_buf_exact_size {
+            if let Some(sz) = self.h1_read_buf_exact_size {
                 conn.set_read_buf_exact_size(sz);
             }
-            if let Some(max) = self.builder.h1_max_buf_size {
+            if let Some(max) = self.h1_max_buf_size {
                 conn.set_max_buf_size(max);
             }
             let cd = proto::h1::dispatch::Client::new(rx);
             let dispatch = proto::h1::Dispatcher::new(cd, conn);
             Either::Left(dispatch)
         } else {
-            let h2 = proto::h2::Client::new(io, rx, &self.builder.h2_builder, self.builder.exec.clone());
+            let h2 = proto::h2::client::handshake(io, rx, &self.h2_builder, self.exec.clone())
+                .await?;
             Either::Right(h2)
         };
 
-        Poll::Ready(Ok((
+        Ok((
             SendRequest {
                 dispatch: tx,
             },
             Connection {
                 inner: Some(either),
             },
-        )))
-    }
-}
-
-impl<T, B> fmt::Debug for Handshake<T, B> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Handshake")
-            .finish()
+        ))
     }
 }
 
