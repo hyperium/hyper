@@ -514,8 +514,6 @@ where C: Connect + Sync + 'static,
                     let is_h2 = is_ver_h2 || connected.alpn == Alpn::H2;
                     Either::Left(Box::pin(conn_builder
                         .http2_only(is_h2)
-                        // TODO: convert client::conn::Builder to be by-value?
-                        .clone()
                         .handshake(io)
                         .and_then(move |(tx, conn)| {
                             trace!("handshake complete, spawning background dispatcher task");

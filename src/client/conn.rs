@@ -506,46 +506,50 @@ impl Builder {
     }
 
     /// Constructs a connection with the configured options and IO.
-    pub async fn handshake<T, B>(self, io: T) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
+    pub fn handshake<T, B>(&self, io: T) -> impl Future<Output = crate::Result<(SendRequest<B>, Connection<T, B>)>>
     where
         T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         B: Payload + 'static,
         B::Data: Unpin,
     {
-        trace!("client handshake HTTP/{}", if self.http2 { 2 } else { 1 });
+        let opts = self.clone();
 
-        let (tx, rx) = dispatch::channel();
-        let either = if !self.http2 {
-            let mut conn = proto::Conn::new(io);
-            if !self.h1_writev {
-                conn.set_write_strategy_flatten();
-            }
-            if self.h1_title_case_headers {
-                conn.set_title_case_headers();
-            }
-            if let Some(sz) = self.h1_read_buf_exact_size {
-                conn.set_read_buf_exact_size(sz);
-            }
-            if let Some(max) = self.h1_max_buf_size {
-                conn.set_max_buf_size(max);
-            }
-            let cd = proto::h1::dispatch::Client::new(rx);
-            let dispatch = proto::h1::Dispatcher::new(cd, conn);
-            Either::Left(dispatch)
-        } else {
-            let h2 = proto::h2::client::handshake(io, rx, &self.h2_builder, self.exec.clone())
-                .await?;
-            Either::Right(h2)
-        };
+        async move {
+            trace!("client handshake HTTP/{}", if opts.http2 { 2 } else { 1 });
 
-        Ok((
-            SendRequest {
-                dispatch: tx,
-            },
-            Connection {
-                inner: Some(either),
-            },
-        ))
+            let (tx, rx) = dispatch::channel();
+            let either = if !opts.http2 {
+                let mut conn = proto::Conn::new(io);
+                if !opts.h1_writev {
+                    conn.set_write_strategy_flatten();
+                }
+                if opts.h1_title_case_headers {
+                    conn.set_title_case_headers();
+                }
+                if let Some(sz) = opts.h1_read_buf_exact_size {
+                    conn.set_read_buf_exact_size(sz);
+                }
+                if let Some(max) = opts.h1_max_buf_size {
+                    conn.set_max_buf_size(max);
+                }
+                let cd = proto::h1::dispatch::Client::new(rx);
+                let dispatch = proto::h1::Dispatcher::new(cd, conn);
+                Either::Left(dispatch)
+            } else {
+                let h2 = proto::h2::client::handshake(io, rx, &opts.h2_builder, opts.exec.clone())
+                    .await?;
+                Either::Right(h2)
+            };
+
+            Ok((
+                SendRequest {
+                    dispatch: tx,
+                },
+                Connection {
+                    inner: Some(either),
+                },
+            ))
+        }
     }
 }
 
