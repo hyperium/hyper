@@ -55,6 +55,10 @@ where
     type Future = F;
     type MakeError = E;
 
+    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::MakeError>> {
+         tower_service::Service::poll_ready(self, cx)
+    }
+
     fn make_service(&mut self, req: Target) -> Self::Future {
         tower_service::Service::call(self, &req)
     }
@@ -65,7 +69,6 @@ where
     T: for<'a> tower_service::Service<&'a Target, Response = S>,
     S: tower_service::Service<crate::Request<B1>, Response = crate::Response<B2>>
 {
-
 }
 
 // Just a sort-of "trait alias" of `MakeService`, not to be implemented

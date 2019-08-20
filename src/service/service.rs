@@ -46,8 +46,7 @@ where
     type Future = T::Future;
 
     fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
-        // TODO: call poll_ready from the inner service
-        Poll::Ready(Ok(()))
+        tower_service::Service::poll_ready(self, cx)
     }
 
     fn call(&mut self, req: Request<B1>) -> Self::Future {
@@ -115,7 +114,6 @@ where
     type Future = Ret;
 
     fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
-        // TODO: call poll_ready from the inner service
         Poll::Ready(Ok(()))
     }
 
