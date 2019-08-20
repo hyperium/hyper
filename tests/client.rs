@@ -1478,17 +1478,16 @@ mod dispatch_impl {
         assert_eq!(vec, b"bar=foo");
     }
 
-    #[ignore] // Re-enable as soon as HTTP/2.0 is supported again.
     #[test]
     fn alpn_h2() {
         use hyper::Response;
         use hyper::server::conn::Http;
         use hyper::service::service_fn;
-        use tokio_tcp::TcpListener;
+        use tokio_net::tcp::TcpListener;
 
         let _ = pretty_env_logger::try_init();
         let mut rt = Runtime::new().unwrap();
-        let listener = TcpListener::bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+        let mut listener = TcpListener::bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
         let addr = listener.local_addr().unwrap();
         let mut connector = DebugConnector::new();
         connector.alpn_h2 = true;
@@ -1497,22 +1496,17 @@ mod dispatch_impl {
         let client = Client::builder()
             .build::<_, ::hyper::Body>(connector);
 
-        let mut incoming = listener.incoming();
-        let srv = incoming
-            .try_next()
-            .map_err(|_| unreachable!())
-            .and_then(|item| {
-                let socket = item.unwrap();
-                Http::new()
-                    .http2_only(true)
-                    .serve_connection(socket, service_fn(|req| async move {
-                        assert_eq!(req.headers().get("host"), None);
-                        Ok::<_, hyper::Error>(Response::new(Body::empty()))
-                    }))
-            })
-            .map_err(|e| panic!("server error: {}", e));
-
-        rt.block_on(srv).unwrap();
+        rt.spawn(async move {
+            let (socket, _addr) = listener.accept().await.expect("accept");
+            Http::new()
+                .http2_only(true)
+                .serve_connection(socket, service_fn(|req| async move {
+                    assert_eq!(req.headers().get("host"), None);
+                    Ok::<_, hyper::Error>(Response::new(Body::empty()))
+                }))
+                .await
+                .expect("server");
+        });
 
         assert_eq!(connects.load(Ordering::SeqCst), 0);
 
@@ -2097,7 +2091,6 @@ mod conn {
         assert_eq!(vec, b"bar=foo");
     }
 
-    #[ignore] // Re-enable as soon as HTTP/2.0 is supported again.
     #[test]
     fn http2_detect_conn_eof() {
         use futures_util::future;

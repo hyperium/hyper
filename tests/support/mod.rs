@@ -1,16 +1,19 @@
 pub extern crate hyper;
 pub extern crate tokio;
+extern crate futures_util;
 
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::{Arc, Mutex, atomic::{AtomicUsize, Ordering}};
-use std::time::{Duration, Instant};
+use std::time::{Duration/*, Instant*/};
 
 use crate::hyper::{Body, Client, Request, Response, Server, Version};
 use crate::hyper::client::HttpConnector;
-use crate::hyper::service::service_fn;
+use crate::hyper::service::{make_service_fn, service_fn};
 
 pub use std::net::SocketAddr;
-pub use self::futures::{future, Future, Stream};
-pub use self::futures_channel::oneshot;
+pub use self::futures_util::{future, try_future, FutureExt as _, StreamExt as _, TryFutureExt as _, TryStreamExt as _};
+//pub use self::futures_channel::oneshot;
 pub use self::hyper::{HeaderMap, StatusCode};
 pub use self::tokio::runtime::current_thread::Runtime;
 
@@ -324,10 +327,10 @@ pub fn __run_test(cfg: __TestConfig) {
     let serve_handles = Arc::new(Mutex::new(
         cfg.server_msgs
     ));
-    let new_service = move || {
+    let new_service = make_service_fn(move |_| {
         // Move a clone into the service_fn
         let serve_handles = serve_handles.clone();
-        hyper::service::service_fn(move |req: Request<Body>| {
+        future::ok::<_, hyper::Error>(service_fn(move |req: Request<Body>| {
             let (sreq, sres) = serve_handles.lock()
                 .unwrap()
                 .remove(0);
@@ -341,7 +344,7 @@ pub fn __run_test(cfg: __TestConfig) {
             let sbody = sreq.body;
             req.into_body()
                 .try_concat()
-                .map(move |body| {
+                .map_ok(move |body| {
                     assert_eq!(body.as_ref(), sbody.as_slice(), "client body");
 
                     let mut res = Response::builder()
@@ -351,8 +354,8 @@ pub fn __run_test(cfg: __TestConfig) {
                     *res.headers_mut() = sres.headers;
                     res
                 })
-        })
-    };
+        }))
+    });
 
     let serve = hyper::server::conn::Http::new()
         .http2_only(cfg.server_version == 2)
@@ -365,7 +368,7 @@ pub fn __run_test(cfg: __TestConfig) {
     let mut addr = serve.incoming_ref().local_addr();
     let expected_connections = cfg.connections;
     let server = serve
-        .fold(0, move |cnt, connecting| {
+        .try_fold(0, move |cnt, connecting| {
             let cnt = cnt + 1;
             assert!(
                 cnt <= expected_connections,
@@ -374,14 +377,14 @@ pub fn __run_test(cfg: __TestConfig) {
                 cnt
             );
             let fut = connecting
-                .map_err(|never| -> hyper::Error { match never {} })
-                .flatten()
-                .map_err(|e| panic!("server connection error: {}", e));
+                .then(|res| res.expect("connecting"))
+                .map(|conn_res| conn_res.expect("server connection error"));
             crate::tokio::spawn(fut);
-            Ok::<_, hyper::Error>(cnt)
+            future::ok::<_, hyper::Error>(cnt)
         })
-        .map(|_| ())
-        .map_err(|e| panic!("serve error: {}", e));
+        .map(|res| {
+            let _ = res.expect("serve error");
+        });
 
     rt.spawn(server);
 
@@ -418,39 +421,37 @@ pub fn __run_test(cfg: __TestConfig) {
                 }
                 res.into_body().try_concat()
             })
-            .map(move |body| {
+            .map_ok(move |body| {
                 assert_eq!(body.as_ref(), cbody.as_slice(), "server body");
             })
-            .map_err(|e| panic!("client error: {}", e))
+            .map(|res| res.expect("client error"))
     });
 
 
-    let client_futures: Box<dyn Future<Item=(), Error=()> + Send> = if cfg.parallel {
+    let client_futures: Pin<Box<dyn Future<Output = ()> + Send>> = if cfg.parallel {
         let mut client_futures = vec![];
         for (creq, cres) in cfg.client_msgs {
             client_futures.push(make_request(&client, creq, cres));
         }
         drop(client);
-        Box::new(future::join_all(client_futures).map(|_| ()))
+        Box::pin(future::join_all(client_futures).map(|_| ()))
     } else {
-        let mut client_futures: Box<dyn Future<Item=Client<HttpConnector>, Error=()> + Send> =
-            Box::new(future::ok(client));
+        let mut client_futures: Pin<Box<dyn Future<Output=Client<HttpConnector>> + Send>> =
+            Box::pin(future::ready(client));
         for (creq, cres) in cfg.client_msgs {
             let mk_request = make_request.clone();
-            client_futures = Box::new(
+            client_futures = Box::pin(
                 client_futures
-                .and_then(move |client| {
+                .then(move |client| {
                     let fut = mk_request(&client, creq, cres);
                     fut.map(move |()| client)
                 })
             );
         }
-        Box::new(client_futures.map(|_| ()))
+        Box::pin(client_futures.map(|_| ()))
     };
 
-    let client_futures = client_futures.map(|_| ());
-    rt.block_on(client_futures)
-        .expect("shutdown succeeded");
+    rt.block_on(client_futures);
 }
 
 struct ProxyConfig {
@@ -459,7 +460,7 @@ struct ProxyConfig {
     version: usize,
 }
 
-fn naive_proxy(cfg: ProxyConfig) -> (SocketAddr, impl Future<Item = (), Error = ()>) {
+fn naive_proxy(cfg: ProxyConfig) -> (SocketAddr, impl Future<Output = ()>) {
     let client = Client::builder()
         .keep_alive_timeout(Duration::from_secs(10))
         .http2_only(cfg.version == 2)
@@ -470,19 +471,18 @@ fn naive_proxy(cfg: ProxyConfig) -> (SocketAddr, impl Future<Item = (), Error = 
     let counter = AtomicUsize::new(0);
 
     let srv = Server::bind(&([127, 0, 0, 1], 0).into())
-        .serve(move || {
+        .serve(make_service_fn(move |_| {
             let prev = counter.fetch_add(1, Ordering::Relaxed);
             assert!(max_connections >= prev + 1, "proxy max connections");
             let client = client.clone();
-            service_fn(move |mut req| {
+            future::ok::<_, hyper::Error>(service_fn(move |mut req| {
                 let uri = format!("http://{}{}", dst_addr, req.uri().path())
                     .parse()
                     .expect("proxy new uri parse");
                 *req.uri_mut() = uri;
                 client.request(req)
-            })
-
-        });
+            }))
+        }));
     let proxy_addr = srv.local_addr();
-    (proxy_addr, srv.map_err(|err| panic!("proxy error: {}", err)))
+    (proxy_addr, srv.map(|res| res.expect("proxy error")))
 }

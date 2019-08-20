@@ -14,7 +14,7 @@ use std::net::{TcpStream, Shutdown, SocketAddr};
 use std::io::{self, Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
-use std::sync::{Arc};
+use std::sync::{Arc, Mutex};
 use std::net::{TcpListener as StdTcpListener};
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -29,12 +29,10 @@ use futures_util::stream::StreamExt;
 use futures_util::try_future::{self, TryFutureExt};
 use futures_util::try_stream::TryStreamExt;
 use http::header::{HeaderName, HeaderValue};
+use tokio_net::driver::Handle;
 use tokio_net::tcp::{TcpListener, TcpStream as TkTcpStream};
 use tokio::runtime::current_thread::Runtime;
-use tokio::reactor::Handle;
-use tokio::runtime::current_thread::Runtime;
 use tokio_io::{AsyncRead, AsyncWrite};
-use tokio_tcp::{TcpListener, TcpStream as TkTcpStream};
 use tokio_timer::Delay;
 
 use hyper::{Body, Request, Response, StatusCode, Version};
@@ -306,7 +304,6 @@ mod response_body_lengths {
         });
     }
 
-    #[ignore] // Re-enable as soon as HTTP/2.0 is supported again.
     #[test]
     fn http2_auto_response_with_known_length() {
         use hyper::body::Payload;
@@ -335,7 +332,6 @@ mod response_body_lengths {
         }).unwrap();
     }
 
-    #[ignore] // Re-enable as soon as HTTP/2.0 is supported again.
     #[test]
     fn http2_auto_response_with_conflicting_lengths() {
         use hyper::body::Payload;
@@ -1522,7 +1518,6 @@ fn http1_response_with_http2_version() {
     }).unwrap();
 }
 
-#[ignore] // Re-enable as soon as HTTP/2.0 is supported again.
 #[test]
 fn try_h2() {
     let server = serve();
@@ -1545,7 +1540,6 @@ fn try_h2() {
     assert_eq!(server.body(), b"");
 }
 
-#[ignore] // Re-enable as soon as HTTP/2.0 is supported again.
 #[test]
 fn http1_only() {
     let server = serve_opts()
@@ -1564,7 +1558,6 @@ fn http1_only() {
     }).unwrap_err();
 }
 
-#[ignore] // Re-enable as soon as HTTP/2.0 is supported again.
 #[test]
 fn http2_service_error_sends_reset_reason() {
     use std::error::Error;
@@ -1596,7 +1589,6 @@ fn http2_service_error_sends_reset_reason() {
     assert_eq!(h2_err.reason(), Some(h2::Reason::INADEQUATE_SECURITY));
 }
 
-#[ignore] // Re-enable as soon as HTTP/2.0 is supported again.
 #[test]
 fn http2_body_user_error_sends_reset_reason() {
     use std::error::Error;
@@ -1653,7 +1645,6 @@ impl hyper::service::Service for Svc {
     }
 }
 
-#[ignore] // Re-enable as soon as HTTP/2.0 is supported again.
 #[test]
 fn http2_service_poll_ready_error_sends_goaway() {
     use std::error::Error;
@@ -1742,7 +1733,7 @@ fn skips_content_length_and_body_for_304_responses() {
 struct Serve {
     addr: SocketAddr,
     msg_rx: mpsc::Receiver<Msg>,
-    reply_tx: spmc::Sender<Reply>,
+    reply_tx: Mutex<spmc::Sender<Reply>>,
     shutdown_signal: Option<oneshot::Sender<()>>,
     thread: Option<thread::JoinHandle<()>>,
 }
@@ -1785,44 +1776,46 @@ impl Serve {
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
 struct ReplyBuilder<'a> {
-    tx: &'a spmc::Sender<Reply>,
+    tx: &'a Mutex<spmc::Sender<Reply>>,
 }
 
 impl<'a> ReplyBuilder<'a> {
     fn status(self, status: hyper::StatusCode) -> Self {
-        self.tx.send(Reply::Status(status)).unwrap();
+        self.tx.lock().unwrap().send(Reply::Status(status)).unwrap();
         self
     }
 
     fn version(self, version: hyper::Version) -> Self {
-        self.tx.send(Reply::Version(version)).unwrap();
+        self.tx.lock().unwrap().send(Reply::Version(version)).unwrap();
         self
     }
 
     fn header<V: AsRef<str>>(self, name: &str, value: V) -> Self {
         let name = HeaderName::from_bytes(name.as_bytes()).expect("header name");
         let value = HeaderValue::from_str(value.as_ref()).expect("header value");
-        self.tx.send(Reply::Header(name, value)).unwrap();
+        self.tx.lock().unwrap().send(Reply::Header(name, value)).unwrap();
         self
     }
 
     fn body<T: AsRef<[u8]>>(self, body: T) {
-        self.tx.send(Reply::Body(body.as_ref().to_vec().into())).unwrap();
+        self.tx.lock().unwrap().send(Reply::Body(body.as_ref().to_vec().into())).unwrap();
     }
 
     fn body_stream(self, body: Body) {
-        self.tx.send(Reply::Body(body)).unwrap();
+        self.tx.lock().unwrap().send(Reply::Body(body)).unwrap();
     }
 
     #[allow(dead_code)]
     fn error<E: Into<BoxError>>(self, err: E) {
-        self.tx.send(Reply::Error(err.into())).unwrap();
+        self.tx.lock().unwrap().send(Reply::Error(err.into())).unwrap();
     }
 }
 
 impl<'a> Drop for ReplyBuilder<'a> {
     fn drop(&mut self) {
-        let _ = self.tx.send(Reply::End);
+        if let Ok(mut tx) = self.tx.lock() {
+            let _  = tx.send(Reply::End);
+        }
     }
 }
 
@@ -2036,7 +2029,7 @@ impl ServeOptions {
 
         Serve {
             msg_rx: msg_rx,
-            reply_tx: reply_tx,
+            reply_tx: Mutex::new(reply_tx),
             addr: addr,
             shutdown_signal: Some(shutdown_tx),
             thread: Some(thread),
