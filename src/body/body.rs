@@ -272,7 +272,7 @@ impl Body {
             },
             Kind::H2 {
                 recv: ref mut h2, ..
-            } => match ready!(Pin::new(&mut *h2).poll_next(cx)) {
+            } => match ready!(h2.poll_data(cx)) {
                 Some(Ok(bytes)) => {
                     let _ = h2.release_capacity().release_capacity(bytes.len());
                     Poll::Ready(Some(Ok(Chunk::from(bytes))))
