@@ -6,10 +6,7 @@ use crate::common::{Future, Poll, task};
 use super::Service;
 
 /// An asynchronous constructor of `Service`s.
-pub trait MakeService<Target> {
-    /// The `Payload` body of the `http::Request`.
-    type ReqBody: Payload;
-
+pub trait MakeService<Target, ReqBody>: sealed::Sealed<Target, ReqBody> {
     /// The `Payload` body of the `http::Response`.
     type ResBody: Payload;
 
@@ -18,7 +15,7 @@ pub trait MakeService<Target> {
 
     /// The resolved `Service` from `new_service()`.
     type Service: Service<
-        ReqBody=Self::ReqBody,
+        ReqBody,
         ResBody=Self::ResBody,
         Error=Self::Error,
     >;
@@ -42,15 +39,46 @@ pub trait MakeService<Target> {
     fn make_service(&mut self, target: Target) -> Self::Future;
 }
 
+impl<T, Target, S, B1, B2, E, F> MakeService<Target, B1> for T 
+where 
+    T: for<'a> tower_service::Service<&'a Target, Response = S, Error = E, Future = F>,
+    S: tower_service::Service<crate::Request<B1>, Response = crate::Response<B2>>,
+    E: Into<Box<dyn std::error::Error + Send + Sync>>,
+    S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+    B1: Payload,
+    B2: Payload,
+    F: Future<Output = Result<S, E>>,
+{
+    type ResBody = B2;
+    type Error = S::Error;
+    type Service = S;
+    type Future = F;
+    type MakeError = E;
+
+    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::MakeError>> {
+         tower_service::Service::poll_ready(self, cx)
+    }
+
+    fn make_service(&mut self, req: Target) -> Self::Future {
+        tower_service::Service::call(self, &req)
+    }
+}
+
+impl<T, Target, S, B1, B2> sealed::Sealed<Target, B1> for T 
+where 
+    T: for<'a> tower_service::Service<&'a Target, Response = S>,
+    S: tower_service::Service<crate::Request<B1>, Response = crate::Response<B2>>
+{
+}
+
 // Just a sort-of "trait alias" of `MakeService`, not to be implemented
 // by anyone, only used as bounds.
 #[doc(hidden)]
-pub trait MakeServiceRef<Target>: self::sealed::Sealed<Target> {
-    type ReqBody: Payload;
+pub trait MakeServiceRef<Target, ReqBody>: self::sealed::Sealed<Target, ReqBody> {
     type ResBody: Payload;
     type Error: Into<Box<dyn StdError + Send + Sync>>;
     type Service: Service<
-        ReqBody=Self::ReqBody,
+        ReqBody,
         ResBody=Self::ResBody,
         Error=Self::Error,
     >;
@@ -73,19 +101,18 @@ pub trait MakeServiceRef<Target>: self::sealed::Sealed<Target> {
     fn make_service_ref(&mut self, target: &Target) -> Self::Future;
 }
 
-impl<T, Target, E, ME, S, F, IB, OB> MakeServiceRef<Target> for T
+impl<T, Target, E, ME, S, F, IB, OB> MakeServiceRef<Target, IB> for T
 where
-    T: for<'a> MakeService<&'a Target, Error=E, MakeError=ME, Service=S, Future=F, ReqBody=IB, ResBody=OB>,
+    T: for<'a> tower_service::Service<&'a Target, Error=ME, Response=S, Future=F>,
     E: Into<Box<dyn StdError + Send + Sync>>,
     ME: Into<Box<dyn StdError + Send + Sync>>,
-    S: Service<ReqBody=IB, ResBody=OB, Error=E>,
+    S: tower_service::Service<crate::Request<IB>, Response=crate::Response<OB>, Error=E>,
     F: Future<Output=Result<S, ME>>,
     IB: Payload,
     OB: Payload,
 {
     type Error = E;
     type Service = S;
-    type ReqBody = IB;
     type ResBody = OB;
     type MakeError = ME;
     type Future = F;
@@ -97,21 +124,9 @@ where
     }
 
     fn make_service_ref(&mut self, target: &Target) -> Self::Future {
-        self.make_service(target)
+        self.call(target)
     }
 }
-
-impl<T, Target, E, ME, S, F, IB, OB> self::sealed::Sealed<Target> for T
-where
-    T: for<'a> MakeService<&'a Target, Error=E, MakeError=ME, Service=S, Future=F, ReqBody=IB, ResBody=OB>,
-    E: Into<Box<dyn StdError + Send + Sync>>,
-    ME: Into<Box<dyn StdError + Send + Sync>>,
-    S: Service<ReqBody=IB, ResBody=OB, Error=E>,
-    F: Future<Output=Result<S, ME>>,
-    IB: Payload,
-    OB: Payload,
-{}
-
 
 /// Create a `MakeService` from a function.
 ///
@@ -167,23 +182,21 @@ pub struct MakeServiceFn<F> {
     f: F,
 }
 
-impl<'t, F, Target, Ret, ReqBody, ResBody, Svc, MkErr> MakeService<&'t Target> for MakeServiceFn<F>
+impl<'t, F, Ret, Target, Svc, MkErr> tower_service::Service<&'t Target> for MakeServiceFn<F>
 where
     F: FnMut(&Target) -> Ret,
     Ret: Future<Output=Result<Svc, MkErr>>,
-    Svc: Service<ReqBody=ReqBody, ResBody=ResBody>,
     MkErr: Into<Box<dyn StdError + Send + Sync>>,
-    ReqBody: Payload,
-    ResBody: Payload,
 {
-    type ReqBody = ReqBody;
-    type ResBody = ResBody;
-    type Error = Svc::Error;
-    type Service = Svc;
+    type Error = MkErr;
+    type Response = Svc;
     type Future = Ret;
-    type MakeError = MkErr;
 
-    fn make_service(&mut self, target: &'t Target) -> Self::Future {
+    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, target: &'t Target) -> Self::Future {
         (self.f)(target)
     }
 }
@@ -196,7 +209,7 @@ impl<F> fmt::Debug for MakeServiceFn<F> {
 }
 
 mod sealed {
-    pub trait Sealed<T> {}
+    pub trait Sealed<T, B> {}
 
     pub trait CantImpl {}
 

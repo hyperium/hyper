@@ -102,11 +102,11 @@ pub(super) struct SpawnAll<I, S, E> {
 #[must_use = "futures do nothing unless polled"]
 pub struct Connection<T, S, E = Exec>
 where
-    S: Service,
+    S: Service<Body>,
 {
     pub(super) conn: Option<Either<
         proto::h1::Dispatcher<
-            proto::h1::dispatch::Server<S>,
+            proto::h1::dispatch::Server<S, Body>,
             S::ResBody,
             T,
             proto::ServerTransaction,
@@ -341,7 +341,7 @@ impl<E> Http<E> {
     /// # async fn run<I, S>(some_io: I, some_service: S)
     /// # where
     /// #     I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    /// #     S: Service<ReqBody=Body, ResBody=Body> + Send + 'static,
+    /// #     S: Service<Body, ResBody=Body> + Send + 'static,
     /// #     S::Future: Send
     /// # {
     /// let http = Http::new();
@@ -355,7 +355,7 @@ impl<E> Http<E> {
     /// ```
     pub fn serve_connection<S, I, Bd>(&self, io: I, service: S) -> Connection<I, S, E>
     where
-        S: Service<ReqBody=Body, ResBody=Bd>,
+        S: Service<Body, ResBody=Bd>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         Bd: Payload,
         Bd::Data: Unpin,
@@ -409,12 +409,12 @@ impl<E> Http<E> {
     where
         S: MakeServiceRef<
             AddrStream,
-            ReqBody=Body,
+            Body,
             ResBody=Bd,
         >,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         Bd: Payload,
-        E: H2Exec<<S::Service as Service>::Future, Bd>,
+        E: H2Exec<<S::Service as Service<Body>>::Future, Bd>,
     {
         let mut incoming = AddrIncoming::new(addr, None)?;
         if self.keep_alive {
@@ -434,12 +434,12 @@ impl<E> Http<E> {
     where
         S: MakeServiceRef<
             AddrStream,
-            ReqBody=Body,
+            Body,
             ResBody=Bd,
         >,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         Bd: Payload,
-        E: H2Exec<<S::Service as Service>::Future, Bd>,
+        E: H2Exec<<S::Service as Service<Body>>::Future, Bd>,
     {
         let mut incoming = AddrIncoming::new(addr, Some(handle))?;
         if self.keep_alive {
@@ -456,12 +456,12 @@ impl<E> Http<E> {
         IO: AsyncRead + AsyncWrite + Unpin,
         S: MakeServiceRef<
             IO,
-            ReqBody=Body,
+            Body,
             ResBody=Bd,
         >,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         Bd: Payload,
-        E: H2Exec<<S::Service as Service>::Future, Bd>,
+        E: H2Exec<<S::Service as Service<Body>>::Future, Bd>,
     {
         Serve {
             incoming,
@@ -476,7 +476,7 @@ impl<E> Http<E> {
 
 impl<I, B, S, E> Connection<I, S, E>
 where
-    S: Service<ReqBody=Body, ResBody=B>,
+    S: Service<Body, ResBody=B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin,
     B: Payload + 'static,
@@ -627,7 +627,7 @@ where
 
 impl<I, B, S, E> Future for Connection<I, S, E>
 where
-    S: Service<ReqBody=Body, ResBody=B> + 'static,
+    S: Service<Body, ResBody=B> + 'static,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin + 'static,
     B: Payload + 'static,
@@ -665,7 +665,7 @@ where
 
 impl<I, S> fmt::Debug for Connection<I, S>
 where
-    S: Service,
+    S: Service<Body>,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Connection")
@@ -703,11 +703,11 @@ where
     I: Stream<Item = Result<IO, IE>>,
     IO: AsyncRead + AsyncWrite + Unpin,
     IE: Into<Box<dyn StdError + Send + Sync>>,
-    S: MakeServiceRef<IO, ReqBody=Body, ResBody=B>,
+    S: MakeServiceRef<IO, Body, ResBody=B>,
     //S::Error2: Into<Box<StdError + Send + Sync>>,
     //SME: Into<Box<StdError + Send + Sync>>,
     B: Payload,
-    E: H2Exec<<S::Service as Service>::Future, B>,
+    E: H2Exec<<S::Service as Service<Body>>::Future, B>,
 {
     type Item = crate::Result<Connecting<IO, S::Future, E>>;
 
@@ -745,7 +745,7 @@ impl<I, F, S, FE, E, B> Future for Connecting<I, F, E>
 where
     I: AsyncRead + AsyncWrite + Unpin,
     F: Future<Output=Result<S, FE>>,
-    S: Service<ReqBody=Body, ResBody=B>,
+    S: Service<Body, ResBody=B>,
     B: Payload,
     B::Data: Unpin,
     E: H2Exec<S::Future, B>,
@@ -781,11 +781,11 @@ where
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     S: MakeServiceRef<
         IO,
-        ReqBody=Body,
+        Body,
         ResBody=B,
     >,
     B: Payload,
-    E: H2Exec<<S::Service as Service>::Future, B>,
+    E: H2Exec<<S::Service as Service<Body>>::Future, B>,
 {
     pub(super) fn poll_watch<W>(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>, watcher: &W) -> Poll<crate::Result<()>>
     where
@@ -842,7 +842,7 @@ pub(crate) mod spawn_all {
     // The `Server::with_graceful_shutdown` needs to keep track of all active
     // connections, and signal that they start to shutdown when prompted, so
     // it has a `GracefulWatcher` implementation to do that.
-    pub trait Watcher<I, S: Service, E>: Clone {
+    pub trait Watcher<I, S: Service<Body>, E>: Clone {
         type Future: Future<Output = crate::Result<()>>;
 
         fn watch(&self, conn: UpgradeableConnection<I, S, E>) -> Self::Future;
@@ -855,7 +855,7 @@ pub(crate) mod spawn_all {
     impl<I, S, E> Watcher<I, S, E> for NoopWatcher
     where
         I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-        S: Service<ReqBody=Body> + 'static,
+        S: Service<Body> + 'static,
         <S::ResBody as Payload>::Data: Unpin,
         E: H2Exec<S::Future, S::ResBody>,
     {
@@ -876,16 +876,16 @@ pub(crate) mod spawn_all {
     // Users cannot import this type, nor the associated `NewSvcExec`. Instead,
     // a blanket implementation for `Executor<impl Future>` is sufficient.
     #[allow(missing_debug_implementations)]
-    pub struct NewSvcTask<I, N, S: Service, E, W: Watcher<I, S, E>> {
+    pub struct NewSvcTask<I, N, S: Service<Body>, E, W: Watcher<I, S, E>> {
         state: State<I, N, S, E, W>,
     }
 
-    enum State<I, N, S: Service, E, W: Watcher<I, S, E>> {
+    enum State<I, N, S: Service<Body>, E, W: Watcher<I, S, E>> {
         Connecting(Connecting<I, N, E>, W),
         Connected(W::Future),
     }
 
-    impl<I, N, S: Service, E, W: Watcher<I, S, E>> NewSvcTask<I, N, S, E, W> {
+    impl<I, N, S: Service<Body>, E, W: Watcher<I, S, E>> NewSvcTask<I, N, S, E, W> {
         pub(super) fn new(connecting: Connecting<I, N, E>, watcher: W) -> Self {
             NewSvcTask {
                 state: State::Connecting(connecting, watcher),
@@ -898,7 +898,7 @@ pub(crate) mod spawn_all {
         I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         N: Future<Output=Result<S, NE>>,
         NE: Into<Box<dyn StdError + Send + Sync>>,
-        S: Service<ReqBody=Body, ResBody=B>,
+        S: Service<Body, ResBody=B>,
         B: Payload,
         B::Data: Unpin,
         E: H2Exec<S::Future, B>,
@@ -955,14 +955,14 @@ mod upgrades {
     #[allow(missing_debug_implementations)]
     pub struct UpgradeableConnection<T, S, E>
     where
-        S: Service,
+        S: Service<Body>,
     {
         pub(super) inner: Connection<T, S, E>,
     }
 
     impl<I, B, S, E> UpgradeableConnection<I, S, E>
     where
-        S: Service<ReqBody=Body, ResBody=B>,// + 'static,
+        S: Service<Body, ResBody=B>,// + 'static,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: AsyncRead + AsyncWrite + Unpin,
         B: Payload + 'static,
@@ -980,7 +980,7 @@ mod upgrades {
 
     impl<I, B, S, E> Future for UpgradeableConnection<I, S, E>
     where
-        S: Service<ReqBody=Body, ResBody=B> + 'static,
+        S: Service<Body, ResBody=B> + 'static,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         B: Payload + 'static,
