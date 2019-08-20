@@ -27,7 +27,7 @@ futures-core-preview = { version = "0.3.0-alpha.18" }
 futures-channel-preview = { version = "0.3.0-alpha.18" }
 futures-util-preview = { version = "0.3.0-alpha.18" }
 http = "0.1.15"
-http-body = "0.1"
+http-body = { git = "https://github.com/hyperium/http-body" }
 httparse = "1.0"
 h2 = { git = "https://github.com/hyperium/h2" }
 iovec = "0.1"
@@ -37,7 +37,6 @@ net2 = { version = "0.2.32", optional = true }
 pin-utils = "0.1.0-alpha.4"
 time = "0.1"
 tokio = { version = "0.2.0-alpha.2", optional = true, default-features = false, features = ["rt-full"] }
-#tokio-buf = "0.2.0-alpha.1"
 tower-service = "=0.3.0-alpha.1"
 tokio-executor = "0.2.0-alpha.2"
 tokio-io = "0.2.0-alpha.2"

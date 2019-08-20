@@ -6,7 +6,7 @@ use bytes::Bytes;
 use futures_core::{Stream, TryStream};
 use futures_channel::{mpsc, oneshot};
 use futures_util::TryStreamExt;
-//use tokio_buf::SizeHint;
+use http_body::{SizeHint, Body as HttpBody};
 use h2;
 use http::HeaderMap;
 
@@ -298,7 +298,7 @@ impl Default for Body {
     }
 }
 
-impl Payload for Body {
+impl HttpBody for Body {
     type Data = Chunk;
     type Error = crate::Error;
 
@@ -306,14 +306,14 @@ impl Payload for Body {
         self.poll_eof(cx)
     }
 
-    fn poll_trailers(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Result<HeaderMap, Self::Error>>> {
+    fn poll_trailers(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Result<Option<HeaderMap>, Self::Error>> {
         match self.kind {
             Kind::H2 { recv: ref mut h2, .. } => match ready!(h2.poll_trailers(cx)) {
-                Some(Ok(t)) => Poll::Ready(Some(Ok(t))),
-                Some(Err(e)) => Poll::Ready(Some(Err(crate::Error::new_h2(e)))),
-                None => Poll::Ready(None),
+                Some(Ok(t)) => Poll::Ready(Ok(Some(t))),
+                Some(Err(e)) => Poll::Ready(Err(crate::Error::new_h2(e))),
+                None => Poll::Ready(Ok(None)),
             },
-            _ => Poll::Ready(None),
+            _ => Poll::Ready(Ok(None)),
         }
     }
 
@@ -326,21 +326,29 @@ impl Payload for Body {
         }
     }
 
-    fn content_length(&self) -> Option<u64> {
+    fn size_hint(&self) -> SizeHint {
         match self.kind {
-            Kind::Once(Some(ref val)) => Some(val.len() as u64),
-            Kind::Once(None) => Some(0),
-            Kind::Wrapped(..) => None,
-            Kind::Chan { content_length, .. } | Kind::H2 { content_length, .. } => content_length,
-        }
-    }
+            Kind::Once(Some(ref val)) => {
+                let mut hint = SizeHint::default();
+                hint.set_lower(val.len() as u64);
+                hint.set_upper(val.len() as u64);
+                hint
+            },
+            Kind::Once(None) => {
+                let mut hint = SizeHint::default();
+                hint.set_upper(0);
+                hint
+            },
+            Kind::Wrapped(..) => SizeHint::default(),
+            Kind::Chan { content_length, .. } | Kind::H2 { content_length, .. } => {
+                let mut hint = SizeHint::default();
 
-    // We can improve the performance of `Body` when we know it is a Once kind.
-    #[doc(hidden)]
-    fn __hyper_full_data(&mut self, _: FullDataArg) -> FullDataRet<Self::Data> {
-        match self.kind {
-            Kind::Once(ref mut val) => FullDataRet(val.take()),
-            _ => FullDataRet(None),
+                if let Some(content_length) = content_length {
+                    hint.set_upper(content_length as u64);
+                }
+
+                hint
+            },
         }
     }
 }
@@ -365,43 +373,11 @@ impl fmt::Debug for Body {
     }
 }
 
-/*
-impl ::http_body::Body for Body {
-    type Data = Chunk;
-    type Error = crate::Error;
-
-    fn poll_data(&mut self) -> Poll<Option<Self::Data>, Self::Error> {
-        <Self as Payload>::poll_data(self)
-    }
-
-    fn poll_trailers(&mut self) -> Poll<Option<HeaderMap>, Self::Error> {
-        <Self as Payload>::poll_trailers(self)
-    }
-
-    fn is_end_stream(&self) -> bool {
-        <Self as Payload>::is_end_stream(self)
-    }
-
-    fn size_hint(&self) -> SizeHint {
-        let mut hint = SizeHint::default();
-
-        let content_length = <Self as Payload>::content_length(self);
-
-        if let Some(size) = content_length {
-            hint.set_upper(size);
-            hint.set_lower(size)
-        }
-
-        hint
-    }
-}
-*/
-
 impl Stream for Body {
     type Item = crate::Result<Chunk>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
-        self.poll_data(cx)
+        HttpBody::poll_data(self, cx)
     }
 }
 

@@ -178,17 +178,17 @@ where
                 }
 
                 match ready!(Pin::new(&mut self.stream).poll_trailers(cx)) {
-                    Some(Ok(trailers)) => {
+                    Ok(Some(trailers)) => {
                         self.body_tx
                             .send_trailers(trailers)
                             .map_err(crate::Error::new_body_write)?;
                         return Poll::Ready(Ok(()));
                     }
-                    Some(Err(e)) => return Poll::Ready(Err(self.on_user_err(e))),
-                    None => {
+                    Ok(None) => {
                         // There were no trailers, so send an empty DATA frame...
                         return Poll::Ready(self.send_eos_frame());
                     }
+                    Err(e) => return Poll::Ready(Err(self.on_user_err(e))),
                 }
             }
         }

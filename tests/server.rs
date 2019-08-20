@@ -306,7 +306,7 @@ mod response_body_lengths {
 
     #[test]
     fn http2_auto_response_with_known_length() {
-        use hyper::body::Payload;
+        use http_body::Body;
 
         let server = serve();
         let addr_str = format!("http://{}", server.addr());
@@ -325,7 +325,7 @@ mod response_body_lengths {
                 .get(uri)
                 .map_ok(|res| {
                     assert_eq!(res.headers().get("content-length").unwrap(), "13");
-                    assert_eq!(res.body().content_length(), Some(13));
+                    assert_eq!(res.body().size_hint().upper(), Some(13));
                     ()
                 })
                 .map_err(|_e| ())
@@ -334,7 +334,7 @@ mod response_body_lengths {
 
     #[test]
     fn http2_auto_response_with_conflicting_lengths() {
-        use hyper::body::Payload;
+        use http_body::Body;
 
         let server = serve();
         let addr_str = format!("http://{}", server.addr());
@@ -356,7 +356,7 @@ mod response_body_lengths {
                 .get(uri)
                 .map_ok(|res| {
                     assert_eq!(res.headers().get("content-length").unwrap(), "10");
-                    assert_eq!(res.body().content_length(), Some(10));
+                    assert_eq!(res.body().size_hint().upper(), Some(10));
                     ()
                 })
                 .map_err(|_e| ())
