@@ -39,7 +39,7 @@ use hyper::{Body, Request, Response, StatusCode, Version};
 use hyper::client::Client;
 use hyper::server::conn::Http;
 use hyper::server::Server;
-use hyper::service::{make_service_fn, service_fn, Service};
+use hyper::service::{make_service_fn, service_fn};
 
 
 #[test]
@@ -1628,19 +1628,18 @@ fn http2_body_user_error_sends_reset_reason() {
 
 struct Svc;
 
-impl hyper::service::Service for Svc {
-    type ReqBody = hyper::Body;
-    type ResBody = hyper::Body;
+impl tower_service::Service<Request<Body>> for Svc {
+    type Response = Response<Body>;
     type Error = h2::Error;
     type Future = Box<dyn futures_core::Future<
-        Output = Result<hyper::Response<Self::ResBody>, Self::Error>
+        Output = Result<Self::Response, Self::Error>
     > + Send + Sync + Unpin>;
 
     fn poll_ready(&mut self, _: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Err::<(), _>(h2::Error::from(h2::Reason::INADEQUATE_SECURITY)))
     }
 
-    fn call(&mut self, _: hyper::Request<Self::ResBody>) -> Self::Future {
+    fn call(&mut self, _: hyper::Request<Body>) -> Self::Future {
         unreachable!("poll_ready error should have shutdown conn");
     }
 }
@@ -1853,11 +1852,14 @@ enum Msg {
     End,
 }
 
-impl Service for TestService {
-    type ReqBody = Body;
-    type ResBody = Body;
+impl tower_service::Service<Request<Body>> for TestService {
+    type Response = Response<Body>;
     type Error = BoxError;
     type Future = BoxFuture<'static, Result<Response<Body>, BoxError>>;
+
+    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Ok(()).into()
+    }
 
     fn call(&mut self, req: Request<Body>) -> Self::Future {
         let tx1 = self.tx.clone();
@@ -1913,11 +1915,14 @@ const HELLO: &'static str = "hello";
 
 struct HelloWorld;
 
-impl Service for HelloWorld {
-    type ReqBody = Body;
-    type ResBody = Body;
+impl tower_service::Service<Request<Body>> for HelloWorld {
+    type Response = Response<Body>;
     type Error = hyper::Error;
-    type Future = BoxFuture<'static, Result<hyper::Response<Self::ResBody>, Self::Error>>;
+    type Future = BoxFuture<'static, Result<Response<Body>, Self::Error>>;
+
+    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Ok(()).into()
+    }
 
     fn call(&mut self, _req: Request<Body>) -> Self::Future {
         let response = Response::new(HELLO.into());
