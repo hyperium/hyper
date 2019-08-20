@@ -43,13 +43,13 @@ where
     I: Stream<Item=Result<IO, IE>>,
     IE: Into<Box<dyn StdError + Send + Sync>>,
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    S: MakeServiceRef<IO, ReqBody=Body, ResBody=B>,
+    S: MakeServiceRef<IO, Body, ResBody=B>,
     S::Service: 'static,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
     B::Data: Unpin,
     F: Future<Output=()>,
-    E: H2Exec<<S::Service as Service>::Future, B>,
+    E: H2Exec<<S::Service as Service<Body>>::Future, B>,
     E: NewSvcExec<IO, S::Future, S::Service, E, GracefulWatcher>,
 {
     type Output = crate::Result<()>;
@@ -98,7 +98,7 @@ pub struct GracefulWatcher(Watch);
 impl<I, S, E> Watcher<I, S, E> for GracefulWatcher
 where
     I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    S: Service<ReqBody=Body> + 'static,
+    S: Service<Body> + 'static,
     <S::ResBody as Payload>::Data: Unpin,
     E: H2Exec<S::Future, S::ResBody>,
 {
@@ -114,7 +114,7 @@ where
 
 fn on_drain<I, S, E>(conn: Pin<&mut UpgradeableConnection<I, S, E>>)
 where
-    S: Service<ReqBody=Body>,
+    S: Service<Body>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin,
     S::ResBody: Payload + 'static,

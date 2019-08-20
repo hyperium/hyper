@@ -7,10 +7,7 @@ use crate::common::{Future, Never, Poll, task};
 use crate::{Request, Response};
 
 /// An asynchronous function from `Request` to `Response`.
-pub trait Service {
-    /// The `Payload` body of the `http::Request`.
-    type ReqBody: Payload;
-
+pub trait Service<ReqBody>: sealed::Sealed<ReqBody> {
     /// The `Payload` body of the `http::Response`.
     type ResBody: Payload;
 
@@ -34,7 +31,38 @@ pub trait Service {
     }
 
     /// Calls this `Service` with a request, returning a `Future` of the response.
-    fn call(&mut self, req: Request<Self::ReqBody>) -> Self::Future;
+    fn call(&mut self, req: Request<ReqBody>) -> Self::Future;
+}
+
+impl<T, B1, B2> Service<B1> for T 
+where 
+    T: tower_service::Service<Request<B1>, Response = Response<B2>>,
+    B2: Payload,
+    T::Error: Into<Box<dyn StdError + Send + Sync>>,
+{
+    type ResBody = B2;
+
+    type Error = T::Error;
+    type Future = T::Future;
+
+    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+        // TODO: call poll_ready from the inner service
+        Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, req: Request<B1>) -> Self::Future {
+        tower_service::Service::call(self, req)
+    }
+}
+
+impl<T, B1, B2> sealed::Sealed<B1> for T 
+where 
+    T: tower_service::Service<Request<B1>, Response = Response<B2>>,
+    B2: Payload,
+{}
+
+mod sealed {
+    pub trait Sealed<T> {}
 }
 
 
@@ -74,7 +102,7 @@ pub struct ServiceFn<F, R> {
     _req: PhantomData<fn(R)>,
 }
 
-impl<F, ReqBody, Ret, ResBody, E> Service for ServiceFn<F, ReqBody>
+impl<F, ReqBody, Ret, ResBody, E> tower_service::Service<crate::Request<ReqBody>> for ServiceFn<F, ReqBody>
 where
     F: FnMut(Request<ReqBody>) -> Ret,
     ReqBody: Payload,
@@ -82,12 +110,16 @@ where
     E: Into<Box<dyn StdError + Send + Sync>>,
     ResBody: Payload,
 {
-    type ReqBody = ReqBody;
-    type ResBody = ResBody;
+    type Response = crate::Response<ResBody>;
     type Error = E;
     type Future = Ret;
 
-    fn call(&mut self, req: Request<Self::ReqBody>) -> Self::Future {
+    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+        // TODO: call poll_ready from the inner service
+        Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, req: Request<ReqBody>) -> Self::Future {
         (self.f)(req)
     }
 }

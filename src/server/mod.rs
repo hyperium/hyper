@@ -150,12 +150,12 @@ where
     I: Stream<Item=Result<IO, IE>>,
     IE: Into<Box<dyn StdError + Send + Sync>>,
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    S: MakeServiceRef<IO, ReqBody=Body, ResBody=B>,
+    S: MakeServiceRef<IO, Body, ResBody=B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     S::Service: 'static,
     B: Payload,
     B::Data: Unpin,
-    E: H2Exec<<S::Service as Service>::Future, B>,
+    E: H2Exec<<S::Service as Service<Body>>::Future, B>,
     E: NewSvcExec<IO, S::Future, S::Service, E, GracefulWatcher>,
 {
     /// Prepares a server to handle graceful shutdown when the provided future
@@ -208,12 +208,12 @@ where
     I: Stream<Item=Result<IO, IE>>,
     IE: Into<Box<dyn StdError + Send + Sync>>,
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    S: MakeServiceRef<IO, ReqBody=Body, ResBody=B>,
+    S: MakeServiceRef<IO, Body, ResBody=B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     S::Service: 'static,
     B: Payload,
     B::Data: Unpin,
-    E: H2Exec<<S::Service as Service>::Future, B>,
+    E: H2Exec<<S::Service as Service<Body>>::Future, B>,
     E: NewSvcExec<IO, S::Future, S::Service, E, NoopWatcher>,
 {
     type Output = crate::Result<()>;
@@ -407,13 +407,13 @@ impl<I, E> Builder<I, E> {
         I: Stream<Item=Result<IO, IE>>,
         IE: Into<Box<dyn StdError + Send + Sync>>,
         IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-        S: MakeServiceRef<IO, ReqBody=Body, ResBody=B>,
+        S: MakeServiceRef<IO, Body, ResBody=B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         S::Service: 'static,
         B: Payload,
         B::Data: Unpin,
         E: NewSvcExec<IO, S::Future, S::Service, E, NoopWatcher>,
-        E: H2Exec<<S::Service as Service>::Future, B>,
+        E: H2Exec<<S::Service as Service<Body>>::Future, B>,
     {
         let serve = self.protocol.serve_incoming(self.incoming, new_service);
         let spawn_all = serve.spawn_all();

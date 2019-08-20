@@ -20,7 +20,7 @@ use crate::{Body, Response};
 
 pub(crate) struct Server<T, S, B, E>
 where
-    S: Service,
+    S: Service<Body>,
     B: Payload,
 {
     exec: E,
@@ -29,7 +29,7 @@ where
 }
 
 // TODO: fix me
-impl<T, S: Service, B: Payload, E> Unpin for Server<T, S, B, E> {}
+impl<T, S: Service<Body>, B: Payload, E> Unpin for Server<T, S, B, E> {}
 
 enum State<T, B>
 where
@@ -52,7 +52,7 @@ where
 impl<T, S, B, E> Server<T, S, B, E>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    S: Service<ReqBody=Body, ResBody=B>,
+    S: Service<Body, ResBody=B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
     B::Data: Unpin,
@@ -90,7 +90,7 @@ where
 impl<T, S, B, E> Future for Server<T, S, B, E>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    S: Service<ReqBody=Body, ResBody=B>,
+    S: Service<Body, ResBody=B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
     B::Data: Unpin,
@@ -133,7 +133,7 @@ where
     fn poll_server<S, E>(&mut self, cx: &mut task::Context<'_>, service: &mut S, exec: &mut E) -> Poll<crate::Result<()>>
     where
         S: Service<
-            ReqBody=Body,
+            Body,
             ResBody=B,
         >,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,

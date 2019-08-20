@@ -30,7 +30,7 @@ pub(crate) trait Dispatch {
     fn should_poll(&self) -> bool;
 }
 
-pub struct Server<S: Service> {
+pub struct Server<S: Service<B>, B> {
     in_flight: Pin<Box<Option<S::Future>>>,
     pub(crate) service: S,
 }
@@ -412,11 +412,11 @@ impl<'a, T> Drop for OptGuard<'a, T> {
 
 // ===== impl Server =====
 
-impl<S> Server<S>
+impl<S, B> Server<S, B>
 where
-    S: Service,
+    S: Service<B>,
 {
-    pub fn new(service: S) -> Server<S> {
+    pub fn new(service: S) -> Server<S, B> {
         Server {
             in_flight: Box::pin(None),
             service: service,
@@ -429,11 +429,11 @@ where
 }
 
 // Service is never pinned
-impl<S: Service> Unpin for Server<S> {}
+impl<S: Service<B>, B> Unpin for Server<S, B> {}
 
-impl<S, Bs> Dispatch for Server<S>
+impl<S, Bs> Dispatch for Server<S, Body>
 where
-    S: Service<ReqBody=Body, ResBody=Bs>,
+    S: Service<Body, ResBody=Bs>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     Bs: Payload,
 {
