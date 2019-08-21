@@ -309,9 +309,9 @@ impl Payload for Body {
     fn poll_trailers(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Result<HeaderMap, Self::Error>>> {
         match self.kind {
             Kind::H2 { recv: ref mut h2, .. } => match ready!(h2.poll_trailers(cx)) {
-                Some(Ok(t)) => Poll::Ready(Some(Ok(t))),
-                Some(Err(e)) => Poll::Ready(Some(Err(crate::Error::new_h2(e)))),
-                None => Poll::Ready(None),
+                Ok(Some(t)) => Poll::Ready(Some(Ok(t))),
+                Err(e) => Poll::Ready(Some(Err(crate::Error::new_h2(e)))),
+                Ok(None) => Poll::Ready(None),
             },
             _ => Poll::Ready(None),
         }
