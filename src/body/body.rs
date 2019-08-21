@@ -272,7 +272,7 @@ impl Body {
             },
             Kind::H2 {
                 recv: ref mut h2, ..
-            } => match ready!(Pin::new(&mut *h2).poll_next(cx)) {
+            } => match ready!(h2.poll_data(cx)) {
                 Some(Ok(bytes)) => {
                     let _ = h2.release_capacity().release_capacity(bytes.len());
                     Poll::Ready(Some(Ok(Chunk::from(bytes))))
@@ -309,9 +309,8 @@ impl HttpBody for Body {
     fn poll_trailers(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Result<Option<HeaderMap>, Self::Error>> {
         match self.kind {
             Kind::H2 { recv: ref mut h2, .. } => match ready!(h2.poll_trailers(cx)) {
-                Some(Ok(t)) => Poll::Ready(Ok(Some(t))),
-                Some(Err(e)) => Poll::Ready(Err(crate::Error::new_h2(e))),
-                None => Poll::Ready(Ok(None)),
+                Ok(t) => Poll::Ready(Ok(t)),
+                Err(e) => Poll::Ready(Err(crate::Error::new_h2(e))),
             },
             _ => Poll::Ready(Ok(None)),
         }

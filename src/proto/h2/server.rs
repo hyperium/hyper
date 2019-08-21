@@ -169,7 +169,7 @@ where
                 }
 
                 // When the service is ready, accepts an incoming request.
-                match ready!(Pin::new(&mut self.conn).poll_next(cx)) {
+                match ready!(self.conn.poll_accept(cx)) {
                     Some(Ok((req, respond))) => {
                         trace!("incoming request");
                         let content_length = content_length_parse_all(req.headers());

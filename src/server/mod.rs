@@ -307,29 +307,13 @@ impl<I, E> Builder<I, E> {
         self
     }
 
-    // soft-deprecated? deprecation warning just seems annoying...
-    // reimplemented to take `self` instead of `&mut self`
-    #[doc(hidden)]
-    pub fn http2_initial_stream_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
-        self.protocol.http2_initial_stream_window_size(sz.into());
-        self
-    }
-
-    // soft-deprecated? deprecation warning just seems annoying...
-    // reimplemented to take `self` instead of `&mut self`
-    #[doc(hidden)]
-    pub fn http2_initial_connection_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
-        self.protocol.http2_initial_connection_window_size(sz.into());
-        self
-    }
-
     /// Sets the [`SETTINGS_INITIAL_WINDOW_SIZE`][spec] option for HTTP2
     /// stream-level flow control.
     ///
     /// Default is 65,535
     ///
     /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_INITIAL_WINDOW_SIZE
-    pub fn http2_initial_stream_window_size_(mut self, sz: impl Into<Option<u32>>) -> Self {
+    pub fn http2_initial_stream_window_size(mut self, sz: impl Into<Option<u32>>) -> Self {
         self.protocol.http2_initial_stream_window_size(sz.into());
         self
     }
@@ -337,7 +321,7 @@ impl<I, E> Builder<I, E> {
     /// Sets the max connection-level flow control for HTTP2
     ///
     /// Default is 65,535
-    pub fn http2_initial_connection_window_size_(mut self, sz: impl Into<Option<u32>>) -> Self {
+    pub fn http2_initial_connection_window_size(mut self, sz: impl Into<Option<u32>>) -> Self {
         self.protocol.http2_initial_connection_window_size(sz.into());
         self
     }

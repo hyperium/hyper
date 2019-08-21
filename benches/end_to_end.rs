@@ -236,8 +236,8 @@ fn spawn_server(rt: &mut Runtime, opts: &Opts) -> SocketAddr {
     let body = opts.response_body;
     let srv = Server::bind(&addr)
         .http2_only(opts.http2)
-        .http2_initial_stream_window_size_(opts.http2_stream_window)
-        .http2_initial_connection_window_size_(opts.http2_conn_window)
+        .http2_initial_stream_window_size(opts.http2_stream_window)
+        .http2_initial_connection_window_size(opts.http2_conn_window)
         .serve(make_service_fn( move |_| async move {
             Ok::<_, hyper::Error>(service_fn(move |req: Request<Body>| async move {
                 let mut req_body = req.into_body();
