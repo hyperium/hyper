@@ -602,8 +602,6 @@ mod tests {
     // trigger a warning to remind us
     use crate::Error;
     /*
-    extern crate pretty_env_logger;
-
     use super::*;
     use crate::mock::AsyncIo;
     use crate::proto::h1::ClientTransaction;

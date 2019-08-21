@@ -222,7 +222,7 @@ where
 }
 
 impl<I: fmt::Debug, S: fmt::Debug> fmt::Debug for Server<I, S> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Server")
             .field("listener", &self.spawn_all.incoming_ref())
             .finish()

@@ -147,7 +147,7 @@ impl Decoder {
 
 
 impl fmt::Debug for Decoder {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self.kind, f)
     }
 }
@@ -306,7 +306,7 @@ impl ChunkedState {
 struct IncompleteBody;
 
 impl fmt::Display for IncompleteBody {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.description())
     }
 }

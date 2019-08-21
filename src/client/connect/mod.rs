@@ -346,7 +346,7 @@ impl Clone for Extra {
 }
 
 impl fmt::Debug for Extra {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Extra")
             .finish()
     }

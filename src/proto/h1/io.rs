@@ -42,7 +42,7 @@ impl<T, B> fmt::Debug for Buffered<T, B>
 where
     B: Buf,
 {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Buffered")
             .field("read_buf", &self.read_buf)
             .field("write_buf", &self.write_buf)
@@ -135,7 +135,7 @@ where
         }
     }
 
-    pub(super) fn parse<S>(&mut self, cx: &mut task::Context<'_>, parse_ctx: ParseContext)
+    pub(super) fn parse<S>(&mut self, cx: &mut task::Context<'_>, parse_ctx: ParseContext<'_>)
         -> Poll<crate::Result<ParsedMessage<S::Incoming>>>
     where
         S: Http1Transaction,
@@ -376,7 +376,7 @@ impl Cursor<Vec<u8>> {
 }
 
 impl<T: AsRef<[u8]>> fmt::Debug for Cursor<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Cursor")
             .field("pos", &self.pos)
             .field("len", &self.bytes.as_ref().len())
@@ -433,7 +433,7 @@ where
     }
 
     #[inline]
-    fn auto(&mut self) -> WriteBufAuto<B> {
+    fn auto(&mut self) -> WriteBufAuto<'_, B> {
         WriteBufAuto::new(self)
     }
 
@@ -481,7 +481,7 @@ where
 }
 
 impl<B: Buf> fmt::Debug for WriteBuf<B> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("WriteBuf")
             .field("remaining", &self.remaining())
             .field("strategy", &self.strategy)
@@ -528,7 +528,7 @@ impl<B: Buf> Buf for WriteBuf<B> {
 
 /// Detects when wrapped `WriteBuf` is used for vectored IO, and
 /// adjusts the `WriteBuf` strategy if not.
-struct WriteBufAuto<'a, B: Buf + 'a> {
+struct WriteBufAuto<'a, B: Buf> {
     bytes_called: Cell<bool>,
     bytes_vec_called: Cell<bool>,
     inner: &'a mut WriteBuf<B>,
@@ -822,7 +822,6 @@ mod tests {
     TODO: needs tokio_test::io to allow configure write_buf calls
     #[test]
     fn write_buf_queue() {
-        extern crate pretty_env_logger;
         let _ = pretty_env_logger::try_init();
 
         let mock = AsyncIo::new_buf(vec![], 1024);
@@ -844,7 +843,6 @@ mod tests {
 
     #[tokio::test]
     async fn write_buf_flatten() {
-        extern crate pretty_env_logger;
         let _ = pretty_env_logger::try_init();
 
         let mock = Mock::new()
@@ -866,7 +864,6 @@ mod tests {
 
     #[tokio::test]
     async fn write_buf_auto_flatten() {
-        extern crate pretty_env_logger;
         let _ = pretty_env_logger::try_init();
 
         let mock = Mock::new()
@@ -894,7 +891,6 @@ mod tests {
 
     #[tokio::test]
     async fn write_buf_queue_disable_auto() {
-        extern crate pretty_env_logger;
         let _ = pretty_env_logger::try_init();
 
         let mock = Mock::new()

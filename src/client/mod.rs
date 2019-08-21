@@ -137,7 +137,6 @@ impl Client<(), Body> {
     /// # Example
     ///
     /// ```
-    /// # extern crate hyper;
     /// # #[cfg(feature  = "runtime")]
     /// # fn run () {
     /// use hyper::Client;
@@ -175,7 +174,6 @@ where C: Connect + Sync + 'static,
     /// # Example
     ///
     /// ```
-    /// # extern crate hyper;
     /// # #[cfg(feature  = "runtime")]
     /// # fn run () {
     /// use hyper::{Client, Uri};
@@ -205,7 +203,6 @@ where C: Connect + Sync + 'static,
     /// # Example
     ///
     /// ```
-    /// # extern crate hyper;
     /// # #[cfg(feature  = "runtime")]
     /// # fn run () {
     /// use hyper::{Body, Client, Request};
@@ -558,7 +555,7 @@ impl<C, B> Clone for Client<C, B> {
 }
 
 impl<C, B> fmt::Debug for Client<C, B> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Client")
             .finish()
     }
@@ -580,7 +577,7 @@ impl ResponseFuture {
 }
 
 impl fmt::Debug for ResponseFuture {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.pad("Future<Response>")
     }
 }
@@ -821,7 +818,6 @@ fn set_scheme(uri: &mut Uri, scheme: Scheme) {
 /// # Example
 ///
 /// ```
-/// # extern crate hyper;
 /// # #[cfg(feature  = "runtime")]
 /// # fn run () {
 /// use hyper::Client;
@@ -1053,7 +1049,7 @@ impl Builder {
 }
 
 impl fmt::Debug for Builder {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Builder")
             .field("client_config", &self.client_config)
             .field("conn_builder", &self.conn_builder)
@@ -1097,7 +1093,6 @@ mod unit_tests {
 
     #[test]
     fn test_authority_form() {
-        extern crate pretty_env_logger;
         let _ = pretty_env_logger::try_init();
 
         let mut uri = "http://hyper.rs".parse().unwrap();

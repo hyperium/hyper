@@ -1,7 +1,6 @@
 use futures_core::Stream;
 use futures_channel::{mpsc, oneshot};
 use futures_util::future;
-use want;
 
 use crate::common::{Future, Never, Pin, Poll, task};
 
@@ -254,7 +253,6 @@ mod tests {
     // trigger a warning to remind us
     use crate::Error;
     /*
-    extern crate pretty_env_logger;
     #[cfg(feature = "nightly")]
     extern crate test;
 

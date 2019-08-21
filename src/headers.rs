@@ -33,7 +33,7 @@ pub fn content_length_parse_all(headers: &HeaderMap) -> Option<u64> {
     content_length_parse_all_values(headers.get_all(CONTENT_LENGTH).into_iter())
 }
 
-pub fn content_length_parse_all_values(values: ValueIter<HeaderValue>) -> Option<u64> {
+pub fn content_length_parse_all_values(values: ValueIter<'_, HeaderValue>) -> Option<u64> {
     // If multiple Content-Length headers were sent, everything can still
     // be alright if they all contain the same value, and all parse
     // correctly. If not, then it's an error.
@@ -74,7 +74,7 @@ pub fn transfer_encoding_is_chunked(headers: &HeaderMap) -> bool {
     is_chunked(headers.get_all(TRANSFER_ENCODING).into_iter())
 }
 
-pub fn is_chunked(mut encodings: ValueIter<HeaderValue>) -> bool {
+pub fn is_chunked(mut encodings: ValueIter<'_, HeaderValue>) -> bool {
     // chunked must always be the last encoding, according to spec
     if let Some(line) = encodings.next_back() {
         return is_chunked_(line);
@@ -94,7 +94,7 @@ pub fn is_chunked_(value: &HeaderValue) -> bool {
     false
 }
 
-pub fn add_chunked(mut entry: OccupiedEntry<HeaderValue>) {
+pub fn add_chunked(mut entry: OccupiedEntry<'_, HeaderValue>) {
     const CHUNKED: &'static str = "chunked";
 
     if let Some(line) = entry.iter_mut().next_back() {

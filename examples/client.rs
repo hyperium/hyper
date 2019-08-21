@@ -1,7 +1,5 @@
 #![deny(warnings)]
-extern crate hyper;
-extern crate pretty_env_logger;
-
+#![warn(rust_2018_idioms)]
 use std::env;
 use std::io::{self, Write};
 

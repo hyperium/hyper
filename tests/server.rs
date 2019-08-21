@@ -1,14 +1,6 @@
 #![feature(async_closure)]
 #![deny(warnings)]
-extern crate http;
-extern crate hyper;
-extern crate h2;
-extern crate net2;
-extern crate spmc;
-extern crate pretty_env_logger;
-extern crate tokio;
-extern crate tokio_io;
-extern crate tokio_net;
+#![warn(rust_2018_idioms)]
 
 use std::net::{TcpStream, Shutdown, SocketAddr};
 use std::io::{self, Read, Write};
@@ -1241,7 +1233,7 @@ fn http_connect() {
 
 #[test]
 fn upgrades_new() {
-    use crate::tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     let _ = pretty_env_logger::try_init();
     let mut rt = Runtime::new().unwrap();
@@ -1765,7 +1757,7 @@ impl Serve {
         Ok(buf)
     }
 
-    fn reply(&self) -> ReplyBuilder {
+    fn reply(&self) -> ReplyBuilder<'_> {
         ReplyBuilder {
             tx: &self.reply_tx
         }

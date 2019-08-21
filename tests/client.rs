@@ -1,13 +1,7 @@
 #![deny(warnings)]
-extern crate bytes;
-extern crate hyper;
+#![warn(rust_2018_idioms)]
+
 #[macro_use] extern crate matches;
-extern crate net2;
-extern crate pretty_env_logger;
-extern crate tokio;
-extern crate tokio_io;
-extern crate tokio_net;
-extern crate tokio_timer;
 
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener};
@@ -777,9 +771,6 @@ mod dispatch_impl {
 
     use hyper::client::connect::{Connect, Connected, Destination, HttpConnector};
     use hyper::Client;
-    use hyper;
-
-
 
     #[test]
     fn drop_body_before_eof_closes_connection() {
@@ -1609,7 +1600,7 @@ mod dispatch_impl {
     impl AsyncRead for DebugStream {
         fn poll_read(
             mut self: Pin<&mut Self>,
-            cx: &mut Context,
+            cx: &mut Context<'_>,
             buf: &mut [u8],
         ) -> Poll<Result<usize, io::Error>> {
             Pin::new(&mut self.0).poll_read(cx, buf)
@@ -2171,7 +2162,7 @@ mod conn {
     impl AsyncRead for DebugStream {
         fn poll_read(
             mut self: Pin<&mut Self>,
-            cx: &mut Context,
+            cx: &mut Context<'_>,
             buf: &mut [u8],
         ) -> Poll<Result<usize, io::Error>> {
             Pin::new(&mut self.tcp).poll_read(cx, buf)
