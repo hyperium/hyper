@@ -46,7 +46,6 @@ pub struct HttpConnector<R = GaiResolver> {
 /// # Example
 ///
 /// ```
-/// # #![feature(async_await)]
 /// # async fn doc() -> hyper::Result<()> {
 /// use hyper::Uri;
 /// use hyper::client::{Client, connect::HttpInfo};

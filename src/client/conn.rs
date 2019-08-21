@@ -182,7 +182,6 @@ where
     /// # Example
     ///
     /// ```
-    /// # #![feature(async_await)]
     /// # use http::header::HOST;
     /// # use hyper::client::conn::SendRequest;
     /// # use hyper::Body;

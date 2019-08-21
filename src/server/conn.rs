@@ -331,7 +331,6 @@ impl<E> Http<E> {
     /// # Example
     ///
     /// ```
-    /// # #![feature(async_await)]
     /// # use hyper::{Body, Request, Response};
     /// # use hyper::service::Service;
     /// # use hyper::server::conn::Http;

@@ -1,4 +1,3 @@
-#![feature(async_await)]
 #![deny(warnings)]
 extern crate bytes;
 extern crate hyper;

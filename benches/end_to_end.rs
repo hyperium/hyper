@@ -1,4 +1,3 @@
-#![feature(async_await)]
 #![feature(test)]
 #![deny(warnings)]
 

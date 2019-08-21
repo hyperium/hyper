@@ -1,4 +1,4 @@
-#![feature(async_await, async_closure)]
+#![feature(async_closure)]
 #![deny(warnings)]
 extern crate http;
 extern crate hyper;

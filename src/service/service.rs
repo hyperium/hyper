@@ -70,7 +70,6 @@ mod sealed {
 /// # Example
 ///
 /// ```rust
-/// # #![feature(async_await)]
 /// use hyper::{Body, Request, Response, Version};
 /// use hyper::service::service_fn;
 ///

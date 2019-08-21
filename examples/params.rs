@@ -1,4 +1,3 @@
-#![feature(async_await)]
 // #![deny(warnings)]  // FIXME: https://github.com/rust-lang/rust/issues/62411
 extern crate hyper;
 extern crate pretty_env_logger;
