@@ -160,7 +160,7 @@ impl AsyncWrite for Upgraded {
 }
 
 impl fmt::Debug for Upgraded {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Upgraded")
             .finish()
     }
@@ -198,7 +198,7 @@ impl Future for OnUpgrade {
 }
 
 impl fmt::Debug for OnUpgrade {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("OnUpgrade")
             .finish()
     }
@@ -223,7 +223,7 @@ impl Pending {
 // ===== impl UpgradeExpected =====
 
 impl fmt::Display for UpgradeExpected {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.description())
     }
 }

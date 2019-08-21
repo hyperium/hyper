@@ -17,7 +17,6 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use futures_core::Stream;
-use h2;
 use pin_utils::{unsafe_pinned, unsafe_unpinned};
 use tokio_io::{AsyncRead, AsyncWrite};
 #[cfg(feature = "runtime")] use tokio_net::driver::Handle;
@@ -666,7 +665,7 @@ impl<I, S> fmt::Debug for Connection<I, S>
 where
     S: Service<Body>,
 {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Connection")
             .finish()
     }

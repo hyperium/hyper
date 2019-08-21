@@ -122,7 +122,7 @@ where
 }
 
 impl<F, R> fmt::Debug for ServiceFn<F, R> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("impl Service")
             .finish()
     }

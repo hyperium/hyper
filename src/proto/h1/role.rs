@@ -8,7 +8,6 @@ use std::mem;
 use bytes::{BytesMut};
 use http::header::{self, Entry, HeaderName, HeaderValue};
 use http::{HeaderMap, Method, StatusCode, Version};
-use httparse;
 
 use crate::error::Parse;
 use crate::headers;
@@ -68,7 +67,7 @@ impl Http1Transaction for Server {
     type Outgoing = StatusCode;
     const LOG: &'static str = "{role=server}";
 
-    fn parse(buf: &mut BytesMut, ctx: ParseContext) -> ParseResult<RequestLine> {
+    fn parse(buf: &mut BytesMut, ctx: ParseContext<'_>) -> ParseResult<RequestLine> {
         if buf.is_empty() {
             return Ok(None);
         }
@@ -86,7 +85,7 @@ impl Http1Transaction for Server {
         // a good ~5% on pipeline benchmarks.
         let mut headers_indices: [HeaderIndices; MAX_HEADERS] = unsafe { mem::uninitialized() };
         {
-            let mut headers: [httparse::Header; MAX_HEADERS] = unsafe { mem::uninitialized() };
+            let mut headers: [httparse::Header<'_>; MAX_HEADERS] = unsafe { mem::uninitialized() };
             trace!("Request.parse([Header; {}], [u8; {}])", headers.len(), buf.len());
             let mut req = httparse::Request::new(&mut headers);
             let bytes = buf.as_ref();
@@ -239,7 +238,7 @@ impl Http1Transaction for Server {
         }))
     }
 
-    fn encode(mut msg: Encode<Self::Outgoing>, mut dst: &mut Vec<u8>) -> crate::Result<Encoder> {
+    fn encode(mut msg: Encode<'_, Self::Outgoing>, mut dst: &mut Vec<u8>) -> crate::Result<Encoder> {
         trace!(
             "Server::encode status={:?}, body={:?}, req_method={:?}",
             msg.head.subject,
@@ -589,7 +588,7 @@ impl Http1Transaction for Client {
     type Outgoing = RequestLine;
     const LOG: &'static str = "{role=client}";
 
-    fn parse(buf: &mut BytesMut, ctx: ParseContext) -> ParseResult<StatusCode> {
+    fn parse(buf: &mut BytesMut, ctx: ParseContext<'_>) -> ParseResult<StatusCode> {
         // Loop to skip information status code headers (100 Continue, etc).
         loop {
             if buf.is_empty() {
@@ -598,7 +597,7 @@ impl Http1Transaction for Client {
             // Unsafe: see comment in Server Http1Transaction, above.
             let mut headers_indices: [HeaderIndices; MAX_HEADERS] = unsafe { mem::uninitialized() };
             let (len, status, version, headers_len) = {
-                let mut headers: [httparse::Header; MAX_HEADERS] = unsafe { mem::uninitialized() };
+                let mut headers: [httparse::Header<'_>; MAX_HEADERS] = unsafe { mem::uninitialized() };
                 trace!("Response.parse([Header; {}], [u8; {}])", headers.len(), buf.len());
                 let mut res = httparse::Response::new(&mut headers);
                 let bytes = buf.as_ref();
@@ -666,7 +665,7 @@ impl Http1Transaction for Client {
         }
     }
 
-    fn encode(msg: Encode<Self::Outgoing>, dst: &mut Vec<u8>) -> crate::Result<Encoder> {
+    fn encode(msg: Encode<'_, Self::Outgoing>, dst: &mut Vec<u8>) -> crate::Result<Encoder> {
         trace!("Client::encode method={:?}, body={:?}", msg.head.subject.0, msg.body);
 
         *msg.req_method = Some(msg.head.subject.0.clone());
@@ -935,7 +934,7 @@ struct HeaderIndices {
 
 fn record_header_indices(
     bytes: &[u8],
-    headers: &[httparse::Header],
+    headers: &[httparse::Header<'_>],
     indices: &mut [HeaderIndices]
 ) -> Result<(), crate::error::Parse> {
     let bytes_ptr = bytes.as_ptr() as usize;
@@ -1044,7 +1043,7 @@ impl<'a> fmt::Write for FastWrite<'a> {
     }
 
     #[inline]
-    fn write_fmt(&mut self, args: fmt::Arguments) -> fmt::Result {
+    fn write_fmt(&mut self, args: fmt::Arguments<'_>) -> fmt::Result {
         fmt::write(self, args)
     }
 }
@@ -1062,7 +1061,6 @@ mod tests {
 
     #[test]
     fn test_parse_request() {
-        extern crate pretty_env_logger;
         let _ = pretty_env_logger::try_init();
         let mut raw = BytesMut::from(b"GET /echo HTTP/1.1\r\nHost: hyper.rs\r\n\r\n".to_vec());
         let mut method = None;
@@ -1082,7 +1080,6 @@ mod tests {
 
     #[test]
     fn test_parse_response() {
-        extern crate pretty_env_logger;
         let _ = pretty_env_logger::try_init();
         let mut raw = BytesMut::from(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n".to_vec());
         let ctx = ParseContext {

@@ -7,7 +7,6 @@ use futures_core::{Stream, TryStream};
 use futures_channel::{mpsc, oneshot};
 use futures_util::TryStreamExt;
 //use tokio_buf::SizeHint;
-use h2;
 use http::HeaderMap;
 
 use crate::common::{Future, Never, Pin, Poll, task};
@@ -130,7 +129,6 @@ impl Body {
     ///
     /// ```
     /// # use hyper::Body;
-    /// # use futures_util;
     /// # fn main() {
     /// let chunks: Vec<Result<_, ::std::io::Error>> = vec![
     ///     Ok("hello"),
@@ -346,7 +344,7 @@ impl Payload for Body {
 }
 
 impl fmt::Debug for Body {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         #[derive(Debug)]
         struct Streaming;
         #[derive(Debug)]

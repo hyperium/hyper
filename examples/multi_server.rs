@@ -1,6 +1,5 @@
 #![deny(warnings)]
-extern crate hyper;
-extern crate pretty_env_logger;
+#![warn(rust_2018_idioms)]
 
 use hyper::{Body, Request, Response, Server};
 use hyper::service::{service_fn, make_service_fn};

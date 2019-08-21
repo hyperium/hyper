@@ -1,7 +1,5 @@
 // #![deny(warnings)]  // FIXME: https://github.com/rust-lang/rust/issues/62411
-extern crate hyper;
-extern crate pretty_env_logger;
-extern crate url;
+#![warn(rust_2018_idioms)]
 
 use hyper::{Body, Method, Request, Response, Server, StatusCode};
 use hyper::service::{service_fn, make_service_fn};

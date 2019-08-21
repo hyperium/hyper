@@ -129,8 +129,7 @@ mod tests {
     use super::Rewind;
     /*
     use super::*;
-    extern crate tokio_mockstream;
-    use self::tokio_mockstream::MockStream;
+    use tokio_mockstream::MockStream;
     use std::io::Cursor;
 
     // Test a partial rewind

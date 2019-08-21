@@ -14,7 +14,6 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use futures_util::future::{self, Either, FutureExt as _};
-use h2;
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use crate::body::Payload;
@@ -258,7 +257,7 @@ impl<T, B> Service for SendRequest<T, B> {
 */
 
 impl<B> fmt::Debug for SendRequest<B> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("SendRequest")
             .finish()
     }
@@ -305,7 +304,7 @@ where
 }
 
 impl<B> fmt::Debug for Http2SendRequest<B> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Http2SendRequest")
             .finish()
     }
@@ -410,7 +409,7 @@ where
     T: AsyncRead + AsyncWrite + fmt::Debug + Send + 'static,
     B: Payload + 'static,
 {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Connection")
             .finish()
     }
@@ -575,7 +574,7 @@ impl Future for ResponseFuture {
 }
 
 impl fmt::Debug for ResponseFuture {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ResponseFuture")
             .finish()
     }

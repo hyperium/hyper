@@ -1,9 +1,8 @@
 #![deny(warnings)]
-extern crate hyper;
+#![warn(rust_2018_idioms)]
+
 #[macro_use]
 extern crate serde_derive;
-extern crate serde;
-extern crate serde_json;
 
 use hyper::Client;
 use futures_util::TryStreamExt;

@@ -57,13 +57,13 @@ impl Exec {
                     struct TokioSpawnError;
 
                     impl fmt::Debug for TokioSpawnError {
-                        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                             fmt::Debug::fmt("tokio::spawn failed (is a tokio runtime running this future?)", f)
                         }
                     }
 
                     impl fmt::Display for TokioSpawnError {
-                        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                             fmt::Display::fmt("tokio::spawn failed (is a tokio runtime running this future?)", f)
                         }
                     }
@@ -99,7 +99,7 @@ impl Exec {
 }
 
 impl fmt::Debug for Exec {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Exec")
             .finish()
     }

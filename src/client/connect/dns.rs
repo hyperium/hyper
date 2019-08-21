@@ -75,13 +75,13 @@ impl Name {
 }
 
 impl fmt::Debug for Name {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self.host, f)
     }
 }
 
 impl fmt::Display for Name {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.host, f)
     }
 }
@@ -100,7 +100,7 @@ impl FromStr for Name {
 pub struct InvalidNameError(());
 
 impl fmt::Display for InvalidNameError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("Not a valid domain name")
     }
 }
@@ -166,7 +166,7 @@ impl Resolve for GaiResolver {
 }
 
 impl fmt::Debug for GaiResolver {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.pad("GaiResolver")
     }
 }
@@ -184,7 +184,7 @@ impl Future for GaiFuture {
 }
 
 impl fmt::Debug for GaiFuture {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.pad("GaiFuture")
     }
 }
@@ -198,7 +198,7 @@ impl Iterator for GaiAddrs {
 }
 
 impl fmt::Debug for GaiAddrs {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.pad("GaiAddrs")
     }
 }

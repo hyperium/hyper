@@ -1,21 +1,17 @@
-pub extern crate hyper;
-pub extern crate tokio;
-extern crate futures_util;
-
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, atomic::{AtomicUsize, Ordering}};
 use std::time::{Duration/*, Instant*/};
 
-use crate::hyper::{Body, Client, Request, Response, Server, Version};
-use crate::hyper::client::HttpConnector;
-use crate::hyper::service::{make_service_fn, service_fn};
+use hyper::{Body, Client, Request, Response, Server, Version};
+use hyper::client::HttpConnector;
+use hyper::service::{make_service_fn, service_fn};
 
 pub use std::net::SocketAddr;
-pub use self::futures_util::{future, try_future, FutureExt as _, StreamExt as _, TryFutureExt as _, TryStreamExt as _};
+pub use futures_util::{future, try_future, FutureExt as _, StreamExt as _, TryFutureExt as _, TryStreamExt as _};
 //pub use self::futures_channel::oneshot;
-pub use self::hyper::{HeaderMap, StatusCode};
-pub use self::tokio::runtime::current_thread::Runtime;
+pub use hyper::{HeaderMap, StatusCode};
+pub use tokio::runtime::current_thread::Runtime;
 
 macro_rules! t {
     (
@@ -209,12 +205,12 @@ macro_rules! __internal_headers_map {
 
 macro_rules! __internal_headers_eq {
     (@pat $name: expr, $pat:pat) => {
-        ::std::sync::Arc::new(move |__hdrs: &crate::hyper::HeaderMap| {
+        ::std::sync::Arc::new(move |__hdrs: &hyper::HeaderMap| {
             match __hdrs.get($name) {
                 $pat => (),
                 other => panic!("headers[{}] was not {}: {:?}", stringify!($name), stringify!($pat), other),
             }
-        }) as ::std::sync::Arc<dyn Fn(&crate::hyper::HeaderMap) + Send + Sync>
+        }) as ::std::sync::Arc<dyn Fn(&hyper::HeaderMap) + Send + Sync>
     };
     (@val $name: expr, NONE) => {
         __internal_headers_eq!(@pat $name, None);
@@ -224,13 +220,13 @@ macro_rules! __internal_headers_eq {
     };
     (@val $name: expr, $val:expr) => ({
         let __val = Option::from($val);
-        ::std::sync::Arc::new(move |__hdrs: &crate::hyper::HeaderMap| {
+        ::std::sync::Arc::new(move |__hdrs: &hyper::HeaderMap| {
             if let Some(ref val) = __val {
                 assert_eq!(__hdrs.get($name).expect(stringify!($name)), val.to_string().as_str(), stringify!($name));
             } else {
                 assert_eq!(__hdrs.get($name), None, stringify!($name));
             }
-        }) as ::std::sync::Arc<dyn Fn(&crate::hyper::HeaderMap) + Send + Sync>
+        }) as ::std::sync::Arc<dyn Fn(&hyper::HeaderMap) + Send + Sync>
     });
     ($headers:ident, { $($name:expr => $val:tt,)* }) => {
         $(
@@ -306,7 +302,6 @@ pub struct __TestConfig {
 }
 
 pub fn __run_test(cfg: __TestConfig) {
-    extern crate pretty_env_logger;
     let _ = pretty_env_logger::try_init();
     let mut rt = Runtime::new().expect("new rt");
 
@@ -379,7 +374,7 @@ pub fn __run_test(cfg: __TestConfig) {
             let fut = connecting
                 .then(|res| res.expect("connecting"))
                 .map(|conn_res| conn_res.expect("server connection error"));
-            crate::tokio::spawn(fut);
+            tokio::spawn(fut);
             future::ok::<_, hyper::Error>(cnt)
         })
         .map(|res| {
