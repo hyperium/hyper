@@ -1,4 +1,3 @@
-#![feature(async_await)]
 #![deny(warnings)]
 
 // Note: `hyper::upgrade` docs link to this upgrade.

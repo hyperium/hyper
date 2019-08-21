@@ -1,4 +1,3 @@
-#![feature(async_await)]
 #![deny(warnings)]
 extern crate hyper;
 #[macro_use]

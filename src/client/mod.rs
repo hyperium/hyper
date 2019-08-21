@@ -27,7 +27,6 @@
 //! [full client example](https://github.com/hyperium/hyper/blob/master/examples/client.rs).
 //!
 //! ```
-//! # #![feature(async_await)]
 //! use hyper::{Client, Uri};
 //!
 //! # #[cfg(feature = "runtime")]

@@ -133,7 +133,6 @@ where
 /// # Example
 ///
 /// ```rust,no_run
-/// # #![feature(async_await)]
 /// # #[cfg(feature = "runtime")]
 /// # #[tokio::main]
 /// # async fn main() {

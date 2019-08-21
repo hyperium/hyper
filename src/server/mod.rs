@@ -19,7 +19,6 @@
 //! ## Example
 //!
 //! ```no_run
-//! # #![feature(async_await)]
 //! use hyper::{Body, Error, Response, Server};
 //! use hyper::service::{make_service_fn, service_fn};
 //!
@@ -164,7 +163,6 @@ where
     /// # Example
     ///
     /// ```
-    /// # #![feature(async_await)]
     /// # fn main() {}
     /// # #[cfg(feature = "runtime")]
     /// # async fn run() {
@@ -360,7 +358,6 @@ impl<I, E> Builder<I, E> {
     /// # Example
     ///
     /// ```
-    /// # #![feature(async_await)]
     /// # #[cfg(not(feature = "runtime"))]
     /// # fn main() {}
     /// # #[cfg(feature = "runtime")]
