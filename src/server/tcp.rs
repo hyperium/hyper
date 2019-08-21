@@ -259,7 +259,7 @@ mod addr_stream {
         }
 
         #[inline]
-        fn poll_flush(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+        fn poll_flush(self: Pin<&mut Self>, _cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
             // TCP flush is a noop
             Poll::Ready(Ok(()))
         }

@@ -1,7 +1,6 @@
 use std::error::Error as StdError;
 use std::marker::Unpin;
 
-use futures_core::Stream;
 use h2::Reason;
 use h2::server::{Builder, Connection, Handshake, SendResponse};
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -145,8 +144,9 @@ where
                 match service.poll_ready(cx) {
                     Poll::Ready(Ok(())) => (),
                     Poll::Pending => {
-                        // use `poll_close` instead of `poll`, in order to avoid accepting a request.
-                        ready!(self.conn.poll_close(cx).map_err(crate::Error::new_h2))?;
+                        // use `poll_closed` instead of `poll_accept`,
+                        // in order to avoid accepting a request.
+                        ready!(self.conn.poll_closed(cx).map_err(crate::Error::new_h2))?;
                         trace!("incoming connection complete");
                         return Poll::Ready(Ok(()));
                     }
@@ -193,7 +193,7 @@ where
 
         debug_assert!(self.closing.is_some(), "poll_server broke loop without closing");
 
-        ready!(self.conn.poll_close(cx).map_err(crate::Error::new_h2))?;
+        ready!(self.conn.poll_closed(cx).map_err(crate::Error::new_h2))?;
 
         Poll::Ready(Err(self.closing.take().expect("polled after error")))
     }
@@ -237,7 +237,7 @@ where
     B::Data: Unpin,
     E: Into<Box<dyn StdError + Send + Sync>>,
 {
-    fn poll2(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    fn poll2(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
         // Safety: State::{Service, Body} futures are never moved
         let me = unsafe { self.get_unchecked_mut() };
         loop {
@@ -328,7 +328,7 @@ where
 {
     type Output = ();
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         self.poll2(cx).map(|res| {
             if let Err(e) = res {
                 debug!("stream error: {}", e);

@@ -1,7 +1,7 @@
 use std::io::{self, Read};
 use std::marker::Unpin;
 
-use bytes::{Buf, BufMut, Bytes, IntoBuf};
+use bytes::{Buf, Bytes, IntoBuf};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use crate::common::{Pin, Poll, task};
@@ -67,35 +67,6 @@ where
         }
         Pin::new(&mut self.inner).poll_read(cx, buf)
     }
-
-    /*
-    #[inline]
-    fn read_buf<B: BufMut>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
-        use std::cmp;
-
-        if let Some(bs) = self.pre.take() {
-            let pre_len = bs.len();
-            // If there are no remaining bytes, let the bytes get dropped.
-            if pre_len > 0 {
-                let cnt = cmp::min(buf.remaining_mut(), pre_len);
-                let pre_buf = bs.into_buf();
-                let mut xfer = Buf::take(pre_buf, cnt);
-                buf.put(&mut xfer);
-
-                let mut new_pre = xfer.into_inner().into_inner();
-                new_pre.advance(cnt);
-
-                // Put back whats left
-                if new_pre.len() > 0 {
-                    self.pre = Some(new_pre);
-                }
-
-                return Ok(Async::Ready(cnt));
-            }
-        }
-        self.inner.read_buf(buf)
-    }
-    */
 }
 
 impl<T> AsyncWrite for Rewind<T>
@@ -114,12 +85,10 @@ where
         Pin::new(&mut self.inner).poll_shutdown(cx)
     }
 
-    /*
     #[inline]
-    fn write_buf<B: Buf>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
-        self.inner.write_buf(buf)
+    fn poll_write_buf<B: Buf>(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>, buf: &mut B) -> Poll<io::Result<usize>> {
+        Pin::new(&mut self.inner).poll_write_buf(cx, buf)
     }
-    */
 }
 
 #[cfg(test)]

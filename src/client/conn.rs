@@ -8,7 +8,6 @@
 //! If don't have need to manage connections yourself, consider using the
 //! higher-level [Client](super) API.
 use std::fmt;
-use std::marker::PhantomData;
 use std::mem;
 use std::sync::Arc;
 

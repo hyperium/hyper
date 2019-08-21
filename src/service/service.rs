@@ -3,7 +3,7 @@ use std::fmt;
 use std::marker::PhantomData;
 
 use crate::body::Payload;
-use crate::common::{Future, Never, Poll, task};
+use crate::common::{Future, Poll, task};
 use crate::{Request, Response};
 
 /// An asynchronous function from `Request` to `Response`.
@@ -26,15 +26,13 @@ pub trait Service<ReqBody>: sealed::Sealed<ReqBody> {
     /// The implementation of this method is allowed to return a `Ready` even if
     /// the service is not ready to process. In this case, the future returned
     /// from `call` will resolve to an error.
-    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
+    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>>;
 
     /// Calls this `Service` with a request, returning a `Future` of the response.
     fn call(&mut self, req: Request<ReqBody>) -> Self::Future;
 }
 
-impl<T, B1, B2> Service<B1> for T 
+impl<T, B1, B2> Service<B1> for T
 where 
     T: tower_service::Service<Request<B1>, Response = Response<B2>>,
     B2: Payload,
@@ -112,7 +110,7 @@ where
     type Error = E;
     type Future = Ret;
 
-    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, _cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 

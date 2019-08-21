@@ -14,10 +14,8 @@ use std::net::{
     SocketAddrV4, SocketAddrV6,
 };
 use std::str::FromStr;
-use std::sync::Arc;
 
 use futures_util::{FutureExt, StreamExt};
-use tokio_executor::TypedExecutor;
 use tokio_sync::{mpsc, oneshot};
 
 use crate::common::{Future, Never, Pin, Poll, Unpin, task};
@@ -330,7 +328,7 @@ impl Resolve for TokioThreadpoolGaiResolver {
 impl Future for TokioThreadpoolGaiFuture {
     type Output = Result<GaiAddrs, io::Error>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, _cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         match ready!(tokio_executor::threadpool::blocking(|| (self.name.as_str(), 0).to_socket_addrs())) {
             Ok(Ok(iter)) => Poll::Ready(Ok(GaiAddrs { inner: IpAddrs { iter } })),
             Ok(Err(e)) => Poll::Ready(Err(e)),

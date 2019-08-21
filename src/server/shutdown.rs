@@ -54,7 +54,7 @@ where
 {
     type Output = crate::Result<()>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         // Safety: the futures are NEVER moved, self.state is overwritten instead.
         let me = unsafe { self.get_unchecked_mut() };
         loop {

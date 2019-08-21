@@ -216,7 +216,7 @@ where
 {
     type Output = crate::Result<()>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         self.spawn_all().poll_watch(cx, &NoopWatcher)
     }
 }

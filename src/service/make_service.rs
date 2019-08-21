@@ -13,7 +13,7 @@ pub trait MakeService<Target, ReqBody>: sealed::Sealed<Target, ReqBody> {
     /// The error type that can be returned by `Service`s.
     type Error: Into<Box<dyn StdError + Send + Sync>>;
 
-    /// The resolved `Service` from `new_service()`.
+    /// The resolved `Service` from `make_service()`.
     type Service: Service<
         ReqBody,
         ResBody=Self::ResBody,
@@ -31,16 +31,14 @@ pub trait MakeService<Target, ReqBody>: sealed::Sealed<Target, ReqBody> {
     /// The implementation of this method is allowed to return a `Ready` even if
     /// the factory is not ready to create a new service. In this case, the future
     /// returned from `make_service` will resolve to an error.
-    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::MakeError>> {
-        Poll::Ready(Ok(()))
-    }
+    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::MakeError>>;
 
     /// Create a new `Service`.
     fn make_service(&mut self, target: Target) -> Self::Future;
 }
 
-impl<T, Target, S, B1, B2, E, F> MakeService<Target, B1> for T 
-where 
+impl<T, Target, S, B1, B2, E, F> MakeService<Target, B1> for T
+where
     T: for<'a> tower_service::Service<&'a Target, Response = S, Error = E, Future = F>,
     S: tower_service::Service<crate::Request<B1>, Response = crate::Response<B2>>,
     E: Into<Box<dyn std::error::Error + Send + Sync>>,
@@ -191,7 +189,7 @@ where
     type Response = Svc;
     type Future = Ret;
 
-    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, _cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 

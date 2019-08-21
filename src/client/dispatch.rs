@@ -2,7 +2,7 @@ use futures_core::Stream;
 use futures_channel::{mpsc, oneshot};
 use futures_util::future;
 
-use crate::common::{Future, Never, Pin, Poll, task};
+use crate::common::{Future, Pin, Poll, task};
 
 pub type RetryPromise<T, U> = oneshot::Receiver<Result<U, (crate::Error, Option<T>)>>;
 pub type Promise<T> = oneshot::Receiver<Result<T, crate::Error>>;
@@ -135,9 +135,6 @@ pub struct Receiver<T, U> {
     inner: mpsc::UnboundedReceiver<Envelope<T, U>>,
     taker: want::Taker,
 }
-
-//impl<T, U> Stream for Receiver<T, U> {
-//    type Item = (T, Callback<T, U>);
 
 impl<T, U> Receiver<T, U> {
     pub(crate) fn poll_next(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<(T, Callback<T, U>)>> {

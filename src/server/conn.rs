@@ -12,7 +12,6 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::mem;
 #[cfg(feature = "runtime")] use std::net::SocketAddr;
-use std::sync::Arc;
 #[cfg(feature = "runtime")] use std::time::Duration;
 
 use bytes::Bytes;
@@ -785,7 +784,7 @@ where
     B: Payload,
     E: H2Exec<<S::Service as Service<Body>>::Future, B>,
 {
-    pub(super) fn poll_watch<W>(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>, watcher: &W) -> Poll<crate::Result<()>>
+    pub(super) fn poll_watch<W>(self: Pin<&mut Self>, cx: &mut task::Context<'_>, watcher: &W) -> Poll<crate::Result<()>>
     where
         E: NewSvcExec<IO, S::Future, S::Service, E, W>,
         W: Watcher<IO, S::Service, E>,
@@ -904,7 +903,7 @@ pub(crate) mod spawn_all {
     {
         type Output = ();
 
-        fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
             // If it weren't for needing to name this type so the `Send` bounds
             // could be projected to the `Serve` executor, this could just be
             // an `async fn`, and much safer. Woe is me.

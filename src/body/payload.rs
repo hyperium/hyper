@@ -29,6 +29,7 @@ pub trait Payload: Send + 'static {
     ///
     /// Note: Trailers aren't currently used for HTTP/1, only for HTTP/2.
     fn poll_trailers(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Result<HeaderMap, Self::Error>>> {
+        drop(cx);
         Poll::Ready(None)
     }
 
