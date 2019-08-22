@@ -18,7 +18,7 @@ pub fn channel() -> (Signal, Watch) {
     (
         Signal {
             drained_rx,
-            tx,
+            _tx: tx,
         },
         Watch {
             drained_tx,
@@ -29,7 +29,7 @@ pub fn channel() -> (Signal, Watch) {
 
 pub struct Signal {
     drained_rx: mpsc::Receiver<Never>,
-    tx: watch::Sender<Action>,
+    _tx: watch::Sender<Action>,
 }
 
 pub struct Draining {

@@ -100,23 +100,6 @@ where
         T::update_date();
 
         ready!(self.poll_loop(cx))?;
-        loop {
-            self.poll_read(cx)?;
-            self.poll_write(cx)?;
-            self.poll_flush(cx)?;
-
-            // This could happen if reading paused before blocking on IO,
-            // such as getting to the end of a framed message, but then
-            // writing/flushing set the state back to Init. In that case,
-            // if the read buffer still had bytes, we'd want to try poll_read
-            // again, or else we wouldn't ever be woken up again.
-            //
-            // Using this instead of task::current() and notify() inside
-            // the Conn is noticeably faster in pipelined benchmarks.
-            if !self.conn.wants_read_again() {
-                break;
-            }
-        }
 
         if self.is_done() {
             if let Some(pending) = self.conn.pending_upgrade() {
@@ -139,9 +122,9 @@ where
         // 16 was chosen arbitrarily, as that is number of pipelined requests
         // benchmarks often use. Perhaps it should be a config option instead.
         for _ in 0..16 {
-            self.poll_read(cx)?;
-            self.poll_write(cx)?;
-            self.poll_flush(cx)?;
+            let _ = self.poll_read(cx)?;
+            let _ = self.poll_write(cx)?;
+            let _ = self.poll_flush(cx)?;
 
             // This could happen if reading paused before blocking on IO,
             // such as getting to the end of a framed message, but then
