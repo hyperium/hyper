@@ -251,19 +251,11 @@ where
                 if let Some(msg) = ready!(self.dispatch.poll_msg(cx)) {
                     let (head, mut body) = msg.map_err(crate::Error::new_user_service)?;
 
-                    // Check if the body knows its full data immediately.
-                    //
-                    // If so, we can skip a bit of bookkeeping that streaming
-                    // bodies need to do.
-                    if let Some(full) = body.__hyper_full_data(FullDataArg(())).0 {
-                        self.conn.write_full_msg(head, full);
-                        return Poll::Ready(Ok(()));
-                    }
                     let body_type = if body.is_end_stream() {
                         self.body_rx.set(None);
                         None
                     } else {
-                        let btype = body.content_length()
+                        let btype = body.size_hint().exact()
                             .map(BodyLength::Known)
                             .or_else(|| Some(BodyLength::Unknown));
                         self.body_rx.set(Some(body));

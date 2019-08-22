@@ -289,17 +289,8 @@ where
                     }
 
                     // automatically set Content-Length from body...
-                    if let Some(len) = body.content_length() {
+                    if let Some(len) = body.size_hint().exact() {
                         headers::set_content_length_if_missing(res.headers_mut(), len);
-                    }
-
-                    if let Some(full) = body.__hyper_full_data(FullDataArg(())).0 {
-                        let mut body_tx = reply!(false);
-                        let buf = SendBuf(Some(full));
-                        body_tx
-                            .send_data(buf, true)
-                            .map_err(crate::Error::new_body_write)?;
-                        return Poll::Ready(Ok(()));
                     }
 
                     if !body.is_end_stream() {

@@ -5,12 +5,13 @@ use http::HeaderMap;
 
 use crate::common::{Pin, Poll, task};
 use super::internal::{FullDataArg, FullDataRet};
+use http_body::{Body as HttpBody, SizeHint};
 
 /// This trait represents a streaming body of a `Request` or `Response`.
 ///
 /// The built-in implementation of this trait is [`Body`](::Body), in case you
 /// don't need to customize a send stream for your own application.
-pub trait Payload: Send + 'static {
+pub trait Payload: sealed::Sealed + Send + 'static {
     /// A buffer of bytes representing a single chunk of a body.
     type Data: Buf + Send;
 
@@ -28,9 +29,9 @@ pub trait Payload: Send + 'static {
     /// This should **only** be called after `poll_data` has ended.
     ///
     /// Note: Trailers aren't currently used for HTTP/1, only for HTTP/2.
-    fn poll_trailers(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Result<HeaderMap, Self::Error>>> {
+    fn poll_trailers(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Result<Option<HeaderMap>, Self::Error>> {
         drop(cx);
-        Poll::Ready(None)
+        Poll::Ready(Ok(None))
     }
 
     /// A hint that the `Body` is complete, and doesn't need to be polled more.
@@ -48,27 +49,56 @@ pub trait Payload: Send + 'static {
         false
     }
 
-    /// Return a length of the total bytes that will be streamed, if known.
+    /// Returns a `SizeHint` providing an upper and lower bound on the possible size.
     ///
-    /// If an exact size of bytes is known, this would allow hyper to send a
-    /// `Content-Length` header automatically, not needing to fall back to
-    /// `Transfer-Encoding: chunked`.
+    /// If there is an exact size of bytes known, this would allow hyper to
+    /// send a `Content-Length` header automatically, not needing to fall back to
+    /// `TransferEncoding: chunked`.
     ///
     /// This does not need to be kept updated after polls, it will only be
     /// called once to create the headers.
-    fn content_length(&self) -> Option<u64> {
-        None
+    fn size_hint(&self) -> SizeHint {
+        SizeHint::default()
+    }
+}
+
+
+impl<T> Payload for T
+where
+    T: HttpBody + Send + 'static,
+    T::Data: Send,
+    T::Error: Into<Box<dyn StdError + Send + Sync>>,
+{
+    type Data = T::Data;
+    type Error = T::Error;
+
+    fn poll_data(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Result<Self::Data, Self::Error>>> {
+        HttpBody::poll_data(self, cx)
     }
 
-    // This API is unstable, and is impossible to use outside of hyper. Some
-    // form of it may become stable in a later version.
-    //
-    // The only thing a user *could* do is reference the method, but DON'T
-    // DO THAT! :)
-    #[doc(hidden)]
-    fn __hyper_full_data(&mut self, _: FullDataArg) -> FullDataRet<Self::Data> {
-        FullDataRet(None)
+    fn poll_trailers(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Result<Option<HeaderMap>, Self::Error>> {
+        HttpBody::poll_trailers(self, cx)
     }
+
+    fn is_end_stream(&self) -> bool {
+        HttpBody::is_end_stream(self)
+    }
+
+    fn size_hint(&self) -> SizeHint {
+        HttpBody::size_hint(self)
+    }
+}
+
+impl<T> sealed::Sealed for T
+where
+    T: HttpBody + Send + 'static,
+    T::Data: Send,
+    T::Error: Into<Box<dyn StdError + Send + Sync>>,
+{
+}
+
+mod sealed {
+    pub trait Sealed {}
 }
 
 /*

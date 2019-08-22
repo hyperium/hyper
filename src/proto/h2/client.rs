@@ -125,7 +125,7 @@ where
                     let (head, body) = req.into_parts();
                     let mut req = ::http::Request::from_parts(head, ());
                     super::strip_connection_headers(req.headers_mut(), true);
-                    if let Some(len) = body.content_length() {
+                    if let Some(len) = body.size_hint().exact() {
                         headers::set_content_length_if_missing(req.headers_mut(), len);
                     }
                     let eos = body.is_end_stream();

@@ -1710,7 +1710,7 @@ mod conn {
             .unwrap();
         let res = client.send_request(req).and_then(move |mut res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
-            assert_eq!(res.body().content_length(), Some(5));
+            assert_eq!(res.body().size_hint().exact(), Some(5));
             assert!(!res.body().is_end_stream());
             poll_fn(move |ctx| Pin::new(res.body_mut()).poll_data(ctx)).map(Option::unwrap)
         });
