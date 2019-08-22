@@ -19,7 +19,6 @@
 //! ## Example
 //!
 //! ```no_run
-//! # #![feature(async_await)]
 //! use hyper::{Body, Error, Response, Server};
 //! use hyper::service::{make_service_fn, service_fn};
 //!
@@ -164,7 +163,6 @@ where
     /// # Example
     ///
     /// ```
-    /// # #![feature(async_await)]
     /// # fn main() {}
     /// # #[cfg(feature = "runtime")]
     /// # async fn run() {
@@ -218,13 +216,13 @@ where
 {
     type Output = crate::Result<()>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         self.spawn_all().poll_watch(cx, &NoopWatcher)
     }
 }
 
 impl<I: fmt::Debug, S: fmt::Debug> fmt::Debug for Server<I, S> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Server")
             .field("listener", &self.spawn_all.incoming_ref())
             .finish()
@@ -360,7 +358,6 @@ impl<I, E> Builder<I, E> {
     /// # Example
     ///
     /// ```
-    /// # #![feature(async_await)]
     /// # #[cfg(not(feature = "runtime"))]
     /// # fn main() {}
     /// # #[cfg(feature = "runtime")]

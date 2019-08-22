@@ -182,7 +182,7 @@ fn is_connection_error(e: &io::Error) -> bool {
 }
 
 impl fmt::Debug for AddrIncoming {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("AddrIncoming")
             .field("addr", &self.addr)
             .field("sleep_on_errors", &self.sleep_on_errors)
@@ -259,7 +259,7 @@ mod addr_stream {
         }
 
         #[inline]
-        fn poll_flush(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+        fn poll_flush(self: Pin<&mut Self>, _cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
             // TCP flush is a noop
             Poll::Ready(Ok(()))
         }

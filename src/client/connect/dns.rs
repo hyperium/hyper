@@ -14,10 +14,8 @@ use std::net::{
     SocketAddrV4, SocketAddrV6,
 };
 use std::str::FromStr;
-use std::sync::Arc;
 
 use futures_util::{FutureExt, StreamExt};
-use tokio_executor::TypedExecutor;
 use tokio_sync::{mpsc, oneshot};
 
 use crate::common::{Future, Never, Pin, Poll, Unpin, task};
@@ -75,13 +73,13 @@ impl Name {
 }
 
 impl fmt::Debug for Name {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self.host, f)
     }
 }
 
 impl fmt::Display for Name {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.host, f)
     }
 }
@@ -100,7 +98,7 @@ impl FromStr for Name {
 pub struct InvalidNameError(());
 
 impl fmt::Display for InvalidNameError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("Not a valid domain name")
     }
 }
@@ -166,7 +164,7 @@ impl Resolve for GaiResolver {
 }
 
 impl fmt::Debug for GaiResolver {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.pad("GaiResolver")
     }
 }
@@ -184,7 +182,7 @@ impl Future for GaiFuture {
 }
 
 impl fmt::Debug for GaiFuture {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.pad("GaiFuture")
     }
 }
@@ -198,7 +196,7 @@ impl Iterator for GaiAddrs {
 }
 
 impl fmt::Debug for GaiAddrs {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.pad("GaiAddrs")
     }
 }
@@ -330,7 +328,7 @@ impl Resolve for TokioThreadpoolGaiResolver {
 impl Future for TokioThreadpoolGaiFuture {
     type Output = Result<GaiAddrs, io::Error>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, _cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         match ready!(tokio_executor::threadpool::blocking(|| (self.name.as_str(), 0).to_socket_addrs())) {
             Ok(Ok(iter)) => Poll::Ready(Ok(GaiAddrs { inner: IpAddrs { iter } })),
             Ok(Err(e)) => Poll::Ready(Err(e)),

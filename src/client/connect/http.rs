@@ -46,7 +46,6 @@ pub struct HttpConnector<R = GaiResolver> {
 /// # Example
 ///
 /// ```
-/// # #![feature(async_await)]
 /// # async fn doc() -> hyper::Result<()> {
 /// use hyper::Uri;
 /// use hyper::client::{Client, connect::HttpInfo};
@@ -199,7 +198,7 @@ impl<R> HttpConnector<R> {
 
 // R: Debug required for now to allow adding it to debug output later...
 impl<R: fmt::Debug> fmt::Debug for HttpConnector<R> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("HttpConnector")
             .finish()
     }
@@ -283,7 +282,7 @@ enum InvalidUrl {
 }
 
 impl fmt::Display for InvalidUrl {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.description())
     }
 }
@@ -383,7 +382,7 @@ where
 }
 
 impl<R: Resolve + fmt::Debug> fmt::Debug for HttpConnecting<R> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.pad("HttpConnecting")
     }
 }
@@ -616,8 +615,6 @@ mod tests {
     #[test]
     #[cfg_attr(not(feature = "__internal_happy_eyeballs_tests"), ignore)]
     fn client_happy_eyeballs() {
-        extern crate pretty_env_logger;
-
         use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, TcpListener};
         use std::time::{Duration, Instant};
 

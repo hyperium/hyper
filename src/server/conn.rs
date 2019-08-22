@@ -12,12 +12,10 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::mem;
 #[cfg(feature = "runtime")] use std::net::SocketAddr;
-use std::sync::Arc;
 #[cfg(feature = "runtime")] use std::time::Duration;
 
 use bytes::Bytes;
 use futures_core::Stream;
-use h2;
 use pin_utils::{unsafe_pinned, unsafe_unpinned};
 use tokio_io::{AsyncRead, AsyncWrite};
 #[cfg(feature = "runtime")] use tokio_net::driver::Handle;
@@ -331,7 +329,6 @@ impl<E> Http<E> {
     /// # Example
     ///
     /// ```
-    /// # #![feature(async_await)]
     /// # use hyper::{Body, Request, Response};
     /// # use hyper::service::Service;
     /// # use hyper::server::conn::Http;
@@ -667,7 +664,7 @@ impl<I, S> fmt::Debug for Connection<I, S>
 where
     S: Service<Body>,
 {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Connection")
             .finish()
     }
@@ -787,7 +784,7 @@ where
     B: Payload,
     E: H2Exec<<S::Service as Service<Body>>::Future, B>,
 {
-    pub(super) fn poll_watch<W>(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>, watcher: &W) -> Poll<crate::Result<()>>
+    pub(super) fn poll_watch<W>(self: Pin<&mut Self>, cx: &mut task::Context<'_>, watcher: &W) -> Poll<crate::Result<()>>
     where
         E: NewSvcExec<IO, S::Future, S::Service, E, W>,
         W: Watcher<IO, S::Service, E>,
@@ -906,7 +903,7 @@ pub(crate) mod spawn_all {
     {
         type Output = ();
 
-        fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
             // If it weren't for needing to name this type so the `Send` bounds
             // could be projected to the `Serve` executor, this could just be
             // an `async fn`, and much safer. Woe is me.

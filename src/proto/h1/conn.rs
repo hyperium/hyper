@@ -646,7 +646,7 @@ where I: AsyncRead + AsyncWrite + Unpin,
 }
 
 impl<I, B: Buf, T> fmt::Debug for Conn<I, B, T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Conn")
             .field("state", &self.state)
             .field("io", &self.io)
@@ -701,7 +701,7 @@ enum Writing {
 }
 
 impl fmt::Debug for State {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut builder = f.debug_struct("State");
         builder
             .field("reading", &self.reading)
@@ -720,7 +720,7 @@ impl fmt::Debug for State {
 }
 
 impl fmt::Debug for Writing {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Writing::Init => f.write_str("Init"),
             Writing::Body(ref enc) => f.debug_tuple("Body")
@@ -1112,7 +1112,6 @@ mod tests {
 
     #[test]
     fn test_conn_body_write_length() {
-        extern crate pretty_env_logger;
         let _ = pretty_env_logger::try_init();
         let _: Result<(), ()> = future::lazy(|| {
             let io = AsyncIo::new_buf(vec![], 0);

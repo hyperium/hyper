@@ -3,10 +3,6 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::io;
 
-use httparse;
-use http;
-use h2;
-
 /// Result type often returned from methods that can have hyper `Error`s.
 pub type Result<T> = ::std::result::Result<T, Error>;
 
@@ -284,7 +280,7 @@ impl Error {
 }
 
 impl fmt::Debug for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut f = f.debug_tuple("Error");
         f.field(&self.inner.kind);
         if let Some(ref cause) = self.inner.cause {
@@ -295,7 +291,7 @@ impl fmt::Debug for Error {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(ref cause) = self.inner.cause {
             write!(f, "{}: {}", self.description(), cause)
         } else {

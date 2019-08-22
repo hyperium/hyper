@@ -1,10 +1,7 @@
-use bytes::IntoBuf;
 use futures_channel::{mpsc, oneshot};
 use futures_util::future::{self, FutureExt as _, Either};
 use futures_util::stream::StreamExt as _;
 use futures_util::try_future::TryFutureExt as _;
-//use futures::future::{self, Either};
-//use futures::sync::{mpsc, oneshot};
 use h2::client::{Builder, SendRequest};
 use tokio_io::{AsyncRead, AsyncWrite};
 
