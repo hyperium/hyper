@@ -268,22 +268,11 @@ where
                 if let Some(msg) = ready!(self.dispatch.poll_msg(cx)) {
                     let (head, mut body) = msg.map_err(crate::Error::new_user_service)?;
 
-
-                    let hint = body.size_hint();
-                    if hint.upper() == Some(hint.lower()) {
-                        if let (Some(mut body), _clear_body) = OptGuard::new(self.body_rx.as_mut()).guard_mut() {
-                            if let Poll::Ready(Some(Ok(full))) = body.as_mut().poll_data(cx) {
-                                self.conn.write_full_msg(head, full);
-                                return Poll::Ready(Ok(()));
-                            }
-                        }
-                    }
-
                     let body_type = if body.is_end_stream() {
                         self.body_rx.set(None);
                         None
                     } else {
-                        let btype = body.size_hint().upper()
+                        let btype = body.size_hint().exact()
                             .map(BodyLength::Known)
                             .or_else(|| Some(BodyLength::Unknown));
                         self.body_rx.set(Some(body));

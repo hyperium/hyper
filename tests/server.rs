@@ -325,7 +325,7 @@ mod response_body_lengths {
                 .get(uri)
                 .map_ok(|res| {
                     assert_eq!(res.headers().get("content-length").unwrap(), "13");
-                    assert_eq!(res.body().size_hint().upper(), Some(13));
+                    assert_eq!(res.body().size_hint().exact(), Some(13));
                     ()
                 })
                 .map_err(|_e| ())
@@ -356,7 +356,7 @@ mod response_body_lengths {
                 .get(uri)
                 .map_ok(|res| {
                     assert_eq!(res.headers().get("content-length").unwrap(), "10");
-                    assert_eq!(res.body().size_hint().upper(), Some(10));
+                    assert_eq!(res.body().size_hint().exact(), Some(10));
                     ()
                 })
                 .map_err(|_e| ())

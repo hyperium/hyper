@@ -329,21 +329,18 @@ impl HttpBody for Body {
         match self.kind {
             Kind::Once(Some(ref val)) => {
                 let mut hint = SizeHint::default();
-                hint.set_lower(val.len() as u64);
-                hint.set_upper(val.len() as u64);
+                hint.set_exact(val.len() as u64);
                 hint
             },
             Kind::Once(None) => {
-                let mut hint = SizeHint::default();
-                hint.set_upper(0);
-                hint
+                SizeHint::default()
             },
             Kind::Wrapped(..) => SizeHint::default(),
             Kind::Chan { content_length, .. } | Kind::H2 { content_length, .. } => {
                 let mut hint = SizeHint::default();
 
                 if let Some(content_length) = content_length {
-                    hint.set_upper(content_length as u64);
+                    hint.set_exact(content_length as u64);
                 }
 
                 hint
