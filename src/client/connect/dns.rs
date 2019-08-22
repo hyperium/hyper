@@ -137,7 +137,7 @@ impl GaiResolver {
 
                 drop(pool)
             });
-        tx.spawn(on_shutdown);
+        tx.spawn(on_shutdown).expect("can spawn on self");
 
         GaiResolver {
             tx,
@@ -155,7 +155,7 @@ impl Resolve for GaiResolver {
         self.tx.spawn(GaiBlocking {
             host: name.host,
             tx: Some(tx),
-        });
+        }).expect("spawn GaiBlocking");
         GaiFuture {
             rx,
             _threadpool_keep_alive: self._threadpool_keep_alive.clone(),
@@ -225,9 +225,7 @@ impl Future for GaiBlocking {
             return Poll::Ready(());
         }
 
-        debug!("resolving host={:?}", self.host);
-        let res = (&*self.host, 0).to_socket_addrs()
-            .map(|i| IpAddrs { iter: i });
+        let res = self.block();
 
         let tx = self.tx.take().expect("polled after complete");
         let _ = tx.send(res);

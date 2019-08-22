@@ -2,9 +2,8 @@
 #![deny(missing_docs)]
 #![deny(missing_debug_implementations)]
 #![deny(rust_2018_idioms)]
-// XXX NOOOOOOOO
+// TODO: re-enable denial when all lib tests are re-enabled.
 //#![cfg_attr(test, deny(warnings))]
-#![allow(warnings)]
 #![cfg_attr(all(test, feature = "nightly"), feature(test))]
 
 //! # hyper
