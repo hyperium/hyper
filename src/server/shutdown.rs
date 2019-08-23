@@ -2,6 +2,7 @@ use std::error::Error as StdError;
 
 use futures_core::Stream;
 use tokio_io::{AsyncRead, AsyncWrite};
+use pin_project::{pin_project, project};
 
 use crate::body::{Body, Payload};
 use crate::common::drain::{self, Draining, Signal, Watch, Watching};
@@ -11,14 +12,19 @@ use crate::service::{MakeServiceRef, Service};
 use super::conn::{SpawnAll, UpgradeableConnection, Watcher};
 
 #[allow(missing_debug_implementations)]
+#[pin_project]
 pub struct Graceful<I, S, F, E> {
+    #[pin]
     state: State<I, S, F, E>,
 }
 
-enum State<I, S, F, E> {
+#[pin_project]
+pub(super) enum State<I, S, F, E> {
     Running {
         drain: Option<(Signal, Watch)>,
+        #[pin]
         spawn_all: SpawnAll<I, S, E>,
+        #[pin]
         signal: F,
     },
     Draining(Draining),
@@ -54,39 +60,41 @@ where
 {
     type Output = crate::Result<()>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        // Safety: the futures are NEVER moved, self.state is overwritten instead.
-        let me = unsafe { self.get_unchecked_mut() };
+    #[project]
+    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let mut me = self.project();
         loop {
-            let next = match me.state {
-                State::Running {
-                    ref mut drain,
-                    ref mut spawn_all,
-                    ref mut signal,
-                } => match unsafe { Pin::new_unchecked(signal) }.poll(cx) {
-                    Poll::Ready(()) => {
-                        debug!("signal received, starting graceful shutdown");
-                        let sig = drain
-                            .take()
-                            .expect("drain channel")
-                            .0;
-                        State::Draining(sig.drain())
+            let next = {
+                #[project]
+                match me.state.project() {
+                    State::Running {
+                        drain,
+                        spawn_all,
+                        signal,
+                    } => match signal.poll(cx) {
+                        Poll::Ready(()) => {
+                            debug!("signal received, starting graceful shutdown");
+                            let sig = drain
+                                .take()
+                                .expect("drain channel")
+                                .0;
+                            State::Draining(sig.drain())
+                        },
+                        Poll::Pending => {
+                            let watch = drain
+                                .as_ref()
+                                .expect("drain channel")
+                                .1
+                                .clone();
+                            return spawn_all.poll_watch(cx, &GracefulWatcher(watch));
+                        },
                     },
-                    Poll::Pending => {
-                        let watch = drain
-                            .as_ref()
-                            .expect("drain channel")
-                            .1
-                            .clone();
-                        return unsafe { Pin::new_unchecked(spawn_all) }.poll_watch(cx, &GracefulWatcher(watch));
-                    },
-                },
-                State::Draining(ref mut draining) => {
-                    return Pin::new(draining).poll(cx).map(Ok);
+                    State::Draining(ref mut draining) => {
+                        return Pin::new(draining).poll(cx).map(Ok);
+                    }
                 }
             };
-            // It's important to just assign, not mem::replace or anything.
-            me.state = next;
+            me.state.set(next);
         }
     }
 }

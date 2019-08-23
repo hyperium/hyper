@@ -59,8 +59,8 @@ use std::fmt;
 #[cfg(feature = "runtime")] use std::time::Duration;
 
 use futures_core::Stream;
-use pin_utils::unsafe_pinned;
 use tokio_io::{AsyncRead, AsyncWrite};
+use pin_project::pin_project;
 
 use crate::body::{Body, Payload};
 use crate::common::exec::{Exec, H2Exec, NewSvcExec};
@@ -78,7 +78,9 @@ use self::shutdown::{Graceful, GracefulWatcher};
 /// handlers. It is built using the [`Builder`](Builder), and the future
 /// completes when the server has been shutdown. It should be run by an
 /// `Executor`.
+#[pin_project]
 pub struct Server<I, S, E = Exec> {
+    #[pin]
     spawn_all: SpawnAll<I, S, E>,
 }
 
@@ -99,11 +101,6 @@ impl<I> Server<I, ()> {
             protocol: Http_::new(),
         }
     }
-}
-
-impl<I, S, E> Server<I, S, E> {
-    // Never moved, just projected
-    unsafe_pinned!(spawn_all: SpawnAll<I, S, E>);
 }
 
 #[cfg(feature = "runtime")]
@@ -216,8 +213,8 @@ where
 {
     type Output = crate::Result<()>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        self.spawn_all().poll_watch(cx, &NoopWatcher)
+    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        self.project().spawn_all.poll_watch(cx, &NoopWatcher)
     }
 }
 

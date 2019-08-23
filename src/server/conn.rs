@@ -16,8 +16,8 @@ use std::mem;
 
 use bytes::Bytes;
 use futures_core::Stream;
-use pin_utils::{unsafe_pinned, unsafe_unpinned};
 use tokio_io::{AsyncRead, AsyncWrite};
+use pin_project::{pin_project, project};
 #[cfg(feature = "runtime")] use tokio_net::driver::Handle;
 
 use crate::body::{Body, Payload};
@@ -69,8 +69,10 @@ enum ConnectionMode {
 ///
 /// Yields `Connecting`s that are futures that should be put on a reactor.
 #[must_use = "streams do nothing unless polled"]
+#[pin_project]
 #[derive(Debug)]
 pub struct Serve<I, S, E = Exec> {
+    #[pin]
     incoming: I,
     make_service: S,
     protocol: Http<E>,
@@ -81,16 +83,20 @@ pub struct Serve<I, S, E = Exec> {
 /// Wraps the future returned from `MakeService` into one that returns
 /// a `Connection`.
 #[must_use = "futures do nothing unless polled"]
+#[pin_project]
 #[derive(Debug)]
 pub struct Connecting<I, F, E = Exec> {
+    #[pin]
     future: F,
     io: Option<I>,
     protocol: Http<E>,
 }
 
 #[must_use = "futures do nothing unless polled"]
+#[pin_project]
 #[derive(Debug)]
 pub(super) struct SpawnAll<I, S, E> {
+    #[pin]
     pub(super) serve: Serve<I, S, E>,
 }
 
@@ -98,6 +104,7 @@ pub(super) struct SpawnAll<I, S, E> {
 ///
 /// Polling this future will drive HTTP forward.
 #[must_use = "futures do nothing unless polled"]
+#[pin_project]
 pub struct Connection<T, S, E = Exec>
 where
     S: Service<Body>,
@@ -119,9 +126,10 @@ where
     fallback: Fallback<E>,
 }
 
+#[pin_project]
 pub(super) enum Either<A, B> {
-    A(A),
-    B(B),
+    A(#[pin] A),
+    B(#[pin] B),
 }
 
 #[derive(Clone, Debug)]
@@ -484,10 +492,8 @@ where
     ///
     /// This `Connection` should continue to be polled until shutdown
     /// can finish.
-    pub fn graceful_shutdown(self: Pin<&mut Self>) {
-        // Safety: neither h1 nor h2 poll any of the generic futures
-        // in these methods.
-        match unsafe { self.get_unchecked_mut() }.conn.as_mut().unwrap() {
+    pub fn graceful_shutdown(mut self: Pin<&mut Self>) {
+        match self.project().conn.as_mut().unwrap() {
             Either::A(ref mut h1) => {
                 h1.disable_keep_alive();
             },
@@ -672,9 +678,6 @@ where
 // ===== impl Serve =====
 
 impl<I, S, E> Serve<I, S, E> {
-    unsafe_pinned!(incoming: I);
-    unsafe_unpinned!(make_service: S);
-
     /// Spawn all incoming connections onto the executor in `Http`.
     pub(super) fn spawn_all(self) -> SpawnAll<I, S, E> {
         SpawnAll {
@@ -709,7 +712,7 @@ where
     type Item = crate::Result<Connecting<IO, S::Future, E>>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
-        match ready!(self.as_mut().make_service().poll_ready_ref(cx)) {
+        match ready!(self.project().make_service.poll_ready_ref(cx)) {
             Ok(()) => (),
             Err(e) => {
                 trace!("make_service closed");
@@ -717,9 +720,9 @@ where
             }
         }
 
-        if let Some(item) = ready!(self.as_mut().incoming().poll_next(cx)) {
+        if let Some(item) = ready!(self.project().incoming.poll_next(cx)) {
             let io = item.map_err(crate::Error::new_accept)?;
-            let new_fut = self.as_mut().make_service().make_service_ref(&io);
+            let new_fut = self.project().make_service.make_service_ref(&io);
             Poll::Ready(Some(Ok(Connecting {
                 future: new_fut,
                 io: Some(io),
@@ -733,10 +736,6 @@ where
 
 // ===== impl Connecting =====
 
-impl<I, F, E> Connecting<I, F, E> {
-    unsafe_pinned!(future: F);
-    unsafe_unpinned!(io: Option<I>);
-}
 
 impl<I, F, S, FE, E, B> Future for Connecting<I, F, E>
 where
@@ -750,8 +749,8 @@ where
     type Output = Result<Connection<I, S, E>, FE>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        let service = ready!(self.as_mut().future().poll(cx))?;
-        let io = self.as_mut().io().take().expect("polled after complete");
+        let service = ready!(self.project().future.poll(cx))?;
+        let io = self.project().io.take().expect("polled after complete");
         Poll::Ready(Ok(self.protocol.serve_connection(io, service)))
     }
 }
@@ -784,17 +783,15 @@ where
     B: Payload,
     E: H2Exec<<S::Service as Service<Body>>::Future, B>,
 {
-    pub(super) fn poll_watch<W>(self: Pin<&mut Self>, cx: &mut task::Context<'_>, watcher: &W) -> Poll<crate::Result<()>>
+    pub(super) fn poll_watch<W>(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>, watcher: &W) -> Poll<crate::Result<()>>
     where
         E: NewSvcExec<IO, S::Future, S::Service, E, W>,
         W: Watcher<IO, S::Service, E>,
     {
-        // Safety: futures are never moved... lolwtf
-        let me = unsafe { self.get_unchecked_mut() };
         loop {
-            if let Some(connecting) = ready!(unsafe { Pin::new_unchecked(&mut me.serve) }.poll_next(cx)?) {
+            if let Some(connecting) = ready!(self.project().serve.poll_next(cx)?) {
                 let fut = NewSvcTask::new(connecting, watcher.clone());
-                me.serve.protocol.exec.execute_new_svc(fut)?;
+                self.project().serve.project().protocol.exec.execute_new_svc(fut)?;
             } else {
                 return Poll::Ready(Ok(()));
             }
@@ -810,13 +807,13 @@ where
 {
     type Output = A::Output;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    #[project]
+    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         // Just simple pin projection to the inner variants
-        unsafe {
-            match self.get_unchecked_mut() {
-                Either::A(a) => Pin::new_unchecked(a).poll(cx),
-                Either::B(b) => Pin::new_unchecked(b).poll(cx),
-            }
+        #[project]
+        match self.project() {
+            Either::A(a) => a.poll(cx),
+            Either::B(b) => b.poll(cx),
         }
     }
 }
@@ -830,6 +827,7 @@ pub(crate) mod spawn_all {
     use crate::common::{Future, Pin, Poll, Unpin, task};
     use crate::service::Service;
     use super::{Connecting, UpgradeableConnection};
+    use pin_project::{pin_project, project};
 
     // Used by `SpawnAll` to optionally watch a `Connection` future.
     //
@@ -872,14 +870,18 @@ pub(crate) mod spawn_all {
     //
     // Users cannot import this type, nor the associated `NewSvcExec`. Instead,
     // a blanket implementation for `Executor<impl Future>` is sufficient.
+
+    #[pin_project]
     #[allow(missing_debug_implementations)]
     pub struct NewSvcTask<I, N, S: Service<Body>, E, W: Watcher<I, S, E>> {
+        #[pin]
         state: State<I, N, S, E, W>,
     }
 
-    enum State<I, N, S: Service<Body>, E, W: Watcher<I, S, E>> {
-        Connecting(Connecting<I, N, E>, W),
-        Connected(W::Future),
+    #[pin_project]
+    pub enum State<I, N, S: Service<Body>, E, W: Watcher<I, S, E>> {
+        Connecting(#[pin] Connecting<I, N, E>, W),
+        Connected(#[pin] W::Future),
     }
 
     impl<I, N, S: Service<Body>, E, W: Watcher<I, S, E>> NewSvcTask<I, N, S, E, W> {
@@ -903,39 +905,43 @@ pub(crate) mod spawn_all {
     {
         type Output = ();
 
-        fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        #[project]
+        fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
             // If it weren't for needing to name this type so the `Send` bounds
             // could be projected to the `Serve` executor, this could just be
             // an `async fn`, and much safer. Woe is me.
 
-            let me = unsafe { self.get_unchecked_mut() };
             loop {
-                let next = match me.state {
-                    State::Connecting(ref mut connecting, ref watcher) => {
-                        let res = ready!(unsafe { Pin::new_unchecked(connecting).poll(cx) });
-                        let conn = match res {
-                            Ok(conn) => conn,
-                            Err(err) => {
-                                let err = crate::Error::new_user_make_service(err);
-                                debug!("connecting error: {}", err);
-                                return Poll::Ready(());
-                            }
-                        };
-                        let connected = watcher.watch(conn.with_upgrades());
-                        State::Connected(connected)
-                    },
-                    State::Connected(ref mut future) => {
-                        return unsafe { Pin::new_unchecked(future) }
-                            .poll(cx)
-                            .map(|res| {
-                                if let Err(err) = res {
-                                    debug!("connection error: {}", err);
+                let mut me = self.project();
+                let next = {
+                    #[project]
+                    match me.state.project() {
+                        State::Connecting(connecting, watcher) => {
+                            let res = ready!(connecting.poll(cx));
+                            let conn = match res {
+                                Ok(conn) => conn,
+                                Err(err) => {
+                                    let err = crate::Error::new_user_make_service(err);
+                                    debug!("connecting error: {}", err);
+                                    return Poll::Ready(());
                                 }
-                            });
+                            };
+                            let connected = watcher.watch(conn.with_upgrades());
+                            State::Connected(connected)
+                        },
+                        State::Connected(future) => {
+                            return future 
+                                .poll(cx)
+                                .map(|res| {
+                                    if let Err(err) = res {
+                                        debug!("connection error: {}", err);
+                                    }
+                                });
+                        }
                     }
                 };
 
-                me.state = next;
+                me.state.set(next);
             }
         }
     }
