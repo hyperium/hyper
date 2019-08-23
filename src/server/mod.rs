@@ -19,7 +19,6 @@
 //! ## Example
 //!
 //! ```no_run
-//! # #![feature(async_await)]
 //! use hyper::{Body, Error, Response, Server};
 //! use hyper::service::{make_service_fn, service_fn};
 //!
@@ -62,7 +61,6 @@ use std::fmt;
 use futures_core::Stream;
 use pin_utils::unsafe_pinned;
 use tokio_io::{AsyncRead, AsyncWrite};
-#[cfg(feature = "runtime")] use tokio_reactor;
 
 use crate::body::{Body, Payload};
 use crate::common::exec::{Exec, H2Exec, NewSvcExec};
@@ -132,7 +130,7 @@ impl Server<AddrIncoming, ()> {
 
     /// Create a new instance from a `std::net::TcpListener` instance.
     pub fn from_tcp(listener: StdTcpListener) -> Result<Builder<AddrIncoming>, crate::Error> {
-        let handle = tokio_reactor::Handle::default();
+        let handle = tokio_net::driver::Handle::default();
         AddrIncoming::from_std(listener, &handle)
             .map(Server::builder)
     }
@@ -151,11 +149,12 @@ where
     I: Stream<Item=Result<IO, IE>>,
     IE: Into<Box<dyn StdError + Send + Sync>>,
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    S: MakeServiceRef<IO, ReqBody=Body, ResBody=B>,
+    S: MakeServiceRef<IO, Body, ResBody=B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     S::Service: 'static,
     B: Payload,
-    E: H2Exec<<S::Service as Service>::Future, B>,
+    B::Data: Unpin,
+    E: H2Exec<<S::Service as Service<Body>>::Future, B>,
     E: NewSvcExec<IO, S::Future, S::Service, E, GracefulWatcher>,
 {
     /// Prepares a server to handle graceful shutdown when the provided future
@@ -164,7 +163,6 @@ where
     /// # Example
     ///
     /// ```
-    /// # #![feature(async_await)]
     /// # fn main() {}
     /// # #[cfg(feature = "runtime")]
     /// # async fn run() {
@@ -208,22 +206,23 @@ where
     I: Stream<Item=Result<IO, IE>>,
     IE: Into<Box<dyn StdError + Send + Sync>>,
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    S: MakeServiceRef<IO, ReqBody=Body, ResBody=B>,
+    S: MakeServiceRef<IO, Body, ResBody=B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     S::Service: 'static,
     B: Payload,
-    E: H2Exec<<S::Service as Service>::Future, B>,
+    B::Data: Unpin,
+    E: H2Exec<<S::Service as Service<Body>>::Future, B>,
     E: NewSvcExec<IO, S::Future, S::Service, E, NoopWatcher>,
 {
     type Output = crate::Result<()>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         self.spawn_all().poll_watch(cx, &NoopWatcher)
     }
 }
 
 impl<I: fmt::Debug, S: fmt::Debug> fmt::Debug for Server<I, S> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Server")
             .field("listener", &self.spawn_all.incoming_ref())
             .finish()
@@ -306,29 +305,13 @@ impl<I, E> Builder<I, E> {
         self
     }
 
-    // soft-deprecated? deprecation warning just seems annoying...
-    // reimplemented to take `self` instead of `&mut self`
-    #[doc(hidden)]
-    pub fn http2_initial_stream_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
-        self.protocol.http2_initial_stream_window_size(sz.into());
-        self
-    }
-
-    // soft-deprecated? deprecation warning just seems annoying...
-    // reimplemented to take `self` instead of `&mut self`
-    #[doc(hidden)]
-    pub fn http2_initial_connection_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
-        self.protocol.http2_initial_connection_window_size(sz.into());
-        self
-    }
-
     /// Sets the [`SETTINGS_INITIAL_WINDOW_SIZE`][spec] option for HTTP2
     /// stream-level flow control.
     ///
     /// Default is 65,535
     ///
     /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_INITIAL_WINDOW_SIZE
-    pub fn http2_initial_stream_window_size_(mut self, sz: impl Into<Option<u32>>) -> Self {
+    pub fn http2_initial_stream_window_size(mut self, sz: impl Into<Option<u32>>) -> Self {
         self.protocol.http2_initial_stream_window_size(sz.into());
         self
     }
@@ -336,7 +319,7 @@ impl<I, E> Builder<I, E> {
     /// Sets the max connection-level flow control for HTTP2
     ///
     /// Default is 65,535
-    pub fn http2_initial_connection_window_size_(mut self, sz: impl Into<Option<u32>>) -> Self {
+    pub fn http2_initial_connection_window_size(mut self, sz: impl Into<Option<u32>>) -> Self {
         self.protocol.http2_initial_connection_window_size(sz.into());
         self
     }
@@ -375,7 +358,6 @@ impl<I, E> Builder<I, E> {
     /// # Example
     ///
     /// ```
-    /// # #![feature(async_await)]
     /// # #[cfg(not(feature = "runtime"))]
     /// # fn main() {}
     /// # #[cfg(feature = "runtime")]
@@ -406,12 +388,13 @@ impl<I, E> Builder<I, E> {
         I: Stream<Item=Result<IO, IE>>,
         IE: Into<Box<dyn StdError + Send + Sync>>,
         IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-        S: MakeServiceRef<IO, ReqBody=Body, ResBody=B>,
+        S: MakeServiceRef<IO, Body, ResBody=B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         S::Service: 'static,
         B: Payload,
+        B::Data: Unpin,
         E: NewSvcExec<IO, S::Future, S::Service, E, NoopWatcher>,
-        E: H2Exec<<S::Service as Service>::Future, B>,
+        E: H2Exec<<S::Service as Service<Body>>::Future, B>,
     {
         let serve = self.protocol.serve_incoming(self.incoming, new_service);
         let spawn_all = serve.spawn_all();

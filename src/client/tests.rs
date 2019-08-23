@@ -3,7 +3,6 @@
 use super::Client;
 /*
 #![cfg(feature = "runtime")]
-extern crate pretty_env_logger;
 
 use futures::{Async, Future, Stream};
 use futures::future::poll_fn;

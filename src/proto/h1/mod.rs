@@ -26,8 +26,8 @@ pub(crate) trait Http1Transaction {
     type Incoming;
     type Outgoing: Default;
     const LOG: &'static str;
-    fn parse(bytes: &mut BytesMut, ctx: ParseContext) -> ParseResult<Self::Incoming>;
-    fn encode(enc: Encode<Self::Outgoing>, dst: &mut Vec<u8>) -> crate::Result<Encoder>;
+    fn parse(bytes: &mut BytesMut, ctx: ParseContext<'_>) -> ParseResult<Self::Incoming>;
+    fn encode(enc: Encode<'_, Self::Outgoing>, dst: &mut Vec<u8>) -> crate::Result<Encoder>;
 
     fn on_error(err: &crate::Error) -> Option<MessageHead<Self::Outgoing>>;
 
@@ -68,7 +68,7 @@ pub(crate) struct ParseContext<'a> {
 }
 
 /// Passed to Http1Transaction::encode
-pub(crate) struct Encode<'a, T: 'a> {
+pub(crate) struct Encode<'a, T> {
     head: &'a mut MessageHead<T>,
     body: Option<BodyLength>,
     keep_alive: bool,

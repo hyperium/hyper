@@ -298,7 +298,7 @@ impl Buf for ChunkSize {
 }
 
 impl fmt::Debug for ChunkSize {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ChunkSize")
             .field("bytes", &&self.bytes[..self.len.into()])
             .field("pos", &self.pos)

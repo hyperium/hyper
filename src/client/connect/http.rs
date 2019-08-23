@@ -8,8 +8,8 @@ use std::time::{Duration, Instant};
 
 use http::uri::Scheme;
 use net2::TcpBuilder;
-use tokio_reactor::Handle;
-use tokio_tcp::{TcpStream/*, ConnectFuture*/};
+use tokio_net::driver::Handle;
+use tokio_net::tcp::{TcpStream/*, ConnectFuture*/};
 use tokio_timer::Delay;
 
 use crate::common::{Future, Pin, Poll, task};
@@ -46,7 +46,6 @@ pub struct HttpConnector<R = GaiResolver> {
 /// # Example
 ///
 /// ```
-/// # #![feature(async_await)]
 /// # async fn doc() -> hyper::Result<()> {
 /// use hyper::Uri;
 /// use hyper::client::{Client, connect::HttpInfo};
@@ -199,7 +198,7 @@ impl<R> HttpConnector<R> {
 
 // R: Debug required for now to allow adding it to debug output later...
 impl<R: fmt::Debug> fmt::Debug for HttpConnector<R> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("HttpConnector")
             .finish()
     }
@@ -283,7 +282,7 @@ enum InvalidUrl {
 }
 
 impl fmt::Display for InvalidUrl {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.description())
     }
 }
@@ -383,7 +382,7 @@ where
 }
 
 impl<R: Resolve + fmt::Debug> fmt::Debug for HttpConnecting<R> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.pad("HttpConnecting")
     }
 }
@@ -574,6 +573,7 @@ mod tests {
     use std::io;
 
     use tokio::runtime::current_thread::Runtime;
+    use tokio_net::driver::Handle;
 
     use crate::Error;
     use super::{Connect, Destination, HttpConnector};
@@ -638,7 +638,7 @@ mod tests {
         use std::task::Poll;
         use std::time::{Duration, Instant};
 
-        use tokio_reactor::Handle;
+        use tokio::runtime::current_thread::Runtime;
 
         use crate::common::{Pin, task};
         use super::dns;

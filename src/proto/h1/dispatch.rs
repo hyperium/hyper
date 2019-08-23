@@ -30,7 +30,7 @@ pub(crate) trait Dispatch {
     fn should_poll(&self) -> bool;
 }
 
-pub struct Server<S: Service> {
+pub struct Server<S: Service<B>, B> {
     in_flight: Pin<Box<Option<S::Future>>>,
     pub(crate) service: S,
 }
@@ -100,23 +100,6 @@ where
         T::update_date();
 
         ready!(self.poll_loop(cx))?;
-        loop {
-            self.poll_read(cx)?;
-            self.poll_write(cx)?;
-            self.poll_flush(cx)?;
-
-            // This could happen if reading paused before blocking on IO,
-            // such as getting to the end of a framed message, but then
-            // writing/flushing set the state back to Init. In that case,
-            // if the read buffer still had bytes, we'd want to try poll_read
-            // again, or else we wouldn't ever be woken up again.
-            //
-            // Using this instead of task::current() and notify() inside
-            // the Conn is noticeably faster in pipelined benchmarks.
-            if !self.conn.wants_read_again() {
-                break;
-            }
-        }
 
         if self.is_done() {
             if let Some(pending) = self.conn.pending_upgrade() {
@@ -139,9 +122,9 @@ where
         // 16 was chosen arbitrarily, as that is number of pipelined requests
         // benchmarks often use. Perhaps it should be a config option instead.
         for _ in 0..16 {
-            self.poll_read(cx)?;
-            self.poll_write(cx)?;
-            self.poll_flush(cx)?;
+            let _ = self.poll_read(cx)?;
+            let _ = self.poll_write(cx)?;
+            let _ = self.poll_flush(cx)?;
 
             // This could happen if reading paused before blocking on IO,
             // such as getting to the end of a framed message, but then
@@ -268,19 +251,11 @@ where
                 if let Some(msg) = ready!(self.dispatch.poll_msg(cx)) {
                     let (head, mut body) = msg.map_err(crate::Error::new_user_service)?;
 
-                    // Check if the body knows its full data immediately.
-                    //
-                    // If so, we can skip a bit of bookkeeping that streaming
-                    // bodies need to do.
-                    if let Some(full) = body.__hyper_full_data(FullDataArg(())).0 {
-                        self.conn.write_full_msg(head, full);
-                        return Poll::Ready(Ok(()));
-                    }
                     let body_type = if body.is_end_stream() {
                         self.body_rx.set(None);
                         None
                     } else {
-                        let btype = body.content_length()
+                        let btype = body.size_hint().exact()
                             .map(BodyLength::Known)
                             .or_else(|| Some(BodyLength::Unknown));
                         self.body_rx.set(Some(body));
@@ -412,11 +387,11 @@ impl<'a, T> Drop for OptGuard<'a, T> {
 
 // ===== impl Server =====
 
-impl<S> Server<S>
+impl<S, B> Server<S, B>
 where
-    S: Service,
+    S: Service<B>,
 {
-    pub fn new(service: S) -> Server<S> {
+    pub fn new(service: S) -> Server<S, B> {
         Server {
             in_flight: Box::pin(None),
             service: service,
@@ -429,11 +404,11 @@ where
 }
 
 // Service is never pinned
-impl<S: Service> Unpin for Server<S> {}
+impl<S: Service<B>, B> Unpin for Server<S, B> {}
 
-impl<S, Bs> Dispatch for Server<S>
+impl<S, Bs> Dispatch for Server<S, Body>
 where
-    S: Service<ReqBody=Body, ResBody=Bs>,
+    S: Service<Body, ResBody=Bs>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     Bs: Payload,
 {
@@ -602,8 +577,6 @@ mod tests {
     // trigger a warning to remind us
     use crate::Error;
     /*
-    extern crate pretty_env_logger;
-
     use super::*;
     use crate::mock::AsyncIo;
     use crate::proto::h1::ClientTransaction;

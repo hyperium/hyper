@@ -18,7 +18,7 @@ pub fn channel() -> (Signal, Watch) {
     (
         Signal {
             drained_rx,
-            tx,
+            _tx: tx,
         },
         Watch {
             drained_tx,
@@ -29,7 +29,7 @@ pub fn channel() -> (Signal, Watch) {
 
 pub struct Signal {
     drained_rx: mpsc::Receiver<Never>,
-    tx: watch::Sender<Action>,
+    _tx: watch::Sender<Action>,
 }
 
 pub struct Draining {
@@ -95,7 +95,7 @@ where
 {
     type Output = F::Output;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         let me = unsafe { self.get_unchecked_mut() };
         loop {
             match mem::replace(&mut me.state, State::Draining) {

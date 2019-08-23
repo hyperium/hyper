@@ -171,7 +171,7 @@ impl<T: Poolable> Pool<T> {
     }
 
     #[cfg(test)]
-    fn locked(&self) -> ::std::sync::MutexGuard<PoolInner<T>> {
+    fn locked(&self) -> ::std::sync::MutexGuard<'_, PoolInner<T>> {
         self
             .inner
             .as_ref()
@@ -263,7 +263,7 @@ impl<T: Poolable> Pool<T> {
 }
 
 /// Pop off this list, looking for a usable connection that hasn't expired.
-struct IdlePopper<'a, T: 'a> {
+struct IdlePopper<'a, T> {
     key: &'a Key,
     list: &'a mut Vec<Idle<T>>,
 }
@@ -547,7 +547,7 @@ impl<T: Poolable> Drop for Pooled<T> {
 }
 
 impl<T: Poolable> fmt::Debug for Pooled<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Pooled")
             .field("key", &self.key)
             .finish()
