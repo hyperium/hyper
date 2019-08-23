@@ -1,6 +1,7 @@
 use std::error::Error as StdError;
 use std::marker::Unpin;
 
+use pin_project::{pin_project, project};
 use h2::Reason;
 use h2::server::{Builder, Connection, Handshake, SendResponse};
 use tokio_io::{AsyncRead, AsyncWrite};
@@ -199,19 +200,22 @@ where
 }
 
 #[allow(missing_debug_implementations)]
+#[pin_project]
 pub struct H2Stream<F, B>
 where
     B: Payload,
 {
     reply: SendResponse<SendBuf<B::Data>>,
+    #[pin]
     state: H2StreamState<F, B>,
 }
 
+#[pin_project]
 enum H2StreamState<F, B>
 where
     B: Payload,
 {
-    Service(F),
+    Service(#[pin] F),
     Body(PipeToSendStream<B>),
 }
 
@@ -229,6 +233,19 @@ where
     }
 }
 
+macro_rules! reply {
+    ($me:expr, $res:expr, $eos:expr) => ({
+        match $me.reply.send_response($res, $eos) {
+            Ok(tx) => tx,
+            Err(e) => {
+                debug!("send response error: {}", e);
+                $me.reply.send_reset(Reason::INTERNAL_ERROR);
+                return Poll::Ready(Err(crate::Error::new_h2(e)));
+            }
+        }
+    })
+}
+
 impl<F, B, E> H2Stream<F, B>
 where
     F: Future<Output = Result<Response<B>, E>>,
@@ -236,13 +253,14 @@ where
     B::Data: Unpin,
     E: Into<Box<dyn StdError + Send + Sync>>,
 {
-    fn poll2(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
-        // Safety: State::{Service, Body} futures are never moved
-        let me = unsafe { self.get_unchecked_mut() };
+    #[project]
+    fn poll2(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
         loop {
-            let next = match me.state {
-                H2StreamState::Service(ref mut h) => {
-                    let res = match unsafe { Pin::new_unchecked(h) }.poll(cx) {
+            let mut me = self.project();
+            #[project]
+            let next = match me.state.project() {
+                H2StreamState::Service(h) => {
+                    let res = match h.poll(cx) {
                         Poll::Ready(Ok(r)) => r,
                         Poll::Pending => {
                             // Response is not yet ready, so we want to check if the client has sent a
@@ -274,18 +292,7 @@ where
                         .expect("DATE is a valid HeaderName")
                         .or_insert_with(crate::proto::h1::date::update_and_header_value);
 
-                    macro_rules! reply {
-                        ($eos:expr) => ({
-                            match me.reply.send_response(res, $eos) {
-                                Ok(tx) => tx,
-                                Err(e) => {
-                                    debug!("send response error: {}", e);
-                                    me.reply.send_reset(Reason::INTERNAL_ERROR);
-                                    return Poll::Ready(Err(crate::Error::new_h2(e)));
-                                }
-                            }
-                        })
-                    }
+
 
                     // automatically set Content-Length from body...
                     if let Some(len) = body.size_hint().exact() {
@@ -293,10 +300,10 @@ where
                     }
 
                     if !body.is_end_stream() {
-                        let body_tx = reply!(false);
+                        let body_tx = reply!(me, res, false);
                         H2StreamState::Body(PipeToSendStream::new(body, body_tx))
                     } else {
-                        reply!(true);
+                        reply!(me, res, true);
                         return Poll::Ready(Ok(()));
                     }
                 },
@@ -304,7 +311,7 @@ where
                     return Pin::new(pipe).poll(cx);
                 }
             };
-            me.state = next;
+            me.state.set(next);
         }
     }
 }
