@@ -1,27 +1,23 @@
 #![deny(warnings)]
-extern crate futures;
-extern crate hyper;
-extern crate tokio;
-extern crate tokio_tcp;
 
 use std::net::ToSocketAddrs;
 
-use futures::future;
+use futures_util::future;
+use futures_util::try_future::try_join;
 
-use hyper::rt::{self, Future};
-use hyper::service::service_fn;
+use hyper::service::{make_service_fn, service_fn};
 use hyper::upgrade::Upgraded;
-use hyper::{Body, Client, Method, Request, Response, Server};
+use hyper::{Body, Client, Error, Method, Request, Response, Server};
+use hyper::server::conn::AddrStream;
 
-use tokio::io::{copy, shutdown};
 use tokio::prelude::*;
-use tokio_tcp::TcpStream;
+use tokio_net::tcp::TcpStream;
 
 // Create a TCP connection to host:port, build a tunnel between the connection and
 // the upgraded connection
 //
 // refer to https://github.com/tokio-rs/tokio/blob/master/tokio/examples_old/proxy.rs
-fn tunnel(upgraded: Upgraded, host: String, port: u16) {
+async fn tunnel(upgraded: Upgraded, host: String, port: u16) -> std::io::Result<()> {
     // Connect to remote server
     let remote_addr = format!("{}:{}", host, port);
     let remote_addr: Vec<_> = remote_addr
@@ -31,32 +27,28 @@ fn tunnel(upgraded: Upgraded, host: String, port: u16) {
     let server = TcpStream::connect(&remote_addr[0]);
 
     // Proxying data
-    let amounts = server.and_then(move |server| {
-        let (client_reader, client_writer) = upgraded.split();
-        let (server_reader, server_writer) = server.split();
+    let amounts = {
+        let (mut server_reader, mut server_writer) = server.await?.split();
+        let parts = upgraded.downcast::<AddrStream>().unwrap();
+        let (mut client_reader, mut client_writer) = parts.io.into_inner().split();
 
-        let client_to_server = copy(client_reader, server_writer)
-            .and_then(|(n, _, server_writer)| shutdown(server_writer).map(move |_| n));
+        server_writer.write_all(parts.read_buf.as_ref()).await?;
+        let client_to_server = client_reader.copy(&mut server_writer);
+        let server_to_client = server_reader.copy(&mut client_writer);
 
-        let server_to_client = copy(server_reader, client_writer)
-            .and_then(|(n, _, client_writer)| shutdown(client_writer).map(move |_| n));
-
-        client_to_server.join(server_to_client)
-    });
+        try_join(client_to_server, server_to_client).await
+    };
 
     // Print message when done
-    let msg = amounts
-        .map(move |(from_client, from_server)| {
-            println!(
-                "client wrote {} bytes and received {} bytes",
-                from_client, from_server
-            );
-        })
-        .map_err(|e| {
+    match amounts {
+        Ok((from_client, from_server)) => {
+            println!("client wrote {} bytes and received {} bytes", from_client, from_server);
+        }
+        Err(e) => {
             println!("tunnel error: {}", e);
-        });
-
-    hyper::rt::spawn(msg);
+        }
+    };
+    Ok(())
 }
 
 // To try this example:
@@ -66,54 +58,58 @@ fn tunnel(upgraded: Upgraded, host: String, port: u16) {
 //    $ export https_proxy=http://127.0.0.1:8100
 // 3. send requests
 //    $ curl -i https://www.some_domain.com/
-fn main() {
+#[tokio::main]
+pub async fn main() {
     let addr = ([127, 0, 0, 1], 8100).into();
     let client_main = Client::new();
 
-    let new_service = move || {
+    let make_service = make_service_fn(move |_| {
         let client = client_main.clone();
-        service_fn(move |req: Request<Body>| {
-            println!("req: {:?}", req);
+        async move {
+            Ok::<_, Error>(service_fn(move |req: Request<Body>| {
+                println!("req: {:?}", req);
 
-            if Method::CONNECT == req.method() {
-                // Recieved an HTTP request like:
-                // ```
-                // CONNECT www.domain.com:443 HTTP/1.1
-                // Host: www.domain.com:443
-                // Proxy-Connection: Keep-Alive
-                // ```
-                //
-                // When HTTP method is CONNECT we should return an empty body
-                // then we can eventually upgrade the connection and talk a new protocol.
-                //
-                // Note: only after client recieved an empty body with STATUS_OK can the
-                // connection be upgraded, so we can't return a response inside
-                // `on_upgrade` future.
-                let host = req.uri().host().unwrap().to_string();
-                let port = req.uri().port_u16().unwrap();
-                let on_upgrade = req
-                    .into_body()
-                    .on_upgrade()
-                    .map_err(|err| {
-                        eprintln!("upgrade error: {}", err);
-                    })
-                    .map(move |upgraded| {
-                        tunnel(upgraded, host, port);
+                if Method::CONNECT == req.method() {
+                    // Recieved an HTTP request like:
+                    // ```
+                    // CONNECT www.domain.com:443 HTTP/1.1
+                    // Host: www.domain.com:443
+                    // Proxy-Connection: Keep-Alive
+                    // ```
+                    //
+                    // When HTTP method is CONNECT we should return an empty body
+                    // then we can eventually upgrade the connection and talk a new protocol.
+                    //
+                    // Note: only after client recieved an empty body with STATUS_OK can the
+                    // connection be upgraded, so we can't return a response inside
+                    // `on_upgrade` future.
+                    let host = req.uri().host().unwrap().to_string();
+                    let port = req.uri().port_u16().unwrap();
+                    hyper::rt::spawn(async move {
+                        match req.into_body().on_upgrade().await {
+                            Ok(upgraded) => {
+                                if let Err(e) = tunnel(upgraded, host, port).await {
+                                    eprintln!("server io error: {}", e);
+                                };
+                            }
+                            Err(e) => eprintln!("upgrade error: {}", e),
+                        }
                     });
 
-                rt::spawn(on_upgrade);
 
-                future::Either::A(future::ok(Response::new(Body::empty())))
-            } else {
-                future::Either::B(client.request(req))
-            }
-        })
-    };
+                    future::Either::Left(future::ok(Response::new(Body::empty())))
+                } else {
+                    future::Either::Right(client.request(req))
+                }
+            }))
+        }
+    });
 
-    let server = Server::bind(&addr)
-        .serve(new_service)
-        .map_err(|e| eprintln!("server error: {}", e));
+    let server = Server::bind(&addr).serve(make_service);
 
     println!("Listening on http://{}", addr);
-    rt::run(server);
+
+    if let Err(e) = server.await {
+        eprintln!("server error: {}", e);
+    }
 }
