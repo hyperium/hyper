@@ -1,4 +1,7 @@
-//! TODO: dox
+//! Utilities used to interact with the Tower ecosystem.
+//!
+//! This module provides exports of `Service`, `MakeService` and `Connect` which
+//! all provide hook-ins into the Tower ecosystem.
 
 use super::conn::{SendRequest, Builder};
 use std::marker::PhantomData;
@@ -10,7 +13,11 @@ use tower_make::MakeConnection;
 pub use tower_service::Service;
 pub use tower_make::MakeService;
 
-/// TODO: Dox
+/// Creates a connection via `SendRequest`.
+///
+/// This accepts a `hyper::client::conn::Builder` and provides
+/// a `MakeService` implementation to create connections from some
+/// target `T`.
 #[derive(Debug)]
 pub struct Connect<C, B, T> {
     inner: C,
@@ -19,7 +26,8 @@ pub struct Connect<C, B, T> {
 }
 
 impl<C, B, T> Connect<C, B, T> {
-    /// TODO: dox
+    /// Create a new `Connect` with some inner connector `C` and a connection
+    /// builder.
     pub fn new(inner: C, builder: Builder) -> Self {
         Self {
             inner,
@@ -34,8 +42,6 @@ where
     C: MakeConnection<T>,
     C::Connection: Unpin + Send + 'static,
     C::Future: Send + 'static,
-    // TODO: this should not require the connection error to be send since
-    // into box should handle this. I think.
     C::Error: Into<Box<dyn StdError + Send + Sync>> + Send,
     B: Payload + Unpin + 'static,
     B::Data: Unpin,
@@ -45,7 +51,7 @@ where
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send + 'static>>;
 
     fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
+        self.inner.poll_ready(cx).map_err(|e| crate::Error::new(crate::error::Kind::Connect).with(e.into()))
     }
 
     fn call(&mut self, req: T) -> Self::Future {
