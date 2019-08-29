@@ -15,7 +15,6 @@ use std::net::{
 };
 use std::str::FromStr;
 
-use futures_util::{FutureExt, StreamExt};
 use tokio_sync::{mpsc, oneshot};
 
 use crate::common::{Future, Never, Pin, Poll, Unpin, task};
@@ -39,10 +38,7 @@ pub struct Name {
 /// A resolver using blocking `getaddrinfo` calls in a threadpool.
 #[derive(Clone)]
 pub struct GaiResolver {
-    tx: tokio_executor::threadpool::Sender,
-    /// A handle to keep the threadpool alive until all `GaiResolver` clones
-    /// have been dropped.
-    _threadpool_keep_alive: ThreadPoolKeepAlive,
+    _priv: (),
 }
 
 #[derive(Clone)]
@@ -55,8 +51,7 @@ pub struct GaiAddrs {
 
 /// A future to resole a name returned by `GaiResolver`.
 pub struct GaiFuture {
-    rx: oneshot::Receiver<Result<IpAddrs, io::Error>>,
-    _threadpool_keep_alive: ThreadPoolKeepAlive,
+    inner: tokio_executor::blocking::Blocking<Result<IpAddrs, io::Error>>,
 }
 
 impl Name {
@@ -108,40 +103,9 @@ impl Error for InvalidNameError {}
 
 impl GaiResolver {
     /// Construct a new `GaiResolver`.
-    ///
-    /// Takes number of DNS worker threads.
-    pub fn new(threads: usize) -> Self {
-        let pool = tokio_executor::threadpool::Builder::new()
-            .name_prefix("hyper-dns-gai-resolver")
-            // not for CPU tasks, so only spawn workers
-            // in blocking mode
-            .pool_size(1)
-            .max_blocking(threads)
-            .build();
-
-        let tx = pool.sender().clone();
-
-        // The pool will start to shutdown once `pool` is dropped,
-        // so to keep it alive, we spawn a future onto the pool itself
-        // that will only resolve once all `GaiResolver` requests
-        // are finished.
-        let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
-
-        let on_shutdown = shutdown_rx
-            .into_future()
-            .map(move |(next, _rx)| {
-                match next {
-                    Some(never) => match never {},
-                    None => (),
-                }
-
-                drop(pool)
-            });
-        tx.spawn(on_shutdown).expect("can spawn on self");
-
+    pub fn new() -> Self {
         GaiResolver {
-            tx,
-            _threadpool_keep_alive: ThreadPoolKeepAlive(shutdown_tx),
+            _priv: (),
         }
     }
 }
@@ -151,14 +115,14 @@ impl Resolve for GaiResolver {
     type Future = GaiFuture;
 
     fn resolve(&self, name: Name) -> Self::Future {
-        let (tx, rx) = oneshot::channel();
-        self.tx.spawn(GaiBlocking {
-            host: name.host,
-            tx: Some(tx),
-        }).expect("spawn GaiBlocking");
+        let blocking = tokio_executor::blocking::run(move || {
+            debug!("resolving host={:?}", name.host);
+            (&*name.host, 0).to_socket_addrs()
+                .map(|i| IpAddrs { iter: i })
+        });
+
         GaiFuture {
-            rx,
-            _threadpool_keep_alive: self._threadpool_keep_alive.clone(),
+            inner: blocking,
         }
     }
 }
@@ -173,10 +137,9 @@ impl Future for GaiFuture {
     type Output = Result<GaiAddrs, io::Error>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.rx).poll(cx).map(|res| match res {
-            Ok(Ok(addrs)) => Ok(GaiAddrs { inner: addrs }),
-            Ok(Err(err)) => Err(err),
-            Err(_canceled) => unreachable!("GaiResolver threadpool shutdown"),
+        Pin::new(&mut self.inner).poll(cx).map(|res| match res {
+            Ok(addrs) => Ok(GaiAddrs { inner: addrs }),
+            Err(err) => Err(err),
         })
     }
 }
