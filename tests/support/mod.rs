@@ -313,7 +313,7 @@ pub fn __run_test(cfg: __TestConfig) {
         Version::HTTP_11
     };
 
-    let connector = HttpConnector::new(1);
+    let connector = HttpConnector::new();
     let client = Client::builder()
         .keep_alive_timeout(Duration::from_secs(10))
         .http2_only(cfg.client_version == 2)

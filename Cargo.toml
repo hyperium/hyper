@@ -38,7 +38,7 @@ pin-utils = "=0.1.0-alpha.4"
 time = "0.1"
 tokio = { version = "=0.2.0-alpha.4", optional = true, default-features = false, features = ["rt-full"] }
 tower-service = "=0.3.0-alpha.1"
-tokio-executor = "=0.2.0-alpha.4"
+tokio-executor = { version = "=0.2.0-alpha.4", features = ["blocking"] }
 tokio-io = "=0.2.0-alpha.4"
 tokio-sync = "=0.2.0-alpha.4"
 tokio-net = { version = "=0.2.0-alpha.4", optional = true, features = ["tcp"] }

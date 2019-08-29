@@ -1023,7 +1023,7 @@ impl Builder {
         B: Payload + Send,
         B::Data: Send,
     {
-        let mut connector = HttpConnector::new(4);
+        let mut connector = HttpConnector::new();
         if self.pool_config.enabled {
             connector.set_keepalive(self.pool_config.keep_alive_timeout);
         }

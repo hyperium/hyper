@@ -77,9 +77,8 @@ impl HttpConnector {
     /// Construct a new HttpConnector.
     ///
     /// Takes number of DNS worker threads.
-    #[inline]
-    pub fn new(threads: usize) -> HttpConnector {
-        HttpConnector::new_with_resolver(GaiResolver::new(threads))
+    pub fn new() -> HttpConnector {
+        HttpConnector::new_with_resolver(GaiResolver::new())
     }
 }
 
