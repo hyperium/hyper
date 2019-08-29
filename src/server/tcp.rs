@@ -134,8 +134,7 @@ impl AddrIncoming {
                         error!("accept error: {}", e);
 
                         // Sleep 1s.
-                        let delay = Instant::now() + Duration::from_secs(1);
-                        let mut timeout = Delay::new(delay);
+                        let mut timeout = tokio_timer::sleep(Duration::from_secs(1));
 
                         match Pin::new(&mut timeout).poll(cx) {
                             Poll::Ready(()) => {

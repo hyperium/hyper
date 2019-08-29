@@ -36,13 +36,13 @@ log = "0.4"
 net2 = { version = "0.2.32", optional = true }
 pin-utils = "=0.1.0-alpha.4"
 time = "0.1"
-tokio = { version = "=0.2.0-alpha.2", optional = true, default-features = false, features = ["rt-full"] }
+tokio = { version = "=0.2.0-alpha.4", optional = true, default-features = false, features = ["rt-full"] }
 tower-service = "=0.3.0-alpha.1"
-tokio-executor = "=0.2.0-alpha.2"
-tokio-io = "=0.2.0-alpha.2"
-tokio-sync = "=0.2.0-alpha.2"
-tokio-net = { version = "=0.2.0-alpha.2", optional = true, features = ["tcp"] }
-tokio-timer = { version = "=0.3.0-alpha.2", optional = true }
+tokio-executor = "=0.2.0-alpha.4"
+tokio-io = "=0.2.0-alpha.4"
+tokio-sync = "=0.2.0-alpha.4"
+tokio-net = { version = "=0.2.0-alpha.4", optional = true, features = ["tcp"] }
+tokio-timer = { version = "=0.3.0-alpha.4", optional = true }
 want = "0.3"
 
 [dev-dependencies]
@@ -53,8 +53,8 @@ spmc = "0.3"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
-tokio-fs = "0.2.0-alpha.2"
-tokio-test = "0.2.0-alpha.2"
+tokio-fs = "0.2.0-alpha.3"
+tokio-test = "0.2.0-alpha.3"
 url = "1.0"
 
 

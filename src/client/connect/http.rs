@@ -1,15 +1,14 @@
-use std::borrow::Cow;
 use std::fmt;
 use std::error::Error as StdError;
 use std::io;
 use std::mem;
 use std::net::{IpAddr, SocketAddr};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use http::uri::Scheme;
 use net2::TcpBuilder;
 use tokio_net::driver::Handle;
-use tokio_net::tcp::{TcpStream/*, ConnectFuture*/};
+use tokio_net::tcp::TcpStream;
 use tokio_timer::Delay;
 
 use crate::common::{Future, Pin, Poll, task};
@@ -416,7 +415,7 @@ impl ConnectingTcp {
                 local_addr,
                 preferred: ConnectingTcpRemote::new(preferred_addrs),
                 fallback: Some(ConnectingTcpFallback {
-                    delay: Delay::new(Instant::now() + fallback_timeout),
+                    delay: tokio_timer::sleep(fallback_timeout),
                     remote: ConnectingTcpRemote::new(fallback_addrs),
                 }),
                 reuse_address,
@@ -503,8 +502,7 @@ fn connect(addr: &SocketAddr, local_addr: &Option<IpAddr>, handle: &Option<Handl
     if let Some(ref local_addr) = *local_addr {
         // Caller has requested this socket be bound before calling connect
         builder.bind(SocketAddr::new(local_addr.clone(), 0))?;
-    }
-    else if cfg!(windows) {
+    } else if cfg!(windows) {
         // Windows requires a socket be bound before calling connect
         let any: SocketAddr = match addr {
             &SocketAddr::V4(_) => {
@@ -518,11 +516,18 @@ fn connect(addr: &SocketAddr, local_addr: &Option<IpAddr>, handle: &Option<Handl
     }
 
     let handle = match *handle {
-        Some(ref handle) => Cow::Borrowed(handle),
-        None => Cow::Owned(Handle::default()),
+        Some(ref handle) => handle.clone(),
+        None => Handle::default(),
     };
+    let addr = *addr;
 
-    Ok(Box::pin(TcpStream::connect_std(builder.to_tcp_stream()?, addr, &handle)))
+    let std_tcp = builder.to_tcp_stream()?;
+
+    Ok(Box::pin(async move {
+        TcpStream::connect_std(std_tcp, &addr, &handle).await
+    }))
+
+    //Ok(Box::pin(TcpStream::connect_std(std_tcp, addr, &handle)))
 }
 
 impl ConnectingTcp {
