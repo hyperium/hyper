@@ -25,7 +25,7 @@ fn s(buf: &[u8]) -> &str {
 }
 
 fn tcp_connect(addr: &SocketAddr) -> impl Future<Output = std::io::Result<TcpStream>> {
-    TcpStream::connect(addr)
+    TcpStream::connect(*addr)
 }
 
 macro_rules! test {
@@ -756,7 +756,7 @@ mod dispatch_impl {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::thread;
-    use std::time::{Duration, Instant};
+    use std::time::{Duration};
 
     use futures_core::{self, Future};
     use futures_channel::{mpsc, oneshot};
@@ -767,7 +767,6 @@ mod dispatch_impl {
     use tokio::runtime::current_thread::Runtime;
     use tokio_io::{AsyncRead, AsyncWrite};
     use tokio_net::tcp::TcpStream;
-    use tokio_timer::Delay;
 
     use hyper::client::connect::{Connect, Connected, Destination, HttpConnector};
     use hyper::Client;
@@ -804,7 +803,7 @@ mod dispatch_impl {
             .unwrap();
         let res = client.request(req).map_ok(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
-            Delay::new(Instant::now() + Duration::from_secs(1))
+            tokio_timer::sleep(Duration::from_secs(1))
         });
         let rx = rx1.expect("thread panicked");
         rt.block_on(future::join(res, rx).map(|r| r.0)).unwrap();
@@ -848,7 +847,7 @@ mod dispatch_impl {
                 assert_eq!(res.status(), hyper::StatusCode::OK);
                 res.into_body().try_concat()
             }).map_ok(|_| {
-                Delay::new(Instant::now() + Duration::from_secs(1))
+                tokio_timer::sleep(Duration::from_secs(1))
             })
         };
         // client is dropped
@@ -912,7 +911,7 @@ mod dispatch_impl {
         }
         drop(client);
 
-        let t = Delay::new(Instant::now() + Duration::from_millis(100))
+        let t = tokio_timer::sleep(Duration::from_millis(100))
             .map(|_| panic!("time out"));
         let close = closes
             .into_future()
@@ -961,7 +960,7 @@ mod dispatch_impl {
         rt.block_on(future::select(res, rx1));
 
         // res now dropped
-        let t = Delay::new(Instant::now() + Duration::from_millis(100))
+        let t = tokio_timer::sleep(Duration::from_millis(100))
             .map(|_| panic!("time out"));
         let close = closes
             .into_future()
@@ -1010,7 +1009,7 @@ mod dispatch_impl {
         let rx = rx1.expect("thread panicked");
         rt.block_on(future::join(res, rx).map(|r| r.0)).unwrap();
 
-        let t = Delay::new(Instant::now() + Duration::from_millis(100))
+        let t = tokio_timer::sleep(Duration::from_millis(100))
             .map(|_| panic!("time out"));
         let close = closes
             .into_future()
@@ -1060,7 +1059,7 @@ mod dispatch_impl {
         let rx = rx1.expect("thread panicked");
         rt.block_on(future::join(res, rx).map(|r| r.0)).unwrap();
 
-        let t = Delay::new(Instant::now() + Duration::from_millis(100))
+        let t = tokio_timer::sleep(Duration::from_millis(100))
             .map(|_| panic!("time out"));
         let close = closes
             .into_future()
@@ -1104,7 +1103,7 @@ mod dispatch_impl {
         let rx = rx1.expect("thread panicked");
         rt.block_on(future::join(res, rx).map(|r| r.0)).unwrap();
 
-        let t = Delay::new(Instant::now() + Duration::from_millis(100))
+        let t = tokio_timer::sleep(Duration::from_millis(100))
             .map(|_| panic!("time out"));
         let close = closes
             .into_future()
@@ -1259,7 +1258,6 @@ mod dispatch_impl {
 
     #[test]
     fn client_keep_alive_when_response_before_request_body_ends() {
-        use tokio_timer::Delay;
 
         let _ = pretty_env_logger::try_init();
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -1300,7 +1298,7 @@ mod dispatch_impl {
         assert_eq!(connects.load(Ordering::Relaxed), 0);
 
         let delayed_body = rx1
-            .then(|_| Delay::new(Instant::now() + Duration::from_millis(200)))
+            .then(|_| tokio_timer::sleep(Duration::from_millis(200)))
             .map(|_| Ok::<_, ()>("hello a"))
             .map_err(|_| -> hyper::Error { panic!("rx1") })
             .into_stream();
@@ -1315,7 +1313,7 @@ mod dispatch_impl {
 
         // req 1
         let fut = future::join(client.request(req), rx)
-            .then(|_| Delay::new(Instant::now() + Duration::from_millis(200)))
+            .then(|_| tokio_timer::sleep(Duration::from_millis(200)))
             // req 2
             .then(move |()| {
                 let rx = rx3.expect("thread panicked");
@@ -1477,7 +1475,7 @@ mod dispatch_impl {
 
         let _ = pretty_env_logger::try_init();
         let mut rt = Runtime::new().unwrap();
-        let mut listener = TcpListener::bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+        let mut listener = rt.block_on(TcpListener::bind("127.0.0.1:0")).unwrap();
         let addr = listener.local_addr().unwrap();
         let mut connector = DebugConnector::new();
         connector.alpn_h2 = true;
@@ -1614,7 +1612,7 @@ mod conn {
     use std::pin::Pin;
     use std::task::{Context, Poll};
     use std::thread;
-    use std::time::{Duration, Instant};
+    use std::time::{Duration};
 
     use futures_channel::oneshot;
     use futures_util::future::{self, poll_fn, FutureExt};
@@ -1623,7 +1621,6 @@ mod conn {
     use tokio::runtime::current_thread::Runtime;
     use tokio_io::{AsyncRead, AsyncWrite};
     use tokio_net::tcp::TcpStream;
-    use tokio_timer::Delay;
 
     use hyper::{self, Request, Body, Method};
     use hyper::client::conn;
@@ -1670,7 +1667,7 @@ mod conn {
             res.into_body().try_concat()
         });
         let rx = rx1.expect("thread panicked");
-        let rx = rx.then(|_| Delay::new(Instant::now() + Duration::from_millis(200)));
+        let rx = rx.then(|_| tokio_timer::sleep(Duration::from_millis(200)));
         rt.block_on(future::join(res, rx).map(|r| r.0)).unwrap();
     }
 
@@ -1716,7 +1713,7 @@ mod conn {
         });
 
         let rx = rx1.expect("thread panicked");
-        let rx = rx.then(|_| Delay::new(Instant::now() + Duration::from_millis(200)));
+        let rx = rx.then(|_| tokio_timer::sleep(Duration::from_millis(200)));
         let chunk = rt.block_on(future::join(res, rx).map(|r| r.0)).unwrap();
         assert_eq!(chunk.len(), 5);
     }
@@ -1808,7 +1805,7 @@ mod conn {
             res.into_body().try_concat()
         });
         let rx = rx1.expect("thread panicked");
-        let rx = rx.then(|_| Delay::new(Instant::now() + Duration::from_millis(200)));
+        let rx = rx.then(|_| tokio_timer::sleep(Duration::from_millis(200)));
         rt.block_on(future::join(res, rx).map(|r| r.0)).unwrap();
     }
 
@@ -1852,7 +1849,7 @@ mod conn {
             res.into_body().try_concat()
         });
         let rx = rx1.expect("thread panicked");
-        let rx = rx.then(|_| Delay::new(Instant::now() + Duration::from_millis(200)));
+        let rx = rx.then(|_| tokio_timer::sleep(Duration::from_millis(200)));
         rt.block_on(future::join(res, rx).map(|r| r.0)).unwrap();
     }
 
@@ -1904,7 +1901,7 @@ mod conn {
             });
 
         let rx = rx1.expect("thread panicked");
-        let rx = rx.then(|_| Delay::new(Instant::now() + Duration::from_millis(200)));
+        let rx = rx.then(|_| tokio_timer::sleep(Duration::from_millis(200)));
         rt.block_on(future::join3(res1, res2, rx).map(|r| r.0)).unwrap();
     }
 
@@ -1964,7 +1961,7 @@ mod conn {
             });
 
             let rx = rx1.expect("thread panicked");
-            let rx = rx.then(|_| Delay::new(Instant::now() + Duration::from_millis(200)));
+            let rx = rx.then(|_| tokio_timer::sleep(Duration::from_millis(200)));
             rt.block_on(future::join3(until_upgrade, res, rx).map(|r| r.0)).unwrap();
 
             // should not be ready now
@@ -2052,7 +2049,7 @@ mod conn {
                 });
 
             let rx = rx1.expect("thread panicked");
-            let rx = rx.then(|_| Delay::new(Instant::now() + Duration::from_millis(200)));
+            let rx = rx.then(|_| tokio_timer::sleep(Duration::from_millis(200)));
             rt.block_on(future::join3(until_tunneled, res, rx).map(|r| r.0)).unwrap();
 
             // should not be ready now
@@ -2086,7 +2083,6 @@ mod conn {
         use futures_util::future;
         use hyper::{Response, Server};
         use hyper::service::{make_service_fn, service_fn};
-        use tokio::timer::Delay;
 
         let _ = pretty_env_logger::try_init();
 
@@ -2129,7 +2125,7 @@ mod conn {
         let _ = shdn_tx.send(());
 
         // Allow time for graceful shutdown roundtrips...
-        rt.block_on(Delay::new(::std::time::Instant::now() + Duration::from_millis(100)));
+        rt.block_on(tokio_timer::sleep(Duration::from_millis(100)));
 
         // After graceful shutdown roundtrips, the client should be closed...
         rt.block_on(future::poll_fn(|ctx| client.poll_ready(ctx))).expect_err("client should be closed");
