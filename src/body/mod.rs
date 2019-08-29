@@ -14,6 +14,7 @@
 //!  and returned by hyper as a "receive stream" (so, for server requests and
 //!  client responses). It is also a decent default implementation if you don't
 //!  have very custom needs of your send streams.
+
 pub use self::body::{Body, Sender};
 pub use self::chunk::Chunk;
 pub use self::payload::Payload;
@@ -21,6 +22,27 @@ pub use self::payload::Payload;
 mod body;
 mod chunk;
 mod payload;
+
+/// An optimization to try to take a full body if immediately available.
+///
+/// This is currently limited to *only* `hyper::Body`s.
+pub(crate) fn take_full_data<T: Payload + 'static>(body: &mut T) -> Option<T::Data> {
+    use std::any::{Any, TypeId};
+
+    // This static type check can be optimized at compile-time.
+    if TypeId::of::<T>() == TypeId::of::<Body>() {
+        let mut full = (body as &mut dyn Any)
+            .downcast_mut::<Body>()
+            .expect("must be Body")
+            .take_full_data();
+        (&mut full as &mut dyn Any)
+            .downcast_mut::<Option<T::Data>>()
+            .expect("must be T::Data")
+            .take()
+    } else {
+        None
+    }
+}
 
 // The full_data API is not stable, so these types are to try to prevent
 // users from being able to:

@@ -285,6 +285,14 @@ impl Body {
             }
         }
     }
+
+    pub(super) fn take_full_data(&mut self) -> Option<Chunk> {
+        if let Kind::Once(ref mut chunk) = self.kind {
+            chunk.take()
+        } else {
+            None
+        }
+    }
 }
 
 impl Default for Body {
