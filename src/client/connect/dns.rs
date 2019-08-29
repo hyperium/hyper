@@ -248,16 +248,7 @@ impl IpAddrs {
             let addr = SocketAddrV4::new(addr, port);
             return Some(IpAddrs { iter: vec![SocketAddr::V4(addr)].into_iter() })
         }
-        let host = {
-            // trim_left/trim_right deprecated...
-            // TODO: use trim_start/trim_end in Rust 1.30
-            #[allow(deprecated)]
-            {
-                host
-                .trim_left_matches('[')
-                .trim_right_matches(']')
-            }
-        };
+        let host = host.trim_start_matches('[').trim_end_matches(']');
         if let Ok(addr) = host.parse::<Ipv6Addr>() {
             let addr = SocketAddrV6::new(addr, port, 0, 0);
             return Some(IpAddrs { iter: vec![SocketAddr::V6(addr)].into_iter() })
