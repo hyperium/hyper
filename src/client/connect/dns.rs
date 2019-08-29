@@ -9,7 +9,7 @@
 use std::{fmt, io, vec};
 use std::error::Error;
 use std::net::{
-    IpAddr, Ipv4Addr, Ipv6Addr,
+    Ipv4Addr, Ipv6Addr,
     SocketAddr, ToSocketAddrs,
     SocketAddrV4, SocketAddrV6,
 };
@@ -22,7 +22,7 @@ use crate::common::{Future, Never, Pin, Poll, Unpin, task};
 /// Resolve a hostname to a set of IP addresses.
 pub trait Resolve: Unpin {
     /// The set of IP addresses to try to connect to.
-    type Addrs: Iterator<Item=IpAddr>;
+    type Addrs: Iterator<Item=SocketAddr>;
     /// A Future of the resolved set of addresses.
     type Future: Future<Output=Result<Self::Addrs, io::Error>> + Unpin;
     /// Resolve a hostname.
@@ -151,10 +151,10 @@ impl fmt::Debug for GaiFuture {
 }
 
 impl Iterator for GaiAddrs {
-    type Item = IpAddr;
+    type Item = SocketAddr;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(|sa| sa.ip())
+        self.inner.next()
     }
 }
 
@@ -245,6 +245,56 @@ impl Iterator for IpAddrs {
     }
 }
 
+#[derive(Debug)]
+pub(super) struct Ipv6AddrWithZone {
+    pub(super) partial_addr: SocketAddrV6,
+    pub(super) as_str: String,
+}
+
+impl Ipv6AddrWithZone {
+    pub(super) fn try_parse(host: &str, port: u16) -> Option<Self> {
+        // IpV6 literals are always in []
+        if ! host.starts_with("[") {
+            return None;
+        }
+
+        let host = host.trim_start_matches('[').trim_end_matches(']');
+
+        // an IpV6AddrWithZone always contains "%25"
+        let mut host_parts = host.splitn(2, "%25");
+        let addr_part = match host_parts.next() {
+            Some(part) => part,
+            None => {return None;},
+        };
+        let _zone_part = match host_parts.next() {
+            Some(part) => part,
+            None => {return None;},
+        };
+
+        // an IpV6AddrWithZone is an Ipv6Addr before the %25
+        let ipv6_addr = match addr_part.parse::<Ipv6Addr>() {
+            Ok(addr) => addr,
+            Err(_) => {return None;},
+        };
+
+        // rfc6874 says you should only allow zone identifiers on link-local addresses.
+        // TODO: use Ipv6Addr::is_unicast_link_local_strict when available in stable rust.
+        if ipv6_addr.segments()[..4] != [0xfe80, 0, 0, 0] {
+            return None;
+        }
+
+        let partial_addr = SocketAddrV6::new(ipv6_addr, port, 0, 0);
+        let as_str = match percent_encoding::percent_decode_str(host).decode_utf8() {
+            Ok(s) => s,
+            Err(_) => {return None;},
+        }.into_owned();
+        Some(Self {
+            partial_addr,
+            as_str,
+        })
+    }
+}
+
 /// A resolver using `getaddrinfo` calls via the `tokio_executor::threadpool::blocking` API.
 ///
 /// Unlike the `GaiResolver` this will not spawn dedicated threads, but only works when running on the
@@ -332,5 +382,35 @@ mod tests {
         let expected = "[::1]:8080".parse::<SocketAddr>().expect("expected");
 
         assert_eq!(addrs.next(), Some(expected));
+    }
+
+    #[test]
+    fn ipv6_addr_with_zone_try_parse() {
+        let uri = ::http::Uri::from_static("http://[fe80::1:2:3:4%25eth0]:8080/");
+        let dst = super::super::Destination { uri };
+
+        let addr = Ipv6AddrWithZone::try_parse(
+            dst.host(),
+            dst.port().expect("port")
+        ).expect("try_parse");
+
+        assert_eq!(addr.as_str, "fe80::1:2:3:4%eth0");
+
+        let expected = "[fe80::1:2:3:4]:8080".parse::<SocketAddrV6>().expect("expected");
+
+        assert_eq!(addr.partial_addr, expected);
+    }
+
+    #[test]
+    fn ipv6_addr_with_zone_try_parse_not_link_local() {
+        let uri = ::http::Uri::from_static("http://[::1%25eth0]:8080/");
+        let dst = super::super::Destination { uri };
+
+        let addr = Ipv6AddrWithZone::try_parse(
+            dst.host(),
+            dst.port().expect("port")
+        );
+
+        assert_eq!(addr.map(|a| format!("{:?}", a)), None);
     }
 }

@@ -388,6 +388,11 @@ where
                     if let Some(addrs) = dns::IpAddrs::try_parse(host, me.port) {
                         state = State::Connecting(ConnectingTcp::new(
                             local_addr, addrs, me.happy_eyeballs_timeout, me.reuse_address));
+                    } else if let Some(addr_with_zone) = dns::Ipv6AddrWithZone::try_parse(host, me.port) {
+                        // As a special case, use the resolver to resolve the Ipv6AddrWithZone to
+                        // look up the correct SocketAddrV6::scope_id.
+                        let name = dns::Name::new(addr_with_zone.as_str);
+                        state = State::Resolving(resolver.resolve(name), local_addr);
                     } else {
                         let name = dns::Name::new(mem::replace(host, String::new()));
                         state = State::Resolving(resolver.resolve(name), local_addr);
@@ -397,7 +402,10 @@ where
                     let addrs =  ready!(Pin::new(future).poll(cx))?;
                     let port = me.port;
                     let addrs = addrs
-                        .map(|addr| SocketAddr::new(addr, port))
+                        .map(|mut addr| {
+                            addr.set_port(port);
+                            addr
+                        })
                         .collect();
                     let addrs = dns::IpAddrs::new(addrs);
                     state = State::Connecting(ConnectingTcp::new(
