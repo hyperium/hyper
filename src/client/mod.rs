@@ -81,6 +81,7 @@ pub mod conn;
 pub mod connect;
 pub(crate) mod dispatch;
 mod pool;
+pub mod service;
 #[cfg(test)]
 mod tests;
 

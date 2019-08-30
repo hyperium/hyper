@@ -5,7 +5,8 @@ use std::mem;
 use std::net::{IpAddr, SocketAddr};
 use std::time::Duration;
 
-use http::uri::Scheme;
+use http::uri::{Scheme, Uri};
+use futures_util::{TryFutureExt, FutureExt};
 use net2::TcpBuilder;
 use tokio_net::driver::Handle;
 use tokio_net::tcp::TcpStream;
@@ -245,6 +246,63 @@ where
             send_buffer_size: self.send_buffer_size,
             recv_buffer_size: self.recv_buffer_size,
         }
+    }
+}
+
+impl<R> tower_service::Service<Uri> for HttpConnector<R>
+where
+    R: Resolve + Clone + Send + Sync + 'static,
+    R::Future: Send,
+{
+    type Response  = TcpStream;
+    type Error = io::Error;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send + 'static>>;
+
+    fn poll_ready(&mut self, _cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Ok(()).into()
+    }
+
+    fn call(&mut self, dst: Uri) -> Self::Future {
+        // TODO: return error here
+        let dst = Destination::try_from_uri(dst).unwrap();
+
+        trace!(
+            "Http::connect; scheme={}, host={}, port={:?}",
+            dst.scheme(),
+            dst.host(),
+            dst.port(),
+        );
+
+        if self.enforce_http {
+            if dst.uri.scheme_part() != Some(&Scheme::HTTP) {
+                return invalid_url::<R>(InvalidUrl::NotHttp, &self.handle).map_ok(|(s, _)| s).boxed();
+            }
+        } else if dst.uri.scheme_part().is_none() {
+            return invalid_url::<R>(InvalidUrl::MissingScheme, &self.handle).map_ok(|(s, _)| s).boxed();
+        }
+
+        let host = match dst.uri.host() {
+            Some(s) => s,
+            None => return invalid_url::<R>(InvalidUrl::MissingAuthority, &self.handle).map_ok(|(s, _)| s).boxed(),
+        };
+        let port = match dst.uri.port_part() {
+            Some(port) => port.as_u16(),
+            None => if dst.uri.scheme_part() == Some(&Scheme::HTTPS) { 443 } else { 80 },
+        };
+
+        let fut = HttpConnecting {
+            state: State::Lazy(self.resolver.clone(), host.into(), self.local_address),
+            handle: self.handle.clone(),
+            happy_eyeballs_timeout: self.happy_eyeballs_timeout,
+            keep_alive_timeout: self.keep_alive_timeout,
+            nodelay: self.nodelay,
+            port,
+            reuse_address: self.reuse_address,
+            send_buffer_size: self.send_buffer_size,
+            recv_buffer_size: self.recv_buffer_size,
+        };
+
+        fut.map_ok(|(s, _)| s).boxed()
     }
 }
 
