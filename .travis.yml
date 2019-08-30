@@ -6,13 +6,12 @@ matrix:
     include:
         - rust: nightly
           env: FEATURES="--no-default-features --features runtime,nightly"
-        # Dependencies may be using the unstable `async_await` feature for now...
         #- rust: beta
         #  env: FEATURES="--no-default-features --features runtime,__internal_happy_eyeballs_tests"
         #- rust: stable
         #  env: FEATURES="--no-default-features --features runtime,__internal_happy_eyeballs_tests"
-        #- rust: stable
-        #  env: FEATURES="--no-default-features"
+        - rust: nightly #stable
+          env: FEATURES="--no-default-features"
         # Minimum Supported Rust Version
         #- rust: 1.36.0
         #  env: FEATURES="--no-default-features --features runtime" BUILD_ONLY="1"
@@ -25,10 +24,8 @@ matrix:
   #  fi
 
 script:
-  - cargo build $FEATURES --all-targets
-  # Disable tests temporarily
-  # - 'if [ "$BUILD_ONLY" != "1" ]; then cargo test $FEATURES -- --test-threads=1; fi'
-  # - 'if [ $TRAVIS_RUST_VERSION = nightly ]; then for f in ./benches/*.rs; do cargo test --bench $(basename $f .rs) $FEATURES; done; fi'
+  - 'if [ "$BUILD_ONLY" != "1" ]; then cargo test $FEATURES -- --test-threads=1; fi'
+  - 'if [ $TRAVIS_RUST_VERSION = nightly ]; then cargo test --benches $FEATURES; fi'
 
 env:
     global:
