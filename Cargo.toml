@@ -54,8 +54,9 @@ spmc = "0.3"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
-tokio-fs = "0.2.0-alpha.3"
-tokio-test = "0.2.0-alpha.3"
+tokio = "=0.2.0-alpha.4" # using #[tokio::test] attributes
+tokio-fs = "=0.2.0-alpha.4"
+tokio-test = "=0.2.0-alpha.4"
 url = "1.0"
 
 
@@ -133,6 +134,16 @@ path = "examples/state.rs"
 required-features = ["runtime"]
 
 [[example]]
+name = "tower_client"
+path = "examples/tower_client.rs"
+required-features = ["runtime"]
+
+[[example]]
+name = "tower_server"
+path = "examples/tower_server.rs"
+required-features = ["runtime"]
+
+[[example]]
 name = "upgrades"
 path = "examples/upgrades.rs"
 required-features = ["runtime"]
@@ -144,10 +155,10 @@ path = "examples/web_api.rs"
 required-features = ["runtime"]
 
 
-#[[bench]]
-#name = "end_to_end"
-#path = "benches/end_to_end.rs"
-#required-features = ["runtime"]
+[[bench]]
+name = "end_to_end"
+path = "benches/end_to_end.rs"
+required-features = ["runtime"]
 
 [[bench]]
 name = "pipeline"
@@ -160,17 +171,17 @@ path = "benches/server.rs"
 required-features = ["runtime"]
 
 
-#[[test]]
-#name = "client"
-#path = "tests/client.rs"
-#required-features = ["runtime"]
+[[test]]
+name = "client"
+path = "tests/client.rs"
+required-features = ["runtime"]
 
-#[[test]]
-#name = "integration"
-#path = "tests/integration.rs"
-#required-features = ["runtime"]
+[[test]]
+name = "integration"
+path = "tests/integration.rs"
+required-features = ["runtime"]
 
-#[[test]]
-#name = "server"
-#path = "tests/server.rs"
-#required-features = ["runtime"]
+[[test]]
+name = "server"
+path = "tests/server.rs"
+required-features = ["runtime"]
