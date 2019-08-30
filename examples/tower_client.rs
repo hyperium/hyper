@@ -15,7 +15,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut svc = mk_svc.make_service(uri.clone()).await?;
 
-    let body =Body::empty();
+    let body = Body::empty();
 
     let req = Request::get(uri).body(body)?;
     let res = svc.call(req).await?;
