@@ -10,8 +10,7 @@ use http_body::{SizeHint, Body as HttpBody};
 use http::HeaderMap;
 
 use crate::common::{Future, Never, Pin, Poll, task};
-use super::internal::{FullDataArg, FullDataRet};
-use super::{Chunk, Payload};
+use super::Chunk;
 use crate::upgrade::OnUpgrade;
 
 type BodySender = mpsc::Sender<Result<Chunk, crate::Error>>;
@@ -467,14 +466,25 @@ impl Sender {
         self.tx.poll_ready(cx).map_err(|_| crate::Error::new_closed())
     }
 
-    /// Sends data on this channel.
+    /// Send data on this channel when it is ready.
+    pub async fn send_data(&mut self, chunk: Chunk) -> crate::Result<()> {
+        futures_util::future::poll_fn(|cx| self.poll_ready(cx)).await?;
+        self.tx.try_send(Ok(chunk)).map_err(|_| crate::Error::new_closed())
+    }
+
+    /// Try to send data on this channel.
     ///
-    /// This should be called after `poll_ready` indicated the channel
-    /// could accept another `Chunk`.
+    /// # Errors
     ///
     /// Returns `Err(Chunk)` if the channel could not (currently) accept
     /// another `Chunk`.
-    pub fn send_data(&mut self, chunk: Chunk) -> Result<(), Chunk> {
+    ///
+    /// # Note
+    ///
+    /// This is mostly useful for when trying to send from some other thread
+    /// that doesn't have an async context. If in an async context, prefer
+    /// [`send_data`][] instead.
+    pub fn try_send_data(&mut self, chunk: Chunk) -> Result<(), Chunk> {
         self.tx
             .try_send(Ok(chunk))
             .map_err(|err| err.into_inner().expect("just sent Ok"))
