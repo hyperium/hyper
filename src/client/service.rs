@@ -63,11 +63,11 @@ where
                 Ok(io) => {
                     match builder.handshake(io).await {
                         Ok((sr, conn)) => {
-                            crate::rt::spawn(async move {
+                            builder.exec.execute(async move {
                                 if let Err(e) = conn.await {
-                                    error!("connection error: {:?}", e);
+                                    debug!("connection error: {:?}", e);
                                 }
-                            });
+                            })?;
                             Ok(sr)
                         },
                         Err(e) => Err(e)
