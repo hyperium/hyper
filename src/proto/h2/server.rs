@@ -6,7 +6,6 @@ use h2::server::{Builder, Connection, Handshake, SendResponse};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use crate::body::Payload;
-use crate::body::internal::FullDataArg;
 use crate::common::exec::H2Exec;
 use crate::common::{Future, Pin, Poll, task};
 use crate::headers;
@@ -264,7 +263,7 @@ where
                         },
                     };
 
-                    let (head, mut body) = res.into_parts();
+                    let (head, body) = res.into_parts();
                     let mut res = ::http::Response::from_parts(head, ());
                     super::strip_connection_headers(res.headers_mut(), false);
 

@@ -4,7 +4,6 @@ use bytes::Buf;
 use http::HeaderMap;
 
 use crate::common::{Pin, Poll, task};
-use super::internal::{FullDataArg, FullDataRet};
 use http_body::{Body as HttpBody, SizeHint};
 
 /// This trait represents a streaming body of a `Request` or `Response`.

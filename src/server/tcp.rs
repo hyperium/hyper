@@ -1,7 +1,7 @@
 use std::fmt;
 use std::io;
 use std::net::{SocketAddr, TcpListener as StdTcpListener};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use futures_core::Stream;
 use futures_util::FutureExt as _;

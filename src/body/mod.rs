@@ -35,6 +35,11 @@ pub(crate) fn take_full_data<T: Payload + 'static>(body: &mut T) -> Option<T::Da
             .downcast_mut::<Body>()
             .expect("must be Body")
             .take_full_data();
+        // This second cast is required to make the type system happy.
+        // Without it, the compiler cannot reason that the type is actually
+        // `T::Data`. Oh wells.
+        //
+        // It's still a measurable win!
         (&mut full as &mut dyn Any)
             .downcast_mut::<Option<T::Data>>()
             .expect("must be T::Data")
@@ -42,22 +47,6 @@ pub(crate) fn take_full_data<T: Payload + 'static>(body: &mut T) -> Option<T::Da
     } else {
         None
     }
-}
-
-// The full_data API is not stable, so these types are to try to prevent
-// users from being able to:
-//
-// - Implment `__hyper_full_data` on their own Payloads.
-// - Call `__hyper_full_data` on any Payload.
-//
-// That's because to implement it, they need to name these types, and
-// they can't because they aren't exported. And to call it, they would
-// need to create one of these values, which they also can't.
-pub(crate) mod internal {
-    #[allow(missing_debug_implementations)]
-    pub struct FullDataArg(pub(crate) ());
-    #[allow(missing_debug_implementations)]
-    pub struct FullDataRet<B>(pub(crate) Option<B>);
 }
 
 fn _assert_send_sync() {
