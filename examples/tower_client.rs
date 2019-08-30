@@ -8,7 +8,7 @@ use hyper::{Body, Request};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     pretty_env_logger::init();
 
-    let mut mk_svc = Connect::new(HttpConnector::new(1), Builder::new());
+    let mut mk_svc = Connect::new(HttpConnector::new(), Builder::new());
 
     let uri = "http://127.0.0.1:8080".parse::<http::Uri>()?;
 
