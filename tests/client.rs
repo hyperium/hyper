@@ -1748,7 +1748,7 @@ mod conn {
 
         let (mut sender, body) = Body::channel();
         let sender = thread::spawn(move || {
-            sender.send_data("hello".into()).ok().unwrap();
+            sender.try_send_data("hello".into()).expect("try_send_data");
             Runtime::new().unwrap().block_on(rx).unwrap();
             sender.abort();
         });

@@ -101,7 +101,7 @@ mod response_body_lengths {
             },
             Bd::Unknown(b) => {
                 let (mut tx, body) = hyper::Body::channel();
-                tx.send_data(b.into()).expect("send_data");
+                tx.try_send_data(b.into()).expect("try_send_data");
                 reply.body_stream(body);
                 b
             },
