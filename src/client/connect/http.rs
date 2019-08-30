@@ -75,8 +75,6 @@ pub struct HttpInfo {
 
 impl HttpConnector {
     /// Construct a new HttpConnector.
-    ///
-    /// Takes number of DNS worker threads.
     pub fn new() -> HttpConnector {
         HttpConnector::new_with_resolver(GaiResolver::new())
     }
