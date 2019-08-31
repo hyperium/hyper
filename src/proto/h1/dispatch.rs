@@ -5,7 +5,6 @@ use http::{Request, Response, StatusCode};
 use tokio_io::{AsyncRead, AsyncWrite};
 
 use crate::body::{Body, Payload};
-use crate::body::internal::FullDataArg;
 use crate::common::{Future, Never, Poll, Pin, Unpin, task};
 use crate::proto::{BodyLength, DecodedLength, Conn, Dispatched, MessageHead, RequestHead, RequestLine, ResponseHead};
 use super::Http1Transaction;
@@ -169,7 +168,7 @@ where
                     }
                     match self.conn.poll_read_body(cx) {
                         Poll::Ready(Some(Ok(chunk))) => {
-                            match body.send_data(chunk) {
+                            match body.try_send_data(chunk) {
                                 Ok(()) => {
                                     self.body_tx = Some(body);
                                 },
@@ -250,6 +249,15 @@ where
             } else if self.body_rx.is_none() && self.conn.can_write_head() && self.dispatch.should_poll() {
                 if let Some(msg) = ready!(self.dispatch.poll_msg(cx)) {
                     let (head, mut body) = msg.map_err(crate::Error::new_user_service)?;
+
+                    // Check if the body knows its full data immediately.
+                    //
+                    // If so, we can skip a bit of bookkeeping that streaming
+                    // bodies need to do.
+                    if let Some(full) = crate::body::take_full_data(&mut body) {
+                        self.conn.write_full_msg(head, full);
+                        return Poll::Ready(Ok(()));
+                    }
 
                     let body_type = if body.is_end_stream() {
                         self.body_rx.set(None);

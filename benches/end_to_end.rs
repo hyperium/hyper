@@ -179,7 +179,7 @@ impl Opts {
 
         let addr = spawn_server(&mut rt, &self);
 
-        let connector = HttpConnector::new(1);
+        let connector = HttpConnector::new();
         let client = hyper::Client::builder()
             .http2_only(self.http2)
             .http2_initial_stream_window_size(self.http2_stream_window)

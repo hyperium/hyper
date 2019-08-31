@@ -14,6 +14,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 use futures_util::future::{self, Either, FutureExt as _};
 use tokio_io::{AsyncRead, AsyncWrite};
+use tower_service::Service;
 
 use crate::body::Payload;
 use crate::common::{Exec, Future, Pin, Poll, task};
@@ -242,18 +243,21 @@ where
     }
 }
 
-/* TODO(0.12.0): when we change from tokio-service to tower.
-impl<T, B> Service for SendRequest<T, B> {
-    type Request = Request<B>;
-    type Response = Response;
-    type Error = ::Error;
+impl<B> Service<Request<B>> for SendRequest<B>
+where
+    B: Payload + 'static, {
+    type Response = Response<Body>;
+    type Error = crate::Error;
     type Future = ResponseFuture;
 
-    fn call(&self, req: Self::Request) -> Self::Future {
+    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.poll_ready(cx)
+    }
 
+    fn call(&mut self, req: Request<B>) -> Self::Future {
+        self.send_request(req)
     }
 }
-*/
 
 impl<B> fmt::Debug for SendRequest<B> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

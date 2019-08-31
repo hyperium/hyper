@@ -81,6 +81,7 @@ pub mod conn;
 pub mod connect;
 pub(crate) mod dispatch;
 mod pool;
+pub mod service;
 #[cfg(test)]
 mod tests;
 
@@ -1023,7 +1024,7 @@ impl Builder {
         B: Payload + Send,
         B::Data: Send,
     {
-        let mut connector = HttpConnector::new(4);
+        let mut connector = HttpConnector::new();
         if self.pool_config.enabled {
             connector.set_keepalive(self.pool_config.keep_alive_timeout);
         }

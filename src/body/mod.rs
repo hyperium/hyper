@@ -14,6 +14,7 @@
 //!  and returned by hyper as a "receive stream" (so, for server requests and
 //!  client responses). It is also a decent default implementation if you don't
 //!  have very custom needs of your send streams.
+
 pub use self::body::{Body, Sender};
 pub use self::chunk::Chunk;
 pub use self::payload::Payload;
@@ -22,20 +23,30 @@ mod body;
 mod chunk;
 mod payload;
 
-// The full_data API is not stable, so these types are to try to prevent
-// users from being able to:
-//
-// - Implment `__hyper_full_data` on their own Payloads.
-// - Call `__hyper_full_data` on any Payload.
-//
-// That's because to implement it, they need to name these types, and
-// they can't because they aren't exported. And to call it, they would
-// need to create one of these values, which they also can't.
-pub(crate) mod internal {
-    #[allow(missing_debug_implementations)]
-    pub struct FullDataArg(pub(crate) ());
-    #[allow(missing_debug_implementations)]
-    pub struct FullDataRet<B>(pub(crate) Option<B>);
+/// An optimization to try to take a full body if immediately available.
+///
+/// This is currently limited to *only* `hyper::Body`s.
+pub(crate) fn take_full_data<T: Payload + 'static>(body: &mut T) -> Option<T::Data> {
+    use std::any::{Any, TypeId};
+
+    // This static type check can be optimized at compile-time.
+    if TypeId::of::<T>() == TypeId::of::<Body>() {
+        let mut full = (body as &mut dyn Any)
+            .downcast_mut::<Body>()
+            .expect("must be Body")
+            .take_full_data();
+        // This second cast is required to make the type system happy.
+        // Without it, the compiler cannot reason that the type is actually
+        // `T::Data`. Oh wells.
+        //
+        // It's still a measurable win!
+        (&mut full as &mut dyn Any)
+            .downcast_mut::<Option<T::Data>>()
+            .expect("must be T::Data")
+            .take()
+    } else {
+        None
+    }
 }
 
 fn _assert_send_sync() {
