@@ -781,8 +781,6 @@ mod tests {
     use tokio::runtime::current_thread::Runtime;
 
     use crate::common::{Exec, Future, Pin, task};
-    use crate::Error;
-    use crate::error::Kind::ChannelClosed;
     use super::{Connecting, Key, Poolable, Pool, Reservation, WeakOpt};
 
     /// Test unique reservations.
@@ -838,7 +836,7 @@ mod tests {
         rt.block_on(async {
             match pool.checkout(key).await {
                 Ok(pooled) => assert_eq!(*pooled, Uniq(41)),
-                Err(e) => panic!("not ready"),
+                Err(_) => panic!("not ready"),
             };
         })
     }
@@ -902,7 +900,6 @@ mod tests {
 
     #[test]
     fn test_pool_max_idle_per_host() {
-        let mut rt = Runtime::new().unwrap();
         let pool = pool_max_idle_no_timer(2);
         let key = Arc::new("foo".to_string());
 

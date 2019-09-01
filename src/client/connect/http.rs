@@ -635,7 +635,6 @@ mod tests {
     use tokio::runtime::current_thread::Runtime;
     use tokio_net::driver::Handle;
 
-    use crate::Error;
     use super::{Connect, Destination, HttpConnector};
 
     #[test]
