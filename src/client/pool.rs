@@ -918,7 +918,7 @@ mod tests {
     #[test]
     fn test_pool_timer_removes_expired() {
         use std::time::Instant;
-        use tokio_timer::Delay;
+        use tokio_timer::delay;
         let mut rt = Runtime::new().unwrap();
         let pool = Pool::new(super::Config {
                 enabled: true,
@@ -943,8 +943,8 @@ mod tests {
 
         // Let the timer tick passed the expiration...
         rt.block_on(async {
-            let delay = Delay::new(Instant::now() + Duration::from_millis(200));
-            delay.await;
+            let deadline = Instant::now() + Duration::from_millis(200);
+            delay(deadline).await;
         });
 
         assert!(pool.locked().idle.get(&key).is_none());
