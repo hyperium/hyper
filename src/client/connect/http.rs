@@ -645,7 +645,7 @@ mod tests {
         let dst = Destination {
             uri,
         };
-        let connector = HttpConnector::new(1);
+        let connector = HttpConnector::new();
 
         rt.block_on(async {
             assert_eq!(
@@ -662,7 +662,7 @@ mod tests {
         let dst = Destination {
             uri,
         };
-        let connector = HttpConnector::new(1);
+        let connector = HttpConnector::new();
 
         rt.block_on(async {
             assert_eq!(
@@ -680,7 +680,7 @@ mod tests {
         let dst = Destination {
             uri,
         };
-        let connector = HttpConnector::new(1);
+        let connector = HttpConnector::new();
 
         rt.block_on(async {
             assert_eq!(
