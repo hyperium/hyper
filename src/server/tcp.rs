@@ -106,10 +106,11 @@ impl AddrIncoming {
         }
         self.timeout = None;
 
-        let mut accept_fut = self.listener.accept().boxed();
+        let accept = self.listener.accept();
+        futures_util::pin_mut!(accept);
 
         loop {
-            match accept_fut.poll_unpin(cx) {
+            match accept.poll_unpin(cx) {
                 Poll::Ready(Ok((socket, addr))) => {
                     if let Some(dur) = self.tcp_keepalive_timeout {
                         if let Err(e) = socket.set_keepalive(Some(dur)) {
