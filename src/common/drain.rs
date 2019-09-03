@@ -2,6 +2,7 @@ use std::mem;
 
 use futures_util::FutureExt as _;
 use tokio_sync::{mpsc, watch};
+use pin_project::pin_project;
 
 use super::{Future, Never, Poll, Pin, task};
 
@@ -43,7 +44,9 @@ pub struct Watch {
 }
 
 #[allow(missing_debug_implementations)]
+#[pin_project]
 pub struct Watching<F, FN> {
+    #[pin]
     future: F,
     state: State<FN>,
     watch: Watch,
@@ -95,10 +98,10 @@ where
 {
     type Output = F::Output;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        let me = unsafe { self.get_unchecked_mut() };
+    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         loop {
-            match mem::replace(&mut me.state, State::Draining) {
+            let me = self.project();
+            match mem::replace(me.state, State::Draining) {
                 State::Watch(on_drain) => {
                     let recv = me.watch.rx.recv_ref();
                     futures_util::pin_mut!(recv);
@@ -106,17 +109,17 @@ where
                     match recv.poll_unpin(cx) {
                         Poll::Ready(None) => {
                             // Drain has been triggered!
-                            on_drain(unsafe { Pin::new_unchecked(&mut me.future) });
+                            on_drain(me.future);
                         },
                         Poll::Ready(Some(_/*State::Open*/)) |
                         Poll::Pending => {
-                            me.state = State::Watch(on_drain);
-                            return unsafe { Pin::new_unchecked(&mut me.future) }.poll(cx);
+                            *me.state = State::Watch(on_drain);
+                            return me.future.poll(cx);
                         },
                     }
                 },
                 State::Draining => {
-                    return unsafe { Pin::new_unchecked(&mut me.future) }.poll(cx);
+                    return me.future.poll(cx)
                 },
             }
         }
