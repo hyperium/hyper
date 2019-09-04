@@ -1,3 +1,44 @@
+### v0.13.0-alpha.1 (2019-09-04)
+
+
+#### Bug Fixes
+
+* **server:** change `Builder` window size methods to be by-value ([a22dabd0](https://github.com/hyperium/hyper/commit/a22dabd0935e5471fb6b7e511fc9c585ced0a53a), closes [#1814](https://github.com/hyperium/hyper/issues/1814))
+
+
+#### Features
+
+* **body:**
+  * change `Sender::send_data` to an `async fn`. ([62a96c07](https://github.com/hyperium/hyper/commit/62a96c077b85792fbf6eb080ec8fec646c47e385))
+  * Update `Payload` to be a trait alias of `http_body::Body` (#1908) ([79c32f89](https://github.com/hyperium/hyper/commit/79c32f89530e47735155eb9bd19466bcb6aec90d))
+  * require `Sync` when wrapping a dynamic `Stream` ([44413721](https://github.com/hyperium/hyper/commit/4441372121e8b278ac773ddd4e408a642dadf2d8))
+* **client:**
+  * provide tower::Service support for clients (#1915) ([eee2a728](https://github.com/hyperium/hyper/commit/eee2a728797346f8c96c15c5958a05432a4e4453))
+  * change `GaiResolver` to use a global blocking threadpool ([049b5132](https://github.com/hyperium/hyper/commit/049b5132dbb6199a32e1795d005003f99d0e0b74))
+* **lib:** update to `std::future::Future` ([8f4b05ae](https://github.com/hyperium/hyper/commit/8f4b05ae78567dfc52236bc83d7be7b7fc3eebb0))
+* **rt:** export `hyper::rt::main` attribute macro ([f0478c62](https://github.com/hyperium/hyper/commit/f0478c62677a953aae84aa8d976bec1d28ef21b1))
+* **service:** use tower_service::Service for hyper::service ([ec520d56](https://github.com/hyperium/hyper/commit/ec520d5602d819fd92f497cc230df436c1a39eb0))
+
+
+#### Breaking Changes
+
+* Usage of `send_data` should either be changed to
+  async/await or use `try_send_data`.
+
+ ([62a96c07](https://github.com/hyperium/hyper/commit/62a96c077b85792fbf6eb080ec8fec646c47e385))
+* Calls to `GaiResolver::new` and `HttpConnector::new` no
+  longer should pass an integer argument for the number of threads.
+
+ ([049b5132](https://github.com/hyperium/hyper/commit/049b5132dbb6199a32e1795d005003f99d0e0b74))
+* All usage of async traits (`Future`, `Stream`,
+`AsyncRead`, `AsyncWrite`, etc) are updated to newer versions.
+
+ ([8f4b05ae](https://github.com/hyperium/hyper/commit/8f4b05ae78567dfc52236bc83d7be7b7fc3eebb0))
+
+
+### v0.12.33 (2019-09-04)
+
+
 ### v0.12.32 (2019-07-08)
 
 
