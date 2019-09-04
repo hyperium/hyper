@@ -1,6 +1,6 @@
 [package]
 name = "hyper"
-version = "0.13.0-a.0" # don't forget to update html_root_url
+version = "0.13.0-alpha.1" # don't forget to update html_root_url
 description = "A fast and correct HTTP library."
 readme = "README.md"
 homepage = "https://hyper.rs"
@@ -11,8 +11,6 @@ authors = ["Sean McArthur <sean@seanmonstar.com>"]
 keywords = ["http", "hyper", "hyperium"]
 categories = ["network-programming", "web-programming::http-client", "web-programming::http-server"]
 edition = "2018"
-
-publish = false
 
 include = [
   "Cargo.toml",
@@ -27,19 +25,19 @@ futures-core-preview = { version = "=0.3.0-alpha.18" }
 futures-channel-preview = { version = "=0.3.0-alpha.18" }
 futures-util-preview = { version = "=0.3.0-alpha.18" }
 http = "0.1.15"
-http-body = "0.2.0-alpha.1"
+http-body = "=0.2.0-alpha.1"
 httparse = "1.0"
-h2 = { git = "https://github.com/hyperium/h2" }
+h2 = "=0.2.0-alpha.1"
 iovec = "0.1"
 itoa = "0.4.1"
 log = "0.4"
 net2 = { version = "0.2.32", optional = true }
-pin-project = { version = "0.4.0-alpha.7", features = ["project_attr"] }
+pin-project = { version = "=0.4.0-alpha.7", features = ["project_attr"] }
 
 time = "0.1"
 tokio = { version = "=0.2.0-alpha.4", optional = true, default-features = false, features = ["rt-full"] }
 tower-service = "=0.3.0-alpha.1"
-tower-make = { version = "0.1.0-alpha.2", features = ['io'] }
+tower-make = { version = "=0.1.0-alpha.2", features = ['io'] }
 tokio-executor = { version = "=0.2.0-alpha.4", features = ["blocking"] }
 tokio-io = "=0.2.0-alpha.4"
 tokio-sync = "=0.2.0-alpha.4"

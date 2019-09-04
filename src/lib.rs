@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/hyper/0.12.32")]
+#![doc(html_root_url = "https://docs.rs/hyper/0.13.0-alpha.1")]
 #![deny(missing_docs)]
 #![deny(missing_debug_implementations)]
 #![deny(rust_2018_idioms)]
