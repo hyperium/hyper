@@ -1,3 +1,14 @@
+### v0.12.34 (2019-09-04)
+
+
+#### Bug Fixes
+
+* **client:** allow client GET requests with explicit body headers ([23fc8b08](https://github.com/hyperium/hyper/commit/23fc8b0806e7fde435ca00479cd5e3c8c5bdeee7), closes [#1925](https://github.com/hyperium/hyper/issues/1925))
+
+
+### v0.12.33 (2019-07-15)
+
+
 ### v0.12.32 (2019-07-08)
 
 
