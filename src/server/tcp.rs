@@ -3,7 +3,6 @@ use std::io;
 use std::net::{SocketAddr, TcpListener as StdTcpListener};
 use std::time::Duration;
 
-use futures_core::Stream;
 use futures_util::FutureExt as _;
 use tokio_net::driver::Handle;
 use tokio_net::tcp::TcpListener;
@@ -11,6 +10,7 @@ use tokio_timer::Delay;
 
 use crate::common::{Future, Pin, Poll, task};
 
+use super::Accept;
 pub use self::addr_stream::AddrStream;
 
 /// A stream of connections from binding to an address.
@@ -156,10 +156,22 @@ impl AddrIncoming {
     }
 }
 
+/*
 impl Stream for AddrIncoming {
     type Item = io::Result<AddrStream>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
+        let result = ready!(self.poll_next_(cx));
+        Poll::Ready(Some(result))
+    }
+}
+*/
+
+impl Accept for AddrIncoming {
+    type Conn = AddrStream;
+    type Error = io::Error;
+
+    fn poll_accept(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Result<Self::Conn, Self::Error>>> {
         let result = ready!(self.poll_next_(cx));
         Poll::Ready(Some(result))
     }

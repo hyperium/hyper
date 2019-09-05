@@ -322,7 +322,18 @@ pub fn __run_test(cfg: __TestConfig) {
     let serve_handles = Arc::new(Mutex::new(
         cfg.server_msgs
     ));
+
+    let expected_connections = cfg.connections;
+    let mut cnt = 0;
     let new_service = make_service_fn(move |_| {
+        cnt += 1;
+        assert!(
+            cnt <= expected_connections,
+            "server expected {} connections, received {}",
+            expected_connections,
+            cnt
+        );
+
         // Move a clone into the service_fn
         let serve_handles = serve_handles.clone();
         future::ok::<_, hyper::Error>(service_fn(move |req: Request<Body>| {
@@ -352,36 +363,15 @@ pub fn __run_test(cfg: __TestConfig) {
         }))
     });
 
-    let serve = hyper::server::conn::Http::new()
+    let server = hyper::Server::bind(&SocketAddr::from(([127, 0, 0, 1], 0)))
         .http2_only(cfg.server_version == 2)
-        .serve_addr(
-            &SocketAddr::from(([127, 0, 0, 1], 0)),
-            new_service,
-        )
-        .expect("serve_addr");
+        .serve(new_service);
 
-    let mut addr = serve.incoming_ref().local_addr();
-    let expected_connections = cfg.connections;
-    let server = serve
-        .try_fold(0, move |cnt, connecting| {
-            let cnt = cnt + 1;
-            assert!(
-                cnt <= expected_connections,
-                "server expected {} connections, received {}",
-                expected_connections,
-                cnt
-            );
-            let fut = connecting
-                .then(|res| res.expect("connecting"))
-                .map(|conn_res| conn_res.expect("server connection error"));
-            tokio::spawn(fut);
-            future::ok::<_, hyper::Error>(cnt)
-        })
-        .map(|res| {
-            let _ = res.expect("serve error");
-        });
+    let mut addr = server.local_addr();
 
-    rt.spawn(server);
+    rt.spawn(server.map(|result| {
+        let _ = result.expect("server error");
+    }));
 
     if cfg.proxy {
         let (proxy_addr, proxy) = naive_proxy(ProxyConfig {
@@ -392,7 +382,6 @@ pub fn __run_test(cfg: __TestConfig) {
         rt.spawn(proxy);
         addr = proxy_addr;
     }
-
 
     let make_request = Arc::new(move |client: &Client<HttpConnector>, creq: __CReq, cres: __CRes| {
         let uri = format!("http://{}{}", addr, creq.uri);
