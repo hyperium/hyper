@@ -69,6 +69,11 @@ runtime = [
     "tokio-net",
     "tokio-timer",
 ]
+
+# unstable features
+stream = []
+
+# internal features used in CI
 nightly = []
 __internal_flaky_tests = []
 __internal_happy_eyeballs_tests = []
