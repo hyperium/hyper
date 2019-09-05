@@ -156,17 +156,6 @@ impl AddrIncoming {
     }
 }
 
-/*
-impl Stream for AddrIncoming {
-    type Item = io::Result<AddrStream>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
-        let result = ready!(self.poll_next_(cx));
-        Poll::Ready(Some(result))
-    }
-}
-*/
-
 impl Accept for AddrIncoming {
     type Conn = AddrStream;
     type Error = io::Error;

@@ -57,7 +57,6 @@ tokio-fs = "=0.2.0-alpha.4"
 tokio-test = "=0.2.0-alpha.4"
 url = "1.0"
 
-
 [features]
 default = [
     "__internal_flaky_tests",
@@ -78,6 +77,12 @@ nightly = []
 __internal_flaky_tests = []
 __internal_happy_eyeballs_tests = []
 
+[package.metadata.docs.rs]
+features = [
+    "runtime",
+    "stream",
+]
+
 [profile.release]
 codegen-units = 1
 incremental = false
@@ -94,12 +99,12 @@ required-features = ["runtime"]
 [[example]]
 name = "client_json"
 path = "examples/client_json.rs"
-required-features = ["runtime"]
+required-features = ["runtime", "stream"]
 
 [[example]]
 name = "echo"
 path = "examples/echo.rs"
-required-features = ["runtime"]
+required-features = ["runtime", "stream"]
 
 [[example]]
 name = "hello"
@@ -114,7 +119,7 @@ required-features = ["runtime"]
 [[example]]
 name = "params"
 path = "examples/params.rs"
-required-features = ["runtime"]
+required-features = ["runtime", "stream"]
 
 [[example]]
 name = "proxy"
@@ -155,7 +160,7 @@ required-features = ["runtime"]
 [[example]]
 name = "web_api"
 path = "examples/web_api.rs"
-required-features = ["runtime"]
+required-features = ["runtime", "stream"]
 
 
 [[bench]]
@@ -171,20 +176,20 @@ required-features = ["runtime"]
 [[bench]]
 name = "server"
 path = "benches/server.rs"
-required-features = ["runtime"]
+required-features = ["runtime", "stream"]
 
 
 [[test]]
 name = "client"
 path = "tests/client.rs"
-required-features = ["runtime"]
+required-features = ["runtime", "stream"]
 
 [[test]]
 name = "integration"
 path = "tests/integration.rs"
-required-features = ["runtime"]
+required-features = ["runtime", "stream"]
 
 [[test]]
 name = "server"
 path = "tests/server.rs"
-required-features = ["runtime"]
+required-features = ["runtime", "stream"]
