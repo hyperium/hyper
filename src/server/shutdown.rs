@@ -1,6 +1,5 @@
 use std::error::Error as StdError;
 
-use futures_core::Stream;
 use tokio_io::{AsyncRead, AsyncWrite};
 use pin_project::{pin_project, project};
 
@@ -9,6 +8,7 @@ use crate::common::drain::{self, Draining, Signal, Watch, Watching};
 use crate::common::exec::{H2Exec, NewSvcExec};
 use crate::common::{Future, Pin, Poll, Unpin, task};
 use crate::service::{MakeServiceRef, Service};
+use super::Accept;
 use super::conn::{SpawnAll, UpgradeableConnection, Watcher};
 
 #[allow(missing_debug_implementations)]
@@ -46,7 +46,7 @@ impl<I, S, F, E> Graceful<I, S, F, E> {
 
 impl<I, IO, IE, S, B, F, E> Future for Graceful<I, S, F, E>
 where
-    I: Stream<Item=Result<IO, IE>>,
+    I: Accept<Conn=IO, Error=IE>,
     IE: Into<Box<dyn StdError + Send + Sync>>,
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     S: MakeServiceRef<IO, Body, ResBody=B>,

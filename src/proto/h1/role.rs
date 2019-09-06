@@ -780,31 +780,44 @@ impl Client {
 
 impl Client {
     fn set_length(head: &mut RequestHead, body: Option<BodyLength>) -> Encoder {
-        if let Some(body) = body {
-            let can_chunked = head.version == Version::HTTP_11
-                && (head.subject.0 != Method::HEAD)
-                && (head.subject.0 != Method::GET)
-                && (head.subject.0 != Method::CONNECT);
-            set_length(&mut head.headers, body, can_chunked)
+        let body = if let Some(body) = body {
+            body
         } else {
             head.headers.remove(header::TRANSFER_ENCODING);
-            Encoder::length(0)
+            return Encoder::length(0)
+        };
+
+        // HTTP/1.0 doesn't know about chunked
+        let can_chunked = head.version == Version::HTTP_11;
+        let headers = &mut head.headers;
+
+        // If the user already set specific headers, we should respect them, regardless
+        // of what the Payload knows about itself. They set them for a reason.
+
+        // Because of the borrow checker, we can't check the for an existing
+        // Content-Length header while holding an `Entry` for the Transfer-Encoding
+        // header, so unfortunately, we must do the check here, first.
+
+        let existing_con_len = headers::content_length_parse_all(headers);
+        let mut should_remove_con_len = false;
+
+        if !can_chunked {
+            // Chunked isn't legal, so if it is set, we need to remove it.
+            if headers.remove(header::TRANSFER_ENCODING).is_some() {
+                trace!("removing illegal transfer-encoding header");
+            }
+
+            return if let Some(len) = existing_con_len {
+                Encoder::length(len)
+            } else if let BodyLength::Known(len) = body {
+                set_content_length(headers, len)
+            } else {
+                // HTTP/1.0 client requests without a content-length
+                // cannot have any body at all.
+                Encoder::length(0)
+            };
         }
-    }
-}
 
-fn set_length(headers: &mut HeaderMap, body: BodyLength, can_chunked: bool) -> Encoder {
-    // If the user already set specific headers, we should respect them, regardless
-    // of what the Payload knows about itself. They set them for a reason.
-
-    // Because of the borrow checker, we can't check the for an existing
-    // Content-Length header while holding an `Entry` for the Transfer-Encoding
-    // header, so unfortunately, we must do the check here, first.
-
-    let existing_con_len = headers::content_length_parse_all(headers);
-    let mut should_remove_con_len = false;
-
-    if can_chunked {
         // If the user set a transfer-encoding, respect that. Let's just
         // make sure `chunked` is the final encoding.
         let encoder = match headers.entry(header::TRANSFER_ENCODING)
@@ -840,9 +853,22 @@ fn set_length(headers: &mut HeaderMap, body: BodyLength, can_chunked: bool) -> E
                 if let Some(len) = existing_con_len {
                     Some(Encoder::length(len))
                 } else if let BodyLength::Unknown = body {
-                    should_remove_con_len = true;
-                    te.insert(HeaderValue::from_static("chunked"));
-                    Some(Encoder::chunked())
+                    // GET, HEAD, and CONNECT almost never have bodies.
+                    //
+                    // So instead of sending a "chunked" body with a 0-chunk,
+                    // assume no body here. If you *must* send a body,
+                    // set the headers explicitly.
+                    match head.subject.0 {
+                        Method::GET |
+                        Method::HEAD |
+                        Method::CONNECT => {
+                            Some(Encoder::length(0))
+                        },
+                        _ => {
+                            te.insert(HeaderValue::from_static("chunked"));
+                            Some(Encoder::chunked())
+                        },
+                    }
                 } else {
                     None
                 }
@@ -868,27 +894,6 @@ fn set_length(headers: &mut HeaderMap, body: BodyLength, can_chunked: bool) -> E
         };
 
         set_content_length(headers, len)
-    } else {
-        // Chunked isn't legal, so if it is set, we need to remove it.
-        // Also, if it *is* set, then we shouldn't replace with a length,
-        // since the user tried to imply there isn't a length.
-        let encoder = if headers.remove(header::TRANSFER_ENCODING).is_some() {
-            trace!("removing illegal transfer-encoding header");
-            should_remove_con_len = true;
-            Encoder::close_delimited()
-        } else if let Some(len) = existing_con_len {
-            Encoder::length(len)
-        } else if let BodyLength::Known(len) = body {
-            set_content_length(headers, len)
-        } else {
-            Encoder::close_delimited()
-        };
-
-        if should_remove_con_len && existing_con_len.is_some() {
-            headers.remove(header::CONTENT_LENGTH);
-        }
-
-        encoder
     }
 }
 

@@ -48,6 +48,7 @@
 //! # fn main() {}
 //! ```
 
+pub mod accept;
 pub mod conn;
 mod shutdown;
 #[cfg(feature = "runtime")] mod tcp;
@@ -58,7 +59,6 @@ use std::fmt;
 
 #[cfg(feature = "runtime")] use std::time::Duration;
 
-use futures_core::Stream;
 use tokio_io::{AsyncRead, AsyncWrite};
 use pin_project::pin_project;
 
@@ -66,6 +66,7 @@ use crate::body::{Body, Payload};
 use crate::common::exec::{Exec, H2Exec, NewSvcExec};
 use crate::common::{Future, Pin, Poll, Unpin, task};
 use crate::service::{MakeServiceRef, Service};
+use self::accept::Accept;
 // Renamed `Http` as `Http_` for now so that people upgrading don't see an
 // error that `hyper::server::Http` is private...
 use self::conn::{Http as Http_, NoopWatcher, SpawnAll};
@@ -143,7 +144,7 @@ impl<S> Server<AddrIncoming, S> {
 
 impl<I, IO, IE, S, E, B> Server<I, S, E>
 where
-    I: Stream<Item=Result<IO, IE>>,
+    I: Accept<Conn=IO, Error=IE>,
     IE: Into<Box<dyn StdError + Send + Sync>>,
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     S: MakeServiceRef<IO, Body, ResBody=B>,
@@ -200,7 +201,7 @@ where
 
 impl<I, IO, IE, S, B, E> Future for Server<I, S, E>
 where
-    I: Stream<Item=Result<IO, IE>>,
+    I: Accept<Conn=IO, Error=IE>,
     IE: Into<Box<dyn StdError + Send + Sync>>,
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     S: MakeServiceRef<IO, Body, ResBody=B>,
@@ -380,17 +381,17 @@ impl<I, E> Builder<I, E> {
     /// // Finally, spawn `server` onto an Executor...
     /// # }
     /// ```
-    pub fn serve<S, B, IO, IE>(self, new_service: S) -> Server<I, S, E>
+    pub fn serve<S, B>(self, new_service: S) -> Server<I, S, E>
     where
-        I: Stream<Item=Result<IO, IE>>,
-        IE: Into<Box<dyn StdError + Send + Sync>>,
-        IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-        S: MakeServiceRef<IO, Body, ResBody=B>,
+        I: Accept,
+        I::Error: Into<Box<dyn StdError + Send + Sync>>,
+        I::Conn: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+        S: MakeServiceRef<I::Conn, Body, ResBody=B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         S::Service: 'static,
         B: Payload,
         B::Data: Unpin,
-        E: NewSvcExec<IO, S::Future, S::Service, E, NoopWatcher>,
+        E: NewSvcExec<I::Conn, S::Future, S::Service, E, NoopWatcher>,
         E: H2Exec<<S::Service as Service<Body>>::Future, B>,
     {
         let serve = self.protocol.serve_incoming(self.incoming, new_service);

@@ -353,7 +353,7 @@ test! {
 }
 
 test! {
-    name: client_get_implicitly_empty,
+    name: client_get_req_body_implicitly_empty,
 
     server:
         expected: "GET / HTTP/1.1\r\nhost: {addr}\r\n\r\n",
@@ -367,9 +367,153 @@ test! {
         },
         response:
             status: OK,
+            headers: {},
+            body: None,
+}
+
+test! {
+    name: client_get_req_body_chunked,
+
+    server:
+        expected: "\
+            GET / HTTP/1.1\r\n\
+            transfer-encoding: chunked\r\n\
+            host: {addr}\r\n\
+            \r\n\
+            5\r\n\
+            hello\r\n\
+            0\r\n\r\n\
+            ",
+        reply: REPLY_OK,
+
+    client:
+        request: {
+            method: GET,
+            url: "http://{addr}/",
             headers: {
-                "Content-Length" => "0",
+                "transfer-encoding" => "chunked",
             },
+            body: "hello", // not Body::empty
+        },
+        response:
+            status: OK,
+            headers: {},
+            body: None,
+}
+
+test! {
+    name: client_get_req_body_chunked_http10,
+
+    server:
+        expected: "\
+            GET / HTTP/1.0\r\n\
+            host: {addr}\r\n\
+            content-length: 5\r\n\
+            \r\n\
+            hello\
+            ",
+        reply: "HTTP/1.0 200 OK\r\ncontent-length: 0\r\n\r\n",
+
+    client:
+        request: {
+            method: GET,
+            url: "http://{addr}/",
+            headers: {
+                "transfer-encoding" => "chunked",
+            },
+            version: HTTP_10,
+            body: "hello",
+        },
+        response:
+            status: OK,
+            headers: {},
+            body: None,
+}
+
+test! {
+    name: client_get_req_body_sized,
+
+    server:
+        expected: "\
+            GET / HTTP/1.1\r\n\
+            content-length: 5\r\n\
+            host: {addr}\r\n\
+            \r\n\
+            hello\
+            ",
+        reply: REPLY_OK,
+
+    client:
+        request: {
+            method: GET,
+            url: "http://{addr}/",
+            headers: {
+                "Content-Length" => "5",
+            },
+            body: (Body::wrap_stream(Body::from("hello"))),
+        },
+        response:
+            status: OK,
+            headers: {},
+            body: None,
+}
+
+test! {
+    name: client_get_req_body_unknown,
+
+    server:
+        expected: "\
+            GET / HTTP/1.1\r\n\
+            host: {addr}\r\n\
+            \r\n\
+            ",
+        reply: REPLY_OK,
+
+    client:
+        request: {
+            method: GET,
+            url: "http://{addr}/",
+            // wrap_steam means we don't know the content-length,
+            // but we're wrapping a non-empty stream.
+            //
+            // But since the headers cannot tell us, and the method typically
+            // doesn't have a body, the body must be ignored.
+            body: (Body::wrap_stream(Body::from("hello"))),
+        },
+        response:
+            status: OK,
+            headers: {},
+            body: None,
+}
+
+test! {
+    name: client_get_req_body_unknown_http10,
+
+    server:
+        expected: "\
+            GET / HTTP/1.0\r\n\
+            host: {addr}\r\n\
+            \r\n\
+            ",
+        reply: "HTTP/1.0 200 OK\r\ncontent-length: 0\r\n\r\n",
+
+    client:
+        request: {
+            method: GET,
+            url: "http://{addr}/",
+            headers: {
+                "transfer-encoding" => "chunked",
+            },
+            version: HTTP_10,
+            // wrap_steam means we don't know the content-length,
+            // but we're wrapping a non-empty stream.
+            //
+            // But since the headers cannot tell us, the body must be ignored.
+            body: (Body::wrap_stream(Body::from("hello"))),
+        },
+        response:
+            status: OK,
+            headers: {},
             body: None,
 }
 
@@ -424,6 +568,33 @@ test! {
                 "Transfer-Encoding" => "chunked",
             },
             body: "foo bar baz",
+        },
+        response:
+            status: OK,
+            headers: {},
+            body: None,
+}
+
+test! {
+    name: client_post_unknown,
+
+    server:
+        expected: "\
+            POST /chunks HTTP/1.1\r\n\
+            host: {addr}\r\n\
+            transfer-encoding: chunked\r\n\
+            \r\n\
+            B\r\n\
+            foo bar baz\r\n\
+            0\r\n\r\n\
+            ",
+        reply: REPLY_OK,
+
+    client:
+        request: {
+            method: POST,
+            url: "http://{addr}/chunks",
+            body: (Body::wrap_stream(Body::from("foo bar baz"))),
         },
         response:
             status: OK,

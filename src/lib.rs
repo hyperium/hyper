@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/hyper/0.12.32")]
+#![doc(html_root_url = "https://docs.rs/hyper/0.13.0-alpha.1")]
 #![deny(missing_docs)]
 #![deny(missing_debug_implementations)]
 #![deny(rust_2018_idioms)]
@@ -18,6 +18,15 @@
 //!
 //! If looking for just a convenient HTTP client, consider the
 //! [reqwest](https://crates.io/crates/reqwest) crate.
+//!
+//! # Optional Features
+//!
+//! The following optional features are available:
+//!
+//! - `runtime` (*enabled by default*): Enables convenient integration with 
+//!   `tokio`, providing connectors and acceptors for TCP, and a default
+//!   executor.
+//! - `stream` (*unstable*): Provides `futures::Stream` capabilities.
 
 #[doc(hidden)] pub use http;
 #[macro_use] extern crate log;

@@ -28,6 +28,7 @@ use crate::error::{Kind, Parse};
 use crate::proto;
 use crate::service::{MakeServiceRef, Service};
 use crate::upgrade::Upgraded;
+use super::Accept;
 
 pub(super) use self::spawn_all::NoopWatcher;
 use self::spawn_all::NewSvcTask;
@@ -403,13 +404,10 @@ impl<E> Http<E> {
         }
     }
 
-    /// Bind the provided `addr` with the default `Handle` and return [`Serve`](Serve).
-    ///
-    /// This method will bind the `addr` provided with a new TCP listener ready
-    /// to accept connections. Each connection will be processed with the
-    /// `make_service` object provided, creating a new service per
-    /// connection.
     #[cfg(feature = "runtime")]
+    #[doc(hidden)]
+    #[deprecated]
+    #[allow(deprecated)]
     pub fn serve_addr<S, Bd>(&self, addr: &SocketAddr, make_service: S) -> crate::Result<Serve<AddrIncoming, S, E>>
     where
         S: MakeServiceRef<
@@ -428,13 +426,10 @@ impl<E> Http<E> {
         Ok(self.serve_incoming(incoming, make_service))
     }
 
-    /// Bind the provided `addr` with the `Handle` and return a [`Serve`](Serve)
-    ///
-    /// This method will bind the `addr` provided with a new TCP listener ready
-    /// to accept connections. Each connection will be processed with the
-    /// `make_service` object provided, creating a new service per
-    /// connection.
     #[cfg(feature = "runtime")]
+    #[doc(hidden)]
+    #[deprecated]
+    #[allow(deprecated)]
     pub fn serve_addr_handle<S, Bd>(&self, addr: &SocketAddr, handle: &Handle, make_service: S) -> crate::Result<Serve<AddrIncoming, S, E>>
     where
         S: MakeServiceRef<
@@ -453,10 +448,11 @@ impl<E> Http<E> {
         Ok(self.serve_incoming(incoming, make_service))
     }
 
-    /// Bind the provided stream of incoming IO objects with a `MakeService`.
+    #[doc(hidden)]
+    #[deprecated]
     pub fn serve_incoming<I, IO, IE, S, Bd>(&self, incoming: I, make_service: S) -> Serve<I, S, E>
     where
-        I: Stream<Item = Result<IO, IE>>,
+        I: Accept<Conn=IO, Error=IE>,
         IE: Into<Box<dyn StdError + Send + Sync>>,
         IO: AsyncRead + AsyncWrite + Unpin,
         S: MakeServiceRef<
@@ -678,13 +674,6 @@ where
 // ===== impl Serve =====
 
 impl<I, S, E> Serve<I, S, E> {
-    /// Spawn all incoming connections onto the executor in `Http`.
-    pub(super) fn spawn_all(self) -> SpawnAll<I, S, E> {
-        SpawnAll {
-            serve: self,
-        }
-    }
-
     /// Get a reference to the incoming stream.
     #[inline]
     pub fn incoming_ref(&self) -> &I {
@@ -696,22 +685,28 @@ impl<I, S, E> Serve<I, S, E> {
     pub fn incoming_mut(&mut self) -> &mut I {
         &mut self.incoming
     }
+
+    /// Spawn all incoming connections onto the executor in `Http`.
+    pub(super) fn spawn_all(self) -> SpawnAll<I, S, E> {
+        SpawnAll {
+            serve: self,
+        }
+    }
 }
 
-impl<I, IO, IE, S, B, E> Stream for Serve<I, S, E>
+
+
+
+impl<I, IO, IE, S, B, E> Serve<I, S, E>
 where
-    I: Stream<Item = Result<IO, IE>>,
+    I: Accept<Conn=IO, Error=IE>,
     IO: AsyncRead + AsyncWrite + Unpin,
     IE: Into<Box<dyn StdError + Send + Sync>>,
     S: MakeServiceRef<IO, Body, ResBody=B>,
-    //S::Error2: Into<Box<StdError + Send + Sync>>,
-    //SME: Into<Box<StdError + Send + Sync>>,
     B: Payload,
     E: H2Exec<<S::Service as Service<Body>>::Future, B>,
 {
-    type Item = crate::Result<Connecting<IO, S::Future, E>>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next_(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<crate::Result<Connecting<IO, S::Future, E>>>> {
         match ready!(self.project().make_service.poll_ready_ref(cx)) {
             Ok(()) => (),
             Err(e) => {
@@ -720,7 +715,7 @@ where
             }
         }
 
-        if let Some(item) = ready!(self.project().incoming.poll_next(cx)) {
+        if let Some(item) = ready!(self.project().incoming.poll_accept(cx)) {
             let io = item.map_err(crate::Error::new_accept)?;
             let new_fut = self.project().make_service.make_service_ref(&io);
             Poll::Ready(Some(Ok(Connecting {
@@ -731,6 +726,23 @@ where
         } else {
             Poll::Ready(None)
         }
+    }
+}
+
+// deprecated
+impl<I, IO, IE, S, B, E> Stream for Serve<I, S, E>
+where
+    I: Accept<Conn=IO, Error=IE>,
+    IO: AsyncRead + AsyncWrite + Unpin,
+    IE: Into<Box<dyn StdError + Send + Sync>>,
+    S: MakeServiceRef<IO, Body, ResBody=B>,
+    B: Payload,
+    E: H2Exec<<S::Service as Service<Body>>::Future, B>,
+{
+    type Item = crate::Result<Connecting<IO, S::Future, E>>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
+        self.poll_next_(cx)
     }
 }
 
@@ -772,7 +784,7 @@ impl<I, S, E> SpawnAll<I, S, E> {
 
 impl<I, IO, IE, S, B, E> SpawnAll<I, S, E>
 where
-    I: Stream<Item=Result<IO, IE>>,
+    I: Accept<Conn=IO, Error=IE>,
     IE: Into<Box<dyn StdError + Send + Sync>>,
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     S: MakeServiceRef<
@@ -789,7 +801,7 @@ where
         W: Watcher<IO, S::Service, E>,
     {
         loop {
-            if let Some(connecting) = ready!(self.project().serve.poll_next(cx)?) {
+            if let Some(connecting) = ready!(self.project().serve.poll_next_(cx)?) {
                 let fut = NewSvcTask::new(connecting, watcher.clone());
                 self.project().serve.project().protocol.exec.execute_new_svc(fut)?;
             } else {
