@@ -774,23 +774,20 @@ impl<T> WeakOpt<T> {
 
 #[cfg(test)]
 mod tests {
-    // FIXME: re-implement tests with `async/await`, this import should
-    // trigger a warning to remind us
-    use crate::Error;
-
-    /*
     use std::sync::Arc;
+    use std::task::Poll;
     use std::time::Duration;
-    use futures::{Async, Future};
-    use futures::future;
-    use crate::common::Exec;
+
+    use tokio::runtime::current_thread::Runtime;
+
+    use crate::common::{Exec, Future, Pin, task};
     use super::{Connecting, Key, Poolable, Pool, Reservation, WeakOpt};
 
     /// Test unique reservations.
     #[derive(Debug, PartialEq, Eq)]
     struct Uniq<T>(T);
 
-    impl<T: Send + 'static> Poolable for Uniq<T> {
+    impl<T: Send + 'static + Unpin> Poolable for Uniq<T> {
         fn is_open(&self) -> bool {
             true
         }
@@ -829,75 +826,97 @@ mod tests {
 
     #[test]
     fn test_pool_checkout_smoke() {
+        let mut rt = Runtime::new().unwrap();
         let pool = pool_no_timer();
         let key = Arc::new("foo".to_string());
         let pooled = pool.pooled(c(key.clone()), Uniq(41));
 
         drop(pooled);
 
-        match pool.checkout(key).poll().unwrap() {
-            Async::Ready(pooled) => assert_eq!(*pooled, Uniq(41)),
-            _ => panic!("not ready"),
+        rt.block_on(async {
+            match pool.checkout(key).await {
+                Ok(pooled) => assert_eq!(*pooled, Uniq(41)),
+                Err(_) => panic!("not ready"),
+            };
+        })
+    }
+
+    /// Helper to check if the future is ready after polling once.
+    struct PollOnce<'a, F>(&'a mut F);
+
+    impl<F, T, U> Future for PollOnce<'_, F>
+        where F: Future<Output = Result<T, U>> + Unpin
+    {
+        type Output = Option<()>;
+
+        fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+            match Pin::new(&mut self.0).poll(cx) {
+                Poll::Ready(Ok(_)) => Poll::Ready(Some(())),
+                Poll::Ready(Err(_)) => Poll::Ready(Some(())),
+                Poll::Pending => Poll::Ready(None)
+            }
         }
     }
 
     #[test]
     fn test_pool_checkout_returns_none_if_expired() {
-        future::lazy(|| {
-            let pool = pool_no_timer();
-            let key = Arc::new("foo".to_string());
-            let pooled = pool.pooled(c(key.clone()), Uniq(41));
-            drop(pooled);
-            ::std::thread::sleep(pool.locked().timeout.unwrap());
-            assert!(pool.checkout(key).poll().unwrap().is_not_ready());
-            ::futures::future::ok::<(), ()>(())
-        }).wait().unwrap();
+        let mut rt = Runtime::new().unwrap();
+        let pool = pool_no_timer();
+        let key = Arc::new("foo".to_string());
+        let pooled = pool.pooled(c(key.clone()), Uniq(41));
+
+        drop(pooled);
+        std::thread::sleep(pool.locked().timeout.unwrap());
+        rt.block_on(async {
+            let mut checkout = pool.checkout(key);
+            let poll_once = PollOnce(&mut checkout);
+            let is_not_ready = poll_once.await.is_none();
+            assert!(is_not_ready);
+        });
     }
 
+    #[cfg(feature = "runtime")]
     #[test]
     fn test_pool_checkout_removes_expired() {
-        future::lazy(|| {
-            let pool = pool_no_timer();
-            let key = Arc::new("foo".to_string());
+        let mut rt = Runtime::new().unwrap();
+        let pool = pool_no_timer();
+        let key = Arc::new("foo".to_string());
 
-            pool.pooled(c(key.clone()), Uniq(41));
-            pool.pooled(c(key.clone()), Uniq(5));
-            pool.pooled(c(key.clone()), Uniq(99));
+        pool.pooled(c(key.clone()), Uniq(41));
+        pool.pooled(c(key.clone()), Uniq(5));
+        pool.pooled(c(key.clone()), Uniq(99));
 
-            assert_eq!(pool.locked().idle.get(&key).map(|entries| entries.len()), Some(3));
-            ::std::thread::sleep(pool.locked().timeout.unwrap());
+        assert_eq!(pool.locked().idle.get(&key).map(|entries| entries.len()), Some(3));
+        std::thread::sleep(pool.locked().timeout.unwrap());
 
-            // checkout.poll() should clean out the expired
-            pool.checkout(key.clone()).poll().unwrap();
+        rt.block_on(async {
+            let mut checkout = pool.checkout(key.clone());
+            let poll_once = PollOnce(&mut checkout);
+            // checkout.await should clean out the expired
+            poll_once.await;
             assert!(pool.locked().idle.get(&key).is_none());
-
-            Ok::<(), ()>(())
-        }).wait().unwrap();
+        });
     }
 
     #[test]
     fn test_pool_max_idle_per_host() {
-        future::lazy(|| {
-            let pool = pool_max_idle_no_timer(2);
-            let key = Arc::new("foo".to_string());
+        let pool = pool_max_idle_no_timer(2);
+        let key = Arc::new("foo".to_string());
 
-            pool.pooled(c(key.clone()), Uniq(41));
-            pool.pooled(c(key.clone()), Uniq(5));
-            pool.pooled(c(key.clone()), Uniq(99));
+        pool.pooled(c(key.clone()), Uniq(41));
+        pool.pooled(c(key.clone()), Uniq(5));
+        pool.pooled(c(key.clone()), Uniq(99));
 
-            // pooled and dropped 3, max_idle should only allow 2
-            assert_eq!(pool.locked().idle.get(&key).map(|entries| entries.len()), Some(2));
-
-            Ok::<(), ()>(())
-        }).wait().unwrap();
+        // pooled and dropped 3, max_idle should only allow 2
+        assert_eq!(pool.locked().idle.get(&key).map(|entries| entries.len()), Some(2));
     }
 
     #[cfg(feature = "runtime")]
     #[test]
     fn test_pool_timer_removes_expired() {
         use std::time::Instant;
-        use tokio_timer::Delay;
-        let mut rt = ::tokio::runtime::current_thread::Runtime::new().unwrap();
+        use tokio_timer::delay;
+        let mut rt = Runtime::new().unwrap();
         let pool = Pool::new(super::Config {
                 enabled: true,
                 keep_alive_timeout: Some(Duration::from_millis(100)),
@@ -911,65 +930,76 @@ mod tests {
         // Since pool.pooled() will be calling spawn on drop, need to be sure
         // those drops are called while `rt` is the current executor. To do so,
         // call those inside a future.
-        rt.block_on(::futures::future::lazy(|| {
+        rt.block_on(async {
             pool.pooled(c(key.clone()), Uniq(41));
             pool.pooled(c(key.clone()), Uniq(5));
             pool.pooled(c(key.clone()), Uniq(99));
-            Ok::<_, ()>(())
-        })).unwrap();
+        });
 
         assert_eq!(pool.locked().idle.get(&key).map(|entries| entries.len()), Some(3));
 
         // Let the timer tick passed the expiration...
-        rt
-            .block_on(Delay::new(Instant::now() + Duration::from_millis(200)))
-            .expect("rt block_on 200ms");
+        rt.block_on(async {
+            let deadline = Instant::now() + Duration::from_millis(200);
+            delay(deadline).await;
+        });
 
         assert!(pool.locked().idle.get(&key).is_none());
     }
 
     #[test]
     fn test_pool_checkout_task_unparked() {
+        use futures_util::future::join;
+        use futures_util::FutureExt;
+
+        let mut rt = Runtime::new().unwrap();
         let pool = pool_no_timer();
         let key = Arc::new("foo".to_string());
         let pooled = pool.pooled(c(key.clone()), Uniq(41));
 
-        let checkout = pool.checkout(key).join(future::lazy(move || {
-            // the checkout future will park first,
-            // and then this lazy future will be polled, which will insert
-            // the pooled back into the pool
-            //
-            // this test makes sure that doing so will unpark the checkout
-            drop(pooled);
-            Ok(())
-        })).map(|(entry, _)| entry);
-        assert_eq!(*checkout.wait().unwrap(), Uniq(41));
+        let checkout = join(
+            pool.checkout(key),
+              async {
+                // the checkout future will park first,
+                // and then this lazy future will be polled, which will insert
+                // the pooled back into the pool
+                //
+                // this test makes sure that doing so will unpark the checkout
+                drop(pooled);
+            },
+        ).map(|(entry, _)| entry);
+
+        rt.block_on(async {
+            assert_eq!(*checkout.await.unwrap(), Uniq(41));
+        });
     }
 
     #[test]
     fn test_pool_checkout_drop_cleans_up_waiters() {
-        future::lazy(|| {
-            let pool = pool_no_timer::<Uniq<i32>>();
-            let key = Arc::new("localhost:12345".to_string());
+        let mut rt = Runtime::new().unwrap();
+        let pool = pool_no_timer::<Uniq<i32>>();
+        let key = Arc::new("localhost:12345".to_string());
 
-            let mut checkout1 = pool.checkout(key.clone());
-            let mut checkout2 = pool.checkout(key.clone());
+        let mut checkout1 = pool.checkout(key.clone());
+        let mut checkout2 = pool.checkout(key.clone());
 
-            // first poll needed to get into Pool's parked
-            checkout1.poll().unwrap();
+        let poll_once1 = PollOnce(&mut checkout1);
+        let poll_once2 = PollOnce(&mut checkout2);
+
+        // first poll needed to get into Pool's parked
+        rt.block_on(async {
+            poll_once1.await;
             assert_eq!(pool.locked().waiters.get(&key).unwrap().len(), 1);
-            checkout2.poll().unwrap();
+            poll_once2.await;
             assert_eq!(pool.locked().waiters.get(&key).unwrap().len(), 2);
+        });
 
-            // on drop, clean up Pool
-            drop(checkout1);
-            assert_eq!(pool.locked().waiters.get(&key).unwrap().len(), 1);
+        // on drop, clean up Pool
+        drop(checkout1);
+        assert_eq!(pool.locked().waiters.get(&key).unwrap().len(), 1);
 
-            drop(checkout2);
-            assert!(pool.locked().waiters.get(&key).is_none());
-
-            ::futures::future::ok::<(), ()>(())
-        }).wait().unwrap();
+        drop(checkout2);
+        assert!(pool.locked().waiters.get(&key).is_none());
     }
 
     #[derive(Debug)]
@@ -1003,5 +1033,4 @@ mod tests {
 
         assert!(!pool.locked().idle.contains_key(&key));
     }
-    */
 }

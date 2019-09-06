@@ -630,58 +630,76 @@ impl ConnectingTcp {
 
 #[cfg(test)]
 mod tests {
-    // FIXME: re-implement tests with `async/await`, this import should
-    // trigger a warning to remind us
-    use crate::Error;
-    /*
     use std::io;
-    use futures::Future;
+
+    use tokio::runtime::current_thread::Runtime;
+    use tokio_net::driver::Handle;
+
     use super::{Connect, Destination, HttpConnector};
 
     #[test]
     fn test_errors_missing_authority() {
+        let mut rt = Runtime::new().unwrap();
         let uri = "/foo/bar?baz".parse().unwrap();
         let dst = Destination {
             uri,
         };
-        let connector = HttpConnector::new(1);
+        let connector = HttpConnector::new();
 
-        assert_eq!(connector.connect(dst).wait().unwrap_err().kind(), io::ErrorKind::InvalidInput);
+        rt.block_on(async {
+            assert_eq!(
+                connector.connect(dst).await.unwrap_err().kind(),
+                io::ErrorKind::InvalidInput,
+            );
+        })
     }
 
     #[test]
     fn test_errors_enforce_http() {
+        let mut rt = Runtime::new().unwrap();
         let uri = "https://example.domain/foo/bar?baz".parse().unwrap();
         let dst = Destination {
             uri,
         };
-        let connector = HttpConnector::new(1);
+        let connector = HttpConnector::new();
 
-        assert_eq!(connector.connect(dst).wait().unwrap_err().kind(), io::ErrorKind::InvalidInput);
+        rt.block_on(async {
+            assert_eq!(
+                connector.connect(dst).await.unwrap_err().kind(),
+                io::ErrorKind::InvalidInput,
+            );
+        })
     }
 
 
     #[test]
     fn test_errors_missing_scheme() {
+        let mut rt = Runtime::new().unwrap();
         let uri = "example.domain".parse().unwrap();
         let dst = Destination {
             uri,
         };
-        let connector = HttpConnector::new(1);
+        let connector = HttpConnector::new();
 
-        assert_eq!(connector.connect(dst).wait().unwrap_err().kind(), io::ErrorKind::InvalidInput);
+        rt.block_on(async {
+            assert_eq!(
+                connector.connect(dst).await.unwrap_err().kind(),
+                io::ErrorKind::InvalidInput,
+            );
+        });
     }
 
     #[test]
     #[cfg_attr(not(feature = "__internal_happy_eyeballs_tests"), ignore)]
     fn client_happy_eyeballs() {
+        use std::future::Future;
         use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, TcpListener};
+        use std::task::Poll;
         use std::time::{Duration, Instant};
 
-        use futures::{Async, Poll};
         use tokio::runtime::current_thread::Runtime;
-        use tokio_net::driver::Handle;
 
+        use crate::common::{Pin, task};
         use super::dns;
         use super::ConnectingTcp;
 
@@ -768,16 +786,15 @@ mod tests {
         struct ConnectingTcpFuture(ConnectingTcp);
 
         impl Future for ConnectingTcpFuture {
-            type Item = u8;
-            type Error = ::std::io::Error;
+            type Output = Result<u8, std::io::Error>;
 
-            fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-                match self.0.poll(&Some(Handle::default())) {
+            fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+                match self.0.poll(cx,&Some(Handle::default())) {
                     Poll::Ready(Ok(stream)) => Poll::Ready(Ok(
                         if stream.peer_addr().unwrap().is_ipv4() { 4 } else { 6 }
                     )),
+                    Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
                     Poll::Pending => Poll::Pending,
-                    Err(err) => Err(err),
                 }
             }
         }
@@ -818,6 +835,5 @@ mod tests {
             (reachable, duration)
         }
     }
-    */
 }
 
