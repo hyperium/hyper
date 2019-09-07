@@ -47,7 +47,7 @@ pub use http::{
 
 pub use crate::client::Client;
 pub use crate::error::{Result, Error};
-pub use crate::body::{Body, Chunk};
+pub use crate::body::{Body};
 pub use crate::server::Server;
 
 #[macro_use]

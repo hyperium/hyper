@@ -7,7 +7,6 @@ use http::{HeaderMap, Method, Version};
 use http::header::{HeaderValue, CONNECTION};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-use crate::Chunk;
 use crate::common::{Pin, Poll, Unpin, task};
 use crate::proto::{BodyLength, DecodedLength, MessageHead};
 use crate::headers::connection_keep_alive;
@@ -189,7 +188,7 @@ where I: AsyncRead + AsyncWrite + Unpin,
         }
     }
 
-    pub fn poll_read_body(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<io::Result<Chunk>>> {
+    pub fn poll_read_body(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<io::Result<Bytes>>> {
         debug_assert!(self.can_read_body());
 
         let (reading, ret) = match self.state.reading {
@@ -199,7 +198,7 @@ where I: AsyncRead + AsyncWrite + Unpin,
                         let (reading, chunk) = if decoder.is_eof() {
                             debug!("incoming body completed");
                             (Reading::KeepAlive, if !slice.is_empty() {
-                                Some(Ok(Chunk::from(slice)))
+                                Some(Ok(Bytes::from(slice)))
                             } else {
                                 None
                             })
@@ -210,7 +209,7 @@ where I: AsyncRead + AsyncWrite + Unpin,
                             // an empty slice...
                             (Reading::Closed, None)
                         } else {
-                            return Poll::Ready(Some(Ok(Chunk::from(slice))));
+                            return Poll::Ready(Some(Ok(Bytes::from(slice))));
                         };
                         (reading, Poll::Ready(chunk))
                     },

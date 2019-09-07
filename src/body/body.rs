@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use std::error::Error as StdError;
 use std::fmt;
 
-use bytes::Bytes;
+use bytes::{Bytes, IntoBuf};
 use futures_core::Stream; // for mpsc::Receiver
 #[cfg(feature = "stream")]
 use futures_core::TryStream;
@@ -14,12 +14,11 @@ use http_body::{SizeHint, Body as HttpBody};
 use http::HeaderMap;
 
 use crate::common::{Future, Never, Pin, Poll, task};
-use super::Chunk;
 use crate::upgrade::OnUpgrade;
 
-type BodySender = mpsc::Sender<Result<Chunk, crate::Error>>;
+type BodySender = mpsc::Sender<Result<Bytes, crate::Error>>;
 
-/// A stream of `Chunk`s, used when receiving bodies.
+/// A stream of `Bytes`s, used when receiving bodies.
 ///
 /// A good default `Payload` to use in many applications.
 #[must_use = "streams do nothing unless polled"]
@@ -31,11 +30,11 @@ pub struct Body {
 }
 
 enum Kind {
-    Once(Option<Chunk>),
+    Once(Option<Bytes>),
     Chan {
         content_length: Option<u64>,
         abort_rx: oneshot::Receiver<()>,
-        rx: mpsc::Receiver<Result<Chunk, crate::Error>>,
+        rx: mpsc::Receiver<Result<Bytes, crate::Error>>,
     },
     H2 {
         content_length: Option<u64>,
@@ -46,7 +45,7 @@ enum Kind {
     //
     // See https://github.com/rust-lang/rust/issues/57017
     #[cfg(feature = "stream")]
-    Wrapped(Pin<Box<dyn Stream<Item = Result<Chunk, Box<dyn StdError + Send + Sync>>> + Send + Sync>>),
+    Wrapped(Pin<Box<dyn Stream<Item = Result<Bytes, Box<dyn StdError + Send + Sync>>> + Send + Sync>>),
 }
 
 struct Extra {
@@ -153,14 +152,14 @@ impl Body {
     where
         S: TryStream + Send + Sync + 'static,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
-        Chunk: From<S::Ok>,
+        Bytes: From<S::Ok>,
     {
-        let mapped = stream.map_ok(Chunk::from).map_err(Into::into);
+        let mapped = stream.map_ok(Bytes::from).map_err(Into::into);
         Body::new(Kind::Wrapped(Box::pin(mapped)))
     }
 
     /// dox
-    pub async fn next(&mut self) -> Option<crate::Result<Chunk>> {
+    pub async fn next(&mut self) -> Option<crate::Result<Bytes>> {
         futures_util::future::poll_fn(|cx| self.poll_eof(cx)).await
     }
 
@@ -215,7 +214,7 @@ impl Body {
             }))
     }
 
-    fn poll_eof(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<crate::Result<Chunk>>> {
+    fn poll_eof(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<crate::Result<Bytes>>> {
         match self.take_delayed_eof() {
             Some(DelayEof::NotEof(mut delay)) => {
                 match self.poll_inner(cx) {
@@ -253,7 +252,7 @@ impl Body {
         }
     }
 
-    fn poll_inner(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<crate::Result<Chunk>>> {
+    fn poll_inner(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<crate::Result<Bytes>>> {
         match self.kind {
             Kind::Once(ref mut val) => Poll::Ready(val.take().map(Ok)),
             Kind::Chan {
@@ -281,7 +280,7 @@ impl Body {
             } => match ready!(h2.poll_data(cx)) {
                 Some(Ok(bytes)) => {
                     let _ = h2.release_capacity().release_capacity(bytes.len());
-                    Poll::Ready(Some(Ok(Chunk::from(bytes))))
+                    Poll::Ready(Some(Ok(bytes)))
                 },
                 Some(Err(e)) => Poll::Ready(Some(Err(crate::Error::new_body(e)))),
                 None => Poll::Ready(None),
@@ -297,7 +296,7 @@ impl Body {
         }
     }
 
-    pub(super) fn take_full_data(&mut self) -> Option<Chunk> {
+    pub(super) fn take_full_data(&mut self) -> Option<Bytes> {
         if let Kind::Once(ref mut chunk) = self.kind {
             chunk.take()
         } else {
@@ -315,11 +314,17 @@ impl Default for Body {
 }
 
 impl HttpBody for Body {
-    type Data = Chunk;
+    type Data = <Bytes as IntoBuf>::Buf;
     type Error = crate::Error;
 
     fn poll_data(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Result<Self::Data, Self::Error>>> {
-        self.poll_eof(cx)
+        self.poll_eof(cx).map(|data: Option<Result<Bytes, crate::Error>>| {
+            data.map(|data: Result<Bytes, crate::Error>| {
+                data.map(|data: Bytes| {
+                    data.into_buf()
+                })
+            })
+        })
     }
 
     fn poll_trailers(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Result<Option<HeaderMap>, Self::Error>> {
@@ -374,7 +379,7 @@ impl fmt::Debug for Body {
         #[derive(Debug)]
         struct Empty;
         #[derive(Debug)]
-        struct Full<'a>(&'a Chunk);
+        struct Full<'a>(&'a Bytes);
 
         let mut builder = f.debug_tuple("Body");
         match self.kind {
@@ -412,35 +417,28 @@ impl
     }
 }
 
-impl From<Chunk> for Body {
-    #[inline]
-    fn from(chunk: Chunk) -> Body {
-        if chunk.is_empty() {
-            Body::empty()
-        } else {
-            Body::new(Kind::Once(Some(chunk)))
-        }
-    }
-}
-
 impl From<Bytes> for Body {
     #[inline]
     fn from(bytes: Bytes) -> Body {
-        Body::from(Chunk::from(bytes))
+        if bytes.is_empty() {
+            Body::empty()
+        } else {
+            Body::new(Kind::Once(Some(bytes)))
+        }
     }
 }
 
 impl From<Vec<u8>> for Body {
     #[inline]
     fn from(vec: Vec<u8>) -> Body {
-        Body::from(Chunk::from(vec))
+        Body::from(Bytes::from(vec))
     }
 }
 
 impl From<&'static [u8]> for Body {
     #[inline]
     fn from(slice: &'static [u8]) -> Body {
-        Body::from(Chunk::from(slice))
+        Body::from(Bytes::from(slice))
     }
 }
 
@@ -457,14 +455,14 @@ impl From<Cow<'static, [u8]>> for Body {
 impl From<String> for Body {
     #[inline]
     fn from(s: String) -> Body {
-        Body::from(Chunk::from(s.into_bytes()))
+        Body::from(Bytes::from(s.into_bytes()))
     }
 }
 
 impl From<&'static str> for Body {
     #[inline]
     fn from(slice: &'static str) -> Body {
-        Body::from(Chunk::from(slice.as_bytes()))
+        Body::from(Bytes::from(slice.as_bytes()))
     }
 }
 
@@ -490,7 +488,7 @@ impl Sender {
     }
 
     /// Send data on this channel when it is ready.
-    pub async fn send_data(&mut self, chunk: Chunk) -> crate::Result<()> {
+    pub async fn send_data(&mut self, chunk: Bytes) -> crate::Result<()> {
         futures_util::future::poll_fn(|cx| self.poll_ready(cx)).await?;
         self.tx.try_send(Ok(chunk)).map_err(|_| crate::Error::new_closed())
     }
@@ -499,15 +497,15 @@ impl Sender {
     ///
     /// # Errors
     ///
-    /// Returns `Err(Chunk)` if the channel could not (currently) accept
-    /// another `Chunk`.
+    /// Returns `Err(Bytes)` if the channel could not (currently) accept
+    /// another `Bytes`.
     ///
     /// # Note
     ///
     /// This is mostly useful for when trying to send from some other thread
     /// that doesn't have an async context. If in an async context, prefer
     /// [`send_data`][] instead.
-    pub fn try_send_data(&mut self, chunk: Chunk) -> Result<(), Chunk> {
+    pub fn try_send_data(&mut self, chunk: Bytes) -> Result<(), Bytes> {
         self.tx
             .try_send(Ok(chunk))
             .map_err(|err| err.into_inner().expect("just sent Ok"))

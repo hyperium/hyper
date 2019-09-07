@@ -16,11 +16,10 @@
 //!  have very custom needs of your send streams.
 
 pub use self::body::{Body, Sender};
-pub use self::chunk::Chunk;
 pub use self::payload::Payload;
+use bytes::Bytes;
 
 mod body;
-mod chunk;
 mod payload;
 
 /// An optimization to try to take a full body if immediately available.
@@ -54,7 +53,7 @@ fn _assert_send_sync() {
     fn _assert_sync<T: Sync>() {}
 
     _assert_send::<Body>();
-    _assert_send::<Chunk>();
-    _assert_sync::<Chunk>();
+    _assert_send::<Bytes>();
+    _assert_sync::<Bytes>();
 }
 

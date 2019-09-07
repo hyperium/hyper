@@ -8,7 +8,7 @@ use bytes::Bytes;
 use crate::common::{Poll, task};
 
 use super::io::MemRead;
-use super::{DecodedLength};
+use super::DecodedLength;
 
 use self::Kind::{Length, Chunked, Eof};
 
