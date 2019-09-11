@@ -180,6 +180,7 @@ impl<T: Poolable> Pool<T> {
             .expect("lock")
     }
 
+    /* Used in client/tests.rs...
     #[cfg(feature = "runtime")]
     #[cfg(test)]
     pub(super) fn h1_key(&self, s: &str) -> Key {
@@ -196,6 +197,7 @@ impl<T: Poolable> Pool<T> {
             .map(|list| list.len())
             .unwrap_or(0)
     }
+    */
 
     pub(super) fn pooled(&self, mut connecting: Connecting<T>, value: T) -> Pooled<T> {
         let (value, pool_ref) = if let Some(ref enabled) = self.inner {

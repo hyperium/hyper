@@ -1,6 +1,4 @@
-// FIXME: re-implement tests with `async/await`, this import should
-// trigger a warning to remind us
-use super::Client;
+// FIXME: re-implement tests with `async/await`
 /*
 #![cfg(feature = "runtime")]
 
