@@ -95,94 +95,65 @@ where
 mod tests {
     // FIXME: re-implement tests with `async/await`, this import should
     // trigger a warning to remind us
+    use bytes::Bytes;
+    use tokio::io::AsyncReadExt;
     use super::Rewind;
-    /*
-    use super::*;
-    use tokio_mockstream::MockStream;
-    use std::io::Cursor;
 
-    // Test a partial rewind
-    #[test]
-    fn async_partial_rewind() {
-        let bs = &mut [104, 101, 108, 108, 111];
-        let o1 = &mut [0, 0];
-        let o2 = &mut [0, 0, 0, 0, 0];
+    #[tokio::test]
+    async fn partial_rewind() {
+        let underlying = [104, 101, 108, 108, 111];
 
-        let mut stream = Rewind::new(MockStream::new(bs));
-        let mut o1_cursor = Cursor::new(o1);
+        let mock = tokio_test::io::Builder::new()
+            .read(&underlying)
+            .build();
+
+        let mut stream = Rewind::new(mock);
+
         // Read off some bytes, ensure we filled o1
-        match stream.read_buf(&mut o1_cursor).unwrap() {
-            Async::NotReady => panic!("should be ready"),
-            Async::Ready(cnt) => assert_eq!(2, cnt),
-        }
+        let mut buf = [0; 2];
+        stream
+            .read_exact(&mut buf)
+            .await
+            .expect("read1");
+
 
         // Rewind the stream so that it is as if we never read in the first place.
-        let read_buf = Bytes::from(&o1_cursor.into_inner()[..]);
-        stream.rewind(read_buf);
+        stream.rewind(Bytes::from(&buf[..]));
 
-        // We poll 2x here since the first time we'll only get what is in the
-        // prefix (the rewinded part) of the Rewind.\
-        let mut o2_cursor = Cursor::new(o2);
-        stream.read_buf(&mut o2_cursor).unwrap();
-        stream.read_buf(&mut o2_cursor).unwrap();
-        let o2_final = o2_cursor.into_inner();
+        let mut buf = [0; 5];
+        stream
+            .read_exact(&mut buf)
+            .await
+            .expect("read1");
 
         // At this point we should have read everything that was in the MockStream
-        assert_eq!(&o2_final, &bs);
+        assert_eq!(&buf, &underlying);
     }
-    // Test a full rewind
-    #[test]
-    fn async_full_rewind() {
-        let bs = &mut [104, 101, 108, 108, 111];
-        let o1 = &mut [0, 0, 0, 0, 0];
-        let o2 = &mut [0, 0, 0, 0, 0];
 
-        let mut stream = Rewind::new(MockStream::new(bs));
-        let mut o1_cursor = Cursor::new(o1);
-        match stream.read_buf(&mut o1_cursor).unwrap() {
-            Async::NotReady => panic!("should be ready"),
-            Async::Ready(cnt) => assert_eq!(5, cnt),
-        }
+    #[tokio::test]
+    async fn full_rewind() {
+        let underlying = [104, 101, 108, 108, 111];
 
-        let read_buf = Bytes::from(&o1_cursor.into_inner()[..]);
-        stream.rewind(read_buf);
+        let mock = tokio_test::io::Builder::new()
+            .read(&underlying)
+            .build();
 
-        let mut o2_cursor = Cursor::new(o2);
-        stream.read_buf(&mut o2_cursor).unwrap();
-        stream.read_buf(&mut o2_cursor).unwrap();
-        let o2_final = o2_cursor.into_inner();
+        let mut stream = Rewind::new(mock);
 
-        assert_eq!(&o2_final, &bs);
+        let mut buf = [0; 5];
+        stream
+            .read_exact(&mut buf)
+            .await
+            .expect("read1");
+
+
+        // Rewind the stream so that it is as if we never read in the first place.
+        stream.rewind(Bytes::from(&buf[..]));
+
+        let mut buf = [0; 5];
+        stream
+            .read_exact(&mut buf)
+            .await
+            .expect("read1");
     }
-    #[test]
-    fn partial_rewind() {
-        let bs = &mut [104, 101, 108, 108, 111];
-        let o1 = &mut [0, 0];
-        let o2 = &mut [0, 0, 0, 0, 0];
-
-        let mut stream = Rewind::new(MockStream::new(bs));
-        stream.read(o1).unwrap();
-
-        let read_buf = Bytes::from(&o1[..]);
-        stream.rewind(read_buf);
-        let cnt = stream.read(o2).unwrap();
-        stream.read(&mut o2[cnt..]).unwrap();
-        assert_eq!(&o2, &bs);
-    }
-    #[test]
-    fn full_rewind() {
-        let bs = &mut [104, 101, 108, 108, 111];
-        let o1 = &mut [0, 0, 0, 0, 0];
-        let o2 = &mut [0, 0, 0, 0, 0];
-
-        let mut stream = Rewind::new(MockStream::new(bs));
-        stream.read(o1).unwrap();
-
-        let read_buf = Bytes::from(&o1[..]);
-        stream.rewind(read_buf);
-        let cnt = stream.read(o2).unwrap();
-        stream.read(&mut o2[cnt..]).unwrap();
-        assert_eq!(&o2, &bs);
-    }
-    */
 }
