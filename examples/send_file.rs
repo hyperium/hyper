@@ -61,12 +61,10 @@ fn internal_server_error() -> Response<Body> {
         .unwrap()
 }
 
-async fn simple_file_send(f: &str) -> Result<Response<Body>> {
+async fn simple_file_send(filename: &str) -> Result<Response<Body>> {
     // Serve a file by asynchronously reading it entirely into memory.
     // Uses tokio_fs to open file asynchronously, then tokio::io::AsyncReadExt
     // to read into memory asynchronously.
-
-    let filename = f.to_string(); // we need to copy for lifetime issues
 
     if let Ok(mut file) = File::open(filename).await {
         let mut buf = Vec::new();
