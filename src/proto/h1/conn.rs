@@ -637,12 +637,6 @@ where I: AsyncRead + AsyncWrite + Unpin,
         trace!("{}: prepare possible HTTP upgrade", T::LOG);
         self.state.prepare_upgrade()
     }
-
-    // Used in h1::dispatch tests
-    #[cfg(test)]
-    pub(super) fn io_mut(&mut self) -> &mut I {
-        self.io.io_mut()
-    }
 }
 
 impl<I, B: Buf, T> fmt::Debug for Conn<I, B, T> {
