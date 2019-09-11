@@ -70,7 +70,7 @@ runtime = [
 ]
 
 # unstable features
-stream = []
+unstable-stream = []
 
 # internal features used in CI
 nightly = []
@@ -80,7 +80,7 @@ __internal_happy_eyeballs_tests = []
 [package.metadata.docs.rs]
 features = [
     "runtime",
-    "stream",
+    "unstable-stream",
 ]
 
 [profile.release]
@@ -99,12 +99,12 @@ required-features = ["runtime"]
 [[example]]
 name = "client_json"
 path = "examples/client_json.rs"
-required-features = ["runtime", "stream"]
+required-features = ["runtime", "unstable-stream"]
 
 [[example]]
 name = "echo"
 path = "examples/echo.rs"
-required-features = ["runtime", "stream"]
+required-features = ["runtime", "unstable-stream"]
 
 [[example]]
 name = "hello"
@@ -119,7 +119,7 @@ required-features = ["runtime"]
 [[example]]
 name = "params"
 path = "examples/params.rs"
-required-features = ["runtime", "stream"]
+required-features = ["runtime", "unstable-stream"]
 
 [[example]]
 name = "proxy"
@@ -160,7 +160,7 @@ required-features = ["runtime"]
 [[example]]
 name = "web_api"
 path = "examples/web_api.rs"
-required-features = ["runtime", "stream"]
+required-features = ["runtime", "unstable-stream"]
 
 
 [[bench]]
@@ -176,20 +176,20 @@ required-features = ["runtime"]
 [[bench]]
 name = "server"
 path = "benches/server.rs"
-required-features = ["runtime", "stream"]
+required-features = ["runtime", "unstable-stream"]
 
 
 [[test]]
 name = "client"
 path = "tests/client.rs"
-required-features = ["runtime", "stream"]
+required-features = ["runtime", "unstable-stream"]
 
 [[test]]
 name = "integration"
 path = "tests/integration.rs"
-required-features = ["runtime", "stream"]
+required-features = ["runtime", "unstable-stream"]
 
 [[test]]
 name = "server"
 path = "tests/server.rs"
-required-features = ["runtime", "stream"]
+required-features = ["runtime", "unstable-stream"]

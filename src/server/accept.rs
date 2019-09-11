@@ -6,7 +6,7 @@
 //!   connections.
 //! - Utilities like `poll_fn` to ease creating a custom `Accept`.
 
-#[cfg(feature = "stream")]
+#[cfg(feature = "unstable-stream")]
 use futures_core::Stream;
 
 use crate::common::{Pin, task::{self, Poll}};
@@ -70,9 +70,9 @@ where
 ///
 /// # Unstable
 ///
-/// This function requires enabling the unstable `stream` feature in your
+/// This function requires enabling the `unstable-stream` feature in your
 /// `Cargo.toml`.
-#[cfg(feature = "stream")]
+#[cfg(feature = "unstable-stream")]
 pub fn from_stream<S, IO, E>(stream: S) -> impl Accept<Conn = IO, Error = E>
 where
     S: Stream<Item = Result<IO, E>>,
