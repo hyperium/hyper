@@ -22,10 +22,13 @@
 //!
 //! The following optional features are available:
 //!
-//! - `runtime` (*enabled by default*): Enables convenient integration with 
+//! - `runtime` (*enabled by default*): Enables convenient integration with
 //!   `tokio`, providing connectors and acceptors for TCP, and a default
 //!   executor.
-//! - `stream` (*unstable*): Provides `futures::Stream` capabilities.
+//! - `unstable-stream` (*unstable*): Provides `futures::Stream` capabilities.
+//!
+//!   Due to the `Stream` trait not being stable, this feature is also
+//!   unstable. It does not follow normal semver.
 
 #[doc(hidden)] pub use http;
 #[macro_use] extern crate log;
