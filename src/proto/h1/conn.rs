@@ -876,9 +876,7 @@ impl State {
 }
 
 #[cfg(test)]
-//TODO: rewrite these using dispatch
 mod tests {
-    /*
     #[cfg(feature = "nightly")]
     #[bench]
     fn bench_read_head_short(b: &mut ::test::Bencher) {
@@ -887,33 +885,39 @@ mod tests {
         let len = s.len();
         b.bytes = len as u64;
 
-        let mut io = crate::mock::AsyncIo::new_buf(Vec::new(), 0);
-        io.panic();
+        // an empty IO, we'll be skipping and using the read buffer anyways
+        let io = tokio_test::io::Builder::new().build();
         let mut conn = Conn::<_, crate::Chunk, crate::proto::h1::ServerTransaction>::new(io);
         *conn.io.read_buf_mut() = ::bytes::BytesMut::from(&s[..]);
         conn.state.cached_headers = Some(HeaderMap::with_capacity(2));
 
+        let mut rt = tokio::runtime::current_thread::Runtime::new().unwrap();
+
         b.iter(|| {
-            match conn.read_head().unwrap() {
-                Async::Ready(Some(x)) => {
-                    ::test::black_box(&x);
-                    let mut headers = x.0.headers;
-                    headers.clear();
-                    conn.state.cached_headers = Some(headers);
-                },
-                f => panic!("expected Ready(Some(..)): {:?}", f)
-            }
+            rt.block_on(futures_util::future::poll_fn(|cx| {
+                match conn.poll_read_head(cx) {
+                    Poll::Ready(Some(Ok(x))) => {
+                        ::test::black_box(&x);
+                        let mut headers = x.0.headers;
+                        headers.clear();
+                        conn.state.cached_headers = Some(headers);
+                    },
+                    f => panic!("expected Ready(Some(Ok(..))): {:?}", f)
+                }
 
 
-            conn.io.read_buf_mut().reserve(1);
-            unsafe {
-                conn.io.read_buf_mut().set_len(len);
-            }
-            conn.state.reading = Reading::Init;
+                conn.io.read_buf_mut().reserve(1);
+                unsafe {
+                    conn.io.read_buf_mut().set_len(len);
+                }
+                conn.state.reading = Reading::Init;
+                Poll::Ready(())
+            }));
         });
     }
-    */
+
     /*
+    //TODO: rewrite these using dispatch... someday...
     use futures::{Async, Future, Stream, Sink};
     use futures::future;
 
