@@ -470,6 +470,27 @@ impl<E> Http<E> {
             protocol: self.clone(),
         }
     }
+
+    pub(super) fn serve<I, IO, IE, S, Bd>(&self, incoming: I, make_service: S) -> Serve<I, S, E>
+    where
+        I: Accept<Conn=IO, Error=IE>,
+        IE: Into<Box<dyn StdError + Send + Sync>>,
+        IO: AsyncRead + AsyncWrite + Unpin,
+        S: MakeServiceRef<
+            IO,
+            Body,
+            ResBody=Bd,
+        >,
+        S::Error: Into<Box<dyn StdError + Send + Sync>>,
+        Bd: Payload,
+        E: H2Exec<<S::Service as Service<Body>>::Future, Bd>,
+    {
+        Serve {
+            incoming,
+            make_service,
+            protocol: self.clone(),
+        }
+    }
 }
 
 

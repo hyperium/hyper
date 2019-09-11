@@ -394,7 +394,7 @@ impl<I, E> Builder<I, E> {
         E: NewSvcExec<I::Conn, S::Future, S::Service, E, NoopWatcher>,
         E: H2Exec<<S::Service as Service<Body>>::Future, B>,
     {
-        let serve = self.protocol.serve_incoming(self.incoming, new_service);
+        let serve = self.protocol.serve(self.incoming, new_service);
         let spawn_all = serve.spawn_all();
         Server {
             spawn_all,
