@@ -247,7 +247,7 @@ impl Body {
                 ref mut abort_rx,
             } => {
                 if let Ok(Async::Ready(())) = abort_rx.poll() {
-                    return Err(::Error::new_body_write("body write aborted"));
+                    return Err(::Error::new_body_write_aborted());
                 }
 
                 match rx.poll().expect("mpsc cannot error") {
