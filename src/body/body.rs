@@ -260,7 +260,7 @@ impl Body {
                 ref mut abort_rx,
             } => {
                 if let Poll::Ready(Ok(())) = Pin::new(abort_rx).poll(cx) {
-                    return Poll::Ready(Some(Err(crate::Error::new_body_write("body write aborted"))));
+                    return Poll::Ready(Some(Err(crate::Error::new_body_write_aborted())));
                 }
 
                 match ready!(Pin::new(rx).poll_next(cx)?) {

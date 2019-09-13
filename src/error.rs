@@ -43,6 +43,8 @@ pub(crate) enum Kind {
     Body,
     /// Error while writing a body to connection.
     BodyWrite,
+    /// The body write was aborted.
+    BodyWriteAborted,
     /// Error calling AsyncWrite::shutdown()
     Shutdown,
 
@@ -127,6 +129,11 @@ impl Error {
     /// Returns true if the connection closed before a message could complete.
     pub fn is_incomplete_message(&self) -> bool {
         self.inner.kind == Kind::IncompleteMessage
+    }
+
+    /// Returns true if the body write was aborted.
+    pub fn is_body_write_aborted(&self) -> bool {
+        self.inner.kind == Kind::BodyWriteAborted
     }
 
     /// Consumes the error, returning its cause.
@@ -216,6 +223,10 @@ impl Error {
 
     pub(crate) fn new_body_write<E: Into<Cause>>(cause: E) -> Error {
         Error::new(Kind::BodyWrite).with(cause)
+    }
+
+    pub(crate) fn new_body_write_aborted() -> Error {
+        Error::new(Kind::BodyWriteAborted)
     }
 
     fn new_user(user: User) -> Error {
@@ -320,6 +331,7 @@ impl StdError for Error {
             Kind::Accept => "error accepting connection",
             Kind::Body => "error reading a body from connection",
             Kind::BodyWrite => "error writing a body to connection",
+            Kind::BodyWriteAborted => "body write aborted",
             Kind::Shutdown => "error shutting down connection",
             Kind::Http2 => "http2 error",
             Kind::Io => "connection error",
