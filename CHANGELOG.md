@@ -1,3 +1,11 @@
+### v0.12.35 (2019-09-13)
+
+
+#### Features
+
+* **body:** identify aborted body write errors ([32869224](https://github.com/hyperium/hyper/commit/3286922460ab63d0a804d8170d862ff4ba5951dd))
+
+
 ### v0.12.34 (2019-09-04)
 
 
