@@ -937,7 +937,7 @@ fn disable_keep_alive_post_request() {
     // the read-blocked socket.
     //
     // See https://github.com/carllerche/mio/issues/776
-    let timeout = tokio_timer::sleep(Duration::from_millis(10));
+    let timeout = tokio_timer::delay_for(Duration::from_millis(10));
     rt.block_on(timeout);
     assert!(dropped.load());
     child.join().unwrap();
@@ -1006,7 +1006,7 @@ fn socket_half_closed() {
         .map_err(|_| unreachable!())
         .and_then(|socket| {
             Http::new().serve_connection(socket, service_fn(|_| {
-                    tokio_timer::sleep(Duration::from_millis(500))
+                    tokio_timer::delay_for(Duration::from_millis(500))
                         .map(|_| Ok::<_, hyper::Error>(Response::new(Body::empty())))
                 }))
         });
@@ -1034,7 +1034,7 @@ fn disconnect_after_reading_request_before_responding() {
             Http::new()
                 .http1_half_close(false)
                 .serve_connection(socket, service_fn(|_| {
-                    tokio_timer::sleep(Duration::from_secs(2))
+                    tokio_timer::delay_for(Duration::from_secs(2))
                         .map(|_| -> Result<Response<Body>, hyper::Error> {
                             panic!("response future should have been dropped");
                         })

@@ -470,7 +470,7 @@ impl ConnectingTcp {
                 local_addr,
                 preferred: ConnectingTcpRemote::new(preferred_addrs),
                 fallback: Some(ConnectingTcpFallback {
-                    delay: tokio_timer::sleep(fallback_timeout),
+                    delay: tokio_timer::delay_for(fallback_timeout),
                     remote: ConnectingTcpRemote::new(fallback_addrs),
                 }),
                 reuse_address,
