@@ -1,3 +1,33 @@
+### v0.13.0-alpha.2 (2019-09-24)
+
+
+#### Bug Fixes
+
+* **client:** allow client GET requests with explicit body headers ([0867ad5c](https://github.com/hyperium/hyper/commit/0867ad5c15fa52b7af3fc840ee7a1e256c469942), closes [#1925](https://github.com/hyperium/hyper/issues/1925))
+
+
+#### Features
+
+* **body:**
+  * identify aborted body write errors ([dc54ee19](https://github.com/hyperium/hyper/commit/dc54ee199f2d19d65913d224b900a61ab3bf2415))
+  * put `Stream` impl for `Body` behind `stream` feature ([511ea388](https://github.com/hyperium/hyper/commit/511ea3889b5cceccb3a42aa72465fe38adef71a4))
+* **server:** introduce `Accept` trait ([b3e55062](https://github.com/hyperium/hyper/commit/b3e5506261c33dcaca39a126e891a0b9d5df5eea))
+
+
+#### Breaking Changes
+
+* Using a `Body` as a `Stream`, and constructing one via
+  `Body::wrap_stream`, require enabling the `unstable-stream` feature.
+
+ ([511ea388](https://github.com/hyperium/hyper/commit/511ea3889b5cceccb3a42aa72465fe38adef71a4))
+* Passing a `Stream` to `Server::builder` or
+  `Http::serve_incoming` must be changed to pass an `Accept` instead. The
+  `unstable-stream` optional feature can be enabled, and the a stream can be
+  converted using `hyper::server::accept::from_stream`.
+
+ ([b3e55062](https://github.com/hyperium/hyper/commit/b3e5506261c33dcaca39a126e891a0b9d5df5eea))
+
+
 ### v0.13.0-alpha.1 (2019-09-04)
 
 
