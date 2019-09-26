@@ -61,12 +61,12 @@ where
     type Output = crate::Result<()>;
 
     #[project]
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         let mut me = self.project();
         loop {
             let next = {
                 #[project]
-                match me.state.project() {
+                match me.state.as_mut().project() {
                     State::Running {
                         drain,
                         spawn_all,

@@ -509,7 +509,7 @@ where
     ///
     /// This `Connection` should continue to be polled until shutdown
     /// can finish.
-    pub fn graceful_shutdown(mut self: Pin<&mut Self>) {
+    pub fn graceful_shutdown(self: Pin<&mut Self>) {
         match self.project().conn.as_mut().unwrap() {
             Either::A(ref mut h1) => {
                 h1.disable_keep_alive();
@@ -727,8 +727,9 @@ where
     B: Payload,
     E: H2Exec<<S::Service as Service<Body>>::Future, B>,
 {
-    fn poll_next_(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<crate::Result<Connecting<IO, S::Future, E>>>> {
-        match ready!(self.project().make_service.poll_ready_ref(cx)) {
+    fn poll_next_(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<crate::Result<Connecting<IO, S::Future, E>>>> {
+        let me = self.project();
+        match ready!(me.make_service.poll_ready_ref(cx)) {
             Ok(()) => (),
             Err(e) => {
                 trace!("make_service closed");
@@ -736,13 +737,13 @@ where
             }
         }
 
-        if let Some(item) = ready!(self.project().incoming.poll_accept(cx)) {
+        if let Some(item) = ready!(me.incoming.poll_accept(cx)) {
             let io = item.map_err(crate::Error::new_accept)?;
-            let new_fut = self.project().make_service.make_service_ref(&io);
+            let new_fut = me.make_service.make_service_ref(&io);
             Poll::Ready(Some(Ok(Connecting {
                 future: new_fut,
                 io: Some(io),
-                protocol: self.protocol.clone(),
+                protocol: me.protocol.clone(),
             })))
         } else {
             Poll::Ready(None)
@@ -781,10 +782,11 @@ where
 {
     type Output = Result<Connection<I, S, E>, FE>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        let service = ready!(self.project().future.poll(cx))?;
-        let io = self.project().io.take().expect("polled after complete");
-        Poll::Ready(Ok(self.protocol.serve_connection(io, service)))
+    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let me = self.project();
+        let service = ready!(me.future.poll(cx))?;
+        let io = me.io.take().expect("polled after complete");
+        Poll::Ready(Ok(me.protocol.serve_connection(io, service)))
     }
 }
 
@@ -816,15 +818,16 @@ where
     B: Payload,
     E: H2Exec<<S::Service as Service<Body>>::Future, B>,
 {
-    pub(super) fn poll_watch<W>(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>, watcher: &W) -> Poll<crate::Result<()>>
+    pub(super) fn poll_watch<W>(self: Pin<&mut Self>, cx: &mut task::Context<'_>, watcher: &W) -> Poll<crate::Result<()>>
     where
         E: NewSvcExec<IO, S::Future, S::Service, E, W>,
         W: Watcher<IO, S::Service, E>,
     {
+        let mut me = self.project();
         loop {
-            if let Some(connecting) = ready!(self.project().serve.poll_next_(cx)?) {
+            if let Some(connecting) = ready!(me.serve.as_mut().poll_next_(cx)?) {
                 let fut = NewSvcTask::new(connecting, watcher.clone());
-                self.project().serve.project().protocol.exec.execute_new_svc(fut)?;
+                me.serve.as_mut().project().protocol.exec.execute_new_svc(fut)?;
             } else {
                 return Poll::Ready(Ok(()));
             }
@@ -841,8 +844,7 @@ where
     type Output = A::Output;
 
     #[project]
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        // Just simple pin projection to the inner variants
+    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         #[project]
         match self.project() {
             Either::A(a) => a.poll(cx),
@@ -939,16 +941,16 @@ pub(crate) mod spawn_all {
         type Output = ();
 
         #[project]
-        fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
             // If it weren't for needing to name this type so the `Send` bounds
             // could be projected to the `Serve` executor, this could just be
             // an `async fn`, and much safer. Woe is me.
 
+            let mut me = self.project();
             loop {
-                let mut me = self.project();
                 let next = {
                     #[project]
-                    match me.state.project() {
+                    match me.state.as_mut().project() {
                         State::Connecting(connecting, watcher) => {
                             let res = ready!(connecting.poll(cx));
                             let conn = match res {
@@ -963,7 +965,7 @@ pub(crate) mod spawn_all {
                             State::Connected(connected)
                         },
                         State::Connected(future) => {
-                            return future 
+                            return future
                                 .poll(cx)
                                 .map(|res| {
                                     if let Err(err) = res {

@@ -254,11 +254,11 @@ where
     E: Into<Box<dyn StdError + Send + Sync>>,
 {
     #[project]
-    fn poll2(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    fn poll2(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+        let mut me = self.project();
         loop {
-            let mut me = self.project();
             #[project]
-            let next = match me.state.project() {
+            let next = match me.state.as_mut().project() {
                 H2StreamState::Service(h) => {
                     let res = match h.poll(cx) {
                         Poll::Ready(Ok(r)) => r,
