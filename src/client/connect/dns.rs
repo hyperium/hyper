@@ -254,9 +254,10 @@ pub(super) struct Ipv6AddrWithZone {
 impl Ipv6AddrWithZone {
     pub(super) fn try_parse(host: &str, port: u16) -> Option<Self> {
         // IpV6 literals are always in []
-        if ! host.starts_with("[") {
+        if !host.starts_with("[") || !host.ends_with(']') {
             return None;
         }
+        let host = &host[1..host.len()-1];
 
         let host = host.trim_start_matches('[').trim_end_matches(']');
 
