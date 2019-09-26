@@ -32,7 +32,7 @@ iovec = "0.1"
 itoa = "0.4.1"
 log = "0.4"
 net2 = { version = "0.2.32", optional = true }
-pin-project = { version = "=0.4.0-alpha.11", features = ["project_attr"] }
+pin-project = "0.4"
 time = "0.1"
 tokio = { version = "=0.2.0-alpha.5", optional = true, default-features = false, features = ["rt-full"] }
 tower-service = "=0.3.0-alpha.1"
@@ -193,3 +193,18 @@ required-features = ["runtime", "unstable-stream"]
 name = "server"
 path = "tests/server.rs"
 required-features = ["runtime", "unstable-stream"]
+
+[patch.crates-io]
+tokio = { git = "https://github.com/tokio-rs/tokio" }
+tokio-codec = { git = "https://github.com/tokio-rs/tokio" }
+tokio-executor = { git = "https://github.com/tokio-rs/tokio" }
+tokio-fs = { git = "https://github.com/tokio-rs/tokio" }
+tokio-io = { git = "https://github.com/tokio-rs/tokio" }
+tokio-macros = { git = "https://github.com/tokio-rs/tokio" }
+tokio-net = { git = "https://github.com/tokio-rs/tokio" }
+tokio-sync = { git = "https://github.com/tokio-rs/tokio" }
+tokio-test = { git = "https://github.com/tokio-rs/tokio" }
+tokio-timer = { git = "https://github.com/tokio-rs/tokio" }
+
+tower-service = { git = "https://github.com/taiki-e/tower", branch = "pin-project" }
+tower-make = { git = "https://github.com/taiki-e/tower", branch = "pin-project" }

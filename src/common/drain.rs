@@ -98,9 +98,9 @@ where
 {
     type Output = F::Output;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let mut me = self.project();
         loop {
-            let me = self.project();
             match mem::replace(me.state, State::Draining) {
                 State::Watch(on_drain) => {
                     let recv = me.watch.rx.recv_ref();
@@ -109,7 +109,7 @@ where
                     match recv.poll_unpin(cx) {
                         Poll::Ready(None) => {
                             // Drain has been triggered!
-                            on_drain(me.future);
+                            on_drain(me.future.as_mut());
                         },
                         Poll::Ready(Some(_/*State::Open*/)) |
                         Poll::Pending => {
