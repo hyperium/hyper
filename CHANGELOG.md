@@ -10,7 +10,7 @@
 
 * **body:**
   * identify aborted body write errors ([dc54ee19](https://github.com/hyperium/hyper/commit/dc54ee199f2d19d65913d224b900a61ab3bf2415))
-  * put `Stream` impl for `Body` behind `stream` feature ([511ea388](https://github.com/hyperium/hyper/commit/511ea3889b5cceccb3a42aa72465fe38adef71a4))
+  * put `Stream` impl for `Body` behind `unstable-stream` feature ([511ea388](https://github.com/hyperium/hyper/commit/511ea3889b5cceccb3a42aa72465fe38adef71a4))
 * **server:** introduce `Accept` trait ([b3e55062](https://github.com/hyperium/hyper/commit/b3e5506261c33dcaca39a126e891a0b9d5df5eea))
 
 
