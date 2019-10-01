@@ -15,9 +15,9 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 use crate::common::{Future, Unpin};
 
-#[cfg(feature = "runtime")] pub mod dns;
-#[cfg(feature = "runtime")] mod http;
-#[cfg(feature = "runtime")] pub use self::http::{HttpConnector, HttpInfo};
+#[cfg(feature = "tcp")] pub mod dns;
+#[cfg(feature = "tcp")] mod http;
+#[cfg(feature = "tcp")] pub use self::http::{HttpConnector, HttpInfo};
 
 /// Connect to a destination, returning an IO transport.
 ///

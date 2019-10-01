@@ -29,7 +29,7 @@
 //! ```
 //! use hyper::{Client, Uri};
 //!
-//! # #[cfg(feature = "runtime")]
+//! # #[cfg(feature = "tcp")]
 //! # async fn fetch_httpbin() -> hyper::Result<()> {
 //! let client = Client::new();
 //!
@@ -75,7 +75,7 @@ use crate::common::{lazy as hyper_lazy, Lazy, Future, Pin, Poll, task};
 use self::connect::{Alpn, Connect, Connected, Destination};
 use self::pool::{Key as PoolKey, Pool, Poolable, Pooled, Reservation};
 
-#[cfg(feature = "runtime")] pub use self::connect::HttpConnector;
+#[cfg(feature = "tcp")] pub use self::connect::HttpConnector;
 
 pub mod conn;
 pub mod connect;
@@ -110,7 +110,7 @@ pub struct ResponseFuture {
 
 // ===== impl Client =====
 
-#[cfg(feature = "runtime")]
+#[cfg(feature = "tcp")]
 impl Client<HttpConnector, Body> {
     /// Create a new Client with the default [config](Builder).
     ///
@@ -125,7 +125,7 @@ impl Client<HttpConnector, Body> {
     }
 }
 
-#[cfg(feature = "runtime")]
+#[cfg(feature = "tcp")]
 impl Default for Client<HttpConnector, Body> {
     fn default() -> Client<HttpConnector, Body> {
         Client::new()
@@ -1018,7 +1018,7 @@ impl Builder {
     }
 
     /// Builder a client with this configuration and the default `HttpConnector`.
-    #[cfg(feature = "runtime")]
+    #[cfg(feature = "tcp")]
     pub fn build_http<B>(&self) -> Client<HttpConnector, B>
     where
         B: Payload + Send,
