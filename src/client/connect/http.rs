@@ -32,6 +32,7 @@ type ConnectFuture = Pin<Box<dyn Future<Output = io::Result<TcpStream>> + Send>>
 pub struct HttpConnector<R = GaiResolver> {
     enforce_http: bool,
     handle: Option<Handle>,
+    resolve_timeout: Option<Duration>,
     connect_timeout: Option<Duration>,
     happy_eyeballs_timeout: Option<Duration>,
     keep_alive_timeout: Option<Duration>,
@@ -102,6 +103,7 @@ impl<R> HttpConnector<R> {
         HttpConnector {
             enforce_http: true,
             handle: None,
+            resolve_timeout: None,
             connect_timeout: None,
             happy_eyeballs_timeout: Some(Duration::from_millis(300)),
             keep_alive_timeout: None,
@@ -168,6 +170,17 @@ impl<R> HttpConnector<R> {
     #[inline]
     pub fn set_local_address(&mut self, addr: Option<IpAddr>) {
         self.local_address = addr;
+    }
+
+    /// Set timeout for hostname resolution.
+    ///
+    /// If `None`, then no timeout is applied by the connector, making it
+    /// subject to the timeout imposed by the operating system.
+    ///
+    /// Default is `None`.
+    #[inline]
+    pub fn set_resolve_timeout(&mut self, dur: Option<Duration>) {
+        self.resolve_timeout = dur;
     }
 
     /// Set the connect timeout.
@@ -253,6 +266,7 @@ where
         HttpConnecting {
             state: State::Lazy(self.resolver.clone(), host.into(), self.local_address),
             handle: self.handle.clone(),
+            resolve_timeout: self.resolve_timeout,
             connect_timeout: self.connect_timeout,
             happy_eyeballs_timeout: self.happy_eyeballs_timeout,
             keep_alive_timeout: self.keep_alive_timeout,
@@ -309,6 +323,7 @@ where
         let fut = HttpConnecting {
             state: State::Lazy(self.resolver.clone(), host.into(), self.local_address),
             handle: self.handle.clone(),
+            resolve_timeout: self.resolve_timeout,
             connect_timeout: self.connect_timeout,
             happy_eyeballs_timeout: self.happy_eyeballs_timeout,
             keep_alive_timeout: self.keep_alive_timeout,
@@ -338,6 +353,7 @@ fn invalid_url<R: Resolve>(err: InvalidUrl, handle: &Option<Handle>) -> HttpConn
         keep_alive_timeout: None,
         nodelay: false,
         port: 0,
+        resolve_timeout: None,
         connect_timeout: None,
         happy_eyeballs_timeout: None,
         reuse_address: false,
@@ -373,6 +389,7 @@ impl StdError for InvalidUrl {
 pub struct HttpConnecting<R: Resolve = GaiResolver> {
     state: State<R>,
     handle: Option<Handle>,
+    resolve_timeout: Option<Duration>,
     connect_timeout: Option<Duration>,
     happy_eyeballs_timeout: Option<Duration>,
     keep_alive_timeout: Option<Duration>,
@@ -385,9 +402,14 @@ pub struct HttpConnecting<R: Resolve = GaiResolver> {
 
 enum State<R: Resolve> {
     Lazy(R, String, Option<IpAddr>),
-    Resolving(R::Future, Option<IpAddr>),
+    Resolving(ResolvingFuture<R>, Option<IpAddr>),
     Connecting(ConnectingTcp),
     Error(Option<io::Error>),
+}
+
+enum ResolvingFuture<R: Resolve> {
+    Timed(Timeout<R::Future>),
+    Untimed(R::Future),
 }
 
 impl<R: Resolve> Future for HttpConnecting<R>
@@ -409,11 +431,19 @@ where
                             local_addr, addrs, me.connect_timeout, me.happy_eyeballs_timeout, me.reuse_address));
                     } else {
                         let name = dns::Name::new(mem::replace(host, String::new()));
-                        state = State::Resolving(resolver.resolve(name), local_addr);
+                        let future = resolver.resolve(name);
+                        state = if let Some(timeout) = me.resolve_timeout {
+                            State::Resolving(ResolvingFuture::Timed(Timeout::new(future, timeout)), local_addr)
+                        } else {
+                            State::Resolving(ResolvingFuture::Untimed(future), local_addr)
+                        }
                     }
                 },
                 State::Resolving(ref mut future, local_addr) => {
-                    let addrs =  ready!(Pin::new(future).poll(cx))?;
+                    let addrs = match future {
+                        ResolvingFuture::Timed(f) => ready!(Pin::new(f).poll(cx))??,
+                        ResolvingFuture::Untimed(f) => ready!(Pin::new(f).poll(cx))?,
+                    };
                     let port = me.port;
                     let addrs = addrs
                         .map(|addr| SocketAddr::new(addr, port))
