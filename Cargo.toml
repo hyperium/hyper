@@ -21,27 +21,28 @@ include = [
 
 [dependencies]
 bytes = "0.4.4"
-futures-core-preview = { version = "=0.3.0-alpha.18" }
-futures-channel-preview = { version = "=0.3.0-alpha.18" }
-futures-util-preview = { version = "=0.3.0-alpha.18" }
+futures-core-preview = { version = "=0.3.0-alpha.19" }
+futures-channel-preview = { version = "=0.3.0-alpha.19" }
+futures-util-preview = { version = "=0.3.0-alpha.19" }
 http = "0.1.15"
 http-body = "=0.2.0-alpha.1"
 httparse = "1.0"
-h2 = "=0.2.0-alpha.2"
+# h2 = "=0.2.0-alpha.2"
+h2 = { version = "=0.2.0-alpha.2", git = "https://github.com/hyperium/h2", branch = "lucio/update-alpha6" }
 iovec = "0.1"
 itoa = "0.4.1"
 log = "0.4"
 net2 = { version = "0.2.32", optional = true }
 pin-project = "0.4"
 time = "0.1"
-tokio = { version = "=0.2.0-alpha.5", optional = true, default-features = false, features = ["rt-full"] }
-tower-service = "=0.3.0-alpha.1"
-tower-make = { version = "=0.3.0-alpha.2", features = ['io'] }
-tokio-executor = { version = "=0.2.0-alpha.5", features = ["blocking"] }
-tokio-io = "=0.2.0-alpha.5"
-tokio-sync = "=0.2.0-alpha.5"
-tokio-net = { version = "=0.2.0-alpha.5", optional = true, features = ["tcp"] }
-tokio-timer = { version = "=0.3.0-alpha.5", optional = true }
+tokio = { version = "=0.2.0-alpha.6", optional = true, default-features = false, features = ["rt-full"] }
+tower-service = "=0.3.0-alpha.2"
+tower-make = { version = "=0.3.0-alpha.2a", features = ['io'] }
+tokio-executor = { version = "=0.2.0-alpha.6", features = ["blocking"] }
+tokio-io = "=0.2.0-alpha.6"
+tokio-sync = "=0.2.0-alpha.6"
+tokio-net = { version = "=0.2.0-alpha.6", optional = true, features = ["tcp"] }
+tokio-timer = { version = "=0.3.0-alpha.6", optional = true }
 want = "0.3"
 
 [dev-dependencies]
@@ -52,9 +53,9 @@ spmc = "0.3"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
-tokio = "=0.2.0-alpha.5" # using #[tokio::test] attributes
-tokio-fs = "=0.2.0-alpha.5"
-tokio-test = "=0.2.0-alpha.5"
+tokio = "=0.2.0-alpha.6" # using #[tokio::test] attributes
+tokio-fs = "=0.2.0-alpha.6"
+tokio-test = "=0.2.0-alpha.6"
 url = "1.0"
 
 [features]
@@ -193,18 +194,3 @@ required-features = ["runtime", "unstable-stream"]
 name = "server"
 path = "tests/server.rs"
 required-features = ["runtime", "unstable-stream"]
-
-[patch.crates-io]
-tokio = { git = "https://github.com/tokio-rs/tokio" }
-tokio-codec = { git = "https://github.com/tokio-rs/tokio" }
-tokio-executor = { git = "https://github.com/tokio-rs/tokio" }
-tokio-fs = { git = "https://github.com/tokio-rs/tokio" }
-tokio-io = { git = "https://github.com/tokio-rs/tokio" }
-tokio-macros = { git = "https://github.com/tokio-rs/tokio" }
-tokio-net = { git = "https://github.com/tokio-rs/tokio" }
-tokio-sync = { git = "https://github.com/tokio-rs/tokio" }
-tokio-test = { git = "https://github.com/tokio-rs/tokio" }
-tokio-timer = { git = "https://github.com/tokio-rs/tokio" }
-
-tower-service = { git = "https://github.com/taiki-e/tower", branch = "pin-project" }
-tower-make = { git = "https://github.com/taiki-e/tower", branch = "pin-project" }
