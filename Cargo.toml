@@ -28,7 +28,7 @@ http = "0.1.15"
 http-body = "=0.2.0-alpha.1"
 httparse = "1.0"
 # h2 = "=0.2.0-alpha.2"
-h2 = { version = "=0.2.0-alpha.2", git = "https://github.com/hyperium/h2", branch = "lucio/update-alpha6" }
+h2 = "=0.2.0-alpha.3"
 iovec = "0.1"
 itoa = "0.4.1"
 log = "0.4"
