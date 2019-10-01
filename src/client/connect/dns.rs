@@ -249,15 +249,18 @@ impl Iterator for IpAddrs {
 ///
 /// Unlike the `GaiResolver` this will not spawn dedicated threads, but only works when running on the
 /// multi-threaded Tokio runtime.
+#[cfg(feature = "runtime")]
 #[derive(Clone, Debug)]
 pub struct TokioThreadpoolGaiResolver(());
 
 /// The future returned by `TokioThreadpoolGaiResolver`.
+#[cfg(feature = "runtime")]
 #[derive(Debug)]
 pub struct TokioThreadpoolGaiFuture {
     name: Name,
 }
 
+#[cfg(feature = "runtime")]
 impl TokioThreadpoolGaiResolver {
     /// Creates a new DNS resolver that will use tokio threadpool's blocking
     /// feature.
@@ -268,6 +271,7 @@ impl TokioThreadpoolGaiResolver {
     }
 }
 
+#[cfg(feature = "runtime")]
 impl Resolve for TokioThreadpoolGaiResolver {
     type Addrs = GaiAddrs;
     type Future = TokioThreadpoolGaiFuture;
@@ -277,6 +281,7 @@ impl Resolve for TokioThreadpoolGaiResolver {
     }
 }
 
+#[cfg(feature = "runtime")]
 impl Future for TokioThreadpoolGaiFuture {
     type Output = Result<GaiAddrs, io::Error>;
 

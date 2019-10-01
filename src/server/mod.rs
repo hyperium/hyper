@@ -23,7 +23,7 @@
 //! use hyper::service::{make_service_fn, service_fn};
 //!
 //! # #[cfg(feature = "runtime")]
-//! # #[tokio::main]
+//! #[tokio::main]
 //! async fn main() {
 //!     // Construct our SocketAddr to listen on...
 //!     let addr = ([127, 0, 0, 1], 3000).into();
@@ -51,13 +51,13 @@
 pub mod accept;
 pub mod conn;
 mod shutdown;
-#[cfg(feature = "runtime")] mod tcp;
+#[cfg(feature = "tcp")] mod tcp;
 
 use std::error::Error as StdError;
 use std::fmt;
-#[cfg(feature = "runtime")] use std::net::{SocketAddr, TcpListener as StdTcpListener};
+#[cfg(feature = "tcp")] use std::net::{SocketAddr, TcpListener as StdTcpListener};
 
-#[cfg(feature = "runtime")] use std::time::Duration;
+#[cfg(feature = "tcp")] use std::time::Duration;
 
 use tokio_io::{AsyncRead, AsyncWrite};
 use pin_project::pin_project;
@@ -71,7 +71,7 @@ use self::accept::Accept;
 // error that `hyper::server::Http` is private...
 use self::conn::{Http as Http_, NoopWatcher, SpawnAll};
 use self::shutdown::{Graceful, GracefulWatcher};
-#[cfg(feature = "runtime")] use self::tcp::AddrIncoming;
+#[cfg(feature = "tcp")] use self::tcp::AddrIncoming;
 
 /// A listening HTTP server that accepts connections in both HTTP1 and HTTP2 by default.
 ///
@@ -104,7 +104,7 @@ impl<I> Server<I, ()> {
     }
 }
 
-#[cfg(feature = "runtime")]
+#[cfg(feature = "tcp")]
 impl Server<AddrIncoming, ()> {
     /// Binds to the provided address, and returns a [`Builder`](Builder).
     ///
@@ -134,7 +134,7 @@ impl Server<AddrIncoming, ()> {
     }
 }
 
-#[cfg(feature = "runtime")]
+#[cfg(feature = "tcp")]
 impl<S> Server<AddrIncoming, S> {
     /// Returns the local address that this server is bound to.
     pub fn local_addr(&self) -> SocketAddr {
@@ -162,7 +162,7 @@ where
     ///
     /// ```
     /// # fn main() {}
-    /// # #[cfg(feature = "runtime")]
+    /// # #[cfg(feature = "tcp")]
     /// # async fn run() {
     /// # use hyper::{Body, Response, Server, Error};
     /// # use hyper::service::{make_service_fn, service_fn};
@@ -356,11 +356,8 @@ impl<I, E> Builder<I, E> {
     /// # Example
     ///
     /// ```
-    /// # #[cfg(not(feature = "runtime"))]
-    /// # fn main() {}
-    /// # #[cfg(feature = "runtime")]
-    /// # #[tokio::main]
-    /// # async fn main() {
+    /// # #[cfg(feature = "tcp")]
+    /// # async fn run() {
     /// use hyper::{Body, Error, Response, Server};
     /// use hyper::service::{make_service_fn, service_fn};
     ///
@@ -378,7 +375,10 @@ impl<I, E> Builder<I, E> {
     /// let server = Server::bind(&addr)
     ///     .serve(make_svc);
     ///
-    /// // Finally, spawn `server` onto an Executor...
+    /// // Run forever-ish...
+    /// if let Err(err) = server.await {
+    ///     eprintln!("server error: {}", err);
+    /// }
     /// # }
     /// ```
     pub fn serve<S, B>(self, new_service: S) -> Server<I, S, E>
@@ -402,7 +402,7 @@ impl<I, E> Builder<I, E> {
     }
 }
 
-#[cfg(feature = "runtime")]
+#[cfg(feature = "tcp")]
 impl<E> Builder<AddrIncoming, E> {
     /// Set whether TCP keepalive messages are enabled on accepted connections.
     ///

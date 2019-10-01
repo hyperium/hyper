@@ -11,14 +11,14 @@
 use std::error::Error as StdError;
 use std::fmt;
 use std::mem;
-#[cfg(feature = "runtime")] use std::net::SocketAddr;
-#[cfg(feature = "runtime")] use std::time::Duration;
+#[cfg(feature = "tcp")] use std::net::SocketAddr;
+#[cfg(feature = "tcp")] use std::time::Duration;
 
 use bytes::Bytes;
 use futures_core::Stream;
 use tokio_io::{AsyncRead, AsyncWrite};
 use pin_project::{pin_project, project};
-#[cfg(feature = "runtime")] use tokio_net::driver::Handle;
+#[cfg(feature = "tcp")] use tokio_net::driver::Handle;
 
 use crate::body::{Body, Payload};
 use crate::common::exec::{Exec, H2Exec, NewSvcExec};
@@ -35,7 +35,7 @@ use self::spawn_all::NewSvcTask;
 pub(super) use self::spawn_all::Watcher;
 pub(super) use self::upgrades::UpgradeableConnection;
 
-#[cfg(feature = "runtime")] pub use super::tcp::{AddrIncoming, AddrStream};
+#[cfg(feature = "tcp")] pub use super::tcp::{AddrIncoming, AddrStream};
 
 /// A lower-level configuration of the HTTP protocol.
 ///
@@ -341,9 +341,7 @@ impl<E> Http<E> {
     /// # use hyper::{Body, Request, Response};
     /// # use hyper::service::Service;
     /// # use hyper::server::conn::Http;
-    /// # #[cfg(feature = "runtime")]
     /// # use tokio_io::{AsyncRead, AsyncWrite};
-    /// # #[cfg(feature = "runtime")]
     /// # async fn run<I, S>(some_io: I, some_service: S)
     /// # where
     /// #     I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
@@ -404,7 +402,7 @@ impl<E> Http<E> {
         }
     }
 
-    #[cfg(feature = "runtime")]
+    #[cfg(feature = "tcp")]
     #[doc(hidden)]
     #[deprecated]
     #[allow(deprecated)]
@@ -426,7 +424,7 @@ impl<E> Http<E> {
         Ok(self.serve_incoming(incoming, make_service))
     }
 
-    #[cfg(feature = "runtime")]
+    #[cfg(feature = "tcp")]
     #[doc(hidden)]
     #[deprecated]
     #[allow(deprecated)]
@@ -792,7 +790,7 @@ where
 
 // ===== impl SpawnAll =====
 
-#[cfg(feature = "runtime")]
+#[cfg(feature = "tcp")]
 impl<S, E> SpawnAll<AddrIncoming, S, E> {
     pub(super) fn local_addr(&self) -> SocketAddr {
         self.serve.incoming.local_addr()

@@ -14,7 +14,8 @@ use tokio_timer::Delay;
 
 use crate::common::{Future, Pin, Poll, task};
 use super::{Connect, Connected, Destination};
-use super::dns::{self, GaiResolver, Resolve, TokioThreadpoolGaiResolver};
+use super::dns::{self, GaiResolver, Resolve};
+#[cfg(feature = "runtime")] use super::dns::TokioThreadpoolGaiResolver;
 
 // TODO: unbox me?
 type ConnectFuture = Pin<Box<dyn Future<Output = io::Result<TcpStream>> + Send>>;
@@ -81,6 +82,7 @@ impl HttpConnector {
     }
 }
 
+#[cfg(feature = "runtime")]
 impl HttpConnector<TokioThreadpoolGaiResolver> {
     /// Construct a new HttpConnector using the `TokioThreadpoolGaiResolver`.
     ///

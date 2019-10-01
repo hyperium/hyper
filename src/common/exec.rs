@@ -50,7 +50,7 @@ impl Exec {
     {
         match *self {
             Exec::Default => {
-                #[cfg(feature = "runtime")]
+                #[cfg(feature = "tcp")]
                 {
                     use std::error::Error as StdError;
 
@@ -81,7 +81,7 @@ impl Exec {
                             crate::Error::new_execute(TokioSpawnError)
                         })
                 }
-                #[cfg(not(feature = "runtime"))]
+                #[cfg(not(feature = "tcp"))]
                 {
                     // If no runtime, we need an executor!
                     panic!("executor must be set")
