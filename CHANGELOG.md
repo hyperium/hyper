@@ -1,3 +1,11 @@
+### v0.13.0-alpha.3 (2019-10-01)
+
+
+#### Features
+
+* **lib:** add optional `tcp` feature, split from `runtime` ([5b348b82](https://github.com/hyperium/hyper/commit/5b348b821c3f43d8dd71179862190932fcca6a1c))
+
+
 ### v0.13.0-alpha.2 (2019-09-24)
 
 
