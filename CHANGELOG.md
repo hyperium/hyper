@@ -1,3 +1,11 @@
+### v0.13.0-alpha.4 (2019-10-01)
+
+
+#### Bug Fixes
+
+* **body:** allow `http_body::Body` to be object-safe
+
+
 ### v0.13.0-alpha.3 (2019-10-01)
 
 
