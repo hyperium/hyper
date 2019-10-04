@@ -26,7 +26,7 @@
 
 * **body:**
   * identify aborted body write errors ([dc54ee19](https://github.com/hyperium/hyper/commit/dc54ee199f2d19d65913d224b900a61ab3bf2415))
-  * put `Stream` impl for `Body` behind `stream` feature ([511ea388](https://github.com/hyperium/hyper/commit/511ea3889b5cceccb3a42aa72465fe38adef71a4))
+  * put `Stream` impl for `Body` behind `unstable-stream` feature ([511ea388](https://github.com/hyperium/hyper/commit/511ea3889b5cceccb3a42aa72465fe38adef71a4))
 * **server:** introduce `Accept` trait ([b3e55062](https://github.com/hyperium/hyper/commit/b3e5506261c33dcaca39a126e891a0b9d5df5eea))
 
 
@@ -574,23 +574,23 @@
   * The variants of `StatusCode` are now uppercase, for instance, `StatusCode::Ok` is now `StatusCode::OK`.
   * The variants of `Version` are now uppercase, for instance, `HttpVersion::Http11` is now `Version::HTTP_11`.
 *  The typed headers from `hyper::header` are gone for now.
-  
+
   The `http::header` module is re-exported as `hyper::header`.
-  
+
   For example, a before setting the content-length:
-  
+
   ```rust
   use hyper::header::ContentLength;
   res.headers_mut().set(ContentLength(15));
   ```
-  
+
   And now **after**, with the `http` types:
-  
+
   ```rust
   use hyper::header::{CONTENT_LENGTH, HeaderValue};
   res.headers_mut().insert(CONTENT_LENGTH, HeaderValue::from_static("15"));
   ```
-  
+
   ([3cd48b45](https://github.com/hyperium/hyper/commit/3cd48b45fb622fb9e69ba773e7f92b9d3e9ac018))
 * The `mime` crate is no longer re-exported as `hyper::mime`.
 
@@ -2472,4 +2472,3 @@ tag is now in a tuple.
 * **headers:**
     * fix fmt_header outputs of several headers ([aa266653](https://github.com/hyperium/hyper/commit/aa26665367bde895ce02ad2a8e1a372f00719852), closes [#246](https://github.com/hyperium/hyper/issues/246))
     * don't use Show to write UserAgent header ([c8e334aa](https://github.com/hyperium/hyper/commit/c8e334aaebb5522a86d47f7e3c33836d2061cb65))
-
