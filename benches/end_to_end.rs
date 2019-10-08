@@ -11,6 +11,8 @@ use tokio::runtime::current_thread::Runtime;
 use hyper::{Body, Method, Request, Response, Server};
 use hyper::client::HttpConnector;
 
+// HTTP1
+
 #[bench]
 fn http1_get(b: &mut test::Bencher) {
     opts()
@@ -63,6 +65,28 @@ fn http1_parallel_x10_req_10mb(b: &mut test::Bencher) {
 }
 
 #[bench]
+fn http1_parallel_x10_res_1mb(b: &mut test::Bencher) {
+    let body = &[b'x'; 1024 * 1024 * 1];
+    opts()
+        .parallel(10)
+        .response_body(body)
+        .bench(b)
+}
+
+#[bench]
+fn http1_parallel_x10_res_10mb(b: &mut test::Bencher) {
+    let body = &[b'x'; 1024 * 1024 * 10];
+    opts()
+        .parallel(10)
+        .response_body(body)
+        .bench(b)
+}
+
+// HTTP2
+
+const HTTP2_MAX_WINDOW: u32 = std::u32::MAX >> 1;
+
+#[bench]
 fn http2_get(b: &mut test::Bencher) {
     opts()
         .http2()
@@ -104,8 +128,32 @@ fn http2_parallel_x10_req_10mb(b: &mut test::Bencher) {
         .parallel(10)
         .method(Method::POST)
         .request_body(body)
-        .http2_stream_window(std::u32::MAX >> 1)
-        .http2_conn_window(std::u32::MAX >> 1)
+        //.http2_stream_window(HTTP2_MAX_WINDOW)
+        //.http2_conn_window(HTTP2_MAX_WINDOW)
+        .bench(b)
+}
+
+#[bench]
+fn http2_parallel_x10_res_1mb(b: &mut test::Bencher) {
+    let body = &[b'x'; 1024 * 1024 * 1];
+    opts()
+        .http2()
+        .parallel(10)
+        .response_body(body)
+        .http2_stream_window(HTTP2_MAX_WINDOW)
+        .http2_conn_window(HTTP2_MAX_WINDOW)
+        .bench(b)
+}
+
+#[bench]
+fn http2_parallel_x10_res_10mb(b: &mut test::Bencher) {
+    let body = &[b'x'; 1024 * 1024 * 10];
+    opts()
+        .http2()
+        .parallel(10)
+        .response_body(body)
+        .http2_stream_window(HTTP2_MAX_WINDOW)
+        .http2_conn_window(HTTP2_MAX_WINDOW)
         .bench(b)
 }
 

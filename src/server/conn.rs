@@ -37,6 +37,15 @@ pub(super) use self::upgrades::UpgradeableConnection;
 
 #[cfg(feature = "tcp")] pub use super::tcp::{AddrIncoming, AddrStream};
 
+// Our defaults are chosen for the "majority" case, which usually are not
+// resource contrained, and so the spec default of 64kb can be too limiting
+// for performance.
+//
+// At the same time, a server more often has multiple clients connected, and
+// so is more likely to use more resources than a client would.
+const DEFAULT_HTTP2_CONN_WINDOW: u32 = 1024 * 1024; // 1mb
+const DEFAULT_HTTP2_STREAM_WINDOW: u32 = 1024 * 1024; // 1mb
+
 /// A lower-level configuration of the HTTP protocol.
 ///
 /// This structure is used to configure options for an HTTP server connection.
@@ -178,11 +187,16 @@ impl Http {
     /// Creates a new instance of the HTTP protocol, ready to spawn a server or
     /// start accepting connections.
     pub fn new() -> Http {
+        let mut h2_builder = h2::server::Builder::default();
+        h2_builder
+            .initial_window_size(DEFAULT_HTTP2_STREAM_WINDOW)
+            .initial_connection_window_size(DEFAULT_HTTP2_CONN_WINDOW);
+
         Http {
             exec: Exec::Default,
             h1_half_close: true,
             h1_writev: true,
-            h2_builder: h2::server::Builder::default(),
+            h2_builder,
             mode: ConnectionMode::Fallback,
             keep_alive: true,
             max_buf_size: None,
@@ -247,7 +261,9 @@ impl<E> Http<E> {
     /// Sets the [`SETTINGS_INITIAL_WINDOW_SIZE`][spec] option for HTTP2
     /// stream-level flow control.
     ///
-    /// Default is 65,535
+    /// Passing `None` will do nothing.
+    ///
+    /// If not set, hyper will use a default.
     ///
     /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_INITIAL_WINDOW_SIZE
     pub fn http2_initial_stream_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
@@ -257,9 +273,11 @@ impl<E> Http<E> {
         self
     }
 
-    /// Sets the max connection-level flow control for HTTP2
+    /// Sets the max connection-level flow control for HTTP2.
     ///
-    /// Default is 65,535
+    /// Passing `None` will do nothing.
+    ///
+    /// If not set, hyper will use a default.
     pub fn http2_initial_connection_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
         if let Some(sz) = sz.into() {
             self.h2_builder.initial_connection_window_size(sz);
@@ -270,7 +288,7 @@ impl<E> Http<E> {
     /// Sets the [`SETTINGS_MAX_CONCURRENT_STREAMS`][spec] option for HTTP2
     /// connections.
     ///
-    /// Default is no limit (`None`).
+    /// Default is no limit (`std::u32::MAX`). Passing `None` will do nothing.
     ///
     /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_MAX_CONCURRENT_STREAMS
     pub fn http2_max_concurrent_streams(&mut self, max: impl Into<Option<u32>>) -> &mut Self {

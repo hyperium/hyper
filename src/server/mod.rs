@@ -306,7 +306,9 @@ impl<I, E> Builder<I, E> {
     /// Sets the [`SETTINGS_INITIAL_WINDOW_SIZE`][spec] option for HTTP2
     /// stream-level flow control.
     ///
-    /// Default is 65,535
+    /// Passing `None` will do nothing.
+    ///
+    /// If not set, hyper will use a default.
     ///
     /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_INITIAL_WINDOW_SIZE
     pub fn http2_initial_stream_window_size(mut self, sz: impl Into<Option<u32>>) -> Self {
@@ -316,7 +318,9 @@ impl<I, E> Builder<I, E> {
 
     /// Sets the max connection-level flow control for HTTP2
     ///
-    /// Default is 65,535
+    /// Passing `None` will do nothing.
+    ///
+    /// If not set, hyper will use a default.
     pub fn http2_initial_connection_window_size(mut self, sz: impl Into<Option<u32>>) -> Self {
         self.protocol.http2_initial_connection_window_size(sz.into());
         self
@@ -325,7 +329,7 @@ impl<I, E> Builder<I, E> {
     /// Sets the [`SETTINGS_MAX_CONCURRENT_STREAMS`][spec] option for HTTP2
     /// connections.
     ///
-    /// Default is no limit (`None`).
+    /// Default is no limit (`std::u32::MAX`). Passing `None` will do nothing.
     ///
     /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_MAX_CONCURRENT_STREAMS
     pub fn http2_max_concurrent_streams(mut self, max: impl Into<Option<u32>>) -> Self {

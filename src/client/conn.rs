@@ -34,6 +34,14 @@ type ConnEither<T, B> = Either<
     proto::h2::ClientTask<B>,
 >;
 
+// Our defaults are chosen for the "majority" case, which usually are not
+// resource contrained, and so the spec default of 64kb can be too limiting
+// for performance.
+const DEFAULT_HTTP2_CONN_WINDOW: u32 = 1024 * 1024 * 5; // 5mb
+const DEFAULT_HTTP2_STREAM_WINDOW: u32 = 1024 * 1024 * 2; // 2mb
+
+
+
 /// Returns a handshake future over some IO.
 ///
 /// This is a shortcut for `Builder::new().handshake(io)`.
@@ -425,7 +433,10 @@ impl Builder {
     #[inline]
     pub fn new() -> Builder {
         let mut h2_builder = h2::client::Builder::default();
-        h2_builder.enable_push(false);
+        h2_builder
+            .initial_window_size(DEFAULT_HTTP2_STREAM_WINDOW)
+            .initial_connection_window_size(DEFAULT_HTTP2_CONN_WINDOW)
+            .enable_push(false);
 
         Builder {
             exec: Exec::Default,
@@ -486,7 +497,9 @@ impl Builder {
     /// Sets the [`SETTINGS_INITIAL_WINDOW_SIZE`][spec] option for HTTP2
     /// stream-level flow control.
     ///
-    /// Default is 65,535
+    /// Passing `None` will do nothing.
+    ///
+    /// If not set, hyper will use a default.
     ///
     /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_INITIAL_WINDOW_SIZE
     pub fn http2_initial_stream_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
@@ -498,7 +511,9 @@ impl Builder {
 
     /// Sets the max connection-level flow control for HTTP2
     ///
-    /// Default is 65,535
+    /// Passing `None` will do nothing.
+    ///
+    /// If not set, hyper will use a default.
     pub fn http2_initial_connection_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
         if let Some(sz) = sz.into() {
             self.h2_builder.initial_connection_window_size(sz);
