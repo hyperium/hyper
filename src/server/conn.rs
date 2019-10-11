@@ -663,7 +663,7 @@ where
 
 impl<I, B, S, E> Future for Connection<I, S, E>
 where
-    S: Service<Body, ResBody=B> + 'static,
+    S: Service<Body, ResBody=B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin + 'static,
     B: Payload + 'static,
