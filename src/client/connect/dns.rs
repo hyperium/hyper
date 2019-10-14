@@ -235,6 +235,10 @@ impl IpAddrs {
     pub(super) fn is_empty(&self) -> bool {
         self.iter.as_slice().is_empty()
     }
+
+    pub(super) fn len(&self) -> usize {
+        self.iter.as_slice().len()
+    }
 }
 
 impl Iterator for IpAddrs {
