@@ -20,7 +20,7 @@ include = [
 ]
 
 [dependencies]
-bytes = "0.4.4"
+bytes = "0.4.6"
 futures-core-preview = "=0.3.0-alpha.19"
 futures-channel-preview = "=0.3.0-alpha.19"
 futures-util-preview = "=0.3.0-alpha.19"
