@@ -151,6 +151,17 @@ fn http2_parallel_x10_req_10kb_100_chunks(b: &mut test::Bencher) {
         .parallel(10)
         .method(Method::POST)
         .request_chunks(body, 100)
+        .bench(b)
+}
+
+#[bench]
+fn http2_parallel_x10_req_10kb_100_chunks_max_window(b: &mut test::Bencher) {
+    let body = &[b'x'; 1024 * 10];
+    opts()
+        .http2()
+        .parallel(10)
+        .method(Method::POST)
+        .request_chunks(body, 100)
         .http2_stream_window(HTTP2_MAX_WINDOW)
         .http2_conn_window(HTTP2_MAX_WINDOW)
         .bench(b)
