@@ -501,6 +501,11 @@ impl Sender {
         self.tx.try_send(Ok(chunk)).map_err(|_| crate::Error::new_closed())
     }
 
+    /// Close the channel preventing any new messages.
+    pub fn close(&mut self) {
+        self.tx.close_channel()
+    }
+
     /// Try to send data on this channel.
     ///
     /// # Errors
