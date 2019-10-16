@@ -65,6 +65,16 @@ fn http1_parallel_x10_req_10mb(b: &mut test::Bencher) {
 }
 
 #[bench]
+fn http1_parallel_x10_req_10kb_100_chunks(b: &mut test::Bencher) {
+    let body = &[b'x'; 1024 * 10];
+    opts()
+        .parallel(10)
+        .method(Method::POST)
+        .request_chunks(body, 100)
+        .bench(b)
+}
+
+#[bench]
 fn http1_parallel_x10_res_1mb(b: &mut test::Bencher) {
     let body = &[b'x'; 1024 * 1024 * 1];
     opts()
@@ -128,8 +138,21 @@ fn http2_parallel_x10_req_10mb(b: &mut test::Bencher) {
         .parallel(10)
         .method(Method::POST)
         .request_body(body)
-        //.http2_stream_window(HTTP2_MAX_WINDOW)
-        //.http2_conn_window(HTTP2_MAX_WINDOW)
+        .http2_stream_window(HTTP2_MAX_WINDOW)
+        .http2_conn_window(HTTP2_MAX_WINDOW)
+        .bench(b)
+}
+
+#[bench]
+fn http2_parallel_x10_req_10kb_100_chunks(b: &mut test::Bencher) {
+    let body = &[b'x'; 1024 * 10];
+    opts()
+        .http2()
+        .parallel(10)
+        .method(Method::POST)
+        .request_chunks(body, 100)
+        .http2_stream_window(HTTP2_MAX_WINDOW)
+        .http2_conn_window(HTTP2_MAX_WINDOW)
         .bench(b)
 }
 
@@ -166,6 +189,7 @@ struct Opts {
     parallel_cnt: u32,
     request_method: Method,
     request_body: Option<&'static [u8]>,
+    request_chunks: usize,
     response_body: &'static [u8],
 }
 
@@ -177,6 +201,7 @@ fn opts() -> Opts {
         parallel_cnt: 1,
         request_method: Method::GET,
         request_body: None,
+        request_chunks: 0,
         response_body: b"Hello",
     }
 }
@@ -207,6 +232,13 @@ impl Opts {
         self
     }
 
+    fn request_chunks(mut self, chunk: &'static [u8], cnt: usize) -> Self {
+        assert!(cnt > 0);
+        self.request_body = Some(chunk);
+        self.request_chunks = cnt;
+        self
+    }
+
     fn response_body(mut self, body: &'static [u8]) -> Self {
         self.response_body = body;
         self
@@ -222,8 +254,16 @@ impl Opts {
         let _ = pretty_env_logger::try_init();
         // Create a runtime of current thread.
         let mut rt = Runtime::new().unwrap();
+        let exec = rt.handle();
 
-        b.bytes = self.response_body.len() as u64 + self.request_body.map(|b| b.len()).unwrap_or(0) as u64;
+        let req_len = self.request_body.map(|b| b.len()).unwrap_or(0) as u64;
+        let req_len = if self.request_chunks > 0 {
+            req_len * self.request_chunks as u64
+        } else {
+            req_len
+        };
+        let bytes_per_iter = (req_len + self.response_body.len() as u64) * self.parallel_cnt as u64;
+        b.bytes = bytes_per_iter;
 
         let addr = spawn_server(&mut rt, &self);
 
@@ -237,10 +277,23 @@ impl Opts {
         let url: hyper::Uri = format!("http://{}/hello", addr).parse().unwrap();
 
         let make_request = || {
-            let body = self
-                .request_body
-                .map(Body::from)
-                .unwrap_or_else(|| Body::empty());
+            let chunk_cnt = self.request_chunks;
+            let body = if chunk_cnt > 0 {
+
+                let (mut tx, body) = Body::channel();
+                let chunk = self.request_body.expect("request_chunks means request_body");
+                exec.spawn(async move {
+                    for _ in 0..chunk_cnt {
+                        tx.send_data(chunk.into()).await.expect("send_data");
+                    }
+                }).expect("body tx spawn");
+                body
+            } else {
+                self
+                    .request_body
+                    .map(Body::from)
+                    .unwrap_or_else(|| Body::empty())
+            };
             let mut req = Request::new(body);
             *req.method_mut() = self.request_method.clone();
             *req.uri_mut() = url.clone();
