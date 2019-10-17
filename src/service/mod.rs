@@ -15,10 +15,8 @@
 //! to a single connection. It defines how to respond to **all** requests that
 //! connection will receive.
 //!
-//! While it's possible to implement `Service` for a type manually, the helpers
-//! [`service_fn`](service::service_fn) and
-//! [`service_fn_ok`](service::service_fn_ok) should be sufficient for most
-//! cases.
+//! While it's possible to implement `Service` for a type manually, the helper
+//! [`service_fn`](service::service_fn) should be sufficient for most cases.
 //!
 //! # MakeService
 //!
