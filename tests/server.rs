@@ -945,6 +945,7 @@ fn disable_keep_alive_post_request() {
 
 #[test]
 fn empty_parse_eof_does_not_return_error() {
+    let _ = pretty_env_logger::try_init();
     let mut rt = Runtime::new().unwrap();
     let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
@@ -983,13 +984,13 @@ fn nonempty_parse_eof_returns_error() {
 }
 
 #[test]
-fn socket_half_closed() {
+fn http1_allow_half_close() {
     let _ = pretty_env_logger::try_init();
     let mut rt = Runtime::new().unwrap();
     let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
-    thread::spawn(move || {
+    let t1 = thread::spawn(move || {
         let mut tcp = connect(&addr);
         tcp.write_all(b"GET / HTTP/1.1\r\n\r\n").unwrap();
         tcp.shutdown(::std::net::Shutdown::Write).expect("SHDN_WR");
@@ -1005,13 +1006,16 @@ fn socket_half_closed() {
         .map(Option::unwrap)
         .map_err(|_| unreachable!())
         .and_then(|socket| {
-            Http::new().serve_connection(socket, service_fn(|_| {
+            Http::new()
+                .http1_half_close(true)
+                .serve_connection(socket, service_fn(|_| {
                     tokio_timer::delay_for(Duration::from_millis(500))
                         .map(|_| Ok::<_, hyper::Error>(Response::new(Body::empty())))
                 }))
         });
 
     rt.block_on(fut).unwrap();
+    t1.join().expect("client thread");
 }
 
 #[test]
@@ -1852,28 +1856,28 @@ impl tower_service::Service<Request<Body>> for TestService {
         Ok(()).into()
     }
 
-    fn call(&mut self, req: Request<Body>) -> Self::Future {
-        let tx1 = self.tx.clone();
-        let tx2 = self.tx.clone();
+    fn call(&mut self, mut req: Request<Body>) -> Self::Future {
+        let tx = self.tx.clone();
         let replies = self.reply.clone();
-        req
-            .into_body()
-            .try_concat()
-            .map_ok(move |chunk| {
-                tx1.send(Msg::Chunk(chunk.to_vec())).unwrap();
-                ()
-            })
-            .map(move |result| {
-                let msg = match result {
-                    Ok(()) => Msg::End,
-                    Err(e) => Msg::Error(e),
-                };
-                tx2.send(msg).unwrap();
-            })
-            .map(move |_| {
-                TestService::build_reply(replies)
-            })
-            .boxed()
+        hyper::rt::spawn(async move {
+            while let Some(chunk) = req.body_mut().next().await {
+                match chunk {
+                    Ok(chunk) => {
+                        tx.send(Msg::Chunk(chunk.to_vec())).unwrap();
+                    },
+                    Err(err) => {
+                        tx.send(Msg::Error(err)).unwrap();
+                        return;
+                    },
+                }
+            }
+
+            tx.send(Msg::End).unwrap();
+        });
+
+        Box::pin(async move {
+            TestService::build_reply(replies)
+        })
     }
 }
 

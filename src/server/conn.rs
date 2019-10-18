@@ -194,7 +194,7 @@ impl Http {
 
         Http {
             exec: Exec::Default,
-            h1_half_close: true,
+            h1_half_close: false,
             h1_writev: true,
             h2_builder,
             mode: ConnectionMode::Fallback,
@@ -221,12 +221,11 @@ impl<E> Http<E> {
     /// Set whether HTTP/1 connections should support half-closures.
     ///
     /// Clients can chose to shutdown their write-side while waiting
-    /// for the server to respond. Setting this to `false` will
-    /// automatically close any connection immediately if `read`
-    /// detects an EOF.
+    /// for the server to respond. Setting this to `true` will
+    /// prevent closing the connection immediately if `read`
+    /// detects an EOF in the middle of a request.
     ///
-    /// Default is `true`.
-    #[inline]
+    /// Default is `false`.
     pub fn http1_half_close(&mut self, val: bool) -> &mut Self {
         self.h1_half_close = val;
         self
@@ -390,8 +389,8 @@ impl<E> Http<E> {
                 if !self.keep_alive {
                     conn.disable_keep_alive();
                 }
-                if !self.h1_half_close {
-                    conn.set_disable_half_close();
+                if self.h1_half_close {
+                    conn.set_allow_half_close();
                 }
                 if !self.h1_writev {
                     conn.set_write_strategy_flatten();

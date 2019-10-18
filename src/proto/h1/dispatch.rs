@@ -60,7 +60,10 @@ where
     }
 
     pub fn disable_keep_alive(&mut self) {
-        self.conn.disable_keep_alive()
+        self.conn.disable_keep_alive();
+        if self.conn.is_write_closed() {
+            self.close();
+        }
     }
 
     pub fn into_inner(self) -> (I, Bytes, D) {
@@ -233,10 +236,17 @@ where
                 // if here, the dispatcher gave the user the error
                 // somewhere else. we still need to shutdown, but
                 // not as a second error.
+                self.close();
                 Poll::Ready(Ok(()))
             },
             None => {
-                // read eof, conn will start to shutdown automatically
+                // read eof, the write side will have been closed too unless
+                // allow_read_close was set to true, in which case just do
+                // nothing...
+                debug_assert!(self.conn.is_read_closed());
+                if self.conn.is_write_closed() {
+                    self.close();
+                }
                 Poll::Ready(Ok(()))
             }
         }
