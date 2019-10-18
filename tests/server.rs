@@ -1,6 +1,5 @@
-#![feature(async_closure)]
 #![deny(warnings)]
-#![warn(rust_2018_idioms)]
+#![deny(rust_2018_idioms)]
 
 use std::net::{TcpStream, Shutdown, SocketAddr};
 use std::io::{self, Read, Write};
@@ -19,7 +18,7 @@ use futures_core::future::BoxFuture;
 use futures_util::future::{self, Either, FutureExt};
 use futures_util::stream::StreamExt;
 use futures_util::try_future::{self, TryFutureExt};
-use futures_util::try_stream::TryStreamExt;
+//use futures_util::try_stream::TryStreamExt;
 use http::header::{HeaderName, HeaderValue};
 use tokio_net::driver::Handle;
 use tokio_net::tcp::{TcpListener, TcpStream as TkTcpStream};
@@ -1469,6 +1468,7 @@ fn max_buf_size() {
     rt.block_on(fut).expect_err("should TooLarge error");
 }
 
+#[cfg(feature = "unstable-stream")]
 #[test]
 fn streaming_body() {
     let _ = pretty_env_logger::try_init();
@@ -1584,6 +1584,7 @@ fn http2_service_error_sends_reset_reason() {
     assert_eq!(h2_err.reason(), Some(h2::Reason::INADEQUATE_SECURITY));
 }
 
+#[cfg(feature = "unstable-stream")]
 #[test]
 fn http2_body_user_error_sends_reset_reason() {
     use std::error::Error;
@@ -1601,15 +1602,18 @@ fn http2_body_user_error_sends_reset_reason() {
 
     let mut rt = Runtime::new().expect("runtime new");
 
-    let err = rt.block_on({
+    let err: hyper::Error = rt.block_on(async move {
         let client = Client::builder()
             .http2_only(true)
             .build_http::<hyper::Body>();
         let uri = addr_str.parse().expect("server addr should parse");
 
-        client
-            .get(uri)
-            .and_then(|res| res.into_body().try_concat())
+        let mut res = client.get(uri).await?;
+
+        while let Some(chunk) = res.body_mut().next().await {
+            chunk?;
+        }
+        Ok(())
     }).unwrap_err();
 
     let h2_err = err

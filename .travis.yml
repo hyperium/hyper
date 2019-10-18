@@ -1,27 +1,27 @@
 language: rust
-#sudo: true # Required for functional IPv6 (forces VM instead of Docker).
+sudo: true # Required for functional IPv6 (forces VM instead of Docker).
 dist: trusty
 matrix:
     fast_finish: true
     include:
         - rust: nightly
-          env: FEATURES="--no-default-features --features runtime,nightly"
-        #- rust: beta
-        #  env: FEATURES="--no-default-features --features runtime,__internal_happy_eyeballs_tests"
+          env: FEATURES="--no-default-features --features runtime,unstable-stream,nightly"
+        - rust: beta
+          env: FEATURES="--no-default-features --features runtime,unstable-stream,__internal_happy_eyeballs_tests"
         #- rust: stable
-        #  env: FEATURES="--no-default-features --features runtime,__internal_happy_eyeballs_tests"
-        - rust: nightly #stable
+        #  env: FEATURES="--no-default-features --features runtime,unstable-stream,__internal_happy_eyeballs_tests"
+        - rust: beta #stable
           env: FEATURES="--no-default-features"
         # Minimum Supported Rust Version
-        #- rust: 1.36.0
+        #- rust: 1.39.0
         #  env: FEATURES="--no-default-features --features runtime" BUILD_ONLY="1"
 
-#before_script:
+before_script:
   # Add an IPv6 config - see the corresponding Travis issue
   # https://github.com/travis-ci/travis-ci/issues/83
-  #- if [ "${TRAVIS_OS_NAME}" == "linux" ]; then
-  #    sudo sh -c 'echo 0 > /proc/sys/net/ipv6/conf/all/disable_ipv6';
-  #  fi
+  - if [ "${TRAVIS_OS_NAME}" == "linux" ]; then
+      sudo sh -c 'echo 0 > /proc/sys/net/ipv6/conf/all/disable_ipv6';
+    fi
 
 script:
   - 'if [ "$BUILD_ONLY" != "1" ]; then cargo test $FEATURES -- --test-threads=1; fi'
