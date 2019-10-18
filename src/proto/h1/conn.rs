@@ -38,7 +38,7 @@ where I: AsyncRead + AsyncWrite + Unpin,
         Conn {
             io: Buffered::new(io),
             state: State {
-                allow_half_close: true,
+                allow_half_close: false,
                 cached_headers: None,
                 error: None,
                 keep_alive: KA::Busy,
@@ -76,8 +76,8 @@ where I: AsyncRead + AsyncWrite + Unpin,
         self.state.title_case_headers = true;
     }
 
-    pub(crate) fn set_disable_half_close(&mut self) {
-        self.state.allow_half_close = false;
+    pub(crate) fn set_allow_half_close(&mut self) {
+        self.state.allow_half_close = true;
     }
 
     pub fn into_inner(self) -> (I, Bytes) {
@@ -172,7 +172,7 @@ where I: AsyncRead + AsyncWrite + Unpin,
         // message should be reported as an error. If not, it is just
         // the connection closing gracefully.
         let must_error = self.should_error_on_eof();
-        self.state.close_read();
+        self.close_read();
         self.io.consume_leading_lines();
         let was_mid_parse = e.is_parse() || !self.io.read_buf().is_empty();
         if was_mid_parse || must_error {
@@ -185,6 +185,7 @@ where I: AsyncRead + AsyncWrite + Unpin,
             }
         } else {
             debug!("read eof");
+            self.close_write();
             Poll::Ready(None)
         }
     }
@@ -204,7 +205,7 @@ where I: AsyncRead + AsyncWrite + Unpin,
                                 None
                             })
                         } else if slice.is_empty() {
-                            error!("decode stream unexpectedly ended");
+                            error!("incoming body unexpectedly ended");
                             // This should be unreachable, since all 3 decoders
                             // either set eof=true or return an Err when reading
                             // an empty slice...
@@ -216,7 +217,7 @@ where I: AsyncRead + AsyncWrite + Unpin,
                     },
                     Poll::Pending => return Poll::Pending,
                     Poll::Ready(Err(e)) => {
-                        debug!("decode stream error: {}", e);
+                        debug!("incoming body decode error: {}", e);
                         (Reading::Closed, Poll::Ready(Some(Err(e))))
                     },
                 }
@@ -294,6 +295,10 @@ where I: AsyncRead + AsyncWrite + Unpin,
             return Poll::Pending;
         }
 
+        if self.state.is_read_closed() {
+            return Poll::Ready(Err(crate::Error::new_incomplete()));
+        }
+
         let num_read = ready!(self.force_io_read(cx)).map_err(crate::Error::new_io)?;
 
         if num_read == 0 {
@@ -306,6 +311,8 @@ where I: AsyncRead + AsyncWrite + Unpin,
     }
 
     fn force_io_read(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<usize>> {
+        debug_assert!(!self.state.is_read_closed());
+
         let result = ready!(self.io.poll_read_from_io(cx));
         Poll::Ready(result.map_err(|e| {
             trace!("force_io_read; io error = {:?}", e);
@@ -619,8 +626,10 @@ where I: AsyncRead + AsyncWrite + Unpin,
 
     pub fn disable_keep_alive(&mut self) {
         if self.state.is_idle() {
-            self.state.close_read();
+            trace!("disable_keep_alive; closing idle connection");
+            self.state.close();
         } else {
+            trace!("disable_keep_alive; in-progress connection");
             self.state.disable_keep_alive();
         }
     }

@@ -252,11 +252,11 @@ impl<I, E> Builder<I, E> {
     /// Set whether HTTP/1 connections should support half-closures.
     ///
     /// Clients can chose to shutdown their write-side while waiting
-    /// for the server to respond. Setting this to `false` will
-    /// automatically close any connection immediately if `read`
-    /// detects an EOF.
+    /// for the server to respond. Setting this to `true` will
+    /// prevent closing the connection immediately if `read`
+    /// detects an EOF in the middle of a request.
     ///
-    /// Default is `true`.
+    /// Default is `false`.
     pub fn http1_half_close(mut self, val: bool) -> Self {
         self.protocol.http1_half_close(val);
         self
