@@ -200,4 +200,4 @@ required-features = ["runtime", "unstable-stream"]
 [[test]]
 name = "server"
 path = "tests/server.rs"
-required-features = ["runtime", "unstable-stream"]
+required-features = ["runtime"]
