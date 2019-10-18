@@ -239,7 +239,9 @@ where I: AsyncRead + AsyncWrite + Unpin,
     pub fn poll_read_keep_alive(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
         debug_assert!(!self.can_read_head() && !self.can_read_body());
 
-        if self.is_mid_message() {
+        if self.is_read_closed() {
+            Poll::Pending
+        } else if self.is_mid_message() {
             self.mid_message_detect_eof(cx)
         } else {
             self.require_empty_read(cx)
@@ -258,7 +260,7 @@ where I: AsyncRead + AsyncWrite + Unpin,
     // This should only be called for Clients wanting to enter the idle
     // state.
     fn require_empty_read(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
-        debug_assert!(!self.can_read_head() && !self.can_read_body());
+        debug_assert!(!self.can_read_head() && !self.can_read_body() && !self.is_read_closed());
         debug_assert!(!self.is_mid_message());
         debug_assert!(T::is_client());
 
@@ -288,15 +290,11 @@ where I: AsyncRead + AsyncWrite + Unpin,
     }
 
     fn mid_message_detect_eof(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
-        debug_assert!(!self.can_read_head() && !self.can_read_body());
+        debug_assert!(!self.can_read_head() && !self.can_read_body() && !self.is_read_closed());
         debug_assert!(self.is_mid_message());
 
         if self.state.allow_half_close || !self.io.read_buf().is_empty() {
             return Poll::Pending;
-        }
-
-        if self.state.is_read_closed() {
-            return Poll::Ready(Err(crate::Error::new_incomplete()));
         }
 
         let num_read = ready!(self.force_io_read(cx)).map_err(crate::Error::new_io)?;
@@ -347,7 +345,17 @@ where I: AsyncRead + AsyncWrite + Unpin,
         if !self.io.is_read_blocked() {
             if self.io.read_buf().is_empty() {
                 match self.io.poll_read_from_io(cx) {
-                    Poll::Ready(Ok(_)) => (),
+                    Poll::Ready(Ok(n)) => {
+                        if n == 0 {
+                            trace!("maybe_notify; read eof");
+                            if self.state.is_idle() {
+                                self.state.close();
+                            } else {
+                                self.close_read()
+                            }
+                            return;
+                        }
+                    },
                     Poll::Pending => {
                         trace!("maybe_notify; read_from_io blocked");
                         return
@@ -355,6 +363,7 @@ where I: AsyncRead + AsyncWrite + Unpin,
                     Poll::Ready(Err(e)) => {
                         trace!("maybe_notify; read_from_io error: {}", e);
                         self.state.close();
+                        self.state.error = Some(crate::Error::new_io(e));
                     }
                 }
             }
@@ -714,6 +723,10 @@ impl fmt::Debug for State {
         // Only show error field if it's interesting...
         if let Some(ref error) = self.error {
             builder.field("error", error);
+        }
+
+        if self.allow_half_close {
+            builder.field("allow_half_close", &true);
         }
 
         // Purposefully leaving off other fields..
