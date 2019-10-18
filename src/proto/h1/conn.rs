@@ -151,7 +151,9 @@ where I: AsyncRead + AsyncWrite + Unpin,
         self.state.version = msg.head.version;
 
         if msg.decode == DecodedLength::ZERO {
-            debug_assert!(!msg.expect_continue, "expect-continue needs a body");
+            if log_enabled!(log::Level::Debug) && msg.expect_continue {
+                debug!("ignoring expect-continue since body is empty");
+            }
             self.state.reading = Reading::KeepAlive;
             if !T::should_read_first() {
                 self.try_keep_alive(cx);
