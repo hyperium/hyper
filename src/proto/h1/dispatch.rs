@@ -8,7 +8,7 @@ use crate::body::{Body, Payload};
 use crate::common::{Future, Never, Poll, Pin, Unpin, task};
 use crate::proto::{BodyLength, DecodedLength, Conn, Dispatched, MessageHead, RequestHead, RequestLine, ResponseHead};
 use super::Http1Transaction;
-use crate::service::Service;
+use crate::service::HttpService;
 
 pub(crate) struct Dispatcher<D, Bs: Payload, I, T> {
     conn: Conn<I, Bs::Data, T>,
@@ -29,7 +29,7 @@ pub(crate) trait Dispatch {
     fn should_poll(&self) -> bool;
 }
 
-pub struct Server<S: Service<B>, B> {
+pub struct Server<S: HttpService<B>, B> {
     in_flight: Pin<Box<Option<S::Future>>>,
     pub(crate) service: S,
 }
@@ -407,7 +407,7 @@ impl<'a, T> Drop for OptGuard<'a, T> {
 
 impl<S, B> Server<S, B>
 where
-    S: Service<B>,
+    S: HttpService<B>,
 {
     pub fn new(service: S) -> Server<S, B> {
         Server {
@@ -422,11 +422,11 @@ where
 }
 
 // Service is never pinned
-impl<S: Service<B>, B> Unpin for Server<S, B> {}
+impl<S: HttpService<B>, B> Unpin for Server<S, B> {}
 
 impl<S, Bs> Dispatch for Server<S, Body>
 where
-    S: Service<Body, ResBody=Bs>,
+    S: HttpService<Body, ResBody=Bs>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     Bs: Payload,
 {

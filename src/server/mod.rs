@@ -65,7 +65,7 @@ use pin_project::pin_project;
 use crate::body::{Body, Payload};
 use crate::common::exec::{Exec, H2Exec, NewSvcExec};
 use crate::common::{Future, Pin, Poll, Unpin, task};
-use crate::service::{MakeServiceRef, Service};
+use crate::service::{MakeServiceRef, HttpService};
 use self::accept::Accept;
 // Renamed `Http` as `Http_` for now so that people upgrading don't see an
 // error that `hyper::server::Http` is private...
@@ -152,7 +152,7 @@ where
     S::Service: 'static,
     B: Payload,
     B::Data: Unpin,
-    E: H2Exec<<S::Service as Service<Body>>::Future, B>,
+    E: H2Exec<<S::Service as HttpService<Body>>::Future, B>,
     E: NewSvcExec<IO, S::Future, S::Service, E, GracefulWatcher>,
 {
     /// Prepares a server to handle graceful shutdown when the provided future
@@ -209,7 +209,7 @@ where
     S::Service: 'static,
     B: Payload,
     B::Data: Unpin,
-    E: H2Exec<<S::Service as Service<Body>>::Future, B>,
+    E: H2Exec<<S::Service as HttpService<Body>>::Future, B>,
     E: NewSvcExec<IO, S::Future, S::Service, E, NoopWatcher>,
 {
     type Output = crate::Result<()>;
@@ -396,7 +396,7 @@ impl<I, E> Builder<I, E> {
         B: Payload,
         B::Data: Unpin,
         E: NewSvcExec<I::Conn, S::Future, S::Service, E, NoopWatcher>,
-        E: H2Exec<<S::Service as Service<Body>>::Future, B>,
+        E: H2Exec<<S::Service as HttpService<Body>>::Future, B>,
     {
         let serve = self.protocol.serve(self.incoming, new_service);
         let spawn_all = serve.spawn_all();

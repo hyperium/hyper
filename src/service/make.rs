@@ -1,81 +1,50 @@
 use std::error::Error as StdError;
 use std::fmt;
 
+use tokio_io::{AsyncRead, AsyncWrite};
+
 use crate::body::Payload;
 use crate::common::{Future, Poll, task};
-use super::Service;
+use super::{HttpService, Service};
 
-/// An asynchronous constructor of `Service`s.
-pub trait MakeService<Target, ReqBody>: sealed::Sealed<Target, ReqBody> {
-    /// The `Payload` body of the `http::Response`.
-    type ResBody: Payload;
+// The same "trait alias" as tower::MakeConnection, but inlined to reduce
+// dependencies.
+pub trait MakeConnection<Target>: self::sealed::Sealed<(Target,)> {
+    type Connection: AsyncRead + AsyncWrite;
+    type Error;
+    type Future: Future<Output = Result<Self::Connection, Self::Error>>;
 
-    /// The error type that can be returned by `Service`s.
-    type Error: Into<Box<dyn StdError + Send + Sync>>;
+    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>>;
 
-    /// The resolved `Service` from `make_service()`.
-    type Service: Service<
-        ReqBody,
-        ResBody=Self::ResBody,
-        Error=Self::Error,
-    >;
-
-    /// The future returned from `new_service` of a `Service`.
-    type Future: Future<Output=Result<Self::Service, Self::MakeError>>;
-
-    /// The error type that can be returned when creating a new `Service`.
-    type MakeError: Into<Box<dyn StdError + Send + Sync>>;
-
-    /// Returns `Ready` when the constructor is ready to create a new `Service`.
-    ///
-    /// The implementation of this method is allowed to return a `Ready` even if
-    /// the factory is not ready to create a new service. In this case, the future
-    /// returned from `make_service` will resolve to an error.
-    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::MakeError>>;
-
-    /// Create a new `Service`.
-    fn make_service(&mut self, target: Target) -> Self::Future;
+    fn make_connection(&mut self, target: Target) -> Self::Future;
 }
 
-impl<T, Target, S, B1, B2, E, F> MakeService<Target, B1> for T
+impl<S, Target> self::sealed::Sealed<(Target,)> for S where S: Service<Target> {}
+
+impl<S, Target> MakeConnection<Target> for S
 where
-    T: for<'a> tower_service::Service<&'a Target, Response = S, Error = E, Future = F>,
-    S: tower_service::Service<crate::Request<B1>, Response = crate::Response<B2>>,
-    E: Into<Box<dyn std::error::Error + Send + Sync>>,
-    S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
-    B1: Payload,
-    B2: Payload,
-    F: Future<Output = Result<S, E>>,
+    S: Service<Target>,
+    S::Response: AsyncRead + AsyncWrite,
 {
-    type ResBody = B2;
+    type Connection = S::Response;
     type Error = S::Error;
-    type Service = S;
-    type Future = F;
-    type MakeError = E;
+    type Future = S::Future;
 
-    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::MakeError>> {
-         tower_service::Service::poll_ready(self, cx)
+    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Service::poll_ready(self, cx)
     }
 
-    fn make_service(&mut self, req: Target) -> Self::Future {
-        tower_service::Service::call(self, &req)
+    fn make_connection(&mut self, target: Target) -> Self::Future {
+        Service::call(self, target)
     }
-}
-
-impl<T, Target, S, B1, B2> sealed::Sealed<Target, B1> for T 
-where 
-    T: for<'a> tower_service::Service<&'a Target, Response = S>,
-    S: tower_service::Service<crate::Request<B1>, Response = crate::Response<B2>>
-{
 }
 
 // Just a sort-of "trait alias" of `MakeService`, not to be implemented
 // by anyone, only used as bounds.
-#[doc(hidden)]
-pub trait MakeServiceRef<Target, ReqBody>: self::sealed::Sealed<Target, ReqBody> {
+pub trait MakeServiceRef<Target, ReqBody>: self::sealed::Sealed<(Target, ReqBody)> {
     type ResBody: Payload;
     type Error: Into<Box<dyn StdError + Send + Sync>>;
-    type Service: Service<
+    type Service: HttpService<
         ReqBody,
         ResBody=Self::ResBody,
         Error=Self::Error,
@@ -101,10 +70,10 @@ pub trait MakeServiceRef<Target, ReqBody>: self::sealed::Sealed<Target, ReqBody>
 
 impl<T, Target, E, ME, S, F, IB, OB> MakeServiceRef<Target, IB> for T
 where
-    T: for<'a> tower_service::Service<&'a Target, Error=ME, Response=S, Future=F>,
+    T: for<'a> Service<&'a Target, Error=ME, Response=S, Future=F>,
     E: Into<Box<dyn StdError + Send + Sync>>,
     ME: Into<Box<dyn StdError + Send + Sync>>,
-    S: tower_service::Service<crate::Request<IB>, Response=crate::Response<OB>, Error=E>,
+    S: HttpService<IB, ResBody=OB, Error=E>,
     F: Future<Output=Result<S, ME>>,
     IB: Payload,
     OB: Payload,
@@ -126,17 +95,24 @@ where
     }
 }
 
+impl<T, Target, S, B1, B2> self::sealed::Sealed<(Target, B1)> for T
+where
+    T: for<'a> Service<&'a Target, Response = S>,
+    S: HttpService<B1, ResBody = B2>,
+    B1: Payload,
+    B2: Payload,
+{
+}
+
 /// Create a `MakeService` from a function.
 ///
 /// # Example
 ///
-/// ```rust,no_run
+/// ```
 /// # #[cfg(feature = "runtime")]
-/// # #[tokio::main]
-/// # async fn main() {
-/// use std::net::TcpStream;
-/// use hyper::{Body, Error, Request, Response, Server};
-/// use hyper::rt::{self, Future};
+/// # async fn run() {
+/// use std::convert::Infallible;
+/// use hyper::{Body, Request, Response, Server};
 /// use hyper::server::conn::AddrStream;
 /// use hyper::service::{make_service_fn, service_fn};
 ///
@@ -145,8 +121,8 @@ where
 /// let make_svc = make_service_fn(|socket: &AddrStream| {
 ///     let remote_addr = socket.remote_addr();
 ///     async move {
-///         Ok::<_, Error>(service_fn(move |_: Request<Body>| async move {
-///             Ok::<_, Error>(
+///         Ok::<_, Infallible>(service_fn(move |_: Request<Body>| async move {
+///             Ok::<_, Infallible>(
 ///                 Response::new(Body::from(format!("Hello, {}!", remote_addr)))
 ///             )
 ///         }))
@@ -162,7 +138,7 @@ where
 ///     eprintln!("server error: {}", e);
 /// }
 /// # }
-/// # #[cfg(not(feature = "runtime"))] fn main() {}
+/// # fn main() {}
 /// ```
 pub fn make_service_fn<F, Target, Ret>(f: F) -> MakeServiceFn<F>
 where
@@ -179,7 +155,7 @@ pub struct MakeServiceFn<F> {
     f: F,
 }
 
-impl<'t, F, Ret, Target, Svc, MkErr> tower_service::Service<&'t Target> for MakeServiceFn<F>
+impl<'t, F, Ret, Target, Svc, MkErr> Service<&'t Target> for MakeServiceFn<F>
 where
     F: FnMut(&Target) -> Ret,
     Ret: Future<Output=Result<Svc, MkErr>>,
@@ -206,7 +182,7 @@ impl<F> fmt::Debug for MakeServiceFn<F> {
 }
 
 mod sealed {
-    pub trait Sealed<T, B> {}
+    pub trait Sealed<X> {}
 
     pub trait CantImpl {}
 

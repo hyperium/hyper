@@ -8,13 +8,13 @@ use tokio_executor::{SpawnError, TypedExecutor};
 use crate::body::{Payload, Body};
 use crate::proto::h2::server::H2Stream;
 use crate::server::conn::spawn_all::{NewSvcTask, Watcher};
-use crate::service::Service;
+use crate::service::HttpService;
 
 pub trait H2Exec<F, B: Payload>: Clone {
     fn execute_h2stream(&mut self, fut: H2Stream<F, B>) -> crate::Result<()>;
 }
 
-pub trait NewSvcExec<I, N, S: Service<Body>, E, W: Watcher<I, S, E>>: Clone {
+pub trait NewSvcExec<I, N, S: HttpService<Body>, E, W: Watcher<I, S, E>>: Clone {
     fn execute_new_svc(&mut self, fut: NewSvcTask<I, N, S, E, W>) -> crate::Result<()>;
 }
 
@@ -119,7 +119,7 @@ where
 impl<I, N, S, E, W> NewSvcExec<I, N, S, E, W> for Exec
 where
     NewSvcTask<I, N, S, E, W>: Future<Output=()> + Send + 'static,
-    S: Service<Body>,
+    S: HttpService<Body>,
     W: Watcher<I, S, E>,
 {
     fn execute_new_svc(&mut self, fut: NewSvcTask<I, N, S, E, W>) -> crate::Result<()> {
@@ -148,7 +148,7 @@ impl<I, N, S, E, W> NewSvcExec<I, N, S, E, W> for E
 where
     E: TypedExecutor<NewSvcTask<I, N, S, E, W>> + Clone,
     NewSvcTask<I, N, S, E, W>: Future<Output=()>,
-    S: Service<Body>,
+    S: HttpService<Body>,
     W: Watcher<I, S, E>,
 {
     fn execute_new_svc(&mut self, fut: NewSvcTask<I, N, S, E, W>) -> crate::Result<()> {
