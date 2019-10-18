@@ -1,17 +1,13 @@
 //! Utilities used to interact with the Tower ecosystem.
 //!
-//! This module provides exports of `Service`, `MakeService` and `Connect` which
-//! all provide hook-ins into the Tower ecosystem.
+//! This module provides `Connect` which hook-ins into the Tower ecosystem.
 
-use super::conn::{SendRequest, Builder};
 use std::marker::PhantomData;
-use crate::{common::{Poll, task, Pin}, body::Payload};
 use std::future::Future;
 use std::error::Error as StdError;
-use tower_make::MakeConnection;
 
-pub use tower_service::Service;
-pub use tower_make::MakeService;
+use crate::{common::{Poll, task, Pin}, body::Payload, service::{MakeConnection, Service}};
+use super::conn::{SendRequest, Builder};
 
 /// Creates a connection via `SendRequest`.
 ///

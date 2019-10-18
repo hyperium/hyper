@@ -1,7 +1,9 @@
+#![deny(warnings)]
 
-use hyper::client::service::{Connect, Service, MakeService};
+use hyper::client::service::Connect;
 use hyper::client::conn::Builder;
 use hyper::client::connect::HttpConnector;
+use hyper::service::Service;
 use hyper::{Body, Request};
 
 #[tokio::main]
@@ -13,7 +15,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let uri = "http://127.0.0.1:8080".parse::<http::Uri>()?;
 
 
-    let mut svc = mk_svc.make_service(uri.clone()).await?;
+    let mut svc = mk_svc.call(uri.clone()).await?;
 
     let body = Body::empty();
 

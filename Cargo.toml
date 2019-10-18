@@ -34,7 +34,6 @@ log = "0.4"
 pin-project = "0.4"
 time = "0.1"
 tower-service = "=0.3.0-alpha.2"
-tower-make = { version = "=0.3.0-alpha.2a", features = ['io'] }
 tokio-executor = "=0.2.0-alpha.6"
 tokio-io = "=0.2.0-alpha.6"
 tokio-sync = "=0.2.0-alpha.6"

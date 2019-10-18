@@ -1,9 +1,10 @@
 #![deny(warnings)]
 
-use hyper::{Body, Request, Response, Server};
-use tower_service::Service;
-use futures_util::future;
 use std::task::{Context, Poll};
+
+use futures_util::future;
+use hyper::{Body, Request, Response, Server};
+use hyper::service::Service;
 
 const ROOT: &'static str = "/";
 
