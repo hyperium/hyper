@@ -725,6 +725,28 @@ fn expect_continue_sends_100() {
 }
 
 #[test]
+fn expect_continue_but_no_body_is_ignored() {
+    let server = serve();
+    let mut req = connect(server.addr());
+    server.reply();
+
+    // no content-length or transfer-encoding means no body!
+    req.write_all(b"\
+        POST /foo HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Expect: 100-continue\r\n\
+        Connection: Close\r\n\
+        \r\n\
+    ").expect("write");
+
+    let expected = "HTTP/1.1 200 OK\r\n";
+    let mut resp = String::new();
+    req.read_to_string(&mut resp).expect("read");
+
+    assert_eq!(&resp[..expected.len()], expected);
+}
+
+#[test]
 fn pipeline_disabled() {
     let server = serve();
     let mut req = connect(server.addr());
