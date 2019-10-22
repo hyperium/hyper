@@ -1,52 +1,23 @@
-//! The `Connect` trait, and supporting types.
+//! Connectors used by the `Client`.
 //!
 //! This module contains:
 //!
 //! - A default [`HttpConnector`](HttpConnector) that does DNS resolution and
 //!   establishes connections over TCP.
-//! - The [`Connect`](Connect) trait and related types to build custom connectors.
+//! - Types to build custom connectors.
 use std::convert::TryFrom;
-use std::error::Error as StdError;
 use std::{fmt, mem};
 
 use bytes::{BufMut, Bytes, BytesMut};
 use ::http::{uri, Response, Uri};
-use tokio_io::{AsyncRead, AsyncWrite};
-
-use crate::common::{Future, Unpin};
 
 #[cfg(feature = "tcp")] pub mod dns;
 #[cfg(feature = "tcp")] mod http;
 #[cfg(feature = "tcp")] pub use self::http::{HttpConnector, HttpInfo};
 
-/// Connect to a destination, returning an IO transport.
-///
-/// A connector receives a [`Destination`](Destination) describing how a
-/// connection should be estabilished, and returns a `Future` of the
-/// ready connection.
-pub trait Connect: Send + Sync {
-    /// The connected IO Stream.
-    type Transport: AsyncRead + AsyncWrite + Unpin + Send + 'static;
-    /// An error occured when trying to connect.
-    type Error: Into<Box<dyn StdError + Send + Sync>>;
-    /// A Future that will resolve to the connected Transport.
-    type Future: Future<Output=Result<(Self::Transport, Connected), Self::Error>> + Unpin + Send;
-    /// Connect to a destination.
-    fn connect(&self, dst: Destination) -> Self::Future;
-}
-
-impl<T: Connect + ?Sized> Connect for Box<T> {
-    type Transport = <T as Connect>::Transport;
-    type Error = <T as Connect>::Error;
-    type Future = <T as Connect>::Future;
-    fn connect(&self, dst: Destination) -> Self::Future {
-        <T as Connect>::connect(self, dst)
-    }
-}
-
 /// A set of properties to describe where and how to try to connect.
 ///
-/// This type is passed an argument for the [`Connect`](Connect) trait.
+/// This type is passed an argument to connectors.
 #[derive(Clone, Debug)]
 pub struct Destination {
     pub(super) uri: Uri,
@@ -396,6 +367,66 @@ where
         self.0.set(res);
         res.extensions_mut().insert(self.1.clone());
     }
+}
+
+pub(super) mod sealed {
+    use std::error::Error as StdError;
+
+    use tokio_io::{AsyncRead, AsyncWrite};
+
+    use crate::common::{Future, Unpin};
+    use super::{Connected, Destination};
+
+    /// Connect to a destination, returning an IO transport.
+    ///
+    /// A connector receives a [`Destination`](Destination) describing how a
+    /// connection should be estabilished, and returns a `Future` of the
+    /// ready connection.
+    ///
+    /// # Trait Alias
+    ///
+    /// This is really just an *alias* for the `tower::Service` trait, with
+    /// additional bounds set for convenience *inside* hyper. You don't actually
+    /// implement this trait, but `tower::Service<Destination>` instead.
+    // The `Sized` bound is to prevent creating `dyn Connect`, since they cannot
+    // fit the `Connect` bounds because of the blanket impl for `Service`.
+    pub trait Connect: Sealed + Sized {
+        /// The connected IO Stream.
+        type Transport: AsyncRead + AsyncWrite;
+        /// An error occured when trying to connect.
+        type Error: Into<Box<dyn StdError + Send + Sync>>;
+        /// A Future that will resolve to the connected Transport.
+        type Future: Future<Output=Result<(Self::Transport, Connected), Self::Error>>;
+        #[doc(hidden)]
+        fn connect(self, internal_only: Internal, dst: Destination) -> Self::Future;
+    }
+
+    impl<S, T> Connect for S
+    where
+        S: tower_service::Service<Destination, Response=(T, Connected)> + Send,
+        S::Error: Into<Box<dyn StdError + Send + Sync>>,
+        S::Future: Unpin + Send,
+        T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    {
+        type Transport = T;
+        type Error = S::Error;
+        type Future = crate::service::Oneshot<S, Destination>;
+        fn connect(self, _: Internal, dst: Destination) -> Self::Future {
+            crate::service::oneshot(self, dst)
+        }
+    }
+
+    impl<S, T> Sealed for S
+    where
+        S: tower_service::Service<Destination, Response=(T, Connected)> + Send,
+        S::Error: Into<Box<dyn StdError + Send + Sync>>,
+        S::Future: Unpin + Send,
+        T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    {}
+
+    pub trait Sealed {}
+    #[allow(missing_debug_implementations)]
+    pub struct Internal;
 }
 
 #[cfg(test)]

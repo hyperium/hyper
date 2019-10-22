@@ -72,7 +72,7 @@ use http::uri::Scheme;
 
 use crate::body::{Body, Payload};
 use crate::common::{lazy as hyper_lazy, Lazy, Future, Pin, Poll, task};
-use self::connect::{Alpn, Connect, Connected, Destination};
+use self::connect::{Alpn, sealed::Connect, Connected, Destination};
 use self::pool::{Key as PoolKey, Pool, Poolable, Pooled, Reservation};
 
 #[cfg(feature = "tcp")] pub use self::connect::HttpConnector;
@@ -89,7 +89,7 @@ mod tests;
 pub struct Client<C, B = Body> {
     config: Config,
     conn_builder: conn::Builder,
-    connector: Arc<C>,
+    connector: C,
     pool: Pool<PoolClient<B>>,
 }
 
@@ -158,9 +158,9 @@ impl Client<(), Body> {
 }
 
 impl<C, B> Client<C, B>
-where C: Connect + Sync + 'static,
-      C::Transport: 'static,
-      C::Future: 'static,
+where C: Connect + Clone + Send + Sync + 'static,
+      C::Transport: Unpin + Send + 'static,
+      C::Future: Unpin + Send + 'static,
       B: Payload + Unpin + Send + 'static,
       B::Data: Send + Unpin,
 {
@@ -486,7 +486,7 @@ where C: Connect + Sync + 'static,
                     return Either::Right(future::err(canceled));
                 }
             };
-            Either::Left(connector.connect(dst)
+            Either::Left(connector.connect(connect::sealed::Internal, dst)
                 .map_err(crate::Error::new_connect)
                 .and_then(move |(io, connected)| {
                     // If ALPN is h2 and we aren't http2_only already,
@@ -544,7 +544,7 @@ where C: Connect + Sync + 'static,
     }
 }
 
-impl<C, B> Clone for Client<C, B> {
+impl<C: Clone, B> Clone for Client<C, B> {
     fn clone(&self) -> Client<C, B> {
         Client {
             config: self.config.clone(),
@@ -1038,16 +1038,14 @@ impl Builder {
     /// Combine the configuration of this builder with a connector to create a `Client`.
     pub fn build<C, B>(&self, connector: C) -> Client<C, B>
     where
-        C: Connect,
-        C::Transport: 'static,
-        C::Future: 'static,
+        C: Connect + Clone,
         B: Payload + Send,
         B::Data: Send,
     {
         Client {
             config: self.client_config,
             conn_builder: self.conn_builder.clone(),
-            connector: Arc::new(connector),
+            connector,
             pool: Pool::new(self.pool_config, &self.conn_builder.exec),
         }
     }
