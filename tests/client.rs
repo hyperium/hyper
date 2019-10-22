@@ -939,7 +939,7 @@ mod dispatch_impl {
     use tokio_io::{AsyncRead, AsyncWrite};
     use tokio_net::tcp::TcpStream;
 
-    use hyper::client::connect::{Connect, Connected, Destination, HttpConnector};
+    use hyper::client::connect::{Connected, Destination, HttpConnector};
     use hyper::Client;
 
     #[test]
@@ -1688,6 +1688,7 @@ mod dispatch_impl {
     }
 
 
+    #[derive(Clone)]
     struct DebugConnector {
         http: HttpConnector,
         closes: mpsc::Sender<()>,
@@ -1719,19 +1720,24 @@ mod dispatch_impl {
         }
     }
 
-    impl Connect for DebugConnector {
-        type Transport = DebugStream;
+    impl hyper::service::Service<Destination> for DebugConnector {
+        type Response = (DebugStream, Connected);
         type Error = io::Error;
         type Future = Pin<Box<dyn Future<
-            Output = Result<(DebugStream, Connected), io::Error>
+            Output = Result<Self::Response, Self::Error>
         > + Send>>;
 
-        fn connect(&self, dst: Destination) -> Self::Future {
+        fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+            // don't forget to check inner service is ready :)
+            hyper::service::Service::<Destination>::poll_ready(&mut self.http, cx)
+        }
+
+        fn call(&mut self, dst: Destination) -> Self::Future {
             self.connects.fetch_add(1, Ordering::SeqCst);
             let closes = self.closes.clone();
             let is_proxy = self.is_proxy;
             let is_alpn_h2 = self.alpn_h2;
-            Box::pin(self.http.connect(dst).map_ok(move |(s, mut c)| {
+            Box::pin(self.http.call(dst).map_ok(move |(s, mut c)| {
                 if is_alpn_h2 {
                     c = c.negotiated_h2();
                 }
