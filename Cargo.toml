@@ -171,6 +171,11 @@ required-features = ["runtime", "unstable-stream"]
 
 
 [[bench]]
+name = "connect"
+path = "benches/connect.rs"
+required-features = ["runtime"]
+
+[[bench]]
 name = "end_to_end"
 path = "benches/end_to_end.rs"
 required-features = ["runtime"]
