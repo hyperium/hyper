@@ -17,14 +17,14 @@ use std::str::FromStr;
 
 use tokio_sync::{mpsc, oneshot};
 
-use crate::common::{Future, Never, Pin, Poll, Unpin, task};
+use crate::common::{Future, Never, Pin, Poll, task};
 
 /// Resolve a hostname to a set of IP addresses.
-pub trait Resolve: Unpin {
+pub trait Resolve {
     /// The set of IP addresses to try to connect to.
     type Addrs: Iterator<Item=IpAddr>;
     /// A Future of the resolved set of addresses.
-    type Future: Future<Output=Result<Self::Addrs, io::Error>> + Unpin;
+    type Future: Future<Output=Result<Self::Addrs, io::Error>>;
     /// Resolve a hostname.
     fn resolve(&self, name: Name) -> Self::Future;
 }
