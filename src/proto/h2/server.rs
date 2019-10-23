@@ -17,6 +17,7 @@ use super::{PipeToSendStream, SendBuf};
 
 use crate::{Body, Response};
 
+#[pin_project]
 pub(crate) struct Server<T, S, B, E>
 where
     S: HttpService<Body>,
@@ -26,9 +27,6 @@ where
     service: S,
     state: State<T, B>,
 }
-
-// TODO: fix me
-impl<T, S: HttpService<Body>, B: Payload, E> Unpin for Server<T, S, B, E> {}
 
 enum State<T, B>
 where
@@ -221,8 +219,6 @@ where
 
 impl<F, B> H2Stream<F, B>
 where
-    //F: Future<Item=Response<B>>,
-    //F::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
 {
     fn new(fut: F, respond: SendResponse<SendBuf<B::Data>>) -> H2Stream<F, B> {
