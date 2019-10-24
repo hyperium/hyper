@@ -50,7 +50,6 @@ where
     IE: Into<Box<dyn StdError + Send + Sync>>,
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     S: MakeServiceRef<IO, Body, ResBody=B>,
-    S::Service: 'static,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
     B::Data: Unpin,
@@ -106,7 +105,7 @@ pub struct GracefulWatcher(Watch);
 impl<I, S, E> Watcher<I, S, E> for GracefulWatcher
 where
     I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    S: HttpService<Body> + 'static,
+    S: HttpService<Body>,
     <S::ResBody as Payload>::Data: Unpin,
     E: H2Exec<S::Future, S::ResBody>,
 {

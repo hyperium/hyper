@@ -902,7 +902,7 @@ pub(crate) mod spawn_all {
     impl<I, S, E> Watcher<I, S, E> for NoopWatcher
     where
         I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-        S: HttpService<Body> + 'static,
+        S: HttpService<Body>,
         <S::ResBody as Payload>::Data: Unpin,
         E: H2Exec<S::Future, S::ResBody>,
     {
@@ -1017,7 +1017,7 @@ mod upgrades {
 
     impl<I, B, S, E> UpgradeableConnection<I, S, E>
     where
-        S: HttpService<Body, ResBody=B>,// + 'static,
+        S: HttpService<Body, ResBody=B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: AsyncRead + AsyncWrite + Unpin,
         B: Payload + 'static,
@@ -1035,7 +1035,7 @@ mod upgrades {
 
     impl<I, B, S, E> Future for UpgradeableConnection<I, S, E>
     where
-        S: HttpService<Body, ResBody=B> + 'static,
+        S: HttpService<Body, ResBody=B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         B: Payload + 'static,
