@@ -592,7 +592,7 @@ impl<T: Poolable> Checkout<T> {
         }
     }
 
-    fn checkout(&mut self) -> Option<Pooled<T>> {
+    fn checkout(&mut self, cx: &mut task::Context<'_>) -> Option<Pooled<T>> {
         let entry = {
             let mut inner = self.pool.inner.as_ref()?.lock().unwrap();
             let expiration = Expiration::new(inner.timeout);
@@ -623,7 +623,7 @@ impl<T: Poolable> Checkout<T> {
             }
 
             if entry.is_none() && self.waiter.is_none() {
-                let (tx, rx) = oneshot::channel();
+                let (tx, mut rx) = oneshot::channel();
                 trace!("checkout waiting for idle connection: {:?}", self.key);
                 inner
                     .waiters
@@ -631,6 +631,8 @@ impl<T: Poolable> Checkout<T> {
                     .or_insert(VecDeque::new())
                     .push_back(tx);
 
+                // register the waker with this oneshot
+                assert!(Pin::new(&mut rx).poll(cx).is_pending());
                 self.waiter = Some(rx);
             }
 
@@ -649,14 +651,14 @@ impl<T: Poolable> Future for Checkout<T> {
             return Poll::Ready(Ok(pooled));
         }
 
-        if let Some(pooled) = self.checkout() {
+        if let Some(pooled) = self.checkout(cx) {
             Poll::Ready(Ok(pooled))
         } else if !self.pool.is_enabled() {
             Poll::Ready(Err(crate::Error::new_canceled().with("pool is disabled")))
         } else {
-            // There's a new waiter, but there's no way it should be ready yet.
-            // We just need to register the waker.
-            self.poll_waiter(cx).map(|_| unreachable!())
+            // There's a new waiter, already registered in self.checkout()
+            debug_assert!(self.waiter.is_some());
+            Poll::Pending
         }
     }
 }
