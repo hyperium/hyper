@@ -37,6 +37,7 @@ pub struct Server<S: HttpService<B>, B> {
 pub struct Client<B> {
     callback: Option<crate::client::dispatch::Callback<Request<B>, Response<Body>>>,
     rx: ClientRx<B>,
+    rx_closed: bool,
 }
 
 type ClientRx<B> = crate::client::dispatch::Receiver<Request<B>, Response<Body>>;
@@ -490,7 +491,8 @@ impl<B> Client<B> {
     pub fn new(rx: ClientRx<B>) -> Client<B> {
         Client {
             callback: None,
-            rx: rx,
+            rx,
+            rx_closed: false,
         }
     }
 }
@@ -505,6 +507,7 @@ where
     type RecvItem = ResponseHead;
 
     fn poll_msg(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Never>>> {
+        debug_assert!(!self.rx_closed);
         match self.rx.poll_next(cx) {
             Poll::Ready(Some((req, mut cb))) => {
                 // check that future hasn't been canceled already
@@ -526,8 +529,9 @@ where
                 }
             },
             Poll::Ready(None) => {
-                trace!("client tx closed");
                 // user has dropped sender handle
+                trace!("client tx closed");
+                self.rx_closed = true;
                 Poll::Ready(None)
             },
             Poll::Pending => Poll::Pending,
@@ -555,7 +559,7 @@ where
                 if let Some(cb) = self.callback.take() {
                     let _ = cb.send(Err((err, None)));
                     Ok(())
-                } else {
+                } else if !self.rx_closed {
                     self.rx.close();
                     if let Some((req, cb)) = self.rx.try_recv() {
                         trace!("canceling queued request with connection error: {}", err);
@@ -566,6 +570,8 @@ where
                     } else {
                         Err(err)
                     }
+                } else {
+                    Err(err)
                 }
             }
         }
