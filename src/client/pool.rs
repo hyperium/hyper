@@ -734,7 +734,6 @@ impl<T: Poolable + 'static> Future for IdleTask<T> {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         // Interval is a Stream
-        use futures_core::Stream;
 
         loop {
             match Pin::new(&mut self.pool_drop_notifier).poll(cx) {

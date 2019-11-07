@@ -7,7 +7,7 @@ use bytes::Bytes;
 use futures_core::Stream; // for mpsc::Receiver
 use futures_channel::{mpsc, oneshot};
 #[cfg(feature = "unstable-stream")]
-use futures_util::TryStreamExt;
+use futures_util::stream::TryStreamExt;
 use http_body::{SizeHint, Body as HttpBody};
 use http::HeaderMap;
 
@@ -487,7 +487,7 @@ impl From<Cow<'static, str>> for Body {
 impl Sender {
     /// Check to see if this `Sender` can send more data.
     pub fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
-        match self.abort_tx.poll_cancel(cx) {
+        match self.abort_tx.poll_canceled(cx) {
             Poll::Ready(()) => return Poll::Ready(Err(crate::Error::new_closed())),
             Poll::Pending => (), // fallthrough
         }

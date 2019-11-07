@@ -511,7 +511,7 @@ where
         match self.rx.poll_next(cx) {
             Poll::Ready(Some((req, mut cb))) => {
                 // check that future hasn't been canceled already
-                match cb.poll_cancel(cx) {
+                match cb.poll_canceled(cx) {
                     Poll::Ready(()) => {
                         trace!("request canceled");
                         Poll::Ready(None)
@@ -579,7 +579,7 @@ where
 
     fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), ()>> {
         match self.callback {
-            Some(ref mut cb) => match cb.poll_cancel(cx) {
+            Some(ref mut cb) => match cb.poll_canceled(cx) {
                 Poll::Ready(()) => {
                     trace!("callback receiver has dropped");
                     Poll::Ready(Err(()))

@@ -15,10 +15,9 @@ use std::time::Duration;
 use futures_channel::oneshot;
 use futures_core::ready;
 use futures_core::future::BoxFuture;
-use futures_util::future::{self, Either, FutureExt};
+use futures_util::future::{self, Either, FutureExt, TryFutureExt};
 use futures_util::stream::StreamExt;
-use futures_util::try_future::{self, TryFutureExt};
-//use futures_util::try_stream::TryStreamExt;
+//use futures_util::stream::TryStreamExt;
 use http::header::{HeaderName, HeaderValue};
 use tokio_net::driver::Handle;
 use tokio_net::tcp::{TcpListener, TcpStream as TkTcpStream};
@@ -879,7 +878,7 @@ fn disable_keep_alive_mid_request() {
         .map_err(|_| unreachable!())
         .and_then(|socket| {
             let srv = Http::new().serve_connection(socket, HelloWorld);
-            try_future::try_select(srv, rx1)
+            future::try_select(srv, rx1)
                 .then(|r| {
                     match r {
                         Ok(Either::Left(_)) => panic!("expected rx first"),
@@ -938,7 +937,7 @@ fn disable_keep_alive_post_request() {
                 _debug: dropped2,
             };
             let server = Http::new().serve_connection(transport, HelloWorld);
-            try_future::try_select(server, rx1)
+            future::try_select(server, rx1)
                 .then(|r| {
                     match r {
                         Ok(Either::Left(_)) => panic!("expected rx first"),
