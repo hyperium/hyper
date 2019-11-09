@@ -14,9 +14,8 @@ use hyper::{Body, Client, Method, Request, StatusCode};
 
 use futures_core::{Future, Stream, TryFuture};
 use futures_channel::oneshot;
-use futures_util::future::{self, FutureExt};
-use futures_util::try_future::{self, TryFutureExt};
-use futures_util::try_stream::TryStreamExt;
+use futures_util::future::{self, FutureExt, TryFutureExt};
+use futures_util::stream::TryStreamExt;
 use tokio::runtime::current_thread::Runtime;
 use tokio_net::tcp::TcpStream;
 
@@ -256,7 +255,7 @@ macro_rules! test {
 
         let rx = rx.expect("thread panicked");
 
-        rt.block_on(try_future::try_join(res, rx).map_ok(|r| r.0)).map(move |mut resp| {
+        rt.block_on(future::try_join(res, rx).map_ok(|r| r.0)).map(move |mut resp| {
             // Always check that HttpConnector has set the "extra" info...
             let extra = resp
                 .extensions_mut()
@@ -931,10 +930,8 @@ mod dispatch_impl {
 
     use futures_core::{self, Future};
     use futures_channel::{mpsc, oneshot};
-    use futures_util::future::FutureExt;
-    use futures_util::stream::StreamExt;
-    use futures_util::try_future::TryFutureExt;
-    use futures_util::try_stream::TryStreamExt;
+    use futures_util::future::{FutureExt, TryFutureExt};
+    use futures_util::stream::{StreamExt, TryStreamExt};
     use tokio::runtime::current_thread::Runtime;
     use tokio_io::{AsyncRead, AsyncWrite};
     use tokio_net::tcp::TcpStream;
@@ -1673,7 +1670,7 @@ mod dispatch_impl {
         let res1 = client.get(url.clone());
         let res2 = client.get(url.clone());
         let res3 = client.get(url.clone());
-        rt.block_on(try_future::try_join3(res1, res2, res3)).unwrap();
+        rt.block_on(future::try_join3(res1, res2, res3)).unwrap();
 
         // Since the client doesn't know it can ALPN at first, it will have
         // started 3 connections. But, the server above will only handle 1,
@@ -1792,9 +1789,8 @@ mod conn {
     use std::time::{Duration};
 
     use futures_channel::oneshot;
-    use futures_util::future::{self, poll_fn, FutureExt};
-    use futures_util::try_future::TryFutureExt;
-    use futures_util::try_stream::TryStreamExt;
+    use futures_util::future::{self, poll_fn, FutureExt, TryFutureExt};
+    use futures_util::stream::TryStreamExt;
     use tokio::runtime::current_thread::Runtime;
     use tokio_io::{AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _};
     use tokio_net::tcp::{TcpListener as TkTcpListener, TcpStream};

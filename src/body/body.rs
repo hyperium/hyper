@@ -487,7 +487,7 @@ impl From<Cow<'static, str>> for Body {
 impl Sender {
     /// Check to see if this `Sender` can send more data.
     pub fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
-        match self.abort_tx.poll_cancel(cx) {
+        match self.abort_tx.poll_canceled(cx) {
             Poll::Ready(()) => return Poll::Ready(Err(crate::Error::new_closed())),
             Poll::Pending => (), // fallthrough
         }

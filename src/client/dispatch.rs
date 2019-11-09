@@ -194,10 +194,11 @@ impl<T, U> Callback<T, U> {
         }
     }
 
+    // TODO: rename to poll_canceled
     pub(crate) fn poll_cancel(&mut self, cx: &mut task::Context<'_>) -> Poll<()> {
         match *self {
-            Callback::Retry(ref mut tx) => tx.poll_cancel(cx),
-            Callback::NoRetry(ref mut tx) => tx.poll_cancel(cx),
+            Callback::Retry(ref mut tx) => tx.poll_canceled(cx),
+            Callback::NoRetry(ref mut tx) => tx.poll_canceled(cx),
         }
     }
 

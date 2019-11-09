@@ -8,7 +8,7 @@ use hyper::client::HttpConnector;
 use hyper::service::{make_service_fn, service_fn};
 
 pub use std::net::SocketAddr;
-pub use futures_util::{future, try_future, FutureExt as _, StreamExt as _, TryFutureExt as _, TryStreamExt as _};
+pub use futures_util::{future, FutureExt as _, StreamExt as _, TryFutureExt as _, TryStreamExt as _};
 //pub use self::futures_channel::oneshot;
 pub use hyper::{HeaderMap, StatusCode};
 pub use tokio::runtime::current_thread::Runtime;

@@ -64,8 +64,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures_channel::oneshot;
-use futures_util::future::{self, FutureExt as _, Either};
-use futures_util::try_future::TryFutureExt as _;
+use futures_util::future::{self, FutureExt as _, TryFutureExt as _, Either};
 use http::{Method, Request, Response, Uri, Version};
 use http::header::{HeaderValue, HOST};
 use http::uri::Scheme;
