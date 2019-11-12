@@ -1722,7 +1722,7 @@ mod dispatch_impl {
 
     impl hyper::service::Service<Destination> for DebugConnector {
         type Response = (DebugStream, Connected);
-        type Error = io::Error;
+        type Error = <HttpConnector as hyper::service::Service<Destination>>::Error;
         type Future = Pin<Box<dyn Future<
             Output = Result<Self::Response, Self::Error>
         > + Send>>;
