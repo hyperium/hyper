@@ -37,14 +37,15 @@ fn main() {
 
     let server = Server::bind(&addr)
         .executor(exec)
-        .serve(new_service)
-        .map_err(|e| eprintln!("server error: {}", e));
+        .serve(new_service);
 
     println!("Listening on http://{}", addr);
 
+    assert_eq!(addr, server.local_addr());
+
     current_thread::Runtime::new()
         .expect("rt new")
-        .spawn(server)
+        .spawn(server.map_err(|e| eprintln!("server error: {}", e)))
         .run()
         .expect("rt run");
 }

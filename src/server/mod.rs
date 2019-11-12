@@ -133,7 +133,7 @@ impl Server<AddrIncoming, ()> {
 }
 
 #[cfg(feature = "runtime")]
-impl<S> Server<AddrIncoming, S> {
+impl<S, E> Server<AddrIncoming, S, E> {
     /// Returns the local address that this server is bound to.
     pub fn local_addr(&self) -> SocketAddr {
         self.spawn_all.local_addr()
