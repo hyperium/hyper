@@ -501,7 +501,7 @@ impl ConnectingTcp {
         reuse_address: bool,
     ) -> ConnectingTcp {
         if let Some(fallback_timeout) = fallback_timeout {
-            let (preferred_addrs, fallback_addrs) = remote_addrs.split_by_preference();
+            let (preferred_addrs, fallback_addrs) = remote_addrs.split_by_preference(local_addr);
             if fallback_addrs.is_empty() {
                 return ConnectingTcp {
                     local_addr,
