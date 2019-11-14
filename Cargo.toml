@@ -59,6 +59,8 @@ serde_json = "1.0"
 tokio = "=0.2.0-alpha.6" # using #[tokio::test] attributes
 tokio-fs = "=0.2.0-alpha.6"
 tokio-test = "=0.2.0-alpha.6"
+tokio-tls = "=0.3.0-alpha.6"
+native-tls = "0.2"
 url = "1.0"
 
 [features]
@@ -148,6 +150,11 @@ required-features = ["runtime"]
 name = "state"
 path = "examples/state.rs"
 required-features = ["runtime"]
+
+[[example]]
+name = "ssl_server"
+path = "examples/ssl_server.rs"
+required-features = ["runtime", "unstable-stream"]
 
 [[example]]
 name = "tower_client"
