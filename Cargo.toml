@@ -21,9 +21,9 @@ include = [
 
 [dependencies]
 bytes = "0.4.6"
-futures-core-preview = "=0.3.0-alpha.19"
-futures-channel-preview = "=0.3.0-alpha.19"
-futures-util-preview = "=0.3.0-alpha.19"
+futures-core = "0.3.1"
+futures-channel = "0.3.1"
+futures-util = "0.3.1"
 http = "0.1.15"
 http-body = "=0.2.0-alpha.3"
 httparse = "1.0"
@@ -48,6 +48,7 @@ tokio-timer = { version = "=0.3.0-alpha.6", optional = true }
 
 
 [dev-dependencies]
+futures-util-a19 = { version = "=0.3.0-alpha.19", package = "futures-util-preview" }
 matches = "0.1"
 num_cpus = "1.0"
 pretty_env_logger = "0.3"

@@ -194,10 +194,10 @@ impl<T, U> Callback<T, U> {
         }
     }
 
-    pub(crate) fn poll_cancel(&mut self, cx: &mut task::Context<'_>) -> Poll<()> {
+    pub(crate) fn poll_canceled(&mut self, cx: &mut task::Context<'_>) -> Poll<()> {
         match *self {
-            Callback::Retry(ref mut tx) => tx.poll_cancel(cx),
-            Callback::NoRetry(ref mut tx) => tx.poll_cancel(cx),
+            Callback::Retry(ref mut tx) => tx.poll_canceled(cx),
+            Callback::NoRetry(ref mut tx) => tx.poll_canceled(cx),
         }
     }
 
@@ -229,7 +229,7 @@ impl<T, U> Callback<T, U> {
                 },
                 Poll::Pending => {
                     // check if the callback is canceled
-                    ready!(cb.as_mut().unwrap().poll_cancel(cx));
+                    ready!(cb.as_mut().unwrap().poll_canceled(cx));
                     trace!("send_when canceled");
                     Poll::Ready(())
                 },
