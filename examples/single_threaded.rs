@@ -41,7 +41,9 @@ async fn main() {
     let exec = current_thread::TaskExecutor::current();
 
     let server = Server::bind(&addr)
-        .executor(exec)
+        .executor(move |fut| {
+            exec.clone().spawn_local(Box::pin(fut)).unwrap();
+        })
         .serve(make_service);
 
     println!("Listening on http://{}", addr);

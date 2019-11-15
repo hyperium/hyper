@@ -71,7 +71,7 @@ where
         }
     };
 
-    exec.execute(conn_task)?;
+    exec.execute(conn_task);
 
     Ok(ClientTask {
         conn_drop_ref,
@@ -155,7 +155,7 @@ where
                                         drop(conn_drop_ref);
                                         x
                                     });
-                                self.executor.execute(pipe)?;
+                                self.executor.execute(pipe);
                             }
                         }
                     }
@@ -175,7 +175,7 @@ where
                                 }
                             }
                         });
-                    self.executor.execute(cb.send_when(fut))?;
+                    self.executor.execute(cb.send_when(fut));
                     continue;
                 },
 

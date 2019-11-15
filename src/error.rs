@@ -86,12 +86,8 @@ pub(crate) enum User {
 
     /// User tried polling for an upgrade that doesn't exist.
     NoUpgrade,
-
     /// User polled for an upgrade, but low-level API is not using upgrades.
     ManualUpgrade,
-
-    /// Error trying to call `Executor::execute`.
-    Execute,
 }
 
 impl Error {
@@ -277,10 +273,6 @@ impl Error {
         Error::new(Kind::Shutdown).with(cause)
     }
 
-    pub(crate) fn new_execute<E: Into<Cause>>(cause: E) -> Error {
-        Error::new_user(User::Execute).with(cause)
-    }
-
     pub(crate) fn new_h2(cause: ::h2::Error) -> Error {
         if cause.is_io() {
             Error::new_io(cause.into_io().expect("h2::Error::is_io"))
@@ -346,7 +338,6 @@ impl StdError for Error {
             Kind::User(User::AbsoluteUriRequired) => "client requires absolute-form URIs",
             Kind::User(User::NoUpgrade) => "no upgrade available",
             Kind::User(User::ManualUpgrade) => "upgrade expected but low level API in use",
-            Kind::User(User::Execute) => "executor failed to spawn task",
         }
     }
 

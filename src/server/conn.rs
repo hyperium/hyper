@@ -843,7 +843,7 @@ where
         loop {
             if let Some(connecting) = ready!(me.serve.as_mut().poll_next_(cx)?) {
                 let fut = NewSvcTask::new(connecting, watcher.clone());
-                me.serve.as_mut().project().protocol.exec.execute_new_svc(fut)?;
+                me.serve.as_mut().project().protocol.exec.execute_new_svc(fut);
             } else {
                 return Poll::Ready(Ok(()));
             }

@@ -416,16 +416,11 @@ impl<T: Poolable> PoolInner<T> {
 
         let start = Instant::now() + dur;
 
-        let interval = IdleTask {
+        self.exec.execute(IdleTask {
             interval: Interval::new(start, dur),
             pool: WeakOpt::downgrade(pool_ref),
             pool_drop_notifier: rx,
-        };
-
-        if let Err(err) = self.exec.execute(interval) {
-            // This task isn't critical, so simply log and ignore.
-            warn!("error spawning connection pool idle interval: {}", err);
-        }
+        });
     }
 }
 

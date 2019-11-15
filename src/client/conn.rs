@@ -458,8 +458,7 @@ impl Builder {
     /// Provide an executor to execute background HTTP2 tasks.
     pub fn executor<E>(&mut self, exec: E) -> &mut Builder
     where
-        for<'a> &'a E: tokio_executor::Executor,
-        E: Send + Sync + 'static,
+        E: Fn(crate::common::exec::BoxFuture) + Send + Sync + 'static,
     {
         self.exec = Exec::Executor(Arc::new(exec));
         self

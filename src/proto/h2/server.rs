@@ -175,7 +175,7 @@ where
                             crate::Body::h2(stream, content_length)
                         });
                         let fut = H2Stream::new(service.call(req), respond);
-                        exec.execute_h2stream(fut)?;
+                        exec.execute_h2stream(fut);
                     },
                     Some(Err(e)) => {
                         return Poll::Ready(Err(crate::Error::new_h2(e)));

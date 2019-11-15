@@ -359,10 +359,7 @@ where C: Connect + Clone + Send + Sync + 'static,
                                 drop(delayed_tx);
                             });
 
-                        if let Err(err) = executor.execute(on_idle) {
-                            // This task isn't critical, so just log and ignore.
-                            warn!("error spawning task to insert idle connection: {}", err);
-                        }
+                        executor.execute(on_idle);
                     } else {
                         // There's no body to delay, but the connection isn't
                         // ready yet. Only re-insert when it's ready
@@ -371,10 +368,7 @@ where C: Connect + Clone + Send + Sync + 'static,
                         })
                             .map(|_| ());
 
-                        if let Err(err) = executor.execute(on_idle) {
-                            // This task isn't critical, so just log and ignore.
-                            warn!("error spawning task to insert idle connection: {}", err);
-                        }
+                        executor.execute(on_idle);
                     }
                     res
                 })))
@@ -513,20 +507,13 @@ where C: Connect + Clone + Send + Sync + 'static,
                         .handshake(io)
                         .and_then(move |(tx, conn)| {
                             trace!("handshake complete, spawning background dispatcher task");
-                            let bg = executor.execute(conn.map_err(|e| {
+                            executor.execute(conn.map_err(|e| {
                                 debug!("client connection error: {}", e)
                             }).map(|_| ()));
 
-                            // This task is critical, so an execute error
-                            // should be returned.
-                            if let Err(err) = bg {
-                                warn!("error spawning critical client task: {}", err);
-                                return Either::Left(future::err(err));
-                            }
-
                             // Wait for 'conn' to ready up before we
                             // declare this tx as usable
-                            Either::Right(tx.when_ready())
+                            tx.when_ready()
                         })
                         .map_ok(move |tx| {
                             pool.pooled(connecting, PoolClient {
@@ -1013,8 +1000,7 @@ impl Builder {
     /// Provide an executor to execute background `Connection` tasks.
     pub fn executor<E>(&mut self, exec: E) -> &mut Self
     where
-        for<'a> &'a E: tokio_executor::Executor,
-        E: Send + Sync + 'static,
+        E: Fn(crate::common::exec::BoxFuture) + Send + Sync + 'static,
     {
         self.conn_builder.executor(exec);
         self
