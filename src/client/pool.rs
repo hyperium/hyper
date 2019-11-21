@@ -118,6 +118,20 @@ impl<T> Pool<T> {
         self.inner.is_some()
     }
 
+    pub(super) fn clear(&self) {
+        if let Some(ref enabled) = self.inner {
+            debug!("clear connection pool");
+            let mut inner = enabled.lock().unwrap();
+            inner.connecting.clear();
+            inner.idle.clear();
+            #[cfg(feature = "runtime")]
+            {
+                inner.idle_interval_ref = None;
+            }
+            inner.waiters.clear();
+        }
+    }
+
     #[cfg(test)]
     pub(super) fn no_timer(&self) {
         // Prevent an actual interval from being created for this pool...

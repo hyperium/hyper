@@ -163,6 +163,14 @@ where C: Connect + Clone + Send + Sync + 'static,
       B: Payload + Unpin + Send + 'static,
       B::Data: Send + Unpin,
 {
+    /// Clear connection pool
+    ///
+    /// This is useful when network situation change,
+    /// e.g. Wi-Fi to cellular, or vice versa
+    pub fn clear_pool(&self) {
+        self.pool.clear();
+    }
+
     /// Send a `GET` request to the supplied `Uri`.
     ///
     /// # Note
