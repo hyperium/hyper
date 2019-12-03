@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use futures_channel::oneshot;
 #[cfg(feature = "runtime")]
-use tokio_timer::Interval;
+use tokio::time::Interval;
 
 use crate::common::{Exec, Future, Pin, Poll, Unpin, task};
 use super::Ver;
@@ -414,18 +414,13 @@ impl<T: Poolable> PoolInner<T> {
             }
         };
 
-        let start = Instant::now() + dur;
-
         let interval = IdleTask {
-            interval: Interval::new(start, dur),
+            interval: tokio::time::interval(dur),
             pool: WeakOpt::downgrade(pool_ref),
             pool_drop_notifier: rx,
         };
 
-        if let Err(err) = self.exec.execute(interval) {
-            // This task isn't critical, so simply log and ignore.
-            warn!("error spawning connection pool idle interval: {}", err);
-        }
+        self.exec.execute(interval);
     }
 }
 
@@ -743,7 +738,7 @@ impl<T: Poolable + 'static> Future for IdleTask<T> {
                 }
             }
 
-            ready!(Pin::new(&mut self.interval).poll_next(cx));
+            ready!(self.interval.poll_tick(cx));
 
             if let Some(inner) = self.pool.upgrade() {
                 if let Ok(mut inner) = inner.lock() {
@@ -778,8 +773,6 @@ mod tests {
     use std::sync::Arc;
     use std::task::Poll;
     use std::time::Duration;
-
-    use tokio::runtime::current_thread::Runtime;
 
     use crate::common::{Exec, Future, Pin, task};
     use super::{Connecting, Key, Poolable, Pool, Reservation, WeakOpt};
@@ -825,21 +818,18 @@ mod tests {
         pool
     }
 
-    #[test]
-    fn test_pool_checkout_smoke() {
-        let mut rt = Runtime::new().unwrap();
+    #[tokio::test]
+    async fn test_pool_checkout_smoke() {
         let pool = pool_no_timer();
         let key = Arc::new("foo".to_string());
         let pooled = pool.pooled(c(key.clone()), Uniq(41));
 
         drop(pooled);
 
-        rt.block_on(async {
-            match pool.checkout(key).await {
-                Ok(pooled) => assert_eq!(*pooled, Uniq(41)),
-                Err(_) => panic!("not ready"),
-            };
-        })
+        match pool.checkout(key).await {
+            Ok(pooled) => assert_eq!(*pooled, Uniq(41)),
+            Err(_) => panic!("not ready"),
+        };
     }
 
     /// Helper to check if the future is ready after polling once.
@@ -859,27 +849,23 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_pool_checkout_returns_none_if_expired() {
-        let mut rt = Runtime::new().unwrap();
+    #[tokio::test]
+    async fn test_pool_checkout_returns_none_if_expired() {
         let pool = pool_no_timer();
         let key = Arc::new("foo".to_string());
         let pooled = pool.pooled(c(key.clone()), Uniq(41));
 
         drop(pooled);
-        std::thread::sleep(pool.locked().timeout.unwrap());
-        rt.block_on(async {
-            let mut checkout = pool.checkout(key);
-            let poll_once = PollOnce(&mut checkout);
-            let is_not_ready = poll_once.await.is_none();
-            assert!(is_not_ready);
-        });
+        tokio::time::delay_for(pool.locked().timeout.unwrap()).await;
+        let mut checkout = pool.checkout(key);
+        let poll_once = PollOnce(&mut checkout);
+        let is_not_ready = poll_once.await.is_none();
+        assert!(is_not_ready);
     }
 
     #[cfg(feature = "runtime")]
-    #[test]
-    fn test_pool_checkout_removes_expired() {
-        let mut rt = Runtime::new().unwrap();
+    #[tokio::test]
+    async fn test_pool_checkout_removes_expired() {
         let pool = pool_no_timer();
         let key = Arc::new("foo".to_string());
 
@@ -888,15 +874,13 @@ mod tests {
         pool.pooled(c(key.clone()), Uniq(99));
 
         assert_eq!(pool.locked().idle.get(&key).map(|entries| entries.len()), Some(3));
-        std::thread::sleep(pool.locked().timeout.unwrap());
+        tokio::time::delay_for(pool.locked().timeout.unwrap()).await;
 
-        rt.block_on(async {
-            let mut checkout = pool.checkout(key.clone());
-            let poll_once = PollOnce(&mut checkout);
-            // checkout.await should clean out the expired
-            poll_once.await;
-            assert!(pool.locked().idle.get(&key).is_none());
-        });
+        let mut checkout = pool.checkout(key.clone());
+        let poll_once = PollOnce(&mut checkout);
+        // checkout.await should clean out the expired
+        poll_once.await;
+        assert!(pool.locked().idle.get(&key).is_none());
     }
 
     #[test]
@@ -913,14 +897,11 @@ mod tests {
     }
 
     #[cfg(feature = "runtime")]
-    #[test]
-    fn test_pool_timer_removes_expired() {
-        use std::time::Instant;
-        use tokio_timer::delay;
-        let mut rt = Runtime::new().unwrap();
+    #[tokio::test]
+    async fn test_pool_timer_removes_expired() {
         let pool = Pool::new(super::Config {
                 enabled: true,
-                keep_alive_timeout: Some(Duration::from_millis(100)),
+                keep_alive_timeout: Some(Duration::from_millis(10)),
                 max_idle_per_host: ::std::usize::MAX,
             },
             &Exec::Default,
@@ -928,32 +909,23 @@ mod tests {
 
         let key = Arc::new("foo".to_string());
 
-        // Since pool.pooled() will be calling spawn on drop, need to be sure
-        // those drops are called while `rt` is the current executor. To do so,
-        // call those inside a future.
-        rt.block_on(async {
-            pool.pooled(c(key.clone()), Uniq(41));
-            pool.pooled(c(key.clone()), Uniq(5));
-            pool.pooled(c(key.clone()), Uniq(99));
-        });
+        pool.pooled(c(key.clone()), Uniq(41));
+        pool.pooled(c(key.clone()), Uniq(5));
+        pool.pooled(c(key.clone()), Uniq(99));
 
         assert_eq!(pool.locked().idle.get(&key).map(|entries| entries.len()), Some(3));
 
         // Let the timer tick passed the expiration...
-        rt.block_on(async {
-            let deadline = Instant::now() + Duration::from_millis(200);
-            delay(deadline).await;
-        });
+        tokio::time::delay_for(Duration::from_millis(50)).await;
 
         assert!(pool.locked().idle.get(&key).is_none());
     }
 
-    #[test]
-    fn test_pool_checkout_task_unparked() {
+    #[tokio::test]
+    async fn test_pool_checkout_task_unparked() {
         use futures_util::future::join;
         use futures_util::FutureExt;
 
-        let mut rt = Runtime::new().unwrap();
         let pool = pool_no_timer();
         let key = Arc::new("foo".to_string());
         let pooled = pool.pooled(c(key.clone()), Uniq(41));
@@ -970,14 +942,11 @@ mod tests {
             },
         ).map(|(entry, _)| entry);
 
-        rt.block_on(async {
-            assert_eq!(*checkout.await.unwrap(), Uniq(41));
-        });
+        assert_eq!(*checkout.await.unwrap(), Uniq(41));
     }
 
-    #[test]
-    fn test_pool_checkout_drop_cleans_up_waiters() {
-        let mut rt = Runtime::new().unwrap();
+    #[tokio::test]
+    async fn test_pool_checkout_drop_cleans_up_waiters() {
         let pool = pool_no_timer::<Uniq<i32>>();
         let key = Arc::new("localhost:12345".to_string());
 
@@ -988,12 +957,10 @@ mod tests {
         let poll_once2 = PollOnce(&mut checkout2);
 
         // first poll needed to get into Pool's parked
-        rt.block_on(async {
-            poll_once1.await;
-            assert_eq!(pool.locked().waiters.get(&key).unwrap().len(), 1);
-            poll_once2.await;
-            assert_eq!(pool.locked().waiters.get(&key).unwrap().len(), 2);
-        });
+        poll_once1.await;
+        assert_eq!(pool.locked().waiters.get(&key).unwrap().len(), 1);
+        poll_once2.await;
+        assert_eq!(pool.locked().waiters.get(&key).unwrap().len(), 2);
 
         // on drop, clean up Pool
         drop(checkout1);

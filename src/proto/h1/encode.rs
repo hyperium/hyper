@@ -1,11 +1,12 @@
 use std::fmt;
+use std::io::IoSlice;
 
-use bytes::{Buf, IntoBuf};
-use bytes::buf::{Chain, Take};
-use iovec::IoVec;
+use bytes::Buf;
+use bytes::buf::ext::{BufExt, Chain, Take};
 
-use crate::common::StaticBuf;
 use super::io::WriteBuf;
+
+type StaticBuf = &'static [u8];
 
 /// Encoders to handle different Transfer-Encodings.
 #[derive(Debug, Clone, PartialEq)]
@@ -84,17 +85,16 @@ impl Encoder {
         match self.kind {
             Kind::Length(0) => Ok(None),
             Kind::Chunked => Ok(Some(EncodedBuf {
-                kind: BufKind::ChunkedEnd(StaticBuf(b"0\r\n\r\n")),
+                kind: BufKind::ChunkedEnd(b"0\r\n\r\n"),
             })),
             _ => Err(NotEof),
         }
     }
 
-    pub fn encode<B>(&mut self, msg: B) -> EncodedBuf<B::Buf>
+    pub fn encode<B>(&mut self, msg: B) -> EncodedBuf<B>
     where
-        B: IntoBuf,
+        B: Buf,
     {
-        let msg = msg.into_buf();
         let len = msg.remaining();
         debug_assert!(len > 0, "encode() called with empty buf");
 
@@ -103,7 +103,7 @@ impl Encoder {
                 trace!("encoding chunked {}B", len);
                 let buf = ChunkSize::new(len)
                     .chain(msg)
-                    .chain(StaticBuf(b"\r\n"));
+                    .chain(b"\r\n" as &'static [u8]);
                 BufKind::Chunked(buf)
             },
             Kind::Length(ref mut remaining) => {
@@ -127,11 +127,10 @@ impl Encoder {
         }
     }
 
-    pub(super) fn encode_and_end<B>(&self, msg: B, dst: &mut WriteBuf<EncodedBuf<B::Buf>>) -> bool
+    pub(super) fn encode_and_end<B>(&self, msg: B, dst: &mut WriteBuf<EncodedBuf<B>>) -> bool
     where
-        B: IntoBuf,
+        B: Buf,
     {
-        let msg = msg.into_buf();
         let len = msg.remaining();
         debug_assert!(len > 0, "encode() called with empty buf");
 
@@ -140,7 +139,7 @@ impl Encoder {
                 trace!("encoding chunked {}B", len);
                 let buf = ChunkSize::new(len)
                     .chain(msg)
-                    .chain(StaticBuf(b"\r\n0\r\n\r\n"));
+                    .chain(b"\r\n0\r\n\r\n" as &'static [u8]);
                 dst.buffer(buf);
                 !self.is_last
             },
@@ -176,11 +175,10 @@ impl Encoder {
     /// This is used in conjunction with Payload::__hyper_full_data(), which
     /// means we can trust that the buf has the correct size (the buf itself
     /// was checked to make the headers).
-    pub(super) fn danger_full_buf<B>(self, msg: B, dst: &mut WriteBuf<EncodedBuf<B::Buf>>)
+    pub(super) fn danger_full_buf<B>(self, msg: B, dst: &mut WriteBuf<EncodedBuf<B>>)
     where
-        B: IntoBuf,
+        B: Buf,
     {
-        let msg = msg.into_buf();
         debug_assert!(msg.remaining() > 0, "encode() called with empty buf");
         debug_assert!(match self.kind {
             Kind::Length(len) => len == msg.remaining() as u64,
@@ -193,7 +191,7 @@ impl Encoder {
                 trace!("encoding chunked {}B", len);
                 let buf = ChunkSize::new(len)
                     .chain(msg)
-                    .chain(StaticBuf(b"\r\n0\r\n\r\n"));
+                    .chain(b"\r\n0\r\n\r\n" as &'static [u8]);
                 dst.buffer(buf);
             },
             _ => {
@@ -238,12 +236,12 @@ where
     }
 
     #[inline]
-    fn bytes_vec<'t>(&'t self, dst: &mut [&'t IoVec]) -> usize {
+    fn bytes_vectored<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> usize {
         match self.kind {
-            BufKind::Exact(ref b) => b.bytes_vec(dst),
-            BufKind::Limited(ref b) => b.bytes_vec(dst),
-            BufKind::Chunked(ref b) => b.bytes_vec(dst),
-            BufKind::ChunkedEnd(ref b) => b.bytes_vec(dst),
+            BufKind::Exact(ref b) => b.bytes_vectored(dst),
+            BufKind::Limited(ref b) => b.bytes_vectored(dst),
+            BufKind::Chunked(ref b) => b.bytes_vectored(dst),
+            BufKind::ChunkedEnd(ref b) => b.bytes_vectored(dst),
         }
     }
 }

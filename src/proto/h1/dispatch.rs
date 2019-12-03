@@ -2,7 +2,7 @@ use std::error::Error as StdError;
 
 use bytes::{Buf, Bytes};
 use http::{Request, Response, StatusCode};
-use tokio_io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::body::{Body, Payload};
 use crate::common::{Future, Never, Poll, Pin, Unpin, task};
@@ -605,7 +605,7 @@ mod tests {
     fn client_read_bytes_before_writing_request() {
         let _ = pretty_env_logger::try_init();
 
-        tokio_test::task::mock(|cx| {
+        tokio_test::task::spawn(()).enter(|cx, _| {
 
             let (io, mut handle) = tokio_test::io::Builder::new()
                 .build_with_handle();
@@ -637,36 +637,32 @@ mod tests {
         });
     }
 
-    #[test]
-    fn body_empty_chunks_ignored() {
+    #[tokio::test]
+    async fn body_empty_chunks_ignored() {
         let _ = pretty_env_logger::try_init();
 
-        tokio_test::clock::mock(|_timer| {
-            tokio_test::task::mock(|cx| {
-                let io = tokio_test::io::Builder::new()
-                    // no reading or writing, just be blocked for the test...
-                    .wait(Duration::from_secs(5))
-                    .build();
+        let io = tokio_test::io::Builder::new()
+            // no reading or writing, just be blocked for the test...
+            .wait(Duration::from_secs(5))
+            .build();
 
-                let (mut tx, rx) = crate::client::dispatch::channel();
-                let conn = Conn::<_, crate::Chunk, ClientTransaction>::new(io);
-                let mut dispatcher = Dispatcher::new(Client::new(rx), conn);
+        let (mut tx, rx) = crate::client::dispatch::channel();
+        let conn = Conn::<_, crate::Chunk, ClientTransaction>::new(io);
+        let mut dispatcher = tokio_test::task::spawn(Dispatcher::new(Client::new(rx), conn));
 
-                // First poll is needed to allow tx to send...
-                assert!(Pin::new(&mut dispatcher).poll(cx).is_pending());
+        // First poll is needed to allow tx to send...
+        assert!(dispatcher.poll().is_pending());
 
-                let body = {
-                    let (mut tx, body) = crate::Body::channel();
-                    tx.try_send_data("".into()).unwrap();
-                    body
-                };
+        let body = {
+            let (mut tx, body) = crate::Body::channel();
+            tx.try_send_data("".into()).unwrap();
+            body
+        };
 
-                let _res_rx = tx.try_send(crate::Request::new(body)).unwrap();
+        let _res_rx = tx.try_send(crate::Request::new(body)).unwrap();
 
-                // Ensure conn.write_body wasn't called with the empty chunk.
-                // If it is, it will trigger an assertion.
-                assert!(Pin::new(&mut dispatcher).poll(cx).is_pending());
-            });
-        });
+        // Ensure conn.write_body wasn't called with the empty chunk.
+        // If it is, it will trigger an assertion.
+        assert!(dispatcher.poll().is_pending());
     }
 }

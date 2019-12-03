@@ -1,7 +1,7 @@
 use std::error::Error as StdError;
 use std::fmt;
 
-use tokio_io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::body::Payload;
 use crate::common::{Future, Poll, task};

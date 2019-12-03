@@ -63,7 +63,7 @@ where
                                 if let Err(e) = conn.await {
                                     debug!("connection error: {:?}", e);
                                 }
-                            })?;
+                            });
                             Ok(sr)
                         },
                         Err(e) => Err(e)

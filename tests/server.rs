@@ -1,6 +1,7 @@
 #![deny(warnings)]
 #![deny(rust_2018_idioms)]
 
+use std::future::Future;
 use std::net::{TcpStream, Shutdown, SocketAddr};
 use std::io::{self, Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -13,18 +14,13 @@ use std::thread;
 use std::time::Duration;
 
 use futures_channel::oneshot;
-use futures_core::ready;
-use futures_core::future::BoxFuture;
 use futures_util::future::{self, Either, FutureExt, TryFutureExt};
 #[cfg(feature = "unstable-stream")]
 use futures_util::stream::StreamExt as _;
-// TODO: remove once tokio is updated to futures 0.3
-use futures_util_a19::stream::StreamExt as _;
 use http::header::{HeaderName, HeaderValue};
-use tokio_net::driver::Handle;
-use tokio_net::tcp::{TcpListener, TcpStream as TkTcpStream};
-use tokio::runtime::current_thread::Runtime;
-use tokio_io::{AsyncRead, AsyncWrite};
+use tokio::net::{TcpListener, TcpStream as TkTcpStream};
+use tokio::runtime::Runtime;
+use tokio::io::{AsyncRead, AsyncWrite};
 
 use hyper::{Body, Request, Response, StatusCode, Version};
 use hyper::client::Client;
@@ -120,19 +116,22 @@ mod response_body_lengths {
         assert_eq!(
             case.expects_chunked,
             has_header(&body, "transfer-encoding:"),
-            "expects_chunked"
+            "expects_chunked, headers = {:?}",
+            body
         );
 
         assert_eq!(
             case.expects_chunked,
             has_header(&body, "chunked\r\n"),
-            "expects_chunked"
+            "expects_chunked, headers = {:?}",
+            body
         );
 
         assert_eq!(
             case.expects_con_len,
             has_header(&body, "content-length:"),
-            "expects_con_len"
+            "expects_con_len, headers = {:?}",
+            body
         );
 
         let n = body.find("\r\n\r\n").unwrap() + 4;
@@ -295,36 +294,28 @@ mod response_body_lengths {
         });
     }
 
-    #[test]
-    fn http2_auto_response_with_known_length() {
+    #[tokio::test]
+    async fn http2_auto_response_with_known_length() {
         use http_body::Body;
 
         let server = serve();
         let addr_str = format!("http://{}", server.addr());
         server.reply().body("Hello, World!");
 
-        let mut rt = Runtime::new().expect("rt new");
-        rt.block_on({
-            let client = Client::builder()
-                .http2_only(true)
-                .build_http::<hyper::Body>();
-            let uri = addr_str
-                .parse::<hyper::Uri>()
-                .expect("server addr should parse");
+        let client = Client::builder()
+            .http2_only(true)
+            .build_http::<hyper::Body>();
+        let uri = addr_str
+            .parse::<hyper::Uri>()
+            .expect("server addr should parse");
 
-            client
-                .get(uri)
-                .map_ok(|res| {
-                    assert_eq!(res.headers().get("content-length").unwrap(), "13");
-                    assert_eq!(res.body().size_hint().exact(), Some(13));
-                    ()
-                })
-                .map_err(|_e| ())
-        }).unwrap();
+        let res = client.get(uri).await.unwrap();
+        assert_eq!(res.headers().get("content-length").unwrap(), "13");
+        assert_eq!(res.body().size_hint().exact(), Some(13));
     }
 
-    #[test]
-    fn http2_auto_response_with_conflicting_lengths() {
+    #[tokio::test]
+    async fn http2_auto_response_with_conflicting_lengths() {
         use http_body::Body;
 
         let server = serve();
@@ -334,24 +325,16 @@ mod response_body_lengths {
             .header("content-length", "10")
             .body("Hello, World!");
 
-        let mut rt = Runtime::new().expect("rt new");
-        rt.block_on({
-            let client = Client::builder()
-                .http2_only(true)
-                .build_http::<hyper::Body>();
-            let uri = addr_str
-                .parse::<hyper::Uri>()
-                .expect("server addr should parse");
+        let client = Client::builder()
+            .http2_only(true)
+            .build_http::<hyper::Body>();
+        let uri = addr_str
+            .parse::<hyper::Uri>()
+            .expect("server addr should parse");
 
-            client
-                .get(uri)
-                .map_ok(|res| {
-                    assert_eq!(res.headers().get("content-length").unwrap(), "10");
-                    assert_eq!(res.body().size_hint().exact(), Some(10));
-                    ()
-                })
-                .map_err(|_e| ())
-        }).unwrap();
+        let res = client.get(uri).await.unwrap();
+        assert_eq!(res.headers().get("content-length").unwrap(), "10");
+        assert_eq!(res.body().size_hint().exact(), Some(10));
     }
 }
 
@@ -855,10 +838,9 @@ fn http_10_request_receives_http_10_response() {
     assert_eq!(s(&buf[..expected.len()]), expected);
 }
 
-#[test]
-fn disable_keep_alive_mid_request() {
-    let mut rt = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+#[tokio::test]
+async fn disable_keep_alive_mid_request() {
+    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     let (tx1, rx1) = oneshot::channel();
@@ -874,36 +856,31 @@ fn disable_keep_alive_mid_request() {
         req.read_to_end(&mut buf).unwrap();
     });
 
-    let mut incoming = listener.incoming();
-    let fut = incoming.next()
-        .map(Option::unwrap)
-        .map_err(|_| unreachable!())
-        .and_then(|socket| {
-            let srv = Http::new().serve_connection(socket, HelloWorld);
-            future::try_select(srv, rx1)
-                .then(|r| {
-                    match r {
-                        Ok(Either::Left(_)) => panic!("expected rx first"),
-                        Ok(Either::Right(((), mut conn))) => {
-                            Pin::new(&mut conn).graceful_shutdown();
-                            tx2.send(()).unwrap();
-                            conn
-                        }
-                        Err(Either::Left((e, _))) => panic!("unexpected error {}", e),
-                        Err(Either::Right((e, _))) => panic!("unexpected error {}", e),
-                    }
-                })
-        });
+    let (socket, _) = listener.accept().await.unwrap();
+    let srv = Http::new().serve_connection(socket, HelloWorld);
+    future::try_select(srv, rx1)
+        .then(|r| {
+            match r {
+                Ok(Either::Left(_)) => panic!("expected rx first"),
+                Ok(Either::Right(((), mut conn))) => {
+                    Pin::new(&mut conn).graceful_shutdown();
+                    tx2.send(()).unwrap();
+                    conn
+                }
+                Err(Either::Left((e, _))) => panic!("unexpected error {}", e),
+                Err(Either::Right((e, _))) => panic!("unexpected error {}", e),
+            }
+        })
+        .await
+        .unwrap();
 
-    rt.block_on(fut).unwrap();
     child.join().unwrap();
 }
 
-#[test]
-fn disable_keep_alive_post_request() {
+#[tokio::test]
+async fn disable_keep_alive_post_request() {
     let _ = pretty_env_logger::try_init();
-    let mut rt = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     let (tx1, rx1) = oneshot::channel();
@@ -929,66 +906,51 @@ fn disable_keep_alive_post_request() {
 
     let dropped = Dropped::new();
     let dropped2 = dropped.clone();
-    let mut incoming = listener.incoming();
-    let fut = incoming.next()
-        .map(Option::unwrap)
-        .map_err(|_| unreachable!())
-        .and_then(|socket| {
-            let transport = DebugStream {
-                stream: socket,
-                _debug: dropped2,
-            };
-            let server = Http::new().serve_connection(transport, HelloWorld);
-            future::try_select(server, rx1)
-                .then(|r| {
-                    match r {
-                        Ok(Either::Left(_)) => panic!("expected rx first"),
-                        Ok(Either::Right(((), mut conn))) => {
-                            Pin::new(&mut conn).graceful_shutdown();
-                            conn
-                        }
-                        Err(Either::Left((e, _))) => panic!("unexpected error {}", e),
-                        Err(Either::Right((e, _))) => panic!("unexpected error {}", e),
-                    }
-                })
+    let (socket, _) = listener.accept().await.unwrap();
+    let transport = DebugStream {
+        stream: socket,
+        _debug: dropped2,
+    };
+    let server = Http::new().serve_connection(transport, HelloWorld);
+    let fut = future::try_select(server, rx1)
+        .then(|r| {
+            match r {
+                Ok(Either::Left(_)) => panic!("expected rx first"),
+                Ok(Either::Right(((), mut conn))) => {
+                    Pin::new(&mut conn).graceful_shutdown();
+                    conn
+                }
+                Err(Either::Left((e, _))) => panic!("unexpected error {}", e),
+                Err(Either::Right((e, _))) => panic!("unexpected error {}", e),
+            }
         });
 
     assert!(!dropped.load());
-    rt.block_on(fut).unwrap();
-    // we must poll the Core one more time in order for Windows to drop
-    // the read-blocked socket.
-    //
-    // See https://github.com/carllerche/mio/issues/776
-    let timeout = tokio_timer::delay_for(Duration::from_millis(10));
-    rt.block_on(timeout);
+    fut.await.unwrap();
     assert!(dropped.load());
     child.join().unwrap();
 }
 
-#[test]
-fn empty_parse_eof_does_not_return_error() {
+#[tokio::test]
+async fn empty_parse_eof_does_not_return_error() {
     let _ = pretty_env_logger::try_init();
-    let mut rt = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
         let _tcp = connect(&addr);
     });
 
-    let mut incoming = listener.incoming();
-    let fut = incoming.next()
-        .map(Option::unwrap)
-        .map_err(|_| unreachable!())
-        .and_then(|socket| Http::new().serve_connection(socket, HelloWorld));
-
-    rt.block_on(fut).expect("empty parse eof is ok");
+    let (socket, _) = listener.accept().await.unwrap();
+    Http::new()
+        .serve_connection(socket, HelloWorld)
+        .await
+        .expect("empty parse eof is ok");
 }
 
-#[test]
-fn nonempty_parse_eof_returns_error() {
-    let mut rt = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+#[tokio::test]
+async fn nonempty_parse_eof_returns_error() {
+    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -996,20 +958,17 @@ fn nonempty_parse_eof_returns_error() {
         tcp.write_all(b"GET / HTTP/1.1").unwrap();
     });
 
-    let mut incoming = listener.incoming();
-    let fut = incoming.next()
-        .map(Option::unwrap)
-        .map_err(|_| unreachable!())
-        .and_then(|socket| Http::new().serve_connection(socket, HelloWorld));
-
-    rt.block_on(fut).expect_err("partial parse eof is error");
+    let (socket, _) = listener.accept().await.unwrap();
+    Http::new()
+        .serve_connection(socket, HelloWorld)
+        .await
+        .expect_err("partial parse eof is error");
 }
 
-#[test]
-fn http1_allow_half_close() {
+#[tokio::test]
+async fn http1_allow_half_close() {
     let _ = pretty_env_logger::try_init();
-    let mut rt = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     let t1 = thread::spawn(move || {
@@ -1023,28 +982,23 @@ fn http1_allow_half_close() {
         assert_eq!(s(&buf[..expected.len()]), expected);
     });
 
-    let mut incoming = listener.incoming();
-    let fut = incoming.next()
-        .map(Option::unwrap)
-        .map_err(|_| unreachable!())
-        .and_then(|socket| {
-            Http::new()
-                .http1_half_close(true)
-                .serve_connection(socket, service_fn(|_| {
-                    tokio_timer::delay_for(Duration::from_millis(500))
-                        .map(|_| Ok::<_, hyper::Error>(Response::new(Body::empty())))
-                }))
-        });
+    let (socket, _) = listener.accept().await.unwrap();
+    Http::new()
+        .http1_half_close(true)
+        .serve_connection(socket, service_fn(|_| {
+            tokio::time::delay_for(Duration::from_millis(500))
+                .map(|_| Ok::<_, hyper::Error>(Response::new(Body::empty())))
+        }))
+        .await
+        .unwrap();
 
-    rt.block_on(fut).unwrap();
     t1.join().expect("client thread");
 }
 
-#[test]
-fn disconnect_after_reading_request_before_responding() {
+#[tokio::test]
+async fn disconnect_after_reading_request_before_responding() {
     let _ = pretty_env_logger::try_init();
-    let mut rt = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -1052,28 +1006,22 @@ fn disconnect_after_reading_request_before_responding() {
         tcp.write_all(b"GET / HTTP/1.1\r\n\r\n").unwrap();
     });
 
-    let mut incoming = listener.incoming();
-    let fut = incoming.next()
-        .map(Option::unwrap)
-        .map_err(|_| unreachable!())
-        .and_then(|socket| {
-            Http::new()
-                .http1_half_close(false)
-                .serve_connection(socket, service_fn(|_| {
-                    tokio_timer::delay_for(Duration::from_secs(2))
-                        .map(|_| -> Result<Response<Body>, hyper::Error> {
-                            panic!("response future should have been dropped");
-                        })
-                }))
-        });
-
-    rt.block_on(fut).expect_err("socket disconnected");
+    let (socket, _) = listener.accept().await.unwrap();
+    Http::new()
+        .http1_half_close(false)
+        .serve_connection(socket, service_fn(|_| {
+            tokio::time::delay_for(Duration::from_secs(2))
+                .map(|_| -> Result<Response<Body>, hyper::Error> {
+                    panic!("response future should have been dropped");
+                })
+        }))
+        .await
+        .expect_err("socket disconnected");
 }
 
-#[test]
-fn returning_1xx_response_is_error() {
-    let mut rt = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+#[tokio::test]
+async fn returning_1xx_response_is_error() {
+    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -1086,21 +1034,16 @@ fn returning_1xx_response_is_error() {
         assert_eq!(s(&buf[..expected.len()]), expected);
     });
 
-    let mut incoming = listener.incoming();
-    let fut = incoming.next()
-        .map(Option::unwrap)
-        .map_err(|_| unreachable!())
-        .and_then(|socket| {
-            Http::new()
-                .serve_connection(socket, service_fn(|_| async move {
-                    Ok::<_, hyper::Error>(Response::builder()
-                        .status(StatusCode::CONTINUE)
-                        .body(Body::empty())
-                        .unwrap())
-                }))
-        });
-
-    rt.block_on(fut).expect_err("1xx status code should error");
+    let (socket, _) = listener.accept().await.unwrap();
+    Http::new()
+        .serve_connection(socket, service_fn(|_| async move {
+            Ok::<_, hyper::Error>(Response::builder()
+                .status(StatusCode::CONTINUE)
+                .body(Body::empty())
+                .unwrap())
+        }))
+        .await
+        .expect_err("1xx status code should error");
 }
 
 #[test]
@@ -1121,13 +1064,12 @@ fn header_name_too_long() {
     assert!(s(&buf[..n]).starts_with("HTTP/1.1 431 Request Header Fields Too Large\r\n"));
 }
 
-#[test]
-fn upgrades() {
+#[tokio::test]
+async fn upgrades() {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     let _ = pretty_env_logger::try_init();
-    let mut rt = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
     let (tx, rx) = oneshot::channel();
 
@@ -1152,51 +1094,36 @@ fn upgrades() {
         tcp.write_all(b"bar=foo").expect("write 2");
     });
 
-    let mut incoming = listener.incoming();
-    let fut = incoming.next()
-        .map(Option::unwrap)
-        .map_err(|_| unreachable!())
-        .and_then(|socket| {
-            let conn = Http::new()
-                .serve_connection(socket, service_fn(|_| {
-                    let res = Response::builder()
-                        .status(101)
-                        .header("upgrade", "foobar")
-                        .body(hyper::Body::empty())
-                        .unwrap();
-                    future::ready(Ok::<_, hyper::Error>(res))
-                }));
+    let (socket, _) = listener.accept().await.unwrap();
+    let conn = Http::new()
+        .serve_connection(socket, service_fn(|_| {
+            let res = Response::builder()
+                .status(101)
+                .header("upgrade", "foobar")
+                .body(hyper::Body::empty())
+                .unwrap();
+            future::ready(Ok::<_, hyper::Error>(res))
+        }));
 
-            let mut conn_opt = Some(conn);
-            future::poll_fn(move |ctx| {
-                ready!(conn_opt.as_mut().unwrap().poll_without_shutdown(ctx)).unwrap();
-                // conn is done with HTTP now
-                Poll::Ready(Ok(conn_opt.take().unwrap()))
-            })
-        });
-
-    let conn = rt.block_on(fut).unwrap();
-
-    // wait so that we don't write until other side saw 101 response
-    rt.block_on(rx).unwrap();
-
-    let parts = conn.into_parts();
+    let parts = conn.without_shutdown().await.unwrap();
     assert_eq!(parts.read_buf, "eagerly optimistic");
 
+    // wait so that we don't write until other side saw 101 response
+    rx.await.unwrap();
+
     let mut io = parts.io;
-    rt.block_on(io.write_all(b"foo=bar")).unwrap();
+    io.write_all(b"foo=bar").await.unwrap();
     let mut vec = vec![];
-    rt.block_on(io.read_to_end(&mut vec)).unwrap();
+    io.read_to_end(&mut vec).await.unwrap();
     assert_eq!(vec, b"bar=foo");
 }
 
-#[test]
-fn http_connect() {
+#[tokio::test]
+async fn http_connect() {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     let _ = pretty_env_logger::try_init();
-    let mut rt = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
     let (tx, rx) = oneshot::channel();
 
@@ -1219,50 +1146,35 @@ fn http_connect() {
         tcp.write_all(b"bar=foo").expect("write 2");
     });
 
-    let mut incoming = listener.incoming();
-    let fut = incoming.next()
-        .map(Option::unwrap)
-        .map_err(|_| unreachable!())
-        .and_then(|socket| {
-            let conn = Http::new()
-                .serve_connection(socket, service_fn(|_| {
-                    let res = Response::builder()
-                        .status(200)
-                        .body(hyper::Body::empty())
-                        .unwrap();
-                    future::ready(Ok::<_, hyper::Error>(res))
-                }));
+    let (socket, _) = listener.accept().await.unwrap();
+    let conn = Http::new()
+        .serve_connection(socket, service_fn(|_| {
+            let res = Response::builder()
+                .status(200)
+                .body(hyper::Body::empty())
+                .unwrap();
+            future::ready(Ok::<_, hyper::Error>(res))
+        }));
 
-            let mut conn_opt = Some(conn);
-            future::poll_fn(move |ctx| {
-                ready!(conn_opt.as_mut().unwrap().poll_without_shutdown(ctx)).unwrap();
-                // conn is done with HTTP now
-                Poll::Ready(Ok(conn_opt.take().unwrap()))
-            })
-        });
-
-    let conn = rt.block_on(fut).unwrap();
-
-    // wait so that we don't write until other side saw 101 response
-    rt.block_on(rx).unwrap();
-
-    let parts = conn.into_parts();
+    let parts = conn.without_shutdown().await.unwrap();
     assert_eq!(parts.read_buf, "eagerly optimistic");
 
+    // wait so that we don't write until other side saw 101 response
+    rx.await.unwrap();
+
     let mut io = parts.io;
-    rt.block_on(io.write_all(b"foo=bar")).unwrap();
+    io.write_all(b"foo=bar").await.unwrap();
     let mut vec = vec![];
-    rt.block_on(io.read_to_end(&mut vec)).unwrap();
+    io.read_to_end(&mut vec).await.unwrap();
     assert_eq!(vec, b"bar=foo");
 }
 
-#[test]
-fn upgrades_new() {
+#[tokio::test]
+async fn upgrades_new() {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     let _ = pretty_env_logger::try_init();
-    let mut rt = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
     let (read_101_tx, read_101_rx) = oneshot::channel();
 
@@ -1300,38 +1212,35 @@ fn upgrades_new() {
             .unwrap())
     });
 
-    let mut incoming = listener.incoming();
-    let fut = incoming.next()
-        .map(Option::unwrap)
-        .map_err(|_| unreachable!())
-        .and_then(|socket| {
-            Http::new().serve_connection(socket, svc).with_upgrades()
-        });
+    let (socket, _) = listener.accept().await.unwrap();
+    Http::new()
+        .serve_connection(socket, svc)
+        .with_upgrades()
+        .await
+        .unwrap();
 
-    rt.block_on(fut).unwrap();
     let on_upgrade = upgrades_rx.recv().unwrap();
 
     // wait so that we don't write until other side saw 101 response
-    rt.block_on(read_101_rx).unwrap();
+    read_101_rx.await.unwrap();
 
-    let upgraded = rt.block_on(on_upgrade).unwrap();
+    let upgraded = on_upgrade.await.expect("on_upgrade");
     let parts = upgraded.downcast::<TkTcpStream>().unwrap();
     assert_eq!(parts.read_buf, "eagerly optimistic");
 
     let mut io = parts.io;
-    rt.block_on(io.write_all(b"foo=bar")).unwrap();
+    io.write_all(b"foo=bar").await.unwrap();
     let mut vec = vec![];
-    rt.block_on(io.read_to_end(&mut vec)).unwrap();
+    io.read_to_end(&mut vec).await.unwrap();
     assert_eq!(s(&vec), "bar=foo");
 }
 
-#[test]
-fn http_connect_new() {
+#[tokio::test]
+async fn http_connect_new() {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     let _ = pretty_env_logger::try_init();
-    let mut rt = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
     let (read_200_tx, read_200_rx) = oneshot::channel();
 
@@ -1366,38 +1275,33 @@ fn http_connect_new() {
             .unwrap())
     });
 
-    let mut incoming = listener.incoming();
-    let fut = incoming.next()
-        .map(Option::unwrap)
-        .map_err(|_| unreachable!())
-        .and_then(|socket| {
-            Http::new().serve_connection(socket, svc).with_upgrades()
-        });
+    let (socket, _) = listener.accept().await.unwrap();
+    Http::new()
+        .serve_connection(socket, svc)
+        .with_upgrades()
+        .await
+        .unwrap();
 
-    rt.block_on(fut).unwrap();
     let on_upgrade = upgrades_rx.recv().unwrap();
 
     // wait so that we don't write until other side saw 200
-    rt.block_on(read_200_rx).unwrap();
+    read_200_rx.await.unwrap();
 
-    let upgraded = rt.block_on(on_upgrade).unwrap();
+    let upgraded = on_upgrade.await.expect("on_upgrade");
     let parts = upgraded.downcast::<TkTcpStream>().unwrap();
     assert_eq!(parts.read_buf, "eagerly optimistic");
 
     let mut io = parts.io;
-    rt.block_on(io.write_all(b"foo=bar")).unwrap();
+    io.write_all(b"foo=bar").await.unwrap();
     let mut vec = vec![];
-    rt.block_on(io.read_to_end(&mut vec)).unwrap();
+    io.read_to_end(&mut vec).await.unwrap();
     assert_eq!(s(&vec), "bar=foo");
 }
 
 
-#[test]
-fn parse_errors_send_4xx_response() {
-
-
-    let mut rt = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+#[tokio::test]
+async fn parse_errors_send_4xx_response() {
+    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -1410,21 +1314,16 @@ fn parse_errors_send_4xx_response() {
         assert_eq!(s(&buf[..expected.len()]), expected);
     });
 
-    let mut incoming = listener.incoming();
-    let fut = incoming.next()
-        .map(Option::unwrap)
-        .map_err(|_| unreachable!())
-        .and_then(|socket| Http::new().serve_connection(socket, HelloWorld));
-
-    rt.block_on(fut).expect_err("HTTP parse error");
+    let (socket, _) = listener.accept().await.unwrap();
+    Http::new()
+        .serve_connection(socket, HelloWorld)
+        .await
+        .expect_err("HTTP parse error");
 }
 
-#[test]
-fn illegal_request_length_returns_400_response() {
-
-
-    let mut rt = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+#[tokio::test]
+async fn illegal_request_length_returns_400_response() {
+    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -1437,13 +1336,11 @@ fn illegal_request_length_returns_400_response() {
         assert_eq!(s(&buf[..expected.len()]), expected);
     });
 
-    let mut incoming = listener.incoming();
-    let fut = incoming.next()
-        .map(Option::unwrap)
-        .map_err(|_| unreachable!())
-        .and_then(|socket| Http::new().serve_connection(socket, HelloWorld));
-
-    rt.block_on(fut).expect_err("illegal Content-Length should error");
+    let (socket, _) = listener.accept().await.unwrap();
+    Http::new()
+        .serve_connection(socket, HelloWorld)
+        .await
+        .expect_err("illegal Content-Length should error");
 }
 
 #[test]
@@ -1458,11 +1355,10 @@ fn max_buf_size_no_panic() {
     Http::new().max_buf_size(MAX);
 }
 
-#[test]
-fn max_buf_size() {
+#[tokio::test]
+async fn max_buf_size() {
     let _ = pretty_env_logger::try_init();
-    let mut rt = Runtime::new().unwrap();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     const MAX: usize = 16_000;
@@ -1478,17 +1374,12 @@ fn max_buf_size() {
         assert_eq!(s(&buf[..expected.len()]), expected);
     });
 
-    let mut incoming = listener.incoming();
-    let fut = incoming.next()
-        .map(Option::unwrap)
-        .map_err(|_| unreachable!())
-        .and_then(|socket| {
-            Http::new()
-                .max_buf_size(MAX)
-                .serve_connection(socket, HelloWorld)
-        });
-
-    rt.block_on(fut).expect_err("should TooLarge error");
+    let (socket, _) = listener.accept().await.unwrap();
+    Http::new()
+        .max_buf_size(MAX)
+        .serve_connection(socket, HelloWorld)
+        .await
+        .expect_err("should TooLarge error");
 }
 
 #[cfg(feature = "unstable-stream")]
@@ -1576,8 +1467,8 @@ fn http1_only() {
     }).unwrap_err();
 }
 
-#[test]
-fn http2_service_error_sends_reset_reason() {
+#[tokio::test]
+async fn http2_service_error_sends_reset_reason() {
     use std::error::Error;
 
     let server = serve();
@@ -1587,22 +1478,20 @@ fn http2_service_error_sends_reset_reason() {
         .reply()
         .error(h2::Error::from(h2::Reason::INADEQUATE_SECURITY));
 
-    let mut rt = Runtime::new().expect("runtime new");
-
-    let err = rt.block_on({
-        let client = Client::builder()
-            .http2_only(true)
-            .build_http::<hyper::Body>();
-        let uri = addr_str.parse().expect("server addr should parse");
-
-        client.get(uri)
-    }).unwrap_err();
+    let uri = addr_str.parse().expect("server addr should parse");
+    dbg!("start");
+    let err = dbg!(Client::builder()
+        .http2_only(true)
+        .build_http::<hyper::Body>()
+        .get(uri)
+        .await
+        .expect_err("client.get"));
 
     let h2_err = err
         .source()
-        .unwrap()
+        .expect("err.source")
         .downcast_ref::<h2::Error>()
-        .unwrap();
+        .expect("downcast");
 
     assert_eq!(h2_err.reason(), Some(h2::Reason::INADEQUATE_SECURITY));
 }
@@ -1648,9 +1537,9 @@ fn http2_body_user_error_sends_reset_reason() {
     assert_eq!(h2_err.reason(), Some(h2::Reason::INADEQUATE_SECURITY));
 }
 
-struct Svc;
+struct Http2ReadyErrorSvc;
 
-impl tower_service::Service<Request<Body>> for Svc {
+impl tower_service::Service<Request<Body>> for Http2ReadyErrorSvc {
     type Response = Response<Body>;
     type Error = h2::Error;
     type Future = Box<dyn futures_core::Future<
@@ -1666,31 +1555,30 @@ impl tower_service::Service<Request<Body>> for Svc {
     }
 }
 
-#[test]
-fn http2_service_poll_ready_error_sends_goaway() {
+#[tokio::test]
+#[ignore] // sometimes ECONNRESET wins the race
+async fn http2_service_poll_ready_error_sends_goaway() {
     use std::error::Error;
 
     let _ = pretty_env_logger::try_init();
 
     let server = hyper::Server::bind(&([127, 0, 0, 1], 0).into())
         .http2_only(true)
-        .serve(make_service_fn(|_| async move { Ok::<_, BoxError>(Svc) }));
+        .serve(make_service_fn(|_| async move { Ok::<_, BoxError>(Http2ReadyErrorSvc) }));
 
     let addr_str = format!("http://{}", server.local_addr());
 
-    let mut rt = Runtime::new().expect("runtime new");
+    tokio::task::spawn(async move {
+        server.await.expect("server");
+    });
 
-    rt.spawn(server
-        .map_err(|e| unreachable!("server shouldn't error: {:?}", e))
-        .map(|_| ()));
-
-    let err = rt.block_on({
-        let client = Client::builder()
-            .http2_only(true)
-            .build_http::<hyper::Body>();
-        let uri = addr_str.parse().expect("server addr should parse");
-        client.get(uri)
-    }).unwrap_err();
+    let uri = addr_str.parse().expect("server addr should parse");
+    let err = dbg!(Client::builder()
+        .http2_only(true)
+        .build_http::<hyper::Body>()
+        .get(uri)
+        .await
+        .expect_err("client.get should fail"));
 
     // client request should have gotten the specific GOAWAY error...
     let h2_err = err
@@ -1843,11 +1731,14 @@ impl<'a> Drop for ReplyBuilder<'a> {
 impl Drop for Serve {
     fn drop(&mut self) {
         drop(self.shutdown_signal.take());
+        drop(self.thread.take());
+        /*
         let r = self.thread.take().unwrap().join();
         if let Err(ref e) = r {
             println!("{:?}", e);
         }
         r.unwrap();
+        */
     }
 }
 
@@ -1877,7 +1768,7 @@ enum Msg {
 impl tower_service::Service<Request<Body>> for TestService {
     type Response = Response<Body>;
     type Error = BoxError;
-    type Future = BoxFuture<'static, Result<Response<Body>, BoxError>>;
+    type Future = Pin<Box<dyn Future<Output = Result<Response<Body>, BoxError>> + Send>>;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Ok(()).into()
@@ -1886,7 +1777,8 @@ impl tower_service::Service<Request<Body>> for TestService {
     fn call(&mut self, mut req: Request<Body>) -> Self::Future {
         let tx = self.tx.clone();
         let replies = self.reply.clone();
-        hyper::rt::spawn(async move {
+
+        Box::pin(async move {
             while let Some(chunk) = req.body_mut().next().await {
                 match chunk {
                     Ok(chunk) => {
@@ -1894,15 +1786,13 @@ impl tower_service::Service<Request<Body>> for TestService {
                     },
                     Err(err) => {
                         tx.send(Msg::Error(err)).unwrap();
-                        return;
+                        return Err("req body error".into());
                     },
                 }
             }
 
             tx.send(Msg::End).unwrap();
-        });
 
-        Box::pin(async move {
             TestService::build_reply(replies)
         })
     }
@@ -1940,7 +1830,7 @@ struct HelloWorld;
 impl tower_service::Service<Request<Body>> for HelloWorld {
     type Response = Response<Body>;
     type Error = hyper::Error;
-    type Future = BoxFuture<'static, Result<Response<Body>, Self::Error>>;
+    type Future = future::Ready<Result<Response<Body>, Self::Error>>;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Ok(()).into()
@@ -1948,7 +1838,7 @@ impl tower_service::Service<Request<Body>> for HelloWorld {
 
     fn call(&mut self, _req: Request<Body>) -> Self::Future {
         let response = Response::new(HELLO.into());
-        future::ok(response).boxed()
+        future::ok(response)
     }
 }
 
@@ -2021,34 +1911,39 @@ impl ServeOptions {
         let thread = thread::Builder::new()
             .name(thread_name)
             .spawn(move || {
-                let service = make_service_fn(|_| {
-                    let msg_tx = msg_tx.clone();
-                    let reply_rx = reply_rx.clone();
-                    future::ok::<_, BoxError>(TestService {
-                        tx: msg_tx.clone(),
-                        reply: reply_rx.clone(),
-                    })
-                });
+                let mut rt = tokio::runtime::Builder::new()
+                    .enable_io()
+                    .enable_time()
+                    .basic_scheduler()
+                    .build()
+                    .expect("rt new");
 
-                let server = Server::bind(&addr)
-                    .http1_only(options.http1_only)
-                    .http1_keepalive(options.keep_alive)
-                    .http1_pipeline_flush(options.pipeline)
-                    .serve(service);
-
-                addr_tx.send(
-                    server.local_addr()
-                ).expect("server addr tx");
-
-                let fut = server
-                    .with_graceful_shutdown(async {
-                        shutdown_rx.await.ok();
+                rt.block_on(async move {
+                    let service = make_service_fn(|_| {
+                        let msg_tx = msg_tx.clone();
+                        let reply_rx = reply_rx.clone();
+                        future::ok::<_, BoxError>(TestService {
+                            tx: msg_tx.clone(),
+                            reply: reply_rx.clone(),
+                        })
                     });
 
-                let mut rt = Runtime::new().expect("rt new");
-                rt
-                    .block_on(fut)
-                    .unwrap();
+                    let server = Server::bind(&addr)
+                        .http1_only(options.http1_only)
+                        .http1_keepalive(options.keep_alive)
+                        .http1_pipeline_flush(options.pipeline)
+                        .serve(service);
+
+                    addr_tx.send(
+                        server.local_addr()
+                    ).expect("server addr tx");
+
+                    server
+                        .with_graceful_shutdown(async {
+                            let _ = shutdown_rx.await;
+                        })
+                        .await
+                }).expect("serve()");
             })
             .expect("thread spawn");
 
@@ -2076,7 +1971,7 @@ fn has_header(msg: &str, name: &str) -> bool {
 
 fn tcp_bind(addr: &SocketAddr) -> ::tokio::io::Result<TcpListener> {
     let std_listener = StdTcpListener::bind(addr).unwrap();
-    TcpListener::from_std(std_listener, &Handle::default())
+    TcpListener::from_std(std_listener)
 }
 
 fn read_until<R, F>(io: &mut R, func: F) -> io::Result<Vec<u8>>

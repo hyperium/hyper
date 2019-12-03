@@ -157,11 +157,6 @@ impl Body {
         Body::new(Kind::Wrapped(Box::pin(mapped)))
     }
 
-    /// dox
-    pub async fn next(&mut self) -> Option<crate::Result<Chunk>> {
-        futures_util::future::poll_fn(|cx| self.poll_eof(cx)).await
-    }
-
     /// Converts this `Body` into a `Future` of a pending HTTP upgrade.
     ///
     /// See [the `upgrade` module](::upgrade) for more.
@@ -278,7 +273,7 @@ impl Body {
                 recv: ref mut h2, ..
             } => match ready!(h2.poll_data(cx)) {
                 Some(Ok(bytes)) => {
-                    let _ = h2.release_capacity().release_capacity(bytes.len());
+                    let _ = h2.flow_control().release_capacity(bytes.len());
                     Poll::Ready(Some(Ok(Chunk::from(bytes))))
                 },
                 Some(Err(e)) => Poll::Ready(Some(Err(crate::Error::new_body(e)))),
@@ -528,24 +523,3 @@ impl Sender {
         let _ = self.tx.try_send(Err(err));
     }
 }
-
-/*
-impl Sink for Sender {
-    type SinkItem = Chunk;
-    type SinkError = crate::Error;
-
-    fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn start_send(&mut self, msg: Chunk) -> StartSend<Self::SinkItem, Self::SinkError> {
-        match self.poll_ready()? {
-            Async::Ready(_) => {
-                self.send_data(msg).map_err(|_| crate::Error::new_closed())?;
-                Ok(AsyncSink::Ready)
-            }
-            Async::NotReady => Ok(AsyncSink::NotReady(msg)),
-        }
-    }
-}
-*/
