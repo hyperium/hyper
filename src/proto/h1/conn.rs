@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use bytes::{Buf, Bytes};
 use http::{HeaderMap, Method, Version};
 use http::header::{HeaderValue, CONNECTION};
-use tokio_io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::Chunk;
 use crate::common::{Pin, Poll, Unpin, task};
@@ -915,7 +915,11 @@ mod tests {
         *conn.io.read_buf_mut() = ::bytes::BytesMut::from(&s[..]);
         conn.state.cached_headers = Some(HeaderMap::with_capacity(2));
 
-        let mut rt = tokio::runtime::current_thread::Runtime::new().unwrap();
+        let mut rt = tokio::runtime::Builder::new()
+            .enable_all()
+            .basic_scheduler()
+            .build()
+            .unwrap();
 
         b.iter(|| {
             rt.block_on(futures_util::future::poll_fn(|cx| {

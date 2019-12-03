@@ -27,7 +27,7 @@
 //! [full client example](https://github.com/hyperium/hyper/blob/master/examples/client.rs).
 //!
 //! ```
-//! use hyper::{Client, Uri};
+//! use hyper::{body::HttpBody as _, Client, Uri};
 //!
 //! # #[cfg(feature = "tcp")]
 //! # async fn fetch_httpbin() -> hyper::Result<()> {
@@ -70,7 +70,7 @@ use http::header::{HeaderValue, HOST};
 use http::uri::Scheme;
 
 use crate::body::{Body, Payload};
-use crate::common::{lazy as hyper_lazy, Lazy, Future, Pin, Poll, task};
+use crate::common::{lazy as hyper_lazy, BoxSendFuture, Executor, Lazy, Future, Pin, Poll, task};
 use self::connect::{Alpn, sealed::Connect, Connected, Destination};
 use self::pool::{Key as PoolKey, Pool, Poolable, Pooled, Reservation};
 
@@ -285,10 +285,9 @@ where C: Connect + Clone + Send + Sync + 'static,
                     req
                         .headers_mut()
                         .entry(HOST)
-                        .expect("HOST is always valid header name")
                         .or_insert_with(|| {
                             let hostname = uri.host().expect("authority implies host");
-                            if let Some(port) = uri.port_part() {
+                            if let Some(port) = uri.port() {
                                 let s = format!("{}:{}", hostname, port);
                                 HeaderValue::from_str(&s)
                             } else {
@@ -359,10 +358,7 @@ where C: Connect + Clone + Send + Sync + 'static,
                                 drop(delayed_tx);
                             });
 
-                        if let Err(err) = executor.execute(on_idle) {
-                            // This task isn't critical, so just log and ignore.
-                            warn!("error spawning task to insert idle connection: {}", err);
-                        }
+                        executor.execute(on_idle);
                     } else {
                         // There's no body to delay, but the connection isn't
                         // ready yet. Only re-insert when it's ready
@@ -371,10 +367,7 @@ where C: Connect + Clone + Send + Sync + 'static,
                         })
                             .map(|_| ());
 
-                        if let Err(err) = executor.execute(on_idle) {
-                            // This task isn't critical, so just log and ignore.
-                            warn!("error spawning task to insert idle connection: {}", err);
-                        }
+                        executor.execute(on_idle);
                     }
                     res
                 })))
@@ -513,20 +506,13 @@ where C: Connect + Clone + Send + Sync + 'static,
                         .handshake(io)
                         .and_then(move |(tx, conn)| {
                             trace!("handshake complete, spawning background dispatcher task");
-                            let bg = executor.execute(conn.map_err(|e| {
+                            executor.execute(conn.map_err(|e| {
                                 debug!("client connection error: {}", e)
                             }).map(|_| ()));
 
-                            // This task is critical, so an execute error
-                            // should be returned.
-                            if let Err(err) = bg {
-                                warn!("error spawning critical client task: {}", err);
-                                return Either::Left(future::err(err));
-                            }
-
                             // Wait for 'conn' to ready up before we
                             // declare this tx as usable
-                            Either::Right(tx.when_ready())
+                            tx.when_ready()
                         })
                         .map_ok(move |tx| {
                             pool.pooled(connecting, PoolClient {
@@ -742,12 +728,12 @@ fn origin_form(uri: &mut Uri) {
 }
 
 fn absolute_form(uri: &mut Uri) {
-    debug_assert!(uri.scheme_part().is_some(), "absolute_form needs a scheme");
-    debug_assert!(uri.authority_part().is_some(), "absolute_form needs an authority");
+    debug_assert!(uri.scheme().is_some(), "absolute_form needs a scheme");
+    debug_assert!(uri.authority().is_some(), "absolute_form needs an authority");
     // If the URI is to HTTPS, and the connector claimed to be a proxy,
     // then it *should* have tunneled, and so we don't want to send
     // absolute-form in that case.
-    if uri.scheme_part() == Some(&Scheme::HTTPS) {
+    if uri.scheme() == Some(&Scheme::HTTPS) {
         origin_form(uri);
     }
 }
@@ -765,7 +751,7 @@ fn authority_form(uri: &mut Uri) {
             }
         }
     }
-    *uri = match uri.authority_part() {
+    *uri = match uri.authority() {
         Some(auth) => {
             let mut parts = ::http::uri::Parts::default();
             parts.authority = Some(auth.clone());
@@ -779,14 +765,13 @@ fn authority_form(uri: &mut Uri) {
 
 fn extract_domain(uri: &mut Uri, is_http_connect: bool) -> crate::Result<String> {
     let uri_clone = uri.clone();
-    match (uri_clone.scheme_part(), uri_clone.authority_part()) {
+    match (uri_clone.scheme(), uri_clone.authority()) {
         (Some(scheme), Some(auth)) => {
             Ok(format!("{}://{}", scheme, auth))
         }
         (None, Some(auth)) if is_http_connect => {
-            let port = auth.port_part();
-            let scheme = match port.as_ref().map(|p| p.as_str()) {
-                Some("443") => {
+            let scheme = match auth.port_u16() {
+                Some(443) => {
                     set_scheme(uri, Scheme::HTTPS);
                     "https"
                 }
@@ -805,7 +790,7 @@ fn extract_domain(uri: &mut Uri, is_http_connect: bool) -> crate::Result<String>
 }
 
 fn set_scheme(uri: &mut Uri, scheme: Scheme) {
-    debug_assert!(uri.scheme_part().is_none(), "set_scheme expects no existing scheme");
+    debug_assert!(uri.scheme().is_none(), "set_scheme expects no existing scheme");
     let old = mem::replace(uri, Uri::default());
     let mut parts: ::http::uri::Parts = old.into();
     parts.scheme = Some(scheme);
@@ -1013,8 +998,7 @@ impl Builder {
     /// Provide an executor to execute background `Connection` tasks.
     pub fn executor<E>(&mut self, exec: E) -> &mut Self
     where
-        for<'a> &'a E: tokio_executor::Executor,
-        E: Send + Sync + 'static,
+        E: Executor<BoxSendFuture> + Send + Sync + 'static,
     {
         self.conn_builder.executor(exec);
         self

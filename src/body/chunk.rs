@@ -137,13 +137,6 @@ impl IntoIterator for Chunk {
     }
 }
 
-impl Extend<u8> for Chunk {
-    #[inline]
-    fn extend<T>(&mut self, iter: T) where T: IntoIterator<Item=u8> {
-        self.bytes.extend(iter)
-    }
-}
-
 impl Iterator for IntoIter {
     type Item = u8;
 

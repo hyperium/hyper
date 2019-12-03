@@ -59,7 +59,7 @@ use std::fmt;
 
 #[cfg(feature = "tcp")] use std::time::Duration;
 
-use tokio_io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite};
 use pin_project::pin_project;
 
 use crate::body::{Body, Payload};
@@ -113,7 +113,7 @@ impl Server<AddrIncoming, ()> {
     /// This method will panic if binding to the address fails. For a method
     /// to bind to an address and return a `Result`, see `Server::try_bind`.
     pub fn bind(addr: &SocketAddr) -> Builder<AddrIncoming> {
-        let incoming = AddrIncoming::new(addr, None)
+        let incoming = AddrIncoming::new(addr)
             .unwrap_or_else(|e| {
                 panic!("error binding to {}: {}", addr, e);
             });
@@ -122,14 +122,13 @@ impl Server<AddrIncoming, ()> {
 
     /// Tries to bind to the provided address, and returns a [`Builder`](Builder).
     pub fn try_bind(addr: &SocketAddr) -> crate::Result<Builder<AddrIncoming>> {
-        AddrIncoming::new(addr, None)
+        AddrIncoming::new(addr)
             .map(Server::builder)
     }
 
     /// Create a new instance from a `std::net::TcpListener` instance.
     pub fn from_tcp(listener: StdTcpListener) -> Result<Builder<AddrIncoming>, crate::Error> {
-        let handle = tokio_net::driver::Handle::default();
-        AddrIncoming::from_std(listener, &handle)
+        AddrIncoming::from_std(listener)
             .map(Server::builder)
     }
 }

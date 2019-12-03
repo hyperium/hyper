@@ -8,7 +8,6 @@ use std::net::{TcpStream};
 use std::sync::mpsc;
 use std::time::Duration;
 
-use tokio::runtime::current_thread;
 use tokio::sync::oneshot;
 
 use hyper::{Body, Response, Server};
@@ -31,9 +30,17 @@ fn hello_world(b: &mut test::Bencher) {
                     Ok::<_, hyper::Error>(Response::new(Body::from("Hello, World!")))
                 }))
             });
-            let srv = Server::bind(&addr)
-                .http1_pipeline_flush(true)
-                .serve(make_svc);
+
+            let mut rt = tokio::runtime::Builder::new()
+                .enable_all()
+                .basic_scheduler()
+                .build()
+                .expect("rt build");
+            let srv = rt.block_on(async move {
+                Server::bind(&addr)
+                    .http1_pipeline_flush(true)
+                    .serve(make_svc)
+            });
 
             addr_tx.send(srv.local_addr()).unwrap();
 
@@ -42,13 +49,11 @@ fn hello_world(b: &mut test::Bencher) {
                     until_rx.await.ok();
                 });
 
-            let mut rt = current_thread::Runtime::new().unwrap();
-            rt.spawn(async {
+            rt.block_on(async {
                 if let Err(e) = graceful.await {
                     panic!("server error: {}", e);
                 }
             });
-            rt.run().unwrap();
         });
 
         addr_rx.recv().unwrap()

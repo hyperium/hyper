@@ -6,9 +6,8 @@ extern crate test;
 use std::net::SocketAddr;
 
 use futures_util::future::join_all;
-use tokio::runtime::current_thread::Runtime;
 
-use hyper::{Body, Method, Request, Response, Server};
+use hyper::{body::HttpBody as _, Body, Method, Request, Response, Server};
 use hyper::client::HttpConnector;
 
 // HTTP1
@@ -264,8 +263,12 @@ impl Opts {
     fn bench(self, b: &mut test::Bencher) {
         let _ = pretty_env_logger::try_init();
         // Create a runtime of current thread.
-        let mut rt = Runtime::new().unwrap();
-        let exec = rt.handle();
+        let mut rt = tokio::runtime::Builder::new()
+            .enable_all()
+            .basic_scheduler()
+            .build()
+            .expect("rt build");
+        let exec = rt.handle().clone();
 
         let req_len = self.request_body.map(|b| b.len()).unwrap_or(0) as u64;
         let req_len = if self.request_chunks > 0 {
@@ -297,7 +300,7 @@ impl Opts {
                     for _ in 0..chunk_cnt {
                         tx.send_data(chunk.into()).await.expect("send_data");
                     }
-                }).expect("body tx spawn");
+                });
                 body
             } else {
                 self
@@ -340,22 +343,24 @@ impl Opts {
     }
 }
 
-fn spawn_server(rt: &mut Runtime, opts: &Opts) -> SocketAddr {
+fn spawn_server(rt: &mut tokio::runtime::Runtime, opts: &Opts) -> SocketAddr {
     use hyper::service::{make_service_fn, service_fn};
     let addr = "127.0.0.1:0".parse().unwrap();
 
     let body = opts.response_body;
-    let srv = Server::bind(&addr)
-        .http2_only(opts.http2)
-        .http2_initial_stream_window_size(opts.http2_stream_window)
-        .http2_initial_connection_window_size(opts.http2_conn_window)
-        .serve(make_service_fn( move |_| async move {
-            Ok::<_, hyper::Error>(service_fn(move |req: Request<Body>| async move {
-                let mut req_body = req.into_body();
-                while let Some(_chunk) = req_body.next().await {}
-                Ok::<_, hyper::Error>(Response::new(Body::from(body)))
+    let srv = rt.block_on(async move {
+        Server::bind(&addr)
+            .http2_only(opts.http2)
+            .http2_initial_stream_window_size(opts.http2_stream_window)
+            .http2_initial_connection_window_size(opts.http2_conn_window)
+            .serve(make_service_fn( move |_| async move {
+                Ok::<_, hyper::Error>(service_fn(move |req: Request<Body>| async move {
+                    let mut req_body = req.into_body();
+                    while let Some(_chunk) = req_body.next().await {}
+                    Ok::<_, hyper::Error>(Response::new(Body::from(body)))
+                }))
             }))
-        }));
+    });
     let addr = srv.local_addr();
     rt.spawn(async {
         if let Err(err) = srv.await {

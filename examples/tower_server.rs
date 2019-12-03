@@ -21,7 +21,7 @@ impl Service<Request<Body>> for Svc {
     }
 
     fn call(&mut self, req: Request<Body>) -> Self::Future {
-        let mut rsp = Response::builder();
+        let rsp = Response::builder();
 
         let uri = req.uri();
         if uri.path() != ROOT {

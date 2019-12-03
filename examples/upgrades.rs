@@ -51,7 +51,7 @@ async fn server_upgrade(req: Request<Body>) -> Result<Response<Body>> {
     // Note: This can't possibly be fulfilled until the 101 response
     // is returned below, so it's better to spawn this future instead
     // waiting for it to complete to then return a response.
-    hyper::rt::spawn(async move {
+    tokio::task::spawn(async move {
         match req.into_body().on_upgrade().await {
             Ok(upgraded) => {
                 if let Err(e) = server_upgraded_io(upgraded).await {
@@ -129,13 +129,13 @@ async fn main() {
     // the server should be shutdown.
     let (tx, rx) = oneshot::channel::<()>();
     let server = server
-        .with_graceful_shutdown(async {
+        .with_graceful_shutdown(async move {
             rx.await.ok();
         });
 
     // Spawn server on the default executor,
     // which is usually a thread-pool from tokio default runtime.
-    hyper::rt::spawn(async {
+    tokio::task::spawn(async move {
         if let Err(e) = server.await {
             eprintln!("server error: {}", e);
         }

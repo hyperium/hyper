@@ -9,9 +9,7 @@ use hyper::service::{make_service_fn, service_fn};
 
 pub use std::net::SocketAddr;
 pub use futures_util::{future, FutureExt as _, StreamExt as _, TryFutureExt as _, TryStreamExt as _};
-//pub use self::futures_channel::oneshot;
 pub use hyper::{HeaderMap, StatusCode};
-pub use tokio::runtime::current_thread::Runtime;
 
 macro_rules! t {
     (
@@ -303,8 +301,16 @@ pub struct __TestConfig {
 
 pub fn __run_test(cfg: __TestConfig) {
     let _ = pretty_env_logger::try_init();
-    let mut rt = Runtime::new().expect("new rt");
+    tokio::runtime::Builder::new()
+        .enable_io()
+        .enable_time()
+        .basic_scheduler()
+        .build()
+        .expect("new rt")
+        .block_on(async_test(cfg));
+}
 
+async fn async_test(cfg: __TestConfig) {
     assert_eq!(cfg.client_version, cfg.server_version);
 
     let version = if cfg.client_version == 2 {
@@ -348,8 +354,7 @@ pub fn __run_test(cfg: __TestConfig) {
                 func(&req.headers());
             }
             let sbody = sreq.body;
-            req.into_body()
-                .try_concat()
+            concat(req.into_body())
                 .map_ok(move |body| {
                     assert_eq!(body.as_ref(), sbody.as_slice(), "client body");
 
@@ -369,7 +374,7 @@ pub fn __run_test(cfg: __TestConfig) {
 
     let mut addr = server.local_addr();
 
-    rt.spawn(server.map(|result| {
+    tokio::task::spawn(server.map(|result| {
         let _ = result.expect("server error");
     }));
 
@@ -379,7 +384,7 @@ pub fn __run_test(cfg: __TestConfig) {
             dst: addr,
             version: cfg.server_version,
         });
-        rt.spawn(proxy);
+        tokio::task::spawn(proxy);
         addr = proxy_addr;
     }
 
@@ -403,7 +408,7 @@ pub fn __run_test(cfg: __TestConfig) {
                 for func in &cheaders {
                     func(&res.headers());
                 }
-                res.into_body().try_concat()
+                concat(res.into_body())
             })
             .map_ok(move |body| {
                 assert_eq!(body.as_ref(), cbody.as_slice(), "server body");
@@ -435,7 +440,7 @@ pub fn __run_test(cfg: __TestConfig) {
         Box::pin(client_futures.map(|_| ()))
     };
 
-    rt.block_on(client_futures);
+    client_futures.await;
 }
 
 struct ProxyConfig {
@@ -469,4 +474,12 @@ fn naive_proxy(cfg: ProxyConfig) -> (SocketAddr, impl Future<Output = ()>) {
         }));
     let proxy_addr = srv.local_addr();
     (proxy_addr, srv.map(|res| res.expect("proxy error")))
+}
+
+async fn concat(mut body: Body) -> Result<hyper::Chunk, hyper::Error> {
+    let mut vec = Vec::new();
+    while let Some(chunk) = body.next().await {
+        vec.extend_from_slice(&chunk?);
+    }
+    Ok(vec.into())
 }

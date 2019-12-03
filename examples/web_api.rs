@@ -3,7 +3,7 @@
 use hyper::{Body, Chunk, Client, Method, Request, Response, Server, StatusCode, header};
 use hyper::client::HttpConnector;
 use hyper::service::{make_service_fn, service_fn};
-use futures_util::{TryStreamExt};
+use futures_util::{StreamExt, TryStreamExt};
 
 type GenericError = Box<dyn std::error::Error + Send + Sync>;
 type Result<T> = std::result::Result<T, GenericError>;
@@ -35,13 +35,17 @@ async fn client_request_response(
     Ok(Response::new(body))
 }
 
-async fn api_post_response(req: Request<Body>) -> Result<Response<Body>> {
-    // A web api to run against
-    let entire_body = req.into_body().try_concat().await?;
-    // TODO: Replace all unwraps with proper error handling
-    let str = String::from_utf8(entire_body.to_vec())?;
-    let mut data : serde_json::Value = serde_json::from_str(&str)?;
+async fn api_post_response(mut req: Request<Body>) -> Result<Response<Body>> {
+    // Concatenate the body...
+    let mut whole_body = Vec::new();
+    while let Some(chunk) = req.body_mut().next().await {
+        whole_body.extend_from_slice(&chunk?);
+    }
+    // Decode as JSON...
+    let mut data: serde_json::Value = serde_json::from_slice(&whole_body)?;
+    // Change the JSON...
     data["test"] = serde_json::Value::from("test_value");
+    // And respond with the new JSON.
     let json = serde_json::to_string(&data)?;
     let response = Response::builder()
         .status(StatusCode::OK)

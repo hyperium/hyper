@@ -2,12 +2,11 @@
 
 use hyper::{Body, Method, Request, Response, Server, StatusCode};
 use hyper::service::{make_service_fn, service_fn};
-use futures_util::TryStreamExt;
+use futures_util::{StreamExt, TryStreamExt};
 
 /// This is our service handler. It receives a Request, routes on its
 /// path, and returns a Future of a Response.
-async fn echo(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
-
+async fn echo(mut req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
     match (req.method(), req.uri().path()) {
         // Serve some instructions at /
         (&Method::GET, "/") => {
@@ -37,13 +36,17 @@ async fn echo(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
         // So here we do `.await` on the future, waiting on concatenating the full body,
         // then afterwards the content can be reversed. Only then can we return a `Response`.
         (&Method::POST, "/echo/reversed") => {
-            let whole_chunk = req.into_body().try_concat().await;
+            let mut whole_body = Vec::new();
+            while let Some(chunk) = req.body_mut().next().await {
+                whole_body.extend_from_slice(&chunk?);
+            }
 
-            let reversed_chunk = whole_chunk.map(move |chunk| {
-                chunk.iter().rev().cloned().collect::<Vec<u8>>()
-
-            })?;
-            Ok(Response::new(Body::from(reversed_chunk)))
+            let reversed_body = whole_body
+                .iter()
+                .rev()
+                .cloned()
+                .collect::<Vec<u8>>();
+            Ok(Response::new(Body::from(reversed_body)))
         }
 
         // Return the 404 Not Found for other routes.

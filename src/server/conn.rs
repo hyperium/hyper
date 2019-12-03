@@ -12,13 +12,11 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::mem;
 #[cfg(feature = "tcp")] use std::net::SocketAddr;
-#[cfg(feature = "tcp")] use std::time::Duration;
 
 use bytes::Bytes;
 use futures_core::Stream;
-use tokio_io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite};
 use pin_project::{pin_project, project};
-#[cfg(feature = "tcp")] use tokio_net::driver::Handle;
 
 use crate::body::{Body, Payload};
 use crate::common::exec::{Exec, H2Exec, NewSvcExec};
@@ -357,7 +355,7 @@ impl<E> Http<E> {
     /// # use hyper::{Body, Request, Response};
     /// # use hyper::service::Service;
     /// # use hyper::server::conn::Http;
-    /// # use tokio_io::{AsyncRead, AsyncWrite};
+    /// # use tokio::io::{AsyncRead, AsyncWrite};
     /// # async fn run<I, S>(some_io: I, some_service: S)
     /// # where
     /// #     I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
@@ -416,74 +414,6 @@ impl<E> Http<E> {
             } else {
                 Fallback::Http1Only
             },
-        }
-    }
-
-    #[cfg(feature = "tcp")]
-    #[doc(hidden)]
-    #[deprecated]
-    #[allow(deprecated)]
-    pub fn serve_addr<S, Bd>(&self, addr: &SocketAddr, make_service: S) -> crate::Result<Serve<AddrIncoming, S, E>>
-    where
-        S: MakeServiceRef<
-            AddrStream,
-            Body,
-            ResBody=Bd,
-        >,
-        S::Error: Into<Box<dyn StdError + Send + Sync>>,
-        S::Service: HttpService<Body>,
-        Bd: Payload,
-        E: H2Exec<<S::Service as HttpService<Body>>::Future, Bd>,
-    {
-        let mut incoming = AddrIncoming::new(addr, None)?;
-        if self.keep_alive {
-            incoming.set_keepalive(Some(Duration::from_secs(90)));
-        }
-        Ok(self.serve_incoming(incoming, make_service))
-    }
-
-    #[cfg(feature = "tcp")]
-    #[doc(hidden)]
-    #[deprecated]
-    #[allow(deprecated)]
-    pub fn serve_addr_handle<S, Bd>(&self, addr: &SocketAddr, handle: &Handle, make_service: S) -> crate::Result<Serve<AddrIncoming, S, E>>
-    where
-        S: MakeServiceRef<
-            AddrStream,
-            Body,
-            ResBody=Bd,
-        >,
-        S::Error: Into<Box<dyn StdError + Send + Sync>>,
-        Bd: Payload,
-        E: H2Exec<<S::Service as HttpService<Body>>::Future, Bd>,
-    {
-        let mut incoming = AddrIncoming::new(addr, Some(handle))?;
-        if self.keep_alive {
-            incoming.set_keepalive(Some(Duration::from_secs(90)));
-        }
-        Ok(self.serve_incoming(incoming, make_service))
-    }
-
-    #[doc(hidden)]
-    #[deprecated]
-    pub fn serve_incoming<I, IO, IE, S, Bd>(&self, incoming: I, make_service: S) -> Serve<I, S, E>
-    where
-        I: Accept<Conn=IO, Error=IE>,
-        IE: Into<Box<dyn StdError + Send + Sync>>,
-        IO: AsyncRead + AsyncWrite + Unpin,
-        S: MakeServiceRef<
-            IO,
-            Body,
-            ResBody=Bd,
-        >,
-        S::Error: Into<Box<dyn StdError + Send + Sync>>,
-        Bd: Payload,
-        E: H2Exec<<S::Service as HttpService<Body>>::Future, Bd>,
-    {
-        Serve {
-            incoming,
-            make_service,
-            protocol: self.clone(),
         }
     }
 
@@ -843,7 +773,7 @@ where
         loop {
             if let Some(connecting) = ready!(me.serve.as_mut().poll_next_(cx)?) {
                 let fut = NewSvcTask::new(connecting, watcher.clone());
-                me.serve.as_mut().project().protocol.exec.execute_new_svc(fut)?;
+                me.serve.as_mut().project().protocol.exec.execute_new_svc(fut);
             } else {
                 return Poll::Ready(Ok(()));
             }
@@ -876,7 +806,7 @@ where
 
 pub(crate) mod spawn_all {
     use std::error::Error as StdError;
-    use tokio_io::{AsyncRead, AsyncWrite};
+    use tokio::io::{AsyncRead, AsyncWrite};
 
     use crate::body::{Body, Payload};
     use crate::common::exec::H2Exec;

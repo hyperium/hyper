@@ -1,3 +1,5 @@
+fn main() {}
+/*
 #![deny(warnings)]
 
 use std::cell::Cell;
@@ -5,13 +7,23 @@ use std::rc::Rc;
 
 use hyper::{Body, Error, Response, Server};
 use hyper::service::{make_service_fn, service_fn};
-use tokio::runtime::current_thread;
 
-// Configure a runtime that runs everything on the current thread,
-// which means it can spawn !Send futures...
-#[tokio::main(single_thread)]
-async fn main() {
+fn main() {
     pretty_env_logger::init();
+
+    // Configure a runtime that runs everything on the current thread
+    let mut rt = tokio::runtime::Builder::new()
+        .enable_all()
+        .basic_scheduler()
+        .build()
+        .expect("build runtime");
+
+    // Combine it with a `LocalSet,  which means it can spawn !Send futures...
+    let local = tokio::task::LocalSet::new();
+    local.block_on(&mut rt, run());
+}
+
+async fn run() {
 
     let addr = ([127, 0, 0, 1], 3000).into();
 
@@ -36,12 +48,8 @@ async fn main() {
         }
     });
 
-    // Since the Server needs to spawn some background tasks, we needed
-    // to configure an Executor that can spawn !Send futures...
-    let exec = current_thread::TaskExecutor::current();
-
     let server = Server::bind(&addr)
-        .executor(exec)
+        .executor(LocalExec)
         .serve(make_service);
 
     println!("Listening on http://{}", addr);
@@ -52,3 +60,18 @@ async fn main() {
     }
 }
 
+// Since the Server needs to spawn some background tasks, we needed
+// to configure an Executor that can spawn !Send futures...
+#[derive(Clone, Copy, Debug)]
+struct LocalExec;
+
+impl<F> hyper::rt::Executor<F> for LocalExec
+where
+    F: std::future::Future + 'static, // not requiring `Send`
+{
+    fn execute(&self, fut: F) {
+        // This will spawn into the currently running `LocalSet`.
+        tokio::task::spawn_local(fut);
+    }
+}
+*/
