@@ -1,5 +1,3 @@
-fn main() {}
-/*
 #![deny(warnings)]
 
 use std::cell::Cell;
@@ -74,4 +72,3 @@ where
         tokio::task::spawn_local(fut);
     }
 }
-*/
