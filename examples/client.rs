@@ -3,8 +3,7 @@
 use std::env;
 use std::io::{self, Write};
 
-use hyper::Client;
-use futures_util::StreamExt;
+use hyper::{Client, body::HttpBody as _};
 
 // A simple type alias so as to DRY.
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;

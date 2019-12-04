@@ -71,7 +71,7 @@ use http::uri::Scheme;
 
 use crate::body::{Body, Payload};
 use crate::common::{lazy as hyper_lazy, BoxSendFuture, Executor, Lazy, Future, Pin, Poll, task};
-use self::connect::{Alpn, sealed::Connect, Connected};
+use self::connect::{Alpn, sealed::Connect, Connected, Connection};
 use self::pool::{Key as PoolKey, Pool, Poolable, Pooled, Reservation};
 
 #[cfg(feature = "tcp")] pub use self::connect::HttpConnector;
@@ -478,7 +478,8 @@ where C: Connect + Clone + Send + Sync + 'static,
             };
             Either::Left(connector.connect(connect::sealed::Internal, dst)
                 .map_err(crate::Error::new_connect)
-                .and_then(move |(io, connected)| {
+                .and_then(move |io| {
+                    let connected = io.connected();
                     // If ALPN is h2 and we aren't http2_only already,
                     // then we need to convert our pool checkout into
                     // a single HTTP2 one.

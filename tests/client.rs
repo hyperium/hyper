@@ -945,7 +945,7 @@ mod dispatch_impl {
     use tokio::io::{AsyncRead, AsyncWrite};
     use tokio::net::TcpStream;
 
-    use hyper::client::connect::{Connected, HttpConnector};
+    use hyper::client::connect::{Connected, Connection, HttpConnector};
     use hyper::Client;
 
     #[test]
@@ -1740,7 +1740,7 @@ mod dispatch_impl {
     }
 
     impl hyper::service::Service<Uri> for DebugConnector {
-        type Response = (DebugStream, Connected);
+        type Response = DebugStream;
         type Error = <HttpConnector as hyper::service::Service<Uri>>::Error;
         type Future = Pin<Box<dyn Future<
             Output = Result<Self::Response, Self::Error>
@@ -1756,30 +1756,37 @@ mod dispatch_impl {
             let closes = self.closes.clone();
             let is_proxy = self.is_proxy;
             let is_alpn_h2 = self.alpn_h2;
-            Box::pin(self.http.call(dst).map_ok(move |(s, mut c)| {
-                if is_alpn_h2 {
-                    c = c.negotiated_h2();
+            Box::pin(self.http.call(dst).map_ok(move |tcp| {
+                DebugStream {
+                    tcp,
+                    on_drop: closes,
+                    is_alpn_h2,
+                    is_proxy,
                 }
-                (DebugStream(s, closes), c.proxy(is_proxy))
             }))
         }
     }
 
-    struct DebugStream(TcpStream, mpsc::Sender<()>);
+    struct DebugStream {
+        tcp: TcpStream,
+        on_drop: mpsc::Sender<()>,
+        is_alpn_h2: bool,
+        is_proxy: bool,
+    }
 
     impl Drop for DebugStream {
         fn drop(&mut self) {
-            let _ = self.1.try_send(());
+            let _ = self.on_drop.try_send(());
         }
     }
 
     impl AsyncWrite for DebugStream {
         fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
-            Pin::new(&mut self.0).poll_shutdown(cx)
+            Pin::new(&mut self.tcp).poll_shutdown(cx)
         }
 
         fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
-            Pin::new(&mut self.0).poll_flush(cx)
+            Pin::new(&mut self.tcp).poll_flush(cx)
         }
 
         fn poll_write(
@@ -1787,7 +1794,7 @@ mod dispatch_impl {
             cx: &mut Context<'_>,
             buf: &[u8],
         ) -> Poll<Result<usize, io::Error>> {
-            Pin::new(&mut self.0).poll_write(cx, buf)
+            Pin::new(&mut self.tcp).poll_write(cx, buf)
         }
     }
 
@@ -1797,7 +1804,19 @@ mod dispatch_impl {
             cx: &mut Context<'_>,
             buf: &mut [u8],
         ) -> Poll<Result<usize, io::Error>> {
-            Pin::new(&mut self.0).poll_read(cx, buf)
+            Pin::new(&mut self.tcp).poll_read(cx, buf)
+        }
+    }
+
+    impl Connection for DebugStream {
+        fn connected(&self) -> Connected {
+            let connected = self.tcp.connected().proxy(self.is_proxy);
+
+            if self.is_alpn_h2 {
+                connected.negotiated_h2()
+            } else {
+                connected
+            }
         }
     }
 }
