@@ -479,6 +479,13 @@ impl From<Cow<'static, str>> for Body {
     }
 }
 
+impl From<()> for Body {
+    #[inline]
+    fn from(_: ()) -> Body {
+        Body::empty()
+    }
+}
+
 impl Sender {
     /// Check to see if this `Sender` can send more data.
     pub fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
