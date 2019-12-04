@@ -1779,7 +1779,7 @@ impl tower_service::Service<Request<Body>> for TestService {
         let replies = self.reply.clone();
 
         Box::pin(async move {
-            while let Some(chunk) = req.body_mut().next().await {
+            while let Some(chunk) = hyper::body::HttpBody::next(req.body_mut()).await {
                 match chunk {
                     Ok(chunk) => {
                         tx.send(Msg::Chunk(chunk.to_vec())).unwrap();

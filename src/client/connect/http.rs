@@ -17,7 +17,7 @@ use tokio::net::TcpStream;
 use tokio::time::Delay;
 
 use super::dns::{self, resolve, GaiResolver, Resolve};
-use super::{Connected};
+use super::{Connected, Connection};
 //#[cfg(feature = "runtime")] use super::dns::TokioThreadpoolGaiResolver;
 
 
@@ -234,7 +234,7 @@ where
     R: Resolve + Clone + Send + Sync + 'static,
     R::Future: Send,
 {
-    type Response = (TcpStream, Connected);
+    type Response = TcpStream;
     type Error = ConnectError;
     type Future = HttpConnecting<R>;
 
@@ -259,7 +259,7 @@ where
     async fn call_async(
         &mut self,
         dst: Uri,
-    ) -> Result<(TcpStream, Connected), ConnectError> {
+    ) -> Result<TcpStream, ConnectError> {
         trace!(
             "Http::connect; scheme={:?}, host={:?}, port={:?}",
             dst.scheme(),
@@ -340,14 +340,20 @@ where
         sock.set_nodelay(config.nodelay)
             .map_err(ConnectError::m("tcp set_nodelay error"))?;
 
-        let extra = HttpInfo {
-            remote_addr: sock
-                .peer_addr()
-                .map_err(ConnectError::m("tcp peer_addr error"))?,
-        };
-        let connected = Connected::new().extra(extra);
+        Ok(sock)
+    }
+}
 
-        Ok((sock, connected))
+impl Connection for TcpStream {
+    fn connected(&self) -> Connected {
+        let connected = Connected::new();
+        if let Ok(remote_addr) = self.peer_addr() {
+            connected.extra(HttpInfo {
+                remote_addr,
+            })
+        } else {
+            connected
+        }
     }
 }
 
@@ -372,7 +378,7 @@ pub struct HttpConnecting<R> {
     _marker: PhantomData<R>,
 }
 
-type ConnectResult = Result<(TcpStream, Connected), ConnectError>;
+type ConnectResult = Result<TcpStream, ConnectError>;
 type BoxConnecting = Pin<Box<dyn Future<Output = ConnectResult> + Send>>;
 
 impl<R: Resolve> Future for HttpConnecting<R> {
@@ -644,12 +650,12 @@ mod tests {
     use ::http::Uri;
 
     use super::super::sealed::Connect;
-    use super::{Connected, HttpConnector};
+    use super::HttpConnector;
 
     async fn connect<C>(
         connector: C,
         dst: Uri,
-    ) -> Result<(C::Transport, Connected), C::Error>
+    ) -> Result<C::Transport, C::Error>
     where
         C: Connect,
     {

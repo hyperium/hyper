@@ -13,6 +13,12 @@ use ::http::{Response};
 #[cfg(feature = "tcp")] mod http;
 #[cfg(feature = "tcp")] pub use self::http::{HttpConnector, HttpInfo};
 
+/// Describes a type returned by a connector.
+pub trait Connection {
+    /// Return metadata describing the connection.
+    fn connected(&self) -> Connected;
+}
+
 /// Extra information about the connected transport.
 ///
 /// This can be used to inform recipients about things like if ALPN
@@ -167,7 +173,7 @@ pub(super) mod sealed {
     use tokio::io::{AsyncRead, AsyncWrite};
 
     use crate::common::{Future, Unpin};
-    use super::{Connected};
+    use super::{Connection};
 
     /// Connect to a destination, returning an IO transport.
     ///
@@ -183,21 +189,21 @@ pub(super) mod sealed {
     // fit the `Connect` bounds because of the blanket impl for `Service`.
     pub trait Connect: Sealed + Sized {
         /// The connected IO Stream.
-        type Transport: AsyncRead + AsyncWrite;
+        type Transport: AsyncRead + AsyncWrite + Connection;
         /// An error occured when trying to connect.
         type Error: Into<Box<dyn StdError + Send + Sync>>;
         /// A Future that will resolve to the connected Transport.
-        type Future: Future<Output=Result<(Self::Transport, Connected), Self::Error>>;
+        type Future: Future<Output=Result<Self::Transport, Self::Error>>;
         #[doc(hidden)]
         fn connect(self, internal_only: Internal, dst: Uri) -> Self::Future;
     }
 
     impl<S, T> Connect for S
     where
-        S: tower_service::Service<Uri, Response=(T, Connected)> + Send,
+        S: tower_service::Service<Uri, Response=T> + Send,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         S::Future: Unpin + Send,
-        T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+        T: AsyncRead + AsyncWrite + Connection + Unpin + Send + 'static,
     {
         type Transport = T;
         type Error = S::Error;
@@ -209,10 +215,10 @@ pub(super) mod sealed {
 
     impl<S, T> Sealed for S
     where
-        S: tower_service::Service<Uri, Response=(T, Connected)> + Send,
+        S: tower_service::Service<Uri, Response=T> + Send,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         S::Future: Unpin + Send,
-        T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+        T: AsyncRead + AsyncWrite + Connection + Unpin + Send + 'static,
     {}
 
     pub trait Sealed {}
