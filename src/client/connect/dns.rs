@@ -391,11 +391,10 @@ mod tests {
 
     #[test]
     fn ip_addrs_try_parse_v6() {
-        let uri = ::http::Uri::from_static("http://[::1]:8080/");
-        let dst = super::super::Destination { uri };
+        let dst = ::http::Uri::from_static("http://[::1]:8080/");
 
         let mut addrs =
-            IpAddrs::try_parse(dst.host(), dst.port().expect("port")).expect("try_parse");
+            IpAddrs::try_parse(dst.host().expect("host"), dst.port_u16().expect("port")).expect("try_parse");
 
         let expected = "[::1]:8080".parse::<SocketAddr>().expect("expected");
 

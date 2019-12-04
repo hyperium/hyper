@@ -5,7 +5,7 @@ extern crate test;
 
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
-use hyper::client::connect::{Destination, HttpConnector};
+use hyper::client::connect::{HttpConnector};
 use hyper::service::Service;
 use http::Uri;
 
@@ -19,8 +19,7 @@ fn http_connector(b: &mut test::Bencher) {
         .expect("rt build");
     let mut listener = rt.block_on(TcpListener::bind(&SocketAddr::from(([127, 0, 0, 1], 0)))).expect("bind");
     let addr = listener.local_addr().expect("local_addr");
-    let uri: Uri = format!("http://{}/", addr).parse().expect("uri parse");
-    let dst = Destination::try_from_uri(uri).expect("destination");
+    let dst: Uri = format!("http://{}/", addr).parse().expect("uri parse");
     let mut connector = HttpConnector::new();
 
     rt.spawn(async move {

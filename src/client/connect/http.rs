@@ -17,7 +17,7 @@ use tokio::net::TcpStream;
 use tokio::time::Delay;
 
 use super::dns::{self, resolve, GaiResolver, Resolve};
-use super::{Connected, Destination};
+use super::{Connected};
 //#[cfg(feature = "runtime")] use super::dns::TokioThreadpoolGaiResolver;
 
 
@@ -229,7 +229,7 @@ impl<R: fmt::Debug> fmt::Debug for HttpConnector<R> {
     }
 }
 
-impl<R> tower_service::Service<Destination> for HttpConnector<R>
+impl<R> tower_service::Service<Uri> for HttpConnector<R>
 where
     R: Resolve + Clone + Send + Sync + 'static,
     R::Future: Send,
@@ -243,7 +243,7 @@ where
         Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, dst: Destination) -> Self::Future {
+    fn call(&mut self, dst: Uri) -> Self::Future {
         let mut self_ = self.clone();
         HttpConnecting {
             fut: Box::pin(async move { self_.call_async(dst).await }),
@@ -258,30 +258,30 @@ where
 {
     async fn call_async(
         &mut self,
-        dst: Destination,
+        dst: Uri,
     ) -> Result<(TcpStream, Connected), ConnectError> {
         trace!(
-            "Http::connect; scheme={}, host={}, port={:?}",
+            "Http::connect; scheme={:?}, host={:?}, port={:?}",
             dst.scheme(),
             dst.host(),
             dst.port(),
         );
 
         if self.config.enforce_http {
-            if dst.uri.scheme() != Some(&Scheme::HTTP) {
+            if dst.scheme() != Some(&Scheme::HTTP) {
                 return Err(ConnectError {
                     msg: INVALID_NOT_HTTP.into(),
                     cause: None,
                 });
             }
-        } else if dst.uri.scheme().is_none() {
+        } else if dst.scheme().is_none() {
             return Err(ConnectError {
                 msg: INVALID_MISSING_SCHEME.into(),
                 cause: None,
             });
         }
 
-        let host = match dst.uri.host() {
+        let host = match dst.host() {
             Some(s) => s,
             None => {
                 return Err(ConnectError {
@@ -290,9 +290,9 @@ where
                 })
             }
         };
-        let port = match dst.uri.port() {
+        let port = match dst.port() {
             Some(port) => port.as_u16(),
-            None => if dst.uri.scheme() == Some(&Scheme::HTTPS) { 443 } else { 80 },
+            None => if dst.scheme() == Some(&Scheme::HTTPS) { 443 } else { 80 },
         };
 
         let config = &self.config;
@@ -348,26 +348,6 @@ where
         let connected = Connected::new().extra(extra);
 
         Ok((sock, connected))
-    }
-}
-
-impl<R> tower_service::Service<Uri> for HttpConnector<R>
-where
-    R: Resolve + Clone + Send + Sync + 'static,
-    R::Future: Send,
-{
-    type Response = TcpStream;
-    type Error = ConnectError;
-    type Future =
-        Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send + 'static>>;
-
-    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
-        tower_service::Service::<Destination>::poll_ready(self, cx)
-    }
-
-    fn call(&mut self, uri: Uri) -> Self::Future {
-        let mut self_ = self.clone();
-        Box::pin(async move { self_.call_async(Destination { uri }).await.map(|(s, _)| s) })
     }
 }
 
@@ -661,12 +641,14 @@ impl ConnectingTcp {
 mod tests {
     use std::io;
 
+    use ::http::Uri;
+
     use super::super::sealed::Connect;
-    use super::{Connected, Destination, HttpConnector};
+    use super::{Connected, HttpConnector};
 
     async fn connect<C>(
         connector: C,
-        dst: Destination,
+        dst: Uri,
     ) -> Result<(C::Transport, Connected), C::Error>
     where
         C: Connect,
@@ -676,8 +658,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_errors_enforce_http() {
-        let uri = "https://example.domain/foo/bar?baz".parse().unwrap();
-        let dst = Destination { uri };
+        let dst = "https://example.domain/foo/bar?baz".parse().unwrap();
         let connector = HttpConnector::new();
 
         let err = connect(connector, dst).await.unwrap_err();
@@ -686,8 +667,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_errors_missing_scheme() {
-        let uri = "example.domain".parse().unwrap();
-        let dst = Destination { uri };
+        let dst = "example.domain".parse().unwrap();
         let mut connector = HttpConnector::new();
         connector.enforce_http(false);
 

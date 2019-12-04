@@ -5,23 +5,13 @@
 //! - A default [`HttpConnector`](HttpConnector) that does DNS resolution and
 //!   establishes connections over TCP.
 //! - Types to build custom connectors.
-use std::convert::TryFrom;
-use std::{fmt, mem};
+use std::fmt;
 
-use bytes::{BufMut, Bytes, BytesMut};
-use ::http::{uri, Response, Uri};
+use ::http::{Response};
 
 #[cfg(feature = "tcp")] pub mod dns;
 #[cfg(feature = "tcp")] mod http;
 #[cfg(feature = "tcp")] pub use self::http::{HttpConnector, HttpInfo};
-
-/// A set of properties to describe where and how to try to connect.
-///
-/// This type is passed an argument to connectors.
-#[derive(Clone, Debug)]
-pub struct Destination {
-    pub(super) uri: Uri,
-}
 
 /// Extra information about the connected transport.
 ///
@@ -40,205 +30,6 @@ pub(super) struct Extra(Box<dyn ExtraInner>);
 pub(super) enum Alpn {
     H2,
     None,
-}
-
-impl Destination {
-    /// Try to convert a `Uri` into a `Destination`
-    ///
-    /// # Error
-    ///
-    /// Returns an error if the uri contains no authority or
-    /// no scheme.
-    pub fn try_from_uri(uri: Uri) -> crate::Result<Self> {
-        uri.authority().ok_or(crate::error::Parse::Uri)?;
-        uri.scheme().ok_or(crate::error::Parse::Uri)?;
-        Ok(Destination { uri })
-    }
-
-    /// Get the protocol scheme.
-    #[inline]
-    pub fn scheme(&self) -> &str {
-        self.uri
-            .scheme_str()
-            .unwrap_or("")
-    }
-
-    /// Get the hostname.
-    #[inline]
-    pub fn host(&self) -> &str {
-        self.uri
-            .host()
-            .unwrap_or("")
-    }
-
-    /// Get the port, if specified.
-    #[inline]
-    pub fn port(&self) -> Option<u16> {
-        self.uri.port_u16()
-    }
-
-    /// Update the scheme of this destination.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # use hyper::client::connect::Destination;
-    /// # fn with_dst(mut dst: Destination) {
-    /// // let mut dst = some_destination...
-    /// // Change from "http://"...
-    /// assert_eq!(dst.scheme(), "http");
-    ///
-    /// // to "ws://"...
-    /// dst.set_scheme("ws");
-    /// assert_eq!(dst.scheme(), "ws");
-    /// # }
-    /// ```
-    ///
-    /// # Error
-    ///
-    /// Returns an error if the string is not a valid scheme.
-    pub fn set_scheme(&mut self, scheme: &str) -> crate::Result<()> {
-        let scheme = scheme.parse().map_err(crate::error::Parse::from)?;
-        self.update_uri(move |parts| {
-            parts.scheme = Some(scheme);
-        })
-    }
-
-    /// Update the host of this destination.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # use hyper::client::connect::Destination;
-    /// # fn with_dst(mut dst: Destination) {
-    /// // let mut dst = some_destination...
-    /// // Change from "hyper.rs"...
-    /// assert_eq!(dst.host(), "hyper.rs");
-    ///
-    /// // to "some.proxy"...
-    /// dst.set_host("some.proxy");
-    /// assert_eq!(dst.host(), "some.proxy");
-    /// # }
-    /// ```
-    ///
-    /// # Error
-    ///
-    /// Returns an error if the string is not a valid hostname.
-    pub fn set_host(&mut self, host: &str) -> crate::Result<()> {
-        // Prevent any userinfo setting, it's bad!
-        if host.contains('@') {
-            return Err(crate::error::Parse::Uri.into());
-        }
-        let auth = if let Some(port) = self.port() {
-            let bytes = Bytes::from(format!("{}:{}", host, port));
-            uri::Authority::from_maybe_shared(bytes)
-                .map_err(crate::error::Parse::from)?
-        } else {
-            let auth = host.parse::<uri::Authority>().map_err(crate::error::Parse::from)?;
-            if auth.port().is_some() { // std::uri::Authority::Uri
-                return Err(crate::error::Parse::Uri.into());
-            }
-            auth
-        };
-        self.update_uri(move |parts| {
-            parts.authority = Some(auth);
-        })
-    }
-
-    /// Update the port of this destination.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # use hyper::client::connect::Destination;
-    /// # fn with_dst(mut dst: Destination) {
-    /// // let mut dst = some_destination...
-    /// // Change from "None"...
-    /// assert_eq!(dst.port(), None);
-    ///
-    /// // to "4321"...
-    /// dst.set_port(4321);
-    /// assert_eq!(dst.port(), Some(4321));
-    ///
-    /// // Or remove the port...
-    /// dst.set_port(None);
-    /// assert_eq!(dst.port(), None);
-    /// # }
-    /// ```
-    pub fn set_port<P>(&mut self, port: P)
-    where
-        P: Into<Option<u16>>,
-    {
-        self.set_port_opt(port.into());
-    }
-
-    fn set_port_opt(&mut self, port: Option<u16>) {
-        use std::fmt::Write;
-
-        let auth = if let Some(port) = port {
-            let host = self.host();
-            // Need space to copy the hostname, plus ':',
-            // plus max 5 port digits...
-            let cap = host.len() + 1 + 5;
-            let mut buf = BytesMut::with_capacity(cap);
-            buf.put_slice(host.as_bytes());
-            buf.put_u8(b':');
-            write!(buf, "{}", port)
-                .expect("should have space for 5 digits");
-
-            uri::Authority::from_maybe_shared(buf.freeze())
-                .expect("valid host + :port should be valid authority")
-        } else {
-            self.host().parse()
-                .expect("valid host without port should be valid authority")
-        };
-
-        self.update_uri(move |parts| {
-            parts.authority = Some(auth);
-        })
-            .expect("valid uri should be valid with port");
-    }
-
-    fn update_uri<F>(&mut self, f: F) -> crate::Result<()>
-    where
-        F: FnOnce(&mut uri::Parts)
-    {
-        // Need to store a default Uri while we modify the current one...
-        let old_uri = mem::replace(&mut self.uri, Uri::default());
-        // However, mutate a clone, so we can revert if there's an error...
-        let mut parts: uri::Parts = old_uri.clone().into();
-
-        f(&mut parts);
-
-        match Uri::from_parts(parts) {
-            Ok(uri) => {
-                self.uri = uri;
-                Ok(())
-            },
-            Err(err) => {
-                self.uri = old_uri;
-                Err(crate::error::Parse::from(err).into())
-            },
-        }
-    }
-
-    /*
-    /// Returns whether this connection must negotiate HTTP/2 via ALPN.
-    pub fn must_h2(&self) -> bool {
-        match self.alpn {
-            Alpn::Http1 => false,
-            Alpn::H2 => true,
-        }
-    }
-    */
-}
-
-impl TryFrom<Uri> for Destination {
-    type Error = crate::error::Error;
-
-    fn try_from(uri: Uri) -> Result<Self, Self::Error> {
-        Destination::try_from_uri(uri)
-    }
 }
 
 impl Connected {
@@ -372,22 +163,22 @@ where
 pub(super) mod sealed {
     use std::error::Error as StdError;
 
+    use ::http::Uri;
     use tokio::io::{AsyncRead, AsyncWrite};
 
     use crate::common::{Future, Unpin};
-    use super::{Connected, Destination};
+    use super::{Connected};
 
     /// Connect to a destination, returning an IO transport.
     ///
-    /// A connector receives a [`Destination`](Destination) describing how a
-    /// connection should be estabilished, and returns a `Future` of the
+    /// A connector receives a [`Uri`](::http::Uri) and returns a `Future` of the
     /// ready connection.
     ///
     /// # Trait Alias
     ///
     /// This is really just an *alias* for the `tower::Service` trait, with
     /// additional bounds set for convenience *inside* hyper. You don't actually
-    /// implement this trait, but `tower::Service<Destination>` instead.
+    /// implement this trait, but `tower::Service<Uri>` instead.
     // The `Sized` bound is to prevent creating `dyn Connect`, since they cannot
     // fit the `Connect` bounds because of the blanket impl for `Service`.
     pub trait Connect: Sealed + Sized {
@@ -398,27 +189,27 @@ pub(super) mod sealed {
         /// A Future that will resolve to the connected Transport.
         type Future: Future<Output=Result<(Self::Transport, Connected), Self::Error>>;
         #[doc(hidden)]
-        fn connect(self, internal_only: Internal, dst: Destination) -> Self::Future;
+        fn connect(self, internal_only: Internal, dst: Uri) -> Self::Future;
     }
 
     impl<S, T> Connect for S
     where
-        S: tower_service::Service<Destination, Response=(T, Connected)> + Send,
+        S: tower_service::Service<Uri, Response=(T, Connected)> + Send,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         S::Future: Unpin + Send,
         T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     {
         type Transport = T;
         type Error = S::Error;
-        type Future = crate::service::Oneshot<S, Destination>;
-        fn connect(self, _: Internal, dst: Destination) -> Self::Future {
+        type Future = crate::service::Oneshot<S, Uri>;
+        fn connect(self, _: Internal, dst: Uri) -> Self::Future {
             crate::service::oneshot(self, dst)
         }
     }
 
     impl<S, T> Sealed for S
     where
-        S: tower_service::Service<Destination, Response=(T, Connected)> + Send,
+        S: tower_service::Service<Uri, Response=(T, Connected)> + Send,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         S::Future: Unpin + Send,
         T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
@@ -431,165 +222,7 @@ pub(super) mod sealed {
 
 #[cfg(test)]
 mod tests {
-    use super::{Connected, Destination, TryFrom};
-
-    #[test]
-    fn test_destination_set_scheme() {
-        let mut dst = Destination {
-            uri: "http://hyper.rs".parse().expect("initial parse"),
-        };
-
-        assert_eq!(dst.scheme(), "http");
-        assert_eq!(dst.host(), "hyper.rs");
-
-        dst.set_scheme("https").expect("set https");
-        assert_eq!(dst.scheme(), "https");
-        assert_eq!(dst.host(), "hyper.rs");
-
-        dst.set_scheme("<im not a scheme//?>").unwrap_err();
-        assert_eq!(dst.scheme(), "https", "error doesn't modify dst");
-        assert_eq!(dst.host(), "hyper.rs", "error doesn't modify dst");
-    }
-
-    #[test]
-    fn test_destination_set_host() {
-        let mut dst = Destination {
-            uri: "http://hyper.rs".parse().expect("initial parse"),
-        };
-
-        assert_eq!(dst.scheme(), "http");
-        assert_eq!(dst.host(), "hyper.rs");
-        assert_eq!(dst.port(), None);
-
-        dst.set_host("seanmonstar.com").expect("set https");
-        assert_eq!(dst.scheme(), "http");
-        assert_eq!(dst.host(), "seanmonstar.com");
-        assert_eq!(dst.port(), None);
-
-        dst.set_host("/im-not a host! >:)").unwrap_err();
-        assert_eq!(dst.scheme(), "http", "error doesn't modify dst");
-        assert_eq!(dst.host(), "seanmonstar.com", "error doesn't modify dst");
-        assert_eq!(dst.port(), None, "error doesn't modify dst");
-
-        // Check port isn't snuck into `set_host`.
-        dst.set_host("seanmonstar.com:3030").expect_err("set_host sneaky port");
-        assert_eq!(dst.scheme(), "http", "error doesn't modify dst");
-        assert_eq!(dst.host(), "seanmonstar.com", "error doesn't modify dst");
-        assert_eq!(dst.port(), None, "error doesn't modify dst");
-
-        // Check userinfo isn't snuck into `set_host`.
-        dst.set_host("sean@nope").expect_err("set_host sneaky userinfo");
-        assert_eq!(dst.scheme(), "http", "error doesn't modify dst");
-        assert_eq!(dst.host(), "seanmonstar.com", "error doesn't modify dst");
-        assert_eq!(dst.port(), None, "error doesn't modify dst");
-
-        // Allow IPv6 hosts
-        dst.set_host("[::1]").expect("set_host with IPv6");
-        assert_eq!(dst.host(), "[::1]");
-        assert_eq!(dst.port(), None, "IPv6 didn't affect port");
-
-        // However, IPv6 with a port is rejected.
-        dst.set_host("[::2]:1337").expect_err("set_host with IPv6 and sneaky port");
-        assert_eq!(dst.host(), "[::1]");
-        assert_eq!(dst.port(), None);
-
-        // -----------------
-
-        // Also test that an exist port is set correctly.
-        let mut dst = Destination {
-            uri: "http://hyper.rs:8080".parse().expect("initial parse 2"),
-        };
-
-        assert_eq!(dst.scheme(), "http");
-        assert_eq!(dst.host(), "hyper.rs");
-        assert_eq!(dst.port(), Some(8080));
-
-        dst.set_host("seanmonstar.com").expect("set host");
-        assert_eq!(dst.scheme(), "http");
-        assert_eq!(dst.host(), "seanmonstar.com");
-        assert_eq!(dst.port(), Some(8080));
-
-        dst.set_host("/im-not a host! >:)").unwrap_err();
-        assert_eq!(dst.scheme(), "http", "error doesn't modify dst");
-        assert_eq!(dst.host(), "seanmonstar.com", "error doesn't modify dst");
-        assert_eq!(dst.port(), Some(8080), "error doesn't modify dst");
-
-        // Check port isn't snuck into `set_host`.
-        dst.set_host("seanmonstar.com:3030").expect_err("set_host sneaky port");
-        assert_eq!(dst.scheme(), "http", "error doesn't modify dst");
-        assert_eq!(dst.host(), "seanmonstar.com", "error doesn't modify dst");
-        assert_eq!(dst.port(), Some(8080), "error doesn't modify dst");
-
-        // Check userinfo isn't snuck into `set_host`.
-        dst.set_host("sean@nope").expect_err("set_host sneaky userinfo");
-        assert_eq!(dst.scheme(), "http", "error doesn't modify dst");
-        assert_eq!(dst.host(), "seanmonstar.com", "error doesn't modify dst");
-        assert_eq!(dst.port(), Some(8080), "error doesn't modify dst");
-
-        // Allow IPv6 hosts
-        dst.set_host("[::1]").expect("set_host with IPv6");
-        assert_eq!(dst.host(), "[::1]");
-        assert_eq!(dst.port(), Some(8080), "IPv6 didn't affect port");
-
-        // However, IPv6 with a port is rejected.
-        dst.set_host("[::2]:1337").expect_err("set_host with IPv6 and sneaky port");
-        assert_eq!(dst.host(), "[::1]");
-        assert_eq!(dst.port(), Some(8080));
-    }
-
-    #[test]
-    fn test_destination_set_port() {
-        let mut dst = Destination {
-            uri: "http://hyper.rs".parse().expect("initial parse"),
-        };
-
-        assert_eq!(dst.scheme(), "http");
-        assert_eq!(dst.host(), "hyper.rs");
-        assert_eq!(dst.port(), None);
-
-        dst.set_port(None);
-        assert_eq!(dst.scheme(), "http");
-        assert_eq!(dst.host(), "hyper.rs");
-        assert_eq!(dst.port(), None);
-
-        dst.set_port(8080);
-        assert_eq!(dst.scheme(), "http");
-        assert_eq!(dst.host(), "hyper.rs");
-        assert_eq!(dst.port(), Some(8080));
-
-        // Also test that an exist port is set correctly.
-        let mut dst = Destination {
-            uri: "http://hyper.rs:8080".parse().expect("initial parse 2"),
-        };
-
-        assert_eq!(dst.scheme(), "http");
-        assert_eq!(dst.host(), "hyper.rs");
-        assert_eq!(dst.port(), Some(8080));
-
-        dst.set_port(3030);
-        assert_eq!(dst.scheme(), "http");
-        assert_eq!(dst.host(), "hyper.rs");
-        assert_eq!(dst.port(), Some(3030));
-
-        dst.set_port(None);
-        assert_eq!(dst.scheme(), "http");
-        assert_eq!(dst.host(), "hyper.rs");
-        assert_eq!(dst.port(), None);
-    }
-
-    #[test]
-    fn test_try_from_destination() {
-        let uri: http::Uri = "http://hyper.rs".parse().expect("initial parse");
-        let result = Destination::try_from(uri);
-        assert_eq!(result.is_ok(), true);
-    }
-
-    #[test]
-    fn test_try_from_no_scheme() {
-        let uri: http::Uri = "hyper.rs".parse().expect("initial parse error");
-        let result = Destination::try_from(uri);
-        assert_eq!(result.is_err(), true);
-    }
+    use super::{Connected};
 
     #[derive(Clone, Debug, PartialEq)]
     struct Ex1(usize);
