@@ -6,20 +6,24 @@ use hyper::service::{service_fn, make_service_fn};
 
 use std::collections::HashMap;
 use url::form_urlencoded;
-use futures_util::TryStreamExt;
+use futures_util::StreamExt;
 
 static INDEX: &[u8] = b"<html><body><form action=\"post\" method=\"post\">Name: <input type=\"text\" name=\"name\"><br>Number: <input type=\"text\" name=\"number\"><br><input type=\"submit\"></body></html>";
 static MISSING: &[u8] = b"Missing field";
 static NOTNUMERIC: &[u8] = b"Number field is not numeric";
 
 // Using service_fn, we can turn this function into a `Service`.
-async fn param_example(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
+async fn param_example(mut req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
     match (req.method(), req.uri().path()) {
         (&Method::GET, "/") | (&Method::GET, "/post") => {
             Ok(Response::new(INDEX.into()))
         },
         (&Method::POST, "/post") => {
-            let b = req.into_body().try_concat().await?;
+            // Concatenate the body...
+            let mut b = Vec::new();
+            while let Some(chunk) = req.body_mut().next().await {
+                b.extend_from_slice(&chunk?);
+            }
             // Parse the request body. form_urlencoded::parse
             // always succeeds, but in general parsing may
             // fail (for example, an invalid post of json), so

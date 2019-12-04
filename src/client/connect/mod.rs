@@ -50,8 +50,8 @@ impl Destination {
     /// Returns an error if the uri contains no authority or
     /// no scheme.
     pub fn try_from_uri(uri: Uri) -> crate::Result<Self> {
-        uri.authority_part().ok_or(crate::error::Parse::Uri)?;
-        uri.scheme_part().ok_or(crate::error::Parse::Uri)?;
+        uri.authority().ok_or(crate::error::Parse::Uri)?;
+        uri.scheme().ok_or(crate::error::Parse::Uri)?;
         Ok(Destination { uri })
     }
 
@@ -131,11 +131,11 @@ impl Destination {
         }
         let auth = if let Some(port) = self.port() {
             let bytes = Bytes::from(format!("{}:{}", host, port));
-            uri::Authority::from_shared(bytes)
+            uri::Authority::from_maybe_shared(bytes)
                 .map_err(crate::error::Parse::from)?
         } else {
             let auth = host.parse::<uri::Authority>().map_err(crate::error::Parse::from)?;
-            if auth.port_part().is_some() { // std::uri::Authority::Uri
+            if auth.port().is_some() { // std::uri::Authority::Uri
                 return Err(crate::error::Parse::Uri.into());
             }
             auth
@@ -186,7 +186,7 @@ impl Destination {
             write!(buf, "{}", port)
                 .expect("should have space for 5 digits");
 
-            uri::Authority::from_shared(buf.freeze())
+            uri::Authority::from_maybe_shared(buf.freeze())
                 .expect("valid host + :port should be valid authority")
         } else {
             self.host().parse()
@@ -372,7 +372,7 @@ where
 pub(super) mod sealed {
     use std::error::Error as StdError;
 
-    use tokio_io::{AsyncRead, AsyncWrite};
+    use tokio::io::{AsyncRead, AsyncWrite};
 
     use crate::common::{Future, Unpin};
     use super::{Connected, Destination};

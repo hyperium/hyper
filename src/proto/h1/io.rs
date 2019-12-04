@@ -2,11 +2,10 @@ use std::cell::Cell;
 use std::cmp;
 use std::collections::VecDeque;
 use std::fmt;
-use std::io;
+use std::io::{self, IoSlice};
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use iovec::IoVec;
-use tokio_io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::common::{Pin, Poll, Unpin, task};
 use super::{Http1Transaction, ParseContext, ParsedMessage};
@@ -105,6 +104,12 @@ where
         &mut self.read_buf
     }
 
+    /// Return the "allocated" available space, not the potential space
+    /// that could be allocated in the future.
+    fn read_buf_remaining_mut(&self) -> usize {
+        self.read_buf.capacity() - self.read_buf.len()
+    }
+
     pub fn headers_buf(&mut self) -> &mut Vec<u8> {
         let buf = self.write_buf.headers_mut();
         &mut buf.bytes
@@ -170,7 +175,7 @@ where
     pub fn poll_read_from_io(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<usize>> {
         self.read_blocked = false;
         let next = self.read_buf_strategy.next();
-        if self.read_buf.remaining_mut() < next {
+        if self.read_buf_remaining_mut() < next {
             self.read_buf.reserve(next);
         }
         match Pin::new(&mut self.io).poll_read_buf(cx, &mut self.read_buf) {
@@ -520,9 +525,9 @@ impl<B: Buf> Buf for WriteBuf<B> {
     }
 
     #[inline]
-    fn bytes_vec<'t>(&'t self, dst: &mut [&'t IoVec]) -> usize {
-        let n = self.headers.bytes_vec(dst);
-        self.queue.bytes_vec(&mut dst[n..]) + n
+    fn bytes_vectored<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> usize {
+        let n = self.headers.bytes_vectored(dst);
+        self.queue.bytes_vectored(&mut dst[n..]) + n
     }
 }
 
@@ -562,9 +567,9 @@ impl<'a, B: Buf> Buf for WriteBufAuto<'a, B> {
     }
 
     #[inline]
-    fn bytes_vec<'t>(&'t self, dst: &mut [&'t IoVec]) -> usize {
+    fn bytes_vectored<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> usize {
         self.bytes_vec_called.set(true);
-        self.inner.bytes_vec(dst)
+        self.inner.bytes_vectored(dst)
     }
 }
 
@@ -638,13 +643,13 @@ impl<T: Buf> Buf for BufDeque<T> {
     }
 
     #[inline]
-    fn bytes_vec<'t>(&'t self, dst: &mut [&'t IoVec]) -> usize {
+    fn bytes_vectored<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> usize {
         if dst.is_empty() {
             return 0;
         }
         let mut vecs = 0;
         for buf in &self.bufs {
-            vecs += buf.bytes_vec(&mut dst[vecs..]);
+            vecs += buf.bytes_vectored(&mut dst[vecs..]);
             if vecs == dst.len() {
                 break;
             }

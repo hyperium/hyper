@@ -66,7 +66,6 @@ pub fn content_length_parse_all_values(values: ValueIter<'_, HeaderValue>) -> Op
 pub fn set_content_length_if_missing(headers: &mut HeaderMap, len: u64) {
     headers
         .entry(CONTENT_LENGTH)
-        .unwrap()
         .or_insert_with(|| HeaderValue::from(len));
 }
 
@@ -105,7 +104,7 @@ pub fn add_chunked(mut entry: OccupiedEntry<'_, HeaderValue>) {
         buf.copy_from_slice(b", ");
         buf.copy_from_slice(CHUNKED.as_bytes());
 
-        *line = HeaderValue::from_shared(buf.freeze())
+        *line = HeaderValue::from_maybe_shared(buf.freeze())
             .expect("original header value plus ascii is valid");
         return;
     }

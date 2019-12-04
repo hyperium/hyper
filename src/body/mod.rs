@@ -15,6 +15,9 @@
 //!  client responses). It is also a decent default implementation if you don't
 //!  have very custom needs of your send streams.
 
+#[doc(hidden)]
+pub use http_body::Body as HttpBody;
+
 pub use self::body::{Body, Sender};
 pub use self::chunk::Chunk;
 pub use self::payload::Payload;

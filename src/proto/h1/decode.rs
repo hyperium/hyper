@@ -328,7 +328,7 @@ impl StdError for IncompleteBody {
 mod tests {
     use std::time::Duration;
     use std::pin::Pin;
-    use tokio_io::AsyncRead;
+    use tokio::io::AsyncRead;
     use super::*;
 
     impl<'a> MemRead for &'a [u8] {
@@ -336,7 +336,7 @@ mod tests {
             let n = ::std::cmp::min(len, self.len());
             if n > 0 {
                 let (a, b) = self.split_at(n);
-                let buf = Bytes::from(a);
+                let buf = Bytes::copy_from_slice(a);
                 *self = b;
                 Poll::Ready(Ok(buf))
             } else {
@@ -349,7 +349,7 @@ mod tests {
         fn read_mem(&mut self, cx: &mut task::Context<'_>, len: usize) -> Poll<io::Result<Bytes>> {
             let mut v = vec![0; len];
             let n = ready!(Pin::new(self).poll_read(cx, &mut v)?);
-            Poll::Ready(Ok(Bytes::from(&v[..n])))
+            Poll::Ready(Ok(Bytes::copy_from_slice(&v[..n])))
         }
     }
 

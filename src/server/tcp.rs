@@ -4,9 +4,8 @@ use std::net::{SocketAddr, TcpListener as StdTcpListener};
 use std::time::Duration;
 
 use futures_util::FutureExt as _;
-use tokio_net::driver::Handle;
-use tokio_net::tcp::TcpListener;
-use tokio_timer::Delay;
+use tokio::net::TcpListener;
+use tokio::time::Delay;
 
 use crate::common::{Future, Pin, Poll, task};
 
@@ -25,20 +24,15 @@ pub struct AddrIncoming {
 }
 
 impl AddrIncoming {
-    pub(super) fn new(addr: &SocketAddr, handle: Option<&Handle>) -> crate::Result<Self> {
+    pub(super) fn new(addr: &SocketAddr) -> crate::Result<Self> {
         let std_listener = StdTcpListener::bind(addr)
                 .map_err(crate::Error::new_listen)?;
 
-        if let Some(handle) = handle {
-            AddrIncoming::from_std(std_listener, handle)
-        } else {
-            let handle = Handle::default();
-            AddrIncoming::from_std(std_listener, &handle)
-        }
+        AddrIncoming::from_std(std_listener)
     }
 
-    pub(super) fn from_std(std_listener: StdTcpListener, handle: &Handle) -> crate::Result<Self> {
-        let listener = TcpListener::from_std(std_listener, &handle)
+    pub(super) fn from_std(std_listener: StdTcpListener) -> crate::Result<Self> {
+        let listener = TcpListener::from_std(std_listener)
             .map_err(crate::Error::new_listen)?;
         let addr = listener.local_addr().map_err(crate::Error::new_listen)?;
         Ok(AddrIncoming {
@@ -53,7 +47,7 @@ impl AddrIncoming {
 
     /// Creates a new `AddrIncoming` binding to provided socket address.
     pub fn bind(addr: &SocketAddr) -> crate::Result<Self> {
-        AddrIncoming::new(addr, None)
+        AddrIncoming::new(addr)
     }
 
     /// Get the local address bound to this listener.
@@ -135,7 +129,7 @@ impl AddrIncoming {
                         error!("accept error: {}", e);
 
                         // Sleep 1s.
-                        let mut timeout = tokio_timer::delay_for(Duration::from_secs(1));
+                        let mut timeout = tokio::time::delay_for(Duration::from_secs(1));
 
                         match Pin::new(&mut timeout).poll(cx) {
                             Poll::Ready(()) => {
@@ -197,8 +191,8 @@ mod addr_stream {
     use std::io;
     use std::net::SocketAddr;
     use bytes::{Buf, BufMut};
-    use tokio_net::tcp::TcpStream;
-    use tokio_io::{AsyncRead, AsyncWrite};
+    use tokio::net::TcpStream;
+    use tokio::io::{AsyncRead, AsyncWrite};
 
     use crate::common::{Pin, Poll, task};
 
@@ -232,8 +226,7 @@ mod addr_stream {
     }
 
     impl AsyncRead for AddrStream {
-        #[inline]
-        unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
+        unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [std::mem::MaybeUninit<u8>]) -> bool {
             self.inner.prepare_uninitialized_buffer(buf)
         }
 

@@ -5,7 +5,7 @@
 extern crate serde_derive;
 
 use hyper::Client;
-use futures_util::TryStreamExt;
+use futures_util::StreamExt;
 
 // A simple type alias so as to DRY.
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -27,9 +27,12 @@ async fn fetch_json(url: hyper::Uri) -> Result<Vec<User>> {
     let client = Client::new();
 
     // Fetch the url...
-    let res = client.get(url).await?;
+    let mut res = client.get(url).await?;
     // asynchronously concatenate chunks of the body
-    let body = res.into_body().try_concat().await?;
+    let mut body = Vec::new();
+    while let Some(chunk) = res.body_mut().next().await {
+        body.extend_from_slice(&chunk?);
+    }
     // try to parse as json with serde_json
     let users = serde_json::from_slice(&body)?;
 

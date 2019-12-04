@@ -4,6 +4,7 @@ use std::env;
 use std::io::{self, Write};
 
 use hyper::Client;
+use futures_util::StreamExt;
 
 // A simple type alias so as to DRY.
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -24,7 +25,7 @@ async fn main() -> Result<()> {
     // HTTPS requires picking a TLS implementation, so give a better
     // warning if the user tries to request an 'https' URL.
     let url = url.parse::<hyper::Uri>().unwrap();
-    if url.scheme_part().map(|s| s.as_ref()) != Some("http") {
+    if url.scheme_str() != Some("http") {
         println!("This example only works with 'http' URLs.");
         return Ok(());
     }

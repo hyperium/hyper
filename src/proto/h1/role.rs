@@ -23,7 +23,7 @@ macro_rules! header_name {
         {
             match HeaderName::from_bytes($bytes) {
                 Ok(name) => name,
-                Err(_) => panic!("illegal header name from httparse: {:?}", ::bytes::Bytes::from($bytes)),
+                Err(_) => panic!("illegal header name from httparse: {:?}", ::bytes::Bytes::copy_from_slice($bytes)),
             }
         }
 
@@ -40,7 +40,7 @@ macro_rules! header_value {
         #[cfg(debug_assertions)]
         {
             let __hvb: ::bytes::Bytes = $bytes;
-            match HeaderValue::from_shared(__hvb.clone()) {
+            match HeaderValue::from_maybe_shared(__hvb.clone()) {
                 Ok(name) => name,
                 Err(_) => panic!("illegal header value from httparse: {:?}", __hvb),
             }
@@ -50,7 +50,7 @@ macro_rules! header_value {
         {
             // Unsafe: httparse already validated header value
             unsafe {
-                HeaderValue::from_shared_unchecked($bytes)
+                HeaderValue::from_maybe_shared_unchecked($bytes)
             }
         }
     });
@@ -153,7 +153,7 @@ impl Http1Transaction for Server {
 
         for header in &headers_indices[..headers_len] {
             let name = header_name!(&slice[header.name.0..header.name.1]);
-            let value = header_value!(slice.slice(header.value.0, header.value.1));
+            let value = header_value!(slice.slice(header.value.0..header.value.1));
 
             match name {
                 header::TRANSFER_ENCODING => {
@@ -302,10 +302,40 @@ impl Http1Transaction for Server {
 
         let mut encoder = Encoder::length(0);
         let mut wrote_date = false;
-        'headers: for (name, mut values) in msg.head.headers.drain() {
-            match name {
+        let mut cur_name = None;
+        let mut is_name_written = false;
+        let mut must_write_chunked = false;
+        let mut prev_con_len = None;
+
+        macro_rules! handle_is_name_written {
+            () => ({
+                if is_name_written {
+                    // we need to clean up and write the newline
+                    debug_assert_ne!(
+                        &dst[dst.len() - 2 ..],
+                        b"\r\n",
+                        "previous header wrote newline but set is_name_written"
+                    );
+
+                    if must_write_chunked {
+                        extend(dst, b", chunked\r\n");
+                    } else {
+                        extend(dst, b"\r\n");
+                    }
+                }
+            })
+        }
+
+        'headers: for (opt_name, value) in msg.head.headers.drain() {
+            if let Some(n) = opt_name {
+                cur_name = Some(n);
+                handle_is_name_written!();
+                is_name_written = false;
+            }
+            let name = cur_name.as_ref().expect("current header name");
+            match *name {
                 header::CONTENT_LENGTH => {
-                    if wrote_len {
+                    if wrote_len && !is_name_written {
                         warn!("unexpected content-length found, canceling");
                         rewind(dst);
                         return Err(crate::Error::new_user_header());
@@ -319,77 +349,56 @@ impl Http1Transaction for Server {
                             //
                             // In debug builds, we'll assert they are the
                             // same to help developers find bugs.
-                            encoder = Encoder::length(known_len);
-
                             #[cfg(debug_assertions)]
                             {
-                                let mut folded = None::<(u64, HeaderValue)>;
-                                for value in values {
-                                    if let Some(len) = headers::content_length_parse(&value) {
-                                        if let Some(fold) = folded {
-                                            if fold.0 != len {
-                                                panic!("multiple Content-Length values found: [{}, {}]", fold.0, len);
-                                            }
-                                            folded = Some(fold);
-                                        } else {
-                                            folded = Some((len, value));
-                                        }
-                                    } else {
-                                        panic!("illegal Content-Length value: {:?}", value);
-                                    }
-                                }
-                                if let Some((len, value)) = folded {
+                                if let Some(len) = headers::content_length_parse(&value) {
                                     assert!(
                                         len == known_len,
                                         "payload claims content-length of {}, custom content-length header claims {}",
                                         known_len,
                                         len,
                                     );
-                                    extend(dst, b"content-length: ");
-                                    extend(dst, value.as_bytes());
-                                    extend(dst, b"\r\n");
-                                    wrote_len = true;
-                                    continue 'headers;
-                                } else {
-                                    // No values in content-length... ignore?
-                                    continue 'headers;
                                 }
                             }
+
+                            if !is_name_written {
+                                encoder = Encoder::length(known_len);
+                                extend(dst, b"content-length: ");
+                                extend(dst, value.as_bytes());
+                                wrote_len = true;
+                                is_name_written = true;
+                            }
+                            continue 'headers;
                         },
                         Some(BodyLength::Unknown) => {
                             // The Payload impl didn't know how long the
                             // body is, but a length header was included.
                             // We have to parse the value to return our
                             // Encoder...
-                            let mut folded = None::<(u64, HeaderValue)>;
-                            for value in values {
-                                if let Some(len) = headers::content_length_parse(&value) {
-                                    if let Some(fold) = folded {
-                                        if fold.0 != len {
-                                            warn!("multiple Content-Length values found: [{}, {}]", fold.0, len);
-                                            rewind(dst);
-                                            return Err(crate::Error::new_user_header());
-                                        }
-                                        folded = Some(fold);
-                                    } else {
-                                        folded = Some((len, value));
+
+                            if let Some(len) = headers::content_length_parse(&value) {
+                                if let Some(prev) = prev_con_len {
+                                    if prev != len {
+                                        warn!("multiple Content-Length values found: [{}, {}]", prev, len);
+                                        rewind(dst);
+                                        return Err(crate::Error::new_user_header());
                                     }
+                                    debug_assert!(is_name_written);
+                                    continue 'headers;
                                 } else {
-                                    warn!("illegal Content-Length value: {:?}", value);
-                                    rewind(dst);
-                                    return Err(crate::Error::new_user_header());
+                                    // we haven't written content-lenght yet!
+                                    encoder = Encoder::length(len);
+                                    extend(dst, b"content-length: ");
+                                    extend(dst, value.as_bytes());
+                                    wrote_len = true;
+                                    is_name_written = true;
+                                    prev_con_len = Some(len);
+                                    continue 'headers;
                                 }
-                            }
-                            if let Some((len, value)) = folded {
-                                encoder = Encoder::length(len);
-                                extend(dst, b"content-length: ");
-                                extend(dst, value.as_bytes());
-                                extend(dst, b"\r\n");
-                                wrote_len = true;
-                                continue 'headers;
                             } else {
-                                // No values in content-length... ignore?
-                                continue 'headers;
+                                warn!("illegal Content-Length value: {:?}", value);
+                                rewind(dst);
+                                return Err(crate::Error::new_user_header());
                             }
                         },
                         None => {
@@ -402,10 +411,8 @@ impl Http1Transaction for Server {
                             if msg.req_method == &Some(Method::HEAD) {
                                 debug_assert_eq!(encoder, Encoder::length(0));
                             } else {
-                                for value in values {
-                                    if value.as_bytes() != b"0" {
-                                        warn!("content-length value found, but empty body provided: {:?}", value);
-                                    }
+                                if value.as_bytes() != b"0" {
+                                    warn!("content-length value found, but empty body provided: {:?}", value);
                                 }
                                 continue 'headers;
                             }
@@ -414,7 +421,7 @@ impl Http1Transaction for Server {
                     wrote_len = true;
                 },
                 header::TRANSFER_ENCODING => {
-                    if wrote_len {
+                    if wrote_len && !is_name_written {
                         warn!("unexpected transfer-encoding found, canceling");
                         rewind(dst);
                         return Err(crate::Error::new_user_header());
@@ -424,44 +431,36 @@ impl Http1Transaction for Server {
                         continue;
                     }
                     wrote_len = true;
-                    encoder = Encoder::chunked();
+                    // Must check each value, because `chunked` needs to be the
+                    // last encoding, or else we add it.
+                    must_write_chunked = !headers::is_chunked_(&value);
 
-                    extend(dst, b"transfer-encoding: ");
-
-                    let mut saw_chunked;
-                    if let Some(te) = values.next() {
-                        extend(dst, te.as_bytes());
-                        saw_chunked = headers::is_chunked_(&te);
-                        for value in values {
-                            extend(dst, b", ");
-                            extend(dst, value.as_bytes());
-                            saw_chunked = headers::is_chunked_(&value);
-                        }
-                        if !saw_chunked {
-                            extend(dst, b", chunked\r\n");
-                        } else {
-                            extend(dst, b"\r\n");
-                        }
+                    if !is_name_written {
+                        encoder = Encoder::chunked();
+                        is_name_written = true;
+                        extend(dst, b"transfer-encoding: ");
+                        extend(dst, value.as_bytes());
                     } else {
-                        // zero lines? add a chunked line then
-                        extend(dst, b"chunked\r\n");
+                        extend(dst, b", ");
+                        extend(dst, value.as_bytes());
                     }
                     continue 'headers;
                 },
                 header::CONNECTION => {
                     if !is_last {
-                        for value in values {
-                            extend(dst, name.as_str().as_bytes());
-                            extend(dst, b": ");
-                            extend(dst, value.as_bytes());
-                            extend(dst, b"\r\n");
-
-                            if headers::connection_close(&value) {
-                                is_last = true;
-                            }
+                        if headers::connection_close(&value) {
+                            is_last = true;
                         }
-                        continue 'headers;
                     }
+                    if !is_name_written {
+                        is_name_written = true;
+                        extend(dst, b"connection: ");
+                        extend(dst, value.as_bytes());
+                    } else {
+                        extend(dst, b", ");
+                        extend(dst, value.as_bytes());
+                    }
+                    continue 'headers;
                 },
                 header::DATE => {
                     wrote_date = true;
@@ -470,13 +469,20 @@ impl Http1Transaction for Server {
             }
             //TODO: this should perhaps instead combine them into
             //single lines, as RFC7230 suggests is preferable.
-            for value in values {
-                extend(dst, name.as_str().as_bytes());
-                extend(dst, b": ");
-                extend(dst, value.as_bytes());
-                extend(dst, b"\r\n");
-            }
+
+            // non-special write Name and Value
+            debug_assert!(
+                !is_name_written,
+                "{:?} set is_name_written and didn't continue loop",
+                name,
+            );
+            extend(dst, name.as_str().as_bytes());
+            extend(dst, b": ");
+            extend(dst, value.as_bytes());
+            extend(dst, b"\r\n");
         }
+
+        handle_is_name_written!();
 
         if !wrote_len {
             encoder = match msg.body {
@@ -629,7 +635,7 @@ impl Http1Transaction for Client {
             headers.reserve(headers_len);
             for header in &headers_indices[..headers_len] {
                 let name = header_name!(&slice[header.name.0..header.name.1]);
-                let value = header_value!(slice.slice(header.value.0, header.value.1));
+                let value = header_value!(slice.slice(header.value.0..header.value.1));
 
                 if let header::CONNECTION = name {
                     // keep_alive was previously set to default for Version
@@ -820,8 +826,7 @@ impl Client {
 
         // If the user set a transfer-encoding, respect that. Let's just
         // make sure `chunked` is the final encoding.
-        let encoder = match headers.entry(header::TRANSFER_ENCODING)
-            .expect("TRANSFER_ENCODING is valid HeaderName") {
+        let encoder = match headers.entry(header::TRANSFER_ENCODING) {
             Entry::Occupied(te) => {
                 should_remove_con_len = true;
                 if headers::is_chunked(te.iter()) {
@@ -906,8 +911,7 @@ fn set_content_length(headers: &mut HeaderMap, len: u64) -> Encoder {
     // so perhaps only do that while the user is developing/testing.
 
     if cfg!(debug_assertions) {
-        match headers.entry(header::CONTENT_LENGTH)
-            .expect("CONTENT_LENGTH is valid HeaderName") {
+        match headers.entry(header::CONTENT_LENGTH) {
             Entry::Occupied(mut cl) => {
                 // Internal sanity check, we should have already determined
                 // that the header was illegal before calling this function.
@@ -1067,7 +1071,7 @@ mod tests {
     #[test]
     fn test_parse_request() {
         let _ = pretty_env_logger::try_init();
-        let mut raw = BytesMut::from(b"GET /echo HTTP/1.1\r\nHost: hyper.rs\r\n\r\n".to_vec());
+        let mut raw = BytesMut::from("GET /echo HTTP/1.1\r\nHost: hyper.rs\r\n\r\n");
         let mut method = None;
         let msg = Server::parse(&mut raw, ParseContext {
             cached_headers: &mut None,
@@ -1086,7 +1090,7 @@ mod tests {
     #[test]
     fn test_parse_response() {
         let _ = pretty_env_logger::try_init();
-        let mut raw = BytesMut::from(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n".to_vec());
+        let mut raw = BytesMut::from("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
         let ctx = ParseContext {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
@@ -1101,7 +1105,7 @@ mod tests {
 
     #[test]
     fn test_parse_request_errors() {
-        let mut raw = BytesMut::from(b"GET htt:p// HTTP/1.1\r\nHost: hyper.rs\r\n\r\n".to_vec());
+        let mut raw = BytesMut::from("GET htt:p// HTTP/1.1\r\nHost: hyper.rs\r\n\r\n");
         let ctx = ParseContext {
             cached_headers: &mut None,
             req_method: &mut None,
@@ -1480,7 +1484,7 @@ mod tests {
     #[bench]
     fn bench_parse_incoming(b: &mut Bencher) {
         let mut raw = BytesMut::from(
-            b"GET /super_long_uri/and_whatever?what_should_we_talk_about/\
+            &b"GET /super_long_uri/and_whatever?what_should_we_talk_about/\
             I_wonder/Hard_to_write_in_an_uri_after_all/you_have_to_make\
             _up_the_punctuation_yourself/how_fun_is_that?test=foo&test1=\
             foo1&test2=foo2&test3=foo3&test4=foo4 HTTP/1.1\r\nHost: \
@@ -1496,7 +1500,7 @@ mod tests {
             X-Content-Duration: None\r\nX-Content-Security-Policy: None\
             \r\nX-DNSPrefetch-Control: None\r\nX-Frame-Options: \
             Something important obviously\r\nX-Requested-With: Nothing\
-            \r\n\r\n".to_vec()
+            \r\n\r\n"[..]
         );
         let len = raw.len();
         let mut headers = Some(HeaderMap::new());
@@ -1526,7 +1530,7 @@ mod tests {
     #[bench]
     fn bench_parse_short(b: &mut Bencher) {
         let s = &b"GET / HTTP/1.1\r\nHost: localhost:8080\r\n\r\n"[..];
-        let mut raw = BytesMut::from(s.to_vec());
+        let mut raw = BytesMut::from(s);
         let len = raw.len();
         let mut headers = Some(HeaderMap::new());
 

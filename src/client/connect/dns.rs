@@ -30,6 +30,7 @@ use std::net::{
 };
 use std::str::FromStr;
 
+use tokio::task::JoinHandle;
 use tower_service::Service;
 use crate::common::{Future, Pin, Poll, task};
 
@@ -54,7 +55,7 @@ pub struct GaiAddrs {
 
 /// A future to resolve a name returned by `GaiResolver`.
 pub struct GaiFuture {
-    inner: tokio_executor::blocking::Blocking<Result<IpAddrs, io::Error>>,
+    inner: JoinHandle<Result<IpAddrs, io::Error>>,
 }
 
 impl Name {
@@ -123,7 +124,7 @@ impl Service<Name> for GaiResolver {
     }
 
     fn call(&mut self, name: Name) -> Self::Future {
-        let blocking = tokio_executor::blocking::run(move || {
+        let blocking = tokio::task::spawn_blocking(move || {
             debug!("resolving host={:?}", name.host);
             (&*name.host, 0).to_socket_addrs()
                 .map(|i| IpAddrs { iter: i })
@@ -146,8 +147,9 @@ impl Future for GaiFuture {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         Pin::new(&mut self.inner).poll(cx).map(|res| match res {
-            Ok(addrs) => Ok(GaiAddrs { inner: addrs }),
-            Err(err) => Err(err),
+            Ok(Ok(addrs)) => Ok(GaiAddrs { inner: addrs }),
+            Ok(Err(err)) => Err(err),
+            Err(join_err) => panic!("gai background task failed: {:?}", join_err),
         })
     }
 }
@@ -232,6 +234,7 @@ impl Iterator for IpAddrs {
     }
 }
 
+/*
 /// A resolver using `getaddrinfo` calls via the `tokio_executor::threadpool::blocking` API.
 ///
 /// Unlike the `GaiResolver` this will not spawn dedicated threads, but only works when running on the
@@ -286,6 +289,7 @@ impl Future for TokioThreadpoolGaiFuture {
         }
     }
 }
+*/
 
 mod sealed {
     use tower_service::Service;

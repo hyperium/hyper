@@ -1,12 +1,12 @@
 use std::mem;
 
-use futures_util::FutureExt as _;
-use tokio_sync::{mpsc, watch};
+use tokio::sync::{mpsc, watch};
 use pin_project::pin_project;
 
 use super::{Future, Never, Poll, Pin, task};
 
 // Sentinel value signaling that the watch is still open
+#[derive(Clone, Copy)]
 enum Action {
     Open,
     // Closed isn't sent via the `Action` type, but rather once
@@ -103,10 +103,7 @@ where
         loop {
             match mem::replace(me.state, State::Draining) {
                 State::Watch(on_drain) => {
-                    let recv = me.watch.rx.recv_ref();
-                    futures_util::pin_mut!(recv);
-
-                    match recv.poll_unpin(cx) {
+                    match me.watch.rx.poll_recv_ref(cx) {
                         Poll::Ready(None) => {
                             // Drain has been triggered!
                             on_drain(me.future.as_mut());
@@ -151,7 +148,8 @@ mod tests {
 
     #[test]
     fn watch() {
-        tokio_test::task::mock(|cx| {
+        let mut mock = tokio_test::task::spawn(());
+        mock.enter(|cx, _| {
             let (tx, rx) = channel();
             let fut = TestMe {
                 draining: false,
@@ -198,7 +196,8 @@ mod tests {
 
     #[test]
     fn watch_clones() {
-        tokio_test::task::mock(|cx| {
+        let mut mock = tokio_test::task::spawn(());
+        mock.enter(|cx, _| {
             let (tx, rx) = channel();
 
             let fut1 = TestMe {

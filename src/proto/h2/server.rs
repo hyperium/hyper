@@ -4,7 +4,7 @@ use std::marker::Unpin;
 use pin_project::{pin_project, project};
 use h2::Reason;
 use h2::server::{Builder, Connection, Handshake, SendResponse};
-use tokio_io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::body::Payload;
 use crate::common::exec::H2Exec;
@@ -175,7 +175,7 @@ where
                             crate::Body::h2(stream, content_length)
                         });
                         let fut = H2Stream::new(service.call(req), respond);
-                        exec.execute_h2stream(fut)?;
+                        exec.execute_h2stream(fut);
                     },
                     Some(Err(e)) => {
                         return Poll::Ready(Err(crate::Error::new_h2(e)));
@@ -285,7 +285,6 @@ where
                     res
                         .headers_mut()
                         .entry(::http::header::DATE)
-                        .expect("DATE is a valid HeaderName")
                         .or_insert_with(crate::proto::h1::date::update_and_header_value);
 
 

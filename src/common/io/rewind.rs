@@ -1,8 +1,8 @@
-use std::io::{self, Read};
+use std::{cmp, io};
 use std::marker::Unpin;
 
-use bytes::{Buf, Bytes, IntoBuf};
-use tokio_io::{AsyncRead, AsyncWrite};
+use bytes::{Buf, Bytes};
+use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::common::{Pin, Poll, task};
 
@@ -43,26 +43,22 @@ where
     T: AsyncRead + Unpin,
 {
     #[inline]
-    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [u8]) -> bool {
+    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [std::mem::MaybeUninit<u8>]) -> bool {
         self.inner.prepare_uninitialized_buffer(buf)
     }
 
     fn poll_read(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
-        if let Some(pre_bs) = self.pre.take() {
+        if let Some(mut prefix) = self.pre.take() {
             // If there are no remaining bytes, let the bytes get dropped.
-            if pre_bs.len() > 0 {
-                let mut pre_reader = pre_bs.into_buf().reader();
-                let read_cnt = pre_reader.read(buf)?;
-
-                let mut new_pre = pre_reader.into_inner().into_inner();
-                new_pre.advance(read_cnt);
-
+            if prefix.len() > 0 {
+                let copy_len = cmp::min(prefix.len(), buf.len());
+                prefix.copy_to_slice(&mut buf[..copy_len]);
                 // Put back whats left
-                if new_pre.len() > 0 {
-                    self.pre = Some(new_pre);
+                if prefix.len() > 0 {
+                    self.pre = Some(prefix);
                 }
 
-                return Poll::Ready(Ok(read_cnt));
+                return Poll::Ready(Ok(copy_len));
             }
         }
         Pin::new(&mut self.inner).poll_read(cx, buf)
@@ -118,7 +114,7 @@ mod tests {
 
 
         // Rewind the stream so that it is as if we never read in the first place.
-        stream.rewind(Bytes::from(&buf[..]));
+        stream.rewind(Bytes::copy_from_slice(&buf[..]));
 
         let mut buf = [0; 5];
         stream
@@ -148,7 +144,7 @@ mod tests {
 
 
         // Rewind the stream so that it is as if we never read in the first place.
-        stream.rewind(Bytes::from(&buf[..]));
+        stream.rewind(Bytes::copy_from_slice(&buf[..]));
 
         let mut buf = [0; 5];
         stream
