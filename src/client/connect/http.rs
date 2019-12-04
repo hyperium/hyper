@@ -1,5 +1,6 @@
 use std::error::Error as StdError;
 use std::future::Future;
+use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{self, Poll};
 use std::fmt;
@@ -11,12 +12,14 @@ use std::time::Duration;
 use futures_util::future::Either;
 use http::uri::{Scheme, Uri};
 use net2::TcpBuilder;
+use pin_project::pin_project;
 use tokio::net::TcpStream;
 use tokio::time::Delay;
 
 use super::dns::{self, resolve, GaiResolver, Resolve};
 use super::{Connected, Destination};
 //#[cfg(feature = "runtime")] use super::dns::TokioThreadpoolGaiResolver;
+
 
 /// A connector for the `http` scheme.
 ///
@@ -233,8 +236,7 @@ where
 {
     type Response = (TcpStream, Connected);
     type Error = ConnectError;
-    type Future =
-        Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send + 'static>>;
+    type Future = HttpConnecting<R>;
 
     fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
         ready!(self.resolver.poll_ready(cx)).map_err(ConnectError::dns)?;
@@ -243,7 +245,10 @@ where
 
     fn call(&mut self, dst: Destination) -> Self::Future {
         let mut self_ = self.clone();
-        Box::pin(async move { self_.call_async(dst).await })
+        HttpConnecting {
+            fut: Box::pin(async move { self_.call_async(dst).await }),
+            _marker: PhantomData,
+        }
     }
 }
 
@@ -372,6 +377,32 @@ impl HttpInfo {
         self.remote_addr
     }
 }
+
+// Not publicly exported (so missing_docs doesn't trigger).
+//
+// We return this `Future` instead of the `Pin<Box<dyn Future>>` directly
+// so that users don't rely on it fitting in a `Pin<Box<dyn Future>>` slot
+// (and thus we can change the type in the future).
+#[must_use = "futures do nothing unless polled"]
+#[pin_project]
+#[allow(missing_debug_implementations)]
+pub struct HttpConnecting<R> {
+    #[pin]
+    fut: BoxConnecting,
+    _marker: PhantomData<R>,
+}
+
+type ConnectResult = Result<(TcpStream, Connected), ConnectError>;
+type BoxConnecting = Pin<Box<dyn Future<Output = ConnectResult> + Send>>;
+
+impl<R: Resolve> Future for HttpConnecting<R> {
+    type Output = ConnectResult;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        self.project().fut.poll(cx)
+    }
+}
+
 
 // Not publicly exported (so missing_docs doesn't trigger).
 pub struct ConnectError {
