@@ -778,21 +778,23 @@ mod tests {
                 continue;
             }
 
-            let addrs = hosts
-                .iter()
-                .map(|host| (host.clone(), addr.port()).into())
-                .collect();
-            let connecting_tcp = ConnectingTcp::new(
-                None,
-                dns::IpAddrs::new(addrs),
-                None,
-                Some(fallback_timeout),
-                false,
-            );
 
-            let start = Instant::now();
-            let stream = rt
-                .block_on(connecting_tcp.connect())
+            let (start, stream) = rt
+                .block_on(async move {
+                    let addrs = hosts
+                        .iter()
+                        .map(|host| (host.clone(), addr.port()).into())
+                        .collect();
+                    let connecting_tcp = ConnectingTcp::new(
+                        None,
+                        dns::IpAddrs::new(addrs),
+                        None,
+                        Some(fallback_timeout),
+                        false,
+                    );
+                    let start = Instant::now();
+                    Ok::<_, io::Error>((start, connecting_tcp.connect().await?))
+                })
                 .unwrap();
             let res = if stream.peer_addr().unwrap().is_ipv4() {
                 4
