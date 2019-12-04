@@ -7,20 +7,19 @@
 //!
 //! There are two pieces to this in hyper:
 //!
-//! - The [`Payload`](body::Payload) trait the describes all possible bodies. hyper
-//!   allows any body type that implements `Payload`, allowing applications to
-//!   have fine-grained control over their streaming.
-//! - The [`Body`](Body) concrete type, which is an implementation of `Payload`,
-//!  and returned by hyper as a "receive stream" (so, for server requests and
-//!  client responses). It is also a decent default implementation if you don't
-//!  have very custom needs of your send streams.
+//! - The [`HttpBody`](body::HttpBody) trait the describes all possible bodies.
+//!   hyper allows any body type that implements `HttpBody`, allowing
+//!   applications to have fine-grained control over their streaming.
+//! - The [`Body`](Body) concrete type, which is an implementation of
+//!   `HttpBody`, and returned by hyper as a "receive stream" (so, for server
+//!   requests and client responses). It is also a decent default implementation
+//!   if you don't have very custom needs of your send streams.
 
-#[doc(hidden)]
 pub use http_body::Body as HttpBody;
 
 pub use self::body::{Body, Sender};
 pub use self::chunk::Chunk;
-pub use self::payload::Payload;
+pub(crate) use self::payload::Payload;
 
 mod body;
 mod chunk;
