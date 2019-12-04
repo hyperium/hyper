@@ -60,7 +60,7 @@ default = [
 ]
 runtime = [
     "tcp",
-    "tokio/time",
+    "tokio/rt-core",
 ]
 tcp = [
     "net2",
