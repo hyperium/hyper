@@ -17,6 +17,7 @@ use futures_channel::oneshot;
 use futures_util::future::{self, Either, FutureExt, TryFutureExt};
 #[cfg(feature = "unstable-stream")]
 use futures_util::stream::StreamExt as _;
+use http_body::Body as _;
 use http::header::{HeaderName, HeaderValue};
 use tokio::net::{TcpListener, TcpStream as TkTcpStream};
 use tokio::runtime::Runtime;
