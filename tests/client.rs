@@ -940,11 +940,12 @@ mod dispatch_impl {
     use futures_channel::{mpsc, oneshot};
     use futures_util::future::{FutureExt, TryFutureExt};
     use futures_util::stream::{StreamExt};
+    use http::Uri;
     use tokio::runtime::Runtime;
     use tokio::io::{AsyncRead, AsyncWrite};
     use tokio::net::TcpStream;
 
-    use hyper::client::connect::{Connected, Destination, HttpConnector};
+    use hyper::client::connect::{Connected, HttpConnector};
     use hyper::Client;
 
     #[test]
@@ -1738,19 +1739,19 @@ mod dispatch_impl {
         }
     }
 
-    impl hyper::service::Service<Destination> for DebugConnector {
+    impl hyper::service::Service<Uri> for DebugConnector {
         type Response = (DebugStream, Connected);
-        type Error = <HttpConnector as hyper::service::Service<Destination>>::Error;
+        type Error = <HttpConnector as hyper::service::Service<Uri>>::Error;
         type Future = Pin<Box<dyn Future<
             Output = Result<Self::Response, Self::Error>
         > + Send>>;
 
         fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
             // don't forget to check inner service is ready :)
-            hyper::service::Service::<Destination>::poll_ready(&mut self.http, cx)
+            hyper::service::Service::<Uri>::poll_ready(&mut self.http, cx)
         }
 
-        fn call(&mut self, dst: Destination) -> Self::Future {
+        fn call(&mut self, dst: Uri) -> Self::Future {
             self.connects.fetch_add(1, Ordering::SeqCst);
             let closes = self.closes.clone();
             let is_proxy = self.is_proxy;

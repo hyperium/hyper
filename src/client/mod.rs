@@ -71,7 +71,7 @@ use http::uri::Scheme;
 
 use crate::body::{Body, Payload};
 use crate::common::{lazy as hyper_lazy, BoxSendFuture, Executor, Lazy, Future, Pin, Poll, task};
-use self::connect::{Alpn, sealed::Connect, Connected, Destination};
+use self::connect::{Alpn, sealed::Connect, Connected};
 use self::pool::{Key as PoolKey, Pool, Poolable, Pooled, Reservation};
 
 #[cfg(feature = "tcp")] pub use self::connect::HttpConnector;
@@ -462,9 +462,7 @@ where C: Connect + Clone + Send + Sync + 'static,
         let ver = self.config.ver;
         let is_ver_h2 = ver == Ver::Http2;
         let connector = self.connector.clone();
-        let dst = Destination {
-            uri,
-        };
+        let dst = uri;
         hyper_lazy(move || {
             // Try to take a "connecting lock".
             //
