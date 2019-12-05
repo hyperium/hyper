@@ -28,12 +28,19 @@ jobs:
 
         include:
           - rust: stable
-            features: "--no-default-features --features runtime,stream,__internal_happy_eyeballs_tests"
+            features: "--no-default-features --features runtime,stream"
           - rust: beta
-            features: "--no-default-features --features runtime,stream,__internal_happy_eyeballs_tests"
+            features: "--no-default-features --features runtime,stream"
           - rust: nightly
             features: "--no-default-features --features runtime,stream,nightly"
             benches: true
+          # Limit the Happy Eyeballs tests to Linux
+          - rust: stable
+            os: ubuntu-latest
+            features: "--no-default-features --features runtime,stream,__internal_happy_eyeballs_tests"
+          - rust: beta
+            os: ubuntu-latest
+            features: "--no-default-features --features runtime,stream,__internal_happy_eyeballs_tests"
           # - rust: 1.39.0
           #   features: "--no-default-features --features runtime"
           #   build-only: true
