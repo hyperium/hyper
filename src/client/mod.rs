@@ -42,7 +42,7 @@
 //! // Concatenate the body stream into a single buffer...
 //! let mut body = res.into_body();
 //! let mut bytes = Vec::new();
-//! while let Some(next) = body.next().await {
+//! while let Some(next) = body.data().await {
 //!     let chunk = next?;
 //!     bytes.extend(chunk);
 //! }

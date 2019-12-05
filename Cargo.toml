@@ -25,7 +25,7 @@ futures-core = { version = "0.3", default-features = false }
 futures-channel = "0.3"
 futures-util = { version = "0.3", default-features = false }
 http = "0.2"
-http-body = "0.2"
+http-body = "0.3"
 httparse = "1.0"
 h2 = "0.2"
 itoa = "0.4.1"
@@ -49,7 +49,7 @@ spmc = "0.3"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
-tokio = { version = "0.2.2", features = ["fs", "macros", "rt-util", "sync", "time", "test-util"] }
+tokio = { version = "0.2.2", features = ["fs", "macros", "io-std", "rt-util", "sync", "time", "test-util"] }
 tokio-test = "0.2"
 url = "1.0"
 
