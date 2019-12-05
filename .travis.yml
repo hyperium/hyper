@@ -5,11 +5,11 @@ matrix:
     fast_finish: true
     include:
         - rust: nightly
-          env: FEATURES="--no-default-features --features runtime,unstable-stream,nightly"
+          env: FEATURES="--no-default-features --features runtime,stream,nightly"
         - rust: beta
-          env: FEATURES="--no-default-features --features runtime,unstable-stream,__internal_happy_eyeballs_tests"
+          env: FEATURES="--no-default-features --features runtime,stream,__internal_happy_eyeballs_tests"
         #- rust: stable
-        #  env: FEATURES="--no-default-features --features runtime,unstable-stream,__internal_happy_eyeballs_tests"
+        #  env: FEATURES="--no-default-features --features runtime,stream,__internal_happy_eyeballs_tests"
         - rust: beta #stable
           env: FEATURES="--no-default-features"
         # Minimum Supported Rust Version
