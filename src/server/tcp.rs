@@ -7,10 +7,10 @@ use futures_util::FutureExt as _;
 use tokio::net::TcpListener;
 use tokio::time::Delay;
 
-use crate::common::{Future, Pin, Poll, task};
+use crate::common::{task, Future, Pin, Poll};
 
-use super::Accept;
 pub use self::addr_stream::AddrStream;
+use super::Accept;
 
 /// A stream of connections from binding to an address.
 #[must_use = "streams do nothing unless polled"]
@@ -25,15 +25,13 @@ pub struct AddrIncoming {
 
 impl AddrIncoming {
     pub(super) fn new(addr: &SocketAddr) -> crate::Result<Self> {
-        let std_listener = StdTcpListener::bind(addr)
-                .map_err(crate::Error::new_listen)?;
+        let std_listener = StdTcpListener::bind(addr).map_err(crate::Error::new_listen)?;
 
         AddrIncoming::from_std(std_listener)
     }
 
     pub(super) fn from_std(std_listener: StdTcpListener) -> crate::Result<Self> {
-        let listener = TcpListener::from_std(std_listener)
-            .map_err(crate::Error::new_listen)?;
+        let listener = TcpListener::from_std(std_listener).map_err(crate::Error::new_listen)?;
         let addr = listener.local_addr().map_err(crate::Error::new_listen)?;
         Ok(AddrIncoming {
             listener,
@@ -115,7 +113,7 @@ impl AddrIncoming {
                         trace!("error trying to set TCP nodelay: {}", e);
                     }
                     return Poll::Ready(Ok(AddrStream::new(socket, addr)));
-                },
+                }
                 Poll::Pending => return Poll::Pending,
                 Poll::Ready(Err(e)) => {
                     // Connection errors can be ignored directly, continue by
@@ -134,17 +132,17 @@ impl AddrIncoming {
                         match Pin::new(&mut timeout).poll(cx) {
                             Poll::Ready(()) => {
                                 // Wow, it's been a second already? Ok then...
-                                continue
-                            },
+                                continue;
+                            }
                             Poll::Pending => {
                                 self.timeout = Some(timeout);
                                 return Poll::Pending;
-                            },
+                            }
                         }
                     } else {
                         return Poll::Ready(Err(e));
                     }
-                },
+                }
             }
         }
     }
@@ -154,7 +152,10 @@ impl Accept for AddrIncoming {
     type Conn = AddrStream;
     type Error = io::Error;
 
-    fn poll_accept(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Result<Self::Conn, Self::Error>>> {
+    fn poll_accept(
+        mut self: Pin<&mut Self>,
+        cx: &mut task::Context<'_>,
+    ) -> Poll<Option<Result<Self::Conn, Self::Error>>> {
         let result = ready!(self.poll_next_(cx));
         Poll::Ready(Some(result))
     }
@@ -169,9 +170,9 @@ impl Accept for AddrIncoming {
 /// and EMFILE. Otherwise, could enter into tight loop.
 fn is_connection_error(e: &io::Error) -> bool {
     match e.kind() {
-        io::ErrorKind::ConnectionRefused |
-        io::ErrorKind::ConnectionAborted |
-        io::ErrorKind::ConnectionReset => true,
+        io::ErrorKind::ConnectionRefused
+        | io::ErrorKind::ConnectionAborted
+        | io::ErrorKind::ConnectionReset => true,
         _ => false,
     }
 }
@@ -188,14 +189,13 @@ impl fmt::Debug for AddrIncoming {
 }
 
 mod addr_stream {
+    use bytes::{Buf, BufMut};
     use std::io;
     use std::net::SocketAddr;
-    use bytes::{Buf, BufMut};
-    use tokio::net::TcpStream;
     use tokio::io::{AsyncRead, AsyncWrite};
+    use tokio::net::TcpStream;
 
-    use crate::common::{Pin, Poll, task};
-
+    use crate::common::{task, Pin, Poll};
 
     /// A transport returned yieled by `AddrIncoming`.
     #[derive(Debug)]
@@ -226,29 +226,48 @@ mod addr_stream {
     }
 
     impl AsyncRead for AddrStream {
-        unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [std::mem::MaybeUninit<u8>]) -> bool {
+        unsafe fn prepare_uninitialized_buffer(
+            &self,
+            buf: &mut [std::mem::MaybeUninit<u8>],
+        ) -> bool {
             self.inner.prepare_uninitialized_buffer(buf)
         }
 
         #[inline]
-        fn poll_read(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            cx: &mut task::Context<'_>,
+            buf: &mut [u8],
+        ) -> Poll<io::Result<usize>> {
             Pin::new(&mut self.inner).poll_read(cx, buf)
         }
 
         #[inline]
-        fn poll_read_buf<B: BufMut>(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>, buf: &mut B) -> Poll<io::Result<usize>> {
+        fn poll_read_buf<B: BufMut>(
+            mut self: Pin<&mut Self>,
+            cx: &mut task::Context<'_>,
+            buf: &mut B,
+        ) -> Poll<io::Result<usize>> {
             Pin::new(&mut self.inner).poll_read_buf(cx, buf)
         }
     }
 
     impl AsyncWrite for AddrStream {
         #[inline]
-        fn poll_write(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+        fn poll_write(
+            mut self: Pin<&mut Self>,
+            cx: &mut task::Context<'_>,
+            buf: &[u8],
+        ) -> Poll<io::Result<usize>> {
             Pin::new(&mut self.inner).poll_write(cx, buf)
         }
 
         #[inline]
-        fn poll_write_buf<B: Buf>(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>, buf: &mut B) -> Poll<io::Result<usize>> {
+        fn poll_write_buf<B: Buf>(
+            mut self: Pin<&mut Self>,
+            cx: &mut task::Context<'_>,
+            buf: &mut B,
+        ) -> Poll<io::Result<usize>> {
             Pin::new(&mut self.inner).poll_write_buf(cx, buf)
         }
 
@@ -259,7 +278,10 @@ mod addr_stream {
         }
 
         #[inline]
-        fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+        fn poll_shutdown(
+            mut self: Pin<&mut Self>,
+            cx: &mut task::Context<'_>,
+        ) -> Poll<io::Result<()>> {
             Pin::new(&mut self.inner).poll_shutdown(cx)
         }
     }

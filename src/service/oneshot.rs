@@ -1,11 +1,11 @@
 // TODO: Eventually to be replaced with tower_util::Oneshot.
 
-use std::mem;
 use std::marker::Unpin;
+use std::mem;
 
 use tower_service::Service;
 
-use crate::common::{Future, Pin, Poll, task};
+use crate::common::{task, Future, Pin, Poll};
 
 pub(crate) fn oneshot<S, Req>(svc: S, req: Req) -> Oneshot<S, Req>
 where
@@ -35,7 +35,8 @@ impl<S, Req> Unpin for Oneshot<S, Req>
 where
     S: Service<Req>,
     S::Future: Unpin,
-{}
+{
+}
 
 impl<S, Req> Future for Oneshot<S, Req>
 where
@@ -52,17 +53,17 @@ where
                 State::NotReady(ref mut svc, _) => {
                     ready!(svc.poll_ready(cx))?;
                     // fallthrough out of the match's borrow
-                },
+                }
                 State::Called(ref mut fut) => {
                     return unsafe { Pin::new_unchecked(fut) }.poll(cx);
-                },
+                }
                 State::Tmp => unreachable!(),
             }
 
             match mem::replace(&mut me.state, State::Tmp) {
                 State::NotReady(mut svc, req) => {
                     me.state = State::Called(svc.call(req));
-                },
+                }
                 _ => unreachable!(),
             }
         }

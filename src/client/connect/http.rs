@@ -1,12 +1,12 @@
 use std::error::Error as StdError;
-use std::future::Future;
-use std::marker::PhantomData;
-use std::pin::Pin;
-use std::task::{self, Poll};
 use std::fmt;
+use std::future::Future;
 use std::io;
+use std::marker::PhantomData;
 use std::net::{IpAddr, SocketAddr};
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{self, Poll};
 use std::time::Duration;
 
 use futures_util::future::Either;
@@ -19,7 +19,6 @@ use tokio::time::Delay;
 use super::dns::{self, resolve, GaiResolver, Resolve};
 use super::{Connected, Connection};
 //#[cfg(feature = "runtime")] use super::dns::TokioThreadpoolGaiResolver;
-
 
 /// A connector for the `http` scheme.
 ///
@@ -256,10 +255,7 @@ impl<R> HttpConnector<R>
 where
     R: Resolve,
 {
-    async fn call_async(
-        &mut self,
-        dst: Uri,
-    ) -> Result<TcpStream, ConnectError> {
+    async fn call_async(&mut self, dst: Uri) -> Result<TcpStream, ConnectError> {
         trace!(
             "Http::connect; scheme={:?}, host={:?}, port={:?}",
             dst.scheme(),
@@ -292,7 +288,13 @@ where
         };
         let port = match dst.port() {
             Some(port) => port.as_u16(),
-            None => if dst.scheme() == Some(&Scheme::HTTPS) { 443 } else { 80 },
+            None => {
+                if dst.scheme() == Some(&Scheme::HTTPS) {
+                    443
+                } else {
+                    80
+                }
+            }
         };
 
         let config = &self.config;
@@ -348,9 +350,7 @@ impl Connection for TcpStream {
     fn connected(&self) -> Connected {
         let connected = Connected::new();
         if let Ok(remote_addr) = self.peer_addr() {
-            connected.extra(HttpInfo {
-                remote_addr,
-            })
+            connected.extra(HttpInfo { remote_addr })
         } else {
             connected
         }
@@ -388,7 +388,6 @@ impl<R: Resolve> Future for HttpConnecting<R> {
         self.project().fut.poll(cx)
     }
 }
-
 
 // Not publicly exported (so missing_docs doesn't trigger).
 pub struct ConnectError {
@@ -531,14 +530,7 @@ impl ConnectingTcpRemote {
         let mut err = None;
         for addr in &mut self.addrs {
             debug!("connecting to {}", addr);
-            match connect(
-                &addr,
-                local_addr,
-                reuse_address,
-                self.connect_timeout,
-            )?
-            .await
-            {
+            match connect(&addr, local_addr, reuse_address, self.connect_timeout)?.await {
                 Ok(tcp) => {
                     debug!("connected to {:?}", tcp.peer_addr().ok());
                     return Ok(tcp);
@@ -606,13 +598,9 @@ impl ConnectingTcp {
             ..
         } = self;
         match self.fallback {
-            None => {
-                self.preferred
-                    .connect(local_addr, reuse_address)
-                    .await
-            }
+            None => self.preferred.connect(local_addr, reuse_address).await,
             Some(mut fallback) => {
-                let preferred_fut = self.preferred.connect(local_addr,  reuse_address);
+                let preferred_fut = self.preferred.connect(local_addr, reuse_address);
                 futures_util::pin_mut!(preferred_fut);
 
                 let fallback_fut = fallback.remote.connect(local_addr, reuse_address);
@@ -652,10 +640,7 @@ mod tests {
     use super::super::sealed::Connect;
     use super::HttpConnector;
 
-    async fn connect<C>(
-        connector: C,
-        dst: Uri,
-    ) -> Result<C::Transport, C::Error>
+    async fn connect<C>(connector: C, dst: Uri) -> Result<C::Transport, C::Error>
     where
         C: Connect,
     {
@@ -794,7 +779,6 @@ mod tests {
             if needs_ipv6_access && !ipv6_accessible {
                 continue;
             }
-
 
             let (start, stream) = rt
                 .block_on(async move {

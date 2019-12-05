@@ -7,8 +7,8 @@ use std::io::{self, IoSlice};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::common::{Pin, Poll, Unpin, task};
 use super::{Http1Transaction, ParseContext, ParsedMessage};
+use crate::common::{task, Pin, Poll, Unpin};
 
 /// The initial buffer size allocated before trying to read from IO.
 pub(crate) const INIT_BUFFER_SIZE: usize = 8192;
@@ -140,34 +140,40 @@ where
         }
     }
 
-    pub(super) fn parse<S>(&mut self, cx: &mut task::Context<'_>, parse_ctx: ParseContext<'_>)
-        -> Poll<crate::Result<ParsedMessage<S::Incoming>>>
+    pub(super) fn parse<S>(
+        &mut self,
+        cx: &mut task::Context<'_>,
+        parse_ctx: ParseContext<'_>,
+    ) -> Poll<crate::Result<ParsedMessage<S::Incoming>>>
     where
         S: Http1Transaction,
     {
         loop {
-            match S::parse(&mut self.read_buf, ParseContext {
-                cached_headers: parse_ctx.cached_headers,
-                req_method: parse_ctx.req_method,
-            })? {
+            match S::parse(
+                &mut self.read_buf,
+                ParseContext {
+                    cached_headers: parse_ctx.cached_headers,
+                    req_method: parse_ctx.req_method,
+                },
+            )? {
                 Some(msg) => {
                     debug!("parsed {} headers", msg.head.headers.len());
                     return Poll::Ready(Ok(msg));
-                },
+                }
                 None => {
                     let max = self.read_buf_strategy.max();
                     if self.read_buf.len() >= max {
                         debug!("max_buf_size ({}) reached, closing", max);
                         return Poll::Ready(Err(crate::Error::new_too_large()));
                     }
-                },
+                }
             }
             match ready!(self.poll_read_from_io(cx)).map_err(crate::Error::new_io)? {
                 0 => {
                     trace!("parse eof");
                     return Poll::Ready(Err(crate::Error::new_incomplete()));
                 }
-                _ => {},
+                _ => {}
             }
         }
     }
@@ -180,10 +186,10 @@ where
         }
         match Pin::new(&mut self.io).poll_read_buf(cx, &mut self.read_buf) {
             Poll::Ready(Ok(n)) => {
-                    debug!("read {} bytes", n);
-                    self.read_buf_strategy.record(n);
-                    Poll::Ready(Ok(n))
-                },
+                debug!("read {} bytes", n);
+                self.read_buf_strategy.record(n);
+                Poll::Ready(Ok(n))
+            }
             Poll::Pending => {
                 self.read_blocked = true;
                 Poll::Pending
@@ -215,12 +221,16 @@ where
                 _ => (),
             }
             loop {
-                let n = ready!(Pin::new(&mut self.io).poll_write_buf(cx, &mut self.write_buf.auto()))?;
+                let n =
+                    ready!(Pin::new(&mut self.io).poll_write_buf(cx, &mut self.write_buf.auto()))?;
                 debug!("flushed {} bytes", n);
                 if self.write_buf.remaining() == 0 {
                     break;
                 } else if n == 0 {
-                    trace!("write returned zero, but {} bytes remaining", self.write_buf.remaining());
+                    trace!(
+                        "write returned zero, but {} bytes remaining",
+                        self.write_buf.remaining()
+                    );
                     return Poll::Ready(Err(io::ErrorKind::WriteZero.into()));
                 }
             }
@@ -241,7 +251,10 @@ where
                 self.write_buf.headers.reset();
                 break;
             } else if n == 0 {
-                trace!("write returned zero, but {} bytes remaining", self.write_buf.remaining());
+                trace!(
+                    "write returned zero, but {} bytes remaining",
+                    self.write_buf.remaining()
+                );
                 return Poll::Ready(Err(io::ErrorKind::WriteZero.into()));
             }
         }
@@ -283,7 +296,7 @@ enum ReadStrategy {
     Adaptive {
         decrease_now: bool,
         next: usize,
-        max: usize
+        max: usize,
     },
     Exact(usize),
 }
@@ -313,7 +326,12 @@ impl ReadStrategy {
 
     fn record(&mut self, bytes_read: usize) {
         match *self {
-            ReadStrategy::Adaptive { ref mut decrease_now, ref mut next, max, .. } => {
+            ReadStrategy::Adaptive {
+                ref mut decrease_now,
+                ref mut next,
+                max,
+                ..
+            } => {
                 if bytes_read >= *next {
                     *next = cmp::min(incr_power_of_two(*next), max);
                     *decrease_now = false;
@@ -334,7 +352,7 @@ impl ReadStrategy {
                         *decrease_now = false;
                     }
                 }
-            },
+            }
             _ => (),
         }
     }
@@ -428,7 +446,6 @@ impl<B> WriteBuf<B> {
     }
 }
 
-
 impl<B> WriteBuf<B>
 where
     B: Buf,
@@ -460,22 +477,19 @@ where
                     };
                     buf.advance(adv);
                 }
-            },
+            }
             WriteStrategy::Auto | WriteStrategy::Queue => {
                 self.queue.bufs.push_back(buf.into());
-            },
+            }
         }
     }
 
     fn can_buffer(&self) -> bool {
         match self.strategy {
-            WriteStrategy::Flatten => {
-                self.remaining() < self.max_buf_size
-            },
+            WriteStrategy::Flatten => self.remaining() < self.max_buf_size,
             WriteStrategy::Auto | WriteStrategy::Queue => {
-                self.queue.bufs.len() < MAX_BUF_LIST_BUFFERS
-                    && self.remaining() < self.max_buf_size
-            },
+                self.queue.bufs.len() < MAX_BUF_LIST_BUFFERS && self.remaining() < self.max_buf_size
+            }
         }
     }
 
@@ -587,7 +601,6 @@ impl<'a, B: Buf + 'a> Drop for WriteBufAuto<'a, B> {
     }
 }
 
-
 #[derive(Debug)]
 enum WriteStrategy {
     Auto,
@@ -598,7 +611,6 @@ enum WriteStrategy {
 struct BufDeque<T> {
     bufs: VecDeque<T>,
 }
-
 
 impl<T> BufDeque<T> {
     fn new() -> BufDeque<T> {
@@ -611,9 +623,7 @@ impl<T> BufDeque<T> {
 impl<T: Buf> Buf for BufDeque<T> {
     #[inline]
     fn remaining(&self) -> usize {
-        self.bufs.iter()
-            .map(|buf| buf.remaining())
-            .sum()
+        self.bufs.iter().map(|buf| buf.remaining()).sum()
     }
 
     #[inline]
@@ -683,9 +693,11 @@ mod tests {
         // First, let's just check that the Mock would normally return an
         // error on an unexpected write, even if the buffer is empty...
         let mut mock = Mock::new().build();
-        futures_util::future::poll_fn(|cx| Pin::new(&mut mock).poll_write_buf(cx, &mut Cursor::new(&[])))
-            .await
-            .expect_err("should be a broken pipe");
+        futures_util::future::poll_fn(|cx| {
+            Pin::new(&mut mock).poll_write_buf(cx, &mut Cursor::new(&[]))
+        })
+        .await
+        .expect_err("should be a broken pipe");
 
         // underlying io will return the logic error upon write,
         // so we are testing that the io_buf does not trigger a write
@@ -716,11 +728,17 @@ mod tests {
                 cached_headers: &mut None,
                 req_method: &mut None,
             };
-            assert!(buffered.parse::<ClientTransaction>(cx, parse_ctx).is_pending());
+            assert!(buffered
+                .parse::<ClientTransaction>(cx, parse_ctx)
+                .is_pending());
             Poll::Ready(())
-        }).await;
+        })
+        .await;
 
-        assert_eq!(buffered.read_buf, b"HTTP/1.1 200 OK\r\nServer: hyper\r\n"[..]);
+        assert_eq!(
+            buffered.read_buf,
+            b"HTTP/1.1 200 OK\r\nServer: hyper\r\n"[..]
+        );
     }
 
     #[test]
@@ -756,12 +774,20 @@ mod tests {
         assert_eq!(strategy.next(), 16384);
 
         strategy.record(1);
-        assert_eq!(strategy.next(), 16384, "first smaller record doesn't decrement yet");
+        assert_eq!(
+            strategy.next(),
+            16384,
+            "first smaller record doesn't decrement yet"
+        );
         strategy.record(8192);
         assert_eq!(strategy.next(), 16384, "record was with range");
 
         strategy.record(1);
-        assert_eq!(strategy.next(), 16384, "in-range record should make this the 'first' again");
+        assert_eq!(
+            strategy.next(),
+            16384,
+            "in-range record should make this the 'first' again"
+        );
 
         strategy.record(1);
         assert_eq!(strategy.next(), 8192, "second smaller record decrements");
@@ -779,10 +805,18 @@ mod tests {
         assert_eq!(strategy.next(), 16384);
 
         strategy.record(8193);
-        assert_eq!(strategy.next(), 16384, "first smaller record doesn't decrement yet");
+        assert_eq!(
+            strategy.next(),
+            16384,
+            "first smaller record doesn't decrement yet"
+        );
 
         strategy.record(8193);
-        assert_eq!(strategy.next(), 16384, "with current step does not decrement");
+        assert_eq!(
+            strategy.next(),
+            16384,
+            "with current step does not decrement"
+        );
     }
 
     #[test]

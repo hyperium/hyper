@@ -1,5 +1,5 @@
-pub(crate) use std::task::{Context, Poll};
 use super::Never;
+pub(crate) use std::task::{Context, Poll};
 
 /// A function to help "yield" a future, such that it is re-scheduled immediately.
 ///

@@ -3,7 +3,7 @@ use std::error::Error as StdError;
 use bytes::Buf;
 use http::HeaderMap;
 
-use crate::common::{Pin, Poll, task};
+use crate::common::{task, Pin, Poll};
 use http_body::{Body as HttpBody, SizeHint};
 
 /// This trait represents a streaming body of a `Request` or `Response`.
@@ -21,14 +21,20 @@ pub trait Payload: sealed::Sealed + Send + 'static {
     ///
     /// Similar to `Stream::poll_next`, this yields `Some(Data)` until
     /// the body ends, when it yields `None`.
-    fn poll_data(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Result<Self::Data, Self::Error>>>;
+    fn poll_data(
+        self: Pin<&mut Self>,
+        cx: &mut task::Context<'_>,
+    ) -> Poll<Option<Result<Self::Data, Self::Error>>>;
 
     /// Poll for an optional **single** `HeaderMap` of trailers.
     ///
     /// This should **only** be called after `poll_data` has ended.
     ///
     /// Note: Trailers aren't currently used for HTTP/1, only for HTTP/2.
-    fn poll_trailers(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Result<Option<HeaderMap>, Self::Error>> {
+    fn poll_trailers(
+        self: Pin<&mut Self>,
+        cx: &mut task::Context<'_>,
+    ) -> Poll<Result<Option<HeaderMap>, Self::Error>> {
         drop(cx);
         Poll::Ready(Ok(None))
     }
@@ -61,7 +67,6 @@ pub trait Payload: sealed::Sealed + Send + 'static {
     }
 }
 
-
 impl<T> Payload for T
 where
     T: HttpBody + Send + 'static,
@@ -71,11 +76,17 @@ where
     type Data = T::Data;
     type Error = T::Error;
 
-    fn poll_data(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Result<Self::Data, Self::Error>>> {
+    fn poll_data(
+        self: Pin<&mut Self>,
+        cx: &mut task::Context<'_>,
+    ) -> Poll<Option<Result<Self::Data, Self::Error>>> {
         HttpBody::poll_data(self, cx)
     }
 
-    fn poll_trailers(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Result<Option<HeaderMap>, Self::Error>> {
+    fn poll_trailers(
+        self: Pin<&mut Self>,
+        cx: &mut task::Context<'_>,
+    ) -> Poll<Result<Option<HeaderMap>, Self::Error>> {
         HttpBody::poll_trailers(self, cx)
     }
 
@@ -127,5 +138,3 @@ impl<E: Payload> Payload for Box<E> {
     }
 }
 */
-
-

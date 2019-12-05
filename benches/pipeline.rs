@@ -4,14 +4,14 @@
 extern crate test;
 
 use std::io::{Read, Write};
-use std::net::{TcpStream};
+use std::net::TcpStream;
 use std::sync::mpsc;
 use std::time::Duration;
 
 use tokio::sync::oneshot;
 
-use hyper::{Body, Response, Server};
 use hyper::service::{make_service_fn, service_fn};
+use hyper::{Body, Response, Server};
 
 const PIPELINED_REQUESTS: usize = 16;
 
@@ -25,10 +25,12 @@ fn hello_world(b: &mut test::Bencher) {
         std::thread::spawn(move || {
             let addr = "127.0.0.1:0".parse().unwrap();
 
-            let make_svc = make_service_fn(|_| async {
-                Ok::<_, hyper::Error>(service_fn(|_| async {
-                    Ok::<_, hyper::Error>(Response::new(Body::from("Hello, World!")))
-                }))
+            let make_svc = make_service_fn(|_| {
+                async {
+                    Ok::<_, hyper::Error>(service_fn(|_| {
+                        async { Ok::<_, hyper::Error>(Response::new(Body::from("Hello, World!"))) }
+                    }))
+                }
             });
 
             let mut rt = tokio::runtime::Builder::new()
@@ -44,10 +46,9 @@ fn hello_world(b: &mut test::Bencher) {
 
             addr_tx.send(srv.local_addr()).unwrap();
 
-            let graceful = srv
-                .with_graceful_shutdown(async {
-                    until_rx.await.ok();
-                });
+            let graceful = srv.with_graceful_shutdown(async {
+                until_rx.await.ok();
+            });
 
             rt.block_on(async {
                 if let Err(e) = graceful.await {
@@ -66,7 +67,8 @@ fn hello_world(b: &mut test::Bencher) {
 
     let total_bytes = {
         let mut tcp = TcpStream::connect(addr).unwrap();
-        tcp.write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n").unwrap();
+        tcp.write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+            .unwrap();
         let mut buf = Vec::new();
         tcp.read_to_end(&mut buf).unwrap()
     } * PIPELINED_REQUESTS;
@@ -85,4 +87,3 @@ fn hello_world(b: &mut test::Bencher) {
         assert_eq!(sum, total_bytes);
     });
 }
-

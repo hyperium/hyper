@@ -24,8 +24,7 @@ pub(crate) fn update_and_header_value() -> HeaderValue {
     CACHED.with(|cache| {
         let mut cache = cache.borrow_mut();
         cache.check();
-        HeaderValue::from_bytes(cache.buffer())
-            .expect("Date format should be valid HeaderValue")
+        HeaderValue::from_bytes(cache.buffer()).expect("Date format should be valid HeaderValue")
     })
 }
 

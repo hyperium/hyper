@@ -1,7 +1,7 @@
 use bytes::BytesMut;
-use http::HeaderMap;
-use http::header::{CONTENT_LENGTH, TRANSFER_ENCODING};
 use http::header::{HeaderValue, OccupiedEntry, ValueIter};
+use http::header::{CONTENT_LENGTH, TRANSFER_ENCODING};
+use http::HeaderMap;
 
 pub fn connection_keep_alive(value: &HeaderValue) -> bool {
     connection_has(value, "keep-alive")
@@ -23,10 +23,7 @@ fn connection_has(value: &HeaderValue, needle: &str) -> bool {
 }
 
 pub fn content_length_parse(value: &HeaderValue) -> Option<u64> {
-    value
-        .to_str()
-        .ok()
-        .and_then(|s| s.parse().ok())
+    value.to_str().ok().and_then(|s| s.parse().ok())
 }
 
 pub fn content_length_parse_all(headers: &HeaderMap) -> Option<u64> {
@@ -38,23 +35,20 @@ pub fn content_length_parse_all_values(values: ValueIter<'_, HeaderValue>) -> Op
     // be alright if they all contain the same value, and all parse
     // correctly. If not, then it's an error.
 
-    let folded = values
-        .fold(None, |prev, line| match prev {
-            Some(Ok(prev)) => {
-                Some(line
-                    .to_str()
-                    .map_err(|_| ())
-                    .and_then(|s| s.parse().map_err(|_| ()))
-                    .and_then(|n| if prev == n { Ok(n) } else { Err(()) }))
-            },
-            None => {
-                Some(line
-                    .to_str()
-                    .map_err(|_| ())
-                    .and_then(|s| s.parse().map_err(|_| ())))
-            },
-            Some(Err(())) => Some(Err(())),
-        });
+    let folded = values.fold(None, |prev, line| match prev {
+        Some(Ok(prev)) => Some(
+            line.to_str()
+                .map_err(|_| ())
+                .and_then(|s| s.parse().map_err(|_| ()))
+                .and_then(|n| if prev == n { Ok(n) } else { Err(()) }),
+        ),
+        None => Some(
+            line.to_str()
+                .map_err(|_| ())
+                .and_then(|s| s.parse().map_err(|_| ())),
+        ),
+        Some(Err(())) => Some(Err(())),
+    });
 
     if let Some(Ok(n)) = folded {
         Some(n)

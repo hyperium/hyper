@@ -1,8 +1,8 @@
 use std::fmt;
 use std::io::IoSlice;
 
-use bytes::Buf;
 use bytes::buf::ext::{BufExt, Chain, Take};
+use bytes::Buf;
 
 use super::io::WriteBuf;
 
@@ -68,7 +68,7 @@ impl Encoder {
     pub fn is_eof(&self) -> bool {
         match self.kind {
             Kind::Length(0) => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -105,7 +105,7 @@ impl Encoder {
                     .chain(msg)
                     .chain(b"\r\n" as &'static [u8]);
                 BufKind::Chunked(buf)
-            },
+            }
             Kind::Length(ref mut remaining) => {
                 trace!("sized write, len = {}", len);
                 if len as u64 > *remaining {
@@ -116,15 +116,13 @@ impl Encoder {
                     *remaining -= len as u64;
                     BufKind::Exact(msg)
                 }
-            },
+            }
             Kind::CloseDelimited => {
                 trace!("close delimited write {}B", len);
                 BufKind::Exact(msg)
             }
         };
-        EncodedBuf {
-            kind,
-        }
+        EncodedBuf { kind }
     }
 
     pub(super) fn encode_and_end<B>(&self, msg: B, dst: &mut WriteBuf<EncodedBuf<B>>) -> bool
@@ -142,7 +140,7 @@ impl Encoder {
                     .chain(b"\r\n0\r\n\r\n" as &'static [u8]);
                 dst.buffer(buf);
                 !self.is_last
-            },
+            }
             Kind::Length(remaining) => {
                 use std::cmp::Ordering;
 
@@ -151,17 +149,17 @@ impl Encoder {
                     Ordering::Equal => {
                         dst.buffer(msg);
                         !self.is_last
-                    },
+                    }
                     Ordering::Greater => {
                         dst.buffer(msg.take(remaining as usize));
                         !self.is_last
-                    },
+                    }
                     Ordering::Less => {
                         dst.buffer(msg);
                         false
                     }
                 }
-            },
+            }
             Kind::CloseDelimited => {
                 trace!("close delimited write {}B", len);
                 dst.buffer(msg);
@@ -180,10 +178,13 @@ impl Encoder {
         B: Buf,
     {
         debug_assert!(msg.remaining() > 0, "encode() called with empty buf");
-        debug_assert!(match self.kind {
-            Kind::Length(len) => len == msg.remaining() as u64,
-            _ => true,
-        }, "danger_full_buf length mismatches");
+        debug_assert!(
+            match self.kind {
+                Kind::Length(len) => len == msg.remaining() as u64,
+                _ => true,
+            },
+            "danger_full_buf length mismatches"
+        );
 
         match self.kind {
             Kind::Chunked => {
@@ -193,10 +194,10 @@ impl Encoder {
                     .chain(msg)
                     .chain(b"\r\n0\r\n\r\n" as &'static [u8]);
                 dst.buffer(buf);
-            },
+            }
             _ => {
                 dst.buffer(msg);
-            },
+            }
         }
     }
 }
@@ -246,7 +247,6 @@ where
     }
 }
 
-
 #[cfg(target_pointer_width = "32")]
 const USIZE_BYTES: usize = 4;
 
@@ -271,8 +271,7 @@ impl ChunkSize {
             pos: 0,
             len: 0,
         };
-        write!(&mut size, "{:X}\r\n", len)
-            .expect("CHUNK_SIZE_MAX_BYTES should fit any usize");
+        write!(&mut size, "{:X}\r\n", len).expect("CHUNK_SIZE_MAX_BYTES should fit any usize");
         size
     }
 }
@@ -285,7 +284,7 @@ impl Buf for ChunkSize {
 
     #[inline]
     fn bytes(&self) -> &[u8] {
-        &self.bytes[self.pos.into() .. self.len.into()]
+        &self.bytes[self.pos.into()..self.len.into()]
     }
 
     #[inline]
@@ -307,7 +306,8 @@ impl fmt::Debug for ChunkSize {
 impl fmt::Write for ChunkSize {
     fn write_str(&mut self, num: &str) -> fmt::Result {
         use std::io::Write;
-        (&mut self.bytes[self.len.into()..]).write(num.as_bytes())
+        (&mut self.bytes[self.len.into()..])
+            .write(num.as_bytes())
             .expect("&mut [u8].write() cannot error");
         self.len += num.len() as u8; // safe because bytes is never bigger than 256
         Ok(())
@@ -340,7 +340,7 @@ impl<B: Buf> From<Chain<Chain<ChunkSize, B>, StaticBuf>> for EncodedBuf<B> {
 
 #[cfg(test)]
 mod tests {
-    use bytes::{BufMut};
+    use bytes::BufMut;
 
     use super::super::io::Cursor;
     use super::Encoder;
@@ -364,7 +364,10 @@ mod tests {
         let end = encoder.end::<Cursor<Vec<u8>>>().unwrap().unwrap();
         dst.put(end);
 
-        assert_eq!(dst, b"7\r\nfoo bar\r\nD\r\nbaz quux herp\r\n0\r\n\r\n".as_ref());
+        assert_eq!(
+            dst,
+            b"7\r\nfoo bar\r\nD\r\nbaz quux herp\r\n0\r\n\r\n".as_ref()
+        );
     }
 
     #[test]
@@ -373,11 +376,9 @@ mod tests {
         let mut encoder = Encoder::length(max_len as u64);
         let mut dst = Vec::new();
 
-
         let msg1 = b"foo bar".as_ref();
         let buf1 = encoder.encode(msg1);
         dst.put(buf1);
-
 
         assert_eq!(dst, b"foo bar");
         assert!(!encoder.is_eof());
@@ -398,11 +399,9 @@ mod tests {
         let mut encoder = Encoder::close_delimited();
         let mut dst = Vec::new();
 
-
         let msg1 = b"foo bar".as_ref();
         let buf1 = encoder.encode(msg1);
         dst.put(buf1);
-
 
         assert_eq!(dst, b"foo bar");
         assert!(!encoder.is_eof());

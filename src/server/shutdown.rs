@@ -1,15 +1,15 @@
 use std::error::Error as StdError;
 
-use tokio::io::{AsyncRead, AsyncWrite};
 use pin_project::{pin_project, project};
+use tokio::io::{AsyncRead, AsyncWrite};
 
+use super::conn::{SpawnAll, UpgradeableConnection, Watcher};
+use super::Accept;
 use crate::body::{Body, Payload};
 use crate::common::drain::{self, Draining, Signal, Watch, Watching};
 use crate::common::exec::{H2Exec, NewSvcExec};
-use crate::common::{Future, Pin, Poll, Unpin, task};
-use crate::service::{MakeServiceRef, HttpService};
-use super::Accept;
-use super::conn::{SpawnAll, UpgradeableConnection, Watcher};
+use crate::common::{task, Future, Pin, Poll, Unpin};
+use crate::service::{HttpService, MakeServiceRef};
 
 #[allow(missing_debug_implementations)]
 #[pin_project]
@@ -43,17 +43,16 @@ impl<I, S, F, E> Graceful<I, S, F, E> {
     }
 }
 
-
 impl<I, IO, IE, S, B, F, E> Future for Graceful<I, S, F, E>
 where
-    I: Accept<Conn=IO, Error=IE>,
+    I: Accept<Conn = IO, Error = IE>,
     IE: Into<Box<dyn StdError + Send + Sync>>,
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    S: MakeServiceRef<IO, Body, ResBody=B>,
+    S: MakeServiceRef<IO, Body, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
     B::Data: Unpin,
-    F: Future<Output=()>,
+    F: Future<Output = ()>,
     E: H2Exec<<S::Service as HttpService<Body>>::Future, B>,
     E: NewSvcExec<IO, S::Future, S::Service, E, GracefulWatcher>,
 {
@@ -73,20 +72,13 @@ where
                     } => match signal.poll(cx) {
                         Poll::Ready(()) => {
                             debug!("signal received, starting graceful shutdown");
-                            let sig = drain
-                                .take()
-                                .expect("drain channel")
-                                .0;
+                            let sig = drain.take().expect("drain channel").0;
                             State::Draining(sig.drain())
-                        },
+                        }
                         Poll::Pending => {
-                            let watch = drain
-                                .as_ref()
-                                .expect("drain channel")
-                                .1
-                                .clone();
+                            let watch = drain.as_ref().expect("drain channel").1.clone();
                             return spawn_all.poll_watch(cx, &GracefulWatcher(watch));
-                        },
+                        }
                     },
                     State::Draining(ref mut draining) => {
                         return Pin::new(draining).poll(cx).map(Ok);
@@ -109,13 +101,11 @@ where
     <S::ResBody as Payload>::Data: Unpin,
     E: H2Exec<S::Future, S::ResBody>,
 {
-    type Future = Watching<UpgradeableConnection<I, S, E>, fn(Pin<&mut UpgradeableConnection<I, S, E>>)>;
+    type Future =
+        Watching<UpgradeableConnection<I, S, E>, fn(Pin<&mut UpgradeableConnection<I, S, E>>)>;
 
     fn watch(&self, conn: UpgradeableConnection<I, S, E>) -> Self::Future {
-        self
-            .0
-            .clone()
-            .watch(conn, on_drain)
+        self.0.clone().watch(conn, on_drain)
     }
 }
 
@@ -130,4 +120,3 @@ where
 {
     conn.graceful_shutdown()
 }
-

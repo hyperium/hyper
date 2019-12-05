@@ -3,8 +3,8 @@
 use std::task::{Context, Poll};
 
 use futures_util::future;
-use hyper::{Body, Request, Response, Server};
 use hyper::service::Service;
+use hyper::{Body, Request, Response, Server};
 
 const ROOT: &'static str = "/";
 
@@ -58,9 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let addr = "127.0.0.1:1337".parse().unwrap();
 
-
-    let server = Server::bind(&addr)
-        .serve(MakeSvc);
+    let server = Server::bind(&addr).serve(MakeSvc);
 
     println!("Listening on http://{}", addr);
 

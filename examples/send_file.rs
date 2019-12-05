@@ -1,10 +1,10 @@
 #![deny(warnings)]
 
-use tokio::io::AsyncReadExt;
 use tokio::fs::File;
+use tokio::io::AsyncReadExt;
 
-use hyper::{Body, Method, Result, Request, Response, Server, StatusCode};
 use hyper::service::{make_service_fn, service_fn};
+use hyper::{Body, Method, Request, Response, Result, Server, StatusCode};
 
 static INDEX: &str = "examples/send_file_index.html";
 static INTERNAL_SERVER_ERROR: &[u8] = b"Internal Server Error";
@@ -16,12 +16,10 @@ async fn main() {
 
     let addr = "127.0.0.1:1337".parse().unwrap();
 
-    let make_service = make_service_fn(|_| async {
-        Ok::<_, hyper::Error>(service_fn(response_examples))
-    });
+    let make_service =
+        make_service_fn(|_| async { Ok::<_, hyper::Error>(service_fn(response_examples)) });
 
-    let server = Server::bind(&addr)
-        .serve(make_service);
+    let server = Server::bind(&addr).serve(make_service);
 
     println!("Listening on http://{}", addr);
 
@@ -32,16 +30,14 @@ async fn main() {
 
 async fn response_examples(req: Request<Body>) -> Result<Response<Body>> {
     match (req.method(), req.uri().path()) {
-        (&Method::GET, "/") |
-        (&Method::GET, "/index.html") |
-        (&Method::GET, "/big_file.html") => {
+        (&Method::GET, "/") | (&Method::GET, "/index.html") | (&Method::GET, "/big_file.html") => {
             simple_file_send(INDEX).await
         }
         (&Method::GET, "/no_file.html") => {
             // Test what happens when file cannot be be found
             simple_file_send("this_file_should_not_exist.html").await
         }
-        _ => Ok(not_found())
+        _ => Ok(not_found()),
     }
 }
 

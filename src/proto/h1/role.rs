@@ -5,38 +5,42 @@
 use std::fmt::{self, Write};
 use std::mem;
 
-use bytes::{BytesMut};
+use bytes::BytesMut;
 use http::header::{self, Entry, HeaderName, HeaderValue};
 use http::{HeaderMap, Method, StatusCode, Version};
 
 use crate::error::Parse;
 use crate::headers;
-use crate::proto::{BodyLength, DecodedLength, MessageHead, RequestLine, RequestHead};
-use crate::proto::h1::{Encode, Encoder, Http1Transaction, ParseResult, ParseContext, ParsedMessage, date};
+use crate::proto::h1::{
+    date, Encode, Encoder, Http1Transaction, ParseContext, ParseResult, ParsedMessage,
+};
+use crate::proto::{BodyLength, DecodedLength, MessageHead, RequestHead, RequestLine};
 
 const MAX_HEADERS: usize = 100;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
 
 macro_rules! header_name {
-    ($bytes:expr) => ({
+    ($bytes:expr) => {{
         #[cfg(debug_assertions)]
         {
             match HeaderName::from_bytes($bytes) {
                 Ok(name) => name,
-                Err(_) => panic!("illegal header name from httparse: {:?}", ::bytes::Bytes::copy_from_slice($bytes)),
+                Err(_) => panic!(
+                    "illegal header name from httparse: {:?}",
+                    ::bytes::Bytes::copy_from_slice($bytes)
+                ),
             }
         }
 
         #[cfg(not(debug_assertions))]
         {
-            HeaderName::from_bytes($bytes)
-                .expect("header name validated by httparse")
+            HeaderName::from_bytes($bytes).expect("header name validated by httparse")
         }
-    });
+    }};
 }
 
 macro_rules! header_value {
-    ($bytes:expr) => ({
+    ($bytes:expr) => {{
         #[cfg(debug_assertions)]
         {
             let __hvb: ::bytes::Bytes = $bytes;
@@ -49,11 +53,9 @@ macro_rules! header_value {
         #[cfg(not(debug_assertions))]
         {
             // Unsafe: httparse already validated header value
-            unsafe {
-                HeaderValue::from_maybe_shared_unchecked($bytes)
-            }
+            unsafe { HeaderValue::from_maybe_shared_unchecked($bytes) }
         }
-    });
+    }};
 }
 
 // There are 2 main roles, Client and Server.
@@ -86,7 +88,11 @@ impl Http1Transaction for Server {
         let mut headers_indices: [HeaderIndices; MAX_HEADERS] = unsafe { mem::uninitialized() };
         {
             let mut headers: [httparse::Header<'_>; MAX_HEADERS] = unsafe { mem::uninitialized() };
-            trace!("Request.parse([Header; {}], [u8; {}])", headers.len(), buf.len());
+            trace!(
+                "Request.parse([Header; {}], [u8; {}])",
+                headers.len(),
+                buf.len()
+            );
             let mut req = httparse::Request::new(&mut headers);
             let bytes = buf.as_ref();
             match req.parse(bytes) {
@@ -95,7 +101,7 @@ impl Http1Transaction for Server {
                     len = parsed_len;
                     subject = RequestLine(
                         Method::from_bytes(req.method.unwrap().as_bytes())?,
-                        req.path.unwrap().parse()?
+                        req.path.unwrap().parse()?,
                     );
                     version = if req.version.unwrap() == 1 {
                         keep_alive = true;
@@ -111,18 +117,20 @@ impl Http1Transaction for Server {
                     headers_len = req.headers.len();
                 }
                 Ok(httparse::Status::Partial) => return Ok(None),
-                Err(err) => return Err(match err {
-                    // if invalid Token, try to determine if for method or path
-                    httparse::Error::Token => {
-                        if req.method.is_none() {
-                            Parse::Method
-                        } else {
-                            debug_assert!(req.path.is_none());
-                            Parse::Uri
+                Err(err) => {
+                    return Err(match err {
+                        // if invalid Token, try to determine if for method or path
+                        httparse::Error::Token => {
+                            if req.method.is_none() {
+                                Parse::Method
+                            } else {
+                                debug_assert!(req.path.is_none());
+                                Parse::Uri
+                            }
                         }
-                    },
-                    other => other.into(),
-                }),
+                        other => other.into(),
+                    });
+                }
             }
         };
 
@@ -137,7 +145,6 @@ impl Http1Transaction for Server {
         // 6. Length 0.
         // 7. (irrelevant to Request)
 
-
         let mut decoder = DecodedLength::ZERO;
         let mut expect_continue = false;
         let mut con_len = None;
@@ -145,9 +152,7 @@ impl Http1Transaction for Server {
         let mut is_te_chunked = false;
         let mut wants_upgrade = subject.0 == Method::CONNECT;
 
-        let mut headers = ctx.cached_headers
-            .take()
-            .unwrap_or_else(HeaderMap::new);
+        let mut headers = ctx.cached_headers.take().unwrap_or_else(HeaderMap::new);
 
         headers.reserve(headers_len);
 
@@ -170,20 +175,20 @@ impl Http1Transaction for Server {
                         is_te_chunked = true;
                         decoder = DecodedLength::CHUNKED;
                     }
-                },
+                }
                 header::CONTENT_LENGTH => {
                     if is_te {
                         continue;
                     }
-                    let len = value.to_str()
+                    let len = value
+                        .to_str()
                         .map_err(|_| Parse::Header)
                         .and_then(|s| s.parse().map_err(|_| Parse::Header))?;
                     if let Some(prev) = con_len {
                         if prev != len {
                             debug!(
                                 "multiple Content-Length headers with different values: [{}, {}]",
-                                prev,
-                                len,
+                                prev, len,
                             );
                             return Err(Parse::Header);
                         }
@@ -192,25 +197,24 @@ impl Http1Transaction for Server {
                     }
                     decoder = DecodedLength::checked_new(len)?;
                     con_len = Some(len);
-                },
+                }
                 header::CONNECTION => {
                     // keep_alive was previously set to default for Version
                     if keep_alive {
                         // HTTP/1.1
                         keep_alive = !headers::connection_close(&value);
-
                     } else {
                         // HTTP/1.0
                         keep_alive = headers::connection_keep_alive(&value);
                     }
-                },
+                }
                 header::EXPECT => {
                     expect_continue = value.as_bytes() == b"100-continue";
-                },
+                }
                 header::UPGRADE => {
                     // Upgrades are only allowed with HTTP/1.1
                     wants_upgrade = is_http_11;
-                },
+                }
 
                 _ => (),
             }
@@ -238,14 +242,20 @@ impl Http1Transaction for Server {
         }))
     }
 
-    fn encode(mut msg: Encode<'_, Self::Outgoing>, mut dst: &mut Vec<u8>) -> crate::Result<Encoder> {
+    fn encode(
+        mut msg: Encode<'_, Self::Outgoing>,
+        mut dst: &mut Vec<u8>,
+    ) -> crate::Result<Encoder> {
         trace!(
             "Server::encode status={:?}, body={:?}, req_method={:?}",
             msg.head.subject,
             msg.body,
             msg.req_method
         );
-        debug_assert!(!msg.title_case_headers, "no server config for title case headers");
+        debug_assert!(
+            !msg.title_case_headers,
+            "no server config for title case headers"
+        );
 
         let mut wrote_len = false;
 
@@ -289,14 +299,21 @@ impl Http1Transaction for Server {
                 Version::HTTP_2 => {
                     warn!("response with HTTP2 version coerced to HTTP/1.1");
                     extend(dst, b"HTTP/1.1 ");
-                },
+                }
                 other => panic!("unexpected response version: {:?}", other),
             }
 
             extend(dst, msg.head.subject.as_str().as_bytes());
             extend(dst, b" ");
             // a reason MUST be written, as many parsers will expect it.
-            extend(dst, msg.head.subject.canonical_reason().unwrap_or("<none>").as_bytes());
+            extend(
+                dst,
+                msg.head
+                    .subject
+                    .canonical_reason()
+                    .unwrap_or("<none>")
+                    .as_bytes(),
+            );
             extend(dst, b"\r\n");
         }
 
@@ -308,11 +325,11 @@ impl Http1Transaction for Server {
         let mut prev_con_len = None;
 
         macro_rules! handle_is_name_written {
-            () => ({
+            () => {{
                 if is_name_written {
                     // we need to clean up and write the newline
                     debug_assert_ne!(
-                        &dst[dst.len() - 2 ..],
+                        &dst[dst.len() - 2..],
                         b"\r\n",
                         "previous header wrote newline but set is_name_written"
                     );
@@ -323,7 +340,7 @@ impl Http1Transaction for Server {
                         extend(dst, b"\r\n");
                     }
                 }
-            })
+            }};
         }
 
         'headers: for (opt_name, value) in msg.head.headers.drain() {
@@ -369,7 +386,7 @@ impl Http1Transaction for Server {
                                 is_name_written = true;
                             }
                             continue 'headers;
-                        },
+                        }
                         Some(BodyLength::Unknown) => {
                             // The Payload impl didn't know how long the
                             // body is, but a length header was included.
@@ -379,7 +396,10 @@ impl Http1Transaction for Server {
                             if let Some(len) = headers::content_length_parse(&value) {
                                 if let Some(prev) = prev_con_len {
                                     if prev != len {
-                                        warn!("multiple Content-Length values found: [{}, {}]", prev, len);
+                                        warn!(
+                                            "multiple Content-Length values found: [{}, {}]",
+                                            prev, len
+                                        );
                                         rewind(dst);
                                         return Err(crate::Error::new_user_header());
                                     }
@@ -400,7 +420,7 @@ impl Http1Transaction for Server {
                                 rewind(dst);
                                 return Err(crate::Error::new_user_header());
                             }
-                        },
+                        }
                         None => {
                             // We have no body to actually send,
                             // but the headers claim a content-length.
@@ -412,14 +432,17 @@ impl Http1Transaction for Server {
                                 debug_assert_eq!(encoder, Encoder::length(0));
                             } else {
                                 if value.as_bytes() != b"0" {
-                                    warn!("content-length value found, but empty body provided: {:?}", value);
+                                    warn!(
+                                        "content-length value found, but empty body provided: {:?}",
+                                        value
+                                    );
                                 }
                                 continue 'headers;
                             }
                         }
                     }
                     wrote_len = true;
-                },
+                }
                 header::TRANSFER_ENCODING => {
                     if wrote_len && !is_name_written {
                         warn!("unexpected transfer-encoding found, canceling");
@@ -427,7 +450,9 @@ impl Http1Transaction for Server {
                         return Err(crate::Error::new_user_header());
                     }
                     // check that we actually can send a chunked body...
-                    if msg.head.version == Version::HTTP_10 || !Server::can_chunked(msg.req_method, msg.head.subject) {
+                    if msg.head.version == Version::HTTP_10
+                        || !Server::can_chunked(msg.req_method, msg.head.subject)
+                    {
                         continue;
                     }
                     wrote_len = true;
@@ -445,7 +470,7 @@ impl Http1Transaction for Server {
                         extend(dst, value.as_bytes());
                     }
                     continue 'headers;
-                },
+                }
                 header::CONNECTION => {
                     if !is_last {
                         if headers::connection_close(&value) {
@@ -461,10 +486,10 @@ impl Http1Transaction for Server {
                         extend(dst, value.as_bytes());
                     }
                     continue 'headers;
-                },
+                }
                 header::DATE => {
                     wrote_date = true;
-                },
+                }
                 _ => (),
             }
             //TODO: this should perhaps instead combine them into
@@ -487,20 +512,21 @@ impl Http1Transaction for Server {
         if !wrote_len {
             encoder = match msg.body {
                 Some(BodyLength::Unknown) => {
-                    if msg.head.version == Version::HTTP_10 || !Server::can_chunked(msg.req_method, msg.head.subject) {
+                    if msg.head.version == Version::HTTP_10
+                        || !Server::can_chunked(msg.req_method, msg.head.subject)
+                    {
                         Encoder::close_delimited()
                     } else {
                         extend(dst, b"transfer-encoding: chunked\r\n");
                         Encoder::chunked()
                     }
-                },
-                None |
-                Some(BodyLength::Known(0)) => {
+                }
+                None | Some(BodyLength::Known(0)) => {
                     if msg.head.subject != StatusCode::NOT_MODIFIED {
                         extend(dst, b"content-length: 0\r\n");
                     }
                     Encoder::length(0)
-                },
+                }
                 Some(BodyLength::Known(len)) => {
                     if msg.head.subject == StatusCode::NOT_MODIFIED {
                         Encoder::length(0)
@@ -510,7 +536,7 @@ impl Http1Transaction for Server {
                         extend(dst, b"\r\n");
                         Encoder::length(len)
                     }
-                },
+                }
             };
         }
 
@@ -539,15 +565,11 @@ impl Http1Transaction for Server {
     fn on_error(err: &crate::Error) -> Option<MessageHead<Self::Outgoing>> {
         use crate::error::Kind;
         let status = match *err.kind() {
-            Kind::Parse(Parse::Method) |
-            Kind::Parse(Parse::Header) |
-            Kind::Parse(Parse::Uri)    |
-            Kind::Parse(Parse::Version) => {
-                StatusCode::BAD_REQUEST
-            },
-            Kind::Parse(Parse::TooLarge) => {
-                StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE
-            },
+            Kind::Parse(Parse::Method)
+            | Kind::Parse(Parse::Header)
+            | Kind::Parse(Parse::Uri)
+            | Kind::Parse(Parse::Version) => StatusCode::BAD_REQUEST,
+            Kind::Parse(Parse::TooLarge) => StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
             _ => return None,
         };
 
@@ -580,9 +602,9 @@ impl Server {
             match status {
                 // TODO: support for 1xx codes needs improvement everywhere
                 // would be 100...199 => false
-                StatusCode::SWITCHING_PROTOCOLS |
-                StatusCode::NO_CONTENT |
-                StatusCode::NOT_MODIFIED => false,
+                StatusCode::SWITCHING_PROTOCOLS
+                | StatusCode::NO_CONTENT
+                | StatusCode::NOT_MODIFIED => false,
                 _ => true,
             }
         }
@@ -603,8 +625,13 @@ impl Http1Transaction for Client {
             // Unsafe: see comment in Server Http1Transaction, above.
             let mut headers_indices: [HeaderIndices; MAX_HEADERS] = unsafe { mem::uninitialized() };
             let (len, status, version, headers_len) = {
-                let mut headers: [httparse::Header<'_>; MAX_HEADERS] = unsafe { mem::uninitialized() };
-                trace!("Response.parse([Header; {}], [u8; {}])", headers.len(), buf.len());
+                let mut headers: [httparse::Header<'_>; MAX_HEADERS] =
+                    unsafe { mem::uninitialized() };
+                trace!(
+                    "Response.parse([Header; {}], [u8; {}])",
+                    headers.len(),
+                    buf.len()
+                );
                 let mut res = httparse::Response::new(&mut headers);
                 let bytes = buf.as_ref();
                 match res.parse(bytes)? {
@@ -619,16 +646,14 @@ impl Http1Transaction for Client {
                         record_header_indices(bytes, &res.headers, &mut headers_indices)?;
                         let headers_len = res.headers.len();
                         (len, status, version, headers_len)
-                    },
+                    }
                     httparse::Status::Partial => return Ok(None),
                 }
             };
 
             let slice = buf.split_to(len).freeze();
 
-            let mut headers = ctx.cached_headers
-                .take()
-                .unwrap_or_else(HeaderMap::new);
+            let mut headers = ctx.cached_headers.take().unwrap_or_else(HeaderMap::new);
 
             let mut keep_alive = version == Version::HTTP_11;
 
@@ -639,15 +664,14 @@ impl Http1Transaction for Client {
 
                 if let header::CONNECTION = name {
                     // keep_alive was previously set to default for Version
-                        if keep_alive {
-                            // HTTP/1.1
-                            keep_alive = !headers::connection_close(&value);
-
-                        } else {
-                            // HTTP/1.0
-                            keep_alive = headers::connection_keep_alive(&value);
-                        }
+                    if keep_alive {
+                        // HTTP/1.1
+                        keep_alive = !headers::connection_close(&value);
+                    } else {
+                        // HTTP/1.0
+                        keep_alive = headers::connection_keep_alive(&value);
                     }
+                }
                 headers.append(name, value);
             }
 
@@ -667,12 +691,15 @@ impl Http1Transaction for Client {
                     wants_upgrade: is_upgrade,
                 }));
             }
-
         }
     }
 
     fn encode(msg: Encode<'_, Self::Outgoing>, dst: &mut Vec<u8>) -> crate::Result<Encoder> {
-        trace!("Client::encode method={:?}, body={:?}", msg.head.subject.0, msg.body);
+        trace!(
+            "Client::encode method={:?}, body={:?}",
+            msg.head.subject.0,
+            msg.body
+        );
 
         *msg.req_method = Some(msg.head.subject.0.clone());
 
@@ -680,7 +707,6 @@ impl Http1Transaction for Client {
 
         let init_cap = 30 + msg.head.headers.len() * AVERAGE_HEADER_SIZE;
         dst.reserve(init_cap);
-
 
         extend(dst, msg.head.subject.0.as_str().as_bytes());
         extend(dst, b" ");
@@ -693,7 +719,7 @@ impl Http1Transaction for Client {
             Version::HTTP_2 => {
                 warn!("request with HTTP2 version coerced to HTTP/1.1");
                 extend(dst, b"HTTP/1.1");
-            },
+            }
             other => panic!("unexpected request version: {:?}", other),
         }
         extend(dst, b"\r\n");
@@ -723,7 +749,10 @@ impl Client {
     /// Returns Some(length, wants_upgrade) if successful.
     ///
     /// Returns None if this message head should be skipped (like a 100 status).
-    fn decoder(inc: &MessageHead<StatusCode>, method: &mut Option<Method>) -> Result<Option<(DecodedLength, bool)>, Parse> {
+    fn decoder(
+        inc: &MessageHead<StatusCode>,
+        method: &mut Option<Method>,
+    ) -> Result<Option<(DecodedLength, bool)>, Parse> {
         // According to https://tools.ietf.org/html/rfc7230#section-3.3.3
         // 1. HEAD responses, and Status 1xx, 204, and 304 cannot have a body.
         // 2. Status 2xx to a CONNECT cannot have a body.
@@ -736,23 +765,24 @@ impl Client {
         match inc.subject.as_u16() {
             101 => {
                 return Ok(Some((DecodedLength::ZERO, true)));
-            },
+            }
             100..=199 => {
                 trace!("ignoring informational response: {}", inc.subject.as_u16());
                 return Ok(None);
-            },
-            204 |
-            304 => return Ok(Some((DecodedLength::ZERO, false))),
+            }
+            204 | 304 => return Ok(Some((DecodedLength::ZERO, false))),
             _ => (),
         }
         match *method {
             Some(Method::HEAD) => {
                 return Ok(Some((DecodedLength::ZERO, false)));
             }
-            Some(Method::CONNECT) => if let 200..=299 = inc.subject.as_u16() {
-                return Ok(Some((DecodedLength::ZERO, true)));
+            Some(Method::CONNECT) => {
+                if let 200..=299 = inc.subject.as_u16() {
+                    return Ok(Some((DecodedLength::ZERO, true)));
+                }
             }
-            Some(_) => {},
+            Some(_) => {}
             None => {
                 trace!("Client::decoder is missing the Method");
             }
@@ -790,7 +820,7 @@ impl Client {
             body
         } else {
             head.headers.remove(header::TRANSFER_ENCODING);
-            return Encoder::length(0)
+            return Encoder::length(0);
         };
 
         // HTTP/1.0 doesn't know about chunked
@@ -853,7 +883,7 @@ impl Client {
                     headers::add_chunked(te);
                     Some(Encoder::chunked())
                 }
-            },
+            }
             Entry::Vacant(te) => {
                 if let Some(len) = existing_con_len {
                     Some(Encoder::length(len))
@@ -864,20 +894,16 @@ impl Client {
                     // assume no body here. If you *must* send a body,
                     // set the headers explicitly.
                     match head.subject.0 {
-                        Method::GET |
-                        Method::HEAD |
-                        Method::CONNECT => {
-                            Some(Encoder::length(0))
-                        },
+                        Method::GET | Method::HEAD | Method::CONNECT => Some(Encoder::length(0)),
                         _ => {
                             te.insert(HeaderValue::from_static("chunked"));
                             Some(Encoder::chunked())
-                        },
+                        }
                     }
                 } else {
                     None
                 }
-            },
+            }
         };
 
         // This is because we need a second mutable borrow to remove
@@ -923,7 +949,7 @@ fn set_content_length(headers: &mut HeaderMap, len: u64) -> Encoder {
 
                 cl.insert(HeaderValue::from(len));
                 Encoder::length(len)
-            },
+            }
             Entry::Vacant(cl) => {
                 cl.insert(HeaderValue::from(len));
                 Encoder::length(len)
@@ -944,7 +970,7 @@ struct HeaderIndices {
 fn record_header_indices(
     bytes: &[u8],
     headers: &[httparse::Header<'_>],
-    indices: &mut [HeaderIndices]
+    indices: &mut [HeaderIndices],
 ) -> Result<(), crate::error::Parse> {
     let bytes_ptr = bytes.as_ptr() as usize;
 
@@ -983,17 +1009,17 @@ fn title_case(dst: &mut Vec<u8>, name: &[u8]) {
     }
 
     while let Some(c) = iter.next() {
-      dst.push(*c);
+        dst.push(*c);
 
-      if *c == b'-' {
-          if let Some(c) = iter.next() {
-              if *c >= b'a' && *c <= b'z' {
-                  dst.push(*c ^ b' ');
-              } else {
-                  dst.push(*c);
-              }
-          }
-      }
+        if *c == b'-' {
+            if let Some(c) = iter.next() {
+                if *c >= b'a' && *c <= b'z' {
+                    dst.push(*c ^ b' ');
+                } else {
+                    dst.push(*c);
+                }
+            }
+        }
     }
 }
 
@@ -1046,10 +1072,15 @@ mod tests {
         let _ = pretty_env_logger::try_init();
         let mut raw = BytesMut::from("GET /echo HTTP/1.1\r\nHost: hyper.rs\r\n\r\n");
         let mut method = None;
-        let msg = Server::parse(&mut raw, ParseContext {
-            cached_headers: &mut None,
-            req_method: &mut method,
-        }).unwrap().unwrap();
+        let msg = Server::parse(
+            &mut raw,
+            ParseContext {
+                cached_headers: &mut None,
+                req_method: &mut method,
+            },
+        )
+        .unwrap()
+        .unwrap();
         assert_eq!(raw.len(), 0);
         assert_eq!(msg.head.subject.0, crate::Method::GET);
         assert_eq!(msg.head.subject.1, "/echo");
@@ -1058,7 +1089,6 @@ mod tests {
         assert_eq!(msg.head.headers["Host"], "hyper.rs");
         assert_eq!(method, Some(crate::Method::GET));
     }
-
 
     #[test]
     fn test_parse_response() {
@@ -1086,337 +1116,524 @@ mod tests {
         Server::parse(&mut raw, ctx).unwrap_err();
     }
 
-
     #[test]
     fn test_decoder_request() {
         fn parse(s: &str) -> ParsedMessage<RequestLine> {
             let mut bytes = BytesMut::from(s);
-            Server::parse(&mut bytes, ParseContext {
-                cached_headers: &mut None,
-                req_method: &mut None,
-            })
-                .expect("parse ok")
-                .expect("parse complete")
+            Server::parse(
+                &mut bytes,
+                ParseContext {
+                    cached_headers: &mut None,
+                    req_method: &mut None,
+                },
+            )
+            .expect("parse ok")
+            .expect("parse complete")
         }
 
         fn parse_err(s: &str, comment: &str) -> crate::error::Parse {
             let mut bytes = BytesMut::from(s);
-            Server::parse(&mut bytes, ParseContext {
-                cached_headers: &mut None,
-                req_method: &mut None,
-            })
-                .expect_err(comment)
+            Server::parse(
+                &mut bytes,
+                ParseContext {
+                    cached_headers: &mut None,
+                    req_method: &mut None,
+                },
+            )
+            .expect_err(comment)
         }
 
         // no length or transfer-encoding means 0-length body
-        assert_eq!(parse("\
-            GET / HTTP/1.1\r\n\
-            \r\n\
-        ").decode, DecodedLength::ZERO);
+        assert_eq!(
+            parse(
+                "\
+                 GET / HTTP/1.1\r\n\
+                 \r\n\
+                 "
+            )
+            .decode,
+            DecodedLength::ZERO
+        );
 
-        assert_eq!(parse("\
-            POST / HTTP/1.1\r\n\
-            \r\n\
-        ").decode, DecodedLength::ZERO);
+        assert_eq!(
+            parse(
+                "\
+                 POST / HTTP/1.1\r\n\
+                 \r\n\
+                 "
+            )
+            .decode,
+            DecodedLength::ZERO
+        );
 
         // transfer-encoding: chunked
-        assert_eq!(parse("\
-            POST / HTTP/1.1\r\n\
-            transfer-encoding: chunked\r\n\
-            \r\n\
-        ").decode, DecodedLength::CHUNKED);
+        assert_eq!(
+            parse(
+                "\
+                 POST / HTTP/1.1\r\n\
+                 transfer-encoding: chunked\r\n\
+                 \r\n\
+                 "
+            )
+            .decode,
+            DecodedLength::CHUNKED
+        );
 
-        assert_eq!(parse("\
-            POST / HTTP/1.1\r\n\
-            transfer-encoding: gzip, chunked\r\n\
-            \r\n\
-        ").decode, DecodedLength::CHUNKED);
+        assert_eq!(
+            parse(
+                "\
+                 POST / HTTP/1.1\r\n\
+                 transfer-encoding: gzip, chunked\r\n\
+                 \r\n\
+                 "
+            )
+            .decode,
+            DecodedLength::CHUNKED
+        );
 
-        assert_eq!(parse("\
-            POST / HTTP/1.1\r\n\
-            transfer-encoding: gzip\r\n\
-            transfer-encoding: chunked\r\n\
-            \r\n\
-        ").decode, DecodedLength::CHUNKED);
+        assert_eq!(
+            parse(
+                "\
+                 POST / HTTP/1.1\r\n\
+                 transfer-encoding: gzip\r\n\
+                 transfer-encoding: chunked\r\n\
+                 \r\n\
+                 "
+            )
+            .decode,
+            DecodedLength::CHUNKED
+        );
 
         // content-length
-        assert_eq!(parse("\
-            POST / HTTP/1.1\r\n\
-            content-length: 10\r\n\
-            \r\n\
-        ").decode, DecodedLength::new(10));
+        assert_eq!(
+            parse(
+                "\
+                 POST / HTTP/1.1\r\n\
+                 content-length: 10\r\n\
+                 \r\n\
+                 "
+            )
+            .decode,
+            DecodedLength::new(10)
+        );
 
         // transfer-encoding and content-length = chunked
-        assert_eq!(parse("\
-            POST / HTTP/1.1\r\n\
-            content-length: 10\r\n\
-            transfer-encoding: chunked\r\n\
-            \r\n\
-        ").decode, DecodedLength::CHUNKED);
+        assert_eq!(
+            parse(
+                "\
+                 POST / HTTP/1.1\r\n\
+                 content-length: 10\r\n\
+                 transfer-encoding: chunked\r\n\
+                 \r\n\
+                 "
+            )
+            .decode,
+            DecodedLength::CHUNKED
+        );
 
-        assert_eq!(parse("\
-            POST / HTTP/1.1\r\n\
-            transfer-encoding: chunked\r\n\
-            content-length: 10\r\n\
-            \r\n\
-        ").decode, DecodedLength::CHUNKED);
+        assert_eq!(
+            parse(
+                "\
+                 POST / HTTP/1.1\r\n\
+                 transfer-encoding: chunked\r\n\
+                 content-length: 10\r\n\
+                 \r\n\
+                 "
+            )
+            .decode,
+            DecodedLength::CHUNKED
+        );
 
-        assert_eq!(parse("\
-            POST / HTTP/1.1\r\n\
-            transfer-encoding: gzip\r\n\
-            content-length: 10\r\n\
-            transfer-encoding: chunked\r\n\
-            \r\n\
-        ").decode, DecodedLength::CHUNKED);
-
+        assert_eq!(
+            parse(
+                "\
+                 POST / HTTP/1.1\r\n\
+                 transfer-encoding: gzip\r\n\
+                 content-length: 10\r\n\
+                 transfer-encoding: chunked\r\n\
+                 \r\n\
+                 "
+            )
+            .decode,
+            DecodedLength::CHUNKED
+        );
 
         // multiple content-lengths of same value are fine
-        assert_eq!(parse("\
-            POST / HTTP/1.1\r\n\
-            content-length: 10\r\n\
-            content-length: 10\r\n\
-            \r\n\
-        ").decode, DecodedLength::new(10));
-
+        assert_eq!(
+            parse(
+                "\
+                 POST / HTTP/1.1\r\n\
+                 content-length: 10\r\n\
+                 content-length: 10\r\n\
+                 \r\n\
+                 "
+            )
+            .decode,
+            DecodedLength::new(10)
+        );
 
         // multiple content-lengths with different values is an error
-        parse_err("\
-            POST / HTTP/1.1\r\n\
-            content-length: 10\r\n\
-            content-length: 11\r\n\
-            \r\n\
-        ", "multiple content-lengths");
+        parse_err(
+            "\
+             POST / HTTP/1.1\r\n\
+             content-length: 10\r\n\
+             content-length: 11\r\n\
+             \r\n\
+             ",
+            "multiple content-lengths",
+        );
 
         // transfer-encoding that isn't chunked is an error
-        parse_err("\
-            POST / HTTP/1.1\r\n\
-            transfer-encoding: gzip\r\n\
-            \r\n\
-        ", "transfer-encoding but not chunked");
+        parse_err(
+            "\
+             POST / HTTP/1.1\r\n\
+             transfer-encoding: gzip\r\n\
+             \r\n\
+             ",
+            "transfer-encoding but not chunked",
+        );
 
-        parse_err("\
-            POST / HTTP/1.1\r\n\
-            transfer-encoding: chunked, gzip\r\n\
-            \r\n\
-        ", "transfer-encoding doesn't end in chunked");
-
+        parse_err(
+            "\
+             POST / HTTP/1.1\r\n\
+             transfer-encoding: chunked, gzip\r\n\
+             \r\n\
+             ",
+            "transfer-encoding doesn't end in chunked",
+        );
 
         // http/1.0
 
-        assert_eq!(parse("\
-            POST / HTTP/1.0\r\n\
-            content-length: 10\r\n\
-            \r\n\
-        ").decode, DecodedLength::new(10));
-
+        assert_eq!(
+            parse(
+                "\
+                 POST / HTTP/1.0\r\n\
+                 content-length: 10\r\n\
+                 \r\n\
+                 "
+            )
+            .decode,
+            DecodedLength::new(10)
+        );
 
         // 1.0 doesn't understand chunked, so its an error
-        parse_err("\
-            POST / HTTP/1.0\r\n\
-            transfer-encoding: chunked\r\n\
-            \r\n\
-        ", "1.0 chunked");
+        parse_err(
+            "\
+             POST / HTTP/1.0\r\n\
+             transfer-encoding: chunked\r\n\
+             \r\n\
+             ",
+            "1.0 chunked",
+        );
     }
 
     #[test]
     fn test_decoder_response() {
-
         fn parse(s: &str) -> ParsedMessage<StatusCode> {
             parse_with_method(s, Method::GET)
         }
 
         fn parse_ignores(s: &str) {
             let mut bytes = BytesMut::from(s);
-            assert!(Client::parse(&mut bytes, ParseContext {
-                cached_headers: &mut None,
-                req_method: &mut Some(Method::GET),
-            })
-                .expect("parse ok")
-                .is_none())
+            assert!(Client::parse(
+                &mut bytes,
+                ParseContext {
+                    cached_headers: &mut None,
+                    req_method: &mut Some(Method::GET),
+                }
+            )
+            .expect("parse ok")
+            .is_none())
         }
 
         fn parse_with_method(s: &str, m: Method) -> ParsedMessage<StatusCode> {
             let mut bytes = BytesMut::from(s);
-            Client::parse(&mut bytes, ParseContext {
-                cached_headers: &mut None,
-                req_method: &mut Some(m),
-            })
-                .expect("parse ok")
-                .expect("parse complete")
+            Client::parse(
+                &mut bytes,
+                ParseContext {
+                    cached_headers: &mut None,
+                    req_method: &mut Some(m),
+                },
+            )
+            .expect("parse ok")
+            .expect("parse complete")
         }
 
         fn parse_err(s: &str) -> crate::error::Parse {
             let mut bytes = BytesMut::from(s);
-            Client::parse(&mut bytes, ParseContext {
-                cached_headers: &mut None,
-                req_method: &mut Some(Method::GET),
-            })
-                .expect_err("parse should err")
+            Client::parse(
+                &mut bytes,
+                ParseContext {
+                    cached_headers: &mut None,
+                    req_method: &mut Some(Method::GET),
+                },
+            )
+            .expect_err("parse should err")
         }
 
-
         // no content-length or transfer-encoding means close-delimited
-        assert_eq!(parse("\
-            HTTP/1.1 200 OK\r\n\
-            \r\n\
-        ").decode, DecodedLength::CLOSE_DELIMITED);
+        assert_eq!(
+            parse(
+                "\
+                 HTTP/1.1 200 OK\r\n\
+                 \r\n\
+                 "
+            )
+            .decode,
+            DecodedLength::CLOSE_DELIMITED
+        );
 
         // 204 and 304 never have a body
-        assert_eq!(parse("\
-            HTTP/1.1 204 No Content\r\n\
-            \r\n\
-        ").decode, DecodedLength::ZERO);
+        assert_eq!(
+            parse(
+                "\
+                 HTTP/1.1 204 No Content\r\n\
+                 \r\n\
+                 "
+            )
+            .decode,
+            DecodedLength::ZERO
+        );
 
-        assert_eq!(parse("\
-            HTTP/1.1 304 Not Modified\r\n\
-            \r\n\
-        ").decode, DecodedLength::ZERO);
+        assert_eq!(
+            parse(
+                "\
+                 HTTP/1.1 304 Not Modified\r\n\
+                 \r\n\
+                 "
+            )
+            .decode,
+            DecodedLength::ZERO
+        );
 
         // content-length
-        assert_eq!(parse("\
-            HTTP/1.1 200 OK\r\n\
-            content-length: 8\r\n\
-            \r\n\
-        ").decode, DecodedLength::new(8));
+        assert_eq!(
+            parse(
+                "\
+                 HTTP/1.1 200 OK\r\n\
+                 content-length: 8\r\n\
+                 \r\n\
+                 "
+            )
+            .decode,
+            DecodedLength::new(8)
+        );
 
-        assert_eq!(parse("\
-            HTTP/1.1 200 OK\r\n\
-            content-length: 8\r\n\
-            content-length: 8\r\n\
-            \r\n\
-        ").decode, DecodedLength::new(8));
+        assert_eq!(
+            parse(
+                "\
+                 HTTP/1.1 200 OK\r\n\
+                 content-length: 8\r\n\
+                 content-length: 8\r\n\
+                 \r\n\
+                 "
+            )
+            .decode,
+            DecodedLength::new(8)
+        );
 
-        parse_err("\
-            HTTP/1.1 200 OK\r\n\
-            content-length: 8\r\n\
-            content-length: 9\r\n\
-            \r\n\
-        ");
-
+        parse_err(
+            "\
+             HTTP/1.1 200 OK\r\n\
+             content-length: 8\r\n\
+             content-length: 9\r\n\
+             \r\n\
+             ",
+        );
 
         // transfer-encoding
-        assert_eq!(parse("\
-            HTTP/1.1 200 OK\r\n\
-            transfer-encoding: chunked\r\n\
-            \r\n\
-        ").decode, DecodedLength::CHUNKED);
+        assert_eq!(
+            parse(
+                "\
+                 HTTP/1.1 200 OK\r\n\
+                 transfer-encoding: chunked\r\n\
+                 \r\n\
+                 "
+            )
+            .decode,
+            DecodedLength::CHUNKED
+        );
 
         // transfer-encoding and content-length = chunked
-        assert_eq!(parse("\
-            HTTP/1.1 200 OK\r\n\
-            content-length: 10\r\n\
-            transfer-encoding: chunked\r\n\
-            \r\n\
-        ").decode, DecodedLength::CHUNKED);
-
+        assert_eq!(
+            parse(
+                "\
+                 HTTP/1.1 200 OK\r\n\
+                 content-length: 10\r\n\
+                 transfer-encoding: chunked\r\n\
+                 \r\n\
+                 "
+            )
+            .decode,
+            DecodedLength::CHUNKED
+        );
 
         // HEAD can have content-length, but not body
-        assert_eq!(parse_with_method("\
-            HTTP/1.1 200 OK\r\n\
-            content-length: 8\r\n\
-            \r\n\
-        ", Method::HEAD).decode, DecodedLength::ZERO);
+        assert_eq!(
+            parse_with_method(
+                "\
+                 HTTP/1.1 200 OK\r\n\
+                 content-length: 8\r\n\
+                 \r\n\
+                 ",
+                Method::HEAD
+            )
+            .decode,
+            DecodedLength::ZERO
+        );
 
         // CONNECT with 200 never has body
         {
-            let msg = parse_with_method("\
-                HTTP/1.1 200 OK\r\n\
-                \r\n\
-            ", Method::CONNECT);
+            let msg = parse_with_method(
+                "\
+                 HTTP/1.1 200 OK\r\n\
+                 \r\n\
+                 ",
+                Method::CONNECT,
+            );
             assert_eq!(msg.decode, DecodedLength::ZERO);
             assert!(!msg.keep_alive, "should be upgrade");
             assert!(msg.wants_upgrade, "should be upgrade");
         }
 
         // CONNECT receiving non 200 can have a body
-        assert_eq!(parse_with_method("\
-            HTTP/1.1 400 Bad Request\r\n\
-            \r\n\
-        ", Method::CONNECT).decode, DecodedLength::CLOSE_DELIMITED);
-
+        assert_eq!(
+            parse_with_method(
+                "\
+                 HTTP/1.1 400 Bad Request\r\n\
+                 \r\n\
+                 ",
+                Method::CONNECT
+            )
+            .decode,
+            DecodedLength::CLOSE_DELIMITED
+        );
 
         // 1xx status codes
-        parse_ignores("\
-            HTTP/1.1 100 Continue\r\n\
-            \r\n\
-        ");
+        parse_ignores(
+            "\
+             HTTP/1.1 100 Continue\r\n\
+             \r\n\
+             ",
+        );
 
-        parse_ignores("\
-            HTTP/1.1 103 Early Hints\r\n\
-            \r\n\
-        ");
+        parse_ignores(
+            "\
+             HTTP/1.1 103 Early Hints\r\n\
+             \r\n\
+             ",
+        );
 
         // 101 upgrade not supported yet
         {
-            let msg = parse("\
-                HTTP/1.1 101 Switching Protocols\r\n\
-                \r\n\
-            ");
+            let msg = parse(
+                "\
+                 HTTP/1.1 101 Switching Protocols\r\n\
+                 \r\n\
+                 ",
+            );
             assert_eq!(msg.decode, DecodedLength::ZERO);
             assert!(!msg.keep_alive, "should be last");
             assert!(msg.wants_upgrade, "should be upgrade");
         }
 
-
         // http/1.0
-        assert_eq!(parse("\
-            HTTP/1.0 200 OK\r\n\
-            \r\n\
-        ").decode, DecodedLength::CLOSE_DELIMITED);
+        assert_eq!(
+            parse(
+                "\
+                 HTTP/1.0 200 OK\r\n\
+                 \r\n\
+                 "
+            )
+            .decode,
+            DecodedLength::CLOSE_DELIMITED
+        );
 
         // 1.0 doesn't understand chunked
-        parse_err("\
-            HTTP/1.0 200 OK\r\n\
-            transfer-encoding: chunked\r\n\
-            \r\n\
-        ");
+        parse_err(
+            "\
+             HTTP/1.0 200 OK\r\n\
+             transfer-encoding: chunked\r\n\
+             \r\n\
+             ",
+        );
 
         // keep-alive
-        assert!(parse("\
-            HTTP/1.1 200 OK\r\n\
-            content-length: 0\r\n\
-            \r\n\
-        ").keep_alive, "HTTP/1.1 keep-alive is default");
+        assert!(
+            parse(
+                "\
+                 HTTP/1.1 200 OK\r\n\
+                 content-length: 0\r\n\
+                 \r\n\
+                 "
+            )
+            .keep_alive,
+            "HTTP/1.1 keep-alive is default"
+        );
 
-        assert!(!parse("\
-            HTTP/1.1 200 OK\r\n\
-            content-length: 0\r\n\
-            connection: foo, close, bar\r\n\
-            \r\n\
-        ").keep_alive, "connection close is always close");
+        assert!(
+            !parse(
+                "\
+                 HTTP/1.1 200 OK\r\n\
+                 content-length: 0\r\n\
+                 connection: foo, close, bar\r\n\
+                 \r\n\
+                 "
+            )
+            .keep_alive,
+            "connection close is always close"
+        );
 
-        assert!(!parse("\
-            HTTP/1.0 200 OK\r\n\
-            content-length: 0\r\n\
-            \r\n\
-        ").keep_alive, "HTTP/1.0 close is default");
+        assert!(
+            !parse(
+                "\
+                 HTTP/1.0 200 OK\r\n\
+                 content-length: 0\r\n\
+                 \r\n\
+                 "
+            )
+            .keep_alive,
+            "HTTP/1.0 close is default"
+        );
 
-        assert!(parse("\
-            HTTP/1.0 200 OK\r\n\
-            content-length: 0\r\n\
-            connection: foo, keep-alive, bar\r\n\
-            \r\n\
-        ").keep_alive, "connection keep-alive is always keep-alive");
+        assert!(
+            parse(
+                "\
+                 HTTP/1.0 200 OK\r\n\
+                 content-length: 0\r\n\
+                 connection: foo, keep-alive, bar\r\n\
+                 \r\n\
+                 "
+            )
+            .keep_alive,
+            "connection keep-alive is always keep-alive"
+        );
     }
 
     #[test]
     fn test_client_request_encode_title_case() {
-        use http::header::HeaderValue;
         use crate::proto::BodyLength;
+        use http::header::HeaderValue;
 
         let mut head = MessageHead::default();
-        head.headers.insert("content-length", HeaderValue::from_static("10"));
-        head.headers.insert("content-type", HeaderValue::from_static("application/json"));
+        head.headers
+            .insert("content-length", HeaderValue::from_static("10"));
+        head.headers
+            .insert("content-type", HeaderValue::from_static("application/json"));
         head.headers.insert("*-*", HeaderValue::from_static("o_o"));
 
         let mut vec = Vec::new();
-        Client::encode(Encode {
-            head: &mut head,
-            body: Some(BodyLength::Known(10)),
-            keep_alive: true,
-            req_method: &mut None,
-            title_case_headers: true,
-        }, &mut vec).unwrap();
+        Client::encode(
+            Encode {
+                head: &mut head,
+                body: Some(BodyLength::Known(10)),
+                keep_alive: true,
+                req_method: &mut None,
+                title_case_headers: true,
+            },
+            &mut vec,
+        )
+        .unwrap();
 
         assert_eq!(vec, b"GET / HTTP/1.1\r\nContent-Length: 10\r\nContent-Type: application/json\r\n*-*: o_o\r\n\r\n".to_vec());
     }
@@ -1426,13 +1643,17 @@ mod tests {
         let mut head = MessageHead::default();
 
         let mut vec = Vec::new();
-        let encoder = Server::encode(Encode {
-            head: &mut head,
-            body: None,
-            keep_alive: true,
-            req_method: &mut Some(Method::CONNECT),
-            title_case_headers: false,
-        }, &mut vec).unwrap();
+        let encoder = Server::encode(
+            Encode {
+                head: &mut head,
+                body: None,
+                keep_alive: true,
+                req_method: &mut Some(Method::CONNECT),
+                title_case_headers: false,
+            },
+            &mut vec,
+        )
+        .unwrap();
 
         assert!(encoder.is_last());
     }
@@ -1440,12 +1661,15 @@ mod tests {
     #[test]
     fn parse_header_htabs() {
         let mut bytes = BytesMut::from("HTTP/1.1 200 OK\r\nserver: hello\tworld\r\n\r\n");
-        let parsed = Client::parse(&mut bytes, ParseContext {
-            cached_headers: &mut None,
-            req_method: &mut Some(Method::GET),
-        })
-            .expect("parse ok")
-            .expect("parse complete");
+        let parsed = Client::parse(
+            &mut bytes,
+            ParseContext {
+                cached_headers: &mut None,
+                req_method: &mut Some(Method::GET),
+            },
+        )
+        .expect("parse ok")
+        .expect("parse complete");
 
         assert_eq!(parsed.head.headers["server"], "hello\tworld");
     }
@@ -1473,23 +1697,27 @@ mod tests {
             X-Content-Duration: None\r\nX-Content-Security-Policy: None\
             \r\nX-DNSPrefetch-Control: None\r\nX-Frame-Options: \
             Something important obviously\r\nX-Requested-With: Nothing\
-            \r\n\r\n"[..]
+            \r\n\r\n"[..],
         );
         let len = raw.len();
         let mut headers = Some(HeaderMap::new());
 
         b.bytes = len as u64;
         b.iter(|| {
-            let mut msg = Server::parse(&mut raw, ParseContext {
-                cached_headers: &mut headers,
-                req_method: &mut None,
-            }).unwrap().unwrap();
+            let mut msg = Server::parse(
+                &mut raw,
+                ParseContext {
+                    cached_headers: &mut headers,
+                    req_method: &mut None,
+                },
+            )
+            .unwrap()
+            .unwrap();
             ::test::black_box(&msg);
             msg.head.headers.clear();
             headers = Some(msg.head.headers);
             restart(&mut raw, len);
         });
-
 
         fn restart(b: &mut BytesMut, len: usize) {
             b.reserve(1);
@@ -1509,16 +1737,20 @@ mod tests {
 
         b.bytes = len as u64;
         b.iter(|| {
-            let mut msg = Server::parse(&mut raw, ParseContext {
-                cached_headers: &mut headers,
-                req_method: &mut None,
-            }).unwrap().unwrap();
+            let mut msg = Server::parse(
+                &mut raw,
+                ParseContext {
+                    cached_headers: &mut headers,
+                    req_method: &mut None,
+                },
+            )
+            .unwrap()
+            .unwrap();
             ::test::black_box(&msg);
             msg.head.headers.clear();
             headers = Some(msg.head.headers);
             restart(&mut raw, len);
         });
-
 
         fn restart(b: &mut BytesMut, len: usize) {
             b.reserve(1);
@@ -1531,8 +1763,8 @@ mod tests {
     #[cfg(feature = "nightly")]
     #[bench]
     fn bench_server_encode_headers_preset(b: &mut Bencher) {
-        use http::header::HeaderValue;
         use crate::proto::BodyLength;
+        use http::header::HeaderValue;
 
         let len = 108;
         b.bytes = len as u64;
@@ -1545,13 +1777,17 @@ mod tests {
         b.iter(|| {
             let mut vec = Vec::new();
             head.headers = headers.clone();
-            Server::encode(Encode {
-                head: &mut head,
-                body: Some(BodyLength::Known(10)),
-                keep_alive: true,
-                req_method: &mut Some(Method::GET),
-                title_case_headers: false,
-            }, &mut vec).unwrap();
+            Server::encode(
+                Encode {
+                    head: &mut head,
+                    body: Some(BodyLength::Known(10)),
+                    keep_alive: true,
+                    req_method: &mut Some(Method::GET),
+                    title_case_headers: false,
+                },
+                &mut vec,
+            )
+            .unwrap();
             assert_eq!(vec.len(), len);
             ::test::black_box(vec);
         })
@@ -1569,13 +1805,17 @@ mod tests {
         let mut vec = Vec::with_capacity(128);
 
         b.iter(|| {
-            Server::encode(Encode {
-                head: &mut head,
-                body: Some(BodyLength::Known(10)),
-                keep_alive: true,
-                req_method: &mut Some(Method::GET),
-                title_case_headers: false,
-            }, &mut vec).unwrap();
+            Server::encode(
+                Encode {
+                    head: &mut head,
+                    body: Some(BodyLength::Known(10)),
+                    keep_alive: true,
+                    req_method: &mut Some(Method::GET),
+                    title_case_headers: false,
+                },
+                &mut vec,
+            )
+            .unwrap();
             assert_eq!(vec.len(), len);
             ::test::black_box(&vec);
 

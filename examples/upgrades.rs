@@ -3,13 +3,13 @@
 // Note: `hyper::upgrade` docs link to this upgrade.
 use std::str;
 
-use tokio::sync::oneshot;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::sync::oneshot;
 
-use hyper::{Body, Client, Request, Response, Server, StatusCode};
-use hyper::header::{UPGRADE, HeaderValue};
+use hyper::header::{HeaderValue, UPGRADE};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::upgrade::Upgraded;
+use hyper::{Body, Client, Request, Response, Server, StatusCode};
 use std::net::SocketAddr;
 
 // A simple type alias so as to DRY.
@@ -58,14 +58,15 @@ async fn server_upgrade(req: Request<Body>) -> Result<Response<Body>> {
                     eprintln!("server foobar io error: {}", e)
                 };
             }
-            Err(e) => eprintln!("upgrade error: {}", e)
+            Err(e) => eprintln!("upgrade error: {}", e),
         }
     });
 
     // Now return a 101 Response saying we agree to the upgrade to some
     // made-up 'foobar' protocol.
     *res.status_mut() = StatusCode::SWITCHING_PROTOCOLS;
-    res.headers_mut().insert(UPGRADE, HeaderValue::from_static("foobar"));
+    res.headers_mut()
+        .insert(UPGRADE, HeaderValue::from_static("foobar"));
     Ok(res)
 }
 
@@ -102,7 +103,7 @@ async fn client_upgrade_request(addr: SocketAddr) -> Result<()> {
                 eprintln!("client foobar io error: {}", e)
             };
         }
-        Err(e) => eprintln!("upgrade error: {}", e)
+        Err(e) => eprintln!("upgrade error: {}", e),
     }
 
     Ok(())
@@ -115,12 +116,10 @@ async fn main() {
     // unused port.
     let addr = ([127, 0, 0, 1], 0).into();
 
-    let make_service = make_service_fn(|_| async {
-        Ok::<_, hyper::Error>(service_fn(server_upgrade))
-    });
+    let make_service =
+        make_service_fn(|_| async { Ok::<_, hyper::Error>(service_fn(server_upgrade)) });
 
-    let server = Server::bind(&addr)
-        .serve(make_service);
+    let server = Server::bind(&addr).serve(make_service);
 
     // We need the assigned address for the client to send it messages.
     let addr = server.local_addr();
@@ -128,10 +127,9 @@ async fn main() {
     // For this example, a oneshot is used to signal that after 1 request,
     // the server should be shutdown.
     let (tx, rx) = oneshot::channel::<()>();
-    let server = server
-        .with_graceful_shutdown(async move {
-            rx.await.ok();
-        });
+    let server = server.with_graceful_shutdown(async move {
+        rx.await.ok();
+    });
 
     // Spawn server on the default executor,
     // which is usually a thread-pool from tokio default runtime.

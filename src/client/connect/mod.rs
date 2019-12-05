@@ -7,11 +7,14 @@
 //! - Types to build custom connectors.
 use std::fmt;
 
-use ::http::{Response};
+use ::http::Response;
 
-#[cfg(feature = "tcp")] pub mod dns;
-#[cfg(feature = "tcp")] mod http;
-#[cfg(feature = "tcp")] pub use self::http::{HttpConnector, HttpInfo};
+#[cfg(feature = "tcp")]
+pub mod dns;
+#[cfg(feature = "tcp")]
+mod http;
+#[cfg(feature = "tcp")]
+pub use self::http::{HttpConnector, HttpInfo};
 
 /// Describes a type returned by a connector.
 pub trait Connection {
@@ -115,8 +118,7 @@ impl Clone for Extra {
 
 impl fmt::Debug for Extra {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Extra")
-            .finish()
+        f.debug_struct("Extra").finish()
     }
 }
 
@@ -133,7 +135,7 @@ struct ExtraEnvelope<T>(T);
 
 impl<T> ExtraInner for ExtraEnvelope<T>
 where
-    T: Clone + Send + Sync + 'static
+    T: Clone + Send + Sync + 'static,
 {
     fn clone_box(&self) -> Box<dyn ExtraInner> {
         Box::new(self.clone())
@@ -154,7 +156,7 @@ impl<T: Clone> Clone for ExtraChain<T> {
 
 impl<T> ExtraInner for ExtraChain<T>
 where
-    T: Clone + Send + Sync + 'static
+    T: Clone + Send + Sync + 'static,
 {
     fn clone_box(&self) -> Box<dyn ExtraInner> {
         Box::new(self.clone())
@@ -172,8 +174,8 @@ pub(super) mod sealed {
     use ::http::Uri;
     use tokio::io::{AsyncRead, AsyncWrite};
 
+    use super::Connection;
     use crate::common::{Future, Unpin};
-    use super::{Connection};
 
     /// Connect to a destination, returning an IO transport.
     ///
@@ -193,14 +195,14 @@ pub(super) mod sealed {
         /// An error occured when trying to connect.
         type Error: Into<Box<dyn StdError + Send + Sync>>;
         /// A Future that will resolve to the connected Transport.
-        type Future: Future<Output=Result<Self::Transport, Self::Error>>;
+        type Future: Future<Output = Result<Self::Transport, Self::Error>>;
         #[doc(hidden)]
         fn connect(self, internal_only: Internal, dst: Uri) -> Self::Future;
     }
 
     impl<S, T> Connect for S
     where
-        S: tower_service::Service<Uri, Response=T> + Send,
+        S: tower_service::Service<Uri, Response = T> + Send,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         S::Future: Unpin + Send,
         T: AsyncRead + AsyncWrite + Connection + Unpin + Send + 'static,
@@ -215,11 +217,12 @@ pub(super) mod sealed {
 
     impl<S, T> Sealed for S
     where
-        S: tower_service::Service<Uri, Response=T> + Send,
+        S: tower_service::Service<Uri, Response = T> + Send,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         S::Future: Unpin + Send,
         T: AsyncRead + AsyncWrite + Connection + Unpin + Send + 'static,
-    {}
+    {
+    }
 
     pub trait Sealed {}
     #[allow(missing_debug_implementations)]
@@ -228,7 +231,7 @@ pub(super) mod sealed {
 
 #[cfg(test)]
 mod tests {
-    use super::{Connected};
+    use super::Connected;
 
     #[derive(Clone, Debug, PartialEq)]
     struct Ex1(usize);
@@ -241,18 +244,13 @@ mod tests {
 
     #[test]
     fn test_connected_extra() {
-        let c1 = Connected::new()
-            .extra(Ex1(41));
+        let c1 = Connected::new().extra(Ex1(41));
 
         let mut res1 = crate::Response::new(crate::Body::empty());
 
         assert_eq!(res1.extensions().get::<Ex1>(), None);
 
-        c1
-            .extra
-            .as_ref()
-            .expect("c1 extra")
-            .set(&mut res1);
+        c1.extra.as_ref().expect("c1 extra").set(&mut res1);
 
         assert_eq!(res1.extensions().get::<Ex1>(), Some(&Ex1(41)));
     }
@@ -273,11 +271,7 @@ mod tests {
         assert_eq!(res1.extensions().get::<Ex2>(), None);
         assert_eq!(res1.extensions().get::<Ex3>(), None);
 
-        c1
-            .extra
-            .as_ref()
-            .expect("c1 extra")
-            .set(&mut res1);
+        c1.extra.as_ref().expect("c1 extra").set(&mut res1);
 
         assert_eq!(res1.extensions().get::<Ex1>(), Some(&Ex1(45)));
         assert_eq!(res1.extensions().get::<Ex2>(), Some(&Ex2("zoom")));
@@ -291,11 +285,7 @@ mod tests {
 
         let mut res2 = crate::Response::new(crate::Body::empty());
 
-        c2
-            .extra
-            .as_ref()
-            .expect("c2 extra")
-            .set(&mut res2);
+        c2.extra.as_ref().expect("c2 extra").set(&mut res2);
 
         assert_eq!(res2.extensions().get::<Ex1>(), Some(&Ex1(99)));
         assert_eq!(res2.extensions().get::<Ex2>(), Some(&Ex2("hiccup")));

@@ -1,15 +1,20 @@
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex, atomic::{AtomicUsize, Ordering}};
-use std::time::{Duration/*, Instant*/};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc, Mutex,
+};
+use std::time::Duration;
 
-use hyper::{Body, Client, Request, Response, Server, Version};
 use hyper::client::HttpConnector;
 use hyper::service::{make_service_fn, service_fn};
+use hyper::{Body, Client, Request, Response, Server, Version};
 
-pub use std::net::SocketAddr;
-pub use futures_util::{future, FutureExt as _, StreamExt as _, TryFutureExt as _, TryStreamExt as _};
+pub use futures_util::{
+    future, FutureExt as _, StreamExt as _, TryFutureExt as _, TryStreamExt as _,
+};
 pub use hyper::{HeaderMap, StatusCode};
+pub use std::net::SocketAddr;
 
 macro_rules! t {
     (
@@ -154,43 +159,43 @@ macro_rules! t {
 }
 
 macro_rules! __internal_map_prop {
-    (headers: $map:tt) => ({
+    (headers: $map:tt) => {{
         #[allow(unused_mut)]
         {
-        let mut headers = HeaderMap::new();
-        __internal_headers_map!(headers, $map);
-        headers
+            let mut headers = HeaderMap::new();
+            __internal_headers_map!(headers, $map);
+            headers
         }
-    });
-    ($name:tt: $val:tt) => ({
+    }};
+    ($name:tt: $val:tt) => {{
         __internal_req_res_prop!($name: $val)
-    });
+    }};
 }
 
 macro_rules! __internal_eq_prop {
-    (headers: $map:tt) => ({
+    (headers: $map:tt) => {{
         #[allow(unused_mut)]
         {
-        let mut headers = Vec::new();
-        __internal_headers_eq!(headers, $map);
-        headers
+            let mut headers = Vec::new();
+            __internal_headers_eq!(headers, $map);
+            headers
         }
-    });
-    ($name:tt: $val:tt) => ({
+    }};
+    ($name:tt: $val:tt) => {{
         __internal_req_res_prop!($name: $val)
-    });
+    }};
 }
 
 macro_rules! __internal_req_res_prop {
-    (method: $prop_val:expr) => (
+    (method: $prop_val:expr) => {
         $prop_val
-    );
-    (status: $prop_val:expr) => (
+    };
+    (status: $prop_val:expr) => {
         StatusCode::from_u16($prop_val).expect("status code")
-    );
-    ($prop_name:ident: $prop_val:expr) => (
+    };
+    ($prop_name:ident: $prop_val:expr) => {
         From::from($prop_val)
-    )
+    };
 }
 
 macro_rules! __internal_headers_map {
@@ -325,9 +330,7 @@ async fn async_test(cfg: __TestConfig) {
         .http2_only(cfg.client_version == 2)
         .build::<_, Body>(connector);
 
-    let serve_handles = Arc::new(Mutex::new(
-        cfg.server_msgs
-    ));
+    let serve_handles = Arc::new(Mutex::new(cfg.server_msgs));
 
     let expected_connections = cfg.connections;
     let mut cnt = 0;
@@ -343,9 +346,7 @@ async fn async_test(cfg: __TestConfig) {
         // Move a clone into the service_fn
         let serve_handles = serve_handles.clone();
         future::ok::<_, hyper::Error>(service_fn(move |req: Request<Body>| {
-            let (sreq, sres) = serve_handles.lock()
-                .unwrap()
-                .remove(0);
+            let (sreq, sres) = serve_handles.lock().unwrap().remove(0);
 
             assert_eq!(req.uri().path(), sreq.uri, "client path");
             assert_eq!(req.method(), &sreq.method, "client method");
@@ -354,17 +355,16 @@ async fn async_test(cfg: __TestConfig) {
                 func(&req.headers());
             }
             let sbody = sreq.body;
-            concat(req.into_body())
-                .map_ok(move |body| {
-                    assert_eq!(body.as_ref(), sbody.as_slice(), "client body");
+            concat(req.into_body()).map_ok(move |body| {
+                assert_eq!(body.as_ref(), sbody.as_slice(), "client body");
 
-                    let mut res = Response::builder()
-                        .status(sres.status)
-                        .body(Body::from(sres.body))
-                        .expect("Response::build");
-                    *res.headers_mut() = sres.headers;
-                    res
-                })
+                let mut res = Response::builder()
+                    .status(sres.status)
+                    .body(Body::from(sres.body))
+                    .expect("Response::build");
+                *res.headers_mut() = sres.headers;
+                res
+            })
         }))
     });
 
@@ -388,34 +388,36 @@ async fn async_test(cfg: __TestConfig) {
         addr = proxy_addr;
     }
 
-    let make_request = Arc::new(move |client: &Client<HttpConnector>, creq: __CReq, cres: __CRes| {
-        let uri = format!("http://{}{}", addr, creq.uri);
-        let mut req = Request::builder()
-            .method(creq.method)
-            .uri(uri)
-            //.headers(creq.headers)
-            .body(creq.body.into())
-            .expect("Request::build");
-        *req.headers_mut() = creq.headers;
-        let cstatus = cres.status;
-        let cheaders = cres.headers;
-        let cbody = cres.body;
+    let make_request = Arc::new(
+        move |client: &Client<HttpConnector>, creq: __CReq, cres: __CRes| {
+            let uri = format!("http://{}{}", addr, creq.uri);
+            let mut req = Request::builder()
+                .method(creq.method)
+                .uri(uri)
+                //.headers(creq.headers)
+                .body(creq.body.into())
+                .expect("Request::build");
+            *req.headers_mut() = creq.headers;
+            let cstatus = cres.status;
+            let cheaders = cres.headers;
+            let cbody = cres.body;
 
-        client.request(req)
-            .and_then(move |res| {
-                assert_eq!(res.status(), cstatus, "server status");
-                assert_eq!(res.version(), version, "server version");
-                for func in &cheaders {
-                    func(&res.headers());
-                }
-                concat(res.into_body())
-            })
-            .map_ok(move |body| {
-                assert_eq!(body.as_ref(), cbody.as_slice(), "server body");
-            })
-            .map(|res| res.expect("client error"))
-    });
-
+            client
+                .request(req)
+                .and_then(move |res| {
+                    assert_eq!(res.status(), cstatus, "server status");
+                    assert_eq!(res.version(), version, "server version");
+                    for func in &cheaders {
+                        func(&res.headers());
+                    }
+                    concat(res.into_body())
+                })
+                .map_ok(move |body| {
+                    assert_eq!(body.as_ref(), cbody.as_slice(), "server body");
+                })
+                .map(|res| res.expect("client error"))
+        },
+    );
 
     let client_futures: Pin<Box<dyn Future<Output = ()> + Send>> = if cfg.parallel {
         let mut client_futures = vec![];
@@ -425,17 +427,14 @@ async fn async_test(cfg: __TestConfig) {
         drop(client);
         Box::pin(future::join_all(client_futures).map(|_| ()))
     } else {
-        let mut client_futures: Pin<Box<dyn Future<Output=Client<HttpConnector>> + Send>> =
+        let mut client_futures: Pin<Box<dyn Future<Output = Client<HttpConnector>> + Send>> =
             Box::pin(future::ready(client));
         for (creq, cres) in cfg.client_msgs {
             let mk_request = make_request.clone();
-            client_futures = Box::pin(
-                client_futures
-                .then(move |client| {
-                    let fut = mk_request(&client, creq, cres);
-                    fut.map(move |()| client)
-                })
-            );
+            client_futures = Box::pin(client_futures.then(move |client| {
+                let fut = mk_request(&client, creq, cres);
+                fut.map(move |()| client)
+            }));
         }
         Box::pin(client_futures.map(|_| ()))
     };
@@ -459,19 +458,18 @@ fn naive_proxy(cfg: ProxyConfig) -> (SocketAddr, impl Future<Output = ()>) {
     let max_connections = cfg.connections;
     let counter = AtomicUsize::new(0);
 
-    let srv = Server::bind(&([127, 0, 0, 1], 0).into())
-        .serve(make_service_fn(move |_| {
-            let prev = counter.fetch_add(1, Ordering::Relaxed);
-            assert!(max_connections >= prev + 1, "proxy max connections");
-            let client = client.clone();
-            future::ok::<_, hyper::Error>(service_fn(move |mut req| {
-                let uri = format!("http://{}{}", dst_addr, req.uri().path())
-                    .parse()
-                    .expect("proxy new uri parse");
-                *req.uri_mut() = uri;
-                client.request(req)
-            }))
-        }));
+    let srv = Server::bind(&([127, 0, 0, 1], 0).into()).serve(make_service_fn(move |_| {
+        let prev = counter.fetch_add(1, Ordering::Relaxed);
+        assert!(max_connections >= prev + 1, "proxy max connections");
+        let client = client.clone();
+        future::ok::<_, hyper::Error>(service_fn(move |mut req| {
+            let uri = format!("http://{}{}", dst_addr, req.uri().path())
+                .parse()
+                .expect("proxy new uri parse");
+            *req.uri_mut() = uri;
+            client.request(req)
+        }))
+    }));
     let proxy_addr = srv.local_addr();
     (proxy_addr, srv.map(|res| res.expect("proxy error")))
 }

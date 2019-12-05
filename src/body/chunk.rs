@@ -19,7 +19,6 @@ pub struct IntoIter {
     inner: <Bytes as IntoIterator>::IntoIter,
 }
 
-
 impl Chunk {
     /// Converts this `Chunk` directly into the `Bytes` type without copies.
     ///
@@ -82,9 +81,7 @@ impl From<&'static str> for Chunk {
 impl From<Bytes> for Chunk {
     #[inline]
     fn from(bytes: Bytes) -> Chunk {
-        Chunk {
-            bytes: bytes,
-        }
+        Chunk { bytes: bytes }
     }
 }
 
@@ -176,4 +173,3 @@ mod tests {
         })
     }
 }
-

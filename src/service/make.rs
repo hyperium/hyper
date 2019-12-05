@@ -3,9 +3,9 @@ use std::fmt;
 
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::body::Payload;
-use crate::common::{Future, Poll, task};
 use super::{HttpService, Service};
+use crate::body::Payload;
+use crate::common::{task, Future, Poll};
 
 // The same "trait alias" as tower::MakeConnection, but inlined to reduce
 // dependencies.
@@ -44,13 +44,9 @@ where
 pub trait MakeServiceRef<Target, ReqBody>: self::sealed::Sealed<(Target, ReqBody)> {
     type ResBody: Payload;
     type Error: Into<Box<dyn StdError + Send + Sync>>;
-    type Service: HttpService<
-        ReqBody,
-        ResBody=Self::ResBody,
-        Error=Self::Error,
-    >;
+    type Service: HttpService<ReqBody, ResBody = Self::ResBody, Error = Self::Error>;
     type MakeError: Into<Box<dyn StdError + Send + Sync>>;
-    type Future: Future<Output=Result<Self::Service, Self::MakeError>>;
+    type Future: Future<Output = Result<Self::Service, Self::MakeError>>;
 
     // Acting like a #[non_exhaustive] for associated types of this trait.
     //
@@ -70,11 +66,11 @@ pub trait MakeServiceRef<Target, ReqBody>: self::sealed::Sealed<(Target, ReqBody
 
 impl<T, Target, E, ME, S, F, IB, OB> MakeServiceRef<Target, IB> for T
 where
-    T: for<'a> Service<&'a Target, Error=ME, Response=S, Future=F>,
+    T: for<'a> Service<&'a Target, Error = ME, Response = S, Future = F>,
     E: Into<Box<dyn StdError + Send + Sync>>,
     ME: Into<Box<dyn StdError + Send + Sync>>,
-    S: HttpService<IB, ResBody=OB, Error=E>,
-    F: Future<Output=Result<S, ME>>,
+    S: HttpService<IB, ResBody = OB, Error = E>,
+    F: Future<Output = Result<S, ME>>,
     IB: Payload,
     OB: Payload,
 {
@@ -145,9 +141,7 @@ where
     F: FnMut(&Target) -> Ret,
     Ret: Future,
 {
-    MakeServiceFn {
-        f,
-    }
+    MakeServiceFn { f }
 }
 
 // Not exported from crate as this will likely be replaced with `impl Service`.
@@ -158,7 +152,7 @@ pub struct MakeServiceFn<F> {
 impl<'t, F, Ret, Target, Svc, MkErr> Service<&'t Target> for MakeServiceFn<F>
 where
     F: FnMut(&Target) -> Ret,
-    Ret: Future<Output=Result<Svc, MkErr>>,
+    Ret: Future<Output = Result<Svc, MkErr>>,
     MkErr: Into<Box<dyn StdError + Send + Sync>>,
 {
     type Error = MkErr;
@@ -176,8 +170,7 @@ where
 
 impl<F> fmt::Debug for MakeServiceFn<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("MakeServiceFn")
-            .finish()
+        f.debug_struct("MakeServiceFn").finish()
     }
 }
 

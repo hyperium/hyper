@@ -1,9 +1,12 @@
 #![deny(warnings)]
 
-use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
 
-use hyper::{Body, Error, Response, Server};
 use hyper::service::{make_service_fn, service_fn};
+use hyper::{Body, Error, Response, Server};
 
 #[tokio::main]
 async fn main() {
@@ -34,17 +37,12 @@ async fn main() {
                 // Get the current count, and also increment by 1, in a single
                 // atomic operation.
                 let count = counter.fetch_add(1, Ordering::AcqRel);
-                async move {
-                    Ok::<_, Error>(
-                        Response::new(Body::from(format!("Request #{}", count)))
-                    )
-                }
+                async move { Ok::<_, Error>(Response::new(Body::from(format!("Request #{}", count)))) }
             }))
         }
     });
 
-    let server = Server::bind(&addr)
-        .serve(make_service);
+    let server = Server::bind(&addr).serve(make_service);
 
     println!("Listening on http://{}", addr);
 
@@ -52,4 +50,3 @@ async fn main() {
         eprintln!("server error: {}", e);
     }
 }
-

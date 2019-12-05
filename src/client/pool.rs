@@ -10,8 +10,8 @@ use futures_channel::oneshot;
 #[cfg(feature = "runtime")]
 use tokio::time::{Duration, Instant, Interval};
 
-use crate::common::{Exec, Future, Pin, Poll, Unpin, task};
 use super::Ver;
+use crate::common::{task, Exec, Future, Pin, Poll, Unpin};
 
 // FIXME: allow() required due to `impl Trait` leaking types to this lint
 #[allow(missing_debug_implementations)]
@@ -96,7 +96,7 @@ pub(super) struct Config {
 impl<T> Pool<T> {
     pub fn new(config: Config, __exec: &Exec) -> Pool<T> {
         let inner = if config.enabled {
-             Some(Arc::new(Mutex::new(PoolInner {
+            Some(Arc::new(Mutex::new(PoolInner {
                 connecting: HashSet::new(),
                 idle: HashMap::new(),
                 #[cfg(feature = "runtime")]
@@ -106,14 +106,12 @@ impl<T> Pool<T> {
                 #[cfg(feature = "runtime")]
                 exec: __exec.clone(),
                 timeout: config.keep_alive_timeout,
-             })))
+            })))
         } else {
             None
         };
 
-        Pool {
-            inner,
-        }
+        Pool { inner }
     }
 
     fn is_enabled(&self) -> bool {
@@ -174,12 +172,7 @@ impl<T: Poolable> Pool<T> {
 
     #[cfg(test)]
     fn locked(&self) -> ::std::sync::MutexGuard<'_, PoolInner<T>> {
-        self
-            .inner
-            .as_ref()
-            .expect("enabled")
-            .lock()
-            .expect("lock")
+        self.inner.as_ref().expect("enabled").lock().expect("lock")
     }
 
     /* Used in client/tests.rs...
@@ -216,13 +209,13 @@ impl<T: Poolable> Pool<T> {
                     // Shared reservations don't need a reference to the pool,
                     // since the pool always keeps a copy.
                     (to_return, WeakOpt::none())
-                },
+                }
                 Reservation::Unique(value) => {
                     // Unique reservations must take a reference to the pool
                     // since they hope to reinsert once the reservation is
                     // completed
                     (value, WeakOpt::downgrade(enabled))
-                },
+                }
             }
         } else {
             // If pool is not enabled, skip all the things...
@@ -236,7 +229,7 @@ impl<T: Poolable> Pool<T> {
             key: connecting.key.clone(),
             is_reused: false,
             pool: pool_ref,
-            value: Some(value)
+            value: Some(value),
         }
     }
 
@@ -299,10 +292,8 @@ impl<'a, T: Poolable + 'a> IdlePopper<'a, T> {
                         value: to_reinsert,
                     });
                     to_checkout
-                },
-                Reservation::Unique(unique) => {
-                    unique
                 }
+                Reservation::Unique(unique) => unique,
             };
 
             return Some(Idle {
@@ -332,7 +323,7 @@ impl<T: Poolable> PoolInner<T> {
                         Reservation::Shared(to_keep, to_send) => {
                             value = Some(to_keep);
                             to_send
-                        },
+                        }
                         Reservation::Unique(uniq) => uniq,
                     };
                     match tx.send(reserved) {
@@ -342,7 +333,7 @@ impl<T: Poolable> PoolInner<T> {
                             } else {
                                 continue;
                             }
-                        },
+                        }
                         Err(e) => {
                             value = Some(e);
                         }
@@ -361,10 +352,7 @@ impl<T: Poolable> PoolInner<T> {
             Some(value) => {
                 // borrow-check scope...
                 {
-                    let idle_list = self
-                        .idle
-                        .entry(key.clone())
-                        .or_insert(Vec::new());
+                    let idle_list = self.idle.entry(key.clone()).or_insert(Vec::new());
                     if self.max_idle_per_host <= idle_list.len() {
                         trace!("max idle per host for {:?}, dropping connection", key);
                         return;
@@ -390,10 +378,7 @@ impl<T: Poolable> PoolInner<T> {
     /// but the lock is going away, so clean up.
     fn connected(&mut self, key: &Key) {
         let existed = self.connecting.remove(key);
-        debug_assert!(
-            existed,
-            "Connecting dropped, key not in pool.connecting"
-        );
+        debug_assert!(existed, "Connecting dropped, key not in pool.connecting");
         // cancel any waiters. if there are any, it's because
         // this Connecting task didn't complete successfully.
         // those waiters would never receive a connection.
@@ -412,7 +397,7 @@ impl<T: Poolable> PoolInner<T> {
                 self.idle_interval_ref = Some(tx);
                 (dur, rx)
             } else {
-                return
+                return;
             }
         };
 
@@ -434,9 +419,7 @@ impl<T> PoolInner<T> {
     fn clean_waiters(&mut self, key: &Key) {
         let mut remove_waiters = false;
         if let Some(waiters) = self.waiters.get_mut(key) {
-            waiters.retain(|tx| {
-                !tx.is_canceled()
-            });
+            waiters.retain(|tx| !tx.is_canceled());
             remove_waiters = waiters.is_empty();
         }
         if remove_waiters {
@@ -547,9 +530,7 @@ impl<T: Poolable> Drop for Pooled<T> {
 
 impl<T: Poolable> fmt::Debug for Pooled<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Pooled")
-            .field("key", &self.key)
-            .finish()
+        f.debug_struct("Pooled").field("key", &self.key).finish()
     }
 }
 
@@ -567,7 +548,10 @@ pub(super) struct Checkout<T> {
 }
 
 impl<T: Poolable> Checkout<T> {
-    fn poll_waiter(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<crate::Result<Pooled<T>>>> {
+    fn poll_waiter(
+        &mut self,
+        cx: &mut task::Context<'_>,
+    ) -> Poll<Option<crate::Result<Pooled<T>>>> {
         static CANCELED: &str = "pool checkout failed";
         if let Some(mut rx) = self.waiter.take() {
             match Pin::new(&mut rx).poll(cx) {
@@ -577,12 +561,14 @@ impl<T: Poolable> Checkout<T> {
                     } else {
                         Poll::Ready(Some(Err(crate::Error::new_canceled().with(CANCELED))))
                     }
-                },
+                }
                 Poll::Pending => {
                     self.waiter = Some(rx);
                     Poll::Pending
-                },
-                Poll::Ready(Err(_canceled)) => Poll::Ready(Some(Err(crate::Error::new_canceled().with(CANCELED)))),
+                }
+                Poll::Ready(Err(_canceled)) => {
+                    Poll::Ready(Some(Err(crate::Error::new_canceled().with(CANCELED))))
+                }
             }
         } else {
             Poll::Ready(None)
@@ -593,20 +579,19 @@ impl<T: Poolable> Checkout<T> {
         let entry = {
             let mut inner = self.pool.inner.as_ref()?.lock().unwrap();
             let expiration = Expiration::new(inner.timeout);
-            let maybe_entry = inner.idle.get_mut(&self.key)
-                .and_then(|list| {
-                    trace!("take? {:?}: expiration = {:?}", self.key, expiration.0);
-                    // A block to end the mutable borrow on list,
-                    // so the map below can check is_empty()
-                    {
-                        let popper = IdlePopper {
-                            key: &self.key,
-                            list,
-                        };
-                        popper.pop(&expiration)
-                    }
-                        .map(|e| (e, list.is_empty()))
-                });
+            let maybe_entry = inner.idle.get_mut(&self.key).and_then(|list| {
+                trace!("take? {:?}: expiration = {:?}", self.key, expiration.0);
+                // A block to end the mutable borrow on list,
+                // so the map below can check is_empty()
+                {
+                    let popper = IdlePopper {
+                        key: &self.key,
+                        list,
+                    };
+                    popper.pop(&expiration)
+                }
+                .map(|e| (e, list.is_empty()))
+            });
 
             let (entry, empty) = if let Some((e, empty)) = maybe_entry {
                 (Some(e), empty)
@@ -764,9 +749,7 @@ impl<T> WeakOpt<T> {
     }
 
     fn upgrade(&self) -> Option<Arc<T>> {
-        self.0
-            .as_ref()
-            .and_then(Weak::upgrade)
+        self.0.as_ref().and_then(Weak::upgrade)
     }
 }
 
@@ -776,8 +759,8 @@ mod tests {
     use std::task::Poll;
     use std::time::Duration;
 
-    use crate::common::{Exec, Future, Pin, task};
-    use super::{Connecting, Key, Poolable, Pool, Reservation, WeakOpt};
+    use super::{Connecting, Key, Pool, Poolable, Reservation, WeakOpt};
+    use crate::common::{task, Exec, Future, Pin};
 
     /// Test unique reservations.
     #[derive(Debug, PartialEq, Eq)]
@@ -809,7 +792,8 @@ mod tests {
     }
 
     fn pool_max_idle_no_timer<T>(max_idle: usize) -> Pool<T> {
-        let pool = Pool::new(super::Config {
+        let pool = Pool::new(
+            super::Config {
                 enabled: true,
                 keep_alive_timeout: Some(Duration::from_millis(100)),
                 max_idle_per_host: max_idle,
@@ -838,7 +822,8 @@ mod tests {
     struct PollOnce<'a, F>(&'a mut F);
 
     impl<F, T, U> Future for PollOnce<'_, F>
-        where F: Future<Output = Result<T, U>> + Unpin
+    where
+        F: Future<Output = Result<T, U>> + Unpin,
     {
         type Output = Option<()>;
 
@@ -846,7 +831,7 @@ mod tests {
             match Pin::new(&mut self.0).poll(cx) {
                 Poll::Ready(Ok(_)) => Poll::Ready(Some(())),
                 Poll::Ready(Err(_)) => Poll::Ready(Some(())),
-                Poll::Pending => Poll::Ready(None)
+                Poll::Pending => Poll::Ready(None),
             }
         }
     }
@@ -875,7 +860,10 @@ mod tests {
         pool.pooled(c(key.clone()), Uniq(5));
         pool.pooled(c(key.clone()), Uniq(99));
 
-        assert_eq!(pool.locked().idle.get(&key).map(|entries| entries.len()), Some(3));
+        assert_eq!(
+            pool.locked().idle.get(&key).map(|entries| entries.len()),
+            Some(3)
+        );
         tokio::time::delay_for(pool.locked().timeout.unwrap()).await;
 
         let mut checkout = pool.checkout(key.clone());
@@ -895,7 +883,10 @@ mod tests {
         pool.pooled(c(key.clone()), Uniq(99));
 
         // pooled and dropped 3, max_idle should only allow 2
-        assert_eq!(pool.locked().idle.get(&key).map(|entries| entries.len()), Some(2));
+        assert_eq!(
+            pool.locked().idle.get(&key).map(|entries| entries.len()),
+            Some(2)
+        );
     }
 
     #[cfg(feature = "runtime")]
@@ -904,7 +895,8 @@ mod tests {
         let _ = pretty_env_logger::try_init();
         tokio::time::pause();
 
-        let pool = Pool::new(super::Config {
+        let pool = Pool::new(
+            super::Config {
                 enabled: true,
                 keep_alive_timeout: Some(Duration::from_millis(10)),
                 max_idle_per_host: ::std::usize::MAX,
@@ -918,7 +910,10 @@ mod tests {
         pool.pooled(c(key.clone()), Uniq(5));
         pool.pooled(c(key.clone()), Uniq(99));
 
-        assert_eq!(pool.locked().idle.get(&key).map(|entries| entries.len()), Some(3));
+        assert_eq!(
+            pool.locked().idle.get(&key).map(|entries| entries.len()),
+            Some(3)
+        );
 
         // Let the timer tick passed the expiration...
         tokio::time::advance(Duration::from_millis(30)).await;
@@ -937,17 +932,15 @@ mod tests {
         let key = Arc::new("foo".to_string());
         let pooled = pool.pooled(c(key.clone()), Uniq(41));
 
-        let checkout = join(
-            pool.checkout(key),
-              async {
-                // the checkout future will park first,
-                // and then this lazy future will be polled, which will insert
-                // the pooled back into the pool
-                //
-                // this test makes sure that doing so will unpark the checkout
-                drop(pooled);
-            },
-        ).map(|(entry, _)| entry);
+        let checkout = join(pool.checkout(key), async {
+            // the checkout future will park first,
+            // and then this lazy future will be polled, which will insert
+            // the pooled back into the pool
+            //
+            // this test makes sure that doing so will unpark the checkout
+            drop(pooled);
+        })
+        .map(|(entry, _)| entry);
 
         assert_eq!(*checkout.await.unwrap(), Uniq(41));
     }
@@ -1001,10 +994,13 @@ mod tests {
     fn pooled_drop_if_closed_doesnt_reinsert() {
         let pool = pool_no_timer();
         let key = Arc::new("localhost:12345".to_string());
-        pool.pooled(c(key.clone()), CanClose {
-            val: 57,
-            closed: true,
-        });
+        pool.pooled(
+            c(key.clone()),
+            CanClose {
+                val: 57,
+                closed: true,
+            },
+        );
 
         assert!(!pool.locked().idle.contains_key(&key));
     }

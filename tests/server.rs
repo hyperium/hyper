@@ -2,13 +2,13 @@
 #![deny(rust_2018_idioms)]
 
 use std::future::Future;
-use std::net::{TcpStream, Shutdown, SocketAddr};
 use std::io::{self, Read, Write};
+use std::net::TcpListener as StdTcpListener;
+use std::net::{Shutdown, SocketAddr, TcpStream};
+use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
-use std::net::{TcpListener as StdTcpListener};
-use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::thread;
 use std::time::Duration;
@@ -18,17 +18,16 @@ use futures_util::future::{self, Either, FutureExt, TryFutureExt};
 #[cfg(feature = "stream")]
 use futures_util::stream::StreamExt as _;
 use http::header::{HeaderName, HeaderValue};
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::{TcpListener, TcpStream as TkTcpStream};
 use tokio::runtime::Runtime;
-use tokio::io::{AsyncRead, AsyncWrite};
 
-use hyper::{Body, Request, Response, StatusCode, Version};
 use hyper::body::HttpBody as _;
 use hyper::client::Client;
 use hyper::server::conn::Http;
 use hyper::server::Server;
 use hyper::service::{make_service_fn, service_fn};
-
+use hyper::{Body, Request, Response, StatusCode, Version};
 
 #[test]
 fn get_should_ignore_body() {
@@ -36,13 +35,16 @@ fn get_should_ignore_body() {
 
     let mut req = connect(server.addr());
     // Connection: close = don't try to parse the body as a new request
-    req.write_all(b"\
+    req.write_all(
+        b"\
         GET / HTTP/1.1\r\n\
         Host: example.domain\r\n\
         Connection: close\r\n\
         \r\n\
         I shouldn't be read.\r\n\
-    ").unwrap();
+    ",
+    )
+    .unwrap();
     req.read(&mut [0; 256]).unwrap();
 
     assert_eq!(server.body(), b"");
@@ -52,13 +54,16 @@ fn get_should_ignore_body() {
 fn get_with_body() {
     let server = serve();
     let mut req = connect(server.addr());
-    req.write_all(b"\
+    req.write_all(
+        b"\
         GET / HTTP/1.1\r\n\
         Host: example.domain\r\n\
         Content-Length: 19\r\n\
         \r\n\
         I'm a good request.\r\n\
-    ").unwrap();
+    ",
+    )
+    .unwrap();
     req.read(&mut [0; 256]).unwrap();
 
     // note: doesn't include trailing \r\n, cause Content-Length wasn't 21
@@ -82,7 +87,10 @@ mod response_body_lengths {
     }
 
     fn run_test(case: TestCase) {
-        assert!(case.version == 0 || case.version == 1, "TestCase.version must 0 or 1");
+        assert!(
+            case.version == 0 || case.version == 1,
+            "TestCase.version must 0 or 1"
+        );
 
         let server = serve();
 
@@ -95,22 +103,27 @@ mod response_body_lengths {
             Bd::Known(b) => {
                 reply.body(b);
                 b
-            },
+            }
             Bd::Unknown(b) => {
                 let (mut tx, body) = hyper::Body::channel();
                 tx.try_send_data(b.into()).expect("try_send_data");
                 reply.body_stream(body);
                 b
-            },
+            }
         };
 
         let mut req = connect(server.addr());
-        write!(req, "\
-            GET / HTTP/1.{}\r\n\
-            Host: example.domain\r\n\
-            Connection: close\r\n\
-            \r\n\
-        ", case.version).expect("request write");
+        write!(
+            req,
+            "\
+             GET / HTTP/1.{}\r\n\
+             Host: example.domain\r\n\
+             Connection: close\r\n\
+             \r\n\
+             ",
+            case.version
+        )
+        .expect("request write");
         let mut body = String::new();
         req.read_to_string(&mut body).unwrap();
 
@@ -139,9 +152,17 @@ mod response_body_lengths {
 
         if case.expects_chunked {
             let len = body.len();
-            assert_eq!(&body[n + 1..n + 3], "\r\n", "expected body chunk size header");
+            assert_eq!(
+                &body[n + 1..n + 3],
+                "\r\n",
+                "expected body chunk size header"
+            );
             assert_eq!(&body[n + 3..len - 7], body_str, "expected body");
-            assert_eq!(&body[len - 7..], "\r\n0\r\n\r\n", "expected body final chunk size header");
+            assert_eq!(
+                &body[len - 7..],
+                "\r\n0\r\n\r\n",
+                "expected body final chunk size header"
+            );
         } else {
             assert_eq!(&body[n..], body_str, "expected body");
         }
@@ -281,7 +302,6 @@ mod response_body_lengths {
         });
     }
 
-
     #[test]
     fn http10_chunked_response() {
         run_test(TestCase {
@@ -344,45 +364,49 @@ fn get_chunked_response_with_ka() {
     let foo_bar = b"foo bar baz";
     let foo_bar_chunk = b"\r\nfoo bar baz\r\n0\r\n\r\n";
     let server = serve();
-    server.reply()
+    server
+        .reply()
         .header("transfer-encoding", "chunked")
         .body(foo_bar);
     let mut req = connect(server.addr());
-    req.write_all(b"\
+    req.write_all(
+        b"\
         GET / HTTP/1.1\r\n\
         Host: example.domain\r\n\
         Connection: keep-alive\r\n\
         \r\n\
-    ").expect("writing 1");
+    ",
+    )
+    .expect("writing 1");
 
-    read_until(&mut req, |buf| {
-        buf.ends_with(foo_bar_chunk)
-    }).expect("reading 1");
+    read_until(&mut req, |buf| buf.ends_with(foo_bar_chunk)).expect("reading 1");
 
     // try again!
 
     let quux = b"zar quux";
-    server.reply()
+    server
+        .reply()
         .header("content-length", quux.len().to_string())
         .body(quux);
-    req.write_all(b"\
+    req.write_all(
+        b"\
         GET /quux HTTP/1.1\r\n\
         Host: example.domain\r\n\
         Connection: close\r\n\
         \r\n\
-    ").expect("writing 2");
+    ",
+    )
+    .expect("writing 2");
 
-
-    read_until(&mut req, |buf| {
-        buf.ends_with(quux)
-    }).expect("reading 2");
+    read_until(&mut req, |buf| buf.ends_with(quux)).expect("reading 2");
 }
 
 #[test]
 fn post_with_chunked_body() {
     let server = serve();
     let mut req = connect(server.addr());
-    req.write_all(b"\
+    req.write_all(
+        b"\
         POST / HTTP/1.1\r\n\
         Host: example.domain\r\n\
         Transfer-Encoding: chunked\r\n\
@@ -395,7 +419,9 @@ fn post_with_chunked_body() {
         rt\r\n\
         0\r\n\
         \r\n\
-    ").unwrap();
+    ",
+    )
+    .unwrap();
     req.read(&mut [0; 256]).unwrap();
 
     assert_eq!(server.body(), b"qwert");
@@ -406,13 +432,16 @@ fn post_with_incomplete_body() {
     let _ = pretty_env_logger::try_init();
     let server = serve();
     let mut req = connect(server.addr());
-    req.write_all(b"\
+    req.write_all(
+        b"\
         POST / HTTP/1.1\r\n\
         Host: example.domain\r\n\
         Content-Length: 10\r\n\
         \r\n\
         12345\
-    ").expect("write");
+    ",
+    )
+    .expect("write");
     req.shutdown(Shutdown::Write).expect("shutdown write");
 
     server.body_err();
@@ -420,20 +449,21 @@ fn post_with_incomplete_body() {
     req.read(&mut [0; 256]).expect("read");
 }
 
-
 #[test]
 fn head_response_can_send_content_length() {
     let _ = pretty_env_logger::try_init();
     let server = serve();
-    server.reply()
-        .header("content-length", "1024");
+    server.reply().header("content-length", "1024");
     let mut req = connect(server.addr());
-    req.write_all(b"\
+    req.write_all(
+        b"\
         HEAD / HTTP/1.1\r\n\
         Host: example.domain\r\n\
         Connection: close\r\n\
         \r\n\
-    ").unwrap();
+    ",
+    )
+    .unwrap();
 
     let mut response = String::new();
     req.read_to_string(&mut response).unwrap();
@@ -453,15 +483,17 @@ fn head_response_doesnt_send_body() {
     let _ = pretty_env_logger::try_init();
     let foo_bar = b"foo bar baz";
     let server = serve();
-    server.reply()
-        .body(foo_bar);
+    server.reply().body(foo_bar);
     let mut req = connect(server.addr());
-    req.write_all(b"\
+    req.write_all(
+        b"\
         HEAD / HTTP/1.1\r\n\
         Host: example.domain\r\n\
         Connection: close\r\n\
         \r\n\
-    ").unwrap();
+    ",
+    )
+    .unwrap();
 
     let mut response = String::new();
     req.read_to_string(&mut response).unwrap();
@@ -480,16 +512,20 @@ fn head_response_doesnt_send_body() {
 fn response_does_not_set_chunked_if_body_not_allowed() {
     let _ = pretty_env_logger::try_init();
     let server = serve();
-    server.reply()
+    server
+        .reply()
         .status(hyper::StatusCode::NOT_MODIFIED)
         .header("transfer-encoding", "chunked");
     let mut req = connect(server.addr());
-    req.write_all(b"\
+    req.write_all(
+        b"\
         GET / HTTP/1.1\r\n\
         Host: example.domain\r\n\
         Connection: close\r\n\
         \r\n\
-    ").unwrap();
+    ",
+    )
+    .unwrap();
 
     let mut response = String::new();
     req.read_to_string(&mut response).unwrap();
@@ -509,36 +545,40 @@ fn response_does_not_set_chunked_if_body_not_allowed() {
 fn keep_alive() {
     let foo_bar = b"foo bar baz";
     let server = serve();
-    server.reply()
+    server
+        .reply()
         .header("content-length", foo_bar.len().to_string())
         .body(foo_bar);
     let mut req = connect(server.addr());
-    req.write_all(b"\
+    req.write_all(
+        b"\
         GET / HTTP/1.1\r\n\
         Host: example.domain\r\n\
         \r\n\
-    ").expect("writing 1");
+    ",
+    )
+    .expect("writing 1");
 
-    read_until(&mut req, |buf| {
-        buf.ends_with(foo_bar)
-    }).expect("reading 1");
+    read_until(&mut req, |buf| buf.ends_with(foo_bar)).expect("reading 1");
 
     // try again!
 
     let quux = b"zar quux";
-    server.reply()
+    server
+        .reply()
         .header("content-length", quux.len().to_string())
         .body(quux);
-    req.write_all(b"\
+    req.write_all(
+        b"\
         GET /quux HTTP/1.1\r\n\
         Host: example.domain\r\n\
         Connection: close\r\n\
         \r\n\
-    ").expect("writing 2");
+    ",
+    )
+    .expect("writing 2");
 
-    read_until(&mut req, |buf| {
-        buf.ends_with(quux)
-    }).expect("reading 2");
+    read_until(&mut req, |buf| buf.ends_with(quux)).expect("reading 2");
 }
 
 #[test]
@@ -546,22 +586,23 @@ fn http_10_keep_alive() {
     let foo_bar = b"foo bar baz";
     let server = serve();
     // Response version 1.1 with no keep-alive header will downgrade to 1.0 when served
-    server.reply()
+    server
+        .reply()
         .header("content-length", foo_bar.len().to_string())
         .body(foo_bar);
     let mut req = connect(server.addr());
-    req.write_all(b"\
+    req.write_all(
+        b"\
         GET / HTTP/1.0\r\n\
         Host: example.domain\r\n\
         Connection: keep-alive\r\n\
         \r\n\
-    ").expect("writing 1");
-
+    ",
+    )
+    .expect("writing 1");
 
     // Connection: keep-alive header should be added when downgrading to a 1.0 response
-    let res = read_until(&mut req, |buf| {
-        buf.ends_with(foo_bar)
-    }).expect("reading 1");
+    let res = read_until(&mut req, |buf| buf.ends_with(foo_bar)).expect("reading 1");
 
     let sres = s(&res);
     assert!(
@@ -573,19 +614,20 @@ fn http_10_keep_alive() {
     // try again!
 
     let quux = b"zar quux";
-    server.reply()
+    server
+        .reply()
         .header("content-length", quux.len().to_string())
         .body(quux);
-    req.write_all(b"\
+    req.write_all(
+        b"\
         GET /quux HTTP/1.0\r\n\
         Host: example.domain\r\n\
         \r\n\
-    ").expect("writing 2");
+    ",
+    )
+    .expect("writing 2");
 
-
-    read_until(&mut req, |buf| {
-        buf.ends_with(quux)
-    }).expect("reading 2");
+    read_until(&mut req, |buf| buf.ends_with(quux)).expect("reading 2");
 }
 
 #[test]
@@ -609,7 +651,8 @@ fn http_10_close_on_no_ka() {
         Connection: keep-alive\r\n\
         \r\n\
     ",
-    ).expect("writing 1");
+    )
+    .expect("writing 1");
 
     // server isn't keeping-alive, so the socket should be closed after
     // writing the response. thus, read_to_end should succeed.
@@ -628,20 +671,21 @@ fn http_10_close_on_no_ka() {
 #[test]
 fn disable_keep_alive() {
     let foo_bar = b"foo bar baz";
-    let server = serve_opts()
-        .keep_alive(false)
-        .serve();
-    server.reply()
+    let server = serve_opts().keep_alive(false).serve();
+    server
+        .reply()
         .header("content-length", foo_bar.len().to_string())
         .body(foo_bar);
     let mut req = connect(server.addr());
-    req.write_all(b"\
+    req.write_all(
+        b"\
         GET / HTTP/1.1\r\n\
         Host: example.domain\r\n\
         Connection: keep-alive\r\n\
         \r\n\
-    ").expect("writing 1");
-
+    ",
+    )
+    .expect("writing 1");
 
     // server isn't keeping-alive, so the socket should be closed after
     // writing the response. thus, read_to_end should succeed.
@@ -654,17 +698,21 @@ fn disable_keep_alive() {
 fn header_connection_close() {
     let foo_bar = b"foo bar baz";
     let server = serve();
-    server.reply()
+    server
+        .reply()
         .header("content-length", foo_bar.len().to_string())
         .header("connection", "close")
         .body(foo_bar);
     let mut req = connect(server.addr());
-    req.write_all(b"\
+    req.write_all(
+        b"\
         GET / HTTP/1.1\r\n\
         Host: example.domain\r\n\
         Connection: keep-alive\r\n\
         \r\n\
-    ").expect("writing 1");
+    ",
+    )
+    .expect("writing 1");
 
     // server isn't keeping-alive, so the socket should be closed after
     // writing the response. thus, read_to_end should succeed.
@@ -685,14 +733,17 @@ fn expect_continue_sends_100() {
     let mut req = connect(server.addr());
     server.reply();
 
-    req.write_all(b"\
+    req.write_all(
+        b"\
         POST /foo HTTP/1.1\r\n\
         Host: example.domain\r\n\
         Expect: 100-continue\r\n\
         Content-Length: 5\r\n\
         Connection: Close\r\n\
         \r\n\
-    ").expect("write 1");
+    ",
+    )
+    .expect("write 1");
 
     let msg = b"HTTP/1.1 100 Continue\r\n\r\n";
     let mut buf = vec![0; msg.len()];
@@ -716,13 +767,16 @@ fn expect_continue_but_no_body_is_ignored() {
     server.reply();
 
     // no content-length or transfer-encoding means no body!
-    req.write_all(b"\
+    req.write_all(
+        b"\
         POST /foo HTTP/1.1\r\n\
         Host: example.domain\r\n\
         Expect: 100-continue\r\n\
         Connection: Close\r\n\
         \r\n\
-    ").expect("write");
+    ",
+    )
+    .expect("write");
 
     let expected = "HTTP/1.1 200 OK\r\n";
     let mut resp = String::new();
@@ -735,21 +789,26 @@ fn expect_continue_but_no_body_is_ignored() {
 fn pipeline_disabled() {
     let server = serve();
     let mut req = connect(server.addr());
-    server.reply()
+    server
+        .reply()
         .header("content-length", "12")
         .body("Hello World!");
-    server.reply()
+    server
+        .reply()
         .header("content-length", "12")
         .body("Hello World!");
 
-    req.write_all(b"\
+    req.write_all(
+        b"\
         GET / HTTP/1.1\r\n\
         Host: example.domain\r\n\
         \r\n\
         GET / HTTP/1.1\r\n\
         Host: example.domain\r\n\
         \r\n\
-    ").expect("write 1");
+    ",
+    )
+    .expect("write 1");
 
     let mut buf = vec![0; 4096];
     let n = req.read(&mut buf).expect("read 1");
@@ -775,18 +834,19 @@ fn pipeline_disabled() {
 
 #[test]
 fn pipeline_enabled() {
-    let server = serve_opts()
-        .pipeline(true)
-        .serve();
+    let server = serve_opts().pipeline(true).serve();
     let mut req = connect(server.addr());
-    server.reply()
+    server
+        .reply()
         .header("content-length", "12")
         .body("Hello World\n");
-    server.reply()
+    server
+        .reply()
         .header("content-length", "12")
         .body("Hello World\n");
 
-    req.write_all(b"\
+    req.write_all(
+        b"\
         GET / HTTP/1.1\r\n\
         Host: example.domain\r\n\
         \r\n\
@@ -794,7 +854,9 @@ fn pipeline_enabled() {
         Host: example.domain\r\n\
         Connection: close\r\n\
         \r\n\
-    ").expect("write 1");
+    ",
+    )
+    .expect("write 1");
 
     let mut buf = vec![0; 4096];
     let n = req.read(&mut buf).expect("read 1");
@@ -815,7 +877,6 @@ fn pipeline_enabled() {
         assert_eq!(s(lines.next().unwrap()), "Hello World");
     }
 
-
     // with pipeline enabled, both responses should have been in the first read
     // so a second read should be EOF
     let n = req.read(&mut buf).expect("read 2");
@@ -827,10 +888,13 @@ fn http_10_request_receives_http_10_response() {
     let server = serve();
 
     let mut req = connect(server.addr());
-    req.write_all(b"\
+    req.write_all(
+        b"\
         GET / HTTP/1.0\r\n\
         \r\n\
-    ").unwrap();
+    ",
+    )
+    .unwrap();
 
     let expected = "HTTP/1.0 200 OK\r\ncontent-length: 0\r\n";
     let mut buf = [0; 256];
@@ -860,17 +924,15 @@ async fn disable_keep_alive_mid_request() {
     let (socket, _) = listener.accept().await.unwrap();
     let srv = Http::new().serve_connection(socket, HelloWorld);
     future::try_select(srv, rx1)
-        .then(|r| {
-            match r {
-                Ok(Either::Left(_)) => panic!("expected rx first"),
-                Ok(Either::Right(((), mut conn))) => {
-                    Pin::new(&mut conn).graceful_shutdown();
-                    tx2.send(()).unwrap();
-                    conn
-                }
-                Err(Either::Left((e, _))) => panic!("unexpected error {}", e),
-                Err(Either::Right((e, _))) => panic!("unexpected error {}", e),
+        .then(|r| match r {
+            Ok(Either::Left(_)) => panic!("expected rx first"),
+            Ok(Either::Right(((), mut conn))) => {
+                Pin::new(&mut conn).graceful_shutdown();
+                tx2.send(()).unwrap();
+                conn
             }
+            Err(Either::Left((e, _))) => panic!("unexpected error {}", e),
+            Err(Either::Right((e, _))) => panic!("unexpected error {}", e),
         })
         .await
         .unwrap();
@@ -888,15 +950,16 @@ async fn disable_keep_alive_post_request() {
 
     let child = thread::spawn(move || {
         let mut req = connect(&addr);
-        req.write_all(b"\
+        req.write_all(
+            b"\
             GET / HTTP/1.1\r\n\
             Host: localhost\r\n\
             \r\n\
-        ").unwrap();
+        ",
+        )
+        .unwrap();
 
-        read_until(&mut req, |buf| {
-            buf.ends_with(HELLO.as_bytes())
-        }).expect("reading 1");
+        read_until(&mut req, |buf| buf.ends_with(HELLO.as_bytes())).expect("reading 1");
 
         // Connection should get closed *after* tx is sent on
         tx1.send(()).unwrap();
@@ -913,18 +976,15 @@ async fn disable_keep_alive_post_request() {
         _debug: dropped2,
     };
     let server = Http::new().serve_connection(transport, HelloWorld);
-    let fut = future::try_select(server, rx1)
-        .then(|r| {
-            match r {
-                Ok(Either::Left(_)) => panic!("expected rx first"),
-                Ok(Either::Right(((), mut conn))) => {
-                    Pin::new(&mut conn).graceful_shutdown();
-                    conn
-                }
-                Err(Either::Left((e, _))) => panic!("unexpected error {}", e),
-                Err(Either::Right((e, _))) => panic!("unexpected error {}", e),
-            }
-        });
+    let fut = future::try_select(server, rx1).then(|r| match r {
+        Ok(Either::Left(_)) => panic!("expected rx first"),
+        Ok(Either::Right(((), mut conn))) => {
+            Pin::new(&mut conn).graceful_shutdown();
+            conn
+        }
+        Err(Either::Left((e, _))) => panic!("unexpected error {}", e),
+        Err(Either::Right((e, _))) => panic!("unexpected error {}", e),
+    });
 
     assert!(!dropped.load());
     fut.await.unwrap();
@@ -986,10 +1046,13 @@ async fn http1_allow_half_close() {
     let (socket, _) = listener.accept().await.unwrap();
     Http::new()
         .http1_half_close(true)
-        .serve_connection(socket, service_fn(|_| {
-            tokio::time::delay_for(Duration::from_millis(500))
-                .map(|_| Ok::<_, hyper::Error>(Response::new(Body::empty())))
-        }))
+        .serve_connection(
+            socket,
+            service_fn(|_| {
+                tokio::time::delay_for(Duration::from_millis(500))
+                    .map(|_| Ok::<_, hyper::Error>(Response::new(Body::empty())))
+            }),
+        )
         .await
         .unwrap();
 
@@ -1010,12 +1073,16 @@ async fn disconnect_after_reading_request_before_responding() {
     let (socket, _) = listener.accept().await.unwrap();
     Http::new()
         .http1_half_close(false)
-        .serve_connection(socket, service_fn(|_| {
-            tokio::time::delay_for(Duration::from_secs(2))
-                .map(|_| -> Result<Response<Body>, hyper::Error> {
-                    panic!("response future should have been dropped");
-                })
-        }))
+        .serve_connection(
+            socket,
+            service_fn(|_| {
+                tokio::time::delay_for(Duration::from_secs(2)).map(
+                    |_| -> Result<Response<Body>, hyper::Error> {
+                        panic!("response future should have been dropped");
+                    },
+                )
+            }),
+        )
         .await
         .expect_err("socket disconnected");
 }
@@ -1037,12 +1104,19 @@ async fn returning_1xx_response_is_error() {
 
     let (socket, _) = listener.accept().await.unwrap();
     Http::new()
-        .serve_connection(socket, service_fn(|_| async move {
-            Ok::<_, hyper::Error>(Response::builder()
-                .status(StatusCode::CONTINUE)
-                .body(Body::empty())
-                .unwrap())
-        }))
+        .serve_connection(
+            socket,
+            service_fn(|_| {
+                async move {
+                    Ok::<_, hyper::Error>(
+                        Response::builder()
+                            .status(StatusCode::CONTINUE)
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                }
+            }),
+        )
         .await
         .expect_err("1xx status code should error");
 }
@@ -1076,13 +1150,16 @@ async fn upgrades() {
 
     thread::spawn(move || {
         let mut tcp = connect(&addr);
-        tcp.write_all(b"\
+        tcp.write_all(
+            b"\
             GET / HTTP/1.1\r\n\
             Upgrade: foobar\r\n\
             Connection: upgrade\r\n\
             \r\n\
             eagerly optimistic\
-        ").expect("write 1");
+        ",
+        )
+        .expect("write 1");
         let mut buf = [0; 256];
         tcp.read(&mut buf).expect("read 1");
 
@@ -1096,15 +1173,17 @@ async fn upgrades() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
-    let conn = Http::new()
-        .serve_connection(socket, service_fn(|_| {
+    let conn = Http::new().serve_connection(
+        socket,
+        service_fn(|_| {
             let res = Response::builder()
                 .status(101)
                 .header("upgrade", "foobar")
                 .body(hyper::Body::empty())
                 .unwrap();
             future::ready(Ok::<_, hyper::Error>(res))
-        }));
+        }),
+    );
 
     let parts = conn.without_shutdown().await.unwrap();
     assert_eq!(parts.read_buf, "eagerly optimistic");
@@ -1130,11 +1209,14 @@ async fn http_connect() {
 
     thread::spawn(move || {
         let mut tcp = connect(&addr);
-        tcp.write_all(b"\
+        tcp.write_all(
+            b"\
             CONNECT localhost:80 HTTP/1.1\r\n\
             \r\n\
             eagerly optimistic\
-        ").expect("write 1");
+        ",
+        )
+        .expect("write 1");
         let mut buf = [0; 256];
         tcp.read(&mut buf).expect("read 1");
 
@@ -1148,14 +1230,16 @@ async fn http_connect() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
-    let conn = Http::new()
-        .serve_connection(socket, service_fn(|_| {
+    let conn = Http::new().serve_connection(
+        socket,
+        service_fn(|_| {
             let res = Response::builder()
                 .status(200)
                 .body(hyper::Body::empty())
                 .unwrap();
             future::ready(Ok::<_, hyper::Error>(res))
-        }));
+        }),
+    );
 
     let parts = conn.without_shutdown().await.unwrap();
     assert_eq!(parts.read_buf, "eagerly optimistic");
@@ -1181,13 +1265,16 @@ async fn upgrades_new() {
 
     thread::spawn(move || {
         let mut tcp = connect(&addr);
-        tcp.write_all(b"\
+        tcp.write_all(
+            b"\
             GET / HTTP/1.1\r\n\
             Upgrade: foobar\r\n\
             Connection: upgrade\r\n\
             \r\n\
             eagerly optimistic\
-        ").expect("write 1");
+        ",
+        )
+        .expect("write 1");
         let mut buf = [0; 256];
         tcp.read(&mut buf).expect("read 1");
 
@@ -1202,15 +1289,15 @@ async fn upgrades_new() {
 
     let (upgrades_tx, upgrades_rx) = mpsc::channel();
     let svc = service_fn(move |req: Request<Body>| {
-        let on_upgrade = req
-            .into_body()
-            .on_upgrade();
+        let on_upgrade = req.into_body().on_upgrade();
         let _ = upgrades_tx.send(on_upgrade);
-        future::ok::<_, hyper::Error>(Response::builder()
-            .status(101)
-            .header("upgrade", "foobar")
-            .body(hyper::Body::empty())
-            .unwrap())
+        future::ok::<_, hyper::Error>(
+            Response::builder()
+                .status(101)
+                .header("upgrade", "foobar")
+                .body(hyper::Body::empty())
+                .unwrap(),
+        )
     });
 
     let (socket, _) = listener.accept().await.unwrap();
@@ -1247,11 +1334,14 @@ async fn http_connect_new() {
 
     thread::spawn(move || {
         let mut tcp = connect(&addr);
-        tcp.write_all(b"\
+        tcp.write_all(
+            b"\
             CONNECT localhost HTTP/1.1\r\n\
             \r\n\
             eagerly optimistic\
-        ").expect("write 1");
+        ",
+        )
+        .expect("write 1");
         let mut buf = [0; 256];
         tcp.read(&mut buf).expect("read 1");
 
@@ -1266,14 +1356,14 @@ async fn http_connect_new() {
 
     let (upgrades_tx, upgrades_rx) = mpsc::channel();
     let svc = service_fn(move |req: Request<Body>| {
-        let on_upgrade = req
-            .into_body()
-            .on_upgrade();
+        let on_upgrade = req.into_body().on_upgrade();
         let _ = upgrades_tx.send(on_upgrade);
-        future::ok::<_, hyper::Error>(Response::builder()
-            .status(200)
-            .body(hyper::Body::empty())
-            .unwrap())
+        future::ok::<_, hyper::Error>(
+            Response::builder()
+                .status(200)
+                .body(hyper::Body::empty())
+                .unwrap(),
+        )
     });
 
     let (socket, _) = listener.accept().await.unwrap();
@@ -1298,7 +1388,6 @@ async fn http_connect_new() {
     io.read_to_end(&mut vec).await.unwrap();
     assert_eq!(s(&vec), "bar=foo");
 }
-
 
 #[tokio::test]
 async fn parse_errors_send_4xx_response() {
@@ -1329,7 +1418,8 @@ async fn illegal_request_length_returns_400_response() {
 
     thread::spawn(move || {
         let mut tcp = connect(&addr);
-        tcp.write_all(b"POST / HTTP/1.1\r\nContent-Length: foo\r\n\r\n").unwrap();
+        tcp.write_all(b"POST / HTTP/1.1\r\nContent-Length: foo\r\n\r\n")
+            .unwrap();
         let mut buf = [0; 256];
         tcp.read(&mut buf).unwrap();
 
@@ -1389,24 +1479,22 @@ fn streaming_body() {
     let _ = pretty_env_logger::try_init();
 
     // disable keep-alive so we can use read_to_end
-    let server = serve_opts()
-        .keep_alive(false)
-        .serve();
+    let server = serve_opts().keep_alive(false).serve();
 
     static S: &'static [&'static [u8]] = &[&[b'x'; 1_000] as &[u8]; 1_00] as _;
-    let b = ::futures_util::stream::iter(S.into_iter())
-        .map(|&s| Ok::<_, hyper::Error>(s));
+    let b = ::futures_util::stream::iter(S.into_iter()).map(|&s| Ok::<_, hyper::Error>(s));
     let b = hyper::Body::wrap_stream(b);
-    server
-        .reply()
-        .body_stream(b);
+    server.reply().body_stream(b);
 
     let mut tcp = connect(server.addr());
     tcp.write_all(b"GET / HTTP/1.1\r\n\r\n").unwrap();
     let mut buf = Vec::new();
     tcp.read_to_end(&mut buf).expect("read 1");
 
-    assert!(buf.starts_with(b"HTTP/1.1 200 OK\r\n"), "response is 200 OK");
+    assert!(
+        buf.starts_with(b"HTTP/1.1 200 OK\r\n"),
+        "response is 200 OK"
+    );
     assert_eq!(buf.len(), 100_789, "full streamed body read");
 }
 
@@ -1417,15 +1505,14 @@ fn http1_response_with_http2_version() {
 
     let mut rt = Runtime::new().expect("runtime new");
 
-    server
-        .reply()
-        .version(hyper::Version::HTTP_2);
+    server.reply().version(hyper::Version::HTTP_2);
 
     rt.block_on({
         let client = Client::new();
         let uri = addr_str.parse().expect("server addr should parse");
         client.get(uri)
-    }).unwrap();
+    })
+    .unwrap();
 }
 
 #[test]
@@ -1441,20 +1528,16 @@ fn try_h2() {
             .build_http::<hyper::Body>();
         let uri = addr_str.parse().expect("server addr should parse");
 
-        client
-            .get(uri)
-            .map_ok(|_| { () })
-            .map_err(|_e| { () })
-    }).unwrap();
+        client.get(uri).map_ok(|_| ()).map_err(|_e| ())
+    })
+    .unwrap();
 
     assert_eq!(server.body(), b"");
 }
 
 #[test]
 fn http1_only() {
-    let server = serve_opts()
-        .http1_only()
-        .serve();
+    let server = serve_opts().http1_only().serve();
     let addr_str = format!("http://{}", server.addr());
 
     let mut rt = Runtime::new().expect("runtime new");
@@ -1465,7 +1548,8 @@ fn http1_only() {
             .build_http::<hyper::Body>();
         let uri = addr_str.parse().expect("server addr should parse");
         client.get(uri)
-    }).unwrap_err();
+    })
+    .unwrap_err();
 }
 
 #[tokio::test]
@@ -1504,36 +1588,32 @@ fn http2_body_user_error_sends_reset_reason() {
     let server = serve();
     let addr_str = format!("http://{}", server.addr());
 
-    let b = ::futures_util::stream::once(
-        future::err::<String, _>(h2::Error::from(h2::Reason::INADEQUATE_SECURITY))
-    );
+    let b = ::futures_util::stream::once(future::err::<String, _>(h2::Error::from(
+        h2::Reason::INADEQUATE_SECURITY,
+    )));
     let b = hyper::Body::wrap_stream(b);
 
-    server
-        .reply()
-        .body_stream(b);
+    server.reply().body_stream(b);
 
     let mut rt = Runtime::new().expect("runtime new");
 
-    let err: hyper::Error = rt.block_on(async move {
-        let client = Client::builder()
-            .http2_only(true)
-            .build_http::<hyper::Body>();
-        let uri = addr_str.parse().expect("server addr should parse");
+    let err: hyper::Error = rt
+        .block_on(async move {
+            let client = Client::builder()
+                .http2_only(true)
+                .build_http::<hyper::Body>();
+            let uri = addr_str.parse().expect("server addr should parse");
 
-        let mut res = client.get(uri).await?;
+            let mut res = client.get(uri).await?;
 
-        while let Some(chunk) = res.body_mut().next().await {
-            chunk?;
-        }
-        Ok(())
-    }).unwrap_err();
+            while let Some(chunk) = res.body_mut().next().await {
+                chunk?;
+            }
+            Ok(())
+        })
+        .unwrap_err();
 
-    let h2_err = err
-        .source()
-        .unwrap()
-        .downcast_ref::<h2::Error>()
-        .unwrap();
+    let h2_err = err.source().unwrap().downcast_ref::<h2::Error>().unwrap();
 
     assert_eq!(h2_err.reason(), Some(h2::Reason::INADEQUATE_SECURITY));
 }
@@ -1543,12 +1623,17 @@ struct Http2ReadyErrorSvc;
 impl tower_service::Service<Request<Body>> for Http2ReadyErrorSvc {
     type Response = Response<Body>;
     type Error = h2::Error;
-    type Future = Box<dyn futures_core::Future<
-        Output = Result<Self::Response, Self::Error>
-    > + Send + Sync + Unpin>;
+    type Future = Box<
+        dyn futures_core::Future<Output = Result<Self::Response, Self::Error>>
+            + Send
+            + Sync
+            + Unpin,
+    >;
 
     fn poll_ready(&mut self, _: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Err::<(), _>(h2::Error::from(h2::Reason::INADEQUATE_SECURITY)))
+        Poll::Ready(Err::<(), _>(h2::Error::from(
+            h2::Reason::INADEQUATE_SECURITY,
+        )))
     }
 
     fn call(&mut self, _: hyper::Request<Body>) -> Self::Future {
@@ -1565,7 +1650,9 @@ async fn http2_service_poll_ready_error_sends_goaway() {
 
     let server = hyper::Server::bind(&([127, 0, 0, 1], 0).into())
         .http2_only(true)
-        .serve(make_service_fn(|_| async move { Ok::<_, BoxError>(Http2ReadyErrorSvc) }));
+        .serve(make_service_fn(|_| {
+            async move { Ok::<_, BoxError>(Http2ReadyErrorSvc) }
+        }));
 
     let addr_str = format!("http://{}", server.local_addr());
 
@@ -1594,17 +1681,20 @@ async fn http2_service_poll_ready_error_sends_goaway() {
 #[test]
 fn skips_content_length_for_304_responses() {
     let server = serve();
-    server.reply()
-
+    server
+        .reply()
         .status(hyper::StatusCode::NOT_MODIFIED)
         .body("foo");
     let mut req = connect(server.addr());
-    req.write_all(b"\
+    req.write_all(
+        b"\
         GET / HTTP/1.1\r\n\
         Host: example.domain\r\n\
         Connection: close\r\n\
         \r\n\
-    ").unwrap();
+    ",
+    )
+    .unwrap();
 
     let mut response = String::new();
     req.read_to_string(&mut response).unwrap();
@@ -1614,17 +1704,20 @@ fn skips_content_length_for_304_responses() {
 #[test]
 fn skips_content_length_and_body_for_304_responses() {
     let server = serve();
-    server.reply()
-
+    server
+        .reply()
         .status(hyper::StatusCode::NOT_MODIFIED)
         .body("foo");
     let mut req = connect(server.addr());
-    req.write_all(b"\
+    req.write_all(
+        b"\
         GET / HTTP/1.1\r\n\
         Host: example.domain\r\n\
         Connection: close\r\n\
         \r\n\
-    ").unwrap();
+    ",
+    )
+    .unwrap();
 
     let mut response = String::new();
     req.read_to_string(&mut response).unwrap();
@@ -1667,7 +1760,7 @@ impl Serve {
             match self.msg_rx.recv() {
                 Ok(Msg::Chunk(msg)) => {
                     buf.extend(&msg);
-                },
+                }
                 Ok(Msg::Error(e)) => return Err(e),
                 Ok(Msg::End) => break,
                 Err(e) => panic!("expected body, found: {:?}", e),
@@ -1677,9 +1770,7 @@ impl Serve {
     }
 
     fn reply(&self) -> ReplyBuilder<'_> {
-        ReplyBuilder {
-            tx: &self.reply_tx
-        }
+        ReplyBuilder { tx: &self.reply_tx }
     }
 }
 
@@ -1696,19 +1787,31 @@ impl<'a> ReplyBuilder<'a> {
     }
 
     fn version(self, version: hyper::Version) -> Self {
-        self.tx.lock().unwrap().send(Reply::Version(version)).unwrap();
+        self.tx
+            .lock()
+            .unwrap()
+            .send(Reply::Version(version))
+            .unwrap();
         self
     }
 
     fn header<V: AsRef<str>>(self, name: &str, value: V) -> Self {
         let name = HeaderName::from_bytes(name.as_bytes()).expect("header name");
         let value = HeaderValue::from_str(value.as_ref()).expect("header value");
-        self.tx.lock().unwrap().send(Reply::Header(name, value)).unwrap();
+        self.tx
+            .lock()
+            .unwrap()
+            .send(Reply::Header(name, value))
+            .unwrap();
         self
     }
 
     fn body<T: AsRef<[u8]>>(self, body: T) {
-        self.tx.lock().unwrap().send(Reply::Body(body.as_ref().to_vec().into())).unwrap();
+        self.tx
+            .lock()
+            .unwrap()
+            .send(Reply::Body(body.as_ref().to_vec().into()))
+            .unwrap();
     }
 
     fn body_stream(self, body: Body) {
@@ -1717,14 +1820,18 @@ impl<'a> ReplyBuilder<'a> {
 
     #[allow(dead_code)]
     fn error<E: Into<BoxError>>(self, err: E) {
-        self.tx.lock().unwrap().send(Reply::Error(err.into())).unwrap();
+        self.tx
+            .lock()
+            .unwrap()
+            .send(Reply::Error(err.into()))
+            .unwrap();
     }
 }
 
 impl<'a> Drop for ReplyBuilder<'a> {
     fn drop(&mut self) {
         if let Ok(mut tx) = self.tx.lock() {
-            let _  = tx.send(Reply::End);
+            let _ = tx.send(Reply::End);
         }
     }
 }
@@ -1784,11 +1891,11 @@ impl tower_service::Service<Request<Body>> for TestService {
                 match chunk {
                     Ok(chunk) => {
                         tx.send(Msg::Chunk(chunk.to_vec())).unwrap();
-                    },
+                    }
                     Err(err) => {
                         tx.send(Msg::Error(err)).unwrap();
                         return Err("req body error".into());
-                    },
+                    }
                 }
             }
 
@@ -1806,16 +1913,16 @@ impl TestService {
             match reply {
                 Reply::Status(s) => {
                     *res.status_mut() = s;
-                },
+                }
                 Reply::Version(v) => {
                     *res.version_mut() = v;
-                },
+                }
                 Reply::Header(name, value) => {
                     res.headers_mut().insert(name, value);
-                },
+                }
                 Reply::Body(body) => {
                     *res.body_mut() = body;
-                },
+                }
                 Reply::Error(err) => return Err(err),
                 Reply::End => break,
             }
@@ -1842,7 +1949,6 @@ impl tower_service::Service<Request<Body>> for HelloWorld {
         future::ok(response)
     }
 }
-
 
 fn connect(addr: &SocketAddr) -> TcpStream {
     let req = TcpStream::connect(addr).unwrap();
@@ -1935,16 +2041,15 @@ impl ServeOptions {
                         .http1_pipeline_flush(options.pipeline)
                         .serve(service);
 
-                    addr_tx.send(
-                        server.local_addr()
-                    ).expect("server addr tx");
+                    addr_tx.send(server.local_addr()).expect("server addr tx");
 
                     server
                         .with_graceful_shutdown(async {
                             let _ = shutdown_rx.await;
                         })
                         .await
-                }).expect("serve()");
+                })
+                .expect("serve()");
             })
             .expect("thread spawn");
 
@@ -1992,7 +2097,7 @@ where
         if pos == buf.len() {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
-                "read_until buffer filled"
+                "read_until buffer filled",
             ));
         }
     }
@@ -2023,7 +2128,6 @@ impl<T: Write, D> Write for DebugStream<T, D> {
     }
 }
 
-
 impl<T: AsyncWrite + Unpin, D> AsyncWrite for DebugStream<T, D> {
     fn poll_write(
         mut self: Pin<&mut Self>,
@@ -2037,11 +2141,13 @@ impl<T: AsyncWrite + Unpin, D> AsyncWrite for DebugStream<T, D> {
         Pin::new(&mut self.stream).poll_flush(cx)
     }
 
-    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
+    fn poll_shutdown(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<(), io::Error>> {
         Pin::new(&mut self.stream).poll_shutdown(cx)
     }
 }
-
 
 impl<T: AsyncRead + Unpin, D: Unpin> AsyncRead for DebugStream<T, D> {
     fn poll_read(

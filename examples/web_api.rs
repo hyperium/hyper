@@ -1,9 +1,9 @@
 #![deny(warnings)]
 
-use hyper::{Body, Chunk, Client, Method, Request, Response, Server, StatusCode, header};
+use futures_util::{StreamExt, TryStreamExt};
 use hyper::client::HttpConnector;
 use hyper::service::{make_service_fn, service_fn};
-use futures_util::{StreamExt, TryStreamExt};
+use hyper::{header, Body, Chunk, Client, Method, Request, Response, Server, StatusCode};
 
 type GenericError = Box<dyn std::error::Error + Send + Sync>;
 type Result<T> = std::result::Result<T, GenericError>;
@@ -14,9 +14,7 @@ static NOTFOUND: &[u8] = b"Not Found";
 static POST_DATA: &str = r#"{"original": "data"}"#;
 static URL: &str = "http://127.0.0.1:1337/json_api";
 
-async fn client_request_response(
-    client: &Client<HttpConnector>
-) -> Result<Response<Body>> {
+async fn client_request_response(client: &Client<HttpConnector>) -> Result<Response<Body>> {
     let req = Request::builder()
         .method(Method::POST)
         .uri(URL)
@@ -27,9 +25,11 @@ async fn client_request_response(
     let web_res = client.request(req).await?;
     // Compare the JSON we sent (before) with what we received (after):
     let body = Body::wrap_stream(web_res.into_body().map_ok(|b| {
-        Chunk::from(format!("<b>POST request body</b>: {}<br><b>Response</b>: {}",
-                            POST_DATA,
-                            std::str::from_utf8(&b).unwrap()))
+        Chunk::from(format!(
+            "<b>POST request body</b>: {}<br><b>Response</b>: {}",
+            POST_DATA,
+            std::str::from_utf8(&b).unwrap()
+        ))
     }));
 
     Ok(Response::new(body))
@@ -57,40 +57,27 @@ async fn api_post_response(mut req: Request<Body>) -> Result<Response<Body>> {
 async fn api_get_response() -> Result<Response<Body>> {
     let data = vec!["foo", "bar"];
     let res = match serde_json::to_string(&data) {
-        Ok(json) => {
-            Response::builder()
-                .header(header::CONTENT_TYPE, "application/json")
-                .body(Body::from(json))
-                .unwrap()
-        }
-        Err(_) => {
-            Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(INTERNAL_SERVER_ERROR.into())
-                .unwrap()
-        }
+        Ok(json) => Response::builder()
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(json))
+            .unwrap(),
+        Err(_) => Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .body(INTERNAL_SERVER_ERROR.into())
+            .unwrap(),
     };
     Ok(res)
 }
 
 async fn response_examples(
     req: Request<Body>,
-    client: Client<HttpConnector>
+    client: Client<HttpConnector>,
 ) -> Result<Response<Body>> {
     match (req.method(), req.uri().path()) {
-        (&Method::GET, "/") |
-        (&Method::GET, "/index.html") => {
-            Ok(Response::new(INDEX.into()))
-        },
-        (&Method::GET, "/test.html") => {
-            client_request_response(&client).await
-        },
-        (&Method::POST, "/json_api") => {
-            api_post_response(req).await
-        },
-        (&Method::GET, "/json_api") => {
-            api_get_response().await
-        }
+        (&Method::GET, "/") | (&Method::GET, "/index.html") => Ok(Response::new(INDEX.into())),
+        (&Method::GET, "/test.html") => client_request_response(&client).await,
+        (&Method::POST, "/json_api") => api_post_response(req).await,
+        (&Method::GET, "/json_api") => api_get_response().await,
         _ => {
             // Return 404 not found response.
             Ok(Response::builder()
@@ -121,8 +108,7 @@ async fn main() -> Result<()> {
         }
     });
 
-    let server = Server::bind(&addr)
-        .serve(new_service);
+    let server = Server::bind(&addr).serve(new_service);
 
     println!("Listening on http://{}", addr);
 

@@ -1,11 +1,11 @@
 use bytes::BytesMut;
 use http::{HeaderMap, Method};
 
-use crate::proto::{MessageHead, BodyLength, DecodedLength};
+use crate::proto::{BodyLength, DecodedLength, MessageHead};
 
 pub(crate) use self::conn::Conn;
-pub(crate) use self::dispatch::Dispatcher;
 pub use self::decode::Decoder;
+pub(crate) use self::dispatch::Dispatcher;
 pub use self::encode::{EncodedBuf, Encoder};
 pub use self::io::Cursor; //TODO: move out of h1::io
 pub use self::io::MINIMUM_MAX_BUFFER_SIZE;
@@ -17,7 +17,6 @@ pub(crate) mod dispatch;
 mod encode;
 mod io;
 mod role;
-
 
 pub(crate) type ServerTransaction = role::Server;
 pub(crate) type ClientTransaction = role::Client;
@@ -75,4 +74,3 @@ pub(crate) struct Encode<'a, T> {
     req_method: &'a mut Option<Method>,
     title_case_headers: bool,
 }
-

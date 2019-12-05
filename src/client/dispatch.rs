@@ -1,8 +1,8 @@
-use futures_core::Stream;
 use futures_channel::{mpsc, oneshot};
+use futures_core::Stream;
 use futures_util::future;
 
-use crate::common::{Future, Pin, Poll, task};
+use crate::common::{task, Future, Pin, Poll};
 
 pub type RetryPromise<T, U> = oneshot::Receiver<Result<U, (crate::Error, Option<T>)>>;
 pub type Promise<T> = oneshot::Receiver<Result<T, crate::Error>>;
@@ -52,7 +52,8 @@ pub struct UnboundedSender<T, U> {
 
 impl<T, U> Sender<T, U> {
     pub fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
-        self.giver.poll_want(cx)
+        self.giver
+            .poll_want(cx)
             .map_err(|_| crate::Error::new_closed())
     }
 
@@ -82,7 +83,8 @@ impl<T, U> Sender<T, U> {
             return Err(val);
         }
         let (tx, rx) = oneshot::channel();
-        self.inner.unbounded_send(Envelope(Some((val, Callback::Retry(tx)))))
+        self.inner
+            .unbounded_send(Envelope(Some((val, Callback::Retry(tx)))))
             .map(move |_| rx)
             .map_err(|e| e.into_inner().0.take().expect("envelope not dropped").0)
     }
@@ -92,7 +94,8 @@ impl<T, U> Sender<T, U> {
             return Err(val);
         }
         let (tx, rx) = oneshot::channel();
-        self.inner.unbounded_send(Envelope(Some((val, Callback::NoRetry(tx)))))
+        self.inner
+            .unbounded_send(Envelope(Some((val, Callback::NoRetry(tx)))))
             .map(move |_| rx)
             .map_err(|e| e.into_inner().0.take().expect("envelope not dropped").0)
     }
@@ -116,7 +119,8 @@ impl<T, U> UnboundedSender<T, U> {
 
     pub fn try_send(&mut self, val: T) -> Result<RetryPromise<T, U>, T> {
         let (tx, rx) = oneshot::channel();
-        self.inner.unbounded_send(Envelope(Some((val, Callback::Retry(tx)))))
+        self.inner
+            .unbounded_send(Envelope(Some((val, Callback::Retry(tx)))))
             .map(move |_| rx)
             .map_err(|e| e.into_inner().0.take().expect("envelope not dropped").0)
     }
@@ -137,15 +141,18 @@ pub struct Receiver<T, U> {
 }
 
 impl<T, U> Receiver<T, U> {
-    pub(crate) fn poll_next(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<(T, Callback<T, U>)>> {
+    pub(crate) fn poll_next(
+        &mut self,
+        cx: &mut task::Context<'_>,
+    ) -> Poll<Option<(T, Callback<T, U>)>> {
         match Pin::new(&mut self.inner).poll_next(cx) {
-            Poll::Ready(item) => Poll::Ready(item.map(|mut env| {
-                env.0.take().expect("envelope not dropped")
-            })),
+            Poll::Ready(item) => {
+                Poll::Ready(item.map(|mut env| env.0.take().expect("envelope not dropped")))
+            }
             Poll::Pending => {
                 self.taker.want();
                 Poll::Pending
-            },
+            }
         }
     }
 
@@ -176,7 +183,10 @@ struct Envelope<T, U>(Option<(T, Callback<T, U>)>);
 impl<T, U> Drop for Envelope<T, U> {
     fn drop(&mut self) {
         if let Some((val, cb)) = self.0.take() {
-            let _ = cb.send(Err((crate::Error::new_canceled().with("connection closed"), Some(val))));
+            let _ = cb.send(Err((
+                crate::Error::new_canceled().with("connection closed"),
+                Some(val),
+            )));
         }
     }
 }
@@ -205,7 +215,7 @@ impl<T, U> Callback<T, U> {
         match self {
             Callback::Retry(tx) => {
                 let _ = tx.send(val);
-            },
+            }
             Callback::NoRetry(tx) => {
                 let _ = tx.send(val.map_err(|e| e.0));
             }
@@ -214,29 +224,25 @@ impl<T, U> Callback<T, U> {
 
     pub(crate) fn send_when(
         self,
-        mut when: impl Future<Output=Result<U, (crate::Error, Option<T>)>> + Unpin,
-    ) -> impl Future<Output=()> {
+        mut when: impl Future<Output = Result<U, (crate::Error, Option<T>)>> + Unpin,
+    ) -> impl Future<Output = ()> {
         let mut cb = Some(self);
 
         // "select" on this callback being canceled, and the future completing
         future::poll_fn(move |cx| {
             match Pin::new(&mut when).poll(cx) {
                 Poll::Ready(Ok(res)) => {
-                    cb.take()
-                        .expect("polled after complete")
-                        .send(Ok(res));
+                    cb.take().expect("polled after complete").send(Ok(res));
                     Poll::Ready(())
-                },
+                }
                 Poll::Pending => {
                     // check if the callback is canceled
                     ready!(cb.as_mut().unwrap().poll_canceled(cx));
                     trace!("send_when canceled");
                     Poll::Ready(())
-                },
+                }
                 Poll::Ready(Err(err)) => {
-                    cb.take()
-                        .expect("polled after complete")
-                        .send(Err(err));
+                    cb.take().expect("polled after complete").send(Err(err));
                     Poll::Ready(())
                 }
             }
@@ -253,7 +259,7 @@ mod tests {
     use std::pin::Pin;
     use std::task::{Context, Poll};
 
-    use super::{Callback, channel, Receiver};
+    use super::{channel, Callback, Receiver};
 
     #[derive(Debug)]
     struct Custom(i32);
@@ -271,14 +277,14 @@ mod tests {
 
     impl<F, T> Future for PollOnce<'_, F>
     where
-        F: Future<Output = T> + Unpin
+        F: Future<Output = T> + Unpin,
     {
         type Output = Option<()>;
 
         fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
             match Pin::new(&mut self.0).poll(cx) {
                 Poll::Ready(_) => Poll::Ready(Some(())),
-                Poll::Pending => Poll::Ready(None)
+                Poll::Pending => Poll::Ready(None),
             }
         }
     }
@@ -357,7 +363,7 @@ mod tests {
                     let poll_once = PollOnce(&mut rx);
                     let opt = poll_once.await;
                     if opt.is_none() {
-                        break
+                        break;
                     }
                 }
             });

@@ -1,9 +1,9 @@
 use std::mem;
 
-use tokio::sync::{mpsc, watch};
 use pin_project::pin_project;
+use tokio::sync::{mpsc, watch};
 
-use super::{Future, Never, Poll, Pin, task};
+use super::{task, Future, Never, Pin, Poll};
 
 // Sentinel value signaling that the watch is still open
 #[derive(Clone, Copy)]
@@ -21,10 +21,7 @@ pub fn channel() -> (Signal, Watch) {
             drained_rx,
             _tx: tx,
         },
-        Watch {
-            drained_tx,
-            rx,
-        },
+        Watch { drained_tx, rx },
     )
 }
 
@@ -107,17 +104,14 @@ where
                         Poll::Ready(None) => {
                             // Drain has been triggered!
                             on_drain(me.future.as_mut());
-                        },
-                        Poll::Ready(Some(_/*State::Open*/)) |
-                        Poll::Pending => {
+                        }
+                        Poll::Ready(Some(_ /*State::Open*/)) | Poll::Pending => {
                             *me.state = State::Watch(on_drain);
                             return me.future.poll(cx);
-                        },
+                        }
                     }
-                },
-                State::Draining => {
-                    return me.future.poll(cx)
-                },
+                }
+                State::Draining => return me.future.poll(cx),
             }
         }
     }
@@ -236,4 +230,3 @@ mod tests {
         });
     }
 }
-
