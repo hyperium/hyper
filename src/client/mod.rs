@@ -528,6 +528,26 @@ where C: Connect + Clone + Send + Sync + 'static,
     }
 }
 
+impl<C, B> tower_service::Service<Request<B>> for Client<C, B>
+where C: Connect + Clone + Send + Sync + 'static,
+      C::Transport: Unpin + Send + 'static,
+      C::Future: Unpin + Send + 'static,
+      B: Payload + Unpin + Send + 'static,
+      B::Data: Send + Unpin,
+{
+    type Response = Response<Body>;
+    type Error = crate::Error;
+    type Future = ResponseFuture;
+
+    fn poll_ready(&mut self, _: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, req: Request<B>) -> Self::Future {
+        self.request(req)
+    }
+}
+
 impl<C: Clone, B> Clone for Client<C, B> {
     fn clone(&self) -> Client<C, B> {
         Client {
