@@ -1,12 +1,12 @@
 use std::borrow::Cow;
-#[cfg(feature = "unstable-stream")]
+#[cfg(feature = "stream")]
 use std::error::Error as StdError;
 use std::fmt;
 
 use bytes::Bytes;
 use futures_core::Stream; // for mpsc::Receiver
 use futures_channel::{mpsc, oneshot};
-#[cfg(feature = "unstable-stream")]
+#[cfg(feature = "stream")]
 use futures_util::TryStreamExt;
 use http_body::{SizeHint, Body as HttpBody};
 use http::HeaderMap;
@@ -43,7 +43,7 @@ enum Kind {
     // while a borrow of a `Request<Body>` exists.
     //
     // See https://github.com/rust-lang/rust/issues/57017
-    #[cfg(feature = "unstable-stream")]
+    #[cfg(feature = "stream")]
     Wrapped(Pin<Box<dyn Stream<Item = Result<Chunk, Box<dyn StdError + Send + Sync>>> + Send + Sync>>),
 }
 
@@ -142,11 +142,11 @@ impl Body {
     /// # }
     /// ```
     ///
-    /// # Unstable
+    /// # Optional
     ///
-    /// This function requires enabling the `unstable-stream` feature in your
+    /// This function requires enabling the `stream` feature in your
     /// `Cargo.toml`.
-    #[cfg(feature = "unstable-stream")]
+    #[cfg(feature = "stream")]
     pub fn wrap_stream<S, O, E>(stream: S) -> Body
     where
         S: Stream<Item = Result<O, E>> + Send + Sync + 'static,
@@ -280,7 +280,7 @@ impl Body {
                 None => Poll::Ready(None),
             },
 
-            #[cfg(feature = "unstable-stream")]
+            #[cfg(feature = "stream")]
             Kind::Wrapped(ref mut s) => {
                 match ready!(s.as_mut().poll_next(cx)) {
                     Some(res) => Poll::Ready(Some(res.map_err(crate::Error::new_body))),
@@ -330,7 +330,7 @@ impl HttpBody for Body {
             Kind::Once(ref val) => val.is_none(),
             Kind::Chan { content_length, .. } => content_length == Some(0),
             Kind::H2 { recv: ref h2, .. } => h2.is_end_stream(),
-            #[cfg(feature = "unstable-stream")]
+            #[cfg(feature = "stream")]
             Kind::Wrapped(..) => false,
         }
     }
@@ -345,7 +345,7 @@ impl HttpBody for Body {
             Kind::Once(None) => {
                 SizeHint::default()
             },
-            #[cfg(feature = "unstable-stream")]
+            #[cfg(feature = "stream")]
             Kind::Wrapped(..) => SizeHint::default(),
             Kind::Chan { content_length, .. } | Kind::H2 { content_length, .. } => {
                 let mut hint = SizeHint::default();
@@ -380,11 +380,11 @@ impl fmt::Debug for Body {
     }
 }
 
-/// # Unstable
+/// # Optional
 ///
-/// This function requires enabling the `unstable-stream` feature in your
+/// This function requires enabling the `stream` feature in your
 /// `Cargo.toml`.
-#[cfg(feature = "unstable-stream")]
+#[cfg(feature = "stream")]
 impl Stream for Body {
     type Item = crate::Result<Chunk>;
 
@@ -394,11 +394,11 @@ impl Stream for Body {
 }
 
 
-/// # Unstable
+/// # Optional
 ///
-/// This function requires enabling the `unstable-stream` feature in your
+/// This function requires enabling the `stream` feature in your
 /// `Cargo.toml`.
-#[cfg(feature = "unstable-stream")]
+#[cfg(feature = "stream")]
 impl
     From<Box<dyn Stream<Item = Result<Chunk, Box<dyn StdError + Send + Sync>>> + Send + Sync>>
     for Body

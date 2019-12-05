@@ -27,10 +27,7 @@
 //!   executor.
 //! - `tcp` (*enabled by default*): Enables convenient implementations over
 //!   TCP (using tokio).
-//! - `unstable-stream` (*unstable*): Provides `futures::Stream` capabilities.
-//!
-//!   Due to the `Stream` trait not being stable, this feature is also
-//!   unstable. It does not follow normal semver.
+//! - `stream` (*enabled by default*): Provides `futures::Stream` capabilities.
 
 #[doc(hidden)] pub use http;
 #[macro_use] extern crate log;

@@ -15,7 +15,7 @@ use std::time::Duration;
 
 use futures_channel::oneshot;
 use futures_util::future::{self, Either, FutureExt, TryFutureExt};
-#[cfg(feature = "unstable-stream")]
+#[cfg(feature = "stream")]
 use futures_util::stream::StreamExt as _;
 use http::header::{HeaderName, HeaderValue};
 use tokio::net::{TcpListener, TcpStream as TkTcpStream};
@@ -1383,7 +1383,7 @@ async fn max_buf_size() {
         .expect_err("should TooLarge error");
 }
 
-#[cfg(feature = "unstable-stream")]
+#[cfg(feature = "stream")]
 #[test]
 fn streaming_body() {
     let _ = pretty_env_logger::try_init();
@@ -1497,7 +1497,7 @@ async fn http2_service_error_sends_reset_reason() {
     assert_eq!(h2_err.reason(), Some(h2::Reason::INADEQUATE_SECURITY));
 }
 
-#[cfg(feature = "unstable-stream")]
+#[cfg(feature = "stream")]
 #[test]
 fn http2_body_user_error_sends_reset_reason() {
     use std::error::Error;
