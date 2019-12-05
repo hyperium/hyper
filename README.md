@@ -1,9 +1,9 @@
 # [hyper](https://hyper.rs)
 
-[![Travis Build Status](https://travis-ci.org/hyperium/hyper.svg?branch=master)](https://travis-ci.org/hyperium/hyper)
-[![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![crates.io](https://meritbadge.herokuapp.com/hyper)](https://crates.io/crates/hyper)
 [![Released API docs](https://docs.rs/hyper/badge.svg)](https://docs.rs/hyper)
+[![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![CI](https://github.com/hyperium/hyper/workflows/CI/badge.svg)](https://github.com/hyperium/hyper/actions?query=workflow%3ACI)
 
 A **fast** and **correct** HTTP implementation for Rust.
 
