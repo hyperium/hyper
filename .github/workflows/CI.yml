@@ -10,35 +10,64 @@ env:
 
 jobs:
   test:
-    name: Test
-    runs-on: ubuntu-latest
+    name: Test ${{ matrix.rust }} on ${{ matrix.os }}
+
     strategy:
+      fail-fast: false
       matrix:
         rust:
           - stable
           - beta
           - nightly
-          #- 1.39.0
-        #features:
-        #  - __internal_happy_eyeballs_tests
+          # - 1.39.0
+
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macOS-latest
+
+        include:
+          - rust: stable
+            features: "--no-default-features --features runtime,stream,__internal_happy_eyeballs_tests"
+          - rust: beta
+            features: "--no-default-features --features runtime,stream,__internal_happy_eyeballs_tests"
+          - rust: nightly
+            features: "--no-default-features --features runtime,stream,nightly"
+            benches: true
+          # - rust: 1.39.0
+          #   features: "--no-default-features --features runtime"
+          #   build-only: true
+
+    runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v1
+      - name: Checkout
+        uses: actions/checkout@v1
 
-      - uses: actions-rs/toolchain@v1
+      - name: Install rust (${{ matrix.rust }})
+        uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: ${{ matrix.rust }}
           override: true
 
-      - uses: actions-rs/cargo@v1
+      - name: Build only
+        if: matrix.build-only
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: ${{ matrix.features }}
+
+      - name: Test
+        if: matrix.build-only != true
+        uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --features __internal_happy_eyeballs_tests${{ (matrix.rust == 'nightly') && ',nightly' }}
+          args: ${{ matrix.features }}
 
-      - uses: actions-rs/cargo@v1
-        if: matrix.rust == 'nightly'
+      - name: Test all benches
+        if: matrix.benches && matrix.build-only != true
+        uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --benches
-
+          args: --benches ${{ matrix.features }}
