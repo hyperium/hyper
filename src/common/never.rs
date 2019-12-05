@@ -19,4 +19,3 @@ impl Error for Never {
         match *self {}
     }
 }
-

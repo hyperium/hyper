@@ -1,12 +1,12 @@
 // #![deny(warnings)]  // FIXME: https://github.com/rust-lang/rust/issues/62411
 #![warn(rust_2018_idioms)]
 
+use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Method, Request, Response, Server, StatusCode};
-use hyper::service::{service_fn, make_service_fn};
 
+use futures_util::StreamExt;
 use std::collections::HashMap;
 use url::form_urlencoded;
-use futures_util::StreamExt;
 
 static INDEX: &[u8] = b"<html><body><form action=\"post\" method=\"post\">Name: <input type=\"text\" name=\"name\"><br>Number: <input type=\"text\" name=\"number\"><br><input type=\"submit\"></body></html>";
 static MISSING: &[u8] = b"Missing field";
@@ -15,9 +15,7 @@ static NOTNUMERIC: &[u8] = b"Number field is not numeric";
 // Using service_fn, we can turn this function into a `Service`.
 async fn param_example(mut req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
     match (req.method(), req.uri().path()) {
-        (&Method::GET, "/") | (&Method::GET, "/post") => {
-            Ok(Response::new(INDEX.into()))
-        },
+        (&Method::GET, "/") | (&Method::GET, "/post") => Ok(Response::new(INDEX.into())),
         (&Method::POST, "/post") => {
             // Concatenate the body...
             let mut b = Vec::new();
@@ -35,7 +33,9 @@ async fn param_example(mut req: Request<Body>) -> Result<Response<Body>, hyper::
             // form, and the values should be rolled up into a
             // HashMap<String, Vec<String>>. However in this
             // example the simpler approach is sufficient.
-            let params = form_urlencoded::parse(b.as_ref()).into_owned().collect::<HashMap<String, String>>();
+            let params = form_urlencoded::parse(b.as_ref())
+                .into_owned()
+                .collect::<HashMap<String, String>>();
 
             // Validate the request parameters, returning
             // early if an invalid input is detected.
@@ -71,13 +71,11 @@ async fn param_example(mut req: Request<Body>) -> Result<Response<Body>, hyper::
             // needed here, too.
             let body = format!("Hello {}, your number is {}", name, number);
             Ok(Response::new(body.into()))
-        },
-        _ => {
-            Ok(Response::builder()
-                        .status(StatusCode::NOT_FOUND)
-                        .body(Body::empty())
-                        .unwrap())
         }
+        _ => Ok(Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(Body::empty())
+            .unwrap()),
     }
 }
 
@@ -87,12 +85,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let addr = ([127, 0, 0, 1], 1337).into();
 
-    let server = Server::bind(&addr)
-        .serve(make_service_fn(|_| {
-            async {
-                Ok::<_, hyper::Error>(service_fn(param_example))
-            }
-        }));
+    let server = Server::bind(&addr).serve(make_service_fn(|_| {
+        async { Ok::<_, hyper::Error>(service_fn(param_example)) }
+    }));
 
     println!("Listening on http://{}", addr);
 

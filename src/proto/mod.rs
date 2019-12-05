@@ -1,8 +1,8 @@
 //! Pieces pertaining to the HTTP message protocol.
 use http::{HeaderMap, Method, StatusCode, Uri, Version};
 
-pub(crate) use self::h1::{dispatch, Conn, ServerTransaction};
 use self::body_length::DecodedLength;
+pub(crate) use self::h1::{dispatch, Conn, ServerTransaction};
 
 pub(crate) mod h1;
 pub(crate) mod h2;
@@ -76,9 +76,8 @@ mod body_length {
         /// Converts to an Option<u64> representing a Known or Unknown length.
         pub(crate) fn into_opt(self) -> Option<u64> {
             match self {
-                DecodedLength::CHUNKED |
-                DecodedLength::CLOSE_DELIMITED => None,
-                DecodedLength(known) => Some(known)
+                DecodedLength::CHUNKED | DecodedLength::CLOSE_DELIMITED => None,
+                DecodedLength(known) => Some(known),
             }
         }
 

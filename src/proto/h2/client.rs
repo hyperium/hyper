@@ -1,15 +1,15 @@
 use futures_channel::{mpsc, oneshot};
-use futures_util::future::{self, FutureExt as _, TryFutureExt as _, Either};
+use futures_util::future::{self, Either, FutureExt as _, TryFutureExt as _};
 use futures_util::stream::StreamExt as _;
 use h2::client::{Builder, SendRequest};
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::headers::content_length_parse_all;
-use crate::body::Payload;
-use crate::common::{Exec, Future, Never, Pin, Poll, task};
-use crate::headers;
-use crate::proto::Dispatched;
 use super::{PipeToSendStream, SendBuf};
+use crate::body::Payload;
+use crate::common::{task, Exec, Future, Never, Pin, Poll};
+use crate::headers;
+use crate::headers::content_length_parse_all;
+use crate::proto::Dispatched;
 use crate::{Body, Request, Response};
 
 type ClientRx<B> = crate::client::dispatch::Receiver<Request<B>, Response<Body>>;
@@ -45,13 +45,10 @@ where
     let (conn_drop_ref, rx) = mpsc::channel(1);
     let (cancel_tx, conn_eof) = oneshot::channel();
 
-    let conn_drop_rx = rx.into_future()
-        .map(|(item, _rx)| {
-            match item {
-                Some(never) => match never {},
-                None => (),
-            }
-        });
+    let conn_drop_rx = rx.into_future().map(|(item, _rx)| match item {
+        Some(never) => match never {},
+        None => (),
+    });
 
     let conn = conn.map_err(|e| debug!("connection error: {}", e));
 
@@ -138,12 +135,11 @@ where
                     };
 
                     if !eos {
-                        let mut pipe = PipeToSendStream::new(body, body_tx)
-                            .map(|res| {
-                                if let Err(e) = res {
-                                    debug!("client request body error: {}", e);
-                                }
-                            });
+                        let mut pipe = PipeToSendStream::new(body, body_tx).map(|res| {
+                            if let Err(e) = res {
+                                debug!("client request body error: {}", e);
+                            }
+                        });
 
                         // eagerly see if the body pipe is ready and
                         // can thus skip allocating in the executor
@@ -152,45 +148,39 @@ where
                             Poll::Pending => {
                                 let conn_drop_ref = self.conn_drop_ref.clone();
                                 let pipe = pipe.map(move |x| {
-                                        drop(conn_drop_ref);
-                                        x
-                                    });
+                                    drop(conn_drop_ref);
+                                    x
+                                });
                                 self.executor.execute(pipe);
                             }
                         }
                     }
 
-                    let fut = fut
-                        .map(move |result| {
-                            match result {
-                                Ok(res) => {
-                                    let content_length = content_length_parse_all(res.headers());
-                                    let res = res.map(|stream|
-                                        crate::Body::h2(stream, content_length));
-                                    Ok(res)
-                                },
-                                Err(err) => {
-                                    debug!("client response error: {}", err);
-                                    Err((crate::Error::new_h2(err), None))
-                                }
-                            }
-                        });
+                    let fut = fut.map(move |result| match result {
+                        Ok(res) => {
+                            let content_length = content_length_parse_all(res.headers());
+                            let res = res.map(|stream| crate::Body::h2(stream, content_length));
+                            Ok(res)
+                        }
+                        Err(err) => {
+                            debug!("client response error: {}", err);
+                            Err((crate::Error::new_h2(err), None))
+                        }
+                    });
                     self.executor.execute(cb.send_when(fut));
                     continue;
-                },
+                }
 
                 Poll::Ready(None) => {
                     trace!("client::dispatch::Sender dropped");
                     return Poll::Ready(Ok(Dispatched::Shutdown));
                 }
 
-                Poll::Pending => {
-                    match ready!(Pin::new(&mut self.conn_eof).poll(cx)) {
-                        Ok(never) => match never {},
-                        Err(_conn_is_eof) => {
-                            trace!("connection task is closed, closing dispatch task");
-                            return Poll::Ready(Ok(Dispatched::Shutdown));
-                        }
+                Poll::Pending => match ready!(Pin::new(&mut self.conn_eof).poll(cx)) {
+                    Ok(never) => match never {},
+                    Err(_conn_is_eof) => {
+                        trace!("connection task is closed, closing dispatch task");
+                        return Poll::Ready(Ok(Dispatched::Shutdown));
                     }
                 },
             }

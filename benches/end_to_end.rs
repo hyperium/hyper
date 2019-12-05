@@ -7,15 +7,14 @@ use std::net::SocketAddr;
 
 use futures_util::future::join_all;
 
-use hyper::{body::HttpBody as _, Body, Method, Request, Response, Server};
 use hyper::client::HttpConnector;
+use hyper::{body::HttpBody as _, Body, Method, Request, Response, Server};
 
 // HTTP1
 
 #[bench]
 fn http1_get(b: &mut test::Bencher) {
-    opts()
-        .bench(b)
+    opts().bench(b)
 }
 
 #[bench]
@@ -48,9 +47,7 @@ fn http1_body_both_10mb(b: &mut test::Bencher) {
 
 #[bench]
 fn http1_parallel_x10_empty(b: &mut test::Bencher) {
-    opts()
-        .parallel(10)
-        .bench(b)
+    opts().parallel(10).bench(b)
 }
 
 #[bench]
@@ -76,19 +73,13 @@ fn http1_parallel_x10_req_10kb_100_chunks(b: &mut test::Bencher) {
 #[bench]
 fn http1_parallel_x10_res_1mb(b: &mut test::Bencher) {
     let body = &[b'x'; 1024 * 1024 * 1];
-    opts()
-        .parallel(10)
-        .response_body(body)
-        .bench(b)
+    opts().parallel(10).response_body(body).bench(b)
 }
 
 #[bench]
 fn http1_parallel_x10_res_10mb(b: &mut test::Bencher) {
     let body = &[b'x'; 1024 * 1024 * 10];
-    opts()
-        .parallel(10)
-        .response_body(body)
-        .bench(b)
+    opts().parallel(10).response_body(body).bench(b)
 }
 
 // HTTP2
@@ -97,9 +88,7 @@ const HTTP2_MAX_WINDOW: u32 = std::u32::MAX >> 1;
 
 #[bench]
 fn http2_get(b: &mut test::Bencher) {
-    opts()
-        .http2()
-        .bench(b)
+    opts().http2().bench(b)
 }
 
 #[bench]
@@ -123,10 +112,7 @@ fn http2_req_100kb(b: &mut test::Bencher) {
 
 #[bench]
 fn http2_parallel_x10_empty(b: &mut test::Bencher) {
-    opts()
-        .http2()
-        .parallel(10)
-        .bench(b)
+    opts().http2().parallel(10).bench(b)
 }
 
 #[bench]
@@ -293,9 +279,10 @@ impl Opts {
         let make_request = || {
             let chunk_cnt = self.request_chunks;
             let body = if chunk_cnt > 0 {
-
                 let (mut tx, body) = Body::channel();
-                let chunk = self.request_body.expect("request_chunks means request_body");
+                let chunk = self
+                    .request_body
+                    .expect("request_chunks means request_body");
                 exec.spawn(async move {
                     for _ in 0..chunk_cnt {
                         tx.send_data(chunk.into()).await.expect("send_data");
@@ -303,8 +290,7 @@ impl Opts {
                 });
                 body
             } else {
-                self
-                    .request_body
+                self.request_body
                     .map(Body::from)
                     .unwrap_or_else(|| Body::empty())
             };
@@ -328,14 +314,12 @@ impl Opts {
                 let req = make_request();
                 rt.block_on(send_request(req));
             });
-
         } else {
             b.iter(|| {
-                let futs = (0..self.parallel_cnt)
-                    .map(|_| {
-                        let req = make_request();
-                        send_request(req)
-                    });
+                let futs = (0..self.parallel_cnt).map(|_| {
+                    let req = make_request();
+                    send_request(req)
+                });
                 // Await all spawned futures becoming completed.
                 rt.block_on(join_all(futs));
             });
@@ -353,12 +337,16 @@ fn spawn_server(rt: &mut tokio::runtime::Runtime, opts: &Opts) -> SocketAddr {
             .http2_only(opts.http2)
             .http2_initial_stream_window_size(opts.http2_stream_window)
             .http2_initial_connection_window_size(opts.http2_conn_window)
-            .serve(make_service_fn( move |_| async move {
-                Ok::<_, hyper::Error>(service_fn(move |req: Request<Body>| async move {
-                    let mut req_body = req.into_body();
-                    while let Some(_chunk) = req_body.data().await {}
-                    Ok::<_, hyper::Error>(Response::new(Body::from(body)))
-                }))
+            .serve(make_service_fn(move |_| {
+                async move {
+                    Ok::<_, hyper::Error>(service_fn(move |req: Request<Body>| {
+                        async move {
+                            let mut req_body = req.into_body();
+                            while let Some(_chunk) = req_body.data().await {}
+                            Ok::<_, hyper::Error>(Response::new(Body::from(body)))
+                        }
+                    }))
+                }
             }))
     });
     let addr = srv.local_addr();
@@ -367,5 +355,5 @@ fn spawn_server(rt: &mut tokio::runtime::Runtime, opts: &Opts) -> SocketAddr {
             panic!("server error: {}", err);
         }
     });
-    return addr
+    return addr;
 }

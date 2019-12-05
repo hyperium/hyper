@@ -11,12 +11,12 @@ use std::fmt;
 use std::io;
 use std::marker::Unpin;
 
-use bytes::{/*Buf, BufMut, */Bytes};
+use bytes::Bytes;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::oneshot;
 
 use crate::common::io::Rewind;
-use crate::common::{Future, Pin, Poll, task};
+use crate::common::{task, Future, Pin, Poll};
 
 /// An upgraded HTTP connection.
 ///
@@ -58,7 +58,7 @@ pub struct Parts<T> {
 }
 
 pub(crate) struct Pending {
-    tx: oneshot::Sender<crate::Result<Upgraded>>
+    tx: oneshot::Sender<crate::Result<Upgraded>>,
 }
 
 /// Error cause returned when an upgrade was expected but canceled
@@ -70,14 +70,7 @@ struct UpgradeExpected(());
 
 pub(crate) fn pending() -> (Pending, OnUpgrade) {
     let (tx, rx) = oneshot::channel();
-    (
-        Pending {
-            tx,
-        },
-        OnUpgrade {
-            rx: Some(rx),
-        },
-    )
+    (Pending { tx }, OnUpgrade { rx: Some(rx) })
 }
 
 pub(crate) trait Io: AsyncRead + AsyncWrite + Unpin + 'static {
@@ -130,7 +123,7 @@ impl Upgraded {
             }),
             Err(io) => Err(Upgraded {
                 io: Rewind::new_buffered(io, buf),
-            })
+            }),
         }
     }
 }
@@ -140,13 +133,21 @@ impl AsyncRead for Upgraded {
         self.io.prepare_uninitialized_buffer(buf)
     }
 
-    fn poll_read(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut task::Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
         Pin::new(&mut self.io).poll_read(cx, buf)
     }
 }
 
 impl AsyncWrite for Upgraded {
-    fn poll_write(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut task::Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
         Pin::new(&mut self.io).poll_write(cx, buf)
     }
 
@@ -161,8 +162,7 @@ impl AsyncWrite for Upgraded {
 
 impl fmt::Debug for Upgraded {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Upgraded")
-            .finish()
+        f.debug_struct("Upgraded").finish()
     }
 }
 
@@ -170,9 +170,7 @@ impl fmt::Debug for Upgraded {
 
 impl OnUpgrade {
     pub(crate) fn none() -> Self {
-        OnUpgrade {
-            rx: None,
-        }
+        OnUpgrade { rx: None }
     }
 
     pub(crate) fn is_none(&self) -> bool {
@@ -188,9 +186,9 @@ impl Future for OnUpgrade {
             Some(ref mut rx) => Pin::new(rx).poll(cx).map(|res| match res {
                 Ok(Ok(upgraded)) => Ok(upgraded),
                 Ok(Err(err)) => Err(err),
-                Err(_oneshot_canceled) => Err(
-                    crate::Error::new_canceled().with(UpgradeExpected(()))
-                ),
+                Err(_oneshot_canceled) => {
+                    Err(crate::Error::new_canceled().with(UpgradeExpected(())))
+                }
             }),
             None => Poll::Ready(Err(crate::Error::new_user_no_upgrade())),
         }
@@ -199,8 +197,7 @@ impl Future for OnUpgrade {
 
 impl fmt::Debug for OnUpgrade {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("OnUpgrade")
-            .finish()
+        f.debug_struct("OnUpgrade").finish()
     }
 }
 
@@ -233,4 +230,3 @@ impl StdError for UpgradeExpected {
         "upgrade expected but not completed"
     }
 }
-

@@ -140,10 +140,7 @@ impl Error {
 
     pub(crate) fn new(kind: Kind) -> Error {
         Error {
-            inner: Box::new(ErrorImpl {
-                kind,
-                cause: None,
-            }),
+            inner: Box::new(ErrorImpl { kind, cause: None }),
         }
     }
 
@@ -162,9 +159,7 @@ impl Error {
         let mut cause = self.source();
         while let Some(err) = cause {
             if let Some(h2_err) = err.downcast_ref::<h2::Error>() {
-                return h2_err
-                    .reason()
-                    .unwrap_or(h2::Reason::INTERNAL_ERROR);
+                return h2_err.reason().unwrap_or(h2::Reason::INTERNAL_ERROR);
             }
             cause = err.source();
         }
@@ -335,7 +330,9 @@ impl StdError for Error {
             Kind::User(User::UnexpectedHeader) => "user sent unexpected header",
             Kind::User(User::UnsupportedVersion) => "request has unsupported HTTP version",
             Kind::User(User::UnsupportedRequestMethod) => "request has unsupported HTTP method",
-            Kind::User(User::UnsupportedStatusCode) => "response has 1xx status code, not supported by server",
+            Kind::User(User::UnsupportedStatusCode) => {
+                "response has 1xx status code, not supported by server"
+            }
             Kind::User(User::AbsoluteUriRequired) => "client requires absolute-form URIs",
             Kind::User(User::NoUpgrade) => "no upgrade available",
             Kind::User(User::ManualUpgrade) => "upgrade expected but low level API in use",
@@ -343,8 +340,7 @@ impl StdError for Error {
     }
 
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        self
-            .inner
+        self.inner
             .cause
             .as_ref()
             .map(|cause| &**cause as &(dyn StdError + 'static))
@@ -361,10 +357,10 @@ impl From<Parse> for Error {
 impl From<httparse::Error> for Parse {
     fn from(err: httparse::Error) -> Parse {
         match err {
-            httparse::Error::HeaderName |
-            httparse::Error::HeaderValue |
-            httparse::Error::NewLine |
-            httparse::Error::Token => Parse::Header,
+            httparse::Error::HeaderName
+            | httparse::Error::HeaderValue
+            | httparse::Error::NewLine
+            | httparse::Error::Token => Parse::Header,
             httparse::Error::Status => Parse::Status,
             httparse::Error::TooManyHeaders => Parse::TooLarge,
             httparse::Error::Version => Parse::Version,
@@ -403,8 +399,8 @@ impl AssertSendSync for Error {}
 
 #[cfg(test)]
 mod tests {
-    use std::mem;
     use super::*;
+    use std::mem;
 
     #[test]
     fn error_size_of() {

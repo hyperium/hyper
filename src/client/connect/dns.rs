@@ -22,11 +22,11 @@
 //! });
 //! ```
 use std::error::Error;
+use std::future::Future;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6, ToSocketAddrs};
+use std::pin::Pin;
 use std::str::FromStr;
 use std::task::{self, Poll};
-use std::pin::Pin;
-use std::future::Future;
 use std::{fmt, io, vec};
 
 use tokio::task::JoinHandle;
@@ -394,7 +394,8 @@ mod tests {
         let dst = ::http::Uri::from_static("http://[::1]:8080/");
 
         let mut addrs =
-            IpAddrs::try_parse(dst.host().expect("host"), dst.port_u16().expect("port")).expect("try_parse");
+            IpAddrs::try_parse(dst.host().expect("host"), dst.port_u16().expect("port"))
+                .expect("try_parse");
 
         let expected = "[::1]:8080".parse::<SocketAddr>().expect("expected");
 

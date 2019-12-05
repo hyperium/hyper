@@ -4,15 +4,15 @@ use std::error::Error as StdError;
 use std::fmt;
 
 use bytes::Bytes;
-use futures_core::Stream; // for mpsc::Receiver
 use futures_channel::{mpsc, oneshot};
+use futures_core::Stream; // for mpsc::Receiver
 #[cfg(feature = "stream")]
 use futures_util::TryStreamExt;
-use http_body::{SizeHint, Body as HttpBody};
 use http::HeaderMap;
+use http_body::{Body as HttpBody, SizeHint};
 
-use crate::common::{Future, Never, Pin, Poll, task};
 use super::Chunk;
+use crate::common::{task, Future, Never, Pin, Poll};
 use crate::upgrade::OnUpgrade;
 
 type BodySender = mpsc::Sender<Result<Chunk, crate::Error>>;
@@ -44,7 +44,9 @@ enum Kind {
     //
     // See https://github.com/rust-lang/rust/issues/57017
     #[cfg(feature = "stream")]
-    Wrapped(Pin<Box<dyn Stream<Item = Result<Chunk, Box<dyn StdError + Send + Sync>>> + Send + Sync>>),
+    Wrapped(
+        Pin<Box<dyn Stream<Item = Result<Chunk, Box<dyn StdError + Send + Sync>>> + Send + Sync>>,
+    ),
 }
 
 struct Extra {
@@ -161,8 +163,7 @@ impl Body {
     ///
     /// See [the `upgrade` module](::upgrade) for more.
     pub fn on_upgrade(self) -> OnUpgrade {
-        self
-            .extra
+        self.extra
             .map(|ex| ex.on_upgrade)
             .unwrap_or_else(OnUpgrade::none)
     }
@@ -193,54 +194,44 @@ impl Body {
     }
 
     fn take_delayed_eof(&mut self) -> Option<DelayEof> {
-        self
-            .extra
+        self.extra
             .as_mut()
             .and_then(|extra| extra.delayed_eof.take())
     }
 
     fn extra_mut(&mut self) -> &mut Extra {
-        self
-            .extra
-            .get_or_insert_with(|| Box::new(Extra {
+        self.extra.get_or_insert_with(|| {
+            Box::new(Extra {
                 delayed_eof: None,
                 on_upgrade: OnUpgrade::none(),
-            }))
+            })
+        })
     }
 
     fn poll_eof(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<crate::Result<Chunk>>> {
         match self.take_delayed_eof() {
-            Some(DelayEof::NotEof(mut delay)) => {
-                match self.poll_inner(cx) {
-                    ok @ Poll::Ready(Some(Ok(..))) |
-                    ok @ Poll::Pending => {
-                        self.extra_mut().delayed_eof = Some(DelayEof::NotEof(delay));
-                        ok
-                    },
-                    Poll::Ready(None) => match Pin::new(&mut delay).poll(cx) {
-                        Poll::Ready(Ok(never)) => match never {},
-                        Poll::Pending => {
-                            self.extra_mut().delayed_eof = Some(DelayEof::Eof(delay));
-                            Poll::Pending
-                        },
-                        Poll::Ready(Err(_done)) => {
-                            Poll::Ready(None)
-                        },
-                    },
-                    Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e))),
+            Some(DelayEof::NotEof(mut delay)) => match self.poll_inner(cx) {
+                ok @ Poll::Ready(Some(Ok(..))) | ok @ Poll::Pending => {
+                    self.extra_mut().delayed_eof = Some(DelayEof::NotEof(delay));
+                    ok
                 }
-            },
-            Some(DelayEof::Eof(mut delay)) => {
-                match Pin::new(&mut delay).poll(cx) {
+                Poll::Ready(None) => match Pin::new(&mut delay).poll(cx) {
                     Poll::Ready(Ok(never)) => match never {},
                     Poll::Pending => {
                         self.extra_mut().delayed_eof = Some(DelayEof::Eof(delay));
                         Poll::Pending
-                    },
-                    Poll::Ready(Err(_done)) => {
-                        Poll::Ready(None)
-                    },
+                    }
+                    Poll::Ready(Err(_done)) => Poll::Ready(None),
+                },
+                Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e))),
+            },
+            Some(DelayEof::Eof(mut delay)) => match Pin::new(&mut delay).poll(cx) {
+                Poll::Ready(Ok(never)) => match never {},
+                Poll::Pending => {
+                    self.extra_mut().delayed_eof = Some(DelayEof::Eof(delay));
+                    Poll::Pending
                 }
+                Poll::Ready(Err(_done)) => Poll::Ready(None),
             },
             None => self.poll_inner(cx),
         }
@@ -268,25 +259,23 @@ impl Body {
                     }
                     None => Poll::Ready(None),
                 }
-            },
+            }
             Kind::H2 {
                 recv: ref mut h2, ..
             } => match ready!(h2.poll_data(cx)) {
                 Some(Ok(bytes)) => {
                     let _ = h2.flow_control().release_capacity(bytes.len());
                     Poll::Ready(Some(Ok(Chunk::from(bytes))))
-                },
+                }
                 Some(Err(e)) => Poll::Ready(Some(Err(crate::Error::new_body(e)))),
                 None => Poll::Ready(None),
             },
 
             #[cfg(feature = "stream")]
-            Kind::Wrapped(ref mut s) => {
-                match ready!(s.as_mut().poll_next(cx)) {
-                    Some(res) => Poll::Ready(Some(res.map_err(crate::Error::new_body))),
-                    None => Poll::Ready(None),
-                }
-            }
+            Kind::Wrapped(ref mut s) => match ready!(s.as_mut().poll_next(cx)) {
+                Some(res) => Poll::Ready(Some(res.map_err(crate::Error::new_body))),
+                None => Poll::Ready(None),
+            },
         }
     }
 
@@ -311,13 +300,21 @@ impl HttpBody for Body {
     type Data = Chunk;
     type Error = crate::Error;
 
-    fn poll_data(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Result<Self::Data, Self::Error>>> {
+    fn poll_data(
+        mut self: Pin<&mut Self>,
+        cx: &mut task::Context<'_>,
+    ) -> Poll<Option<Result<Self::Data, Self::Error>>> {
         self.poll_eof(cx)
     }
 
-    fn poll_trailers(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Result<Option<HeaderMap>, Self::Error>> {
+    fn poll_trailers(
+        mut self: Pin<&mut Self>,
+        cx: &mut task::Context<'_>,
+    ) -> Poll<Result<Option<HeaderMap>, Self::Error>> {
         match self.kind {
-            Kind::H2 { recv: ref mut h2, .. } => match ready!(h2.poll_trailers(cx)) {
+            Kind::H2 {
+                recv: ref mut h2, ..
+            } => match ready!(h2.poll_trailers(cx)) {
                 Ok(t) => Poll::Ready(Ok(t)),
                 Err(e) => Poll::Ready(Err(crate::Error::new_h2(e))),
             },
@@ -341,10 +338,8 @@ impl HttpBody for Body {
                 let mut hint = SizeHint::default();
                 hint.set_exact(val.len() as u64);
                 hint
-            },
-            Kind::Once(None) => {
-                SizeHint::default()
-            },
+            }
+            Kind::Once(None) => SizeHint::default(),
             #[cfg(feature = "stream")]
             Kind::Wrapped(..) => SizeHint::default(),
             Kind::Chan { content_length, .. } | Kind::H2 { content_length, .. } => {
@@ -355,7 +350,7 @@ impl HttpBody for Body {
                 }
 
                 hint
-            },
+            }
         }
     }
 }
@@ -393,14 +388,12 @@ impl Stream for Body {
     }
 }
 
-
 /// # Optional
 ///
 /// This function requires enabling the `stream` feature in your
 /// `Cargo.toml`.
 #[cfg(feature = "stream")]
-impl
-    From<Box<dyn Stream<Item = Result<Chunk, Box<dyn StdError + Send + Sync>>> + Send + Sync>>
+impl From<Box<dyn Stream<Item = Result<Chunk, Box<dyn StdError + Send + Sync>>> + Send + Sync>>
     for Body
 {
     #[inline]
@@ -487,13 +480,17 @@ impl Sender {
             Poll::Pending => (), // fallthrough
         }
 
-        self.tx.poll_ready(cx).map_err(|_| crate::Error::new_closed())
+        self.tx
+            .poll_ready(cx)
+            .map_err(|_| crate::Error::new_closed())
     }
 
     /// Send data on this channel when it is ready.
     pub async fn send_data(&mut self, chunk: Chunk) -> crate::Result<()> {
         futures_util::future::poll_fn(|cx| self.poll_ready(cx)).await?;
-        self.tx.try_send(Ok(chunk)).map_err(|_| crate::Error::new_closed())
+        self.tx
+            .try_send(Ok(chunk))
+            .map_err(|_| crate::Error::new_closed())
     }
 
     /// Try to send data on this channel.

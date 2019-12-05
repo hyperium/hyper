@@ -1,7 +1,7 @@
 use std::error::Error as StdError;
 
 use crate::body::Payload;
-use crate::common::{Future, Poll, task};
+use crate::common::{task, Future, Poll};
 use crate::{Request, Response};
 
 /// An asynchronous function from `Request` to `Response`.
@@ -17,7 +17,7 @@ pub trait HttpService<ReqBody>: sealed::Sealed<ReqBody> {
     type Error: Into<Box<dyn StdError + Send + Sync>>;
 
     /// The `Future` returned by this `Service`.
-    type Future: Future<Output=Result<Response<Self::ResBody>, Self::Error>>;
+    type Future: Future<Output = Result<Response<Self::ResBody>, Self::Error>>;
 
     #[doc(hidden)]
     fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>>;
@@ -27,7 +27,7 @@ pub trait HttpService<ReqBody>: sealed::Sealed<ReqBody> {
 }
 
 impl<T, B1, B2> HttpService<B1> for T
-where 
+where
     T: tower_service::Service<Request<B1>, Response = Response<B2>>,
     B2: Payload,
     T::Error: Into<Box<dyn StdError + Send + Sync>>,
@@ -46,13 +46,13 @@ where
     }
 }
 
-impl<T, B1, B2> sealed::Sealed<B1> for T 
-where 
+impl<T, B1, B2> sealed::Sealed<B1> for T
+where
     T: tower_service::Service<Request<B1>, Response = Response<B2>>,
     B2: Payload,
-{}
+{
+}
 
 mod sealed {
     pub trait Sealed<T> {}
 }
-

@@ -29,38 +29,31 @@
 //!   TCP (using tokio).
 //! - `stream` (*enabled by default*): Provides `futures::Stream` capabilities.
 
-#[doc(hidden)] pub use http;
-#[macro_use] extern crate log;
+#[doc(hidden)]
+pub use http;
+#[macro_use]
+extern crate log;
 
 #[cfg(all(test, feature = "nightly"))]
 extern crate test;
 
-pub use http::{
-    header,
-    HeaderMap,
-    Method,
-    Request,
-    Response,
-    StatusCode,
-    Uri,
-    Version,
-};
+pub use http::{header, HeaderMap, Method, Request, Response, StatusCode, Uri, Version};
 
-pub use crate::client::Client;
-pub use crate::error::{Result, Error};
 pub use crate::body::{Body, Chunk};
+pub use crate::client::Client;
+pub use crate::error::{Error, Result};
 pub use crate::server::Server;
 
 #[macro_use]
 mod common;
-#[cfg(test)]
-mod mock;
 pub mod body;
 pub mod client;
 pub mod error;
 mod headers;
+#[cfg(test)]
+mod mock;
 mod proto;
+pub mod rt;
 pub mod server;
 pub mod service;
-pub mod rt;
 pub mod upgrade;

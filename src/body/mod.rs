@@ -59,4 +59,3 @@ fn _assert_send_sync() {
     _assert_send::<Chunk>();
     _assert_sync::<Chunk>();
 }
-

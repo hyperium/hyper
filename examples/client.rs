@@ -2,7 +2,7 @@
 #![warn(rust_2018_idioms)]
 use std::env;
 
-use hyper::{Client, body::HttpBody as _};
+use hyper::{body::HttpBody as _, Client};
 use tokio::io::{self, AsyncWriteExt as _};
 
 // A simple type alias so as to DRY.

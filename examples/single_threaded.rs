@@ -3,8 +3,8 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use hyper::{Body, Error, Response, Server};
 use hyper::service::{make_service_fn, service_fn};
+use hyper::{Body, Error, Response, Server};
 
 fn main() {
     pretty_env_logger::init();
@@ -22,7 +22,6 @@ fn main() {
 }
 
 async fn run() {
-
     let addr = ([127, 0, 0, 1], 3000).into();
 
     // Using a !Send request counter is fine on 1 thread...
@@ -37,18 +36,12 @@ async fn run() {
                 let prev = cnt.get();
                 cnt.set(prev + 1);
                 let value = cnt.get();
-                async move {
-                    Ok::<_, Error>(Response::new(Body::from(
-                        format!("Request #{}", value)
-                    )))
-                }
+                async move { Ok::<_, Error>(Response::new(Body::from(format!("Request #{}", value)))) }
             }))
         }
     });
 
-    let server = Server::bind(&addr)
-        .executor(LocalExec)
-        .serve(make_service);
+    let server = Server::bind(&addr).executor(LocalExec).serve(make_service);
 
     println!("Listening on http://{}", addr);
 

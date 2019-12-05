@@ -17,19 +17,14 @@ use pin_project::{pin_project, project};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tower_service::Service;
 
-use crate::body::Payload;
-use crate::common::{BoxSendFuture, Exec, Executor, Future, Pin, Poll, task};
-use crate::upgrade::Upgraded;
-use crate::proto;
 use super::dispatch;
+use crate::body::Payload;
+use crate::common::{task, BoxSendFuture, Exec, Executor, Future, Pin, Poll};
+use crate::proto;
+use crate::upgrade::Upgraded;
 use crate::{Body, Request, Response};
 
-type Http1Dispatcher<T, B, R> = proto::dispatch::Dispatcher<
-    proto::dispatch::Client<B>,
-    B,
-    T,
-    R,
->;
+type Http1Dispatcher<T, B, R> = proto::dispatch::Dispatcher<proto::dispatch::Client<B>, B, T, R>;
 
 #[pin_project]
 enum ProtoClient<T, B>
@@ -46,25 +41,22 @@ where
 const DEFAULT_HTTP2_CONN_WINDOW: u32 = 1024 * 1024 * 5; // 5mb
 const DEFAULT_HTTP2_STREAM_WINDOW: u32 = 1024 * 1024 * 2; // 2mb
 
-
-
 /// Returns a handshake future over some IO.
 ///
 /// This is a shortcut for `Builder::new().handshake(io)`.
-pub async fn handshake<T>(io: T) -> crate::Result<(SendRequest<crate::Body>, Connection<T, crate::Body>)>
+pub async fn handshake<T>(
+    io: T,
+) -> crate::Result<(SendRequest<crate::Body>, Connection<T, crate::Body>)>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
-    Builder::new()
-        .handshake(io)
-        .await
+    Builder::new().handshake(io).await
 }
 
 /// The sender side of an established connection.
 pub struct SendRequest<B> {
     dispatch: dispatch::Sender<Request<B>, Response<Body>>,
 }
-
 
 /// A future that processes all HTTP state for the IO object.
 ///
@@ -78,7 +70,6 @@ where
 {
     inner: Option<ProtoClient<T, B>>,
 }
-
 
 /// A builder to configure an HTTP connection.
 ///
@@ -99,7 +90,7 @@ pub struct Builder {
 /// Yields a `Response` if successful.
 #[must_use = "futures do nothing unless polled"]
 pub struct ResponseFuture {
-    inner: ResponseFutureState
+    inner: ResponseFutureState,
 }
 
 enum ResponseFutureState {
@@ -139,8 +130,7 @@ pub(super) struct Http2SendRequest<B> {
 
 // ===== impl SendRequest
 
-impl<B> SendRequest<B>
-{
+impl<B> SendRequest<B> {
     /// Polls to determine whether this sender can be used yet for a request.
     ///
     /// If the associated connection is closed, this returns an Error.
@@ -148,7 +138,7 @@ impl<B> SendRequest<B>
         self.dispatch.poll_ready(cx)
     }
 
-    pub(super) fn when_ready(self) -> impl Future<Output=crate::Result<Self>> {
+    pub(super) fn when_ready(self) -> impl Future<Output = crate::Result<Self>> {
         let mut me = Some(self);
         future::poll_fn(move |cx| {
             ready!(me.as_mut().unwrap().poll_ready(cx))?;
@@ -218,9 +208,7 @@ where
     /// ```
     pub fn send_request(&mut self, req: Request<B>) -> ResponseFuture {
         let inner = match self.dispatch.send(req) {
-            Ok(rx) => {
-                ResponseFutureState::Waiting(rx)
-            },
+            Ok(rx) => ResponseFutureState::Waiting(rx),
             Err(_req) => {
                 debug!("connection was not ready");
                 let err = crate::Error::new_canceled().with("connection was not ready");
@@ -228,12 +216,13 @@ where
             }
         };
 
-        ResponseFuture {
-            inner,
-        }
+        ResponseFuture { inner }
     }
 
-    pub(crate) fn send_request_retryable(&mut self, req: Request<B>) -> impl Future<Output = Result<Response<Body>, (crate::Error, Option<Request<B>>)>> + Unpin
+    pub(crate) fn send_request_retryable(
+        &mut self,
+        req: Request<B>,
+    ) -> impl Future<Output = Result<Response<Body>, (crate::Error, Option<Request<B>>)>> + Unpin
     where
         B: Send,
     {
@@ -247,7 +236,7 @@ where
                         Err(_) => panic!("dispatch dropped without returning error"),
                     }
                 }))
-            },
+            }
             Err(req) => {
                 debug!("connection was not ready");
                 let err = crate::Error::new_canceled().with("connection was not ready");
@@ -259,7 +248,8 @@ where
 
 impl<B> Service<Request<B>> for SendRequest<B>
 where
-    B: Payload + 'static, {
+    B: Payload + 'static,
+{
     type Response = Response<Body>;
     type Error = crate::Error;
     type Future = ResponseFuture;
@@ -275,8 +265,7 @@ where
 
 impl<B> fmt::Debug for SendRequest<B> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("SendRequest")
-            .finish()
+        f.debug_struct("SendRequest").finish()
     }
 }
 
@@ -296,7 +285,10 @@ impl<B> Http2SendRequest<B>
 where
     B: Payload + 'static,
 {
-    pub(super) fn send_request_retryable(&mut self, req: Request<B>) -> impl Future<Output=Result<Response<Body>, (crate::Error, Option<Request<B>>)>>
+    pub(super) fn send_request_retryable(
+        &mut self,
+        req: Request<B>,
+    ) -> impl Future<Output = Result<Response<Body>, (crate::Error, Option<Request<B>>)>>
     where
         B: Send,
     {
@@ -310,7 +302,7 @@ where
                         Err(_) => panic!("dispatch dropped without returning error"),
                     }
                 }))
-            },
+            }
             Err(req) => {
                 debug!("connection was not ready");
                 let err = crate::Error::new_canceled().with("connection was not ready");
@@ -322,8 +314,7 @@ where
 
 impl<B> fmt::Debug for Http2SendRequest<B> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Http2SendRequest")
-            .finish()
+        f.debug_struct("Http2SendRequest").finish()
     }
 }
 
@@ -374,18 +365,14 @@ where
     /// to work with this function; or use the `without_shutdown` wrapper.
     pub fn poll_without_shutdown(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
         match self.inner.as_mut().expect("already upgraded") {
-            &mut ProtoClient::H1(ref mut h1) => {
-                h1.poll_without_shutdown(cx)
-            },
-            &mut ProtoClient::H2(ref mut h2) => {
-                Pin::new(h2).poll(cx).map_ok(|_| ())
-            }
+            &mut ProtoClient::H1(ref mut h1) => h1.poll_without_shutdown(cx),
+            &mut ProtoClient::H2(ref mut h2) => Pin::new(h2).poll(cx).map_ok(|_| ()),
         }
     }
 
     /// Prevent shutdown of the underlying IO object at the end of service the request,
     /// instead run `into_parts`. This is a convenience wrapper over `poll_without_shutdown`.
-    pub fn without_shutdown(self) -> impl Future<Output=crate::Result<Parts<T>>> {
+    pub fn without_shutdown(self) -> impl Future<Output = crate::Result<Parts<T>>> {
         let mut conn = Some(self);
         future::poll_fn(move |cx| -> Poll<crate::Result<Parts<T>>> {
             ready!(conn.as_mut().unwrap().poll_without_shutdown(cx))?;
@@ -404,9 +391,7 @@ where
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         match ready!(Pin::new(self.inner.as_mut().unwrap()).poll(cx))? {
-            proto::Dispatched::Shutdown => {
-                Poll::Ready(Ok(()))
-            },
+            proto::Dispatched::Shutdown => Poll::Ready(Ok(())),
             proto::Dispatched::Upgrade(pending) => {
                 let h1 = match mem::replace(&mut self.inner, None) {
                     Some(ProtoClient::H1(h1)) => h1,
@@ -427,8 +412,7 @@ where
     B: Payload + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Connection")
-            .finish()
+        f.debug_struct("Connection").finish()
     }
 }
 
@@ -519,7 +503,10 @@ impl Builder {
     /// Passing `None` will do nothing.
     ///
     /// If not set, hyper will use a default.
-    pub fn http2_initial_connection_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
+    pub fn http2_initial_connection_window_size(
+        &mut self,
+        sz: impl Into<Option<u32>>,
+    ) -> &mut Self {
         if let Some(sz) = sz.into() {
             self.h2_builder.initial_connection_window_size(sz);
         }
@@ -527,7 +514,10 @@ impl Builder {
     }
 
     /// Constructs a connection with the configured options and IO.
-    pub fn handshake<T, B>(&self, io: T) -> impl Future<Output = crate::Result<(SendRequest<B>, Connection<T, B>)>>
+    pub fn handshake<T, B>(
+        &self,
+        io: T,
+    ) -> impl Future<Output = crate::Result<(SendRequest<B>, Connection<T, B>)>>
     where
         T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         B: Payload + 'static,
@@ -563,12 +553,8 @@ impl Builder {
             };
 
             Ok((
-                SendRequest {
-                    dispatch: tx,
-                },
-                Connection {
-                    inner: Some(proto),
-                },
+                SendRequest { dispatch: tx },
+                Connection { inner: Some(proto) },
             ))
         }
     }
@@ -588,7 +574,7 @@ impl Future for ResponseFuture {
                     // this is definite bug if it happens, but it shouldn't happen!
                     Err(_canceled) => panic!("dispatch dropped without returning error"),
                 })
-            },
+            }
             ResponseFutureState::Error(ref mut err) => {
                 Poll::Ready(Err(err.take().expect("polled after ready")))
             }
@@ -598,8 +584,7 @@ impl Future for ResponseFuture {
 
 impl fmt::Debug for ResponseFuture {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ResponseFuture")
-            .finish()
+        f.debug_struct("ResponseFuture").finish()
     }
 }
 
@@ -628,7 +613,6 @@ where
 trait AssertSend: Send {}
 trait AssertSendSync: Send + Sync {}
 
-
 #[doc(hidden)]
 impl<B: Send> AssertSendSync for SendRequest<B> {}
 
@@ -637,7 +621,8 @@ impl<T: Send, B: Send> AssertSend for Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + Send + 'static,
     B: Payload + 'static,
-{}
+{
+}
 
 #[doc(hidden)]
 impl<T: Send + Sync, B: Send + Sync> AssertSendSync for Connection<T, B>
@@ -645,11 +630,11 @@ where
     T: AsyncRead + AsyncWrite + Send + 'static,
     B: Payload + 'static,
     B::Data: Send + Sync + 'static,
-{}
+{
+}
 
 #[doc(hidden)]
 impl AssertSendSync for Builder {}
 
 #[doc(hidden)]
 impl AssertSend for ResponseFuture {}
-

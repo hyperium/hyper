@@ -3,7 +3,7 @@ use std::fmt;
 use std::marker::PhantomData;
 
 use crate::body::Payload;
-use crate::common::{Future, Poll, task};
+use crate::common::{task, Future, Poll};
 use crate::{Request, Response};
 
 /// Create a `Service` from a function.
@@ -41,11 +41,12 @@ pub struct ServiceFn<F, R> {
     _req: PhantomData<fn(R)>,
 }
 
-impl<F, ReqBody, Ret, ResBody, E> tower_service::Service<crate::Request<ReqBody>> for ServiceFn<F, ReqBody>
+impl<F, ReqBody, Ret, ResBody, E> tower_service::Service<crate::Request<ReqBody>>
+    for ServiceFn<F, ReqBody>
 where
     F: FnMut(Request<ReqBody>) -> Ret,
     ReqBody: Payload,
-    Ret: Future<Output=Result<Response<ResBody>, E>>,
+    Ret: Future<Output = Result<Response<ResBody>, E>>,
     E: Into<Box<dyn StdError + Send + Sync>>,
     ResBody: Payload,
 {
@@ -64,7 +65,6 @@ where
 
 impl<F, R> fmt::Debug for ServiceFn<F, R> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("impl Service")
-            .finish()
+        f.debug_struct("impl Service").finish()
     }
 }

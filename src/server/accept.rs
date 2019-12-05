@@ -9,7 +9,10 @@
 #[cfg(feature = "stream")]
 use futures_core::Stream;
 
-use crate::common::{Pin, task::{self, Poll}};
+use crate::common::{
+    task::{self, Poll},
+    Pin,
+};
 
 /// Asynchronously accept incoming connections.
 pub trait Accept {
@@ -19,8 +22,10 @@ pub trait Accept {
     type Error;
 
     /// Poll to accept the next connection.
-    fn poll_accept(self: Pin<&mut Self>, cx: &mut task::Context<'_>)
-        -> Poll<Option<Result<Self::Conn, Self::Error>>>;
+    fn poll_accept(
+        self: Pin<&mut Self>,
+        cx: &mut task::Context<'_>,
+    ) -> Poll<Option<Result<Self::Conn, Self::Error>>>;
 }
 
 /// Create an `Accept` with a polling function.
@@ -54,12 +59,11 @@ where
     {
         type Conn = IO;
         type Error = E;
-        fn poll_accept(self: Pin<&mut Self>, cx: &mut task::Context<'_>)
-            -> Poll<Option<Result<Self::Conn, Self::Error>>>
-        {
-            unsafe {
-                (self.get_unchecked_mut().0)(cx)
-            }
+        fn poll_accept(
+            self: Pin<&mut Self>,
+            cx: &mut task::Context<'_>,
+        ) -> Poll<Option<Result<Self::Conn, Self::Error>>> {
+            unsafe { (self.get_unchecked_mut().0)(cx) }
         }
     }
 
@@ -85,13 +89,11 @@ where
     {
         type Conn = IO;
         type Error = E;
-        fn poll_accept(self: Pin<&mut Self>, cx: &mut task::Context<'_>)
-            -> Poll<Option<Result<Self::Conn, Self::Error>>>
-        {
-            unsafe {
-                Pin::new_unchecked(&mut self.get_unchecked_mut().0)
-                    .poll_next(cx)
-            }
+        fn poll_accept(
+            self: Pin<&mut Self>,
+            cx: &mut task::Context<'_>,
+        ) -> Poll<Option<Result<Self::Conn, Self::Error>>> {
+            unsafe { Pin::new_unchecked(&mut self.get_unchecked_mut().0).poll_next(cx) }
         }
     }
 

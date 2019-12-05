@@ -1,5 +1,5 @@
 use bytes::Buf;
-use h2::{SendStream};
+use h2::SendStream;
 use http::header::{
     HeaderName, CONNECTION, PROXY_AUTHENTICATE, PROXY_AUTHORIZATION, TE, TRAILER,
     TRANSFER_ENCODING, UPGRADE,
@@ -7,7 +7,7 @@ use http::header::{
 use http::HeaderMap;
 
 use crate::body::Payload;
-use crate::common::{Future, Pin, Poll, task};
+use crate::common::{task, Future, Pin, Poll};
 
 pub(crate) mod client;
 pub(crate) mod server;
@@ -38,7 +38,11 @@ fn strip_connection_headers(headers: &mut HeaderMap, is_request: bool) {
     }
 
     if is_request {
-        if headers.get(TE).map(|te_header| te_header != "trailers").unwrap_or(false) {
+        if headers
+            .get(TE)
+            .map(|te_header| te_header != "trailers")
+            .unwrap_or(false)
+        {
             warn!("TE headers not set to \"trailers\" are illegal in HTTP/2 requests");
             headers.remove(TE);
         }
@@ -123,19 +127,24 @@ where
                 if self.body_tx.capacity() == 0 {
                     loop {
                         match ready!(self.body_tx.poll_capacity(cx)) {
-
-                            Some(Ok(0)) => {},
+                            Some(Ok(0)) => {}
                             Some(Ok(_)) => break,
-                            Some(Err(e)) => return Poll::Ready(Err(crate::Error::new_body_write(e))) ,
+                            Some(Err(e)) => {
+                                return Poll::Ready(Err(crate::Error::new_body_write(e)))
+                            }
                             None => return Poll::Ready(Err(crate::Error::new_canceled())),
                         }
                     }
                 } else {
-                    if let Poll::Ready(reason) =
-                        self.body_tx.poll_reset(cx).map_err(crate::Error::new_body_write)?
+                    if let Poll::Ready(reason) = self
+                        .body_tx
+                        .poll_reset(cx)
+                        .map_err(crate::Error::new_body_write)?
                     {
                         debug!("stream received RST_STREAM: {:?}", reason);
-                        return Poll::Ready(Err(crate::Error::new_body_write(::h2::Error::from(reason))));
+                        return Poll::Ready(Err(crate::Error::new_body_write(::h2::Error::from(
+                            reason,
+                        ))));
                     }
                 }
 
@@ -170,11 +179,15 @@ where
                     }
                 }
             } else {
-                if let Poll::Ready(reason) =
-                    self.body_tx.poll_reset(cx).map_err(|e| crate::Error::new_body_write(e))?
+                if let Poll::Ready(reason) = self
+                    .body_tx
+                    .poll_reset(cx)
+                    .map_err(|e| crate::Error::new_body_write(e))?
                 {
                     debug!("stream received RST_STREAM: {:?}", reason);
-                    return Poll::Ready(Err(crate::Error::new_body_write(::h2::Error::from(reason))));
+                    return Poll::Ready(Err(crate::Error::new_body_write(::h2::Error::from(
+                        reason,
+                    ))));
                 }
 
                 match ready!(Pin::new(&mut self.stream).poll_trailers(cx)) {

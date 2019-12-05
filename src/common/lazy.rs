@@ -1,6 +1,6 @@
 use std::mem;
 
-use super::{Future, Pin, Poll, task};
+use super::{task, Future, Pin, Poll};
 
 pub(crate) trait Started: Future {
     fn started(&self) -> bool;
@@ -19,7 +19,7 @@ where
 // FIXME: allow() required due to `impl Trait` leaking types to this lint
 #[allow(missing_debug_implementations)]
 pub(crate) struct Lazy<F, R> {
-    inner: Inner<F, R>
+    inner: Inner<F, R>,
 }
 
 enum Inner<F, R> {
@@ -36,8 +36,7 @@ where
     fn started(&self) -> bool {
         match self.inner {
             Inner::Init(_) => false,
-            Inner::Fut(_) |
-            Inner::Empty => true,
+            Inner::Fut(_) | Inner::Empty => true,
         }
     }
 }
@@ -61,7 +60,7 @@ where
                 let ret = Pin::new(&mut fut).poll(cx);
                 self.inner = Inner::Fut(fut);
                 ret
-            },
+            }
             _ => unreachable!("lazy state wrong"),
         }
     }
@@ -69,4 +68,3 @@ where
 
 // The closure `F` is never pinned
 impl<F, R: Unpin> Unpin for Lazy<F, R> {}
-

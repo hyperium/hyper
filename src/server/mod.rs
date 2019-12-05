@@ -51,27 +51,31 @@
 pub mod accept;
 pub mod conn;
 mod shutdown;
-#[cfg(feature = "tcp")] mod tcp;
+#[cfg(feature = "tcp")]
+mod tcp;
 
 use std::error::Error as StdError;
 use std::fmt;
-#[cfg(feature = "tcp")] use std::net::{SocketAddr, TcpListener as StdTcpListener};
+#[cfg(feature = "tcp")]
+use std::net::{SocketAddr, TcpListener as StdTcpListener};
 
-#[cfg(feature = "tcp")] use std::time::Duration;
+#[cfg(feature = "tcp")]
+use std::time::Duration;
 
-use tokio::io::{AsyncRead, AsyncWrite};
 use pin_project::pin_project;
+use tokio::io::{AsyncRead, AsyncWrite};
 
+use self::accept::Accept;
 use crate::body::{Body, Payload};
 use crate::common::exec::{Exec, H2Exec, NewSvcExec};
-use crate::common::{Future, Pin, Poll, Unpin, task};
-use crate::service::{MakeServiceRef, HttpService};
-use self::accept::Accept;
+use crate::common::{task, Future, Pin, Poll, Unpin};
+use crate::service::{HttpService, MakeServiceRef};
 // Renamed `Http` as `Http_` for now so that people upgrading don't see an
 // error that `hyper::server::Http` is private...
 use self::conn::{Http as Http_, NoopWatcher, SpawnAll};
 use self::shutdown::{Graceful, GracefulWatcher};
-#[cfg(feature = "tcp")] use self::tcp::AddrIncoming;
+#[cfg(feature = "tcp")]
+use self::tcp::AddrIncoming;
 
 /// A listening HTTP server that accepts connections in both HTTP1 and HTTP2 by default.
 ///
@@ -113,23 +117,20 @@ impl Server<AddrIncoming, ()> {
     /// This method will panic if binding to the address fails. For a method
     /// to bind to an address and return a `Result`, see `Server::try_bind`.
     pub fn bind(addr: &SocketAddr) -> Builder<AddrIncoming> {
-        let incoming = AddrIncoming::new(addr)
-            .unwrap_or_else(|e| {
-                panic!("error binding to {}: {}", addr, e);
-            });
+        let incoming = AddrIncoming::new(addr).unwrap_or_else(|e| {
+            panic!("error binding to {}: {}", addr, e);
+        });
         Server::builder(incoming)
     }
 
     /// Tries to bind to the provided address, and returns a [`Builder`](Builder).
     pub fn try_bind(addr: &SocketAddr) -> crate::Result<Builder<AddrIncoming>> {
-        AddrIncoming::new(addr)
-            .map(Server::builder)
+        AddrIncoming::new(addr).map(Server::builder)
     }
 
     /// Create a new instance from a `std::net::TcpListener` instance.
     pub fn from_tcp(listener: StdTcpListener) -> Result<Builder<AddrIncoming>, crate::Error> {
-        AddrIncoming::from_std(listener)
-            .map(Server::builder)
+        AddrIncoming::from_std(listener).map(Server::builder)
     }
 }
 
@@ -143,10 +144,10 @@ impl<S, E> Server<AddrIncoming, S, E> {
 
 impl<I, IO, IE, S, E, B> Server<I, S, E>
 where
-    I: Accept<Conn=IO, Error=IE>,
+    I: Accept<Conn = IO, Error = IE>,
     IE: Into<Box<dyn StdError + Send + Sync>>,
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    S: MakeServiceRef<IO, Body, ResBody=B>,
+    S: MakeServiceRef<IO, Body, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
     B::Data: Unpin,
@@ -191,7 +192,7 @@ where
     /// ```
     pub fn with_graceful_shutdown<F>(self, signal: F) -> Graceful<I, S, F, E>
     where
-        F: Future<Output=()>
+        F: Future<Output = ()>,
     {
         Graceful::new(self.spawn_all, signal)
     }
@@ -199,10 +200,10 @@ where
 
 impl<I, IO, IE, S, B, E> Future for Server<I, S, E>
 where
-    I: Accept<Conn=IO, Error=IE>,
+    I: Accept<Conn = IO, Error = IE>,
     IE: Into<Box<dyn StdError + Send + Sync>>,
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    S: MakeServiceRef<IO, Body, ResBody=B>,
+    S: MakeServiceRef<IO, Body, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
     B::Data: Unpin,
@@ -231,10 +232,7 @@ impl<I, E> Builder<I, E> {
     ///
     /// For a more convenient constructor, see [`Server::bind`](Server::bind).
     pub fn new(incoming: I, protocol: Http_<E>) -> Self {
-        Builder {
-            incoming,
-            protocol,
-        }
+        Builder { incoming, protocol }
     }
 
     /// Sets whether to use keep-alive for HTTP/1 connections.
@@ -244,7 +242,6 @@ impl<I, E> Builder<I, E> {
         self.protocol.keep_alive(val);
         self
     }
-
 
     /// Set whether HTTP/1 connections should support half-closures.
     ///
@@ -319,7 +316,8 @@ impl<I, E> Builder<I, E> {
     ///
     /// If not set, hyper will use a default.
     pub fn http2_initial_connection_window_size(mut self, sz: impl Into<Option<u32>>) -> Self {
-        self.protocol.http2_initial_connection_window_size(sz.into());
+        self.protocol
+            .http2_initial_connection_window_size(sz.into());
         self
     }
 
@@ -387,7 +385,7 @@ impl<I, E> Builder<I, E> {
         I: Accept,
         I::Error: Into<Box<dyn StdError + Send + Sync>>,
         I::Conn: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-        S: MakeServiceRef<I::Conn, Body, ResBody=B>,
+        S: MakeServiceRef<I::Conn, Body, ResBody = B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         B: Payload,
         B::Data: Unpin,
@@ -396,9 +394,7 @@ impl<I, E> Builder<I, E> {
     {
         let serve = self.protocol.serve(self.incoming, new_service);
         let spawn_all = serve.spawn_all();
-        Server {
-            spawn_all,
-        }
+        Server { spawn_all }
     }
 }
 
@@ -440,4 +436,3 @@ impl<E> Builder<AddrIncoming, E> {
         self
     }
 }
-

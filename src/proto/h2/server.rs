@@ -1,19 +1,19 @@
 use std::error::Error as StdError;
 use std::marker::Unpin;
 
-use pin_project::{pin_project, project};
-use h2::Reason;
 use h2::server::{Builder, Connection, Handshake, SendResponse};
+use h2::Reason;
+use pin_project::{pin_project, project};
 use tokio::io::{AsyncRead, AsyncWrite};
 
+use super::{PipeToSendStream, SendBuf};
 use crate::body::Payload;
 use crate::common::exec::H2Exec;
-use crate::common::{Future, Pin, Poll, task};
+use crate::common::{task, Future, Pin, Poll};
 use crate::headers;
 use crate::headers::content_length_parse_all;
-use crate::service::HttpService;
 use crate::proto::Dispatched;
-use super::{PipeToSendStream, SendBuf};
+use crate::service::HttpService;
 
 use crate::{Body, Response};
 
@@ -45,11 +45,10 @@ where
     closing: Option<crate::Error>,
 }
 
-
 impl<T, S, B, E> Server<T, S, B, E>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    S: HttpService<Body, ResBody=B>,
+    S: HttpService<Body, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
     B::Data: Unpin,
@@ -69,13 +68,13 @@ where
         match self.state {
             State::Handshaking(..) => {
                 // fall-through, to replace state with Closed
-            },
+            }
             State::Serving(ref mut srv) => {
                 if srv.closing.is_none() {
                     srv.conn.graceful_shutdown();
                 }
                 return;
-            },
+            }
             State::Closed => {
                 return;
             }
@@ -87,7 +86,7 @@ where
 impl<T, S, B, E> Future for Server<T, S, B, E>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    S: HttpService<Body, ResBody=B>,
+    S: HttpService<Body, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
     B::Data: Unpin,
@@ -105,7 +104,7 @@ where
                         conn,
                         closing: None,
                     })
-                },
+                }
                 State::Serving(ref mut srv) => {
                     ready!(srv.poll_server(cx, &mut me.service, &mut me.exec))?;
                     return Poll::Ready(Ok(Dispatched::Shutdown));
@@ -127,12 +126,14 @@ where
     B: Payload,
     B::Data: Unpin,
 {
-    fn poll_server<S, E>(&mut self, cx: &mut task::Context<'_>, service: &mut S, exec: &mut E) -> Poll<crate::Result<()>>
+    fn poll_server<S, E>(
+        &mut self,
+        cx: &mut task::Context<'_>,
+        service: &mut S,
+        exec: &mut E,
+    ) -> Poll<crate::Result<()>>
     where
-        S: HttpService<
-            Body,
-            ResBody=B,
-        >,
+        S: HttpService<Body, ResBody = B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         E: H2Exec<S::Future, B>,
     {
@@ -171,25 +172,26 @@ where
                     Some(Ok((req, respond))) => {
                         trace!("incoming request");
                         let content_length = content_length_parse_all(req.headers());
-                        let req = req.map(|stream| {
-                            crate::Body::h2(stream, content_length)
-                        });
+                        let req = req.map(|stream| crate::Body::h2(stream, content_length));
                         let fut = H2Stream::new(service.call(req), respond);
                         exec.execute_h2stream(fut);
-                    },
+                    }
                     Some(Err(e)) => {
                         return Poll::Ready(Err(crate::Error::new_h2(e)));
-                    },
+                    }
                     None => {
                         // no more incoming streams...
                         trace!("incoming connection complete");
                         return Poll::Ready(Ok(()));
-                    },
+                    }
                 }
             }
         }
 
-        debug_assert!(self.closing.is_some(), "poll_server broke loop without closing");
+        debug_assert!(
+            self.closing.is_some(),
+            "poll_server broke loop without closing"
+        );
 
         ready!(self.conn.poll_closed(cx).map_err(crate::Error::new_h2))?;
 
@@ -230,7 +232,7 @@ where
 }
 
 macro_rules! reply {
-    ($me:expr, $res:expr, $eos:expr) => ({
+    ($me:expr, $res:expr, $eos:expr) => {{
         match $me.reply.send_response($res, $eos) {
             Ok(tx) => tx,
             Err(e) => {
@@ -239,7 +241,7 @@ macro_rules! reply {
                 return Poll::Ready(Err(crate::Error::new_h2(e)));
             }
         }
-    })
+    }};
 }
 
 impl<F, B, E> H2Stream<F, B>
@@ -261,8 +263,10 @@ where
                         Poll::Pending => {
                             // Response is not yet ready, so we want to check if the client has sent a
                             // RST_STREAM frame which would cancel the current request.
-                            if let Poll::Ready(reason) =
-                                me.reply.poll_reset(cx).map_err(|e| crate::Error::new_h2(e))?
+                            if let Poll::Ready(reason) = me
+                                .reply
+                                .poll_reset(cx)
+                                .map_err(|e| crate::Error::new_h2(e))?
                             {
                                 debug!("stream received RST_STREAM: {:?}", reason);
                                 return Poll::Ready(Err(crate::Error::new_h2(reason.into())));
@@ -274,7 +278,7 @@ where
                             warn!("http2 service errored: {}", err);
                             me.reply.send_reset(err.h2_reason());
                             return Poll::Ready(Err(err));
-                        },
+                        }
                     };
 
                     let (head, body) = res.into_parts();
@@ -282,12 +286,9 @@ where
                     super::strip_connection_headers(res.headers_mut(), false);
 
                     // set Date header if it isn't already set...
-                    res
-                        .headers_mut()
+                    res.headers_mut()
                         .entry(::http::header::DATE)
                         .or_insert_with(crate::proto::h1::date::update_and_header_value);
-
-
 
                     // automatically set Content-Length from body...
                     if let Some(len) = body.size_hint().exact() {
@@ -301,7 +302,7 @@ where
                         reply!(me, res, true);
                         return Poll::Ready(Ok(()));
                     }
-                },
+                }
                 H2StreamState::Body(ref mut pipe) => {
                     return Pin::new(pipe).poll(cx);
                 }
