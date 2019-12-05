@@ -1,0 +1,44 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+env:
+  RUST_BACKTRACE: 1
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust:
+          - stable
+          - beta
+          - nightly
+          #- 1.39.0
+        #features:
+        #  - __internal_happy_eyeballs_tests
+
+    steps:
+      - uses: actions/checkout@v1
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          override: true
+
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --features __internal_happy_eyeballs_tests${{ (matrix.rust == 'nightly') && ',nightly' }}
+
+      - uses: actions-rs/cargo@v1
+        if: matrix.rust == 'nightly'
+        with:
+          command: test
+          args: --benches
+
