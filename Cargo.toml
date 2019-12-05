@@ -55,7 +55,6 @@ url = "1.0"
 
 [features]
 default = [
-    "__internal_flaky_tests",
     "runtime",
     "stream",
 ]
@@ -75,7 +74,6 @@ stream = []
 
 # internal features used in CI
 nightly = []
-__internal_flaky_tests = []
 __internal_happy_eyeballs_tests = []
 
 [package.metadata.docs.rs]

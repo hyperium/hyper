@@ -2,11 +2,13 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex, Weak};
+
+#[cfg(not(feature = "runtime"))]
 use std::time::{Duration, Instant};
 
 use futures_channel::oneshot;
 #[cfg(feature = "runtime")]
-use tokio::time::Interval;
+use tokio::time::{Duration, Instant, Interval};
 
 use crate::common::{Exec, Future, Pin, Poll, Unpin, task};
 use super::Ver;
@@ -899,6 +901,9 @@ mod tests {
     #[cfg(feature = "runtime")]
     #[tokio::test]
     async fn test_pool_timer_removes_expired() {
+        let _ = pretty_env_logger::try_init();
+        tokio::time::pause();
+
         let pool = Pool::new(super::Config {
                 enabled: true,
                 keep_alive_timeout: Some(Duration::from_millis(10)),
@@ -916,7 +921,9 @@ mod tests {
         assert_eq!(pool.locked().idle.get(&key).map(|entries| entries.len()), Some(3));
 
         // Let the timer tick passed the expiration...
-        tokio::time::delay_for(Duration::from_millis(50)).await;
+        tokio::time::advance(Duration::from_millis(30)).await;
+        // Yield so the Interval can reap...
+        tokio::task::yield_now().await;
 
         assert!(pool.locked().idle.get(&key).is_none());
     }

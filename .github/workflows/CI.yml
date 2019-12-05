@@ -1,0 +1,76 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+env:
+  RUST_BACKTRACE: 1
+
+jobs:
+  test:
+    name: Test ${{ matrix.rust }} on ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        rust:
+          - stable
+          - beta
+          - nightly
+          # - 1.39.0
+
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macOS-latest
+
+        include:
+          - rust: stable
+            features: ""
+          - rust: beta
+            features: ""
+          - rust: nightly
+            features: "--features nightly"
+            benches: true
+          # Limit the Happy Eyeballs tests to Linux
+          - rust: stable
+            os: ubuntu-latest
+            features: "--features __internal_happy_eyeballs_tests"
+          # - rust: 1.39.0
+          #   features: "--no-default-features --features runtime"
+          #   build-only: true
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+
+      - name: Install Rust (${{ matrix.rust }})
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          override: true
+
+      - name: Build only
+        if: matrix.build-only
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: ${{ matrix.features }}
+
+      - name: Test
+        if: matrix.build-only != true
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: ${{ matrix.features }}
+
+      - name: Test all benches
+        if: matrix.benches && matrix.build-only != true
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --benches ${{ matrix.features }}
