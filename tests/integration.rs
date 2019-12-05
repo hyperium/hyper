@@ -333,9 +333,6 @@ t! {
             ;
 }
 
-// In rare cases, the h2 client connection does not shutdown, resulting
-// in this test simply hanging... :(
-#[cfg(feature = "__internal_flaky_tests")]
 t! {
     http2_parallel_10,
     parallel: 0..10
