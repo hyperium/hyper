@@ -3,7 +3,6 @@ use std::borrow::Cow;
 use std::error::Error as StdError;
 use std::fmt;
 
-use bytes::Bytes;
 use futures_core::Stream; // for mpsc::Receiver
 use futures_channel::{mpsc, oneshot};
 #[cfg(feature = "stream")]
@@ -421,13 +420,6 @@ impl From<Chunk> for Body {
         } else {
             Body::new(Kind::Once(Some(chunk)))
         }
-    }
-}
-
-impl From<Bytes> for Body {
-    #[inline]
-    fn from(bytes: Bytes) -> Body {
-        Body::from(Chunk::from(bytes))
     }
 }
 
