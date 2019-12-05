@@ -23,6 +23,7 @@ use tokio::runtime::Runtime;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use hyper::{Body, Request, Response, StatusCode, Version};
+use hyper::body::HttpBody as _;
 use hyper::client::Client;
 use hyper::server::conn::Http;
 use hyper::server::Server;
@@ -1779,7 +1780,7 @@ impl tower_service::Service<Request<Body>> for TestService {
         let replies = self.reply.clone();
 
         Box::pin(async move {
-            while let Some(chunk) = hyper::body::HttpBody::next(req.body_mut()).await {
+            while let Some(chunk) = req.body_mut().data().await {
                 match chunk {
                     Ok(chunk) => {
                         tx.send(Msg::Chunk(chunk.to_vec())).unwrap();

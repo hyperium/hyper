@@ -319,7 +319,7 @@ impl Opts {
             async {
                 let res = fut.await.expect("client wait");
                 let mut body = res.into_body();
-                while let Some(_chunk) = body.next().await {}
+                while let Some(_chunk) = body.data().await {}
             }
         };
 
@@ -356,7 +356,7 @@ fn spawn_server(rt: &mut tokio::runtime::Runtime, opts: &Opts) -> SocketAddr {
             .serve(make_service_fn( move |_| async move {
                 Ok::<_, hyper::Error>(service_fn(move |req: Request<Body>| async move {
                     let mut req_body = req.into_body();
-                    while let Some(_chunk) = req_body.next().await {}
+                    while let Some(_chunk) = req_body.data().await {}
                     Ok::<_, hyper::Error>(Response::new(Body::from(body)))
                 }))
             }))

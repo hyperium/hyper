@@ -1,9 +1,9 @@
 #![deny(warnings)]
 #![warn(rust_2018_idioms)]
 use std::env;
-use std::io::{self, Write};
 
 use hyper::{Client, body::HttpBody as _};
+use tokio::io::{self, AsyncWriteExt as _};
 
 // A simple type alias so as to DRY.
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -35,16 +35,14 @@ async fn main() -> Result<()> {
 async fn fetch_url(url: hyper::Uri) -> Result<()> {
     let client = Client::new();
 
-    let res = client.get(url).await?;
+    let mut res = client.get(url).await?;
 
     println!("Response: {}", res.status());
     println!("Headers: {:#?}\n", res.headers());
 
-    let mut body = res.into_body();
-
-    while let Some(next) = body.next().await {
+    while let Some(next) = res.body_mut().data().await {
         let chunk = next?;
-        io::stdout().write_all(&chunk)?;
+        io::stdout().write_all(&chunk).await?;
     }
 
     println!("\n\nDone!");
