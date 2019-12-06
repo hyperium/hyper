@@ -3,7 +3,7 @@
 use futures_util::{StreamExt, TryStreamExt};
 use hyper::client::HttpConnector;
 use hyper::service::{make_service_fn, service_fn};
-use hyper::{header, Body, Chunk, Client, Method, Request, Response, Server, StatusCode};
+use hyper::{header, Body, Client, Method, Request, Response, Server, StatusCode};
 
 type GenericError = Box<dyn std::error::Error + Send + Sync>;
 type Result<T> = std::result::Result<T, GenericError>;
@@ -25,11 +25,11 @@ async fn client_request_response(client: &Client<HttpConnector>) -> Result<Respo
     let web_res = client.request(req).await?;
     // Compare the JSON we sent (before) with what we received (after):
     let body = Body::wrap_stream(web_res.into_body().map_ok(|b| {
-        Chunk::from(format!(
+        format!(
             "<b>POST request body</b>: {}<br><b>Response</b>: {}",
             POST_DATA,
             std::str::from_utf8(&b).unwrap()
-        ))
+        )
     }));
 
     Ok(Response::new(body))
