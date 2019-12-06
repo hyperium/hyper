@@ -7,10 +7,10 @@
 //!
 //! There are two pieces to this in hyper:
 //!
-//! - The [`HttpBody`](body::HttpBody) trait the describes all possible bodies.
+//! - **The [`HttpBody`](body::HttpBody) trait** describes all possible bodies.
 //!   hyper allows any body type that implements `HttpBody`, allowing
 //!   applications to have fine-grained control over their streaming.
-//! - The [`Body`](Body) concrete type, which is an implementation of
+//! - **The [`Body`](Body) concrete type**, which is an implementation of
 //!   `HttpBody`, and returned by hyper as a "receive stream" (so, for server
 //!   requests and client responses). It is also a decent default implementation
 //!   if you don't have very custom needs of your send streams.
