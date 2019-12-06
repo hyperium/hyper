@@ -19,27 +19,30 @@
 //! ## Example
 //!
 //! ```no_run
-//! use hyper::{Body, Error, Response, Server};
+//! use std::convert::Infallible;
+//! use std::net::SocketAddr;
+//! use hyper::{Body, Request, Response, Server};
 //! use hyper::service::{make_service_fn, service_fn};
+//!
+//! async fn handle(_req: Request<Body>) -> Result<Response<Body>, Infallible> {
+//!     Ok(Response::new(Body::from("Hello World")))
+//! }
 //!
 //! # #[cfg(feature = "runtime")]
 //! #[tokio::main]
 //! async fn main() {
 //!     // Construct our SocketAddr to listen on...
-//!     let addr = ([127, 0, 0, 1], 3000).into();
+//!     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
 //!
 //!     // And a MakeService to handle each connection...
-//!     let make_service = make_service_fn(|_| async {
-//!         Ok::<_, Error>(service_fn(|_req| async {
-//!             Ok::<_, Error>(Response::new(Body::from("Hello World")))
-//!         }))
+//!     let make_service = make_service_fn(|_conn| async {
+//!         Ok::<_, Infallible>(service_fn(handle))
 //!     });
 //!
 //!     // Then bind and serve...
-//!     let server = Server::bind(&addr)
-//!         .serve(make_service);
+//!     let server = Server::bind(&addr).serve(make_service);
 //!
-//!     // Finally, spawn `server` onto an Executor...
+//!     // And run forever...
 //!     if let Err(e) = server.await {
 //!         eprintln!("server error: {}", e);
 //!     }
