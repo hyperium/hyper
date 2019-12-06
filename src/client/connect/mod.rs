@@ -2,9 +2,76 @@
 //!
 //! This module contains:
 //!
-//! - A default [`HttpConnector`](HttpConnector) that does DNS resolution and
-//!   establishes connections over TCP.
+//! - A default [`HttpConnector`][] that does DNS resolution and establishes
+//!   connections over TCP.
 //! - Types to build custom connectors.
+//!
+//! # Connectors
+//!
+//! A "connector" is a [`Service`][] that takes a [`Uri`][] destination, and
+//! its `Response` is some type implementing [`AsyncRead`][], [`AsyncWrite`][],
+//! and [`Connection`][].
+//!
+//! ## Custom Connectors
+//!
+//! A simple connector that ignores the `Uri` destination and always returns
+//! a TCP connection to the same address could be written like this:
+//!
+//! ```rust,ignore
+//! let connector = tower::service_fn(|_dst| async {
+//!     tokio::net::TcpStream::connect("127.0.0.1:1337")
+//! })
+//! ```
+//!
+//! Or, fully written out:
+//!
+//! ```
+//! use std::{future::Future, net::SocketAddr, pin::Pin, task::{self, Poll}};
+//! use hyper::{service::Service, Uri};
+//! use tokio::net::TcpStream;
+//!
+//! struct LocalConnector;
+//!
+//! impl Service<Uri> for LocalConnector {
+//!     type Response = TcpStream;
+//!     type Error = std::io::Error;
+//!     // We can't "name" an `async` generated future.
+//!     type Future = Pin<Box<
+//!         dyn Future<Output = Result<Self::Response, Self::Error>> + Send
+//!     >>;
+//!
+//!     fn poll_ready(&mut self, _: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+//!         // This connector is always ready, but others might not be.
+//!         Poll::Ready(Ok(()))
+//!     }
+//!
+//!     fn call(&mut self, _: Uri) -> Self::Future {
+//!         Box::pin(TcpStream::connect(SocketAddr::from(([127, 0, 0, 1], 1337))))
+//!     }
+//! }
+//! ```
+//!
+//! It's worth noting that for `TcpStream`s, the [`HttpConnector`][] is a
+//! better starting place to extend from.
+//!
+//! Using either of the above connector examples, it can be used with the
+//! `Client` like this:
+//!
+//! ```
+//! # let connector = hyper::client::HttpConnector::new();
+//! // let connector = ...
+//!
+//! let client = hyper::Client::builder()
+//!     .build::<_, hyper::Body>(connector);
+//! ```
+//!
+//!
+//! [`HttpConnector`]: hyper::client::HttpConnector
+//! [`Service`]: hyper::service::Service
+//! [`Uri`]: http::Uri
+//! [`AsyncRead`]: tokio::io::AsyncRead
+//! [`AsyncWrite`]: tokio::io::AsyncWrite
+//! [`Connection`]: hyper::client::connect::Connection
 use std::fmt;
 
 use ::http::Response;
