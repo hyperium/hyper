@@ -150,7 +150,6 @@ where
     S: MakeServiceRef<IO, Body, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
-    B::Data: Unpin,
     E: H2Exec<<S::Service as HttpService<Body>>::Future, B>,
     E: NewSvcExec<IO, S::Future, S::Service, E, GracefulWatcher>,
 {
@@ -206,7 +205,6 @@ where
     S: MakeServiceRef<IO, Body, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
-    B::Data: Unpin,
     E: H2Exec<<S::Service as HttpService<Body>>::Future, B>,
     E: NewSvcExec<IO, S::Future, S::Service, E, NoopWatcher>,
 {
@@ -388,7 +386,6 @@ impl<I, E> Builder<I, E> {
         S: MakeServiceRef<I::Conn, Body, ResBody = B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         B: Payload,
-        B::Data: Unpin,
         E: NewSvcExec<I::Conn, S::Future, S::Service, E, NoopWatcher>,
         E: H2Exec<<S::Service as HttpService<Body>>::Future, B>,
     {

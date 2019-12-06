@@ -51,7 +51,6 @@ where
     S: HttpService<Body, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
-    B::Data: Unpin,
     E: H2Exec<S::Future, B>,
 {
     pub(crate) fn new(io: T, service: S, builder: &Builder, exec: E) -> Server<T, S, B, E> {
@@ -89,7 +88,6 @@ where
     S: HttpService<Body, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
-    B::Data: Unpin,
     E: H2Exec<S::Future, B>,
 {
     type Output = crate::Result<Dispatched>;
@@ -124,7 +122,6 @@ impl<T, B> Serving<T, B>
 where
     T: AsyncRead + AsyncWrite + Unpin,
     B: Payload,
-    B::Data: Unpin,
 {
     fn poll_server<S, E>(
         &mut self,
@@ -216,7 +213,7 @@ where
     B: Payload,
 {
     Service(#[pin] F),
-    Body(PipeToSendStream<B>),
+    Body(#[pin] PipeToSendStream<B>),
 }
 
 impl<F, B> H2Stream<F, B>
@@ -247,8 +244,7 @@ macro_rules! reply {
 impl<F, B, E> H2Stream<F, B>
 where
     F: Future<Output = Result<Response<B>, E>>,
-    B: Payload + Unpin,
-    B::Data: Unpin,
+    B: Payload,
     E: Into<Box<dyn StdError + Send + Sync>>,
 {
     #[project]
@@ -303,8 +299,8 @@ where
                         return Poll::Ready(Ok(()));
                     }
                 }
-                H2StreamState::Body(ref mut pipe) => {
-                    return Pin::new(pipe).poll(cx);
+                H2StreamState::Body(pipe) => {
+                    return pipe.poll(cx);
                 }
             };
             me.state.set(next);
@@ -315,8 +311,7 @@ where
 impl<F, B, E> Future for H2Stream<F, B>
 where
     F: Future<Output = Result<Response<B>, E>>,
-    B: Payload + Unpin,
-    B::Data: Unpin,
+    B: Payload,
     E: Into<Box<dyn StdError + Send + Sync>>,
 {
     type Output = ();

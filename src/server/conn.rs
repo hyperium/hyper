@@ -382,7 +382,6 @@ impl<E> Http<E> {
         S: HttpService<Body, ResBody = Bd>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         Bd: Payload,
-        Bd::Data: Unpin,
         I: AsyncRead + AsyncWrite + Unpin,
         E: H2Exec<S::Future, Bd>,
     {
@@ -449,7 +448,6 @@ where
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin,
     B: Payload + 'static,
-    B::Data: Unpin,
     E: H2Exec<S::Future, B>,
 {
     /// Start a graceful shutdown process for this connection.
@@ -588,7 +586,6 @@ where
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin + 'static,
     B: Payload + 'static,
-    B::Data: Unpin,
     E: H2Exec<S::Future, B>,
 {
     type Output = crate::Result<()>;
@@ -708,7 +705,6 @@ where
     F: Future<Output = Result<S, FE>>,
     S: HttpService<Body, ResBody = B>,
     B: Payload,
-    B::Data: Unpin,
     E: H2Exec<S::Future, B>,
 {
     type Output = Result<Connection<I, S, E>, FE>;
@@ -779,7 +775,6 @@ where
     S: HttpService<Body, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
-    B::Data: Unpin,
     E: H2Exec<S::Future, B>,
 {
     type Output = crate::Result<proto::Dispatched>;
@@ -827,7 +822,6 @@ pub(crate) mod spawn_all {
     where
         I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         S: HttpService<Body>,
-        <S::ResBody as Payload>::Data: Unpin,
         E: H2Exec<S::Future, S::ResBody>,
     {
         type Future = UpgradeableConnection<I, S, E>;
@@ -875,7 +869,6 @@ pub(crate) mod spawn_all {
         NE: Into<Box<dyn StdError + Send + Sync>>,
         S: HttpService<Body, ResBody = B>,
         B: Payload,
-        B::Data: Unpin,
         E: H2Exec<S::Future, B>,
         W: Watcher<I, S, E>,
     {
@@ -943,7 +936,6 @@ mod upgrades {
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: AsyncRead + AsyncWrite + Unpin,
         B: Payload + 'static,
-        B::Data: Unpin,
         E: H2Exec<S::Future, B>,
     {
         /// Start a graceful shutdown process for this connection.
@@ -961,7 +953,6 @@ mod upgrades {
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         B: Payload + 'static,
-        B::Data: Unpin,
         E: super::H2Exec<S::Future, B>,
     {
         type Output = crate::Result<()>;
