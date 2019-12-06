@@ -5,6 +5,7 @@ use http::header::{
     TRANSFER_ENCODING, UPGRADE,
 };
 use http::HeaderMap;
+use pin_project::pin_project;
 
 use crate::body::Payload;
 use crate::common::{task, Future, Pin, Poll};
@@ -74,12 +75,14 @@ fn strip_connection_headers(headers: &mut HeaderMap, is_request: bool) {
 
 // body adapters used by both Client and Server
 
+#[pin_project]
 struct PipeToSendStream<S>
 where
     S: Payload,
 {
     body_tx: SendStream<SendBuf<S::Data>>,
     data_done: bool,
+    #[pin]
     stream: S,
 }
 
@@ -94,39 +97,26 @@ where
             stream: stream,
         }
     }
-
-    fn on_user_err(&mut self, err: S::Error) -> crate::Error {
-        let err = crate::Error::new_user_body(err);
-        debug!("send body user stream error: {}", err);
-        self.body_tx.send_reset(err.h2_reason());
-        err
-    }
-
-    fn send_eos_frame(&mut self) -> crate::Result<()> {
-        trace!("send body eos");
-        self.body_tx
-            .send_data(SendBuf(None), true)
-            .map_err(crate::Error::new_body_write)
-    }
 }
 
 impl<S> Future for PipeToSendStream<S>
 where
-    S: Payload + Unpin,
+    S: Payload,
 {
     type Output = crate::Result<()>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let mut me = self.project();
         loop {
-            if !self.data_done {
+            if !*me.data_done {
                 // we don't have the next chunk of data yet, so just reserve 1 byte to make
                 // sure there's some capacity available. h2 will handle the capacity management
                 // for the actual body chunk.
-                self.body_tx.reserve_capacity(1);
+                me.body_tx.reserve_capacity(1);
 
-                if self.body_tx.capacity() == 0 {
+                if me.body_tx.capacity() == 0 {
                     loop {
-                        match ready!(self.body_tx.poll_capacity(cx)) {
+                        match ready!(me.body_tx.poll_capacity(cx)) {
                             Some(Ok(0)) => {}
                             Some(Ok(_)) => break,
                             Some(Err(e)) => {
@@ -136,7 +126,7 @@ where
                         }
                     }
                 } else {
-                    if let Poll::Ready(reason) = self
+                    if let Poll::Ready(reason) = me
                         .body_tx
                         .poll_reset(cx)
                         .map_err(crate::Error::new_body_write)?
@@ -148,9 +138,9 @@ where
                     }
                 }
 
-                match ready!(Pin::new(&mut self.stream).poll_data(cx)) {
+                match ready!(me.stream.as_mut().poll_data(cx)) {
                     Some(Ok(chunk)) => {
-                        let is_eos = self.stream.is_end_stream();
+                        let is_eos = me.stream.is_end_stream();
                         trace!(
                             "send body chunk: {} bytes, eos={}",
                             chunk.remaining(),
@@ -158,7 +148,7 @@ where
                         );
 
                         let buf = SendBuf(Some(chunk));
-                        self.body_tx
+                        me.body_tx
                             .send_data(buf, is_eos)
                             .map_err(crate::Error::new_body_write)?;
 
@@ -166,20 +156,20 @@ where
                             return Poll::Ready(Ok(()));
                         }
                     }
-                    Some(Err(e)) => return Poll::Ready(Err(self.on_user_err(e))),
+                    Some(Err(e)) => return Poll::Ready(Err(me.body_tx.on_user_err(e))),
                     None => {
-                        self.body_tx.reserve_capacity(0);
-                        let is_eos = self.stream.is_end_stream();
+                        me.body_tx.reserve_capacity(0);
+                        let is_eos = me.stream.is_end_stream();
                         if is_eos {
-                            return Poll::Ready(self.send_eos_frame());
+                            return Poll::Ready(me.body_tx.send_eos_frame());
                         } else {
-                            self.data_done = true;
+                            *me.data_done = true;
                             // loop again to poll_trailers
                         }
                     }
                 }
             } else {
-                if let Poll::Ready(reason) = self
+                if let Poll::Ready(reason) = me
                     .body_tx
                     .poll_reset(cx)
                     .map_err(|e| crate::Error::new_body_write(e))?
@@ -190,21 +180,46 @@ where
                     ))));
                 }
 
-                match ready!(Pin::new(&mut self.stream).poll_trailers(cx)) {
+                match ready!(me.stream.poll_trailers(cx)) {
                     Ok(Some(trailers)) => {
-                        self.body_tx
+                        me.body_tx
                             .send_trailers(trailers)
                             .map_err(crate::Error::new_body_write)?;
                         return Poll::Ready(Ok(()));
                     }
                     Ok(None) => {
                         // There were no trailers, so send an empty DATA frame...
-                        return Poll::Ready(self.send_eos_frame());
+                        return Poll::Ready(me.body_tx.send_eos_frame());
                     }
-                    Err(e) => return Poll::Ready(Err(self.on_user_err(e))),
+                    Err(e) => return Poll::Ready(Err(me.body_tx.on_user_err(e))),
                 }
             }
         }
+    }
+}
+
+trait SendStreamExt {
+    fn on_user_err<E>(&mut self, err: E) -> crate::Error
+    where
+        E: Into<Box<dyn std::error::Error + Send + Sync>>;
+    fn send_eos_frame(&mut self) -> crate::Result<()>;
+}
+
+impl<B: Buf> SendStreamExt for SendStream<SendBuf<B>> {
+    fn on_user_err<E>(&mut self, err: E) -> crate::Error
+    where
+        E: Into<Box<dyn std::error::Error + Send + Sync>>,
+    {
+        let err = crate::Error::new_user_body(err);
+        debug!("send body user stream error: {}", err);
+        self.send_reset(err.h2_reason());
+        err
+    }
+
+    fn send_eos_frame(&mut self) -> crate::Result<()> {
+        trace!("send body eos");
+        self.send_data(SendBuf(None), true)
+            .map_err(crate::Error::new_body_write)
     }
 }
 
