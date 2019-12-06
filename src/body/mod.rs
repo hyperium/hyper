@@ -15,14 +15,13 @@
 //!   requests and client responses). It is also a decent default implementation
 //!   if you don't have very custom needs of your send streams.
 
+pub use bytes::{Buf, Bytes};
 pub use http_body::Body as HttpBody;
 
 pub use self::body::{Body, Sender};
-pub use self::chunk::Chunk;
 pub(crate) use self::payload::Payload;
 
 mod body;
-mod chunk;
 mod payload;
 
 /// An optimization to try to take a full body if immediately available.
@@ -56,6 +55,5 @@ fn _assert_send_sync() {
     fn _assert_sync<T: Sync>() {}
 
     _assert_send::<Body>();
-    _assert_send::<Chunk>();
-    _assert_sync::<Chunk>();
+    _assert_sync::<Body>();
 }

@@ -474,7 +474,7 @@ fn naive_proxy(cfg: ProxyConfig) -> (SocketAddr, impl Future<Output = ()>) {
     (proxy_addr, srv.map(|res| res.expect("proxy error")))
 }
 
-async fn concat(mut body: Body) -> Result<hyper::Chunk, hyper::Error> {
+async fn concat(mut body: Body) -> Result<bytes::Bytes, hyper::Error> {
     let mut vec = Vec::new();
     while let Some(chunk) = body.next().await {
         vec.extend_from_slice(&chunk?);

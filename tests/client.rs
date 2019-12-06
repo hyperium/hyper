@@ -28,7 +28,7 @@ fn tcp_connect(addr: &SocketAddr) -> impl Future<Output = std::io::Result<TcpStr
     TcpStream::connect(*addr)
 }
 
-async fn concat(mut body: Body) -> Result<hyper::Chunk, hyper::Error> {
+async fn concat(mut body: Body) -> Result<bytes::Bytes, hyper::Error> {
     let mut vec = Vec::new();
     while let Some(chunk) = body.next().await {
         vec.extend_from_slice(&chunk?);

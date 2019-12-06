@@ -39,7 +39,7 @@ extern crate test;
 
 pub use http::{header, HeaderMap, Method, Request, Response, StatusCode, Uri, Version};
 
-pub use crate::body::{Body, Chunk};
+pub use crate::body::Body;
 pub use crate::client::Client;
 pub use crate::error::{Error, Result};
 pub use crate::server::Server;

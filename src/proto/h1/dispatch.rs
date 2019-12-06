@@ -646,7 +646,7 @@ mod tests {
             // the request is ready to write later...
             //let io = AsyncIo::new_buf(b"HTTP/1.1 200 OK\r\n\r\n".to_vec(), 0);
             let (mut tx, rx) = crate::client::dispatch::channel();
-            let conn = Conn::<_, crate::Chunk, ClientTransaction>::new(io);
+            let conn = Conn::<_, bytes::Bytes, ClientTransaction>::new(io);
             let mut dispatcher = Dispatcher::new(Client::new(rx), conn);
 
             // First poll is needed to allow tx to send...
@@ -681,7 +681,7 @@ mod tests {
             .build();
 
         let (mut tx, rx) = crate::client::dispatch::channel();
-        let conn = Conn::<_, crate::Chunk, ClientTransaction>::new(io);
+        let conn = Conn::<_, bytes::Bytes, ClientTransaction>::new(io);
         let mut dispatcher = tokio_test::task::spawn(Dispatcher::new(Client::new(rx), conn));
 
         // First poll is needed to allow tx to send...

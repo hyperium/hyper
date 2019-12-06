@@ -962,10 +962,10 @@ mod tests {
         let s = "Hello, World!";
         b.bytes = s.len() as u64;
 
-        let mut write_buf = WriteBuf::<crate::Chunk>::new();
+        let mut write_buf = WriteBuf::<bytes::Bytes>::new();
         write_buf.set_strategy(WriteStrategy::Flatten);
         b.iter(|| {
-            let chunk = crate::Chunk::from(s);
+            let chunk = bytes::Bytes::from(s);
             write_buf.buffer(chunk);
             ::test::black_box(&write_buf);
             write_buf.headers.bytes.clear();
