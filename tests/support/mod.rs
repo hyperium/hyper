@@ -355,7 +355,7 @@ async fn async_test(cfg: __TestConfig) {
                 func(&req.headers());
             }
             let sbody = sreq.body;
-            concat(req.into_body()).map_ok(move |body| {
+            hyper::body::to_bytes(req.into_body()).map_ok(move |body| {
                 assert_eq!(body.as_ref(), sbody.as_slice(), "client body");
 
                 let mut res = Response::builder()
@@ -410,7 +410,7 @@ async fn async_test(cfg: __TestConfig) {
                     for func in &cheaders {
                         func(&res.headers());
                     }
-                    concat(res.into_body())
+                    hyper::body::to_bytes(res.into_body())
                 })
                 .map_ok(move |body| {
                     assert_eq!(body.as_ref(), cbody.as_slice(), "server body");
@@ -472,12 +472,4 @@ fn naive_proxy(cfg: ProxyConfig) -> (SocketAddr, impl Future<Output = ()>) {
     }));
     let proxy_addr = srv.local_addr();
     (proxy_addr, srv.map(|res| res.expect("proxy error")))
-}
-
-async fn concat(mut body: Body) -> Result<bytes::Bytes, hyper::Error> {
-    let mut vec = Vec::new();
-    while let Some(chunk) = body.next().await {
-        vec.extend_from_slice(&chunk?);
-    }
-    Ok(vec.into())
 }

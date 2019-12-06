@@ -11,12 +11,12 @@ use std::task::{Context, Poll};
 use std::thread;
 use std::time::Duration;
 
+use hyper::body::to_bytes as concat;
 use hyper::{Body, Client, Method, Request, StatusCode};
 
 use futures_channel::oneshot;
 use futures_core::{Future, Stream, TryFuture};
 use futures_util::future::{self, FutureExt, TryFutureExt};
-use futures_util::StreamExt;
 use tokio::net::TcpStream;
 use tokio::runtime::Runtime;
 
@@ -26,14 +26,6 @@ fn s(buf: &[u8]) -> &str {
 
 fn tcp_connect(addr: &SocketAddr) -> impl Future<Output = std::io::Result<TcpStream>> {
     TcpStream::connect(*addr)
-}
-
-async fn concat(mut body: Body) -> Result<bytes::Bytes, hyper::Error> {
-    let mut vec = Vec::new();
-    while let Some(chunk) = body.next().await {
-        vec.extend_from_slice(&chunk?);
-    }
-    Ok(vec.into())
 }
 
 macro_rules! test {

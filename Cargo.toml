@@ -98,7 +98,7 @@ required-features = ["runtime"]
 [[example]]
 name = "client_json"
 path = "examples/client_json.rs"
-required-features = ["runtime", "stream"]
+required-features = ["runtime"]
 
 [[example]]
 name = "echo"
@@ -161,6 +161,11 @@ name = "web_api"
 path = "examples/web_api.rs"
 required-features = ["runtime", "stream"]
 
+
+[[bench]]
+name = "body"
+path = "benches/body.rs"
+required-features = ["runtime", "stream"]
 
 [[bench]]
 name = "connect"

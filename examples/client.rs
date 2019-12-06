@@ -40,6 +40,8 @@ async fn fetch_url(url: hyper::Uri) -> Result<()> {
     println!("Response: {}", res.status());
     println!("Headers: {:#?}\n", res.headers());
 
+    // Stream the body, writing each chunk to stdout as we get it
+    // (instead of buffering and printing at the end).
     while let Some(next) = res.body_mut().data().await {
         let chunk = next?;
         io::stdout().write_all(&chunk).await?;

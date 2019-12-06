@@ -18,11 +18,16 @@
 pub use bytes::{Buf, Bytes};
 pub use http_body::Body as HttpBody;
 
+pub use self::aggregate::aggregate;
 pub use self::body::{Body, Sender};
+pub use self::to_bytes::to_bytes;
+
 pub(crate) use self::payload::Payload;
 
+mod aggregate;
 mod body;
 mod payload;
+mod to_bytes;
 
 /// An optimization to try to take a full body if immediately available.
 ///
