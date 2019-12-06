@@ -4,7 +4,7 @@
 #[macro_use]
 extern crate serde_derive;
 
-use futures_util::StreamExt;
+use bytes::buf::BufExt as _;
 use hyper::Client;
 
 // A simple type alias so as to DRY.
@@ -27,14 +27,13 @@ async fn fetch_json(url: hyper::Uri) -> Result<Vec<User>> {
     let client = Client::new();
 
     // Fetch the url...
-    let mut res = client.get(url).await?;
-    // asynchronously concatenate chunks of the body
-    let mut body = Vec::new();
-    while let Some(chunk) = res.body_mut().next().await {
-        body.extend_from_slice(&chunk?);
-    }
+    let res = client.get(url).await?;
+
+    // asynchronously aggregate the chunks of the body
+    let body = hyper::body::aggregate(res.into_body()).await?;
+
     // try to parse as json with serde_json
-    let users = serde_json::from_slice(&body)?;
+    let users = serde_json::from_reader(body.reader())?;
 
     Ok(users)
 }

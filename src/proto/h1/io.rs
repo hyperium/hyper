@@ -1,6 +1,5 @@
 use std::cell::Cell;
 use std::cmp;
-use std::collections::VecDeque;
 use std::fmt;
 use std::io::{self, IoSlice};
 
@@ -8,6 +7,7 @@ use bytes::{Buf, BufMut, Bytes, BytesMut};
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::{Http1Transaction, ParseContext, ParsedMessage};
+use crate::common::buf::BufList;
 use crate::common::{task, Pin, Poll, Unpin};
 
 /// The initial buffer size allocated before trying to read from IO.
@@ -90,7 +90,7 @@ where
     pub fn set_write_strategy_flatten(&mut self) {
         // this should always be called only at construction time,
         // so this assert is here to catch myself
-        debug_assert!(self.write_buf.queue.bufs.is_empty());
+        debug_assert!(self.write_buf.queue.bufs_cnt() == 0);
         self.write_buf.set_strategy(WriteStrategy::Flatten);
     }
 
@@ -431,16 +431,16 @@ pub(super) struct WriteBuf<B> {
     headers: Cursor<Vec<u8>>,
     max_buf_size: usize,
     /// Deque of user buffers if strategy is Queue
-    queue: BufDeque<B>,
+    queue: BufList<B>,
     strategy: WriteStrategy,
 }
 
-impl<B> WriteBuf<B> {
+impl<B: Buf> WriteBuf<B> {
     fn new() -> WriteBuf<B> {
         WriteBuf {
             headers: Cursor::new(Vec::with_capacity(INIT_BUFFER_SIZE)),
             max_buf_size: DEFAULT_MAX_BUFFER_SIZE,
-            queue: BufDeque::new(),
+            queue: BufList::new(),
             strategy: WriteStrategy::Auto,
         }
     }
@@ -479,7 +479,7 @@ where
                 }
             }
             WriteStrategy::Auto | WriteStrategy::Queue => {
-                self.queue.bufs.push_back(buf.into());
+                self.queue.push(buf.into());
             }
         }
     }
@@ -488,7 +488,7 @@ where
         match self.strategy {
             WriteStrategy::Flatten => self.remaining() < self.max_buf_size,
             WriteStrategy::Auto | WriteStrategy::Queue => {
-                self.queue.bufs.len() < MAX_BUF_LIST_BUFFERS && self.remaining() < self.max_buf_size
+                self.queue.bufs_cnt() < MAX_BUF_LIST_BUFFERS && self.remaining() < self.max_buf_size
             }
         }
     }
@@ -606,66 +606,6 @@ enum WriteStrategy {
     Auto,
     Flatten,
     Queue,
-}
-
-struct BufDeque<T> {
-    bufs: VecDeque<T>,
-}
-
-impl<T> BufDeque<T> {
-    fn new() -> BufDeque<T> {
-        BufDeque {
-            bufs: VecDeque::new(),
-        }
-    }
-}
-
-impl<T: Buf> Buf for BufDeque<T> {
-    #[inline]
-    fn remaining(&self) -> usize {
-        self.bufs.iter().map(|buf| buf.remaining()).sum()
-    }
-
-    #[inline]
-    fn bytes(&self) -> &[u8] {
-        for buf in &self.bufs {
-            return buf.bytes();
-        }
-        &[]
-    }
-
-    #[inline]
-    fn advance(&mut self, mut cnt: usize) {
-        while cnt > 0 {
-            {
-                let front = &mut self.bufs[0];
-                let rem = front.remaining();
-                if rem > cnt {
-                    front.advance(cnt);
-                    return;
-                } else {
-                    front.advance(rem);
-                    cnt -= rem;
-                }
-            }
-            self.bufs.pop_front();
-        }
-    }
-
-    #[inline]
-    fn bytes_vectored<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> usize {
-        if dst.is_empty() {
-            return 0;
-        }
-        let mut vecs = 0;
-        for buf in &self.bufs {
-            vecs += buf.bytes_vectored(&mut dst[vecs..]);
-            if vecs == dst.len() {
-                break;
-            }
-        }
-        vecs
-    }
 }
 
 #[cfg(test)]
@@ -871,12 +811,12 @@ mod tests {
         buffered.buffer(Cursor::new(b"world, ".to_vec()));
         buffered.buffer(Cursor::new(b"it's ".to_vec()));
         buffered.buffer(Cursor::new(b"hyper!".to_vec()));
-        assert_eq!(buffered.write_buf.queue.bufs.len(), 3);
+        assert_eq!(buffered.write_buf.queue.bufs_cnt(), 3);
         buffered.flush().unwrap();
 
         assert_eq!(buffered.io, b"hello world, it's hyper!");
         assert_eq!(buffered.io.num_writes(), 1);
-        assert_eq!(buffered.write_buf.queue.bufs.len(), 0);
+        assert_eq!(buffered.write_buf.queue.bufs_cnt(), 0);
     }
     */
 
@@ -896,7 +836,7 @@ mod tests {
         buffered.buffer(Cursor::new(b"world, ".to_vec()));
         buffered.buffer(Cursor::new(b"it's ".to_vec()));
         buffered.buffer(Cursor::new(b"hyper!".to_vec()));
-        assert_eq!(buffered.write_buf.queue.bufs.len(), 0);
+        assert_eq!(buffered.write_buf.queue.bufs_cnt(), 0);
 
         buffered.flush().await.expect("flush");
     }
@@ -921,11 +861,11 @@ mod tests {
         buffered.buffer(Cursor::new(b"world, ".to_vec()));
         buffered.buffer(Cursor::new(b"it's ".to_vec()));
         buffered.buffer(Cursor::new(b"hyper!".to_vec()));
-        assert_eq!(buffered.write_buf.queue.bufs.len(), 3);
+        assert_eq!(buffered.write_buf.queue.bufs_cnt(), 3);
 
         buffered.flush().await.expect("flush");
 
-        assert_eq!(buffered.write_buf.queue.bufs.len(), 0);
+        assert_eq!(buffered.write_buf.queue.bufs_cnt(), 0);
     }
 
     #[tokio::test]
@@ -949,11 +889,11 @@ mod tests {
         buffered.buffer(Cursor::new(b"world, ".to_vec()));
         buffered.buffer(Cursor::new(b"it's ".to_vec()));
         buffered.buffer(Cursor::new(b"hyper!".to_vec()));
-        assert_eq!(buffered.write_buf.queue.bufs.len(), 3);
+        assert_eq!(buffered.write_buf.queue.bufs_cnt(), 3);
 
         buffered.flush().await.expect("flush");
 
-        assert_eq!(buffered.write_buf.queue.bufs.len(), 0);
+        assert_eq!(buffered.write_buf.queue.bufs_cnt(), 0);
     }
 
     #[cfg(feature = "nightly")]

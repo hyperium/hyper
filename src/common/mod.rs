@@ -7,6 +7,7 @@ macro_rules! ready {
     };
 }
 
+pub(crate) mod buf;
 pub(crate) mod drain;
 pub(crate) mod exec;
 pub(crate) mod io;

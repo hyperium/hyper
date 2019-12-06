@@ -1,6 +1,7 @@
 #![deny(warnings)]
 
-use futures_util::{StreamExt, TryStreamExt};
+use bytes::buf::BufExt;
+use futures_util::{stream, StreamExt};
 use hyper::client::HttpConnector;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{header, Body, Client, Method, Request, Response, Server, StatusCode};
@@ -24,25 +25,24 @@ async fn client_request_response(client: &Client<HttpConnector>) -> Result<Respo
 
     let web_res = client.request(req).await?;
     // Compare the JSON we sent (before) with what we received (after):
-    let body = Body::wrap_stream(web_res.into_body().map_ok(|b| {
-        format!(
-            "<b>POST request body</b>: {}<br><b>Response</b>: {}",
+    let before = stream::once(async {
+        Ok(format!(
+            "<b>POST request body</b>: {}<br><b>Response</b>: ",
             POST_DATA,
-            std::str::from_utf8(&b).unwrap()
         )
-    }));
+        .into())
+    });
+    let after = web_res.into_body();
+    let body = Body::wrap_stream(before.chain(after));
 
     Ok(Response::new(body))
 }
 
-async fn api_post_response(mut req: Request<Body>) -> Result<Response<Body>> {
-    // Concatenate the body...
-    let mut whole_body = Vec::new();
-    while let Some(chunk) = req.body_mut().next().await {
-        whole_body.extend_from_slice(&chunk?);
-    }
+async fn api_post_response(req: Request<Body>) -> Result<Response<Body>> {
+    // Aggregate the body...
+    let whole_body = hyper::body::aggregate(req.into_body()).await?;
     // Decode as JSON...
-    let mut data: serde_json::Value = serde_json::from_slice(&whole_body)?;
+    let mut data: serde_json::Value = serde_json::from_reader(whole_body.reader())?;
     // Change the JSON...
     data["test"] = serde_json::Value::from("test_value");
     // And respond with the new JSON.

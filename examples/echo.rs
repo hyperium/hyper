@@ -1,12 +1,12 @@
-//#![deny(warnings)]
+#![deny(warnings)]
 
-use futures_util::{StreamExt, TryStreamExt};
+use futures_util::TryStreamExt;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Method, Request, Response, Server, StatusCode};
 
 /// This is our service handler. It receives a Request, routes on its
 /// path, and returns a Future of a Response.
-async fn echo(mut req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
+async fn echo(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
     match (req.method(), req.uri().path()) {
         // Serve some instructions at /
         (&Method::GET, "/") => Ok(Response::new(Body::from(
@@ -34,10 +34,7 @@ async fn echo(mut req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
         // So here we do `.await` on the future, waiting on concatenating the full body,
         // then afterwards the content can be reversed. Only then can we return a `Response`.
         (&Method::POST, "/echo/reversed") => {
-            let mut whole_body = Vec::new();
-            while let Some(chunk) = req.body_mut().next().await {
-                whole_body.extend_from_slice(&chunk?);
-            }
+            let whole_body = hyper::body::to_bytes(req.into_body()).await?;
 
             let reversed_body = whole_body.iter().rev().cloned().collect::<Vec<u8>>();
             Ok(Response::new(Body::from(reversed_body)))
