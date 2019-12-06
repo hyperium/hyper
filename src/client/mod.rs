@@ -40,19 +40,9 @@
 //! println!("status: {}", res.status());
 //!
 //! // Concatenate the body stream into a single buffer...
-//! let mut body = res.into_body();
-//! let mut bytes = Vec::new();
-//! while let Some(next) = body.data().await {
-//!     let chunk = next?;
-//!     bytes.extend(chunk);
-//! }
+//! let buf = hyper::body::to_bytes(res.into_body()).await?;
 //!
-//! // And then, if reading the full body succeeds...
-//! // The body is just bytes, but let's print a string...
-//! let s = std::str::from_utf8(&bytes)
-//!     .expect("httpbin sends utf-8 JSON");
-//!
-//! println!("body: {}", s);
+//! println!("body: {:?}", buf);
 //! # Ok(())
 //! # }
 //! # fn main () {}
