@@ -9,11 +9,22 @@
 //!
 //! hyper is a **fast** and **correct** HTTP implementation written in and for Rust.
 //!
-//! hyper provides both a [Client](client/index.html) and a
-//! [Server](server/index.html).
+//! ## Features
+//!
+//! - HTTP/1 and HTTP/2
+//! - Asynchronous design
+//! - Leading in performance
+//! - Tested and **correct**
+//! - Extensive production use
+//! - [Client](client/index.html) and [Server](server/index.html) APIs
 //!
 //! If just starting out, **check out the [Guides](https://hyper.rs/guides)
 //! first.**
+//!
+//! ## "Low-level"
+//!
+//! hyper is a lower-level HTTP library, meant to be a building block
+//! for libaries and applications.
 //!
 //! If looking for just a convenient HTTP client, consider the
 //! [reqwest](https://crates.io/crates/reqwest) crate.

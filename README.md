@@ -7,32 +7,23 @@
 
 A **fast** and **correct** HTTP implementation for Rust.
 
+- HTTP/1 and HTTP/2
+- Asynchronous design
+- Leading in performance
+- Tested and **correct**
+- Extensive production use
+- Client and Server APIs
+
 **Get started** by looking over the [guides](https://hyper.rs/guides).
 
-**Hyper is a relatively low-level library, if you are looking for simple
-high-level HTTP client, then you may wish to consider
+## "Low-level"
+
+hyper is a relatively low-level library, meant to be a building block for
+libraries and applications.
+
+Ff you are looking for a convenient HTTP client, then you may wish to consider
 [reqwest](https://github.com/seanmonstar/reqwest), which is built on top of
-this library.**
-
-*NOTE*: hyper's [master](https://github.com/hyperium/hyper) branch is currently
-preparing breaking changes, for most recently released code, look to the
-[0.12.x](https://github.com/hyperium/hyper/tree/0.12.x) branch.
-
-## Overview
-
-hyper is a fast, safe HTTP implementation written in and for Rust.
-
-hyper offers both an HTTP client and server which can be used to drive
-complex web applications written entirely in Rust.
-
-hyper makes use of "async IO" (non-blocking sockets) via the
-[Tokio](https://tokio.rs) and [Futures](https://docs.rs/futures) crates.
-
-Be aware that hyper is still actively evolving towards 1.0, and is likely
-to experience breaking changes before stabilising. However, this mostly now
-around the instability of `Future` and `async`. The rest of the API is rather
-stable now. You can also see the
-[issues in the upcoming milestones](https://github.com/hyperium/hyper/milestones).
+this library.
 
 ## Contributing
 
