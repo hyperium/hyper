@@ -15,7 +15,6 @@ use std::mem;
 use std::net::SocketAddr;
 
 use bytes::Bytes;
-use futures_core::Stream;
 use pin_project::{pin_project, project};
 use tokio::io::{AsyncRead, AsyncWrite};
 
@@ -81,7 +80,7 @@ enum ConnectionMode {
 #[must_use = "streams do nothing unless polled"]
 #[pin_project]
 #[derive(Debug)]
-pub struct Serve<I, S, E = Exec> {
+pub(super) struct Serve<I, S, E = Exec> {
     #[pin]
     incoming: I,
     make_service: S,
@@ -632,11 +631,13 @@ impl<I, S, E> Serve<I, S, E> {
         &self.incoming
     }
 
+    /*
     /// Get a mutable reference to the incoming stream.
     #[inline]
     pub fn incoming_mut(&mut self) -> &mut I {
         &mut self.incoming
     }
+    */
 
     /// Spawn all incoming connections onto the executor in `Http`.
     pub(super) fn spawn_all(self) -> SpawnAll<I, S, E> {
@@ -677,23 +678,6 @@ where
         } else {
             Poll::Ready(None)
         }
-    }
-}
-
-// deprecated
-impl<I, IO, IE, S, B, E> Stream for Serve<I, S, E>
-where
-    I: Accept<Conn = IO, Error = IE>,
-    IO: AsyncRead + AsyncWrite + Unpin,
-    IE: Into<Box<dyn StdError + Send + Sync>>,
-    S: MakeServiceRef<IO, Body, ResBody = B>,
-    B: Payload,
-    E: H2Exec<<S::Service as HttpService<Body>>::Future, B>,
-{
-    type Item = crate::Result<Connecting<IO, S::Future, E>>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
-        self.poll_next_(cx)
     }
 }
 
