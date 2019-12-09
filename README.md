@@ -21,7 +21,7 @@ A **fast** and **correct** HTTP implementation for Rust.
 hyper is a relatively low-level library, meant to be a building block for
 libraries and applications.
 
-Ff you are looking for a convenient HTTP client, then you may wish to consider
+If you are looking for a convenient HTTP client, then you may wish to consider
 [reqwest](https://github.com/seanmonstar/reqwest), which is built on top of
 this library.
 
