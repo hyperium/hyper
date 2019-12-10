@@ -30,7 +30,6 @@ jobs:
           command: fmt
           args: --all -- --check
 
-
   test:
     name: Test ${{ matrix.rust }} on ${{ matrix.os }}
     needs: [style]
@@ -96,3 +95,24 @@ jobs:
         with:
           command: test
           args: --benches ${{ matrix.features }}
+
+  doc:
+    name: Build docs
+    needs: [style, test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+
+      - name: cargo doc
+        uses: actions-rs/cargo@v1
+        with:
+          command: rustdoc
+          args: -- -D intra-doc-link-resolution-failure
