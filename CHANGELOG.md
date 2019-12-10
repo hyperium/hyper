@@ -1,85 +1,133 @@
-### v0.13.0-alpha.4 (2019-10-01)
+## v0.13.0 (2019-12-10)
 
 
 #### Bug Fixes
 
-* **body:** allow `http_body::Body` to be object-safe
-
-
-### v0.13.0-alpha.3 (2019-10-01)
-
-
-#### Features
-
-* **lib:** add optional `tcp` feature, split from `runtime` ([5b348b82](https://github.com/hyperium/hyper/commit/5b348b821c3f43d8dd71179862190932fcca6a1c))
-
-
-### v0.13.0-alpha.2 (2019-09-24)
-
-
-#### Bug Fixes
-
-* **client:** allow client GET requests with explicit body headers ([0867ad5c](https://github.com/hyperium/hyper/commit/0867ad5c15fa52b7af3fc840ee7a1e256c469942), closes [#1925](https://github.com/hyperium/hyper/issues/1925))
-
-
-#### Features
-
-* **body:**
-  * identify aborted body write errors ([dc54ee19](https://github.com/hyperium/hyper/commit/dc54ee199f2d19d65913d224b900a61ab3bf2415))
-  * put `Stream` impl for `Body` behind `unstable-stream` feature ([511ea388](https://github.com/hyperium/hyper/commit/511ea3889b5cceccb3a42aa72465fe38adef71a4))
-* **server:** introduce `Accept` trait ([b3e55062](https://github.com/hyperium/hyper/commit/b3e5506261c33dcaca39a126e891a0b9d5df5eea))
-
-
-#### Breaking Changes
-
-* Using a `Body` as a `Stream`, and constructing one via
-  `Body::wrap_stream`, require enabling the `unstable-stream` feature.
-
- ([511ea388](https://github.com/hyperium/hyper/commit/511ea3889b5cceccb3a42aa72465fe38adef71a4))
-* Passing a `Stream` to `Server::builder` or
-  `Http::serve_incoming` must be changed to pass an `Accept` instead. The
-  `unstable-stream` optional feature can be enabled, and the a stream can be
-  converted using `hyper::server::accept::from_stream`.
-
- ([b3e55062](https://github.com/hyperium/hyper/commit/b3e5506261c33dcaca39a126e891a0b9d5df5eea))
-
-
-### v0.13.0-alpha.1 (2019-09-04)
-
-
-#### Bug Fixes
-
-* **server:** change `Builder` window size methods to be by-value ([a22dabd0](https://github.com/hyperium/hyper/commit/a22dabd0935e5471fb6b7e511fc9c585ced0a53a), closes [#1814](https://github.com/hyperium/hyper/issues/1814))
+* **client:**
+  * fix polling dispatch channel after it has closed ([039281b8](https://github.com/hyperium/hyper/commit/039281b89cf1ab54a0ecc10c5e7fee56d4da0cf4))
+  * fix panic from unreachable code ([e6027bc0](https://github.com/hyperium/hyper/commit/e6027bc02db92d1137c54a26eef2e1cb4d810e25))
+* **dependencies:** require correct bytes minimum version (#1975) ([536b1e18](https://github.com/hyperium/hyper/commit/536b1e184e9704f50716cf10bf9d4e11a79337da))
+* **server:**
+  * change `Builder` window size methods to be by-value ([a22dabd0](https://github.com/hyperium/hyper/commit/a22dabd0935e5471fb6b7e511fc9c585ced0a53a), closes [#1814](https://github.com/hyperium/hyper/issues/1814))
+  * ignore expect-continue with no body in debug mode ([ca5836f1](https://github.com/hyperium/hyper/commit/ca5836f1ece7c4a67172bcbe72745cb49e8951b0), closes [#1843](https://github.com/hyperium/hyper/issues/1843))
+  * Remove unneeded `'static` bound of `Service` on `Connection` (#1971) ([4d147126](https://github.com/hyperium/hyper/commit/4d14712643e4c2ba235a569bb5d9e3099101c1a1))
 
 
 #### Features
 
 * **body:**
   * change `Sender::send_data` to an `async fn`. ([62a96c07](https://github.com/hyperium/hyper/commit/62a96c077b85792fbf6eb080ec8fec646c47e385))
-  * Update `Payload` to be a trait alias of `http_body::Body` (#1908) ([79c32f89](https://github.com/hyperium/hyper/commit/79c32f89530e47735155eb9bd19466bcb6aec90d))
   * require `Sync` when wrapping a dynamic `Stream` ([44413721](https://github.com/hyperium/hyper/commit/4441372121e8b278ac773ddd4e408a642dadf2d8))
+  * add `body::aggregate` and `body::to_bytes` functions ([8ba9a8d2](https://github.com/hyperium/hyper/commit/8ba9a8d2c4bab0f44b3f94a326b3b91c82d7877e))
+  * replace `Chunk` type with `Bytes` ([5a598757](https://github.com/hyperium/hyper/commit/5a59875742500672f253719c1e1a16b4eddfacc7), closes [#1931](https://github.com/hyperium/hyper/issues/1931))
+  * replace the `Payload` trait with `HttpBody` ([c63728eb](https://github.com/hyperium/hyper/commit/c63728eb38182ad2f93edd729dbf50f3d5c40479))
 * **client:**
+  * impl tower_service::Service for Client ([edbd10ac](https://github.com/hyperium/hyper/commit/edbd10ac96c5cc6dbeca80ada80f143dbd13d118))
   * provide tower::Service support for clients (#1915) ([eee2a728](https://github.com/hyperium/hyper/commit/eee2a728797346f8c96c15c5958a05432a4e4453))
+  * change connectors to return an `impl Connection` ([4d7a2266](https://github.com/hyperium/hyper/commit/4d7a2266b88b2c5c92231bcd2bd75d5842198add))
+  * remove `Destination` for `http::Uri` in connectors ([319e8aee](https://github.com/hyperium/hyper/commit/319e8aee1571d8d3639b3259e7a1edb964e6a26c))
+  * filter remote IP addresses by family of given local IP address ([131962c8](https://github.com/hyperium/hyper/commit/131962c86ab0a31c2413261cf4532eca88d67dcb))
+  * change `Resolve` to be `Service<Name>` ([9d9233ce](https://github.com/hyperium/hyper/commit/9d9233ce7ceddb0fa6f5e725b0a781929add3c58), closes [#1903](https://github.com/hyperium/hyper/issues/1903))
+  * change `Connect` trait into an alias for `Service` ([d67e49f1](https://github.com/hyperium/hyper/commit/d67e49f1491327a78f804bab32804dc6c73d2974), closes [#1902](https://github.com/hyperium/hyper/issues/1902))
   * change `GaiResolver` to use a global blocking threadpool ([049b5132](https://github.com/hyperium/hyper/commit/049b5132dbb6199a32e1795d005003f99d0e0b74))
-* **lib:** update to `std::future::Future` ([8f4b05ae](https://github.com/hyperium/hyper/commit/8f4b05ae78567dfc52236bc83d7be7b7fc3eebb0))
-* **rt:** export `hyper::rt::main` attribute macro ([f0478c62](https://github.com/hyperium/hyper/commit/f0478c62677a953aae84aa8d976bec1d28ef21b1))
-* **service:** use tower_service::Service for hyper::service ([ec520d56](https://github.com/hyperium/hyper/commit/ec520d5602d819fd92f497cc230df436c1a39eb0))
+  * Add connect timeout to HttpConnector (#1972) ([4179297a](https://github.com/hyperium/hyper/commit/4179297ac9805af8f84d54525e089ff3f19008ab))
+* **lib:**
+  * update to `std::future::Future` ([8f4b05ae](https://github.com/hyperium/hyper/commit/8f4b05ae78567dfc52236bc83d7be7b7fc3eebb0))
+  * add optional `tcp` feature, split from `runtime` ([5b348b82](https://github.com/hyperium/hyper/commit/5b348b821c3f43d8dd71179862190932fcca6a1c))
+  * make `Stream` trait usage optional behind the `stream` feature, enabled by default ([0b03b730](https://github.com/hyperium/hyper/commit/0b03b730531654b1b5f632099386ab27c94eb9f4), closes [#2034](https://github.com/hyperium/hyper/issues/2034))
+  * update Tokio, bytes, http, h2, and http-body ([cb3f39c2](https://github.com/hyperium/hyper/commit/cb3f39c2dc6340060f6b17f354f04c872a947574))
+* **rt:** introduce `rt::Executor` trait ([6ae5889f](https://github.com/hyperium/hyper/commit/6ae5889f8378b6454d4dc620f33bd1678d0e00e4), closes [#1944](https://github.com/hyperium/hyper/issues/1944))
+* **server:**
+  * introduce `Accept` trait ([b3e55062](https://github.com/hyperium/hyper/commit/b3e5506261c33dcaca39a126e891a0b9d5df5eea))
+  * give `Server::local_addr` a more general type ([3cc93e79](https://github.com/hyperium/hyper/commit/3cc93e796aad59b3996fc26b8839a783e0307925))
+  * change `http1_half_close` option default to disabled ([7e31fd88](https://github.com/hyperium/hyper/commit/7e31fd88a86ac032d05670ba4e293e3e5fcccbaf))
+* **service:**
+    * use tower_service::Service for hyper::service ([ec520d56](https://github.com/hyperium/hyper/commit/ec520d5602d819fd92f497cc230df436c1a39eb0))
+  * rename `Service` to `HttpService`, re-export `tower::Service` ([4f274399](https://github.com/hyperium/hyper/commit/4f2743991c227836c3886778512afe1297df3e5b), closes [#1959](https://github.com/hyperium/hyper/issues/1959))
 
 
 #### Breaking Changes
 
-* Usage of `send_data` should either be changed to
-  async/await or use `try_send_data`.
-
- ([62a96c07](https://github.com/hyperium/hyper/commit/62a96c077b85792fbf6eb080ec8fec646c47e385))
-* Calls to `GaiResolver::new` and `HttpConnector::new` no
-  longer should pass an integer argument for the number of threads.
-
- ([049b5132](https://github.com/hyperium/hyper/commit/049b5132dbb6199a32e1795d005003f99d0e0b74))
 * All usage of async traits (`Future`, `Stream`,
 `AsyncRead`, `AsyncWrite`, etc) are updated to newer versions.
 
  ([8f4b05ae](https://github.com/hyperium/hyper/commit/8f4b05ae78567dfc52236bc83d7be7b7fc3eebb0))
+* All usage of `hyper::Chunk` should be replaced with
+  `bytes::Bytes` (or `hyper::body::Bytes`).
+
+ ([5a598757](https://github.com/hyperium/hyper/commit/5a59875742500672f253719c1e1a16b4eddfacc7))
+* Using a `Body` as a `Stream`, and constructing one via
+  `Body::wrap_stream`, require enabling the `stream` feature.
+
+ ([511ea388](https://github.com/hyperium/hyper/commit/511ea3889b5cceccb3a42aa72465fe38adef71a4))
+* Calls to `GaiResolver::new` and `HttpConnector::new` no
+  longer should pass an integer argument for the number of threads.
+
+ ([049b5132](https://github.com/hyperium/hyper/commit/049b5132dbb6199a32e1795d005003f99d0e0b74))
+* Connectors no longer return a tuple of
+  `(T, Connected)`, but a single `T: Connection`.
+
+ ([4d7a2266](https://github.com/hyperium/hyper/commit/4d7a2266b88b2c5c92231bcd2bd75d5842198add))
+* All usage of `hyper::client::connect::Destination`
+  should be replaced with `http::Uri`.
+
+ ([319e8aee](https://github.com/hyperium/hyper/commit/319e8aee1571d8d3639b3259e7a1edb964e6a26c))
+* All usage of `hyper::body::Payload` should be replaced
+  with `hyper::body::HttpBody`.
+
+ ([c63728eb](https://github.com/hyperium/hyper/commit/c63728eb38182ad2f93edd729dbf50f3d5c40479))
+* Any type passed to the `executor` builder methods must
+  now implement `hyper::rt::Executor`.
+
+  `hyper::rt::spawn` usage should be replaced with `tokio::task::spawn`.
+
+  `hyper::rt::run` usage should be replaced with `#[tokio::main]` or
+  managing a `tokio::runtime::Runtime` manually.
+
+ ([6ae5889f](https://github.com/hyperium/hyper/commit/6ae5889f8378b6454d4dc620f33bd1678d0e00e4))
+* The `Resolve` trait is gone. All custom resolvers should
+  implement `tower::Service` instead.
+
+  The error type of `HttpConnector` has been changed away from
+  `std::io::Error`.
+
+ ([9d9233ce](https://github.com/hyperium/hyper/commit/9d9233ce7ceddb0fa6f5e725b0a781929add3c58))
+* Any manual implementations of `Connect` must instead
+  implement `tower::Service<Uri>`.
+
+ ([d67e49f1](https://github.com/hyperium/hyper/commit/d67e49f1491327a78f804bab32804dc6c73d2974))
+* The server's behavior will now by default close
+  connections when receiving a read EOF. To allow for clients to close
+  the read half, call `http1_half_close(true)` when configuring a
+  server.
+
+ ([7e31fd88](https://github.com/hyperium/hyper/commit/7e31fd88a86ac032d05670ba4e293e3e5fcccbaf))
+* Passing a `Stream` to `Server::builder` or
+  `Http::serve_incoming` must be changed to pass an `Accept` instead. The
+  `stream` optional feature can be enabled, and then a stream can be
+  converted using `hyper::server::accept::from_stream`.
+
+ ([b3e55062](https://github.com/hyperium/hyper/commit/b3e5506261c33dcaca39a126e891a0b9d5df5eea))
+* Usage of `send_data` should either be changed to
+  async/await or use `try_send_data`.
+
+ ([62a96c07](https://github.com/hyperium/hyper/commit/62a96c077b85792fbf6eb080ec8fec646c47e385))
+
+
+### v0.12.35 (2019-09-13)
+
+
+#### Features
+
+* **body:** identify aborted body write errors ([32869224](https://github.com/hyperium/hyper/commit/3286922460ab63d0a804d8170d862ff4ba5951dd))
+
+
+### v0.12.34 (2019-09-04)
+
+
+#### Bug Fixes
+
+* **client:** allow client GET requests with explicit body headers ([23fc8b08](https://github.com/hyperium/hyper/commit/23fc8b0806e7fde435ca00479cd5e3c8c5bdeee7), closes [#1925](https://github.com/hyperium/hyper/issues/1925))
 
 
 ### v0.12.33 (2019-09-04)
