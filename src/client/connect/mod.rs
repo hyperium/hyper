@@ -30,6 +30,7 @@
 //! use hyper::{service::Service, Uri};
 //! use tokio::net::TcpStream;
 //!
+//! #[derive(Clone)]
 //! struct LocalConnector;
 //!
 //! impl Service<Uri> for LocalConnector {
