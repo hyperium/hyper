@@ -332,7 +332,6 @@ impl<T, B> Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     B: Payload + Unpin + 'static,
-    B::Data: Unpin,
 {
     /// Return the inner IO object, and additional information.
     ///
@@ -384,7 +383,7 @@ where
 impl<T, B> Future for Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    B: Payload + Unpin + 'static,
+    B: Payload + 'static,
 {
     type Output = crate::Result<()>;
 
@@ -591,7 +590,7 @@ impl fmt::Debug for ResponseFuture {
 impl<T, B> Future for ProtoClient<T, B>
 where
     T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
-    B: Payload + Unpin + 'static,
+    B: Payload + 'static,
 {
     type Output = crate::Result<proto::Dispatched>;
 
