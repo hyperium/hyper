@@ -385,7 +385,6 @@ impl<T, B> Future for Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     B: Payload + Unpin + 'static,
-    B::Data: Unpin,
 {
     type Output = crate::Result<()>;
 
@@ -521,7 +520,6 @@ impl Builder {
     where
         T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         B: Payload + 'static,
-        B::Data: Unpin,
     {
         let opts = self.clone();
 
@@ -594,7 +592,6 @@ impl<T, B> Future for ProtoClient<T, B>
 where
     T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
     B: Payload + Unpin + 'static,
-    B::Data: Unpin,
 {
     type Output = crate::Result<proto::Dispatched>;
 

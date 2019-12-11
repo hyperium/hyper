@@ -153,7 +153,7 @@ where
     C::Transport: Unpin + Send + 'static,
     C::Future: Unpin + Send + 'static,
     B: Payload + Unpin + Send + 'static,
-    B::Data: Send + Unpin,
+    B::Data: Send,
 {
     /// Send a `GET` request to the supplied `Uri`.
     ///
@@ -551,7 +551,7 @@ where
     C::Transport: Unpin + Send + 'static,
     C::Future: Unpin + Send + 'static,
     B: Payload + Unpin + Send + 'static,
-    B::Data: Send + Unpin,
+    B::Data: Send,
 {
     type Response = Response<Body>;
     type Error = crate::Error;
