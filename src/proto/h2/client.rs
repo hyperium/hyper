@@ -31,7 +31,6 @@ pub(crate) async fn handshake<T, B>(
 where
     T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
     B: Payload,
-    B::Data: Unpin,
 {
     let (h2_tx, conn) = builder
         .handshake::<_, SendBuf<B::Data>>(io)
@@ -93,7 +92,6 @@ where
 impl<B> Future for ClientTask<B>
 where
     B: Payload + Unpin + 'static,
-    B::Data: Unpin,
 {
     type Output = crate::Result<Dispatched>;
 
