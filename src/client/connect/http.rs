@@ -637,10 +637,13 @@ mod tests {
 
     use ::http::Uri;
 
-    use super::super::sealed::Connect;
+    use super::super::sealed::{Connect, ConnectSvc};
     use super::HttpConnector;
 
-    async fn connect<C>(connector: C, dst: Uri) -> Result<C::Transport, C::Error>
+    async fn connect<C>(
+        connector: C,
+        dst: Uri,
+    ) -> Result<<C::_Svc as ConnectSvc>::Connection, <C::_Svc as ConnectSvc>::Error>
     where
         C: Connect,
     {
