@@ -91,7 +91,7 @@ where
 
 impl<B> Future for ClientTask<B>
 where
-    B: Payload + Unpin + 'static,
+    B: Payload + 'static,
 {
     type Output = crate::Result<Dispatched>;
 
@@ -133,7 +133,7 @@ where
                     };
 
                     if !eos {
-                        let mut pipe = PipeToSendStream::new(body, body_tx).map(|res| {
+                        let mut pipe = Box::pin(PipeToSendStream::new(body, body_tx)).map(|res| {
                             if let Err(e) = res {
                                 debug!("client request body error: {}", e);
                             }

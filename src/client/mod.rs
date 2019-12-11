@@ -152,7 +152,7 @@ where
     C: Connect + Clone + Send + Sync + 'static,
     C::Transport: Unpin + Send + 'static,
     C::Future: Unpin + Send + 'static,
-    B: Payload + Unpin + Send + 'static,
+    B: Payload + Send + 'static,
     B::Data: Send,
 {
     /// Send a `GET` request to the supplied `Uri`.
@@ -550,7 +550,7 @@ where
     C: Connect + Clone + Send + Sync + 'static,
     C::Transport: Unpin + Send + 'static,
     C::Future: Unpin + Send + 'static,
-    B: Payload + Unpin + Send + 'static,
+    B: Payload + Send + 'static,
     B::Data: Send,
 {
     type Response = Response<Body>;
