@@ -2,7 +2,7 @@
 //!
 //! This module contains:
 //!
-//! - A [`GaiResolver`](dns::GaiResolver) that is the default resolver for the
+//! - A [`GaiResolver`](GaiResolver) that is the default resolver for the
 //!   `HttpConnector`.
 //! - The `Name` type used as an argument to custom resolvers.
 //!

@@ -160,7 +160,7 @@ impl Body {
 
     /// Converts this `Body` into a `Future` of a pending HTTP upgrade.
     ///
-    /// See [the `upgrade` module](::upgrade) for more.
+    /// See [the `upgrade` module](crate::upgrade) for more.
     pub fn on_upgrade(self) -> OnUpgrade {
         self.extra
             .map(|ex| ex.on_upgrade)
@@ -496,7 +496,7 @@ impl Sender {
     ///
     /// This is mostly useful for when trying to send from some other thread
     /// that doesn't have an async context. If in an async context, prefer
-    /// [`send_data`][] instead.
+    /// `send_data()` instead.
     pub fn try_send_data(&mut self, chunk: Bytes) -> Result<(), Bytes> {
         self.tx
             .try_send(Ok(chunk))

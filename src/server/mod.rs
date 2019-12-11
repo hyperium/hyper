@@ -6,12 +6,12 @@
 //! There are two levels of APIs provide for constructing HTTP servers:
 //!
 //! - The higher-level [`Server`](Server) type.
-//! - The lower-level [`conn`](server::conn) module.
+//! - The lower-level [`conn`](conn) module.
 //!
 //! # Server
 //!
 //! The [`Server`](Server) is main way to start listening for HTTP requests.
-//! It wraps a listener with a [`MakeService`](::service), and then should
+//! It wraps a listener with a [`MakeService`](crate::service), and then should
 //! be executed to start serving requests.
 //!
 //! [`Server`](Server) accepts connections in both HTTP1 and HTTP2 by default.
