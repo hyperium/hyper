@@ -41,7 +41,7 @@ pub struct Name {
 }
 
 /// A resolver using blocking `getaddrinfo` calls in a threadpool.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct GaiResolver {
     _priv: (),
 }
@@ -103,7 +103,7 @@ impl Error for InvalidNameError {}
 impl GaiResolver {
     /// Construct a new `GaiResolver`.
     pub fn new() -> Self {
-        GaiResolver { _priv: () }
+        Self::default()
     }
 }
 

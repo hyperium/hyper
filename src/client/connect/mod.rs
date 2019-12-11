@@ -109,6 +109,12 @@ pub(super) enum Alpn {
     None,
 }
 
+impl Default for Connected {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Connected {
     /// Create new `Connected` type with empty metadata.
     pub fn new() -> Connected {
@@ -163,7 +169,7 @@ impl Connected {
     // keep that contract...
     pub(super) fn clone(&self) -> Connected {
         Connected {
-            alpn: self.alpn.clone(),
+            alpn: self.alpn,
             is_proxied: self.is_proxied,
             extra: self.extra.clone(),
         }

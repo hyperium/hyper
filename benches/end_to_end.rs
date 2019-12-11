@@ -72,7 +72,7 @@ fn http1_parallel_x10_req_10kb_100_chunks(b: &mut test::Bencher) {
 
 #[bench]
 fn http1_parallel_x10_res_1mb(b: &mut test::Bencher) {
-    let body = &[b'x'; 1024 * 1024 * 1];
+    let body = &[b'x'; 1024 * 1024];
     opts().parallel(10).response_body(body).bench(b)
 }
 
@@ -154,7 +154,7 @@ fn http2_parallel_x10_req_10kb_100_chunks_max_window(b: &mut test::Bencher) {
 
 #[bench]
 fn http2_parallel_x10_res_1mb(b: &mut test::Bencher) {
-    let body = &[b'x'; 1024 * 1024 * 1];
+    let body = &[b'x'; 1024 * 1024];
     opts()
         .http2()
         .parallel(10)
@@ -292,7 +292,7 @@ impl Opts {
             } else {
                 self.request_body
                     .map(Body::from)
-                    .unwrap_or_else(|| Body::empty())
+                    .unwrap_or_else(Body::empty)
             };
             let mut req = Request::new(body);
             *req.method_mut() = self.request_method.clone();
@@ -355,5 +355,5 @@ fn spawn_server(rt: &mut tokio::runtime::Runtime, opts: &Opts) -> SocketAddr {
             panic!("server error: {}", err);
         }
     });
-    return addr;
+    addr
 }

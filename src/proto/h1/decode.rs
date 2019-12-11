@@ -181,14 +181,14 @@ macro_rules! byte (
 
 impl ChunkedState {
     fn step<R: MemRead>(
-        &self,
+        self,
         cx: &mut task::Context<'_>,
         body: &mut R,
         size: &mut u64,
         buf: &mut Option<Bytes>,
     ) -> Poll<Result<ChunkedState, io::Error>> {
         use self::ChunkedState::*;
-        match *self {
+        match self {
             Size => ChunkedState::read_size(cx, body, size),
             SizeLws => ChunkedState::read_size_lws(cx, body),
             Extension => ChunkedState::read_extension(cx, body),
@@ -433,7 +433,7 @@ mod tests {
                     futures_util::future::poll_fn(|cx| state.step(cx, rdr, &mut size, &mut None))
                         .await;
                 let desc = format!("read_size failed for {:?}", s);
-                state = result.expect(desc.as_str());
+                state = result.unwrap_or_else(|_| panic!(desc));
                 if state == ChunkedState::Body || state == ChunkedState::EndCr {
                     break;
                 }
@@ -452,8 +452,9 @@ mod tests {
                 state = match result {
                     Ok(s) => s,
                     Err(e) => {
-                        assert!(
-                            expected_err == e.kind(),
+                        assert_eq!(
+                            expected_err,
+                            e.kind(),
                             "Reading {:?}, expected {:?}, but got {:?}",
                             s,
                             expected_err,

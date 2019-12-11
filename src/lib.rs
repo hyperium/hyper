@@ -4,6 +4,12 @@
 #![cfg_attr(test, deny(rust_2018_idioms))]
 #![cfg_attr(test, deny(warnings))]
 #![cfg_attr(all(test, feature = "nightly"), feature(test))]
+#![allow(
+    clippy::type_complexity,
+    clippy::cognitive_complexity,
+    clippy::match_wild_err_arm,
+    clippy::module_inception
+)]
 
 //! # hyper
 //!

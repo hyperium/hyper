@@ -13,8 +13,6 @@ async fn main() {
 
     let client_main = Client::new();
 
-    let out_addr_clone = out_addr.clone();
-
     // The closure inside `make_service_fn` is run for each connection,
     // creating a 'service' to handle requests for that specific connection.
     let make_service = make_service_fn(move |_| {
@@ -27,7 +25,7 @@ async fn main() {
             Ok::<_, Error>(service_fn(move |mut req| {
                 let uri_string = format!(
                     "http://{}/{}",
-                    out_addr_clone,
+                    out_addr,
                     req.uri().path_and_query().map(|x| x.as_str()).unwrap_or("")
                 );
                 let uri = uri_string.parse().unwrap();

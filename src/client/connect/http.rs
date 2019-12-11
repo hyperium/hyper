@@ -82,6 +82,12 @@ struct Config {
 
 // ===== impl HttpConnector =====
 
+impl Default for HttpConnector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HttpConnector {
     /// Construct a new HttpConnector.
     pub fn new() -> HttpConnector {
@@ -542,7 +548,7 @@ impl ConnectingTcpRemote {
             }
         }
 
-        return Err(err.take().expect("missing connect error"));
+        Err(err.take().expect("missing connect error"))
     }
 }
 
@@ -552,9 +558,9 @@ fn connect(
     reuse_address: bool,
     connect_timeout: Option<Duration>,
 ) -> io::Result<impl Future<Output = io::Result<TcpStream>>> {
-    let builder = match addr {
-        &SocketAddr::V4(_) => TcpBuilder::new_v4()?,
-        &SocketAddr::V6(_) => TcpBuilder::new_v6()?,
+    let builder = match *addr {
+        SocketAddr::V4(_) => TcpBuilder::new_v4()?,
+        SocketAddr::V6(_) => TcpBuilder::new_v6()?,
     };
 
     if reuse_address {
@@ -563,12 +569,12 @@ fn connect(
 
     if let Some(ref local_addr) = *local_addr {
         // Caller has requested this socket be bound before calling connect
-        builder.bind(SocketAddr::new(local_addr.clone(), 0))?;
+        builder.bind(SocketAddr::new(*local_addr, 0))?;
     } else if cfg!(windows) {
         // Windows requires a socket be bound before calling connect
-        let any: SocketAddr = match addr {
-            &SocketAddr::V4(_) => ([0, 0, 0, 0], 0).into(),
-            &SocketAddr::V6(_) => ([0, 0, 0, 0, 0, 0, 0, 0], 0).into(),
+        let any: SocketAddr = match *addr {
+            SocketAddr::V4(_) => ([0, 0, 0, 0], 0).into(),
+            SocketAddr::V6(_) => ([0, 0, 0, 0, 0, 0, 0, 0], 0).into(),
         };
         builder.bind(any)?;
     }
@@ -619,7 +625,7 @@ impl ConnectingTcp {
                         }
                     };
 
-                if let Err(_) = result {
+                if result.is_err() {
                     // Fallback to the remaining future (could be preferred or fallback)
                     // if we get an error
                     future.await
@@ -772,7 +778,7 @@ mod tests {
         ];
 
         // Scenarios for IPv6 -> IPv4 fallback require that host can access IPv6 network.
-        // Otherwise, connection to "slow" IPv6 address will error-out immediatelly.
+        // Otherwise, connection to "slow" IPv6 address will error-out immediately.
         let ipv6_accessible = measure_connect(slow_ipv6_addr()).0;
 
         for &(hosts, family, timeout, needs_ipv6_access) in scenarios {
@@ -784,7 +790,7 @@ mod tests {
                 .block_on(async move {
                     let addrs = hosts
                         .iter()
-                        .map(|host| (host.clone(), addr.port()).into())
+                        .map(|host| (*host, addr.port()).into())
                         .collect();
                     let connecting_tcp = ConnectingTcp::new(
                         None,

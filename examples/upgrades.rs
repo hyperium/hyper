@@ -140,7 +140,7 @@ async fn main() {
     });
 
     // Client requests a HTTP connection upgrade.
-    let request = client_upgrade_request(addr.clone());
+    let request = client_upgrade_request(addr);
     if let Err(e) = request.await {
         eprintln!("client error: {}", e);
     }

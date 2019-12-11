@@ -1,5 +1,6 @@
 #![deny(warnings)]
 #![warn(rust_2018_idioms)]
+#![allow(clippy::type_complexity)]
 
 #[macro_use]
 extern crate matches;
@@ -310,7 +311,7 @@ macro_rules! __client_req_header {
     }
 }
 
-static REPLY_OK: &'static str = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
+static REPLY_OK: &str = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
 
 test! {
     name: client_get,
@@ -963,7 +964,7 @@ mod dispatch_impl {
             sock.set_write_timeout(Some(Duration::from_secs(5)))
                 .unwrap();
             let mut buf = [0; 4096];
-            sock.read(&mut buf).expect("read 1");
+            let _ = sock.read(&mut buf).expect("read 1");
             let body = vec![b'x'; 1024 * 128];
             write!(
                 sock,
@@ -1010,7 +1011,7 @@ mod dispatch_impl {
             sock.set_write_timeout(Some(Duration::from_secs(5)))
                 .unwrap();
             let mut buf = [0; 4096];
-            sock.read(&mut buf).expect("read 1");
+            let _ = sock.read(&mut buf).expect("read 1");
             let body = [b'x'; 64];
             write!(
                 sock,
@@ -1070,7 +1071,7 @@ mod dispatch_impl {
             sock.set_write_timeout(Some(Duration::from_secs(5)))
                 .unwrap();
             let mut buf = [0; 4096];
-            sock.read(&mut buf).expect("read 1");
+            let _ = sock.read(&mut buf).expect("read 1");
             let body = [b'x'; 64];
             write!(
                 sock,
@@ -1139,7 +1140,7 @@ mod dispatch_impl {
             sock.set_write_timeout(Some(Duration::from_secs(5)))
                 .unwrap();
             let mut buf = [0; 4096];
-            sock.read(&mut buf).expect("read 1");
+            let _ = sock.read(&mut buf).expect("read 1");
             // we never write a response head
             // simulates a slow server operation
             let _ = tx1.send(());
@@ -1187,7 +1188,7 @@ mod dispatch_impl {
             sock.set_write_timeout(Some(Duration::from_secs(5)))
                 .unwrap();
             let mut buf = [0; 4096];
-            sock.read(&mut buf).expect("read 1");
+            let _ = sock.read(&mut buf).expect("read 1");
             write!(
                 sock,
                 "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n"
@@ -1243,7 +1244,7 @@ mod dispatch_impl {
             sock.set_write_timeout(Some(Duration::from_secs(5)))
                 .unwrap();
             let mut buf = [0; 4096];
-            sock.read(&mut buf).expect("read 1");
+            let _ = sock.read(&mut buf).expect("read 1");
             sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
                 .unwrap();
             let _ = tx1.send(());
@@ -1296,7 +1297,7 @@ mod dispatch_impl {
             sock.set_write_timeout(Some(Duration::from_secs(5)))
                 .unwrap();
             let mut buf = [0; 4096];
-            sock.read(&mut buf).expect("read 1");
+            let _ = sock.read(&mut buf).expect("read 1");
             sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
                 .unwrap();
             let _ = tx1.send(());
@@ -1368,7 +1369,7 @@ mod dispatch_impl {
             sock.set_write_timeout(Some(Duration::from_secs(5)))
                 .unwrap();
             let mut buf = [0; 4096];
-            sock.read(&mut buf).expect("read 1");
+            let _ = sock.read(&mut buf).expect("read 1");
             sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
                 .expect("write 1");
             let _ = tx1.send(());
@@ -1434,7 +1435,7 @@ mod dispatch_impl {
             sock.set_write_timeout(Some(Duration::from_secs(5)))
                 .unwrap();
             let mut buf = [0; 4096];
-            sock.read(&mut buf).expect("read 1");
+            let _ = sock.read(&mut buf).expect("read 1");
             sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello")
                 .expect("write 1");
             // the body "hello", while ignored because its a HEAD request, should mean the connection
@@ -1497,13 +1498,13 @@ mod dispatch_impl {
             sock.set_write_timeout(Some(Duration::from_secs(5)))
                 .unwrap();
             let mut buf = [0; 4096];
-            sock.read(&mut buf).expect("read 1");
+            let _ = sock.read(&mut buf).expect("read 1");
             sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
                 .expect("write 1");
             // after writing the response, THEN stream the body
             let _ = tx1.send(());
 
-            sock.read(&mut buf).expect("read 2");
+            let _ = sock.read(&mut buf).expect("read 2");
             let _ = tx2.send(());
 
             let n2 = sock.read(&mut buf).expect("read 3");
@@ -1648,7 +1649,7 @@ mod dispatch_impl {
             sock.set_write_timeout(Some(Duration::from_secs(5)))
                 .unwrap();
             let mut buf = [0; 4096];
-            sock.read(&mut buf).expect("read 1");
+            let _ = sock.read(&mut buf).expect("read 1");
             sock.write_all(
                 b"\
                 HTTP/1.1 101 Switching Protocols\r\n\
@@ -1742,7 +1743,7 @@ mod dispatch_impl {
         // so the unwrapped responses futures show it still worked.
         assert_eq!(connects.load(Ordering::SeqCst), 3);
 
-        let res4 = client.get(url.clone());
+        let res4 = client.get(url);
         rt.block_on(res4).unwrap();
 
         assert_eq!(
@@ -1771,8 +1772,8 @@ mod dispatch_impl {
 
         fn with_http_and_closes(http: HttpConnector, closes: mpsc::Sender<()>) -> DebugConnector {
             DebugConnector {
-                http: http,
-                closes: closes,
+                http,
+                closes,
                 connects: Arc::new(AtomicUsize::new(0)),
                 is_proxy: false,
                 alpn_h2: false,
@@ -2136,7 +2137,7 @@ mod conn {
             sock.set_write_timeout(Some(Duration::from_secs(5)))
                 .unwrap();
             let mut buf = [0; 4096];
-            sock.read(&mut buf).expect("read 1");
+            let _ = sock.read(&mut buf).expect("read 1");
             sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
                 .unwrap();
 
@@ -2193,7 +2194,7 @@ mod conn {
             sock.set_write_timeout(Some(Duration::from_secs(5)))
                 .unwrap();
             let mut buf = [0; 4096];
-            sock.read(&mut buf).expect("read 1");
+            let _ = sock.read(&mut buf).expect("read 1");
             sock.write_all(
                 b"\
                 HTTP/1.1 101 Switching Protocols\r\n\
@@ -2213,7 +2214,7 @@ mod conn {
         let tcp = rt.block_on(tcp_connect(&addr)).unwrap();
 
         let io = DebugStream {
-            tcp: tcp,
+            tcp,
             shutdown_called: false,
         };
 
@@ -2282,7 +2283,7 @@ mod conn {
             sock.set_write_timeout(Some(Duration::from_secs(5)))
                 .unwrap();
             let mut buf = [0; 4096];
-            sock.read(&mut buf).expect("read 1");
+            let _ = sock.read(&mut buf).expect("read 1");
             sock.write_all(
                 b"\
                 HTTP/1.1 200 OK\r\n\
@@ -2301,7 +2302,7 @@ mod conn {
         let tcp = rt.block_on(tcp_connect(&addr)).unwrap();
 
         let io = DebugStream {
-            tcp: tcp,
+            tcp,
             shutdown_called: false,
         };
 

@@ -181,6 +181,12 @@ pub struct Parts<T, S> {
 
 // ===== impl Http =====
 
+impl Default for Http {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Http {
     /// Creates a new instance of the HTTP protocol, ready to spawn a server or
     /// start accepting connections.
@@ -486,8 +492,8 @@ where
             ProtoServer::H1(h1) => {
                 let (io, read_buf, dispatch) = h1.into_inner();
                 Some(Parts {
-                    io: io,
-                    read_buf: read_buf,
+                    io,
+                    read_buf,
                     service: dispatch.into_service(),
                     _inner: (),
                 })
@@ -519,7 +525,7 @@ where
                 ProtoServer::H2(ref mut h2) => return Pin::new(h2).poll(cx).map_ok(|_| ()),
             };
             match ready!(polled) {
-                Ok(x) => return Poll::Ready(Ok(x)),
+                Ok(()) => return Poll::Ready(Ok(())),
                 Err(e) => match *e.kind() {
                     Kind::Parse(Parse::VersionH2) if self.fallback.to_h2() => {
                         self.upgrade_h2();

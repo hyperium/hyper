@@ -212,7 +212,7 @@ where
     /// # fn main() {}
     /// ```
     pub fn request(&self, mut req: Request<B>) -> ResponseFuture {
-        let is_http_connect = req.method() == &Method::CONNECT;
+        let is_http_connect = req.method() == Method::CONNECT;
         match req.version() {
             Version::HTTP_11 => (),
             Version::HTTP_10 => {
@@ -239,7 +239,7 @@ where
             }
         };
 
-        let pool_key = Arc::new(domain.to_string());
+        let pool_key = Arc::new(domain);
         ResponseFuture::new(Box::new(self.retryably_send_request(req, pool_key)))
     }
 
@@ -304,14 +304,14 @@ where
                 }
 
                 // CONNECT always sends authority-form, so check it first...
-                if req.method() == &Method::CONNECT {
+                if req.method() == Method::CONNECT {
                     authority_form(req.uri_mut());
                 } else if pooled.conn_info.is_proxied {
                     absolute_form(req.uri_mut());
                 } else {
                     origin_form(req.uri_mut());
                 };
-            } else if req.method() == &Method::CONNECT {
+            } else if req.method() == Method::CONNECT {
                 debug!("client does not support CONNECT requests over HTTP2");
                 return Either::Left(future::err(ClientError::Normal(
                     crate::Error::new_user_unsupported_request_method(),
@@ -424,7 +424,7 @@ where
                         });
                     // An execute error here isn't important, we're just trying
                     // to prevent a waste of a socket...
-                    let _ = executor.execute(bg);
+                    executor.execute(bg);
                 }
                 Either::Left(future::ok(checked_out))
             }
@@ -569,7 +569,7 @@ where
 impl<C: Clone, B> Clone for Client<C, B> {
     fn clone(&self) -> Client<C, B> {
         Client {
-            config: self.config.clone(),
+            config: self.config,
             conn_builder: self.conn_builder.clone(),
             connector: self.connector.clone(),
             pool: self.pool.clone(),

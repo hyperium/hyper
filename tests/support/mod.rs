@@ -93,6 +93,7 @@ macro_rules! t {
         )*
     ) => (
         #[test]
+        #[allow(clippy::needless_update)]
         fn $name() {
             let c = vec![$((
                 __CReq {
@@ -175,6 +176,7 @@ macro_rules! __internal_map_prop {
 macro_rules! __internal_eq_prop {
     (headers: $map:tt) => {{
         #[allow(unused_mut)]
+        #[allow(clippy::let_and_return)]
         {
             let mut headers = Vec::new();
             __internal_headers_eq!(headers, $map);
@@ -375,7 +377,7 @@ async fn async_test(cfg: __TestConfig) {
     let mut addr = server.local_addr();
 
     tokio::task::spawn(server.map(|result| {
-        let _ = result.expect("server error");
+        result.expect("server error");
     }));
 
     if cfg.proxy {
@@ -460,7 +462,7 @@ fn naive_proxy(cfg: ProxyConfig) -> (SocketAddr, impl Future<Output = ()>) {
 
     let srv = Server::bind(&([127, 0, 0, 1], 0).into()).serve(make_service_fn(move |_| {
         let prev = counter.fetch_add(1, Ordering::Relaxed);
-        assert!(max_connections >= prev + 1, "proxy max connections");
+        assert!(max_connections > prev, "proxy max connections");
         let client = client.clone();
         future::ok::<_, hyper::Error>(service_fn(move |mut req| {
             let uri = format!("http://{}{}", dst_addr, req.uri().path())

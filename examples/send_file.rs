@@ -64,12 +64,12 @@ async fn simple_file_send(filename: &str) -> Result<Response<Body>> {
 
     if let Ok(mut file) = File::open(filename).await {
         let mut buf = Vec::new();
-        if let Ok(_) = file.read_to_end(&mut buf).await {
+        if file.read_to_end(&mut buf).await.is_ok() {
             return Ok(Response::new(buf.into()));
         }
 
         return Ok(internal_server_error());
     }
 
-    return Ok(not_found());
+    Ok(not_found())
 }

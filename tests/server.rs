@@ -45,7 +45,7 @@ fn get_should_ignore_body() {
     ",
     )
     .unwrap();
-    req.read(&mut [0; 256]).unwrap();
+    let _ = req.read(&mut [0; 256]).unwrap();
 
     assert_eq!(server.body(), b"");
 }
@@ -64,7 +64,7 @@ fn get_with_body() {
     ",
     )
     .unwrap();
-    req.read(&mut [0; 256]).unwrap();
+    let _ = req.read(&mut [0; 256]).unwrap();
 
     // note: doesn't include trailing \r\n, cause Content-Length wasn't 21
     assert_eq!(server.body(), b"I'm a good request.");
@@ -383,11 +383,11 @@ fn get_chunked_response_with_ka() {
 
     // try again!
 
-    let quux = b"zar quux";
+    let zar_quux = b"zar quux";
     server
         .reply()
-        .header("content-length", quux.len().to_string())
-        .body(quux);
+        .header("content-length", zar_quux.len().to_string())
+        .body(zar_quux);
     req.write_all(
         b"\
         GET /quux HTTP/1.1\r\n\
@@ -398,7 +398,7 @@ fn get_chunked_response_with_ka() {
     )
     .expect("writing 2");
 
-    read_until(&mut req, |buf| buf.ends_with(quux)).expect("reading 2");
+    read_until(&mut req, |buf| buf.ends_with(zar_quux)).expect("reading 2");
 }
 
 #[test]
@@ -422,7 +422,7 @@ fn post_with_chunked_body() {
     ",
     )
     .unwrap();
-    req.read(&mut [0; 256]).unwrap();
+    let _ = req.read(&mut [0; 256]).unwrap();
 
     assert_eq!(server.body(), b"qwert");
 }
@@ -446,7 +446,7 @@ fn post_with_incomplete_body() {
 
     server.body_err();
 
-    req.read(&mut [0; 256]).expect("read");
+    let _ = req.read(&mut [0; 256]).expect("read");
 }
 
 #[test]
@@ -563,11 +563,11 @@ fn keep_alive() {
 
     // try again!
 
-    let quux = b"zar quux";
+    let zar_quux = b"zar quux";
     server
         .reply()
-        .header("content-length", quux.len().to_string())
-        .body(quux);
+        .header("content-length", zar_quux.len().to_string())
+        .body(zar_quux);
     req.write_all(
         b"\
         GET /quux HTTP/1.1\r\n\
@@ -578,7 +578,7 @@ fn keep_alive() {
     )
     .expect("writing 2");
 
-    read_until(&mut req, |buf| buf.ends_with(quux)).expect("reading 2");
+    read_until(&mut req, |buf| buf.ends_with(zar_quux)).expect("reading 2");
 }
 
 #[test]
@@ -613,11 +613,11 @@ fn http_10_keep_alive() {
 
     // try again!
 
-    let quux = b"zar quux";
+    let zar_quux = b"zar quux";
     server
         .reply()
-        .header("content-length", quux.len().to_string())
-        .body(quux);
+        .header("content-length", zar_quux.len().to_string())
+        .body(zar_quux);
     req.write_all(
         b"\
         GET /quux HTTP/1.0\r\n\
@@ -627,7 +627,7 @@ fn http_10_keep_alive() {
     )
     .expect("writing 2");
 
-    read_until(&mut req, |buf| buf.ends_with(quux)).expect("reading 2");
+    read_until(&mut req, |buf| buf.ends_with(zar_quux)).expect("reading 2");
 }
 
 #[test]
@@ -822,13 +822,10 @@ fn pipeline_disabled() {
     // TODO: add in a delay to the `ServeReply` interface, to allow this
     // delay to prevent the 2 writes from happening before this test thread
     // can read from the socket.
-    match req.read(&mut buf) {
-        Ok(n) => {
-            // won't be 0, because we didn't say to close, and so socket
-            // will be open until `server` drops
-            assert_ne!(n, 0);
-        }
-        Err(_) => (),
+    if let Ok(n) = req.read(&mut buf) {
+        // won't be 0, because we didn't say to close, and so socket
+        // will be open until `server` drops
+        assert_ne!(n, 0);
     }
 }
 
@@ -1038,7 +1035,7 @@ async fn http1_allow_half_close() {
         tcp.shutdown(::std::net::Shutdown::Write).expect("SHDN_WR");
 
         let mut buf = [0; 256];
-        tcp.read(&mut buf).unwrap();
+        let _ = tcp.read(&mut buf).unwrap();
         let expected = "HTTP/1.1 200 OK\r\n";
         assert_eq!(s(&buf[..expected.len()]), expected);
     });
@@ -1096,7 +1093,7 @@ async fn returning_1xx_response_is_error() {
         let mut tcp = connect(&addr);
         tcp.write_all(b"GET / HTTP/1.1\r\n\r\n").unwrap();
         let mut buf = [0; 256];
-        tcp.read(&mut buf).unwrap();
+        let _ = tcp.read(&mut buf).unwrap();
 
         let expected = "HTTP/1.1 500 ";
         assert_eq!(s(&buf[..expected.len()]), expected);
@@ -1161,7 +1158,7 @@ async fn upgrades() {
         )
         .expect("write 1");
         let mut buf = [0; 256];
-        tcp.read(&mut buf).expect("read 1");
+        let _ = tcp.read(&mut buf).expect("read 1");
 
         let expected = "HTTP/1.1 101 Switching Protocols\r\n";
         assert_eq!(s(&buf[..expected.len()]), expected);
@@ -1218,7 +1215,7 @@ async fn http_connect() {
         )
         .expect("write 1");
         let mut buf = [0; 256];
-        tcp.read(&mut buf).expect("read 1");
+        let _ = tcp.read(&mut buf).expect("read 1");
 
         let expected = "HTTP/1.1 200 OK\r\n";
         assert_eq!(s(&buf[..expected.len()]), expected);
@@ -1276,7 +1273,7 @@ async fn upgrades_new() {
         )
         .expect("write 1");
         let mut buf = [0; 256];
-        tcp.read(&mut buf).expect("read 1");
+        let _ = tcp.read(&mut buf).expect("read 1");
 
         let expected = "HTTP/1.1 101 Switching Protocols\r\n";
         assert_eq!(s(&buf[..expected.len()]), expected);
@@ -1343,7 +1340,7 @@ async fn http_connect_new() {
         )
         .expect("write 1");
         let mut buf = [0; 256];
-        tcp.read(&mut buf).expect("read 1");
+        let _ = tcp.read(&mut buf).expect("read 1");
 
         let expected = "HTTP/1.1 200 OK\r\n";
         assert_eq!(s(&buf[..expected.len()]), expected);
@@ -1398,7 +1395,7 @@ async fn parse_errors_send_4xx_response() {
         let mut tcp = connect(&addr);
         tcp.write_all(b"GE T / HTTP/1.1\r\n\r\n").unwrap();
         let mut buf = [0; 256];
-        tcp.read(&mut buf).unwrap();
+        let _ = tcp.read(&mut buf).unwrap();
 
         let expected = "HTTP/1.1 400 ";
         assert_eq!(s(&buf[..expected.len()]), expected);
@@ -1421,7 +1418,7 @@ async fn illegal_request_length_returns_400_response() {
         tcp.write_all(b"POST / HTTP/1.1\r\nContent-Length: foo\r\n\r\n")
             .unwrap();
         let mut buf = [0; 256];
-        tcp.read(&mut buf).unwrap();
+        let _ = tcp.read(&mut buf).unwrap();
 
         let expected = "HTTP/1.1 400 ";
         assert_eq!(s(&buf[..expected.len()]), expected);
@@ -1457,9 +1454,9 @@ async fn max_buf_size() {
     thread::spawn(move || {
         let mut tcp = connect(&addr);
         tcp.write_all(b"POST /").expect("write 1");
-        tcp.write_all(&vec![b'a'; MAX]).expect("write 2");
+        tcp.write_all(&[b'a'; MAX]).expect("write 2");
         let mut buf = [0; 256];
-        tcp.read(&mut buf).expect("read 1");
+        let _ = tcp.read(&mut buf).expect("read 1");
 
         let expected = "HTTP/1.1 431 ";
         assert_eq!(s(&buf[..expected.len()]), expected);
@@ -1481,8 +1478,8 @@ fn streaming_body() {
     // disable keep-alive so we can use read_to_end
     let server = serve_opts().keep_alive(false).serve();
 
-    static S: &'static [&'static [u8]] = &[&[b'x'; 1_000] as &[u8]; 1_00] as _;
-    let b = ::futures_util::stream::iter(S.into_iter()).map(|&s| Ok::<_, hyper::Error>(s));
+    static S: &[&[u8]] = &[&[b'x'; 1_000] as &[u8]; 1_00] as _;
+    let b = ::futures_util::stream::iter(S.iter()).map(|&s| Ok::<_, hyper::Error>(s));
     let b = hyper::Body::wrap_stream(b);
     server.reply().body_stream(b);
 
@@ -1931,7 +1928,7 @@ impl TestService {
     }
 }
 
-const HELLO: &'static str = "hello";
+const HELLO: &str = "hello";
 
 struct HelloWorld;
 
@@ -2030,8 +2027,8 @@ impl ServeOptions {
                         let msg_tx = msg_tx.clone();
                         let reply_rx = reply_rx.clone();
                         future::ok::<_, BoxError>(TestService {
-                            tx: msg_tx.clone(),
-                            reply: reply_rx.clone(),
+                            tx: msg_tx,
+                            reply: reply_rx,
                         })
                     });
 
@@ -2056,9 +2053,9 @@ impl ServeOptions {
         let addr = addr_rx.recv().expect("server addr rx");
 
         Serve {
-            msg_rx: msg_rx,
+            msg_rx,
             reply_tx: Mutex::new(reply_tx),
-            addr: addr,
+            addr,
             shutdown_signal: Some(shutdown_tx),
             thread: Some(thread),
         }
@@ -2070,7 +2067,7 @@ fn s(buf: &[u8]) -> &str {
 }
 
 fn has_header(msg: &str, name: &str) -> bool {
-    let n = msg.find("\r\n\r\n").unwrap_or(msg.len());
+    let n = msg.find("\r\n\r\n").unwrap_or_else(|| msg.len());
 
     msg[..n].contains(name)
 }

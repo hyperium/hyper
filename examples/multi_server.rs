@@ -5,8 +5,8 @@ use futures_util::future::join;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, Server};
 
-static INDEX1: &'static [u8] = b"The 1st service!";
-static INDEX2: &'static [u8] = b"The 2nd service!";
+static INDEX1: &[u8] = b"The 1st service!";
+static INDEX2: &[u8] = b"The 2nd service!";
 
 async fn index1(_: Request<Body>) -> Result<Response<Body>, hyper::Error> {
     Ok(Response::new(Body::from(INDEX1)))

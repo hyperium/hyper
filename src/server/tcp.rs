@@ -35,7 +35,7 @@ impl AddrIncoming {
         let addr = listener.local_addr().map_err(crate::Error::new_listen)?;
         Ok(AddrIncoming {
             listener,
-            addr: addr,
+            addr,
             sleep_on_errors: true,
             tcp_keepalive_timeout: None,
             tcp_nodelay: false,

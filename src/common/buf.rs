@@ -34,10 +34,10 @@ impl<T: Buf> Buf for BufList<T> {
 
     #[inline]
     fn bytes(&self) -> &[u8] {
-        for buf in &self.bufs {
-            return buf.bytes();
+        match self.bufs.iter().next() {
+            Some(buf) => buf.bytes(),
+            None => &[],
         }
-        &[]
     }
 
     #[inline]

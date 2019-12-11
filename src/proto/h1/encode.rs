@@ -49,7 +49,7 @@ enum BufKind<B> {
 impl Encoder {
     fn new(kind: Kind) -> Encoder {
         Encoder {
-            kind: kind,
+            kind,
             is_last: false,
         }
     }
@@ -271,7 +271,7 @@ impl ChunkSize {
             pos: 0,
             len: 0,
         };
-        write!(&mut size, "{:X}\r\n", len).expect("CHUNK_SIZE_MAX_BYTES should fit any usize");
+        writeln!(&mut size, "{:X}\r", len).expect("CHUNK_SIZE_MAX_BYTES should fit any usize");
         size
     }
 }
@@ -306,10 +306,10 @@ impl fmt::Debug for ChunkSize {
 impl fmt::Write for ChunkSize {
     fn write_str(&mut self, num: &str) -> fmt::Result {
         use std::io::Write;
-        (&mut self.bytes[self.len.into()..])
+        let written_len = (&mut self.bytes[self.len.into()..])
             .write(num.as_bytes())
             .expect("&mut [u8].write() cannot error");
-        self.len += num.len() as u8; // safe because bytes is never bigger than 256
+        self.len += written_len as u8; // safe because bytes is never bigger than 256
         Ok(())
     }
 }
