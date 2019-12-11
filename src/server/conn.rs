@@ -105,8 +105,11 @@ pub struct Connecting<I, F, E = Exec> {
 #[pin_project]
 #[derive(Debug)]
 pub(super) struct SpawnAll<I, S, E> {
+    // TODO: re-add `pub(super)` once rustdoc can handle this.
+    //
+    // See https://github.com/rust-lang/rust/issues/64705
     #[pin]
-    pub(super) serve: Serve<I, S, E>,
+    pub serve: Serve<I, S, E>,
 }
 
 /// A future binding a connection with a Service.
