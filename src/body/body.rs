@@ -158,6 +158,31 @@ impl Body {
         Body::new(Kind::Wrapped(Box::pin(mapped)))
     }
 
+    /// Read the entire body into a `Vec<u8>`.
+    ///
+    /// This is useful if you have a short response that you want to read into
+    /// contiguous memory. Note that this will yield only on an error retrieving
+    /// a chunk or after the entire body has been processed, reading it into
+    /// memory.
+    ///
+    /// # Optional
+    ///
+    /// This function requires enabling the `stream` feature in your
+    /// `Cargo.toml`.
+    #[cfg(feature = "stream")]
+    pub fn to_vec(self, max_length: usize) -> impl Future<Output = Result<Vec<u8>, crate::Error>> {
+        self.try_fold(Vec::new(), move |mut buf, chunk| {
+            async move {
+                if buf.len() + chunk.len() > max_length {
+                    Err(crate::Error::new_too_large())
+                } else {
+                    buf.extend_from_slice(&chunk);
+                    Ok(buf)
+                }
+            }
+        })
+    }
+
     /// Converts this `Body` into a `Future` of a pending HTTP upgrade.
     ///
     /// See [the `upgrade` module](::upgrade) for more.

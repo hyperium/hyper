@@ -2467,6 +2467,28 @@ mod conn {
     }
 }
 
+#[cfg(feature = "stream")]
+mod body {
+    use hyper::body::Body;
+    use tokio;
+
+    #[tokio::test]
+    async fn body_to_vec_ok() {
+        let chunks: Vec<Result<_, ::std::io::Error>> = vec![Ok("hello"), Ok(" "), Ok("world")];
+        let stream = futures_util::stream::iter(chunks);
+        let body = Body::wrap_stream(stream);
+        assert_eq!(&body.to_vec(32).await.unwrap(), b"hello world");
+    }
+
+    #[tokio::test]
+    async fn body_to_vec_err() {
+        let chunks: Vec<Result<_, ::std::io::Error>> = vec![Ok("hello"), Ok(" "), Ok("world")];
+        let stream = futures_util::stream::iter(chunks);
+        let body = Body::wrap_stream(stream);
+        assert!(&body.to_vec(8).await.is_err());
+    }
+}
+
 trait FutureHyperExt: TryFuture {
     fn expect(self, msg: &'static str) -> Pin<Box<dyn Future<Output = Self::Ok>>>;
 }
