@@ -83,6 +83,7 @@ pub mod dns;
 mod http;
 #[cfg(feature = "tcp")]
 pub use self::http::{HttpConnector, HttpInfo};
+pub use self::sealed::Connect;
 
 /// Describes a type returned by a connector.
 pub trait Connection {
@@ -258,26 +259,45 @@ pub(super) mod sealed {
     // The `Sized` bound is to prevent creating `dyn Connect`, since they cannot
     // fit the `Connect` bounds because of the blanket impl for `Service`.
     pub trait Connect: Sealed + Sized {
-        /// The connected IO Stream.
-        type Transport: AsyncRead + AsyncWrite + Connection;
-        /// An error occured when trying to connect.
-        type Error: Into<Box<dyn StdError + Send + Sync>>;
-        /// A Future that will resolve to the connected Transport.
-        type Future: Future<Output = Result<Self::Transport, Self::Error>>;
         #[doc(hidden)]
+        type _Svc: ConnectSvc;
+        #[doc(hidden)]
+        fn connect(self, internal_only: Internal, dst: Uri) -> <Self::_Svc as ConnectSvc>::Future;
+    }
+
+    pub trait ConnectSvc {
+        type Connection: AsyncRead + AsyncWrite + Connection + Unpin + Send + 'static;
+        type Error: Into<Box<dyn StdError + Send + Sync>>;
+        type Future: Future<Output = Result<Self::Connection, Self::Error>> + Unpin + Send + 'static;
+
         fn connect(self, internal_only: Internal, dst: Uri) -> Self::Future;
     }
 
     impl<S, T> Connect for S
     where
-        S: tower_service::Service<Uri, Response = T> + Send,
+        S: tower_service::Service<Uri, Response = T> + Send + 'static,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         S::Future: Unpin + Send,
         T: AsyncRead + AsyncWrite + Connection + Unpin + Send + 'static,
     {
-        type Transport = T;
+        type _Svc = S;
+
+        fn connect(self, _: Internal, dst: Uri) -> crate::service::Oneshot<S, Uri> {
+            crate::service::oneshot(self, dst)
+        }
+    }
+
+    impl<S, T> ConnectSvc for S
+    where
+        S: tower_service::Service<Uri, Response = T> + Send + 'static,
+        S::Error: Into<Box<dyn StdError + Send + Sync>>,
+        S::Future: Unpin + Send,
+        T: AsyncRead + AsyncWrite + Connection + Unpin + Send + 'static,
+    {
+        type Connection = T;
         type Error = S::Error;
         type Future = crate::service::Oneshot<S, Uri>;
+
         fn connect(self, _: Internal, dst: Uri) -> Self::Future {
             crate::service::oneshot(self, dst)
         }

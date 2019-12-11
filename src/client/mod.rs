@@ -150,8 +150,6 @@ impl Client<(), Body> {
 impl<C, B> Client<C, B>
 where
     C: Connect + Clone + Send + Sync + 'static,
-    C::Transport: Unpin + Send + 'static,
-    C::Future: Unpin + Send + 'static,
     B: Payload + Send + 'static,
     B::Data: Send,
 {
@@ -548,8 +546,6 @@ where
 impl<C, B> tower_service::Service<Request<B>> for Client<C, B>
 where
     C: Connect + Clone + Send + Sync + 'static,
-    C::Transport: Unpin + Send + 'static,
-    C::Future: Unpin + Send + 'static,
     B: Payload + Send + 'static,
     B::Data: Send,
 {
