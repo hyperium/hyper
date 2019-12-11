@@ -351,7 +351,7 @@ impl<E> Http<E> {
         }
     }
 
-    /// Bind a connection together with a [`Service`](::service::Service).
+    /// Bind a connection together with a [`Service`](crate::service::Service).
     ///
     /// This returns a Future that must be polled in order for HTTP to be
     /// driven on the connection.
@@ -573,7 +573,7 @@ where
 
     /// Enable this connection to support higher-level HTTP upgrades.
     ///
-    /// See [the `upgrade` module](::upgrade) for more.
+    /// See [the `upgrade` module](crate::upgrade) for more.
     pub fn with_upgrades(self) -> UpgradeableConnection<I, S, E>
     where
         I: Send,

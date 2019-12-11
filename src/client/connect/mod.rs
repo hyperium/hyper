@@ -67,12 +67,12 @@
 //! ```
 //!
 //!
-//! [`HttpConnector`]: hyper::client::HttpConnector
-//! [`Service`]: hyper::service::Service
+//! [`HttpConnector`]: HttpConnector
+//! [`Service`]: crate::service::Service
 //! [`Uri`]: http::Uri
 //! [`AsyncRead`]: tokio::io::AsyncRead
 //! [`AsyncWrite`]: tokio::io::AsyncWrite
-//! [`Connection`]: hyper::client::connect::Connection
+//! [`Connection`]: Connection
 use std::fmt;
 
 use ::http::Response;

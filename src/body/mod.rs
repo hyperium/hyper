@@ -1,13 +1,13 @@
 //! Streaming bodies for Requests and Responses
 //!
-//! For both [Clients](::client) and [Servers](::server), requests and
+//! For both [Clients](crate::client) and [Servers](crate::server), requests and
 //! responses use streaming bodies, instead of complete buffering. This
 //! allows applications to not use memory they don't need, and allows exerting
 //! back-pressure on connections by only reading when asked.
 //!
 //! There are two pieces to this in hyper:
 //!
-//! - **The [`HttpBody`](body::HttpBody) trait** describes all possible bodies.
+//! - **The [`HttpBody`](HttpBody) trait** describes all possible bodies.
 //!   hyper allows any body type that implements `HttpBody`, allowing
 //!   applications to have fine-grained control over their streaming.
 //! - **The [`Body`](Body) concrete type**, which is an implementation of

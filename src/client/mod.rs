@@ -3,7 +3,7 @@
 //! There are two levels of APIs provided for construct HTTP clients:
 //!
 //! - The higher-level [`Client`](Client) type.
-//! - The lower-level [`conn`](client::conn) module.
+//! - The lower-level [`conn`](conn) module.
 //!
 //! # Client
 //!
