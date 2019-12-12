@@ -47,7 +47,7 @@ pub(crate) enum Dispatched {
 mod body_length {
     use std::fmt;
 
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    #[derive(Clone, Copy, PartialEq, Eq)]
     pub(crate) struct DecodedLength(u64);
 
     const MAX_LEN: u64 = ::std::u64::MAX - 2;
@@ -88,6 +88,16 @@ mod body_length {
             } else {
                 warn!("content-length bigger than maximum: {} > {}", len, MAX_LEN);
                 Err(crate::error::Parse::TooLarge)
+            }
+        }
+    }
+
+    impl fmt::Debug for DecodedLength {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match *self {
+                DecodedLength::CLOSE_DELIMITED => f.write_str("CLOSE_DELIMITED"),
+                DecodedLength::CHUNKED => f.write_str("CHUNKED"),
+                DecodedLength(n) => f.debug_tuple("DecodedLength").field(&n).finish(),
             }
         }
     }
