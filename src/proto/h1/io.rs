@@ -790,6 +790,7 @@ mod tests {
 
     #[test]
     #[should_panic]
+    #[cfg(debug_assertions)] // needs to trigger a debug_assert
     fn write_buf_requires_non_empty_bufs() {
         let mock = Mock::new().build();
         let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
