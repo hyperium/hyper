@@ -16,9 +16,10 @@ use crate::upgrade::OnUpgrade;
 
 type BodySender = mpsc::Sender<Result<Bytes, crate::Error>>;
 
-/// A stream of `Bytes`s, used when receiving bodies.
+/// A stream of `Bytes`, used when receiving bodies.
 ///
-/// A good default `Payload` to use in many applications.
+/// A good default [`HttpBody`](crates::body::HttpBody) to use in many
+/// applications.
 #[must_use = "streams do nothing unless polled"]
 pub struct Body {
     kind: Kind,

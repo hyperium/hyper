@@ -2,7 +2,11 @@ use bytes::{Buf, BufMut, Bytes};
 
 use super::HttpBody;
 
-/// dox
+/// Concatenate the buffers from a body into a single `Bytes` asynchronously.
+///
+/// This may require copying the data into a single buffer. If you don't need
+/// a contiguous buffer, prefer the [`aggregate`](crate::body::aggregate)
+/// function.
 pub async fn to_bytes<T>(body: T) -> Result<Bytes, T::Error>
 where
     T: HttpBody,
