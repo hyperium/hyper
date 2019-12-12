@@ -800,7 +800,7 @@ impl Client {
                 Ok(Some((DecodedLength::CHUNKED, false)))
             } else {
                 trace!("not chunked, read till eof");
-                Ok(Some((DecodedLength::CHUNKED, false)))
+                Ok(Some((DecodedLength::CLOSE_DELIMITED, false)))
             }
         } else if let Some(len) = headers::content_length_parse_all(&inc.headers) {
             Ok(Some((DecodedLength::checked_new(len)?, false)))
@@ -1441,7 +1441,7 @@ mod tests {
              ",
         );
 
-        // transfer-encoding
+        // transfer-encoding: chunked
         assert_eq!(
             parse(
                 "\
@@ -1452,6 +1452,19 @@ mod tests {
             )
             .decode,
             DecodedLength::CHUNKED
+        );
+
+        // transfer-encoding not-chunked is close-delimited
+        assert_eq!(
+            parse(
+                "\
+                 HTTP/1.1 200 OK\r\n\
+                 transfer-encoding: yolo\r\n\
+                 \r\n\
+                 "
+            )
+            .decode,
+            DecodedLength::CLOSE_DELIMITED
         );
 
         // transfer-encoding and content-length = chunked
