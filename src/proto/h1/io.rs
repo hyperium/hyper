@@ -136,7 +136,7 @@ where
                     _ => break,
                 }
             }
-            self.read_buf.split_to(i);
+            self.read_buf.advance(i);
         }
     }
 
