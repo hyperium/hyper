@@ -13,6 +13,8 @@ parses it with serde and outputs the result.
 
 * [`hello`](hello.rs) - A simple server that returns "Hello World!" using a closure wrapped to provide a [`Service`](../src/service/service.rs).
 
+* [`http_proxy`](http_proxy.rs) - A simple HTTP(S) proxy that handle and upgrade CONNECT request and then proxy data between client and remote server.
+
 * [`multi_server`](multi_server.rs) - A server that listens to two different ports, a different [`Service`](../src/service/service.rs) by port, spawning two [`futures`](../src/rt.rs).
 
 * [`params`](params.rs) - A webserver that accept a form, with a name and a number, checks the parameters are presents and validates the input.

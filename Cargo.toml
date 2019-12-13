@@ -111,6 +111,11 @@ path = "examples/hello.rs"
 required-features = ["runtime"]
 
 [[example]]
+name = "http_proxy"
+path = "examples/http_proxy.rs"
+required-features = ["runtime"]
+
+[[example]]
 name = "multi_server"
 path = "examples/multi_server.rs"
 required-features = ["runtime"]
