@@ -25,7 +25,7 @@ futures-core = { version = "0.3", default-features = false }
 futures-channel = "0.3"
 futures-util = { version = "0.3", default-features = false }
 http = "0.2"
-http-body = "0.3"
+http-body = "0.3.1"
 httparse = "1.0"
 h2 = "0.2.1"
 itoa = "0.4.1"

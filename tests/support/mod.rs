@@ -355,7 +355,7 @@ async fn async_test(cfg: __TestConfig) {
                 func(&req.headers());
             }
             let sbody = sreq.body;
-            hyper::body::to_bytes(req.into_body()).map_ok(move |body| {
+            hyper::body::to_bytes(req).map_ok(move |body| {
                 assert_eq!(body.as_ref(), sbody.as_slice(), "client body");
 
                 let mut res = Response::builder()
@@ -410,7 +410,7 @@ async fn async_test(cfg: __TestConfig) {
                     for func in &cheaders {
                         func(&res.headers());
                     }
-                    hyper::body::to_bytes(res.into_body())
+                    hyper::body::to_bytes(res)
                 })
                 .map_ok(move |body| {
                     assert_eq!(body.as_ref(), cbody.as_slice(), "server body");

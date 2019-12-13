@@ -146,7 +146,7 @@ macro_rules! test {
                 );
             )*
 
-            let body = rt.block_on(concat(res.into_body()))
+            let body = rt.block_on(concat(res))
                 .expect("body concat wait");
 
             let expected_res_body = Option::<&[u8]>::from($response_body)
@@ -1065,7 +1065,7 @@ mod dispatch_impl {
                 .request(req)
                 .and_then(move |res| {
                     assert_eq!(res.status(), hyper::StatusCode::OK);
-                    concat(res.into_body())
+                    concat(res)
                 })
                 .map_ok(|_| ())
         };
@@ -1128,7 +1128,7 @@ mod dispatch_impl {
             .unwrap();
         let res = client.request(req).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
-            concat(res.into_body())
+            concat(res)
         });
         let rx = rx1.expect("thread panicked");
 
@@ -1296,7 +1296,7 @@ mod dispatch_impl {
             .unwrap();
         let res = client.request(req).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
-            concat(res.into_body())
+            concat(res)
         });
         let rx = rx1.expect("thread panicked");
 
@@ -1342,7 +1342,7 @@ mod dispatch_impl {
             .unwrap();
         let res = client.request(req).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
-            concat(res.into_body())
+            concat(res)
         });
         let rx = rx1.expect("thread panicked");
 
@@ -2098,7 +2098,7 @@ mod conn {
 
         let res = client.send_request(req).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
-            concat(res.into_body())
+            concat(res)
         });
         let rx = rx1.expect("thread panicked");
         let rx = rx.then(|_| tokio::time::delay_for(Duration::from_millis(200)));
@@ -2144,7 +2144,7 @@ mod conn {
 
         let res = client.send_request(req).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
-            concat(res.into_body())
+            concat(res)
         });
         let rx = rx1.expect("thread panicked");
         let rx = rx.then(|_| tokio::time::delay_for(Duration::from_millis(200)));
@@ -2184,7 +2184,7 @@ mod conn {
             .unwrap();
         let res1 = client.send_request(req).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
-            concat(res.into_body())
+            concat(res)
         });
 
         // pipelined request will hit NotReady, and thus should return an Error::Cancel
@@ -2258,7 +2258,7 @@ mod conn {
             let res = client.send_request(req).and_then(move |res| {
                 assert_eq!(res.status(), hyper::StatusCode::SWITCHING_PROTOCOLS);
                 assert_eq!(res.headers()["Upgrade"], "foobar");
-                concat(res.into_body())
+                concat(res)
             });
 
             let rx = rx1.expect("thread panicked");
@@ -2348,7 +2348,7 @@ mod conn {
                 .send_request(req)
                 .and_then(move |res| {
                     assert_eq!(res.status(), hyper::StatusCode::OK);
-                    concat(res.into_body())
+                    concat(res)
                 })
                 .map_ok(|body| {
                     assert_eq!(body.as_ref(), b"");
