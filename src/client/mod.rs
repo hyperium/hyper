@@ -40,7 +40,7 @@
 //! println!("status: {}", res.status());
 //!
 //! // Concatenate the body stream into a single buffer...
-//! let buf = hyper::body::to_bytes(res.into_body()).await?;
+//! let buf = hyper::body::to_bytes(res).await?;
 //!
 //! println!("body: {:?}", buf);
 //! # Ok(())

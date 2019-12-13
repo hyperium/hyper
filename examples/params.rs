@@ -17,7 +17,7 @@ async fn param_example(req: Request<Body>) -> Result<Response<Body>, hyper::Erro
         (&Method::GET, "/") | (&Method::GET, "/post") => Ok(Response::new(INDEX.into())),
         (&Method::POST, "/post") => {
             // Concatenate the body...
-            let b = hyper::body::to_bytes(req.into_body()).await?;
+            let b = hyper::body::to_bytes(req).await?;
             // Parse the request body. form_urlencoded::parse
             // always succeeds, but in general parsing may
             // fail (for example, an invalid post of json), so
