@@ -1,3 +1,17 @@
+### v0.13.1 (2019-12-13)
+
+
+#### Bug Fixes
+
+* **http1:** fix response with non-chunked transfer-encoding to be close-delimited ([cb71d2cd](https://github.com/hyperium/hyper/commit/cb71d2cdbd22e538663e724916dc343430efcf29), closes [#2058](https://github.com/hyperium/hyper/issues/2058))
+
+
+#### Features
+
+* **body:** implement `HttpBody` for `Request` and `Response` ([4b6099c7](https://github.com/hyperium/hyper/commit/4b6099c7aa558e6b1fda146ce6179cb0c67858d7), closes [#2067](https://github.com/hyperium/hyper/issues/2067))
+* **client:** expose `hyper::client::connect::Connect` trait alias ([2553ea1a](https://github.com/hyperium/hyper/commit/2553ea1a7ae3d11f0232a5818949146fa3f68a29))
+
+
 ## v0.13.0 (2019-12-10)
 
 

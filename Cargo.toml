@@ -1,6 +1,6 @@
 [package]
 name = "hyper"
-version = "0.13.0" # don't forget to update html_root_url
+version = "0.13.1" # don't forget to update html_root_url
 description = "A fast and correct HTTP library."
 readme = "README.md"
 homepage = "https://hyper.rs"
