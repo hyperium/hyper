@@ -397,7 +397,7 @@ where
                 };
 
                 let (io, buf, _) = h1.into_inner();
-                pending.fulfill(Upgraded::new(Box::new(io), buf));
+                pending.fulfill(Upgraded::new(io, buf));
                 Poll::Ready(Ok(()))
             }
         }
