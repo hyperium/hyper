@@ -36,6 +36,10 @@ impl<T> Rewind<T> {
     pub(crate) fn into_inner(self) -> (T, Bytes) {
         (self.inner, self.pre.unwrap_or_else(Bytes::new))
     }
+
+    pub(crate) fn get_mut(&mut self) -> &mut T {
+        &mut self.inner
+    }
 }
 
 impl<T> AsyncRead for Rewind<T>
