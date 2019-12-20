@@ -93,6 +93,13 @@ impl Decoder {
         }
     }
 
+    pub fn is_end_of_chunk(&self) -> bool {
+        match self.kind {
+            Chunked(_, size) if size == 0 => true,
+            _ => false
+        }
+    }
+
     pub fn decode<R: MemRead>(&mut self, body: &mut R) -> Poll<Bytes, io::Error> {
         trace!("decode; state={:?}", self.kind);
         match self.kind {
@@ -115,6 +122,7 @@ impl Decoder {
             }
             Chunked(ref mut state, ref mut size) => {
                 loop {
+                    dbg!(&size);
                     let mut buf = None;
                     // advances the chunked state
                     *state = try_ready!(state.step(body, size, &mut buf));

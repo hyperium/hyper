@@ -9,6 +9,7 @@ use bytes::{Buf, Bytes};
 /// A `Chunk` can be easily created by many of Rust's standard types that
 /// represent a collection of bytes, using `Chunk::from`.
 pub struct Chunk {
+    is_final: bool,
     /// The buffer of bytes making up this body.
     bytes: Bytes,
 }
@@ -29,6 +30,16 @@ impl Chunk {
     pub fn into_bytes(self) -> Bytes {
         self.into()
     }
+
+    #[inline]
+    pub(crate) fn set_end_of_chunk(&mut self, complete: bool) {
+        self.is_final = complete;
+    }
+
+    /// Hyper can return just part of the `Chunk`.
+    /// This mark shows if it is the final part of the `Chunk` or not.
+    #[inline]
+    pub fn is_end_of_chunk(&self) -> bool { self.is_final }
 }
 
 impl Buf for Chunk {
@@ -83,6 +94,7 @@ impl From<Bytes> for Chunk {
     #[inline]
     fn from(bytes: Bytes) -> Chunk {
         Chunk {
+            is_final: false,
             bytes: bytes,
         }
     }
