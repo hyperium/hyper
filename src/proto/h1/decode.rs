@@ -122,7 +122,6 @@ impl Decoder {
             }
             Chunked(ref mut state, ref mut size) => {
                 loop {
-                    dbg!(&size);
                     let mut buf = None;
                     // advances the chunked state
                     *state = try_ready!(state.step(body, size, &mut buf));
