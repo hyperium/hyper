@@ -43,7 +43,7 @@ async fn proxy(client: HttpClient, req: Request<Body>) -> Result<Response<Body>,
     println!("req: {:?}", req);
 
     if Method::CONNECT == req.method() {
-        // Recieved an HTTP request like:
+        // Received an HTTP request like:
         // ```
         // CONNECT www.domain.com:443 HTTP/1.1
         // Host: www.domain.com:443
@@ -53,7 +53,7 @@ async fn proxy(client: HttpClient, req: Request<Body>) -> Result<Response<Body>,
         // When HTTP method is CONNECT we should return an empty body
         // then we can eventually upgrade the connection and talk a new protocol.
         //
-        // Note: only after client recieved an empty body with STATUS_OK can the
+        // Note: only after client received an empty body with STATUS_OK can the
         // connection be upgraded, so we can't return a response inside
         // `on_upgrade` future.
         if let Some(addr) = host_addr(req.uri()) {
