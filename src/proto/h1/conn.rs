@@ -209,7 +209,7 @@ where I: AsyncRead + AsyncWrite,
                             (Reading::Closed, None)
                         } else {
                             let mut chunk = Chunk::from(slice);
-                            chunk.set_end_of_chunk(dbg!(decoder.is_end_of_chunk()));
+                            chunk.set_end_of_chunk(decoder.is_end_of_chunk());
                             return Ok(Async::Ready(Some(chunk)));
                         };
                         (reading, Ok(Async::Ready(chunk)))
