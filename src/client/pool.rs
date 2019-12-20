@@ -55,7 +55,7 @@ pub(super) enum Reservation<T> {
 pub(super) type Key = Arc<String>;
 
 struct PoolInner<T> {
-    // A flag that a connection is being estabilished, and the connection
+    // A flag that a connection is being established, and the connection
     // should be shared. This prevents making multiple HTTP/2 connections
     // to the same host.
     connecting: HashSet<Key>,

@@ -97,7 +97,7 @@ fn conn_reset_after_write() {
         // has written the second request, and THEN disconnect.
         //
         // Not because we expect servers to be jerks, but to trigger
-        // state where we write on an assumedly good connetion, and
+        // state where we write on an assumedly good connection, and
         // only reset the close AFTER we wrote bytes.
         try_ready!(sock1.as_mut().unwrap().read(&mut [0u8; 512]));
         sock1.take();

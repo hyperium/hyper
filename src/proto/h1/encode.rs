@@ -31,7 +31,7 @@ enum Kind {
     ///
     /// Enforces that the body is not longer than the Content-Length header.
     Length(u64),
-    /// An Encoder for when neither Content-Length nore Chunked encoding is set.
+    /// An Encoder for when neither Content-Length nor Chunked encoding is set.
     ///
     /// This is mostly only used with HTTP/1.0 with a length. This kind requires
     /// the connection to be closed when the body is finished.

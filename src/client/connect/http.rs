@@ -775,7 +775,7 @@ mod tests {
         ];
 
         // Scenarios for IPv6 -> IPv4 fallback require that host can access IPv6 network.
-        // Otherwise, connection to "slow" IPv6 address will error-out immediatelly.
+        // Otherwise, connection to "slow" IPv6 address will error-out immediately.
         let ipv6_accessible = measure_connect(slow_ipv6_addr()).0;
 
         for &(hosts, family, timeout, needs_ipv6_access) in scenarios {

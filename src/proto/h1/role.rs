@@ -81,7 +81,7 @@ impl Http1Transaction for Server {
         let len;
         let headers_len;
 
-        // Unsafe: both headers_indices and headers are using unitialized memory,
+        // Unsafe: both headers_indices and headers are using uninitialized memory,
         // but we *never* read any of it until after httparse has assigned
         // values into it. By not zeroing out the stack memory, this saves
         // a good ~5% on pipeline benchmarks.
@@ -165,7 +165,7 @@ impl Http1Transaction for Server {
                     // https://tools.ietf.org/html/rfc7230#section-3.3.3
                     // If Transfer-Encoding header is present, and 'chunked' is
                     // not the final encoding, and this is a Request, then it is
-                    // mal-formed. A server should respond with 400 Bad Request.
+                    // malformed. A server should respond with 400 Bad Request.
                     if !is_http_11 {
                         debug!("HTTP/1.0 cannot have Transfer-Encoding header");
                         return Err(Parse::Header);
@@ -406,7 +406,7 @@ impl Http1Transaction for Server {
                                     debug_assert!(is_name_written);
                                     continue 'headers;
                                 } else {
-                                    // we haven't written content-lenght yet!
+                                    // we haven't written content-length yet!
                                     encoder = Encoder::length(len);
                                     extend(dst, b"content-length: ");
                                     extend(dst, value.as_bytes());
@@ -792,7 +792,7 @@ impl Client {
             // https://tools.ietf.org/html/rfc7230#section-3.3.3
             // If Transfer-Encoding header is present, and 'chunked' is
             // not the final encoding, and this is a Request, then it is
-            // mal-formed. A server should respond with 400 Bad Request.
+            // malformed. A server should respond with 400 Bad Request.
             if inc.version == Version::HTTP_10 {
                 debug!("HTTP/1.0 cannot have Transfer-Encoding header");
                 Err(Parse::Header)

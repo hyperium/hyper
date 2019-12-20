@@ -37,7 +37,7 @@ pub(super) use self::upgrades::UpgradeableConnection;
 pub use super::tcp::{AddrIncoming, AddrStream};
 
 // Our defaults are chosen for the "majority" case, which usually are not
-// resource contrained, and so the spec default of 64kb can be too limiting
+// resource constrained, and so the spec default of 64kb can be too limiting
 // for performance.
 //
 // At the same time, a server more often has multiple clients connected, and
@@ -504,7 +504,7 @@ where
     ///
     /// This is useful to allow running a connection while doing an HTTP
     /// upgrade. Once the upgrade is completed, the connection would be "done",
-    /// but it is not desired to actally shutdown the IO object. Instead you
+    /// but it is not desired to actually shutdown the IO object. Instead you
     /// would take it back using `into_parts`.
     ///
     /// Use [`poll_fn`](https://docs.rs/futures/0.1.25/futures/future/fn.poll_fn.html)

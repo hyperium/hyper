@@ -390,7 +390,7 @@ where
         // - Meanwhile, the pool Checkout is watching to see if any other
         //   request finishes and tries to insert an idle connection.
         // - If a new connection is started, but the Checkout wins after
-        //   (an idle connection becamse available first), the started
+        //   (an idle connection became available first), the started
         //   connection future is spawned into the runtime to complete,
         //   and then be inserted into the pool as an idle connection.
         let checkout = self.pool.checkout(pool_key.clone());
@@ -469,7 +469,7 @@ where
             // Try to take a "connecting lock".
             //
             // If the pool_key is for HTTP/2, and there is already a
-            // connection being estabalished, then this can't take a
+            // connection being established, then this can't take a
             // second lock. The "connect_to" future is Canceled.
             let connecting = match pool.connecting(&pool_key, ver) {
                 Some(lock) => lock,

@@ -1240,7 +1240,7 @@ mod dispatch_impl {
                 .uri(&*format!("http://{}/a", addr))
                 .body(Body::empty())
                 .unwrap();
-            // notably, havent read body yet
+            // notably, haven't read body yet
             client.request(req)
         };
 
