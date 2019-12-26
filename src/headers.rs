@@ -1,6 +1,7 @@
 use bytes::BytesMut;
 use http::header::{HeaderValue, OccupiedEntry, ValueIter};
 use http::header::{CONTENT_LENGTH, TRANSFER_ENCODING};
+use http::method::Method;
 use http::HeaderMap;
 
 pub fn connection_keep_alive(value: &HeaderValue) -> bool {
@@ -54,6 +55,13 @@ pub fn content_length_parse_all_values(values: ValueIter<'_, HeaderValue>) -> Op
         Some(n)
     } else {
         None
+    }
+}
+
+pub fn method_has_defined_payload_semantics(method: &Method) -> bool {
+    match *method {
+        Method::GET | Method::HEAD | Method::DELETE | Method::CONNECT => false,
+        _ => true,
     }
 }
 
