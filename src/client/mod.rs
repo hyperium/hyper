@@ -237,7 +237,7 @@ where
             }
         };
 
-        let pool_key = Arc::new(domain.to_string());
+        let pool_key = Arc::new(domain);
         ResponseFuture::new(Box::new(self.retryably_send_request(req, pool_key)))
     }
 

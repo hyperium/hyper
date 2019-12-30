@@ -128,7 +128,6 @@ impl Body {
     ///
     /// ```
     /// # use hyper::Body;
-    /// # fn main() {
     /// let chunks: Vec<Result<_, ::std::io::Error>> = vec![
     ///     Ok("hello"),
     ///     Ok(" "),
@@ -138,7 +137,6 @@ impl Body {
     /// let stream = futures_util::stream::iter(chunks);
     ///
     /// let body = Body::wrap_stream(stream);
-    /// # }
     /// ```
     ///
     /// # Optional

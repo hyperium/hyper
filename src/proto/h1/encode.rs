@@ -307,7 +307,7 @@ impl fmt::Write for ChunkSize {
     fn write_str(&mut self, num: &str) -> fmt::Result {
         use std::io::Write;
         (&mut self.bytes[self.len.into()..])
-            .write(num.as_bytes())
+            .write_all(num.as_bytes())
             .expect("&mut [u8].write() cannot error");
         self.len += num.len() as u8; // safe because bytes is never bigger than 256
         Ok(())

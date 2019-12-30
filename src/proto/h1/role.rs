@@ -592,9 +592,8 @@ impl Server {
     }
 
     fn can_chunked(method: &Option<Method>, status: StatusCode) -> bool {
-        if method == &Some(Method::HEAD) {
-            false
-        } else if method == &Some(Method::CONNECT) && status.is_success() {
+        if method == &Some(Method::HEAD) || method == &Some(Method::CONNECT) && status.is_success()
+        {
             false
         } else {
             match status {
@@ -764,7 +763,7 @@ impl Client {
             101 => {
                 return Ok(Some((DecodedLength::ZERO, true)));
             }
-            100..=199 => {
+            100 | 102..=199 => {
                 trace!("ignoring informational response: {}", inc.subject.as_u16());
                 return Ok(None);
             }
