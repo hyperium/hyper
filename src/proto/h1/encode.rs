@@ -202,48 +202,53 @@ impl Encoder {
     }
 }
 
+impl<B> EncodedBuf<B>
+where
+    B: Buf,
+{
+    #[inline]
+    fn buf(&self) -> &dyn Buf {
+        match self.kind {
+            BufKind::Exact(ref b) => b,
+            BufKind::Limited(ref b) => b,
+            BufKind::Chunked(ref b) => b,
+            BufKind::ChunkedEnd(ref b) => b,
+        }
+    }
+
+    #[inline]
+    fn buf_mut(&mut self) -> &mut dyn Buf {
+        match self.kind {
+            BufKind::Exact(ref mut b) => b,
+            BufKind::Limited(ref mut b) => b,
+            BufKind::Chunked(ref mut b) => b,
+            BufKind::ChunkedEnd(ref mut b) => b,
+        }
+    }
+}
+
 impl<B> Buf for EncodedBuf<B>
 where
     B: Buf,
 {
     #[inline]
     fn remaining(&self) -> usize {
-        match self.kind {
-            BufKind::Exact(ref b) => b.remaining(),
-            BufKind::Limited(ref b) => b.remaining(),
-            BufKind::Chunked(ref b) => b.remaining(),
-            BufKind::ChunkedEnd(ref b) => b.remaining(),
-        }
+        self.buf().remaining()
     }
 
     #[inline]
     fn bytes(&self) -> &[u8] {
-        match self.kind {
-            BufKind::Exact(ref b) => b.bytes(),
-            BufKind::Limited(ref b) => b.bytes(),
-            BufKind::Chunked(ref b) => b.bytes(),
-            BufKind::ChunkedEnd(ref b) => b.bytes(),
-        }
+        self.buf().bytes()
     }
 
     #[inline]
     fn advance(&mut self, cnt: usize) {
-        match self.kind {
-            BufKind::Exact(ref mut b) => b.advance(cnt),
-            BufKind::Limited(ref mut b) => b.advance(cnt),
-            BufKind::Chunked(ref mut b) => b.advance(cnt),
-            BufKind::ChunkedEnd(ref mut b) => b.advance(cnt),
-        }
+        self.buf_mut().advance(cnt)
     }
 
     #[inline]
     fn bytes_vectored<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> usize {
-        match self.kind {
-            BufKind::Exact(ref b) => b.bytes_vectored(dst),
-            BufKind::Limited(ref b) => b.bytes_vectored(dst),
-            BufKind::Chunked(ref b) => b.bytes_vectored(dst),
-            BufKind::ChunkedEnd(ref b) => b.bytes_vectored(dst),
-        }
+        self.buf().bytes_vectored(dst)
     }
 }
 
