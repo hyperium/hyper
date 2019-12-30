@@ -542,7 +542,7 @@ impl ConnectingTcpRemote {
             }
         }
 
-        return Err(err.take().expect("missing connect error"));
+        Err(err.take().expect("missing connect error"))
     }
 }
 
@@ -552,9 +552,9 @@ fn connect(
     reuse_address: bool,
     connect_timeout: Option<Duration>,
 ) -> io::Result<impl Future<Output = io::Result<TcpStream>>> {
-    let builder = match addr {
-        &SocketAddr::V4(_) => TcpBuilder::new_v4()?,
-        &SocketAddr::V6(_) => TcpBuilder::new_v6()?,
+    let builder = match *addr {
+        SocketAddr::V4(_) => TcpBuilder::new_v4()?,
+        SocketAddr::V6(_) => TcpBuilder::new_v6()?,
     };
 
     if reuse_address {
@@ -566,9 +566,9 @@ fn connect(
         builder.bind(SocketAddr::new(local_addr.clone(), 0))?;
     } else if cfg!(windows) {
         // Windows requires a socket be bound before calling connect
-        let any: SocketAddr = match addr {
-            &SocketAddr::V4(_) => ([0, 0, 0, 0], 0).into(),
-            &SocketAddr::V6(_) => ([0, 0, 0, 0, 0, 0, 0, 0], 0).into(),
+        let any: SocketAddr = match *addr {
+            SocketAddr::V4(_) => ([0, 0, 0, 0], 0).into(),
+            SocketAddr::V6(_) => ([0, 0, 0, 0, 0, 0, 0, 0], 0).into(),
         };
         builder.bind(any)?;
     }
@@ -619,7 +619,7 @@ impl ConnectingTcp {
                         }
                     };
 
-                if let Err(_) = result {
+                if result.is_err() {
                     // Fallback to the remaining future (could be preferred or fallback)
                     // if we get an error
                     future.await

@@ -44,9 +44,10 @@ where
     let (conn_drop_ref, rx) = mpsc::channel(1);
     let (cancel_tx, conn_eof) = oneshot::channel();
 
-    let conn_drop_rx = rx.into_future().map(|(item, _rx)| match item {
-        Some(never) => match never {},
-        None => (),
+    let conn_drop_rx = rx.into_future().map(|(item, _rx)| {
+        if let Some(never) = item {
+            match never {}
+        }
     });
 
     let conn = conn.map_err(|e| debug!("connection error: {}", e));

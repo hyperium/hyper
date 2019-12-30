@@ -96,7 +96,7 @@ pub fn is_chunked_(value: &HeaderValue) -> bool {
 }
 
 pub fn add_chunked(mut entry: OccupiedEntry<'_, HeaderValue>) {
-    const CHUNKED: &'static str = "chunked";
+    const CHUNKED: &str = "chunked";
 
     if let Some(line) = entry.iter_mut().next_back() {
         // + 2 for ", "

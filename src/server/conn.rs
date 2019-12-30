@@ -489,8 +489,8 @@ where
             ProtoServer::H1(h1) => {
                 let (io, read_buf, dispatch) = h1.into_inner();
                 Some(Parts {
-                    io: io,
-                    read_buf: read_buf,
+                    io,
+                    read_buf,
                     service: dispatch.into_service(),
                     _inner: (),
                 })

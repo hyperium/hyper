@@ -49,9 +49,8 @@ where
     type Output = R::Output;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        match self.inner {
-            Inner::Fut(ref mut f) => return Pin::new(f).poll(cx),
-            _ => (),
+        if let Inner::Fut(ref mut f) = self.inner {
+            return Pin::new(f).poll(cx);
         }
 
         match mem::replace(&mut self.inner, Inner::Empty) {

@@ -13,7 +13,7 @@ use crate::common::{task, Pin, Poll, Unpin};
 use crate::headers::connection_keep_alive;
 use crate::proto::{BodyLength, DecodedLength, MessageHead};
 
-const H2_PREFACE: &'static [u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
+const H2_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
 /// This handles a connection, which will have been established over an
 /// `AsyncRead + AsyncWrite` (like a socket), and will likely include multiple
@@ -391,9 +391,8 @@ where
 
     pub fn can_write_head(&self) -> bool {
         if !T::should_read_first() {
-            match self.state.reading {
-                Reading::Closed => return false,
-                _ => {}
+            if let Reading::Closed = self.state.reading {
+                return false;
             }
         }
         match self.state.writing {
@@ -486,7 +485,7 @@ where
         let outgoing_is_keep_alive = head
             .headers
             .get(CONNECTION)
-            .and_then(|value| Some(connection_keep_alive(value)))
+            .map(connection_keep_alive)
             .unwrap_or(false);
 
         if !outgoing_is_keep_alive {
@@ -510,20 +509,16 @@ where
     // If we know the remote speaks an older version, we try to fix up any messages
     // to work with our older peer.
     fn enforce_version(&mut self, head: &mut MessageHead<T::Outgoing>) {
-        match self.state.version {
-            Version::HTTP_10 => {
-                // Fixes response or connection when keep-alive header is not present
-                self.fix_keep_alive(head);
-                // If the remote only knows HTTP/1.0, we should force ourselves
-                // to do only speak HTTP/1.0 as well.
-                head.version = Version::HTTP_10;
-            }
-            _ => {
-                // If the remote speaks HTTP/1.1, then it *should* be fine with
-                // both HTTP/1.0 and HTTP/1.1 from us. So again, we just let
-                // the user's headers be.
-            }
+        if let Version::HTTP_10 = self.state.version {
+            // Fixes response or connection when keep-alive header is not present
+            self.fix_keep_alive(head);
+            // If the remote only knows HTTP/1.0, we should force ourselves
+            // to do only speak HTTP/1.0 as well.
+            head.version = Version::HTTP_10;
         }
+        // If the remote speaks HTTP/1.1, then it *should* be fine with
+        // both HTTP/1.0 and HTTP/1.1 from us. So again, we just let
+        // the user's headers be.
     }
 
     pub fn write_body(&mut self, chunk: B) {
@@ -603,21 +598,18 @@ where
     // - Client: there is nothing we can do
     // - Server: if Response hasn't been written yet, we can send a 4xx response
     fn on_parse_error(&mut self, err: crate::Error) -> crate::Result<()> {
-        match self.state.writing {
-            Writing::Init => {
-                if self.has_h2_prefix() {
-                    return Err(crate::Error::new_version_h2());
-                }
-                if let Some(msg) = T::on_error(&err) {
-                    // Drop the cached headers so as to not trigger a debug
-                    // assert in `write_head`...
-                    self.state.cached_headers.take();
-                    self.write_head(msg, None);
-                    self.state.error = Some(err);
-                    return Ok(());
-                }
+        if let Writing::Init = self.state.writing {
+            if self.has_h2_prefix() {
+                return Err(crate::Error::new_version_h2());
             }
-            _ => (),
+            if let Some(msg) = T::on_error(&err) {
+                // Drop the cached headers so as to not trigger a debug
+                // assert in `write_head`...
+                self.state.cached_headers.take();
+                self.write_head(msg, None);
+                self.state.error = Some(err);
+                return Ok(());
+            }
         }
 
         // fallback is pass the error back up

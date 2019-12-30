@@ -49,7 +49,7 @@ enum BufKind<B> {
 impl Encoder {
     fn new(kind: Kind) -> Encoder {
         Encoder {
-            kind: kind,
+            kind,
             is_last: false,
         }
     }

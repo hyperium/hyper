@@ -472,10 +472,8 @@ impl Http1Transaction for Server {
                     continue 'headers;
                 }
                 header::CONNECTION => {
-                    if !is_last {
-                        if headers::connection_close(&value) {
-                            is_last = true;
-                        }
+                    if !is_last && headers::connection_close(&value) {
+                        is_last = true;
                     }
                     if !is_name_written {
                         is_name_written = true;

@@ -34,10 +34,7 @@ impl<T: Buf> Buf for BufList<T> {
 
     #[inline]
     fn bytes(&self) -> &[u8] {
-        for buf in &self.bufs {
-            return buf.bytes();
-        }
-        &[]
+        self.bufs.front().map(Buf::bytes).unwrap_or_default()
     }
 
     #[inline]
