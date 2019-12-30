@@ -371,15 +371,11 @@ struct IncompleteBody;
 
 impl fmt::Display for IncompleteBody {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.description())
+        write!(f, "end of file before message length reached")
     }
 }
 
-impl StdError for IncompleteBody {
-    fn description(&self) -> &str {
-        "end of file before message length reached"
-    }
-}
+impl StdError for IncompleteBody {}
 
 #[cfg(test)]
 mod tests {

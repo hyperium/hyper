@@ -276,30 +276,7 @@ impl Error {
             Error::new(Kind::Http2).with(cause)
         }
     }
-}
 
-impl fmt::Debug for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut f = f.debug_tuple("hyper::Error");
-        f.field(&self.inner.kind);
-        if let Some(ref cause) = self.inner.cause {
-            f.field(cause);
-        }
-        f.finish()
-    }
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(ref cause) = self.inner.cause {
-            write!(f, "{}: {}", self.description(), cause)
-        } else {
-            f.write_str(self.description())
-        }
-    }
-}
-
-impl StdError for Error {
     fn description(&self) -> &str {
         match self.inner.kind {
             Kind::Parse(Parse::Method) => "invalid HTTP method parsed",
@@ -338,7 +315,30 @@ impl StdError for Error {
             Kind::User(User::ManualUpgrade) => "upgrade expected but low level API in use",
         }
     }
+}
 
+impl fmt::Debug for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut f = f.debug_tuple("hyper::Error");
+        f.field(&self.inner.kind);
+        if let Some(ref cause) = self.inner.cause {
+            f.field(cause);
+        }
+        f.finish()
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(ref cause) = self.inner.cause {
+            write!(f, "{}: {}", self.description(), cause)
+        } else {
+            f.write_str(self.description())
+        }
+    }
+}
+
+impl StdError for Error {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         self.inner
             .cause

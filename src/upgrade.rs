@@ -205,15 +205,11 @@ impl Pending {
 
 impl fmt::Display for UpgradeExpected {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.description())
+        write!(f, "upgrade expected but not completed")
     }
 }
 
-impl StdError for UpgradeExpected {
-    fn description(&self) -> &str {
-        "upgrade expected but not completed"
-    }
-}
+impl StdError for UpgradeExpected {}
 
 // ===== impl Io =====
 
