@@ -3,9 +3,10 @@ use std::borrow::Cow;
 use std::error::Error as StdError;
 use std::fmt;
 
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use futures_channel::{mpsc, oneshot};
 use futures_core::Stream; // for mpsc::Receiver
+use futures_util::StreamExt;
 #[cfg(feature = "stream")]
 use futures_util::TryStreamExt;
 use http::HeaderMap;
@@ -166,6 +167,16 @@ impl Body {
         self.extra
             .map(|ex| ex.on_upgrade)
             .unwrap_or_else(OnUpgrade::none)
+    }
+
+    /// Converts this 'Body' into a 'Future' of the concatenated bytes
+    /// of the underlying stream.
+    pub async fn bytes(mut self) -> crate::Result<Bytes> {
+        let mut buf = BytesMut::new();
+        while let Some(bytes) = self.next().await {
+            buf.extend(bytes?)
+        }
+        Ok(buf.freeze())
     }
 
     fn new(kind: Kind) -> Body {
