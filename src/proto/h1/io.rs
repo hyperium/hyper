@@ -518,14 +518,15 @@ impl<B: Buf> Buf for WriteBuf<B> {
     #[inline]
     fn advance(&mut self, cnt: usize) {
         let hrem = self.headers.remaining();
-        if hrem == cnt {
-            self.headers.reset();
-        } else if hrem > cnt {
-            self.headers.advance(cnt);
-        } else {
-            let qcnt = cnt - hrem;
-            self.headers.reset();
-            self.queue.advance(qcnt);
+
+        match hrem.cmp(&cnt) {
+            cmp::Ordering::Equal => self.headers.reset(),
+            cmp::Ordering::Greater => self.headers.advance(cnt),
+            cmp::Ordering::Less => {
+                let qcnt = cnt - hrem;
+                self.headers.reset();
+                self.queue.advance(qcnt);
+            }
         }
     }
 
