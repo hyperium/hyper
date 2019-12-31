@@ -292,7 +292,7 @@ impl Opts {
             } else {
                 self.request_body
                     .map(Body::from)
-                    .unwrap_or_else(|| Body::empty())
+                    .unwrap_or_else(Body::empty)
             };
             let mut req = Request::new(body);
             *req.method_mut() = self.request_method.clone();
@@ -355,5 +355,5 @@ fn spawn_server(rt: &mut tokio::runtime::Runtime, opts: &Opts) -> SocketAddr {
             panic!("server error: {}", err);
         }
     });
-    return addr;
+    addr
 }

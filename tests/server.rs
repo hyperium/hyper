@@ -1457,7 +1457,7 @@ async fn max_buf_size() {
     thread::spawn(move || {
         let mut tcp = connect(&addr);
         tcp.write_all(b"POST /").expect("write 1");
-        tcp.write_all(&vec![b'a'; MAX]).expect("write 2");
+        tcp.write_all(&[b'a'; MAX]).expect("write 2");
         let mut buf = [0; 256];
         tcp.read(&mut buf).expect("read 1");
 
@@ -1481,8 +1481,8 @@ fn streaming_body() {
     // disable keep-alive so we can use read_to_end
     let server = serve_opts().keep_alive(false).serve();
 
-    static S: &'static [&'static [u8]] = &[&[b'x'; 1_000] as &[u8]; 1_00] as _;
-    let b = ::futures_util::stream::iter(S.into_iter()).map(|&s| Ok::<_, hyper::Error>(s));
+    static S: &[&[u8]] = &[&[b'x'; 1_000] as &[u8]; 1_00] as _;
+    let b = futures_util::stream::iter(S.iter()).map(|&s| Ok::<_, hyper::Error>(s));
     let b = hyper::Body::wrap_stream(b);
     server.reply().body_stream(b);
 
@@ -1588,7 +1588,7 @@ fn http2_body_user_error_sends_reset_reason() {
     let server = serve();
     let addr_str = format!("http://{}", server.addr());
 
-    let b = ::futures_util::stream::once(future::err::<String, _>(h2::Error::from(
+    let b = futures_util::stream::once(future::err::<String, _>(h2::Error::from(
         h2::Reason::INADEQUATE_SECURITY,
     )));
     let b = hyper::Body::wrap_stream(b);
@@ -1931,7 +1931,7 @@ impl TestService {
     }
 }
 
-const HELLO: &'static str = "hello";
+const HELLO: &str = "hello";
 
 struct HelloWorld;
 
@@ -2030,8 +2030,8 @@ impl ServeOptions {
                         let msg_tx = msg_tx.clone();
                         let reply_rx = reply_rx.clone();
                         future::ok::<_, BoxError>(TestService {
-                            tx: msg_tx.clone(),
-                            reply: reply_rx.clone(),
+                            tx: msg_tx,
+                            reply: reply_rx,
                         })
                     });
 
@@ -2056,9 +2056,9 @@ impl ServeOptions {
         let addr = addr_rx.recv().expect("server addr rx");
 
         Serve {
-            msg_rx: msg_rx,
+            msg_rx,
             reply_tx: Mutex::new(reply_tx),
-            addr: addr,
+            addr,
             shutdown_signal: Some(shutdown_tx),
             thread: Some(thread),
         }
