@@ -54,9 +54,10 @@ fn strip_connection_headers(headers: &mut HeaderMap, is_request: bool) {
     }
 
     if let Some(header) = headers.remove(CONNECTION) {
+        static STATIC_CONNECTION: HeaderName = CONNECTION;
         warn!(
             "Connection header illegal in HTTP/2: {}",
-            CONNECTION.as_str()
+            STATIC_CONNECTION.as_str()
         );
         let header_contents = header.to_str().unwrap();
 
