@@ -310,7 +310,7 @@ macro_rules! __client_req_header {
     }
 }
 
-static REPLY_OK: &'static str = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
+static REPLY_OK: &str = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
 
 test! {
     name: client_get,
@@ -1771,7 +1771,7 @@ mod dispatch_impl {
         // so the unwrapped responses futures show it still worked.
         assert_eq!(connects.load(Ordering::SeqCst), 3);
 
-        let res4 = client.get(url.clone());
+        let res4 = client.get(url);
         rt.block_on(res4).unwrap();
 
         assert_eq!(
@@ -1800,8 +1800,8 @@ mod dispatch_impl {
 
         fn with_http_and_closes(http: HttpConnector, closes: mpsc::Sender<()>) -> DebugConnector {
             DebugConnector {
-                http: http,
-                closes: closes,
+                http,
+                closes,
                 connects: Arc::new(AtomicUsize::new(0)),
                 is_proxy: false,
                 alpn_h2: false,
@@ -2242,7 +2242,7 @@ mod conn {
         let tcp = rt.block_on(tcp_connect(&addr)).unwrap();
 
         let io = DebugStream {
-            tcp: tcp,
+            tcp,
             shutdown_called: false,
         };
 
@@ -2330,7 +2330,7 @@ mod conn {
         let tcp = rt.block_on(tcp_connect(&addr)).unwrap();
 
         let io = DebugStream {
-            tcp: tcp,
+            tcp,
             shutdown_called: false,
         };
 

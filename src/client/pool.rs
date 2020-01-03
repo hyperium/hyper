@@ -352,7 +352,7 @@ impl<T: Poolable> PoolInner<T> {
             Some(value) => {
                 // borrow-check scope...
                 {
-                    let idle_list = self.idle.entry(key.clone()).or_insert(Vec::new());
+                    let idle_list = self.idle.entry(key.clone()).or_insert_with(Vec::new);
                     if self.max_idle_per_host <= idle_list.len() {
                         trace!("max idle per host for {:?}, dropping connection", key);
                         return;
@@ -360,7 +360,7 @@ impl<T: Poolable> PoolInner<T> {
 
                     debug!("pooling idle connection for {:?}", key);
                     idle_list.push(Idle {
-                        value: value,
+                        value,
                         idle_at: Instant::now(),
                     });
                 }
@@ -610,7 +610,7 @@ impl<T: Poolable> Checkout<T> {
                 inner
                     .waiters
                     .entry(self.key.clone())
-                    .or_insert(VecDeque::new())
+                    .or_insert_with(VecDeque::new)
                     .push_back(tx);
 
                 // register the waker with this oneshot

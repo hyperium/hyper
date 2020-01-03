@@ -62,8 +62,8 @@ where
 {
     pub fn new(dispatch: D, conn: Conn<I, Bs::Data, T>) -> Self {
         Dispatcher {
-            conn: conn,
-            dispatch: dispatch,
+            conn,
+            dispatch,
             body_tx: None,
             body_rx: Box::pin(None),
             is_closing: false,
@@ -443,7 +443,7 @@ where
     pub fn new(service: S) -> Server<S, B> {
         Server {
             in_flight: Box::pin(None),
-            service: service,
+            service,
         }
     }
 
@@ -580,7 +580,7 @@ where
                     *res.status_mut() = msg.subject;
                     *res.headers_mut() = msg.headers;
                     *res.version_mut() = msg.version;
-                    let _ = cb.send(Ok(res));
+                    cb.send(Ok(res));
                     Ok(())
                 } else {
                     // Getting here is likely a bug! An error should have happened
@@ -591,7 +591,7 @@ where
             }
             Err(err) => {
                 if let Some(cb) = self.callback.take() {
-                    let _ = cb.send(Err((err, None)));
+                    cb.send(Err((err, None)));
                     Ok(())
                 } else if !self.rx_closed {
                     self.rx.close();
@@ -599,7 +599,7 @@ where
                         trace!("canceling queued request with connection error: {}", err);
                         // in this case, the message was never even started, so it's safe to tell
                         // the user that the request was completely canceled
-                        let _ = cb.send(Err((crate::Error::new_canceled().with(err), Some(req))));
+                        cb.send(Err((crate::Error::new_canceled().with(err), Some(req))));
                         Ok(())
                     } else {
                         Err(err)

@@ -58,11 +58,11 @@ where
     ) -> Poll<io::Result<usize>> {
         if let Some(mut prefix) = self.pre.take() {
             // If there are no remaining bytes, let the bytes get dropped.
-            if prefix.len() > 0 {
+            if !prefix.is_empty() {
                 let copy_len = cmp::min(prefix.len(), buf.len());
                 prefix.copy_to_slice(&mut buf[..copy_len]);
                 // Put back whats left
-                if prefix.len() > 0 {
+                if !prefix.is_empty() {
                     self.pre = Some(prefix);
                 }
 

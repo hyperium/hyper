@@ -47,10 +47,8 @@ fn strip_connection_headers(headers: &mut HeaderMap, is_request: bool) {
             warn!("TE headers not set to \"trailers\" are illegal in HTTP/2 requests");
             headers.remove(TE);
         }
-    } else {
-        if headers.remove(TE).is_some() {
-            warn!("TE headers illegal in HTTP/2 responses");
-        }
+    } else if headers.remove(TE).is_some() {
+        warn!("TE headers illegal in HTTP/2 responses");
     }
 
     if let Some(header) = headers.remove(CONNECTION) {
@@ -94,7 +92,7 @@ where
         PipeToSendStream {
             body_tx: tx,
             data_done: false,
-            stream: stream,
+            stream,
         }
     }
 }
@@ -125,17 +123,15 @@ where
                             None => return Poll::Ready(Err(crate::Error::new_canceled())),
                         }
                     }
-                } else {
-                    if let Poll::Ready(reason) = me
-                        .body_tx
-                        .poll_reset(cx)
-                        .map_err(crate::Error::new_body_write)?
-                    {
-                        debug!("stream received RST_STREAM: {:?}", reason);
-                        return Poll::Ready(Err(crate::Error::new_body_write(::h2::Error::from(
-                            reason,
-                        ))));
-                    }
+                } else if let Poll::Ready(reason) = me
+                    .body_tx
+                    .poll_reset(cx)
+                    .map_err(crate::Error::new_body_write)?
+                {
+                    debug!("stream received RST_STREAM: {:?}", reason);
+                    return Poll::Ready(Err(crate::Error::new_body_write(::h2::Error::from(
+                        reason,
+                    ))));
                 }
 
                 match ready!(me.stream.as_mut().poll_data(cx)) {
@@ -172,7 +168,7 @@ where
                 if let Poll::Ready(reason) = me
                     .body_tx
                     .poll_reset(cx)
-                    .map_err(|e| crate::Error::new_body_write(e))?
+                    .map_err(crate::Error::new_body_write)?
                 {
                     debug!("stream received RST_STREAM: {:?}", reason);
                     return Poll::Ready(Err(crate::Error::new_body_write(::h2::Error::from(
@@ -238,6 +234,8 @@ impl<B: Buf> Buf for SendBuf<B> {
 
     #[inline]
     fn advance(&mut self, cnt: usize) {
-        self.0.as_mut().map(|b| b.advance(cnt));
+        if let Some(b) = self.0.as_mut() {
+            b.advance(cnt)
+        }
     }
 }

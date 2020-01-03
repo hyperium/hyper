@@ -12,13 +12,10 @@ pub fn channel<T, U>() -> (Sender<T, U>, Receiver<T, U>) {
     let (giver, taker) = want::new();
     let tx = Sender {
         buffered_once: false,
-        giver: giver,
+        giver,
         inner: tx,
     };
-    let rx = Receiver {
-        inner: rx,
-        taker: taker,
-    };
+    let rx = Receiver { inner: rx, taker };
     (tx, rx)
 }
 
@@ -183,7 +180,7 @@ struct Envelope<T, U>(Option<(T, Callback<T, U>)>);
 impl<T, U> Drop for Envelope<T, U> {
     fn drop(&mut self) {
         if let Some((val, cb)) = self.0.take() {
-            let _ = cb.send(Err((
+            cb.send(Err((
                 crate::Error::new_canceled().with("connection closed"),
                 Some(val),
             )));

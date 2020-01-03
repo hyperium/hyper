@@ -259,10 +259,8 @@ where
                         Poll::Pending => {
                             // Response is not yet ready, so we want to check if the client has sent a
                             // RST_STREAM frame which would cancel the current request.
-                            if let Poll::Ready(reason) = me
-                                .reply
-                                .poll_reset(cx)
-                                .map_err(|e| crate::Error::new_h2(e))?
+                            if let Poll::Ready(reason) =
+                                me.reply.poll_reset(cx).map_err(crate::Error::new_h2)?
                             {
                                 debug!("stream received RST_STREAM: {:?}", reason);
                                 return Poll::Ready(Err(crate::Error::new_h2(reason.into())));

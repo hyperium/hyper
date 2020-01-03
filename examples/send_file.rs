@@ -71,5 +71,5 @@ async fn simple_file_send(filename: &str) -> Result<Response<Body>> {
         return Ok(internal_server_error());
     }
 
-    return Ok(not_found());
+    Ok(not_found())
 }

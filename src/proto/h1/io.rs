@@ -57,7 +57,7 @@ where
     pub fn new(io: T) -> Buffered<T, B> {
         Buffered {
             flush_pipeline: false,
-            io: io,
+            io,
             read_blocked: false,
             read_buf: BytesMut::with_capacity(0),
             read_buf_strategy: ReadStrategy::default(),
@@ -168,12 +168,9 @@ where
                     }
                 }
             }
-            match ready!(self.poll_read_from_io(cx)).map_err(crate::Error::new_io)? {
-                0 => {
-                    trace!("parse eof");
-                    return Poll::Ready(Err(crate::Error::new_incomplete()));
-                }
-                _ => {}
+            if ready!(self.poll_read_from_io(cx)).map_err(crate::Error::new_io)? == 0 {
+                trace!("parse eof");
+                return Poll::Ready(Err(crate::Error::new_incomplete()));
             }
         }
     }
@@ -216,9 +213,8 @@ where
         } else if self.write_buf.remaining() == 0 {
             Pin::new(&mut self.io).poll_flush(cx)
         } else {
-            match self.write_buf.strategy {
-                WriteStrategy::Flatten => return self.poll_flush_flattened(cx),
-                _ => (),
+            if let WriteStrategy::Flatten = self.write_buf.strategy {
+                return self.poll_flush_flattened(cx);
             }
             loop {
                 let n =
@@ -325,35 +321,33 @@ impl ReadStrategy {
     }
 
     fn record(&mut self, bytes_read: usize) {
-        match *self {
-            ReadStrategy::Adaptive {
-                ref mut decrease_now,
-                ref mut next,
-                max,
-                ..
-            } => {
-                if bytes_read >= *next {
-                    *next = cmp::min(incr_power_of_two(*next), max);
-                    *decrease_now = false;
-                } else {
-                    let decr_to = prev_power_of_two(*next);
-                    if bytes_read < decr_to {
-                        if *decrease_now {
-                            *next = cmp::max(decr_to, INIT_BUFFER_SIZE);
-                            *decrease_now = false;
-                        } else {
-                            // Decreasing is a two "record" process.
-                            *decrease_now = true;
-                        }
-                    } else {
-                        // A read within the current range should cancel
-                        // a potential decrease, since we just saw proof
-                        // that we still need this size.
+        if let ReadStrategy::Adaptive {
+            ref mut decrease_now,
+            ref mut next,
+            max,
+            ..
+        } = *self
+        {
+            if bytes_read >= *next {
+                *next = cmp::min(incr_power_of_two(*next), max);
+                *decrease_now = false;
+            } else {
+                let decr_to = prev_power_of_two(*next);
+                if bytes_read < decr_to {
+                    if *decrease_now {
+                        *next = cmp::max(decr_to, INIT_BUFFER_SIZE);
                         *decrease_now = false;
+                    } else {
+                        // Decreasing is a two "record" process.
+                        *decrease_now = true;
                     }
+                } else {
+                    // A read within the current range should cancel
+                    // a potential decrease, since we just saw proof
+                    // that we still need this size.
+                    *decrease_now = false;
                 }
             }
-            _ => (),
         }
     }
 }
@@ -384,10 +378,7 @@ pub struct Cursor<T> {
 impl<T: AsRef<[u8]>> Cursor<T> {
     #[inline]
     pub(crate) fn new(bytes: T) -> Cursor<T> {
-        Cursor {
-            bytes: bytes,
-            pos: 0,
-        }
+        Cursor { bytes, pos: 0 }
     }
 }
 
@@ -527,14 +518,15 @@ impl<B: Buf> Buf for WriteBuf<B> {
     #[inline]
     fn advance(&mut self, cnt: usize) {
         let hrem = self.headers.remaining();
-        if hrem == cnt {
-            self.headers.reset();
-        } else if hrem > cnt {
-            self.headers.advance(cnt);
-        } else {
-            let qcnt = cnt - hrem;
-            self.headers.reset();
-            self.queue.advance(qcnt);
+
+        match hrem.cmp(&cnt) {
+            cmp::Ordering::Equal => self.headers.reset(),
+            cmp::Ordering::Greater => self.headers.advance(cnt),
+            cmp::Ordering::Less => {
+                let qcnt = cnt - hrem;
+                self.headers.reset();
+                self.queue.advance(qcnt);
+            }
         }
     }
 
@@ -558,7 +550,7 @@ impl<'a, B: Buf> WriteBufAuto<'a, B> {
         WriteBufAuto {
             bytes_called: Cell::new(false),
             bytes_vec_called: Cell::new(false),
-            inner: inner,
+            inner,
         }
     }
 }

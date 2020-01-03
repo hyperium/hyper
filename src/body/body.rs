@@ -112,10 +112,7 @@ impl Body {
         let (tx, rx) = mpsc::channel(0);
         let (abort_tx, abort_rx) = oneshot::channel();
 
-        let tx = Sender {
-            abort_tx: abort_tx,
-            tx: tx,
-        };
+        let tx = Sender { abort_tx, tx };
         let rx = Body::new(Kind::Chan {
             content_length,
             abort_rx,
@@ -131,7 +128,6 @@ impl Body {
     ///
     /// ```
     /// # use hyper::Body;
-    /// # fn main() {
     /// let chunks: Vec<Result<_, ::std::io::Error>> = vec![
     ///     Ok("hello"),
     ///     Ok(" "),
@@ -141,7 +137,6 @@ impl Body {
     /// let stream = futures_util::stream::iter(chunks);
     ///
     /// let body = Body::wrap_stream(stream);
-    /// # }
     /// ```
     ///
     /// # Optional
@@ -169,10 +164,7 @@ impl Body {
     }
 
     fn new(kind: Kind) -> Body {
-        Body {
-            kind: kind,
-            extra: None,
-        }
+        Body { kind, extra: None }
     }
 
     pub(crate) fn h2(recv: h2::RecvStream, content_length: Option<u64>) -> Self {
@@ -253,7 +245,7 @@ impl Body {
                     Some(chunk) => {
                         if let Some(ref mut len) = *len {
                             debug_assert!(*len >= chunk.len() as u64);
-                            *len = *len - chunk.len() as u64;
+                            *len -= chunk.len() as u64;
                         }
                         Poll::Ready(Some(Ok(chunk)))
                     }
