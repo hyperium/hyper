@@ -50,7 +50,7 @@ mod body_length {
     #[derive(Clone, Copy, PartialEq, Eq)]
     pub(crate) struct DecodedLength(u64);
 
-    const MAX_LEN: u64 = ::std::u64::MAX - 2;
+    const MAX_LEN: u64 = std::u64::MAX - 2;
 
     impl DecodedLength {
         pub(crate) const CLOSE_DELIMITED: DecodedLength = DecodedLength(::std::u64::MAX);

@@ -386,7 +386,7 @@ mod tests {
 
     impl<'a> MemRead for &'a [u8] {
         fn read_mem(&mut self, _: &mut task::Context<'_>, len: usize) -> Poll<io::Result<Bytes>> {
-            let n = ::std::cmp::min(len, self.len());
+            let n = std::cmp::min(len, self.len());
             if n > 0 {
                 let (a, b) = self.split_at(n);
                 let buf = Bytes::copy_from_slice(a);

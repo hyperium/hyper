@@ -128,7 +128,7 @@ impl Body {
     ///
     /// ```
     /// # use hyper::Body;
-    /// let chunks: Vec<Result<_, ::std::io::Error>> = vec![
+    /// let chunks: Vec<Result<_, std::io::Error>> = vec![
     ///     Ok("hello"),
     ///     Ok(" "),
     ///     Ok("world"),

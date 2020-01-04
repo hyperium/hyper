@@ -692,7 +692,7 @@ mod tests {
         let local_timeout = Duration::default();
         let unreachable_v4_timeout = measure_connect(unreachable_ipv4_addr()).1;
         let unreachable_v6_timeout = measure_connect(unreachable_ipv6_addr()).1;
-        let fallback_timeout = ::std::cmp::max(unreachable_v4_timeout, unreachable_v6_timeout)
+        let fallback_timeout = std::cmp::max(unreachable_v4_timeout, unreachable_v6_timeout)
             + Duration::from_millis(250);
 
         let scenarios = &[
@@ -849,7 +849,7 @@ mod tests {
         fn measure_connect(addr: IpAddr) -> (bool, Duration) {
             let start = Instant::now();
             let result =
-                ::std::net::TcpStream::connect_timeout(&(addr, 80).into(), Duration::from_secs(1));
+                std::net::TcpStream::connect_timeout(&(addr, 80).into(), Duration::from_secs(1));
 
             let reachable = result.is_ok() || result.unwrap_err().kind() == io::ErrorKind::TimedOut;
             let duration = start.elapsed();
