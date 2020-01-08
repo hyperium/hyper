@@ -45,5 +45,5 @@ pub(crate) use self::http::HttpService;
 pub(crate) use self::make::{MakeConnection, MakeServiceRef};
 pub(crate) use self::oneshot::{oneshot, Oneshot};
 
-pub use self::make::{make_service_fn, MakeServiceFn};
-pub use self::util::{service_fn, ServiceFn};
+pub use self::make::make_service_fn;
+pub use self::util::service_fn;
