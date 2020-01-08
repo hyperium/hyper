@@ -35,7 +35,7 @@ where
     }
 }
 
-// Not exported from crate as this will likely be replaced with `impl Service`.
+/// Service returned by [`service_fn`]
 pub struct ServiceFn<F, R> {
     f: F,
     _req: PhantomData<fn(R)>,
@@ -68,3 +68,17 @@ impl<F, R> fmt::Debug for ServiceFn<F, R> {
         f.debug_struct("impl Service").finish()
     }
 }
+
+impl<F, R> Clone for ServiceFn<F, R>
+where
+    F: Clone,
+{
+    fn clone(&self) -> Self {
+        ServiceFn {
+            f: self.f.clone(),
+            _req: PhantomData,
+        }
+    }
+}
+
+impl<F, R> Copy for ServiceFn<F, R> where F: Copy {}
