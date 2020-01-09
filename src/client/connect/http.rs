@@ -304,7 +304,7 @@ where
         let addrs = if let Some(addrs) = dns::IpAddrs::try_parse(host, port) {
             addrs
         } else {
-            let addrs = resolve(&mut self.resolver, dns::Name::new(host.into()))
+            let addrs = resolve(&mut self.resolver, host)
                 .await
                 .map_err(ConnectError::dns)?;
             let addrs = addrs.map(|addr| SocketAddr::new(addr, port)).collect();

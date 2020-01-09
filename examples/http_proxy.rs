@@ -5,6 +5,7 @@ use std::net::SocketAddr;
 
 use futures_util::future::try_join;
 
+use hyper::client::connect::dns::{resolve, GaiResolver};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::upgrade::Upgraded;
 use hyper::{Body, Client, Method, Request, Response, Server};
@@ -56,7 +57,7 @@ async fn proxy(client: HttpClient, req: Request<Body>) -> Result<Response<Body>,
         // Note: only after client received an empty body with STATUS_OK can the
         // connection be upgraded, so we can't return a response inside
         // `on_upgrade` future.
-        if let Some(addr) = host_addr(req.uri()) {
+        if let Some(addr) = host_addr(req.uri()).await {
             tokio::task::spawn(async move {
                 match req.into_body().on_upgrade().await {
                     Ok(upgraded) => {
@@ -81,8 +82,24 @@ async fn proxy(client: HttpClient, req: Request<Body>) -> Result<Response<Body>,
     }
 }
 
-fn host_addr(uri: &http::Uri) -> Option<SocketAddr> {
-    uri.authority().and_then(|auth| auth.as_str().parse().ok())
+async fn host_addr(uri: &http::Uri) -> Option<SocketAddr> {
+    if uri.authority().is_none() {
+        return None;
+    }
+    let authority = uri.authority().unwrap();
+    if authority.port().is_none() {
+        return None;
+    }
+
+    let host = authority.host();
+    let port = authority.port().unwrap().as_u16();
+
+    let mut resolver = GaiResolver::new();
+    resolve(&mut resolver, host)
+        .await
+        .ok()
+        .and_then(|mut addrs| addrs.next())
+        .map(|addr| SocketAddr::new(addr, port))
 }
 
 // Create a TCP connection to host:port, build a tunnel between the connection and

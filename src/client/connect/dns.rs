@@ -334,12 +334,13 @@ mod sealed {
     }
 }
 
-pub(crate) async fn resolve<R>(resolver: &mut R, name: Name) -> Result<R::Addrs, R::Error>
+/// Resolve domain
+pub async fn resolve<R>(resolver: &mut R, host: &str) -> Result<R::Addrs, R::Error>
 where
     R: Resolve,
 {
     futures_util::future::poll_fn(|cx| resolver.poll_ready(cx)).await?;
-    resolver.resolve(name).await
+    resolver.resolve(Name::new(host.into())).await
 }
 
 #[cfg(test)]
