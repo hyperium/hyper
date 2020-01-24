@@ -1324,6 +1324,46 @@ async fn upgrades_new() {
 }
 
 #[tokio::test]
+async fn upgrades_ignored() {
+    let _ = pretty_env_logger::try_init();
+    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    tokio::spawn(async move {
+        let svc = service_fn(move |req: Request<Body>| {
+            assert_eq!(req.headers()["upgrade"], "yolo");
+            future::ok::<_, hyper::Error>(Response::new(hyper::Body::empty()))
+        });
+
+        let (socket, _) = listener.accept().await.unwrap();
+        Http::new()
+            .serve_connection(socket, svc)
+            .with_upgrades()
+            .await
+            .expect("server task");
+    });
+
+    let client = hyper::Client::new();
+    let url = format!("http://{}/", addr);
+
+    let make_req = || {
+        hyper::Request::builder()
+            .uri(&*url)
+            .header("upgrade", "yolo")
+            .header("connection", "upgrade")
+            .body(hyper::Body::empty())
+            .expect("make_req")
+    };
+
+    let res1 = client.request(make_req()).await.expect("req 1");
+    assert_eq!(res1.status(), 200);
+    drop(res1);
+
+    let res2 = client.request(make_req()).await.expect("req 2");
+    assert_eq!(res2.status(), 200);
+}
+
+#[tokio::test]
 async fn http_connect_new() {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 

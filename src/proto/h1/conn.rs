@@ -902,7 +902,6 @@ impl State {
     }
 
     fn prepare_upgrade(&mut self) -> crate::upgrade::OnUpgrade {
-        debug_assert!(self.upgrade.is_none());
         let (tx, rx) = crate::upgrade::pending();
         self.upgrade = Some(tx);
         rx
