@@ -12,6 +12,7 @@ use http::HeaderMap;
 use http_body::{Body as HttpBody, SizeHint};
 
 use crate::common::{task, Future, Never, Pin, Poll};
+use crate::proto::DecodedLength;
 use crate::upgrade::OnUpgrade;
 
 type BodySender = mpsc::Sender<Result<Bytes, crate::Error>>;
@@ -31,12 +32,12 @@ pub struct Body {
 enum Kind {
     Once(Option<Bytes>),
     Chan {
-        content_length: Option<u64>,
+        content_length: DecodedLength,
         abort_rx: oneshot::Receiver<()>,
         rx: mpsc::Receiver<Result<Bytes, crate::Error>>,
     },
     H2 {
-        content_length: Option<u64>,
+        content_length: DecodedLength,
         recv: h2::RecvStream,
     },
     // NOTE: This requires `Sync` because of how easy it is to use `await`
@@ -105,10 +106,10 @@ impl Body {
     /// Useful when wanting to stream chunks from another thread.
     #[inline]
     pub fn channel() -> (Sender, Body) {
-        Self::new_channel(None)
+        Self::new_channel(DecodedLength::CHUNKED)
     }
 
-    pub(crate) fn new_channel(content_length: Option<u64>) -> (Sender, Body) {
+    pub(crate) fn new_channel(content_length: DecodedLength) -> (Sender, Body) {
         let (tx, rx) = mpsc::channel(0);
         let (abort_tx, abort_rx) = oneshot::channel();
 
@@ -167,7 +168,7 @@ impl Body {
         Body { kind, extra: None }
     }
 
-    pub(crate) fn h2(recv: h2::RecvStream, content_length: Option<u64>) -> Self {
+    pub(crate) fn h2(recv: h2::RecvStream, content_length: DecodedLength) -> Self {
         Body::new(Kind::H2 {
             content_length,
             recv,
@@ -243,20 +244,19 @@ impl Body {
 
                 match ready!(Pin::new(rx).poll_next(cx)?) {
                     Some(chunk) => {
-                        if let Some(ref mut len) = *len {
-                            debug_assert!(*len >= chunk.len() as u64);
-                            *len -= chunk.len() as u64;
-                        }
+                        len.sub_if(chunk.len() as u64);
                         Poll::Ready(Some(Ok(chunk)))
                     }
                     None => Poll::Ready(None),
                 }
             }
             Kind::H2 {
-                recv: ref mut h2, ..
+                recv: ref mut h2,
+                content_length: ref mut len,
             } => match ready!(h2.poll_data(cx)) {
                 Some(Ok(bytes)) => {
                     let _ = h2.flow_control().release_capacity(bytes.len());
+                    len.sub_if(bytes.len() as u64);
                     Poll::Ready(Some(Ok(bytes)))
                 }
                 Some(Err(e)) => Poll::Ready(Some(Err(crate::Error::new_body(e)))),
@@ -317,7 +317,7 @@ impl HttpBody for Body {
     fn is_end_stream(&self) -> bool {
         match self.kind {
             Kind::Once(ref val) => val.is_none(),
-            Kind::Chan { content_length, .. } => content_length == Some(0),
+            Kind::Chan { content_length, .. } => content_length == DecodedLength::ZERO,
             Kind::H2 { recv: ref h2, .. } => h2.is_end_stream(),
             #[cfg(feature = "stream")]
             Kind::Wrapped(..) => false,
@@ -337,7 +337,7 @@ impl HttpBody for Body {
             Kind::Chan { content_length, .. } | Kind::H2 { content_length, .. } => {
                 let mut hint = SizeHint::default();
 
-                if let Some(content_length) = content_length {
+                if let Some(content_length) = content_length.into_opt() {
                     hint.set_exact(content_length as u64);
                 }
 
@@ -498,10 +498,47 @@ impl Sender {
 
     /// Aborts the body in an abnormal fashion.
     pub fn abort(self) {
+        // TODO(sean): this can just be `self.tx.clone().try_send()`
         let _ = self.abort_tx.send(());
     }
 
     pub(crate) fn send_error(&mut self, err: crate::Error) {
         let _ = self.tx.try_send(Err(err));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::mem;
+
+    use super::{Body, Sender};
+
+    #[test]
+    fn test_size_of() {
+        // These are mostly to help catch *accidentally* increasing
+        // the size by too much.
+        assert_eq!(
+            mem::size_of::<Body>(),
+            mem::size_of::<usize>() * 5 + mem::size_of::<u64>(),
+            "Body"
+        );
+
+        assert_eq!(
+            mem::size_of::<Body>(),
+            mem::size_of::<Option<Body>>(),
+            "Option<Body>"
+        );
+
+        assert_eq!(
+            mem::size_of::<Sender>(),
+            mem::size_of::<usize>() * 4,
+            "Sender"
+        );
+
+        assert_eq!(
+            mem::size_of::<Sender>(),
+            mem::size_of::<Option<Sender>>(),
+            "Option<Sender>"
+        );
     }
 }

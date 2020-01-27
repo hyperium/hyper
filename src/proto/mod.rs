@@ -1,7 +1,7 @@
 //! Pieces pertaining to the HTTP message protocol.
 use http::{HeaderMap, Method, StatusCode, Uri, Version};
 
-use self::body_length::DecodedLength;
+pub(crate) use self::body_length::DecodedLength;
 pub(crate) use self::h1::{dispatch, Conn, ServerTransaction};
 
 pub(crate) mod h1;
@@ -90,6 +90,15 @@ mod body_length {
                 Err(crate::error::Parse::TooLarge)
             }
         }
+
+        pub(crate) fn sub_if(&mut self, amt: u64) {
+            match *self {
+                DecodedLength::CHUNKED | DecodedLength::CLOSE_DELIMITED => (),
+                DecodedLength(ref mut known) => {
+                    *known -= amt;
+                }
+            }
+        }
     }
 
     impl fmt::Debug for DecodedLength {
@@ -110,6 +119,27 @@ mod body_length {
                 DecodedLength::ZERO => f.write_str("empty"),
                 DecodedLength(n) => write!(f, "content-length ({} bytes)", n),
             }
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn sub_if_known() {
+            let mut len = DecodedLength::new(30);
+            len.sub_if(20);
+
+            assert_eq!(len.0, 10);
+        }
+
+        #[test]
+        fn sub_if_chunked() {
+            let mut len = DecodedLength::CHUNKED;
+            len.sub_if(20);
+
+            assert_eq!(len, DecodedLength::CHUNKED);
         }
     }
 }

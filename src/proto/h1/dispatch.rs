@@ -239,7 +239,7 @@ where
                 let mut body = match body_len {
                     DecodedLength::ZERO => Body::empty(),
                     other => {
-                        let (tx, rx) = Body::new_channel(other.into_opt());
+                        let (tx, rx) = Body::new_channel(other);
                         self.body_tx = Some(tx);
                         rx
                     }

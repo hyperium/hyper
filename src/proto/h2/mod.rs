@@ -7,8 +7,10 @@ use http::header::{
 use http::HeaderMap;
 use pin_project::pin_project;
 
+use super::DecodedLength;
 use crate::body::Payload;
 use crate::common::{task, Future, Pin, Poll};
+use crate::headers::content_length_parse_all;
 
 pub(crate) mod client;
 pub(crate) mod server;
@@ -68,6 +70,15 @@ fn strip_connection_headers(headers: &mut HeaderMap, is_request: bool) {
             let name = name.trim();
             headers.remove(name);
         }
+    }
+}
+
+fn decode_content_length(headers: &HeaderMap) -> DecodedLength {
+    if let Some(len) = content_length_parse_all(headers) {
+        // If the length is u64::MAX, oh well, just reported chunked.
+        DecodedLength::checked_new(len).unwrap_or_else(|_| DecodedLength::CHUNKED)
+    } else {
+        DecodedLength::CHUNKED
     }
 }
 
