@@ -107,6 +107,11 @@ path = "examples/echo.rs"
 required-features = ["runtime", "stream"]
 
 [[example]]
+name = "gateway"
+path = "examples/gateway.rs"
+required-features = ["runtime"]
+
+[[example]]
 name = "hello"
 path = "examples/hello.rs"
 required-features = ["runtime"]
@@ -125,11 +130,6 @@ required-features = ["runtime"]
 name = "params"
 path = "examples/params.rs"
 required-features = ["runtime", "stream"]
-
-[[example]]
-name = "proxy"
-path = "examples/proxy.rs"
-required-features = ["runtime"]
 
 [[example]]
 name = "send_file"
