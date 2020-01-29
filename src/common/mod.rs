@@ -14,6 +14,7 @@ pub(crate) mod io;
 mod lazy;
 mod never;
 pub(crate) mod task;
+pub(crate) mod watch;
 
 pub use self::exec::Executor;
 pub(crate) use self::exec::{BoxSendFuture, Exec};

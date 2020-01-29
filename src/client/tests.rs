@@ -1,15 +1,30 @@
-// FIXME: re-implement tests with `async/await`
+use std::io;
+
+use futures_util::future;
+use tokio::net::TcpStream;
+
+use super::Client;
+
+#[tokio::test]
+async fn client_connect_uri_argument() {
+    let connector = tower_util::service_fn(|dst: http::Uri| {
+        assert_eq!(dst.scheme(), Some(&http::uri::Scheme::HTTP));
+        assert_eq!(dst.host(), Some("example.local"));
+        assert_eq!(dst.port(), None);
+        assert_eq!(dst.path(), "/", "path should be removed");
+
+        future::err::<TcpStream, _>(io::Error::new(io::ErrorKind::Other, "expect me"))
+    });
+
+    let client = Client::builder().build::<_, crate::Body>(connector);
+    let _ = client
+        .get("http://example.local/and/a/path".parse().unwrap())
+        .await
+        .expect_err("response should fail");
+}
+
 /*
-#![cfg(feature = "runtime")]
-
-use futures::{Async, Future, Stream};
-use futures::future::poll_fn;
-use futures::sync::oneshot;
-use tokio::runtime::current_thread::Runtime;
-
-use crate::mock::MockConnector;
-use super::*;
-
+// FIXME: re-implement tests with `async/await`
 #[test]
 fn retryable_request() {
     let _ = pretty_env_logger::try_init();

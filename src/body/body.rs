@@ -11,7 +11,8 @@ use futures_util::TryStreamExt;
 use http::HeaderMap;
 use http_body::{Body as HttpBody, SizeHint};
 
-use crate::common::{task, Future, Never, Pin, Poll};
+use crate::common::{task, watch, Future, Never, Pin, Poll};
+use crate::proto::DecodedLength;
 use crate::upgrade::OnUpgrade;
 
 type BodySender = mpsc::Sender<Result<Bytes, crate::Error>>;
@@ -31,12 +32,12 @@ pub struct Body {
 enum Kind {
     Once(Option<Bytes>),
     Chan {
-        content_length: Option<u64>,
-        abort_rx: oneshot::Receiver<()>,
+        content_length: DecodedLength,
+        want_tx: watch::Sender,
         rx: mpsc::Receiver<Result<Bytes, crate::Error>>,
     },
     H2 {
-        content_length: Option<u64>,
+        content_length: DecodedLength,
         recv: h2::RecvStream,
     },
     // NOTE: This requires `Sync` because of how easy it is to use `await`
@@ -78,11 +79,13 @@ enum DelayEof {
 /// Useful when wanting to stream chunks from another thread. See
 /// [`Body::channel`](Body::channel) for more.
 #[must_use = "Sender does nothing unless sent on"]
-#[derive(Debug)]
 pub struct Sender {
-    abort_tx: oneshot::Sender<()>,
+    want_rx: watch::Receiver,
     tx: BodySender,
 }
+
+const WANT_PENDING: usize = 1;
+const WANT_READY: usize = 2;
 
 impl Body {
     /// Create an empty `Body` stream.
@@ -105,17 +108,22 @@ impl Body {
     /// Useful when wanting to stream chunks from another thread.
     #[inline]
     pub fn channel() -> (Sender, Body) {
-        Self::new_channel(None)
+        Self::new_channel(DecodedLength::CHUNKED, /*wanter =*/ false)
     }
 
-    pub(crate) fn new_channel(content_length: Option<u64>) -> (Sender, Body) {
+    pub(crate) fn new_channel(content_length: DecodedLength, wanter: bool) -> (Sender, Body) {
         let (tx, rx) = mpsc::channel(0);
-        let (abort_tx, abort_rx) = oneshot::channel();
 
-        let tx = Sender { abort_tx, tx };
+        // If wanter is true, `Sender::poll_ready()` won't becoming ready
+        // until the `Body` has been polled for data once.
+        let want = if wanter { WANT_PENDING } else { WANT_READY };
+
+        let (want_tx, want_rx) = watch::channel(want);
+
+        let tx = Sender { want_rx, tx };
         let rx = Body::new(Kind::Chan {
             content_length,
-            abort_rx,
+            want_tx,
             rx,
         });
 
@@ -167,7 +175,7 @@ impl Body {
         Body { kind, extra: None }
     }
 
-    pub(crate) fn h2(recv: h2::RecvStream, content_length: Option<u64>) -> Self {
+    pub(crate) fn h2(recv: h2::RecvStream, content_length: DecodedLength) -> Self {
         Body::new(Kind::H2 {
             content_length,
             recv,
@@ -235,28 +243,25 @@ impl Body {
             Kind::Chan {
                 content_length: ref mut len,
                 ref mut rx,
-                ref mut abort_rx,
+                ref mut want_tx,
             } => {
-                if let Poll::Ready(Ok(())) = Pin::new(abort_rx).poll(cx) {
-                    return Poll::Ready(Some(Err(crate::Error::new_body_write_aborted())));
-                }
+                want_tx.send(WANT_READY);
 
                 match ready!(Pin::new(rx).poll_next(cx)?) {
                     Some(chunk) => {
-                        if let Some(ref mut len) = *len {
-                            debug_assert!(*len >= chunk.len() as u64);
-                            *len -= chunk.len() as u64;
-                        }
+                        len.sub_if(chunk.len() as u64);
                         Poll::Ready(Some(Ok(chunk)))
                     }
                     None => Poll::Ready(None),
                 }
             }
             Kind::H2 {
-                recv: ref mut h2, ..
+                recv: ref mut h2,
+                content_length: ref mut len,
             } => match ready!(h2.poll_data(cx)) {
                 Some(Ok(bytes)) => {
                     let _ = h2.flow_control().release_capacity(bytes.len());
+                    len.sub_if(bytes.len() as u64);
                     Poll::Ready(Some(Ok(bytes)))
                 }
                 Some(Err(e)) => Poll::Ready(Some(Err(crate::Error::new_body(e)))),
@@ -317,7 +322,7 @@ impl HttpBody for Body {
     fn is_end_stream(&self) -> bool {
         match self.kind {
             Kind::Once(ref val) => val.is_none(),
-            Kind::Chan { content_length, .. } => content_length == Some(0),
+            Kind::Chan { content_length, .. } => content_length == DecodedLength::ZERO,
             Kind::H2 { recv: ref h2, .. } => h2.is_end_stream(),
             #[cfg(feature = "stream")]
             Kind::Wrapped(..) => false,
@@ -337,7 +342,7 @@ impl HttpBody for Body {
             Kind::Chan { content_length, .. } | Kind::H2 { content_length, .. } => {
                 let mut hint = SizeHint::default();
 
-                if let Some(content_length) = content_length {
+                if let Some(content_length) = content_length.into_opt() {
                     hint.set_exact(content_length as u64);
                 }
 
@@ -460,19 +465,29 @@ impl From<Cow<'static, str>> for Body {
 impl Sender {
     /// Check to see if this `Sender` can send more data.
     pub fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
-        match self.abort_tx.poll_canceled(cx) {
-            Poll::Ready(()) => return Poll::Ready(Err(crate::Error::new_closed())),
-            Poll::Pending => (), // fallthrough
-        }
-
+        // Check if the receiver end has tried polling for the body yet
+        ready!(self.poll_want(cx)?);
         self.tx
             .poll_ready(cx)
             .map_err(|_| crate::Error::new_closed())
     }
 
+    fn poll_want(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+        match self.want_rx.load(cx) {
+            WANT_READY => Poll::Ready(Ok(())),
+            WANT_PENDING => Poll::Pending,
+            watch::CLOSED => Poll::Ready(Err(crate::Error::new_closed())),
+            unexpected => unreachable!("want_rx value: {}", unexpected),
+        }
+    }
+
+    async fn ready(&mut self) -> crate::Result<()> {
+        futures_util::future::poll_fn(|cx| self.poll_ready(cx)).await
+    }
+
     /// Send data on this channel when it is ready.
     pub async fn send_data(&mut self, chunk: Bytes) -> crate::Result<()> {
-        futures_util::future::poll_fn(|cx| self.poll_ready(cx)).await?;
+        self.ready().await?;
         self.tx
             .try_send(Ok(chunk))
             .map_err(|_| crate::Error::new_closed())
@@ -498,10 +513,161 @@ impl Sender {
 
     /// Aborts the body in an abnormal fashion.
     pub fn abort(self) {
-        let _ = self.abort_tx.send(());
+        let _ = self
+            .tx
+            // clone so the send works even if buffer is full
+            .clone()
+            .try_send(Err(crate::Error::new_body_write_aborted()));
     }
 
     pub(crate) fn send_error(&mut self, err: crate::Error) {
         let _ = self.tx.try_send(Err(err));
+    }
+}
+
+impl fmt::Debug for Sender {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        #[derive(Debug)]
+        struct Open;
+        #[derive(Debug)]
+        struct Closed;
+
+        let mut builder = f.debug_tuple("Sender");
+        match self.want_rx.peek() {
+            watch::CLOSED => builder.field(&Closed),
+            _ => builder.field(&Open),
+        };
+
+        builder.finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::mem;
+    use std::task::Poll;
+
+    use super::{Body, DecodedLength, HttpBody, Sender};
+
+    #[test]
+    fn test_size_of() {
+        // These are mostly to help catch *accidentally* increasing
+        // the size by too much.
+        assert_eq!(
+            mem::size_of::<Body>(),
+            mem::size_of::<usize>() * 5 + mem::size_of::<u64>(),
+            "Body"
+        );
+
+        assert_eq!(
+            mem::size_of::<Body>(),
+            mem::size_of::<Option<Body>>(),
+            "Option<Body>"
+        );
+
+        assert_eq!(
+            mem::size_of::<Sender>(),
+            mem::size_of::<usize>() * 4,
+            "Sender"
+        );
+
+        assert_eq!(
+            mem::size_of::<Sender>(),
+            mem::size_of::<Option<Sender>>(),
+            "Option<Sender>"
+        );
+    }
+
+    #[tokio::test]
+    async fn channel_abort() {
+        let (tx, mut rx) = Body::channel();
+
+        tx.abort();
+
+        let err = rx.data().await.unwrap().unwrap_err();
+        assert!(err.is_body_write_aborted(), "{:?}", err);
+    }
+
+    #[tokio::test]
+    async fn channel_abort_when_buffer_is_full() {
+        let (mut tx, mut rx) = Body::channel();
+
+        tx.try_send_data("chunk 1".into()).expect("send 1");
+        // buffer is full, but can still send abort
+        tx.abort();
+
+        let chunk1 = rx.data().await.expect("item 1").expect("chunk 1");
+        assert_eq!(chunk1, "chunk 1");
+
+        let err = rx.data().await.unwrap().unwrap_err();
+        assert!(err.is_body_write_aborted(), "{:?}", err);
+    }
+
+    #[test]
+    fn channel_buffers_one() {
+        let (mut tx, _rx) = Body::channel();
+
+        tx.try_send_data("chunk 1".into()).expect("send 1");
+
+        // buffer is now full
+        let chunk2 = tx.try_send_data("chunk 2".into()).expect_err("send 2");
+        assert_eq!(chunk2, "chunk 2");
+    }
+
+    #[tokio::test]
+    async fn channel_empty() {
+        let (_, mut rx) = Body::channel();
+
+        assert!(rx.data().await.is_none());
+    }
+
+    #[test]
+    fn channel_ready() {
+        let (mut tx, _rx) = Body::new_channel(DecodedLength::CHUNKED, /*wanter = */ false);
+
+        let mut tx_ready = tokio_test::task::spawn(tx.ready());
+
+        assert!(tx_ready.poll().is_ready(), "tx is ready immediately");
+    }
+
+    #[test]
+    fn channel_wanter() {
+        let (mut tx, mut rx) = Body::new_channel(DecodedLength::CHUNKED, /*wanter = */ true);
+
+        let mut tx_ready = tokio_test::task::spawn(tx.ready());
+        let mut rx_data = tokio_test::task::spawn(rx.data());
+
+        assert!(
+            tx_ready.poll().is_pending(),
+            "tx isn't ready before rx has been polled"
+        );
+
+        assert!(rx_data.poll().is_pending(), "poll rx.data");
+        assert!(tx_ready.is_woken(), "rx poll wakes tx");
+
+        assert!(
+            tx_ready.poll().is_ready(),
+            "tx is ready after rx has been polled"
+        );
+    }
+
+    #[test]
+    fn channel_notices_closure() {
+        let (mut tx, rx) = Body::new_channel(DecodedLength::CHUNKED, /*wanter = */ true);
+
+        let mut tx_ready = tokio_test::task::spawn(tx.ready());
+
+        assert!(
+            tx_ready.poll().is_pending(),
+            "tx isn't ready before rx has been polled"
+        );
+
+        drop(rx);
+        assert!(tx_ready.is_woken(), "dropping rx wakes tx");
+
+        match tx_ready.poll() {
+            Poll::Ready(Err(ref e)) if e.is_closed() => (),
+            unexpected => panic!("tx poll ready unexpected: {:?}", unexpected),
+        }
     }
 }

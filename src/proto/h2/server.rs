@@ -6,12 +6,11 @@ use h2::Reason;
 use pin_project::{pin_project, project};
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use super::{PipeToSendStream, SendBuf};
+use super::{decode_content_length, PipeToSendStream, SendBuf};
 use crate::body::Payload;
 use crate::common::exec::H2Exec;
 use crate::common::{task, Future, Pin, Poll};
 use crate::headers;
-use crate::headers::content_length_parse_all;
 use crate::proto::Dispatched;
 use crate::service::HttpService;
 
@@ -168,7 +167,7 @@ where
                 match ready!(self.conn.poll_accept(cx)) {
                     Some(Ok((req, respond))) => {
                         trace!("incoming request");
-                        let content_length = content_length_parse_all(req.headers());
+                        let content_length = decode_content_length(req.headers());
                         let req = req.map(|stream| crate::Body::h2(stream, content_length));
                         let fut = H2Stream::new(service.call(req), respond);
                         exec.execute_h2stream(fut);

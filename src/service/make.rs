@@ -15,7 +15,6 @@ pub trait MakeConnection<Target>: self::sealed::Sealed<(Target,)> {
     type Future: Future<Output = Result<Self::Connection, Self::Error>>;
 
     fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>>;
-
     fn make_connection(&mut self, target: Target) -> Self::Future;
 }
 
@@ -144,7 +143,8 @@ where
     MakeServiceFn { f }
 }
 
-// Not exported from crate as this will likely be replaced with `impl Service`.
+/// `MakeService` returned from [`make_service_fn`]
+#[derive(Clone, Copy)]
 pub struct MakeServiceFn<F> {
     f: F,
 }

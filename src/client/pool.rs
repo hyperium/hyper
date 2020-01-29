@@ -52,7 +52,7 @@ pub(super) enum Reservation<T> {
 }
 
 /// Simple type alias in case the key type needs to be adjusted.
-pub(super) type Key = Arc<String>;
+pub(super) type Key = (http::uri::Scheme, http::uri::Authority); //Arc<String>;
 
 struct PoolInner<T> {
     // A flag that a connection is being established, and the connection
@@ -755,7 +755,6 @@ impl<T> WeakOpt<T> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use std::task::Poll;
     use std::time::Duration;
 
@@ -787,6 +786,10 @@ mod tests {
         }
     }
 
+    fn host_key(s: &str) -> Key {
+        (http::uri::Scheme::HTTP, s.parse().expect("host key"))
+    }
+
     fn pool_no_timer<T>() -> Pool<T> {
         pool_max_idle_no_timer(::std::usize::MAX)
     }
@@ -807,7 +810,7 @@ mod tests {
     #[tokio::test]
     async fn test_pool_checkout_smoke() {
         let pool = pool_no_timer();
-        let key = Arc::new("foo".to_string());
+        let key = host_key("foo");
         let pooled = pool.pooled(c(key.clone()), Uniq(41));
 
         drop(pooled);
@@ -839,7 +842,7 @@ mod tests {
     #[tokio::test]
     async fn test_pool_checkout_returns_none_if_expired() {
         let pool = pool_no_timer();
-        let key = Arc::new("foo".to_string());
+        let key = host_key("foo");
         let pooled = pool.pooled(c(key.clone()), Uniq(41));
 
         drop(pooled);
@@ -854,7 +857,7 @@ mod tests {
     #[tokio::test]
     async fn test_pool_checkout_removes_expired() {
         let pool = pool_no_timer();
-        let key = Arc::new("foo".to_string());
+        let key = host_key("foo");
 
         pool.pooled(c(key.clone()), Uniq(41));
         pool.pooled(c(key.clone()), Uniq(5));
@@ -876,7 +879,7 @@ mod tests {
     #[test]
     fn test_pool_max_idle_per_host() {
         let pool = pool_max_idle_no_timer(2);
-        let key = Arc::new("foo".to_string());
+        let key = host_key("foo");
 
         pool.pooled(c(key.clone()), Uniq(41));
         pool.pooled(c(key.clone()), Uniq(5));
@@ -904,7 +907,7 @@ mod tests {
             &Exec::Default,
         );
 
-        let key = Arc::new("foo".to_string());
+        let key = host_key("foo");
 
         pool.pooled(c(key.clone()), Uniq(41));
         pool.pooled(c(key.clone()), Uniq(5));
@@ -929,7 +932,7 @@ mod tests {
         use futures_util::FutureExt;
 
         let pool = pool_no_timer();
-        let key = Arc::new("foo".to_string());
+        let key = host_key("foo");
         let pooled = pool.pooled(c(key.clone()), Uniq(41));
 
         let checkout = join(pool.checkout(key), async {
@@ -948,7 +951,7 @@ mod tests {
     #[tokio::test]
     async fn test_pool_checkout_drop_cleans_up_waiters() {
         let pool = pool_no_timer::<Uniq<i32>>();
-        let key = Arc::new("localhost:12345".to_string());
+        let key = host_key("foo");
 
         let mut checkout1 = pool.checkout(key.clone());
         let mut checkout2 = pool.checkout(key.clone());
@@ -993,7 +996,7 @@ mod tests {
     #[test]
     fn pooled_drop_if_closed_doesnt_reinsert() {
         let pool = pool_no_timer();
-        let key = Arc::new("localhost:12345".to_string());
+        let key = host_key("foo");
         pool.pooled(
             c(key.clone()),
             CanClose {

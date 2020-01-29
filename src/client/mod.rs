@@ -50,7 +50,6 @@
 
 use std::fmt;
 use std::mem;
-use std::sync::Arc;
 use std::time::Duration;
 
 use futures_channel::oneshot;
@@ -230,14 +229,13 @@ where
             other => return ResponseFuture::error_version(other),
         };
 
-        let domain = match extract_domain(req.uri_mut(), is_http_connect) {
+        let pool_key = match extract_domain(req.uri_mut(), is_http_connect) {
             Ok(s) => s,
             Err(err) => {
                 return ResponseFuture::new(Box::new(future::err(err)));
             }
         };
 
-        let pool_key = Arc::new(domain);
         ResponseFuture::new(Box::new(self.retryably_send_request(req, pool_key)))
     }
 
@@ -281,7 +279,7 @@ where
         mut req: Request<B>,
         pool_key: PoolKey,
     ) -> impl Future<Output = Result<Response<Body>, ClientError<B>>> + Unpin {
-        let conn = self.connection_for(req.uri().clone(), pool_key);
+        let conn = self.connection_for(pool_key);
 
         let set_host = self.config.set_host;
         let executor = self.conn_builder.exec.clone();
@@ -377,7 +375,6 @@ where
 
     fn connection_for(
         &self,
-        uri: Uri,
         pool_key: PoolKey,
     ) -> impl Future<Output = Result<Pooled<PoolClient<B>>, ClientError<B>>> {
         // This actually races 2 different futures to try to get a ready
@@ -394,7 +391,7 @@ where
         //   connection future is spawned into the runtime to complete,
         //   and then be inserted into the pool as an idle connection.
         let checkout = self.pool.checkout(pool_key.clone());
-        let connect = self.connect_to(uri, pool_key);
+        let connect = self.connect_to(pool_key);
 
         let executor = self.conn_builder.exec.clone();
         // The order of the `select` is depended on below...
@@ -455,7 +452,6 @@ where
 
     fn connect_to(
         &self,
-        uri: Uri,
         pool_key: PoolKey,
     ) -> impl Lazy<Output = crate::Result<Pooled<PoolClient<B>>>> + Unpin {
         let executor = self.conn_builder.exec.clone();
@@ -464,7 +460,7 @@ where
         let ver = self.config.ver;
         let is_ver_h2 = ver == Ver::Http2;
         let connector = self.connector.clone();
-        let dst = uri;
+        let dst = domain_as_uri(pool_key.clone());
         hyper_lazy(move || {
             // Try to take a "connecting lock".
             //
@@ -794,28 +790,37 @@ fn authority_form(uri: &mut Uri) {
     };
 }
 
-fn extract_domain(uri: &mut Uri, is_http_connect: bool) -> crate::Result<String> {
+fn extract_domain(uri: &mut Uri, is_http_connect: bool) -> crate::Result<PoolKey> {
     let uri_clone = uri.clone();
     match (uri_clone.scheme(), uri_clone.authority()) {
-        (Some(scheme), Some(auth)) => Ok(format!("{}://{}", scheme, auth)),
+        (Some(scheme), Some(auth)) => Ok((scheme.clone(), auth.clone())),
         (None, Some(auth)) if is_http_connect => {
             let scheme = match auth.port_u16() {
                 Some(443) => {
                     set_scheme(uri, Scheme::HTTPS);
-                    "https"
+                    Scheme::HTTPS
                 }
                 _ => {
                     set_scheme(uri, Scheme::HTTP);
-                    "http"
+                    Scheme::HTTP
                 }
             };
-            Ok(format!("{}://{}", scheme, auth))
+            Ok((scheme, auth.clone()))
         }
         _ => {
             debug!("Client requires absolute-form URIs, received: {:?}", uri);
             Err(crate::Error::new_user_absolute_uri_required())
         }
     }
+}
+
+fn domain_as_uri((scheme, auth): PoolKey) -> Uri {
+    http::uri::Builder::new()
+        .scheme(scheme)
+        .authority(auth)
+        .path_and_query("/")
+        .build()
+        .expect("domain is valid Uri")
 }
 
 fn set_scheme(uri: &mut Uri, scheme: Scheme) {
@@ -1126,7 +1131,8 @@ mod unit_tests {
     #[test]
     fn test_extract_domain_connect_no_port() {
         let mut uri = "hyper.rs".parse().unwrap();
-        let domain = extract_domain(&mut uri, true).expect("extract domain");
-        assert_eq!(domain, "http://hyper.rs");
+        let (scheme, host) = extract_domain(&mut uri, true).expect("extract domain");
+        assert_eq!(scheme, *"http");
+        assert_eq!(host, "hyper.rs");
     }
 }

@@ -4,11 +4,10 @@ use futures_util::stream::StreamExt as _;
 use h2::client::{Builder, SendRequest};
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use super::{PipeToSendStream, SendBuf};
+use super::{decode_content_length, PipeToSendStream, SendBuf};
 use crate::body::Payload;
 use crate::common::{task, Exec, Future, Never, Pin, Poll};
 use crate::headers;
-use crate::headers::content_length_parse_all;
 use crate::proto::Dispatched;
 use crate::{Body, Request, Response};
 
@@ -159,7 +158,7 @@ where
 
                     let fut = fut.map(move |result| match result {
                         Ok(res) => {
-                            let content_length = content_length_parse_all(res.headers());
+                            let content_length = decode_content_length(res.headers());
                             let res = res.map(|stream| crate::Body::h2(stream, content_length));
                             Ok(res)
                         }
