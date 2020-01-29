@@ -12,7 +12,7 @@ Most of these examples use these dependencies:
 [dependencies]
 hyper = "0.13"
 tokio = { version = "0.2", features = ["full"] }
-pretty_env_logger = "0.3"
+pretty_env_logger = "0.4"
 ```
 
 ## Getting Started
