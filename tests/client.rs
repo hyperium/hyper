@@ -21,7 +21,7 @@ use tokio::net::TcpStream;
 use tokio::runtime::Runtime;
 
 fn s(buf: &[u8]) -> &str {
-    ::std::str::from_utf8(buf).expect("from_utf8")
+    std::str::from_utf8(buf).expect("from_utf8")
 }
 
 fn tcp_connect(addr: &SocketAddr) -> impl Future<Output = std::io::Result<TcpStream>> {
@@ -2503,7 +2503,7 @@ trait FutureHyperExt: TryFuture {
 impl<F> FutureHyperExt for F
 where
     F: TryFuture + 'static,
-    F::Error: ::std::fmt::Debug,
+    F::Error: std::fmt::Debug,
 {
     fn expect(self, msg: &'static str) -> Pin<Box<dyn Future<Output = Self::Ok>>> {
         Box::pin(

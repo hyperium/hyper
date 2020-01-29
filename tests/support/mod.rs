@@ -208,12 +208,12 @@ macro_rules! __internal_headers_map {
 
 macro_rules! __internal_headers_eq {
     (@pat $name: expr, $pat:pat) => {
-        ::std::sync::Arc::new(move |__hdrs: &hyper::HeaderMap| {
+        std::sync::Arc::new(move |__hdrs: &hyper::HeaderMap| {
             match __hdrs.get($name) {
                 $pat => (),
                 other => panic!("headers[{}] was not {}: {:?}", stringify!($name), stringify!($pat), other),
             }
-        }) as ::std::sync::Arc<dyn Fn(&hyper::HeaderMap) + Send + Sync>
+        }) as std::sync::Arc<dyn Fn(&hyper::HeaderMap) + Send + Sync>
     };
     (@val $name: expr, NONE) => {
         __internal_headers_eq!(@pat $name, None);
@@ -223,13 +223,13 @@ macro_rules! __internal_headers_eq {
     };
     (@val $name: expr, $val:expr) => ({
         let __val = Option::from($val);
-        ::std::sync::Arc::new(move |__hdrs: &hyper::HeaderMap| {
+        std::sync::Arc::new(move |__hdrs: &hyper::HeaderMap| {
             if let Some(ref val) = __val {
                 assert_eq!(__hdrs.get($name).expect(stringify!($name)), val.to_string().as_str(), stringify!($name));
             } else {
                 assert_eq!(__hdrs.get($name), None, stringify!($name));
             }
-        }) as ::std::sync::Arc<dyn Fn(&hyper::HeaderMap) + Send + Sync>
+        }) as std::sync::Arc<dyn Fn(&hyper::HeaderMap) + Send + Sync>
     });
     ($headers:ident, { $($name:expr => $val:tt,)* }) => {
         $(

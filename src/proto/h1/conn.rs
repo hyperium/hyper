@@ -777,7 +777,7 @@ impl fmt::Debug for Writing {
     }
 }
 
-impl ::std::ops::BitAndAssign<bool> for KA {
+impl std::ops::BitAndAssign<bool> for KA {
     fn bitand_assign(&mut self, enabled: bool) {
         if !enabled {
             trace!("remote disabling keep-alive");
@@ -1041,7 +1041,7 @@ mod tests {
         conn.state.idle();
 
         match conn.poll() {
-            Err(ref err) if err.kind() == ::std::io::ErrorKind::UnexpectedEof => {},
+            Err(ref err) if err.kind() == std::io::ErrorKind::UnexpectedEof => {},
             other => panic!("unexpected frame: {:?}", other)
         }
     }
@@ -1065,7 +1065,7 @@ mod tests {
             conn.state.busy();
 
             match conn.poll() {
-                Err(ref err) if err.kind() == ::std::io::ErrorKind::UnexpectedEof => {},
+                Err(ref err) if err.kind() == std::io::ErrorKind::UnexpectedEof => {},
                 other => panic!("unexpected frame: {:?}", other)
             }
             Ok(())

@@ -4,7 +4,7 @@ use std::fmt;
 use std::io;
 
 /// Result type often returned from methods that can have hyper `Error`s.
-pub type Result<T> = ::std::result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, Error>;
 
 type Cause = Box<dyn StdError + Send + Sync>;
 

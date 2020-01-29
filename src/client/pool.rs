@@ -171,7 +171,7 @@ impl<T: Poolable> Pool<T> {
     }
 
     #[cfg(test)]
-    fn locked(&self) -> ::std::sync::MutexGuard<'_, PoolInner<T>> {
+    fn locked(&self) -> std::sync::MutexGuard<'_, PoolInner<T>> {
         self.inner.as_ref().expect("enabled").lock().expect("lock")
     }
 
@@ -902,7 +902,7 @@ mod tests {
             super::Config {
                 enabled: true,
                 keep_alive_timeout: Some(Duration::from_millis(10)),
-                max_idle_per_host: ::std::usize::MAX,
+                max_idle_per_host: std::usize::MAX,
             },
             &Exec::Default,
         );

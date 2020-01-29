@@ -51,7 +51,7 @@ fn retryable_request() {
             try_ready!(sock1.read(&mut [0u8; 512]));
             try_ready!(sock1.write(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"));
             Ok(Async::Ready(()))
-        }).map_err(|e: ::std::io::Error| panic!("srv1 poll_fn error: {}", e));
+        }).map_err(|e: std::io::Error| panic!("srv1 poll_fn error: {}", e));
         rt.block_on(res1.join(srv1)).expect("res1");
     }
     drop(sock1);
@@ -68,7 +68,7 @@ fn retryable_request() {
         try_ready!(sock2.read(&mut [0u8; 512]));
         try_ready!(sock2.write(b"HTTP/1.1 222 OK\r\nContent-Length: 0\r\n\r\n"));
         Ok(Async::Ready(()))
-    }).map_err(|e: ::std::io::Error| panic!("srv2 poll_fn error: {}", e));
+    }).map_err(|e: std::io::Error| panic!("srv2 poll_fn error: {}", e));
 
     rt.block_on(res2.join(srv2)).expect("res2");
 }
@@ -97,7 +97,7 @@ fn conn_reset_after_write() {
             try_ready!(sock1.read(&mut [0u8; 512]));
             try_ready!(sock1.write(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"));
             Ok(Async::Ready(()))
-        }).map_err(|e: ::std::io::Error| panic!("srv1 poll_fn error: {}", e));
+        }).map_err(|e: std::io::Error| panic!("srv1 poll_fn error: {}", e));
         rt.block_on(res1.join(srv1)).expect("res1");
     }
 
@@ -117,7 +117,7 @@ fn conn_reset_after_write() {
         try_ready!(sock1.as_mut().unwrap().read(&mut [0u8; 512]));
         sock1.take();
         Ok(Async::Ready(()))
-    }).map_err(|e: ::std::io::Error| panic!("srv2 poll_fn error: {}", e));
+    }).map_err(|e: std::io::Error| panic!("srv2 poll_fn error: {}", e));
     let err = rt.block_on(res2.join(srv2)).expect_err("res2");
     assert!(err.is_incomplete_message(), "{:?}", err);
 }
@@ -159,7 +159,7 @@ fn checkout_win_allows_connect_future_to_be_pooled() {
                 0\r\n\r\n\
             "));
             Ok(Async::Ready(()))
-        }).map_err(|e: ::std::io::Error| panic!("srv1 poll_fn error: {}", e));
+        }).map_err(|e: std::io::Error| panic!("srv1 poll_fn error: {}", e));
 
         rt.block_on(res1.join(srv1)).expect("res1").0
     };
@@ -177,7 +177,7 @@ fn checkout_win_allows_connect_future_to_be_pooled() {
             try_ready!(sock1.read(&mut [0u8; 512]));
             try_ready!(sock1.write(b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\nx"));
             Ok(Async::Ready(()))
-        }).map_err(|e: ::std::io::Error| panic!("srv2 poll_fn error: {}", e));
+        }).map_err(|e: std::io::Error| panic!("srv2 poll_fn error: {}", e));
 
         rt.block_on(res2.join(drain).join(srv2)).expect("res2");
     }
@@ -214,7 +214,7 @@ fn checkout_win_allows_connect_future_to_be_pooled() {
             try_ready!(sock2.read(&mut [0u8; 512]));
             try_ready!(sock2.write(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"));
             Ok(Async::Ready(()))
-        }).map_err(|e: ::std::io::Error| panic!("srv3 poll_fn error: {}", e));
+        }).map_err(|e: std::io::Error| panic!("srv3 poll_fn error: {}", e));
 
         rt.block_on(res3.join(srv3)).expect("res3");
     }
@@ -247,7 +247,7 @@ fn bench_http1_get_0b(b: &mut test::Bencher) {
             try_ready!(sock1.read(&mut [0u8; 512]));
             try_ready!(sock1.write(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"));
             Ok(Async::Ready(()))
-        }).map_err(|e: ::std::io::Error| panic!("srv1 poll_fn error: {}", e));
+        }).map_err(|e: std::io::Error| panic!("srv1 poll_fn error: {}", e));
         rt.block_on(res1.join(srv1)).expect("res1");
     });
 }
@@ -279,7 +279,7 @@ fn bench_http1_get_10b(b: &mut test::Bencher) {
             try_ready!(sock1.read(&mut [0u8; 512]));
             try_ready!(sock1.write(b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\n0123456789"));
             Ok(Async::Ready(()))
-        }).map_err(|e: ::std::io::Error| panic!("srv1 poll_fn error: {}", e));
+        }).map_err(|e: std::io::Error| panic!("srv1 poll_fn error: {}", e));
         rt.block_on(res1.join(srv1)).expect("res1");
     });
 }

@@ -37,7 +37,7 @@ impl Duplex {
         let mut inner = DuplexInner {
             handle_read_task: None,
             read: AsyncIo::new_buf(Vec::new(), 0),
-            write: AsyncIo::new_buf(Vec::new(), ::std::usize::MAX),
+            write: AsyncIo::new_buf(Vec::new(), std::usize::MAX),
         };
 
         inner.read.park_tasks(true);

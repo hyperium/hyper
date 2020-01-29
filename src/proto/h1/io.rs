@@ -278,7 +278,7 @@ where
 {
     fn read_mem(&mut self, cx: &mut task::Context<'_>, len: usize) -> Poll<io::Result<Bytes>> {
         if !self.read_buf.is_empty() {
-            let n = ::std::cmp::min(len, self.read_buf.len());
+            let n = std::cmp::min(len, self.read_buf.len());
             Poll::Ready(Ok(self.read_buf.split_to(n).freeze()))
         } else {
             let n = ready!(self.poll_read_from_io(cx))?;
@@ -773,7 +773,7 @@ mod tests {
         }
 
         let mut max = 8192;
-        while max < ::std::usize::MAX {
+        while max < std::usize::MAX {
             fuzz(max);
             max = (max / 2).saturating_mul(3);
         }

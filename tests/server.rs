@@ -2157,7 +2157,7 @@ impl ServeOptions {
 }
 
 fn s(buf: &[u8]) -> &str {
-    ::std::str::from_utf8(buf).unwrap()
+    std::str::from_utf8(buf).unwrap()
 }
 
 fn has_header(msg: &str, name: &str) -> bool {
