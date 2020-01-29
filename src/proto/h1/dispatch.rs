@@ -4,7 +4,7 @@ use bytes::{Buf, Bytes};
 use http::{Request, Response, StatusCode};
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use super::Http1Transaction;
+use super::{Http1Transaction, Wants};
 use crate::body::{Body, Payload};
 use crate::common::{task, Future, Never, Pin, Poll, Unpin};
 use crate::proto::{
@@ -235,16 +235,16 @@ where
         }
         // dispatch is ready for a message, try to read one
         match ready!(self.conn.poll_read_head(cx)) {
-            Some(Ok((head, body_len, wants_upgrade))) => {
+            Some(Ok((head, body_len, wants))) => {
                 let mut body = match body_len {
                     DecodedLength::ZERO => Body::empty(),
                     other => {
-                        let (tx, rx) = Body::new_channel(other);
+                        let (tx, rx) = Body::new_channel(other, wants.contains(Wants::EXPECT));
                         self.body_tx = Some(tx);
                         rx
                     }
                 };
-                if wants_upgrade {
+                if wants.contains(Wants::UPGRADE) {
                     body.set_on_upgrade(self.conn.on_upgrade());
                 }
                 self.dispatch.recv_msg(Ok((head, body)))?;
