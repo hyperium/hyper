@@ -1,3 +1,21 @@
+### v0.13.2 (2020-01-29)
+
+
+#### Bug Fixes
+
+* **body:** return exactly 0 SizeHint for empty body (#2122) ([dc882047](https://github.com/hyperium/hyper/commit/dc88204716664d12e20598c78cb87cd44c6f23af))
+* **client:** strip path from Uri before calling Connector (#2109) ([ba2a144f](https://github.com/hyperium/hyper/commit/ba2a144f8b81042247088215425f91760d8694a1))
+* **http1:**
+  * only send `100 Continue` if request body is polled ([c4bb4db5](https://github.com/hyperium/hyper/commit/c4bb4db5c219459b37d796f9aa2b3cdc93325621))
+  * remove panic for HTTP upgrades that have been ignored (#2115) ([1881db63](https://github.com/hyperium/hyper/commit/1881db6391acc949384f8ddfcac8c82a2b133c8d), closes [#2114](https://github.com/hyperium/hyper/issues/2114))
+* **http2:** don't add client content-length if method doesn't require it ([fb90d30c](https://github.com/hyperium/hyper/commit/fb90d30c02d8f7cdc9a643597d5c4ca7a123f3dd))
+
+
+#### Features
+
+* **service:** Implement Clone/Copy on ServiceFn and MakeServiceFn (#2104) ([a5720fab](https://github.com/hyperium/hyper/commit/a5720fab4ced447b8ade43cc1ce8b35442ebf234))
+
+
 ### v0.13.1 (2019-12-13)
 
 
