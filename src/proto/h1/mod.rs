@@ -74,3 +74,22 @@ pub(crate) struct Encode<'a, T> {
     req_method: &'a mut Option<Method>,
     title_case_headers: bool,
 }
+
+/// Extra flags that a request "wants", like expect-continue or upgrades.
+#[derive(Clone, Copy, Debug)]
+struct Wants(u8);
+
+impl Wants {
+    const EMPTY: Wants = Wants(0b00);
+    const EXPECT: Wants = Wants(0b01);
+    const UPGRADE: Wants = Wants(0b10);
+
+    #[must_use]
+    fn add(self, other: Wants) -> Wants {
+        Wants(self.0 | other.0)
+    }
+
+    fn contains(&self, other: Wants) -> bool {
+        (self.0 & other.0) == other.0
+    }
+}
