@@ -331,19 +331,15 @@ impl HttpBody for Body {
 
     fn size_hint(&self) -> SizeHint {
         match self.kind {
-            Kind::Once(Some(ref val)) => {
-                let mut hint = SizeHint::default();
-                hint.set_exact(val.len() as u64);
-                hint
-            }
-            Kind::Once(None) => SizeHint::default(),
+            Kind::Once(Some(ref val)) => SizeHint::with_exact(val.len() as u64),
+            Kind::Once(None) => SizeHint::with_exact(0),
             #[cfg(feature = "stream")]
             Kind::Wrapped(..) => SizeHint::default(),
             Kind::Chan { content_length, .. } | Kind::H2 { content_length, .. } => {
                 let mut hint = SizeHint::default();
 
                 if let Some(content_length) = content_length.into_opt() {
-                    hint.set_exact(content_length as u64);
+                    hint.set_exact(content_length);
                 }
 
                 hint
@@ -547,7 +543,7 @@ mod tests {
     use std::mem;
     use std::task::Poll;
 
-    use super::{Body, DecodedLength, HttpBody, Sender};
+    use super::{Body, DecodedLength, HttpBody, Sender, SizeHint};
 
     #[test]
     fn test_size_of() {
@@ -575,6 +571,27 @@ mod tests {
             mem::size_of::<Sender>(),
             mem::size_of::<Option<Sender>>(),
             "Option<Sender>"
+        );
+    }
+
+    #[test]
+    fn size_hint() {
+        fn eq(body: Body, b: SizeHint, note: &str) {
+            let a = body.size_hint();
+            assert_eq!(a.lower(), b.lower(), "lower for {:?}", note);
+            assert_eq!(a.upper(), b.upper(), "upper for {:?}", note);
+        }
+
+        eq(Body::from("Hello"), SizeHint::with_exact(5), "from str");
+
+        eq(Body::empty(), SizeHint::with_exact(0), "empty");
+
+        eq(Body::channel().1, SizeHint::new(), "channel");
+
+        eq(
+            Body::new_channel(DecodedLength::new(4), /*wanter =*/ false).1,
+            SizeHint::with_exact(4),
+            "channel with length",
         );
     }
 
