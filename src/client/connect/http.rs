@@ -532,11 +532,11 @@ impl ConnectingTcpRemote {
             debug!("connecting to {}", addr);
             match connect(&addr, local_addr, reuse_address, self.connect_timeout)?.await {
                 Ok(tcp) => {
-                    debug!("connected to {:?}", tcp.peer_addr().ok());
+                    debug!("connected to {}", addr);
                     return Ok(tcp);
                 }
                 Err(e) => {
-                    trace!("connect error {:?}", e);
+                    trace!("connect error for {}: {:?}", addr, e);
                     err = Some(e);
                 }
             }
