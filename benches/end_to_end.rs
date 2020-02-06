@@ -337,16 +337,12 @@ fn spawn_server(rt: &mut tokio::runtime::Runtime, opts: &Opts) -> SocketAddr {
             .http2_only(opts.http2)
             .http2_initial_stream_window_size(opts.http2_stream_window)
             .http2_initial_connection_window_size(opts.http2_conn_window)
-            .serve(make_service_fn(move |_| {
-                async move {
-                    Ok::<_, hyper::Error>(service_fn(move |req: Request<Body>| {
-                        async move {
-                            let mut req_body = req.into_body();
-                            while let Some(_chunk) = req_body.data().await {}
-                            Ok::<_, hyper::Error>(Response::new(Body::from(body)))
-                        }
-                    }))
-                }
+            .serve(make_service_fn(move |_| async move {
+                Ok::<_, hyper::Error>(service_fn(move |req: Request<Body>| async move {
+                    let mut req_body = req.into_body();
+                    while let Some(_chunk) = req_body.data().await {}
+                    Ok::<_, hyper::Error>(Response::new(Body::from(body)))
+                }))
             }))
     });
     let addr = srv.local_addr();

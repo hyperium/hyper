@@ -1745,11 +1745,9 @@ mod dispatch_impl {
                 .http2_only(true)
                 .serve_connection(
                     socket,
-                    service_fn(|req| {
-                        async move {
-                            assert_eq!(req.headers().get("host"), None);
-                            Ok::<_, hyper::Error>(Response::new(Body::empty()))
-                        }
+                    service_fn(|req| async move {
+                        assert_eq!(req.headers().get("host"), None);
+                        Ok::<_, hyper::Error>(Response::new(Body::empty()))
                     }),
                 )
                 .await
@@ -2397,12 +2395,10 @@ mod conn {
 
         let server = Server::bind(&([127, 0, 0, 1], 0).into())
             .http2_only(true)
-            .serve(make_service_fn(|_| {
-                async move {
-                    Ok::<_, hyper::Error>(service_fn(|_req| {
-                        future::ok::<_, hyper::Error>(Response::new(Body::empty()))
-                    }))
-                }
+            .serve(make_service_fn(|_| async move {
+                Ok::<_, hyper::Error>(service_fn(|_req| {
+                    future::ok::<_, hyper::Error>(Response::new(Body::empty()))
+                }))
             }));
         let addr = server.local_addr();
         let (shdn_tx, shdn_rx) = oneshot::channel();

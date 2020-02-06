@@ -22,20 +22,16 @@ macro_rules! bench_server {
             let (addr_tx, addr_rx) = mpsc::channel();
             std::thread::spawn(move || {
                 let addr = "127.0.0.1:0".parse().unwrap();
-                let make_svc = make_service_fn(|_| {
-                    async {
-                        Ok::<_, hyper::Error>(service_fn(|_| {
-                            async {
-                                Ok::<_, hyper::Error>(
-                                    Response::builder()
-                                        .header($header.0, $header.1)
-                                        .header("content-type", "text/plain")
-                                        .body($body())
-                                        .unwrap(),
-                                )
-                            }
-                        }))
-                    }
+                let make_svc = make_service_fn(|_| async {
+                    Ok::<_, hyper::Error>(service_fn(|_| async {
+                        Ok::<_, hyper::Error>(
+                            Response::builder()
+                                .header($header.0, $header.1)
+                                .header("content-type", "text/plain")
+                                .body($body())
+                                .unwrap(),
+                        )
+                    }))
                 });
 
                 let mut rt = tokio::runtime::Builder::new()

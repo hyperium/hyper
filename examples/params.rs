@@ -81,8 +81,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let addr = ([127, 0, 0, 1], 1337).into();
 
-    let server = Server::bind(&addr).serve(make_service_fn(|_| {
-        async { Ok::<_, hyper::Error>(service_fn(param_example)) }
+    let server = Server::bind(&addr).serve(make_service_fn(|_| async {
+        Ok::<_, hyper::Error>(service_fn(param_example))
     }));
 
     println!("Listening on http://{}", addr);

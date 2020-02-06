@@ -25,12 +25,10 @@ fn hello_world(b: &mut test::Bencher) {
         std::thread::spawn(move || {
             let addr = "127.0.0.1:0".parse().unwrap();
 
-            let make_svc = make_service_fn(|_| {
-                async {
-                    Ok::<_, hyper::Error>(service_fn(|_| {
-                        async { Ok::<_, hyper::Error>(Response::new(Body::from("Hello, World!"))) }
-                    }))
-                }
+            let make_svc = make_service_fn(|_| async {
+                Ok::<_, hyper::Error>(service_fn(|_| async {
+                    Ok::<_, hyper::Error>(Response::new(Body::from("Hello, World!")))
+                }))
             });
 
             let mut rt = tokio::runtime::Builder::new()

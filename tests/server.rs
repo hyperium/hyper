@@ -1157,15 +1157,13 @@ async fn returning_1xx_response_is_error() {
     Http::new()
         .serve_connection(
             socket,
-            service_fn(|_| {
-                async move {
-                    Ok::<_, hyper::Error>(
-                        Response::builder()
-                            .status(StatusCode::CONTINUE)
-                            .body(Body::empty())
-                            .unwrap(),
-                    )
-                }
+            service_fn(|_| async move {
+                Ok::<_, hyper::Error>(
+                    Response::builder()
+                        .status(StatusCode::CONTINUE)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
             }),
         )
         .await
@@ -1741,8 +1739,8 @@ async fn http2_service_poll_ready_error_sends_goaway() {
 
     let server = hyper::Server::bind(&([127, 0, 0, 1], 0).into())
         .http2_only(true)
-        .serve(make_service_fn(|_| {
-            async move { Ok::<_, BoxError>(Http2ReadyErrorSvc) }
+        .serve(make_service_fn(|_| async move {
+            Ok::<_, BoxError>(Http2ReadyErrorSvc)
         }));
 
     let addr_str = format!("http://{}", server.local_addr());
