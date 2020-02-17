@@ -223,6 +223,17 @@ mod addr_stream {
         pub fn into_inner(self) -> TcpStream {
             self.inner
         }
+
+        /// Attempt to receive data on the socket, without removing that data
+        /// from the queue, registering the current task for wakeup if data is
+        /// not yet available.
+        pub fn poll_peek(
+            &mut self,
+            cx: &mut task::Context<'_>,
+            buf: &mut [u8],
+        ) -> Poll<io::Result<usize>> {
+            self.inner.poll_peek(cx, buf)
+        }
     }
 
     impl AsyncRead for AddrStream {
