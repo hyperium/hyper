@@ -224,7 +224,9 @@ mod addr_stream {
             self.inner
         }
 
-        /// Attempts to receive data on the socket, without removing that data from the queue, registering the current task for wakeup if data is not yet available.
+        /// Attempt to receive data on the socket, without removing that data
+        /// from the queue, registering the current task for wakeup if data is
+        /// not yet available.
         pub fn poll_peek(
             &mut self,
             cx: &mut task::Context<'_>,
