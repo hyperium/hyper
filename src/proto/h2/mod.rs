@@ -131,7 +131,14 @@ where
                             Some(Err(e)) => {
                                 return Poll::Ready(Err(crate::Error::new_body_write(e)))
                             }
-                            None => return Poll::Ready(Err(crate::Error::new_canceled())),
+                            None => {
+                                // None means the stream is no longer in a
+                                // streaming state, we either finished it
+                                // somehow, or the remote reset us.
+                                return Poll::Ready(Err(crate::Error::new_body_write(
+                                    "send stream capacity unexpectedly closed"
+                                )));
+                            }
                         }
                     }
                 } else if let Poll::Ready(reason) = me
