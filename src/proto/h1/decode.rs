@@ -406,6 +406,15 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "nightly")]
+    impl MemRead for Bytes {
+        fn read_mem(&mut self, _: &mut task::Context<'_>, len: usize) -> Poll<io::Result<Bytes>> {
+            let n = std::cmp::min(len, self.len());
+            let ret = self.split_to(n);
+            Poll::Ready(Ok(ret))
+        }
+    }
+
     /*
     use std::io;
     use std::io::Write;
@@ -609,5 +618,57 @@ mod tests {
     async fn test_read_eof_async() {
         let content = "foobar";
         all_async_cases(content, content, Decoder::eof()).await;
+    }
+
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_decode_chunked_1kb(b: &mut test::Bencher) {
+        let mut rt = new_runtime();
+
+        const LEN: usize = 1024;
+        let mut vec = Vec::new();
+        vec.extend(format!("{:x}\r\n", LEN).as_bytes());
+        vec.extend(&[0; LEN][..]);
+        vec.extend(b"\r\n");
+        let content = Bytes::from(vec);
+
+        b.bytes = LEN as u64;
+
+        b.iter(|| {
+            let mut decoder = Decoder::chunked();
+            rt.block_on(async {
+                let mut raw = content.clone();
+                let chunk = decoder.decode_fut(&mut raw).await.unwrap();
+                assert_eq!(chunk.len(), LEN);
+            });
+        });
+    }
+
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_decode_length_1kb(b: &mut test::Bencher) {
+        let mut rt = new_runtime();
+
+        const LEN: usize = 1024;
+        let content = Bytes::from(&[0; LEN][..]);
+        b.bytes = LEN as u64;
+
+        b.iter(|| {
+            let mut decoder = Decoder::length(LEN as u64);
+            rt.block_on(async {
+                let mut raw = content.clone();
+                let chunk = decoder.decode_fut(&mut raw).await.unwrap();
+                assert_eq!(chunk.len(), LEN);
+            });
+        });
+    }
+
+    #[cfg(feature = "nightly")]
+    fn new_runtime() -> tokio::runtime::Runtime {
+        tokio::runtime::Builder::new()
+            .enable_all()
+            .basic_scheduler()
+            .build()
+            .expect("rt build")
     }
 }
