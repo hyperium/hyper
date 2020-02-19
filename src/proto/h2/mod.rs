@@ -136,7 +136,7 @@ where
                                 // streaming state, we either finished it
                                 // somehow, or the remote reset us.
                                 return Poll::Ready(Err(crate::Error::new_body_write(
-                                    "send stream capacity unexpectedly closed"
+                                    "send stream capacity unexpectedly closed",
                                 )));
                             }
                         }
