@@ -59,6 +59,7 @@ pub use crate::server::Server;
 mod common;
 pub mod body;
 pub mod client;
+#[doc(hidden)] // Mistakenly public...
 pub mod error;
 mod headers;
 #[cfg(test)]
