@@ -996,6 +996,16 @@ impl Builder {
         self
     }
 
+    /// Sets whether to use an adaptive flow control.
+    ///
+    /// Enabling this will override the limits set in
+    /// `http2_initial_stream_window_size` and
+    /// `http2_initial_connection_window_size`.
+    pub fn http2_adaptive_window(&mut self, enabled: bool) -> &mut Self {
+        self.conn_builder.http2_adaptive_window(enabled);
+        self
+    }
+
     /// Sets the maximum idle connection per host allowed in the pool.
     ///
     /// Default is `usize::MAX` (no limit).
