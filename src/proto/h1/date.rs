@@ -3,7 +3,7 @@ use std::fmt::{self, Write};
 use std::str;
 
 use http::header::HeaderValue;
-use time::{self, Duration};
+use time::{Duration, OffsetDateTime, UtcOffset};
 
 // "Sun, 06 Nov 1994 08:49:37 GMT".len()
 pub const DATE_VALUE_LENGTH: usize = 29;
@@ -31,7 +31,7 @@ pub(crate) fn update_and_header_value() -> HeaderValue {
 struct CachedDate {
     bytes: [u8; DATE_VALUE_LENGTH],
     pos: usize,
-    next_update: time::Timespec,
+    next_update: OffsetDateTime,
 }
 
 thread_local!(static CACHED: RefCell<CachedDate> = RefCell::new(CachedDate::new()));
@@ -41,9 +41,9 @@ impl CachedDate {
         let mut cache = CachedDate {
             bytes: [0; DATE_VALUE_LENGTH],
             pos: 0,
-            next_update: time::Timespec::new(0, 0),
+            next_update: OffsetDateTime::unix_epoch(),
         };
-        cache.update(time::get_time());
+        cache.update(OffsetDateTime::now());
         cache
     }
 
@@ -52,18 +52,23 @@ impl CachedDate {
     }
 
     fn check(&mut self) {
-        let now = time::get_time();
+        let now = OffsetDateTime::now();
         if now > self.next_update {
             self.update(now);
         }
     }
 
-    fn update(&mut self, now: time::Timespec) {
+    fn update(&mut self, now: OffsetDateTime) {
         self.pos = 0;
-        let _ = write!(self, "{}", time::at_utc(now).rfc822());
+        let _ = write!(
+            self,
+            "{}",
+            now.to_offset(UtcOffset::UTC)
+                .format("%a, %d %b %Y %H:%M:%S GMT")
+        );
         debug_assert!(self.pos == DATE_VALUE_LENGTH);
-        self.next_update = now + Duration::seconds(1);
-        self.next_update.nsec = 0;
+        let nanosecond = self.next_update.time().nanosecond();
+        self.next_update = now + Duration::seconds(1) - Duration::nanoseconds(nanosecond as i64);
     }
 }
 

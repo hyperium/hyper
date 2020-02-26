@@ -4,6 +4,7 @@
 [![Released API docs](https://docs.rs/hyper/badge.svg)](https://docs.rs/hyper)
 [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![CI](https://github.com/hyperium/hyper/workflows/CI/badge.svg)](https://github.com/hyperium/hyper/actions?query=workflow%3ACI)
+[![Dependency Status](https://deps.rs/repo/github/hyperium/hyper/status.svg)](https://deps.rs/repo/github/hyperium/hyper)
 
 A **fast** and **correct** HTTP implementation for Rust.
 
