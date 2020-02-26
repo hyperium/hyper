@@ -1,12 +1,12 @@
 use std::error::Error as StdError;
 use std::marker::Unpin;
 
-use h2::server::{Builder, Connection, Handshake, SendResponse};
+use h2::server::{Connection, Handshake, SendResponse};
 use h2::Reason;
 use pin_project::{pin_project, project};
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use super::{decode_content_length, PipeToSendStream, SendBuf};
+use super::{bdp, decode_content_length, PipeToSendStream, SendBuf};
 use crate::body::Payload;
 use crate::common::exec::H2Exec;
 use crate::common::{task, Future, Pin, Poll};
@@ -15,6 +15,34 @@ use crate::proto::Dispatched;
 use crate::service::HttpService;
 
 use crate::{Body, Response};
+
+// Our defaults are chosen for the "majority" case, which usually are not
+// resource constrained, and so the spec default of 64kb can be too limiting
+// for performance.
+//
+// At the same time, a server more often has multiple clients connected, and
+// so is more likely to use more resources than a client would.
+const DEFAULT_CONN_WINDOW: u32 = 1024 * 1024; // 1mb
+const DEFAULT_STREAM_WINDOW: u32 = 1024 * 1024; // 1mb
+
+#[derive(Clone, Debug)]
+pub(crate) struct Config {
+    pub(crate) adaptive_window: bool,
+    pub(crate) initial_conn_window_size: u32,
+    pub(crate) initial_stream_window_size: u32,
+    pub(crate) max_concurrent_streams: Option<u32>,
+}
+
+impl Default for Config {
+    fn default() -> Config {
+        Config {
+            adaptive_window: false,
+            initial_conn_window_size: DEFAULT_CONN_WINDOW,
+            initial_stream_window_size: DEFAULT_STREAM_WINDOW,
+            max_concurrent_streams: None,
+        }
+    }
+}
 
 #[pin_project]
 pub(crate) struct Server<T, S, B, E>
@@ -31,7 +59,13 @@ enum State<T, B>
 where
     B: Payload,
 {
-    Handshaking(Handshake<T, SendBuf<B::Data>>),
+    Handshaking {
+        /// If Some, bdp is enabled with the initial size.
+        ///
+        /// If None, bdp is disabled.
+        bdp_initial_size: Option<u32>,
+        hs: Handshake<T, SendBuf<B::Data>>,
+    },
     Serving(Serving<T, B>),
     Closed,
 }
@@ -40,6 +74,7 @@ struct Serving<T, B>
 where
     B: Payload,
 {
+    bdp: Option<(bdp::Sampler, bdp::Estimator)>,
     conn: Connection<T, SendBuf<B::Data>>,
     closing: Option<crate::Error>,
 }
@@ -52,11 +87,28 @@ where
     B: Payload,
     E: H2Exec<S::Future, B>,
 {
-    pub(crate) fn new(io: T, service: S, builder: &Builder, exec: E) -> Server<T, S, B, E> {
+    pub(crate) fn new(io: T, service: S, config: &Config, exec: E) -> Server<T, S, B, E> {
+        let mut builder = h2::server::Builder::default();
+        builder
+            .initial_window_size(config.initial_stream_window_size)
+            .initial_connection_window_size(config.initial_conn_window_size);
+        if let Some(max) = config.max_concurrent_streams {
+            builder.max_concurrent_streams(max);
+        }
         let handshake = builder.handshake(io);
+
+        let bdp = if config.adaptive_window {
+            Some(config.initial_stream_window_size)
+        } else {
+            None
+        };
+
         Server {
             exec,
-            state: State::Handshaking(handshake),
+            state: State::Handshaking {
+                bdp_initial_size: bdp,
+                hs: handshake,
+            },
             service,
         }
     }
@@ -64,7 +116,7 @@ where
     pub fn graceful_shutdown(&mut self) {
         trace!("graceful_shutdown");
         match self.state {
-            State::Handshaking(..) => {
+            State::Handshaking { .. } => {
                 // fall-through, to replace state with Closed
             }
             State::Serving(ref mut srv) => {
@@ -95,9 +147,15 @@ where
         let me = &mut *self;
         loop {
             let next = match me.state {
-                State::Handshaking(ref mut h) => {
-                    let conn = ready!(Pin::new(h).poll(cx).map_err(crate::Error::new_h2))?;
+                State::Handshaking {
+                    ref mut hs,
+                    ref bdp_initial_size,
+                } => {
+                    let mut conn = ready!(Pin::new(hs).poll(cx).map_err(crate::Error::new_h2))?;
+                    let bdp = bdp_initial_size
+                        .map(|wnd| bdp::channel(conn.ping_pong().expect("ping_pong"), wnd));
                     State::Serving(Serving {
+                        bdp,
                         conn,
                         closing: None,
                     })
@@ -135,7 +193,12 @@ where
     {
         if self.closing.is_none() {
             loop {
-                // At first, polls the readiness of supplied service.
+                self.poll_bdp(cx);
+
+                // Check that the service is ready to accept a new request.
+                //
+                // - If not, just drive the connection some.
+                // - If ready, try to accept a new request from the connection.
                 match service.poll_ready(cx) {
                     Poll::Ready(Ok(())) => (),
                     Poll::Pending => {
@@ -168,7 +231,14 @@ where
                     Some(Ok((req, respond))) => {
                         trace!("incoming request");
                         let content_length = decode_content_length(req.headers());
-                        let req = req.map(|stream| crate::Body::h2(stream, content_length));
+                        let bdp_sampler = self
+                            .bdp
+                            .as_ref()
+                            .map(|bdp| bdp.0.clone())
+                            .unwrap_or_else(bdp::disabled);
+
+                        let req =
+                            req.map(|stream| crate::Body::h2(stream, content_length, bdp_sampler));
                         let fut = H2Stream::new(service.call(req), respond);
                         exec.execute_h2stream(fut);
                     }
@@ -192,6 +262,18 @@ where
         ready!(self.conn.poll_closed(cx).map_err(crate::Error::new_h2))?;
 
         Poll::Ready(Err(self.closing.take().expect("polled after error")))
+    }
+
+    fn poll_bdp(&mut self, cx: &mut task::Context<'_>) {
+        if let Some((_, ref mut estimator)) = self.bdp {
+            match estimator.poll_estimate(cx) {
+                Poll::Ready(wnd) => {
+                    self.conn.set_target_window_size(wnd);
+                    let _ = self.conn.set_initial_window_size(wnd);
+                }
+                Poll::Pending => {}
+            }
+        }
     }
 }
 

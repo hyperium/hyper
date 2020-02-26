@@ -4,7 +4,7 @@ use futures_util::stream::StreamExt as _;
 use h2::client::{Builder, SendRequest};
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use super::{decode_content_length, PipeToSendStream, SendBuf};
+use super::{bdp, decode_content_length, PipeToSendStream, SendBuf};
 use crate::body::Payload;
 use crate::common::{task, Exec, Future, Never, Pin, Poll};
 use crate::headers;
@@ -21,17 +21,43 @@ type ConnDropRef = mpsc::Sender<Never>;
 ///// the "dispatch" task will be notified and can shutdown sooner.
 type ConnEof = oneshot::Receiver<Never>;
 
+// Our defaults are chosen for the "majority" case, which usually are not
+// resource constrained, and so the spec default of 64kb can be too limiting
+// for performance.
+const DEFAULT_CONN_WINDOW: u32 = 1024 * 1024 * 5; // 5mb
+const DEFAULT_STREAM_WINDOW: u32 = 1024 * 1024 * 2; // 2mb
+
+#[derive(Clone, Debug)]
+pub(crate) struct Config {
+    pub(crate) adaptive_window: bool,
+    pub(crate) initial_conn_window_size: u32,
+    pub(crate) initial_stream_window_size: u32,
+}
+
+impl Default for Config {
+    fn default() -> Config {
+        Config {
+            adaptive_window: false,
+            initial_conn_window_size: DEFAULT_CONN_WINDOW,
+            initial_stream_window_size: DEFAULT_STREAM_WINDOW,
+        }
+    }
+}
+
 pub(crate) async fn handshake<T, B>(
     io: T,
     req_rx: ClientRx<B>,
-    builder: &Builder,
+    config: &Config,
     exec: Exec,
 ) -> crate::Result<ClientTask<B>>
 where
     T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
     B: Payload,
 {
-    let (h2_tx, conn) = builder
+    let (h2_tx, mut conn) = Builder::default()
+        .initial_window_size(config.initial_stream_window_size)
+        .initial_connection_window_size(config.initial_conn_window_size)
+        .enable_push(false)
         .handshake::<_, SendBuf<B::Data>>(io)
         .await
         .map_err(crate::Error::new_h2)?;
@@ -49,27 +75,34 @@ where
         }
     });
 
-    let conn = conn.map_err(|e| debug!("connection error: {}", e));
+    let sampler = if config.adaptive_window {
+        let (sampler, mut estimator) =
+            bdp::channel(conn.ping_pong().unwrap(), config.initial_stream_window_size);
 
-    let conn_task = async move {
-        match future::select(conn, conn_drop_rx).await {
-            Either::Left(_) => {
-                // ok or err, the `conn` has finished
+        let conn = future::poll_fn(move |cx| {
+            match estimator.poll_estimate(cx) {
+                Poll::Ready(wnd) => {
+                    conn.set_target_window_size(wnd);
+                    conn.set_initial_window_size(wnd)?;
+                }
+                Poll::Pending => {}
             }
-            Either::Right(((), conn)) => {
-                // mpsc has been dropped, hopefully polling
-                // the connection some more should start shutdown
-                // and then close
-                trace!("send_request dropped, starting conn shutdown");
-                drop(cancel_tx);
-                let _ = conn.await;
-            }
-        }
+
+            Pin::new(&mut conn).poll(cx)
+        });
+        let conn = conn.map_err(|e| debug!("connection error: {}", e));
+
+        exec.execute(conn_task(conn, conn_drop_rx, cancel_tx));
+        sampler
+    } else {
+        let conn = conn.map_err(|e| debug!("connection error: {}", e));
+
+        exec.execute(conn_task(conn, conn_drop_rx, cancel_tx));
+        bdp::disabled()
     };
 
-    exec.execute(conn_task);
-
     Ok(ClientTask {
+        bdp: sampler,
         conn_drop_ref,
         conn_eof,
         executor: exec,
@@ -78,10 +111,31 @@ where
     })
 }
 
+async fn conn_task<C, D>(conn: C, drop_rx: D, cancel_tx: oneshot::Sender<Never>)
+where
+    C: Future + Unpin,
+    D: Future<Output = ()> + Unpin,
+{
+    match future::select(conn, drop_rx).await {
+        Either::Left(_) => {
+            // ok or err, the `conn` has finished
+        }
+        Either::Right(((), conn)) => {
+            // mpsc has been dropped, hopefully polling
+            // the connection some more should start shutdown
+            // and then close
+            trace!("send_request dropped, starting conn shutdown");
+            drop(cancel_tx);
+            let _ = conn.await;
+        }
+    }
+}
+
 pub(crate) struct ClientTask<B>
 where
     B: Payload,
 {
+    bdp: bdp::Sampler,
     conn_drop_ref: ConnDropRef,
     conn_eof: ConnEof,
     executor: Exec,
@@ -156,10 +210,12 @@ where
                         }
                     }
 
+                    let bdp = self.bdp.clone();
                     let fut = fut.map(move |result| match result {
                         Ok(res) => {
                             let content_length = decode_content_length(res.headers());
-                            let res = res.map(|stream| crate::Body::h2(stream, content_length));
+                            let res =
+                                res.map(|stream| crate::Body::h2(stream, content_length, bdp));
                             Ok(res)
                         }
                         Err(err) => {

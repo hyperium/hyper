@@ -35,12 +35,6 @@ where
     H2(#[pin] proto::h2::ClientTask<B>),
 }
 
-// Our defaults are chosen for the "majority" case, which usually are not
-// resource constrained, and so the spec default of 64kb can be too limiting
-// for performance.
-const DEFAULT_HTTP2_CONN_WINDOW: u32 = 1024 * 1024 * 5; // 5mb
-const DEFAULT_HTTP2_STREAM_WINDOW: u32 = 1024 * 1024 * 2; // 2mb
-
 /// Returns a handshake future over some IO.
 ///
 /// This is a shortcut for `Builder::new().handshake(io)`.
@@ -82,7 +76,7 @@ pub struct Builder {
     h1_read_buf_exact_size: Option<usize>,
     h1_max_buf_size: Option<usize>,
     http2: bool,
-    h2_builder: h2::client::Builder,
+    h2_builder: proto::h2::client::Config,
 }
 
 /// A future returned by `SendRequest::send_request`.
@@ -420,12 +414,6 @@ impl Builder {
     /// Creates a new connection builder.
     #[inline]
     pub fn new() -> Builder {
-        let mut h2_builder = h2::client::Builder::default();
-        h2_builder
-            .initial_window_size(DEFAULT_HTTP2_STREAM_WINDOW)
-            .initial_connection_window_size(DEFAULT_HTTP2_CONN_WINDOW)
-            .enable_push(false);
-
         Builder {
             exec: Exec::Default,
             h1_writev: true,
@@ -433,7 +421,7 @@ impl Builder {
             h1_title_case_headers: false,
             h1_max_buf_size: None,
             http2: false,
-            h2_builder,
+            h2_builder: Default::default(),
         }
     }
 
@@ -491,7 +479,8 @@ impl Builder {
     /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_INITIAL_WINDOW_SIZE
     pub fn http2_initial_stream_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
         if let Some(sz) = sz.into() {
-            self.h2_builder.initial_window_size(sz);
+            self.h2_builder.adaptive_window = false;
+            self.h2_builder.initial_stream_window_size = sz;
         }
         self
     }
@@ -506,7 +495,24 @@ impl Builder {
         sz: impl Into<Option<u32>>,
     ) -> &mut Self {
         if let Some(sz) = sz.into() {
-            self.h2_builder.initial_connection_window_size(sz);
+            self.h2_builder.adaptive_window = false;
+            self.h2_builder.initial_conn_window_size = sz;
+        }
+        self
+    }
+
+    /// Sets whether to use an adaptive flow control.
+    ///
+    /// Enabling this will override the limits set in
+    /// `http2_initial_stream_window_size` and
+    /// `http2_initial_connection_window_size`.
+    pub fn http2_adaptive_window(&mut self, enabled: bool) -> &mut Self {
+        use proto::h2::SPEC_WINDOW_SIZE;
+
+        self.h2_builder.adaptive_window = enabled;
+        if enabled {
+            self.h2_builder.initial_conn_window_size = SPEC_WINDOW_SIZE;
+            self.h2_builder.initial_stream_window_size = SPEC_WINDOW_SIZE;
         }
         self
     }

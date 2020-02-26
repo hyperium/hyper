@@ -322,6 +322,16 @@ impl<I, E> Builder<I, E> {
         self
     }
 
+    /// Sets whether to use an adaptive flow control.
+    ///
+    /// Enabling this will override the limits set in
+    /// `http2_initial_stream_window_size` and
+    /// `http2_initial_connection_window_size`.
+    pub fn http2_adaptive_window(mut self, enabled: bool) -> Self {
+        self.protocol.http2_adaptive_window(enabled);
+        self
+    }
+
     /// Sets the [`SETTINGS_MAX_CONCURRENT_STREAMS`][spec] option for HTTP2
     /// connections.
     ///

@@ -36,15 +36,6 @@ pub(super) use self::upgrades::UpgradeableConnection;
 #[cfg(feature = "tcp")]
 pub use super::tcp::{AddrIncoming, AddrStream};
 
-// Our defaults are chosen for the "majority" case, which usually are not
-// resource constrained, and so the spec default of 64kb can be too limiting
-// for performance.
-//
-// At the same time, a server more often has multiple clients connected, and
-// so is more likely to use more resources than a client would.
-const DEFAULT_HTTP2_CONN_WINDOW: u32 = 1024 * 1024; // 1mb
-const DEFAULT_HTTP2_STREAM_WINDOW: u32 = 1024 * 1024; // 1mb
-
 /// A lower-level configuration of the HTTP protocol.
 ///
 /// This structure is used to configure options for an HTTP server connection.
@@ -56,7 +47,7 @@ pub struct Http<E = Exec> {
     exec: E,
     h1_half_close: bool,
     h1_writev: bool,
-    h2_builder: h2::server::Builder,
+    h2_builder: proto::h2::server::Config,
     mode: ConnectionMode,
     keep_alive: bool,
     max_buf_size: Option<usize>,
@@ -145,7 +136,7 @@ where
 
 #[derive(Clone, Debug)]
 enum Fallback<E> {
-    ToHttp2(h2::server::Builder, E),
+    ToHttp2(proto::h2::server::Config, E),
     Http1Only,
 }
 
@@ -188,16 +179,11 @@ impl Http {
     /// Creates a new instance of the HTTP protocol, ready to spawn a server or
     /// start accepting connections.
     pub fn new() -> Http {
-        let mut h2_builder = h2::server::Builder::default();
-        h2_builder
-            .initial_window_size(DEFAULT_HTTP2_STREAM_WINDOW)
-            .initial_connection_window_size(DEFAULT_HTTP2_CONN_WINDOW);
-
         Http {
             exec: Exec::Default,
             h1_half_close: false,
             h1_writev: true,
-            h2_builder,
+            h2_builder: Default::default(),
             mode: ConnectionMode::Fallback,
             keep_alive: true,
             max_buf_size: None,
@@ -268,7 +254,8 @@ impl<E> Http<E> {
     /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_INITIAL_WINDOW_SIZE
     pub fn http2_initial_stream_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
         if let Some(sz) = sz.into() {
-            self.h2_builder.initial_window_size(sz);
+            self.h2_builder.adaptive_window = false;
+            self.h2_builder.initial_stream_window_size = sz;
         }
         self
     }
@@ -283,7 +270,24 @@ impl<E> Http<E> {
         sz: impl Into<Option<u32>>,
     ) -> &mut Self {
         if let Some(sz) = sz.into() {
-            self.h2_builder.initial_connection_window_size(sz);
+            self.h2_builder.adaptive_window = false;
+            self.h2_builder.initial_conn_window_size = sz;
+        }
+        self
+    }
+
+    /// Sets whether to use an adaptive flow control.
+    ///
+    /// Enabling this will override the limits set in
+    /// `http2_initial_stream_window_size` and
+    /// `http2_initial_connection_window_size`.
+    pub fn http2_adaptive_window(&mut self, enabled: bool) -> &mut Self {
+        use proto::h2::SPEC_WINDOW_SIZE;
+
+        self.h2_builder.adaptive_window = enabled;
+        if enabled {
+            self.h2_builder.initial_conn_window_size = SPEC_WINDOW_SIZE;
+            self.h2_builder.initial_stream_window_size = SPEC_WINDOW_SIZE;
         }
         self
     }
@@ -295,9 +299,7 @@ impl<E> Http<E> {
     ///
     /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_MAX_CONCURRENT_STREAMS
     pub fn http2_max_concurrent_streams(&mut self, max: impl Into<Option<u32>>) -> &mut Self {
-        if let Some(max) = max.into() {
-            self.h2_builder.max_concurrent_streams(max);
-        }
+        self.h2_builder.max_concurrent_streams = max.into();
         self
     }
 

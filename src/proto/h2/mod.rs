@@ -12,11 +12,15 @@ use crate::body::Payload;
 use crate::common::{task, Future, Pin, Poll};
 use crate::headers::content_length_parse_all;
 
+pub(crate) mod bdp;
 pub(crate) mod client;
 pub(crate) mod server;
 
 pub(crate) use self::client::ClientTask;
 pub(crate) use self::server::Server;
+
+/// Default initial stream window size defined in HTTP2 spec.
+pub(crate) const SPEC_WINDOW_SIZE: u32 = 65_535;
 
 fn strip_connection_headers(headers: &mut HeaderMap, is_request: bool) {
     // List of connection headers from:
