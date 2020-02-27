@@ -1282,13 +1282,9 @@ mod dispatch_impl {
             let _ = rx2.recv();
         });
 
-        let client =
-            Client::builder()
-                .keep_alive(false)
-                .build(DebugConnector::with_http_and_closes(
-                    HttpConnector::new(),
-                    closes_tx,
-                ));
+        let client = Client::builder().pool_max_idle_per_host(0).build(
+            DebugConnector::with_http_and_closes(HttpConnector::new(), closes_tx),
+        );
 
         let req = Request::builder()
             .uri(&*format!("http://{}/a", addr))

@@ -4,7 +4,6 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc, Mutex,
 };
-use std::time::Duration;
 
 use hyper::client::HttpConnector;
 use hyper::service::{make_service_fn, service_fn};
@@ -326,7 +325,6 @@ async fn async_test(cfg: __TestConfig) {
 
     let connector = HttpConnector::new();
     let client = Client::builder()
-        .keep_alive_timeout(Duration::from_secs(10))
         .http2_only(cfg.client_version == 2)
         .build::<_, Body>(connector);
 
@@ -450,7 +448,6 @@ struct ProxyConfig {
 
 fn naive_proxy(cfg: ProxyConfig) -> (SocketAddr, impl Future<Output = ()>) {
     let client = Client::builder()
-        .keep_alive_timeout(Duration::from_secs(10))
         .http2_only(cfg.version == 2)
         .build_http::<Body>();
 

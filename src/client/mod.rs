@@ -129,10 +129,11 @@ impl Client<(), Body> {
     /// ```
     /// # #[cfg(feature  = "runtime")]
     /// # fn run () {
+    /// use std::time::Duration;
     /// use hyper::Client;
     ///
     /// let client = Client::builder()
-    ///     .keep_alive(true)
+    ///     .pool_idle_timeout(Duration::from_secs(30))
     ///     .http2_only(true)
     ///     .build_http();
     /// # let infer: Client<_, hyper::Body> = client;
@@ -842,10 +843,11 @@ fn set_scheme(uri: &mut Uri, scheme: Scheme) {
 /// ```
 /// # #[cfg(feature  = "runtime")]
 /// # fn run () {
+/// use std::time::Duration;
 /// use hyper::Client;
 ///
 /// let client = Client::builder()
-///     .keep_alive(true)
+///     .pool_idle_timeout(Duration::from_secs(30))
 ///     .http2_only(true)
 ///     .build_http();
 /// # let infer: Client<_, hyper::Body> = client;
@@ -870,22 +872,38 @@ impl Default for Builder {
             },
             conn_builder: conn::Builder::new(),
             pool_config: pool::Config {
-                enabled: true,
-                keep_alive_timeout: Some(Duration::from_secs(90)),
-                max_idle_per_host: ::std::usize::MAX,
+                idle_timeout: Some(Duration::from_secs(90)),
+                max_idle_per_host: std::usize::MAX,
             },
         }
     }
 }
 
 impl Builder {
-    /// Enable or disable keep-alive mechanics.
-    ///
-    /// Default is enabled.
-    #[inline]
+    #[doc(hidden)]
+    #[deprecated(
+        note = "name is confusing, to disable the connection pool, call pool_max_idle_per_host(0)"
+    )]
     pub fn keep_alive(&mut self, val: bool) -> &mut Self {
-        self.pool_config.enabled = val;
-        self
+        if !val {
+            // disable
+            self.pool_max_idle_per_host(0)
+        } else if self.pool_config.max_idle_per_host == 0 {
+            // enable
+            self.pool_max_idle_per_host(std::usize::MAX)
+        } else {
+            // already enabled
+            self
+        }
+    }
+
+    #[doc(hidden)]
+    #[deprecated(note = "renamed to `pool_idle_timeout`")]
+    pub fn keep_alive_timeout<D>(&mut self, val: D) -> &mut Self
+    where
+        D: Into<Option<Duration>>,
+    {
+        self.pool_idle_timeout(val)
     }
 
     /// Set an optional timeout for idle sockets being kept-alive.
@@ -893,14 +911,29 @@ impl Builder {
     /// Pass `None` to disable timeout.
     ///
     /// Default is 90 seconds.
-    #[inline]
-    pub fn keep_alive_timeout<D>(&mut self, val: D) -> &mut Self
+    pub fn pool_idle_timeout<D>(&mut self, val: D) -> &mut Self
     where
         D: Into<Option<Duration>>,
     {
-        self.pool_config.keep_alive_timeout = val.into();
+        self.pool_config.idle_timeout = val.into();
         self
     }
+
+    #[doc(hidden)]
+    #[deprecated(note = "renamed to `pool_max_idle_per_host`")]
+    pub fn max_idle_per_host(&mut self, max_idle: usize) -> &mut Self {
+        self.pool_config.max_idle_per_host = max_idle;
+        self
+    }
+
+    /// Sets the maximum idle connection per host allowed in the pool.
+    ///
+    /// Default is `usize::MAX` (no limit).
+    pub fn pool_max_idle_per_host(&mut self, max_idle: usize) -> &mut Self {
+        self.pool_config.max_idle_per_host = max_idle;
+        self
+    }
+    // HTTP/1 options
 
     /// Set whether HTTP/1 connections should try to use vectored writes,
     /// or always flatten into a single buffer.
@@ -910,7 +943,6 @@ impl Builder {
     /// support vectored writes well, such as most TLS implementations.
     ///
     /// Default is `true`.
-    #[inline]
     pub fn http1_writev(&mut self, val: bool) -> &mut Self {
         self.conn_builder.h1_writev(val);
         self
@@ -921,7 +953,6 @@ impl Builder {
     /// Note that setting this option unsets the `http1_max_buf_size` option.
     ///
     /// Default is an adaptive read buffer.
-    #[inline]
     pub fn http1_read_buf_exact_size(&mut self, sz: usize) -> &mut Self {
         self.conn_builder.h1_read_buf_exact_size(Some(sz));
         self
@@ -936,7 +967,6 @@ impl Builder {
     /// # Panics
     ///
     /// The minimum value allowed is 8192. This method panics if the passed `max` is less than the minimum.
-    #[inline]
     pub fn http1_max_buf_size(&mut self, max: usize) -> &mut Self {
         self.conn_builder.h1_max_buf_size(max);
         self
@@ -1006,14 +1036,6 @@ impl Builder {
         self
     }
 
-    /// Sets the maximum idle connection per host allowed in the pool.
-    ///
-    /// Default is `usize::MAX` (no limit).
-    pub fn max_idle_per_host(&mut self, max_idle: usize) -> &mut Self {
-        self.pool_config.max_idle_per_host = max_idle;
-        self
-    }
-
     /// Set whether to retry requests that get disrupted before ever starting
     /// to write.
     ///
@@ -1060,8 +1082,8 @@ impl Builder {
         B::Data: Send,
     {
         let mut connector = HttpConnector::new();
-        if self.pool_config.enabled {
-            connector.set_keepalive(self.pool_config.keep_alive_timeout);
+        if self.pool_config.is_enabled() {
+            connector.set_keepalive(self.pool_config.idle_timeout);
         }
         self.build(connector)
     }
