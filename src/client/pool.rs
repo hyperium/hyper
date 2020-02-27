@@ -88,14 +88,19 @@ struct WeakOpt<T>(Option<Weak<T>>);
 
 #[derive(Clone, Copy, Debug)]
 pub(super) struct Config {
-    pub(super) enabled: bool,
-    pub(super) keep_alive_timeout: Option<Duration>,
+    pub(super) idle_timeout: Option<Duration>,
     pub(super) max_idle_per_host: usize,
+}
+
+impl Config {
+    pub(super) fn is_enabled(&self) -> bool {
+        self.max_idle_per_host > 0
+    }
 }
 
 impl<T> Pool<T> {
     pub fn new(config: Config, __exec: &Exec) -> Pool<T> {
-        let inner = if config.enabled {
+        let inner = if config.is_enabled() {
             Some(Arc::new(Mutex::new(PoolInner {
                 connecting: HashSet::new(),
                 idle: HashMap::new(),
@@ -105,7 +110,7 @@ impl<T> Pool<T> {
                 waiters: HashMap::new(),
                 #[cfg(feature = "runtime")]
                 exec: __exec.clone(),
-                timeout: config.keep_alive_timeout,
+                timeout: config.idle_timeout,
             })))
         } else {
             None
@@ -797,8 +802,7 @@ mod tests {
     fn pool_max_idle_no_timer<T>(max_idle: usize) -> Pool<T> {
         let pool = Pool::new(
             super::Config {
-                enabled: true,
-                keep_alive_timeout: Some(Duration::from_millis(100)),
+                idle_timeout: Some(Duration::from_millis(100)),
                 max_idle_per_host: max_idle,
             },
             &Exec::Default,
@@ -900,8 +904,7 @@ mod tests {
 
         let pool = Pool::new(
             super::Config {
-                enabled: true,
-                keep_alive_timeout: Some(Duration::from_millis(10)),
+                idle_timeout: Some(Duration::from_millis(10)),
                 max_idle_per_host: std::usize::MAX,
             },
             &Exec::Default,
