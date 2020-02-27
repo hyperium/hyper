@@ -32,7 +32,7 @@ use std::{fmt, io, vec};
 use tokio::task::JoinHandle;
 use tower_service::Service;
 
-pub(super) use self::sealed::Resolve;
+pub use self::sealed::Resolve;
 
 /// A domain name to resolve into IP addresses.
 #[derive(Clone, Hash, Eq, PartialEq)]
@@ -304,13 +304,27 @@ mod sealed {
     use crate::common::{task, Future, Poll};
     use tower_service::Service;
 
-    // "Trait alias" for `Service<Name, Response = Addrs>`
+    /// Resolve some `Uri` into an `Iterator<Item = IpAddr>`.
+    ///
+    /// A Resolver receives a `Name` and returns a Future that
+    /// resolves to an `Iterator<Item = IpAddr>`.
+    ///
+    /// # Trait Alias
+    ///
+    /// This is really just an *alias* for the `tower::Service` trait, with
+    /// additional bounds set for convenience *inside* hyper. You don't actually
+    /// implement this trait, but `tower::Service<Name>`.
     pub trait Resolve {
+        #[doc(hidden)]
         type Addrs: Iterator<Item = IpAddr>;
+        #[doc(hidden)]
         type Error: Into<Box<dyn std::error::Error + Send + Sync>>;
+        #[doc(hidden)]
         type Future: Future<Output = Result<Self::Addrs, Self::Error>>;
 
+        #[doc(hidden)]
         fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>>;
+        #[doc(hidden)]
         fn resolve(&mut self, name: Name) -> Self::Future;
     }
 
@@ -332,6 +346,16 @@ mod sealed {
             Service::call(self, name)
         }
     }
+
+    impl<S> Sealed for S
+    where
+        S: Service<Name>,
+        S::Response: Iterator<Item = IpAddr>,
+        S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+    {
+    }
+
+    pub trait Sealed {}
 }
 
 pub(crate) async fn resolve<R>(resolver: &mut R, name: Name) -> Result<R::Addrs, R::Error>
