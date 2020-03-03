@@ -30,7 +30,7 @@ type WindowSize = u32;
 /// Any higher than this likely will be hitting the TCP flow control.
 const BDP_LIMIT: usize = 1024 * 1024 * 16;
 
-pub(crate) fn disabled() -> Sampler {
+pub(super) fn disabled() -> Sampler {
     Sampler {
         shared: Weak::new(),
     }
@@ -104,10 +104,6 @@ impl Sampler {
         }
 
         inner.bytes += bytes;
-    }
-
-    pub(crate) fn is_enabled(&self) -> bool {
-        self.shared.strong_count() > 0
     }
 }
 
