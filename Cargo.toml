@@ -27,7 +27,7 @@ futures-util = { version = "0.3", default-features = false }
 http = "0.2"
 http-body = "0.3.1"
 httparse = "1.0"
-h2 = "0.2.1"
+h2 = "0.2.2"
 itoa = "0.4.1"
 log = "0.4"
 pin-project = "0.4"

@@ -38,6 +38,7 @@ enum Kind {
         rx: mpsc::Receiver<Result<Bytes, crate::Error>>,
     },
     H2 {
+        bdp: bdp::Sampler,
         content_length: DecodedLength,
         recv: h2::RecvStream,
     },
@@ -62,11 +63,6 @@ struct Extra {
     /// connection yet.
     delayed_eof: Option<DelayEof>,
     on_upgrade: OnUpgrade,
-
-    /// Records bytes read to compute the BDP.
-    ///
-    /// Only used with `H2` variant.
-    h2_bdp: bdp::Sampler,
 }
 
 type DelayEofUntil = oneshot::Receiver<Never>;
@@ -186,14 +182,11 @@ impl Body {
         content_length: DecodedLength,
         bdp: bdp::Sampler,
     ) -> Self {
-        let mut body = Body::new(Kind::H2 {
+        let body = Body::new(Kind::H2 {
+            bdp,
             content_length,
             recv,
         });
-
-        if bdp.is_enabled() {
-            body.extra_mut().h2_bdp = bdp;
-        }
 
         body
     }
@@ -220,7 +213,6 @@ impl Body {
             Box::new(Extra {
                 delayed_eof: None,
                 on_upgrade: OnUpgrade::none(),
-                h2_bdp: bdp::disabled(),
             })
         })
     }
@@ -273,15 +265,14 @@ impl Body {
                 }
             }
             Kind::H2 {
+                ref bdp,
                 recv: ref mut h2,
                 content_length: ref mut len,
             } => match ready!(h2.poll_data(cx)) {
                 Some(Ok(bytes)) => {
                     let _ = h2.flow_control().release_capacity(bytes.len());
                     len.sub_if(bytes.len() as u64);
-                    if let Some(ref extra) = self.extra {
-                        extra.h2_bdp.sample(bytes.len());
-                    }
+                    bdp.sample(bytes.len());
                     Poll::Ready(Some(Ok(bytes)))
                 }
                 Some(Err(e)) => Poll::Ready(Some(Err(crate::Error::new_body(e)))),
