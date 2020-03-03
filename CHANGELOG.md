@@ -1,3 +1,13 @@
+### v0.13.3 (2020-03-03)
+
+
+#### Features
+
+* **client:** rename `client::Builder` pool options (#2142) ([a82fd6c9](https://github.com/hyperium/hyper/commit/a82fd6c94aa4ce11fe685f9ccfb85c596d596c6e))
+* **http2:** add adaptive window size support using BDP (#2138) ([48102d61](https://github.com/hyperium/hyper/commit/48102d61228b592b466af273a81207e729315681))
+* **server:** add `poll_peek` to `AddrStream` (#2127) ([24d53d3f](https://github.com/hyperium/hyper/commit/24d53d3f66f843a6c19204cc7c52cd80e327d41a))
+
+
 ### v0.13.2 (2020-01-29)
 
 
