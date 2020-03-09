@@ -655,6 +655,20 @@ where
         }
     }
 
+    /// If the read side can be cheaply drained, do so. Otherwise, close.
+    pub(super) fn poll_drain_or_close_read(&mut self, cx: &mut task::Context<'_>) {
+        let _ = self.poll_read_body(cx);
+
+        // If still in Reading::Body, just give up
+        match self.state.reading {
+            Reading::Init | Reading::KeepAlive => {
+                trace!("body drained");
+                return;
+            }
+            _ => self.close_read(),
+        }
+    }
+
     pub fn close_read(&mut self) {
         self.state.close_read();
     }

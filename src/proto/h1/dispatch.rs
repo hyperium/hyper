@@ -186,9 +186,9 @@ where
                         Poll::Ready(Err(_canceled)) => {
                             // user doesn't care about the body
                             // so we should stop reading
-                            trace!("body receiver dropped before eof, closing");
-                            self.conn.close_read();
-                            return Poll::Ready(Ok(()));
+                            trace!("body receiver dropped before eof, draining or closing");
+                            self.conn.poll_drain_or_close_read(cx);
+                            continue;
                         }
                     }
                     match self.conn.poll_read_body(cx) {
