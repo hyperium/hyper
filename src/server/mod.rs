@@ -240,7 +240,7 @@ impl<I, E> Builder<I, E> {
     ///
     /// Default is `true`.
     pub fn http1_keepalive(mut self, val: bool) -> Self {
-        self.protocol.keep_alive(val);
+        self.protocol.http1_keep_alive(val);
         self
     }
 
@@ -257,11 +257,11 @@ impl<I, E> Builder<I, E> {
         self
     }
 
-    /// Sets whether HTTP/1 is required.
+    /// Set the maximum buffer size.
     ///
-    /// Default is `false`.
-    pub fn http1_only(mut self, val: bool) -> Self {
-        self.protocol.http1_only(val);
+    /// Default is ~ 400kb.
+    pub fn http1_max_buf_size(mut self, val: usize) -> Self {
+        self.protocol.max_buf_size(val);
         self
     }
 
@@ -287,6 +287,14 @@ impl<I, E> Builder<I, E> {
     /// Default is `true`.
     pub fn http1_writev(mut self, val: bool) -> Self {
         self.protocol.http1_writev(val);
+        self
+    }
+
+    /// Sets whether HTTP/1 is required.
+    ///
+    /// Default is `false`.
+    pub fn http1_only(mut self, val: bool) -> Self {
+        self.protocol.http1_only(val);
         self
     }
 
@@ -343,11 +351,35 @@ impl<I, E> Builder<I, E> {
         self
     }
 
-    /// Set the maximum buffer size.
+    /// Sets an interval for HTTP2 Ping frames should be sent to keep a
+    /// connection alive.
     ///
-    /// Default is ~ 400kb.
-    pub fn http1_max_buf_size(mut self, val: usize) -> Self {
-        self.protocol.max_buf_size(val);
+    /// Pass `None` to disable HTTP2 keep-alive.
+    ///
+    /// Default is currently disabled.
+    ///
+    /// # Cargo Feature
+    ///
+    /// Requires the `runtime` cargo feature to be enabled.
+    #[cfg(feature = "runtime")]
+    pub fn http2_keep_alive_interval(mut self, interval: impl Into<Option<Duration>>) -> Self {
+        self.protocol.http2_keep_alive_interval(interval);
+        self
+    }
+
+    /// Sets a timeout for receiving an acknowledgement of the keep-alive ping.
+    ///
+    /// If the ping is not acknowledged within the timeout, the connection will
+    /// be closed. Does nothing if `http2_keep_alive_interval` is disabled.
+    ///
+    /// Default is 20 seconds.
+    ///
+    /// # Cargo Feature
+    ///
+    /// Requires the `runtime` cargo feature to be enabled.
+    #[cfg(feature = "runtime")]
+    pub fn http2_keep_alive_timeout(mut self, timeout: Duration) -> Self {
+        self.protocol.http2_keep_alive_timeout(timeout);
         self
     }
 

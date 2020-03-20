@@ -7,9 +7,12 @@
 //!
 //! If don't have need to manage connections yourself, consider using the
 //! higher-level [Client](super) API.
+
 use std::fmt;
 use std::mem;
 use std::sync::Arc;
+#[cfg(feature = "runtime")]
+use std::time::Duration;
 
 use bytes::Bytes;
 use futures_util::future::{self, Either, FutureExt as _};
@@ -514,6 +517,59 @@ impl Builder {
             self.h2_builder.initial_conn_window_size = SPEC_WINDOW_SIZE;
             self.h2_builder.initial_stream_window_size = SPEC_WINDOW_SIZE;
         }
+        self
+    }
+
+    /// Sets an interval for HTTP2 Ping frames should be sent to keep a
+    /// connection alive.
+    ///
+    /// Pass `None` to disable HTTP2 keep-alive.
+    ///
+    /// Default is currently disabled.
+    ///
+    /// # Cargo Feature
+    ///
+    /// Requires the `runtime` cargo feature to be enabled.
+    #[cfg(feature = "runtime")]
+    pub fn http2_keep_alive_interval(
+        &mut self,
+        interval: impl Into<Option<Duration>>,
+    ) -> &mut Self {
+        self.h2_builder.keep_alive_interval = interval.into();
+        self
+    }
+
+    /// Sets a timeout for receiving an acknowledgement of the keep-alive ping.
+    ///
+    /// If the ping is not acknowledged within the timeout, the connection will
+    /// be closed. Does nothing if `http2_keep_alive_interval` is disabled.
+    ///
+    /// Default is 20 seconds.
+    ///
+    /// # Cargo Feature
+    ///
+    /// Requires the `runtime` cargo feature to be enabled.
+    #[cfg(feature = "runtime")]
+    pub fn http2_keep_alive_timeout(&mut self, timeout: Duration) -> &mut Self {
+        self.h2_builder.keep_alive_timeout = timeout;
+        self
+    }
+
+    /// Sets whether HTTP2 keep-alive should apply while the connection is idle.
+    ///
+    /// If disabled, keep-alive pings are only sent while there are open
+    /// request/responses streams. If enabled, pings are also sent when no
+    /// streams are active. Does nothing if `http2_keep_alive_interval` is
+    /// disabled.
+    ///
+    /// Default is `false`.
+    ///
+    /// # Cargo Feature
+    ///
+    /// Requires the `runtime` cargo feature to be enabled.
+    #[cfg(feature = "runtime")]
+    pub fn http2_keep_alive_while_idle(&mut self, enabled: bool) -> &mut Self {
+        self.h2_builder.keep_alive_while_idle = enabled;
         self
     }
 

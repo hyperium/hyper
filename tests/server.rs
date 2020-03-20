@@ -18,7 +18,7 @@ use futures_util::future::{self, Either, FutureExt, TryFutureExt};
 #[cfg(feature = "stream")]
 use futures_util::stream::StreamExt as _;
 use http::header::{HeaderName, HeaderValue};
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream as TkTcpStream};
 use tokio::runtime::Runtime;
 
@@ -1818,6 +1818,91 @@ fn skips_content_length_and_body_for_304_responses() {
     assert_eq!(lines.next(), Some(""));
     assert_eq!(lines.next(), None);
 }
+
+#[tokio::test]
+async fn http2_keep_alive_detects_unresponsive_client() {
+    let _ = pretty_env_logger::try_init();
+
+    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    // Spawn a "client" conn that only reads until EOF
+    tokio::spawn(async move {
+        let mut conn = connect_async(addr).await;
+
+        // write h2 magic preface and settings frame
+        conn.write_all(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
+            .await
+            .expect("client preface");
+        conn.write_all(&[
+            0, 0, 0, // len
+            4, // kind
+            0, // flag
+            0, 0, 0, // stream id
+        ])
+        .await
+        .expect("client settings");
+
+        // read until eof
+        let mut buf = [0u8; 1024];
+        loop {
+            let n = conn.read(&mut buf).await.expect("client.read");
+            if n == 0 {
+                // eof
+                break;
+            }
+        }
+    });
+
+    let (socket, _) = listener.accept().await.expect("accept");
+
+    let err = Http::new()
+        .http2_only(true)
+        .http2_keep_alive_interval(Duration::from_secs(1))
+        .http2_keep_alive_timeout(Duration::from_secs(1))
+        .serve_connection(socket, unreachable_service())
+        .await
+        .expect_err("serve_connection should error");
+
+    assert!(err.is_timeout());
+}
+
+#[tokio::test]
+async fn http2_keep_alive_with_responsive_client() {
+    let _ = pretty_env_logger::try_init();
+
+    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    tokio::spawn(async move {
+        let (socket, _) = listener.accept().await.expect("accept");
+
+        Http::new()
+            .http2_only(true)
+            .http2_keep_alive_interval(Duration::from_secs(1))
+            .http2_keep_alive_timeout(Duration::from_secs(1))
+            .serve_connection(socket, HelloWorld)
+            .await
+            .expect("serve_connection");
+    });
+
+    let tcp = connect_async(addr).await;
+    let (mut client, conn) = hyper::client::conn::Builder::new()
+        .http2_only(true)
+        .handshake::<_, Body>(tcp)
+        .await
+        .expect("http handshake");
+
+    tokio::spawn(async move {
+        conn.await.expect("client conn");
+    });
+
+    tokio::time::delay_for(Duration::from_secs(4)).await;
+
+    let req = http::Request::new(hyper::Body::empty());
+    client.send_request(req).await.expect("client.send_request");
+}
+
 // -------------------------------------------------
 // the Server that is used to run all the tests with
 // -------------------------------------------------
@@ -1864,6 +1949,7 @@ impl Serve {
 }
 
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
+type BoxFuture = Pin<Box<dyn Future<Output = Result<Response<Body>, BoxError>> + Send>>;
 
 struct ReplyBuilder<'a> {
     tx: &'a Mutex<spmc::Sender<Reply>>,
@@ -1965,7 +2051,7 @@ enum Msg {
 impl tower_service::Service<Request<Body>> for TestService {
     type Response = Response<Body>;
     type Error = BoxError;
-    type Future = Pin<Box<dyn Future<Output = Result<Response<Body>, BoxError>> + Send>>;
+    type Future = BoxFuture;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Ok(()).into()
@@ -2039,11 +2125,24 @@ impl tower_service::Service<Request<Body>> for HelloWorld {
     }
 }
 
+fn unreachable_service() -> impl tower_service::Service<
+    http::Request<hyper::Body>,
+    Response = http::Response<hyper::Body>,
+    Error = BoxError,
+    Future = BoxFuture,
+> {
+    service_fn(|_req| Box::pin(async { Err("request shouldn't be received".into()) }) as BoxFuture)
+}
+
 fn connect(addr: &SocketAddr) -> TcpStream {
     let req = TcpStream::connect(addr).unwrap();
     req.set_read_timeout(Some(Duration::from_secs(1))).unwrap();
     req.set_write_timeout(Some(Duration::from_secs(1))).unwrap();
     req
+}
+
+async fn connect_async(addr: SocketAddr) -> TkTcpStream {
+    TkTcpStream::connect(addr).await.expect("connect_async")
 }
 
 fn serve() -> Serve {

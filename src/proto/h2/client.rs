@@ -1,10 +1,13 @@
+#[cfg(feature = "runtime")]
+use std::time::Duration;
+
 use futures_channel::{mpsc, oneshot};
 use futures_util::future::{self, Either, FutureExt as _, TryFutureExt as _};
 use futures_util::stream::StreamExt as _;
 use h2::client::{Builder, SendRequest};
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use super::{bdp, decode_content_length, PipeToSendStream, SendBuf};
+use super::{decode_content_length, ping, PipeToSendStream, SendBuf};
 use crate::body::Payload;
 use crate::common::{task, Exec, Future, Never, Pin, Poll};
 use crate::headers;
@@ -32,6 +35,12 @@ pub(crate) struct Config {
     pub(crate) adaptive_window: bool,
     pub(crate) initial_conn_window_size: u32,
     pub(crate) initial_stream_window_size: u32,
+    #[cfg(feature = "runtime")]
+    pub(crate) keep_alive_interval: Option<Duration>,
+    #[cfg(feature = "runtime")]
+    pub(crate) keep_alive_timeout: Duration,
+    #[cfg(feature = "runtime")]
+    pub(crate) keep_alive_while_idle: bool,
 }
 
 impl Default for Config {
@@ -40,6 +49,12 @@ impl Default for Config {
             adaptive_window: false,
             initial_conn_window_size: DEFAULT_CONN_WINDOW,
             initial_stream_window_size: DEFAULT_STREAM_WINDOW,
+            #[cfg(feature = "runtime")]
+            keep_alive_interval: None,
+            #[cfg(feature = "runtime")]
+            keep_alive_timeout: Duration::from_secs(20),
+            #[cfg(feature = "runtime")]
+            keep_alive_while_idle: false,
         }
     }
 }
@@ -75,15 +90,34 @@ where
         }
     });
 
-    let sampler = if config.adaptive_window {
-        let (sampler, mut estimator) =
-            bdp::channel(conn.ping_pong().unwrap(), config.initial_stream_window_size);
+    let ping_config = ping::Config {
+        bdp_initial_window: if config.adaptive_window {
+            Some(config.initial_stream_window_size)
+        } else {
+            None
+        },
+        #[cfg(feature = "runtime")]
+        keep_alive_interval: config.keep_alive_interval,
+        #[cfg(feature = "runtime")]
+        keep_alive_timeout: config.keep_alive_timeout,
+        #[cfg(feature = "runtime")]
+        keep_alive_while_idle: config.keep_alive_while_idle,
+    };
+
+    let ping = if ping_config.is_enabled() {
+        let pp = conn.ping_pong().expect("conn.ping_pong");
+        let (recorder, mut ponger) = ping::channel(pp, ping_config);
 
         let conn = future::poll_fn(move |cx| {
-            match estimator.poll_estimate(cx) {
-                Poll::Ready(wnd) => {
+            match ponger.poll(cx) {
+                Poll::Ready(ping::Ponged::SizeUpdate(wnd)) => {
                     conn.set_target_window_size(wnd);
                     conn.set_initial_window_size(wnd)?;
+                }
+                #[cfg(feature = "runtime")]
+                Poll::Ready(ping::Ponged::KeepAliveTimedOut) => {
+                    debug!("connection keep-alive timed out");
+                    return Poll::Ready(Ok(()));
                 }
                 Poll::Pending => {}
             }
@@ -93,16 +127,16 @@ where
         let conn = conn.map_err(|e| debug!("connection error: {}", e));
 
         exec.execute(conn_task(conn, conn_drop_rx, cancel_tx));
-        sampler
+        recorder
     } else {
         let conn = conn.map_err(|e| debug!("connection error: {}", e));
 
         exec.execute(conn_task(conn, conn_drop_rx, cancel_tx));
-        bdp::disabled()
+        ping::disabled()
     };
 
     Ok(ClientTask {
-        bdp: sampler,
+        ping,
         conn_drop_ref,
         conn_eof,
         executor: exec,
@@ -135,7 +169,7 @@ pub(crate) struct ClientTask<B>
 where
     B: Payload,
 {
-    bdp: bdp::Sampler,
+    ping: ping::Recorder,
     conn_drop_ref: ConnDropRef,
     conn_eof: ConnEof,
     executor: Exec,
@@ -154,6 +188,7 @@ where
             match ready!(self.h2_tx.poll_ready(cx)) {
                 Ok(()) => (),
                 Err(err) => {
+                    self.ping.ensure_not_timed_out()?;
                     return if err.reason() == Some(::h2::Reason::NO_ERROR) {
                         trace!("connection gracefully shutdown");
                         Poll::Ready(Ok(Dispatched::Shutdown))
@@ -188,6 +223,7 @@ where
                         }
                     };
 
+                    let ping = self.ping.clone();
                     if !eos {
                         let mut pipe = Box::pin(PipeToSendStream::new(body, body_tx)).map(|res| {
                             if let Err(e) = res {
@@ -201,8 +237,13 @@ where
                             Poll::Ready(_) => (),
                             Poll::Pending => {
                                 let conn_drop_ref = self.conn_drop_ref.clone();
+                                // keep the ping recorder's knowledge of an
+                                // "open stream" alive while this body is
+                                // still sending...
+                                let ping = ping.clone();
                                 let pipe = pipe.map(move |x| {
                                     drop(conn_drop_ref);
+                                    drop(ping);
                                     x
                                 });
                                 self.executor.execute(pipe);
@@ -210,15 +251,21 @@ where
                         }
                     }
 
-                    let bdp = self.bdp.clone();
                     let fut = fut.map(move |result| match result {
                         Ok(res) => {
+                            // record that we got the response headers
+                            ping.record_non_data();
+
                             let content_length = decode_content_length(res.headers());
-                            let res =
-                                res.map(|stream| crate::Body::h2(stream, content_length, bdp));
+                            let res = res.map(|stream| {
+                                let ping = ping.for_stream(&stream);
+                                crate::Body::h2(stream, content_length, ping)
+                            });
                             Ok(res)
                         }
                         Err(err) => {
+                            ping.ensure_not_timed_out().map_err(|e| (e, None))?;
+
                             debug!("client response error: {}", err);
                             Err((crate::Error::new_h2(err), None))
                         }

@@ -13,6 +13,8 @@ use std::fmt;
 use std::mem;
 #[cfg(feature = "tcp")]
 use std::net::SocketAddr;
+#[cfg(feature = "runtime")]
+use std::time::Duration;
 
 use bytes::Bytes;
 use pin_project::{pin_project, project};
@@ -46,10 +48,10 @@ pub use super::tcp::{AddrIncoming, AddrStream};
 pub struct Http<E = Exec> {
     exec: E,
     h1_half_close: bool,
+    h1_keep_alive: bool,
     h1_writev: bool,
     h2_builder: proto::h2::server::Config,
     mode: ConnectionMode,
-    keep_alive: bool,
     max_buf_size: Option<usize>,
     pipeline_flush: bool,
 }
@@ -182,10 +184,10 @@ impl Http {
         Http {
             exec: Exec::Default,
             h1_half_close: false,
+            h1_keep_alive: true,
             h1_writev: true,
             h2_builder: Default::default(),
             mode: ConnectionMode::Fallback,
-            keep_alive: true,
             max_buf_size: None,
             pipeline_flush: false,
         }
@@ -216,6 +218,21 @@ impl<E> Http<E> {
     pub fn http1_half_close(&mut self, val: bool) -> &mut Self {
         self.h1_half_close = val;
         self
+    }
+
+    /// Enables or disables HTTP/1 keep-alive.
+    ///
+    /// Default is true.
+    pub fn http1_keep_alive(&mut self, val: bool) -> &mut Self {
+        self.h1_keep_alive = val;
+        self
+    }
+
+    // renamed due different semantics of http2 keep alive
+    #[doc(hidden)]
+    #[deprecated(note = "renamed to `http1_keep_alive`")]
+    pub fn keep_alive(&mut self, val: bool) -> &mut Self {
+        self.http1_keep_alive(val)
     }
 
     /// Set whether HTTP/1 connections should try to use vectored writes,
@@ -303,11 +320,38 @@ impl<E> Http<E> {
         self
     }
 
-    /// Enables or disables HTTP keep-alive.
+    /// Sets an interval for HTTP2 Ping frames should be sent to keep a
+    /// connection alive.
     ///
-    /// Default is true.
-    pub fn keep_alive(&mut self, val: bool) -> &mut Self {
-        self.keep_alive = val;
+    /// Pass `None` to disable HTTP2 keep-alive.
+    ///
+    /// Default is currently disabled.
+    ///
+    /// # Cargo Feature
+    ///
+    /// Requires the `runtime` cargo feature to be enabled.
+    #[cfg(feature = "runtime")]
+    pub fn http2_keep_alive_interval(
+        &mut self,
+        interval: impl Into<Option<Duration>>,
+    ) -> &mut Self {
+        self.h2_builder.keep_alive_interval = interval.into();
+        self
+    }
+
+    /// Sets a timeout for receiving an acknowledgement of the keep-alive ping.
+    ///
+    /// If the ping is not acknowledged within the timeout, the connection will
+    /// be closed. Does nothing if `http2_keep_alive_interval` is disabled.
+    ///
+    /// Default is 20 seconds.
+    ///
+    /// # Cargo Feature
+    ///
+    /// Requires the `runtime` cargo feature to be enabled.
+    #[cfg(feature = "runtime")]
+    pub fn http2_keep_alive_timeout(&mut self, timeout: Duration) -> &mut Self {
+        self.h2_builder.keep_alive_timeout = timeout;
         self
     }
 
@@ -344,10 +388,10 @@ impl<E> Http<E> {
         Http {
             exec,
             h1_half_close: self.h1_half_close,
+            h1_keep_alive: self.h1_keep_alive,
             h1_writev: self.h1_writev,
             h2_builder: self.h2_builder,
             mode: self.mode,
-            keep_alive: self.keep_alive,
             max_buf_size: self.max_buf_size,
             pipeline_flush: self.pipeline_flush,
         }
@@ -392,7 +436,7 @@ impl<E> Http<E> {
         let proto = match self.mode {
             ConnectionMode::H1Only | ConnectionMode::Fallback => {
                 let mut conn = proto::Conn::new(io);
-                if !self.keep_alive {
+                if !self.h1_keep_alive {
                     conn.disable_keep_alive();
                 }
                 if self.h1_half_close {

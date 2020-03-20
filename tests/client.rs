@@ -2537,6 +2537,198 @@ mod conn {
             .expect_err("client should be closed");
     }
 
+    #[tokio::test]
+    async fn http2_keep_alive_detects_unresponsive_server() {
+        let _ = pretty_env_logger::try_init();
+
+        let mut listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+            .await
+            .unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        // spawn a server that reads but doesn't write
+        tokio::spawn(async move {
+            let mut sock = listener.accept().await.unwrap().0;
+            let mut buf = [0u8; 1024];
+            loop {
+                let n = sock.read(&mut buf).await.expect("server read");
+                if n == 0 {
+                    // server closed, lets go!
+                    break;
+                }
+            }
+        });
+
+        let io = tcp_connect(&addr).await.expect("tcp connect");
+        let (_client, conn) = conn::Builder::new()
+            .http2_only(true)
+            .http2_keep_alive_interval(Duration::from_secs(1))
+            .http2_keep_alive_timeout(Duration::from_secs(1))
+            // enable while idle since we aren't sending requests
+            .http2_keep_alive_while_idle(true)
+            .handshake::<_, Body>(io)
+            .await
+            .expect("http handshake");
+
+        conn.await.expect_err("conn should time out");
+    }
+
+    #[tokio::test]
+    async fn http2_keep_alive_not_while_idle() {
+        // This tests that not setting `http2_keep_alive_while_idle(true)`
+        // will use the default behavior which will NOT detect the server
+        // is unresponsive while no streams are active.
+
+        let _ = pretty_env_logger::try_init();
+
+        let mut listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+            .await
+            .unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        // spawn a server that reads but doesn't write
+        tokio::spawn(async move {
+            let sock = listener.accept().await.unwrap().0;
+            drain_til_eof(sock).await.expect("server read");
+        });
+
+        let io = tcp_connect(&addr).await.expect("tcp connect");
+        let (mut client, conn) = conn::Builder::new()
+            .http2_only(true)
+            .http2_keep_alive_interval(Duration::from_secs(1))
+            .http2_keep_alive_timeout(Duration::from_secs(1))
+            .handshake::<_, Body>(io)
+            .await
+            .expect("http handshake");
+
+        tokio::spawn(async move {
+            conn.await.expect("client conn shouldn't error");
+        });
+
+        // sleep longer than keepalive would trigger
+        tokio::time::delay_for(Duration::from_secs(4)).await;
+
+        future::poll_fn(|ctx| client.poll_ready(ctx))
+            .await
+            .expect("client should be open");
+    }
+
+    #[tokio::test]
+    async fn http2_keep_alive_closes_open_streams() {
+        let _ = pretty_env_logger::try_init();
+
+        let mut listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+            .await
+            .unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        // spawn a server that reads but doesn't write
+        tokio::spawn(async move {
+            let sock = listener.accept().await.unwrap().0;
+            drain_til_eof(sock).await.expect("server read");
+        });
+
+        let io = tcp_connect(&addr).await.expect("tcp connect");
+        let (mut client, conn) = conn::Builder::new()
+            .http2_only(true)
+            .http2_keep_alive_interval(Duration::from_secs(1))
+            .http2_keep_alive_timeout(Duration::from_secs(1))
+            .handshake::<_, Body>(io)
+            .await
+            .expect("http handshake");
+
+        tokio::spawn(async move {
+            let err = conn.await.expect_err("client conn should timeout");
+            assert!(err.is_timeout());
+        });
+
+        let req = http::Request::new(hyper::Body::empty());
+        let err = client
+            .send_request(req)
+            .await
+            .expect_err("request should timeout");
+        assert!(err.is_timeout());
+
+        let err = future::poll_fn(|ctx| client.poll_ready(ctx))
+            .await
+            .expect_err("client should be closed");
+        assert!(
+            err.is_closed(),
+            "poll_ready error should be closed: {:?}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn http2_keep_alive_with_responsive_server() {
+        // Test that a responsive server works just when client keep
+        // alive is enabled
+        use hyper::service::service_fn;
+
+        let _ = pretty_env_logger::try_init();
+
+        let mut listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+            .await
+            .unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        // Spawn an HTTP2 server that reads the whole body and responds
+        tokio::spawn(async move {
+            let sock = listener.accept().await.unwrap().0;
+            hyper::server::conn::Http::new()
+                .http2_only(true)
+                .serve_connection(
+                    sock,
+                    service_fn(|req| async move {
+                        tokio::spawn(async move {
+                            let _ = hyper::body::aggregate(req.into_body())
+                                .await
+                                .expect("server req body aggregate");
+                        });
+                        Ok::<_, hyper::Error>(http::Response::new(hyper::Body::empty()))
+                    }),
+                )
+                .await
+                .expect("serve_connection");
+        });
+
+        let io = tcp_connect(&addr).await.expect("tcp connect");
+        let (mut client, conn) = conn::Builder::new()
+            .http2_only(true)
+            .http2_keep_alive_interval(Duration::from_secs(1))
+            .http2_keep_alive_timeout(Duration::from_secs(1))
+            .handshake::<_, Body>(io)
+            .await
+            .expect("http handshake");
+
+        tokio::spawn(async move {
+            conn.await.expect("client conn shouldn't error");
+        });
+
+        // Use a channel to keep request stream open
+        let (_tx, body) = hyper::Body::channel();
+        let req1 = http::Request::new(body);
+        let _resp = client.send_request(req1).await.expect("send_request");
+
+        // sleep longer than keepalive would trigger
+        tokio::time::delay_for(Duration::from_secs(4)).await;
+
+        future::poll_fn(|ctx| client.poll_ready(ctx))
+            .await
+            .expect("client should be open");
+    }
+
+    async fn drain_til_eof<T: AsyncRead + Unpin>(mut sock: T) -> io::Result<()> {
+        let mut buf = [0u8; 1024];
+        loop {
+            let n = sock.read(&mut buf).await?;
+            if n == 0 {
+                // socket closed, lets go!
+                return Ok(());
+            }
+        }
+    }
+
     struct DebugStream {
         tcp: TcpStream,
         shutdown_called: bool,
