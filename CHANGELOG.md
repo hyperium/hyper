@@ -1,3 +1,16 @@
+### v0.13.4 (2020-03-20)
+
+
+#### Bug Fixes
+
+* **http1:** try to drain connection buffer if user drops Body ([d838d54f](https://github.com/hyperium/hyper/commit/d838d54fdf0fc4a613612f68274f3520f333dd8e))
+
+
+#### Features
+
+* **http2:** add HTTP2 keep-alive support for client and server ([9a8413d9](https://github.com/hyperium/hyper/commit/9a8413d91081ad5a949276f05337e984c455e251))
+
+
 ### v0.13.3 (2020-03-03)
 
 
