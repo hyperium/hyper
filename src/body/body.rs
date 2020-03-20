@@ -12,7 +12,7 @@ use http::HeaderMap;
 use http_body::{Body as HttpBody, SizeHint};
 
 use crate::common::{task, watch, Future, Never, Pin, Poll};
-use crate::proto::h2::bdp;
+use crate::proto::h2::ping;
 use crate::proto::DecodedLength;
 use crate::upgrade::OnUpgrade;
 
@@ -38,7 +38,7 @@ enum Kind {
         rx: mpsc::Receiver<Result<Bytes, crate::Error>>,
     },
     H2 {
-        bdp: bdp::Sampler,
+        ping: ping::Recorder,
         content_length: DecodedLength,
         recv: h2::RecvStream,
     },
@@ -180,10 +180,10 @@ impl Body {
     pub(crate) fn h2(
         recv: h2::RecvStream,
         content_length: DecodedLength,
-        bdp: bdp::Sampler,
+        ping: ping::Recorder,
     ) -> Self {
         let body = Body::new(Kind::H2 {
-            bdp,
+            ping,
             content_length,
             recv,
         });
@@ -265,14 +265,14 @@ impl Body {
                 }
             }
             Kind::H2 {
-                ref bdp,
+                ref ping,
                 recv: ref mut h2,
                 content_length: ref mut len,
             } => match ready!(h2.poll_data(cx)) {
                 Some(Ok(bytes)) => {
                     let _ = h2.flow_control().release_capacity(bytes.len());
                     len.sub_if(bytes.len() as u64);
-                    bdp.sample(bytes.len());
+                    ping.record_data(bytes.len());
                     Poll::Ready(Some(Ok(bytes)))
                 }
                 Some(Err(e)) => Poll::Ready(Some(Err(crate::Error::new_body(e)))),
@@ -321,9 +321,14 @@ impl HttpBody for Body {
     ) -> Poll<Result<Option<HeaderMap>, Self::Error>> {
         match self.kind {
             Kind::H2 {
-                recv: ref mut h2, ..
+                recv: ref mut h2,
+                ref ping,
+                ..
             } => match ready!(h2.poll_trailers(cx)) {
-                Ok(t) => Poll::Ready(Ok(t)),
+                Ok(t) => {
+                    ping.record_non_data();
+                    Poll::Ready(Ok(t))
+                }
                 Err(e) => Poll::Ready(Err(crate::Error::new_h2(e))),
             },
             _ => Poll::Ready(Ok(None)),

@@ -1,12 +1,14 @@
 use std::error::Error as StdError;
 use std::marker::Unpin;
+#[cfg(feature = "runtime")]
+use std::time::Duration;
 
 use h2::server::{Connection, Handshake, SendResponse};
 use h2::Reason;
 use pin_project::{pin_project, project};
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use super::{bdp, decode_content_length, PipeToSendStream, SendBuf};
+use super::{decode_content_length, ping, PipeToSendStream, SendBuf};
 use crate::body::Payload;
 use crate::common::exec::H2Exec;
 use crate::common::{task, Future, Pin, Poll};
@@ -31,6 +33,10 @@ pub(crate) struct Config {
     pub(crate) initial_conn_window_size: u32,
     pub(crate) initial_stream_window_size: u32,
     pub(crate) max_concurrent_streams: Option<u32>,
+    #[cfg(feature = "runtime")]
+    pub(crate) keep_alive_interval: Option<Duration>,
+    #[cfg(feature = "runtime")]
+    pub(crate) keep_alive_timeout: Duration,
 }
 
 impl Default for Config {
@@ -40,6 +46,10 @@ impl Default for Config {
             initial_conn_window_size: DEFAULT_CONN_WINDOW,
             initial_stream_window_size: DEFAULT_STREAM_WINDOW,
             max_concurrent_streams: None,
+            #[cfg(feature = "runtime")]
+            keep_alive_interval: None,
+            #[cfg(feature = "runtime")]
+            keep_alive_timeout: Duration::from_secs(20),
         }
     }
 }
@@ -60,10 +70,7 @@ where
     B: Payload,
 {
     Handshaking {
-        /// If Some, bdp is enabled with the initial size.
-        ///
-        /// If None, bdp is disabled.
-        bdp_initial_size: Option<u32>,
+        ping_config: ping::Config,
         hs: Handshake<T, SendBuf<B::Data>>,
     },
     Serving(Serving<T, B>),
@@ -74,7 +81,7 @@ struct Serving<T, B>
 where
     B: Payload,
 {
-    bdp: Option<(bdp::Sampler, bdp::Estimator)>,
+    ping: Option<(ping::Recorder, ping::Ponger)>,
     conn: Connection<T, SendBuf<B::Data>>,
     closing: Option<crate::Error>,
 }
@@ -103,10 +110,22 @@ where
             None
         };
 
+        let ping_config = ping::Config {
+            bdp_initial_window: bdp,
+            #[cfg(feature = "runtime")]
+            keep_alive_interval: config.keep_alive_interval,
+            #[cfg(feature = "runtime")]
+            keep_alive_timeout: config.keep_alive_timeout,
+            // If keep-alive is enabled for servers, always enabled while
+            // idle, so it can more aggresively close dead connections.
+            #[cfg(feature = "runtime")]
+            keep_alive_while_idle: true,
+        };
+
         Server {
             exec,
             state: State::Handshaking {
-                bdp_initial_size: bdp,
+                ping_config,
                 hs: handshake,
             },
             service,
@@ -149,13 +168,17 @@ where
             let next = match me.state {
                 State::Handshaking {
                     ref mut hs,
-                    ref bdp_initial_size,
+                    ref ping_config,
                 } => {
                     let mut conn = ready!(Pin::new(hs).poll(cx).map_err(crate::Error::new_h2))?;
-                    let bdp = bdp_initial_size
-                        .map(|wnd| bdp::channel(conn.ping_pong().expect("ping_pong"), wnd));
+                    let ping = if ping_config.is_enabled() {
+                        let pp = conn.ping_pong().expect("conn.ping_pong");
+                        Some(ping::channel(pp, ping_config.clone()))
+                    } else {
+                        None
+                    };
                     State::Serving(Serving {
-                        bdp,
+                        ping,
                         conn,
                         closing: None,
                     })
@@ -193,7 +216,7 @@ where
     {
         if self.closing.is_none() {
             loop {
-                self.poll_bdp(cx);
+                self.poll_ping(cx);
 
                 // Check that the service is ready to accept a new request.
                 //
@@ -231,14 +254,16 @@ where
                     Some(Ok((req, respond))) => {
                         trace!("incoming request");
                         let content_length = decode_content_length(req.headers());
-                        let bdp_sampler = self
-                            .bdp
+                        let ping = self
+                            .ping
                             .as_ref()
-                            .map(|bdp| bdp.0.clone())
-                            .unwrap_or_else(bdp::disabled);
+                            .map(|ping| ping.0.clone())
+                            .unwrap_or_else(ping::disabled);
 
-                        let req =
-                            req.map(|stream| crate::Body::h2(stream, content_length, bdp_sampler));
+                        // Record the headers received
+                        ping.record_non_data();
+
+                        let req = req.map(|stream| crate::Body::h2(stream, content_length, ping));
                         let fut = H2Stream::new(service.call(req), respond);
                         exec.execute_h2stream(fut);
                     }
@@ -247,6 +272,10 @@ where
                     }
                     None => {
                         // no more incoming streams...
+                        if let Some((ref ping, _)) = self.ping {
+                            ping.ensure_not_timed_out()?;
+                        }
+
                         trace!("incoming connection complete");
                         return Poll::Ready(Ok(()));
                     }
@@ -264,12 +293,17 @@ where
         Poll::Ready(Err(self.closing.take().expect("polled after error")))
     }
 
-    fn poll_bdp(&mut self, cx: &mut task::Context<'_>) {
-        if let Some((_, ref mut estimator)) = self.bdp {
-            match estimator.poll_estimate(cx) {
-                Poll::Ready(wnd) => {
+    fn poll_ping(&mut self, cx: &mut task::Context<'_>) {
+        if let Some((_, ref mut estimator)) = self.ping {
+            match estimator.poll(cx) {
+                Poll::Ready(ping::Ponged::SizeUpdate(wnd)) => {
                     self.conn.set_target_window_size(wnd);
                     let _ = self.conn.set_initial_window_size(wnd);
+                }
+                #[cfg(feature = "runtime")]
+                Poll::Ready(ping::Ponged::KeepAliveTimedOut) => {
+                    debug!("keep-alive timed out, closing connection");
+                    self.conn.abrupt_shutdown(h2::Reason::NO_ERROR);
                 }
                 Poll::Pending => {}
             }

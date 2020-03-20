@@ -12,8 +12,8 @@ use crate::body::Payload;
 use crate::common::{task, Future, Pin, Poll};
 use crate::headers::content_length_parse_all;
 
-pub(crate) mod bdp;
 pub(crate) mod client;
+pub(crate) mod ping;
 pub(crate) mod server;
 
 pub(crate) use self::client::ClientTask;
