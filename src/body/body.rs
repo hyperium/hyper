@@ -565,17 +565,17 @@ mod tests {
     fn test_size_of() {
         // These are mostly to help catch *accidentally* increasing
         // the size by too much.
-        assert_eq!(
-            mem::size_of::<Body>(),
-            mem::size_of::<usize>() * 5 + mem::size_of::<u64>(),
-            "Body"
+
+        let body_size = mem::size_of::<Body>();
+        let body_expected_size = mem::size_of::<u64>() * 6;
+        assert!(
+            body_size <= body_expected_size,
+            "Body size = {} <= {}",
+            body_size,
+            body_expected_size,
         );
 
-        assert_eq!(
-            mem::size_of::<Body>(),
-            mem::size_of::<Option<Body>>(),
-            "Option<Body>"
-        );
+        assert_eq!(body_size, mem::size_of::<Option<Body>>(), "Option<Body>");
 
         assert_eq!(
             mem::size_of::<Sender>(),
