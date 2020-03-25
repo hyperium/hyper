@@ -1,6 +1,5 @@
-use futures_channel::oneshot;
 use futures_util::future;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
 use crate::common::{task, Future, Pin, Poll};
 
@@ -195,15 +194,15 @@ pub enum Callback<T, U> {
 impl<T, U> Callback<T, U> {
     pub(crate) fn is_canceled(&self) -> bool {
         match *self {
-            Callback::Retry(ref tx) => tx.is_canceled(),
-            Callback::NoRetry(ref tx) => tx.is_canceled(),
+            Callback::Retry(ref tx) => tx.is_closed(),
+            Callback::NoRetry(ref tx) => tx.is_closed(),
         }
     }
 
     pub(crate) fn poll_canceled(&mut self, cx: &mut task::Context<'_>) -> Poll<()> {
         match *self {
-            Callback::Retry(ref mut tx) => tx.poll_canceled(cx),
-            Callback::NoRetry(ref mut tx) => tx.poll_canceled(cx),
+            Callback::Retry(ref mut tx) => tx.poll_closed(cx),
+            Callback::NoRetry(ref mut tx) => tx.poll_closed(cx),
         }
     }
 
