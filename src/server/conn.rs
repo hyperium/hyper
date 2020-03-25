@@ -502,14 +502,21 @@ where
     ///
     /// This `Connection` should continue to be polled until shutdown
     /// can finish.
+    ///
+    /// # Note
+    ///
+    /// This should only be called while the `Connection` future is still
+    /// pending. If called after `Connection::poll` has resolved, this does
+    /// nothing.
     pub fn graceful_shutdown(self: Pin<&mut Self>) {
-        match self.project().conn.as_mut().unwrap() {
-            ProtoServer::H1(ref mut h1) => {
+        match self.project().conn {
+            Some(ProtoServer::H1(ref mut h1)) => {
                 h1.disable_keep_alive();
             }
-            ProtoServer::H2(ref mut h2) => {
+            Some(ProtoServer::H2(ref mut h2)) => {
                 h2.graceful_shutdown();
             }
+            None => (),
         }
     }
 
