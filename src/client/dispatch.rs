@@ -1,6 +1,6 @@
-use futures_channel::{mpsc, oneshot};
-use futures_core::Stream;
+use futures_channel::oneshot;
 use futures_util::future;
+use tokio::sync::mpsc;
 
 use crate::common::{task, Future, Pin, Poll};
 
@@ -8,7 +8,7 @@ pub type RetryPromise<T, U> = oneshot::Receiver<Result<U, (crate::Error, Option<
 pub type Promise<T> = oneshot::Receiver<Result<T, crate::Error>>;
 
 pub fn channel<T, U>() -> (Sender<T, U>, Receiver<T, U>) {
-    let (tx, rx) = mpsc::unbounded();
+    let (tx, rx) = mpsc::unbounded_channel();
     let (giver, taker) = want::new();
     let tx = Sender {
         buffered_once: false,
@@ -81,9 +81,9 @@ impl<T, U> Sender<T, U> {
         }
         let (tx, rx) = oneshot::channel();
         self.inner
-            .unbounded_send(Envelope(Some((val, Callback::Retry(tx)))))
+            .send(Envelope(Some((val, Callback::Retry(tx)))))
             .map(move |_| rx)
-            .map_err(|e| e.into_inner().0.take().expect("envelope not dropped").0)
+            .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
     }
 
     pub fn send(&mut self, val: T) -> Result<Promise<U>, T> {
@@ -92,9 +92,9 @@ impl<T, U> Sender<T, U> {
         }
         let (tx, rx) = oneshot::channel();
         self.inner
-            .unbounded_send(Envelope(Some((val, Callback::NoRetry(tx)))))
+            .send(Envelope(Some((val, Callback::NoRetry(tx)))))
             .map(move |_| rx)
-            .map_err(|e| e.into_inner().0.take().expect("envelope not dropped").0)
+            .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
     }
 
     pub fn unbound(self) -> UnboundedSender<T, U> {
@@ -117,9 +117,9 @@ impl<T, U> UnboundedSender<T, U> {
     pub fn try_send(&mut self, val: T) -> Result<RetryPromise<T, U>, T> {
         let (tx, rx) = oneshot::channel();
         self.inner
-            .unbounded_send(Envelope(Some((val, Callback::Retry(tx)))))
+            .send(Envelope(Some((val, Callback::Retry(tx)))))
             .map(move |_| rx)
-            .map_err(|e| e.into_inner().0.take().expect("envelope not dropped").0)
+            .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
     }
 }
 
@@ -142,7 +142,7 @@ impl<T, U> Receiver<T, U> {
         &mut self,
         cx: &mut task::Context<'_>,
     ) -> Poll<Option<(T, Callback<T, U>)>> {
-        match Pin::new(&mut self.inner).poll_next(cx) {
+        match self.inner.poll_recv(cx) {
             Poll::Ready(item) => {
                 Poll::Ready(item.map(|mut env| env.0.take().expect("envelope not dropped")))
             }
@@ -159,9 +159,8 @@ impl<T, U> Receiver<T, U> {
     }
 
     pub(crate) fn try_recv(&mut self) -> Option<(T, Callback<T, U>)> {
-        match self.inner.try_next() {
-            Ok(Some(mut env)) => env.0.take(),
-            Ok(None) => None,
+        match self.inner.try_recv() {
+            Ok(mut env) => env.0.take(),
             Err(_) => None,
         }
     }
