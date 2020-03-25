@@ -39,7 +39,7 @@ jobs:
           - stable
           - beta
           - nightly
-          # - 1.39.0
+          - 1.39.0
 
         os:
           - ubuntu-latest
@@ -58,9 +58,6 @@ jobs:
           - rust: stable
             os: ubuntu-latest
             features: "--features __internal_happy_eyeballs_tests"
-          # - rust: 1.39.0
-          #   features: "--no-default-features --features runtime"
-          #   build-only: true
 
     runs-on: ${{ matrix.os }}
 
@@ -75,22 +72,14 @@ jobs:
           toolchain: ${{ matrix.rust }}
           override: true
 
-      - name: Build only
-        if: matrix.build-only
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: ${{ matrix.features }}
-
       - name: Test
-        if: matrix.build-only != true
         uses: actions-rs/cargo@v1
         with:
           command: test
           args: ${{ matrix.features }}
 
       - name: Test all benches
-        if: matrix.benches && matrix.build-only != true
+        if: matrix.benches
         uses: actions-rs/cargo@v1
         with:
           command: test
