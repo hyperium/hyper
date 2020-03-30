@@ -140,6 +140,18 @@ fn http2_parallel_x10_req_10kb_100_chunks(b: &mut test::Bencher) {
 }
 
 #[bench]
+fn http2_parallel_x10_req_10kb_100_chunks_adaptive_window(b: &mut test::Bencher) {
+    let body = &[b'x'; 1024 * 10];
+    opts()
+        .http2()
+        .parallel(10)
+        .method(Method::POST)
+        .request_chunks(body, 100)
+        .http2_adaptive_window()
+        .bench(b)
+}
+
+#[bench]
 fn http2_parallel_x10_req_10kb_100_chunks_max_window(b: &mut test::Bencher) {
     let body = &[b'x'; 1024 * 10];
     opts()
@@ -182,6 +194,7 @@ struct Opts {
     http2: bool,
     http2_stream_window: Option<u32>,
     http2_conn_window: Option<u32>,
+    http2_adaptive_window: bool,
     parallel_cnt: u32,
     request_method: Method,
     request_body: Option<&'static [u8]>,
@@ -194,6 +207,7 @@ fn opts() -> Opts {
         http2: false,
         http2_stream_window: None,
         http2_conn_window: None,
+        http2_adaptive_window: false,
         parallel_cnt: 1,
         request_method: Method::GET,
         request_body: None,
@@ -209,12 +223,21 @@ impl Opts {
     }
 
     fn http2_stream_window(mut self, sz: impl Into<Option<u32>>) -> Self {
+        assert!(!self.http2_adaptive_window);
         self.http2_stream_window = sz.into();
         self
     }
 
     fn http2_conn_window(mut self, sz: impl Into<Option<u32>>) -> Self {
+        assert!(!self.http2_adaptive_window);
         self.http2_conn_window = sz.into();
+        self
+    }
+
+    fn http2_adaptive_window(mut self) -> Self {
+        assert!(self.http2_stream_window.is_none());
+        assert!(self.http2_conn_window.is_none());
+        self.http2_adaptive_window = true;
         self
     }
 
@@ -272,6 +295,7 @@ impl Opts {
             .http2_only(self.http2)
             .http2_initial_stream_window_size(self.http2_stream_window)
             .http2_initial_connection_window_size(self.http2_conn_window)
+            .http2_adaptive_window(self.http2_adaptive_window)
             .build::<_, Body>(connector);
 
         let url: hyper::Uri = format!("http://{}/hello", addr).parse().unwrap();
@@ -337,6 +361,7 @@ fn spawn_server(rt: &mut tokio::runtime::Runtime, opts: &Opts) -> SocketAddr {
             .http2_only(opts.http2)
             .http2_initial_stream_window_size(opts.http2_stream_window)
             .http2_initial_connection_window_size(opts.http2_conn_window)
+            .http2_adaptive_window(opts.http2_adaptive_window)
             .serve(make_service_fn(move |_| async move {
                 Ok::<_, hyper::Error>(service_fn(move |req: Request<Body>| async move {
                     let mut req_body = req.into_body();
