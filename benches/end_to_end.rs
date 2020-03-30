@@ -198,7 +198,7 @@ fn opts() -> Opts {
         request_method: Method::GET,
         request_body: None,
         request_chunks: 0,
-        response_body: b"Hello",
+        response_body: b"",
     }
 }
 
