@@ -24,7 +24,7 @@
 //! ## "Low-level"
 //!
 //! hyper is a lower-level HTTP library, meant to be a building block
-//! for libaries and applications.
+//! for libraries and applications.
 //!
 //! If looking for just a convenient HTTP client, consider the
 //! [reqwest](https://crates.io/crates/reqwest) crate.
