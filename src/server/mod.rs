@@ -70,8 +70,9 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use self::accept::Accept;
 use crate::body::{Body, Payload};
-use crate::common::exec::{Exec, H2Exec, NewSvcExec};
+use crate::common::exec::{Exec, Executor, NewSvcExec};
 use crate::common::{task, Future, Pin, Poll, Unpin};
+use crate::proto;
 use crate::service::{HttpService, MakeServiceRef};
 // Renamed `Http` as `Http_` for now so that people upgrading don't see an
 // error that `hyper::server::Http` is private...
@@ -153,7 +154,7 @@ where
     S: MakeServiceRef<IO, Body, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
-    E: H2Exec<<S::Service as HttpService<Body>>::Future, B>,
+    E: Executor<proto::h2::server::H2Stream<<S::Service as HttpService<Body>>::Future, B>>,
     E: NewSvcExec<IO, S::Future, S::Service, E, GracefulWatcher>,
 {
     /// Prepares a server to handle graceful shutdown when the provided future
@@ -208,7 +209,7 @@ where
     S: MakeServiceRef<IO, Body, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
-    E: H2Exec<<S::Service as HttpService<Body>>::Future, B>,
+    E: Executor<proto::h2::server::H2Stream<<S::Service as HttpService<Body>>::Future, B>>,
     E: NewSvcExec<IO, S::Future, S::Service, E, NoopWatcher>,
 {
     type Output = crate::Result<()>;
@@ -432,7 +433,7 @@ impl<I, E> Builder<I, E> {
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         B: Payload,
         E: NewSvcExec<I::Conn, S::Future, S::Service, E, NoopWatcher>,
-        E: H2Exec<<S::Service as HttpService<Body>>::Future, B>,
+        E: Executor<proto::h2::server::H2Stream<<S::Service as HttpService<Body>>::Future, B>>,
     {
         let serve = self.protocol.serve(self.incoming, new_service);
         let spawn_all = serve.spawn_all();

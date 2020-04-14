@@ -3,8 +3,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use crate::body::{Body, Payload};
-use crate::proto::h2::server::H2Stream;
+use crate::body::Body;
 use crate::server::conn::spawn_all::{NewSvcTask, Watcher};
 use crate::service::HttpService;
 
@@ -14,8 +13,10 @@ pub trait Executor<Fut> {
     fn execute(&self, fut: Fut);
 }
 
-pub trait H2Exec<F, B: Payload>: Clone {
-    fn execute_h2stream(&mut self, fut: H2Stream<F, B>);
+pub trait Task: sealed::Sealed + Future<Output = ()> + Send + 'static {}
+
+pub(crate) mod sealed {
+    pub trait Sealed {}
 }
 
 pub trait NewSvcExec<I, N, S: HttpService<Body>, E, W: Watcher<I, S, E>>: Clone {
@@ -64,16 +65,6 @@ impl fmt::Debug for Exec {
     }
 }
 
-impl<F, B> H2Exec<F, B> for Exec
-where
-    H2Stream<F, B>: Future<Output = ()> + Send + 'static,
-    B: Payload,
-{
-    fn execute_h2stream(&mut self, fut: H2Stream<F, B>) {
-        self.execute(fut)
-    }
-}
-
 impl<I, N, S, E, W> NewSvcExec<I, N, S, E, W> for Exec
 where
     NewSvcTask<I, N, S, E, W>: Future<Output = ()> + Send + 'static,
@@ -87,13 +78,11 @@ where
 
 // ==== impl Executor =====
 
-impl<E, F, B> H2Exec<F, B> for E
+impl<T> Executor<T> for Exec
 where
-    E: Executor<H2Stream<F, B>> + Clone,
-    H2Stream<F, B>: Future<Output = ()>,
-    B: Payload,
+    T: Task,
 {
-    fn execute_h2stream(&mut self, fut: H2Stream<F, B>) {
+    fn execute(&self, fut: T) {
         self.execute(fut)
     }
 }

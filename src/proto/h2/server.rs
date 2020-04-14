@@ -10,8 +10,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::{decode_content_length, ping, PipeToSendStream, SendBuf};
 use crate::body::Payload;
-use crate::common::exec::H2Exec;
-use crate::common::{task, Future, Pin, Poll};
+use crate::common::{exec::Executor, exec::Task, task, Future, Pin, Poll};
 use crate::headers;
 use crate::proto::Dispatched;
 use crate::service::HttpService;
@@ -92,7 +91,7 @@ where
     S: HttpService<Body, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
-    E: H2Exec<S::Future, B>,
+    E: Executor<H2Stream<S::Future, B>>,
 {
     pub(crate) fn new(io: T, service: S, config: &Config, exec: E) -> Server<T, S, B, E> {
         let mut builder = h2::server::Builder::default();
@@ -158,7 +157,7 @@ where
     S: HttpService<Body, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
-    E: H2Exec<S::Future, B>,
+    E: Executor<H2Stream<S::Future, B>>,
 {
     type Output = crate::Result<Dispatched>;
 
@@ -212,7 +211,7 @@ where
     where
         S: HttpService<Body, ResBody = B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
-        E: H2Exec<S::Future, B>,
+        E: Executor<H2Stream<S::Future, B>>,
     {
         if self.closing.is_none() {
             loop {
@@ -265,7 +264,7 @@ where
 
                         let req = req.map(|stream| crate::Body::h2(stream, content_length, ping));
                         let fut = H2Stream::new(service.call(req), respond);
-                        exec.execute_h2stream(fut);
+                        exec.execute(fut);
                     }
                     Some(Err(e)) => {
                         return Poll::Ready(Err(crate::Error::new_h2(e)));
@@ -436,4 +435,20 @@ where
             }
         })
     }
+}
+
+impl<F, B, E> Task for H2Stream<F, B>
+where
+    F: Future<Output = Result<Response<B>, E>> + Send + 'static,
+    B: Payload,
+    E: Into<Box<dyn StdError + Send + Sync>>,
+{
+}
+
+impl<F, B, E> crate::common::exec::sealed::Sealed for H2Stream<F, B>
+where
+    F: Future<Output = Result<Response<B>, E>> + Send + 'static,
+    B: Payload,
+    E: Into<Box<dyn StdError + Send + Sync>>,
+{
 }

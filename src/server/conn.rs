@@ -22,11 +22,11 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::Accept;
 use crate::body::{Body, Payload};
-use crate::common::exec::{Exec, H2Exec, NewSvcExec};
+use crate::common::exec::{Exec, Executor, NewSvcExec};
 use crate::common::io::Rewind;
 use crate::common::{task, Future, Pin, Poll, Unpin};
 use crate::error::{Kind, Parse};
-use crate::proto;
+use crate::proto::{self, h2::server::H2Stream};
 use crate::service::{HttpService, MakeServiceRef};
 use crate::upgrade::Upgraded;
 
@@ -431,7 +431,7 @@ impl<E> Http<E> {
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         Bd: Payload,
         I: AsyncRead + AsyncWrite + Unpin,
-        E: H2Exec<S::Future, Bd>,
+        E: Executor<H2Stream<S::Future, Bd>> + Clone,
     {
         let proto = match self.mode {
             ConnectionMode::H1Only | ConnectionMode::Fallback => {
@@ -478,7 +478,7 @@ impl<E> Http<E> {
         S: MakeServiceRef<IO, Body, ResBody = Bd>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         Bd: Payload,
-        E: H2Exec<<S::Service as HttpService<Body>>::Future, Bd>,
+        E: Executor<H2Stream<<S::Service as HttpService<Body>>::Future, Bd>> + Clone,
     {
         Serve {
             incoming,
@@ -496,7 +496,7 @@ where
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin,
     B: Payload + 'static,
-    E: H2Exec<S::Future, B>,
+    E: Executor<H2Stream<S::Future, B>> + Clone,
 {
     /// Start a graceful shutdown process for this connection.
     ///
@@ -641,7 +641,7 @@ where
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin + 'static,
     B: Payload + 'static,
-    E: H2Exec<S::Future, B>,
+    E: Executor<H2Stream<S::Future, B>> + Clone,
 {
     type Output = crate::Result<()>;
 
@@ -708,7 +708,7 @@ where
     IE: Into<Box<dyn StdError + Send + Sync>>,
     S: MakeServiceRef<IO, Body, ResBody = B>,
     B: Payload,
-    E: H2Exec<<S::Service as HttpService<Body>>::Future, B>,
+    E: Executor<H2Stream<<S::Service as HttpService<Body>>::Future, B>> + Clone,
 {
     fn poll_next_(
         self: Pin<&mut Self>,
@@ -745,7 +745,7 @@ where
     F: Future<Output = Result<S, FE>>,
     S: HttpService<Body, ResBody = B>,
     B: Payload,
-    E: H2Exec<S::Future, B>,
+    E: Executor<H2Stream<S::Future, B>> + Clone,
 {
     type Output = Result<Connection<I, S, E>, FE>;
 
@@ -779,7 +779,7 @@ where
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     S: MakeServiceRef<IO, Body, ResBody = B>,
     B: Payload,
-    E: H2Exec<<S::Service as HttpService<Body>>::Future, B>,
+    E: Executor<H2Stream<<S::Service as HttpService<Body>>::Future, B>>,
 {
     pub(super) fn poll_watch<W>(
         self: Pin<&mut Self>,
@@ -815,7 +815,7 @@ where
     S: HttpService<Body, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
-    E: H2Exec<S::Future, B>,
+    E: Executor<H2Stream<S::Future, B>>,
 {
     type Output = crate::Result<proto::Dispatched>;
 
@@ -835,8 +835,9 @@ pub(crate) mod spawn_all {
 
     use super::{Connecting, UpgradeableConnection};
     use crate::body::{Body, Payload};
-    use crate::common::exec::H2Exec;
+    use crate::common::exec::Executor;
     use crate::common::{task, Future, Pin, Poll, Unpin};
+    use crate::proto::h2::server::H2Stream;
     use crate::service::HttpService;
     use pin_project::{pin_project, project};
 
@@ -862,7 +863,7 @@ pub(crate) mod spawn_all {
     where
         I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         S: HttpService<Body>,
-        E: H2Exec<S::Future, S::ResBody>,
+        E: Executor<H2Stream<S::Future, S::ResBody>> + Clone,
     {
         type Future = UpgradeableConnection<I, S, E>;
 
@@ -909,7 +910,7 @@ pub(crate) mod spawn_all {
         NE: Into<Box<dyn StdError + Send + Sync>>,
         S: HttpService<Body, ResBody = B>,
         B: Payload,
-        E: H2Exec<S::Future, B>,
+        E: Executor<H2Stream<S::Future, B>> + Clone,
         W: Watcher<I, S, E>,
     {
         type Output = ();
@@ -976,7 +977,7 @@ mod upgrades {
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: AsyncRead + AsyncWrite + Unpin,
         B: Payload + 'static,
-        E: H2Exec<S::Future, B>,
+        E: Executor<H2Stream<S::Future, B>> + Clone,
     {
         /// Start a graceful shutdown process for this connection.
         ///
@@ -993,7 +994,7 @@ mod upgrades {
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         B: Payload + 'static,
-        E: super::H2Exec<S::Future, B>,
+        E: Executor<H2Stream<S::Future, B>> + Clone,
     {
         type Output = crate::Result<()>;
 
