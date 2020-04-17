@@ -50,7 +50,6 @@ pub(super) fn channel(ping_pong: PingPong, config: Config) -> (Recorder, Ponger)
     let bdp = config.bdp_initial_window.map(|wnd| Bdp {
         bdp: wnd,
         max_bandwidth: 0.0,
-        samples: 0,
         rtt: 0.0,
     });
 
@@ -142,8 +141,6 @@ struct Bdp {
     bdp: u32,
     /// Largest bandwidth we've seen so far.
     max_bandwidth: f64,
-    /// Count of samples made (ping sent and received)
-    samples: usize,
     /// Round trip time in seconds
     rtt: f64,
 }
@@ -301,10 +298,9 @@ impl Ponger {
                     }
                 }
 
-                if let Some(ref mut bdp) = self.bdp {
+                if self.bdp.is_some() {
                     let bytes = locked.bytes.expect("bdp enabled implies bytes");
                     locked.bytes = Some(0); // reset
-                    bdp.samples += 1;
                     trace!("received BDP ack; bytes = {}, rtt = {:?}", bytes, rtt);
                     (bytes, rtt)
                 } else {
@@ -394,11 +390,12 @@ impl Bdp {
 
         // average the rtt
         let rtt = seconds(rtt);
-        if self.samples < 10 {
-            // Average the first 10 samples
-            self.rtt += (rtt - self.rtt) / (self.samples as f64);
+        if self.rtt == 0.0 {
+            // First sample means rtt is first rtt.
+            self.rtt = rtt;
         } else {
-            self.rtt += (rtt - self.rtt) / 0.9;
+            // Weigh this rtt as 1/8 for a moving average.
+            self.rtt += (rtt - self.rtt) * 0.125;
         }
 
         // calculate the current bandwidth
@@ -414,7 +411,7 @@ impl Bdp {
 
         // if the current `bytes` sample is at least 2/3 the previous
         // bdp, increase to double the current sample.
-        if (bytes as f64) >= (self.bdp as f64) * 0.66 {
+        if bytes >= self.bdp as usize * 2 / 3 {
             self.bdp = (bytes * 2).min(BDP_LIMIT) as WindowSize;
             trace!("BDP increased to {}", self.bdp);
             Some(self.bdp)
