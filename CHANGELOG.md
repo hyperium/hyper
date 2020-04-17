@@ -1,3 +1,11 @@
+### v0.13.5 (2020-04-17)
+
+
+#### Bug Fixes
+
+* **server:** fix panic in Connection::graceful_shutdown ([fce3ddce](https://github.com/hyperium/hyper/commit/fce3ddce4671e7df439a9d8fdc469b079fc07318))
+
+
 ### v0.13.4 (2020-03-20)
 
 
