@@ -33,7 +33,7 @@ log = "0.4"
 pin-project = "0.4"
 time = "0.1"
 tower-service = "0.3"
-tokio = { version = "0.2", features = ["sync"] }
+tokio = { version = "0.2.5", features = ["sync"] }
 want = "0.3"
 
 # Optional
