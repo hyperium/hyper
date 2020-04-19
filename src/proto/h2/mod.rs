@@ -6,9 +6,10 @@ use http::header::{
 };
 use http::HeaderMap;
 use pin_project::pin_project;
+use std::error::Error as StdError;
 
 use super::DecodedLength;
-use crate::body::Payload;
+use crate::body::HttpBody;
 use crate::common::{task, Future, Pin, Poll};
 use crate::headers::content_length_parse_all;
 
@@ -91,7 +92,7 @@ fn decode_content_length(headers: &HeaderMap) -> DecodedLength {
 #[pin_project]
 struct PipeToSendStream<S>
 where
-    S: Payload,
+    S: HttpBody,
 {
     body_tx: SendStream<SendBuf<S::Data>>,
     data_done: bool,
@@ -101,7 +102,7 @@ where
 
 impl<S> PipeToSendStream<S>
 where
-    S: Payload,
+    S: HttpBody,
 {
     fn new(stream: S, tx: SendStream<SendBuf<S::Data>>) -> PipeToSendStream<S> {
         PipeToSendStream {
@@ -114,7 +115,8 @@ where
 
 impl<S> Future for PipeToSendStream<S>
 where
-    S: Payload,
+    S: HttpBody,
+    S::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     type Output = crate::Result<()>;
 

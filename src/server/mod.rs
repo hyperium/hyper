@@ -69,7 +69,7 @@ use pin_project::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use self::accept::Accept;
-use crate::body::{Body, Payload};
+use crate::body::{Body, HttpBody};
 use crate::common::exec::{Exec, H2Exec, NewSvcExec};
 use crate::common::{task, Future, Pin, Poll, Unpin};
 use crate::service::{HttpService, MakeServiceRef};
@@ -152,7 +152,8 @@ where
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     S: MakeServiceRef<IO, Body, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
-    B: Payload,
+    B: HttpBody + Send + Sync + 'static,
+    B::Error: Into<Box<dyn StdError + Send + Sync>>,
     E: H2Exec<<S::Service as HttpService<Body>>::Future, B>,
     E: NewSvcExec<IO, S::Future, S::Service, E, GracefulWatcher>,
 {
@@ -207,7 +208,8 @@ where
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     S: MakeServiceRef<IO, Body, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
-    B: Payload,
+    B: HttpBody + 'static,
+    B::Error: Into<Box<dyn StdError + Send + Sync>>,
     E: H2Exec<<S::Service as HttpService<Body>>::Future, B>,
     E: NewSvcExec<IO, S::Future, S::Service, E, NoopWatcher>,
 {
@@ -430,7 +432,8 @@ impl<I, E> Builder<I, E> {
         I::Conn: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         S: MakeServiceRef<I::Conn, Body, ResBody = B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
-        B: Payload,
+        B: HttpBody + 'static,
+        B::Error: Into<Box<dyn StdError + Send + Sync>>,
         E: NewSvcExec<I::Conn, S::Future, S::Service, E, NoopWatcher>,
         E: H2Exec<<S::Service as HttpService<Body>>::Future, B>,
     {

@@ -8,7 +8,7 @@ use std::marker::PhantomData;
 
 use super::conn::{Builder, SendRequest};
 use crate::{
-    body::Payload,
+    body::HttpBody,
     common::{task, Pin, Poll},
     service::{MakeConnection, Service},
 };
@@ -43,8 +43,9 @@ where
     C::Connection: Unpin + Send + 'static,
     C::Future: Send + 'static,
     C::Error: Into<Box<dyn StdError + Send + Sync>> + Send,
-    B: Payload + Unpin + 'static,
-    B::Data: Unpin,
+    B: HttpBody + Unpin + Send + 'static,
+    B::Data: Send + Unpin,
+    B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     type Response = SendRequest<B>;
     type Error = crate::Error;

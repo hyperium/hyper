@@ -65,7 +65,7 @@ pub(crate) enum Parse {
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum User {
-    /// Error calling user's Payload::poll_data().
+    /// Error calling user's HttpBody::poll_data().
     Body,
     /// Error calling user's MakeService.
     MakeService,
@@ -316,7 +316,7 @@ impl Error {
             Kind::Http2 => "http2 error",
             Kind::Io => "connection error",
 
-            Kind::User(User::Body) => "error from user's Payload stream",
+            Kind::User(User::Body) => "error from user's HttpBody stream",
             Kind::User(User::MakeService) => "error from user's MakeService",
             Kind::User(User::Service) => "error from user's Service",
             Kind::User(User::UnexpectedHeader) => "user sent unexpected header",
