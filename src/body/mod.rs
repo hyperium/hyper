@@ -22,17 +22,14 @@ pub use self::aggregate::aggregate;
 pub use self::body::{Body, Sender};
 pub use self::to_bytes::to_bytes;
 
-pub(crate) use self::payload::Payload;
-
 mod aggregate;
 mod body;
-mod payload;
 mod to_bytes;
 
 /// An optimization to try to take a full body if immediately available.
 ///
 /// This is currently limited to *only* `hyper::Body`s.
-pub(crate) fn take_full_data<T: Payload + 'static>(body: &mut T) -> Option<T::Data> {
+pub(crate) fn take_full_data<T: HttpBody + 'static>(body: &mut T) -> Option<T::Data> {
     use std::any::{Any, TypeId};
 
     // This static type check can be optimized at compile-time.

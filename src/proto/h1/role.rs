@@ -359,7 +359,7 @@ impl Http1Transaction for Server {
                     }
                     match msg.body {
                         Some(BodyLength::Known(known_len)) => {
-                            // The Payload claims to know a length, and
+                            // The HttpBody claims to know a length, and
                             // the headers are already set. For performance
                             // reasons, we are just going to trust that
                             // the values match.
@@ -388,7 +388,7 @@ impl Http1Transaction for Server {
                             continue 'headers;
                         }
                         Some(BodyLength::Unknown) => {
-                            // The Payload impl didn't know how long the
+                            // The HttpBody impl didn't know how long the
                             // body is, but a length header was included.
                             // We have to parse the value to return our
                             // Encoder...
@@ -825,7 +825,7 @@ impl Client {
         let headers = &mut head.headers;
 
         // If the user already set specific headers, we should respect them, regardless
-        // of what the Payload knows about itself. They set them for a reason.
+        // of what the HttpBody knows about itself. They set them for a reason.
 
         // Because of the borrow checker, we can't check the for an existing
         // Content-Length header while holding an `Entry` for the Transfer-Encoding
