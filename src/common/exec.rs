@@ -3,7 +3,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use crate::body::{Body, Payload};
+use crate::body::{Body, HttpBody};
 use crate::proto::h2::server::H2Stream;
 use crate::server::conn::spawn_all::{NewSvcTask, Watcher};
 use crate::service::HttpService;
@@ -14,7 +14,7 @@ pub trait Executor<Fut> {
     fn execute(&self, fut: Fut);
 }
 
-pub trait H2Exec<F, B: Payload>: Clone {
+pub trait H2Exec<F, B: HttpBody>: Clone {
     fn execute_h2stream(&mut self, fut: H2Stream<F, B>);
 }
 
@@ -67,7 +67,7 @@ impl fmt::Debug for Exec {
 impl<F, B> H2Exec<F, B> for Exec
 where
     H2Stream<F, B>: Future<Output = ()> + Send + 'static,
-    B: Payload,
+    B: HttpBody,
 {
     fn execute_h2stream(&mut self, fut: H2Stream<F, B>) {
         self.execute(fut)
@@ -91,7 +91,7 @@ impl<E, F, B> H2Exec<F, B> for E
 where
     E: Executor<H2Stream<F, B>> + Clone,
     H2Stream<F, B>: Future<Output = ()>,
-    B: Payload,
+    B: HttpBody,
 {
     fn execute_h2stream(&mut self, fut: H2Stream<F, B>) {
         self.execute(fut)

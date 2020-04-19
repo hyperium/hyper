@@ -2,7 +2,7 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::marker::PhantomData;
 
-use crate::body::Payload;
+use crate::body::HttpBody;
 use crate::common::{task, Future, Poll};
 use crate::{Request, Response};
 
@@ -45,10 +45,10 @@ impl<F, ReqBody, Ret, ResBody, E> tower_service::Service<crate::Request<ReqBody>
     for ServiceFn<F, ReqBody>
 where
     F: FnMut(Request<ReqBody>) -> Ret,
-    ReqBody: Payload,
+    ReqBody: HttpBody,
     Ret: Future<Output = Result<Response<ResBody>, E>>,
     E: Into<Box<dyn StdError + Send + Sync>>,
-    ResBody: Payload,
+    ResBody: HttpBody,
 {
     type Response = crate::Response<ResBody>;
     type Error = E;

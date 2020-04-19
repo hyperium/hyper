@@ -8,6 +8,7 @@
 //! If don't have need to manage connections yourself, consider using the
 //! higher-level [Client](super) API.
 
+use std::error::Error as StdError;
 use std::fmt;
 use std::mem;
 use std::sync::Arc;
@@ -21,7 +22,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tower_service::Service;
 
 use super::dispatch;
-use crate::body::Payload;
+use crate::body::HttpBody;
 use crate::common::{task, BoxSendFuture, Exec, Executor, Future, Pin, Poll};
 use crate::proto;
 use crate::upgrade::Upgraded;
@@ -32,7 +33,7 @@ type Http1Dispatcher<T, B, R> = proto::dispatch::Dispatcher<proto::dispatch::Cli
 #[pin_project]
 enum ProtoClient<T, B>
 where
-    B: Payload,
+    B: HttpBody,
 {
     H1(#[pin] Http1Dispatcher<T, B, proto::h1::ClientTransaction>),
     H2(#[pin] proto::h2::ClientTask<B>),
@@ -63,7 +64,7 @@ pub struct SendRequest<B> {
 pub struct Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + Send + 'static,
-    B: Payload + 'static,
+    B: HttpBody + 'static,
 {
     inner: Option<ProtoClient<T, B>>,
 }
@@ -160,7 +161,7 @@ impl<B> SendRequest<B> {
 
 impl<B> SendRequest<B>
 where
-    B: Payload + 'static,
+    B: HttpBody + 'static,
 {
     /// Sends a `Request` on the associated connection.
     ///
@@ -245,7 +246,7 @@ where
 
 impl<B> Service<Request<B>> for SendRequest<B>
 where
-    B: Payload + 'static,
+    B: HttpBody + 'static,
 {
     type Response = Response<Body>;
     type Error = crate::Error;
@@ -280,7 +281,7 @@ impl<B> Http2SendRequest<B> {
 
 impl<B> Http2SendRequest<B>
 where
-    B: Payload + 'static,
+    B: HttpBody + 'static,
 {
     pub(super) fn send_request_retryable(
         &mut self,
@@ -328,7 +329,9 @@ impl<B> Clone for Http2SendRequest<B> {
 impl<T, B> Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    B: Payload + Unpin + 'static,
+    B: HttpBody + Unpin + Send + 'static,
+    B::Data: Send,
+    B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     /// Return the inner IO object, and additional information.
     ///
@@ -380,7 +383,9 @@ where
 impl<T, B> Future for Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    B: Payload + 'static,
+    B: HttpBody + Send + 'static,
+    B::Data: Send,
+    B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     type Output = crate::Result<()>;
 
@@ -404,7 +409,7 @@ where
 impl<T, B> fmt::Debug for Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + fmt::Debug + Send + 'static,
-    B: Payload + 'static,
+    B: HttpBody + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Connection").finish()
@@ -580,7 +585,9 @@ impl Builder {
     ) -> impl Future<Output = crate::Result<(SendRequest<B>, Connection<T, B>)>>
     where
         T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-        B: Payload + 'static,
+        B: HttpBody + 'static,
+        B::Data: Send,
+        B::Error: Into<Box<dyn StdError + Send + Sync>>,
     {
         let opts = self.clone();
 
@@ -652,7 +659,9 @@ impl fmt::Debug for ResponseFuture {
 impl<T, B> Future for ProtoClient<T, B>
 where
     T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
-    B: Payload + 'static,
+    B: HttpBody + Send + 'static,
+    B::Data: Send,
+    B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     type Output = crate::Result<proto::Dispatched>;
 
@@ -678,7 +687,8 @@ impl<B: Send> AssertSendSync for SendRequest<B> {}
 impl<T: Send, B: Send> AssertSend for Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + Send + 'static,
-    B: Payload + 'static,
+    B: HttpBody + 'static,
+    B::Data: Send,
 {
 }
 
@@ -686,7 +696,7 @@ where
 impl<T: Send + Sync, B: Send + Sync> AssertSendSync for Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + Send + 'static,
-    B: Payload + 'static,
+    B: HttpBody + 'static,
     B::Data: Send + Sync + 'static,
 {
 }

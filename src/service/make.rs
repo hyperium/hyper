@@ -4,7 +4,7 @@ use std::fmt;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::{HttpService, Service};
-use crate::body::Payload;
+use crate::body::HttpBody;
 use crate::common::{task, Future, Poll};
 
 // The same "trait alias" as tower::MakeConnection, but inlined to reduce
@@ -41,7 +41,7 @@ where
 // Just a sort-of "trait alias" of `MakeService`, not to be implemented
 // by anyone, only used as bounds.
 pub trait MakeServiceRef<Target, ReqBody>: self::sealed::Sealed<(Target, ReqBody)> {
-    type ResBody: Payload;
+    type ResBody: HttpBody;
     type Error: Into<Box<dyn StdError + Send + Sync>>;
     type Service: HttpService<ReqBody, ResBody = Self::ResBody, Error = Self::Error>;
     type MakeError: Into<Box<dyn StdError + Send + Sync>>;
@@ -70,8 +70,8 @@ where
     ME: Into<Box<dyn StdError + Send + Sync>>,
     S: HttpService<IB, ResBody = OB, Error = E>,
     F: Future<Output = Result<S, ME>>,
-    IB: Payload,
-    OB: Payload,
+    IB: HttpBody,
+    OB: HttpBody,
 {
     type Error = E;
     type Service = S;
@@ -94,8 +94,8 @@ impl<T, Target, S, B1, B2> self::sealed::Sealed<(Target, B1)> for T
 where
     T: for<'a> Service<&'a Target, Response = S>,
     S: HttpService<B1, ResBody = B2>,
-    B1: Payload,
-    B2: Payload,
+    B1: HttpBody,
+    B2: HttpBody,
 {
 }
 

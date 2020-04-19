@@ -48,6 +48,7 @@
 //! # fn main () {}
 //! ```
 
+use std::error::Error as StdError;
 use std::fmt;
 use std::mem;
 use std::time::Duration;
@@ -60,7 +61,7 @@ use http::{Method, Request, Response, Uri, Version};
 
 use self::connect::{sealed::Connect, Alpn, Connected, Connection};
 use self::pool::{Key as PoolKey, Pool, Poolable, Pooled, Reservation};
-use crate::body::{Body, Payload};
+use crate::body::{Body, HttpBody};
 use crate::common::{lazy as hyper_lazy, task, BoxSendFuture, Executor, Future, Lazy, Pin, Poll};
 
 #[cfg(feature = "tcp")]
@@ -150,16 +151,17 @@ impl Client<(), Body> {
 impl<C, B> Client<C, B>
 where
     C: Connect + Clone + Send + Sync + 'static,
-    B: Payload + Send + 'static,
+    B: HttpBody + Send + 'static,
     B::Data: Send,
+    B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     /// Send a `GET` request to the supplied `Uri`.
     ///
     /// # Note
     ///
-    /// This requires that the `Payload` type have a `Default` implementation.
+    /// This requires that the `HttpBody` type have a `Default` implementation.
     /// It *should* return an "empty" version of itself, such that
-    /// `Payload::is_end_stream` is `true`.
+    /// `HttpBody::is_end_stream` is `true`.
     ///
     /// # Example
     ///
@@ -180,7 +182,7 @@ where
     {
         let body = B::default();
         if !body.is_end_stream() {
-            warn!("default Payload used for get() does not return true for is_end_stream");
+            warn!("default HttpBody used for get() does not return true for is_end_stream");
         }
 
         let mut req = Request::new(body);
@@ -543,8 +545,9 @@ where
 impl<C, B> tower_service::Service<Request<B>> for Client<C, B>
 where
     C: Connect + Clone + Send + Sync + 'static,
-    B: Payload + Send + 'static,
+    B: HttpBody + Send + 'static,
     B::Data: Send,
+    B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     type Response = Response<Body>;
     type Error = crate::Error;
@@ -653,7 +656,7 @@ impl<B> PoolClient<B> {
     }
 }
 
-impl<B: Payload + 'static> PoolClient<B> {
+impl<B: HttpBody + 'static> PoolClient<B> {
     fn send_request_retryable(
         &mut self,
         req: Request<B>,
@@ -1132,7 +1135,7 @@ impl Builder {
     #[cfg(feature = "tcp")]
     pub fn build_http<B>(&self) -> Client<HttpConnector, B>
     where
-        B: Payload + Send,
+        B: HttpBody + Send,
         B::Data: Send,
     {
         let mut connector = HttpConnector::new();
@@ -1146,7 +1149,7 @@ impl Builder {
     pub fn build<C, B>(&self, connector: C) -> Client<C, B>
     where
         C: Connect + Clone,
-        B: Payload + Send,
+        B: HttpBody + Send,
         B::Data: Send,
     {
         Client {
