@@ -51,6 +51,7 @@ serde_derive = "1.0"
 serde_json = "1.0"
 tokio = { version = "0.2.2", features = ["fs", "macros", "io-std", "rt-util", "sync", "time", "test-util"] }
 tokio-test = "0.2"
+tokio-util = { version = "0.3", features = ["codec"] }
 tower-util = "0.3"
 url = "1.0"
 

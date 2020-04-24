@@ -1,13 +1,13 @@
 #![deny(warnings)]
 
 use tokio::fs::File;
-use tokio::io::AsyncReadExt;
+
+use tokio_util::codec::{BytesCodec, FramedRead};
 
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Method, Request, Response, Result, Server, StatusCode};
 
 static INDEX: &str = "examples/send_file_index.html";
-static INTERNAL_SERVER_ERROR: &[u8] = b"Internal Server Error";
 static NOTFOUND: &[u8] = b"Not Found";
 
 #[tokio::main]
@@ -30,9 +30,7 @@ async fn main() {
 
 async fn response_examples(req: Request<Body>) -> Result<Response<Body>> {
     match (req.method(), req.uri().path()) {
-        (&Method::GET, "/") | (&Method::GET, "/index.html") | (&Method::GET, "/big_file.html") => {
-            simple_file_send(INDEX).await
-        }
+        (&Method::GET, "/") | (&Method::GET, "/index.html") => simple_file_send(INDEX).await,
         (&Method::GET, "/no_file.html") => {
             // Test what happens when file cannot be be found
             simple_file_send("this_file_should_not_exist.html").await
@@ -49,26 +47,13 @@ fn not_found() -> Response<Body> {
         .unwrap()
 }
 
-/// HTTP status code 500
-fn internal_server_error() -> Response<Body> {
-    Response::builder()
-        .status(StatusCode::INTERNAL_SERVER_ERROR)
-        .body(INTERNAL_SERVER_ERROR.into())
-        .unwrap()
-}
-
 async fn simple_file_send(filename: &str) -> Result<Response<Body>> {
-    // Serve a file by asynchronously reading it entirely into memory.
-    // Uses tokio_fs to open file asynchronously, then tokio::io::AsyncReadExt
-    // to read into memory asynchronously.
+    // Serve a file by asynchronously reading it by chunks using tokio-util crate.
 
-    if let Ok(mut file) = File::open(filename).await {
-        let mut buf = Vec::new();
-        if let Ok(_) = file.read_to_end(&mut buf).await {
-            return Ok(Response::new(buf.into()));
-        }
-
-        return Ok(internal_server_error());
+    if let Ok(file) = File::open(filename).await {
+        let stream = FramedRead::new(file, BytesCodec::new());
+        let body = Body::wrap_stream(stream);
+        return Ok(Response::new(body));
     }
 
     Ok(not_found())
