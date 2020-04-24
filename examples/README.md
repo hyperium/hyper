@@ -39,7 +39,7 @@ pretty_env_logger = "0.4"
 
 * [`params`](params.rs) - A webserver that accept a form, with a name and a number, checks the parameters are presents and validates the input.
 
-* [`send_file`](send_file.rs) - A server that sends back content of files using tokio_fs to read the files asynchronously.
+* [`send_file`](send_file.rs) - A server that sends back content of files using tokio-util to read the files asynchronously.
 
 * [`single_threaded`](single_threaded.rs) - A server only running on 1 thread, so it can make use of `!Send` app state (like an `Rc` counter).
 
