@@ -22,7 +22,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::Accept;
 use crate::body::{Body, Payload};
-use crate::common::exec::{Exec, Executor, NewSvcExec};
+use crate::common::exec::{Exec, Executor};
 use crate::common::io::Rewind;
 use crate::common::{task, Future, Pin, Poll, Unpin};
 use crate::error::{Kind, Parse};
@@ -779,7 +779,7 @@ where
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     S: MakeServiceRef<IO, Body, ResBody = B>,
     B: Payload,
-    E: Executor<H2Stream<<S::Service as HttpService<Body>>::Future, B>>,
+    E: Executor<H2Stream<<S::Service as HttpService<Body>>::Future, B>> + Clone,
 {
     pub(super) fn poll_watch<W>(
         self: Pin<&mut Self>,
@@ -787,19 +787,14 @@ where
         watcher: &W,
     ) -> Poll<crate::Result<()>>
     where
-        E: NewSvcExec<IO, S::Future, S::Service, E, W>,
+        E: Executor<NewSvcTask<IO, S::Future, S::Service, E, W>>,
         W: Watcher<IO, S::Service, E>,
     {
         let mut me = self.project();
         loop {
             if let Some(connecting) = ready!(me.serve.as_mut().poll_next_(cx)?) {
                 let fut = NewSvcTask::new(connecting, watcher.clone());
-                me.serve
-                    .as_mut()
-                    .project()
-                    .protocol
-                    .exec
-                    .execute_new_svc(fut);
+                me.serve.as_mut().project().protocol.exec.execute(fut);
             } else {
                 return Poll::Ready(Ok(()));
             }
@@ -835,7 +830,7 @@ pub(crate) mod spawn_all {
 
     use super::{Connecting, UpgradeableConnection};
     use crate::body::{Body, Payload};
-    use crate::common::exec::Executor;
+    use crate::common::exec::{Executor, Task};
     use crate::common::{task, Future, Pin, Poll, Unpin};
     use crate::proto::h2::server::H2Stream;
     use crate::service::HttpService;
@@ -952,6 +947,24 @@ pub(crate) mod spawn_all {
                 me.state.set(next);
             }
         }
+    }
+
+    impl<I, N, S, NE, B, E, W> Task for NewSvcTask<I, N, S, E, W>
+    where
+        I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+        N: Future<Output = Result<S, NE>> + Send + 'static,
+        NE: Into<Box<dyn StdError + Send + Sync>>,
+        S: HttpService<Body, ResBody = B> + 'static,
+        B: Payload,
+        E: Executor<H2Stream<S::Future, B>> + Clone + Send + 'static,
+        W: Watcher<I, S, E> + Send + 'static,
+        <W as Watcher<I, S, E>>::Future: Send,
+    {
+    }
+
+    impl<I, N, S: HttpService<Body>, E, W: Watcher<I, S, E>> crate::common::exec::sealed::Sealed
+        for NewSvcTask<I, N, S, E, W>
+    {
     }
 }
 

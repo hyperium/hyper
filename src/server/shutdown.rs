@@ -3,11 +3,11 @@ use std::error::Error as StdError;
 use pin_project::{pin_project, project};
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use super::conn::{SpawnAll, UpgradeableConnection, Watcher};
+use super::conn::{spawn_all::NewSvcTask, SpawnAll, UpgradeableConnection, Watcher};
 use super::Accept;
 use crate::body::{Body, Payload};
 use crate::common::drain::{self, Draining, Signal, Watch, Watching};
-use crate::common::exec::{Executor, NewSvcExec};
+use crate::common::exec::Executor;
 use crate::common::{task, Future, Pin, Poll, Unpin};
 use crate::proto::h2::server::H2Stream;
 use crate::service::{HttpService, MakeServiceRef};
@@ -54,7 +54,7 @@ where
     B: Payload,
     F: Future<Output = ()>,
     E: Executor<H2Stream<<S::Service as HttpService<Body>>::Future, B>>,
-    E: NewSvcExec<IO, S::Future, S::Service, E, GracefulWatcher>,
+    E: Executor<NewSvcTask<IO, S::Future, S::Service, E, GracefulWatcher>> + Clone,
 {
     type Output = crate::Result<()>;
 

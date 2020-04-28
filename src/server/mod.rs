@@ -70,13 +70,13 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use self::accept::Accept;
 use crate::body::{Body, Payload};
-use crate::common::exec::{Exec, Executor, NewSvcExec};
+use crate::common::exec::{Exec, Executor};
 use crate::common::{task, Future, Pin, Poll, Unpin};
 use crate::proto;
 use crate::service::{HttpService, MakeServiceRef};
 // Renamed `Http` as `Http_` for now so that people upgrading don't see an
 // error that `hyper::server::Http` is private...
-use self::conn::{Http as Http_, NoopWatcher, SpawnAll};
+use self::conn::{spawn_all::NewSvcTask, Http as Http_, NoopWatcher, SpawnAll};
 use self::shutdown::{Graceful, GracefulWatcher};
 #[cfg(feature = "tcp")]
 use self::tcp::AddrIncoming;
@@ -155,7 +155,7 @@ where
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
     E: Executor<proto::h2::server::H2Stream<<S::Service as HttpService<Body>>::Future, B>>,
-    E: NewSvcExec<IO, S::Future, S::Service, E, GracefulWatcher>,
+    E: Executor<NewSvcTask<IO, S::Future, S::Service, E, GracefulWatcher>> + Clone,
 {
     /// Prepares a server to handle graceful shutdown when the provided future
     /// completes.
@@ -210,7 +210,7 @@ where
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Payload,
     E: Executor<proto::h2::server::H2Stream<<S::Service as HttpService<Body>>::Future, B>>,
-    E: NewSvcExec<IO, S::Future, S::Service, E, NoopWatcher>,
+    E: Executor<NewSvcTask<IO, S::Future, S::Service, E, NoopWatcher>> + Clone,
 {
     type Output = crate::Result<()>;
 
@@ -432,7 +432,7 @@ impl<I, E> Builder<I, E> {
         S: MakeServiceRef<I::Conn, Body, ResBody = B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         B: Payload,
-        E: NewSvcExec<I::Conn, S::Future, S::Service, E, NoopWatcher>,
+        E: Executor<NewSvcTask<I::Conn, S::Future, S::Service, E, NoopWatcher>> + Clone,
         E: Executor<proto::h2::server::H2Stream<<S::Service as HttpService<Body>>::Future, B>>,
     {
         let serve = self.protocol.serve(self.incoming, new_service);
