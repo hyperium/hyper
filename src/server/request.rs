@@ -44,7 +44,7 @@ impl<'a, 'b: 'a> Request<'a, 'b> {
         let body = if headers.has::<ContentLength>() {
             match headers.get::<ContentLength>() {
                 Some(&ContentLength(len)) => SizedReader(stream, len),
-                None => unreachable!()
+                None => return Err(::Error::Header),
             }
         } else if headers.has::<TransferEncoding>() {
             todo!("check for Transfer-Encoding: chunked");
@@ -304,4 +304,22 @@ mod tests {
         assert_eq!(read_to_string(req).unwrap(), "1".to_owned());
     }
 
+    /// Tests that when an invalid Content-Length header doesn't crash the
+    /// server.
+    #[test]
+    fn test_invalid_content_length() {
+        let mut mock = MockStream::with_input(b"\
+            POST / HTTP/1.1\r\n\
+            Host: example.domain\r\n\
+            Content-Length: x\r\n\
+            \r\n\
+            I'm a bad request.\r\n\
+        ");
+
+        // FIXME: Use Type ascription
+        let mock: &mut NetworkStream = &mut mock;
+        let mut stream = BufReader::new(mock);
+
+        let _ = Request::new(&mut stream, sock("127.0.0.1:80"));
+    }
 }
