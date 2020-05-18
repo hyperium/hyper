@@ -11,7 +11,6 @@ use std::time::Duration;
 
 use futures_util::future::Either;
 use http::uri::{Scheme, Uri};
-use net2::TcpBuilder;
 use pin_project::pin_project;
 use tokio::net::TcpStream;
 use tokio::time::Delay;
@@ -552,30 +551,32 @@ fn connect(
     reuse_address: bool,
     connect_timeout: Option<Duration>,
 ) -> io::Result<impl Future<Output = io::Result<TcpStream>>> {
-    let builder = match *addr {
-        SocketAddr::V4(_) => TcpBuilder::new_v4()?,
-        SocketAddr::V6(_) => TcpBuilder::new_v6()?,
+    use socket2::{Domain, Protocol, Socket, Type};
+    let domain = match *addr {
+        SocketAddr::V4(_) => Domain::ipv4(),
+        SocketAddr::V6(_) => Domain::ipv6(),
     };
+    let socket = Socket::new(domain, Type::stream(), Some(Protocol::tcp()))?;
 
     if reuse_address {
-        builder.reuse_address(reuse_address)?;
+        socket.set_reuse_address(true)?;
     }
 
     if let Some(ref local_addr) = *local_addr {
         // Caller has requested this socket be bound before calling connect
-        builder.bind(SocketAddr::new(local_addr.clone(), 0))?;
+        socket.bind(&SocketAddr::new(local_addr.clone(), 0).into())?;
     } else if cfg!(windows) {
         // Windows requires a socket be bound before calling connect
         let any: SocketAddr = match *addr {
             SocketAddr::V4(_) => ([0, 0, 0, 0], 0).into(),
             SocketAddr::V6(_) => ([0, 0, 0, 0, 0, 0, 0, 0], 0).into(),
         };
-        builder.bind(any)?;
+        socket.bind(&any.into())?;
     }
 
     let addr = *addr;
 
-    let std_tcp = builder.to_tcp_stream()?;
+    let std_tcp = socket.into_tcp_stream();
 
     Ok(async move {
         let connect = TcpStream::connect_std(std_tcp, &addr);
