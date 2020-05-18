@@ -297,7 +297,7 @@ impl Body {
 }
 
 impl Default for Body {
-    /// Returns [`Body::empty()`](Body::empty).
+    /// Returns `Body::empty()`.
     #[inline]
     fn default() -> Body {
         Body::empty()
