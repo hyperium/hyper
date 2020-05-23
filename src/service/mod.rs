@@ -21,8 +21,9 @@
 //! to a single connection. It defines how to respond to **all** requests that
 //! connection will receive.
 //!
-//! While it's possible to implement `Service` for a type manually, the helper
-//! [`service_fn`](service_fn) should be sufficient for most cases.
+//! The helper [`service_fn`](service_fn) should be sufficient for most cases, but
+//! if you need to implement `Service` for a type manually, you can follow the example
+//! in `service_struct_impl.rs`.
 //!
 //! # MakeService
 //!
