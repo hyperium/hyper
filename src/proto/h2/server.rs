@@ -26,12 +26,14 @@ use crate::{Body, Response};
 // so is more likely to use more resources than a client would.
 const DEFAULT_CONN_WINDOW: u32 = 1024 * 1024; // 1mb
 const DEFAULT_STREAM_WINDOW: u32 = 1024 * 1024; // 1mb
+const DEFAULT_MAX_FRAME_SIZE: u32 = 1024 * 16; // 16kb
 
 #[derive(Clone, Debug)]
 pub(crate) struct Config {
     pub(crate) adaptive_window: bool,
     pub(crate) initial_conn_window_size: u32,
     pub(crate) initial_stream_window_size: u32,
+    pub(crate) max_frame_size: u32,
     pub(crate) max_concurrent_streams: Option<u32>,
     #[cfg(feature = "runtime")]
     pub(crate) keep_alive_interval: Option<Duration>,
@@ -45,6 +47,7 @@ impl Default for Config {
             adaptive_window: false,
             initial_conn_window_size: DEFAULT_CONN_WINDOW,
             initial_stream_window_size: DEFAULT_STREAM_WINDOW,
+            max_frame_size: DEFAULT_MAX_FRAME_SIZE,
             max_concurrent_streams: None,
             #[cfg(feature = "runtime")]
             keep_alive_interval: None,
@@ -98,7 +101,8 @@ where
         let mut builder = h2::server::Builder::default();
         builder
             .initial_window_size(config.initial_stream_window_size)
-            .initial_connection_window_size(config.initial_conn_window_size);
+            .initial_connection_window_size(config.initial_conn_window_size)
+            .max_frame_size(config.max_frame_size);
         if let Some(max) = config.max_concurrent_streams {
             builder.max_concurrent_streams(max);
         }
