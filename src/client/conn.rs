@@ -17,7 +17,7 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use futures_util::future::{self, Either, FutureExt as _};
-use pin_project::{pin_project, project};
+use pin_project::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tower_service::Service;
 
@@ -30,7 +30,7 @@ use crate::{Body, Request, Response};
 
 type Http1Dispatcher<T, B, R> = proto::dispatch::Dispatcher<proto::dispatch::Client<B>, B, T, R>;
 
-#[pin_project]
+#[pin_project(project = ProtoClientProj)]
 enum ProtoClient<T, B>
 where
     B: HttpBody,
@@ -677,12 +677,10 @@ where
 {
     type Output = crate::Result<proto::Dispatched>;
 
-    #[project]
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        #[project]
         match self.project() {
-            ProtoClient::H1(c) => c.poll(cx),
-            ProtoClient::H2(c) => c.poll(cx),
+            ProtoClientProj::H1(c) => c.poll(cx),
+            ProtoClientProj::H2(c) => c.poll(cx),
         }
     }
 }

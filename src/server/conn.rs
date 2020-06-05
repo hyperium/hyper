@@ -17,7 +17,7 @@ use std::net::SocketAddr;
 use std::time::Duration;
 
 use bytes::Bytes;
-use pin_project::{pin_project, project};
+use pin_project::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::Accept;
@@ -118,7 +118,7 @@ where
     fallback: Fallback<E>,
 }
 
-#[pin_project]
+#[pin_project(project = ProtoServerProj)]
 pub(super) enum ProtoServer<T, B, S, E = Exec>
 where
     S: HttpService<Body>,
@@ -836,12 +836,10 @@ where
 {
     type Output = crate::Result<proto::Dispatched>;
 
-    #[project]
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        #[project]
         match self.project() {
-            ProtoServer::H1(s) => s.poll(cx),
-            ProtoServer::H2(s) => s.poll(cx),
+            ProtoServerProj::H1(s) => s.poll(cx),
+            ProtoServerProj::H2(s) => s.poll(cx),
         }
     }
 }
@@ -855,7 +853,7 @@ pub(crate) mod spawn_all {
     use crate::common::exec::H2Exec;
     use crate::common::{task, Future, Pin, Poll, Unpin};
     use crate::service::HttpService;
-    use pin_project::{pin_project, project};
+    use pin_project::pin_project;
 
     // Used by `SpawnAll` to optionally watch a `Connection` future.
     //
@@ -907,7 +905,7 @@ pub(crate) mod spawn_all {
         state: State<I, N, S, E, W>,
     }
 
-    #[pin_project]
+    #[pin_project(project = StateProj)]
     pub enum State<I, N, S: HttpService<Body>, E, W: Watcher<I, S, E>> {
         Connecting(#[pin] Connecting<I, N, E>, W),
         Connected(#[pin] W::Future),
@@ -934,7 +932,6 @@ pub(crate) mod spawn_all {
     {
         type Output = ();
 
-        #[project]
         fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
             // If it weren't for needing to name this type so the `Send` bounds
             // could be projected to the `Serve` executor, this could just be
@@ -943,9 +940,8 @@ pub(crate) mod spawn_all {
             let mut me = self.project();
             loop {
                 let next = {
-                    #[project]
                     match me.state.as_mut().project() {
-                        State::Connecting(connecting, watcher) => {
+                        StateProj::Connecting(connecting, watcher) => {
                             let res = ready!(connecting.poll(cx));
                             let conn = match res {
                                 Ok(conn) => conn,
@@ -958,7 +954,7 @@ pub(crate) mod spawn_all {
                             let connected = watcher.watch(conn.with_upgrades());
                             State::Connected(connected)
                         }
-                        State::Connected(future) => {
+                        StateProj::Connected(future) => {
                             return future.poll(cx).map(|res| {
                                 if let Err(err) = res {
                                     debug!("connection error: {}", err);
