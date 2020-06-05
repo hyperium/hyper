@@ -1,6 +1,6 @@
 use std::error::Error as StdError;
 
-use pin_project::{pin_project, project};
+use pin_project::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::conn::{SpawnAll, UpgradeableConnection, Watcher};
@@ -18,7 +18,7 @@ pub struct Graceful<I, S, F, E> {
     state: State<I, S, F, E>,
 }
 
-#[pin_project]
+#[pin_project(project = StateProj)]
 pub(super) enum State<I, S, F, E> {
     Running {
         drain: Option<(Signal, Watch)>,
@@ -58,14 +58,12 @@ where
 {
     type Output = crate::Result<()>;
 
-    #[project]
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         let mut me = self.project();
         loop {
             let next = {
-                #[project]
                 match me.state.as_mut().project() {
-                    State::Running {
+                    StateProj::Running {
                         drain,
                         spawn_all,
                         signal,
@@ -80,7 +78,7 @@ where
                             return spawn_all.poll_watch(cx, &GracefulWatcher(watch));
                         }
                     },
-                    State::Draining(ref mut draining) => {
+                    StateProj::Draining(ref mut draining) => {
                         return Pin::new(draining).poll(cx).map(Ok);
                     }
                 }
