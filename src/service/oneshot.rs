@@ -24,7 +24,7 @@ pub struct Oneshot<S: Service<Req>, Req> {
     state: State<S, Req>,
 }
 
-#[pin_project(Replace, project = StateProj, project_replace = StateProjOwn)]
+#[pin_project(project = StateProj, project_replace = StateProjOwn)]
 enum State<S: Service<Req>, Req> {
     NotReady(S, Req),
     Called(#[pin] S::Future),
