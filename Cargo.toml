@@ -30,7 +30,7 @@ httparse = "1.0"
 h2 = "0.2.2"
 itoa = "0.4.1"
 log = "0.4"
-pin-project = "0.4.17"
+pin-project = "0.4.20"
 time = "0.1"
 tower-service = "0.3"
 tokio = { version = "0.2.5", features = ["sync"] }
