@@ -60,7 +60,7 @@ async fn proxy(client: HttpClient, req: Request<Body>) -> Result<Response<Body>,
             tokio::task::spawn(async move {
                 match req.into_body().on_upgrade().await {
                     Ok(upgraded) => {
-                        if let Err(e) = tunnel(upgraded, addr).await {
+                        if let Err(e) = tunnel(upgraded, &addr).await {
                             eprintln!("server io error: {}", e);
                         };
                     }
@@ -81,13 +81,13 @@ async fn proxy(client: HttpClient, req: Request<Body>) -> Result<Response<Body>,
     }
 }
 
-fn host_addr(uri: &http::Uri) -> Option<SocketAddr> {
-    uri.authority().and_then(|auth| auth.as_str().parse().ok())
+fn host_addr(uri: &http::Uri) -> Option<String> {
+    uri.authority().map(|auth| auth.as_str().to_string())
 }
 
 // Create a TCP connection to host:port, build a tunnel between the connection and
 // the upgraded connection
-async fn tunnel(upgraded: Upgraded, addr: SocketAddr) -> std::io::Result<()> {
+async fn tunnel(upgraded: Upgraded, addr: &str) -> std::io::Result<()> {
     // Connect to remote server
     let mut server = TcpStream::connect(addr).await?;
 
