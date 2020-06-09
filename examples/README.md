@@ -35,6 +35,8 @@ pretty_env_logger = "0.4"
 
 * [`http_proxy`](http_proxy.rs) - A simple HTTP(S) proxy that handle and upgrade `CONNECT` requests and then proxy data between client and remote server.
 
+* [`integration_test`](integration_test.rs) - Shows how hyper can be used to integration test a server or client.
+
 * [`multi_server`](multi_server.rs) - A server that listens to two different ports, a different `Service` per port.
 
 * [`params`](params.rs) - A webserver that accept a form, with a name and a number, checks the parameters are presents and validates the input.
