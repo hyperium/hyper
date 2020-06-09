@@ -163,7 +163,7 @@ impl FromStr for Basic {
         match decode(s) {
             Ok(decoded) => match String::from_utf8(decoded) {
                 Ok(text) => {
-                    let parts = &mut text.split(':');
+                    let parts = &mut text.splitn(2, ':');
                     let user = match parts.next() {
                         Some(part) => part.to_owned(),
                         None => return Err(::Error::Header)
@@ -264,6 +264,14 @@ mod tests {
             &[b"Basic QWxhZGRpbjo=".to_vec()]).unwrap();
         assert_eq!(auth.0.username, "Aladdin");
         assert_eq!(auth.0.password, Some("".to_owned()));
+    }
+
+    #[test]
+    fn test_basic_auth_parse_password_with_colon() {
+        let auth: Authorization<Basic> = Header::parse_header(
+            &[b"Basic QWxhZGRpbjpwYXNzd29yZDoxMjM0".to_vec()]).unwrap();
+        assert_eq!(auth.0.username, "Aladdin");
+        assert_eq!(auth.0.password, Some("password:1234".to_owned()));
     }
 
 	#[test]
