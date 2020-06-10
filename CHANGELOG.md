@@ -1,3 +1,12 @@
+### v0.13.6 (2020-05-29)
+
+
+#### Features
+
+* **body:** remove Sync bound for Body::wrap_stream ([042c7706](https://github.com/hyperium/hyper/commit/042c770603a212f22387807efe4fc672959df40c))
+* **http2:** allow configuring the HTTP/2 frame size ([b6446456](https://github.com/hyperium/hyper/commit/b64464562a02a642a3cf16ea072f39621da21980))
+
+
 ### v0.13.5 (2020-04-17)
 
 

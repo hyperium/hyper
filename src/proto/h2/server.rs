@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use h2::server::{Connection, Handshake, SendResponse};
 use h2::Reason;
-use pin_project::{pin_project, project};
+use pin_project::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::{decode_content_length, ping, PipeToSendStream, SendBuf};
@@ -26,12 +26,14 @@ use crate::{Body, Response};
 // so is more likely to use more resources than a client would.
 const DEFAULT_CONN_WINDOW: u32 = 1024 * 1024; // 1mb
 const DEFAULT_STREAM_WINDOW: u32 = 1024 * 1024; // 1mb
+const DEFAULT_MAX_FRAME_SIZE: u32 = 1024 * 16; // 16kb
 
 #[derive(Clone, Debug)]
 pub(crate) struct Config {
     pub(crate) adaptive_window: bool,
     pub(crate) initial_conn_window_size: u32,
     pub(crate) initial_stream_window_size: u32,
+    pub(crate) max_frame_size: u32,
     pub(crate) max_concurrent_streams: Option<u32>,
     #[cfg(feature = "runtime")]
     pub(crate) keep_alive_interval: Option<Duration>,
@@ -45,6 +47,7 @@ impl Default for Config {
             adaptive_window: false,
             initial_conn_window_size: DEFAULT_CONN_WINDOW,
             initial_stream_window_size: DEFAULT_STREAM_WINDOW,
+            max_frame_size: DEFAULT_MAX_FRAME_SIZE,
             max_concurrent_streams: None,
             #[cfg(feature = "runtime")]
             keep_alive_interval: None,
@@ -98,7 +101,8 @@ where
         let mut builder = h2::server::Builder::default();
         builder
             .initial_window_size(config.initial_stream_window_size)
-            .initial_connection_window_size(config.initial_conn_window_size);
+            .initial_connection_window_size(config.initial_conn_window_size)
+            .max_frame_size(config.max_frame_size);
         if let Some(max) = config.max_concurrent_streams {
             builder.max_concurrent_streams(max);
         }
@@ -322,7 +326,7 @@ where
     state: H2StreamState<F, B>,
 }
 
-#[pin_project]
+#[pin_project(project = H2StreamStateProj)]
 enum H2StreamState<F, B>
 where
     B: HttpBody,
@@ -363,13 +367,11 @@ where
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
     E: Into<Box<dyn StdError + Send + Sync>>,
 {
-    #[project]
     fn poll2(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
         let mut me = self.project();
         loop {
-            #[project]
             let next = match me.state.as_mut().project() {
-                H2StreamState::Service(h) => {
+                H2StreamStateProj::Service(h) => {
                     let res = match h.poll(cx) {
                         Poll::Ready(Ok(r)) => r,
                         Poll::Pending => {
@@ -413,7 +415,7 @@ where
                         return Poll::Ready(Ok(()));
                     }
                 }
-                H2StreamState::Body(pipe) => {
+                H2StreamStateProj::Body(pipe) => {
                     return pipe.poll(cx);
                 }
             };
