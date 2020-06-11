@@ -141,7 +141,13 @@ impl Future for GaiFuture {
         Pin::new(&mut self.inner).poll(cx).map(|res| match res {
             Ok(Ok(addrs)) => Ok(GaiAddrs { inner: addrs }),
             Ok(Err(err)) => Err(err),
-            Err(join_err) => panic!("gai background task failed: {:?}", join_err),
+            Err(join_err) => {
+                if join_err.is_cancelled() {
+                    Err(io::Error::new(io::ErrorKind::Interrupted, join_err))
+                } else {
+                    panic!("gai background task failed: {:?}", join_err)
+                }
+            }
         })
     }
 }
