@@ -7,6 +7,7 @@ use http::header::{
 use http::HeaderMap;
 use pin_project::pin_project;
 use std::error::Error as StdError;
+use std::io::IoSlice;
 
 use super::DecodedLength;
 use crate::body::HttpBody;
@@ -261,5 +262,9 @@ impl<B: Buf> Buf for SendBuf<B> {
         if let Some(b) = self.0.as_mut() {
             b.advance(cnt)
         }
+    }
+
+    fn bytes_vectored<'a>(&'a self, dst: &mut [IoSlice<'a>]) -> usize {
+        self.0.as_ref().map(|b| b.bytes_vectored(dst)).unwrap_or(0)
     }
 }
