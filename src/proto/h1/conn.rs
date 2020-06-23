@@ -214,8 +214,8 @@ where
 
         let (reading, ret) = match self.state.reading {
             Reading::Body(ref mut decoder) => {
-                match decoder.decode(cx, &mut self.io) {
-                    Poll::Ready(Ok(slice)) => {
+                match ready!(decoder.decode(cx, &mut self.io)) {
+                    Ok(slice) => {
                         let (reading, chunk) = if decoder.is_eof() {
                             debug!("incoming body completed");
                             (
@@ -237,8 +237,7 @@ where
                         };
                         (reading, Poll::Ready(chunk))
                     }
-                    Poll::Pending => return Poll::Pending,
-                    Poll::Ready(Err(e)) => {
+                    Err(e) => {
                         debug!("incoming body decode error: {}", e);
                         (Reading::Closed, Poll::Ready(Some(Err(e))))
                     }

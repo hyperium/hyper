@@ -3,7 +3,6 @@ use std::io;
 use std::net::{SocketAddr, TcpListener as StdTcpListener};
 use std::time::Duration;
 
-use futures_util::FutureExt as _;
 use tokio::net::TcpListener;
 use tokio::time::Delay;
 
@@ -91,19 +90,13 @@ impl AddrIncoming {
     fn poll_next_(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<AddrStream>> {
         // Check if a previous timeout is active that was set by IO errors.
         if let Some(ref mut to) = self.timeout {
-            match Pin::new(to).poll(cx) {
-                Poll::Ready(()) => {}
-                Poll::Pending => return Poll::Pending,
-            }
+            ready!(Pin::new(to).poll(cx));
         }
         self.timeout = None;
 
-        let accept = self.listener.accept();
-        futures_util::pin_mut!(accept);
-
         loop {
-            match accept.poll_unpin(cx) {
-                Poll::Ready(Ok((socket, addr))) => {
+            match ready!(self.listener.poll_accept(cx)) {
+                Ok((socket, addr)) => {
                     if let Some(dur) = self.tcp_keepalive_timeout {
                         if let Err(e) = socket.set_keepalive(Some(dur)) {
                             trace!("error trying to set TCP keepalive: {}", e);
@@ -114,8 +107,7 @@ impl AddrIncoming {
                     }
                     return Poll::Ready(Ok(AddrStream::new(socket, addr)));
                 }
-                Poll::Pending => return Poll::Pending,
-                Poll::Ready(Err(e)) => {
+                Err(e) => {
                     // Connection errors can be ignored directly, continue by
                     // accepting the next request.
                     if is_connection_error(&e) {
