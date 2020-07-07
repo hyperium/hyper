@@ -58,8 +58,7 @@ url = "1.0"
 [features]
 default = [
     "runtime",
-    "stream",
-    "log"
+    "stream"
 ]
 runtime = [
     "tcp",
@@ -70,9 +69,6 @@ tcp = [
     "tokio/blocking",
     "tokio/tcp",
     "tokio/time",
-]
-log = [
-    "tracing/log",
 ]
 
 # `impl Stream` for things
