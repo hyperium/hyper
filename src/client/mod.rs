@@ -793,13 +793,11 @@ fn absolute_form(uri: &mut Uri) {
 }
 
 fn authority_form(uri: &mut Uri) {
-    if log_enabled!(::log::Level::Warn) {
-        if let Some(path) = uri.path_and_query() {
-            // `https://hyper.rs` would parse with `/` path, don't
-            // annoy people about that...
-            if path != "/" {
-                warn!("HTTP/1.1 CONNECT request stripping path: {:?}", path);
-            }
+    if let Some(path) = uri.path_and_query() {
+        // `https://hyper.rs` would parse with `/` path, don't
+        // annoy people about that...
+        if path != "/" {
+            warn!("HTTP/1.1 CONNECT request stripping path: {:?}", path);
         }
     }
     *uri = match uri.authority() {
