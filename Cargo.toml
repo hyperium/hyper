@@ -29,7 +29,7 @@ http-body = "0.3.1"
 httparse = "1.0"
 h2 = "0.2.2"
 itoa = "0.4.1"
-tracing = { version = "0.1", default-features = false, features = ["std", "log"] }
+tracing = { version = "0.1", features = ["log"] }
 pin-project = "0.4"
 time = "0.1"
 tower-service = "0.3"
@@ -73,7 +73,6 @@ tcp = [
 ]
 log = [
     "tracing/log",
-    "tracing/std"
 ]
 
 # `impl Stream` for things
