@@ -1980,6 +1980,66 @@ mod dispatch_impl {
             }
         }
     }
+
+    #[tokio::test]
+    async fn add_origin_header_when_set() {
+        // https://github.com/hyperium/hyper/issues/1383
+        let _ = pretty_env_logger::try_init();
+
+        let server = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = server.local_addr().unwrap();
+        let (closes_tx, closes) = mpsc::channel(10);
+
+        let (tx1, rx1) = oneshot::channel();
+        let (_tx2, rx2) = std::sync::mpsc::channel::<()>();
+
+        thread::spawn(move || {
+            let mut sock = server.accept().unwrap().0;
+            sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            sock.set_write_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut buf = [0; 4096];
+            let n = sock.read(&mut buf).expect("read 1");
+
+            println!("{:?}", String::from_utf8_lossy(&buf[..n]));
+
+            let expected = format!("GET /a HTTP/1.1\r\nhost: {addr}\r\norigin: http://secret-mission\r\n\r\n", addr=addr);
+            assert_eq!(s(&buf[..n]), expected);
+
+            sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
+            let _ = tx1.send(());
+
+
+            // prevent this thread from closing until end of test, so the connection
+            // stays open and idle until Client is dropped
+            let _ = rx2.recv();
+        });
+
+        let client = Client::builder()
+            .add_origin("http://secret-mission".parse().unwrap())
+            .pool_max_idle_per_host(0).build(
+            DebugConnector::with_http_and_closes(HttpConnector::new(), closes_tx),
+        );
+
+        let req = Request::builder()
+            .uri(&*format!("http://{}/a", addr))
+            .body(Body::empty())
+            .unwrap();
+        let res = client.request(req).and_then(move |res| {
+            assert_eq!(res.status(), hyper::StatusCode::OK);
+            concat(res)
+        });
+        let rx = rx1.expect("thread panicked");
+
+        let (res, ()) = future::join(res, rx).await;
+        res.unwrap();
+
+        let t = tokio::time::delay_for(Duration::from_millis(100)).map(|_| panic!("time out"));
+        let close = closes.into_future().map(|(opt, _)| opt.expect("closes"));
+        future::select(t, close).await;
+    }
+
 }
 
 mod conn {
