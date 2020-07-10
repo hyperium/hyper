@@ -43,7 +43,7 @@
 #[doc(hidden)]
 pub use http;
 #[macro_use]
-extern crate log;
+extern crate tracing;
 
 #[cfg(all(test, feature = "nightly"))]
 extern crate test;
