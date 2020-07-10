@@ -55,8 +55,8 @@ use std::time::Duration;
 
 use futures_channel::oneshot;
 use futures_util::future::{self, Either, FutureExt as _, TryFutureExt as _};
-use http::header::{HeaderValue, HOST};
-use http::uri::Scheme;
+use http::header::{HeaderValue, HOST, ORIGIN};
+use http::uri::{Scheme};
 use http::{Method, Request, Response, Uri, Version};
 
 use self::connect::{sealed::Connect, Alpn, Connected, Connection};
@@ -66,6 +66,7 @@ use crate::common::{lazy as hyper_lazy, task, BoxSendFuture, Executor, Future, L
 
 #[cfg(feature = "tcp")]
 pub use self::connect::HttpConnector;
+use std::ops::Add;
 
 pub mod conn;
 pub mod connect;
@@ -83,11 +84,12 @@ pub struct Client<C, B = Body> {
     pool: Pool<PoolClient<B>>,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 struct Config {
     retry_canceled_requests: bool,
     set_host: bool,
     ver: Ver,
+    origin: String
 }
 
 /// A `Future` that will resolve to an HTTP Response.
@@ -284,6 +286,7 @@ where
     ) -> impl Future<Output = Result<Response<Body>, ClientError<B>>> + Unpin {
         let conn = self.connection_for(pool_key);
 
+        let origin = self.config.origin.clone();
         let set_host = self.config.set_host;
         let executor = self.conn_builder.exec.clone();
         conn.and_then(move |mut pooled| {
@@ -315,6 +318,11 @@ where
                 return Either::Left(future::err(ClientError::Normal(
                     crate::Error::new_user_unsupported_request_method(),
                 )));
+            }
+
+
+            if !origin.is_empty() && !origin.eq("/") {
+                req.headers_mut().append(ORIGIN, HeaderValue::from_str(&origin).expect("origin uri must be valid"));
             }
 
             let fut = pooled
@@ -892,6 +900,7 @@ impl Default for Builder {
                 retry_canceled_requests: true,
                 set_host: true,
                 ver: Ver::Auto,
+                origin: String::from("")
             },
             conn_builder: conn::Builder::new(),
             pool_config: pool::Config {
@@ -1152,6 +1161,26 @@ impl Builder {
         self
     }
 
+    /// Sets the value to provide for the `Origin` header for requests .
+    ///
+    /// If a valid value is provided, it will set the `Origin` header
+    /// for all requests automatically.
+    ///
+    /// Default is `""`.
+    #[inline]
+    pub fn add_origin(&mut self, origin: Uri) -> &mut Self {
+        let scheme = origin.scheme_str().unwrap();
+        let host = origin.host().unwrap();
+        let base_origin = format!("{}://{}", scheme, host);
+
+        self.client_config.origin = match origin.port() {
+            Some(port) => base_origin.add(format!(":{}", port).as_str()),
+            _ => base_origin
+        };
+        self
+    }
+
+
     /// Provide an executor to execute background `Connection` tasks.
     pub fn executor<E>(&mut self, exec: E) -> &mut Self
     where
@@ -1183,7 +1212,7 @@ impl Builder {
         B::Data: Send,
     {
         Client {
-            config: self.client_config,
+            config: self.client_config.clone(),
             conn_builder: self.conn_builder.clone(),
             connector,
             pool: Pool::new(self.pool_config, &self.conn_builder.exec),
@@ -1254,4 +1283,5 @@ mod unit_tests {
         assert_eq!(scheme, *"http");
         assert_eq!(host, "hyper.rs");
     }
+
 }
