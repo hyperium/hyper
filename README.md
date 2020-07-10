@@ -4,6 +4,7 @@
 [![Released API docs](https://docs.rs/hyper/badge.svg)](https://docs.rs/hyper)
 [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![CI](https://github.com/hyperium/hyper/workflows/CI/badge.svg)](https://github.com/hyperium/hyper/actions?query=workflow%3ACI)
+[![Discord chat][discord-badge]][discord-url]
 
 A **fast** and **correct** HTTP implementation for Rust.
 
@@ -30,13 +31,11 @@ Both are built on top of this library.
 
 To get involved, take a look at [CONTRIBUTING](CONTRIBUTING.md).
 
-There are two main avenues for real-time chatting about hyper: a [Gitter room][gitter]
-and [irc.mozilla.org/hyper][irc]. They are mirrored, so choose whichever format you
-prefer.
-
-[gitter]: https://gitter.im/hyperium/hyper
-[irc]: https://kiwiirc.com/nextclient/irc.mozilla.org/#hyper
+If you prefer chatting, there is an active community in the [Discord server][discord-url].
 
 ## License
 
 hyper is provided under the MIT license. See [LICENSE](LICENSE).
+
+[discord-badge]: https://img.shields.io/discord/500028886025895936.svg?logo=discord
+[discord-url]: https://discord.gg/kkwpueZ
