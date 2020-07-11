@@ -56,7 +56,7 @@ use std::time::Duration;
 use futures_channel::oneshot;
 use futures_util::future::{self, Either, FutureExt as _, TryFutureExt as _};
 use http::header::{HeaderValue, HOST, ORIGIN};
-use http::uri::{Scheme};
+use http::uri::Scheme;
 use http::{Method, Request, Response, Uri, Version};
 
 use self::connect::{sealed::Connect, Alpn, Connected, Connection};
@@ -89,7 +89,7 @@ struct Config {
     retry_canceled_requests: bool,
     set_host: bool,
     ver: Ver,
-    origin: String
+    origin: String,
 }
 
 /// A `Future` that will resolve to an HTTP Response.
@@ -320,9 +320,11 @@ where
                 )));
             }
 
-
             if !origin.is_empty() && !origin.eq("/") {
-                req.headers_mut().append(ORIGIN, HeaderValue::from_str(&origin).expect("origin uri must be valid"));
+                req.headers_mut().append(
+                    ORIGIN,
+                    HeaderValue::from_str(&origin).expect("origin uri must be valid"),
+                );
             }
 
             let fut = pooled
@@ -898,7 +900,7 @@ impl Default for Builder {
                 retry_canceled_requests: true,
                 set_host: true,
                 ver: Ver::Auto,
-                origin: String::from("")
+                origin: String::from(""),
             },
             conn_builder: conn::Builder::new(),
             pool_config: pool::Config {
@@ -1173,11 +1175,10 @@ impl Builder {
 
         self.client_config.origin = match origin.port() {
             Some(port) => base_origin.add(format!(":{}", port).as_str()),
-            _ => base_origin
+            _ => base_origin,
         };
         self
     }
-
 
     /// Provide an executor to execute background `Connection` tasks.
     pub fn executor<E>(&mut self, exec: E) -> &mut Self
@@ -1281,5 +1282,4 @@ mod unit_tests {
         assert_eq!(scheme, *"http");
         assert_eq!(host, "hyper.rs");
     }
-
 }

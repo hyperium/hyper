@@ -2003,13 +2003,15 @@ mod dispatch_impl {
 
             println!("{:?}", String::from_utf8_lossy(&buf[..n]));
 
-            let expected = format!("GET /a HTTP/1.1\r\nhost: {addr}\r\norigin: http://secret-mission\r\n\r\n", addr=addr);
+            let expected = format!(
+                "GET /a HTTP/1.1\r\nhost: {addr}\r\norigin: http://secret-mission\r\n\r\n",
+                addr = addr
+            );
             assert_eq!(s(&buf[..n]), expected);
 
             sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
                 .unwrap();
             let _ = tx1.send(());
-
 
             // prevent this thread from closing until end of test, so the connection
             // stays open and idle until Client is dropped
@@ -2018,9 +2020,11 @@ mod dispatch_impl {
 
         let client = Client::builder()
             .add_origin("http://secret-mission".parse().unwrap())
-            .pool_max_idle_per_host(0).build(
-            DebugConnector::with_http_and_closes(HttpConnector::new(), closes_tx),
-        );
+            .pool_max_idle_per_host(0)
+            .build(DebugConnector::with_http_and_closes(
+                HttpConnector::new(),
+                closes_tx,
+            ));
 
         let req = Request::builder()
             .uri(&*format!("http://{}/a", addr))
@@ -2039,7 +2043,6 @@ mod dispatch_impl {
         let close = closes.into_future().map(|(opt, _)| opt.expect("closes"));
         future::select(t, close).await;
     }
-
 }
 
 mod conn {
