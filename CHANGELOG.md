@@ -1,3 +1,18 @@
+### v0.13.7 (2020-07-13)
+
+
+#### Bug Fixes
+
+* **client:** don't panic in DNS resolution when task cancelled (#2229) ([0d0d3635](https://github.com/hyperium/hyper/commit/0d0d3635476ba22e5a2b39b0e4b243f57f1f36d2))
+
+
+#### Features
+
+* **client:** impl tower_service::Service for &Client (#2089) ([77c3b5bc](https://github.com/hyperium/hyper/commit/77c3b5bc0c0d58ecd9f3c004287f65b8a94cc429))
+* **http2:** configure HTTP/2 frame size in the high-level builders too (#2214) ([2354a7ee](https://github.com/hyperium/hyper/commit/2354a7eec352b1f72cd8989d29d73dff211403a1))
+* **lib:** Move from `log` to `tracing` in a backwards-compatible way (#2204) ([9832aef9](https://github.com/hyperium/hyper/commit/9832aef9eeaeff8979354d5de04b8706ff79a233))
+
+
 ### v0.13.6 (2020-05-29)
 
 
