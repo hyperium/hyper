@@ -184,6 +184,8 @@ mod addr_stream {
     use bytes::{Buf, BufMut};
     use std::io;
     use std::net::SocketAddr;
+    #[cfg(unix)]
+    use std::os::unix::io::{AsRawFd, RawFd};
     use tokio::io::{AsyncRead, AsyncWrite};
     use tokio::net::TcpStream;
 
@@ -286,6 +288,13 @@ mod addr_stream {
             cx: &mut task::Context<'_>,
         ) -> Poll<io::Result<()>> {
             Pin::new(&mut self.inner).poll_shutdown(cx)
+        }
+    }
+
+    #[cfg(unix)]
+    impl AsRawFd for AddrStream {
+        fn as_raw_fd(&self) -> RawFd {
+            self.inner.as_raw_fd()
         }
     }
 }
