@@ -103,7 +103,7 @@ impl HttpConnector<TokioThreadpoolGaiResolver> {
 impl<R> HttpConnector<R> {
     /// Construct a new HttpConnector.
     ///
-    /// Takes a `Resolve` to handle DNS lookups.
+    /// Takes a [`Resolver`](crate::client::connect::dns#resolvers-are-services) to handle DNS lookups.
     pub fn new_with_resolver(resolver: R) -> HttpConnector<R> {
         HttpConnector {
             config: Arc::new(Config {
