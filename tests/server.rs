@@ -22,11 +22,12 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream as TkTcpStream};
 use tokio::runtime::Runtime;
 
+use http::uri::{Authority, Scheme};
 use hyper::body::HttpBody as _;
 use hyper::client::Client;
 use hyper::server::conn::Http;
 use hyper::server::Server;
-use hyper::service::{make_service_fn, service_fn};
+use hyper::service::{make_service_fn, service_fn, AddOrigin, Service};
 use hyper::{Body, Request, Response, StatusCode, Version};
 
 #[test]
@@ -1529,6 +1530,7 @@ fn max_buf_size_panic_too_small() {
     const MAX: usize = 8191;
     Http::new().max_buf_size(MAX);
 }
+
 #[test]
 fn max_buf_size_no_panic() {
     const MAX: usize = 8193;
@@ -1901,6 +1903,63 @@ async fn http2_keep_alive_with_responsive_client() {
 
     let req = http::Request::new(hyper::Body::empty());
     client.send_request(req).await.expect("client.send_request");
+}
+
+#[tokio::test]
+async fn add_origin_middleware() {
+    struct Svc;
+    impl Service<Request<Body>> for Svc {
+        type Response = Response<Body>;
+        type Error = hyper::Error;
+        type Future = future::Ready<Result<Self::Response, Self::Error>>;
+
+        fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+            Ok(()).into()
+        }
+
+        fn call(&mut self, req: Request<Body>) -> Self::Future {
+            let uri = req.uri();
+            let authority: Authority = "www.example-authority.com".parse().unwrap();
+
+            assert_eq!(Scheme::HTTP, uri.clone().into_parts().scheme.unwrap());
+            assert_eq!(authority, uri.clone().into_parts().authority.unwrap());
+            future::ok(Response::builder().status(200).body(Body::empty()).unwrap())
+        }
+    }
+
+    struct MakeSvc;
+    impl<T> Service<T> for MakeSvc {
+        type Response = AddOrigin<Svc>;
+        type Error = std::io::Error;
+        type Future = future::Ready<Result<Self::Response, Self::Error>>;
+
+        fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+            Ok(()).into()
+        }
+
+        fn call(&mut self, _: T) -> Self::Future {
+            future::ok(AddOrigin::new(
+                Svc,
+                Scheme::HTTP,
+                "www.example-authority.com".parse().unwrap(),
+            ))
+        }
+    }
+
+    let server = hyper::Server::bind(&([127, 0, 0, 1], 0).into()).serve(MakeSvc);
+
+    let addr_str = format!("http://{}", server.local_addr());
+
+    tokio::task::spawn(async move {
+        server.await.expect("server");
+    });
+
+    let client = Client::builder().build_http::<hyper::Body>();
+    let uri = addr_str
+        .parse::<hyper::Uri>()
+        .expect("server addr should parse");
+
+    client.get(uri).await.unwrap();
 }
 
 // -------------------------------------------------
