@@ -37,6 +37,7 @@
 
 pub use tower_service::Service;
 
+mod add_origin;
 mod http;
 mod make;
 mod oneshot;
@@ -46,5 +47,6 @@ pub(crate) use self::http::HttpService;
 pub(crate) use self::make::{MakeConnection, MakeServiceRef};
 pub(crate) use self::oneshot::{oneshot, Oneshot};
 
+pub use self::add_origin::AddOrigin;
 pub use self::make::make_service_fn;
 pub use self::util::service_fn;
