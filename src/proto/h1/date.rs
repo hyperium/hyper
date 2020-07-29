@@ -1,9 +1,10 @@
 use std::cell::RefCell;
 use std::fmt::{self, Write};
 use std::str;
+use std::time::{Duration, SystemTime};
 
 use http::header::HeaderValue;
-use time::{self, Duration};
+use httpdate::HttpDate;
 
 // "Sun, 06 Nov 1994 08:49:37 GMT".len()
 pub const DATE_VALUE_LENGTH: usize = 29;
@@ -31,7 +32,7 @@ pub(crate) fn update_and_header_value() -> HeaderValue {
 struct CachedDate {
     bytes: [u8; DATE_VALUE_LENGTH],
     pos: usize,
-    next_update: time::Timespec,
+    next_update: SystemTime,
 }
 
 thread_local!(static CACHED: RefCell<CachedDate> = RefCell::new(CachedDate::new()));
@@ -41,9 +42,9 @@ impl CachedDate {
         let mut cache = CachedDate {
             bytes: [0; DATE_VALUE_LENGTH],
             pos: 0,
-            next_update: time::Timespec::new(0, 0),
+            next_update: SystemTime::now(),
         };
-        cache.update(time::get_time());
+        cache.update(cache.next_update);
         cache
     }
 
@@ -52,21 +53,20 @@ impl CachedDate {
     }
 
     fn check(&mut self) {
-        let now = time::get_time();
+        let now = SystemTime::now();
         if now > self.next_update {
             self.update(now);
         }
     }
 
-    fn update(&mut self, now: time::Timespec) {
+    fn update(&mut self, now: SystemTime) {
         self.render(now);
-        self.next_update = now + Duration::seconds(1);
-        self.next_update.nsec = 0;
+        self.next_update = now + Duration::new(1, 0);
     }
 
-    fn render(&mut self, now: time::Timespec) {
+    fn render(&mut self, now: SystemTime) {
         self.pos = 0;
-        let _ = write!(self, "{}", time::at_utc(now).rfc822());
+        let _ = write!(self, "{}", HttpDate::from(now));
         debug_assert!(self.pos == DATE_VALUE_LENGTH);
     }
 }
@@ -108,7 +108,7 @@ mod tests {
     #[bench]
     fn bench_date_render(b: &mut Bencher) {
         let mut date = CachedDate::new();
-        let now = time::get_time();
+        let now = SystemTime::now();
         date.render(now);
         b.bytes = date.buffer().len() as u64;
 

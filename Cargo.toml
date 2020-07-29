@@ -26,12 +26,12 @@ futures-channel = "0.3"
 futures-util = { version = "0.3", default-features = false }
 http = "0.2"
 http-body = "0.3.1"
+httpdate = "0.3"
 httparse = "1.0"
 h2 = "0.2.2"
 itoa = "0.4.1"
 tracing = { version = "0.1", default-features = false, features = ["log", "std"] }
 pin-project = "0.4.20"
-time = "0.1"
 tower-service = "0.3"
 tokio = { version = "0.2.11", features = ["sync"] }
 want = "0.3"
