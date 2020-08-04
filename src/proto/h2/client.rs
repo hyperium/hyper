@@ -7,6 +7,7 @@ use futures_util::future::{self, Either, FutureExt as _, TryFutureExt as _};
 use futures_util::stream::StreamExt as _;
 use h2::client::{Builder, SendRequest};
 use tokio::io::{AsyncRead, AsyncWrite};
+use tracing_futures::Instrument;
 
 use super::{decode_content_length, ping, PipeToSendStream, SendBuf};
 use crate::body::HttpBody;
@@ -207,7 +208,8 @@ where
             };
 
             match Pin::new(&mut self.req_rx).poll_next(cx) {
-                Poll::Ready(Some((req, cb))) => {
+                Poll::Ready(Some((req, cb, span))) => {
+                    let entered = span.enter();
                     // check that future hasn't been canceled already
                     if cb.is_canceled() {
                         trace!("request callback is canceled");
@@ -254,7 +256,7 @@ where
                                     drop(ping);
                                     x
                                 });
-                                self.executor.execute(pipe);
+                                self.executor.execute(pipe.instrument(span.clone()));
                             }
                         }
                     }
@@ -278,7 +280,8 @@ where
                             Err((crate::Error::new_h2(err), None))
                         }
                     });
-                    self.executor.execute(cb.send_when(fut));
+                    drop(entered);
+                    self.executor.execute(cb.send_when(fut).instrument(span));
                     continue;
                 }
 

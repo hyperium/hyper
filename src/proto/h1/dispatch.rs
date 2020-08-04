@@ -42,6 +42,7 @@ pub struct Server<S: HttpService<B>, B> {
 
 pub struct Client<B> {
     callback: Option<crate::client::dispatch::Callback<Request<B>, Response<Body>>>,
+    span: Option<tracing::Span>,
     rx: ClientRx<B>,
     rx_closed: bool,
 }
@@ -524,6 +525,7 @@ impl<B> Client<B> {
     pub fn new(rx: ClientRx<B>) -> Client<B> {
         Client {
             callback: None,
+            span: None,
             rx,
             rx_closed: false,
         }
@@ -545,7 +547,8 @@ where
     ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Never>>> {
         debug_assert!(!self.rx_closed);
         match self.rx.poll_next(cx) {
-            Poll::Ready(Some((req, mut cb))) => {
+            Poll::Ready(Some((req, mut cb, span))) => {
+                let entered = span.enter();
                 // check that future hasn't been canceled already
                 match cb.poll_canceled(cx) {
                     Poll::Ready(()) => {
@@ -560,6 +563,8 @@ where
                             headers: parts.headers,
                         };
                         self.callback = Some(cb);
+                        drop(entered);
+                        self.span = Some(span);
                         Poll::Ready(Some(Ok((head, body))))
                     }
                 }
@@ -575,6 +580,8 @@ where
     }
 
     fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, Body)>) -> crate::Result<()> {
+        let span = self.span.take();
+        let _e = span.as_ref().map(tracing::Span::enter);
         match msg {
             Ok((msg, body)) => {
                 if let Some(cb) = self.callback.take() {
@@ -597,8 +604,12 @@ where
                     Ok(())
                 } else if !self.rx_closed {
                     self.rx.close();
-                    if let Some((req, cb)) = self.rx.try_recv() {
-                        trace!("canceling queued request with connection error: {}", err);
+                    if let Some((req, cb, span)) = self.rx.try_recv() {
+                        trace!(
+                            parent: &span,
+                            "canceling queued request with connection error: {}",
+                            err
+                        );
                         // in this case, the message was never even started, so it's safe to tell
                         // the user that the request was completely canceled
                         cb.send(Err((crate::Error::new_canceled().with(err), Some(req))));
