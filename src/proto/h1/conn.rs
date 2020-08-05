@@ -474,7 +474,7 @@ where
         self.enforce_version(&mut head);
 
         let buf = self.io.headers_buf();
-        match T::encode(
+        match super::role::encode_headers::<T>(
             Encode {
                 head: &mut head,
                 body,

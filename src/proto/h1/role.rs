@@ -58,6 +58,35 @@ macro_rules! header_value {
     }};
 }
 
+pub(super) fn parse_headers<T>(
+    bytes: &mut BytesMut,
+    ctx: ParseContext<'_>,
+) -> ParseResult<T::Incoming>
+where
+    T: Http1Transaction,
+{
+    // If the buffer is empty, don't bother entering the span, it's just noise.
+    if bytes.is_empty() {
+        return Ok(None);
+    }
+
+    let span = trace_span!("parse_headers");
+    let _s = span.enter();
+    T::parse(bytes, ctx)
+}
+
+pub(super) fn encode_headers<T>(
+    enc: Encode<'_, T::Outgoing>,
+    dst: &mut Vec<u8>,
+) -> crate::Result<Encoder>
+where
+    T: Http1Transaction,
+{
+    let span = trace_span!("encode_headers");
+    let _s = span.enter();
+    T::encode(enc, dst)
+}
+
 // There are 2 main roles, Client and Server.
 
 pub(crate) enum Client {}
@@ -70,9 +99,7 @@ impl Http1Transaction for Server {
     const LOG: &'static str = "{role=server}";
 
     fn parse(buf: &mut BytesMut, ctx: ParseContext<'_>) -> ParseResult<RequestLine> {
-        if buf.is_empty() {
-            return Ok(None);
-        }
+        debug_assert!(!buf.is_empty(), "parse called with empty buf");
 
         let mut keep_alive;
         let is_http_11;
@@ -614,11 +641,10 @@ impl Http1Transaction for Client {
     const LOG: &'static str = "{role=client}";
 
     fn parse(buf: &mut BytesMut, ctx: ParseContext<'_>) -> ParseResult<StatusCode> {
+        debug_assert!(!buf.is_empty(), "parse called with empty buf");
+
         // Loop to skip information status code headers (100 Continue, etc).
         loop {
-            if buf.is_empty() {
-                return Ok(None);
-            }
             // Unsafe: see comment in Server Http1Transaction, above.
             let mut headers_indices: [HeaderIndices; MAX_HEADERS] = unsafe { mem::uninitialized() };
             let (len, status, version, headers_len) = {
@@ -687,6 +713,12 @@ impl Http1Transaction for Client {
                     keep_alive: keep_alive && !is_upgrade,
                     wants_upgrade: is_upgrade,
                 }));
+            }
+
+            // Parsing a 1xx response could have consumed the buffer, check if
+            // it is empty now...
+            if buf.is_empty() {
+                return Ok(None);
             }
         }
     }
