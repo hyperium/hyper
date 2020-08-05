@@ -149,7 +149,7 @@ where
         S: Http1Transaction,
     {
         loop {
-            match S::parse(
+            match super::role::parse_headers::<S>(
                 &mut self.read_buf,
                 ParseContext {
                     cached_headers: parse_ctx.cached_headers,
