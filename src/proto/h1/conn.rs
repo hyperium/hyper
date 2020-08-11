@@ -602,7 +602,11 @@ where
                             Writing::KeepAlive
                         }
                     }
-                    Err(_not_eof) => return Err(crate::Error::new_closed()),
+                    Err(_not_eof) => {
+                        return Err(crate::Error::new_user_body(
+                            crate::Error::new_body_write_aborted(),
+                        ))
+                    }
                 }
             }
             _ => return Ok(()),
