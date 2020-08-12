@@ -338,7 +338,7 @@ where
                             *clear_body = true;
                             if chunk.remaining() == 0 {
                                 trace!("discarding empty chunk");
-                                self.conn.end_body();
+                                self.conn.end_body()?;
                             } else {
                                 self.conn.write_body_and_end(chunk);
                             }
@@ -351,7 +351,7 @@ where
                         }
                     } else {
                         *clear_body = true;
-                        self.conn.end_body();
+                        self.conn.end_body()?;
                     }
                 } else {
                     return Poll::Pending;
