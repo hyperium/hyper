@@ -87,7 +87,8 @@ impl Encoder {
             Kind::Chunked => Ok(Some(EncodedBuf {
                 kind: BufKind::ChunkedEnd(b"0\r\n\r\n"),
             })),
-            _ => Err(NotEof),
+            Kind::CloseDelimited => Ok(None),
+            Kind::Length(_) => Err(NotEof),
         }
     }
 
