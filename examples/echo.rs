@@ -1,6 +1,6 @@
 #![deny(warnings)]
 
-use futures_util::TryStreamExt;
+use futures_util::TryStreamExt as _;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Method, Request, Response, Server, StatusCode};
 
