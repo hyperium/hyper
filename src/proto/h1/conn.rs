@@ -12,6 +12,7 @@ use super::{Decoder, Encode, EncodedBuf, Encoder, Http1Transaction, ParseContext
 use crate::common::{task, Pin, Poll, Unpin};
 use crate::headers::connection_keep_alive;
 use crate::proto::{BodyLength, DecodedLength, MessageHead};
+use crate::Result;
 
 const H2_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
@@ -584,7 +585,7 @@ where
         self.state.writing = state;
     }
 
-    pub fn end_body(&mut self) {
+    pub fn end_body(&mut self) -> Result<()> {
         debug_assert!(self.can_write_body());
 
         let state = match self.state.writing {
@@ -601,13 +602,18 @@ where
                             Writing::KeepAlive
                         }
                     }
-                    Err(_not_eof) => Writing::Closed,
+                    Err(_not_eof) => {
+                        return Err(crate::Error::new_user_body(
+                            crate::Error::new_body_write_aborted(),
+                        ))
+                    }
                 }
             }
-            _ => return,
+            _ => return Ok(()),
         };
 
         self.state.writing = state;
+        Ok(())
     }
 
     // When we get a parse error, depending on what side we are, we might be able

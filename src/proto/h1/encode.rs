@@ -87,7 +87,8 @@ impl Encoder {
             Kind::Chunked => Ok(Some(EncodedBuf {
                 kind: BufKind::ChunkedEnd(b"0\r\n\r\n"),
             })),
-            _ => Err(NotEof),
+            Kind::CloseDelimited => Ok(None),
+            Kind::Length(_) => Err(NotEof),
         }
     }
 
@@ -405,7 +406,7 @@ mod tests {
 
         assert_eq!(dst, b"foo bar");
         assert!(!encoder.is_eof());
-        encoder.end::<()>().unwrap_err();
+        encoder.end::<()>().unwrap();
 
         let msg2 = b"baz".as_ref();
         let buf2 = encoder.encode(msg2);
@@ -413,6 +414,6 @@ mod tests {
 
         assert_eq!(dst, b"foo barbaz");
         assert!(!encoder.is_eof());
-        encoder.end::<()>().unwrap_err();
+        encoder.end::<()>().unwrap();
     }
 }
