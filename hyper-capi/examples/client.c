@@ -1,7 +1,14 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include <unistd.h>
 #include <errno.h>
 #include <sys/select.h>
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <string.h>
+
 #include "../include/hyper.h"
 
 
@@ -64,22 +71,67 @@ static size_t write_cb(void *userdata, hyper_waker *waker, const uint8_t *buf, s
 	}
 }
 
-int main() {
+static int connect_to(char *host, char *port) {
+	struct addrinfo hints;
+	memset(&hints, 0, sizeof(struct addrinfo));
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
+
+	struct addrinfo *result, *rp;
+	if (getaddrinfo(host, port, &hints, &result) != 0) {
+		return -1;
+	}
+
+	int sfd;
+	for (rp = result; rp != NULL; rp = rp->ai_next) {
+		sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+		if (sfd == -1) {
+			continue;
+		}
+
+		if (connect(sfd, rp->ai_addr, rp->ai_addrlen) != -1) {
+			break;
+		} else {
+			close(sfd);
+		}
+	}
+
+	freeaddrinfo(result);
+
+	// no address succeeded
+	if (rp == NULL) {
+		return -1;
+	}
+
+	return sfd;
+}
+
+static hyper_iter_step print_each_header(void *userdata, hyper_str name, hyper_str value) {
+	printf("%.*s: %.*s", (int) name.len, name.buf, (int) value.len, value.buf);
+	return HYPER_IT_CONTINUE;
+}
+
+int main(int argc, char *argv[]) {
+
+	int fd = connect_to("httpbin.org", "80");
+	if (fd < 0) {
+		return 1;
+	}
+
 
 	struct conn_fds *all_fds = malloc(sizeof(struct conn_fds));
-
-	struct conn_data *conn = malloc(sizeof(struct conn_data));
-	//TODO: YIKES
-	// should do a connect() instead
-	conn->fd = 3;
-	conn->all_fds = all_fds;
-	conn->read_waker = NULL;
-	conn->write_waker = NULL;
-
 
 	FD_ZERO(&all_fds->read);
 	FD_ZERO(&all_fds->write);
 	FD_ZERO(&all_fds->excep);
+
+	struct conn_data *conn = malloc(sizeof(struct conn_data));
+
+	conn->fd = fd;
+	conn->all_fds = all_fds;
+	conn->read_waker = NULL;
+	conn->write_waker = NULL;
+
 
 	// Hookup the IO
 	hyper_io *io = hyper_io_new();
@@ -88,7 +140,7 @@ int main() {
 	hyper_io_set_write(io, write_cb);
 
 	// Prepare client options
-	hyper_clientconn_options *opts = hyper_clientconn_options_new();
+	hyper_clientconn_options *opts = NULL;//hyper_clientconn_options_new();
 
 	hyper_task *handshake = hyper_clientconn_handshake(io, opts);
 
@@ -124,8 +176,8 @@ int main() {
 
 	hyper_executor_push(exec, task);
 
-	// TODO: NEXT
-	/*
+	hyper_response *resp;
+
 	while (1) {
 		hyper_executor_poll(exec);
 		while (1) {
@@ -134,18 +186,31 @@ int main() {
 				break;
 			}
 			switch (hyper_task_type(task)) {
-			case HYPER_TASK_CLIENTCONN_HANDSHAKE:
+			case HYPER_TASK_CLIENT_SEND:
 				// Take the results
-				client = hyper_task_value(task);
-				break;
+				resp = hyper_task_value(task);
+				// fall through
 			default:
 				hyper_task_free(task);
 				break;
 			}
 		}
 
+		// If the response is ready, break out for now...
+		if (resp != NULL) {
+			break;
+		}
+
 		select(1, &all_fds->read, &all_fds->write, &all_fds->excep, NULL);
 
 	}
-	*/
+
+	uint16_t http_status = hyper_response_status(resp);
+	
+	printf("HTTP Status: %d", http_status);
+
+	hyper_headers *headers = hyper_response_headers(resp);
+	hyper_headers_iter(headers, print_each_header, NULL);
+
+	return 0;
 }

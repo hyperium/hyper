@@ -20,16 +20,28 @@ typedef struct hyper_request hyper_request;
 
 typedef struct hyper_response hyper_response;
 
+typedef struct hyper_headers hyper_headers;
+
 typedef struct hyper_task hyper_task;
 
 typedef struct hyper_waker hyper_waker;
 
 typedef struct hyper_executor hyper_executor;
 
+typedef struct hyper_str {
+	const uint8_t *buf;
+	size_t len;
+} hyper_str;
+
 typedef enum {
     HYPERE_OK,
     HYPERE_KABOOM,
 } hyper_error;
+
+typedef enum {
+	HYPER_IT_CONTINUE,
+	HYPER_IT_BREAK,
+} hyper_iter_step;
 
 // HTTP ClientConn
 
@@ -67,8 +79,8 @@ hyper_io *hyper_io_new();
 // This value is passed as an argument to the read and write callbacks.
 void hyper_io_set_data(hyper_io *io, void *userdata);
 
-#define HYPER_IO_PENDING -2
-#define HYPER_IO_ERROR -3
+#define HYPER_IO_PENDING 0xFFFFFFFF
+#define HYPER_IO_ERROR 0xFFFFFFFE
 
 // Set the read function for this IO transport.
 //
@@ -115,13 +127,44 @@ hyper_error hyper_request_add_header(hyper_request *request, uint8_t *name, size
 
 // HTTP Responses
 
+// Free an HTTP response after using it.
 void hyper_response_free(hyper_response *response);
 
-uint16_t hyper_response_get_status(hyper_response *response);
+// Get the HTTP-Status code of this response.
+//
+// It will always be within the range of 100-599.
+uint16_t hyper_response_status(hyper_response *response);
 
-size_t hyper_response_headers_len(hyper_response *response);
+// Gets a reference to the HTTP headers of this response.
+//
+// This is not an owned reference, so it should not be accessed after the
+// `hyper_response` has been freed.
+hyper_headers *hyper_response_headers(hyper_response *response);
 
-TODO hyper_response_headers_get(hyper_response *response, uint8_t *name, size_t name_len);
+// HTTP Headers
+
+// Sets the header with the provided name to the provided value.
+//
+// This overwrites any previous value set for the header.
+void hyper_headers_set(hyper_headers *headers, hyper_str name, hyper_str value);
+
+// Adds the provided value to the list of the provided name.
+//
+// If there were already existing values for the name, this will append the
+// new value to the internal list.
+void hyper_headers_add(hyper_headers *headers, hyper_str name, hyper_str value);
+
+// Iterates the headers passing each name and value pair to the callback.
+//
+// The `userdata` pointer is also passed to the callback.
+//
+// The callback should return `HYPER_IT_CONTINUE` to keep iterating, or
+// `HYPER_IT_BREAK` to stop.
+void hyper_headers_iter(hyper_headers *headers,
+                        hyper_iter_step (*func)(void *userdata,
+                                                hyper_str name,
+                                                hyper_str value),
+                        void *userdata);
 
 // Futures and Executors
 
