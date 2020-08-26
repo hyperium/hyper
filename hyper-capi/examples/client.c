@@ -167,7 +167,7 @@ int main(int argc, char *argv[]) {
 	if (!hyper_request_set_method(req, (uint8_t *)"POST", 4)) {
 		return 1;
 	}
-	if (!hyper_request_set_uri(req, (uint8_t *)"http://httpbin.org", sizeof("http://httpbin.org") - 1)) {
+	if (!hyper_request_set_uri(req, (uint8_t *)"/", sizeof("/") - 1)) {
 		return 1;
 	}
 
@@ -176,8 +176,11 @@ int main(int argc, char *argv[]) {
 
 	hyper_executor_push(exec, task);
 
-	hyper_response *resp;
+	// The body will be filled in after we get a response, and we will poll it
+	// multiple times, so it's declared out here.
+	hyper_body *resp_body = NULL;
 
+	// The polling state machine!
 	while (1) {
 		hyper_executor_poll(exec);
 		while (1) {
@@ -187,30 +190,53 @@ int main(int argc, char *argv[]) {
 			}
 			switch (hyper_task_type(task)) {
 			case HYPER_TASK_CLIENT_SEND:
+				;
 				// Take the results
-				resp = hyper_task_value(task);
-				// fall through
+				hyper_response *resp = hyper_task_value(task);
+				hyper_task_free(task);
+
+				uint16_t http_status = hyper_response_status(resp);
+				
+				printf("HTTP Status: %d", http_status);
+
+				hyper_headers *headers = hyper_response_headers(resp);
+				hyper_headers_iter(headers, print_each_header, NULL);
+
+				resp_body = hyper_response_body(resp);
+				hyper_executor_push(exec, hyper_body_next(resp_body));
+
+				break;
+			case HYPER_TASK_BODY_NEXT:
+				;
+				// A body chunk is available
+				hyper_buf *chunk = hyper_task_value(task);
+				hyper_task_free(task);
+
+				if (!chunk) {
+					// body is complete!
+					printf("\n\nDone!");
+					return 0;
+				}
+
+				// Write the chunk to stdout
+				hyper_str s = hyper_buf_str(chunk);
+				write(1, s.buf, s.len);
+				hyper_buf_free(chunk);
+				
+				// Queue up another body poll.
+				hyper_executor_push(exec, hyper_body_next(resp_body));
+				break;
 			default:
 				hyper_task_free(task);
 				break;
 			}
 		}
 
-		// If the response is ready, break out for now...
-		if (resp != NULL) {
-			break;
-		}
-
+		// All futures are pending on IO work, so select on the fds.
 		select(1, &all_fds->read, &all_fds->write, &all_fds->excep, NULL);
 
 	}
 
-	uint16_t http_status = hyper_response_status(resp);
-	
-	printf("HTTP Status: %d", http_status);
-
-	hyper_headers *headers = hyper_response_headers(resp);
-	hyper_headers_iter(headers, print_each_header, NULL);
 
 	return 0;
 }

@@ -22,12 +22,19 @@ typedef struct hyper_response hyper_response;
 
 typedef struct hyper_headers hyper_headers;
 
+typedef struct hyper_body hyper_body;
+
+typedef struct hyper_buf hyper_buf;
+
 typedef struct hyper_task hyper_task;
 
 typedef struct hyper_waker hyper_waker;
 
 typedef struct hyper_executor hyper_executor;
 
+// A string reference.
+//
+// The data in here typically is not owned by this struct.
 typedef struct hyper_str {
 	const uint8_t *buf;
 	size_t len;
@@ -42,6 +49,11 @@ typedef enum {
 	HYPER_IT_CONTINUE,
 	HYPER_IT_BREAK,
 } hyper_iter_step;
+
+typedef enum {
+	HYPER_POLL_READY,
+	HYPER_POLL_PENDING,
+} hyper_poll;
 
 // HTTP ClientConn
 
@@ -141,6 +153,11 @@ uint16_t hyper_response_status(hyper_response *response);
 // `hyper_response` has been freed.
 hyper_headers *hyper_response_headers(hyper_response *response);
 
+// Take ownership of the body of this response.
+//
+// It is safe to free the response even after taking ownership of its body.
+hyper_body *hyper_response_body(hyper_response *response);
+
 // HTTP Headers
 
 // Sets the header with the provided name to the provided value.
@@ -166,6 +183,38 @@ void hyper_headers_iter(hyper_headers *headers,
                                                 hyper_str value),
                         void *userdata);
 
+// HTTP Body
+
+// Sets the `userdata` that is passed to the `poll` callback.
+void hyper_body_set_data(hyper_body *body, void *userdata);
+
+// Set the poll function for this body.
+//
+// This function will be called each time more data is desired to write to
+// the transport. Use `hyper_body_set_data` to set the `userdata` argument.
+void hyper_body_set_poll(hyper_body *body,
+                         hyper_poll (*func)(void *userdata,
+                                      hyper_waker *waker));
+
+// Return a task that will yield the next chunk of bytes of the body, when
+// available.
+//
+// This task has a return type tag of `HYPER_TASK_BODY_NEXT`, which will
+// give a value of `hyper_buf *`.
+//
+// When the body is complete, the task's value will be `NULL`.
+hyper_task *hyper_body_next(hyper_body *body);
+
+// TODO: hyper_body_trailers()
+
+// Free this buffer.
+void hyper_buf_free(hyper_buf *buf);
+
+// Get a reference to the bytes of this buf.
+//
+// The returned `hyper_str` is not safe to use after freeing the `hyper_buf *`.
+hyper_str hyper_buf_str(hyper_buf *buf);
+
 // Futures and Executors
 
 hyper_executor *hyper_executor_new();
@@ -189,6 +238,7 @@ typedef enum {
 	HYPER_TASK_BG,
 	HYPER_TASK_CLIENTCONN_HANDSHAKE,
 	HYPER_TASK_CLIENT_SEND,
+	HYPER_TASK_BODY_NEXT,
 } hyper_task_return_type;
 
 // Query the return type of this task.
