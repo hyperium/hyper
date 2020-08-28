@@ -23,11 +23,15 @@
 //!     let mut tcp_listener = TcpListener::bind(addr).await?;
 //!     loop {
 //!         let (tcp_stream, _) = tcp_listener.accept().await?;
-//!         Http::new()
-//!             .http1_only(true)
-//!             .keep_alive(true)
-//!             .serve_connection(tcp_stream, service_fn(hello))
-//!             .await?;
+//!         tokio::task::spawn(async move {
+//!             if let Err(http_err) = Http::new()
+//!                     .http1_only(true)
+//!                     .keep_alive(true)
+//!                     .serve_connection(tcp_stream, service_fn(hello))
+//!                     .await {
+//!                 eprintln!("Error while serving HTTP connection: {}", http_err);
+//!             }
+//!         });
 //!     }
 //! }
 //!
