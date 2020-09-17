@@ -82,7 +82,7 @@ enum DelayEof {
 /// ## Body Closing
 ///
 /// Note that the request body will always be closed normally when the sender is dropped (meaning
-/// that the empty terminating chunk will be sent to the client). If you desire to close the
+/// that the empty terminating chunk will be sent to the remote). If you desire to close the
 /// connection with an incomplete response (e.g. in the case of an error during asynchronous
 /// processing), call the [`Sender::abort()`] method to abort the body in an abnormal fashion.
 ///
