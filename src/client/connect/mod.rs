@@ -69,7 +69,7 @@
 //!
 //! [`HttpConnector`]: HttpConnector
 //! [`Service`]: crate::service::Service
-//! [`Uri`]: http::Uri
+//! [`Uri`]: ::http::Uri
 //! [`AsyncRead`]: tokio::io::AsyncRead
 //! [`AsyncWrite`]: tokio::io::AsyncWrite
 //! [`Connection`]: Connection
