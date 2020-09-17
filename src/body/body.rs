@@ -75,10 +75,19 @@ enum DelayEof {
     Eof(DelayEofUntil),
 }
 
-/// A sender half used with `Body::channel()`.
+/// A sender half created through [`Body::channel()`].
 ///
-/// Useful when wanting to stream chunks from another thread. See
-/// [`Body::channel`](Body::channel) for more.
+/// Useful when wanting to stream chunks from another thread.
+///
+/// ## Body Closing
+///
+/// Note that the request body will always be closed normally when the sender is dropped (meaning
+/// that the empty terminating chunk will be sent to the remote). If you desire to close the
+/// connection with an incomplete response (e.g. in the case of an error during asynchronous
+/// processing), call the [`Sender::abort()`] method to abort the body in an abnormal fashion.
+///
+/// [`Body::channel()`]: struct.Body.html#method.channel
+/// [`Sender::abort()`]: struct.Sender.html#method.abort
 #[must_use = "Sender does nothing unless sent on"]
 pub struct Sender {
     want_rx: watch::Receiver,
