@@ -1,3 +1,17 @@
+### v0.13.8 (2020-09-18)
+
+
+#### Bug Fixes
+
+* **http1:** return error if user body ends prematurely ([1ecbcbb1](https://github.com/hyperium/hyper/commit/1ecbcbb119e221f60d37b934b81d18493ebded1b), closes [#2263](https://github.com/hyperium/hyper/issues/2263))
+
+
+#### Features
+
+* **lib:** Setting `http1_writev(true)` will now force writev queue usage ([187c22af](https://github.com/hyperium/hyper/commit/187c22afb5a13d4fa9a3b938a1d71b11b337ac97), closes [#2282](https://github.com/hyperium/hyper/issues/2282))
+* **server:** implement `AsRawFd` for `AddrStream` (#2246) ([b5d5e214](https://github.com/hyperium/hyper/commit/b5d5e21449eb613a3c92dcced6f38d227e405594), closes [#2245](https://github.com/hyperium/hyper/issues/2245))
+
+
 ### v0.13.7 (2020-07-13)
 
 
