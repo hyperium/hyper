@@ -81,7 +81,7 @@ pub struct Http<E = Exec> {
     exec: E,
     h1_half_close: bool,
     h1_keep_alive: bool,
-    h1_writev: bool,
+    h1_writev: Option<bool>,
     h2_builder: proto::h2::server::Config,
     mode: ConnectionMode,
     max_buf_size: Option<usize>,
@@ -217,7 +217,7 @@ impl Http {
             exec: Exec::Default,
             h1_half_close: false,
             h1_keep_alive: true,
-            h1_writev: true,
+            h1_writev: None,
             h2_builder: Default::default(),
             mode: ConnectionMode::Fallback,
             max_buf_size: None,
@@ -274,10 +274,14 @@ impl<E> Http<E> {
     /// but may also improve performance when an IO transport doesn't
     /// support vectored writes well, such as most TLS implementations.
     ///
-    /// Default is `true`.
+    /// Setting this to true will force hyper to use queued strategy
+    /// which may eliminate unnecessary cloning on some TLS backends
+    ///
+    /// Default is `auto`. In this mode hyper will try to guess which
+    /// mode to use
     #[inline]
     pub fn http1_writev(&mut self, val: bool) -> &mut Self {
-        self.h1_writev = val;
+        self.h1_writev = Some(val);
         self
     }
 
@@ -487,8 +491,12 @@ impl<E> Http<E> {
                 if self.h1_half_close {
                     conn.set_allow_half_close();
                 }
-                if !self.h1_writev {
-                    conn.set_write_strategy_flatten();
+                if let Some(writev) = self.h1_writev {
+                    if writev {
+                        conn.set_write_strategy_queue();
+                    } else {
+                        conn.set_write_strategy_flatten();
+                    }
                 }
                 conn.set_flush_pipeline(self.pipeline_flush);
                 if let Some(max) = self.max_buf_size {

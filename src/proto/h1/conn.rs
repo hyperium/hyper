@@ -73,6 +73,10 @@ where
         self.io.set_write_strategy_flatten();
     }
 
+    pub fn set_write_strategy_queue(&mut self) {
+        self.io.set_write_strategy_queue();
+    }
+
     pub fn set_title_case_headers(&mut self) {
         self.state.title_case_headers = true;
     }
