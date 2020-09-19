@@ -9,7 +9,7 @@
 #include <netdb.h>
 #include <string.h>
 
-#include "../include/hyper.h"
+#include "hyper.h"
 
 
 struct conn_data {
@@ -112,11 +112,14 @@ static hyper_iter_step print_each_header(void *userdata, hyper_str name, hyper_s
 }
 
 int main(int argc, char *argv[]) {
+	printf("connecting ...");
 
 	int fd = connect_to("httpbin.org", "80");
 	if (fd < 0) {
 		return 1;
 	}
+
+	printf("connected to httpbin.org");
 
 
 	struct conn_fds *all_fds = malloc(sizeof(struct conn_fds));

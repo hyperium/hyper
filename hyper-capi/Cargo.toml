@@ -1,0 +1,22 @@
+[package]
+name = "hyper-capi"
+version = "0.0.0"
+description = "A fast and correct HTTP library."
+readme = "README.md"
+homepage = "https://hyper.rs"
+documentation = "https://github.com/hyperium/hyper/tree/master/hyper-capi"
+repository = "https://github.com/hyperium/hyper"
+license = "MIT"
+authors = ["Sean McArthur <sean@seanmonstar.com>"]
+edition = "2018"
+
+publish = false
+
+[lib]
+name = "hyper_c"
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+libc = "0.2"
+hyper = { version = "0.13", path = "..", default-features = false }
+tokio = "0.2"

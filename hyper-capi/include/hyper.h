@@ -8,8 +8,6 @@ extern "C" {
 #include <stdint.h>
 #include <stddef.h>
 
-#define TODO void
-
 typedef struct hyper_clientconn hyper_clientconn;
 
 typedef struct hyper_clientconn_options hyper_clientconn_options;
