@@ -54,10 +54,6 @@ jobs:
           - rust: nightly
             features: "--features nightly"
             benches: true
-          # Limit the Happy Eyeballs tests to Linux
-          - rust: stable
-            os: ubuntu-latest
-            features: "--features __internal_happy_eyeballs_tests"
 
     runs-on: ${{ matrix.os }}
 
@@ -84,6 +80,35 @@ jobs:
         with:
           command: test
           args: --benches ${{ matrix.features }}
+
+  features:
+    name: Test Feature ${{ matrix.features }}
+    needs: [style]
+    strategy:
+      matrix:
+        features:
+          - "--features __internal_happy_eyeballs_tests"
+          - "--no-default-features --features tcp"
+          - "--no-default-features"
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: ${{ matrix.features }}
 
   doc:
     name: Build docs

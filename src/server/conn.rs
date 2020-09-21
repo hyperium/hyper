@@ -11,6 +11,8 @@
 //! ## Example
 //! A simple example that uses the `Http` struct to talk HTTP over a Tokio TCP stream
 //! ```no_run
+//! # #[cfg(feature = "runtime")]
+//! # mod rt {
 //! use http::{Request, Response, StatusCode};
 //! use hyper::{server::conn::Http, service::service_fn, Body};
 //! use std::{net::SocketAddr, convert::Infallible};
@@ -38,6 +40,7 @@
 //! async fn hello(_req: Request<Body>) -> Result<Response<Body>, Infallible> {
 //!    Ok(Response::new(Body::from("Hello World!")))
 //! }
+//! # }
 //! ```
 
 use std::error::Error as StdError;
