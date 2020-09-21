@@ -73,6 +73,7 @@ pub(crate) mod dispatch;
 mod pool;
 pub mod service;
 #[cfg(test)]
+#[cfg(feature = "runtime")]
 mod tests;
 
 /// A Client to make outgoing HTTP requests.

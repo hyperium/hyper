@@ -11,6 +11,7 @@ use futures_util::TryStreamExt;
 use http::HeaderMap;
 use http_body::{Body as HttpBody, SizeHint};
 
+#[cfg(feature = "stream")]
 use crate::common::sync_wrapper::SyncWrapper;
 use crate::common::{task, watch, Future, Never, Pin, Poll};
 use crate::proto::h2::ping;

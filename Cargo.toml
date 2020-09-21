@@ -138,6 +138,11 @@ path = "examples/send_file.rs"
 required-features = ["runtime"]
 
 [[example]]
+name = "service_struct_impl"
+path = "examples/service_struct_impl.rs"
+required-features = ["runtime"]
+
+[[example]]
 name = "single_threaded"
 path = "examples/single_threaded.rs"
 required-features = ["runtime"]
