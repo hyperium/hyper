@@ -99,7 +99,10 @@ impl<R: Read> BufReader<R> {
     #[inline]
     fn maybe_reserve(&mut self) {
         let cap = self.buf.capacity();
-        if self.cap == cap && cap < MAX_BUFFER_SIZE {
+        if cap == 0 {
+            trace!("reserving initial {}", INIT_BUFFER_SIZE);
+            self.buf = vec![0; INIT_BUFFER_SIZE];
+        } else if self.cap == cap && cap < MAX_BUFFER_SIZE {
             self.buf.reserve(cmp::min(cap * 4, MAX_BUFFER_SIZE) - cap);
             let new = self.buf.capacity() - self.buf.len();
             trace!("reserved {}", new);
@@ -184,6 +187,20 @@ mod tests {
         assert_eq!(rdr.get_buf(), b"");
         assert_eq!(rdr.pos, 0);
         assert_eq!(rdr.cap, 0);
+    }
+
+    #[test]
+    fn test_take_buf() {
+        let mut rdr = BufReader::new(SlowRead(0));
+
+        assert_eq!(rdr.read_into_buf().unwrap(), 3);
+        let (vec, pos, cap) = rdr.take_buf();
+        assert_eq!((&vec[..3], pos, cap), (&b"foo"[..], 0, 3));
+
+        assert_eq!(rdr.read_into_buf().unwrap(), 3);
+        assert_eq!(rdr.read_into_buf().unwrap(), 3);
+        let (vec, pos, cap) = rdr.take_buf();
+        assert_eq!((&vec[..6], pos, cap), (&b"barbaz"[..], 0, 6));
     }
 
     #[test]
