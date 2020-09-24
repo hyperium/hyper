@@ -19,4 +19,5 @@ crate-type = ["staticlib", "cdylib"]
 [dependencies]
 libc = "0.2"
 hyper = { version = "0.13", path = "..", default-features = false }
+futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
 tokio = "0.2"

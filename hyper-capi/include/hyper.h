@@ -73,6 +73,11 @@ hyper_task *hyper_clientconn_send(hyper_clientconn *client, hyper_request *reque
 // Creates a new set of HTTP clientconn options to be used in a handshake.
 hyper_clientconn_options *hyper_clientconn_options_new();
 
+// Set the client background task executor.
+//
+// This does not consume the `options` or the `exec`.
+void hyper_clientconn_options_exec(hyper_clientconn_options *options, hyper_executor *exec);
+
 // Frees options not passed to a handshake.
 void hyper_clientconn_options_free(hyper_clientconn_options *options);
 
@@ -215,28 +220,28 @@ hyper_str hyper_buf_str(hyper_buf *buf);
 
 // Futures and Executors
 
+// Creates a new task executor.
 hyper_executor *hyper_executor_new();
 
 // Push a task onto the executor.
-void hyper_executor_push(hyper_executor *executor, hyper_task *task);
+hyper_error hyper_executor_push(hyper_executor *executor, hyper_task *task);
 
 // Polls the executor, trying to make progress on any tasks that have notified
 // that they are ready again.
-void hyper_executor_poll(hyper_executor *executor);
-
-// Pop a task from the executor that has completed.
+//
+// If ready, returns a task from the executor that has completed.
 //
 // If there are no ready tasks, this returns `NULL`.
-hyper_task *hyper_executor_pop(hyper_executor *executor);
+hyper_task *hyper_executor_poll(hyper_executor *executor);
 
 // Frees an executor, and any tasks it may currently be holding.
 void hyper_executor_free(hyper_executor *executor);
 
 typedef enum {
 	HYPER_TASK_BG,
-	HYPER_TASK_CLIENTCONN_HANDSHAKE,
-	HYPER_TASK_CLIENT_SEND,
-	HYPER_TASK_BODY_NEXT,
+	HYPER_TASK_ERROR,
+	HYPER_TASK_CLIENTCONN,
+	HYPER_TASK_RESPONSE,
 } hyper_task_return_type;
 
 // Query the return type of this task.

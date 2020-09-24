@@ -112,14 +112,14 @@ static hyper_iter_step print_each_header(void *userdata, hyper_str name, hyper_s
 }
 
 int main(int argc, char *argv[]) {
-	printf("connecting ...");
+	printf("connecting ...\n");
 
 	int fd = connect_to("httpbin.org", "80");
 	if (fd < 0) {
 		return 1;
 	}
 
-	printf("connected to httpbin.org");
+	printf("connected to httpbin.org\n");
 
 
 	struct conn_fds *all_fds = malloc(sizeof(struct conn_fds));
@@ -142,25 +142,31 @@ int main(int argc, char *argv[]) {
 	hyper_io_set_read(io, read_cb);
 	hyper_io_set_write(io, write_cb);
 
-	// Prepare client options
-	hyper_clientconn_options *opts = NULL;//hyper_clientconn_options_new();
-
-	hyper_task *handshake = hyper_clientconn_handshake(io, opts);
+	printf("http handshake ...\n");
 
 	// We need an executor generally to poll futures
 	hyper_executor *exec = hyper_executor_new();
+
+	// Prepare client options
+	hyper_clientconn_options *opts = hyper_clientconn_options_new();
+	hyper_clientconn_options_exec(opts, exec);
+
+	hyper_task *handshake = hyper_clientconn_handshake(io, opts);
+
 
 	// Let's wait for the handshake to finish...
 	hyper_executor_push(exec, handshake);
 
 	// We're going to cheat for the handshake, since we know HTTP/1 handshakes
 	// are immediately ready after the first poll.
-	hyper_executor_poll(exec);
-	hyper_task *task = hyper_executor_pop(exec);
-	if (hyper_task_type(task) != HYPER_TASK_CLIENTCONN_HANDSHAKE) {
+	hyper_task *task = hyper_executor_poll(exec);
+	if (hyper_task_type(task) != HYPER_TASK_CLIENTCONN) {
 		// ruh roh!
+		printf("task not a handshake ?!\n");
 		return 1;
 	}
+
+	printf("preparing http request ...\n");
 
 	hyper_clientconn *client = hyper_task_value(task);
 
@@ -174,6 +180,7 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
+	/*
 	// Send it!
 	task = hyper_clientconn_send(client, req);
 
@@ -239,6 +246,7 @@ int main(int argc, char *argv[]) {
 		select(1, &all_fds->read, &all_fds->write, &all_fds->excep, NULL);
 
 	}
+*/
 
 
 	return 0;

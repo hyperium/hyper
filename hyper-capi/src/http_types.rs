@@ -2,6 +2,7 @@ use hyper::{Body, HeaderMap, Method, Request, Response, Uri};
 use libc::size_t;
 use std::ffi::c_void;
 
+use crate::task::{AsTaskType, TaskType};
 use crate::{hyper_error, hyper_str};
 
 // ===== impl Request =====
@@ -75,6 +76,12 @@ ffi_fn! {
 ffi_fn! {
     fn hyper_response_body(resp: *mut Response<Body>) -> *mut Body {
         unsafe { &mut *resp }.body_mut()
+    }
+}
+
+unsafe impl AsTaskType for Response<Body> {
+    fn as_task_type(&self) -> TaskType {
+        TaskType::Response
     }
 }
 
