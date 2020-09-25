@@ -11,11 +11,6 @@ use crate::hyper_error;
 type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send>>;
 type BoxAny = Box<dyn AsTaskType + Send + Sync>;
 
-#[repr(C)]
-pub struct hyper_waker {
-    _p: [u8; 16],
-}
-
 pub struct Exec {
     /// The executor of all task futures.
     ///
@@ -43,6 +38,10 @@ pub struct Task {
 
 struct TaskFuture {
     task: Option<Box<Task>>,
+}
+
+pub struct Waker {
+    waker: std::task::Waker,
 }
 
 /// typedef enum hyper_return_task_type
@@ -159,7 +158,6 @@ ffi_fn! {
         let exec = unsafe { &*exec };
         let task = unsafe { Box::from_raw(task) };
         exec.spawn(task);
-
         hyper_error::Ok
     }
 }
@@ -277,5 +275,28 @@ where
             Ok(val) => Box::new(val),
             Err(err) => Box::new(err), //TaskType::Error,
         }
+    }
+}
+
+// ===== impl Waker =====
+
+
+ffi_fn! {
+    fn hyper_context_waker(cx: *mut Context<'_>) -> *mut Waker {
+        let waker = unsafe { &mut *cx }.waker().clone();
+        Box::into_raw(Box::new(Waker { waker }))
+    }
+}
+
+ffi_fn! {
+    fn hyper_waker_free(waker: *mut Waker) {
+        drop(unsafe { Box::from_raw(waker) });
+    }
+}
+
+ffi_fn! {
+    fn hyper_waker_wake(waker: *mut Waker) {
+        let waker = unsafe { Box::from_raw(waker) };
+        waker.waker.wake();
     }
 }

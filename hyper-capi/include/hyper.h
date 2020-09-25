@@ -26,6 +26,8 @@ typedef struct hyper_buf hyper_buf;
 
 typedef struct hyper_task hyper_task;
 
+typedef struct hyper_context hyper_context;
+
 typedef struct hyper_waker hyper_waker;
 
 typedef struct hyper_executor hyper_executor;
@@ -102,13 +104,14 @@ void hyper_io_set_data(hyper_io *io, void *userdata);
 // Data that is read from the transport should be put in the `buf` pointer,
 // up to `buf_len` bytes. The number of bytes read should be the return value.
 //
-// If there is no data currently available, the `waker` should be cloned and
-// registered with whatever polling mechanism is used to signal when data
-// is available later on. The return value should be `HYPER_IO_PENDING`.
+// If there is no data currently available, a waker should be claimed from
+// the `ctx` and registered with whatever polling mechanism is used to signal
+// when data is available later on. The return value should be
+// `HYPER_IO_PENDING`.
 //
 // If there is an irrecoverable error reading data, then `HYPER_IO_ERROR`
 // should be the return value.
-void hyper_io_set_read(hyper_io *io, size_t (*func)(void *userdata, hyper_waker *waker, uint8_t *buf, size_t buf_len));
+void hyper_io_set_read(hyper_io *io, size_t (*func)(void *userdata, hyper_context *ctx, uint8_t *buf, size_t buf_len));
 
 // Set the write function for this IO transport.
 //
@@ -121,7 +124,7 @@ void hyper_io_set_read(hyper_io *io, size_t (*func)(void *userdata, hyper_waker 
 //
 // If there is an irrecoverable error reading data, then `HYPER_IO_ERROR`
 // should be the return value.
-void hyper_io_set_write(hyper_io *io, size_t (*func)(void *userdata, hyper_waker *waker, const uint8_t *buf, size_t buf_len));
+void hyper_io_set_write(hyper_io *io, size_t (*func)(void *userdata, hyper_context *ctx, const uint8_t *buf, size_t buf_len));
 
 // HTTP Requests
 
@@ -197,7 +200,7 @@ void hyper_body_set_data(hyper_body *body, void *userdata);
 // the transport. Use `hyper_body_set_data` to set the `userdata` argument.
 void hyper_body_set_poll(hyper_body *body,
                          hyper_poll (*func)(void *userdata,
-                                      hyper_waker *waker));
+                                      hyper_context *ctx));
 
 // Return a task that will yield the next chunk of bytes of the body, when
 // available.
@@ -247,9 +250,6 @@ typedef enum {
 // Query the return type of this task.
 hyper_task_return_type hyper_task_type(hyper_task *task);
 
-// Returns `1` if this task concluded with an error, `0` otherwise.
-int hyper_task_is_error(hyper_task *task);
-
 // Takes the output value of this task.
 //
 // This must only be called once polling the task on an executor has finished
@@ -261,10 +261,17 @@ void *hyper_task_value(hyper_task *task);
 // Free a task.
 void hyper_task_free(hyper_task *task);
 
-// Clone a reference to this waker.
-hyper_waker *hyper_waker_clone(hyper_waker *waker);
+// Copies a waker out of the task context.
+hyper_waker *hyper_context_waker(hyper_context *ctx);
 
-// Free the reference to a waker.
+// Wakes a task waker.
+//
+// This signals to hyper that the relevant task can do more work.
+//
+// This *consumes* the waker.
+void hyper_waker_wake(hyper_waker *waker);
+
+// Free a waker that hasn't been woken.
 void hyper_waker_free(hyper_waker *waker);
 
 #ifdef __cplusplus

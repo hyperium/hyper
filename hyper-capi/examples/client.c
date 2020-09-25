@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <errno.h>
 #include <sys/select.h>
 
@@ -16,18 +17,11 @@ struct conn_data {
 	int fd;
 	hyper_waker *read_waker;
 	hyper_waker *write_waker;
-	struct conn_fds *all_fds;
 };
 
-struct conn_fds {
-	fd_set read;
-	fd_set write;
-	fd_set excep;
-};
-
-static size_t read_cb(void *userdata, hyper_waker *waker, uint8_t *buf, size_t buf_len) {
+static size_t read_cb(void *userdata, hyper_context *ctx, uint8_t *buf, size_t buf_len) {
 	struct conn_data *conn = (struct conn_data *)userdata;
-	size_t ret = read(conn->fd, buf, buf_len);
+	ssize_t ret = read(conn->fd, buf, buf_len);
 
 	if (ret < 0) {
 		int err = errno;
@@ -36,8 +30,7 @@ static size_t read_cb(void *userdata, hyper_waker *waker, uint8_t *buf, size_t b
 			if (conn->read_waker != NULL) {
 				hyper_waker_free(conn->read_waker);
 			}
-			conn->read_waker = hyper_waker_clone(waker);
-			FD_SET(conn->fd, &conn->all_fds->read);
+			conn->read_waker = hyper_context_waker(ctx);
 			return HYPER_IO_PENDING;
 		} else {
 			// kaboom
@@ -48,9 +41,9 @@ static size_t read_cb(void *userdata, hyper_waker *waker, uint8_t *buf, size_t b
 	}
 }
 
-static size_t write_cb(void *userdata, hyper_waker *waker, const uint8_t *buf, size_t buf_len) {
+static size_t write_cb(void *userdata, hyper_context *ctx, const uint8_t *buf, size_t buf_len) {
 	struct conn_data *conn = (struct conn_data *)userdata;
-	size_t ret = write(conn->fd, buf, buf_len);
+	ssize_t ret = write(conn->fd, buf, buf_len);
 
 	if (ret < 0) {
 		int err = errno;
@@ -59,8 +52,7 @@ static size_t write_cb(void *userdata, hyper_waker *waker, const uint8_t *buf, s
 			if (conn->write_waker != NULL) {
 				hyper_waker_free(conn->write_waker);
 			}
-			conn->write_waker = hyper_waker_clone(waker);
-			FD_SET(conn->fd, &conn->all_fds->write);
+			conn->write_waker = hyper_context_waker(ctx);
 			return HYPER_IO_PENDING;
 		} else {
 			// kaboom
@@ -79,6 +71,7 @@ static int connect_to(char *host, char *port) {
 
 	struct addrinfo *result, *rp;
 	if (getaddrinfo(host, port, &hints, &result) != 0) {
+		printf("dns failed for %s\n", host);
 		return -1;
 	}
 
@@ -100,6 +93,7 @@ static int connect_to(char *host, char *port) {
 
 	// no address succeeded
 	if (rp == NULL) {
+		printf("connect failed for %s\n", host);
 		return -1;
 	}
 
@@ -107,7 +101,7 @@ static int connect_to(char *host, char *port) {
 }
 
 static hyper_iter_step print_each_header(void *userdata, hyper_str name, hyper_str value) {
-	printf("%.*s: %.*s", (int) name.len, name.buf, (int) value.len, value.buf);
+	printf("%.*s: %.*s\n", (int) name.len, name.buf, (int) value.len, value.buf);
 	return HYPER_IT_CONTINUE;
 }
 
@@ -118,20 +112,20 @@ int main(int argc, char *argv[]) {
 	if (fd < 0) {
 		return 1;
 	}
-
 	printf("connected to httpbin.org\n");
 
+	if (fcntl(fd, F_SETFL, O_NONBLOCK) != 0) {
+		printf("failed to set socket to non-blocking\n");
+		return 1;
+	}
 
-	struct conn_fds *all_fds = malloc(sizeof(struct conn_fds));
-
-	FD_ZERO(&all_fds->read);
-	FD_ZERO(&all_fds->write);
-	FD_ZERO(&all_fds->excep);
+	fd_set fds_read;
+	fd_set fds_write;
+	fd_set fds_excep;
 
 	struct conn_data *conn = malloc(sizeof(struct conn_data));
 
 	conn->fd = fd;
-	conn->all_fds = all_fds;
 	conn->read_waker = NULL;
 	conn->write_waker = NULL;
 
@@ -173,16 +167,19 @@ int main(int argc, char *argv[]) {
 
 	// Prepare the request
 	hyper_request *req = hyper_request_new();
-	if (!hyper_request_set_method(req, (uint8_t *)"POST", 4)) {
+	if (hyper_request_set_method(req, (uint8_t *)"GET", 3)) {
+		printf("error setting method\n");
 		return 1;
 	}
-	if (!hyper_request_set_uri(req, (uint8_t *)"/", sizeof("/") - 1)) {
+	if (hyper_request_set_uri(req, (uint8_t *)"/", sizeof("/") - 1)) {
+		printf("error setting uri\n");
 		return 1;
 	}
 
-	/*
 	// Send it!
 	task = hyper_clientconn_send(client, req);
+
+	printf("sending ...\n");
 
 	hyper_executor_push(exec, task);
 
@@ -190,16 +187,17 @@ int main(int argc, char *argv[]) {
 	// multiple times, so it's declared out here.
 	hyper_body *resp_body = NULL;
 
+	int sel_ret;
+
 	// The polling state machine!
 	while (1) {
-		hyper_executor_poll(exec);
 		while (1) {
-			hyper_task *task = hyper_executor_pop(exec);
+			hyper_task *task = hyper_executor_poll(exec);
 			if (!task) {
 				break;
 			}
 			switch (hyper_task_type(task)) {
-			case HYPER_TASK_CLIENT_SEND:
+			case HYPER_TASK_RESPONSE:
 				;
 				// Take the results
 				hyper_response *resp = hyper_task_value(task);
@@ -207,14 +205,17 @@ int main(int argc, char *argv[]) {
 
 				uint16_t http_status = hyper_response_status(resp);
 				
-				printf("HTTP Status: %d", http_status);
+				printf("\nResponse Status: %d\n", http_status);
 
 				hyper_headers *headers = hyper_response_headers(resp);
 				hyper_headers_iter(headers, print_each_header, NULL);
 
+				printf("\n -- Done! --\n");
+				return 0;
+			/*
 				resp_body = hyper_response_body(resp);
 				hyper_executor_push(exec, hyper_body_next(resp_body));
-
+				
 				break;
 			case HYPER_TASK_BODY_NEXT:
 				;
@@ -236,6 +237,10 @@ int main(int argc, char *argv[]) {
 				// Queue up another body poll.
 				hyper_executor_push(exec, hyper_body_next(resp_body));
 				break;
+				*/
+			case HYPER_TASK_ERROR:
+				printf("task error!\n");
+				return 1;
 			default:
 				hyper_task_free(task);
 				break;
@@ -243,10 +248,35 @@ int main(int argc, char *argv[]) {
 		}
 
 		// All futures are pending on IO work, so select on the fds.
-		select(1, &all_fds->read, &all_fds->write, &all_fds->excep, NULL);
+
+		FD_ZERO(&fds_read);
+		FD_ZERO(&fds_write);
+		FD_ZERO(&fds_excep);
+
+		if (conn->read_waker) {
+			FD_SET(conn->fd, &fds_read);
+		}
+		if (conn->write_waker) {
+			FD_SET(conn->fd, &fds_write);
+		}
+
+		sel_ret = select(conn->fd + 1, &fds_read, &fds_write, &fds_excep, NULL);
+
+		if (sel_ret < 0) {
+			printf("select() error\n");
+			return 1;
+		} else {
+			if (FD_ISSET(conn->fd, &fds_read)) {
+				hyper_waker_wake(conn->read_waker);
+				conn->read_waker = NULL;
+			}
+			if (FD_ISSET(conn->fd, &fds_write)) {
+				hyper_waker_wake(conn->write_waker);
+				conn->write_waker = NULL;
+			}
+		}
 
 	}
-*/
 
 
 	return 0;
