@@ -1,4 +1,5 @@
 use hyper::{Body, HeaderMap, Method, Request, Response, Uri};
+use hyper::header::{HeaderName, HeaderValue};
 use libc::size_t;
 use std::ffi::c_void;
 
@@ -50,6 +51,12 @@ ffi_fn! {
                 hyper_error::Kaboom
             }
         }
+    }
+}
+
+ffi_fn! {
+    fn hyper_request_headers(req: *mut Request<Body>) -> *mut HeaderMap {
+        unsafe { &mut *req }.headers_mut()
     }
 }
 
@@ -113,5 +120,22 @@ ffi_fn! {
                 break;
             }
         }
+    }
+}
+
+ffi_fn! {
+    fn hyper_headers_set(headers: *mut HeaderMap, name: hyper_str, value: hyper_str) -> hyper_error {
+        let headers = unsafe { &mut *headers };
+        let name = match HeaderName::from_bytes(unsafe { name.as_slice() }) {
+            Ok(name) => name,
+            Err(_) => return hyper_error::Kaboom,
+        };
+        let value = match HeaderValue::from_bytes(unsafe { value.as_slice() }) {
+            Ok(val) => val,
+            Err(_) => return hyper_error::Kaboom,
+        };
+
+        headers.insert(name, value);
+        hyper_error::Ok
     }
 }

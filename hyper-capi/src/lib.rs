@@ -18,3 +18,9 @@ pub enum hyper_error {
     Ok = 0,
     Kaboom = 1,
 }
+
+impl hyper_str {
+    unsafe fn as_slice(&self) -> &[u8] {
+        std::slice::from_raw_parts(self.buf, self.len as usize)
+    }
+}

@@ -140,7 +140,12 @@ hyper_error hyper_request_set_method(hyper_request *request, uint8_t *method, si
 // Set the URI of the request.
 hyper_error hyper_request_set_uri(hyper_request *request, uint8_t *uri, size_t uri_len);
 
-hyper_error hyper_request_add_header(hyper_request *request, uint8_t *name, size_t name_len, uint8_t *value, size_t value_len);
+
+// Gets a reference to the HTTP headers of this request
+//
+// This is not an owned reference, so it should not be accessed after the
+// `hyper_request` has been consumed.
+hyper_headers *hyper_request_headers(hyper_request *request);
 
 
 // HTTP Responses

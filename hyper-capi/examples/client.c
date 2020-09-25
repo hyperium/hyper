@@ -176,6 +176,12 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
+	hyper_headers *req_headers = hyper_request_headers(req);
+
+	hyper_str name = { .buf = "host", .len = 4};
+	hyper_str val = { .buf = "httpbin.org", .len = sizeof("httpbin.org") - 1 };
+	hyper_headers_set(req_headers,  name, val);
+
 	// Send it!
 	task = hyper_clientconn_send(client, req);
 
