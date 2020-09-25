@@ -17,10 +17,12 @@
 //! A simple connector that ignores the `Uri` destination and always returns
 //! a TCP connection to the same address could be written like this:
 //!
-//! ```rust,ignore
-//! let connector = tower::service_fn(|_dst| async {
-//!     tokio::net::TcpStream::connect("127.0.0.1:1337")
-//! })
+//! ```rust
+//! # use std::net::SocketAddr;
+//! # #[cfg(feature = "tcp")]
+//! let connector = tower::service_fn(|_dst: ()| async {
+//!     tokio::net::TcpStream::connect(SocketAddr::from(([127, 0, 0, 1], 1337)))
+//! });
 //! ```
 //!
 //! Or, fully written out:
