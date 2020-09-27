@@ -149,6 +149,11 @@ impl Connected {
         self
     }
 
+    /// Determines if the connected transport is to an HTTP proxy.
+    pub fn is_proxied(&self) -> bool {
+        self.is_proxied
+    }
+
     /// Set extra connection information to be set in the extensions of every `Response`.
     pub fn extra<T: Clone + Send + Sync + 'static>(mut self, extra: T) -> Connected {
         if let Some(prev) = self.extra {
@@ -159,11 +164,15 @@ impl Connected {
         self
     }
 
-    /// Set that the connected transport negotiated HTTP/2 as it's
-    /// next protocol.
+    /// Set that the connected transport negotiated HTTP/2 as its next protocol.
     pub fn negotiated_h2(mut self) -> Connected {
         self.alpn = Alpn::H2;
         self
+    }
+
+    /// Determines if the connected transport negotiated HTTP/2 as its next protocol.
+    pub fn is_negotiated_h2(&self) -> bool {
+        self.alpn == Alpn::H2
     }
 
     // Don't public expose that `Connected` is `Clone`, unsure if we want to
