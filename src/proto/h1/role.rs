@@ -34,7 +34,10 @@ macro_rules! header_name {
 
         #[cfg(not(debug_assertions))]
         {
-            HeaderName::from_bytes($bytes).expect("header name validated by httparse")
+            match HeaderName::from_bytes($bytes) {
+                Ok(name) => name,
+                Err(_) => panic!("illegal header name from httparse: {:?}", $bytes),
+            }
         }
     }};
 }

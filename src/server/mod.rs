@@ -286,7 +286,11 @@ impl<I, E> Builder<I, E> {
     /// but may also improve performance when an IO transport doesn't
     /// support vectored writes well, such as most TLS implementations.
     ///
-    /// Default is `true`.
+    /// Setting this to true will force hyper to use queued strategy
+    /// which may eliminate unnecessary cloning on some TLS backends
+    ///
+    /// Default is `auto`. In this mode hyper will try to guess which
+    /// mode to use
     pub fn http1_writev(mut self, val: bool) -> Self {
         self.protocol.http1_writev(val);
         self

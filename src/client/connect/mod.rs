@@ -26,6 +26,8 @@
 //! Or, fully written out:
 //!
 //! ```
+//! # #[cfg(feature = "runtime")]
+//! # mod rt {
 //! use std::{future::Future, net::SocketAddr, pin::Pin, task::{self, Poll}};
 //! use hyper::{service::Service, Uri};
 //! use tokio::net::TcpStream;
@@ -50,6 +52,7 @@
 //!         Box::pin(TcpStream::connect(SocketAddr::from(([127, 0, 0, 1], 1337))))
 //!     }
 //! }
+//! # }
 //! ```
 //!
 //! It's worth noting that for `TcpStream`s, the [`HttpConnector`][] is a
@@ -59,17 +62,20 @@
 //! `Client` like this:
 //!
 //! ```
+//! # #[cfg(feature = "runtime")]
+//! # fn rt () {
 //! # let connector = hyper::client::HttpConnector::new();
 //! // let connector = ...
 //!
 //! let client = hyper::Client::builder()
 //!     .build::<_, hyper::Body>(connector);
+//! # }
 //! ```
 //!
 //!
 //! [`HttpConnector`]: HttpConnector
 //! [`Service`]: crate::service::Service
-//! [`Uri`]: http::Uri
+//! [`Uri`]: ::http::Uri
 //! [`AsyncRead`]: tokio::io::AsyncRead
 //! [`AsyncWrite`]: tokio::io::AsyncWrite
 //! [`Connection`]: Connection

@@ -1,6 +1,6 @@
 [package]
 name = "hyper"
-version = "0.13.7" # don't forget to update html_root_url
+version = "0.13.8" # don't forget to update html_root_url
 description = "A fast and correct HTTP library."
 readme = "README.md"
 homepage = "https://hyper.rs"
@@ -135,6 +135,11 @@ required-features = ["runtime", "stream"]
 [[example]]
 name = "send_file"
 path = "examples/send_file.rs"
+required-features = ["runtime"]
+
+[[example]]
+name = "service_struct_impl"
+path = "examples/service_struct_impl.rs"
 required-features = ["runtime"]
 
 [[example]]
