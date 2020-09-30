@@ -326,7 +326,7 @@ where
             let extra_info = pooled.conn_info.extra.clone();
             let fut = fut.map_ok(move |mut res| {
                 if let Some(extra) = extra_info {
-                    extra.set(&mut res);
+                    extra.set(res.extensions_mut());
                 }
                 res
             });
