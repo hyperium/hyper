@@ -73,7 +73,7 @@ hyper_task *hyper_clientconn_handshake(hyper_io *io, hyper_clientconn_options *o
 hyper_task *hyper_clientconn_send(hyper_clientconn *client, hyper_request *request);
 
 // Creates a new set of HTTP clientconn options to be used in a handshake.
-hyper_clientconn_options *hyper_clientconn_options_new();
+hyper_clientconn_options *hyper_clientconn_options_new(void);
 
 // Set the client background task executor.
 //
@@ -89,7 +89,7 @@ void hyper_clientconn_options_free(hyper_clientconn_options *options);
 //
 // The read and write functions of this transport should be set with
 // `hyper_io_set_read` and `hyper_io_set_write`.
-hyper_io *hyper_io_new();
+hyper_io *hyper_io_new(void);
 
 // Set the user data pointer for this IO to some value.
 //
@@ -129,7 +129,7 @@ void hyper_io_set_write(hyper_io *io, size_t (*func)(void *userdata, hyper_conte
 // HTTP Requests
 
 // Construct a new HTTP request.
-hyper_request *hyper_request_new();
+hyper_request *hyper_request_new(void);
 
 // Free an HTTP request if not going to send it on a client.
 void hyper_request_free(hyper_request *request);
@@ -229,7 +229,7 @@ hyper_str hyper_buf_str(hyper_buf *buf);
 // Futures and Executors
 
 // Creates a new task executor.
-hyper_executor *hyper_executor_new();
+hyper_executor *hyper_executor_new(void);
 
 // Push a task onto the executor.
 hyper_error hyper_executor_push(hyper_executor *executor, hyper_task *task);
