@@ -105,7 +105,7 @@ pub enum IterStep {
 type IterFn = extern "C" fn(*mut c_void, *const u8, size_t, *const u8, size_t) -> IterStep;
 
 ffi_fn! {
-    fn hyper_headers_iter(headers: *const HeaderMap, func: IterFn, userdata: *mut c_void) {
+    fn hyper_headers_foreach(headers: *const HeaderMap, func: IterFn, userdata: *mut c_void) {
         for (name, value) in unsafe { &*headers }.iter() {
             let name_ptr = name.as_str().as_bytes().as_ptr();
             let name_len = name.as_str().as_bytes().len();

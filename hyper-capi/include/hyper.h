@@ -188,13 +188,13 @@ void hyper_headers_add(hyper_headers *headers,
 //
 // The callback should return `HYPER_IT_CONTINUE` to keep iterating, or
 // `HYPER_IT_BREAK` to stop.
-void hyper_headers_iter(hyper_headers *headers,
-                        hyper_iter_step (*func)(void *userdata,
-                                                const uint8_t *name,
-                                                size_t name_len,
-                                                const uint8_t *value,
-                                                size_t value_len),
-                        void *userdata);
+void hyper_headers_foreach(hyper_headers *headers,
+                           hyper_iter_step (*func)(void *userdata,
+                                                   const uint8_t *name,
+                                                   size_t name_len,
+                                                   const uint8_t *value,
+                                                   size_t value_len),
+                           void *userdata);
 
 // HTTP Body
 

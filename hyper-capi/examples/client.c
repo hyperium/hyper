@@ -215,7 +215,7 @@ int main(int argc, char *argv[]) {
 				printf("\nResponse Status: %d\n", http_status);
 
 				hyper_headers *headers = hyper_response_headers(resp);
-				hyper_headers_iter(headers, print_each_header, NULL);
+				hyper_headers_foreach(headers, print_each_header, NULL);
 
 				printf("\n -- Done! --\n");
 				return 0;
