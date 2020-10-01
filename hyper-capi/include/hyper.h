@@ -32,14 +32,6 @@ typedef struct hyper_waker hyper_waker;
 
 typedef struct hyper_executor hyper_executor;
 
-// A string reference.
-//
-// The data in here typically is not owned by this struct.
-typedef struct hyper_str {
-	const uint8_t *buf;
-	size_t len;
-} hyper_str;
-
 typedef enum {
     HYPERE_OK,
     HYPERE_KABOOM,
@@ -174,13 +166,21 @@ hyper_body *hyper_response_body(hyper_response *response);
 // Sets the header with the provided name to the provided value.
 //
 // This overwrites any previous value set for the header.
-void hyper_headers_set(hyper_headers *headers, hyper_str name, hyper_str value);
+void hyper_headers_set(hyper_headers *headers,
+                       const uint8_t* name,
+                       size_t name_len,
+                       const uint8_t *value,
+                       size_t value_len);
 
 // Adds the provided value to the list of the provided name.
 //
 // If there were already existing values for the name, this will append the
 // new value to the internal list.
-void hyper_headers_add(hyper_headers *headers, hyper_str name, hyper_str value);
+void hyper_headers_add(hyper_headers *headers,
+                       const uint8_t* name,
+                       size_t name_len,
+                       const uint8_t *value,
+                       size_t value_len);
 
 // Iterates the headers passing each name and value pair to the callback.
 //
@@ -190,8 +190,10 @@ void hyper_headers_add(hyper_headers *headers, hyper_str name, hyper_str value);
 // `HYPER_IT_BREAK` to stop.
 void hyper_headers_iter(hyper_headers *headers,
                         hyper_iter_step (*func)(void *userdata,
-                                                hyper_str name,
-                                                hyper_str value),
+                                                const uint8_t *name,
+                                                size_t name_len,
+                                                const uint8_t *value,
+                                                size_t value_len),
                         void *userdata);
 
 // HTTP Body
@@ -220,11 +222,6 @@ hyper_task *hyper_body_next(hyper_body *body);
 
 // Free this buffer.
 void hyper_buf_free(hyper_buf *buf);
-
-// Get a reference to the bytes of this buf.
-//
-// The returned `hyper_str` is not safe to use after freeing the `hyper_buf *`.
-hyper_str hyper_buf_str(hyper_buf *buf);
 
 // Futures and Executors
 

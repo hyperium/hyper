@@ -4,7 +4,7 @@ use libc::size_t;
 use std::ffi::c_void;
 
 use crate::task::{AsTaskType, TaskType};
-use crate::{hyper_error, hyper_str};
+use crate::{hyper_error};
 
 // ===== impl Request =====
 
@@ -102,21 +102,17 @@ pub enum IterStep {
     Break,
 }
 
-type IterFn = extern "C" fn(*mut c_void, hyper_str, hyper_str) -> IterStep;
+type IterFn = extern "C" fn(*mut c_void, *const u8, size_t, *const u8, size_t) -> IterStep;
 
 ffi_fn! {
     fn hyper_headers_iter(headers: *const HeaderMap, func: IterFn, userdata: *mut c_void) {
         for (name, value) in unsafe { &*headers }.iter() {
-            let raw_name = hyper_str {
-                buf: name.as_str().as_bytes().as_ptr(),
-                len: name.as_str().as_bytes().len(),
-            };
-            let raw_val = hyper_str {
-                buf: value.as_bytes().as_ptr(),
-                len: value.as_bytes().len(),
-            };
+            let name_ptr = name.as_str().as_bytes().as_ptr();
+            let name_len = name.as_str().as_bytes().len();
+            let val_ptr = value.as_bytes().as_ptr();
+            let val_len = value.as_bytes().len();
 
-            if IterStep::Continue != func(userdata, raw_name, raw_val) {
+            if IterStep::Continue != func(userdata, name_ptr, name_len, val_ptr, val_len) {
                 break;
             }
         }
@@ -124,13 +120,15 @@ ffi_fn! {
 }
 
 ffi_fn! {
-    fn hyper_headers_set(headers: *mut HeaderMap, name: hyper_str, value: hyper_str) -> hyper_error {
+    fn hyper_headers_set(headers: *mut HeaderMap, name: *const u8, name_len: size_t, value: *const u8, value_len: size_t) -> hyper_error {
         let headers = unsafe { &mut *headers };
-        let name = match HeaderName::from_bytes(unsafe { name.as_slice() }) {
+        let name = unsafe { std::slice::from_raw_parts(name, name_len) };
+        let name = match HeaderName::from_bytes(name) {
             Ok(name) => name,
             Err(_) => return hyper_error::Kaboom,
         };
-        let value = match HeaderValue::from_bytes(unsafe { value.as_slice() }) {
+        let value = unsafe { std::slice::from_raw_parts(value, value_len) };
+        let value = match HeaderValue::from_bytes(value) {
             Ok(val) => val,
             Err(_) => return hyper_error::Kaboom,
         };

@@ -100,8 +100,12 @@ static int connect_to(char *host, char *port) {
 	return sfd;
 }
 
-static hyper_iter_step print_each_header(void *userdata, hyper_str name, hyper_str value) {
-	printf("%.*s: %.*s\n", (int) name.len, name.buf, (int) value.len, value.buf);
+static hyper_iter_step print_each_header(void *userdata,
+                                         const uint8_t *name,
+                                         size_t name_len,
+                                         const uint8_t *value,
+                                         size_t value_len) {
+	printf("%.*s: %.*s\n", (int) name_len, name, (int) value_len, value);
 	return HYPER_IT_CONTINUE;
 }
 
@@ -177,10 +181,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	hyper_headers *req_headers = hyper_request_headers(req);
-
-	hyper_str name = { .buf = "host", .len = 4};
-	hyper_str val = { .buf = "httpbin.org", .len = sizeof("httpbin.org") - 1 };
-	hyper_headers_set(req_headers,  name, val);
+	hyper_headers_set(req_headers,  (uint8_t *)"host", 4, (uint8_t *)"httpbin.org", sizeof("httpbin.org") - 1);
 
 	// Send it!
 	task = hyper_clientconn_send(client, req);
@@ -191,7 +192,7 @@ int main(int argc, char *argv[]) {
 
 	// The body will be filled in after we get a response, and we will poll it
 	// multiple times, so it's declared out here.
-	hyper_body *resp_body = NULL;
+	//hyper_body *resp_body = NULL;
 
 	int sel_ret;
 
