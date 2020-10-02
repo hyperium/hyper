@@ -64,6 +64,9 @@ hyper_task *hyper_clientconn_handshake(hyper_io *io, hyper_clientconn_options *o
 // task yields a `hyper_response *`.
 hyper_task *hyper_clientconn_send(hyper_clientconn *client, hyper_request *request);
 
+// Free a `hyper_clientconn *`.
+void hyper_clientconn_free(hyper_clientconn *client);
+
 // Creates a new set of HTTP clientconn options to be used in a handshake.
 hyper_clientconn_options *hyper_clientconn_options_new(void);
 

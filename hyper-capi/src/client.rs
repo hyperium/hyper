@@ -60,6 +60,12 @@ ffi_fn! {
     }
 }
 
+ffi_fn! {
+    fn hyper_clientconn_free(conn: *mut ClientConn) {
+        drop(unsafe { Box::from_raw(conn) });
+    }
+}
+
 unsafe impl AsTaskType for ClientConn {
     fn as_task_type(&self) -> TaskType {
         TaskType::ClientConn

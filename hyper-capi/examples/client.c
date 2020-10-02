@@ -125,6 +125,8 @@ typedef enum {
 	EXAMPLE_RESP_BODY,
 } example_id;
 
+#define STR_ARG(XX) (uint8_t *)XX, sizeof(XX) - 1
+
 int main(int argc, char *argv[]) {
 	printf("connecting ...\n");
 
@@ -166,46 +168,10 @@ int main(int argc, char *argv[]) {
 	hyper_clientconn_options_exec(opts, exec);
 
 	hyper_task *handshake = hyper_clientconn_handshake(io, opts);
-
+	hyper_task_set_data(handshake, (void *)EXAMPLE_HANDSHAKE);
 
 	// Let's wait for the handshake to finish...
 	hyper_executor_push(exec, handshake);
-
-	// We're going to cheat for the handshake, since we know HTTP/1 handshakes
-	// are immediately ready after the first poll.
-	hyper_task *task = hyper_executor_poll(exec);
-	if (hyper_task_type(task) != HYPER_TASK_CLIENTCONN) {
-		// ruh roh!
-		printf("task not a handshake ?!\n");
-		return 1;
-	}
-
-	printf("preparing http request ...\n");
-
-	hyper_clientconn *client = hyper_task_value(task);
-
-
-	// Prepare the request
-	hyper_request *req = hyper_request_new();
-	if (hyper_request_set_method(req, (uint8_t *)"GET", 3)) {
-		printf("error setting method\n");
-		return 1;
-	}
-	if (hyper_request_set_uri(req, (uint8_t *)"/", sizeof("/") - 1)) {
-		printf("error setting uri\n");
-		return 1;
-	}
-
-	hyper_headers *req_headers = hyper_request_headers(req);
-	hyper_headers_set(req_headers,  (uint8_t *)"host", 4, (uint8_t *)"httpbin.org", sizeof("httpbin.org") - 1);
-
-	// Send it!
-	task = hyper_clientconn_send(client, req);
-	hyper_task_set_data(task, (void *)EXAMPLE_SEND);
-
-	printf("sending ...\n");
-
-	hyper_executor_push(exec, task);
 
 	// The polling state machine!
 	while (1) {
@@ -216,6 +182,43 @@ int main(int argc, char *argv[]) {
 				break;
 			}
 			switch ((example_id) hyper_task_userdata(task)) {
+			case EXAMPLE_HANDSHAKE:
+				;
+				if (hyper_task_type(task) == HYPER_TASK_ERROR) {
+					printf("handshake error!\n");
+					return 1;
+				}
+				assert(hyper_task_type(task) == HYPER_TASK_CLIENTCONN);
+
+				printf("preparing http request ...\n");
+
+				hyper_clientconn *client = hyper_task_value(task);
+				hyper_task_free(task);
+
+				// Prepare the request
+				hyper_request *req = hyper_request_new();
+				if (hyper_request_set_method(req, STR_ARG("GET"))) {
+					printf("error setting method\n");
+					return 1;
+				}
+				if (hyper_request_set_uri(req, STR_ARG("/"))) {
+					printf("error setting uri\n");
+					return 1;
+				}
+
+				hyper_headers *req_headers = hyper_request_headers(req);
+				hyper_headers_set(req_headers,  STR_ARG("host"), STR_ARG("httpbin.org"));
+
+				// Send it!
+				hyper_task *send = hyper_clientconn_send(client, req);
+				hyper_task_set_data(send, (void *)EXAMPLE_SEND);
+				printf("sending ...\n");
+				hyper_executor_push(exec, send);
+
+				// For this example, no longer need the client
+				hyper_clientconn_free(client);
+
+				break;
 			case EXAMPLE_SEND:
 				;
 				if (hyper_task_type(task) == HYPER_TASK_ERROR) {
