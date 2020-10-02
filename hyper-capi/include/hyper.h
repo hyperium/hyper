@@ -218,7 +218,30 @@ void hyper_body_set_poll(hyper_body *body,
 // When the body is complete, the task's value will be `NULL`.
 hyper_task *hyper_body_next(hyper_body *body);
 
+// Return a task that will poll the body and execute the callback with each
+// body chunk that is received.
+//
+// The `hyper_buf` pointer is only a borrowed reference, it cannot live outside
+// the execution of the callback. You must make a copy to retain it.
+hyper_task *hyper_body_foreach(hyper_body *body,
+                               hyper_iter_step (*func)(void *userdata,
+                                                       const hyper_buf *buf),
+                               void *userdata);
+
 // TODO: hyper_body_trailers()
+
+
+// Get a pointer to the bytes in this buffer.
+//
+// This should be used in conjunction with `hyper_buf_len` to get the length
+// of the bytes data.
+//
+// This pointer is borrowed data, and not valid once the `hyper_buf` is
+// consumed/freed.
+const uint8_t *hyper_buf_bytes(const hyper_buf *buf);
+
+// Get the length of the bytes this buffer contains.
+size_t hyper_buf_len(const hyper_buf *buf);
 
 // Free this buffer.
 void hyper_buf_free(hyper_buf *buf);
@@ -243,7 +266,7 @@ hyper_task *hyper_executor_poll(hyper_executor *executor);
 void hyper_executor_free(hyper_executor *executor);
 
 typedef enum {
-	HYPER_TASK_BG,
+	HYPER_TASK_EMPTY,
 	HYPER_TASK_ERROR,
 	HYPER_TASK_CLIENTCONN,
 	HYPER_TASK_RESPONSE,
@@ -251,6 +274,15 @@ typedef enum {
 
 // Query the return type of this task.
 hyper_task_return_type hyper_task_type(hyper_task *task);
+
+// Set a user data pointer to be associated with this task.
+//
+// This value will be passed to task callbacks, and can be checked later
+// with `hyper_task_userdata`.
+void hyper_task_set_data(hyper_task *task, void *userdata);
+
+// Retrieve the userdata that has been set via `hyper_task_set_data`.
+void *hyper_task_userdata(hyper_task *task);
 
 // Takes the output value of this task.
 //

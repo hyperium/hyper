@@ -4,6 +4,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/select.h>
+#include <assert.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -109,6 +110,21 @@ static hyper_iter_step print_each_header(void *userdata,
 	return HYPER_IT_CONTINUE;
 }
 
+static hyper_iter_step print_each_chunk(void *userdata, const hyper_buf *chunk) {
+	const uint8_t *buf = hyper_buf_bytes(chunk);
+	size_t len = hyper_buf_len(chunk);
+
+	write(1, buf, len);
+
+	return HYPER_IT_CONTINUE;
+}
+
+typedef enum {
+	EXAMPLE_HANDSHAKE = 1,
+	EXAMPLE_SEND,
+	EXAMPLE_RESP_BODY,
+} example_id;
+
 int main(int argc, char *argv[]) {
 	printf("connecting ...\n");
 
@@ -185,27 +201,29 @@ int main(int argc, char *argv[]) {
 
 	// Send it!
 	task = hyper_clientconn_send(client, req);
+	hyper_task_set_data(task, (void *)EXAMPLE_SEND);
 
 	printf("sending ...\n");
 
 	hyper_executor_push(exec, task);
 
-	// The body will be filled in after we get a response, and we will poll it
-	// multiple times, so it's declared out here.
-	//hyper_body *resp_body = NULL;
-
-	int sel_ret;
-
 	// The polling state machine!
 	while (1) {
+		// Poll all ready tasks and act on them...
 		while (1) {
 			hyper_task *task = hyper_executor_poll(exec);
 			if (!task) {
 				break;
 			}
-			switch (hyper_task_type(task)) {
-			case HYPER_TASK_RESPONSE:
+			switch ((example_id) hyper_task_userdata(task)) {
+			case EXAMPLE_SEND:
 				;
+				if (hyper_task_type(task) == HYPER_TASK_ERROR) {
+					printf("send error!\n");
+					return 1;
+				}
+				assert(hyper_task_type(task) == HYPER_TASK_RESPONSE);
+
 				// Take the results
 				hyper_response *resp = hyper_task_value(task);
 				hyper_task_free(task);
@@ -216,38 +234,25 @@ int main(int argc, char *argv[]) {
 
 				hyper_headers *headers = hyper_response_headers(resp);
 				hyper_headers_foreach(headers, print_each_header, NULL);
+				printf("\n");
 
-				printf("\n -- Done! --\n");
-				return 0;
-			/*
-				resp_body = hyper_response_body(resp);
-				hyper_executor_push(exec, hyper_body_next(resp_body));
+				hyper_body *resp_body = hyper_response_body(resp);
+				hyper_task *foreach = hyper_body_foreach(resp_body, print_each_chunk, NULL);
+				hyper_task_set_data(foreach, (void *)EXAMPLE_RESP_BODY);
+				hyper_executor_push(exec, foreach);
 				
 				break;
-			case HYPER_TASK_BODY_NEXT:
+			case EXAMPLE_RESP_BODY:
 				;
-				// A body chunk is available
-				hyper_buf *chunk = hyper_task_value(task);
-				hyper_task_free(task);
-
-				if (!chunk) {
-					// body is complete!
-					printf("\n\nDone!");
-					return 0;
+				if (hyper_task_type(task) == HYPER_TASK_ERROR) {
+					printf("body error!\n");
+					return 1;
 				}
 
-				// Write the chunk to stdout
-				hyper_str s = hyper_buf_str(chunk);
-				write(1, s.buf, s.len);
-				hyper_buf_free(chunk);
-				
-				// Queue up another body poll.
-				hyper_executor_push(exec, hyper_body_next(resp_body));
-				break;
-				*/
-			case HYPER_TASK_ERROR:
-				printf("task error!\n");
-				return 1;
+				assert(hyper_task_type(task) == HYPER_TASK_EMPTY);
+
+				printf("\n -- Done! -- \n");
+				return 0;
 			default:
 				hyper_task_free(task);
 				break;
@@ -267,7 +272,7 @@ int main(int argc, char *argv[]) {
 			FD_SET(conn->fd, &fds_write);
 		}
 
-		sel_ret = select(conn->fd + 1, &fds_read, &fds_write, &fds_excep, NULL);
+		int sel_ret = select(conn->fd + 1, &fds_read, &fds_write, &fds_excep, NULL);
 
 		if (sel_ret < 0) {
 			printf("select() error\n");

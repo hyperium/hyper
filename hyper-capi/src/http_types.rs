@@ -4,7 +4,7 @@ use libc::size_t;
 use std::ffi::c_void;
 
 use crate::task::{AsTaskType, TaskType};
-use crate::{hyper_error};
+use crate::{hyper_error, IterStep};
 
 // ===== impl Request =====
 
@@ -82,7 +82,8 @@ ffi_fn! {
 
 ffi_fn! {
     fn hyper_response_body(resp: *mut Response<Body>) -> *mut Body {
-        unsafe { &mut *resp }.body_mut()
+        let body = std::mem::take(unsafe { &mut *resp }.body_mut());
+        Box::into_raw(Box::new(body))
     }
 }
 
@@ -93,14 +94,6 @@ unsafe impl AsTaskType for Response<Body> {
 }
 
 // ===== impl Headers =====
-
-#[repr(C)]
-#[derive(PartialEq)]
-pub enum IterStep {
-    Continue = 0,
-    #[allow(unused)]
-    Break,
-}
 
 type IterFn = extern "C" fn(*mut c_void, *const u8, size_t, *const u8, size_t) -> IterStep;
 

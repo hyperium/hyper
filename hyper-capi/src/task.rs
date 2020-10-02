@@ -1,3 +1,4 @@
+use std::ffi::c_void;
 use std::future::Future;
 use std::pin::Pin;
 use std::ptr;
@@ -6,7 +7,7 @@ use std::task::{Context, Poll};
 
 use futures_util::stream::{FuturesUnordered, Stream};
 
-use crate::hyper_error;
+use crate::{AssertSendSafe, hyper_error};
 
 type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send>>;
 type BoxAny = Box<dyn AsTaskType + Send + Sync>;
@@ -34,6 +35,7 @@ pub(crate) struct WeakExec(Weak<Exec>);
 pub struct Task {
     future: BoxFuture<BoxAny>,
     output: Option<BoxAny>,
+    userdata: AssertSendSafe<*mut c_void>,
 }
 
 struct TaskFuture {
@@ -47,7 +49,7 @@ pub struct Waker {
 /// typedef enum hyper_return_task_type
 #[repr(C)]
 pub enum TaskType {
-    Bg,
+    Empty,
     Error,
     ClientConn,
     Response,
@@ -183,12 +185,13 @@ impl Task {
         Box::new(Task {
             future: Box::pin(async move { fut.await.into_dyn_task_type() }),
             output: None,
+            userdata: AssertSendSafe(ptr::null_mut()),
         })
     }
 
     fn output_type(&self) -> TaskType {
         match self.output {
-            None => TaskType::Bg,
+            None => TaskType::Empty,
             Some(ref val) => val.as_task_type(),
         }
     }
@@ -216,7 +219,7 @@ ffi_fn! {
 }
 
 ffi_fn! {
-    fn hyper_task_value(task: *mut Task) -> *mut std::ffi::c_void {
+    fn hyper_task_value(task: *mut Task) -> *mut c_void {
         if task.is_null() {
             return ptr::null_mut();
         }
@@ -224,7 +227,7 @@ ffi_fn! {
         let task = unsafe { &mut *task };
 
         if let Some(val) = task.output.take() {
-            Box::into_raw(val) as *mut std::ffi::c_void
+            Box::into_raw(val) as *mut c_void
         } else {
             ptr::null_mut()
         }
@@ -236,10 +239,30 @@ ffi_fn! {
         if task.is_null() {
             // instead of blowing up spectacularly, just say this null task
             // doesn't have a value to retrieve.
-            return TaskType::Bg;
+            return TaskType::Empty;
         }
 
         unsafe { &*task }.output_type()
+    }
+}
+
+ffi_fn! {
+    fn hyper_task_set_data(task: *mut Task, userdata: *mut c_void) {
+        if task.is_null() {
+            return;
+        }
+
+        unsafe { (*task).userdata = AssertSendSafe(userdata) };
+    }
+}
+
+ffi_fn! {
+    fn hyper_task_userdata(task: *mut Task) -> *mut c_void {
+        if task.is_null() {
+            return ptr::null_mut();
+        }
+
+        unsafe { &*task }.userdata.0
     }
 }
 
@@ -247,7 +270,7 @@ ffi_fn! {
 
 unsafe impl AsTaskType for () {
     fn as_task_type(&self) -> TaskType {
-        TaskType::Bg
+        TaskType::Empty
     }
 }
 
