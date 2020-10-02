@@ -1,5 +1,6 @@
 use futures_util::future;
 use tokio::sync::{mpsc, oneshot};
+use tracing::Span;
 
 use crate::common::{task, Future, Pin, Poll};
 
@@ -80,7 +81,7 @@ impl<T, U> Sender<T, U> {
         }
         let (tx, rx) = oneshot::channel();
         self.inner
-            .send(Envelope(Some((val, Callback::Retry(tx)))))
+            .send(Envelope(Some((val, Callback::Retry(tx), Span::current()))))
             .map(move |_| rx)
             .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
     }
@@ -91,7 +92,11 @@ impl<T, U> Sender<T, U> {
         }
         let (tx, rx) = oneshot::channel();
         self.inner
-            .send(Envelope(Some((val, Callback::NoRetry(tx)))))
+            .send(Envelope(Some((
+                val,
+                Callback::NoRetry(tx),
+                Span::current(),
+            ))))
             .map(move |_| rx)
             .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
     }
@@ -116,7 +121,7 @@ impl<T, U> UnboundedSender<T, U> {
     pub fn try_send(&mut self, val: T) -> Result<RetryPromise<T, U>, T> {
         let (tx, rx) = oneshot::channel();
         self.inner
-            .send(Envelope(Some((val, Callback::Retry(tx)))))
+            .send(Envelope(Some((val, Callback::Retry(tx), Span::current()))))
             .map(move |_| rx)
             .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
     }
@@ -140,7 +145,7 @@ impl<T, U> Receiver<T, U> {
     pub(crate) fn poll_next(
         &mut self,
         cx: &mut task::Context<'_>,
-    ) -> Poll<Option<(T, Callback<T, U>)>> {
+    ) -> Poll<Option<(T, Callback<T, U>, Span)>> {
         match self.inner.poll_recv(cx) {
             Poll::Ready(item) => {
                 Poll::Ready(item.map(|mut env| env.0.take().expect("envelope not dropped")))
@@ -157,7 +162,7 @@ impl<T, U> Receiver<T, U> {
         self.inner.close();
     }
 
-    pub(crate) fn try_recv(&mut self) -> Option<(T, Callback<T, U>)> {
+    pub(crate) fn try_recv(&mut self) -> Option<(T, Callback<T, U>, Span)> {
         match self.inner.try_recv() {
             Ok(mut env) => env.0.take(),
             Err(_) => None,
@@ -173,11 +178,11 @@ impl<T, U> Drop for Receiver<T, U> {
     }
 }
 
-struct Envelope<T, U>(Option<(T, Callback<T, U>)>);
+struct Envelope<T, U>(Option<(T, Callback<T, U>, Span)>);
 
 impl<T, U> Drop for Envelope<T, U> {
     fn drop(&mut self) {
-        if let Some((val, cb)) = self.0.take() {
+        if let Some((val, cb, _)) = self.0.take() {
             cb.send(Err((
                 crate::Error::new_canceled().with("connection closed"),
                 Some(val),
@@ -260,7 +265,7 @@ mod tests {
     struct Custom(i32);
 
     impl<T, U> Future for Receiver<T, U> {
-        type Output = Option<(T, Callback<T, U>)>;
+        type Output = Option<(T, Callback<T, U>, tracing::Span)>;
 
         fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
             self.poll_next(cx)
