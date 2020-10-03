@@ -541,7 +541,13 @@ impl ConnectingTcpRemote {
             }
         }
 
-        Err(err.take().expect("missing connect error"))
+        match err {
+            Some(e) => Err(e),
+            None => Err(std::io::Error::new(
+                std::io::ErrorKind::NotConnected,
+                "Network unreachable",
+            )),
+        }
     }
 }
 
