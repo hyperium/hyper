@@ -107,7 +107,7 @@ static hyper_iter_step print_each_header(void *userdata,
                                          const uint8_t *value,
                                          size_t value_len) {
 	printf("%.*s: %.*s\n", (int) name_len, name, (int) value_len, value);
-	return HYPER_IT_CONTINUE;
+	return HYPER_ITER_CONTINUE;
 }
 
 static hyper_iter_step print_each_chunk(void *userdata, const hyper_buf *chunk) {
@@ -116,13 +116,14 @@ static hyper_iter_step print_each_chunk(void *userdata, const hyper_buf *chunk) 
 
 	write(1, buf, len);
 
-	return HYPER_IT_CONTINUE;
+	return HYPER_ITER_CONTINUE;
 }
 
 typedef enum {
-	EXAMPLE_HANDSHAKE = 1,
+	EXAMPLE_NOT_SET = 0, // tasks we don't know about won't have a userdata set
+	EXAMPLE_HANDSHAKE,
 	EXAMPLE_SEND,
-	EXAMPLE_RESP_BODY,
+	EXAMPLE_RESP_BODY
 } example_id;
 
 #define STR_ARG(XX) (uint8_t *)XX, sizeof(XX) - 1
@@ -256,7 +257,8 @@ int main(int argc, char *argv[]) {
 
 				printf("\n -- Done! -- \n");
 				return 0;
-			default:
+			case EXAMPLE_NOT_SET:
+				// A background task for hyper completed...
 				hyper_task_free(task);
 				break;
 			}

@@ -8,7 +8,7 @@ mod io;
 mod task;
 
 #[repr(C)]
-pub enum hyper_error {
+pub enum hyper_code {
     Ok = 0,
     Kaboom = 1,
 }

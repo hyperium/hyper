@@ -33,18 +33,18 @@ typedef struct hyper_waker hyper_waker;
 typedef struct hyper_executor hyper_executor;
 
 typedef enum {
-    HYPERE_OK,
-    HYPERE_KABOOM,
-} hyper_error;
+    HYPER_OK = 0,
+    HYPERE_KABOOM
+} hyper_code;
 
 typedef enum {
-	HYPER_IT_CONTINUE,
-	HYPER_IT_BREAK,
+	HYPER_ITER_CONTINUE,
+	HYPER_ITER_BREAK
 } hyper_iter_step;
 
 typedef enum {
 	HYPER_POLL_READY,
-	HYPER_POLL_PENDING,
+	HYPER_POLL_PENDING
 } hyper_poll;
 
 // HTTP ClientConn
@@ -130,10 +130,10 @@ hyper_request *hyper_request_new(void);
 void hyper_request_free(hyper_request *request);
 
 // Set the HTTP Method of the request.
-hyper_error hyper_request_set_method(hyper_request *request, uint8_t *method, size_t method_len);
+hyper_code hyper_request_set_method(hyper_request *request, uint8_t *method, size_t method_len);
 
 // Set the URI of the request.
-hyper_error hyper_request_set_uri(hyper_request *request, uint8_t *uri, size_t uri_len);
+hyper_code hyper_request_set_uri(hyper_request *request, uint8_t *uri, size_t uri_len);
 
 
 // Gets a reference to the HTTP headers of this request
@@ -255,7 +255,7 @@ void hyper_buf_free(hyper_buf *buf);
 hyper_executor *hyper_executor_new(void);
 
 // Push a task onto the executor.
-hyper_error hyper_executor_push(hyper_executor *executor, hyper_task *task);
+hyper_code hyper_executor_push(hyper_executor *executor, hyper_task *task);
 
 // Polls the executor, trying to make progress on any tasks that have notified
 // that they are ready again.

@@ -1,13 +1,14 @@
 use std::ffi::c_void;
 use std::future::Future;
+use std::mem::ManuallyDrop;
 use std::pin::Pin;
 use std::ptr;
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::{atomic::{AtomicBool, Ordering}, Arc, Mutex, Weak};
 use std::task::{Context, Poll};
 
 use futures_util::stream::{FuturesUnordered, Stream};
 
-use crate::{AssertSendSafe, hyper_error};
+use crate::{AssertSendSafe, hyper_code};
 
 type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send>>;
 type BoxAny = Box<dyn AsTaskType + Send + Sync>;
@@ -27,6 +28,10 @@ pub struct Exec {
     /// This is has a separate mutex since `spawn` could be called from inside
     /// a future, which would mean the driver's mutex is already locked.
     spawn_queue: Mutex<Vec<TaskFuture>>,
+
+    /// This is used to track when a future calls `wake` while we are within
+    /// `Exec::poll_next`.
+    is_woken: AtomicBool,
 }
 
 #[derive(Clone)]
@@ -70,6 +75,7 @@ impl Exec {
         Arc::new(Exec {
             driver: Mutex::new(FuturesUnordered::new()),
             spawn_queue: Mutex::new(Vec::new()),
+            is_woken: AtomicBool::new(false),
         })
     }
 
@@ -84,28 +90,34 @@ impl Exec {
             .push(TaskFuture { task: Some(task) });
     }
 
-    fn poll_next(&self) -> Option<Box<Task>> {
+    fn poll_next(arc_self: &Arc<Exec>) -> Option<Box<Task>> {
+        let me = &*arc_self;
         // Drain the queue first.
-        self.drain_queue();
+        me.drain_queue();
+
+        let waker = futures_util::task::waker_ref(arc_self);
+        let mut cx = Context::from_waker(&waker);
 
         loop {
-            match self.poll_once() {
+            match Pin::new(&mut *me.driver.lock().unwrap()).poll_next(&mut cx) {
                 Poll::Ready(val) => return val,
                 Poll::Pending => {
                     // Check if any of the pending tasks tried to spawn
                     // some new tasks. If so, drain into the driver and loop.
-                    if !self.drain_queue() {
-                        return None;
+                    if me.drain_queue() {
+                        continue;
                     }
+
+                    // If the driver called `wake` while we were polling,
+                    // we should poll again immediately!
+                    if me.is_woken.swap(false, Ordering::SeqCst) {
+                        continue;
+                    }
+
+                    return None;
                 }
             }
         }
-    }
-
-    fn poll_once(&self) -> Poll<Option<Box<Task>>> {
-        let waker = futures_util::task::noop_waker();
-        let mut cx = Context::from_waker(&waker);
-        Pin::new(&mut *self.driver.lock().unwrap()).poll_next(&mut cx)
     }
 
     fn drain_queue(&self) -> bool {
@@ -121,6 +133,12 @@ impl Exec {
         }
 
         true
+    }
+}
+
+impl futures_util::task::ArcWake for Exec {
+    fn wake_by_ref(me: &Arc<Exec>) {
+        me.is_woken.store(true, Ordering::SeqCst);
     }
 }
 
@@ -153,21 +171,23 @@ ffi_fn! {
 }
 
 ffi_fn! {
-    fn hyper_executor_push(exec: *const Exec, task: *mut Task) -> hyper_error {
+    fn hyper_executor_push(exec: *const Exec, task: *mut Task) -> hyper_code {
         if exec.is_null() || task.is_null() {
-            return hyper_error::Kaboom;
+            return hyper_code::Kaboom;
         }
         let exec = unsafe { &*exec };
         let task = unsafe { Box::from_raw(task) };
         exec.spawn(task);
-        hyper_error::Ok
+        hyper_code::Ok
     }
 }
 
 ffi_fn! {
     fn hyper_executor_poll(exec: *const Exec) -> *mut Task {
-        let exec = unsafe { &*exec };
-        match exec.poll_next() {
+        // We only want an `&Arc` in here, so wrap in a `ManuallyDrop` so we
+        // don't accidentally trigger a ref_dec of the Arc.
+        let exec = ManuallyDrop::new(unsafe { Arc::from_raw(exec) });
+        match Exec::poll_next(&*exec) {
             Some(task) => Box::into_raw(task),
             None => ptr::null_mut(),
         }
