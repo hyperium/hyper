@@ -64,7 +64,7 @@ static size_t write_cb(void *userdata, hyper_context *ctx, const uint8_t *buf, s
 	}
 }
 
-static int connect_to(char *host, char *port) {
+static int connect_to(const char *host, const char *port) {
 	struct addrinfo hints;
 	memset(&hints, 0, sizeof(struct addrinfo));
 	hints.ai_family = AF_UNSPEC;
@@ -126,16 +126,19 @@ typedef enum {
 	EXAMPLE_RESP_BODY
 } example_id;
 
-#define STR_ARG(XX) (uint8_t *)XX, sizeof(XX) - 1
+#define STR_ARG(XX) (uint8_t *)XX, strlen(XX)
 
 int main(int argc, char *argv[]) {
-	printf("connecting ...\n");
+        const char *host = argc > 1 ? argv[1] : "httpbin.org";
+        const char *port = argc > 2 ? argv[2] : "80";
+        const char *path = argc > 3 ? argv[3] : "/";
+        printf("connecting to port %s on %s...\n", port, host);
 
-	int fd = connect_to("httpbin.org", "80");
+        int fd = connect_to(host, port);
 	if (fd < 0) {
 		return 1;
 	}
-	printf("connected to httpbin.org\n");
+        printf("connected to %s, now get %s\n", host, path);
 
 	if (fcntl(fd, F_SETFL, O_NONBLOCK) != 0) {
 		printf("failed to set socket to non-blocking\n");
@@ -202,13 +205,13 @@ int main(int argc, char *argv[]) {
 					printf("error setting method\n");
 					return 1;
 				}
-				if (hyper_request_set_uri(req, STR_ARG("/"))) {
+				if (hyper_request_set_uri(req, STR_ARG(path))) {
 					printf("error setting uri\n");
 					return 1;
 				}
 
 				hyper_headers *req_headers = hyper_request_headers(req);
-				hyper_headers_set(req_headers,  STR_ARG("host"), STR_ARG("httpbin.org"));
+				hyper_headers_set(req_headers,  STR_ARG("host"), STR_ARG(host));
 
 				// Send it!
 				hyper_task *send = hyper_clientconn_send(client, req);
