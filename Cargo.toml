@@ -55,6 +55,9 @@ tokio-util = { version = "0.3", features = ["codec"] }
 tower-util = "0.3"
 url = "1.0"
 
+[target.'cfg(any(target_os = "linux", target_os = "macos"))'.dev-dependencies]
+pnet = "0.25.0"
+
 [features]
 default = [
     "runtime",
