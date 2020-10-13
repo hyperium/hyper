@@ -31,7 +31,7 @@ httparse = "1.0"
 h2 = "0.2.2"
 itoa = "0.4.1"
 tracing = { version = "0.1", default-features = false, features = ["log", "std"] }
-pin-project = "0.4.20"
+pin-project = "1.0"
 tower-service = "0.3"
 tokio = { version = "0.2.11", features = ["sync"] }
 want = "0.3"
