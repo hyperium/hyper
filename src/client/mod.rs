@@ -51,6 +51,7 @@
 use std::error::Error as StdError;
 use std::fmt;
 use std::mem;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use futures_channel::oneshot;
@@ -696,10 +697,11 @@ where
     B: Send + 'static,
 {
     fn is_open(&self) -> bool {
-        match self.tx {
-            PoolTx::Http1(ref tx) => tx.is_ready(),
-            PoolTx::Http2(ref tx) => tx.is_ready(),
-        }
+        !self.conn_info.is_draining.load(Ordering::SeqCst)
+            && match self.tx {
+                PoolTx::Http1(ref tx) => tx.is_ready(),
+                PoolTx::Http2(ref tx) => tx.is_ready(),
+            }
     }
 
     fn reserve(self) -> Reservation<Self> {

@@ -73,7 +73,13 @@
 //! [`AsyncRead`]: tokio::io::AsyncRead
 //! [`AsyncWrite`]: tokio::io::AsyncWrite
 //! [`Connection`]: Connection
-use std::fmt;
+use std::{
+    fmt,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Weak,
+    },
+};
 
 use ::http::Response;
 
@@ -100,9 +106,25 @@ pub struct Connected {
     pub(super) alpn: Alpn,
     pub(super) is_proxied: bool,
     pub(super) extra: Option<Extra>,
+    pub(super) is_draining: Arc<AtomicBool>,
 }
 
 pub(super) struct Extra(Box<dyn ExtraInner>);
+
+#[derive(Clone, Debug)]
+#[warn(missing_docs)]
+pub struct PoolHandle {
+    is_draining: Weak<AtomicBool>,
+}
+
+impl PoolHandle {
+    #[warn(missing_docs)]
+    pub fn drain(&self) {
+        if let Some(is_draining) = self.is_draining.upgrade() {
+            is_draining.store(true, Ordering::SeqCst);
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum Alpn {
@@ -113,11 +135,17 @@ pub(super) enum Alpn {
 impl Connected {
     /// Create new `Connected` type with empty metadata.
     pub fn new() -> Connected {
+        let is_draining = Arc::new(AtomicBool::new(false));
+        let weak_is_draining = Arc::downgrade(&is_draining);
         Connected {
             alpn: Alpn::None,
             is_proxied: false,
             extra: None,
+            is_draining,
         }
+        .extra(PoolHandle {
+            is_draining: weak_is_draining,
+        })
     }
 
     /// Set whether the connected transport is to an HTTP proxy.
@@ -167,6 +195,7 @@ impl Connected {
             alpn: self.alpn.clone(),
             is_proxied: self.is_proxied,
             extra: self.extra.clone(),
+            is_draining: self.is_draining.clone(),
         }
     }
 }
