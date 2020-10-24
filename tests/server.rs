@@ -821,7 +821,7 @@ async fn expect_continue_waits_for_body_poll() {
             service_fn(|req| {
                 assert_eq!(req.headers()["expect"], "100-continue");
                 // But! We're never going to poll the body!
-                tokio::time::delay_for(Duration::from_millis(50)).map(move |_| {
+                tokio::time::sleep(Duration::from_millis(50)).map(move |_| {
                     // Move and drop the req, so we don't auto-close
                     drop(req);
                     Response::builder()
@@ -1100,7 +1100,7 @@ async fn http1_allow_half_close() {
         .serve_connection(
             socket,
             service_fn(|_| {
-                tokio::time::delay_for(Duration::from_millis(500))
+                tokio::time::sleep(Duration::from_millis(500))
                     .map(|_| Ok::<_, hyper::Error>(Response::new(Body::empty())))
             }),
         )
@@ -1127,7 +1127,7 @@ async fn disconnect_after_reading_request_before_responding() {
         .serve_connection(
             socket,
             service_fn(|_| {
-                tokio::time::delay_for(Duration::from_secs(2)).map(
+                tokio::time::sleep(Duration::from_secs(2)).map(
                     |_| -> Result<Response<Body>, hyper::Error> {
                         panic!("response future should have been dropped");
                     },
@@ -1897,7 +1897,7 @@ async fn http2_keep_alive_with_responsive_client() {
         conn.await.expect("client conn");
     });
 
-    tokio::time::delay_for(Duration::from_secs(4)).await;
+    tokio::time::sleep(Duration::from_secs(4)).await;
 
     let req = http::Request::new(hyper::Body::empty());
     client.send_request(req).await.expect("client.send_request");
@@ -2319,7 +2319,7 @@ impl<T: Write, D> Write for DebugStream<T, D> {
 impl<T: AsyncWrite + Unpin, D> AsyncWrite for DebugStream<T, D> {
     fn poll_write(
         mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
+        cx: &mut task::Context<'_>,
         buf: &[u8],
     ) -> Poll<Result<usize, io::Error>> {
         Pin::new(&mut self.stream).poll_write(cx, buf)
@@ -2331,7 +2331,7 @@ impl<T: AsyncWrite + Unpin, D> AsyncWrite for DebugStream<T, D> {
 
     fn poll_shutdown(
         mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
+        cx: &mut task::Context<'_>,
     ) -> Poll<Result<(), io::Error>> {
         Pin::new(&mut self.stream).poll_shutdown(cx)
     }
@@ -2339,10 +2339,10 @@ impl<T: AsyncWrite + Unpin, D> AsyncWrite for DebugStream<T, D> {
 
 impl<T: AsyncRead + Unpin, D: Unpin> AsyncRead for DebugStream<T, D> {
     fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
+        self: Pin<&mut Self>,
+        cx: &mut task::Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
         Pin::new(&mut self.stream).poll_read(cx, buf)
     }
 }

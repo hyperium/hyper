@@ -963,7 +963,7 @@ mod dispatch_impl {
     use futures_util::future::{FutureExt, TryFutureExt};
     use futures_util::stream::StreamExt;
     use http::Uri;
-    use tokio::io::{AsyncRead, AsyncWrite};
+    use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
     use tokio::net::TcpStream;
     use tokio::runtime::Runtime;
 
@@ -1016,7 +1016,7 @@ mod dispatch_impl {
         rt.block_on(async move {
             let (res, ()) = future::join(res, rx).await;
             res.unwrap();
-            tokio::time::delay_for(Duration::from_secs(1)).await;
+            tokio::time::sleep(Duration::from_secs(1)).await;
         });
 
         rt.block_on(closes.into_future()).0.expect("closes");
@@ -1075,7 +1075,7 @@ mod dispatch_impl {
         rt.block_on(async move {
             let (res, ()) = future::join(res, rx).await;
             res.unwrap();
-            tokio::time::delay_for(Duration::from_secs(1)).await;
+            tokio::time::sleep(Duration::from_secs(1)).await;
         });
 
         rt.block_on(closes.into_future()).0.expect("closes");
@@ -1147,7 +1147,7 @@ mod dispatch_impl {
         drop(client);
 
         // and wait a few ticks for the connections to close
-        let t = tokio::time::delay_for(Duration::from_millis(100)).map(|_| panic!("time out"));
+        let t = tokio::time::sleep(Duration::from_millis(100)).map(|_| panic!("time out"));
         let close = closes.into_future().map(|(opt, _)| opt.expect("closes"));
         future::select(t, close).await;
     }
@@ -1195,7 +1195,7 @@ mod dispatch_impl {
         future::select(res, rx1).await;
 
         // res now dropped
-        let t = tokio::time::delay_for(Duration::from_millis(100)).map(|_| panic!("time out"));
+        let t = tokio::time::sleep(Duration::from_millis(100)).map(|_| panic!("time out"));
         let close = closes.into_future().map(|(opt, _)| opt.expect("closes"));
         future::select(t, close).await;
     }
@@ -1250,7 +1250,7 @@ mod dispatch_impl {
         res.unwrap();
 
         // and wait a few ticks to see the connection drop
-        let t = tokio::time::delay_for(Duration::from_millis(100)).map(|_| panic!("time out"));
+        let t = tokio::time::sleep(Duration::from_millis(100)).map(|_| panic!("time out"));
         let close = closes.into_future().map(|(opt, _)| opt.expect("closes"));
         future::select(t, close).await;
     }
@@ -1300,7 +1300,7 @@ mod dispatch_impl {
         let (res, ()) = future::join(res, rx).await;
         res.unwrap();
 
-        let t = tokio::time::delay_for(Duration::from_millis(100)).map(|_| panic!("time out"));
+        let t = tokio::time::sleep(Duration::from_millis(100)).map(|_| panic!("time out"));
         let close = closes.into_future().map(|(opt, _)| opt.expect("closes"));
         future::select(t, close).await;
     }
@@ -1346,7 +1346,7 @@ mod dispatch_impl {
         let (res, ()) = future::join(res, rx).await;
         res.unwrap();
 
-        let t = tokio::time::delay_for(Duration::from_millis(100)).map(|_| panic!("time out"));
+        let t = tokio::time::sleep(Duration::from_millis(100)).map(|_| panic!("time out"));
         let close = closes.into_future().map(|(opt, _)| opt.expect("closes"));
         future::select(t, close).await;
     }
@@ -1544,7 +1544,7 @@ mod dispatch_impl {
         assert_eq!(connects.load(Ordering::Relaxed), 0);
 
         let delayed_body = rx1
-            .then(|_| tokio::time::delay_for(Duration::from_millis(200)))
+            .then(|_| tokio::time::sleep(Duration::from_millis(200)))
             .map(|_| Ok::<_, ()>("hello a"))
             .map_err(|_| -> hyper::Error { panic!("rx1") })
             .into_stream();
@@ -1559,7 +1559,7 @@ mod dispatch_impl {
 
         // req 1
         let fut = future::join(client.request(req), rx)
-            .then(|_| tokio::time::delay_for(Duration::from_millis(200)))
+            .then(|_| tokio::time::sleep(Duration::from_millis(200)))
             // req 2
             .then(move |()| {
                 let rx = rx3.expect("thread panicked");
@@ -1646,7 +1646,7 @@ mod dispatch_impl {
 
         // sleep real quick to let the threadpool put connection in ready
         // state and back into client pool
-        tokio::time::delay_for(Duration::from_millis(50)).await;
+        tokio::time::sleep(Duration::from_millis(50)).await;
 
         let rx = rx2.expect("thread panicked");
         let req = Request::builder()
@@ -1961,10 +1961,10 @@ mod dispatch_impl {
 
     impl AsyncRead for DebugStream {
         fn poll_read(
-            mut self: Pin<&mut Self>,
+            self: Pin<&mut Self>,
             cx: &mut Context<'_>,
-            buf: &mut [u8],
-        ) -> Poll<Result<usize, io::Error>> {
+            buf: &mut ReadBuf<'_>,
+        ) -> Poll<io::Result<()>> {
             Pin::new(&mut self.tcp).poll_read(cx, buf)
         }
     }
@@ -2090,7 +2090,7 @@ mod conn {
         });
 
         let rx = rx1.expect("thread panicked");
-        let rx = rx.then(|_| tokio::time::delay_for(Duration::from_millis(200)));
+        let rx = rx.then(|_| tokio::time::sleep(Duration::from_millis(200)));
         let chunk = rt.block_on(future::join(res, rx).map(|r| r.0)).unwrap();
         assert_eq!(chunk.len(), 5);
     }
@@ -2185,7 +2185,7 @@ mod conn {
             concat(res)
         });
         let rx = rx1.expect("thread panicked");
-        let rx = rx.then(|_| tokio::time::delay_for(Duration::from_millis(200)));
+        let rx = rx.then(|_| tokio::time::sleep(Duration::from_millis(200)));
         rt.block_on(future::join(res, rx).map(|r| r.0)).unwrap();
     }
 
@@ -2231,7 +2231,7 @@ mod conn {
             concat(res)
         });
         let rx = rx1.expect("thread panicked");
-        let rx = rx.then(|_| tokio::time::delay_for(Duration::from_millis(200)));
+        let rx = rx.then(|_| tokio::time::sleep(Duration::from_millis(200)));
         rt.block_on(future::join(res, rx).map(|r| r.0)).unwrap();
     }
 
@@ -2283,7 +2283,7 @@ mod conn {
         });
 
         let rx = rx1.expect("thread panicked");
-        let rx = rx.then(|_| tokio::time::delay_for(Duration::from_millis(200)));
+        let rx = rx.then(|_| tokio::time::sleep(Duration::from_millis(200)));
         rt.block_on(future::join3(res1, res2, rx).map(|r| r.0))
             .unwrap();
     }
@@ -2346,7 +2346,7 @@ mod conn {
             });
 
             let rx = rx1.expect("thread panicked");
-            let rx = rx.then(|_| tokio::time::delay_for(Duration::from_millis(200)));
+            let rx = rx.then(|_| tokio::time::sleep(Duration::from_millis(200)));
             rt.block_on(future::join3(until_upgrade, res, rx).map(|r| r.0))
                 .unwrap();
 
@@ -2439,7 +2439,7 @@ mod conn {
                 });
 
             let rx = rx1.expect("thread panicked");
-            let rx = rx.then(|_| tokio::time::delay_for(Duration::from_millis(200)));
+            let rx = rx.then(|_| tokio::time::sleep(Duration::from_millis(200)));
             rt.block_on(future::join3(until_tunneled, res, rx).map(|r| r.0))
                 .unwrap();
 
@@ -2529,7 +2529,7 @@ mod conn {
         let _ = shdn_tx.send(());
 
         // Allow time for graceful shutdown roundtrips...
-        tokio::time::delay_for(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
 
         // After graceful shutdown roundtrips, the client should be closed...
         future::poll_fn(|ctx| client.poll_ready(ctx))
@@ -2606,7 +2606,7 @@ mod conn {
         });
 
         // sleep longer than keepalive would trigger
-        tokio::time::delay_for(Duration::from_secs(4)).await;
+        tokio::time::sleep(Duration::from_secs(4)).await;
 
         future::poll_fn(|ctx| client.poll_ready(ctx))
             .await
@@ -2711,7 +2711,7 @@ mod conn {
         let _resp = client.send_request(req1).await.expect("send_request");
 
         // sleep longer than keepalive would trigger
-        tokio::time::delay_for(Duration::from_secs(4)).await;
+        tokio::time::sleep(Duration::from_secs(4)).await;
 
         future::poll_fn(|ctx| client.poll_ready(ctx))
             .await
@@ -2761,10 +2761,10 @@ mod conn {
 
     impl AsyncRead for DebugStream {
         fn poll_read(
-            mut self: Pin<&mut Self>,
+            self: Pin<&mut Self>,
             cx: &mut Context<'_>,
-            buf: &mut [u8],
-        ) -> Poll<Result<usize, io::Error>> {
+            buf: &mut ReadBuf<'_>,
+        ) -> Poll<io::Result<()>> {
             Pin::new(&mut self.tcp).poll_read(cx, buf)
         }
     }

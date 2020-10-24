@@ -302,8 +302,8 @@ mod tests {
         fn poll_read(
             self: Pin<&mut Self>,
             _cx: &mut task::Context<'_>,
-            _buf: &mut [u8],
-        ) -> Poll<io::Result<usize>> {
+            _buf: &mut ReadBuf<'_>,
+        ) -> Poll<io::Result<()>> {
             unreachable!("Mock::poll_read")
         }
     }
