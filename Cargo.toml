@@ -28,7 +28,7 @@ http = "0.2"
 http-body = "0.3.1"
 httpdate = "0.3"
 httparse = "1.0"
-h2 = "0.2.2"
+h2 = { git = "https://github.com/hyperium/h2" }
 itoa = "0.4.1"
 tracing = { version = "0.1", default-features = false, features = ["log", "std"] }
 pin-project = "1.0"
