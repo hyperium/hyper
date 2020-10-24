@@ -13,7 +13,7 @@ use futures_util::future::Either;
 use http::uri::{Scheme, Uri};
 use pin_project::pin_project;
 use tokio::net::TcpStream;
-use tokio::time::Delay;
+use tokio::time::Sleep;
 
 use super::dns::{self, resolve, GaiResolver, Resolve};
 use super::{Connected, Connection};
@@ -510,7 +510,7 @@ impl ConnectingTcp {
                 local_addr_ipv6,
                 preferred: ConnectingTcpRemote::new(preferred_addrs, connect_timeout),
                 fallback: Some(ConnectingTcpFallback {
-                    delay: tokio::time::delay_for(fallback_timeout),
+                    delay: tokio::time::sleep(fallback_timeout),
                     remote: ConnectingTcpRemote::new(fallback_addrs, connect_timeout),
                 }),
                 reuse_address,
@@ -528,7 +528,7 @@ impl ConnectingTcp {
 }
 
 struct ConnectingTcpFallback {
-    delay: Delay,
+    delay: Sleep,
     remote: ConnectingTcpRemote,
 }
 

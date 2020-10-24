@@ -850,7 +850,7 @@ mod tests {
         let pooled = pool.pooled(c(key.clone()), Uniq(41));
 
         drop(pooled);
-        tokio::time::delay_for(pool.locked().timeout.unwrap()).await;
+        tokio::time::sleep(pool.locked().timeout.unwrap()).await;
         let mut checkout = pool.checkout(key);
         let poll_once = PollOnce(&mut checkout);
         let is_not_ready = poll_once.await.is_none();
@@ -871,7 +871,7 @@ mod tests {
             pool.locked().idle.get(&key).map(|entries| entries.len()),
             Some(3)
         );
-        tokio::time::delay_for(pool.locked().timeout.unwrap()).await;
+        tokio::time::sleep(pool.locked().timeout.unwrap()).await;
 
         let mut checkout = pool.checkout(key.clone());
         let poll_once = PollOnce(&mut checkout);
