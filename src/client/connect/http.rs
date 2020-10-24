@@ -640,17 +640,7 @@ fn connect(
 
     let std_tcp = socket.into_tcp_stream();
 
-    Ok(async move {
-        let connect = TcpStream::connect_std(std_tcp, &addr);
-        match connect_timeout {
-            Some(dur) => match tokio::time::timeout(dur, connect).await {
-                Ok(Ok(s)) => Ok(s),
-                Ok(Err(e)) => Err(e),
-                Err(e) => Err(io::Error::new(io::ErrorKind::TimedOut, e)),
-            },
-            None => connect.await,
-        }
-    })
+    Ok(async move { TcpStream::from_std(std_tcp) })
 }
 
 impl ConnectingTcp {
