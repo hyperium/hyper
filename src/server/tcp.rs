@@ -186,7 +186,7 @@ mod addr_stream {
     use std::net::SocketAddr;
     #[cfg(unix)]
     use std::os::unix::io::{AsRawFd, RawFd};
-    use tokio::io::{AsyncRead, AsyncWrite};
+    use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
     use tokio::net::TcpStream;
 
     use crate::common::{task, Pin, Poll};
@@ -231,29 +231,13 @@ mod addr_stream {
     }
 
     impl AsyncRead for AddrStream {
-        unsafe fn prepare_uninitialized_buffer(
-            &self,
-            buf: &mut [std::mem::MaybeUninit<u8>],
-        ) -> bool {
-            self.inner.prepare_uninitialized_buffer(buf)
-        }
-
         #[inline]
         fn poll_read(
-            mut self: Pin<&mut Self>,
+            self: Pin<&mut Self>,
             cx: &mut task::Context<'_>,
-            buf: &mut [u8],
-        ) -> Poll<io::Result<usize>> {
+            buf: &mut ReadBuf<'_>,
+        ) -> Poll<io::Result<()>> {
             Pin::new(&mut self.inner).poll_read(cx, buf)
-        }
-
-        #[inline]
-        fn poll_read_buf<B: BufMut>(
-            mut self: Pin<&mut Self>,
-            cx: &mut task::Context<'_>,
-            buf: &mut B,
-        ) -> Poll<io::Result<usize>> {
-            Pin::new(&mut self.inner).poll_read_buf(cx, buf)
         }
     }
 
@@ -265,15 +249,6 @@ mod addr_stream {
             buf: &[u8],
         ) -> Poll<io::Result<usize>> {
             Pin::new(&mut self.inner).poll_write(cx, buf)
-        }
-
-        #[inline]
-        fn poll_write_buf<B: Buf>(
-            mut self: Pin<&mut Self>,
-            cx: &mut task::Context<'_>,
-            buf: &mut B,
-        ) -> Poll<io::Result<usize>> {
-            Pin::new(&mut self.inner).poll_write_buf(cx, buf)
         }
 
         #[inline]

@@ -12,7 +12,7 @@ use std::io;
 use std::marker::Unpin;
 
 use bytes::{Buf, Bytes};
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::sync::oneshot;
 
 use crate::common::io::Rewind;
@@ -105,15 +105,11 @@ impl Upgraded {
 }
 
 impl AsyncRead for Upgraded {
-    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [std::mem::MaybeUninit<u8>]) -> bool {
-        self.io.prepare_uninitialized_buffer(buf)
-    }
-
     fn poll_read(
-        mut self: Pin<&mut Self>,
+        self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
         Pin::new(&mut self.io).poll_read(cx, buf)
     }
 }
@@ -125,14 +121,6 @@ impl AsyncWrite for Upgraded {
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
         Pin::new(&mut self.io).poll_write(cx, buf)
-    }
-
-    fn poll_write_buf<B: Buf>(
-        mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
-        buf: &mut B,
-    ) -> Poll<io::Result<usize>> {
-        Pin::new(self.io.get_mut()).poll_write_dyn_buf(cx, buf)
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
@@ -247,15 +235,11 @@ impl dyn Io + Send {
 }
 
 impl<T: AsyncRead + Unpin> AsyncRead for ForwardsWriteBuf<T> {
-    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [std::mem::MaybeUninit<u8>]) -> bool {
-        self.0.prepare_uninitialized_buffer(buf)
-    }
-
     fn poll_read(
-        mut self: Pin<&mut Self>,
+        self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
         Pin::new(&mut self.0).poll_read(cx, buf)
     }
 }
@@ -267,14 +251,6 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for ForwardsWriteBuf<T> {
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
         Pin::new(&mut self.0).poll_write(cx, buf)
-    }
-
-    fn poll_write_buf<B: Buf>(
-        mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
-        buf: &mut B,
-    ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut self.0).poll_write_buf(cx, buf)
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
@@ -292,7 +268,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin + 'static> Io for ForwardsWriteBuf<T> {
         cx: &mut task::Context<'_>,
         mut buf: &mut dyn Buf,
     ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut self.0).poll_write_buf(cx, &mut buf)
+        Pin::new(&mut self.0).poll_write(cx, buf.bytes())
     }
 }
 
