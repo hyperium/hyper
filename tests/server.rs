@@ -18,9 +18,8 @@ use futures_util::future::{self, Either, FutureExt, TryFutureExt};
 #[cfg(feature = "stream")]
 use futures_util::stream::StreamExt as _;
 use http::header::{HeaderName, HeaderValue};
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 use tokio::net::{TcpListener, TcpStream as TkTcpStream};
-use tokio::runtime::Runtime;
 
 use hyper::body::HttpBody as _;
 use hyper::client::Client;
@@ -28,6 +27,8 @@ use hyper::server::conn::Http;
 use hyper::server::Server;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, StatusCode, Version};
+
+mod support;
 
 #[test]
 fn get_should_ignore_body() {
@@ -788,7 +789,7 @@ fn expect_continue_but_no_body_is_ignored() {
 #[tokio::test]
 async fn expect_continue_waits_for_body_poll() {
     let _ = pretty_env_logger::try_init();
-    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     let child = thread::spawn(move || {
@@ -956,7 +957,7 @@ fn http_10_request_receives_http_10_response() {
 
 #[tokio::test]
 async fn disable_keep_alive_mid_request() {
-    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     let (tx1, rx1) = oneshot::channel();
@@ -994,7 +995,7 @@ async fn disable_keep_alive_mid_request() {
 #[tokio::test]
 async fn disable_keep_alive_post_request() {
     let _ = pretty_env_logger::try_init();
-    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     let (tx1, rx1) = oneshot::channel();
@@ -1046,7 +1047,7 @@ async fn disable_keep_alive_post_request() {
 #[tokio::test]
 async fn empty_parse_eof_does_not_return_error() {
     let _ = pretty_env_logger::try_init();
-    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -1062,7 +1063,7 @@ async fn empty_parse_eof_does_not_return_error() {
 
 #[tokio::test]
 async fn nonempty_parse_eof_returns_error() {
-    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -1080,7 +1081,7 @@ async fn nonempty_parse_eof_returns_error() {
 #[tokio::test]
 async fn http1_allow_half_close() {
     let _ = pretty_env_logger::try_init();
-    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     let t1 = thread::spawn(move || {
@@ -1113,7 +1114,7 @@ async fn http1_allow_half_close() {
 #[tokio::test]
 async fn disconnect_after_reading_request_before_responding() {
     let _ = pretty_env_logger::try_init();
-    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -1140,7 +1141,7 @@ async fn disconnect_after_reading_request_before_responding() {
 
 #[tokio::test]
 async fn returning_1xx_response_is_error() {
-    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -1193,7 +1194,7 @@ async fn upgrades() {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     let _ = pretty_env_logger::try_init();
-    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
     let (tx, rx) = oneshot::channel();
 
@@ -1252,7 +1253,7 @@ async fn http_connect() {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     let _ = pretty_env_logger::try_init();
-    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
     let (tx, rx) = oneshot::channel();
 
@@ -1308,7 +1309,7 @@ async fn upgrades_new() {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     let _ = pretty_env_logger::try_init();
-    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
     let (read_101_tx, read_101_rx) = oneshot::channel();
 
@@ -1375,7 +1376,7 @@ async fn upgrades_new() {
 #[tokio::test]
 async fn upgrades_ignored() {
     let _ = pretty_env_logger::try_init();
-    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     tokio::spawn(async move {
@@ -1417,7 +1418,7 @@ async fn http_connect_new() {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     let _ = pretty_env_logger::try_init();
-    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
     let (read_200_tx, read_200_rx) = oneshot::channel();
 
@@ -1480,7 +1481,7 @@ async fn http_connect_new() {
 
 #[tokio::test]
 async fn parse_errors_send_4xx_response() {
-    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -1502,7 +1503,7 @@ async fn parse_errors_send_4xx_response() {
 
 #[tokio::test]
 async fn illegal_request_length_returns_400_response() {
-    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
@@ -1538,7 +1539,7 @@ fn max_buf_size_no_panic() {
 #[tokio::test]
 async fn max_buf_size() {
     let _ = pretty_env_logger::try_init();
-    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     const MAX: usize = 16_000;
@@ -1592,7 +1593,7 @@ fn http1_response_with_http2_version() {
     let server = serve();
     let addr_str = format!("http://{}", server.addr());
 
-    let mut rt = Runtime::new().expect("runtime new");
+    let rt = support::runtime();
 
     server.reply().version(hyper::Version::HTTP_2);
 
@@ -1609,7 +1610,7 @@ fn try_h2() {
     let server = serve();
     let addr_str = format!("http://{}", server.addr());
 
-    let mut rt = Runtime::new().expect("runtime new");
+    let rt = support::runtime();
 
     rt.block_on({
         let client = Client::builder()
@@ -1629,7 +1630,7 @@ fn http1_only() {
     let server = serve_opts().http1_only().serve();
     let addr_str = format!("http://{}", server.addr());
 
-    let mut rt = Runtime::new().expect("runtime new");
+    let rt = support::runtime();
 
     rt.block_on({
         let client = Client::builder()
@@ -1684,7 +1685,7 @@ fn http2_body_user_error_sends_reset_reason() {
 
     server.reply().body_stream(b);
 
-    let mut rt = Runtime::new().expect("runtime new");
+    let rt = support::runtime();
 
     let err: hyper::Error = rt
         .block_on(async move {
@@ -1823,7 +1824,7 @@ fn skips_content_length_and_body_for_304_responses() {
 async fn http2_keep_alive_detects_unresponsive_client() {
     let _ = pretty_env_logger::try_init();
 
-    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     // Spawn a "client" conn that only reads until EOF
@@ -1871,7 +1872,7 @@ async fn http2_keep_alive_detects_unresponsive_client() {
 async fn http2_keep_alive_with_responsive_client() {
     let _ = pretty_env_logger::try_init();
 
-    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     tokio::spawn(async move {
@@ -2206,37 +2207,32 @@ impl ServeOptions {
         let thread = thread::Builder::new()
             .name(thread_name)
             .spawn(move || {
-                let rt = tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .basic_scheduler()
-                    .build()
-                    .expect("rt new");
+                support::runtime()
+                    .block_on(async move {
+                        let service = make_service_fn(|_| {
+                            let msg_tx = msg_tx.clone();
+                            let reply_rx = reply_rx.clone();
+                            future::ok::<_, BoxError>(TestService {
+                                tx: msg_tx,
+                                reply: reply_rx,
+                            })
+                        });
 
-                rt.block_on(async move {
-                    let service = make_service_fn(|_| {
-                        let msg_tx = msg_tx.clone();
-                        let reply_rx = reply_rx.clone();
-                        future::ok::<_, BoxError>(TestService {
-                            tx: msg_tx,
-                            reply: reply_rx,
-                        })
-                    });
+                        let server = Server::bind(&addr)
+                            .http1_only(options.http1_only)
+                            .http1_keepalive(options.keep_alive)
+                            .http1_pipeline_flush(options.pipeline)
+                            .serve(service);
 
-                    let server = Server::bind(&addr)
-                        .http1_only(options.http1_only)
-                        .http1_keepalive(options.keep_alive)
-                        .http1_pipeline_flush(options.pipeline)
-                        .serve(service);
+                        addr_tx.send(server.local_addr()).expect("server addr tx");
 
-                    addr_tx.send(server.local_addr()).expect("server addr tx");
-
-                    server
-                        .with_graceful_shutdown(async {
-                            let _ = shutdown_rx.await;
-                        })
-                        .await
-                })
-                .expect("serve()");
+                        server
+                            .with_graceful_shutdown(async {
+                                let _ = shutdown_rx.await;
+                            })
+                            .await
+                    })
+                    .expect("serve()");
             })
             .expect("thread spawn");
 
@@ -2318,7 +2314,7 @@ impl<T: Write, D> Write for DebugStream<T, D> {
 impl<T: AsyncWrite + Unpin, D> AsyncWrite for DebugStream<T, D> {
     fn poll_write(
         mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<Result<usize, io::Error>> {
         Pin::new(&mut self.stream).poll_write(cx, buf)
@@ -2330,7 +2326,7 @@ impl<T: AsyncWrite + Unpin, D> AsyncWrite for DebugStream<T, D> {
 
     fn poll_shutdown(
         mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
     ) -> Poll<Result<(), io::Error>> {
         Pin::new(&mut self.stream).poll_shutdown(cx)
     }
@@ -2338,8 +2334,8 @@ impl<T: AsyncWrite + Unpin, D> AsyncWrite for DebugStream<T, D> {
 
 impl<T: AsyncRead + Unpin, D: Unpin> AsyncRead for DebugStream<T, D> {
     fn poll_read(
-        self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
         Pin::new(&mut self.stream).poll_read(cx, buf)
