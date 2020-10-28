@@ -27,7 +27,7 @@ pub(crate) trait Dispatch {
     type PollError;
     type RecvItem;
     fn poll_msg(
-        &mut self,
+        self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,
     ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Self::PollError>>>;
     fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, Body)>) -> crate::Result<()>;
@@ -40,8 +40,10 @@ pub struct Server<S: HttpService<B>, B> {
     pub(crate) service: S,
 }
 
+#[pin_project::pin_project]
 pub struct Client<B> {
     callback: Option<crate::client::dispatch::Callback<Request<B>, Response<Body>>>,
+    #[pin]
     rx: ClientRx<B>,
     rx_closed: bool,
 }
@@ -281,7 +283,7 @@ where
                 && self.conn.can_write_head()
                 && self.dispatch.should_poll()
             {
-                if let Some(msg) = ready!(self.dispatch.poll_msg(cx)) {
+                if let Some(msg) = ready!(Pin::new(&mut self.dispatch).poll_msg(cx)) {
                     let (head, mut body) = msg.map_err(crate::Error::new_user_service)?;
 
                     // Check if the body knows its full data immediately.
@@ -469,10 +471,11 @@ where
     type RecvItem = RequestHead;
 
     fn poll_msg(
-        &mut self,
+        mut self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,
     ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Self::PollError>>> {
-        let ret = if let Some(ref mut fut) = self.in_flight.as_mut().as_pin_mut() {
+        let mut this = self.as_mut();
+        let ret = if let Some(ref mut fut) = this.in_flight.as_mut().as_pin_mut() {
             let resp = ready!(fut.as_mut().poll(cx)?);
             let (parts, body) = resp.into_parts();
             let head = MessageHead {
@@ -486,7 +489,7 @@ where
         };
 
         // Since in_flight finished, remove it
-        self.in_flight.set(None);
+        this.in_flight.set(None);
         ret
     }
 
@@ -540,11 +543,12 @@ where
     type RecvItem = ResponseHead;
 
     fn poll_msg(
-        &mut self,
+        self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,
     ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Never>>> {
-        debug_assert!(!self.rx_closed);
-        match self.rx.poll_next(cx) {
+        let this = self.project();
+        debug_assert!(!*this.rx_closed);
+        match this.rx.poll_next(cx) {
             Poll::Ready(Some((req, mut cb))) => {
                 // check that future hasn't been canceled already
                 match cb.poll_canceled(cx) {
@@ -559,7 +563,7 @@ where
                             subject: RequestLine(parts.method, parts.uri),
                             headers: parts.headers,
                         };
-                        self.callback = Some(cb);
+                        *this.callback = Some(cb);
                         Poll::Ready(Some(Ok((head, body))))
                     }
                 }
@@ -567,7 +571,7 @@ where
             Poll::Ready(None) => {
                 // user has dropped sender handle
                 trace!("client tx closed");
-                self.rx_closed = true;
+                *this.rx_closed = true;
                 Poll::Ready(None)
             }
             Poll::Pending => Poll::Pending,

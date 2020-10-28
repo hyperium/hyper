@@ -607,8 +607,6 @@ fn connect(
             .map_err(ConnectError::m("tcp set_recv_buffer_size error"))?;
     }
 
-    let addr = *addr;
-
     let std_tcp = socket.into_tcp_stream();
 
     Ok(async move { TcpStream::from_std(std_tcp).map_err(ConnectError::m("tcp connect error")) })
@@ -764,7 +762,7 @@ mod tests {
         let server4 = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server4.local_addr().unwrap();
         let _server6 = TcpListener::bind(&format!("[::1]:{}", addr.port())).unwrap();
-        let mut rt = tokio::runtime::Builder::new_current_thread()
+        let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .unwrap();
@@ -883,7 +881,7 @@ mod tests {
                     };
                     let connecting_tcp = ConnectingTcp::new(dns::IpAddrs::new(addrs), &cfg);
                     let start = Instant::now();
-                    Ok::<_, ConnectError>((start, connecting_tcp.connect().await?))
+                    Ok::<_, ConnectError>((start, ConnectingTcp::connect(connecting_tcp).await?))
                 })
                 .unwrap();
             let res = if stream.peer_addr().unwrap().is_ipv4() {

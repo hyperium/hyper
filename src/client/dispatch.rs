@@ -171,7 +171,7 @@ impl<T, U> Receiver<T, U> {
 
 #[pin_project::pinned_drop]
 impl<T, U> PinnedDrop for Receiver<T, U> {
-    fn drop(self: Pin<&mut Self>) {
+    fn drop(mut self: Pin<&mut Self>) {
         // Notify the giver about the closure first, before dropping
         // the mpsc::Receiver.
         self.as_mut().taker.cancel();
@@ -267,7 +267,7 @@ mod tests {
     impl<T, U> Future for Receiver<T, U> {
         type Output = Option<(T, Callback<T, U>)>;
 
-        fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
             self.poll_next(cx)
         }
     }

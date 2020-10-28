@@ -382,7 +382,7 @@ mod tests {
     use super::*;
     use std::pin::Pin;
     use std::time::Duration;
-    use tokio::io::AsyncRead;
+    use tokio::io::{AsyncRead, ReadBuf};
 
     impl<'a> MemRead for &'a [u8] {
         fn read_mem(&mut self, _: &mut task::Context<'_>, len: usize) -> Poll<io::Result<Bytes>> {
@@ -401,8 +401,9 @@ mod tests {
     impl<'a> MemRead for &'a mut (dyn AsyncRead + Unpin) {
         fn read_mem(&mut self, cx: &mut task::Context<'_>, len: usize) -> Poll<io::Result<Bytes>> {
             let mut v = vec![0; len];
-            let n = ready!(Pin::new(self).poll_read(cx, &mut v)?);
-            Poll::Ready(Ok(Bytes::copy_from_slice(&v[..n])))
+            let mut buf = ReadBuf::new(&mut v);
+            ready!(Pin::new(self).poll_read(cx, &mut buf)?);
+            Poll::Ready(Ok(Bytes::copy_from_slice(&buf.filled())))
         }
     }
 

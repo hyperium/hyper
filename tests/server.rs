@@ -2206,9 +2206,8 @@ impl ServeOptions {
         let thread = thread::Builder::new()
             .name(thread_name)
             .spawn(move || {
-                let mut rt = tokio::runtime::Builder::new()
-                    .enable_io()
-                    .enable_time()
+                let rt = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
                     .basic_scheduler()
                     .build()
                     .expect("rt new");

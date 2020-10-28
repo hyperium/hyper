@@ -97,7 +97,11 @@ impl AddrIncoming {
         loop {
             match ready!(self.listener.poll_accept(cx)) {
                 Ok((socket, addr)) => {
+                    #[cfg(unix)] // TODO(eliza): keepalive should work on non unix OSes
                     if let Some(dur) = self.tcp_keepalive_timeout {
+                        use std::os::unix::io::{AsRawFd, FromRawFd};
+                        // TODO(eliza): ughhh
+                        let socket = unsafe { socket2::Socket::from_raw_fd(socket.as_raw_fd()) };
                         if let Err(e) = socket.set_keepalive(Some(dur)) {
                             trace!("error trying to set TCP keepalive: {}", e);
                         }
@@ -181,7 +185,6 @@ impl fmt::Debug for AddrIncoming {
 }
 
 mod addr_stream {
-    use bytes::{Buf, BufMut};
     use std::io;
     use std::net::SocketAddr;
     #[cfg(unix)]
@@ -192,8 +195,10 @@ mod addr_stream {
     use crate::common::{task, Pin, Poll};
 
     /// A transport returned yieled by `AddrIncoming`.
+    #[pin_project::pin_project]
     #[derive(Debug)]
     pub struct AddrStream {
+        #[pin]
         inner: TcpStream,
         pub(super) remote_addr: SocketAddr,
     }
@@ -237,7 +242,7 @@ mod addr_stream {
             cx: &mut task::Context<'_>,
             buf: &mut ReadBuf<'_>,
         ) -> Poll<io::Result<()>> {
-            Pin::new(&mut self.inner).poll_read(cx, buf)
+            self.project().inner.poll_read(cx, buf)
         }
     }
 
@@ -248,7 +253,7 @@ mod addr_stream {
             cx: &mut task::Context<'_>,
             buf: &[u8],
         ) -> Poll<io::Result<usize>> {
-            Pin::new(&mut self.inner).poll_write(cx, buf)
+            self.project().inner.poll_write(cx, buf)
         }
 
         #[inline]
@@ -262,7 +267,7 @@ mod addr_stream {
             mut self: Pin<&mut Self>,
             cx: &mut task::Context<'_>,
         ) -> Poll<io::Result<()>> {
-            Pin::new(&mut self.inner).poll_shutdown(cx)
+            self.project().inner.poll_shutdown(cx)
         }
     }
 

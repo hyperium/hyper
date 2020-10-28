@@ -38,6 +38,8 @@ tracing = { version = "0.1", default-features = false, features = ["log", "std"]
 pin-project = "1.0"
 tower-service = "0.3"
 tokio = { version = "0.3", features = ["sync", "stream"] }
+# TODO(eliza): this is sad
+tokio02 = { package = "tokio", version = "0.2", features = ["sync"] }
 want = "0.3"
 
 # Optional

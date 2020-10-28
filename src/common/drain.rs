@@ -1,7 +1,9 @@
 use std::mem;
 
 use pin_project::pin_project;
-use tokio::sync::{mpsc, watch};
+use tokio::stream::Stream;
+use tokio::sync::mpsc;
+use tokio02::sync::watch;
 
 use super::{task, Future, Never, Pin, Poll};
 
@@ -30,7 +32,9 @@ pub struct Signal {
     _tx: watch::Sender<Action>,
 }
 
+#[pin_project::pin_project]
 pub struct Draining {
+    #[pin]
     drained_rx: mpsc::Receiver<Never>,
 }
 
@@ -66,8 +70,8 @@ impl Signal {
 impl Future for Draining {
     type Output = ();
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        match ready!(self.drained_rx.poll_recv(cx)) {
+    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        match ready!(self.project().drained_rx.poll_next(cx)) {
             Some(never) => match never {},
             None => Poll::Ready(()),
         }
