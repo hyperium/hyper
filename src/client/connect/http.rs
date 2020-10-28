@@ -12,7 +12,7 @@ use std::time::Duration;
 use futures_util::future::Either;
 use http::uri::{Scheme, Uri};
 use pin_project::pin_project;
-use tokio::net::TcpStream;
+use tokio::net::{TcpSocket, TcpStream};
 use tokio::time::Sleep;
 
 use super::dns::{self, resolve, GaiResolver, Resolve};
@@ -513,7 +513,7 @@ impl ConnectingTcpRemote {
         let mut err = None;
         for addr in &mut self.addrs {
             debug!("connecting to {}", addr);
-            match connect(&addr, config)?.await {
+            match connect(&addr, config, self.connect_timeout)?.await {
                 Ok(tcp) => {
                     debug!("connected to {}", addr);
                     return Ok(tcp);
@@ -566,6 +566,7 @@ fn bind_local_address(
 fn connect(
     addr: &SocketAddr,
     config: &Config,
+    connect_timeout: Option<Duration>,
 ) -> Result<impl Future<Output = Result<TcpStream, ConnectError>>, ConnectError> {
     use socket2::{Domain, Protocol, Socket, Type};
     let domain = match *addr {
@@ -607,9 +608,30 @@ fn connect(
             .map_err(ConnectError::m("tcp set_recv_buffer_size error"))?;
     }
 
-    let std_tcp = socket.into_tcp_stream();
-
-    Ok(async move { TcpStream::from_std(std_tcp).map_err(ConnectError::m("tcp connect error")) })
+    #[cfg(unix)]
+    let socket = unsafe {
+        // Safety: this is fine and safe.
+        use std::os::unix::io::{AsRawFd, FromRawFd};
+        TcpSocket::from_raw_fd(socket.as_raw_fd())
+    };
+    #[cfg(windows)]
+    let socket = unsafe {
+        // Safety: this is fine and safe.
+        use std::os::windows::io::{FromRawSocket, IntoRawSocket};
+        TcpSocket::from_raw_socket(socket.into_raw_socket())
+    };
+    let connect = socket.connect(*addr);
+    Ok(async move {
+        match connect_timeout {
+            Some(dur) => match tokio::time::timeout(dur, connect).await {
+                Ok(Ok(s)) => Ok(s),
+                Ok(Err(e)) => Err(e),
+                Err(e) => Err(io::Error::new(io::ErrorKind::TimedOut, e)),
+            },
+            None => connect.await,
+        }
+        .map_err(ConnectError::m("tcp connect error"))
+    })
 }
 
 impl ConnectingTcp<'_> {
