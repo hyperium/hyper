@@ -227,11 +227,15 @@ where
             }
             loop {
                 // TODO(eliza): this basically ignores all of `WriteBuf`...put
-                // back vectored IO and `poll_read_buf` when the appropriate Tokio
+                // back vectored IO and `poll_write_buf` when the appropriate Tokio
                 // changes land...
                 let n = ready!(Pin::new(&mut self.io)
                     // .poll_write_buf(cx, &mut self.write_buf.auto()))?;
-                    .poll_write(cx, self.write_buf.bytes()))?;
+                    .poll_write(cx, self.write_buf.auto().bytes()))?;
+                // TODO(eliza): we have to do this manually because
+                // `poll_write_buf` doesn't exist in Tokio 0.3 yet...when
+                // `poll_write_buf` comes back, the manual advance will need to leave!
+                self.write_buf.advance(n);
                 debug!("flushed {} bytes", n);
                 if self.write_buf.remaining() == 0 {
                     break;
@@ -459,10 +463,10 @@ where
     }
 
     // TODO(eliza): put back writev!
-    // #[inline]
-    // fn auto(&mut self) -> WriteBufAuto<'_, B> {
-    //     WriteBufAuto::new(self)
-    // }
+    #[inline]
+    fn auto(&mut self) -> WriteBufAuto<'_, B> {
+        WriteBufAuto::new(self)
+    }
 
     pub(super) fn buffer<BB: Buf + Into<B>>(&mut self, mut buf: BB) {
         debug_assert!(buf.has_remaining());
@@ -559,16 +563,15 @@ struct WriteBufAuto<'a, B: Buf> {
     inner: &'a mut WriteBuf<B>,
 }
 
-// TODO(eliza): put back writev!
-// impl<'a, B: Buf> WriteBufAuto<'a, B> {
-//     fn new(inner: &'a mut WriteBuf<B>) -> WriteBufAuto<'a, B> {
-//         WriteBufAuto {
-//             bytes_called: Cell::new(false),
-//             bytes_vec_called: Cell::new(false),
-//             inner,
-//         }
-//     }
-// }
+impl<'a, B: Buf> WriteBufAuto<'a, B> {
+    fn new(inner: &'a mut WriteBuf<B>) -> WriteBufAuto<'a, B> {
+        WriteBufAuto {
+            bytes_called: Cell::new(false),
+            bytes_vec_called: Cell::new(false),
+            inner,
+        }
+    }
+}
 
 impl<'a, B: Buf> Buf for WriteBufAuto<'a, B> {
     #[inline]
