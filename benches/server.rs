@@ -34,9 +34,8 @@ macro_rules! bench_server {
                     }))
                 });
 
-                let mut rt = tokio::runtime::Builder::new()
+                let mut rt = tokio::runtime::Builder::new_current_thread()
                     .enable_all()
-                    .basic_scheduler()
                     .build()
                     .expect("rt build");
 

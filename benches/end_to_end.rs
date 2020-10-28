@@ -270,14 +270,16 @@ impl Opts {
     }
 
     fn bench(self, b: &mut test::Bencher) {
+        use std::sync::Arc;
         let _ = pretty_env_logger::try_init();
         // Create a runtime of current thread.
-        let mut rt = tokio::runtime::Builder::new()
-            .enable_all()
-            .basic_scheduler()
-            .build()
-            .expect("rt build");
-        let exec = rt.handle().clone();
+        let rt = Arc::new(
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("rt build"),
+        );
+        let exec = rt.clone();
 
         let req_len = self.request_body.map(|b| b.len()).unwrap_or(0) as u64;
         let req_len = if self.request_chunks > 0 {
