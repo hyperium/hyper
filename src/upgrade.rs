@@ -311,7 +311,7 @@ mod tests {
     impl AsyncWrite for Mock {
         fn poll_write(
             self: Pin<&mut Self>,
-            cx: &mut task::Context<'_>,
+            _: &mut task::Context<'_>,
             buf: &[u8],
         ) -> Poll<io::Result<usize>> {
             // panic!("poll_write shouldn't be called");

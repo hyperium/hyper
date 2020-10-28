@@ -249,7 +249,7 @@ mod addr_stream {
     impl AsyncWrite for AddrStream {
         #[inline]
         fn poll_write(
-            mut self: Pin<&mut Self>,
+            self: Pin<&mut Self>,
             cx: &mut task::Context<'_>,
             buf: &[u8],
         ) -> Poll<io::Result<usize>> {
@@ -263,10 +263,7 @@ mod addr_stream {
         }
 
         #[inline]
-        fn poll_shutdown(
-            mut self: Pin<&mut Self>,
-            cx: &mut task::Context<'_>,
-        ) -> Poll<io::Result<()>> {
+        fn poll_shutdown(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
             self.project().inner.poll_shutdown(cx)
         }
     }
