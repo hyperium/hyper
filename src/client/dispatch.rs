@@ -1,4 +1,5 @@
 use futures_util::future;
+use tokio::stream::Stream;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::common::{task, Future, Pin, Poll};
@@ -131,22 +132,25 @@ impl<T, U> Clone for UnboundedSender<T, U> {
     }
 }
 
+#[pin_project::pin_project(PinnedDrop)]
 pub struct Receiver<T, U> {
+    #[pin]
     inner: mpsc::UnboundedReceiver<Envelope<T, U>>,
     taker: want::Taker,
 }
 
 impl<T, U> Receiver<T, U> {
     pub(crate) fn poll_next(
-        &mut self,
+        self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,
     ) -> Poll<Option<(T, Callback<T, U>)>> {
-        match self.inner.poll_recv(cx) {
+        let this = self.project();
+        match this.inner.poll_next(cx) {
             Poll::Ready(item) => {
                 Poll::Ready(item.map(|mut env| env.0.take().expect("envelope not dropped")))
             }
             Poll::Pending => {
-                self.taker.want();
+                this.taker.want();
                 Poll::Pending
             }
         }
@@ -165,11 +169,12 @@ impl<T, U> Receiver<T, U> {
     }
 }
 
-impl<T, U> Drop for Receiver<T, U> {
-    fn drop(&mut self) {
+#[pin_project::pinned_drop]
+impl<T, U> PinnedDrop for Receiver<T, U> {
+    fn drop(self: Pin<&mut Self>) {
         // Notify the giver about the closure first, before dropping
         // the mpsc::Receiver.
-        self.taker.cancel();
+        self.as_mut().taker.cancel();
     }
 }
 
