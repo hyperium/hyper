@@ -62,6 +62,8 @@ where
                 if !prefix.is_empty() {
                     self.pre = Some(prefix);
                 }
+
+                return Poll::Ready(Ok(()));
             }
         }
         Pin::new(&mut self.inner).poll_read(cx, buf)
