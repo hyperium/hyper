@@ -610,13 +610,19 @@ fn connect(
 
     #[cfg(unix)]
     let socket = unsafe {
-        // Safety: this is fine and safe.
-        use std::os::unix::io::{AsRawFd, FromRawFd};
-        TcpSocket::from_raw_fd(socket.as_raw_fd())
+        // Safety: `from_raw_fd` is only safe to call if ownership of the raw
+        // file descriptor is transferred. Since we call `into_raw_fd` on the
+        // socket2 socket, it gives up ownership of the fd and will not close
+        // it, so this is safe.
+        use std::os::unix::io::{FromRawFd, IntoRawFd};
+        TcpSocket::from_raw_fd(socket.into_raw_fd())
     };
     #[cfg(windows)]
     let socket = unsafe {
-        // Safety: this is fine and safe.
+        // Safety: `from_raw_socket` is only safe to call if ownership of the raw
+        // Windows SOCKET is transferred. Since we call `into_raw_socket` on the
+        // socket2 socket, it gives up ownership of the SOCKET and will not close
+        // it, so this is safe.
         use std::os::windows::io::{FromRawSocket, IntoRawSocket};
         TcpSocket::from_raw_socket(socket.into_raw_socket())
     };
@@ -739,6 +745,7 @@ mod tests {
     #[tokio::test]
     async fn local_address() {
         use std::net::{IpAddr, TcpListener};
+        let _ = pretty_env_logger::init();
 
         let (bind_ip_v4, bind_ip_v6) = get_local_ips();
         let server4 = TcpListener::bind("127.0.0.1:0").unwrap();
