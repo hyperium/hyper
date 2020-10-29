@@ -198,7 +198,6 @@ where
                     // @tokio pls give me back `poll_read_buf` thanks
                     self.read_buf.advance_mut(n);
                 }
-                debug!("read {} bytes", n);
                 self.read_buf_strategy.record(n);
                 Poll::Ready(Ok(n))
             }
