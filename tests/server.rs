@@ -1903,6 +1903,94 @@ async fn http2_keep_alive_with_responsive_client() {
     client.send_request(req).await.expect("client.send_request");
 }
 
+fn is_ping_frame(buf: &[u8]) -> bool {
+    buf[3] == 6
+}
+
+fn assert_ping_frame(buf: &[u8], len: usize) {
+    // Assert the StreamId is zero
+    let mut ubuf = [0; 4];
+    ubuf.copy_from_slice(&buf[5..9]);
+    let unpacked = u32::from_be_bytes(ubuf);
+    assert_eq!(unpacked & !(1 << 31), 0);
+
+    // Assert ACK flag is unset (only set for PONG).
+    let flags = buf[4];
+    assert_eq!(flags & 0x1, 0);
+
+    // Assert total frame size
+    assert_eq!(len, 17);
+}
+
+async fn write_pong_frame(conn: &mut TkTcpStream) {
+    conn.write_all(&[
+        0, 0, 8,   // len
+        6,   // kind
+        0x1, // flag
+        0, 0, 0, 0, // stream id
+        0x3b, 0x7c, 0xdb, 0x7a, 0x0b, 0x87, 0x16, 0xb4, // payload
+    ])
+    .await
+    .expect("client pong");
+}
+
+#[tokio::test]
+async fn http2_keep_alive_count_server_pings() {
+    let _ = pretty_env_logger::try_init();
+
+    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    tokio::spawn(async move {
+        let (socket, _) = listener.accept().await.expect("accept");
+
+        Http::new()
+            .http2_only(true)
+            .http2_keep_alive_interval(Duration::from_secs(1))
+            .http2_keep_alive_timeout(Duration::from_secs(1))
+            .serve_connection(socket, unreachable_service())
+            .await
+            .expect("serve_connection");
+    });
+
+    // Spawn a "client" conn that only reads until EOF
+    let mut conn = connect_async(addr).await;
+
+    // write h2 magic preface and settings frame
+    conn.write_all(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
+        .await
+        .expect("client preface");
+    conn.write_all(&[
+        0, 0, 0, // len
+        4, // kind
+        0, // flag
+        0, 0, 0, 0, // stream id
+    ])
+    .await
+    .expect("client settings");
+
+    let read_pings = async {
+        // read until 3 pings are received
+        let mut pings = 0;
+        let mut buf = [0u8; 1024];
+        while pings < 3 {
+            let n = conn.read(&mut buf).await.expect("client.read");
+            assert!(n != 0);
+
+            if is_ping_frame(&buf) {
+                assert_ping_frame(&buf, n);
+                write_pong_frame(&mut conn).await;
+                pings += 1;
+            }
+        }
+    };
+
+    // Expect all pings to occurs under 5 seconds
+    tokio::time::timeout(Duration::from_secs(5), read_pings)
+        .await
+        .expect("timed out waiting for pings");
+}
+
 // -------------------------------------------------
 // the Server that is used to run all the tests with
 // -------------------------------------------------
