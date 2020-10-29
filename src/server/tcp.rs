@@ -6,11 +6,13 @@ use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio::time::Delay;
 
+use futures_util::future::poll_fn;
+
 use crate::common::{task, Future, Pin, Poll};
 
 pub use self::addr_stream::AddrStream;
-use super::Accept;
 
+// TODO(lucio): impl `Stream` on this.
 /// A stream of connections from binding to an address.
 #[must_use = "streams do nothing unless polled"]
 pub struct AddrIncoming {
@@ -29,7 +31,8 @@ impl AddrIncoming {
         AddrIncoming::from_std(std_listener)
     }
 
-    pub(super) fn from_std(std_listener: StdTcpListener) -> crate::Result<Self> {
+    /// Create an `AddrIncoming` from a `std::net::TcpListener`.
+    pub fn from_std(std_listener: StdTcpListener) -> crate::Result<Self> {
         let listener = TcpListener::from_std(std_listener).map_err(crate::Error::new_listen)?;
         let addr = listener.local_addr().map_err(crate::Error::new_listen)?;
         Ok(AddrIncoming {
@@ -87,6 +90,35 @@ impl AddrIncoming {
         self.sleep_on_errors = val;
     }
 
+    /// Accepts a new incoming connection from this listener.
+    ///
+    /// This function will yield once a new TCP connection is established. When
+    /// established, the corresponding [`AddrStream`] and the remote peer's
+    /// address will be returned.
+    ///
+    /// [`AddrStream`]: struct@crate::server::AddrStream
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use hyper::server::AddrIncoming;
+    ///
+    /// use std::io;
+    ///
+    /// #async fn main() -> io::Result<()> {
+    /// let listener = TcpListener::bind("127.0.0.1:8080").await?;
+    ///
+    /// match listener.accept().await {
+    ///     Ok((_socket, addr)) => println!("new client: {:?}", addr),
+    ///     Err(e) => println!("couldn't get client: {:?}", e),
+    /// }
+    /// # Ok(())
+    /// #}
+    /// ```
+    pub async fn accept(&mut self) -> io::Result<AddrStream> {
+        poll_fn(|cx| self.poll_next_(cx)).await
+    }
+
     fn poll_next_(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<AddrStream>> {
         // Check if a previous timeout is active that was set by IO errors.
         if let Some(ref mut to) = self.timeout {
@@ -137,19 +169,6 @@ impl AddrIncoming {
                 }
             }
         }
-    }
-}
-
-impl Accept for AddrIncoming {
-    type Conn = AddrStream;
-    type Error = io::Error;
-
-    fn poll_accept(
-        mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
-    ) -> Poll<Option<Result<Self::Conn, Self::Error>>> {
-        let result = ready!(self.poll_next_(cx));
-        Poll::Ready(Some(result))
     }
 }
 

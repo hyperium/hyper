@@ -277,7 +277,7 @@ where
 {
     async fn call_async(&mut self, dst: Uri) -> Result<TcpStream, ConnectError> {
         trace!(
-            "Http::connect; scheme={:?}, host={:?}, port={:?}",
+            "Server::connect; scheme={:?}, host={:?}, port={:?}",
             dst.scheme(),
             dst.host(),
             dst.port(),
