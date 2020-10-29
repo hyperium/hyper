@@ -749,7 +749,7 @@ mod tests {
     #[tokio::test]
     async fn local_address() {
         use std::net::{IpAddr, TcpListener};
-        let _ = pretty_env_logger::init();
+        let _ = pretty_env_logger::try_init();
 
         let (bind_ip_v4, bind_ip_v6) = get_local_ips();
         let server4 = TcpListener::bind("127.0.0.1:0").unwrap();
