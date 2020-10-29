@@ -660,7 +660,8 @@ impl Http1Transaction for Client {
                 );
                 let mut res = httparse::Response::new(&mut headers);
                 let bytes = buf.as_ref();
-                match res.parse(bytes)? {
+                let _ = dbg!(std::str::from_utf8(bytes));
+                match dbg!(res.parse(bytes))? {
                     httparse::Status::Complete(len) => {
                         trace!("Response.parse Complete({})", len);
                         let status = StatusCode::from_u16(res.code.unwrap())?;

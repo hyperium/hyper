@@ -56,7 +56,7 @@ where
             if !prefix.is_empty() {
                 let copy_len = cmp::min(prefix.len(), buf.remaining());
                 // TODO: There should be a way to do following two lines cleaner...
-                buf.put_slice(prefix.to_vec().as_slice());
+                buf.put_slice(&prefix[..copy_len]);
                 prefix.advance(copy_len);
                 // Put back whats left
                 if !prefix.is_empty() {
