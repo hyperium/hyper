@@ -33,8 +33,6 @@ pub struct Buffered<T, B> {
     io: T,
     read_blocked: bool,
     read_buf: BytesMut,
-    // TODO(eliza): get rid of this when tokio regrows `poll_read_buf`...
-    read_pos: usize,
     read_buf_strategy: ReadStrategy,
     write_buf: WriteBuf<B>,
 }
@@ -62,7 +60,6 @@ where
             io,
             read_blocked: false,
             read_buf: BytesMut::with_capacity(0),
-            read_pos: 0,
             read_buf_strategy: ReadStrategy::default(),
             write_buf: WriteBuf::new(),
         }
@@ -191,20 +188,18 @@ where
         if self.read_buf_remaining_mut() < next {
             self.read_buf.reserve(next);
         }
-        let mut buf = ReadBuf::uninit(&mut self.read_buf.bytes_mut()[self.read_pos..]);
+        let mut buf = ReadBuf::uninit(&mut self.read_buf.bytes_mut()[..]);
         match Pin::new(&mut self.io).poll_read(cx, &mut buf) {
             Poll::Ready(Ok(_)) => {
-                let _ = dbg!(std::str::from_utf8(buf.filled()));
                 let n = buf.filled().len();
-                debug!("read {} bytes", n);
-                self.read_buf_strategy.record(n);
-                self.read_pos += n;
                 unsafe {
                     // Safety: we just read that many bytes into the
                     // uninitialized part of the buffer, so this is okay.
                     // @tokio pls give me back `poll_read_buf` thanks
                     self.read_buf.advance_mut(n);
                 }
+                debug!("read {} bytes", n);
+                self.read_buf_strategy.record(n);
                 Poll::Ready(Ok(n))
             }
             Poll::Pending => {
