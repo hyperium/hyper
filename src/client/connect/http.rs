@@ -586,6 +586,12 @@ fn connect(
             .map_err(ConnectError::m("tcp set_reuse_address error"))?;
     }
 
+    // When constructing a Tokio `TcpSocket` from a raw fd/socket, the user is
+    // responsible for ensuring O_NONBLOCK is set.
+    socket
+        .set_nonblocking(true)
+        .map_err(ConnectError::m("tcp set_nonblocking error"))?;
+
     bind_local_address(
         &socket,
         addr,
