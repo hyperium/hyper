@@ -568,6 +568,10 @@ fn connect(
     config: &Config,
     connect_timeout: Option<Duration>,
 ) -> Result<impl Future<Output = Result<TcpStream, ConnectError>>, ConnectError> {
+    // TODO(eliza): if Tokio's `TcpSocket` gains support for setting the
+    // keepalive timeout and send/recv buffer size, it would be nice to use that
+    // instead of socket2, and avoid the unsafe `into_raw_fd`/`from_raw_fd`
+    // dance...
     use socket2::{Domain, Protocol, Socket, Type};
     let domain = match *addr {
         SocketAddr::V4(_) => Domain::ipv4(),
