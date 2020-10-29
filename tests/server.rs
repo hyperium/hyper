@@ -24,9 +24,8 @@ use tokio::runtime::Runtime;
 
 use hyper::body::HttpBody as _;
 use hyper::client::Client;
-use hyper::server::conn::Http;
 use hyper::server::Server;
-use hyper::service::{make_service_fn, service_fn};
+use hyper::service::service_fn;
 use hyper::{Body, Request, Response, StatusCode, Version};
 
 #[test]
@@ -815,7 +814,7 @@ async fn expect_continue_waits_for_body_poll() {
 
     let (socket, _) = listener.accept().await.expect("accept");
 
-    Http::new()
+    Server::new()
         .serve_connection(
             socket,
             service_fn(|req| {
@@ -973,7 +972,7 @@ async fn disable_keep_alive_mid_request() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
-    let srv = Http::new().serve_connection(socket, HelloWorld);
+    let srv = Server::new().serve_connection(socket, HelloWorld);
     future::try_select(srv, rx1)
         .then(|r| match r {
             Ok(Either::Left(_)) => panic!("expected rx first"),
@@ -1026,7 +1025,7 @@ async fn disable_keep_alive_post_request() {
         stream: socket,
         _debug: dropped2,
     };
-    let server = Http::new().serve_connection(transport, HelloWorld);
+    let server = Server::new().serve_connection(transport, HelloWorld);
     let fut = future::try_select(server, rx1).then(|r| match r {
         Ok(Either::Left(_)) => panic!("expected rx first"),
         Ok(Either::Right(((), mut conn))) => {
@@ -1054,7 +1053,7 @@ async fn empty_parse_eof_does_not_return_error() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
-    Http::new()
+    Server::new()
         .serve_connection(socket, HelloWorld)
         .await
         .expect("empty parse eof is ok");
@@ -1071,7 +1070,7 @@ async fn nonempty_parse_eof_returns_error() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
-    Http::new()
+    Server::new()
         .serve_connection(socket, HelloWorld)
         .await
         .expect_err("partial parse eof is error");
@@ -1095,7 +1094,7 @@ async fn http1_allow_half_close() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
-    Http::new()
+    Server::new()
         .http1_half_close(true)
         .serve_connection(
             socket,
@@ -1122,7 +1121,7 @@ async fn disconnect_after_reading_request_before_responding() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
-    Http::new()
+    Server::new()
         .http1_half_close(false)
         .serve_connection(
             socket,
@@ -1154,7 +1153,7 @@ async fn returning_1xx_response_is_error() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
-    Http::new()
+    Server::new()
         .serve_connection(
             socket,
             service_fn(|_| async move {
@@ -1222,7 +1221,7 @@ async fn upgrades() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
-    let conn = Http::new().serve_connection(
+    let conn = Server::new().serve_connection(
         socket,
         service_fn(|_| {
             let res = Response::builder()
@@ -1279,7 +1278,7 @@ async fn http_connect() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
-    let conn = Http::new().serve_connection(
+    let conn = Server::new().serve_connection(
         socket,
         service_fn(|_| {
             let res = Response::builder()
@@ -1350,7 +1349,7 @@ async fn upgrades_new() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
-    Http::new()
+    Server::new()
         .serve_connection(socket, svc)
         .with_upgrades()
         .await
@@ -1385,7 +1384,7 @@ async fn upgrades_ignored() {
         });
 
         let (socket, _) = listener.accept().await.unwrap();
-        Http::new()
+        Server::new()
             .serve_connection(socket, svc)
             .with_upgrades()
             .await
@@ -1456,7 +1455,7 @@ async fn http_connect_new() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
-    Http::new()
+    Server::new()
         .serve_connection(socket, svc)
         .with_upgrades()
         .await
@@ -1494,7 +1493,7 @@ async fn parse_errors_send_4xx_response() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
-    Http::new()
+    Server::new()
         .serve_connection(socket, HelloWorld)
         .await
         .expect_err("HTTP parse error");
@@ -1517,7 +1516,7 @@ async fn illegal_request_length_returns_400_response() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
-    Http::new()
+    Server::new()
         .serve_connection(socket, HelloWorld)
         .await
         .expect_err("illegal Content-Length should error");
@@ -1527,12 +1526,12 @@ async fn illegal_request_length_returns_400_response() {
 #[should_panic]
 fn max_buf_size_panic_too_small() {
     const MAX: usize = 8191;
-    Http::new().max_buf_size(MAX);
+    Server::new().max_buf_size(MAX);
 }
 #[test]
 fn max_buf_size_no_panic() {
     const MAX: usize = 8193;
-    Http::new().max_buf_size(MAX);
+    Server::new().max_buf_size(MAX);
 }
 
 #[tokio::test]
@@ -1555,7 +1554,7 @@ async fn max_buf_size() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
-    Http::new()
+    Server::new()
         .max_buf_size(MAX)
         .serve_connection(socket, HelloWorld)
         .await
@@ -1730,42 +1729,42 @@ impl tower_service::Service<Request<Body>> for Http2ReadyErrorSvc {
     }
 }
 
-#[tokio::test]
-#[ignore] // sometimes ECONNRESET wins the race
-async fn http2_service_poll_ready_error_sends_goaway() {
-    use std::error::Error;
+// #[tokio::test]
+// #[ignore] // sometimes ECONNRESET wins the race
+// async fn http2_service_poll_ready_error_sends_goaway() {
+//     use std::error::Error;
 
-    let _ = pretty_env_logger::try_init();
+//     let _ = pretty_env_logger::try_init();
 
-    let server = hyper::Server::bind(&([127, 0, 0, 1], 0).into())
-        .http2_only(true)
-        .serve(make_service_fn(|_| async move {
-            Ok::<_, BoxError>(Http2ReadyErrorSvc)
-        }));
+//     let server = hyper::Server::bind(&([127, 0, 0, 1], 0).into())
+//         .http2_only(true)
+//         .serve(make_service_fn(|_| async move {
+//             Ok::<_, BoxError>(Http2ReadyErrorSvc)
+//         }));
 
-    let addr_str = format!("http://{}", server.local_addr());
+//     let addr_str = format!("http://{}", server.local_addr());
 
-    tokio::task::spawn(async move {
-        server.await.expect("server");
-    });
+//     tokio::task::spawn(async move {
+//         server.await.expect("server");
+//     });
 
-    let uri = addr_str.parse().expect("server addr should parse");
-    let err = dbg!(Client::builder()
-        .http2_only(true)
-        .build_http::<hyper::Body>()
-        .get(uri)
-        .await
-        .expect_err("client.get should fail"));
+//     let uri = addr_str.parse().expect("server addr should parse");
+//     let err = dbg!(Client::builder()
+//         .http2_only(true)
+//         .build_http::<hyper::Body>()
+//         .get(uri)
+//         .await
+//         .expect_err("client.get should fail"));
 
-    // client request should have gotten the specific GOAWAY error...
-    let h2_err = err
-        .source()
-        .expect("source")
-        .downcast_ref::<h2::Error>()
-        .expect("downcast");
+//     // client request should have gotten the specific GOAWAY error...
+//     let h2_err = err
+//         .source()
+//         .expect("source")
+//         .downcast_ref::<h2::Error>()
+//         .expect("downcast");
 
-    assert_eq!(h2_err.reason(), Some(h2::Reason::INADEQUATE_SECURITY));
-}
+//     assert_eq!(h2_err.reason(), Some(h2::Reason::INADEQUATE_SECURITY));
+// }
 
 #[test]
 fn skips_content_length_for_304_responses() {
@@ -1856,7 +1855,7 @@ async fn http2_keep_alive_detects_unresponsive_client() {
 
     let (socket, _) = listener.accept().await.expect("accept");
 
-    let err = Http::new()
+    let err = Server::new()
         .http2_only(true)
         .http2_keep_alive_interval(Duration::from_secs(1))
         .http2_keep_alive_timeout(Duration::from_secs(1))
@@ -1877,7 +1876,7 @@ async fn http2_keep_alive_with_responsive_client() {
     tokio::spawn(async move {
         let (socket, _) = listener.accept().await.expect("accept");
 
-        Http::new()
+        Server::new()
             .http2_only(true)
             .http2_keep_alive_interval(Duration::from_secs(1))
             .http2_keep_alive_timeout(Duration::from_secs(1))
@@ -2214,28 +2213,30 @@ impl ServeOptions {
                     .expect("rt new");
 
                 rt.block_on(async move {
-                    let service = make_service_fn(|_| {
-                        let msg_tx = msg_tx.clone();
-                        let reply_rx = reply_rx.clone();
-                        future::ok::<_, BoxError>(TestService {
-                            tx: msg_tx,
-                            reply: reply_rx,
-                        })
-                    });
+                    let svc = TestService {
+                        tx: msg_tx.clone(),
+                        reply: reply_rx.clone(),
+                    };
 
-                    let server = Server::bind(&addr)
+                    let mut server = Server::new();
+
+                    let mut serve = server
                         .http1_only(options.http1_only)
-                        .http1_keepalive(options.keep_alive)
-                        .http1_pipeline_flush(options.pipeline)
-                        .serve(service);
+                        .http1_keep_alive(options.keep_alive)
+                        .pipeline_flush(options.pipeline)
+                        .bind(&addr)
+                        .expect("bind error");
 
-                    addr_tx.send(server.local_addr()).expect("server addr tx");
+                    addr_tx.send(serve.local_addr()).expect("server addr tx");
 
-                    server
-                        .with_graceful_shutdown(async {
-                            let _ = shutdown_rx.await;
-                        })
-                        .await
+                    tokio::select! {
+                        res = serve.serve(svc)=> {
+                            res
+                        },
+                        _ = shutdown_rx => {
+                            Ok(())
+                        }
+                    }
                 })
                 .expect("serve()");
             })

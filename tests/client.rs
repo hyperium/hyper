@@ -1808,7 +1808,7 @@ mod dispatch_impl {
 
     #[test]
     fn alpn_h2() {
-        use hyper::server::conn::Http;
+        use hyper::server::Server;
         use hyper::service::service_fn;
         use hyper::Response;
         use tokio::net::TcpListener;
@@ -1827,7 +1827,7 @@ mod dispatch_impl {
 
         rt.spawn(async move {
             let (socket, _addr) = listener.accept().await.expect("accept");
-            Http::new()
+            Server::new()
                 .http2_only(true)
                 .serve_connection(
                     socket,
@@ -2472,29 +2472,38 @@ mod conn {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn http2_detect_conn_eof() {
         use futures_util::future;
-        use hyper::service::{make_service_fn, service_fn};
         use hyper::{Response, Server};
 
         let _ = pretty_env_logger::try_init();
 
-        let server = Server::bind(&([127, 0, 0, 1], 0).into())
+        let mut serve = Server::new()
             .http2_only(true)
-            .serve(make_service_fn(|_| async move {
-                Ok::<_, hyper::Error>(service_fn(|_req| {
-                    future::ok::<_, hyper::Error>(Response::new(Body::empty()))
-                }))
-            }));
-        let addr = server.local_addr();
+            .bind(&([127, 0, 0, 1], 0).into())
+            .expect("bind error");
+
+        let addr = serve.local_addr();
+
         let (shdn_tx, shdn_rx) = oneshot::channel();
         tokio::task::spawn(async move {
-            server
-                .with_graceful_shutdown(async move {
-                    let _ = shdn_rx.await;
-                })
-                .await
-                .expect("server")
+            let srv =
+                serve.serve_fn(|_req| future::ok::<_, hyper::Error>(Response::new(Body::empty())));
+
+            tokio::select! {
+                res = srv => {
+                    res.expect("server");
+                },
+                _ = shdn_rx => {},
+            }
+            // TODO(lucio): Add graceful shutdown back
+            // serve
+            //     .with_graceful_shutdown(async move {
+            //         let _ = shdn_rx.await;
+            //     })
+            //     .await
+            //     .expect("server")
         });
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
@@ -2675,7 +2684,7 @@ mod conn {
         // Spawn an HTTP2 server that reads the whole body and responds
         tokio::spawn(async move {
             let sock = listener.accept().await.unwrap().0;
-            hyper::server::conn::Http::new()
+            hyper::server::Server::new()
                 .http2_only(true)
                 .serve_connection(
                     sock,

@@ -37,7 +37,8 @@ pub(crate) enum Kind {
     /// Error creating a TcpListener.
     #[cfg(feature = "tcp")]
     Listen,
-    /// Error accepting on an Incoming stream.
+    #[cfg(feature = "tcp")]
+    /// Error while accepting a new connection.
     Accept,
     /// Error while reading a body from connection.
     Body,
@@ -67,8 +68,6 @@ pub(crate) enum Parse {
 pub(crate) enum User {
     /// Error calling user's HttpBody::poll_data().
     Body,
-    /// Error calling user's MakeService.
-    MakeService,
     /// Error from future of user's Service.
     Service,
     /// User tried to send a certain header in an unexpected context.
@@ -212,6 +211,7 @@ impl Error {
         Error::new(Kind::Listen).with(cause)
     }
 
+    #[cfg(feature = "tcp")]
     pub(crate) fn new_accept<E: Into<Cause>>(cause: E) -> Error {
         Error::new(Kind::Accept).with(cause)
     }
@@ -268,10 +268,6 @@ impl Error {
         Error::new_user(User::ManualUpgrade)
     }
 
-    pub(crate) fn new_user_make_service<E: Into<Cause>>(cause: E) -> Error {
-        Error::new_user(User::MakeService).with(cause)
-    }
-
     pub(crate) fn new_user_service<E: Into<Cause>>(cause: E) -> Error {
         Error::new_user(User::Service).with(cause)
     }
@@ -308,7 +304,8 @@ impl Error {
             Kind::Canceled => "operation was canceled",
             #[cfg(feature = "tcp")]
             Kind::Listen => "error creating server listener",
-            Kind::Accept => "error accepting connection",
+            #[cfg(feature = "tcp")]
+            Kind::Accept => "error accepting a new connection",
             Kind::Body => "error reading a body from connection",
             Kind::BodyWrite => "error writing a body to connection",
             Kind::BodyWriteAborted => "body write aborted",
@@ -317,7 +314,6 @@ impl Error {
             Kind::Io => "connection error",
 
             Kind::User(User::Body) => "error from user's HttpBody stream",
-            Kind::User(User::MakeService) => "error from user's MakeService",
             Kind::User(User::Service) => "error from user's Service",
             Kind::User(User::UnexpectedHeader) => "user sent unexpected header",
             Kind::User(User::UnsupportedVersion) => "request has unsupported HTTP version",

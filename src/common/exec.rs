@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use crate::body::{Body, HttpBody};
 use crate::proto::h2::server::H2Stream;
-use crate::server::conn::spawn_all::{NewSvcTask, Watcher};
+use crate::server::conn::spawn_all::SvcTask;
 use crate::service::HttpService;
 
 /// An executor of futures.
@@ -18,8 +18,8 @@ pub trait H2Exec<F, B: HttpBody>: Clone {
     fn execute_h2stream(&mut self, fut: H2Stream<F, B>);
 }
 
-pub trait NewSvcExec<I, N, S: HttpService<Body>, E, W: Watcher<I, S, E>>: Clone {
-    fn execute_new_svc(&mut self, fut: NewSvcTask<I, N, S, E, W>);
+pub trait SvcExec<I, S: HttpService<Body>, E>: Clone {
+    fn execute_svc(&self, fut: SvcTask<I, S, E>);
 }
 
 pub type BoxSendFuture = Pin<Box<dyn Future<Output = ()> + Send>>;
@@ -74,13 +74,12 @@ where
     }
 }
 
-impl<I, N, S, E, W> NewSvcExec<I, N, S, E, W> for Exec
+impl<I, S, E> SvcExec<I, S, E> for Exec
 where
-    NewSvcTask<I, N, S, E, W>: Future<Output = ()> + Send + 'static,
+    SvcTask<I, S, E>: Future<Output = ()> + Send + 'static,
     S: HttpService<Body>,
-    W: Watcher<I, S, E>,
 {
-    fn execute_new_svc(&mut self, fut: NewSvcTask<I, N, S, E, W>) {
+    fn execute_svc(&self, fut: SvcTask<I, S, E>) {
         self.execute(fut)
     }
 }
@@ -98,14 +97,13 @@ where
     }
 }
 
-impl<I, N, S, E, W> NewSvcExec<I, N, S, E, W> for E
+impl<I, S, E> SvcExec<I, S, E> for E
 where
-    E: Executor<NewSvcTask<I, N, S, E, W>> + Clone,
-    NewSvcTask<I, N, S, E, W>: Future<Output = ()>,
+    E: Executor<SvcTask<I, S, E>> + Clone,
+    SvcTask<I, S, E>: Future<Output = ()>,
     S: HttpService<Body>,
-    W: Watcher<I, S, E>,
 {
-    fn execute_new_svc(&mut self, fut: NewSvcTask<I, N, S, E, W>) {
+    fn execute_svc(&self, fut: SvcTask<I, S, E>) {
         self.execute(fut)
     }
 }

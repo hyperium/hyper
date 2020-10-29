@@ -6,7 +6,8 @@ use std::sync::{
 };
 
 use hyper::client::HttpConnector;
-use hyper::service::{make_service_fn, service_fn};
+use hyper::server::AddrIncoming;
+use hyper::service::service_fn;
 use hyper::{Body, Client, Request, Response, Server, Version};
 
 pub use futures_util::{
@@ -332,49 +333,59 @@ async fn async_test(cfg: __TestConfig) {
 
     let expected_connections = cfg.connections;
     let mut cnt = 0;
-    let new_service = make_service_fn(move |_| {
-        cnt += 1;
-        assert!(
-            cnt <= expected_connections,
-            "server expected {} connections, received {}",
-            expected_connections,
-            cnt
-        );
 
-        // Move a clone into the service_fn
-        let serve_handles = serve_handles.clone();
-        future::ok::<_, hyper::Error>(service_fn(move |req: Request<Body>| {
-            let (sreq, sres) = serve_handles.lock().unwrap().remove(0);
+    let mut incoming =
+        AddrIncoming::bind(&SocketAddr::from(([127, 0, 0, 1], 0))).expect("bind error");
+    let mut addr = incoming.local_addr();
 
-            assert_eq!(req.uri().path(), sreq.uri, "client path");
-            assert_eq!(req.method(), &sreq.method, "client method");
-            assert_eq!(req.version(), version, "client version");
-            for func in &sreq.headers {
-                func(&req.headers());
-            }
-            let sbody = sreq.body;
-            hyper::body::to_bytes(req).map_ok(move |body| {
-                assert_eq!(body.as_ref(), sbody.as_slice(), "client body");
+    let mut server = Server::new();
+    server.http2_only(cfg.server_version == 2);
 
-                let mut res = Response::builder()
-                    .status(sres.status)
-                    .body(Body::from(sres.body))
-                    .expect("Response::build");
-                *res.headers_mut() = sres.headers;
-                res
-            })
-        }))
-    });
+    let srv = async move {
+        loop {
+            let conn = incoming.accept().await.expect("accept error");
 
-    let server = hyper::Server::bind(&SocketAddr::from(([127, 0, 0, 1], 0)))
-        .http2_only(cfg.server_version == 2)
-        .serve(new_service);
+            cnt += 1;
+            assert!(
+                cnt <= expected_connections,
+                "server expected {} connections, received {}",
+                expected_connections,
+                cnt
+            );
 
-    let mut addr = server.local_addr();
+            // Move a clone into the service_fn
+            let serve_handles = serve_handles.clone();
 
-    tokio::task::spawn(server.map(|result| {
-        result.expect("server error");
-    }));
+            let svc = service_fn(move |req: Request<Body>| {
+                let (sreq, sres) = serve_handles.lock().unwrap().remove(0);
+
+                assert_eq!(req.uri().path(), sreq.uri, "client path");
+                assert_eq!(req.method(), &sreq.method, "client method");
+                assert_eq!(req.version(), version, "client version");
+                for func in &sreq.headers {
+                    func(&req.headers());
+                }
+                let sbody = sreq.body;
+                hyper::body::to_bytes(req).map_ok(move |body| {
+                    assert_eq!(body.as_ref(), sbody.as_slice(), "client body");
+
+                    let mut res = Response::builder()
+                        .status(sres.status)
+                        .body(Body::from(sres.body))
+                        .expect("Response::build");
+                    *res.headers_mut() = sres.headers;
+                    res
+                })
+            });
+
+            server
+                .serve_connection(conn, svc)
+                .await
+                .expect("connection error");
+        }
+    };
+
+    tokio::spawn(srv);
 
     if cfg.proxy {
         let (proxy_addr, proxy) = naive_proxy(ProxyConfig {
@@ -455,18 +466,35 @@ fn naive_proxy(cfg: ProxyConfig) -> (SocketAddr, impl Future<Output = ()>) {
     let max_connections = cfg.connections;
     let counter = AtomicUsize::new(0);
 
-    let srv = Server::bind(&([127, 0, 0, 1], 0).into()).serve(make_service_fn(move |_| {
-        let prev = counter.fetch_add(1, Ordering::Relaxed);
-        assert!(max_connections > prev, "proxy max connections");
-        let client = client.clone();
-        future::ok::<_, hyper::Error>(service_fn(move |mut req| {
-            let uri = format!("http://{}{}", dst_addr, req.uri().path())
-                .parse()
-                .expect("proxy new uri parse");
-            *req.uri_mut() = uri;
-            client.request(req)
-        }))
-    }));
-    let proxy_addr = srv.local_addr();
-    (proxy_addr, srv.map(|res| res.expect("proxy error")))
+    let mut incoming = AddrIncoming::bind(&([127, 0, 0, 1], 0).into()).expect("proxy bind error");
+    let proxy_addr = incoming.local_addr();
+
+    let server = Server::new();
+
+    let srv = async move {
+        loop {
+            let conn = incoming.accept().await.expect("Accept error");
+
+            let prev = counter.fetch_add(1, Ordering::Relaxed);
+            assert!(max_connections > prev, "proxy max connections");
+            let client = client.clone();
+
+            let conn_fut = server.serve_connection(
+                conn,
+                service_fn(move |mut req| {
+                    let uri = format!("http://{}{}", dst_addr, req.uri().path())
+                        .parse()
+                        .expect("proxy new uri parse");
+                    *req.uri_mut() = uri;
+                    client.request(req)
+                }),
+            );
+
+            tokio::spawn(async move {
+                conn_fut.await.expect("connection error");
+            });
+        }
+    };
+
+    (proxy_addr, srv)
 }

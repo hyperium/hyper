@@ -51,198 +51,102 @@
 //! # fn main() {}
 //! ```
 
-pub mod accept;
-pub mod conn;
-mod shutdown;
+pub(crate) mod conn;
 #[cfg(feature = "tcp")]
 mod tcp;
 
+pub use conn::{Connection, Parts};
+#[cfg(feature = "tcp")]
+pub use tcp::{AddrIncoming, AddrStream};
+
 use std::error::Error as StdError;
-use std::fmt;
-#[cfg(feature = "tcp")]
-use std::net::{SocketAddr, TcpListener as StdTcpListener};
 
-#[cfg(feature = "tcp")]
-use std::time::Duration;
-
-use pin_project::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use self::accept::Accept;
-use crate::body::{Body, HttpBody};
-use crate::common::exec::{Exec, H2Exec, NewSvcExec};
-use crate::common::{task, Future, Pin, Poll, Unpin};
-use crate::service::{HttpService, MakeServiceRef};
-// Renamed `Http` as `Http_` for now so that people upgrading don't see an
-// error that `hyper::server::Http` is private...
-use self::conn::{Http as Http_, NoopWatcher, SpawnAll};
-use self::shutdown::{Graceful, GracefulWatcher};
-#[cfg(feature = "tcp")]
-use self::tcp::AddrIncoming;
+use crate::common::exec::{Exec, H2Exec};
+use crate::common::io::Rewind;
+use crate::common::Future;
+use crate::error::Error;
+use crate::proto;
+use crate::service::{util::ServiceFn, HttpService};
+use crate::{
+    body::{Body, HttpBody},
+    common::exec::SvcExec,
+};
+use crate::{Request, Response};
 
-/// A listening HTTP server that accepts connections in both HTTP1 and HTTP2 by default.
+#[cfg(feature = "tcp")]
+use std::net::SocketAddr;
+#[cfg(feature = "runtime")]
+use std::time::Duration;
+
+use conn::{Fallback, ProtoServer};
+
+/// A lower-level configuration of the HTTP protocol.
 ///
-/// `Server` is a `Future` mapping a bound listener with a set of service
-/// handlers. It is built using the [`Builder`](Builder), and the future
-/// completes when the server has been shutdown. It should be run by an
-/// `Executor`.
-#[pin_project]
-pub struct Server<I, S, E = Exec> {
-    #[pin]
-    spawn_all: SpawnAll<I, S, E>,
+/// This structure is used to configure options for an HTTP server connection.
+///
+/// If you don't have need to manage connections yourself, consider using the
+/// higher-level [Server](super) API.
+#[derive(Clone, Debug)]
+pub struct Server<E = Exec> {
+    exec: E,
+    h1_half_close: bool,
+    h1_keep_alive: bool,
+    h1_writev: Option<bool>,
+    h2_builder: proto::h2::server::Config,
+    mode: ConnectionMode,
+    max_buf_size: Option<usize>,
+    pipeline_flush: bool,
 }
 
-/// A builder for a [`Server`](Server).
+/// The internal mode of HTTP protocol which indicates the behavior when a parse error occurs.
+#[derive(Clone, Debug, PartialEq)]
+enum ConnectionMode {
+    /// Always use HTTP/1 and do not upgrade when a parse error occurs.
+    H1Only,
+    /// Always use HTTP/2.
+    H2Only,
+    /// Use HTTP/1 and try to upgrade to h2 when a parse error occurs.
+    Fallback,
+}
+
+/// DOX
 #[derive(Debug)]
-pub struct Builder<I, E = Exec> {
-    incoming: I,
-    protocol: Http_<E>,
+pub struct Serve<E = Exec> {
+    server: Server<E>,
+    incoming: AddrIncoming,
 }
 
 // ===== impl Server =====
 
-impl<I> Server<I, ()> {
-    /// Starts a [`Builder`](Builder) with the provided incoming stream.
-    pub fn builder(incoming: I) -> Builder<I> {
-        Builder {
-            incoming,
-            protocol: Http_::new(),
+impl Server {
+    /// Creates a new instance of the HTTP protocol, ready to spawn a server or
+    /// start accepting connections.
+    pub fn new() -> Server {
+        Server {
+            exec: Exec::Default,
+            h1_half_close: false,
+            h1_keep_alive: true,
+            h1_writev: None,
+            h2_builder: Default::default(),
+            mode: ConnectionMode::Fallback,
+            max_buf_size: None,
+            pipeline_flush: false,
         }
     }
 }
 
-#[cfg(feature = "tcp")]
-impl Server<AddrIncoming, ()> {
-    /// Binds to the provided address, and returns a [`Builder`](Builder).
+impl<E> Server<E> {
+    /// Sets whether HTTP1 is required.
     ///
-    /// # Panics
-    ///
-    /// This method will panic if binding to the address fails. For a method
-    /// to bind to an address and return a `Result`, see `Server::try_bind`.
-    pub fn bind(addr: &SocketAddr) -> Builder<AddrIncoming> {
-        let incoming = AddrIncoming::new(addr).unwrap_or_else(|e| {
-            panic!("error binding to {}: {}", addr, e);
-        });
-        Server::builder(incoming)
-    }
-
-    /// Tries to bind to the provided address, and returns a [`Builder`](Builder).
-    pub fn try_bind(addr: &SocketAddr) -> crate::Result<Builder<AddrIncoming>> {
-        AddrIncoming::new(addr).map(Server::builder)
-    }
-
-    /// Create a new instance from a `std::net::TcpListener` instance.
-    pub fn from_tcp(listener: StdTcpListener) -> Result<Builder<AddrIncoming>, crate::Error> {
-        AddrIncoming::from_std(listener).map(Server::builder)
-    }
-}
-
-#[cfg(feature = "tcp")]
-impl<S, E> Server<AddrIncoming, S, E> {
-    /// Returns the local address that this server is bound to.
-    pub fn local_addr(&self) -> SocketAddr {
-        self.spawn_all.local_addr()
-    }
-}
-
-impl<I, IO, IE, S, E, B> Server<I, S, E>
-where
-    I: Accept<Conn = IO, Error = IE>,
-    IE: Into<Box<dyn StdError + Send + Sync>>,
-    IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    S: MakeServiceRef<IO, Body, ResBody = B>,
-    S::Error: Into<Box<dyn StdError + Send + Sync>>,
-    B: HttpBody + Send + Sync + 'static,
-    B::Error: Into<Box<dyn StdError + Send + Sync>>,
-    E: H2Exec<<S::Service as HttpService<Body>>::Future, B>,
-    E: NewSvcExec<IO, S::Future, S::Service, E, GracefulWatcher>,
-{
-    /// Prepares a server to handle graceful shutdown when the provided future
-    /// completes.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # fn main() {}
-    /// # #[cfg(feature = "tcp")]
-    /// # async fn run() {
-    /// # use hyper::{Body, Response, Server, Error};
-    /// # use hyper::service::{make_service_fn, service_fn};
-    /// # let make_service = make_service_fn(|_| async {
-    /// #     Ok::<_, Error>(service_fn(|_req| async {
-    /// #         Ok::<_, Error>(Response::new(Body::from("Hello World")))
-    /// #     }))
-    /// # });
-    /// // Make a server from the previous examples...
-    /// let server = Server::bind(&([127, 0, 0, 1], 3000).into())
-    ///     .serve(make_service);
-    ///
-    /// // Prepare some signal for when the server should start shutting down...
-    /// let (tx, rx) = tokio::sync::oneshot::channel::<()>();
-    /// let graceful = server
-    ///     .with_graceful_shutdown(async {
-    ///         rx.await.ok();
-    ///     });
-    ///
-    /// // Await the `server` receiving the signal...
-    /// if let Err(e) = graceful.await {
-    ///     eprintln!("server error: {}", e);
-    /// }
-    ///
-    /// // And later, trigger the signal by calling `tx.send(())`.
-    /// let _ = tx.send(());
-    /// # }
-    /// ```
-    pub fn with_graceful_shutdown<F>(self, signal: F) -> Graceful<I, S, F, E>
-    where
-        F: Future<Output = ()>,
-    {
-        Graceful::new(self.spawn_all, signal)
-    }
-}
-
-impl<I, IO, IE, S, B, E> Future for Server<I, S, E>
-where
-    I: Accept<Conn = IO, Error = IE>,
-    IE: Into<Box<dyn StdError + Send + Sync>>,
-    IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    S: MakeServiceRef<IO, Body, ResBody = B>,
-    S::Error: Into<Box<dyn StdError + Send + Sync>>,
-    B: HttpBody + 'static,
-    B::Error: Into<Box<dyn StdError + Send + Sync>>,
-    E: H2Exec<<S::Service as HttpService<Body>>::Future, B>,
-    E: NewSvcExec<IO, S::Future, S::Service, E, NoopWatcher>,
-{
-    type Output = crate::Result<()>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        self.project().spawn_all.poll_watch(cx, &NoopWatcher)
-    }
-}
-
-impl<I: fmt::Debug, S: fmt::Debug> fmt::Debug for Server<I, S> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Server")
-            .field("listener", &self.spawn_all.incoming_ref())
-            .finish()
-    }
-}
-
-// ===== impl Builder =====
-
-impl<I, E> Builder<I, E> {
-    /// Start a new builder, wrapping an incoming stream and low-level options.
-    ///
-    /// For a more convenient constructor, see [`Server::bind`](Server::bind).
-    pub fn new(incoming: I, protocol: Http_<E>) -> Self {
-        Builder { incoming, protocol }
-    }
-
-    /// Sets whether to use keep-alive for HTTP/1 connections.
-    ///
-    /// Default is `true`.
-    pub fn http1_keepalive(mut self, val: bool) -> Self {
-        self.protocol.http1_keep_alive(val);
+    /// Default is false
+    pub fn http1_only(&mut self, val: bool) -> &mut Self {
+        if val {
+            self.mode = ConnectionMode::H1Only;
+        } else {
+            self.mode = ConnectionMode::Fallback;
+        }
         self
     }
 
@@ -254,35 +158,30 @@ impl<I, E> Builder<I, E> {
     /// detects an EOF in the middle of a request.
     ///
     /// Default is `false`.
-    pub fn http1_half_close(mut self, val: bool) -> Self {
-        self.protocol.http1_half_close(val);
+    pub fn http1_half_close(&mut self, val: bool) -> &mut Self {
+        self.h1_half_close = val;
         self
     }
 
-    /// Set the maximum buffer size.
+    /// Enables or disables HTTP/1 keep-alive.
     ///
-    /// Default is ~ 400kb.
-    pub fn http1_max_buf_size(mut self, val: usize) -> Self {
-        self.protocol.max_buf_size(val);
+    /// Default is true.
+    pub fn http1_keep_alive(&mut self, val: bool) -> &mut Self {
+        self.h1_keep_alive = val;
         self
     }
 
-    // Sets whether to bunch up HTTP/1 writes until the read buffer is empty.
-    //
-    // This isn't really desirable in most cases, only really being useful in
-    // silly pipeline benchmarks.
+    // renamed due different semantics of http2 keep alive
     #[doc(hidden)]
-    pub fn http1_pipeline_flush(mut self, val: bool) -> Self {
-        self.protocol.pipeline_flush(val);
-        self
+    #[deprecated(note = "renamed to `http1_keep_alive`")]
+    pub fn keep_alive(&mut self, val: bool) -> &mut Self {
+        self.http1_keep_alive(val)
     }
 
     /// Set whether HTTP/1 connections should try to use vectored writes,
     /// or always flatten into a single buffer.
     ///
-    /// # Note
-    ///
-    /// Setting this to `false` may mean more copies of body data,
+    /// Note that setting this to false may mean more copies of body data,
     /// but may also improve performance when an IO transport doesn't
     /// support vectored writes well, such as most TLS implementations.
     ///
@@ -291,24 +190,21 @@ impl<I, E> Builder<I, E> {
     ///
     /// Default is `auto`. In this mode hyper will try to guess which
     /// mode to use
-    pub fn http1_writev(mut self, val: bool) -> Self {
-        self.protocol.http1_writev(val);
+    #[inline]
+    pub fn http1_writev(&mut self, val: bool) -> &mut Self {
+        self.h1_writev = Some(val);
         self
     }
 
-    /// Sets whether HTTP/1 is required.
+    /// Sets whether HTTP2 is required.
     ///
-    /// Default is `false`.
-    pub fn http1_only(mut self, val: bool) -> Self {
-        self.protocol.http1_only(val);
-        self
-    }
-
-    /// Sets whether HTTP/2 is required.
-    ///
-    /// Default is `false`.
-    pub fn http2_only(mut self, val: bool) -> Self {
-        self.protocol.http2_only(val);
+    /// Default is false
+    pub fn http2_only(&mut self, val: bool) -> &mut Self {
+        if val {
+            self.mode = ConnectionMode::H2Only;
+        } else {
+            self.mode = ConnectionMode::Fallback;
+        }
         self
     }
 
@@ -320,19 +216,27 @@ impl<I, E> Builder<I, E> {
     /// If not set, hyper will use a default.
     ///
     /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_INITIAL_WINDOW_SIZE
-    pub fn http2_initial_stream_window_size(mut self, sz: impl Into<Option<u32>>) -> Self {
-        self.protocol.http2_initial_stream_window_size(sz.into());
+    pub fn http2_initial_stream_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
+        if let Some(sz) = sz.into() {
+            self.h2_builder.adaptive_window = false;
+            self.h2_builder.initial_stream_window_size = sz;
+        }
         self
     }
 
-    /// Sets the max connection-level flow control for HTTP2
+    /// Sets the max connection-level flow control for HTTP2.
     ///
     /// Passing `None` will do nothing.
     ///
     /// If not set, hyper will use a default.
-    pub fn http2_initial_connection_window_size(mut self, sz: impl Into<Option<u32>>) -> Self {
-        self.protocol
-            .http2_initial_connection_window_size(sz.into());
+    pub fn http2_initial_connection_window_size(
+        &mut self,
+        sz: impl Into<Option<u32>>,
+    ) -> &mut Self {
+        if let Some(sz) = sz.into() {
+            self.h2_builder.adaptive_window = false;
+            self.h2_builder.initial_conn_window_size = sz;
+        }
         self
     }
 
@@ -341,8 +245,14 @@ impl<I, E> Builder<I, E> {
     /// Enabling this will override the limits set in
     /// `http2_initial_stream_window_size` and
     /// `http2_initial_connection_window_size`.
-    pub fn http2_adaptive_window(mut self, enabled: bool) -> Self {
-        self.protocol.http2_adaptive_window(enabled);
+    pub fn http2_adaptive_window(&mut self, enabled: bool) -> &mut Self {
+        use proto::h2::SPEC_WINDOW_SIZE;
+
+        self.h2_builder.adaptive_window = enabled;
+        if enabled {
+            self.h2_builder.initial_conn_window_size = SPEC_WINDOW_SIZE;
+            self.h2_builder.initial_stream_window_size = SPEC_WINDOW_SIZE;
+        }
         self
     }
 
@@ -351,8 +261,10 @@ impl<I, E> Builder<I, E> {
     /// Passing `None` will do nothing.
     ///
     /// If not set, hyper will use a default.
-    pub fn http2_max_frame_size(mut self, sz: impl Into<Option<u32>>) -> Self {
-        self.protocol.http2_max_frame_size(sz);
+    pub fn http2_max_frame_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
+        if let Some(sz) = sz.into() {
+            self.h2_builder.max_frame_size = sz;
+        }
         self
     }
 
@@ -362,8 +274,8 @@ impl<I, E> Builder<I, E> {
     /// Default is no limit (`std::u32::MAX`). Passing `None` will do nothing.
     ///
     /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_MAX_CONCURRENT_STREAMS
-    pub fn http2_max_concurrent_streams(mut self, max: impl Into<Option<u32>>) -> Self {
-        self.protocol.http2_max_concurrent_streams(max.into());
+    pub fn http2_max_concurrent_streams(&mut self, max: impl Into<Option<u32>>) -> &mut Self {
+        self.h2_builder.max_concurrent_streams = max.into();
         self
     }
 
@@ -378,8 +290,11 @@ impl<I, E> Builder<I, E> {
     ///
     /// Requires the `runtime` cargo feature to be enabled.
     #[cfg(feature = "runtime")]
-    pub fn http2_keep_alive_interval(mut self, interval: impl Into<Option<Duration>>) -> Self {
-        self.protocol.http2_keep_alive_interval(interval);
+    pub fn http2_keep_alive_interval(
+        &mut self,
+        interval: impl Into<Option<Duration>>,
+    ) -> &mut Self {
+        self.h2_builder.keep_alive_interval = interval.into();
         self
     }
 
@@ -394,104 +309,185 @@ impl<I, E> Builder<I, E> {
     ///
     /// Requires the `runtime` cargo feature to be enabled.
     #[cfg(feature = "runtime")]
-    pub fn http2_keep_alive_timeout(mut self, timeout: Duration) -> Self {
-        self.protocol.http2_keep_alive_timeout(timeout);
+    pub fn http2_keep_alive_timeout(&mut self, timeout: Duration) -> &mut Self {
+        self.h2_builder.keep_alive_timeout = timeout;
         self
     }
 
-    /// Sets the `Executor` to deal with connection tasks.
+    /// Set the maximum buffer size for the connection.
     ///
-    /// Default is `tokio::spawn`.
-    pub fn executor<E2>(self, executor: E2) -> Builder<I, E2> {
-        Builder {
-            incoming: self.incoming,
-            protocol: self.protocol.with_executor(executor),
+    /// Default is ~400kb.
+    ///
+    /// # Panics
+    ///
+    /// The minimum value allowed is 8192. This method panics if the passed `max` is less than the minimum.
+    pub fn max_buf_size(&mut self, max: usize) -> &mut Self {
+        assert!(
+            max >= proto::h1::MINIMUM_MAX_BUFFER_SIZE,
+            "the max_buf_size cannot be smaller than the minimum that h1 specifies."
+        );
+        self.max_buf_size = Some(max);
+        self
+    }
+
+    /// Aggregates flushes to better support pipelined responses.
+    ///
+    /// Experimental, may have bugs.
+    ///
+    /// Default is false.
+    pub fn pipeline_flush(&mut self, enabled: bool) -> &mut Self {
+        self.pipeline_flush = enabled;
+        self
+    }
+
+    /// Set the executor used to spawn background tasks.
+    ///
+    /// Default uses implicit default (like `tokio::spawn`).
+    pub fn with_executor<E2>(self, exec: E2) -> Server<E2> {
+        Server {
+            exec,
+            h1_half_close: self.h1_half_close,
+            h1_keep_alive: self.h1_keep_alive,
+            h1_writev: self.h1_writev,
+            h2_builder: self.h2_builder,
+            mode: self.mode,
+            max_buf_size: self.max_buf_size,
+            pipeline_flush: self.pipeline_flush,
         }
     }
 
-    /// Consume this `Builder`, creating a [`Server`](Server).
+    /// DOX
+    #[cfg(feature = "tcp")]
+    pub fn bind(&self, addr: &SocketAddr) -> Result<Serve<E>, Error>
+    where
+        E: Clone,
+    {
+        let incoming = AddrIncoming::bind(addr).map_err(Error::new_listen)?;
+        let server = self.clone();
+
+        Ok(Serve { server, incoming })
+    }
+
+    /// Bind a connection together with a [`Service`](crate::service::Service).
+    ///
+    /// This returns a Future that must be polled in order for HTTP to be
+    /// driven on the connection.
     ///
     /// # Example
     ///
     /// ```
-    /// # #[cfg(feature = "tcp")]
-    /// # async fn run() {
-    /// use hyper::{Body, Error, Response, Server};
-    /// use hyper::service::{make_service_fn, service_fn};
+    /// # use hyper::{Body, Request, Response};
+    /// # use hyper::service::Service;
+    /// # use hyper::server::conn::Http;
+    /// # use tokio::io::{AsyncRead, AsyncWrite};
+    /// # async fn run<I, S>(some_io: I, some_service: S)
+    /// # where
+    /// #     I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    /// #     S: Service<hyper::Request<Body>, Response=hyper::Response<Body>> + Send + 'static,
+    /// #     S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+    /// #     S::Future: Send,
+    /// # {
+    /// let http = Server::new();
+    /// let conn = http.serve_connection(some_io, some_service);
     ///
-    /// // Construct our SocketAddr to listen on...
-    /// let addr = ([127, 0, 0, 1], 3000).into();
-    ///
-    /// // And a MakeService to handle each connection...
-    /// let make_svc = make_service_fn(|_| async {
-    ///     Ok::<_, Error>(service_fn(|_req| async {
-    ///         Ok::<_, Error>(Response::new(Body::from("Hello World")))
-    ///     }))
-    /// });
-    ///
-    /// // Then bind and serve...
-    /// let server = Server::bind(&addr)
-    ///     .serve(make_svc);
-    ///
-    /// // Run forever-ish...
-    /// if let Err(err) = server.await {
-    ///     eprintln!("server error: {}", err);
+    /// if let Err(e) = conn.await {
+    ///     eprintln!("server connection error: {}", e);
     /// }
     /// # }
+    /// # fn main() {}
     /// ```
-    pub fn serve<S, B>(self, new_service: S) -> Server<I, S, E>
+    pub fn serve_connection<S, I, Bd>(&self, io: I, service: S) -> Connection<I, S, E>
     where
-        I: Accept,
-        I::Error: Into<Box<dyn StdError + Send + Sync>>,
-        I::Conn: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-        S: MakeServiceRef<I::Conn, Body, ResBody = B>,
+        S: HttpService<Body, ResBody = Bd>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
-        B: HttpBody + 'static,
-        B::Error: Into<Box<dyn StdError + Send + Sync>>,
-        E: NewSvcExec<I::Conn, S::Future, S::Service, E, NoopWatcher>,
-        E: H2Exec<<S::Service as HttpService<Body>>::Future, B>,
+        Bd: HttpBody + 'static,
+        Bd::Error: Into<Box<dyn StdError + Send + Sync>>,
+        I: AsyncRead + AsyncWrite + Unpin,
+        E: H2Exec<S::Future, Bd>,
     {
-        let serve = self.protocol.serve(self.incoming, new_service);
-        let spawn_all = serve.spawn_all();
-        Server { spawn_all }
+        let proto = match self.mode {
+            ConnectionMode::H1Only | ConnectionMode::Fallback => {
+                let mut conn = proto::Conn::new(io);
+                if !self.h1_keep_alive {
+                    conn.disable_keep_alive();
+                }
+                if self.h1_half_close {
+                    conn.set_allow_half_close();
+                }
+                if let Some(writev) = self.h1_writev {
+                    if writev {
+                        conn.set_write_strategy_queue();
+                    } else {
+                        conn.set_write_strategy_flatten();
+                    }
+                }
+                conn.set_flush_pipeline(self.pipeline_flush);
+                if let Some(max) = self.max_buf_size {
+                    conn.set_max_buf_size(max);
+                }
+                let sd = proto::h1::dispatch::Server::new(service);
+                ProtoServer::H1(proto::h1::Dispatcher::new(sd, conn))
+            }
+            ConnectionMode::H2Only => {
+                let rewind_io = Rewind::new(io);
+                let h2 =
+                    proto::h2::Server::new(rewind_io, service, &self.h2_builder, self.exec.clone());
+                ProtoServer::H2(h2)
+            }
+        };
+
+        Connection {
+            conn: Some(proto),
+            fallback: if self.mode == ConnectionMode::Fallback {
+                Fallback::ToHttp2(self.h2_builder.clone(), self.exec.clone())
+            } else {
+                Fallback::Http1Only
+            },
+        }
     }
 }
 
-#[cfg(feature = "tcp")]
-impl<E> Builder<AddrIncoming, E> {
-    /// Set whether TCP keepalive messages are enabled on accepted connections.
-    ///
-    /// If `None` is specified, keepalive is disabled, otherwise the duration
-    /// specified will be the time to remain idle before sending TCP keepalive
-    /// probes.
-    pub fn tcp_keepalive(mut self, keepalive: Option<Duration>) -> Self {
-        self.incoming.set_keepalive(keepalive);
-        self
+// ===== impl Serve =====
+
+impl<E> Serve<E> {
+    /// DOX
+    pub fn local_addr(&self) -> SocketAddr {
+        self.incoming.local_addr()
     }
 
-    /// Set the value of `TCP_NODELAY` option for accepted connections.
-    pub fn tcp_nodelay(mut self, enabled: bool) -> Self {
-        self.incoming.set_nodelay(enabled);
-        self
+    /// DOX!
+    #[cfg(all(feature = "tcp", feature = "runtime"))]
+    pub async fn serve_fn<F, R, Bd, Er>(&mut self, f: F) -> Result<(), Error>
+    where
+        F: FnMut(Request<Body>) -> R + Clone,
+        R: Future<Output = Result<Response<Bd>, Er>>,
+        Er: Into<Box<dyn StdError + Send + Sync>>,
+        Bd: HttpBody + 'static,
+        Bd::Error: Into<Box<dyn StdError + Send + Sync>>,
+        E: SvcExec<AddrStream, ServiceFn<F, Body>, E>,
+        E: H2Exec<R, Bd>,
+    {
+        let svc = crate::service::service_fn(f);
+        self.serve(svc).await
     }
 
-    /// Set whether to sleep on accept errors.
-    ///
-    /// A possible scenario is that the process has hit the max open files
-    /// allowed, and so trying to accept a new connection will fail with
-    /// EMFILE. In some cases, it's preferable to just wait for some time, if
-    /// the application will likely close some files (or connections), and try
-    /// to accept the connection again. If this option is true, the error will
-    /// be logged at the error level, since it is still a big deal, and then
-    /// the listener will sleep for 1 second.
-    ///
-    /// In other cases, hitting the max open files should be treat similarly
-    /// to being out-of-memory, and simply error (and shutdown). Setting this
-    /// option to false will allow that.
-    ///
-    /// For more details see [`AddrIncoming::set_sleep_on_errors`]
-    pub fn tcp_sleep_on_accept_errors(mut self, val: bool) -> Self {
-        self.incoming.set_sleep_on_errors(val);
-        self
+    /// DOX
+    #[cfg(all(feature = "tcp", feature = "runtime"))]
+    pub async fn serve<S, Bd>(&mut self, service: S) -> Result<(), Error>
+    where
+        S: HttpService<Body, ResBody = Bd> + Clone,
+        S::Error: Into<Box<dyn StdError + Send + Sync>>,
+        Bd: HttpBody + 'static,
+        Bd::Error: Into<Box<dyn StdError + Send + Sync>>,
+        E: SvcExec<AddrStream, S, E>,
+        E: H2Exec<S::Future, Bd>,
+    {
+        loop {
+            let conn = self.incoming.accept().await.map_err(Error::new_accept)?;
+
+            let fut = self.server.serve_connection(conn, service.clone());
+            let svc_task = conn::spawn_all::SvcTask::new(fut);
+            self.server.exec.execute_svc(svc_task);
+        }
     }
 }
