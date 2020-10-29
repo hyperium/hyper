@@ -30,6 +30,10 @@ impl AddrIncoming {
     }
 
     pub(super) fn from_std(std_listener: StdTcpListener) -> crate::Result<Self> {
+        // TcpListener::from_std doesn't set O_NONBLOCK
+        std_listener
+            .set_nonblocking(true)
+            .map_err(crate::Error::new_listen)?;
         let listener = TcpListener::from_std(std_listener).map_err(crate::Error::new_listen)?;
         let addr = listener.local_addr().map_err(crate::Error::new_listen)?;
         Ok(AddrIncoming {
