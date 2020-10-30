@@ -442,7 +442,16 @@ impl KeepAlive {
                 let interval = shared.last_read_at() + self.interval;
                 self.timer.reset(interval);
             }
-            KeepAliveState::Scheduled | KeepAliveState::PingSent => (),
+            KeepAliveState::PingSent => {
+                if shared.is_ping_sent() {
+                    return;
+                }
+
+                self.state = KeepAliveState::Scheduled;
+                let interval = shared.last_read_at() + self.interval;
+                self.timer.reset(interval);
+            }
+            KeepAliveState::Scheduled => (),
         }
     }
 
