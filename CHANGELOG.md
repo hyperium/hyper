@@ -1,3 +1,19 @@
+### v0.13.9 (2020-11-02)
+
+
+#### Bug Fixes
+
+* **client:** fix panic when addrs in ConnectingTcpRemote is empty (#2292) ([01103da5](https://github.com/hyperium/hyper/commit/01103da5d9b15e2a7fdc2f1dfec2c23a890d5c16), closes [#2291](https://github.com/hyperium/hyper/issues/2291))
+* **http2:** reschedule keep alive interval timer once a pong is received ([2a938d96](https://github.com/hyperium/hyper/commit/2a938d96aec62603dcb548834676ae2c71ae8be2), closes [#2310](https://github.com/hyperium/hyper/issues/2310))
+
+
+#### Features
+
+* **client:**
+  * add `HttpConnector::set_local_addresses` to set both IPv6 and IPv4 local addrs ( ([fb19f3a8](https://github.com/hyperium/hyper/commit/fb19f3a86997af1c8a31a7d5ce6f2b018c9b5a0d))
+  * Add accessors to `Connected` fields (#2290) ([2dc9768d](https://github.com/hyperium/hyper/commit/2dc9768d2d3884afa20c08b7cd8782c870d925d2))
+
+
 ### v0.13.8 (2020-09-18)
 
 
