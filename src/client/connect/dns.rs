@@ -14,10 +14,10 @@
 //! A simple resolver that ignores the name and always returns a specific
 //! address:
 //!
-//! ```rust,ignore
+//! ```rust
 //! use std::{convert::Infallible, iter, net::IpAddr};
 //!
-//! let resolver = tower::service_fn(|_name| async {
+//! let resolver = tower::service_fn(|_name: ()| async {
 //!     Ok::<_, Infallible>(iter::once(IpAddr::from([127, 0, 0, 1])))
 //! });
 //! ```
