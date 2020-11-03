@@ -1,6 +1,6 @@
 [package]
 name = "hyper"
-version = "0.13.9" # don't forget to update html_root_url
+version = "0.14.0-dev" # don't forget to update html_root_url
 description = "A fast and correct HTTP library."
 readme = "README.md"
 homepage = "https://hyper.rs"
@@ -11,6 +11,8 @@ authors = ["Sean McArthur <sean@seanmonstar.com>"]
 keywords = ["http", "hyper", "hyperium"]
 categories = ["network-programming", "web-programming::http-client", "web-programming::http-server"]
 edition = "2018"
+
+publish = false
 
 include = [
   "Cargo.toml",
