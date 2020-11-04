@@ -1939,7 +1939,7 @@ async fn write_pong_frame(conn: &mut TkTcpStream) {
 async fn http2_keep_alive_count_server_pings() {
     let _ = pretty_env_logger::try_init();
 
-    let mut listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     tokio::spawn(async move {
