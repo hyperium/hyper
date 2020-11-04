@@ -42,6 +42,7 @@ pub struct Watching<F, FN> {
     future: F,
     state: State<FN>,
     watch: Pin<Box<dyn Future<Output = ()> + Send + Sync>>,
+    _drained_tx: mpsc::Sender<Never>,
 }
 
 enum State<F> {
@@ -70,17 +71,19 @@ impl Future for Draining {
 }
 
 impl Watch {
-    pub fn watch<F, FN>(mut self, future: F, on_drain: FN) -> Watching<F, FN>
+    pub fn watch<F, FN>(self, future: F, on_drain: FN) -> Watching<F, FN>
     where
         F: Future,
         FN: FnOnce(Pin<&mut F>),
     {
+        let Self { drained_tx, mut rx } = self;
         Watching {
             future,
             state: State::Watch(on_drain),
             watch: Box::pin(async move {
-                let _ = self.rx.changed().await;
+                let _ = rx.changed().await;
             }),
+            _drained_tx: drained_tx,
         }
     }
 }
