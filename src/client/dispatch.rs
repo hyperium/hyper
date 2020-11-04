@@ -349,9 +349,8 @@ mod tests {
     fn giver_queue_throughput(b: &mut test::Bencher) {
         use crate::{Body, Request, Response};
 
-        let mut rt = tokio::runtime::Builder::new()
+        let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
-            .basic_scheduler()
             .build()
             .unwrap();
         let (mut tx, mut rx) = channel::<Request<Body>, Response<Body>>();
@@ -373,9 +372,8 @@ mod tests {
     #[cfg(feature = "nightly")]
     #[bench]
     fn giver_queue_not_ready(b: &mut test::Bencher) {
-        let mut rt = tokio::runtime::Builder::new()
+        let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
-            .basic_scheduler()
             .build()
             .unwrap();
         let (_tx, mut rx) = channel::<i32, ()>();

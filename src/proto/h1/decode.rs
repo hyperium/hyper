@@ -624,7 +624,7 @@ mod tests {
     #[cfg(feature = "nightly")]
     #[bench]
     fn bench_decode_chunked_1kb(b: &mut test::Bencher) {
-        let mut rt = new_runtime();
+        let rt = new_runtime();
 
         const LEN: usize = 1024;
         let mut vec = Vec::new();
@@ -648,7 +648,7 @@ mod tests {
     #[cfg(feature = "nightly")]
     #[bench]
     fn bench_decode_length_1kb(b: &mut test::Bencher) {
-        let mut rt = new_runtime();
+        let rt = new_runtime();
 
         const LEN: usize = 1024;
         let content = Bytes::from(&[0; LEN][..]);
@@ -666,9 +666,8 @@ mod tests {
 
     #[cfg(feature = "nightly")]
     fn new_runtime() -> tokio::runtime::Runtime {
-        tokio::runtime::Builder::new()
+        tokio::runtime::Builder::new_current_thread()
             .enable_all()
-            .basic_scheduler()
             .build()
             .expect("rt build")
     }
