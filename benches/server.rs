@@ -34,7 +34,7 @@ macro_rules! bench_server {
                     }))
                 });
 
-                let mut rt = tokio::runtime::Builder::new_current_thread()
+                let rt = tokio::runtime::Builder::new_current_thread()
                     .enable_all()
                     .build()
                     .expect("rt build");
@@ -184,6 +184,7 @@ fn raw_tcp_throughput_large_payload(b: &mut test::Bencher) {
         let mut buf = [0u8; 8192];
         while rx.try_recv().is_err() {
             let r = sock.read(&mut buf).unwrap();
+            extern crate test;
             if r == 0 {
                 break;
             }

@@ -31,7 +31,7 @@ fn hello_world(b: &mut test::Bencher) {
                 }))
             });
 
-            let mut rt = tokio::runtime::Builder::new_current_thread()
+            let rt = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
                 .expect("rt build");

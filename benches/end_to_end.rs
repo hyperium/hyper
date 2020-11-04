@@ -290,7 +290,7 @@ impl Opts {
         let bytes_per_iter = (req_len + self.response_body.len() as u64) * self.parallel_cnt as u64;
         b.bytes = bytes_per_iter;
 
-        let addr = spawn_server(&mut rt, &self);
+        let addr = spawn_server(&rt, &self);
 
         let connector = HttpConnector::new();
         let client = hyper::Client::builder()
@@ -353,7 +353,7 @@ impl Opts {
     }
 }
 
-fn spawn_server(rt: &mut tokio::runtime::Runtime, opts: &Opts) -> SocketAddr {
+fn spawn_server(rt: &tokio::runtime::Runtime, opts: &Opts) -> SocketAddr {
     use hyper::service::{make_service_fn, service_fn};
     let addr = "127.0.0.1:0".parse().unwrap();
 
