@@ -42,7 +42,7 @@ where
                 allow_half_close: false,
                 cached_headers: None,
                 error: None,
-                keep_alive: KA::Busy,
+                keep_alive: KA::Idle,
                 method: None,
                 title_case_headers: false,
                 notify_read: false,
@@ -686,7 +686,7 @@ where
         self.state.close_write();
     }
 
-    pub fn disable_keep_alive(&mut self) {
+    pub fn close_idle_connection(&mut self) {
         if self.state.is_idle() {
             trace!("disable_keep_alive; closing idle connection");
             self.state.close();
@@ -694,6 +694,10 @@ where
             trace!("disable_keep_alive; in-progress connection");
             self.state.disable_keep_alive();
         }
+    }
+
+    pub fn disable_keep_alive(&mut self) {
+        self.state.disable_keep_alive();
     }
 
     pub fn take_error(&mut self) -> crate::Result<()> {

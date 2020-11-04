@@ -71,8 +71,8 @@ where
         }
     }
 
-    pub fn disable_keep_alive(&mut self) {
-        self.conn.disable_keep_alive();
+    pub fn close_idle_connection(&mut self) {
+        self.conn.close_idle_connection();
         if self.conn.is_write_closed() {
             self.close();
         }

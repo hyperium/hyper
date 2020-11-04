@@ -568,7 +568,7 @@ where
     pub fn graceful_shutdown(self: Pin<&mut Self>) {
         match self.project().conn {
             Some(ProtoServer::H1(ref mut h1)) => {
-                h1.disable_keep_alive();
+                h1.close_idle_connection();
             }
             Some(ProtoServer::H2(ref mut h2)) => {
                 h2.graceful_shutdown();
