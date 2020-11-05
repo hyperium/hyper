@@ -141,7 +141,7 @@ impl AddrIncoming {
                         #[cfg(unix)]
                         drop(std::os::unix::io::IntoRawFd::into_raw_fd(socket));
                         #[cfg(windows)]
-                        drop(std::os::windows::io::IntoRawFd::into_raw_fd(socket));
+                        drop(std::os::windows::io::IntoRawSocket::into_raw_socket(socket));
                     }
                     if let Err(e) = socket.set_nodelay(self.tcp_nodelay) {
                         trace!("error trying to set TCP nodelay: {}", e);
