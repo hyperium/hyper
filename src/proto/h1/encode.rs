@@ -81,6 +81,13 @@ impl Encoder {
         self.is_last
     }
 
+    pub fn is_close_delimited(&self) -> bool {
+        match self.kind {
+            Kind::CloseDelimited => true,
+            _ => false,
+        }
+    }
+
     pub fn end<B>(&self) -> Result<Option<EncodedBuf<B>>, NotEof> {
         match self.kind {
             Kind::Length(0) => Ok(None),
