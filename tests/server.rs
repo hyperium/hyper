@@ -2348,6 +2348,7 @@ fn has_header(msg: &str, name: &str) -> bool {
 
 fn tcp_bind(addr: &SocketAddr) -> ::tokio::io::Result<TcpListener> {
     let std_listener = StdTcpListener::bind(addr).unwrap();
+    std_listener.set_nonblocking(true).unwrap();
     TcpListener::from_std(std_listener)
 }
 
