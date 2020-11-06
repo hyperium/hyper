@@ -1,20 +1,13 @@
 use std::mem;
 
 use pin_project::pin_project;
+use tokio::stream::Stream;
 use tokio::sync::{mpsc, watch};
 
 use super::{task, Future, Never, Pin, Poll};
 
-// Sentinel value signaling that the watch is still open
-#[derive(Clone, Copy)]
-enum Action {
-    Open,
-    // Closed isn't sent via the `Action` type, but rather once
-    // the watch::Sender is dropped.
-}
-
 pub fn channel() -> (Signal, Watch) {
-    let (tx, rx) = watch::channel(Action::Open);
+    let (tx, rx) = watch::channel(());
     let (drained_tx, drained_rx) = mpsc::channel(1);
     (
         Signal {
@@ -27,17 +20,19 @@ pub fn channel() -> (Signal, Watch) {
 
 pub struct Signal {
     drained_rx: mpsc::Receiver<Never>,
-    _tx: watch::Sender<Action>,
+    _tx: watch::Sender<()>,
 }
 
+#[pin_project::pin_project]
 pub struct Draining {
+    #[pin]
     drained_rx: mpsc::Receiver<Never>,
 }
 
 #[derive(Clone)]
 pub struct Watch {
     drained_tx: mpsc::Sender<Never>,
-    rx: watch::Receiver<Action>,
+    rx: watch::Receiver<()>,
 }
 
 #[allow(missing_debug_implementations)]
@@ -46,7 +41,8 @@ pub struct Watching<F, FN> {
     #[pin]
     future: F,
     state: State<FN>,
-    watch: Watch,
+    watch: Pin<Box<dyn Future<Output = ()> + Send + Sync>>,
+    _drained_tx: mpsc::Sender<Never>,
 }
 
 enum State<F> {
@@ -66,8 +62,8 @@ impl Signal {
 impl Future for Draining {
     type Output = ();
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        match ready!(self.drained_rx.poll_recv(cx)) {
+    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        match ready!(self.project().drained_rx.poll_next(cx)) {
             Some(never) => match never {},
             None => Poll::Ready(()),
         }
@@ -80,10 +76,14 @@ impl Watch {
         F: Future,
         FN: FnOnce(Pin<&mut F>),
     {
+        let Self { drained_tx, mut rx } = self;
         Watching {
             future,
             state: State::Watch(on_drain),
-            watch: self,
+            watch: Box::pin(async move {
+                let _ = rx.changed().await;
+            }),
+            _drained_tx: drained_tx,
         }
     }
 }
@@ -100,12 +100,12 @@ where
         loop {
             match mem::replace(me.state, State::Draining) {
                 State::Watch(on_drain) => {
-                    match me.watch.rx.poll_recv_ref(cx) {
-                        Poll::Ready(None) => {
+                    match Pin::new(&mut me.watch).poll(cx) {
+                        Poll::Ready(()) => {
                             // Drain has been triggered!
                             on_drain(me.future.as_mut());
                         }
-                        Poll::Ready(Some(_ /*State::Open*/)) | Poll::Pending => {
+                        Poll::Pending => {
                             *me.state = State::Watch(on_drain);
                             return me.future.poll(cx);
                         }

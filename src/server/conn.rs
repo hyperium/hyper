@@ -809,9 +809,9 @@ where
     type Output = Result<Connection<I, S, E>, FE>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        let me = self.project();
+        let mut me = self.project();
         let service = ready!(me.future.poll(cx))?;
-        let io = me.io.take().expect("polled after complete");
+        let io = Option::take(&mut me.io).expect("polled after complete");
         Poll::Ready(Ok(me.protocol.serve_connection(io, service)))
     }
 }

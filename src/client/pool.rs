@@ -706,12 +706,15 @@ impl Expiration {
 }
 
 #[cfg(feature = "runtime")]
+#[pin_project::pin_project]
 struct IdleTask<T> {
+    #[pin]
     interval: Interval,
     pool: WeakOpt<Mutex<PoolInner<T>>>,
     // This allows the IdleTask to be notified as soon as the entire
     // Pool is fully dropped, and shutdown. This channel is never sent on,
     // but Err(Canceled) will be received when the Pool is dropped.
+    #[pin]
     pool_drop_notifier: oneshot::Receiver<crate::common::Never>,
 }
 
@@ -719,9 +722,11 @@ struct IdleTask<T> {
 impl<T: Poolable + 'static> Future for IdleTask<T> {
     type Output = ();
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        use tokio::stream::Stream;
+        let mut this = self.project();
         loop {
-            match Pin::new(&mut self.pool_drop_notifier).poll(cx) {
+            match this.pool_drop_notifier.as_mut().poll(cx) {
                 Poll::Ready(Ok(n)) => match n {},
                 Poll::Pending => (),
                 Poll::Ready(Err(_canceled)) => {
@@ -730,9 +735,9 @@ impl<T: Poolable + 'static> Future for IdleTask<T> {
                 }
             }
 
-            ready!(self.interval.poll_tick(cx));
+            ready!(this.interval.as_mut().poll_next(cx));
 
-            if let Some(inner) = self.pool.upgrade() {
+            if let Some(inner) = this.pool.upgrade() {
                 if let Ok(mut inner) = inner.lock() {
                     trace!("idle interval checking for expired");
                     inner.clear_expired();
@@ -850,7 +855,7 @@ mod tests {
         let pooled = pool.pooled(c(key.clone()), Uniq(41));
 
         drop(pooled);
-        tokio::time::delay_for(pool.locked().timeout.unwrap()).await;
+        tokio::time::sleep(pool.locked().timeout.unwrap()).await;
         let mut checkout = pool.checkout(key);
         let poll_once = PollOnce(&mut checkout);
         let is_not_ready = poll_once.await.is_none();
@@ -871,7 +876,7 @@ mod tests {
             pool.locked().idle.get(&key).map(|entries| entries.len()),
             Some(3)
         );
-        tokio::time::delay_for(pool.locked().timeout.unwrap()).await;
+        tokio::time::sleep(pool.locked().timeout.unwrap()).await;
 
         let mut checkout = pool.checkout(key.clone());
         let poll_once = PollOnce(&mut checkout);

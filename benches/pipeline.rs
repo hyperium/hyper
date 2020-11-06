@@ -31,9 +31,8 @@ fn hello_world(b: &mut test::Bencher) {
                 }))
             });
 
-            let mut rt = tokio::runtime::Builder::new()
+            let rt = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
-                .basic_scheduler()
                 .build()
                 .expect("rt build");
             let srv = rt.block_on(async move {

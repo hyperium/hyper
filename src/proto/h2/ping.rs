@@ -33,7 +33,7 @@ use std::time::Instant;
 
 use h2::{Ping, PingPong};
 #[cfg(feature = "runtime")]
-use tokio::time::{Delay, Instant};
+use tokio::time::{Instant, Sleep};
 
 type WindowSize = u32;
 
@@ -60,7 +60,7 @@ pub(super) fn channel(ping_pong: PingPong, config: Config) -> (Recorder, Ponger)
         interval,
         timeout: config.keep_alive_timeout,
         while_idle: config.keep_alive_while_idle,
-        timer: tokio::time::delay_for(interval),
+        timer: tokio::time::sleep(interval),
         state: KeepAliveState::Init,
     });
 
@@ -156,7 +156,7 @@ struct KeepAlive {
     while_idle: bool,
 
     state: KeepAliveState,
-    timer: Delay,
+    timer: Sleep,
 }
 
 #[cfg(feature = "runtime")]

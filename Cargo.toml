@@ -1,3 +1,4 @@
+
 [package]
 name = "hyper"
 version = "0.14.0-dev" # don't forget to update html_root_url
@@ -30,12 +31,12 @@ http = "0.2"
 http-body = "0.3.1"
 httpdate = "0.3"
 httparse = "1.0"
-h2 = "0.2.2"
+h2 = { git = "https://github.com/hyperium/h2" }
 itoa = "0.4.1"
 tracing = { version = "0.1", default-features = false, features = ["log", "std"] }
 pin-project = "1.0"
 tower-service = "0.3"
-tokio = { version = "0.2.11", features = ["sync"] }
+tokio = { version = "0.3", features = ["sync", "stream"] }
 want = "0.3"
 
 # Optional
@@ -51,9 +52,18 @@ spmc = "0.3"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
-tokio = { version = "0.2.2", features = ["fs", "macros", "io-std", "rt-util", "sync", "time", "test-util"] }
-tokio-test = "0.2"
-tokio-util = { version = "0.3", features = ["codec"] }
+tokio = { version = "0.3", features = [
+    "fs",
+    "macros",
+    "io-std",
+    "rt",
+    "rt-multi-thread", # so examples can use #[tokio::main]
+    "sync",
+    "time",
+    "test-util",
+] }
+tokio-test = "0.3"
+tokio-util = { version = "0.4", features = ["codec"] }
 tower-util = "0.3"
 url = "1.0"
 
@@ -67,12 +77,12 @@ default = [
 ]
 runtime = [
     "tcp",
-    "tokio/rt-core",
+    "tokio/rt",
 ]
 tcp = [
     "socket2",
-    "tokio/blocking",
-    "tokio/tcp",
+    "tokio/net",
+    "tokio/rt",
     "tokio/time",
 ]
 
@@ -219,4 +229,3 @@ required-features = ["runtime", "stream"]
 name = "server"
 path = "tests/server.rs"
 required-features = ["runtime"]
-

@@ -18,7 +18,7 @@ use futures_channel::oneshot;
 use futures_core::{Future, Stream, TryFuture};
 use futures_util::future::{self, FutureExt, TryFutureExt};
 use tokio::net::TcpStream;
-use tokio::runtime::Runtime;
+mod support;
 
 fn s(buf: &[u8]) -> &str {
     std::str::from_utf8(buf).expect("from_utf8")
@@ -115,12 +115,12 @@ macro_rules! test {
         #[test]
         fn $name() {
             let _ = pretty_env_logger::try_init();
-            let mut rt = Runtime::new().expect("runtime new");
+            let rt = support::runtime();
 
             let res = test! {
                 INNER;
                 name: $name,
-                runtime: &mut rt,
+                runtime: &rt,
                 server:
                     expected: $server_expected,
                     reply: $server_reply,
@@ -169,12 +169,12 @@ macro_rules! test {
         #[test]
         fn $name() {
             let _ = pretty_env_logger::try_init();
-            let mut rt = Runtime::new().expect("runtime new");
+            let rt = support::runtime();
 
             let err: ::hyper::Error = test! {
                 INNER;
                 name: $name,
-                runtime: &mut rt,
+                runtime: &rt,
                 server:
                     expected: $server_expected,
                     reply: $server_reply,
@@ -963,10 +963,10 @@ mod dispatch_impl {
     use futures_util::future::{FutureExt, TryFutureExt};
     use futures_util::stream::StreamExt;
     use http::Uri;
-    use tokio::io::{AsyncRead, AsyncWrite};
+    use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
     use tokio::net::TcpStream;
-    use tokio::runtime::Runtime;
 
+    use super::support;
     use hyper::body::HttpBody;
     use hyper::client::connect::{Connected, Connection, HttpConnector};
     use hyper::Client;
@@ -978,7 +978,7 @@ mod dispatch_impl {
 
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
-        let mut rt = Runtime::new().unwrap();
+        let rt = support::runtime();
         let (closes_tx, closes) = mpsc::channel(10);
         let client = Client::builder().build(DebugConnector::with_http_and_closes(
             HttpConnector::new(),
@@ -1016,7 +1016,7 @@ mod dispatch_impl {
         rt.block_on(async move {
             let (res, ()) = future::join(res, rx).await;
             res.unwrap();
-            tokio::time::delay_for(Duration::from_secs(1)).await;
+            tokio::time::sleep(Duration::from_secs(1)).await;
         });
 
         rt.block_on(closes.into_future()).0.expect("closes");
@@ -1029,7 +1029,7 @@ mod dispatch_impl {
 
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
-        let mut rt = Runtime::new().unwrap();
+        let rt = support::runtime();
         let (closes_tx, closes) = mpsc::channel(10);
 
         let (tx1, rx1) = oneshot::channel();
@@ -1075,7 +1075,7 @@ mod dispatch_impl {
         rt.block_on(async move {
             let (res, ()) = future::join(res, rx).await;
             res.unwrap();
-            tokio::time::delay_for(Duration::from_secs(1)).await;
+            tokio::time::sleep(Duration::from_secs(1)).await;
         });
 
         rt.block_on(closes.into_future()).0.expect("closes");
@@ -1113,9 +1113,7 @@ mod dispatch_impl {
 
             // prevent this thread from closing until end of test, so the connection
             // stays open and idle until Client is dropped
-            Runtime::new()
-                .unwrap()
-                .block_on(client_drop_rx.into_future())
+            support::runtime().block_on(client_drop_rx.into_future())
         });
 
         let client = Client::builder().build(DebugConnector::with_http_and_closes(
@@ -1147,7 +1145,7 @@ mod dispatch_impl {
         drop(client);
 
         // and wait a few ticks for the connections to close
-        let t = tokio::time::delay_for(Duration::from_millis(100)).map(|_| panic!("time out"));
+        let t = tokio::time::sleep(Duration::from_millis(100)).map(|_| panic!("time out"));
         let close = closes.into_future().map(|(opt, _)| opt.expect("closes"));
         future::select(t, close).await;
     }
@@ -1195,7 +1193,7 @@ mod dispatch_impl {
         future::select(res, rx1).await;
 
         // res now dropped
-        let t = tokio::time::delay_for(Duration::from_millis(100)).map(|_| panic!("time out"));
+        let t = tokio::time::sleep(Duration::from_millis(100)).map(|_| panic!("time out"));
         let close = closes.into_future().map(|(opt, _)| opt.expect("closes"));
         future::select(t, close).await;
     }
@@ -1250,7 +1248,7 @@ mod dispatch_impl {
         res.unwrap();
 
         // and wait a few ticks to see the connection drop
-        let t = tokio::time::delay_for(Duration::from_millis(100)).map(|_| panic!("time out"));
+        let t = tokio::time::sleep(Duration::from_millis(100)).map(|_| panic!("time out"));
         let close = closes.into_future().map(|(opt, _)| opt.expect("closes"));
         future::select(t, close).await;
     }
@@ -1300,7 +1298,7 @@ mod dispatch_impl {
         let (res, ()) = future::join(res, rx).await;
         res.unwrap();
 
-        let t = tokio::time::delay_for(Duration::from_millis(100)).map(|_| panic!("time out"));
+        let t = tokio::time::sleep(Duration::from_millis(100)).map(|_| panic!("time out"));
         let close = closes.into_future().map(|(opt, _)| opt.expect("closes"));
         future::select(t, close).await;
     }
@@ -1346,7 +1344,7 @@ mod dispatch_impl {
         let (res, ()) = future::join(res, rx).await;
         res.unwrap();
 
-        let t = tokio::time::delay_for(Duration::from_millis(100)).map(|_| panic!("time out"));
+        let t = tokio::time::sleep(Duration::from_millis(100)).map(|_| panic!("time out"));
         let close = closes.into_future().map(|(opt, _)| opt.expect("closes"));
         future::select(t, close).await;
     }
@@ -1357,7 +1355,7 @@ mod dispatch_impl {
         // idle connections that the Checkout would have found
         let _ = pretty_env_logger::try_init();
 
-        let _rt = Runtime::new().unwrap();
+        let _rt = support::runtime();
         let connector = DebugConnector::new();
         let connects = connector.connects.clone();
 
@@ -1379,7 +1377,7 @@ mod dispatch_impl {
         let _ = pretty_env_logger::try_init();
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
-        let mut rt = Runtime::new().unwrap();
+        let rt = support::runtime();
         let connector = DebugConnector::new();
         let connects = connector.connects.clone();
 
@@ -1445,7 +1443,7 @@ mod dispatch_impl {
         let _ = pretty_env_logger::try_init();
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
-        let mut rt = Runtime::new().unwrap();
+        let rt = support::runtime();
 
         let connector = DebugConnector::new();
         let connects = connector.connects.clone();
@@ -1507,7 +1505,7 @@ mod dispatch_impl {
         let _ = pretty_env_logger::try_init();
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
-        let mut rt = Runtime::new().unwrap();
+        let rt = support::runtime();
 
         let connector = DebugConnector::new();
         let connects = connector.connects.clone();
@@ -1544,7 +1542,7 @@ mod dispatch_impl {
         assert_eq!(connects.load(Ordering::Relaxed), 0);
 
         let delayed_body = rx1
-            .then(|_| tokio::time::delay_for(Duration::from_millis(200)))
+            .then(|_| tokio::time::sleep(Duration::from_millis(200)))
             .map(|_| Ok::<_, ()>("hello a"))
             .map_err(|_| -> hyper::Error { panic!("rx1") })
             .into_stream();
@@ -1559,7 +1557,7 @@ mod dispatch_impl {
 
         // req 1
         let fut = future::join(client.request(req), rx)
-            .then(|_| tokio::time::delay_for(Duration::from_millis(200)))
+            .then(|_| tokio::time::sleep(Duration::from_millis(200)))
             // req 2
             .then(move |()| {
                 let rx = rx3.expect("thread panicked");
@@ -1646,7 +1644,7 @@ mod dispatch_impl {
 
         // sleep real quick to let the threadpool put connection in ready
         // state and back into client pool
-        tokio::time::delay_for(Duration::from_millis(50)).await;
+        tokio::time::sleep(Duration::from_millis(50)).await;
 
         let rx = rx2.expect("thread panicked");
         let req = Request::builder()
@@ -1669,7 +1667,7 @@ mod dispatch_impl {
         let _ = pretty_env_logger::try_init();
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
-        let mut rt = Runtime::new().unwrap();
+        let rt = support::runtime();
         let connector = DebugConnector::new().proxy();
 
         let client = Client::builder().build(connector);
@@ -1708,7 +1706,7 @@ mod dispatch_impl {
         let _ = pretty_env_logger::try_init();
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
-        let mut rt = Runtime::new().unwrap();
+        let rt = support::runtime();
         let connector = DebugConnector::new().proxy();
 
         let client = Client::builder().build(connector);
@@ -1750,7 +1748,7 @@ mod dispatch_impl {
         let _ = pretty_env_logger::try_init();
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
-        let mut rt = Runtime::new().unwrap();
+        let rt = support::runtime();
 
         let connector = DebugConnector::new();
 
@@ -1814,8 +1812,8 @@ mod dispatch_impl {
         use tokio::net::TcpListener;
 
         let _ = pretty_env_logger::try_init();
-        let mut rt = Runtime::new().unwrap();
-        let mut listener = rt
+        let rt = support::runtime();
+        let listener = rt
             .block_on(TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))))
             .unwrap();
         let addr = listener.local_addr().unwrap();
@@ -1963,8 +1961,8 @@ mod dispatch_impl {
         fn poll_read(
             mut self: Pin<&mut Self>,
             cx: &mut Context<'_>,
-            buf: &mut [u8],
-        ) -> Poll<Result<usize, io::Error>> {
+            buf: &mut ReadBuf<'_>,
+        ) -> Poll<io::Result<()>> {
             Pin::new(&mut self.tcp).poll_read(cx, buf)
         }
     }
@@ -1993,19 +1991,18 @@ mod conn {
     use futures_channel::oneshot;
     use futures_util::future::{self, poll_fn, FutureExt, TryFutureExt};
     use futures_util::StreamExt;
-    use tokio::io::{AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _};
+    use tokio::io::{AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _, ReadBuf};
     use tokio::net::{TcpListener as TkTcpListener, TcpStream};
-    use tokio::runtime::Runtime;
 
     use hyper::client::conn;
     use hyper::{self, Body, Method, Request};
 
-    use super::{concat, s, tcp_connect, FutureHyperExt};
+    use super::{concat, s, support, tcp_connect, FutureHyperExt};
 
     #[tokio::test]
     async fn get() {
         let _ = ::pretty_env_logger::try_init();
-        let mut listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+        let listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
             .await
             .unwrap();
         let addr = listener.local_addr().unwrap();
@@ -2052,7 +2049,7 @@ mod conn {
 
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
-        let mut rt = Runtime::new().unwrap();
+        let rt = support::runtime();
 
         let (tx1, rx1) = oneshot::channel();
 
@@ -2090,7 +2087,7 @@ mod conn {
         });
 
         let rx = rx1.expect("thread panicked");
-        let rx = rx.then(|_| tokio::time::delay_for(Duration::from_millis(200)));
+        let rx = rx.then(|_| tokio::time::sleep(Duration::from_millis(200)));
         let chunk = rt.block_on(future::join(res, rx).map(|r| r.0)).unwrap();
         assert_eq!(chunk.len(), 5);
     }
@@ -2100,7 +2097,7 @@ mod conn {
         let _ = ::pretty_env_logger::try_init();
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
-        let mut rt = Runtime::new().unwrap();
+        let rt = support::runtime();
 
         let (tx, rx) = oneshot::channel();
         let server = thread::spawn(move || {
@@ -2127,7 +2124,7 @@ mod conn {
         let (mut sender, body) = Body::channel();
         let sender = thread::spawn(move || {
             sender.try_send_data("hello".into()).expect("try_send_data");
-            Runtime::new().unwrap().block_on(rx).unwrap();
+            support::runtime().block_on(rx).unwrap();
             sender.abort();
         });
 
@@ -2147,7 +2144,7 @@ mod conn {
     fn uri_absolute_form() {
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
-        let mut rt = Runtime::new().unwrap();
+        let rt = support::runtime();
 
         let (tx1, rx1) = oneshot::channel();
 
@@ -2185,7 +2182,7 @@ mod conn {
             concat(res)
         });
         let rx = rx1.expect("thread panicked");
-        let rx = rx.then(|_| tokio::time::delay_for(Duration::from_millis(200)));
+        let rx = rx.then(|_| tokio::time::sleep(Duration::from_millis(200)));
         rt.block_on(future::join(res, rx).map(|r| r.0)).unwrap();
     }
 
@@ -2193,7 +2190,7 @@ mod conn {
     fn http1_conn_coerces_http2_request() {
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
-        let mut rt = Runtime::new().unwrap();
+        let rt = support::runtime();
 
         let (tx1, rx1) = oneshot::channel();
 
@@ -2231,7 +2228,7 @@ mod conn {
             concat(res)
         });
         let rx = rx1.expect("thread panicked");
-        let rx = rx.then(|_| tokio::time::delay_for(Duration::from_millis(200)));
+        let rx = rx.then(|_| tokio::time::sleep(Duration::from_millis(200)));
         rt.block_on(future::join(res, rx).map(|r| r.0)).unwrap();
     }
 
@@ -2239,7 +2236,7 @@ mod conn {
     fn pipeline() {
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
-        let mut rt = Runtime::new().unwrap();
+        let rt = support::runtime();
 
         let (tx1, rx1) = oneshot::channel();
 
@@ -2283,20 +2280,18 @@ mod conn {
         });
 
         let rx = rx1.expect("thread panicked");
-        let rx = rx.then(|_| tokio::time::delay_for(Duration::from_millis(200)));
+        let rx = rx.then(|_| tokio::time::sleep(Duration::from_millis(200)));
         rt.block_on(future::join3(res1, res2, rx).map(|r| r.0))
             .unwrap();
     }
 
     #[test]
     fn upgrade() {
-        use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
         let _ = ::pretty_env_logger::try_init();
 
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
-        let mut rt = Runtime::new().unwrap();
+        let rt = support::runtime();
 
         let (tx1, rx1) = oneshot::channel();
 
@@ -2346,7 +2341,7 @@ mod conn {
             });
 
             let rx = rx1.expect("thread panicked");
-            let rx = rx.then(|_| tokio::time::delay_for(Duration::from_millis(200)));
+            let rx = rx.then(|_| tokio::time::sleep(Duration::from_millis(200)));
             rt.block_on(future::join3(until_upgrade, res, rx).map(|r| r.0))
                 .unwrap();
 
@@ -2379,13 +2374,11 @@ mod conn {
 
     #[test]
     fn connect_method() {
-        use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
         let _ = ::pretty_env_logger::try_init();
 
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
-        let mut rt = Runtime::new().unwrap();
+        let rt = support::runtime();
 
         let (tx1, rx1) = oneshot::channel();
 
@@ -2439,7 +2432,7 @@ mod conn {
                 });
 
             let rx = rx1.expect("thread panicked");
-            let rx = rx.then(|_| tokio::time::delay_for(Duration::from_millis(200)));
+            let rx = rx.then(|_| tokio::time::sleep(Duration::from_millis(200)));
             rt.block_on(future::join3(until_tunneled, res, rx).map(|r| r.0))
                 .unwrap();
 
@@ -2529,7 +2522,7 @@ mod conn {
         let _ = shdn_tx.send(());
 
         // Allow time for graceful shutdown roundtrips...
-        tokio::time::delay_for(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
 
         // After graceful shutdown roundtrips, the client should be closed...
         future::poll_fn(|ctx| client.poll_ready(ctx))
@@ -2541,7 +2534,7 @@ mod conn {
     async fn http2_keep_alive_detects_unresponsive_server() {
         let _ = pretty_env_logger::try_init();
 
-        let mut listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+        let listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
             .await
             .unwrap();
         let addr = listener.local_addr().unwrap();
@@ -2581,7 +2574,7 @@ mod conn {
 
         let _ = pretty_env_logger::try_init();
 
-        let mut listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+        let listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
             .await
             .unwrap();
         let addr = listener.local_addr().unwrap();
@@ -2606,7 +2599,7 @@ mod conn {
         });
 
         // sleep longer than keepalive would trigger
-        tokio::time::delay_for(Duration::from_secs(4)).await;
+        tokio::time::sleep(Duration::from_secs(4)).await;
 
         future::poll_fn(|ctx| client.poll_ready(ctx))
             .await
@@ -2617,7 +2610,7 @@ mod conn {
     async fn http2_keep_alive_closes_open_streams() {
         let _ = pretty_env_logger::try_init();
 
-        let mut listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+        let listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
             .await
             .unwrap();
         let addr = listener.local_addr().unwrap();
@@ -2667,7 +2660,7 @@ mod conn {
 
         let _ = pretty_env_logger::try_init();
 
-        let mut listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+        let listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
             .await
             .unwrap();
         let addr = listener.local_addr().unwrap();
@@ -2711,7 +2704,7 @@ mod conn {
         let _resp = client.send_request(req1).await.expect("send_request");
 
         // sleep longer than keepalive would trigger
-        tokio::time::delay_for(Duration::from_secs(4)).await;
+        tokio::time::sleep(Duration::from_secs(4)).await;
 
         future::poll_fn(|ctx| client.poll_ready(ctx))
             .await
@@ -2763,8 +2756,8 @@ mod conn {
         fn poll_read(
             mut self: Pin<&mut Self>,
             cx: &mut Context<'_>,
-            buf: &mut [u8],
-        ) -> Poll<Result<usize, io::Error>> {
+            buf: &mut ReadBuf<'_>,
+        ) -> Poll<io::Result<()>> {
             Pin::new(&mut self.tcp).poll_read(cx, buf)
         }
     }

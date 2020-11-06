@@ -382,7 +382,7 @@ mod tests {
     use super::*;
     use std::pin::Pin;
     use std::time::Duration;
-    use tokio::io::AsyncRead;
+    use tokio::io::{AsyncRead, ReadBuf};
 
     impl<'a> MemRead for &'a [u8] {
         fn read_mem(&mut self, _: &mut task::Context<'_>, len: usize) -> Poll<io::Result<Bytes>> {
@@ -401,8 +401,9 @@ mod tests {
     impl<'a> MemRead for &'a mut (dyn AsyncRead + Unpin) {
         fn read_mem(&mut self, cx: &mut task::Context<'_>, len: usize) -> Poll<io::Result<Bytes>> {
             let mut v = vec![0; len];
-            let n = ready!(Pin::new(self).poll_read(cx, &mut v)?);
-            Poll::Ready(Ok(Bytes::copy_from_slice(&v[..n])))
+            let mut buf = ReadBuf::new(&mut v);
+            ready!(Pin::new(self).poll_read(cx, &mut buf)?);
+            Poll::Ready(Ok(Bytes::copy_from_slice(&buf.filled())))
         }
     }
 
@@ -623,7 +624,7 @@ mod tests {
     #[cfg(feature = "nightly")]
     #[bench]
     fn bench_decode_chunked_1kb(b: &mut test::Bencher) {
-        let mut rt = new_runtime();
+        let rt = new_runtime();
 
         const LEN: usize = 1024;
         let mut vec = Vec::new();
@@ -647,7 +648,7 @@ mod tests {
     #[cfg(feature = "nightly")]
     #[bench]
     fn bench_decode_length_1kb(b: &mut test::Bencher) {
-        let mut rt = new_runtime();
+        let rt = new_runtime();
 
         const LEN: usize = 1024;
         let content = Bytes::from(&[0; LEN][..]);
@@ -665,9 +666,8 @@ mod tests {
 
     #[cfg(feature = "nightly")]
     fn new_runtime() -> tokio::runtime::Runtime {
-        tokio::runtime::Builder::new()
+        tokio::runtime::Builder::new_current_thread()
             .enable_all()
-            .basic_scheduler()
             .build()
             .expect("rt build")
     }
