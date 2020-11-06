@@ -592,6 +592,7 @@ where
     pub fn end_body(&mut self) -> Result<()> {
         debug_assert!(self.can_write_body());
 
+        let mut res = Ok(());
         let state = match self.state.writing {
             Writing::Body(ref mut encoder) => {
                 // end of stream, that means we should try to eof
@@ -600,16 +601,17 @@ where
                         if let Some(end) = end {
                             self.io.buffer(end);
                         }
-                        if encoder.is_last() {
+                        if encoder.is_last() || encoder.is_close_delimited() {
                             Writing::Closed
                         } else {
                             Writing::KeepAlive
                         }
                     }
                     Err(_not_eof) => {
-                        return Err(crate::Error::new_user_body(
+                        res = Err(crate::Error::new_user_body(
                             crate::Error::new_body_write_aborted(),
-                        ))
+                        ));
+                        Writing::Closed
                     }
                 }
             }
@@ -617,7 +619,7 @@ where
         };
 
         self.state.writing = state;
-        Ok(())
+        res
     }
 
     // When we get a parse error, depending on what side we are, we might be able
