@@ -2,6 +2,7 @@ use std::cell::Cell;
 use std::cmp;
 use std::fmt;
 use std::io::{self, IoSlice};
+use std::mem::MaybeUninit;
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
@@ -188,7 +189,9 @@ where
         if self.read_buf_remaining_mut() < next {
             self.read_buf.reserve(next);
         }
-        let mut buf = ReadBuf::uninit(&mut self.read_buf.bytes_mut()[..]);
+        let dst = self.read_buf.bytes_mut();
+        let dst = unsafe { &mut *(dst as *mut _ as *mut [MaybeUninit<u8>]) };
+        let mut buf = ReadBuf::uninit(dst);
         match Pin::new(&mut self.io).poll_read(cx, &mut buf) {
             Poll::Ready(Ok(_)) => {
                 let n = buf.filled().len();

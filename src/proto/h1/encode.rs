@@ -1,7 +1,7 @@
 use std::fmt;
 use std::io::IoSlice;
 
-use bytes::buf::ext::{BufExt, Chain, Take};
+use bytes::buf::{Chain, Take};
 use bytes::Buf;
 
 use super::io::WriteBuf;
