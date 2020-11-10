@@ -190,6 +190,8 @@ where
             self.read_buf.reserve(next);
         }
         let dst = self.read_buf.bytes_mut();
+        // Safety: `dst` may include uninitialized memory, but `ReadBuf` will
+        // never uninitialize memory that has already been initialized.
         let dst = unsafe { &mut *(dst as *mut _ as *mut [MaybeUninit<u8>]) };
         let mut buf = ReadBuf::uninit(dst);
         match Pin::new(&mut self.io).poll_read(cx, &mut buf) {
