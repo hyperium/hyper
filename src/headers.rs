@@ -1,6 +1,7 @@
 use bytes::BytesMut;
 use http::header::{HeaderValue, OccupiedEntry, ValueIter};
 use http::header::{CONTENT_LENGTH, TRANSFER_ENCODING};
+#[cfg(feature = "http2")]
 use http::method::Method;
 use http::HeaderMap;
 
@@ -58,6 +59,7 @@ pub fn content_length_parse_all_values(values: ValueIter<'_, HeaderValue>) -> Op
     }
 }
 
+#[cfg(feature = "http2")]
 pub fn method_has_defined_payload_semantics(method: &Method) -> bool {
     match *method {
         Method::GET | Method::HEAD | Method::DELETE | Method::CONNECT => false,
@@ -65,6 +67,7 @@ pub fn method_has_defined_payload_semantics(method: &Method) -> bool {
     }
 }
 
+#[cfg(feature = "http2")]
 pub fn set_content_length_if_missing(headers: &mut HeaderMap, len: u64) {
     headers
         .entry(CONTENT_LENGTH)

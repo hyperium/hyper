@@ -31,7 +31,7 @@ http = "0.2"
 http-body = "0.3.1"
 httpdate = "0.3"
 httparse = "1.0"
-h2 = { git = "https://github.com/hyperium/h2" }
+h2 = { git = "https://github.com/hyperium/h2", optional = true }
 itoa = "0.4.1"
 tracing = { version = "0.1", default-features = false, features = ["log", "std"] }
 pin-project = "1.0"
@@ -56,6 +56,7 @@ tokio = { version = "0.3", features = [
     "fs",
     "macros",
     "io-std",
+    "io-util",
     "rt",
     "rt-multi-thread", # so examples can use #[tokio::main]
     "sync",
@@ -73,7 +74,16 @@ pnet = "0.25.0"
 [features]
 default = [
     "runtime",
-    "stream"
+    "stream",
+
+    #"http1",
+    "http2",
+]
+full = [
+    #"http1",
+    "http2",
+    "stream",
+    "runtime",
 ]
 runtime = [
     "tcp",
@@ -86,6 +96,10 @@ tcp = [
     "tokio/time",
 ]
 
+# HTTP versions
+#http1 = []
+http2 = ["h2"]
+
 # `impl Stream` for things
 stream = []
 
@@ -94,10 +108,11 @@ nightly = []
 __internal_happy_eyeballs_tests = []
 
 [package.metadata.docs.rs]
-features = [
-    "runtime",
-    "stream",
-]
+features = ["full"]
+rustdoc-args = ["--cfg", "docsrs"]
+
+[package.metadata.playground]
+features = ["full"]
 
 [profile.release]
 codegen-units = 1

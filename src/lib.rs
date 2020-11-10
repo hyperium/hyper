@@ -56,6 +56,8 @@ pub use crate::error::{Error, Result};
 pub use crate::server::Server;
 
 #[macro_use]
+mod cfg;
+#[macro_use]
 mod common;
 pub mod body;
 pub mod client;

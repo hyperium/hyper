@@ -10,7 +10,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::{decode_content_length, ping, PipeToSendStream, SendBuf};
 use crate::body::HttpBody;
-use crate::common::exec::H2Exec;
+use crate::common::exec::ConnStreamExec;
 use crate::common::{task, Future, Pin, Poll};
 use crate::headers;
 use crate::proto::Dispatched;
@@ -95,7 +95,7 @@ where
     S: HttpService<Body, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: HttpBody + 'static,
-    E: H2Exec<S::Future, B>,
+    E: ConnStreamExec<S::Future, B>,
 {
     pub(crate) fn new(io: T, service: S, config: &Config, exec: E) -> Server<T, S, B, E> {
         let mut builder = h2::server::Builder::default();
@@ -162,7 +162,7 @@ where
     S: HttpService<Body, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: HttpBody + 'static,
-    E: H2Exec<S::Future, B>,
+    E: ConnStreamExec<S::Future, B>,
 {
     type Output = crate::Result<Dispatched>;
 
@@ -216,7 +216,7 @@ where
     where
         S: HttpService<Body, ResBody = B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
-        E: H2Exec<S::Future, B>,
+        E: ConnStreamExec<S::Future, B>,
     {
         if self.closing.is_none() {
             loop {
