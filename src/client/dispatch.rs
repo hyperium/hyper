@@ -1,8 +1,10 @@
-use futures_util::future;
+#[cfg(feature = "http2")]
+use std::future::Future;
+
 use tokio::stream::Stream;
 use tokio::sync::{mpsc, oneshot};
 
-use crate::common::{task, Future, Pin, Poll};
+use crate::common::{task, Pin, Poll};
 
 pub type RetryPromise<T, U> = oneshot::Receiver<Result<U, (crate::Error, Option<T>)>>;
 pub type Promise<T> = oneshot::Receiver<Result<T, crate::Error>>;
@@ -41,6 +43,7 @@ pub struct Sender<T, U> {
 ///
 /// Cannot poll the Giver, but can still use it to determine if the Receiver
 /// has been dropped. However, this version can be cloned.
+#[cfg(feature = "http2")]
 pub struct UnboundedSender<T, U> {
     /// Only used for `is_closed`, since mpsc::UnboundedSender cannot be checked.
     giver: want::SharedGiver,
@@ -97,6 +100,7 @@ impl<T, U> Sender<T, U> {
             .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
     }
 
+    #[cfg(feature = "http2")]
     pub fn unbound(self) -> UnboundedSender<T, U> {
         UnboundedSender {
             giver: self.giver.shared(),
@@ -105,6 +109,7 @@ impl<T, U> Sender<T, U> {
     }
 }
 
+#[cfg(feature = "http2")]
 impl<T, U> UnboundedSender<T, U> {
     pub fn is_ready(&self) -> bool {
         !self.giver.is_canceled()
@@ -123,6 +128,7 @@ impl<T, U> UnboundedSender<T, U> {
     }
 }
 
+#[cfg(feature = "http2")]
 impl<T, U> Clone for UnboundedSender<T, U> {
     fn clone(&self) -> Self {
         UnboundedSender {
@@ -197,6 +203,7 @@ pub enum Callback<T, U> {
 }
 
 impl<T, U> Callback<T, U> {
+    #[cfg(feature = "http2")]
     pub(crate) fn is_canceled(&self) -> bool {
         match *self {
             Callback::Retry(ref tx) => tx.is_closed(),
@@ -222,10 +229,13 @@ impl<T, U> Callback<T, U> {
         }
     }
 
+    #[cfg(feature = "http2")]
     pub(crate) fn send_when(
         self,
         mut when: impl Future<Output = Result<U, (crate::Error, Option<T>)>> + Unpin,
     ) -> impl Future<Output = ()> {
+        use futures_util::future;
+
         let mut cb = Some(self);
 
         // "select" on this callback being canceled, and the future completing
@@ -330,6 +340,7 @@ mod tests {
         let _ = tx.try_send(Custom(2)).expect("2 ready");
     }
 
+    #[cfg(feature = "http2")]
     #[test]
     fn unbounded_sender_doesnt_bound_on_want() {
         let (tx, rx) = channel::<Custom, ()>();

@@ -70,7 +70,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use self::accept::Accept;
 use crate::body::{Body, HttpBody};
-use crate::common::exec::{Exec, H2Exec, NewSvcExec};
+use crate::common::exec::{ConnStreamExec, Exec, NewSvcExec};
 use crate::common::{task, Future, Pin, Poll, Unpin};
 use crate::service::{HttpService, MakeServiceRef};
 // Renamed `Http` as `Http_` for now so that people upgrading don't see an
@@ -154,7 +154,7 @@ where
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: HttpBody + Send + Sync + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
-    E: H2Exec<<S::Service as HttpService<Body>>::Future, B>,
+    E: ConnStreamExec<<S::Service as HttpService<Body>>::Future, B>,
     E: NewSvcExec<IO, S::Future, S::Service, E, GracefulWatcher>,
 {
     /// Prepares a server to handle graceful shutdown when the provided future
@@ -210,7 +210,7 @@ where
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: HttpBody + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
-    E: H2Exec<<S::Service as HttpService<Body>>::Future, B>,
+    E: ConnStreamExec<<S::Service as HttpService<Body>>::Future, B>,
     E: NewSvcExec<IO, S::Future, S::Service, E, NoopWatcher>,
 {
     type Output = crate::Result<()>;
@@ -307,6 +307,8 @@ impl<I, E> Builder<I, E> {
     /// Sets whether HTTP/2 is required.
     ///
     /// Default is `false`.
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_only(mut self, val: bool) -> Self {
         self.protocol.http2_only(val);
         self
@@ -320,6 +322,8 @@ impl<I, E> Builder<I, E> {
     /// If not set, hyper will use a default.
     ///
     /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_INITIAL_WINDOW_SIZE
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_initial_stream_window_size(mut self, sz: impl Into<Option<u32>>) -> Self {
         self.protocol.http2_initial_stream_window_size(sz.into());
         self
@@ -330,6 +334,8 @@ impl<I, E> Builder<I, E> {
     /// Passing `None` will do nothing.
     ///
     /// If not set, hyper will use a default.
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_initial_connection_window_size(mut self, sz: impl Into<Option<u32>>) -> Self {
         self.protocol
             .http2_initial_connection_window_size(sz.into());
@@ -341,6 +347,8 @@ impl<I, E> Builder<I, E> {
     /// Enabling this will override the limits set in
     /// `http2_initial_stream_window_size` and
     /// `http2_initial_connection_window_size`.
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_adaptive_window(mut self, enabled: bool) -> Self {
         self.protocol.http2_adaptive_window(enabled);
         self
@@ -351,6 +359,8 @@ impl<I, E> Builder<I, E> {
     /// Passing `None` will do nothing.
     ///
     /// If not set, hyper will use a default.
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_max_frame_size(mut self, sz: impl Into<Option<u32>>) -> Self {
         self.protocol.http2_max_frame_size(sz);
         self
@@ -362,6 +372,8 @@ impl<I, E> Builder<I, E> {
     /// Default is no limit (`std::u32::MAX`). Passing `None` will do nothing.
     ///
     /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_MAX_CONCURRENT_STREAMS
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_max_concurrent_streams(mut self, max: impl Into<Option<u32>>) -> Self {
         self.protocol.http2_max_concurrent_streams(max.into());
         self
@@ -378,6 +390,8 @@ impl<I, E> Builder<I, E> {
     ///
     /// Requires the `runtime` cargo feature to be enabled.
     #[cfg(feature = "runtime")]
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_keep_alive_interval(mut self, interval: impl Into<Option<Duration>>) -> Self {
         self.protocol.http2_keep_alive_interval(interval);
         self
@@ -394,6 +408,8 @@ impl<I, E> Builder<I, E> {
     ///
     /// Requires the `runtime` cargo feature to be enabled.
     #[cfg(feature = "runtime")]
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_keep_alive_timeout(mut self, timeout: Duration) -> Self {
         self.protocol.http2_keep_alive_timeout(timeout);
         self
@@ -449,7 +465,7 @@ impl<I, E> Builder<I, E> {
         B: HttpBody + 'static,
         B::Error: Into<Box<dyn StdError + Send + Sync>>,
         E: NewSvcExec<I::Conn, S::Future, S::Service, E, NoopWatcher>,
-        E: H2Exec<<S::Service as HttpService<Body>>::Future, B>,
+        E: ConnStreamExec<<S::Service as HttpService<Body>>::Future, B>,
     {
         let serve = self.protocol.serve(self.incoming, new_service);
         let spawn_all = serve.spawn_all();

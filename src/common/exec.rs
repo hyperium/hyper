@@ -4,6 +4,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use crate::body::{Body, HttpBody};
+#[cfg(feature = "http2")]
 use crate::proto::h2::server::H2Stream;
 use crate::server::conn::spawn_all::{NewSvcTask, Watcher};
 use crate::service::HttpService;
@@ -14,7 +15,7 @@ pub trait Executor<Fut> {
     fn execute(&self, fut: Fut);
 }
 
-pub trait H2Exec<F, B: HttpBody>: Clone {
+pub trait ConnStreamExec<F, B: HttpBody>: Clone {
     fn execute_h2stream(&mut self, fut: H2Stream<F, B>);
 }
 
@@ -64,7 +65,7 @@ impl fmt::Debug for Exec {
     }
 }
 
-impl<F, B> H2Exec<F, B> for Exec
+impl<F, B> ConnStreamExec<F, B> for Exec
 where
     H2Stream<F, B>: Future<Output = ()> + Send + 'static,
     B: HttpBody,
@@ -87,7 +88,7 @@ where
 
 // ==== impl Executor =====
 
-impl<E, F, B> H2Exec<F, B> for E
+impl<E, F, B> ConnStreamExec<F, B> for E
 where
     E: Executor<H2Stream<F, B>> + Clone,
     H2Stream<F, B>: Future<Output = ()>,
@@ -107,5 +108,32 @@ where
 {
     fn execute_new_svc(&mut self, fut: NewSvcTask<I, N, S, E, W>) {
         self.execute(fut)
+    }
+}
+
+// If http2 is not enable, we just have a stub here, so that the trait bounds
+// that *would* have been needed are still checked. Why?
+//
+// Because enabling `http2` shouldn't suddenly add new trait bounds that cause
+// a compilation error.
+#[cfg(not(feature = "http2"))]
+#[allow(missing_debug_implementations)]
+pub struct H2Stream<F, B>(std::marker::PhantomData<(F, B)>);
+
+#[cfg(not(feature = "http2"))]
+impl<F, B, E> Future for H2Stream<F, B>
+where
+    F: Future<Output = Result<http::Response<B>, E>>,
+    B: HttpBody,
+    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+    E: Into<Box<dyn std::error::Error + Send + Sync>>,
+{
+    type Output = ();
+
+    fn poll(
+        self: Pin<&mut Self>,
+        _cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        unreachable!()
     }
 }

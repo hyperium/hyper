@@ -14,6 +14,7 @@ use http_body::{Body as HttpBody, SizeHint};
 #[cfg(feature = "stream")]
 use crate::common::sync_wrapper::SyncWrapper;
 use crate::common::{task, watch, Future, Never, Pin, Poll};
+#[cfg(feature = "http2")]
 use crate::proto::h2::ping;
 use crate::proto::DecodedLength;
 use crate::upgrade::OnUpgrade;
@@ -39,6 +40,7 @@ enum Kind {
         want_tx: watch::Sender,
         rx: mpsc::Receiver<Result<Bytes, crate::Error>>,
     },
+    #[cfg(feature = "http2")]
     H2 {
         ping: ping::Recorder,
         content_length: DecodedLength,
@@ -186,6 +188,7 @@ impl Body {
         Body { kind, extra: None }
     }
 
+    #[cfg(feature = "http2")]
     pub(crate) fn h2(
         recv: h2::RecvStream,
         content_length: DecodedLength,
@@ -273,6 +276,7 @@ impl Body {
                     None => Poll::Ready(None),
                 }
             }
+            #[cfg(feature = "http2")]
             Kind::H2 {
                 ref ping,
                 recv: ref mut h2,
@@ -325,10 +329,11 @@ impl HttpBody for Body {
     }
 
     fn poll_trailers(
-        mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
+        #[cfg_attr(not(feature = "http2"), allow(unused_mut))] mut self: Pin<&mut Self>,
+        #[cfg_attr(not(feature = "http2"), allow(unused))] cx: &mut task::Context<'_>,
     ) -> Poll<Result<Option<HeaderMap>, Self::Error>> {
         match self.kind {
+            #[cfg(feature = "http2")]
             Kind::H2 {
                 recv: ref mut h2,
                 ref ping,
@@ -348,6 +353,7 @@ impl HttpBody for Body {
         match self.kind {
             Kind::Once(ref val) => val.is_none(),
             Kind::Chan { content_length, .. } => content_length == DecodedLength::ZERO,
+            #[cfg(feature = "http2")]
             Kind::H2 { recv: ref h2, .. } => h2.is_end_stream(),
             #[cfg(feature = "stream")]
             Kind::Wrapped(..) => false,
@@ -355,20 +361,26 @@ impl HttpBody for Body {
     }
 
     fn size_hint(&self) -> SizeHint {
+        macro_rules! opt_len {
+            ($content_length:expr) => {{
+                let mut hint = SizeHint::default();
+
+                if let Some(content_length) = $content_length.into_opt() {
+                    hint.set_exact(content_length);
+                }
+
+                hint
+            }};
+        }
+
         match self.kind {
             Kind::Once(Some(ref val)) => SizeHint::with_exact(val.len() as u64),
             Kind::Once(None) => SizeHint::with_exact(0),
             #[cfg(feature = "stream")]
             Kind::Wrapped(..) => SizeHint::default(),
-            Kind::Chan { content_length, .. } | Kind::H2 { content_length, .. } => {
-                let mut hint = SizeHint::default();
-
-                if let Some(content_length) = content_length.into_opt() {
-                    hint.set_exact(content_length);
-                }
-
-                hint
-            }
+            Kind::Chan { content_length, .. } => opt_len!(content_length),
+            #[cfg(feature = "http2")]
+            Kind::H2 { content_length, .. } => opt_len!(content_length),
         }
     }
 }
