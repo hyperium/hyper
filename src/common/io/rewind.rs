@@ -14,6 +14,7 @@ pub(crate) struct Rewind<T> {
 }
 
 impl<T> Rewind<T> {
+    #[cfg(any(feature = "http2", test))]
     pub(crate) fn new(io: T) -> Self {
         Rewind {
             pre: None,
@@ -28,6 +29,7 @@ impl<T> Rewind<T> {
         }
     }
 
+    #[cfg(any(feature = "http2", test))]
     pub(crate) fn rewind(&mut self, bs: Bytes) {
         debug_assert!(self.pre.is_none());
         self.pre = Some(bs);

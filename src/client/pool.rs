@@ -45,6 +45,7 @@ pub(super) enum Reservation<T> {
     /// This connection could be used multiple times, the first one will be
     /// reinserted into the `idle` pool, and the second will be given to
     /// the `Checkout`.
+    #[cfg(feature = "http2")]
     Shared(T, T),
     /// This connection requires unique access. It will be returned after
     /// use is complete.
@@ -199,9 +200,14 @@ impl<T: Poolable> Pool<T> {
     }
     */
 
-    pub(super) fn pooled(&self, mut connecting: Connecting<T>, value: T) -> Pooled<T> {
+    pub(super) fn pooled(
+        &self,
+        #[cfg_attr(not(feature = "http2"), allow(unused_mut))] mut connecting: Connecting<T>,
+        value: T,
+    ) -> Pooled<T> {
         let (value, pool_ref) = if let Some(ref enabled) = self.inner {
             match value.reserve() {
+                #[cfg(feature = "http2")]
                 Reservation::Shared(to_insert, to_return) => {
                     let mut inner = enabled.lock().unwrap();
                     inner.put(connecting.key.clone(), to_insert, enabled);
@@ -291,6 +297,7 @@ impl<'a, T: Poolable + 'a> IdlePopper<'a, T> {
             }
 
             let value = match entry.value.reserve() {
+                #[cfg(feature = "http2")]
                 Reservation::Shared(to_reinsert, to_checkout) => {
                     self.list.push(Idle {
                         idle_at: Instant::now(),
@@ -325,6 +332,7 @@ impl<T: Poolable> PoolInner<T> {
                 if !tx.is_canceled() {
                     let reserved = value.take().expect("value already sent");
                     let reserved = match reserved.reserve() {
+                        #[cfg(feature = "http2")]
                         Reservation::Shared(to_keep, to_send) => {
                             value = Some(to_keep);
                             to_send

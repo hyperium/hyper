@@ -3,6 +3,7 @@ use std::fmt::{self, Write};
 use std::str;
 use std::time::{Duration, SystemTime};
 
+#[cfg(feature = "http2")]
 use http::header::HeaderValue;
 use httpdate::HttpDate;
 
@@ -21,6 +22,7 @@ pub fn update() {
     })
 }
 
+#[cfg(feature = "http2")]
 pub(crate) fn update_and_header_value() -> HeaderValue {
     CACHED.with(|cache| {
         let mut cache = cache.borrow_mut();

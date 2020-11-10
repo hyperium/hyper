@@ -7,7 +7,7 @@ use super::conn::{SpawnAll, UpgradeableConnection, Watcher};
 use super::Accept;
 use crate::body::{Body, HttpBody};
 use crate::common::drain::{self, Draining, Signal, Watch, Watching};
-use crate::common::exec::{H2Exec, NewSvcExec};
+use crate::common::exec::{ConnStreamExec, NewSvcExec};
 use crate::common::{task, Future, Pin, Poll, Unpin};
 use crate::service::{HttpService, MakeServiceRef};
 
@@ -53,7 +53,7 @@ where
     B: HttpBody + Send + Sync + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
     F: Future<Output = ()>,
-    E: H2Exec<<S::Service as HttpService<Body>>::Future, B>,
+    E: ConnStreamExec<<S::Service as HttpService<Body>>::Future, B>,
     E: NewSvcExec<IO, S::Future, S::Service, E, GracefulWatcher>,
 {
     type Output = crate::Result<()>;
@@ -96,7 +96,7 @@ impl<I, S, E> Watcher<I, S, E> for GracefulWatcher
 where
     I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     S: HttpService<Body>,
-    E: H2Exec<S::Future, S::ResBody>,
+    E: ConnStreamExec<S::Future, S::ResBody>,
     S::ResBody: Send + Sync + 'static,
     <S::ResBody as HttpBody>::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
@@ -115,7 +115,7 @@ where
     I: AsyncRead + AsyncWrite + Unpin,
     S::ResBody: HttpBody + Send + 'static,
     <S::ResBody as HttpBody>::Error: Into<Box<dyn StdError + Send + Sync>>,
-    E: H2Exec<S::Future, S::ResBody>,
+    E: ConnStreamExec<S::Future, S::ResBody>,
 {
     conn.graceful_shutdown()
 }

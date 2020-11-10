@@ -5,7 +5,9 @@ pub(crate) use self::body_length::DecodedLength;
 pub(crate) use self::h1::{dispatch, Conn, ServerTransaction};
 
 pub(crate) mod h1;
-pub(crate) mod h2;
+cfg_http2! {
+    pub(crate) mod h2;
+}
 
 /// An Incoming Message head. Includes request/status line, and headers.
 #[derive(Clone, Debug, Default, PartialEq)]

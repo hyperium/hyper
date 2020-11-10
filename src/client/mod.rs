@@ -460,6 +460,9 @@ where
     ) -> impl Lazy<Output = crate::Result<Pooled<PoolClient<B>>>> + Unpin {
         let executor = self.conn_builder.exec.clone();
         let pool = self.pool.clone();
+        #[cfg(not(feature = "http2"))]
+        let conn_builder = self.conn_builder.clone();
+        #[cfg(feature = "http2")]
         let mut conn_builder = self.conn_builder.clone();
         let ver = self.config.ver;
         let is_ver_h2 = ver == Ver::Http2;
@@ -505,10 +508,16 @@ where
                         } else {
                             connecting
                         };
+
+                        #[cfg_attr(not(feature = "http2"), allow(unused))]
                         let is_h2 = is_ver_h2 || connected.alpn == Alpn::H2;
+                        #[cfg(feature = "http2")]
+                        {
+                            conn_builder.http2_only(is_h2);
+                        }
+
                         Either::Left(Box::pin(
                             conn_builder
-                                .http2_only(is_h2)
                                 .handshake(io)
                                 .and_then(move |(tx, conn)| {
                                     trace!(
@@ -524,15 +533,23 @@ where
                                     tx.when_ready()
                                 })
                                 .map_ok(move |tx| {
+                                    let tx = {
+                                        #[cfg(feature = "http2")]
+                                        {
+                                            if is_h2 {
+                                                PoolTx::Http2(tx.into_http2())
+                                            } else {
+                                                PoolTx::Http1(tx)
+                                            }
+                                        }
+                                        #[cfg(not(feature = "http2"))]
+                                        PoolTx::Http1(tx)
+                                    };
                                     pool.pooled(
                                         connecting,
                                         PoolClient {
                                             conn_info: connected,
-                                            tx: if is_h2 {
-                                                PoolTx::Http2(tx.into_http2())
-                                            } else {
-                                                PoolTx::Http1(tx)
-                                            },
+                                            tx,
                                         },
                                     )
                                 }),
@@ -640,6 +657,7 @@ struct PoolClient<B> {
 
 enum PoolTx<B> {
     Http1(conn::SendRequest<B>),
+    #[cfg(feature = "http2")]
     Http2(conn::Http2SendRequest<B>),
 }
 
@@ -647,6 +665,7 @@ impl<B> PoolClient<B> {
     fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
         match self.tx {
             PoolTx::Http1(ref mut tx) => tx.poll_ready(cx),
+            #[cfg(feature = "http2")]
             PoolTx::Http2(_) => Poll::Ready(Ok(())),
         }
     }
@@ -658,6 +677,7 @@ impl<B> PoolClient<B> {
     fn is_http2(&self) -> bool {
         match self.tx {
             PoolTx::Http1(_) => false,
+            #[cfg(feature = "http2")]
             PoolTx::Http2(_) => true,
         }
     }
@@ -665,6 +685,7 @@ impl<B> PoolClient<B> {
     fn is_ready(&self) -> bool {
         match self.tx {
             PoolTx::Http1(ref tx) => tx.is_ready(),
+            #[cfg(feature = "http2")]
             PoolTx::Http2(ref tx) => tx.is_ready(),
         }
     }
@@ -672,6 +693,7 @@ impl<B> PoolClient<B> {
     fn is_closed(&self) -> bool {
         match self.tx {
             PoolTx::Http1(ref tx) => tx.is_closed(),
+            #[cfg(feature = "http2")]
             PoolTx::Http2(ref tx) => tx.is_closed(),
         }
     }
@@ -686,7 +708,11 @@ impl<B: HttpBody + 'static> PoolClient<B> {
         B: Send,
     {
         match self.tx {
+            #[cfg(not(feature = "http2"))]
+            PoolTx::Http1(ref mut tx) => tx.send_request_retryable(req),
+            #[cfg(feature = "http2")]
             PoolTx::Http1(ref mut tx) => Either::Left(tx.send_request_retryable(req)),
+            #[cfg(feature = "http2")]
             PoolTx::Http2(ref mut tx) => Either::Right(tx.send_request_retryable(req)),
         }
     }
@@ -699,6 +725,7 @@ where
     fn is_open(&self) -> bool {
         match self.tx {
             PoolTx::Http1(ref tx) => tx.is_ready(),
+            #[cfg(feature = "http2")]
             PoolTx::Http2(ref tx) => tx.is_ready(),
         }
     }
@@ -709,6 +736,7 @@ where
                 conn_info: self.conn_info,
                 tx: PoolTx::Http1(tx),
             }),
+            #[cfg(feature = "http2")]
             PoolTx::Http2(tx) => {
                 let b = PoolClient {
                     conn_info: self.conn_info.clone(),
@@ -1020,6 +1048,8 @@ impl Builder {
     /// Note that setting this to true prevents HTTP/1 from being allowed.
     ///
     /// Default is false.
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_only(&mut self, val: bool) -> &mut Self {
         self.client_config.ver = if val { Ver::Http2 } else { Ver::Auto };
         self
@@ -1033,6 +1063,8 @@ impl Builder {
     /// If not set, hyper will use a default.
     ///
     /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_INITIAL_WINDOW_SIZE
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_initial_stream_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
         self.conn_builder
             .http2_initial_stream_window_size(sz.into());
@@ -1044,6 +1076,8 @@ impl Builder {
     /// Passing `None` will do nothing.
     ///
     /// If not set, hyper will use a default.
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_initial_connection_window_size(
         &mut self,
         sz: impl Into<Option<u32>>,
@@ -1058,6 +1092,8 @@ impl Builder {
     /// Enabling this will override the limits set in
     /// `http2_initial_stream_window_size` and
     /// `http2_initial_connection_window_size`.
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_adaptive_window(&mut self, enabled: bool) -> &mut Self {
         self.conn_builder.http2_adaptive_window(enabled);
         self
@@ -1068,6 +1104,8 @@ impl Builder {
     /// Passing `None` will do nothing.
     ///
     /// If not set, hyper will use a default.
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_max_frame_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
         self.conn_builder.http2_max_frame_size(sz);
         self
@@ -1084,6 +1122,8 @@ impl Builder {
     ///
     /// Requires the `runtime` cargo feature to be enabled.
     #[cfg(feature = "runtime")]
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_keep_alive_interval(
         &mut self,
         interval: impl Into<Option<Duration>>,
@@ -1103,6 +1143,8 @@ impl Builder {
     ///
     /// Requires the `runtime` cargo feature to be enabled.
     #[cfg(feature = "runtime")]
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_keep_alive_timeout(&mut self, timeout: Duration) -> &mut Self {
         self.conn_builder.http2_keep_alive_timeout(timeout);
         self
@@ -1121,6 +1163,8 @@ impl Builder {
     ///
     /// Requires the `runtime` cargo feature to be enabled.
     #[cfg(feature = "runtime")]
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_keep_alive_while_idle(&mut self, enabled: bool) -> &mut Self {
         self.conn_builder.http2_keep_alive_while_idle(enabled);
         self

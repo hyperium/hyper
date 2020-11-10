@@ -49,6 +49,7 @@ pub(crate) enum Kind {
     Shutdown,
 
     /// A general error from h2.
+    #[cfg(feature = "http2")]
     Http2,
 }
 
@@ -175,6 +176,7 @@ impl Error {
         None
     }
 
+    #[cfg(feature = "http2")]
     pub(crate) fn h2_reason(&self) -> h2::Reason {
         // Find an h2::Reason somewhere in the cause stack, if it exists,
         // otherwise assume an INTERNAL_ERROR.
@@ -284,6 +286,7 @@ impl Error {
         Error::new(Kind::Shutdown).with(cause)
     }
 
+    #[cfg(feature = "http2")]
     pub(crate) fn new_h2(cause: ::h2::Error) -> Error {
         if cause.is_io() {
             Error::new_io(cause.into_io().expect("h2::Error::is_io"))
@@ -313,6 +316,7 @@ impl Error {
             Kind::BodyWrite => "error writing a body to connection",
             Kind::BodyWriteAborted => "body write aborted",
             Kind::Shutdown => "error shutting down connection",
+            #[cfg(feature = "http2")]
             Kind::Http2 => "http2 error",
             Kind::Io => "connection error",
 
@@ -432,18 +436,21 @@ mod tests {
         assert_eq!(mem::size_of::<Error>(), mem::size_of::<usize>());
     }
 
+    #[cfg(feature = "http2")]
     #[test]
     fn h2_reason_unknown() {
         let closed = Error::new_closed();
         assert_eq!(closed.h2_reason(), h2::Reason::INTERNAL_ERROR);
     }
 
+    #[cfg(feature = "http2")]
     #[test]
     fn h2_reason_one_level() {
         let body_err = Error::new_user_body(h2::Error::from(h2::Reason::ENHANCE_YOUR_CALM));
         assert_eq!(body_err.h2_reason(), h2::Reason::ENHANCE_YOUR_CALM);
     }
 
+    #[cfg(feature = "http2")]
     #[test]
     fn h2_reason_nested() {
         let recvd = Error::new_h2(h2::Error::from(h2::Reason::HTTP_1_1_REQUIRED));
