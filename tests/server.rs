@@ -1078,6 +1078,7 @@ async fn nonempty_parse_eof_returns_error() {
         .expect_err("partial parse eof is error");
 }
 
+#[cfg(feature = "http1")]
 #[tokio::test]
 async fn http1_allow_half_close() {
     let _ = pretty_env_logger::try_init();
@@ -1111,6 +1112,7 @@ async fn http1_allow_half_close() {
     t1.join().expect("client thread");
 }
 
+#[cfg(feature = "http1")]
 #[tokio::test]
 async fn disconnect_after_reading_request_before_responding() {
     let _ = pretty_env_logger::try_init();
@@ -1524,18 +1526,22 @@ async fn illegal_request_length_returns_400_response() {
         .expect_err("illegal Content-Length should error");
 }
 
+#[cfg(feature = "http1")]
 #[test]
 #[should_panic]
 fn max_buf_size_panic_too_small() {
     const MAX: usize = 8191;
     Http::new().max_buf_size(MAX);
 }
+
+#[cfg(feature = "http1")]
 #[test]
 fn max_buf_size_no_panic() {
     const MAX: usize = 8193;
     Http::new().max_buf_size(MAX);
 }
 
+#[cfg(feature = "http1")]
 #[tokio::test]
 async fn max_buf_size() {
     let _ = pretty_env_logger::try_init();
@@ -2277,7 +2283,7 @@ impl ServeOptions {
 
     fn serve(self) -> Serve {
         let _ = pretty_env_logger::try_init();
-        let options = self;
+        let _options = self;
 
         let (addr_tx, addr_rx) = mpsc::channel();
         let (msg_tx, msg_rx) = mpsc::channel();
@@ -2306,11 +2312,15 @@ impl ServeOptions {
                             })
                         });
 
-                        let server = Server::bind(&addr)
-                            .http1_only(options.http1_only)
-                            .http1_keepalive(options.keep_alive)
-                            .http1_pipeline_flush(options.pipeline)
-                            .serve(service);
+                        let builder = Server::bind(&addr);
+
+                        #[cfg(feature = "http1")]
+                        let builder = builder
+                            .http1_only(_options.http1_only)
+                            .http1_keepalive(_options.keep_alive)
+                            .http1_pipeline_flush(_options.pipeline);
+
+                        let server = builder.serve(service);
 
                         addr_tx.send(server.local_addr()).expect("server addr tx");
 

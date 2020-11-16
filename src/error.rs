@@ -1,7 +1,6 @@
 //! Error and Result module.
 use std::error::Error as StdError;
 use std::fmt;
-use std::io;
 
 /// Result type often returned from methods that can have hyper `Error`s.
 pub type Result<T> = std::result::Result<T, Error>;
@@ -25,27 +24,33 @@ pub(crate) enum Kind {
     /// A message reached EOF, but is not complete.
     IncompleteMessage,
     /// A connection received a message (or bytes) when not waiting for one.
+    #[cfg(feature = "http1")]
     UnexpectedMessage,
     /// A pending item was dropped before ever being processed.
     Canceled,
     /// Indicates a channel (client or body sender) is closed.
     ChannelClosed,
     /// An `io::Error` that occurred while trying to read or write to a network stream.
+    #[cfg(any(feature = "http1", feature = "http2"))]
     Io,
     /// Error occurred while connecting.
     Connect,
     /// Error creating a TcpListener.
-    #[cfg(feature = "tcp")]
+    #[cfg(all(any(feature = "http1", feature = "http2"), feature = "tcp"))]
     Listen,
     /// Error accepting on an Incoming stream.
+    #[cfg(any(feature = "http1", feature = "http2"))]
     Accept,
     /// Error while reading a body from connection.
+    #[cfg(any(feature = "http1", feature = "http2"))]
     Body,
     /// Error while writing a body to connection.
+    #[cfg(any(feature = "http1", feature = "http2"))]
     BodyWrite,
     /// The body write was aborted.
     BodyWriteAborted,
     /// Error calling AsyncWrite::shutdown()
+    #[cfg(feature = "http1")]
     Shutdown,
 
     /// A general error from h2.
@@ -57,6 +62,7 @@ pub(crate) enum Kind {
 pub(crate) enum Parse {
     Method,
     Version,
+    #[cfg(feature = "http1")]
     VersionH2,
     Uri,
     Header,
@@ -67,28 +73,37 @@ pub(crate) enum Parse {
 #[derive(Debug, PartialEq)]
 pub(crate) enum User {
     /// Error calling user's HttpBody::poll_data().
+    #[cfg(any(feature = "http1", feature = "http2"))]
     Body,
     /// Error calling user's MakeService.
+    #[cfg(any(feature = "http1", feature = "http2"))]
     MakeService,
     /// Error from future of user's Service.
+    #[cfg(any(feature = "http1", feature = "http2"))]
     Service,
     /// User tried to send a certain header in an unexpected context.
     ///
     /// For example, sending both `content-length` and `transfer-encoding`.
+    #[cfg(feature = "http1")]
     UnexpectedHeader,
     /// User tried to create a Request with bad version.
+    #[cfg(any(feature = "http1", feature = "http2"))]
     UnsupportedVersion,
     /// User tried to create a CONNECT Request with the Client.
+    #[cfg(any(feature = "http1", feature = "http2"))]
     UnsupportedRequestMethod,
     /// User tried to respond with a 1xx (not 101) response code.
+    #[cfg(feature = "http1")]
     UnsupportedStatusCode,
     /// User tried to send a Request with Client with non-absolute URI.
+    #[cfg(any(feature = "http1", feature = "http2"))]
     AbsoluteUriRequired,
 
     /// User tried polling for an upgrade that doesn't exist.
     NoUpgrade,
 
     /// User polled for an upgrade, but low-level API is not using upgrades.
+    #[cfg(feature = "http1")]
     ManualUpgrade,
 }
 
@@ -159,6 +174,7 @@ impl Error {
         self
     }
 
+    #[cfg(feature = "http1")]
     pub(crate) fn kind(&self) -> &Kind {
         &self.inner.kind
     }
@@ -189,35 +205,42 @@ impl Error {
         Error::new(Kind::Canceled)
     }
 
+    #[cfg(feature = "http1")]
     pub(crate) fn new_incomplete() -> Error {
         Error::new(Kind::IncompleteMessage)
     }
 
+    #[cfg(feature = "http1")]
     pub(crate) fn new_too_large() -> Error {
         Error::new(Kind::Parse(Parse::TooLarge))
     }
 
+    #[cfg(feature = "http1")]
     pub(crate) fn new_version_h2() -> Error {
         Error::new(Kind::Parse(Parse::VersionH2))
     }
 
+    #[cfg(feature = "http1")]
     pub(crate) fn new_unexpected_message() -> Error {
         Error::new(Kind::UnexpectedMessage)
     }
 
-    pub(crate) fn new_io(cause: io::Error) -> Error {
+    #[cfg(feature = "http1")]
+    pub(crate) fn new_io(cause: std::io::Error) -> Error {
         Error::new(Kind::Io).with(cause)
     }
 
-    #[cfg(feature = "tcp")]
+    #[cfg(all(any(feature = "http1", feature = "http2"), feature = "tcp"))]
     pub(crate) fn new_listen<E: Into<Cause>>(cause: E) -> Error {
         Error::new(Kind::Listen).with(cause)
     }
 
+    #[cfg(any(feature = "http1", feature = "http2"))]
     pub(crate) fn new_accept<E: Into<Cause>>(cause: E) -> Error {
         Error::new(Kind::Accept).with(cause)
     }
 
+    #[cfg(any(feature = "http1", feature = "http2"))]
     pub(crate) fn new_connect<E: Into<Cause>>(cause: E) -> Error {
         Error::new(Kind::Connect).with(cause)
     }
@@ -226,10 +249,12 @@ impl Error {
         Error::new(Kind::ChannelClosed)
     }
 
+    #[cfg(any(feature = "http1", feature = "http2"))]
     pub(crate) fn new_body<E: Into<Cause>>(cause: E) -> Error {
         Error::new(Kind::Body).with(cause)
     }
 
+    #[cfg(any(feature = "http1", feature = "http2"))]
     pub(crate) fn new_body_write<E: Into<Cause>>(cause: E) -> Error {
         Error::new(Kind::BodyWrite).with(cause)
     }
@@ -242,22 +267,27 @@ impl Error {
         Error::new(Kind::User(user))
     }
 
+    #[cfg(feature = "http1")]
     pub(crate) fn new_user_header() -> Error {
         Error::new_user(User::UnexpectedHeader)
     }
 
+    #[cfg(any(feature = "http1", feature = "http2"))]
     pub(crate) fn new_user_unsupported_version() -> Error {
         Error::new_user(User::UnsupportedVersion)
     }
 
+    #[cfg(any(feature = "http1", feature = "http2"))]
     pub(crate) fn new_user_unsupported_request_method() -> Error {
         Error::new_user(User::UnsupportedRequestMethod)
     }
 
+    #[cfg(feature = "http1")]
     pub(crate) fn new_user_unsupported_status_code() -> Error {
         Error::new_user(User::UnsupportedStatusCode)
     }
 
+    #[cfg(feature = "http1")]
     pub(crate) fn new_user_absolute_uri_required() -> Error {
         Error::new_user(User::AbsoluteUriRequired)
     }
@@ -266,23 +296,28 @@ impl Error {
         Error::new_user(User::NoUpgrade)
     }
 
+    #[cfg(feature = "http1")]
     pub(crate) fn new_user_manual_upgrade() -> Error {
         Error::new_user(User::ManualUpgrade)
     }
 
+    #[cfg(any(feature = "http1", feature = "http2"))]
     pub(crate) fn new_user_make_service<E: Into<Cause>>(cause: E) -> Error {
         Error::new_user(User::MakeService).with(cause)
     }
 
+    #[cfg(any(feature = "http1", feature = "http2"))]
     pub(crate) fn new_user_service<E: Into<Cause>>(cause: E) -> Error {
         Error::new_user(User::Service).with(cause)
     }
 
+    #[cfg(any(feature = "http1", feature = "http2"))]
     pub(crate) fn new_user_body<E: Into<Cause>>(cause: E) -> Error {
         Error::new_user(User::Body).with(cause)
     }
 
-    pub(crate) fn new_shutdown(cause: io::Error) -> Error {
+    #[cfg(feature = "http1")]
+    pub(crate) fn new_shutdown(cause: std::io::Error) -> Error {
         Error::new(Kind::Shutdown).with(cause)
     }
 
@@ -299,38 +334,54 @@ impl Error {
         match self.inner.kind {
             Kind::Parse(Parse::Method) => "invalid HTTP method parsed",
             Kind::Parse(Parse::Version) => "invalid HTTP version parsed",
+            #[cfg(feature = "http1")]
             Kind::Parse(Parse::VersionH2) => "invalid HTTP version parsed (found HTTP2 preface)",
             Kind::Parse(Parse::Uri) => "invalid URI",
             Kind::Parse(Parse::Header) => "invalid HTTP header parsed",
             Kind::Parse(Parse::TooLarge) => "message head is too large",
             Kind::Parse(Parse::Status) => "invalid HTTP status-code parsed",
             Kind::IncompleteMessage => "connection closed before message completed",
+            #[cfg(feature = "http1")]
             Kind::UnexpectedMessage => "received unexpected message from connection",
             Kind::ChannelClosed => "channel closed",
             Kind::Connect => "error trying to connect",
             Kind::Canceled => "operation was canceled",
-            #[cfg(feature = "tcp")]
+            #[cfg(all(any(feature = "http1", feature = "http2"), feature = "tcp"))]
             Kind::Listen => "error creating server listener",
+            #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::Accept => "error accepting connection",
+            #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::Body => "error reading a body from connection",
+            #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::BodyWrite => "error writing a body to connection",
             Kind::BodyWriteAborted => "body write aborted",
+            #[cfg(feature = "http1")]
             Kind::Shutdown => "error shutting down connection",
             #[cfg(feature = "http2")]
             Kind::Http2 => "http2 error",
+            #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::Io => "connection error",
 
+            #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::User(User::Body) => "error from user's HttpBody stream",
+            #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::User(User::MakeService) => "error from user's MakeService",
+            #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::User(User::Service) => "error from user's Service",
+            #[cfg(feature = "http1")]
             Kind::User(User::UnexpectedHeader) => "user sent unexpected header",
+            #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::User(User::UnsupportedVersion) => "request has unsupported HTTP version",
+            #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::User(User::UnsupportedRequestMethod) => "request has unsupported HTTP method",
+            #[cfg(feature = "http1")]
             Kind::User(User::UnsupportedStatusCode) => {
                 "response has 1xx status code, not supported by server"
             }
+            #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::User(User::AbsoluteUriRequired) => "client requires absolute-form URIs",
             Kind::User(User::NoUpgrade) => "no upgrade available",
+            #[cfg(feature = "http1")]
             Kind::User(User::ManualUpgrade) => "upgrade expected but low level API in use",
         }
     }

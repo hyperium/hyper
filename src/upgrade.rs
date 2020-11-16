@@ -57,6 +57,7 @@ pub struct Parts<T> {
     _inner: (),
 }
 
+#[cfg(feature = "http1")]
 pub(crate) struct Pending {
     tx: oneshot::Sender<crate::Result<Upgraded>>,
 }
@@ -68,6 +69,7 @@ pub(crate) struct Pending {
 #[derive(Debug)]
 struct UpgradeExpected(());
 
+#[cfg(feature = "http1")]
 pub(crate) fn pending() -> (Pending, OnUpgrade) {
     let (tx, rx) = oneshot::channel();
     (Pending { tx }, OnUpgrade { rx: Some(rx) })
@@ -76,6 +78,7 @@ pub(crate) fn pending() -> (Pending, OnUpgrade) {
 // ===== impl Upgraded =====
 
 impl Upgraded {
+    #[cfg(any(feature = "http1", test))]
     pub(crate) fn new<T>(io: T, read_buf: Bytes) -> Self
     where
         T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
@@ -145,6 +148,7 @@ impl OnUpgrade {
         OnUpgrade { rx: None }
     }
 
+    #[cfg(feature = "http1")]
     pub(crate) fn is_none(&self) -> bool {
         self.rx.is_none()
     }
@@ -175,6 +179,7 @@ impl fmt::Debug for OnUpgrade {
 
 // ===== impl Pending =====
 
+#[cfg(feature = "http1")]
 impl Pending {
     pub(crate) fn fulfill(self, upgraded: Upgraded) {
         trace!("pending upgrade fulfill");

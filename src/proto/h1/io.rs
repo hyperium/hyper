@@ -2,13 +2,14 @@ use std::cell::Cell;
 use std::cmp;
 use std::fmt;
 use std::io::{self, IoSlice};
+use std::marker::Unpin;
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 use super::{Http1Transaction, ParseContext, ParsedMessage};
 use crate::common::buf::BufList;
-use crate::common::{task, Pin, Poll, Unpin};
+use crate::common::{task, Pin, Poll};
 
 /// The initial buffer size allocated before trying to read from IO.
 pub(crate) const INIT_BUFFER_SIZE: usize = 8192;

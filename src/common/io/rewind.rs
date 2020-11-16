@@ -29,7 +29,7 @@ impl<T> Rewind<T> {
         }
     }
 
-    #[cfg(any(feature = "http2", test))]
+    #[cfg(any(all(feature = "http1", feature = "http2"), test))]
     pub(crate) fn rewind(&mut self, bs: Bytes) {
         debug_assert!(self.pre.is_none());
         self.pre = Some(bs);

@@ -9,8 +9,7 @@ use pin_project::pin_project;
 use std::error::Error as StdError;
 use std::io::IoSlice;
 
-use super::DecodedLength;
-use crate::body::HttpBody;
+use crate::body::{DecodedLength, HttpBody};
 use crate::common::{task, Future, Pin, Poll};
 use crate::headers::content_length_parse_all;
 
