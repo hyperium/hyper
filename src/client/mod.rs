@@ -62,7 +62,8 @@ use http::{Method, Request, Response, Uri, Version};
 use self::connect::{sealed::Connect, Alpn, Connected, Connection};
 use self::pool::{Key as PoolKey, Pool, Poolable, Pooled, Reservation};
 use crate::body::{Body, HttpBody};
-use crate::common::{lazy as hyper_lazy, task, BoxSendFuture, Executor, Future, Lazy, Pin, Poll};
+use crate::common::{lazy as hyper_lazy, task, BoxSendFuture, Future, Lazy, Pin, Poll};
+use crate::rt::Executor;
 
 #[cfg(feature = "tcp")]
 pub use self::connect::HttpConnector;
@@ -1022,6 +1023,8 @@ impl Builder {
     /// # Panics
     ///
     /// The minimum value allowed is 8192. This method panics if the passed `max` is less than the minimum.
+    #[cfg(feature = "http1")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
     pub fn http1_max_buf_size(&mut self, max: usize) -> &mut Self {
         self.conn_builder.h1_max_buf_size(max);
         self

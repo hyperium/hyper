@@ -9,12 +9,14 @@ use bytes::BytesMut;
 use http::header::{self, Entry, HeaderName, HeaderValue};
 use http::{HeaderMap, Method, StatusCode, Version};
 
+use crate::body::DecodedLength;
+use crate::common::date;
 use crate::error::Parse;
 use crate::headers;
 use crate::proto::h1::{
-    date, Encode, Encoder, Http1Transaction, ParseContext, ParseResult, ParsedMessage,
+    Encode, Encoder, Http1Transaction, ParseContext, ParseResult, ParsedMessage,
 };
-use crate::proto::{BodyLength, DecodedLength, MessageHead, RequestHead, RequestLine};
+use crate::proto::{BodyLength, MessageHead, RequestHead, RequestLine};
 
 const MAX_HEADERS: usize = 100;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific

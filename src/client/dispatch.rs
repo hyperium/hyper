@@ -162,11 +162,13 @@ impl<T, U> Receiver<T, U> {
         }
     }
 
+    #[cfg(feature = "http1")]
     pub(crate) fn close(&mut self) {
         self.taker.cancel();
         self.inner.close();
     }
 
+    #[cfg(feature = "http1")]
     pub(crate) fn try_recv(&mut self) -> Option<(T, Callback<T, U>)> {
         match self.inner.try_recv() {
             Ok(mut env) => env.0.take(),

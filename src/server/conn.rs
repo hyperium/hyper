@@ -11,7 +11,7 @@
 //! ## Example
 //! A simple example that uses the `Http` struct to talk HTTP over a Tokio TCP stream
 //! ```no_run
-//! # #[cfg(feature = "runtime")]
+//! # #[cfg(all(feature = "http1", feature = "runtime"))]
 //! # mod rt {
 //! use http::{Request, Response, StatusCode};
 //! use hyper::{server::conn::Http, service::service_fn, Body};
@@ -28,7 +28,7 @@
 //!         tokio::task::spawn(async move {
 //!             if let Err(http_err) = Http::new()
 //!                     .http1_only(true)
-//!                     .keep_alive(true)
+//!                     .http1_keep_alive(true)
 //!                     .serve_connection(tcp_stream, service_fn(hello))
 //!                     .await {
 //!                 eprintln!("Error while serving HTTP connection: {}", http_err);
@@ -45,8 +45,8 @@
 
 use std::error::Error as StdError;
 use std::fmt;
+#[cfg(feature = "http1")]
 use std::marker::PhantomData;
-use std::mem;
 #[cfg(feature = "tcp")]
 use std::net::SocketAddr;
 #[cfg(feature = "runtime")]
@@ -63,10 +63,12 @@ use crate::common::exec::{ConnStreamExec, Exec, NewSvcExec};
 #[cfg(feature = "http2")]
 use crate::common::io::Rewind;
 use crate::common::{task, Future, Pin, Poll, Unpin};
+#[cfg(feature = "http1")]
 #[cfg(feature = "http2")]
 use crate::error::{Kind, Parse};
 use crate::proto;
 use crate::service::{HttpService, MakeServiceRef};
+#[cfg(feature = "http1")]
 use crate::upgrade::Upgraded;
 
 use self::spawn_all::NewSvcTask;
@@ -100,11 +102,13 @@ pub struct Http<E = Exec> {
 #[derive(Clone, Debug, PartialEq)]
 enum ConnectionMode {
     /// Always use HTTP/1 and do not upgrade when a parse error occurs.
+    #[cfg(feature = "http1")]
     H1Only,
     /// Always use HTTP/2.
     #[cfg(feature = "http2")]
     H2Only,
     /// Use HTTP/1 and try to upgrade to h2 when a parse error occurs.
+    #[cfg(feature = "http1")]
     #[cfg(feature = "http2")]
     Fallback,
 }
@@ -157,6 +161,7 @@ where
     S: HttpService<Body>,
 {
     pub(super) conn: Option<ProtoServer<T, S::ResBody, S, E>>,
+    #[cfg(feature = "http1")]
     #[cfg(feature = "http2")]
     fallback: Fallback<E>,
 }
@@ -167,6 +172,7 @@ where
     S: HttpService<Body>,
     B: HttpBody,
 {
+    #[cfg(feature = "http1")]
     H1(
         #[pin]
         proto::h1::Dispatcher<
@@ -181,6 +187,7 @@ where
     H2(#[pin] proto::h2::Server<Rewind<T>, S, B, E>),
 }
 
+#[cfg(feature = "http1")]
 #[cfg(feature = "http2")]
 #[derive(Clone, Debug)]
 enum Fallback<E> {
@@ -188,6 +195,7 @@ enum Fallback<E> {
     Http1Only,
 }
 
+#[cfg(feature = "http1")]
 #[cfg(feature = "http2")]
 impl<E> Fallback<E> {
     fn to_h2(&self) -> bool {
@@ -198,6 +206,7 @@ impl<E> Fallback<E> {
     }
 }
 
+#[cfg(feature = "http1")]
 #[cfg(feature = "http2")]
 impl<E> Unpin for Fallback<E> {}
 
@@ -247,6 +256,8 @@ impl<E> Http<E> {
     /// Sets whether HTTP1 is required.
     ///
     /// Default is false
+    #[cfg(feature = "http1")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
     pub fn http1_only(&mut self, val: bool) -> &mut Self {
         if val {
             self.mode = ConnectionMode::H1Only;
@@ -267,6 +278,8 @@ impl<E> Http<E> {
     /// detects an EOF in the middle of a request.
     ///
     /// Default is `false`.
+    #[cfg(feature = "http1")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
     pub fn http1_half_close(&mut self, val: bool) -> &mut Self {
         self.h1_half_close = val;
         self
@@ -275,16 +288,11 @@ impl<E> Http<E> {
     /// Enables or disables HTTP/1 keep-alive.
     ///
     /// Default is true.
+    #[cfg(feature = "http1")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
     pub fn http1_keep_alive(&mut self, val: bool) -> &mut Self {
         self.h1_keep_alive = val;
         self
-    }
-
-    // renamed due different semantics of http2 keep alive
-    #[doc(hidden)]
-    #[deprecated(note = "renamed to `http1_keep_alive`")]
-    pub fn keep_alive(&mut self, val: bool) -> &mut Self {
-        self.http1_keep_alive(val)
     }
 
     /// Set whether HTTP/1 connections should try to use vectored writes,
@@ -300,6 +308,8 @@ impl<E> Http<E> {
     /// Default is `auto`. In this mode hyper will try to guess which
     /// mode to use
     #[inline]
+    #[cfg(feature = "http1")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
     pub fn http1_writev(&mut self, val: bool) -> &mut Self {
         self.h1_writev = Some(val);
         self
@@ -314,7 +324,10 @@ impl<E> Http<E> {
         if val {
             self.mode = ConnectionMode::H2Only;
         } else {
-            self.mode = ConnectionMode::Fallback;
+            #[cfg(feature = "http1")]
+            {
+                self.mode = ConnectionMode::Fallback;
+            }
         }
         self
     }
@@ -446,6 +459,8 @@ impl<E> Http<E> {
     /// # Panics
     ///
     /// The minimum value allowed is 8192. This method panics if the passed `max` is less than the minimum.
+    #[cfg(feature = "http1")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
     pub fn max_buf_size(&mut self, max: usize) -> &mut Self {
         assert!(
             max >= proto::h1::MINIMUM_MAX_BUFFER_SIZE,
@@ -519,6 +534,7 @@ impl<E> Http<E> {
         I: AsyncRead + AsyncWrite + Unpin,
         E: ConnStreamExec<S::Future, Bd>,
     {
+        #[cfg(feature = "http1")]
         macro_rules! h1 {
             () => {{
                 let mut conn = proto::Conn::new(io);
@@ -545,9 +561,11 @@ impl<E> Http<E> {
         }
 
         let proto = match self.mode {
+            #[cfg(feature = "http1")]
             #[cfg(not(feature = "http2"))]
             ConnectionMode::H1Only => h1!(),
             #[cfg(feature = "http2")]
+            #[cfg(feature = "http1")]
             ConnectionMode::H1Only | ConnectionMode::Fallback => h1!(),
             #[cfg(feature = "http2")]
             ConnectionMode::H2Only => {
@@ -560,6 +578,7 @@ impl<E> Http<E> {
 
         Connection {
             conn: Some(proto),
+            #[cfg(feature = "http1")]
             #[cfg(feature = "http2")]
             fallback: if self.mode == ConnectionMode::Fallback {
                 Fallback::ToHttp2(self.h2_builder.clone(), self.exec.clone())
@@ -610,6 +629,7 @@ where
     /// nothing.
     pub fn graceful_shutdown(self: Pin<&mut Self>) {
         match self.project().conn {
+            #[cfg(feature = "http1")]
             Some(ProtoServer::H1(ref mut h1, _)) => {
                 h1.disable_keep_alive();
             }
@@ -640,6 +660,7 @@ where
     /// This method will return a `None` if this connection is using an h2 protocol.
     pub fn try_into_parts(self) -> Option<Parts<I, S>> {
         match self.conn.unwrap() {
+            #[cfg(feature = "http1")]
             ProtoServer::H1(h1, _) => {
                 let (io, read_buf, dispatch) = h1.into_inner();
                 Some(Parts {
@@ -672,26 +693,26 @@ where
         B: Unpin,
     {
         loop {
-            let polled = match *self.conn.as_mut().unwrap() {
-                ProtoServer::H1(ref mut h1, _) => h1.poll_without_shutdown(cx),
+            match *self.conn.as_mut().unwrap() {
+                #[cfg(feature = "http1")]
+                ProtoServer::H1(ref mut h1, _) => match ready!(h1.poll_without_shutdown(cx)) {
+                    Ok(()) => return Poll::Ready(Ok(())),
+                    Err(e) => {
+                        #[cfg(feature = "http2")]
+                        match *e.kind() {
+                            Kind::Parse(Parse::VersionH2) if self.fallback.to_h2() => {
+                                self.upgrade_h2();
+                                continue;
+                            }
+                            _ => (),
+                        }
+
+                        return Poll::Ready(Err(e));
+                    }
+                },
                 #[cfg(feature = "http2")]
                 ProtoServer::H2(ref mut h2) => return Pin::new(h2).poll(cx).map_ok(|_| ()),
             };
-            match ready!(polled) {
-                Ok(()) => return Poll::Ready(Ok(())),
-                Err(e) => {
-                    #[cfg(feature = "http2")]
-                    match *e.kind() {
-                        Kind::Parse(Parse::VersionH2) if self.fallback.to_h2() => {
-                            self.upgrade_h2();
-                            continue;
-                        }
-                        _ => (),
-                    }
-
-                    return Poll::Ready(Err(e));
-                }
-            }
         }
     }
 
@@ -710,6 +731,7 @@ where
         })
     }
 
+    #[cfg(feature = "http1")]
     #[cfg(feature = "http2")]
     fn upgrade_h2(&mut self) {
         trace!("Trying to upgrade connection to h2");
@@ -759,16 +781,21 @@ where
         loop {
             match ready!(Pin::new(self.conn.as_mut().unwrap()).poll(cx)) {
                 Ok(done) => {
-                    if let proto::Dispatched::Upgrade(pending) = done {
-                        // With no `Send` bound on `I`, we can't try to do
-                        // upgrades here. In case a user was trying to use
-                        // `Body::on_upgrade` with this API, send a special
-                        // error letting them know about that.
-                        pending.manual();
-                    }
+                    match done {
+                        proto::Dispatched::Shutdown => {}
+                        #[cfg(feature = "http1")]
+                        proto::Dispatched::Upgrade(pending) => {
+                            // With no `Send` bound on `I`, we can't try to do
+                            // upgrades here. In case a user was trying to use
+                            // `Body::on_upgrade` with this API, send a special
+                            // error letting them know about that.
+                            pending.manual();
+                        }
+                    };
                     return Poll::Ready(Ok(()));
                 }
                 Err(e) => {
+                    #[cfg(feature = "http1")]
                     #[cfg(feature = "http2")]
                     match *e.kind() {
                         Kind::Parse(Parse::VersionH2) if self.fallback.to_h2() => {
@@ -796,17 +823,20 @@ where
 
 // ===== impl ConnectionMode =====
 
-impl ConnectionMode {}
-
 impl Default for ConnectionMode {
-    #[cfg(feature = "http2")]
+    #[cfg(all(feature = "http1", feature = "http2"))]
     fn default() -> ConnectionMode {
         ConnectionMode::Fallback
     }
 
-    #[cfg(not(feature = "http2"))]
+    #[cfg(all(feature = "http1", not(feature = "http2")))]
     fn default() -> ConnectionMode {
         ConnectionMode::H1Only
+    }
+
+    #[cfg(all(not(feature = "http1"), feature = "http2"))]
+    fn default() -> ConnectionMode {
+        ConnectionMode::H2Only
     }
 }
 
@@ -955,6 +985,7 @@ where
 
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         match self.project() {
+            #[cfg(feature = "http1")]
             ProtoServerProj::H1(s, _) => s.poll(cx),
             #[cfg(feature = "http2")]
             ProtoServerProj::H2(s) => s.poll(cx),
@@ -1137,17 +1168,22 @@ mod upgrades {
             loop {
                 match ready!(Pin::new(self.inner.conn.as_mut().unwrap()).poll(cx)) {
                     Ok(proto::Dispatched::Shutdown) => return Poll::Ready(Ok(())),
+                    #[cfg(feature = "http1")]
                     Ok(proto::Dispatched::Upgrade(pending)) => {
-                        let h1 = match mem::replace(&mut self.inner.conn, None) {
-                            Some(ProtoServer::H1(h1, _)) => h1,
-                            _ => unreachable!("Upgrade expects h1"),
+                        match self.inner.conn.take() {
+                            Some(ProtoServer::H1(h1, _)) => {
+                                let (io, buf, _) = h1.into_inner();
+                                pending.fulfill(Upgraded::new(io, buf));
+                                return Poll::Ready(Ok(()));
+                            }
+                            _ => {
+                                drop(pending);
+                                unreachable!("Upgrade expects h1")
+                            }
                         };
-
-                        let (io, buf, _) = h1.into_inner();
-                        pending.fulfill(Upgraded::new(io, buf));
-                        return Poll::Ready(Ok(()));
                     }
                     Err(e) => {
+                        #[cfg(feature = "http1")]
                         #[cfg(feature = "http2")]
                         match *e.kind() {
                             Kind::Parse(Parse::VersionH2) if self.inner.fallback.to_h2() => {

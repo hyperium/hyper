@@ -42,6 +42,7 @@
 
 #[doc(hidden)]
 pub use http;
+#[cfg(any(feature = "http1", feature = "http2"))]
 #[macro_use]
 extern crate tracing;
 
@@ -51,23 +52,28 @@ extern crate test;
 pub use http::{header, HeaderMap, Method, Request, Response, StatusCode, Uri, Version};
 
 pub use crate::body::Body;
-pub use crate::client::Client;
 pub use crate::error::{Error, Result};
-pub use crate::server::Server;
 
 #[macro_use]
 mod cfg;
 #[macro_use]
 mod common;
 pub mod body;
-pub mod client;
 #[doc(hidden)] // Mistakenly public...
 pub mod error;
-mod headers;
 #[cfg(test)]
 mod mock;
-mod proto;
+#[cfg(any(feature = "http1", feature = "http2",))]
 pub mod rt;
-pub mod server;
 pub mod service;
 pub mod upgrade;
+
+cfg_any_http! {
+    mod headers;
+    mod proto;
+    pub mod client;
+    pub mod server;
+
+    pub use crate::client::Client;
+    pub use crate::server::Server;
+}

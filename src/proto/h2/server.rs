@@ -11,7 +11,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use super::{decode_content_length, ping, PipeToSendStream, SendBuf};
 use crate::body::HttpBody;
 use crate::common::exec::ConnStreamExec;
-use crate::common::{task, Future, Pin, Poll};
+use crate::common::{date, task, Future, Pin, Poll};
 use crate::headers;
 use crate::proto::Dispatched;
 use crate::service::HttpService;
@@ -400,7 +400,7 @@ where
                     // set Date header if it isn't already set...
                     res.headers_mut()
                         .entry(::http::header::DATE)
-                        .or_insert_with(crate::proto::h1::date::update_and_header_value);
+                        .or_insert_with(date::update_and_header_value);
 
                     // automatically set Content-Length from body...
                     if let Some(len) = body.size_hint().exact() {

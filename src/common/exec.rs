@@ -6,14 +6,9 @@ use std::sync::Arc;
 use crate::body::{Body, HttpBody};
 #[cfg(feature = "http2")]
 use crate::proto::h2::server::H2Stream;
+use crate::rt::Executor;
 use crate::server::conn::spawn_all::{NewSvcTask, Watcher};
 use crate::service::HttpService;
-
-/// An executor of futures.
-pub trait Executor<Fut> {
-    /// Place the future into the executor to be run.
-    fn execute(&self, fut: Fut);
-}
 
 pub trait ConnStreamExec<F, B: HttpBody>: Clone {
     fn execute_h2stream(&mut self, fut: H2Stream<F, B>);

@@ -10,7 +10,8 @@
 
 use std::error::Error as StdError;
 use std::fmt;
-use std::mem;
+#[cfg(feature = "http2")]
+use std::marker::PhantomData;
 use std::sync::Arc;
 #[cfg(feature = "runtime")]
 #[cfg(feature = "http2")]
@@ -24,11 +25,14 @@ use tower_service::Service;
 
 use super::dispatch;
 use crate::body::HttpBody;
-use crate::common::{task, BoxSendFuture, Exec, Executor, Future, Pin, Poll};
+use crate::common::{task, BoxSendFuture, Exec, Future, Pin, Poll};
 use crate::proto;
+use crate::rt::Executor;
+#[cfg(feature = "http1")]
 use crate::upgrade::Upgraded;
 use crate::{Body, Request, Response};
 
+#[cfg(feature = "http1")]
 type Http1Dispatcher<T, B, R> = proto::dispatch::Dispatcher<proto::dispatch::Client<B>, B, T, R>;
 
 #[pin_project(project = ProtoClientProj)]
@@ -36,9 +40,10 @@ enum ProtoClient<T, B>
 where
     B: HttpBody,
 {
+    #[cfg(feature = "http1")]
     H1(#[pin] Http1Dispatcher<T, B, proto::h1::ClientTransaction>),
     #[cfg(feature = "http2")]
-    H2(#[pin] proto::h2::ClientTask<B>),
+    H2(#[pin] proto::h2::ClientTask<B>, PhantomData<fn(T)>),
 }
 
 /// Returns a handshake future over some IO.
@@ -88,6 +93,7 @@ pub struct Builder {
 
 #[derive(Clone, Debug)]
 enum Proto {
+    #[cfg(feature = "http1")]
     Http1,
     #[cfg(feature = "http2")]
     Http2,
@@ -353,18 +359,20 @@ where
     ///
     /// Only works for HTTP/1 connections. HTTP/2 connections will panic.
     pub fn into_parts(self) -> Parts<T> {
-        let (io, read_buf, _) = match self.inner.expect("already upgraded") {
-            ProtoClient::H1(h1) => h1.into_inner(),
+        match self.inner.expect("already upgraded") {
+            #[cfg(feature = "http1")]
+            ProtoClient::H1(h1) => {
+                let (io, read_buf, _) = h1.into_inner();
+                Parts {
+                    io,
+                    read_buf,
+                    _inner: (),
+                }
+            }
             #[cfg(feature = "http2")]
-            ProtoClient::H2(_h2) => {
+            ProtoClient::H2(..) => {
                 panic!("http2 cannot into_inner");
             }
-        };
-
-        Parts {
-            io,
-            read_buf,
-            _inner: (),
         }
     }
 
@@ -381,9 +389,10 @@ where
     /// to work with this function; or use the `without_shutdown` wrapper.
     pub fn poll_without_shutdown(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
         match *self.inner.as_mut().expect("already upgraded") {
+            #[cfg(feature = "http1")]
             ProtoClient::H1(ref mut h1) => h1.poll_without_shutdown(cx),
             #[cfg(feature = "http2")]
-            ProtoClient::H2(ref mut h2) => Pin::new(h2).poll(cx).map_ok(|_| ()),
+            ProtoClient::H2(ref mut h2, _) => Pin::new(h2).poll(cx).map_ok(|_| ()),
         }
     }
 
@@ -410,16 +419,18 @@ where
     fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         match ready!(Pin::new(self.inner.as_mut().unwrap()).poll(cx))? {
             proto::Dispatched::Shutdown => Poll::Ready(Ok(())),
-            proto::Dispatched::Upgrade(pending) => {
-                let h1 = match mem::replace(&mut self.inner, None) {
-                    Some(ProtoClient::H1(h1)) => h1,
-                    _ => unreachable!("Upgrade expects h1"),
-                };
-
-                let (io, buf, _) = h1.into_inner();
-                pending.fulfill(Upgraded::new(io, buf));
-                Poll::Ready(Ok(()))
-            }
+            #[cfg(feature = "http1")]
+            proto::Dispatched::Upgrade(pending) => match self.inner.take() {
+                Some(ProtoClient::H1(h1)) => {
+                    let (io, buf, _) = h1.into_inner();
+                    pending.fulfill(Upgraded::new(io, buf));
+                    Poll::Ready(Ok(()))
+                }
+                _ => {
+                    drop(pending);
+                    unreachable!("Upgrade expects h1");
+                }
+            },
         }
     }
 }
@@ -448,7 +459,10 @@ impl Builder {
             h1_max_buf_size: None,
             #[cfg(feature = "http2")]
             h2_builder: Default::default(),
+            #[cfg(feature = "http1")]
             version: Proto::Http1,
+            #[cfg(not(feature = "http1"))]
+            version: Proto::Http2,
         }
     }
 
@@ -477,6 +491,7 @@ impl Builder {
         self
     }
 
+    #[cfg(feature = "http1")]
     pub(super) fn h1_max_buf_size(&mut self, max: usize) -> &mut Self {
         assert!(
             max >= proto::h1::MINIMUM_MAX_BUFFER_SIZE,
@@ -494,7 +509,9 @@ impl Builder {
     #[cfg(feature = "http2")]
     #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_only(&mut self, enabled: bool) -> &mut Builder {
-        self.version = if enabled { Proto::Http2 } else { Proto::Http1 };
+        if enabled {
+            self.version = Proto::Http2
+        }
         self
     }
 
@@ -643,6 +660,7 @@ impl Builder {
 
             let (tx, rx) = dispatch::channel();
             let proto = match opts.version {
+                #[cfg(feature = "http1")]
                 Proto::Http1 => {
                     let mut conn = proto::Conn::new(io);
                     if let Some(writev) = opts.h1_writev {
@@ -670,7 +688,7 @@ impl Builder {
                     let h2 =
                         proto::h2::client::handshake(io, rx, &opts.h2_builder, opts.exec.clone())
                             .await?;
-                    ProtoClient::H2(h2)
+                    ProtoClient::H2(h2, PhantomData)
                 }
             };
 
@@ -723,9 +741,10 @@ where
 
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         match self.project() {
+            #[cfg(feature = "http1")]
             ProtoClientProj::H1(c) => c.poll(cx),
             #[cfg(feature = "http2")]
-            ProtoClientProj::H2(c) => c.poll(cx),
+            ProtoClientProj::H2(c, _) => c.poll(cx),
         }
     }
 }

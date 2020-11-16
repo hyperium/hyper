@@ -20,15 +20,18 @@ pub use http_body::Body as HttpBody;
 
 pub use self::aggregate::aggregate;
 pub use self::body::{Body, Sender};
+pub(crate) use self::length::DecodedLength;
 pub use self::to_bytes::to_bytes;
 
 mod aggregate;
 mod body;
+mod length;
 mod to_bytes;
 
 /// An optimization to try to take a full body if immediately available.
 ///
 /// This is currently limited to *only* `hyper::Body`s.
+#[cfg(feature = "http1")]
 pub(crate) fn take_full_data<T: HttpBody + 'static>(body: &mut T) -> Option<T::Data> {
     use std::any::{Any, TypeId};
 

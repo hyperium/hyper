@@ -8,9 +8,14 @@ macro_rules! ready {
 }
 
 pub(crate) mod buf;
+#[cfg(any(feature = "http1", feature = "http2"))]
+pub(crate) mod date;
+#[cfg(any(feature = "http1", feature = "http2"))]
 pub(crate) mod drain;
+#[cfg(any(feature = "http1", feature = "http2"))]
 pub(crate) mod exec;
 pub(crate) mod io;
+#[cfg(any(feature = "http1", feature = "http2"))]
 mod lazy;
 mod never;
 #[cfg(feature = "stream")]
@@ -18,11 +23,14 @@ pub(crate) mod sync_wrapper;
 pub(crate) mod task;
 pub(crate) mod watch;
 
-pub use self::exec::Executor;
+#[cfg(any(feature = "http1", feature = "http2"))]
 pub(crate) use self::exec::{BoxSendFuture, Exec};
+#[cfg(any(feature = "http1", feature = "http2"))]
 pub(crate) use self::lazy::{lazy, Started as Lazy};
 pub use self::never::Never;
 pub(crate) use self::task::Poll;
 
 // group up types normally needed for `Future`
-pub(crate) use std::{future::Future, marker::Unpin, pin::Pin};
+#[cfg(any(feature = "http1", feature = "http2"))]
+pub(crate) use std::marker::Unpin;
+pub(crate) use std::{future::Future, pin::Pin};

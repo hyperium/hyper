@@ -5,10 +5,10 @@ use http::{Request, Response, StatusCode};
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::{Http1Transaction, Wants};
-use crate::body::{Body, HttpBody};
+use crate::body::{Body, DecodedLength, HttpBody};
 use crate::common::{task, Future, Never, Pin, Poll, Unpin};
 use crate::proto::{
-    BodyLength, Conn, DecodedLength, Dispatched, MessageHead, RequestHead, RequestLine,
+    BodyLength, Conn, Dispatched, MessageHead, RequestHead, RequestLine,
     ResponseHead,
 };
 use crate::service::HttpService;

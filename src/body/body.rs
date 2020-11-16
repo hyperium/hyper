@@ -4,19 +4,23 @@ use std::error::Error as StdError;
 use std::fmt;
 
 use bytes::Bytes;
-use futures_channel::{mpsc, oneshot};
+use futures_channel::mpsc;
+#[cfg(any(feature = "http1", feature = "http2"))]
+use futures_channel::oneshot;
 use futures_core::Stream; // for mpsc::Receiver
 #[cfg(feature = "stream")]
 use futures_util::TryStreamExt;
 use http::HeaderMap;
 use http_body::{Body as HttpBody, SizeHint};
 
+use super::DecodedLength;
 #[cfg(feature = "stream")]
 use crate::common::sync_wrapper::SyncWrapper;
-use crate::common::{task, watch, Future, Never, Pin, Poll};
+use crate::common::{task, watch, Pin, Poll};
+#[cfg(any(feature = "http1", feature = "http2"))]
+use crate::common::{Future, Never};
 #[cfg(feature = "http2")]
 use crate::proto::h2::ping;
-use crate::proto::DecodedLength;
 use crate::upgrade::OnUpgrade;
 
 type BodySender = mpsc::Sender<Result<Bytes, crate::Error>>;
@@ -67,14 +71,17 @@ struct Extra {
     on_upgrade: OnUpgrade,
 }
 
+#[cfg(any(feature = "http1", feature = "http2"))]
 type DelayEofUntil = oneshot::Receiver<Never>;
 
 enum DelayEof {
     /// Initial state, stream hasn't seen EOF yet.
+    #[cfg(any(feature = "http1", feature = "http2"))]
     NotEof(DelayEofUntil),
     /// Transitions to this state once we've seen `poll` try to
     /// return EOF (`None`). This future is then polled, and
     /// when it completes, the Body finally returns EOF (`None`).
+    #[cfg(any(feature = "http1", feature = "http2"))]
     Eof(DelayEofUntil),
 }
 
@@ -203,6 +210,7 @@ impl Body {
         body
     }
 
+    #[cfg(feature = "http1")]
     pub(crate) fn set_on_upgrade(&mut self, upgrade: OnUpgrade) {
         debug_assert!(!upgrade.is_none(), "set_on_upgrade with empty upgrade");
         let extra = self.extra_mut();
@@ -210,6 +218,7 @@ impl Body {
         extra.on_upgrade = upgrade;
     }
 
+    #[cfg(any(feature = "http1", feature = "http2"))]
     pub(crate) fn delayed_eof(&mut self, fut: DelayEofUntil) {
         self.extra_mut().delayed_eof = Some(DelayEof::NotEof(fut));
     }
@@ -220,6 +229,7 @@ impl Body {
             .and_then(|extra| extra.delayed_eof.take())
     }
 
+    #[cfg(any(feature = "http1", feature = "http2"))]
     fn extra_mut(&mut self) -> &mut Extra {
         self.extra.get_or_insert_with(|| {
             Box::new(Extra {
@@ -231,6 +241,7 @@ impl Body {
 
     fn poll_eof(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<crate::Result<Bytes>>> {
         match self.take_delayed_eof() {
+            #[cfg(any(feature = "http1", feature = "http2"))]
             Some(DelayEof::NotEof(mut delay)) => match self.poll_inner(cx) {
                 ok @ Poll::Ready(Some(Ok(..))) | ok @ Poll::Pending => {
                     self.extra_mut().delayed_eof = Some(DelayEof::NotEof(delay));
@@ -246,6 +257,7 @@ impl Body {
                 },
                 Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e))),
             },
+            #[cfg(any(feature = "http1", feature = "http2"))]
             Some(DelayEof::Eof(mut delay)) => match Pin::new(&mut delay).poll(cx) {
                 Poll::Ready(Ok(never)) => match never {},
                 Poll::Pending => {
@@ -254,6 +266,8 @@ impl Body {
                 }
                 Poll::Ready(Err(_done)) => Poll::Ready(None),
             },
+            #[cfg(not(any(feature = "http1", feature = "http2")))]
+            Some(delay_eof) => match delay_eof {},
             None => self.poll_inner(cx),
         }
     }
@@ -300,6 +314,7 @@ impl Body {
         }
     }
 
+    #[cfg(feature = "http1")]
     pub(super) fn take_full_data(&mut self) -> Option<Bytes> {
         if let Kind::Once(ref mut chunk) = self.kind {
             chunk.take()
@@ -549,6 +564,7 @@ impl Sender {
             .try_send(Err(crate::Error::new_body_write_aborted()));
     }
 
+    #[cfg(feature = "http1")]
     pub(crate) fn send_error(&mut self, err: crate::Error) {
         let _ = self.tx.try_send(Err(err));
     }

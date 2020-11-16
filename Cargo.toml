@@ -1,4 +1,3 @@
-
 [package]
 name = "hyper"
 version = "0.14.0-dev" # don't forget to update html_root_url
@@ -76,11 +75,11 @@ default = [
     "runtime",
     "stream",
 
-    #"http1",
+    "http1",
     "http2",
 ]
 full = [
-    #"http1",
+    "http1",
     "http2",
     "stream",
     "runtime",
@@ -97,7 +96,7 @@ tcp = [
 ]
 
 # HTTP versions
-#http1 = []
+http1 = []
 http2 = ["h2"]
 
 # `impl Stream` for things

@@ -9,10 +9,10 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::io::Buffered;
 use super::{Decoder, Encode, EncodedBuf, Encoder, Http1Transaction, ParseContext, Wants};
+use crate::body::DecodedLength;
 use crate::common::{task, Pin, Poll, Unpin};
 use crate::headers::connection_keep_alive;
-use crate::proto::{BodyLength, DecodedLength, MessageHead};
-use crate::Result;
+use crate::proto::{BodyLength, MessageHead};
 
 const H2_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
@@ -589,7 +589,7 @@ where
         self.state.writing = state;
     }
 
-    pub fn end_body(&mut self) -> Result<()> {
+    pub fn end_body(&mut self) -> crate::Result<()> {
         debug_assert!(self.can_write_body());
 
         let mut res = Ok(());

@@ -241,6 +241,8 @@ impl<I, E> Builder<I, E> {
     /// Sets whether to use keep-alive for HTTP/1 connections.
     ///
     /// Default is `true`.
+    #[cfg(feature = "http1")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
     pub fn http1_keepalive(mut self, val: bool) -> Self {
         self.protocol.http1_keep_alive(val);
         self
@@ -254,6 +256,8 @@ impl<I, E> Builder<I, E> {
     /// detects an EOF in the middle of a request.
     ///
     /// Default is `false`.
+    #[cfg(feature = "http1")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
     pub fn http1_half_close(mut self, val: bool) -> Self {
         self.protocol.http1_half_close(val);
         self
@@ -262,6 +266,8 @@ impl<I, E> Builder<I, E> {
     /// Set the maximum buffer size.
     ///
     /// Default is ~ 400kb.
+    #[cfg(feature = "http1")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
     pub fn http1_max_buf_size(mut self, val: usize) -> Self {
         self.protocol.max_buf_size(val);
         self
@@ -272,6 +278,7 @@ impl<I, E> Builder<I, E> {
     // This isn't really desirable in most cases, only really being useful in
     // silly pipeline benchmarks.
     #[doc(hidden)]
+    #[cfg(feature = "http1")]
     pub fn http1_pipeline_flush(mut self, val: bool) -> Self {
         self.protocol.pipeline_flush(val);
         self
@@ -290,7 +297,9 @@ impl<I, E> Builder<I, E> {
     /// which may eliminate unnecessary cloning on some TLS backends
     ///
     /// Default is `auto`. In this mode hyper will try to guess which
-    /// mode to use
+    /// mode to use.
+    #[cfg(feature = "http1")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
     pub fn http1_writev(mut self, val: bool) -> Self {
         self.protocol.http1_writev(val);
         self
@@ -299,6 +308,8 @@ impl<I, E> Builder<I, E> {
     /// Sets whether HTTP/1 is required.
     ///
     /// Default is `false`.
+    #[cfg(feature = "http1")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
     pub fn http1_only(mut self, val: bool) -> Self {
         self.protocol.http1_only(val);
         self

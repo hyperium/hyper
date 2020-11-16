@@ -21,6 +21,7 @@ impl<T: Buf> BufList<T> {
     }
 
     #[inline]
+    #[cfg(feature = "http1")]
     pub(crate) fn bufs_cnt(&self) -> usize {
         self.bufs.len()
     }
