@@ -42,7 +42,7 @@ pub(crate) enum Kind {
     #[cfg(any(feature = "http1", feature = "http2"))]
     Accept,
     /// Error while reading a body from connection.
-    #[cfg(any(feature = "http1", feature = "http2"))]
+    #[cfg(any(feature = "http1", feature = "http2", feature = "stream"))]
     Body,
     /// Error while writing a body to connection.
     #[cfg(any(feature = "http1", feature = "http2"))]
@@ -225,7 +225,7 @@ impl Error {
         Error::new(Kind::UnexpectedMessage)
     }
 
-    #[cfg(feature = "http1")]
+    #[cfg(any(feature = "http1", feature = "http2"))]
     pub(crate) fn new_io(cause: std::io::Error) -> Error {
         Error::new(Kind::Io).with(cause)
     }
@@ -249,7 +249,7 @@ impl Error {
         Error::new(Kind::ChannelClosed)
     }
 
-    #[cfg(any(feature = "http1", feature = "http2"))]
+    #[cfg(any(feature = "http1", feature = "http2", feature = "stream"))]
     pub(crate) fn new_body<E: Into<Cause>>(cause: E) -> Error {
         Error::new(Kind::Body).with(cause)
     }
@@ -287,7 +287,7 @@ impl Error {
         Error::new_user(User::UnsupportedStatusCode)
     }
 
-    #[cfg(feature = "http1")]
+    #[cfg(any(feature = "http1", feature = "http2"))]
     pub(crate) fn new_user_absolute_uri_required() -> Error {
         Error::new_user(User::AbsoluteUriRequired)
     }
@@ -350,7 +350,7 @@ impl Error {
             Kind::Listen => "error creating server listener",
             #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::Accept => "error accepting connection",
-            #[cfg(any(feature = "http1", feature = "http2"))]
+            #[cfg(any(feature = "http1", feature = "http2", feature = "stream"))]
             Kind::Body => "error reading a body from connection",
             #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::BodyWrite => "error writing a body to connection",
