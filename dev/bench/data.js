@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1605574652186,
+  "lastUpdate": 1605638705912,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -89,6 +89,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 69407,
             "range": "± 11740",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "2a19ab74ed69bc776da25544e98979c9fb6e1834",
+          "message": "feat(http1): Make HTTP/1 support an optional feature\n\ncc #2251\n\nBREAKING CHANGE: This puts all HTTP/1 methods and support behind an\n  `http1` cargo feature, which will not be enabled by default. To use\n  HTTP/1, add `features = [\"http1\"]` to the hyper dependency in your\n  `Cargo.toml`.",
+          "timestamp": "2020-11-17T10:42:20-08:00",
+          "tree_id": "9f96eaaa5c228f8eba653b9ef2cfec2d099f3f10",
+          "url": "https://github.com/hyperium/hyper/commit/2a19ab74ed69bc776da25544e98979c9fb6e1834"
+        },
+        "date": 1605638704568,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 38812,
+            "range": "± 6297",
             "unit": "ns/iter"
           }
         ]
