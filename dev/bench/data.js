@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1605571384853,
+  "lastUpdate": 1605571388485,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -59,6 +59,38 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 43999,
             "range": "± 5706",
+            "unit": "ns/iter"
+          }
+        ]
+      }
+    ],
+    "pipeline": [
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "af96ddf008540ca4799381efb16a74af4dc3db28",
+          "message": "Use patched GH action",
+          "timestamp": "2020-11-16T16:00:07-08:00",
+          "tree_id": "69d47e4e3b4989c228904304c3cb8ccbbc865e78",
+          "url": "https://github.com/hyperium/hyper/commit/af96ddf008540ca4799381efb16a74af4dc3db28"
+        },
+        "date": 1605571384450,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 59874,
+            "range": "± 41739",
             "unit": "ns/iter"
           }
         ]
