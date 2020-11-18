@@ -3,7 +3,8 @@ use bytes::BytesMut;
 use http::header::CONTENT_LENGTH;
 use http::header::{HeaderValue, ValueIter};
 #[cfg(feature = "http2")]
-use http::method::Method;
+#[cfg(feature = "client")]
+use http::Method;
 use http::HeaderMap;
 
 #[cfg(feature = "http1")]
@@ -65,6 +66,7 @@ pub fn content_length_parse_all_values(values: ValueIter<'_, HeaderValue>) -> Op
 }
 
 #[cfg(feature = "http2")]
+#[cfg(feature = "client")]
 pub fn method_has_defined_payload_semantics(method: &Method) -> bool {
     match *method {
         Method::GET | Method::HEAD | Method::DELETE | Method::CONNECT => false,

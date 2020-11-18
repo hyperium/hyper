@@ -40,13 +40,18 @@ pub use tower_service::Service;
 mod http;
 mod make;
 #[cfg(any(feature = "http1", feature = "http2"))]
+#[cfg(feature = "client")]
 mod oneshot;
 mod util;
 
 pub(crate) use self::http::HttpService;
 #[cfg(any(feature = "http1", feature = "http2"))]
-pub(crate) use self::make::{MakeConnection, MakeServiceRef};
+#[cfg(feature = "client")]
+pub(crate) use self::make::MakeConnection;
 #[cfg(any(feature = "http1", feature = "http2"))]
+pub(crate) use self::make::MakeServiceRef;
+#[cfg(any(feature = "http1", feature = "http2"))]
+#[cfg(feature = "client")]
 pub(crate) use self::oneshot::{oneshot, Oneshot};
 
 pub use self::make::make_service_fn;

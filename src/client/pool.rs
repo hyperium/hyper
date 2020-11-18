@@ -11,7 +11,7 @@ use futures_channel::oneshot;
 use tokio::time::{Duration, Instant, Interval};
 
 use super::Ver;
-use crate::common::{task, Exec, Future, Pin, Poll, Unpin};
+use crate::common::{task, exec::Exec, Future, Pin, Poll, Unpin};
 
 // FIXME: allow() required due to `impl Trait` leaking types to this lint
 #[allow(missing_debug_implementations)]
@@ -777,7 +777,7 @@ mod tests {
     use std::time::Duration;
 
     use super::{Connecting, Key, Pool, Poolable, Reservation, WeakOpt};
-    use crate::common::{task, Exec, Future, Pin};
+    use crate::common::{task, exec::Exec, Future, Pin};
 
     /// Test unique reservations.
     #[derive(Debug, PartialEq, Eq)]

@@ -13,11 +13,14 @@ use crate::body::{DecodedLength, HttpBody};
 use crate::common::{task, Future, Pin, Poll};
 use crate::headers::content_length_parse_all;
 
-pub(crate) mod client;
 pub(crate) mod ping;
 pub(crate) mod server;
 
-pub(crate) use self::client::ClientTask;
+cfg_client! {
+    pub(crate) mod client;
+    pub(crate) use self::client::ClientTask;
+}
+
 pub(crate) use self::server::Server;
 
 /// Default initial stream window size defined in HTTP2 spec.

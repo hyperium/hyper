@@ -62,7 +62,7 @@ use http::{Method, Request, Response, Uri, Version};
 use self::connect::{sealed::Connect, Alpn, Connected, Connection};
 use self::pool::{Key as PoolKey, Pool, Poolable, Pooled, Reservation};
 use crate::body::{Body, HttpBody};
-use crate::common::{lazy as hyper_lazy, task, BoxSendFuture, Future, Lazy, Pin, Poll};
+use crate::common::{lazy as hyper_lazy, task, exec::BoxSendFuture, Future, Lazy, Pin, Poll};
 use crate::rt::Executor;
 
 #[cfg(feature = "tcp")]

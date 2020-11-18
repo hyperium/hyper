@@ -10,7 +10,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::{decode_content_length, ping, PipeToSendStream, SendBuf};
 use crate::body::HttpBody;
-use crate::common::{task, Exec, Future, Never, Pin, Poll};
+use crate::common::{task, exec::Exec, Future, Never, Pin, Poll};
 use crate::headers;
 use crate::proto::Dispatched;
 use crate::{Body, Request, Response};

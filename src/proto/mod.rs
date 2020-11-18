@@ -3,7 +3,10 @@
 cfg_http1! {
     pub(crate) mod h1;
 
-    pub(crate) use self::h1::{dispatch, Conn, ServerTransaction};
+    pub(crate) use self::h1::{Conn, ServerTransaction};
+
+    #[cfg(feature = "client")]
+    pub(crate) use self::h1::dispatch;
 }
 
 cfg_http2! {
@@ -31,6 +34,7 @@ pub struct RequestLine(pub http::Method, pub http::Uri);
 
 /// An incoming response message.
 #[cfg(feature = "http1")]
+#[cfg(feature = "client")]
 pub type ResponseHead = MessageHead<http::StatusCode>;
 
 #[derive(Debug)]

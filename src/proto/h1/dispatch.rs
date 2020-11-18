@@ -1,15 +1,14 @@
 use std::error::Error as StdError;
 
 use bytes::{Buf, Bytes};
-use http::{Request, Response, StatusCode};
+use http::{Request, StatusCode};
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::{Http1Transaction, Wants};
 use crate::body::{Body, DecodedLength, HttpBody};
-use crate::common::{task, Future, Never, Pin, Poll, Unpin};
+use crate::common::{task, Future, Pin, Poll, Unpin};
 use crate::proto::{
-    BodyLength, Conn, Dispatched, MessageHead, RequestHead, RequestLine,
-    ResponseHead,
+    BodyLength, Conn, Dispatched, MessageHead, RequestHead,
 };
 use crate::service::HttpService;
 
@@ -40,15 +39,17 @@ pub struct Server<S: HttpService<B>, B> {
     pub(crate) service: S,
 }
 
-#[pin_project::pin_project]
-pub struct Client<B> {
-    callback: Option<crate::client::dispatch::Callback<Request<B>, Response<Body>>>,
-    #[pin]
-    rx: ClientRx<B>,
-    rx_closed: bool,
-}
+cfg_client! {
+    #[pin_project::pin_project]
+    pub struct Client<B> {
+        callback: Option<crate::client::dispatch::Callback<Request<B>, http::Response<Body>>>,
+        #[pin]
+        rx: ClientRx<B>,
+        rx_closed: bool,
+    }
 
-type ClientRx<B> = crate::client::dispatch::Receiver<Request<B>, Response<Body>>;
+    type ClientRx<B> = crate::client::dispatch::Receiver<Request<B>, http::Response<Body>>;
+}
 
 impl<D, Bs, I, T> Dispatcher<D, Bs, I, T>
 where
@@ -523,115 +524,117 @@ where
 
 // ===== impl Client =====
 
-impl<B> Client<B> {
-    pub fn new(rx: ClientRx<B>) -> Client<B> {
-        Client {
-            callback: None,
-            rx,
-            rx_closed: false,
-        }
-    }
-}
-
-impl<B> Dispatch for Client<B>
-where
-    B: HttpBody,
-{
-    type PollItem = RequestHead;
-    type PollBody = B;
-    type PollError = Never;
-    type RecvItem = ResponseHead;
-
-    fn poll_msg(
-        self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
-    ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Never>>> {
-        let this = self.project();
-        debug_assert!(!*this.rx_closed);
-        match this.rx.poll_next(cx) {
-            Poll::Ready(Some((req, mut cb))) => {
-                // check that future hasn't been canceled already
-                match cb.poll_canceled(cx) {
-                    Poll::Ready(()) => {
-                        trace!("request canceled");
-                        Poll::Ready(None)
-                    }
-                    Poll::Pending => {
-                        let (parts, body) = req.into_parts();
-                        let head = RequestHead {
-                            version: parts.version,
-                            subject: RequestLine(parts.method, parts.uri),
-                            headers: parts.headers,
-                        };
-                        *this.callback = Some(cb);
-                        Poll::Ready(Some(Ok((head, body))))
-                    }
-                }
+cfg_client! {
+    impl<B> Client<B> {
+        pub fn new(rx: ClientRx<B>) -> Client<B> {
+            Client {
+                callback: None,
+                rx,
+                rx_closed: false,
             }
-            Poll::Ready(None) => {
-                // user has dropped sender handle
-                trace!("client tx closed");
-                *this.rx_closed = true;
-                Poll::Ready(None)
-            }
-            Poll::Pending => Poll::Pending,
         }
     }
 
-    fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, Body)>) -> crate::Result<()> {
-        match msg {
-            Ok((msg, body)) => {
-                if let Some(cb) = self.callback.take() {
-                    let mut res = Response::new(body);
-                    *res.status_mut() = msg.subject;
-                    *res.headers_mut() = msg.headers;
-                    *res.version_mut() = msg.version;
-                    cb.send(Ok(res));
-                    Ok(())
-                } else {
-                    // Getting here is likely a bug! An error should have happened
-                    // in Conn::require_empty_read() before ever parsing a
-                    // full message!
-                    Err(crate::Error::new_unexpected_message())
+    impl<B> Dispatch for Client<B>
+    where
+        B: HttpBody,
+    {
+        type PollItem = RequestHead;
+        type PollBody = B;
+        type PollError = crate::common::Never;
+        type RecvItem = crate::proto::ResponseHead;
+
+        fn poll_msg(
+            self: Pin<&mut Self>,
+            cx: &mut task::Context<'_>,
+        ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), crate::common::Never>>> {
+            let this = self.project();
+            debug_assert!(!*this.rx_closed);
+            match this.rx.poll_next(cx) {
+                Poll::Ready(Some((req, mut cb))) => {
+                    // check that future hasn't been canceled already
+                    match cb.poll_canceled(cx) {
+                        Poll::Ready(()) => {
+                            trace!("request canceled");
+                            Poll::Ready(None)
+                        }
+                        Poll::Pending => {
+                            let (parts, body) = req.into_parts();
+                            let head = RequestHead {
+                                version: parts.version,
+                                subject: crate::proto::RequestLine(parts.method, parts.uri),
+                                headers: parts.headers,
+                            };
+                            *this.callback = Some(cb);
+                            Poll::Ready(Some(Ok((head, body))))
+                        }
+                    }
                 }
+                Poll::Ready(None) => {
+                    // user has dropped sender handle
+                    trace!("client tx closed");
+                    *this.rx_closed = true;
+                    Poll::Ready(None)
+                }
+                Poll::Pending => Poll::Pending,
             }
-            Err(err) => {
-                if let Some(cb) = self.callback.take() {
-                    cb.send(Err((err, None)));
-                    Ok(())
-                } else if !self.rx_closed {
-                    self.rx.close();
-                    if let Some((req, cb)) = self.rx.try_recv() {
-                        trace!("canceling queued request with connection error: {}", err);
-                        // in this case, the message was never even started, so it's safe to tell
-                        // the user that the request was completely canceled
-                        cb.send(Err((crate::Error::new_canceled().with(err), Some(req))));
+        }
+
+        fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, Body)>) -> crate::Result<()> {
+            match msg {
+                Ok((msg, body)) => {
+                    if let Some(cb) = self.callback.take() {
+                        let mut res = http::Response::new(body);
+                        *res.status_mut() = msg.subject;
+                        *res.headers_mut() = msg.headers;
+                        *res.version_mut() = msg.version;
+                        cb.send(Ok(res));
                         Ok(())
+                    } else {
+                        // Getting here is likely a bug! An error should have happened
+                        // in Conn::require_empty_read() before ever parsing a
+                        // full message!
+                        Err(crate::Error::new_unexpected_message())
+                    }
+                }
+                Err(err) => {
+                    if let Some(cb) = self.callback.take() {
+                        cb.send(Err((err, None)));
+                        Ok(())
+                    } else if !self.rx_closed {
+                        self.rx.close();
+                        if let Some((req, cb)) = self.rx.try_recv() {
+                            trace!("canceling queued request with connection error: {}", err);
+                            // in this case, the message was never even started, so it's safe to tell
+                            // the user that the request was completely canceled
+                            cb.send(Err((crate::Error::new_canceled().with(err), Some(req))));
+                            Ok(())
+                        } else {
+                            Err(err)
+                        }
                     } else {
                         Err(err)
                     }
-                } else {
-                    Err(err)
                 }
             }
         }
-    }
 
-    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), ()>> {
-        match self.callback {
-            Some(ref mut cb) => match cb.poll_canceled(cx) {
-                Poll::Ready(()) => {
-                    trace!("callback receiver has dropped");
-                    Poll::Ready(Err(()))
-                }
-                Poll::Pending => Poll::Ready(Ok(())),
-            },
-            None => Poll::Ready(Err(())),
+        fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), ()>> {
+            match self.callback {
+                Some(ref mut cb) => match cb.poll_canceled(cx) {
+                    Poll::Ready(()) => {
+                        trace!("callback receiver has dropped");
+                        Poll::Ready(Err(()))
+                    }
+                    Poll::Pending => Poll::Ready(Ok(())),
+                },
+                None => Poll::Ready(Err(())),
+            }
         }
-    }
 
-    fn should_poll(&self) -> bool {
-        self.callback.is_none()
+        fn should_poll(&self) -> bool {
+            self.callback.is_none()
+        }
     }
 }
 

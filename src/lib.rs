@@ -71,9 +71,14 @@ pub mod upgrade;
 cfg_any_http! {
     mod headers;
     mod proto;
-    pub mod client;
     pub mod server;
 
-    pub use crate::client::Client;
     pub use crate::server::Server;
+}
+
+cfg_feature! {
+    #![all(feature = "client", any(feature = "http1", feature = "http2"))]
+
+    pub mod client;
+    pub use crate::client::Client;
 }

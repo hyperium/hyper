@@ -88,15 +88,18 @@ pub(crate) enum User {
     UnexpectedHeader,
     /// User tried to create a Request with bad version.
     #[cfg(any(feature = "http1", feature = "http2"))]
+    #[cfg(feature = "client")]
     UnsupportedVersion,
     /// User tried to create a CONNECT Request with the Client.
     #[cfg(any(feature = "http1", feature = "http2"))]
+    #[cfg(feature = "client")]
     UnsupportedRequestMethod,
     /// User tried to respond with a 1xx (not 101) response code.
     #[cfg(feature = "http1")]
     UnsupportedStatusCode,
     /// User tried to send a Request with Client with non-absolute URI.
     #[cfg(any(feature = "http1", feature = "http2"))]
+    #[cfg(feature = "client")]
     AbsoluteUriRequired,
 
     /// User tried polling for an upgrade that doesn't exist.
@@ -241,6 +244,7 @@ impl Error {
     }
 
     #[cfg(any(feature = "http1", feature = "http2"))]
+    #[cfg(feature = "client")]
     pub(crate) fn new_connect<E: Into<Cause>>(cause: E) -> Error {
         Error::new(Kind::Connect).with(cause)
     }
@@ -273,11 +277,13 @@ impl Error {
     }
 
     #[cfg(any(feature = "http1", feature = "http2"))]
+    #[cfg(feature = "client")]
     pub(crate) fn new_user_unsupported_version() -> Error {
         Error::new_user(User::UnsupportedVersion)
     }
 
     #[cfg(any(feature = "http1", feature = "http2"))]
+    #[cfg(feature = "client")]
     pub(crate) fn new_user_unsupported_request_method() -> Error {
         Error::new_user(User::UnsupportedRequestMethod)
     }
@@ -288,6 +294,7 @@ impl Error {
     }
 
     #[cfg(any(feature = "http1", feature = "http2"))]
+    #[cfg(feature = "client")]
     pub(crate) fn new_user_absolute_uri_required() -> Error {
         Error::new_user(User::AbsoluteUriRequired)
     }
@@ -371,14 +378,17 @@ impl Error {
             #[cfg(feature = "http1")]
             Kind::User(User::UnexpectedHeader) => "user sent unexpected header",
             #[cfg(any(feature = "http1", feature = "http2"))]
+            #[cfg(feature = "client")]
             Kind::User(User::UnsupportedVersion) => "request has unsupported HTTP version",
             #[cfg(any(feature = "http1", feature = "http2"))]
+            #[cfg(feature = "client")]
             Kind::User(User::UnsupportedRequestMethod) => "request has unsupported HTTP method",
             #[cfg(feature = "http1")]
             Kind::User(User::UnsupportedStatusCode) => {
                 "response has 1xx status code, not supported by server"
             }
             #[cfg(any(feature = "http1", feature = "http2"))]
+            #[cfg(feature = "client")]
             Kind::User(User::AbsoluteUriRequired) => "client requires absolute-form URIs",
             Kind::User(User::NoUpgrade) => "no upgrade available",
             #[cfg(feature = "http1")]
