@@ -584,7 +584,7 @@ cfg_client! {
             match msg {
                 Ok((msg, body)) => {
                     if let Some(cb) = self.callback.take() {
-                        let mut res = Response::new(body);
+                        let mut res = http::Response::new(body);
                         *res.status_mut() = msg.subject;
                         *res.headers_mut() = msg.headers;
                         *res.version_mut() = msg.version;
