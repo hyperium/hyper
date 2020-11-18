@@ -35,7 +35,7 @@ itoa = "0.4.1"
 tracing = { version = "0.1", default-features = false, features = ["log", "std"] }
 pin-project = "1.0"
 tower-service = "0.3"
-tokio = { version = "0.3", features = ["sync", "stream"] }
+tokio = { version = "0.3.4", features = ["sync", "stream"] }
 want = "0.3"
 
 # Optional
