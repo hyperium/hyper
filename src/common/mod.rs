@@ -16,6 +16,7 @@ pub(crate) mod drain;
 pub(crate) mod exec;
 pub(crate) mod io;
 #[cfg(any(feature = "http1", feature = "http2"))]
+#[cfg(feature = "client")]
 mod lazy;
 mod never;
 #[cfg(feature = "stream")]
@@ -23,9 +24,10 @@ pub(crate) mod sync_wrapper;
 pub(crate) mod task;
 pub(crate) mod watch;
 
+//#[cfg(any(feature = "http1", feature = "http2"))]
+//pub(crate) use self::exec::{BoxSendFuture, Exec};
 #[cfg(any(feature = "http1", feature = "http2"))]
-pub(crate) use self::exec::{BoxSendFuture, Exec};
-#[cfg(any(feature = "http1", feature = "http2"))]
+#[cfg(feature = "client")]
 pub(crate) use self::lazy::{lazy, Started as Lazy};
 pub use self::never::Never;
 pub(crate) use self::task::Poll;

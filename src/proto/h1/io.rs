@@ -84,6 +84,7 @@ where
         self.write_buf.max_buf_size = max;
     }
 
+    #[cfg(feature = "client")]
     pub fn set_read_buf_exact_size(&mut self, sz: usize) {
         self.read_buf_strategy = ReadStrategy::Exact(sz);
     }
@@ -317,6 +318,7 @@ enum ReadStrategy {
         next: usize,
         max: usize,
     },
+    #[cfg(feature = "client")]
     Exact(usize),
 }
 
@@ -332,6 +334,7 @@ impl ReadStrategy {
     fn next(&self) -> usize {
         match *self {
             ReadStrategy::Adaptive { next, .. } => next,
+            #[cfg(feature = "client")]
             ReadStrategy::Exact(exact) => exact,
         }
     }
@@ -339,38 +342,42 @@ impl ReadStrategy {
     fn max(&self) -> usize {
         match *self {
             ReadStrategy::Adaptive { max, .. } => max,
+            #[cfg(feature = "client")]
             ReadStrategy::Exact(exact) => exact,
         }
     }
 
     fn record(&mut self, bytes_read: usize) {
-        if let ReadStrategy::Adaptive {
-            ref mut decrease_now,
-            ref mut next,
-            max,
-            ..
-        } = *self
-        {
-            if bytes_read >= *next {
-                *next = cmp::min(incr_power_of_two(*next), max);
-                *decrease_now = false;
-            } else {
-                let decr_to = prev_power_of_two(*next);
-                if bytes_read < decr_to {
-                    if *decrease_now {
-                        *next = cmp::max(decr_to, INIT_BUFFER_SIZE);
-                        *decrease_now = false;
-                    } else {
-                        // Decreasing is a two "record" process.
-                        *decrease_now = true;
-                    }
-                } else {
-                    // A read within the current range should cancel
-                    // a potential decrease, since we just saw proof
-                    // that we still need this size.
+        match *self {
+            ReadStrategy::Adaptive {
+                ref mut decrease_now,
+                ref mut next,
+                max,
+                ..
+            } => {
+                if bytes_read >= *next {
+                    *next = cmp::min(incr_power_of_two(*next), max);
                     *decrease_now = false;
+                } else {
+                    let decr_to = prev_power_of_two(*next);
+                    if bytes_read < decr_to {
+                        if *decrease_now {
+                            *next = cmp::max(decr_to, INIT_BUFFER_SIZE);
+                            *decrease_now = false;
+                        } else {
+                            // Decreasing is a two "record" process.
+                            *decrease_now = true;
+                        }
+                    } else {
+                        // A read within the current range should cancel
+                        // a potential decrease, since we just saw proof
+                        // that we still need this size.
+                        *decrease_now = false;
+                    }
                 }
-            }
+            },
+            #[cfg(feature = "client")]
+            ReadStrategy::Exact(_) => (),
         }
     }
 }

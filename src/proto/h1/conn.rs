@@ -1,5 +1,5 @@
 use std::fmt;
-use std::io::{self};
+use std::io;
 use std::marker::PhantomData;
 
 use bytes::{Buf, Bytes};
@@ -65,6 +65,7 @@ where
         self.io.set_max_buf_size(max);
     }
 
+    #[cfg(feature = "client")]
     pub fn set_read_buf_exact_size(&mut self, sz: usize) {
         self.io.set_read_buf_exact_size(sz);
     }
@@ -77,6 +78,7 @@ where
         self.io.set_write_strategy_queue();
     }
 
+    #[cfg(feature = "client")]
     pub fn set_title_case_headers(&mut self) {
         self.state.title_case_headers = true;
     }

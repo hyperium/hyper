@@ -19,7 +19,10 @@ mod io;
 mod role;
 
 pub(crate) type ServerTransaction = role::Server;
-pub(crate) type ClientTransaction = role::Client;
+
+cfg_client! {
+    pub(crate) type ClientTransaction = role::Client;
+}
 
 pub(crate) trait Http1Transaction {
     type Incoming;

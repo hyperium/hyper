@@ -74,11 +74,12 @@ pnet = "0.25.0"
 default = [
     "runtime",
     "stream",
-
+    "client",
     "http1",
     "http2",
 ]
 full = [
+    "client",
     "http1",
     "http2",
     "stream",
@@ -98,6 +99,8 @@ tcp = [
 # HTTP versions
 http1 = []
 http2 = ["h2"]
+
+client = []
 
 # `impl Stream` for things
 stream = []
