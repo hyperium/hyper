@@ -777,7 +777,7 @@ mod tests {
     use std::time::Duration;
 
     use super::{Connecting, Key, Pool, Poolable, Reservation, WeakOpt};
-    use crate::common::{task, Exec, Future, Pin};
+    use crate::common::{task, exec::Exec, Future, Pin};
 
     /// Test unique reservations.
     #[derive(Debug, PartialEq, Eq)]
