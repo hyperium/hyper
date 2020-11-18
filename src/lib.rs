@@ -68,12 +68,9 @@ pub mod rt;
 pub mod service;
 pub mod upgrade;
 
-cfg_any_http! {
+cfg_proto! {
     mod headers;
     mod proto;
-    pub mod server;
-
-    pub use crate::server::Server;
 }
 
 cfg_feature! {
@@ -81,4 +78,11 @@ cfg_feature! {
 
     pub mod client;
     pub use crate::client::Client;
+}
+
+cfg_feature! {
+    #![all(feature = "server", any(feature = "http1", feature = "http2"))]
+
+    pub mod server;
+    pub use crate::server::Server;
 }

@@ -49,6 +49,7 @@ pub(crate) use self::http::HttpService;
 #[cfg(feature = "client")]
 pub(crate) use self::make::MakeConnection;
 #[cfg(any(feature = "http1", feature = "http2"))]
+#[cfg(feature = "server")]
 pub(crate) use self::make::MakeServiceRef;
 #[cfg(any(feature = "http1", feature = "http2"))]
 #[cfg(feature = "client")]

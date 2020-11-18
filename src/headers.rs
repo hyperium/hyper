@@ -30,6 +30,7 @@ fn connection_has(value: &HeaderValue, needle: &str) -> bool {
 }
 
 #[cfg(feature = "http1")]
+#[cfg(feature = "server")]
 pub fn content_length_parse(value: &HeaderValue) -> Option<u64> {
     value.to_str().ok().and_then(|s| s.parse().ok())
 }

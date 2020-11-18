@@ -75,6 +75,7 @@ default = [
     "runtime",
     "stream",
     "client",
+    "server",
     "http1",
     "http2",
 ]
@@ -82,6 +83,7 @@ full = [
     "client",
     "http1",
     "http2",
+    "server",
     "stream",
     "runtime",
 ]
@@ -100,7 +102,9 @@ tcp = [
 http1 = []
 http2 = ["h2"]
 
+# Client/Server
 client = []
+server = []
 
 # `impl Stream` for things
 stream = []

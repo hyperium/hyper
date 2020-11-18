@@ -35,6 +35,7 @@ enum Kind {
     ///
     /// This is mostly only used with HTTP/1.0 with a length. This kind requires
     /// the connection to be closed when the body is finished.
+    #[cfg(feature = "server")]
     CloseDelimited,
 }
 
@@ -61,6 +62,7 @@ impl Encoder {
         Encoder::new(Kind::Length(len))
     }
 
+    #[cfg(feature = "server")]
     pub fn close_delimited() -> Encoder {
         Encoder::new(Kind::CloseDelimited)
     }
@@ -72,6 +74,7 @@ impl Encoder {
         }
     }
 
+    #[cfg(feature = "server")]
     pub fn set_last(mut self, is_last: bool) -> Self {
         self.is_last = is_last;
         self
@@ -83,6 +86,7 @@ impl Encoder {
 
     pub fn is_close_delimited(&self) -> bool {
         match self.kind {
+            #[cfg(feature = "server")]
             Kind::CloseDelimited => true,
             _ => false,
         }
@@ -94,6 +98,7 @@ impl Encoder {
             Kind::Chunked => Ok(Some(EncodedBuf {
                 kind: BufKind::ChunkedEnd(b"0\r\n\r\n"),
             })),
+            #[cfg(feature = "server")]
             Kind::CloseDelimited => Ok(None),
             Kind::Length(_) => Err(NotEof),
         }
@@ -125,6 +130,7 @@ impl Encoder {
                     BufKind::Exact(msg)
                 }
             }
+            #[cfg(feature = "server")]
             Kind::CloseDelimited => {
                 trace!("close delimited write {}B", len);
                 BufKind::Exact(msg)
@@ -168,6 +174,7 @@ impl Encoder {
                     }
                 }
             }
+            #[cfg(feature = "server")]
             Kind::CloseDelimited => {
                 trace!("close delimited write {}B", len);
                 dst.buffer(msg);

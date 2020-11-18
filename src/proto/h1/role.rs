@@ -10,6 +10,7 @@ use http::header::{self, Entry, HeaderName, HeaderValue};
 use http::{HeaderMap, Method, StatusCode, Version};
 
 use crate::body::DecodedLength;
+#[cfg(feature = "server")]
 use crate::common::date;
 use crate::error::Parse;
 use crate::headers;
@@ -94,10 +95,13 @@ where
 
 // There are 2 main roles, Client and Server.
 
+#[cfg(feature = "client")]
 pub(crate) enum Client {}
 
+#[cfg(feature = "server")]
 pub(crate) enum Server {}
 
+#[cfg(feature = "server")]
 impl Http1Transaction for Server {
     type Incoming = RequestLine;
     type Outgoing = StatusCode;
@@ -618,6 +622,7 @@ impl Http1Transaction for Server {
     }
 }
 
+#[cfg(feature = "server")]
 impl Server {
     fn can_have_body(method: &Option<Method>, status: StatusCode) -> bool {
         Server::can_chunked(method, status)
@@ -640,6 +645,7 @@ impl Server {
     }
 }
 
+#[cfg(feature = "client")]
 impl Http1Transaction for Client {
     type Incoming = StatusCode;
     type Outgoing = RequestLine;
@@ -779,6 +785,7 @@ impl Http1Transaction for Client {
     }
 }
 
+#[cfg(feature = "client")]
 impl Client {
     /// Returns Some(length, wants_upgrade) if successful.
     ///
@@ -846,9 +853,6 @@ impl Client {
             Ok(Some((DecodedLength::CLOSE_DELIMITED, false)))
         }
     }
-}
-
-impl Client {
     fn set_length(head: &mut RequestHead, body: Option<BodyLength>) -> Encoder {
         let body = if let Some(body) = body {
             body

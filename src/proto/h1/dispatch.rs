@@ -1,7 +1,7 @@
 use std::error::Error as StdError;
 
 use bytes::{Buf, Bytes};
-use http::{Request, StatusCode};
+use http::Request;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::{Http1Transaction, Wants};
@@ -10,7 +10,6 @@ use crate::common::{task, Future, Pin, Poll, Unpin};
 use crate::proto::{
     BodyLength, Conn, Dispatched, MessageHead, RequestHead,
 };
-use crate::service::HttpService;
 
 pub(crate) struct Dispatcher<D, Bs: HttpBody, I, T> {
     conn: Conn<I, Bs::Data, T>,
@@ -34,9 +33,13 @@ pub(crate) trait Dispatch {
     fn should_poll(&self) -> bool;
 }
 
-pub struct Server<S: HttpService<B>, B> {
-    in_flight: Pin<Box<Option<S::Future>>>,
-    pub(crate) service: S,
+cfg_server! {
+    use crate::service::HttpService;
+
+    pub struct Server<S: HttpService<B>, B> {
+        in_flight: Pin<Box<Option<S::Future>>>,
+        pub(crate) service: S,
+    }
 }
 
 cfg_client! {
@@ -74,6 +77,7 @@ where
         }
     }
 
+    #[cfg(feature = "server")]
     pub fn disable_keep_alive(&mut self) {
         self.conn.disable_keep_alive();
         if self.conn.is_write_closed() {
@@ -441,84 +445,86 @@ impl<'a, T> Drop for OptGuard<'a, T> {
 
 // ===== impl Server =====
 
-impl<S, B> Server<S, B>
-where
-    S: HttpService<B>,
-{
-    pub fn new(service: S) -> Server<S, B> {
-        Server {
-            in_flight: Box::pin(None),
-            service,
+cfg_server! {
+    impl<S, B> Server<S, B>
+    where
+        S: HttpService<B>,
+    {
+        pub fn new(service: S) -> Server<S, B> {
+            Server {
+                in_flight: Box::pin(None),
+                service,
+            }
+        }
+
+        pub fn into_service(self) -> S {
+            self.service
         }
     }
 
-    pub fn into_service(self) -> S {
-        self.service
-    }
-}
+    // Service is never pinned
+    impl<S: HttpService<B>, B> Unpin for Server<S, B> {}
 
-// Service is never pinned
-impl<S: HttpService<B>, B> Unpin for Server<S, B> {}
+    impl<S, Bs> Dispatch for Server<S, Body>
+    where
+        S: HttpService<Body, ResBody = Bs>,
+        S::Error: Into<Box<dyn StdError + Send + Sync>>,
+        Bs: HttpBody,
+    {
+        type PollItem = MessageHead<http::StatusCode>;
+        type PollBody = Bs;
+        type PollError = S::Error;
+        type RecvItem = RequestHead;
 
-impl<S, Bs> Dispatch for Server<S, Body>
-where
-    S: HttpService<Body, ResBody = Bs>,
-    S::Error: Into<Box<dyn StdError + Send + Sync>>,
-    Bs: HttpBody,
-{
-    type PollItem = MessageHead<StatusCode>;
-    type PollBody = Bs;
-    type PollError = S::Error;
-    type RecvItem = RequestHead;
-
-    fn poll_msg(
-        mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
-    ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Self::PollError>>> {
-        let mut this = self.as_mut();
-        let ret = if let Some(ref mut fut) = this.in_flight.as_mut().as_pin_mut() {
-            let resp = ready!(fut.as_mut().poll(cx)?);
-            let (parts, body) = resp.into_parts();
-            let head = MessageHead {
-                version: parts.version,
-                subject: parts.status,
-                headers: parts.headers,
+        fn poll_msg(
+            mut self: Pin<&mut Self>,
+            cx: &mut task::Context<'_>,
+        ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Self::PollError>>> {
+            let mut this = self.as_mut();
+            let ret = if let Some(ref mut fut) = this.in_flight.as_mut().as_pin_mut() {
+                let resp = ready!(fut.as_mut().poll(cx)?);
+                let (parts, body) = resp.into_parts();
+                let head = MessageHead {
+                    version: parts.version,
+                    subject: parts.status,
+                    headers: parts.headers,
+                };
+                Poll::Ready(Some(Ok((head, body))))
+            } else {
+                unreachable!("poll_msg shouldn't be called if no inflight");
             };
-            Poll::Ready(Some(Ok((head, body))))
-        } else {
-            unreachable!("poll_msg shouldn't be called if no inflight");
-        };
 
-        // Since in_flight finished, remove it
-        this.in_flight.set(None);
-        ret
-    }
-
-    fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, Body)>) -> crate::Result<()> {
-        let (msg, body) = msg?;
-        let mut req = Request::new(body);
-        *req.method_mut() = msg.subject.0;
-        *req.uri_mut() = msg.subject.1;
-        *req.headers_mut() = msg.headers;
-        *req.version_mut() = msg.version;
-        let fut = self.service.call(req);
-        self.in_flight.set(Some(fut));
-        Ok(())
-    }
-
-    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), ()>> {
-        if self.in_flight.is_some() {
-            Poll::Pending
-        } else {
-            self.service.poll_ready(cx).map_err(|_e| {
-                // FIXME: return error value.
-                trace!("service closed");
-            })
+            // Since in_flight finished, remove it
+            this.in_flight.set(None);
+            ret
         }
-    }
 
-    fn should_poll(&self) -> bool {
-        self.in_flight.is_some()
+        fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, Body)>) -> crate::Result<()> {
+            let (msg, body) = msg?;
+            let mut req = Request::new(body);
+            *req.method_mut() = msg.subject.0;
+            *req.uri_mut() = msg.subject.1;
+            *req.headers_mut() = msg.headers;
+            *req.version_mut() = msg.version;
+            let fut = self.service.call(req);
+            self.in_flight.set(Some(fut));
+            Ok(())
+        }
+
+        fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), ()>> {
+            if self.in_flight.is_some() {
+                Poll::Pending
+            } else {
+                self.service.poll_ready(cx).map_err(|_e| {
+                    // FIXME: return error value.
+                    trace!("service closed");
+                })
+            }
+        }
+
+        fn should_poll(&self) -> bool {
+            self.in_flight.is_some()
+        }
     }
 }
 

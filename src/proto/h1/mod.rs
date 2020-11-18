@@ -18,10 +18,13 @@ mod encode;
 mod io;
 mod role;
 
-pub(crate) type ServerTransaction = role::Server;
 
 cfg_client! {
     pub(crate) type ClientTransaction = role::Client;
+}
+
+cfg_server! {
+    pub(crate) type ServerTransaction = role::Server;
 }
 
 pub(crate) trait Http1Transaction {
@@ -73,6 +76,7 @@ pub(crate) struct ParseContext<'a> {
 pub(crate) struct Encode<'a, T> {
     head: &'a mut MessageHead<T>,
     body: Option<BodyLength>,
+    #[cfg(feature = "server")]
     keep_alive: bool,
     req_method: &'a mut Option<Method>,
     title_case_headers: bool,

@@ -36,10 +36,15 @@ pub(crate) enum Kind {
     /// Error occurred while connecting.
     Connect,
     /// Error creating a TcpListener.
-    #[cfg(all(any(feature = "http1", feature = "http2"), feature = "tcp"))]
+    #[cfg(all(
+        any(feature = "http1", feature = "http2"),
+        feature = "tcp",
+        feature = "server"
+    ))]
     Listen,
     /// Error accepting on an Incoming stream.
     #[cfg(any(feature = "http1", feature = "http2"))]
+    #[cfg(feature = "server")]
     Accept,
     /// Error while reading a body from connection.
     #[cfg(any(feature = "http1", feature = "http2", feature = "stream"))]
@@ -77,6 +82,7 @@ pub(crate) enum User {
     Body,
     /// Error calling user's MakeService.
     #[cfg(any(feature = "http1", feature = "http2"))]
+    #[cfg(feature = "server")]
     MakeService,
     /// Error from future of user's Service.
     #[cfg(any(feature = "http1", feature = "http2"))]
@@ -85,6 +91,7 @@ pub(crate) enum User {
     ///
     /// For example, sending both `content-length` and `transfer-encoding`.
     #[cfg(feature = "http1")]
+    #[cfg(feature = "server")]
     UnexpectedHeader,
     /// User tried to create a Request with bad version.
     #[cfg(any(feature = "http1", feature = "http2"))]
@@ -96,6 +103,7 @@ pub(crate) enum User {
     UnsupportedRequestMethod,
     /// User tried to respond with a 1xx (not 101) response code.
     #[cfg(feature = "http1")]
+    #[cfg(feature = "server")]
     UnsupportedStatusCode,
     /// User tried to send a Request with Client with non-absolute URI.
     #[cfg(any(feature = "http1", feature = "http2"))]
@@ -178,6 +186,7 @@ impl Error {
     }
 
     #[cfg(feature = "http1")]
+    #[cfg(feature = "server")]
     pub(crate) fn kind(&self) -> &Kind {
         &self.inner.kind
     }
@@ -234,11 +243,13 @@ impl Error {
     }
 
     #[cfg(all(any(feature = "http1", feature = "http2"), feature = "tcp"))]
+    #[cfg(feature = "server")]
     pub(crate) fn new_listen<E: Into<Cause>>(cause: E) -> Error {
         Error::new(Kind::Listen).with(cause)
     }
 
     #[cfg(any(feature = "http1", feature = "http2"))]
+    #[cfg(feature = "server")]
     pub(crate) fn new_accept<E: Into<Cause>>(cause: E) -> Error {
         Error::new(Kind::Accept).with(cause)
     }
@@ -272,6 +283,7 @@ impl Error {
     }
 
     #[cfg(feature = "http1")]
+    #[cfg(feature = "server")]
     pub(crate) fn new_user_header() -> Error {
         Error::new_user(User::UnexpectedHeader)
     }
@@ -289,6 +301,7 @@ impl Error {
     }
 
     #[cfg(feature = "http1")]
+    #[cfg(feature = "server")]
     pub(crate) fn new_user_unsupported_status_code() -> Error {
         Error::new_user(User::UnsupportedStatusCode)
     }
@@ -309,6 +322,7 @@ impl Error {
     }
 
     #[cfg(any(feature = "http1", feature = "http2"))]
+    #[cfg(feature = "server")]
     pub(crate) fn new_user_make_service<E: Into<Cause>>(cause: E) -> Error {
         Error::new_user(User::MakeService).with(cause)
     }
@@ -354,8 +368,10 @@ impl Error {
             Kind::Connect => "error trying to connect",
             Kind::Canceled => "operation was canceled",
             #[cfg(all(any(feature = "http1", feature = "http2"), feature = "tcp"))]
+            #[cfg(feature = "server")]
             Kind::Listen => "error creating server listener",
             #[cfg(any(feature = "http1", feature = "http2"))]
+            #[cfg(feature = "server")]
             Kind::Accept => "error accepting connection",
             #[cfg(any(feature = "http1", feature = "http2", feature = "stream"))]
             Kind::Body => "error reading a body from connection",
@@ -372,10 +388,12 @@ impl Error {
             #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::User(User::Body) => "error from user's HttpBody stream",
             #[cfg(any(feature = "http1", feature = "http2"))]
+            #[cfg(feature = "server")]
             Kind::User(User::MakeService) => "error from user's MakeService",
             #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::User(User::Service) => "error from user's Service",
             #[cfg(feature = "http1")]
+            #[cfg(feature = "server")]
             Kind::User(User::UnexpectedHeader) => "user sent unexpected header",
             #[cfg(any(feature = "http1", feature = "http2"))]
             #[cfg(feature = "client")]
@@ -384,6 +402,7 @@ impl Error {
             #[cfg(feature = "client")]
             Kind::User(User::UnsupportedRequestMethod) => "request has unsupported HTTP method",
             #[cfg(feature = "http1")]
+            #[cfg(feature = "server")]
             Kind::User(User::UnsupportedStatusCode) => {
                 "response has 1xx status code, not supported by server"
             }
