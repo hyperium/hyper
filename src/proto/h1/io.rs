@@ -66,6 +66,7 @@ where
         }
     }
 
+    #[cfg(feature = "server")]
     pub fn set_flush_pipeline(&mut self, enabled: bool) {
         debug_assert!(!self.write_buf.has_remaining());
         self.flush_pipeline = enabled;

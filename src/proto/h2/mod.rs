@@ -14,14 +14,16 @@ use crate::common::{task, Future, Pin, Poll};
 use crate::headers::content_length_parse_all;
 
 pub(crate) mod ping;
-pub(crate) mod server;
 
 cfg_client! {
     pub(crate) mod client;
     pub(crate) use self::client::ClientTask;
 }
 
-pub(crate) use self::server::Server;
+cfg_server! {
+    pub(crate) mod server;
+    pub(crate) use self::server::Server;
+}
 
 /// Default initial stream window size defined in HTTP2 spec.
 pub(crate) const SPEC_WINDOW_SIZE: u32 = 65_535;

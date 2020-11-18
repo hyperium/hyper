@@ -21,7 +21,7 @@ use crate::common::{task, watch, Pin, Poll};
 #[cfg(any(feature = "http1", feature = "http2"))]
 #[cfg(feature = "client")]
 use crate::common::{Future, Never};
-#[cfg(feature = "http2")]
+#[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
 use crate::proto::h2::ping;
 use crate::upgrade::OnUpgrade;
 
@@ -46,7 +46,7 @@ enum Kind {
         want_tx: watch::Sender,
         rx: mpsc::Receiver<Result<Bytes, crate::Error>>,
     },
-    #[cfg(feature = "http2")]
+    #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
     H2 {
         ping: ping::Recorder,
         content_length: DecodedLength,
@@ -200,7 +200,7 @@ impl Body {
         Body { kind, extra: None }
     }
 
-    #[cfg(feature = "http2")]
+    #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
     pub(crate) fn h2(
         recv: h2::RecvStream,
         content_length: DecodedLength,
@@ -301,7 +301,7 @@ impl Body {
                     None => Poll::Ready(None),
                 }
             }
-            #[cfg(feature = "http2")]
+            #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
             Kind::H2 {
                 ref ping,
                 recv: ref mut h2,
@@ -359,7 +359,7 @@ impl HttpBody for Body {
         #[cfg_attr(not(feature = "http2"), allow(unused))] cx: &mut task::Context<'_>,
     ) -> Poll<Result<Option<HeaderMap>, Self::Error>> {
         match self.kind {
-            #[cfg(feature = "http2")]
+            #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
             Kind::H2 {
                 recv: ref mut h2,
                 ref ping,
@@ -379,7 +379,7 @@ impl HttpBody for Body {
         match self.kind {
             Kind::Once(ref val) => val.is_none(),
             Kind::Chan { content_length, .. } => content_length == DecodedLength::ZERO,
-            #[cfg(feature = "http2")]
+            #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
             Kind::H2 { recv: ref h2, .. } => h2.is_end_stream(),
             #[cfg(feature = "stream")]
             Kind::Wrapped(..) => false,
@@ -405,7 +405,7 @@ impl HttpBody for Body {
             #[cfg(feature = "stream")]
             Kind::Wrapped(..) => SizeHint::default(),
             Kind::Chan { content_length, .. } => opt_len!(content_length),
-            #[cfg(feature = "http2")]
+            #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
             Kind::H2 { content_length, .. } => opt_len!(content_length),
         }
     }

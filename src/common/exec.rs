@@ -3,17 +3,23 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
+#[cfg(feature = "server")]
 use crate::body::{Body, HttpBody};
 #[cfg(feature = "http2")]
+#[cfg(feature = "server")]
 use crate::proto::h2::server::H2Stream;
 use crate::rt::Executor;
+#[cfg(feature = "server")]
 use crate::server::conn::spawn_all::{NewSvcTask, Watcher};
+#[cfg(feature = "server")]
 use crate::service::HttpService;
 
+#[cfg(feature = "server")]
 pub trait ConnStreamExec<F, B: HttpBody>: Clone {
     fn execute_h2stream(&mut self, fut: H2Stream<F, B>);
 }
 
+#[cfg(feature = "server")]
 pub trait NewSvcExec<I, N, S: HttpService<Body>, E, W: Watcher<I, S, E>>: Clone {
     fn execute_new_svc(&mut self, fut: NewSvcTask<I, N, S, E, W>);
 }
@@ -60,6 +66,7 @@ impl fmt::Debug for Exec {
     }
 }
 
+#[cfg(feature = "server")]
 impl<F, B> ConnStreamExec<F, B> for Exec
 where
     H2Stream<F, B>: Future<Output = ()> + Send + 'static,
@@ -70,6 +77,7 @@ where
     }
 }
 
+#[cfg(feature = "server")]
 impl<I, N, S, E, W> NewSvcExec<I, N, S, E, W> for Exec
 where
     NewSvcTask<I, N, S, E, W>: Future<Output = ()> + Send + 'static,
@@ -83,6 +91,7 @@ where
 
 // ==== impl Executor =====
 
+#[cfg(feature = "server")]
 impl<E, F, B> ConnStreamExec<F, B> for E
 where
     E: Executor<H2Stream<F, B>> + Clone,
@@ -94,6 +103,7 @@ where
     }
 }
 
+#[cfg(feature = "server")]
 impl<I, N, S, E, W> NewSvcExec<I, N, S, E, W> for E
 where
     E: Executor<NewSvcTask<I, N, S, E, W>> + Clone,
@@ -119,7 +129,7 @@ pub struct H2Stream<F, B>(std::marker::PhantomData<(F, B)>);
 impl<F, B, E> Future for H2Stream<F, B>
 where
     F: Future<Output = Result<http::Response<B>, E>>,
-    B: HttpBody,
+    B: crate::body::HttpBody,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
     E: Into<Box<dyn std::error::Error + Send + Sync>>,
 {

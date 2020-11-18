@@ -57,6 +57,7 @@ where
         }
     }
 
+    #[cfg(feature = "server")]
     pub fn set_flush_pipeline(&mut self, enabled: bool) {
         self.io.set_flush_pipeline(enabled);
     }
@@ -83,6 +84,7 @@ where
         self.state.title_case_headers = true;
     }
 
+    #[cfg(feature = "server")]
     pub(crate) fn set_allow_half_close(&mut self) {
         self.state.allow_half_close = true;
     }
@@ -485,6 +487,7 @@ where
             Encode {
                 head: &mut head,
                 body,
+                #[cfg(feature = "server")]
                 keep_alive: self.state.wants_keep_alive(),
                 req_method: &mut self.state.method,
                 title_case_headers: self.state.title_case_headers,
@@ -690,6 +693,7 @@ where
         self.state.close_write();
     }
 
+    #[cfg(feature = "server")]
     pub fn disable_keep_alive(&mut self) {
         if self.state.is_idle() {
             trace!("disable_keep_alive; closing idle connection");

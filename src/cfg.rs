@@ -11,16 +11,19 @@ macro_rules! cfg_feature {
     }
 }
 
-macro_rules! cfg_any_http {
+macro_rules! cfg_proto {
     ($($item:item)*) => {
         cfg_feature! {
-            #![any(feature = "http1", feature = "http2")]
+            #![all(
+                any(feature = "http1", feature = "http2"),
+                any(feature = "client", feature = "server"),
+            )]
             $($item)*
         }
     }
 }
 
-cfg_any_http! {
+cfg_proto! {
     macro_rules! cfg_http1 {
         ($($item:item)*) => {
             cfg_feature! {
@@ -43,6 +46,15 @@ cfg_any_http! {
         ($($item:item)*) => {
             cfg_feature! {
                 #![feature = "client"]
+                $($item)*
+            }
+        }
+    }
+
+    macro_rules! cfg_server {
+        ($($item:item)*) => {
+            cfg_feature! {
+                #![feature = "server"]
                 $($item)*
             }
         }
