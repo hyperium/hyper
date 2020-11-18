@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1605661763354,
+  "lastUpdate": 1605661775038,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -301,6 +301,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 56748,
             "range": "± 3644",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4e55583d30a597884883f1a51b678f5c57c76765",
+          "message": "feat(client): Make `client` an optional feature\n\ncc #2223\r\n\r\nBREAKING CHANGE: The HTTP client of hyper is now an optional feature. To\r\n  enable the client, add `features = [\"client\"]` to the dependency in\r\n  your `Cargo.toml`.",
+          "timestamp": "2020-11-17T17:06:25-08:00",
+          "tree_id": "a96d23e59a63b4783772da0aa92b70f346ba446c",
+          "url": "https://github.com/hyperium/hyper/commit/4e55583d30a597884883f1a51b678f5c57c76765"
+        },
+        "date": 1605661773401,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 58946,
+            "range": "± 2463",
             "unit": "ns/iter"
           }
         ]
