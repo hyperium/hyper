@@ -26,7 +26,7 @@ jobs:
 
       # Run benchmark and stores the output to a file
       - name: Run benchmark
-        run: cargo bench --bench ${{ matrix.bench }} | tee output.txt
+        run: cargo bench --features full --bench ${{ matrix.bench }} | tee output.txt
 
       # Download previous benchmark result from cache (if exists)
       - name: Download previous benchmark data
