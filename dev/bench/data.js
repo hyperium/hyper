@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1605809319495,
+  "lastUpdate": 1605809352886,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -481,6 +481,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 61873,
             "range": "± 14397",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ed2b22a7f66899d338691552fbcb6c0f2f4e06b9",
+          "message": "feat(lib): disable all optional features by default (#2336)\n\nBREAKING CHANGE: All optional features have been disabled by default.",
+          "timestamp": "2020-11-19T10:05:39-08:00",
+          "tree_id": "6e1ed1ba8f1fec285f11643f67ff48ea7e92a9a5",
+          "url": "https://github.com/hyperium/hyper/commit/ed2b22a7f66899d338691552fbcb6c0f2f4e06b9"
+        },
+        "date": 1605809351375,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 68793,
+            "range": "± 13015",
             "unit": "ns/iter"
           }
         ]
