@@ -187,13 +187,15 @@ impl Body {
         Body::new(Kind::Wrapped(SyncWrapper::new(Box::pin(mapped))))
     }
 
-    /// Converts this `Body` into a `Future` of a pending HTTP upgrade.
-    ///
-    /// See [the `upgrade` module](crate::upgrade) for more.
-    pub fn on_upgrade(self) -> OnUpgrade {
-        self.extra
-            .map(|ex| ex.on_upgrade)
-            .unwrap_or_else(OnUpgrade::none)
+    // TODO: Eventually the pending upgrade should be stored in the
+    // `Extensions`, and all these pieces can be removed. In v0.14, we made
+    // the breaking changes, so now this TODO can be done without breakage.
+    pub(crate) fn take_upgrade(&mut self) -> OnUpgrade {
+        if let Some(ref mut extra) = self.extra {
+            std::mem::replace(&mut extra.on_upgrade, OnUpgrade::none())
+        } else {
+            OnUpgrade::none()
+        }
     }
 
     fn new(kind: Kind) -> Body {

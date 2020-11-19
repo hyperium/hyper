@@ -1790,9 +1790,7 @@ mod dispatch_impl {
         let res = rt.block_on(future::join(res, rx).map(|r| r.0)).unwrap();
 
         assert_eq!(res.status(), 101);
-        let upgraded = rt
-            .block_on(res.into_body().on_upgrade())
-            .expect("on_upgrade");
+        let upgraded = rt.block_on(hyper::upgrade::on(res)).expect("on_upgrade");
 
         let parts = upgraded.downcast::<DebugStream>().unwrap();
         assert_eq!(s(&parts.read_buf), "foobar=ready");

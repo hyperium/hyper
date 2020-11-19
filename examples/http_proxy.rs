@@ -58,7 +58,7 @@ async fn proxy(client: HttpClient, req: Request<Body>) -> Result<Response<Body>,
         // `on_upgrade` future.
         if let Some(addr) = host_addr(req.uri()) {
             tokio::task::spawn(async move {
-                match req.into_body().on_upgrade().await {
+                match hyper::upgrade::on(req).await {
                     Ok(upgraded) => {
                         if let Err(e) = tunnel(upgraded, addr).await {
                             eprintln!("server io error: {}", e);
