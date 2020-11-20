@@ -71,14 +71,10 @@ url = "1.0"
 pnet = "0.25.0"
 
 [features]
-default = [
-    "runtime",
-    "stream",
-    "client",
-    "server",
-    "http1",
-    "http2",
-]
+# Nothing by default
+default = []
+
+# Easily turn it all on
 full = [
     "client",
     "http1",
@@ -86,16 +82,6 @@ full = [
     "server",
     "stream",
     "runtime",
-]
-runtime = [
-    "tcp",
-    "tokio/rt",
-]
-tcp = [
-    "socket2",
-    "tokio/net",
-    "tokio/rt",
-    "tokio/time",
 ]
 
 # HTTP versions
@@ -108,6 +94,19 @@ server = []
 
 # `impl Stream` for things
 stream = []
+
+# Tokio support
+
+runtime = [
+    "tcp",
+    "tokio/rt",
+]
+tcp = [
+    "socket2",
+    "tokio/net",
+    "tokio/rt",
+    "tokio/time",
+]
 
 # internal features used in CI
 nightly = []
@@ -131,122 +130,122 @@ incremental = false
 [[example]]
 name = "client"
 path = "examples/client.rs"
-required-features = ["runtime"]
+required-features = ["full"]
 
 [[example]]
 name = "client_json"
 path = "examples/client_json.rs"
-required-features = ["runtime"]
+required-features = ["full"]
 
 [[example]]
 name = "echo"
 path = "examples/echo.rs"
-required-features = ["runtime", "stream"]
+required-features = ["full"]
 
 [[example]]
 name = "gateway"
 path = "examples/gateway.rs"
-required-features = ["runtime"]
+required-features = ["full"]
 
 [[example]]
 name = "hello"
 path = "examples/hello.rs"
-required-features = ["runtime"]
+required-features = ["full"]
 
 [[example]]
 name = "http_proxy"
 path = "examples/http_proxy.rs"
-required-features = ["runtime"]
+required-features = ["full"]
 
 [[example]]
 name = "multi_server"
 path = "examples/multi_server.rs"
-required-features = ["runtime"]
+required-features = ["full"]
 
 [[example]]
 name = "params"
 path = "examples/params.rs"
-required-features = ["runtime", "stream"]
+required-features = ["full"]
 
 [[example]]
 name = "send_file"
 path = "examples/send_file.rs"
-required-features = ["runtime"]
+required-features = ["full"]
 
 [[example]]
 name = "service_struct_impl"
 path = "examples/service_struct_impl.rs"
-required-features = ["runtime"]
+required-features = ["full"]
 
 [[example]]
 name = "single_threaded"
 path = "examples/single_threaded.rs"
-required-features = ["runtime"]
+required-features = ["full"]
 
 [[example]]
 name = "state"
 path = "examples/state.rs"
-required-features = ["runtime"]
+required-features = ["full"]
 
 [[example]]
 name = "tower_client"
 path = "examples/tower_client.rs"
-required-features = ["runtime"]
+required-features = ["full"]
 
 [[example]]
 name = "tower_server"
 path = "examples/tower_server.rs"
-required-features = ["runtime"]
+required-features = ["full"]
 
 [[example]]
 name = "upgrades"
 path = "examples/upgrades.rs"
-required-features = ["runtime"]
+required-features = ["full"]
 
 
 [[example]]
 name = "web_api"
 path = "examples/web_api.rs"
-required-features = ["runtime", "stream"]
+required-features = ["full"]
 
 
 [[bench]]
 name = "body"
 path = "benches/body.rs"
-required-features = ["runtime", "stream"]
+required-features = ["full"]
 
 [[bench]]
 name = "connect"
 path = "benches/connect.rs"
-required-features = ["runtime"]
+required-features = ["full"]
 
 [[bench]]
 name = "end_to_end"
 path = "benches/end_to_end.rs"
-required-features = ["runtime"]
+required-features = ["full"]
 
 [[bench]]
 name = "pipeline"
 path = "benches/pipeline.rs"
-required-features = ["runtime"]
+required-features = ["full"]
 
 [[bench]]
 name = "server"
 path = "benches/server.rs"
-required-features = ["runtime", "stream"]
+required-features = ["full"]
 
 
 [[test]]
 name = "client"
 path = "tests/client.rs"
-required-features = ["runtime", "stream"]
+required-features = ["full"]
 
 [[test]]
 name = "integration"
 path = "tests/integration.rs"
-required-features = ["runtime", "stream"]
+required-features = ["full"]
 
 [[test]]
 name = "server"
 path = "tests/server.rs"
-required-features = ["runtime"]
+required-features = ["full"]

@@ -14,8 +14,7 @@ pub(crate) struct Rewind<T> {
 }
 
 impl<T> Rewind<T> {
-    #[cfg(any(feature = "http2", test))]
-    #[cfg(feature = "server")]
+    #[cfg(any(all(feature = "http2", feature = "server"), test))]
     pub(crate) fn new(io: T) -> Self {
         Rewind {
             pre: None,

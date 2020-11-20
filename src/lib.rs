@@ -31,14 +31,29 @@
 //!
 //! # Optional Features
 //!
+//! hyper uses a set of [feature flags] to reduce the amount of compiled code.
+//! It is possible to just enable certain features over others. By default,
+//! hyper does not enable any features but allows one to enable a subset for
+//! their use case. Below is a list of the available feature flags. You may
+//! also notice above each function, struct and trait there is listed one or
+//! more feature flags that are required for that item to be used.
+//!
+//! If you are new to hyper it is possible to enable the `full` feature flag
+//! which will enable all public APIs. Beware though that this will pull in
+//! many extra dependencies that you may not need.
+//!
 //! The following optional features are available:
 //!
-//! - `runtime` (*enabled by default*): Enables convenient integration with
-//!   `tokio`, providing connectors and acceptors for TCP, and a default
-//!   executor.
-//! - `tcp` (*enabled by default*): Enables convenient implementations over
-//!   TCP (using tokio).
-//! - `stream` (*enabled by default*): Provides `futures::Stream` capabilities.
+//! - `http1`: Enables HTTP/1 support.
+//! - `http2`: Enables HTTP/2 support.
+//! - `client`: Enables the HTTP `client`.
+//! - `server`: Enables the HTTP `server`.
+//! - `runtime`: Enables convenient integration with `tokio`, providing
+//!   connectors and acceptors for TCP, and a default executor.
+//! - `tcp`: Enables convenient implementations over TCP (using tokio).
+//! - `stream`: Provides `futures::Stream` capabilities.
+//!
+//! [feature flags]: https://doc.rust-lang.org/cargo/reference/manifest.html#the-features-section
 
 #[doc(hidden)]
 pub use http;
