@@ -823,33 +823,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn write_buf_auto_flatten() {
-        let _ = pretty_env_logger::try_init();
-
-        let mock = Mock::new()
-            // Expects write_buf to only consume first buffer
-            .write(b"hello ")
-            // And then the Auto strategy will have flattened
-            .write(b"world, it's hyper!")
-            .build();
-
-        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
-
-        // we have 4 buffers, but hope to detect that vectored IO isn't
-        // being used, and switch to flattening automatically,
-        // resulting in only 2 writes
-        buffered.headers_buf().extend(b"hello ");
-        buffered.buffer(Cursor::new(b"world, ".to_vec()));
-        buffered.buffer(Cursor::new(b"it's ".to_vec()));
-        buffered.buffer(Cursor::new(b"hyper!".to_vec()));
-        assert_eq!(buffered.write_buf.queue.bufs_cnt(), 3);
-
-        buffered.flush().await.expect("flush");
-
-        assert_eq!(buffered.write_buf.queue.bufs_cnt(), 0);
-    }
-
-    #[tokio::test]
     async fn write_buf_queue_disable_auto() {
         let _ = pretty_env_logger::try_init();
 
