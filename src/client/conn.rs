@@ -82,7 +82,6 @@ where
 #[derive(Clone, Debug)]
 pub struct Builder {
     pub(super) exec: Exec,
-    h1_writev: Option<bool>,
     h1_title_case_headers: bool,
     h1_read_buf_exact_size: Option<usize>,
     h1_max_buf_size: Option<usize>,
@@ -453,7 +452,6 @@ impl Builder {
     pub fn new() -> Builder {
         Builder {
             exec: Exec::Default,
-            h1_writev: None,
             h1_read_buf_exact_size: None,
             h1_title_case_headers: false,
             h1_max_buf_size: None,
@@ -472,11 +470,6 @@ impl Builder {
         E: Executor<BoxSendFuture> + Send + Sync + 'static,
     {
         self.exec = Exec::Executor(Arc::new(exec));
-        self
-    }
-
-    pub(super) fn h1_writev(&mut self, enabled: bool) -> &mut Builder {
-        self.h1_writev = Some(enabled);
         self
     }
 
@@ -663,13 +656,6 @@ impl Builder {
                 #[cfg(feature = "http1")]
                 Proto::Http1 => {
                     let mut conn = proto::Conn::new(io);
-                    if let Some(writev) = opts.h1_writev {
-                        if writev {
-                            conn.set_write_strategy_queue();
-                        } else {
-                            conn.set_write_strategy_flatten();
-                        }
-                    }
                     if opts.h1_title_case_headers {
                         conn.set_title_case_headers();
                     }
