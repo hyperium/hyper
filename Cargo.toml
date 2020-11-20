@@ -22,12 +22,12 @@ include = [
 ]
 
 [dependencies]
-bytes = "0.5"
+bytes = "0.6"
 futures-core = { version = "0.3", default-features = false }
 futures-channel = "0.3"
 futures-util = { version = "0.3", default-features = false }
 http = "0.2"
-http-body = "0.3.1"
+http-body = { git = "https://github.com/hyperium/http-body" }
 httpdate = "0.3"
 httparse = "1.0"
 h2 = { git = "https://github.com/hyperium/h2", optional = true }
@@ -63,7 +63,7 @@ tokio = { version = "0.3", features = [
     "test-util",
 ] }
 tokio-test = "0.3"
-tokio-util = { version = "0.4", features = ["codec"] }
+tokio-util = { version = "0.5", features = ["codec"] }
 tower-util = "0.3"
 url = "1.0"
 
