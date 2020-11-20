@@ -300,6 +300,11 @@ impl<T: AsyncRead + AsyncWrite + Unpin + 'static> Io for ForwardsWriteBuf<T> {
         cx: &mut task::Context<'_>,
         buf: &mut dyn Buf,
     ) -> Poll<io::Result<usize>> {
+        if self.0.is_write_vectored() {
+            let mut bufs = [io::IoSlice::new(&[]); crate::common::io::MAX_WRITEV_BUFS];
+            let cnt = buf.bytes_vectored(&mut bufs);
+            return Pin::new(&mut self.0).poll_write_vectored(cx, &bufs[..cnt]);
+        }
         Pin::new(&mut self.0).poll_write(cx, buf.bytes())
     }
 }
