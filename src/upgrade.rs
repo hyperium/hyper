@@ -57,17 +57,15 @@ pub struct Parts<T> {
     _inner: (),
 }
 
+/// Gets a pending HTTP upgrade from this message.
+pub fn on<T: sealed::CanUpgrade>(msg: T) -> OnUpgrade {
+    msg.on_upgrade()
+}
+
 #[cfg(feature = "http1")]
 pub(crate) struct Pending {
     tx: oneshot::Sender<crate::Result<Upgraded>>,
 }
-
-/// Error cause returned when an upgrade was expected but canceled
-/// for whatever reason.
-///
-/// This likely means the actual `Conn` future wasn't polled and upgraded.
-#[derive(Debug)]
-struct UpgradeExpected(());
 
 #[cfg(feature = "http1")]
 pub(crate) fn pending() -> (Pending, OnUpgrade) {
@@ -162,9 +160,7 @@ impl Future for OnUpgrade {
             Some(ref mut rx) => Pin::new(rx).poll(cx).map(|res| match res {
                 Ok(Ok(upgraded)) => Ok(upgraded),
                 Ok(Err(err)) => Err(err),
-                Err(_oneshot_canceled) => {
-                    Err(crate::Error::new_canceled().with(UpgradeExpected(())))
-                }
+                Err(_oneshot_canceled) => Err(crate::Error::new_canceled().with(UpgradeExpected)),
             }),
             None => Poll::Ready(Err(crate::Error::new_user_no_upgrade())),
         }
@@ -196,9 +192,16 @@ impl Pending {
 
 // ===== impl UpgradeExpected =====
 
+/// Error cause returned when an upgrade was expected but canceled
+/// for whatever reason.
+///
+/// This likely means the actual `Conn` future wasn't polled and upgraded.
+#[derive(Debug)]
+struct UpgradeExpected;
+
 impl fmt::Display for UpgradeExpected {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "upgrade expected but not completed")
+        f.write_str("upgrade expected but not completed")
     }
 }
 
@@ -274,6 +277,38 @@ impl<T: AsyncRead + AsyncWrite + Unpin + 'static> Io for ForwardsWriteBuf<T> {
         buf: &mut dyn Buf,
     ) -> Poll<io::Result<usize>> {
         Pin::new(&mut self.0).poll_write(cx, buf.bytes())
+    }
+}
+
+mod sealed {
+    use super::OnUpgrade;
+
+    pub trait CanUpgrade {
+        fn on_upgrade(self) -> OnUpgrade;
+    }
+
+    impl CanUpgrade for http::Request<crate::Body> {
+        fn on_upgrade(self) -> OnUpgrade {
+            self.into_body().take_upgrade()
+        }
+    }
+
+    impl CanUpgrade for &'_ mut http::Request<crate::Body> {
+        fn on_upgrade(self) -> OnUpgrade {
+            self.body_mut().take_upgrade()
+        }
+    }
+
+    impl CanUpgrade for http::Response<crate::Body> {
+        fn on_upgrade(self) -> OnUpgrade {
+            self.into_body().take_upgrade()
+        }
+    }
+
+    impl CanUpgrade for &'_ mut http::Response<crate::Body> {
+        fn on_upgrade(self) -> OnUpgrade {
+            self.body_mut().take_upgrade()
+        }
     }
 }
 

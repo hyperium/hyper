@@ -1341,7 +1341,7 @@ async fn upgrades_new() {
 
     let (upgrades_tx, upgrades_rx) = mpsc::channel();
     let svc = service_fn(move |req: Request<Body>| {
-        let on_upgrade = req.into_body().on_upgrade();
+        let on_upgrade = hyper::upgrade::on(req);
         let _ = upgrades_tx.send(on_upgrade);
         future::ok::<_, hyper::Error>(
             Response::builder()
@@ -1448,7 +1448,7 @@ async fn http_connect_new() {
 
     let (upgrades_tx, upgrades_rx) = mpsc::channel();
     let svc = service_fn(move |req: Request<Body>| {
-        let on_upgrade = req.into_body().on_upgrade();
+        let on_upgrade = hyper::upgrade::on(req);
         let _ = upgrades_tx.send(on_upgrade);
         future::ok::<_, hyper::Error>(
             Response::builder()

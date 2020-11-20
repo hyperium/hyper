@@ -34,7 +34,7 @@ async fn server_upgraded_io(mut upgraded: Upgraded) -> Result<()> {
 }
 
 /// Our server HTTP handler to initiate HTTP upgrades.
-async fn server_upgrade(req: Request<Body>) -> Result<Response<Body>> {
+async fn server_upgrade(mut req: Request<Body>) -> Result<Response<Body>> {
     let mut res = Response::new(Body::empty());
 
     // Send a 400 to any request that doesn't have
@@ -52,7 +52,7 @@ async fn server_upgrade(req: Request<Body>) -> Result<Response<Body>> {
     // is returned below, so it's better to spawn this future instead
     // waiting for it to complete to then return a response.
     tokio::task::spawn(async move {
-        match req.into_body().on_upgrade().await {
+        match hyper::upgrade::on(&mut req).await {
             Ok(upgraded) => {
                 if let Err(e) = server_upgraded_io(upgraded).await {
                     eprintln!("server foobar io error: {}", e)
@@ -97,7 +97,7 @@ async fn client_upgrade_request(addr: SocketAddr) -> Result<()> {
         panic!("Our server didn't upgrade: {}", res.status());
     }
 
-    match res.into_body().on_upgrade().await {
+    match hyper::upgrade::on(res).await {
         Ok(upgraded) => {
             if let Err(e) = client_upgraded_io(upgraded).await {
                 eprintln!("client foobar io error: {}", e)
