@@ -1,6 +1,6 @@
 #![deny(warnings)]
 
-use bytes::buf::BufExt;
+use bytes::Buf;
 use futures_util::{stream, StreamExt};
 use hyper::client::HttpConnector;
 use hyper::service::{make_service_fn, service_fn};
