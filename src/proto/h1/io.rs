@@ -229,6 +229,8 @@ where
     }
 
     pub fn poll_flush(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+        const MAX_WRITEV_VECS: usize = 64;
+
         if self.flush_pipeline && !self.read_buf.is_empty() {
             Poll::Ready(Ok(()))
         } else if self.write_buf.remaining() == 0 {
@@ -245,7 +247,7 @@ where
                      write support, this is a bug"
                 );
                 let n = {
-                    let mut iovs = [IoSlice::new(&[]); MAX_BUF_LIST_BUFFERS];
+                    let mut iovs = [IoSlice::new(&[]); MAX_WRITEV_VECS];
                     let len = self.write_buf.bytes_vectored(&mut iovs);
                     ready!(Pin::new(&mut self.io).poll_write_vectored(cx, &iovs[..len]))?
                 };
