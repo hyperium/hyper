@@ -241,11 +241,6 @@ where
             }
 
             loop {
-                debug_assert!(
-                    self.io.is_write_vectored(),
-                    "using vectored writes on an IO that does not provide fast vectored \
-                     write support, this is a bug"
-                );
                 let n = {
                     let mut iovs = [IoSlice::new(&[]); MAX_WRITEV_VECS];
                     let len = self.write_buf.bytes_vectored(&mut iovs);
