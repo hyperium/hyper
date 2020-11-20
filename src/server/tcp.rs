@@ -297,7 +297,7 @@ mod addr_stream {
         fn poll_write_vectored(
             self: Pin<&mut Self>,
             cx: &mut task::Context<'_>,
-            bufs: &[io::IoVec<'_>],
+            bufs: &[io::IoSlice<'_>],
         ) -> Poll<io::Result<usize>> {
             self.project().inner.poll_write_vectored(cx, bufs)
         }

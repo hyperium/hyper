@@ -30,7 +30,7 @@ http = "0.2"
 http-body = { git = "https://github.com/hyperium/http-body" }
 httpdate = "0.3"
 httparse = "1.0"
-h2 = { git = "https://github.com/hyperium/h2", optional = true }
+h2 = { git = "https://github.com/hyperium/h2", optional = true, branch = "eliza/writev" }
 itoa = "0.4.1"
 tracing = { version = "0.1", default-features = false, features = ["log", "std"] }
 pin-project = "1.0"
