@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1605831975726,
+  "lastUpdate": 1605832112222,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -1677,6 +1677,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_req_100kb",
             "value": 161158,
             "range": "± 26300",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "eliza@buoyant.io",
+            "name": "Eliza Weisman",
+            "username": "hawkw"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "751c122589cfd9935e8e3239cd0d692e573784c5",
+          "message": "feat(lib): update `bytes` to 0.6, update `http-body` (#2339)\n\nThis branch updates `bytes` and `http-body` to the latest versions. The\r\n`http-body` version that uses `bytes` 0.6 hasn't been released yet, so\r\nwe depend on it via a git dep for now. Presumably Hyper and `http-body`\r\nwill synchronize their releases.\r\n\r\nOther than that, this is a pretty mechanical update. Should fix the\r\nbuild and unblock the `h2` update to use vectored writes.",
+          "timestamp": "2020-11-19T16:23:32-08:00",
+          "tree_id": "97ddcd8135cc1bf64a6939749febad0836f5276c",
+          "url": "https://github.com/hyperium/hyper/commit/751c122589cfd9935e8e3239cd0d692e573784c5"
+        },
+        "date": 1605832110751,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_body_both_100kb",
+            "value": 78854,
+            "range": "± 869",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_body_both_10mb",
+            "value": 9834285,
+            "range": "± 446986",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_get",
+            "value": 29628,
+            "range": "± 158",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 223135,
+            "range": "± 4758",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 51980382,
+            "range": "± 935080",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 71272709,
+            "range": "± 720560",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 71949421,
+            "range": "± 940046",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 4612197,
+            "range": "± 206226",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_post",
+            "value": 33138,
+            "range": "± 296",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_get",
+            "value": 54451,
+            "range": "± 577",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 171307,
+            "range": "± 2323",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 9909168,
+            "range": "± 47665",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 10019587,
+            "range": "± 8534479",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 9697482,
+            "range": "± 8885018",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 61271804,
+            "range": "± 3565355",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 61577147,
+            "range": "± 4231635",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 6297911,
+            "range": "± 363446",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_post",
+            "value": 61562,
+            "range": "± 767",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_req_100kb",
+            "value": 124945,
+            "range": "± 1656",
             "unit": "ns/iter"
           }
         ]
