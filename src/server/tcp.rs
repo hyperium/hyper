@@ -294,6 +294,15 @@ mod addr_stream {
         }
 
         #[inline]
+        fn poll_write_vectored(
+            self: Pin<&mut Self>,
+            cx: &mut task::Context<'_>,
+            bufs: &[io::IoSlice<'_>],
+        ) -> Poll<io::Result<usize>> {
+            self.project().inner.poll_write_vectored(cx, bufs)
+        }
+
+        #[inline]
         fn poll_flush(self: Pin<&mut Self>, _cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
             // TCP flush is a noop
             Poll::Ready(Ok(()))
@@ -302,6 +311,15 @@ mod addr_stream {
         #[inline]
         fn poll_shutdown(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
             self.project().inner.poll_shutdown(cx)
+        }
+
+        #[inline]
+        fn is_write_vectored(&self) -> bool {
+            // Note that since `self.inner` is a `TcpStream`, this could
+            // *probably* be hard-coded to return `true`...but it seems more
+            // correct to ask it anyway (maybe we're on some platform without
+            // scatter-gather IO?)
+            self.inner.is_write_vectored()
         }
     }
 

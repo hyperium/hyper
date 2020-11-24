@@ -1,4 +1,3 @@
-use std::cell::Cell;
 use std::cmp;
 use std::fmt;
 use std::io::{self, IoSlice};
@@ -57,13 +56,14 @@ where
     B: Buf,
 {
     pub fn new(io: T) -> Buffered<T, B> {
+        let write_buf = WriteBuf::new(&io);
         Buffered {
             flush_pipeline: false,
             io,
             read_blocked: false,
             read_buf: BytesMut::with_capacity(0),
             read_buf_strategy: ReadStrategy::default(),
-            write_buf: WriteBuf::new(),
+            write_buf,
         }
     }
 
@@ -96,13 +96,6 @@ where
         // so this assert is here to catch myself
         debug_assert!(self.write_buf.queue.bufs_cnt() == 0);
         self.write_buf.set_strategy(WriteStrategy::Flatten);
-    }
-
-    pub fn set_write_strategy_queue(&mut self) {
-        // this should always be called only at construction time,
-        // so this assert is here to catch myself
-        debug_assert!(self.write_buf.queue.bufs_cnt() == 0);
-        self.write_buf.set_strategy(WriteStrategy::Queue);
     }
 
     pub fn read_buf(&self) -> &[u8] {
@@ -237,13 +230,13 @@ where
             if let WriteStrategy::Flatten = self.write_buf.strategy {
                 return self.poll_flush_flattened(cx);
             }
+
             loop {
-                // TODO(eliza): this basically ignores all of `WriteBuf`...put
-                // back vectored IO and `poll_write_buf` when the appropriate Tokio
-                // changes land...
-                let n = ready!(Pin::new(&mut self.io)
-                    // .poll_write_buf(cx, &mut self.write_buf.auto()))?;
-                    .poll_write(cx, self.write_buf.auto().bytes()))?;
+                let n = {
+                    let mut iovs = [IoSlice::new(&[]); crate::common::io::MAX_WRITEV_BUFS];
+                    let len = self.write_buf.bytes_vectored(&mut iovs);
+                    ready!(Pin::new(&mut self.io).poll_write_vectored(cx, &iovs[..len]))?
+                };
                 // TODO(eliza): we have to do this manually because
                 // `poll_write_buf` doesn't exist in Tokio 0.3 yet...when
                 // `poll_write_buf` comes back, the manual advance will need to leave!
@@ -462,12 +455,17 @@ pub(super) struct WriteBuf<B> {
 }
 
 impl<B: Buf> WriteBuf<B> {
-    fn new() -> WriteBuf<B> {
+    fn new(io: &impl AsyncWrite) -> WriteBuf<B> {
+        let strategy = if io.is_write_vectored() {
+            WriteStrategy::Queue
+        } else {
+            WriteStrategy::Flatten
+        };
         WriteBuf {
             headers: Cursor::new(Vec::with_capacity(INIT_BUFFER_SIZE)),
             max_buf_size: DEFAULT_MAX_BUFFER_SIZE,
             queue: BufList::new(),
-            strategy: WriteStrategy::Auto,
+            strategy,
         }
     }
 }
@@ -478,12 +476,6 @@ where
 {
     fn set_strategy(&mut self, strategy: WriteStrategy) {
         self.strategy = strategy;
-    }
-
-    // TODO(eliza): put back writev!
-    #[inline]
-    fn auto(&mut self) -> WriteBufAuto<'_, B> {
-        WriteBufAuto::new(self)
     }
 
     pub(super) fn buffer<BB: Buf + Into<B>>(&mut self, mut buf: BB) {
@@ -505,7 +497,7 @@ where
                     buf.advance(adv);
                 }
             }
-            WriteStrategy::Auto | WriteStrategy::Queue => {
+            WriteStrategy::Queue => {
                 self.queue.push(buf.into());
             }
         }
@@ -514,7 +506,7 @@ where
     fn can_buffer(&self) -> bool {
         match self.strategy {
             WriteStrategy::Flatten => self.remaining() < self.max_buf_size,
-            WriteStrategy::Auto | WriteStrategy::Queue => {
+            WriteStrategy::Queue => {
                 self.queue.bufs_cnt() < MAX_BUF_LIST_BUFFERS && self.remaining() < self.max_buf_size
             }
         }
@@ -573,65 +565,8 @@ impl<B: Buf> Buf for WriteBuf<B> {
     }
 }
 
-/// Detects when wrapped `WriteBuf` is used for vectored IO, and
-/// adjusts the `WriteBuf` strategy if not.
-struct WriteBufAuto<'a, B: Buf> {
-    bytes_called: Cell<bool>,
-    bytes_vec_called: Cell<bool>,
-    inner: &'a mut WriteBuf<B>,
-}
-
-impl<'a, B: Buf> WriteBufAuto<'a, B> {
-    fn new(inner: &'a mut WriteBuf<B>) -> WriteBufAuto<'a, B> {
-        WriteBufAuto {
-            bytes_called: Cell::new(false),
-            bytes_vec_called: Cell::new(false),
-            inner,
-        }
-    }
-}
-
-impl<'a, B: Buf> Buf for WriteBufAuto<'a, B> {
-    #[inline]
-    fn remaining(&self) -> usize {
-        self.inner.remaining()
-    }
-
-    #[inline]
-    fn bytes(&self) -> &[u8] {
-        self.bytes_called.set(true);
-        self.inner.bytes()
-    }
-
-    #[inline]
-    fn advance(&mut self, cnt: usize) {
-        self.inner.advance(cnt)
-    }
-
-    #[inline]
-    fn bytes_vectored<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> usize {
-        self.bytes_vec_called.set(true);
-        self.inner.bytes_vectored(dst)
-    }
-}
-
-impl<'a, B: Buf + 'a> Drop for WriteBufAuto<'a, B> {
-    fn drop(&mut self) {
-        if let WriteStrategy::Auto = self.inner.strategy {
-            if self.bytes_vec_called.get() {
-                self.inner.strategy = WriteStrategy::Queue;
-            } else if self.bytes_called.get() {
-                trace!("detected no usage of vectored write, flattening");
-                self.inner.strategy = WriteStrategy::Flatten;
-                self.inner.headers.bytes.put(&mut self.inner.queue);
-            }
-        }
-    }
-}
-
 #[derive(Debug)]
 enum WriteStrategy {
-    Auto,
     Flatten,
     Queue,
 }
@@ -643,8 +578,8 @@ mod tests {
 
     use tokio_test::io::Builder as Mock;
 
-    #[cfg(feature = "nightly")]
-    use test::Bencher;
+    // #[cfg(feature = "nightly")]
+    // use test::Bencher;
 
     /*
     impl<T: Read> MemRead for AsyncIo<T> {
@@ -874,33 +809,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn write_buf_auto_flatten() {
-        let _ = pretty_env_logger::try_init();
-
-        let mock = Mock::new()
-            // Expects write_buf to only consume first buffer
-            .write(b"hello ")
-            // And then the Auto strategy will have flattened
-            .write(b"world, it's hyper!")
-            .build();
-
-        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
-
-        // we have 4 buffers, but hope to detect that vectored IO isn't
-        // being used, and switch to flattening automatically,
-        // resulting in only 2 writes
-        buffered.headers_buf().extend(b"hello ");
-        buffered.buffer(Cursor::new(b"world, ".to_vec()));
-        buffered.buffer(Cursor::new(b"it's ".to_vec()));
-        buffered.buffer(Cursor::new(b"hyper!".to_vec()));
-        assert_eq!(buffered.write_buf.queue.bufs_cnt(), 3);
-
-        buffered.flush().await.expect("flush");
-
-        assert_eq!(buffered.write_buf.queue.bufs_cnt(), 0);
-    }
-
-    #[tokio::test]
     async fn write_buf_queue_disable_auto() {
         let _ = pretty_env_logger::try_init();
 
@@ -928,19 +836,19 @@ mod tests {
         assert_eq!(buffered.write_buf.queue.bufs_cnt(), 0);
     }
 
-    #[cfg(feature = "nightly")]
-    #[bench]
-    fn bench_write_buf_flatten_buffer_chunk(b: &mut Bencher) {
-        let s = "Hello, World!";
-        b.bytes = s.len() as u64;
+    // #[cfg(feature = "nightly")]
+    // #[bench]
+    // fn bench_write_buf_flatten_buffer_chunk(b: &mut Bencher) {
+    //     let s = "Hello, World!";
+    //     b.bytes = s.len() as u64;
 
-        let mut write_buf = WriteBuf::<bytes::Bytes>::new();
-        write_buf.set_strategy(WriteStrategy::Flatten);
-        b.iter(|| {
-            let chunk = bytes::Bytes::from(s);
-            write_buf.buffer(chunk);
-            ::test::black_box(&write_buf);
-            write_buf.headers.bytes.clear();
-        })
-    }
+    //     let mut write_buf = WriteBuf::<bytes::Bytes>::new();
+    //     write_buf.set_strategy(WriteStrategy::Flatten);
+    //     b.iter(|| {
+    //         let chunk = bytes::Bytes::from(s);
+    //         write_buf.buffer(chunk);
+    //         ::test::black_box(&write_buf);
+    //         write_buf.headers.bytes.clear();
+    //     })
+    // }
 }

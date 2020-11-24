@@ -90,7 +90,6 @@ pub struct Http<E = Exec> {
     exec: E,
     h1_half_close: bool,
     h1_keep_alive: bool,
-    h1_writev: Option<bool>,
     #[cfg(feature = "http2")]
     h2_builder: proto::h2::server::Config,
     mode: ConnectionMode,
@@ -242,7 +241,6 @@ impl Http {
             exec: Exec::Default,
             h1_half_close: false,
             h1_keep_alive: true,
-            h1_writev: None,
             #[cfg(feature = "http2")]
             h2_builder: Default::default(),
             mode: ConnectionMode::default(),
@@ -292,26 +290,6 @@ impl<E> Http<E> {
     #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
     pub fn http1_keep_alive(&mut self, val: bool) -> &mut Self {
         self.h1_keep_alive = val;
-        self
-    }
-
-    /// Set whether HTTP/1 connections should try to use vectored writes,
-    /// or always flatten into a single buffer.
-    ///
-    /// Note that setting this to false may mean more copies of body data,
-    /// but may also improve performance when an IO transport doesn't
-    /// support vectored writes well, such as most TLS implementations.
-    ///
-    /// Setting this to true will force hyper to use queued strategy
-    /// which may eliminate unnecessary cloning on some TLS backends
-    ///
-    /// Default is `auto`. In this mode hyper will try to guess which
-    /// mode to use
-    #[inline]
-    #[cfg(feature = "http1")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
-    pub fn http1_writev(&mut self, val: bool) -> &mut Self {
-        self.h1_writev = Some(val);
         self
     }
 
@@ -488,7 +466,6 @@ impl<E> Http<E> {
             exec,
             h1_half_close: self.h1_half_close,
             h1_keep_alive: self.h1_keep_alive,
-            h1_writev: self.h1_writev,
             #[cfg(feature = "http2")]
             h2_builder: self.h2_builder,
             mode: self.mode,
@@ -543,13 +520,6 @@ impl<E> Http<E> {
                 }
                 if self.h1_half_close {
                     conn.set_allow_half_close();
-                }
-                if let Some(writev) = self.h1_writev {
-                    if writev {
-                        conn.set_write_strategy_queue();
-                    } else {
-                        conn.set_write_strategy_flatten();
-                    }
                 }
                 conn.set_flush_pipeline(self.pipeline_flush);
                 if let Some(max) = self.max_buf_size {

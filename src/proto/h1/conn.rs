@@ -71,14 +71,6 @@ where
         self.io.set_read_buf_exact_size(sz);
     }
 
-    pub fn set_write_strategy_flatten(&mut self) {
-        self.io.set_write_strategy_flatten();
-    }
-
-    pub fn set_write_strategy_queue(&mut self) {
-        self.io.set_write_strategy_queue();
-    }
-
     #[cfg(feature = "client")]
     pub fn set_title_case_headers(&mut self) {
         self.state.title_case_headers = true;
