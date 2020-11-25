@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1606337684812,
+  "lastUpdate": 1606337706620,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -781,6 +781,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 51498,
             "range": "± 2449",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a470446deb2cb2c0e3700f67d9f70097d0d7d75f",
+          "message": "chore(error): remove undocumented public error module (#2344)",
+          "timestamp": "2020-11-25T12:52:07-08:00",
+          "tree_id": "c1accd6ae40bf4b1a972ba66ccfaa01429845765",
+          "url": "https://github.com/hyperium/hyper/commit/a470446deb2cb2c0e3700f67d9f70097d0d7d75f"
+        },
+        "date": 1606337705091,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 66767,
+            "range": "± 5456",
             "unit": "ns/iter"
           }
         ]
