@@ -32,7 +32,7 @@ httpdate = "0.3"
 httparse = "1.0"
 h2 = { git = "https://github.com/hyperium/h2", optional = true }
 itoa = "0.4.1"
-tracing = { version = "0.1", default-features = false, features = ["log", "std"] }
+tracing = { version = "0.1", default-features = false, features = ["std"] }
 pin-project = "1.0"
 tower-service = "0.3"
 tokio = { version = "0.3.4", features = ["sync", "stream"] }
