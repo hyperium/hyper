@@ -74,8 +74,7 @@ mod cfg;
 #[macro_use]
 mod common;
 pub mod body;
-#[doc(hidden)] // Mistakenly public...
-pub mod error;
+mod error;
 #[cfg(test)]
 mod mock;
 #[cfg(any(feature = "http1", feature = "http2",))]
