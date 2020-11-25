@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1606243056998,
+  "lastUpdate": 1606337074605,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -691,6 +691,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 70158,
             "range": "± 13068",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "michael@michaelhewson.ca",
+            "name": "Michael Hewson",
+            "username": "mikeyhew"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "db32e1050cf1eae63af0365c97e920f1295b6bea",
+          "message": "feat(lib): remove dependency on `tracing`'s `log` feature (#2342)\n\nCloses #2326\r\n\r\nBREAKING CHANGE: hyper no longer emits `log` records automatically.\r\n  If you need hyper to integrate with a `log` logger (as opposed to `tracing`),\r\n  you can add `tracing = { version = \"0.1\", features = [\"log\"] }` to activate them.",
+          "timestamp": "2020-11-25T12:41:58-08:00",
+          "tree_id": "a5a8bcdeb90b830a90cb60c41ce1bf4eeac4a9e8",
+          "url": "https://github.com/hyperium/hyper/commit/db32e1050cf1eae63af0365c97e920f1295b6bea"
+        },
+        "date": 1606337073288,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 51498,
+            "range": "± 2449",
             "unit": "ns/iter"
           }
         ]
