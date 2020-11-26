@@ -321,14 +321,17 @@ where
 
         // If the host is already an IP addr (v4 or v6),
         // skip resolving the dns and start connecting right away.
-        let addrs = if let Some(addrs) = dns::IpAddrs::try_parse(host, port) {
+        let addrs = if let Some(addrs) = dns::SocketAddrs::try_parse(host, port) {
             addrs
         } else {
             let addrs = resolve(&mut self.resolver, dns::Name::new(host.into()))
                 .await
                 .map_err(ConnectError::dns)?;
-            let addrs = addrs.map(|addr| SocketAddr::new(addr, port)).collect();
-            dns::IpAddrs::new(addrs)
+            let addrs = addrs.map(|mut addr| {
+                addr.set_port(port);
+                addr
+            }).collect();
+            dns::SocketAddrs::new(addrs)
         };
 
         let c = ConnectingTcp::new(addrs, config);
@@ -457,7 +460,7 @@ struct ConnectingTcp<'a> {
 }
 
 impl<'a> ConnectingTcp<'a> {
-    fn new(remote_addrs: dns::IpAddrs, config: &'a Config) -> Self {
+    fn new(remote_addrs: dns::SocketAddrs, config: &'a Config) -> Self {
         if let Some(fallback_timeout) = config.happy_eyeballs_timeout {
             let (preferred_addrs, fallback_addrs) = remote_addrs
                 .split_by_preference(config.local_address_ipv4, config.local_address_ipv6);
@@ -493,12 +496,12 @@ struct ConnectingTcpFallback {
 }
 
 struct ConnectingTcpRemote {
-    addrs: dns::IpAddrs,
+    addrs: dns::SocketAddrs,
     connect_timeout: Option<Duration>,
 }
 
 impl ConnectingTcpRemote {
-    fn new(addrs: dns::IpAddrs, connect_timeout: Option<Duration>) -> Self {
+    fn new(addrs: dns::SocketAddrs, connect_timeout: Option<Duration>) -> Self {
         let connect_timeout = connect_timeout.map(|t| t / (addrs.len() as u32));
 
         Self {
@@ -920,7 +923,7 @@ mod tests {
                         send_buffer_size: None,
                         recv_buffer_size: None,
                     };
-                    let connecting_tcp = ConnectingTcp::new(dns::IpAddrs::new(addrs), &cfg);
+                    let connecting_tcp = ConnectingTcp::new(dns::SocketAddrs::new(addrs), &cfg);
                     let start = Instant::now();
                     Ok::<_, ConnectError>((start, ConnectingTcp::connect(connecting_tcp).await?))
                 })
