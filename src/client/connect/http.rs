@@ -723,7 +723,7 @@ mod tests {
         let mut ip_v4 = None;
         let mut ip_v6 = None;
 
-        let ips = pnet::datalink::interfaces()
+        let ips = pnet_datalink::interfaces()
             .into_iter()
             .flat_map(|i| i.ips.into_iter().map(|n| n.ip()));
 
