@@ -40,7 +40,7 @@ want = "0.3"
 
 # Optional
 
-socket2 = { version = "0.3", optional = true }
+socket2 = { version = "0.3.16", optional = true }
 
 [dev-dependencies]
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
