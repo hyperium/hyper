@@ -7,6 +7,44 @@
 //!
 //! If don't have need to manage connections yourself, consider using the
 //! higher-level [Client](super) API.
+//!
+//! ## Example
+//! A simple example that uses the `SendRequest` struct to talk HTTP over a Tokio TCP stream
+//! ```no_run
+//! # #[cfg(all(feature = "client", feature = "http1", feature = "runtime"))]
+//! # mod rt {
+//! use http::{Request, StatusCode};
+//! use hyper::{client::conn::Builder, Body};
+//! use tokio::net::TcpStream;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let target_stream = TcpStream::connect("example.com:80").await?;
+//!
+//!     let (mut request_sender, connection) = Builder::new()
+//!         .handshake::<TcpStream, Body>(target_stream)
+//!         .await?;
+//!
+//!     // spawn a task to poll the connection and drive the HTTP state
+//!     tokio::spawn(async move {
+//!         if let Err(e) = connection.await {
+//!             eprintln!("Error in connection: {}", e);
+//!         }
+//!     });
+//!
+//!     let request = Request::builder()
+//!     // We need to manually add the host header because SendRequest does not
+//!         .header("Host", "example.com")
+//!         .method("GET")
+//!         .body(Body::from(""))?;
+//!
+//!     let response = request_sender.send_request(request).await?;
+//!     assert!(response.status() == StatusCode::OK);
+//!     Ok(())
+//! }
+//!
+//! # }
+//! ```
 
 use std::error::Error as StdError;
 use std::fmt;
