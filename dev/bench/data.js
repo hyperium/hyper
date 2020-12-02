@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1606867265110,
+  "lastUpdate": 1606867269774,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -479,6 +479,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 64366,
             "range": "± 7859",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "campbellC@users.noreply.github.com",
+            "name": "Chris Campbell",
+            "username": "campbellC"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f8641733be3c732acd6c94ec9ad161b88a4d467d",
+          "message": "docs(client): add example of client conn usage (#2350)\n\nAdd basic, module level example for the Builder performing a handshake,\r\nspawning a task to run the Connection and sending a single request and\r\nreceiving the response.\r\n\r\nCloses #2272",
+          "timestamp": "2020-12-01T15:58:28-08:00",
+          "tree_id": "e2f028a020be1b9371e71c37d2c8a1ede13cd4fe",
+          "url": "https://github.com/hyperium/hyper/commit/f8641733be3c732acd6c94ec9ad161b88a4d467d"
+        },
+        "date": 1606867264899,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 67209,
+            "range": "± 12534",
             "unit": "ns/iter"
           }
         ]
