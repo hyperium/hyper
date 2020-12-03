@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1607031525801,
+  "lastUpdate": 1607031542143,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -509,6 +509,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 67209,
             "range": "± 12534",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jim.holmstroem@gmail.com",
+            "name": "Jim Holmström",
+            "username": "Jim-Holmstroem"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3cb6b4e840952eeb4d400e3138fc2ff363eeb3fc",
+          "message": "docs(examples): gateway: remove extra slash for uri (#2351)\n\nThe PathAndQuery already contains the leading slash, which erroneously\nsets the proxied path to \"//..\" and not \"/..\".",
+          "timestamp": "2020-12-03T13:36:32-08:00",
+          "tree_id": "4e55ad2349d3c0f604047e8311c6116188a96110",
+          "url": "https://github.com/hyperium/hyper/commit/3cb6b4e840952eeb4d400e3138fc2ff363eeb3fc"
+        },
+        "date": 1607031540500,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 66036,
+            "range": "± 5936",
             "unit": "ns/iter"
           }
         ]
