@@ -26,9 +26,12 @@ async fn main() {
             // returns a Response into a `Service`.
             Ok::<_, Error>(service_fn(move |mut req| {
                 let uri_string = format!(
-                    "http://{}/{}",
+                    "http://{}{}",
                     out_addr_clone,
-                    req.uri().path_and_query().map(|x| x.as_str()).unwrap_or("")
+                    req.uri()
+                        .path_and_query()
+                        .map(|x| x.as_str())
+                        .unwrap_or("/")
                 );
                 let uri = uri_string.parse().unwrap();
                 *req.uri_mut() = uri;
