@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1607034230086,
+  "lastUpdate": 1607034377142,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -3459,6 +3459,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_req_100kb",
             "value": 162591,
             "range": "± 11851",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b4e24332a0cd44068a806081d51686f50c086056",
+          "message": "feat(client): change DNS Resolver to resolve to SocketAddrs (#2346)\n\nThe DNS resolver part of `HttpConnector` used to require resolving to\r\n`IpAddr`s, and this changes it so that they resolve to `SocketAddr`s.\r\nThe main benefit here is allowing for resolvers to set the IPv6 zone ID\r\nwhen resolving, but it also just more closely matches\r\n`std::net::ToSocketAddrs`.\r\n\r\nCloses #1937\r\n\r\nBREAKING CHANGE: Custom resolvers used with `HttpConnector` must change\r\n  to resolving to an iterator of `SocketAddr`s instead of `IpAddr`s.",
+          "timestamp": "2020-12-03T14:21:19-08:00",
+          "tree_id": "f15bc5873b96ec18a2c130878bec5136d305e561",
+          "url": "https://github.com/hyperium/hyper/commit/b4e24332a0cd44068a806081d51686f50c086056"
+        },
+        "date": 1607034375655,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_body_both_100kb",
+            "value": 76592,
+            "range": "± 2759",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_body_both_10mb",
+            "value": 7671547,
+            "range": "± 479310",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_get",
+            "value": 32155,
+            "range": "± 1689",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 222434,
+            "range": "± 6693",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 52800232,
+            "range": "± 1567463",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 52110147,
+            "range": "± 1673364",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 54759255,
+            "range": "± 1040498",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 4014986,
+            "range": "± 391279",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_post",
+            "value": 36102,
+            "range": "± 468",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_get",
+            "value": 53574,
+            "range": "± 1614",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 173924,
+            "range": "± 2254",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 8726205,
+            "range": "± 9160801",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 8884593,
+            "range": "± 9540480",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 8459028,
+            "range": "± 9293440",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 57230038,
+            "range": "± 4587031",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 73883745,
+            "range": "± 14100910",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 6195645,
+            "range": "± 847923",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_post",
+            "value": 58227,
+            "range": "± 3162",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_req_100kb",
+            "value": 115972,
+            "range": "± 3799",
             "unit": "ns/iter"
           }
         ]
