@@ -23,7 +23,6 @@ use crate::common::{task, watch, Pin, Poll};
 use crate::common::{Future, Never};
 #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
 use crate::proto::h2::ping;
-use crate::upgrade::OnUpgrade;
 
 type BodySender = mpsc::Sender<Result<Bytes, crate::Error>>;
 
@@ -70,7 +69,6 @@ struct Extra {
     /// a brand new connection, since the pool didn't know about the idle
     /// connection yet.
     delayed_eof: Option<DelayEof>,
-    on_upgrade: OnUpgrade,
 }
 
 #[cfg(any(feature = "http1", feature = "http2"))]
@@ -187,17 +185,6 @@ impl Body {
         Body::new(Kind::Wrapped(SyncWrapper::new(Box::pin(mapped))))
     }
 
-    // TODO: Eventually the pending upgrade should be stored in the
-    // `Extensions`, and all these pieces can be removed. In v0.14, we made
-    // the breaking changes, so now this TODO can be done without breakage.
-    pub(crate) fn take_upgrade(&mut self) -> OnUpgrade {
-        if let Some(ref mut extra) = self.extra {
-            std::mem::replace(&mut extra.on_upgrade, OnUpgrade::none())
-        } else {
-            OnUpgrade::none()
-        }
-    }
-
     fn new(kind: Kind) -> Body {
         Body { kind, extra: None }
     }
@@ -217,14 +204,6 @@ impl Body {
         body
     }
 
-    #[cfg(feature = "http1")]
-    pub(crate) fn set_on_upgrade(&mut self, upgrade: OnUpgrade) {
-        debug_assert!(!upgrade.is_none(), "set_on_upgrade with empty upgrade");
-        let extra = self.extra_mut();
-        debug_assert!(extra.on_upgrade.is_none(), "set_on_upgrade twice");
-        extra.on_upgrade = upgrade;
-    }
-
     #[cfg(any(feature = "http1", feature = "http2"))]
     #[cfg(feature = "client")]
     pub(crate) fn delayed_eof(&mut self, fut: DelayEofUntil) {
@@ -239,12 +218,8 @@ impl Body {
 
     #[cfg(any(feature = "http1", feature = "http2"))]
     fn extra_mut(&mut self) -> &mut Extra {
-        self.extra.get_or_insert_with(|| {
-            Box::new(Extra {
-                delayed_eof: None,
-                on_upgrade: OnUpgrade::none(),
-            })
-        })
+        self.extra
+            .get_or_insert_with(|| Box::new(Extra { delayed_eof: None }))
     }
 
     fn poll_eof(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<crate::Result<Bytes>>> {

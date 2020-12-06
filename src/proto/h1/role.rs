@@ -270,6 +270,7 @@ impl Http1Transaction for Server {
                 version,
                 subject,
                 headers,
+                extensions: http::Extensions::default(),
             },
             decode: decoder,
             expect_continue,
@@ -713,6 +714,7 @@ impl Http1Transaction for Client {
                 version,
                 subject: status,
                 headers,
+                extensions: http::Extensions::default(),
             };
             if let Some((decode, is_upgrade)) = Client::decoder(&head, ctx.req_method)? {
                 return Ok(Some(ParsedMessage {

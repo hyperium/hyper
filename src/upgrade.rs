@@ -317,26 +317,34 @@ mod sealed {
     }
 
     impl CanUpgrade for http::Request<crate::Body> {
-        fn on_upgrade(self) -> OnUpgrade {
-            self.into_body().take_upgrade()
+        fn on_upgrade(mut self) -> OnUpgrade {
+            self.extensions_mut()
+                .remove::<OnUpgrade>()
+                .unwrap_or_else(OnUpgrade::none)
         }
     }
 
     impl CanUpgrade for &'_ mut http::Request<crate::Body> {
         fn on_upgrade(self) -> OnUpgrade {
-            self.body_mut().take_upgrade()
+            self.extensions_mut()
+                .remove::<OnUpgrade>()
+                .unwrap_or_else(OnUpgrade::none)
         }
     }
 
     impl CanUpgrade for http::Response<crate::Body> {
-        fn on_upgrade(self) -> OnUpgrade {
-            self.into_body().take_upgrade()
+        fn on_upgrade(mut self) -> OnUpgrade {
+            self.extensions_mut()
+                .remove::<OnUpgrade>()
+                .unwrap_or_else(OnUpgrade::none)
         }
     }
 
     impl CanUpgrade for &'_ mut http::Response<crate::Body> {
         fn on_upgrade(self) -> OnUpgrade {
-            self.body_mut().take_upgrade()
+            self.extensions_mut()
+                .remove::<OnUpgrade>()
+                .unwrap_or_else(OnUpgrade::none)
         }
     }
 }
