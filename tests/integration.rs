@@ -334,6 +334,13 @@ t! {
 }
 
 t! {
-    http2_parallel_10,
-    parallel: 0..10
+    http2_parallel_get_10,
+    parallel: 0..10,
+    method: "GET",
+}
+
+t! {
+    http2_parallel_post_10,
+    parallel: 0..10,
+    method: "POST",
 }

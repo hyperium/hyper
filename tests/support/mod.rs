@@ -20,7 +20,8 @@ pub use std::net::SocketAddr;
 macro_rules! t {
     (
         $name:ident,
-        parallel: $range:expr
+        parallel: $range:expr,
+        method: $method:expr,
     ) => (
         #[test]
         fn $name() {
@@ -32,7 +33,8 @@ macro_rules! t {
                 c.push((
                     __CReq {
                         uri: "/",
-                        body: vec![b'x'; 8192],
+                        body: if $method == "GET" { Vec::new() } else { vec![b'x'; 8192] },
+                        method: $method,
                         ..Default::default()
                     },
                     __CRes {
@@ -43,7 +45,8 @@ macro_rules! t {
                 s.push((
                     __SReq {
                         uri: "/",
-                        body: vec![b'x'; 8192],
+                        body: if $method == "GET" { Vec::new() } else { vec![b'x'; 8192] },
+                        method: $method,
                         ..Default::default()
                     },
                     __SRes {
