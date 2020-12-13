@@ -333,7 +333,7 @@ impl Http1Transaction for Server {
                 Version::HTTP_10 => extend(dst, b"HTTP/1.0 "),
                 Version::HTTP_11 => extend(dst, b"HTTP/1.1 "),
                 Version::HTTP_2 => {
-                    warn!("response with HTTP2 version coerced to HTTP/1.1");
+                    debug!("response with HTTP2 version coerced to HTTP/1.1");
                     extend(dst, b"HTTP/1.1 ");
                 }
                 other => panic!("unexpected response version: {:?}", other),
@@ -757,7 +757,7 @@ impl Http1Transaction for Client {
             Version::HTTP_10 => extend(dst, b"HTTP/1.0"),
             Version::HTTP_11 => extend(dst, b"HTTP/1.1"),
             Version::HTTP_2 => {
-                warn!("request with HTTP2 version coerced to HTTP/1.1");
+                debug!("request with HTTP2 version coerced to HTTP/1.1");
                 extend(dst, b"HTTP/1.1");
             }
             other => panic!("unexpected request version: {:?}", other),
