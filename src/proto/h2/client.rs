@@ -221,7 +221,13 @@ where
                             headers::set_content_length_if_missing(req.headers_mut(), len);
                         }
                     }
-                    let eos = body.is_end_stream();
+                    // for methods that cannot have a body, assume it's end of
+                    // stream, in case the `HttpBody` implementation is incorrect
+                    let eos = if headers::method_has_defined_payload_semantics(req.method()) {
+                        body.is_end_stream()
+                    } else {
+                        true
+                    };
                     let (fut, body_tx) = match self.h2_tx.send_request(req, eos) {
                         Ok(ok) => ok,
                         Err(err) => {
