@@ -10,6 +10,7 @@ use crate::common::{task, Future, Pin, Poll, Unpin};
 use crate::proto::{
     BodyLength, Conn, Dispatched, MessageHead, RequestHead,
 };
+use crate::upgrade::OnUpgrade;
 
 pub(crate) struct Dispatcher<D, Bs: HttpBody, I, T> {
     conn: Conn<I, Bs::Data, T>,
@@ -243,8 +244,8 @@ where
         }
         // dispatch is ready for a message, try to read one
         match ready!(self.conn.poll_read_head(cx)) {
-            Some(Ok((head, body_len, wants))) => {
-                let mut body = match body_len {
+            Some(Ok((mut head, body_len, wants))) => {
+                let body = match body_len {
                     DecodedLength::ZERO => Body::empty(),
                     other => {
                         let (tx, rx) = Body::new_channel(other, wants.contains(Wants::EXPECT));
@@ -253,7 +254,10 @@ where
                     }
                 };
                 if wants.contains(Wants::UPGRADE) {
-                    body.set_on_upgrade(self.conn.on_upgrade());
+                    let upgrade = self.conn.on_upgrade();
+                    debug_assert!(!upgrade.is_none(), "empty upgrade");
+                    debug_assert!(head.extensions.get::<OnUpgrade>().is_none(), "OnUpgrade already set");
+                    head.extensions.insert(upgrade);
                 }
                 self.dispatch.recv_msg(Ok((head, body)))?;
                 Poll::Ready(Ok(()))
@@ -488,6 +492,7 @@ cfg_server! {
                     version: parts.version,
                     subject: parts.status,
                     headers: parts.headers,
+                    extensions: http::Extensions::default(),
                 };
                 Poll::Ready(Some(Ok((head, body))))
             } else {
@@ -506,6 +511,7 @@ cfg_server! {
             *req.uri_mut() = msg.subject.1;
             *req.headers_mut() = msg.headers;
             *req.version_mut() = msg.version;
+            *req.extensions_mut() = msg.extensions;
             let fut = self.service.call(req);
             self.in_flight.set(Some(fut));
             Ok(())
@@ -570,6 +576,7 @@ cfg_client! {
                                 version: parts.version,
                                 subject: crate::proto::RequestLine(parts.method, parts.uri),
                                 headers: parts.headers,
+                                extensions: http::Extensions::default(),
                             };
                             *this.callback = Some(cb);
                             Poll::Ready(Some(Ok((head, body))))
@@ -594,6 +601,7 @@ cfg_client! {
                         *res.status_mut() = msg.subject;
                         *res.headers_mut() = msg.headers;
                         *res.version_mut() = msg.version;
+                        *res.extensions_mut() = msg.extensions;
                         cb.send(Ok(res));
                         Ok(())
                     } else {
