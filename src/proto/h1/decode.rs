@@ -55,6 +55,8 @@ enum ChunkedState {
     Body,
     BodyCr,
     BodyLf,
+    Trailer,
+    TrailerLf,
     EndCr,
     EndLf,
     End,
@@ -196,6 +198,8 @@ impl ChunkedState {
             Body => ChunkedState::read_body(cx, body, size, buf),
             BodyCr => ChunkedState::read_body_cr(cx, body),
             BodyLf => ChunkedState::read_body_lf(cx, body),
+            Trailer => ChunkedState::read_trailer(cx, body),
+            TrailerLf => ChunkedState::read_trailer_lf(cx, body),
             EndCr => ChunkedState::read_end_cr(cx, body),
             EndLf => ChunkedState::read_end_lf(cx, body),
             End => Poll::Ready(Ok(ChunkedState::End)),
@@ -340,16 +344,36 @@ impl ChunkedState {
         }
     }
 
+    fn read_trailer<R: MemRead>(
+        cx: &mut task::Context<'_>,
+        rdr: &mut R,
+    ) -> Poll<Result<ChunkedState, io::Error>> {
+        trace!("read_trailer");
+        match byte!(rdr, cx) {
+            b'\r' => Poll::Ready(Ok(ChunkedState::TrailerLf)),
+            _ => Poll::Ready(Ok(ChunkedState::Trailer)),
+        }
+    }
+    fn read_trailer_lf<R: MemRead>(
+        cx: &mut task::Context<'_>,
+        rdr: &mut R,
+    ) -> Poll<Result<ChunkedState, io::Error>> {
+        match byte!(rdr, cx) {
+            b'\n' => Poll::Ready(Ok(ChunkedState::EndCr)),
+            _ => Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Invalid trailer end LF",
+            ))),
+        }
+    }
+
     fn read_end_cr<R: MemRead>(
         cx: &mut task::Context<'_>,
         rdr: &mut R,
     ) -> Poll<Result<ChunkedState, io::Error>> {
         match byte!(rdr, cx) {
             b'\r' => Poll::Ready(Ok(ChunkedState::EndLf)),
-            _ => Poll::Ready(Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Invalid chunk end CR",
-            ))),
+            _ => Poll::Ready(Ok(ChunkedState::Trailer)),
         }
     }
     fn read_end_lf<R: MemRead>(
@@ -536,6 +560,15 @@ mod tests {
         assert_eq!(16, buf.len());
         let result = String::from_utf8(buf.as_ref().to_vec()).expect("decode String");
         assert_eq!("1234567890abcdef", &result);
+    }
+
+    #[tokio::test]
+    async fn test_read_chunked_trailer_with_missing_lf() {
+        let mut mock_buf = &b"10\r\n1234567890abcdef\r\n0\r\nbad\r\r\n"[..];
+        let mut decoder = Decoder::chunked();
+        decoder.decode_fut(&mut mock_buf).await.expect("decode");
+        let e = decoder.decode_fut(&mut mock_buf).await.unwrap_err();
+        assert_eq!(e.kind(), io::ErrorKind::InvalidInput);
     }
 
     #[tokio::test]
