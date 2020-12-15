@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1608071117464,
+  "lastUpdate": 1608071132240,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -629,6 +629,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 40809,
             "range": "± 1183",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "alex@forallsecure.com",
+            "name": "Alex Rebert",
+            "username": "alpire"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1dd761c87de226261599ff2518fe9d231ba1c82d",
+          "message": "fix(http1): ignore chunked trailers (#2357)\n\nPreviously, hyper returned an \"Invalid chunk end CR\" error on chunked\r\nresponses with trailers, as described in RFC 7230 Section 4.1.2. This\r\ncommit adds code to ignore the trailers.\r\n\r\nCloses #2171",
+          "timestamp": "2020-12-15T14:23:07-08:00",
+          "tree_id": "6ad353d3f416f304ea0c71efb8de8cfe808c235a",
+          "url": "https://github.com/hyperium/hyper/commit/1dd761c87de226261599ff2518fe9d231ba1c82d"
+        },
+        "date": 1608071130727,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 48430,
+            "range": "± 4431",
             "unit": "ns/iter"
           }
         ]
