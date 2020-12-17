@@ -338,8 +338,8 @@ where
 
         let sock = c.connect().await?;
 
-        if sock.set_nodelay(config.nodelay).is_err() {
-            warn!("tcp set_nodelay error");
+        if let Err(e) = sock.set_nodelay(config.nodelay) {
+            warn!("tcp set_nodelay error: {}", e);
         }
 
         Ok(sock)
@@ -592,8 +592,8 @@ fn connect(
         .map_err(ConnectError::m("tcp set_nonblocking error"))?;
 
     if let Some(dur) = config.keep_alive_timeout {
-        if socket.set_keepalive(Some(dur)).is_err() {
-            warn!("tcp set_keepalive error");
+        if let Err(e) = socket.set_keepalive(Some(dur)) {
+            warn!("tcp set_keepalive error: {}", e);
         }
     }
 
@@ -625,26 +625,20 @@ fn connect(
     };
 
     if config.reuse_address {
-        if socket.set_reuseaddr(true).is_err() {
-            warn!("tcp set_reuse_address error");
+        if let Err(e) = socket.set_reuseaddr(true) {
+            warn!("tcp set_reuse_address error: {}", e);
         }
     }
 
     if let Some(size) = config.send_buffer_size {
-        if socket
-            .set_send_buffer_size(size.try_into().unwrap_or(std::u32::MAX))
-            .is_err()
-        {
-            warn!("tcp set_buffer_size error");
+        if let Err(e) = socket.set_send_buffer_size(size.try_into().unwrap_or(std::u32::MAX)) {
+            warn!("tcp set_buffer_size error: {}", e);
         }
     }
 
     if let Some(size) = config.recv_buffer_size {
-        if socket
-            .set_recv_buffer_size(size.try_into().unwrap_or(std::u32::MAX))
-            .is_err()
-        {
-            warn!("tcp set_recv_buffer_size error");
+        if let Err(e) = socket.set_recv_buffer_size(size.try_into().unwrap_or(std::u32::MAX)) {
+            warn!("tcp set_recv_buffer_size error: {}", e);
         }
     }
 
