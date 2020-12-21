@@ -125,18 +125,12 @@ pub(crate) struct TimedOut;
 impl Error {
     /// Returns true if this was an HTTP parse error.
     pub fn is_parse(&self) -> bool {
-        match self.inner.kind {
-            Kind::Parse(_) => true,
-            _ => false,
-        }
+        matches!(self.inner.kind, Kind::Parse(_))
     }
 
     /// Returns true if this error was caused by user code.
     pub fn is_user(&self) -> bool {
-        match self.inner.kind {
-            Kind::User(_) => true,
-            _ => false,
-        }
+        matches!(self.inner.kind, Kind::User(_))
     }
 
     /// Returns true if this was about a `Request` that was canceled.
