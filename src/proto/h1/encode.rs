@@ -68,10 +68,7 @@ impl Encoder {
     }
 
     pub fn is_eof(&self) -> bool {
-        match self.kind {
-            Kind::Length(0) => true,
-            _ => false,
-        }
+        matches!(self.kind, Kind::Length(0))
     }
 
     #[cfg(feature = "server")]
