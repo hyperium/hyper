@@ -110,7 +110,7 @@ where
         keep_alive_while_idle: config.keep_alive_while_idle,
     };
 
-    let ping = if ping_config.is_enabled() {
+    let (conn, ping) = if ping_config.is_enabled() {
         let pp = conn.ping_pong().expect("conn.ping_pong");
         let (recorder, mut ponger) = ping::channel(pp, ping_config);
 
@@ -130,16 +130,13 @@ where
 
             Pin::new(&mut conn).poll(cx)
         });
-        let conn = conn.map_err(|e| debug!("connection error: {}", e));
-
-        exec.execute(conn_task(conn, conn_drop_rx, cancel_tx));
-        recorder
+        (Either::Left(conn), recorder)
     } else {
-        let conn = conn.map_err(|e| debug!("connection error: {}", e));
-
-        exec.execute(conn_task(conn, conn_drop_rx, cancel_tx));
-        ping::disabled()
+        (Either::Right(conn), ping::disabled())
     };
+    let conn = conn.map_err(|e| debug!("connection error: {}", e));
+
+    exec.execute(conn_task(conn, conn_drop_rx, cancel_tx));
 
     Ok(ClientTask {
         ping,
