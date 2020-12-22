@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1608663208204,
+  "lastUpdate": 1608663215449,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -1381,6 +1381,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 66918,
             "range": "± 6967",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "pankajchaudhary172@gmail.com",
+            "name": "Pankaj Chaudhary",
+            "username": "PankajChaudhary5"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3b3077da1f891b09de18320d9f6ccf94f136943d",
+          "message": "refactor(http1): updated Encoder/Decoder match with the matches macro (#2368)",
+          "timestamp": "2020-12-22T10:50:57-08:00",
+          "tree_id": "954af38876df04f6db5c6ee06c14b56137895d6c",
+          "url": "https://github.com/hyperium/hyper/commit/3b3077da1f891b09de18320d9f6ccf94f136943d"
+        },
+        "date": 1608663213941,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 58280,
+            "range": "± 11591",
             "unit": "ns/iter"
           }
         ]
