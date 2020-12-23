@@ -132,4 +132,4 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: rustdoc
-          args: --features full -- -D broken-intra-doc-links
+          args: --features full -- --cfg docsrs -D broken-intra-doc-links
