@@ -229,12 +229,12 @@ where
     }
 
     #[inline]
-    fn bytes(&self) -> &[u8] {
+    fn chunk(&self) -> &[u8] {
         match self.kind {
-            BufKind::Exact(ref b) => b.bytes(),
-            BufKind::Limited(ref b) => b.bytes(),
-            BufKind::Chunked(ref b) => b.bytes(),
-            BufKind::ChunkedEnd(ref b) => b.bytes(),
+            BufKind::Exact(ref b) => b.chunk(),
+            BufKind::Limited(ref b) => b.chunk(),
+            BufKind::Chunked(ref b) => b.chunk(),
+            BufKind::ChunkedEnd(ref b) => b.chunk(),
         }
     }
 
@@ -249,12 +249,12 @@ where
     }
 
     #[inline]
-    fn bytes_vectored<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> usize {
+    fn chunks_vectored<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> usize {
         match self.kind {
-            BufKind::Exact(ref b) => b.bytes_vectored(dst),
-            BufKind::Limited(ref b) => b.bytes_vectored(dst),
-            BufKind::Chunked(ref b) => b.bytes_vectored(dst),
-            BufKind::ChunkedEnd(ref b) => b.bytes_vectored(dst),
+            BufKind::Exact(ref b) => b.chunks_vectored(dst),
+            BufKind::Limited(ref b) => b.chunks_vectored(dst),
+            BufKind::Chunked(ref b) => b.chunks_vectored(dst),
+            BufKind::ChunkedEnd(ref b) => b.chunks_vectored(dst),
         }
     }
 }
@@ -295,7 +295,7 @@ impl Buf for ChunkSize {
     }
 
     #[inline]
-    fn bytes(&self) -> &[u8] {
+    fn chunk(&self) -> &[u8] {
         &self.bytes[self.pos.into()..self.len.into()]
     }
 

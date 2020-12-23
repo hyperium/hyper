@@ -1209,6 +1209,7 @@ mod dispatch_impl {
 
         // and wait a few ticks for the connections to close
         let t = tokio::time::sleep(Duration::from_millis(100)).map(|_| panic!("time out"));
+        futures_util::pin_mut!(t);
         let close = closes.into_future().map(|(opt, _)| opt.expect("closes"));
         future::select(t, close).await;
     }
@@ -1257,6 +1258,7 @@ mod dispatch_impl {
 
         // res now dropped
         let t = tokio::time::sleep(Duration::from_millis(100)).map(|_| panic!("time out"));
+        futures_util::pin_mut!(t);
         let close = closes.into_future().map(|(opt, _)| opt.expect("closes"));
         future::select(t, close).await;
     }
@@ -1312,6 +1314,7 @@ mod dispatch_impl {
 
         // and wait a few ticks to see the connection drop
         let t = tokio::time::sleep(Duration::from_millis(100)).map(|_| panic!("time out"));
+        futures_util::pin_mut!(t);
         let close = closes.into_future().map(|(opt, _)| opt.expect("closes"));
         future::select(t, close).await;
     }
@@ -1362,6 +1365,7 @@ mod dispatch_impl {
         res.unwrap();
 
         let t = tokio::time::sleep(Duration::from_millis(100)).map(|_| panic!("time out"));
+        futures_util::pin_mut!(t);
         let close = closes.into_future().map(|(opt, _)| opt.expect("closes"));
         future::select(t, close).await;
     }
@@ -1408,6 +1412,7 @@ mod dispatch_impl {
         res.unwrap();
 
         let t = tokio::time::sleep(Duration::from_millis(100)).map(|_| panic!("time out"));
+        futures_util::pin_mut!(t);
         let close = closes.into_future().map(|(opt, _)| opt.expect("closes"));
         future::select(t, close).await;
     }

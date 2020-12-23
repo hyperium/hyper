@@ -186,7 +186,7 @@ where
             self.read_buf.reserve(next);
         }
 
-        let dst = self.read_buf.bytes_mut();
+        let dst = self.read_buf.chunk_mut();
         let dst = unsafe { &mut *(dst as *mut _ as *mut [MaybeUninit<u8>]) };
         let mut buf = ReadBuf::uninit(dst);
         match Pin::new(&mut self.io).poll_read(cx, &mut buf) {
@@ -231,10 +231,11 @@ where
                 return self.poll_flush_flattened(cx);
             }
 
+            const MAX_WRITEV_BUFS: usize = 64;
             loop {
                 let n = {
-                    let mut iovs = [IoSlice::new(&[]); crate::common::io::MAX_WRITEV_BUFS];
-                    let len = self.write_buf.bytes_vectored(&mut iovs);
+                    let mut iovs = [IoSlice::new(&[]); MAX_WRITEV_BUFS];
+                    let len = self.write_buf.chunks_vectored(&mut iovs);
                     ready!(Pin::new(&mut self.io).poll_write_vectored(cx, &iovs[..len]))?
                 };
                 // TODO(eliza): we have to do this manually because
@@ -262,7 +263,7 @@ where
     /// that skips some bookkeeping around using multiple buffers.
     fn poll_flush_flattened(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
         loop {
-            let n = ready!(Pin::new(&mut self.io).poll_write(cx, self.write_buf.headers.bytes()))?;
+            let n = ready!(Pin::new(&mut self.io).poll_write(cx, self.write_buf.headers.chunk()))?;
             debug!("flushed {} bytes", n);
             self.write_buf.headers.advance(n);
             if self.write_buf.headers.remaining() == 0 {
@@ -433,7 +434,7 @@ impl<T: AsRef<[u8]>> Buf for Cursor<T> {
     }
 
     #[inline]
-    fn bytes(&self) -> &[u8] {
+    fn chunk(&self) -> &[u8] {
         &self.bytes.as_ref()[self.pos..]
     }
 
@@ -487,7 +488,7 @@ where
                 //but accomplishes the same result.
                 loop {
                     let adv = {
-                        let slice = buf.bytes();
+                        let slice = buf.chunk();
                         if slice.is_empty() {
                             return;
                         }
@@ -534,12 +535,12 @@ impl<B: Buf> Buf for WriteBuf<B> {
     }
 
     #[inline]
-    fn bytes(&self) -> &[u8] {
-        let headers = self.headers.bytes();
+    fn chunk(&self) -> &[u8] {
+        let headers = self.headers.chunk();
         if !headers.is_empty() {
             headers
         } else {
-            self.queue.bytes()
+            self.queue.chunk()
         }
     }
 
@@ -559,9 +560,9 @@ impl<B: Buf> Buf for WriteBuf<B> {
     }
 
     #[inline]
-    fn bytes_vectored<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> usize {
-        let n = self.headers.bytes_vectored(dst);
-        self.queue.bytes_vectored(&mut dst[n..]) + n
+    fn chunks_vectored<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> usize {
+        let n = self.headers.chunks_vectored(dst);
+        self.queue.chunks_vectored(&mut dst[n..]) + n
     }
 }
 

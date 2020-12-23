@@ -667,8 +667,11 @@ impl ConnectingTcp<'_> {
                 let fallback_fut = fallback.remote.connect(self.config);
                 futures_util::pin_mut!(fallback_fut);
 
+                let fallback_delay = fallback.delay;
+                futures_util::pin_mut!(fallback_delay);
+
                 let (result, future) =
-                    match futures_util::future::select(preferred_fut, fallback.delay).await {
+                    match futures_util::future::select(preferred_fut, fallback_delay).await {
                         Either::Left((result, _fallback_delay)) => {
                             (result, Either::Right(fallback_fut))
                         }

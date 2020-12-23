@@ -23,7 +23,7 @@ where
     let second = if let Some(buf) = body.data().await {
         buf?
     } else {
-        return Ok(first.copy_to_bytes(first.bytes().len()));
+        return Ok(first.copy_to_bytes(first.remaining()));
     };
 
     // With more than 1 buf, we gotta flatten into a Vec first.

@@ -257,8 +257,8 @@ impl<B: Buf> Buf for SendBuf<B> {
     }
 
     #[inline]
-    fn bytes(&self) -> &[u8] {
-        self.0.as_ref().map(|b| b.bytes()).unwrap_or(&[])
+    fn chunk(&self) -> &[u8] {
+        self.0.as_ref().map(|b| b.chunk()).unwrap_or(&[])
     }
 
     #[inline]
@@ -268,7 +268,7 @@ impl<B: Buf> Buf for SendBuf<B> {
         }
     }
 
-    fn bytes_vectored<'a>(&'a self, dst: &mut [IoSlice<'a>]) -> usize {
-        self.0.as_ref().map(|b| b.bytes_vectored(dst)).unwrap_or(0)
+    fn chunks_vectored<'a>(&'a self, dst: &mut [IoSlice<'a>]) -> usize {
+        self.0.as_ref().map(|b| b.chunks_vectored(dst)).unwrap_or(0)
     }
 }

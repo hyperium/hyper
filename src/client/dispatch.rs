@@ -1,7 +1,7 @@
 #[cfg(feature = "http2")]
 use std::future::Future;
 
-use tokio::stream::Stream;
+use futures_util::FutureExt;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::common::{task, Pin, Poll};
@@ -150,8 +150,8 @@ impl<T, U> Receiver<T, U> {
         self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,
     ) -> Poll<Option<(T, Callback<T, U>)>> {
-        let this = self.project();
-        match this.inner.poll_next(cx) {
+        let mut this = self.project();
+        match this.inner.poll_recv(cx) {
             Poll::Ready(item) => {
                 Poll::Ready(item.map(|mut env| env.0.take().expect("envelope not dropped")))
             }
@@ -170,9 +170,9 @@ impl<T, U> Receiver<T, U> {
 
     #[cfg(feature = "http1")]
     pub(crate) fn try_recv(&mut self) -> Option<(T, Callback<T, U>)> {
-        match self.inner.try_recv() {
-            Ok(mut env) => env.0.take(),
-            Err(_) => None,
+        match self.inner.recv().now_or_never() {
+            Some(Some(mut env)) => env.0.take(),
+            _ => None,
         }
     }
 }

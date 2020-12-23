@@ -60,7 +60,7 @@ pub(super) fn channel(ping_pong: PingPong, config: Config) -> (Recorder, Ponger)
         interval,
         timeout: config.keep_alive_timeout,
         while_idle: config.keep_alive_while_idle,
-        timer: tokio::time::sleep(interval),
+        timer: Box::pin(tokio::time::sleep(interval)),
         state: KeepAliveState::Init,
     });
 
@@ -156,7 +156,7 @@ struct KeepAlive {
     while_idle: bool,
 
     state: KeepAliveState,
-    timer: Sleep,
+    timer: Pin<Box<Sleep>>,
 }
 
 #[cfg(feature = "runtime")]
@@ -441,7 +441,7 @@ impl KeepAlive {
 
                 self.state = KeepAliveState::Scheduled;
                 let interval = shared.last_read_at() + self.interval;
-                self.timer.reset(interval);
+                self.timer.as_mut().reset(interval);
             }
             KeepAliveState::PingSent => {
                 if shared.is_ping_sent() {
@@ -450,7 +450,7 @@ impl KeepAlive {
 
                 self.state = KeepAliveState::Scheduled;
                 let interval = shared.last_read_at() + self.interval;
-                self.timer.reset(interval);
+                self.timer.as_mut().reset(interval);
             }
             KeepAliveState::Scheduled => (),
         }
@@ -472,7 +472,7 @@ impl KeepAlive {
                 shared.send_ping();
                 self.state = KeepAliveState::PingSent;
                 let timeout = Instant::now() + self.timeout;
-                self.timer.reset(timeout);
+                self.timer.as_mut().reset(timeout);
             }
             KeepAliveState::Init | KeepAliveState::PingSent => (),
         }
