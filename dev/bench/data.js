@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1608757074476,
+  "lastUpdate": 1608757082421,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -1561,6 +1561,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 48144,
             "range": "± 8430",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c97a10612521c7a6e7bcdc4a1d90539fc33a0938",
+          "message": "docs(lib): enable doc_cfg on docs.rs builds (#2372)",
+          "timestamp": "2020-12-23T12:55:28-08:00",
+          "tree_id": "d52617a54b2e520e90a5aabc708a41b251ef8938",
+          "url": "https://github.com/hyperium/hyper/commit/c97a10612521c7a6e7bcdc4a1d90539fc33a0938"
+        },
+        "date": 1608757080933,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 54630,
+            "range": "± 2462",
             "unit": "ns/iter"
           }
         ]
