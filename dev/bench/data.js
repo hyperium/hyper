@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1608663307932,
+  "lastUpdate": 1608748712638,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -719,6 +719,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 70899,
             "range": "± 18132",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "fad42acc79b54ce38adf99c58c894f29fa2665ad",
+          "message": "feat(lib): Upgrade to Tokio 1.0 (#2369)\n\nCloses #2370",
+          "timestamp": "2020-12-23T10:36:12-08:00",
+          "tree_id": "a68f91816f1b911d3febd5935d6ced61572b7018",
+          "url": "https://github.com/hyperium/hyper/commit/fad42acc79b54ce38adf99c58c894f29fa2665ad"
+        },
+        "date": 1608748711172,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 48023,
+            "range": "± 4153",
             "unit": "ns/iter"
           }
         ]
