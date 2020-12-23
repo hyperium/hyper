@@ -94,10 +94,7 @@ impl Decoder {
     // methods
 
     pub fn is_eof(&self) -> bool {
-        match self.kind {
-            Length(0) | Chunked(ChunkedState::End, _) | Eof(true) => true,
-            _ => false,
-        }
+        matches!(self.kind, Length(0) | Chunked(ChunkedState::End, _) | Eof(true))
     }
 
     pub fn decode<R: MemRead>(
