@@ -1,3 +1,75 @@
+## v0.14.0 (2020-12-23)
+
+
+#### Bug Fixes
+
+* **client:** log socket option errors instead of returning error (#2361) ([dad5c879](https://github.com/hyperium/hyper/commit/dad5c8792fec7b586b41b5237bc161d8f0c09f72), closes [#2359](https://github.com/hyperium/hyper/issues/2359))
+* **http1:**
+  * ignore chunked trailers (#2357) ([1dd761c8](https://github.com/hyperium/hyper/commit/1dd761c87de226261599ff2518fe9d231ba1c82d), closes [#2171](https://github.com/hyperium/hyper/issues/2171))
+  * ending close-delimited body should close (#2322) ([71f34024](https://github.com/hyperium/hyper/commit/71f340242120f1ea52c7446b4bae37b894b83912))
+
+
+#### Features
+
+* **client:**
+  * change DNS Resolver to resolve to SocketAddrs (#2346) ([b4e24332](https://github.com/hyperium/hyper/commit/b4e24332a0cd44068a806081d51686f50c086056), closes [#1937](https://github.com/hyperium/hyper/issues/1937))
+  * Make `client` an optional feature ([4e55583d](https://github.com/hyperium/hyper/commit/4e55583d30a597884883f1a51b678f5c57c76765))
+* **http1:** Make HTTP/1 support an optional feature ([2a19ab74](https://github.com/hyperium/hyper/commit/2a19ab74ed69bc776da25544e98979c9fb6e1834))
+* **http2:** Make HTTP/2 support an optional feature ([b819b428](https://github.com/hyperium/hyper/commit/b819b428d314f2203642a015545967601b8e518a))
+* **lib:**
+  * Upgrade to Tokio 1.0, Bytes 1.0, http-body 0.4 (#2369) ([fad42acc](https://github.com/hyperium/hyper/commit/fad42acc79b54ce38adf99c58c894f29fa2665ad), closes [#2370](https://github.com/hyperium/hyper/issues/2370))
+  * remove dependency on `tracing`'s `log` feature (#2342) ([db32e105](https://github.com/hyperium/hyper/commit/db32e1050cf1eae63af0365c97e920f1295b6bea), closes [#2326](https://github.com/hyperium/hyper/issues/2326))
+  * disable all optional features by default (#2336) ([ed2b22a7](https://github.com/hyperium/hyper/commit/ed2b22a7f66899d338691552fbcb6c0f2f4e06b9))
+* **server:** Make the `server` code an optional feature (#2334) ([bdb5e5d6](https://github.com/hyperium/hyper/commit/bdb5e5d6946f4e3f8115a6b1683aff6a04df73de))
+* **upgrade:** Moved HTTP upgrades off `Body` to a new API (#2337) ([121c3313](https://github.com/hyperium/hyper/commit/121c33132c0950aaa422848cdc43f6691ddf5785), closes [#2086](https://github.com/hyperium/hyper/issues/2086))
+
+
+#### Breaking Changes
+
+* hyper depends on `tokio` v1 and `bytes` v1.
+* Custom resolvers used with `HttpConnector` must change
+  to resolving to an iterator of `SocketAddr`s instead of `IpAddr`s.
+ ([b4e24332](https://github.com/hyperium/hyper/commit/b4e24332a0cd44068a806081d51686f50c086056))
+* hyper no longer emits `log` records automatically.
+  If you need hyper to integrate with a `log` logger (as opposed to `tracing`),
+  you can add `tracing = { version = "0.1", features = ["log"] }` to activate them.
+ ([db32e105](https://github.com/hyperium/hyper/commit/db32e1050cf1eae63af0365c97e920f1295b6bea))
+* Removed `http1_writev` methods from `client::Builder`,
+  `client::conn::Builder`, `server::Builder`, and `server::conn::Builder`.
+  
+  Vectored writes are now enabled based on whether the `AsyncWrite`
+  implementation in use supports them, rather than though adaptive
+  detection. To explicitly disable vectored writes, users may wrap the IO
+  in a newtype that implements `AsyncRead` and `AsyncWrite` and returns
+  `false` from its `AsyncWrite::is_write_vectored` method.
+ ([d6aadb83](https://github.com/hyperium/hyper/commit/d6aadb830072959497f414c01bcdba4c8e681088))
+* The method `Body::on_upgrade()` is gone. It is
+  essentially replaced with `hyper::upgrade::on(msg)`.
+ ([121c3313](https://github.com/hyperium/hyper/commit/121c33132c0950aaa422848cdc43f6691ddf5785))
+* All optional features have been disabled by default.
+ ([ed2b22a7](https://github.com/hyperium/hyper/commit/ed2b22a7f66899d338691552fbcb6c0f2f4e06b9))
+* The HTTP server code is now an optional feature. To
+  enable the server, add `features = ["server"]` to the dependency in
+  your `Cargo.toml`.
+ ([bdb5e5d6](https://github.com/hyperium/hyper/commit/bdb5e5d6946f4e3f8115a6b1683aff6a04df73de))
+* The HTTP client of hyper is now an optional feature. To
+  enable the client, add `features = ["client"]` to the dependency in
+  your `Cargo.toml`.
+ ([4e55583d](https://github.com/hyperium/hyper/commit/4e55583d30a597884883f1a51b678f5c57c76765))
+* This puts all HTTP/1 methods and support behind an
+  `http1` cargo feature, which will not be enabled by default. To use
+  HTTP/1, add `features = ["http1"]` to the hyper dependency in your
+  `Cargo.toml`.
+
+ ([2a19ab74](https://github.com/hyperium/hyper/commit/2a19ab74ed69bc776da25544e98979c9fb6e1834))
+* This puts all HTTP/2 methods and support behind an
+  `http2` cargo feature, which will not be enabled by default. To use
+  HTTP/2, add `features = ["http2"]` to the hyper dependency in your
+  `Cargo.toml`.
+
+ ([b819b428](https://github.com/hyperium/hyper/commit/b819b428d314f2203642a015545967601b8e518a))
+
+
 ### v0.13.9 (2020-11-02)
 
 
