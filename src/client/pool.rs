@@ -731,7 +731,6 @@ impl<T: Poolable + 'static> Future for IdleTask<T> {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        use tokio::stream::Stream;
         let mut this = self.project();
         loop {
             match this.pool_drop_notifier.as_mut().poll(cx) {
@@ -743,7 +742,7 @@ impl<T: Poolable + 'static> Future for IdleTask<T> {
                 }
             }
 
-            ready!(this.interval.as_mut().poll_next(cx));
+            ready!(this.interval.as_mut().poll_tick(cx));
 
             if let Some(inner) = this.pool.upgrade() {
                 if let Ok(mut inner) = inner.lock() {

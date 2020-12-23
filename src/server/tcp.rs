@@ -19,7 +19,7 @@ pub struct AddrIncoming {
     sleep_on_errors: bool,
     tcp_keepalive_timeout: Option<Duration>,
     tcp_nodelay: bool,
-    timeout: Option<Sleep>,
+    timeout: Option<Pin<Box<Sleep>>>,
 }
 
 impl AddrIncoming {
@@ -160,9 +160,9 @@ impl AddrIncoming {
                         error!("accept error: {}", e);
 
                         // Sleep 1s.
-                        let mut timeout = tokio::time::sleep(Duration::from_secs(1));
+                        let mut timeout = Box::pin(tokio::time::sleep(Duration::from_secs(1)));
 
-                        match Pin::new(&mut timeout).poll(cx) {
+                        match timeout.as_mut().poll(cx) {
                             Poll::Ready(()) => {
                                 // Wow, it's been a second already? Ok then...
                                 continue;
@@ -263,7 +263,7 @@ mod addr_stream {
         pub fn poll_peek(
             &mut self,
             cx: &mut task::Context<'_>,
-            buf: &mut [u8],
+            buf: &mut tokio::io::ReadBuf<'_>,
         ) -> Poll<io::Result<usize>> {
             self.inner.poll_peek(cx, buf)
         }
