@@ -1,3 +1,8 @@
+### v0.14.1 (2020-12-23)
+
+* Fixes building documentation.
+
+
 ## v0.14.0 (2020-12-23)
 
 
