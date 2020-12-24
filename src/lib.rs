@@ -58,7 +58,11 @@
 
 #[doc(hidden)]
 pub use http;
-#[cfg(any(feature = "http1", feature = "http2"))]
+#[cfg(any(
+    feature = "http1",
+    feature = "http2",
+    all(feature = "client", feature = "tcp")
+))]
 #[macro_use]
 extern crate tracing;
 
@@ -89,9 +93,11 @@ cfg_proto! {
 }
 
 cfg_feature! {
-    #![all(feature = "client", any(feature = "http1", feature = "http2"))]
+    #![all(feature = "client")]
 
     pub mod client;
+    #[cfg(any(feature = "http1", feature = "http2"))]
+    #[doc(no_inline)]
     pub use crate::client::Client;
 }
 

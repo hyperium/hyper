@@ -10,7 +10,7 @@ use futures_channel::oneshot;
 #[cfg(feature = "runtime")]
 use tokio::time::{Duration, Instant, Interval};
 
-use super::Ver;
+use super::client::Ver;
 use crate::common::{task, exec::Exec, Future, Pin, Poll, Unpin};
 
 // FIXME: allow() required due to `impl Trait` leaking types to this lint
