@@ -91,6 +91,7 @@ where
         self.read_buf_strategy = ReadStrategy::Exact(sz);
     }
 
+    #[cfg(feature = "server")]
     pub fn set_write_strategy_flatten(&mut self) {
         // this should always be called only at construction time,
         // so this assert is here to catch myself
@@ -475,6 +476,7 @@ impl<B> WriteBuf<B>
 where
     B: Buf,
 {
+    #[cfg(feature = "server")]
     fn set_strategy(&mut self, strategy: WriteStrategy) {
         self.strategy = strategy;
     }

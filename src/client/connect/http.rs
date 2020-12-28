@@ -27,6 +27,7 @@ use super::{Connected, Connection};
 ///
 /// Sets the [`HttpInfo`](HttpInfo) value on responses, which includes
 /// transport information such as the remote socket address used.
+#[cfg_attr(docsrs, doc(cfg(feature = "tcp")))]
 #[derive(Clone)]
 pub struct HttpConnector<R = GaiResolver> {
     config: Arc<Config>,
