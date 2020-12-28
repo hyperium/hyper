@@ -65,8 +65,10 @@ use crate::body::{Body, HttpBody};
 use crate::common::{exec::BoxSendFuture, lazy as hyper_lazy, task, Future, Lazy, Pin, Poll};
 use crate::rt::Executor;
 
-#[cfg(feature = "tcp")]
+cfg_feature! {
+#![cfg(feature = "tcp")]
 pub use self::connect::HttpConnector;
+}
 
 pub mod conn;
 pub mod connect;
