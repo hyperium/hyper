@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1609199690344,
+  "lastUpdate": 1609199693264,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -5499,6 +5499,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_req_100kb",
             "value": 113397,
             "range": "± 6800",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "nikhil.benesch@gmail.com",
+            "name": "Nikhil Benesch",
+            "username": "benesch"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "73a59e5fc7ddedcb7cbd91e97b33385fde57aa10",
+          "message": "feat(client): expose `connect` types without proto feature (#2377)\n\nMake it possible to refer to Connected, Connection, HttpConnector, etc.\r\nwithout enabling either of the http1/http2 features. This makes feature\r\nselection work better for downstream libraries like hyper-openssl, which\r\ndon't want to commit to any particular protocol.\r\n\r\nFix #2376.",
+          "timestamp": "2020-12-28T15:50:28-08:00",
+          "tree_id": "45ebc36d02cfce21512ca4f21e0186086b3aca7d",
+          "url": "https://github.com/hyperium/hyper/commit/73a59e5fc7ddedcb7cbd91e97b33385fde57aa10"
+        },
+        "date": 1609199691965,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_body_both_100kb",
+            "value": 61078,
+            "range": "± 1282",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_body_both_10mb",
+            "value": 6989792,
+            "range": "± 780692",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_get",
+            "value": 25663,
+            "range": "± 410",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 184887,
+            "range": "± 4321",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 51188062,
+            "range": "± 1602749",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 54934384,
+            "range": "± 3652218",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 56483715,
+            "range": "± 1896255",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 4103172,
+            "range": "± 625406",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_post",
+            "value": 28763,
+            "range": "± 479",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_get",
+            "value": 41472,
+            "range": "± 649",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 131608,
+            "range": "± 1678",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 6828941,
+            "range": "± 9018984",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 6893791,
+            "range": "± 59074",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 6691219,
+            "range": "± 9063961",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 51246440,
+            "range": "± 4667328",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 68825514,
+            "range": "± 15071526",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5658359,
+            "range": "± 943639",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_post",
+            "value": 46366,
+            "range": "± 739",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_req_100kb",
+            "value": 91965,
+            "range": "± 2179",
             "unit": "ns/iter"
           }
         ]
