@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1609199545777,
+  "lastUpdate": 1609199577158,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -1681,6 +1681,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 48012,
             "range": "± 3118",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "nikhil.benesch@gmail.com",
+            "name": "Nikhil Benesch",
+            "username": "benesch"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "73a59e5fc7ddedcb7cbd91e97b33385fde57aa10",
+          "message": "feat(client): expose `connect` types without proto feature (#2377)\n\nMake it possible to refer to Connected, Connection, HttpConnector, etc.\r\nwithout enabling either of the http1/http2 features. This makes feature\r\nselection work better for downstream libraries like hyper-openssl, which\r\ndon't want to commit to any particular protocol.\r\n\r\nFix #2376.",
+          "timestamp": "2020-12-28T15:50:28-08:00",
+          "tree_id": "45ebc36d02cfce21512ca4f21e0186086b3aca7d",
+          "url": "https://github.com/hyperium/hyper/commit/73a59e5fc7ddedcb7cbd91e97b33385fde57aa10"
+        },
+        "date": 1609199575781,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 56545,
+            "range": "± 5281",
             "unit": "ns/iter"
           }
         ]
