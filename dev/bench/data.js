@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1609199666957,
+  "lastUpdate": 1609199690344,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -1741,6 +1741,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 56545,
             "range": "± 5281",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mussitantesmortem@gmail.com",
+            "name": "Maxim Zhukov",
+            "username": "Mephistophiles"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "510b998ff3dc75e0dfc7e236212f5fef33142ad1",
+          "message": "chore(dev-dependencies): bump url to 2.2 (#2379)",
+          "timestamp": "2020-12-28T15:52:28-08:00",
+          "tree_id": "cd9b46cf00546ee0223f287f33d1698b9c2ee161",
+          "url": "https://github.com/hyperium/hyper/commit/510b998ff3dc75e0dfc7e236212f5fef33142ad1"
+        },
+        "date": 1609199688991,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 54328,
+            "range": "± 6440",
             "unit": "ns/iter"
           }
         ]
