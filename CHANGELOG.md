@@ -1,3 +1,12 @@
+### v0.14.2 (2020-12-29)
+
+
+#### Features
+
+* **client:** expose `connect` types without proto feature (#2377) ([73a59e5f](https://github.com/hyperium/hyper/commit/73a59e5fc7ddedcb7cbd91e97b33385fde57aa10))
+* **server:** expose `Accept` without httpX features (#2382) ([a6d4fcbe](https://github.com/hyperium/hyper/commit/a6d4fcbee65bebf461291def75f4c512ec62a664))
+
+
 ### v0.14.1 (2020-12-23)
 
 * Fixes building documentation.
