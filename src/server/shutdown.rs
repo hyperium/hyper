@@ -4,7 +4,7 @@ use pin_project::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::conn::{SpawnAll, UpgradeableConnection, Watcher};
-use super::Accept;
+use super::accept::Accept;
 use crate::body::{Body, HttpBody};
 use crate::common::drain::{self, Draining, Signal, Watch, Watching};
 use crate::common::exec::{ConnStreamExec, NewSvcExec};

@@ -102,8 +102,10 @@ cfg_feature! {
 }
 
 cfg_feature! {
-    #![all(feature = "server", any(feature = "http1", feature = "http2"))]
+    #![all(feature = "server")]
 
     pub mod server;
+    #[cfg(any(feature = "http1", feature = "http2"))]
+    #[doc(no_inline)]
     pub use crate::server::Server;
 }

@@ -57,7 +57,7 @@ use bytes::Bytes;
 use pin_project::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use super::Accept;
+use super::accept::Accept;
 use crate::body::{Body, HttpBody};
 use crate::common::exec::{ConnStreamExec, Exec, NewSvcExec};
 #[cfg(feature = "http2")]
