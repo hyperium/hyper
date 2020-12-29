@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1609199803920,
+  "lastUpdate": 1609266118959,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -899,6 +899,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 43615,
             "range": "± 2283",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "fanatid@ya.ru",
+            "name": "Kirill Fomichev",
+            "username": "fanatid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a6d4fcbee65bebf461291def75f4c512ec62a664",
+          "message": "feat(server): expose `Accept` without httpX features (#2382)",
+          "timestamp": "2020-12-29T10:19:57-08:00",
+          "tree_id": "db446f1dadd4ba7c9cb2342b2f9a33db36b205c5",
+          "url": "https://github.com/hyperium/hyper/commit/a6d4fcbee65bebf461291def75f4c512ec62a664"
+        },
+        "date": 1609266117661,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 45862,
+            "range": "± 1256",
             "unit": "ns/iter"
           }
         ]
