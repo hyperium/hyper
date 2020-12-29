@@ -9,7 +9,7 @@ use tokio::time::Sleep;
 use crate::common::{task, Future, Pin, Poll};
 
 pub use self::addr_stream::AddrStream;
-use super::Accept;
+use super::accept::Accept;
 
 /// A stream of connections from binding to an address.
 #[must_use = "streams do nothing unless polled"]
