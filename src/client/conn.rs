@@ -63,7 +63,10 @@ use tower_service::Service;
 
 use super::dispatch;
 use crate::body::HttpBody;
-use crate::common::{task, exec::{BoxSendFuture, Exec}, Future, Pin, Poll};
+use crate::common::{
+    exec::{BoxSendFuture, Exec},
+    task, Future, Pin, Poll,
+};
 use crate::proto;
 use crate::rt::Executor;
 #[cfg(feature = "http1")]

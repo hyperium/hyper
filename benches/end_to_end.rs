@@ -8,7 +8,7 @@ use std::net::SocketAddr;
 use futures_util::future::join_all;
 
 use hyper::client::HttpConnector;
-use hyper::{body::HttpBody as _, Body, Method, Request, Response, Server};
+use hyper::{body::HttpBody as _, Body, HeaderMap, Method, Request, Response, Server};
 
 // HTTP1
 
@@ -313,6 +313,9 @@ impl Opts {
                     for _ in 0..chunk_cnt {
                         tx.send_data(chunk.into()).await.expect("send_data");
                     }
+                    tx.send_trailers(HeaderMap::new())
+                        .await
+                        .expect("send_trailers");
                 });
                 body
             } else {
