@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use libc::{c_int, size_t};
 use std::ffi::c_void;
 
@@ -8,13 +9,21 @@ use super::HYPER_ITER_CONTINUE;
 use crate::header::{HeaderName, HeaderValue};
 use crate::{Body, HeaderMap, Method, Request, Response, Uri};
 
-// ===== impl Request =====
-
 pub struct hyper_request(pub(super) Request<Body>);
 
 pub struct hyper_response(pub(super) Response<Body>);
 
-pub struct hyper_headers(pub(super) HeaderMap);
+#[derive(Default)]
+pub struct hyper_headers {
+    pub(super) headers: HeaderMap,
+    orig_casing: HeaderCaseMap,
+}
+
+// Will probably be moved to `hyper::ext::http1`
+#[derive(Debug, Default)]
+pub(crate) struct HeaderCaseMap(HeaderMap<Bytes>);
+
+// ===== impl hyper_request =====
 
 ffi_fn! {
     /// Construct a new HTTP request.
@@ -96,7 +105,7 @@ ffi_fn! {
     /// This is not an owned reference, so it should not be accessed after the
     /// `hyper_request` has been consumed.
     fn hyper_request_headers(req: *mut hyper_request) -> *mut hyper_headers {
-        hyper_headers::wrap(unsafe { &mut *req }.0.headers_mut())
+        hyper_headers::get_or_default(unsafe { &mut *req }.0.extensions_mut())
     }
 }
 
@@ -114,7 +123,16 @@ ffi_fn! {
     }
 }
 
-// ===== impl Response =====
+impl hyper_request {
+    pub(super) fn finalize_request(&mut self) {
+        if let Some(headers) = self.0.extensions_mut().remove::<hyper_headers>() {
+            *self.0.headers_mut() = headers.headers;
+            self.0.extensions_mut().insert(headers.orig_casing);
+        }
+    }
+}
+
+// ===== impl hyper_response =====
 
 ffi_fn! {
     /// Free an HTTP response after using it.
@@ -159,7 +177,7 @@ ffi_fn! {
     /// This is not an owned reference, so it should not be accessed after the
     /// `hyper_response` has been freed.
     fn hyper_response_headers(resp: *mut hyper_response) -> *mut hyper_headers {
-        hyper_headers::wrap(unsafe { &mut *resp }.0.headers_mut())
+        hyper_headers::get_or_default(unsafe { &mut *resp }.0.extensions_mut())
     }
 }
 
@@ -170,6 +188,22 @@ ffi_fn! {
     fn hyper_response_body(resp: *mut hyper_response) -> *mut hyper_body {
         let body = std::mem::take(unsafe { &mut *resp }.0.body_mut());
         Box::into_raw(Box::new(hyper_body(body)))
+    }
+}
+
+impl hyper_response {
+    pub(super) fn wrap(mut resp: Response<Body>) -> hyper_response {
+        let headers = std::mem::take(resp.headers_mut());
+        let orig_casing = resp
+            .extensions_mut()
+            .remove::<HeaderCaseMap>()
+            .unwrap_or_default();
+        resp.extensions_mut().insert(hyper_headers {
+            headers,
+            orig_casing,
+        });
+
+        hyper_response(resp)
     }
 }
 
@@ -185,9 +219,15 @@ type hyper_headers_foreach_callback =
     extern "C" fn(*mut c_void, *const u8, size_t, *const u8, size_t) -> c_int;
 
 impl hyper_headers {
-    pub(crate) fn wrap(cx: &mut HeaderMap) -> &mut hyper_headers {
-        // A struct with only one field has the same layout as that field.
-        unsafe { std::mem::transmute::<&mut HeaderMap, &mut hyper_headers>(cx) }
+    pub(super) fn get_or_default(ext: &mut http::Extensions) -> &mut hyper_headers {
+        if let None = ext.get_mut::<hyper_headers>() {
+            ext.insert(hyper_headers {
+                headers: Default::default(),
+                orig_casing: Default::default(),
+            });
+        }
+
+        ext.get_mut::<hyper_headers>().unwrap()
     }
 }
 
@@ -199,14 +239,31 @@ ffi_fn! {
     /// The callback should return `HYPER_ITER_CONTINUE` to keep iterating, or
     /// `HYPER_ITER_BREAK` to stop.
     fn hyper_headers_foreach(headers: *const hyper_headers, func: hyper_headers_foreach_callback, userdata: *mut c_void) {
-        for (name, value) in unsafe { &*headers }.0.iter() {
-            let name_ptr = name.as_str().as_bytes().as_ptr();
-            let name_len = name.as_str().as_bytes().len();
-            let val_ptr = value.as_bytes().as_ptr();
-            let val_len = value.as_bytes().len();
+        let headers = unsafe { &*headers };
+        // For each header name/value pair, there may be a value in the casemap
+        // that corresponds to the HeaderValue. So, we iterator all the keys,
+        // and for each one, try to pair the originally cased name with the value.
+        //
+        // TODO: consider adding http::HeaderMap::entries() iterator
+        for name in headers.headers.keys() {
+            let mut names = headers.orig_casing.get_all(name).iter();
 
-            if HYPER_ITER_CONTINUE != func(userdata, name_ptr, name_len, val_ptr, val_len) {
-                break;
+            for value in headers.headers.get_all(name) {
+                let (name_ptr, name_len) = if let Some(orig_name) = names.next() {
+                    (orig_name.as_ptr(), orig_name.len())
+                } else {
+                    (
+                        name.as_str().as_bytes().as_ptr(),
+                        name.as_str().as_bytes().len(),
+                    )
+                };
+
+                let val_ptr = value.as_bytes().as_ptr();
+                let val_len = value.as_bytes().len();
+
+                if HYPER_ITER_CONTINUE != func(userdata, name_ptr, name_len, val_ptr, val_len) {
+                    return;
+                }
             }
         }
     }
@@ -219,8 +276,9 @@ ffi_fn! {
     fn hyper_headers_set(headers: *mut hyper_headers, name: *const u8, name_len: size_t, value: *const u8, value_len: size_t) -> hyper_code {
         let headers = unsafe { &mut *headers };
         match unsafe { raw_name_value(name, name_len, value, value_len) } {
-            Ok((name, value)) => {
-                headers.0.insert(name, value);
+            Ok((name, value, orig_name)) => {
+                headers.headers.insert(&name, value);
+                headers.orig_casing.insert(name, orig_name);
                 hyper_code::HYPERE_OK
             }
             Err(code) => code,
@@ -237,8 +295,9 @@ ffi_fn! {
         let headers = unsafe { &mut *headers };
 
         match unsafe { raw_name_value(name, name_len, value, value_len) } {
-            Ok((name, value)) => {
-                headers.0.append(name, value);
+            Ok((name, value, orig_name)) => {
+                headers.headers.append(&name, value);
+                headers.orig_casing.append(name, orig_name);
                 hyper_code::HYPERE_OK
             }
             Err(code) => code,
@@ -251,8 +310,9 @@ unsafe fn raw_name_value(
     name_len: size_t,
     value: *const u8,
     value_len: size_t,
-) -> Result<(HeaderName, HeaderValue), hyper_code> {
+) -> Result<(HeaderName, HeaderValue, Bytes), hyper_code> {
     let name = std::slice::from_raw_parts(name, name_len);
+    let orig_name = Bytes::copy_from_slice(name);
     let name = match HeaderName::from_bytes(name) {
         Ok(name) => name,
         Err(_) => return Err(hyper_code::HYPERE_INVALID_ARG),
@@ -263,5 +323,78 @@ unsafe fn raw_name_value(
         Err(_) => return Err(hyper_code::HYPERE_INVALID_ARG),
     };
 
-    Ok((name, value))
+    Ok((name, value, orig_name))
+}
+
+// ===== impl HeaderCaseMap =====
+
+impl HeaderCaseMap {
+    pub(crate) fn get_all(&self, name: &HeaderName) -> http::header::GetAll<'_, Bytes> {
+        self.0.get_all(name)
+    }
+
+    pub(crate) fn insert(&mut self, name: HeaderName, orig: Bytes) {
+        self.0.insert(name, orig);
+    }
+
+    pub(crate) fn append<N>(&mut self, name: N, orig: Bytes)
+    where
+        N: http::header::IntoHeaderName,
+    {
+        self.0.append(name, orig);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_headers_foreach_cases_preserved() {
+        let mut headers = hyper_headers::default();
+
+        let name1 = b"Set-CookiE";
+        let value1 = b"a=b";
+        hyper_headers_add(
+            &mut headers,
+            name1.as_ptr(),
+            name1.len(),
+            value1.as_ptr(),
+            value1.len(),
+        );
+
+        let name2 = b"SET-COOKIE";
+        let value2 = b"c=d";
+        hyper_headers_add(
+            &mut headers,
+            name2.as_ptr(),
+            name2.len(),
+            value2.as_ptr(),
+            value2.len(),
+        );
+
+        let mut vec = Vec::<u8>::new();
+        hyper_headers_foreach(&headers, concat, &mut vec as *mut _ as *mut c_void);
+
+        assert_eq!(vec, b"Set-CookiE: a=b\r\nSET-COOKIE: c=d\r\n");
+
+        extern "C" fn concat(
+            vec: *mut c_void,
+            name: *const u8,
+            name_len: usize,
+            value: *const u8,
+            value_len: usize,
+        ) -> c_int {
+            unsafe {
+                let vec = &mut *(vec as *mut Vec<u8>);
+                let name = std::slice::from_raw_parts(name, name_len);
+                let value = std::slice::from_raw_parts(value, value_len);
+                vec.extend(name);
+                vec.extend(b": ");
+                vec.extend(value);
+                vec.extend(b"\r\n");
+            }
+            HYPER_ITER_CONTINUE
+        }
+    }
 }

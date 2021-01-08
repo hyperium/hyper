@@ -33,7 +33,7 @@ impl hyper_error {
             ErrorKind::IncompleteMessage => hyper_code::HYPERE_UNEXPECTED_EOF,
             ErrorKind::User(User::AbortedByCallback) => hyper_code::HYPERE_ABORTED_BY_CALLBACK,
             // TODO: add more variants
-            _ => hyper_code::HYPERE_ERROR
+            _ => hyper_code::HYPERE_ERROR,
         }
     }
 

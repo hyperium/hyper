@@ -67,11 +67,15 @@ ffi_fn! {
             return std::ptr::null_mut();
         }
 
-        let req = unsafe { Box::from_raw(req) };
+        let mut req = unsafe { Box::from_raw(req) };
+
+        // Update request with original-case map of headers
+        req.finalize_request();
+
         let fut = unsafe { &mut *conn }.tx.send_request(req.0);
 
         let fut = async move {
-            fut.await.map(hyper_response)
+            fut.await.map(hyper_response::wrap)
         };
 
         Box::into_raw(Task::boxed(fut))
