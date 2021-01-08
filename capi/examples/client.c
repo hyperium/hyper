@@ -254,8 +254,10 @@ int main(int argc, char *argv[]) {
                 hyper_task_free(task);
 
                 uint16_t http_status = hyper_response_status(resp);
+                const uint8_t *rp = hyper_response_reason_phrase(resp);
+                size_t rp_len = hyper_response_reason_phrase_len(resp);
 
-                printf("\nResponse Status: %d\n", http_status);
+                printf("\nResponse Status: %d %.*s\n", http_status, (int) rp_len, rp);
 
                 hyper_headers *headers = hyper_response_headers(resp);
                 hyper_headers_foreach(headers, print_each_header, NULL);

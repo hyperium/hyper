@@ -350,6 +350,26 @@ void hyper_response_free(hyper_response *resp);
 uint16_t hyper_response_status(const hyper_response *resp);
 
 /*
+ Get a pointer to the reason-phrase of this response.
+
+ This buffer is not null-terminated.
+
+ This buffer is owned by the response, and should not be used after
+ the response has been freed.
+
+ Use `hyper_response_reason_phrase_len()` to get the length of this
+ buffer.
+ */
+const uint8_t *hyper_response_reason_phrase(const hyper_response *resp);
+
+/*
+ Get the length of the reason-phrase of this response.
+
+ Use `hyper_response_reason_phrase()` to get the buffer pointer.
+ */
+size_t hyper_response_reason_phrase_len(const hyper_response *resp);
+
+/*
  Get the HTTP version used by this response.
 
  The returned value could be:
