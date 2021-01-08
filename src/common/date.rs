@@ -3,24 +3,28 @@ use std::fmt::{self, Write};
 use std::str;
 use std::time::{Duration, SystemTime};
 
+#[cfg(feature = "http2")]
 use http::header::HeaderValue;
 use httpdate::HttpDate;
 
 // "Sun, 06 Nov 1994 08:49:37 GMT".len()
 pub const DATE_VALUE_LENGTH: usize = 29;
 
+#[cfg(feature = "http1")]
 pub fn extend(dst: &mut Vec<u8>) {
     CACHED.with(|cache| {
         dst.extend_from_slice(cache.borrow().buffer());
     })
 }
 
+#[cfg(feature = "http1")]
 pub fn update() {
     CACHED.with(|cache| {
         cache.borrow_mut().check();
     })
 }
 
+#[cfg(feature = "http2")]
 pub(crate) fn update_and_header_value() -> HeaderValue {
     CACHED.with(|cache| {
         let mut cache = cache.borrow_mut();

@@ -4,18 +4,25 @@ use std::error::Error as StdError;
 use std::fmt;
 
 use bytes::Bytes;
-use futures_channel::{mpsc, oneshot};
+use futures_channel::mpsc;
+#[cfg(any(feature = "http1", feature = "http2"))]
+#[cfg(feature = "client")]
+use futures_channel::oneshot;
 use futures_core::Stream; // for mpsc::Receiver
 #[cfg(feature = "stream")]
 use futures_util::TryStreamExt;
 use http::HeaderMap;
 use http_body::{Body as HttpBody, SizeHint};
 
+use super::DecodedLength;
+#[cfg(feature = "stream")]
 use crate::common::sync_wrapper::SyncWrapper;
-use crate::common::{task, watch, Future, Never, Pin, Poll};
+use crate::common::{task, watch, Pin, Poll};
+#[cfg(any(feature = "http1", feature = "http2"))]
+#[cfg(feature = "client")]
+use crate::common::{Future, Never};
+#[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
 use crate::proto::h2::ping;
-use crate::proto::DecodedLength;
-use crate::upgrade::OnUpgrade;
 
 type BodySender = mpsc::Sender<Result<Bytes, crate::Error>>;
 
@@ -38,6 +45,7 @@ enum Kind {
         want_tx: watch::Sender,
         rx: mpsc::Receiver<Result<Bytes, crate::Error>>,
     },
+    #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
     H2 {
         ping: ping::Recorder,
         content_length: DecodedLength,
@@ -61,17 +69,22 @@ struct Extra {
     /// a brand new connection, since the pool didn't know about the idle
     /// connection yet.
     delayed_eof: Option<DelayEof>,
-    on_upgrade: OnUpgrade,
 }
 
+#[cfg(any(feature = "http1", feature = "http2"))]
+#[cfg(feature = "client")]
 type DelayEofUntil = oneshot::Receiver<Never>;
 
 enum DelayEof {
     /// Initial state, stream hasn't seen EOF yet.
+    #[cfg(any(feature = "http1", feature = "http2"))]
+    #[cfg(feature = "client")]
     NotEof(DelayEofUntil),
     /// Transitions to this state once we've seen `poll` try to
     /// return EOF (`None`). This future is then polled, and
     /// when it completes, the Body finally returns EOF (`None`).
+    #[cfg(any(feature = "http1", feature = "http2"))]
+    #[cfg(feature = "client")]
     Eof(DelayEofUntil),
 }
 
@@ -172,19 +185,11 @@ impl Body {
         Body::new(Kind::Wrapped(SyncWrapper::new(Box::pin(mapped))))
     }
 
-    /// Converts this `Body` into a `Future` of a pending HTTP upgrade.
-    ///
-    /// See [the `upgrade` module](crate::upgrade) for more.
-    pub fn on_upgrade(self) -> OnUpgrade {
-        self.extra
-            .map(|ex| ex.on_upgrade)
-            .unwrap_or_else(OnUpgrade::none)
-    }
-
     fn new(kind: Kind) -> Body {
         Body { kind, extra: None }
     }
 
+    #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
     pub(crate) fn h2(
         recv: h2::RecvStream,
         content_length: DecodedLength,
@@ -199,13 +204,8 @@ impl Body {
         body
     }
 
-    pub(crate) fn set_on_upgrade(&mut self, upgrade: OnUpgrade) {
-        debug_assert!(!upgrade.is_none(), "set_on_upgrade with empty upgrade");
-        let extra = self.extra_mut();
-        debug_assert!(extra.on_upgrade.is_none(), "set_on_upgrade twice");
-        extra.on_upgrade = upgrade;
-    }
-
+    #[cfg(any(feature = "http1", feature = "http2"))]
+    #[cfg(feature = "client")]
     pub(crate) fn delayed_eof(&mut self, fut: DelayEofUntil) {
         self.extra_mut().delayed_eof = Some(DelayEof::NotEof(fut));
     }
@@ -216,17 +216,16 @@ impl Body {
             .and_then(|extra| extra.delayed_eof.take())
     }
 
+    #[cfg(any(feature = "http1", feature = "http2"))]
     fn extra_mut(&mut self) -> &mut Extra {
-        self.extra.get_or_insert_with(|| {
-            Box::new(Extra {
-                delayed_eof: None,
-                on_upgrade: OnUpgrade::none(),
-            })
-        })
+        self.extra
+            .get_or_insert_with(|| Box::new(Extra { delayed_eof: None }))
     }
 
     fn poll_eof(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<crate::Result<Bytes>>> {
         match self.take_delayed_eof() {
+            #[cfg(any(feature = "http1", feature = "http2"))]
+            #[cfg(feature = "client")]
             Some(DelayEof::NotEof(mut delay)) => match self.poll_inner(cx) {
                 ok @ Poll::Ready(Some(Ok(..))) | ok @ Poll::Pending => {
                     self.extra_mut().delayed_eof = Some(DelayEof::NotEof(delay));
@@ -242,6 +241,8 @@ impl Body {
                 },
                 Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e))),
             },
+            #[cfg(any(feature = "http1", feature = "http2"))]
+            #[cfg(feature = "client")]
             Some(DelayEof::Eof(mut delay)) => match Pin::new(&mut delay).poll(cx) {
                 Poll::Ready(Ok(never)) => match never {},
                 Poll::Pending => {
@@ -250,6 +251,11 @@ impl Body {
                 }
                 Poll::Ready(Err(_done)) => Poll::Ready(None),
             },
+            #[cfg(any(
+                not(any(feature = "http1", feature = "http2")),
+                not(feature = "client")
+            ))]
+            Some(delay_eof) => match delay_eof {},
             None => self.poll_inner(cx),
         }
     }
@@ -272,6 +278,7 @@ impl Body {
                     None => Poll::Ready(None),
                 }
             }
+            #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
             Kind::H2 {
                 ref ping,
                 recv: ref mut h2,
@@ -295,6 +302,7 @@ impl Body {
         }
     }
 
+    #[cfg(feature = "http1")]
     pub(super) fn take_full_data(&mut self) -> Option<Bytes> {
         if let Kind::Once(ref mut chunk) = self.kind {
             chunk.take()
@@ -324,10 +332,11 @@ impl HttpBody for Body {
     }
 
     fn poll_trailers(
-        mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
+        #[cfg_attr(not(feature = "http2"), allow(unused_mut))] mut self: Pin<&mut Self>,
+        #[cfg_attr(not(feature = "http2"), allow(unused))] cx: &mut task::Context<'_>,
     ) -> Poll<Result<Option<HeaderMap>, Self::Error>> {
         match self.kind {
+            #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
             Kind::H2 {
                 recv: ref mut h2,
                 ref ping,
@@ -347,6 +356,7 @@ impl HttpBody for Body {
         match self.kind {
             Kind::Once(ref val) => val.is_none(),
             Kind::Chan { content_length, .. } => content_length == DecodedLength::ZERO,
+            #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
             Kind::H2 { recv: ref h2, .. } => h2.is_end_stream(),
             #[cfg(feature = "stream")]
             Kind::Wrapped(..) => false,
@@ -354,20 +364,26 @@ impl HttpBody for Body {
     }
 
     fn size_hint(&self) -> SizeHint {
+        macro_rules! opt_len {
+            ($content_length:expr) => {{
+                let mut hint = SizeHint::default();
+
+                if let Some(content_length) = $content_length.into_opt() {
+                    hint.set_exact(content_length);
+                }
+
+                hint
+            }};
+        }
+
         match self.kind {
             Kind::Once(Some(ref val)) => SizeHint::with_exact(val.len() as u64),
             Kind::Once(None) => SizeHint::with_exact(0),
             #[cfg(feature = "stream")]
             Kind::Wrapped(..) => SizeHint::default(),
-            Kind::Chan { content_length, .. } | Kind::H2 { content_length, .. } => {
-                let mut hint = SizeHint::default();
-
-                if let Some(content_length) = content_length.into_opt() {
-                    hint.set_exact(content_length);
-                }
-
-                hint
-            }
+            Kind::Chan { content_length, .. } => opt_len!(content_length),
+            #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
+            Kind::H2 { content_length, .. } => opt_len!(content_length),
         }
     }
 }
@@ -536,6 +552,7 @@ impl Sender {
             .try_send(Err(crate::Error::new_body_write_aborted()));
     }
 
+    #[cfg(feature = "http1")]
     pub(crate) fn send_error(&mut self, err: crate::Error) {
         let _ = self.tx.try_send(Err(err));
     }

@@ -10,8 +10,7 @@ use hyper::body::Body;
 
 macro_rules! bench_stream {
     ($bencher:ident, bytes: $bytes:expr, count: $count:expr, $total_ident:ident, $body_pat:pat, $block:expr) => {{
-        let mut rt = tokio::runtime::Builder::new()
-            .basic_scheduler()
+        let rt = tokio::runtime::Builder::new_current_thread()
             .build()
             .expect("rt build");
 

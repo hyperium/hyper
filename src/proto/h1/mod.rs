@@ -1,7 +1,8 @@
 use bytes::BytesMut;
 use http::{HeaderMap, Method};
 
-use crate::proto::{BodyLength, DecodedLength, MessageHead};
+use crate::body::DecodedLength;
+use crate::proto::{BodyLength, MessageHead};
 
 pub(crate) use self::conn::Conn;
 pub use self::decode::Decoder;
@@ -11,15 +12,20 @@ pub use self::io::Cursor; //TODO: move out of h1::io
 pub use self::io::MINIMUM_MAX_BUFFER_SIZE;
 
 mod conn;
-pub(super) mod date;
 mod decode;
 pub(crate) mod dispatch;
 mod encode;
 mod io;
 mod role;
 
-pub(crate) type ServerTransaction = role::Server;
-pub(crate) type ClientTransaction = role::Client;
+
+cfg_client! {
+    pub(crate) type ClientTransaction = role::Client;
+}
+
+cfg_server! {
+    pub(crate) type ServerTransaction = role::Server;
+}
 
 pub(crate) trait Http1Transaction {
     type Incoming;
@@ -70,6 +76,7 @@ pub(crate) struct ParseContext<'a> {
 pub(crate) struct Encode<'a, T> {
     head: &'a mut MessageHead<T>,
     body: Option<BodyLength>,
+    #[cfg(feature = "server")]
     keep_alive: bool,
     req_method: &'a mut Option<Method>,
     title_case_headers: bool,

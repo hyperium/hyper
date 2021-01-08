@@ -10,8 +10,8 @@ use futures_channel::oneshot;
 #[cfg(feature = "runtime")]
 use tokio::time::{Duration, Instant, Interval};
 
-use super::Ver;
-use crate::common::{task, Exec, Future, Pin, Poll, Unpin};
+use super::client::Ver;
+use crate::common::{task, exec::Exec, Future, Pin, Poll, Unpin};
 
 // FIXME: allow() required due to `impl Trait` leaking types to this lint
 #[allow(missing_debug_implementations)]
@@ -45,6 +45,7 @@ pub(super) enum Reservation<T> {
     /// This connection could be used multiple times, the first one will be
     /// reinserted into the `idle` pool, and the second will be given to
     /// the `Checkout`.
+    #[cfg(feature = "http2")]
     Shared(T, T),
     /// This connection requires unique access. It will be returned after
     /// use is complete.
@@ -199,9 +200,14 @@ impl<T: Poolable> Pool<T> {
     }
     */
 
-    pub(super) fn pooled(&self, mut connecting: Connecting<T>, value: T) -> Pooled<T> {
+    pub(super) fn pooled(
+        &self,
+        #[cfg_attr(not(feature = "http2"), allow(unused_mut))] mut connecting: Connecting<T>,
+        value: T,
+    ) -> Pooled<T> {
         let (value, pool_ref) = if let Some(ref enabled) = self.inner {
             match value.reserve() {
+                #[cfg(feature = "http2")]
                 Reservation::Shared(to_insert, to_return) => {
                     let mut inner = enabled.lock().unwrap();
                     inner.put(connecting.key.clone(), to_insert, enabled);
@@ -291,6 +297,7 @@ impl<'a, T: Poolable + 'a> IdlePopper<'a, T> {
             }
 
             let value = match entry.value.reserve() {
+                #[cfg(feature = "http2")]
                 Reservation::Shared(to_reinsert, to_checkout) => {
                     self.list.push(Idle {
                         idle_at: Instant::now(),
@@ -325,6 +332,7 @@ impl<T: Poolable> PoolInner<T> {
                 if !tx.is_canceled() {
                     let reserved = value.take().expect("value already sent");
                     let reserved = match reserved.reserve() {
+                        #[cfg(feature = "http2")]
                         Reservation::Shared(to_keep, to_send) => {
                             value = Some(to_keep);
                             to_send
@@ -706,12 +714,15 @@ impl Expiration {
 }
 
 #[cfg(feature = "runtime")]
+#[pin_project::pin_project]
 struct IdleTask<T> {
+    #[pin]
     interval: Interval,
     pool: WeakOpt<Mutex<PoolInner<T>>>,
     // This allows the IdleTask to be notified as soon as the entire
     // Pool is fully dropped, and shutdown. This channel is never sent on,
     // but Err(Canceled) will be received when the Pool is dropped.
+    #[pin]
     pool_drop_notifier: oneshot::Receiver<crate::common::Never>,
 }
 
@@ -719,9 +730,10 @@ struct IdleTask<T> {
 impl<T: Poolable + 'static> Future for IdleTask<T> {
     type Output = ();
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let mut this = self.project();
         loop {
-            match Pin::new(&mut self.pool_drop_notifier).poll(cx) {
+            match this.pool_drop_notifier.as_mut().poll(cx) {
                 Poll::Ready(Ok(n)) => match n {},
                 Poll::Pending => (),
                 Poll::Ready(Err(_canceled)) => {
@@ -730,9 +742,9 @@ impl<T: Poolable + 'static> Future for IdleTask<T> {
                 }
             }
 
-            ready!(self.interval.poll_tick(cx));
+            ready!(this.interval.as_mut().poll_tick(cx));
 
-            if let Some(inner) = self.pool.upgrade() {
+            if let Some(inner) = this.pool.upgrade() {
                 if let Ok(mut inner) = inner.lock() {
                     trace!("idle interval checking for expired");
                     inner.clear_expired();
@@ -764,7 +776,7 @@ mod tests {
     use std::time::Duration;
 
     use super::{Connecting, Key, Pool, Poolable, Reservation, WeakOpt};
-    use crate::common::{task, Exec, Future, Pin};
+    use crate::common::{task, exec::Exec, Future, Pin};
 
     /// Test unique reservations.
     #[derive(Debug, PartialEq, Eq)]
@@ -850,7 +862,7 @@ mod tests {
         let pooled = pool.pooled(c(key.clone()), Uniq(41));
 
         drop(pooled);
-        tokio::time::delay_for(pool.locked().timeout.unwrap()).await;
+        tokio::time::sleep(pool.locked().timeout.unwrap()).await;
         let mut checkout = pool.checkout(key);
         let poll_once = PollOnce(&mut checkout);
         let is_not_ready = poll_once.await.is_none();
@@ -871,7 +883,7 @@ mod tests {
             pool.locked().idle.get(&key).map(|entries| entries.len()),
             Some(3)
         );
-        tokio::time::delay_for(pool.locked().timeout.unwrap()).await;
+        tokio::time::sleep(pool.locked().timeout.unwrap()).await;
 
         let mut checkout = pool.checkout(key.clone());
         let poll_once = PollOnce(&mut checkout);

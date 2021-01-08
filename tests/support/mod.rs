@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{
@@ -15,6 +16,7 @@ pub use futures_util::{
 pub use hyper::{HeaderMap, StatusCode};
 pub use std::net::SocketAddr;
 
+#[allow(unused_macros)]
 macro_rules! t {
     (
         $name:ident,
@@ -303,15 +305,16 @@ pub struct __TestConfig {
     pub proxy: bool,
 }
 
-pub fn __run_test(cfg: __TestConfig) {
-    let _ = pretty_env_logger::try_init();
-    tokio::runtime::Builder::new()
-        .enable_io()
-        .enable_time()
-        .basic_scheduler()
+pub fn runtime() -> tokio::runtime::Runtime {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
         .build()
         .expect("new rt")
-        .block_on(async_test(cfg));
+}
+
+pub fn __run_test(cfg: __TestConfig) {
+    let _ = pretty_env_logger::try_init();
+    runtime().block_on(async_test(cfg));
 }
 
 async fn async_test(cfg: __TestConfig) {

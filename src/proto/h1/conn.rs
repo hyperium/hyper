@@ -1,5 +1,5 @@
 use std::fmt;
-use std::io::{self};
+use std::io;
 use std::marker::PhantomData;
 
 use bytes::{Buf, Bytes};
@@ -9,10 +9,10 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::io::Buffered;
 use super::{Decoder, Encode, EncodedBuf, Encoder, Http1Transaction, ParseContext, Wants};
+use crate::body::DecodedLength;
 use crate::common::{task, Pin, Poll, Unpin};
 use crate::headers::connection_keep_alive;
-use crate::proto::{BodyLength, DecodedLength, MessageHead};
-use crate::Result;
+use crate::proto::{BodyLength, MessageHead};
 
 const H2_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
@@ -57,6 +57,7 @@ where
         }
     }
 
+    #[cfg(feature = "server")]
     pub fn set_flush_pipeline(&mut self, enabled: bool) {
         self.io.set_flush_pipeline(enabled);
     }
@@ -65,22 +66,17 @@ where
         self.io.set_max_buf_size(max);
     }
 
+    #[cfg(feature = "client")]
     pub fn set_read_buf_exact_size(&mut self, sz: usize) {
         self.io.set_read_buf_exact_size(sz);
     }
 
-    pub fn set_write_strategy_flatten(&mut self) {
-        self.io.set_write_strategy_flatten();
-    }
-
-    pub fn set_write_strategy_queue(&mut self) {
-        self.io.set_write_strategy_queue();
-    }
-
+    #[cfg(feature = "client")]
     pub fn set_title_case_headers(&mut self) {
         self.state.title_case_headers = true;
     }
 
+    #[cfg(feature = "server")]
     pub(crate) fn set_allow_half_close(&mut self) {
         self.state.allow_half_close = true;
     }
@@ -483,6 +479,7 @@ where
             Encode {
                 head: &mut head,
                 body,
+                #[cfg(feature = "server")]
                 keep_alive: self.state.wants_keep_alive(),
                 req_method: &mut self.state.method,
                 title_case_headers: self.state.title_case_headers,
@@ -589,9 +586,10 @@ where
         self.state.writing = state;
     }
 
-    pub fn end_body(&mut self) -> Result<()> {
+    pub fn end_body(&mut self) -> crate::Result<()> {
         debug_assert!(self.can_write_body());
 
+        let mut res = Ok(());
         let state = match self.state.writing {
             Writing::Body(ref mut encoder) => {
                 // end of stream, that means we should try to eof
@@ -600,16 +598,17 @@ where
                         if let Some(end) = end {
                             self.io.buffer(end);
                         }
-                        if encoder.is_last() {
+                        if encoder.is_last() || encoder.is_close_delimited() {
                             Writing::Closed
                         } else {
                             Writing::KeepAlive
                         }
                     }
                     Err(_not_eof) => {
-                        return Err(crate::Error::new_user_body(
+                        res = Err(crate::Error::new_user_body(
                             crate::Error::new_body_write_aborted(),
-                        ))
+                        ));
+                        Writing::Closed
                     }
                 }
             }
@@ -617,7 +616,7 @@ where
         };
 
         self.state.writing = state;
-        Ok(())
+        res
     }
 
     // When we get a parse error, depending on what side we are, we might be able
@@ -686,6 +685,7 @@ where
         self.state.close_write();
     }
 
+    #[cfg(feature = "server")]
     pub fn disable_keep_alive(&mut self) {
         if self.state.is_idle() {
             trace!("disable_keep_alive; closing idle connection");
@@ -967,9 +967,8 @@ mod tests {
         *conn.io.read_buf_mut() = ::bytes::BytesMut::from(&s[..]);
         conn.state.cached_headers = Some(HeaderMap::with_capacity(2));
 
-        let mut rt = tokio::runtime::Builder::new()
+        let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
-            .basic_scheduler()
             .build()
             .unwrap();
 

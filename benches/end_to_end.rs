@@ -270,14 +270,16 @@ impl Opts {
     }
 
     fn bench(self, b: &mut test::Bencher) {
+        use std::sync::Arc;
         let _ = pretty_env_logger::try_init();
         // Create a runtime of current thread.
-        let mut rt = tokio::runtime::Builder::new()
-            .enable_all()
-            .basic_scheduler()
-            .build()
-            .expect("rt build");
-        let exec = rt.handle().clone();
+        let rt = Arc::new(
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("rt build"),
+        );
+        let exec = rt.clone();
 
         let req_len = self.request_body.map(|b| b.len()).unwrap_or(0) as u64;
         let req_len = if self.request_chunks > 0 {
@@ -288,7 +290,7 @@ impl Opts {
         let bytes_per_iter = (req_len + self.response_body.len() as u64) * self.parallel_cnt as u64;
         b.bytes = bytes_per_iter;
 
-        let addr = spawn_server(&mut rt, &self);
+        let addr = spawn_server(&rt, &self);
 
         let connector = HttpConnector::new();
         let client = hyper::Client::builder()
@@ -351,7 +353,7 @@ impl Opts {
     }
 }
 
-fn spawn_server(rt: &mut tokio::runtime::Runtime, opts: &Opts) -> SocketAddr {
+fn spawn_server(rt: &tokio::runtime::Runtime, opts: &Opts) -> SocketAddr {
     use hyper::service::{make_service_fn, service_fn};
     let addr = "127.0.0.1:0".parse().unwrap();
 

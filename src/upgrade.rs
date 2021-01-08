@@ -11,8 +11,8 @@ use std::fmt;
 use std::io;
 use std::marker::Unpin;
 
-use bytes::{Buf, Bytes};
-use tokio::io::{AsyncRead, AsyncWrite};
+use bytes::Bytes;
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::sync::oneshot;
 
 use crate::common::io::Rewind;
@@ -57,17 +57,17 @@ pub struct Parts<T> {
     _inner: (),
 }
 
+/// Gets a pending HTTP upgrade from this message.
+pub fn on<T: sealed::CanUpgrade>(msg: T) -> OnUpgrade {
+    msg.on_upgrade()
+}
+
+#[cfg(feature = "http1")]
 pub(crate) struct Pending {
     tx: oneshot::Sender<crate::Result<Upgraded>>,
 }
 
-/// Error cause returned when an upgrade was expected but canceled
-/// for whatever reason.
-///
-/// This likely means the actual `Conn` future wasn't polled and upgraded.
-#[derive(Debug)]
-struct UpgradeExpected(());
-
+#[cfg(feature = "http1")]
 pub(crate) fn pending() -> (Pending, OnUpgrade) {
     let (tx, rx) = oneshot::channel();
     (Pending { tx }, OnUpgrade { rx: Some(rx) })
@@ -76,12 +76,13 @@ pub(crate) fn pending() -> (Pending, OnUpgrade) {
 // ===== impl Upgraded =====
 
 impl Upgraded {
+    #[cfg(any(feature = "http1", test))]
     pub(crate) fn new<T>(io: T, read_buf: Bytes) -> Self
     where
         T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     {
         Upgraded {
-            io: Rewind::new_buffered(Box::new(ForwardsWriteBuf(io)), read_buf),
+            io: Rewind::new_buffered(Box::new(io), read_buf),
         }
     }
 
@@ -91,9 +92,9 @@ impl Upgraded {
     /// `Upgraded` back.
     pub fn downcast<T: AsyncRead + AsyncWrite + Unpin + 'static>(self) -> Result<Parts<T>, Self> {
         let (io, buf) = self.io.into_inner();
-        match io.__hyper_downcast::<ForwardsWriteBuf<T>>() {
+        match io.__hyper_downcast() {
             Ok(t) => Ok(Parts {
-                io: t.0,
+                io: *t,
                 read_buf: buf,
                 _inner: (),
             }),
@@ -105,15 +106,11 @@ impl Upgraded {
 }
 
 impl AsyncRead for Upgraded {
-    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [std::mem::MaybeUninit<u8>]) -> bool {
-        self.io.prepare_uninitialized_buffer(buf)
-    }
-
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
         Pin::new(&mut self.io).poll_read(cx, buf)
     }
 }
@@ -127,12 +124,12 @@ impl AsyncWrite for Upgraded {
         Pin::new(&mut self.io).poll_write(cx, buf)
     }
 
-    fn poll_write_buf<B: Buf>(
+    fn poll_write_vectored(
         mut self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,
-        buf: &mut B,
+        bufs: &[io::IoSlice<'_>],
     ) -> Poll<io::Result<usize>> {
-        Pin::new(self.io.get_mut()).poll_write_dyn_buf(cx, buf)
+        Pin::new(&mut self.io).poll_write_vectored(cx, bufs)
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
@@ -141,6 +138,10 @@ impl AsyncWrite for Upgraded {
 
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
         Pin::new(&mut self.io).poll_shutdown(cx)
+    }
+
+    fn is_write_vectored(&self) -> bool {
+        self.io.is_write_vectored()
     }
 }
 
@@ -157,6 +158,7 @@ impl OnUpgrade {
         OnUpgrade { rx: None }
     }
 
+    #[cfg(feature = "http1")]
     pub(crate) fn is_none(&self) -> bool {
         self.rx.is_none()
     }
@@ -170,9 +172,7 @@ impl Future for OnUpgrade {
             Some(ref mut rx) => Pin::new(rx).poll(cx).map(|res| match res {
                 Ok(Ok(upgraded)) => Ok(upgraded),
                 Ok(Err(err)) => Err(err),
-                Err(_oneshot_canceled) => {
-                    Err(crate::Error::new_canceled().with(UpgradeExpected(())))
-                }
+                Err(_oneshot_canceled) => Err(crate::Error::new_canceled().with(UpgradeExpected)),
             }),
             None => Poll::Ready(Err(crate::Error::new_user_no_upgrade())),
         }
@@ -187,6 +187,7 @@ impl fmt::Debug for OnUpgrade {
 
 // ===== impl Pending =====
 
+#[cfg(feature = "http1")]
 impl Pending {
     pub(crate) fn fulfill(self, upgraded: Upgraded) {
         trace!("pending upgrade fulfill");
@@ -203,9 +204,16 @@ impl Pending {
 
 // ===== impl UpgradeExpected =====
 
+/// Error cause returned when an upgrade was expected but canceled
+/// for whatever reason.
+///
+/// This likely means the actual `Conn` future wasn't polled and upgraded.
+#[derive(Debug)]
+struct UpgradeExpected;
+
 impl fmt::Display for UpgradeExpected {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "upgrade expected but not completed")
+        f.write_str("upgrade expected but not completed")
     }
 }
 
@@ -213,19 +221,13 @@ impl StdError for UpgradeExpected {}
 
 // ===== impl Io =====
 
-struct ForwardsWriteBuf<T>(T);
-
 pub(crate) trait Io: AsyncRead + AsyncWrite + Unpin + 'static {
-    fn poll_write_dyn_buf(
-        &mut self,
-        cx: &mut task::Context<'_>,
-        buf: &mut dyn Buf,
-    ) -> Poll<io::Result<usize>>;
-
     fn __hyper_type_id(&self) -> TypeId {
         TypeId::of::<Self>()
     }
 }
+
+impl<T: AsyncRead + AsyncWrite + Unpin + 'static> Io for T {}
 
 impl dyn Io + Send {
     fn __hyper_is<T: Io>(&self) -> bool {
@@ -246,60 +248,49 @@ impl dyn Io + Send {
     }
 }
 
-impl<T: AsyncRead + Unpin> AsyncRead for ForwardsWriteBuf<T> {
-    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [std::mem::MaybeUninit<u8>]) -> bool {
-        self.0.prepare_uninitialized_buffer(buf)
+mod sealed {
+    use super::OnUpgrade;
+
+    pub trait CanUpgrade {
+        fn on_upgrade(self) -> OnUpgrade;
     }
 
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut self.0).poll_read(cx, buf)
-    }
-}
-
-impl<T: AsyncWrite + Unpin> AsyncWrite for ForwardsWriteBuf<T> {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
-        buf: &[u8],
-    ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut self.0).poll_write(cx, buf)
+    impl CanUpgrade for http::Request<crate::Body> {
+        fn on_upgrade(mut self) -> OnUpgrade {
+            self.extensions_mut()
+                .remove::<OnUpgrade>()
+                .unwrap_or_else(OnUpgrade::none)
+        }
     }
 
-    fn poll_write_buf<B: Buf>(
-        mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
-        buf: &mut B,
-    ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut self.0).poll_write_buf(cx, buf)
+    impl CanUpgrade for &'_ mut http::Request<crate::Body> {
+        fn on_upgrade(self) -> OnUpgrade {
+            self.extensions_mut()
+                .remove::<OnUpgrade>()
+                .unwrap_or_else(OnUpgrade::none)
+        }
     }
 
-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.0).poll_flush(cx)
+    impl CanUpgrade for http::Response<crate::Body> {
+        fn on_upgrade(mut self) -> OnUpgrade {
+            self.extensions_mut()
+                .remove::<OnUpgrade>()
+                .unwrap_or_else(OnUpgrade::none)
+        }
     }
 
-    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.0).poll_shutdown(cx)
-    }
-}
-
-impl<T: AsyncRead + AsyncWrite + Unpin + 'static> Io for ForwardsWriteBuf<T> {
-    fn poll_write_dyn_buf(
-        &mut self,
-        cx: &mut task::Context<'_>,
-        mut buf: &mut dyn Buf,
-    ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut self.0).poll_write_buf(cx, &mut buf)
+    impl CanUpgrade for &'_ mut http::Response<crate::Body> {
+        fn on_upgrade(self) -> OnUpgrade {
+            self.extensions_mut()
+                .remove::<OnUpgrade>()
+                .unwrap_or_else(OnUpgrade::none)
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::io::AsyncWriteExt;
 
     #[test]
     fn upgraded_downcast() {
@@ -310,15 +301,6 @@ mod tests {
         upgraded.downcast::<Mock>().unwrap();
     }
 
-    #[tokio::test]
-    async fn upgraded_forwards_write_buf() {
-        // sanity check that the underlying IO implements write_buf
-        Mock.write_buf(&mut "hello".as_bytes()).await.unwrap();
-
-        let mut upgraded = Upgraded::new(Mock, Bytes::new());
-        upgraded.write_buf(&mut "hello".as_bytes()).await.unwrap();
-    }
-
     // TODO: replace with tokio_test::io when it can test write_buf
     struct Mock;
 
@@ -326,8 +308,8 @@ mod tests {
         fn poll_read(
             self: Pin<&mut Self>,
             _cx: &mut task::Context<'_>,
-            _buf: &mut [u8],
-        ) -> Poll<io::Result<usize>> {
+            _buf: &mut ReadBuf<'_>,
+        ) -> Poll<io::Result<()>> {
             unreachable!("Mock::poll_read")
         }
     }
@@ -335,20 +317,11 @@ mod tests {
     impl AsyncWrite for Mock {
         fn poll_write(
             self: Pin<&mut Self>,
-            _cx: &mut task::Context<'_>,
-            _buf: &[u8],
+            _: &mut task::Context<'_>,
+            buf: &[u8],
         ) -> Poll<io::Result<usize>> {
-            panic!("poll_write shouldn't be called");
-        }
-
-        fn poll_write_buf<B: Buf>(
-            self: Pin<&mut Self>,
-            _cx: &mut task::Context<'_>,
-            buf: &mut B,
-        ) -> Poll<io::Result<usize>> {
-            let n = buf.remaining();
-            buf.advance(n);
-            Poll::Ready(Ok(n))
+            // panic!("poll_write shouldn't be called");
+            Poll::Ready(Ok(buf.len()))
         }
 
         fn poll_flush(self: Pin<&mut Self>, _cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {

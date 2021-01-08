@@ -9,12 +9,15 @@ use bytes::BytesMut;
 use http::header::{self, Entry, HeaderName, HeaderValue};
 use http::{HeaderMap, Method, StatusCode, Version};
 
+use crate::body::DecodedLength;
+#[cfg(feature = "server")]
+use crate::common::date;
 use crate::error::Parse;
 use crate::headers;
 use crate::proto::h1::{
-    date, Encode, Encoder, Http1Transaction, ParseContext, ParseResult, ParsedMessage,
+    Encode, Encoder, Http1Transaction, ParseContext, ParseResult, ParsedMessage,
 };
-use crate::proto::{BodyLength, DecodedLength, MessageHead, RequestHead, RequestLine};
+use crate::proto::{BodyLength, MessageHead, RequestHead, RequestLine};
 
 const MAX_HEADERS: usize = 100;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
@@ -92,10 +95,13 @@ where
 
 // There are 2 main roles, Client and Server.
 
+#[cfg(feature = "client")]
 pub(crate) enum Client {}
 
+#[cfg(feature = "server")]
 pub(crate) enum Server {}
 
+#[cfg(feature = "server")]
 impl Http1Transaction for Server {
     type Incoming = RequestLine;
     type Outgoing = StatusCode;
@@ -264,6 +270,7 @@ impl Http1Transaction for Server {
                 version,
                 subject,
                 headers,
+                extensions: http::Extensions::default(),
             },
             decode: decoder,
             expect_continue,
@@ -327,7 +334,7 @@ impl Http1Transaction for Server {
                 Version::HTTP_10 => extend(dst, b"HTTP/1.0 "),
                 Version::HTTP_11 => extend(dst, b"HTTP/1.1 "),
                 Version::HTTP_2 => {
-                    warn!("response with HTTP2 version coerced to HTTP/1.1");
+                    debug!("response with HTTP2 version coerced to HTTP/1.1");
                     extend(dst, b"HTTP/1.1 ");
                 }
                 other => panic!("unexpected response version: {:?}", other),
@@ -616,6 +623,7 @@ impl Http1Transaction for Server {
     }
 }
 
+#[cfg(feature = "server")]
 impl Server {
     fn can_have_body(method: &Option<Method>, status: StatusCode) -> bool {
         Server::can_chunked(method, status)
@@ -638,6 +646,7 @@ impl Server {
     }
 }
 
+#[cfg(feature = "client")]
 impl Http1Transaction for Client {
     type Incoming = StatusCode;
     type Outgoing = RequestLine;
@@ -705,6 +714,7 @@ impl Http1Transaction for Client {
                 version,
                 subject: status,
                 headers,
+                extensions: http::Extensions::default(),
             };
             if let Some((decode, is_upgrade)) = Client::decoder(&head, ctx.req_method)? {
                 return Ok(Some(ParsedMessage {
@@ -749,7 +759,7 @@ impl Http1Transaction for Client {
             Version::HTTP_10 => extend(dst, b"HTTP/1.0"),
             Version::HTTP_11 => extend(dst, b"HTTP/1.1"),
             Version::HTTP_2 => {
-                warn!("request with HTTP2 version coerced to HTTP/1.1");
+                debug!("request with HTTP2 version coerced to HTTP/1.1");
                 extend(dst, b"HTTP/1.1");
             }
             other => panic!("unexpected request version: {:?}", other),
@@ -777,6 +787,7 @@ impl Http1Transaction for Client {
     }
 }
 
+#[cfg(feature = "client")]
 impl Client {
     /// Returns Some(length, wants_upgrade) if successful.
     ///
@@ -844,9 +855,6 @@ impl Client {
             Ok(Some((DecodedLength::CLOSE_DELIMITED, false)))
         }
     }
-}
-
-impl Client {
     fn set_length(head: &mut RequestHead, body: Option<BodyLength>) -> Encoder {
         let body = if let Some(body) = body {
             body

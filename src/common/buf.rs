@@ -21,6 +21,7 @@ impl<T: Buf> BufList<T> {
     }
 
     #[inline]
+    #[cfg(feature = "http1")]
     pub(crate) fn bufs_cnt(&self) -> usize {
         self.bufs.len()
     }
@@ -33,8 +34,8 @@ impl<T: Buf> Buf for BufList<T> {
     }
 
     #[inline]
-    fn bytes(&self) -> &[u8] {
-        self.bufs.front().map(Buf::bytes).unwrap_or_default()
+    fn chunk(&self) -> &[u8] {
+        self.bufs.front().map(Buf::chunk).unwrap_or_default()
     }
 
     #[inline]
@@ -56,13 +57,13 @@ impl<T: Buf> Buf for BufList<T> {
     }
 
     #[inline]
-    fn bytes_vectored<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> usize {
+    fn chunks_vectored<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> usize {
         if dst.is_empty() {
             return 0;
         }
         let mut vecs = 0;
         for buf in &self.bufs {
-            vecs += buf.bytes_vectored(&mut dst[vecs..]);
+            vecs += buf.chunks_vectored(&mut dst[vecs..]);
             if vecs == dst.len() {
                 break;
             }

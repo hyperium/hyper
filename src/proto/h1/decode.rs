@@ -55,6 +55,8 @@ enum ChunkedState {
     Body,
     BodyCr,
     BodyLf,
+    Trailer,
+    TrailerLf,
     EndCr,
     EndLf,
     End,
@@ -92,10 +94,7 @@ impl Decoder {
     // methods
 
     pub fn is_eof(&self) -> bool {
-        match self.kind {
-            Length(0) | Chunked(ChunkedState::End, _) | Eof(true) => true,
-            _ => false,
-        }
+        matches!(self.kind, Length(0) | Chunked(ChunkedState::End, _) | Eof(true))
     }
 
     pub fn decode<R: MemRead>(
@@ -196,6 +195,8 @@ impl ChunkedState {
             Body => ChunkedState::read_body(cx, body, size, buf),
             BodyCr => ChunkedState::read_body_cr(cx, body),
             BodyLf => ChunkedState::read_body_lf(cx, body),
+            Trailer => ChunkedState::read_trailer(cx, body),
+            TrailerLf => ChunkedState::read_trailer_lf(cx, body),
             EndCr => ChunkedState::read_end_cr(cx, body),
             EndLf => ChunkedState::read_end_lf(cx, body),
             End => Poll::Ready(Ok(ChunkedState::End)),
@@ -340,16 +341,36 @@ impl ChunkedState {
         }
     }
 
+    fn read_trailer<R: MemRead>(
+        cx: &mut task::Context<'_>,
+        rdr: &mut R,
+    ) -> Poll<Result<ChunkedState, io::Error>> {
+        trace!("read_trailer");
+        match byte!(rdr, cx) {
+            b'\r' => Poll::Ready(Ok(ChunkedState::TrailerLf)),
+            _ => Poll::Ready(Ok(ChunkedState::Trailer)),
+        }
+    }
+    fn read_trailer_lf<R: MemRead>(
+        cx: &mut task::Context<'_>,
+        rdr: &mut R,
+    ) -> Poll<Result<ChunkedState, io::Error>> {
+        match byte!(rdr, cx) {
+            b'\n' => Poll::Ready(Ok(ChunkedState::EndCr)),
+            _ => Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Invalid trailer end LF",
+            ))),
+        }
+    }
+
     fn read_end_cr<R: MemRead>(
         cx: &mut task::Context<'_>,
         rdr: &mut R,
     ) -> Poll<Result<ChunkedState, io::Error>> {
         match byte!(rdr, cx) {
             b'\r' => Poll::Ready(Ok(ChunkedState::EndLf)),
-            _ => Poll::Ready(Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Invalid chunk end CR",
-            ))),
+            _ => Poll::Ready(Ok(ChunkedState::Trailer)),
         }
     }
     fn read_end_lf<R: MemRead>(
@@ -382,7 +403,7 @@ mod tests {
     use super::*;
     use std::pin::Pin;
     use std::time::Duration;
-    use tokio::io::AsyncRead;
+    use tokio::io::{AsyncRead, ReadBuf};
 
     impl<'a> MemRead for &'a [u8] {
         fn read_mem(&mut self, _: &mut task::Context<'_>, len: usize) -> Poll<io::Result<Bytes>> {
@@ -401,8 +422,9 @@ mod tests {
     impl<'a> MemRead for &'a mut (dyn AsyncRead + Unpin) {
         fn read_mem(&mut self, cx: &mut task::Context<'_>, len: usize) -> Poll<io::Result<Bytes>> {
             let mut v = vec![0; len];
-            let n = ready!(Pin::new(self).poll_read(cx, &mut v)?);
-            Poll::Ready(Ok(Bytes::copy_from_slice(&v[..n])))
+            let mut buf = ReadBuf::new(&mut v);
+            ready!(Pin::new(self).poll_read(cx, &mut buf)?);
+            Poll::Ready(Ok(Bytes::copy_from_slice(&buf.filled())))
         }
     }
 
@@ -538,6 +560,15 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_read_chunked_trailer_with_missing_lf() {
+        let mut mock_buf = &b"10\r\n1234567890abcdef\r\n0\r\nbad\r\r\n"[..];
+        let mut decoder = Decoder::chunked();
+        decoder.decode_fut(&mut mock_buf).await.expect("decode");
+        let e = decoder.decode_fut(&mut mock_buf).await.unwrap_err();
+        assert_eq!(e.kind(), io::ErrorKind::InvalidInput);
+    }
+
+    #[tokio::test]
     async fn test_read_chunked_after_eof() {
         let mut mock_buf = &b"10\r\n1234567890abcdef\r\n0\r\n\r\n"[..];
         let mut decoder = Decoder::chunked();
@@ -623,7 +654,7 @@ mod tests {
     #[cfg(feature = "nightly")]
     #[bench]
     fn bench_decode_chunked_1kb(b: &mut test::Bencher) {
-        let mut rt = new_runtime();
+        let rt = new_runtime();
 
         const LEN: usize = 1024;
         let mut vec = Vec::new();
@@ -647,7 +678,7 @@ mod tests {
     #[cfg(feature = "nightly")]
     #[bench]
     fn bench_decode_length_1kb(b: &mut test::Bencher) {
-        let mut rt = new_runtime();
+        let rt = new_runtime();
 
         const LEN: usize = 1024;
         let content = Bytes::from(&[0; LEN][..]);
@@ -665,9 +696,8 @@ mod tests {
 
     #[cfg(feature = "nightly")]
     fn new_runtime() -> tokio::runtime::Runtime {
-        tokio::runtime::Builder::new()
+        tokio::runtime::Builder::new_current_thread()
             .enable_all()
-            .basic_scheduler()
             .build()
             .expect("rt build")
     }
