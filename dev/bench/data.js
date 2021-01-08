@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1609268339158,
+  "lastUpdate": 1610130507743,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -959,6 +959,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 49950,
             "range": "± 978",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "c9c46ed60bd43484d67a98a63496ad0277c791a2",
+          "message": "refactor(ffi): Add Reason-Phrase API\n\nThis adds an internal ability to copy the HTTP/1 reason-phrase and place\nit in the `http::Extensions` of a response, if it doesn't match the\ncanonical reason. This could be exposed in the Rust API later, but for\nnow it is only used by the C API.",
+          "timestamp": "2021-01-08T10:25:53-08:00",
+          "tree_id": "08e88a2638eb39443de49d5c60610b9f5c4315da",
+          "url": "https://github.com/hyperium/hyper/commit/c9c46ed60bd43484d67a98a63496ad0277c791a2"
+        },
+        "date": 1610130506308,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 51436,
+            "range": "± 5273",
             "unit": "ns/iter"
           }
         ]
