@@ -5,6 +5,8 @@
 use std::fmt::{self, Write};
 use std::mem;
 
+#[cfg(feature = "ffi")]
+use bytes::Bytes;
 use bytes::BytesMut;
 use http::header::{self, Entry, HeaderName, HeaderValue};
 use http::{HeaderMap, Method, StatusCode, Version};
@@ -660,7 +662,7 @@ impl Http1Transaction for Client {
         loop {
             // Unsafe: see comment in Server Http1Transaction, above.
             let mut headers_indices: [HeaderIndices; MAX_HEADERS] = unsafe { mem::uninitialized() };
-            let (len, status, version, headers_len) = {
+            let (len, status, reason, version, headers_len) = {
                 let mut headers: [httparse::Header<'_>; MAX_HEADERS] =
                     unsafe { mem::uninitialized() };
                 trace!(
@@ -674,6 +676,20 @@ impl Http1Transaction for Client {
                     httparse::Status::Complete(len) => {
                         trace!("Response.parse Complete({})", len);
                         let status = StatusCode::from_u16(res.code.unwrap())?;
+
+                        #[cfg(not(feature = "ffi"))]
+                        let reason = ();
+                        #[cfg(feature = "ffi")]
+                        let reason = {
+                            let reason = res.reason.unwrap();
+                            // Only save the reason phrase if it isnt the canonical reason
+                            if Some(reason) != status.canonical_reason() {
+                                Some(Bytes::copy_from_slice(reason.as_bytes()))
+                            } else {
+                                None
+                            }
+                        };
+
                         let version = if res.version.unwrap() == 1 {
                             Version::HTTP_11
                         } else {
@@ -681,7 +697,7 @@ impl Http1Transaction for Client {
                         };
                         record_header_indices(bytes, &res.headers, &mut headers_indices)?;
                         let headers_len = res.headers.len();
-                        (len, status, version, headers_len)
+                        (len, status, reason, version, headers_len)
                     }
                     httparse::Status::Partial => return Ok(None),
                 }
@@ -727,6 +743,13 @@ impl Http1Transaction for Client {
             if ctx.preserve_header_case {
                 extensions.insert(header_case_map);
             }
+
+            #[cfg(feature = "ffi")]
+            if let Some(reason) = reason {
+                extensions.insert(crate::ffi::ReasonPhrase(reason));
+            }
+            #[cfg(not(feature = "ffi"))]
+            drop(reason);
 
             let head = MessageHead {
                 version,

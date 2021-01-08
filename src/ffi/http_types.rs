@@ -23,6 +23,9 @@ pub struct hyper_headers {
 #[derive(Debug, Default)]
 pub(crate) struct HeaderCaseMap(HeaderMap<Bytes>);
 
+#[derive(Debug)]
+pub(crate) struct ReasonPhrase(pub(crate) Bytes);
+
 // ===== impl hyper_request =====
 
 ffi_fn! {
@@ -151,6 +154,30 @@ ffi_fn! {
 }
 
 ffi_fn! {
+    /// Get a pointer to the reason-phrase of this response.
+    ///
+    /// This buffer is not null-terminated.
+    ///
+    /// This buffer is owned by the response, and should not be used after
+    /// the response has been freed.
+    ///
+    /// Use `hyper_response_reason_phrase_len()` to get the length of this
+    /// buffer.
+    fn hyper_response_reason_phrase(resp: *const hyper_response) -> *const u8 {
+        unsafe { &*resp }.reason_phrase().as_ptr()
+    }
+}
+
+ffi_fn! {
+    /// Get the length of the reason-phrase of this response.
+    ///
+    /// Use `hyper_response_reason_phrase()` to get the buffer pointer.
+    fn hyper_response_reason_phrase_len(resp: *const hyper_response) -> size_t {
+        unsafe { &*resp }.reason_phrase().len()
+    }
+}
+
+ffi_fn! {
     /// Get the HTTP version used by this response.
     ///
     /// The returned value could be:
@@ -204,6 +231,18 @@ impl hyper_response {
         });
 
         hyper_response(resp)
+    }
+
+    fn reason_phrase(&self) -> &[u8] {
+        if let Some(reason) = self.0.extensions().get::<ReasonPhrase>() {
+            return &reason.0;
+        }
+
+        if let Some(reason) = self.0.status().canonical_reason() {
+            return reason.as_bytes();
+        }
+
+        &[]
     }
 }
 
