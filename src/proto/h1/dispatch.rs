@@ -492,7 +492,7 @@ cfg_server! {
                     version: parts.version,
                     subject: parts.status,
                     headers: parts.headers,
-                    extensions: http::Extensions::default(),
+                    extensions: parts.extensions,
                 };
                 Poll::Ready(Some(Ok((head, body))))
             } else {
@@ -576,7 +576,7 @@ cfg_client! {
                                 version: parts.version,
                                 subject: crate::proto::RequestLine(parts.method, parts.uri),
                                 headers: parts.headers,
-                                extensions: http::Extensions::default(),
+                                extensions: parts.extensions,
                             };
                             *this.callback = Some(cb);
                             Poll::Ready(Some(Ok((head, body))))

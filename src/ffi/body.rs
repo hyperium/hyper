@@ -24,7 +24,7 @@ pub(crate) struct UserBody {
 type hyper_body_foreach_callback = extern "C" fn(*mut c_void, *const hyper_buf) -> c_int;
 
 type hyper_body_data_callback =
-    extern "C" fn(*mut c_void, *mut hyper_context, *mut *mut hyper_buf) -> c_int;
+    extern "C" fn(*mut c_void, *mut hyper_context<'_>, *mut *mut hyper_buf) -> c_int;
 
 ffi_fn! {
     /// Create a new "empty" body.

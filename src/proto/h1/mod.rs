@@ -70,6 +70,8 @@ pub(crate) struct ParsedMessage<T> {
 pub(crate) struct ParseContext<'a> {
     cached_headers: &'a mut Option<HeaderMap>,
     req_method: &'a mut Option<Method>,
+    #[cfg(feature = "ffi")]
+    preserve_header_case: bool,
 }
 
 /// Passed to Http1Transaction::encode

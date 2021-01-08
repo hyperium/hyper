@@ -44,6 +44,8 @@ where
                 error: None,
                 keep_alive: KA::Busy,
                 method: None,
+                #[cfg(feature = "ffi")]
+                preserve_header_case: false,
                 title_case_headers: false,
                 notify_read: false,
                 reading: Reading::Init,
@@ -142,6 +144,8 @@ where
             ParseContext {
                 cached_headers: &mut self.state.cached_headers,
                 req_method: &mut self.state.method,
+                #[cfg(feature = "ffi")]
+                preserve_header_case: self.state.preserve_header_case,
             }
         )) {
             Ok(msg) => msg,
@@ -474,6 +478,16 @@ where
 
         self.enforce_version(&mut head);
 
+        // Maybe check if we should preserve header casing on received
+        // message headers...
+        #[cfg(feature = "ffi")]
+        {
+            if T::is_client() && !self.state.preserve_header_case {
+                self.state.preserve_header_case =
+                    head.extensions.get::<crate::ffi::HeaderCaseMap>().is_some();
+            }
+        }
+
         let buf = self.io.headers_buf();
         match super::role::encode_headers::<T>(
             Encode {
@@ -736,6 +750,8 @@ struct State {
     /// This is used to know things such as if the message can include
     /// a body or not.
     method: Option<Method>,
+    #[cfg(feature = "ffi")]
+    preserve_header_case: bool,
     title_case_headers: bool,
     /// Set to true when the Dispatcher should poll read operations
     /// again. See the `maybe_notify` method for more.

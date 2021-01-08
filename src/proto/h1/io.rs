@@ -159,6 +159,8 @@ where
                 ParseContext {
                     cached_headers: parse_ctx.cached_headers,
                     req_method: parse_ctx.req_method,
+                    #[cfg(feature = "ffi")]
+                    preserve_header_case: parse_ctx.preserve_header_case,
                 },
             )? {
                 Some(msg) => {
@@ -636,6 +638,8 @@ mod tests {
             let parse_ctx = ParseContext {
                 cached_headers: &mut None,
                 req_method: &mut None,
+                #[cfg(feature = "ffi")]
+                preserve_header_case: false,
             };
             assert!(buffered
                 .parse::<ClientTransaction>(cx, parse_ctx)

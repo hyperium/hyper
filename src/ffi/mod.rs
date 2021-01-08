@@ -28,6 +28,7 @@ mod io;
 mod task;
 
 pub(crate) use self::body::UserBody;
+pub(crate) use self::http_types::HeaderCaseMap;
 
 pub const HYPER_ITER_CONTINUE: libc::c_int = 0;
 #[allow(unused)]

@@ -228,7 +228,7 @@ int main(int argc, char *argv[]) {
                 }
 
                 hyper_headers *req_headers = hyper_request_headers(req);
-                hyper_headers_set(req_headers,  STR_ARG("host"), STR_ARG(host));
+                hyper_headers_set(req_headers,  STR_ARG("Host"), STR_ARG(host));
 
                 // Send it!
                 hyper_task *send = hyper_clientconn_send(client, req);
