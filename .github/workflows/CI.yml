@@ -16,6 +16,7 @@ jobs:
       - style
       - test
       - features
+      - ffi
       - doc
     steps:
       - run: exit 0
@@ -111,7 +112,53 @@ jobs:
         run: cargo install cargo-hack
 
       - name: check --each-feature
-        run: cargo hack check --each-feature -Z avoid-dev-deps
+        run: cargo hack check --each-feature --skip ffi -Z avoid-dev-deps
+
+  ffi:
+    name: Test C API (FFI)
+    needs: [style]
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Install cbindgen
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cbindgen
+
+      - name: Build FFI
+        uses: actions-rs/cargo@v1
+        env:
+          RUSTFLAGS: --cfg hyper_unstable_ffi
+        with:
+          command: build
+          args: --features client,http1,http2,ffi
+
+      # TODO: re-enable check once figuring out how to get it working in CI
+      # - name: Verify cbindgen
+      #   run: ./capi/gen_header.sh --verify
+
+      - name: Make Examples
+        run: cd capi/examples && make client
+
+      - name: Run FFI unit tests
+        uses: actions-rs/cargo@v1
+        env:
+          RUSTFLAGS: --cfg hyper_unstable_ffi
+        with:
+          command: test
+          args: --features full,ffi --lib
 
   doc:
     name: Build docs

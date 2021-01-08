@@ -1,0 +1,14 @@
+language = "C"
+include_guard = "_HYPER_H"
+no_includes = true
+sys_includes = ["stdint.h", "stddef.h"]
+cpp_compat = true
+documentation_style = "c"
+
+[parse.expand]
+crates = ["hyper-capi"]
+
+[export.rename]
+"Exec" = "hyper_executor"
+"Io" = "hyper_io"
+"Task" = "hyper_task"

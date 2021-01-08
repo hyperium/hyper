@@ -116,6 +116,10 @@ pub(crate) enum User {
     /// User polled for an upgrade, but low-level API is not using upgrades.
     #[cfg(feature = "http1")]
     ManualUpgrade,
+
+    /// User aborted in an FFI callback.
+    #[cfg(feature = "ffi")]
+    AbortedByCallback,
 }
 
 // Sentinel type to indicate the error was caused by a timeout.
@@ -179,8 +183,7 @@ impl Error {
         self
     }
 
-    #[cfg(feature = "http1")]
-    #[cfg(feature = "server")]
+    #[cfg(any(all(feature = "http1", feature = "server"), feature = "ffi"))]
     pub(crate) fn kind(&self) -> &Kind {
         &self.inner.kind
     }
@@ -336,6 +339,11 @@ impl Error {
         Error::new(Kind::Shutdown).with(cause)
     }
 
+    #[cfg(feature = "ffi")]
+    pub(crate) fn new_user_aborted_by_callback() -> Error {
+        Error::new_user(User::AbortedByCallback)
+    }
+
     #[cfg(feature = "http2")]
     pub(crate) fn new_h2(cause: ::h2::Error) -> Error {
         if cause.is_io() {
@@ -406,6 +414,8 @@ impl Error {
             Kind::User(User::NoUpgrade) => "no upgrade available",
             #[cfg(feature = "http1")]
             Kind::User(User::ManualUpgrade) => "upgrade expected but low level API in use",
+            #[cfg(feature = "ffi")]
+            Kind::User(User::AbortedByCallback) => "operation aborted by an application callback",
         }
     }
 }

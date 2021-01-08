@@ -19,6 +19,9 @@ include = [
   #"build.rs",
 ]
 
+[lib]
+crate-type = ["lib", "staticlib", "cdylib"]
+
 [dependencies]
 bytes = "1"
 futures-core = { version = "0.3", default-features = false }
@@ -38,6 +41,7 @@ want = "0.3"
 
 # Optional
 
+libc = { version = "0.2", optional = true }
 socket2 = { version = "0.3.16", optional = true }
 
 [dev-dependencies]
@@ -94,7 +98,6 @@ server = []
 stream = []
 
 # Tokio support
-
 runtime = [
     "tcp",
     "tokio/rt",
@@ -105,6 +108,9 @@ tcp = [
     "tokio/rt",
     "tokio/time",
 ]
+
+# C-API support (currently unstable (no semver))
+ffi = ["libc"]
 
 # internal features used in CI
 nightly = []
