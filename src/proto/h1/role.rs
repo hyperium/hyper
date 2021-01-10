@@ -5,6 +5,8 @@
 use std::fmt::{self, Write};
 use std::mem;
 
+#[cfg(feature = "ffi")]
+use bytes::Bytes;
 use bytes::BytesMut;
 use http::header::{self, Entry, HeaderName, HeaderValue};
 use http::{HeaderMap, Method, StatusCode, Version};
@@ -148,6 +150,7 @@ impl Http1Transaction for Server {
                         is_http_11 = false;
                         Version::HTTP_10
                     };
+                    trace!("headers: {:?}", &req.headers);
 
                     record_header_indices(bytes, &req.headers, &mut headers_indices)?;
                     headers_len = req.headers.len();
@@ -659,7 +662,7 @@ impl Http1Transaction for Client {
         loop {
             // Unsafe: see comment in Server Http1Transaction, above.
             let mut headers_indices: [HeaderIndices; MAX_HEADERS] = unsafe { mem::uninitialized() };
-            let (len, status, version, headers_len) = {
+            let (len, status, reason, version, headers_len) = {
                 let mut headers: [httparse::Header<'_>; MAX_HEADERS] =
                     unsafe { mem::uninitialized() };
                 trace!(
@@ -673,6 +676,20 @@ impl Http1Transaction for Client {
                     httparse::Status::Complete(len) => {
                         trace!("Response.parse Complete({})", len);
                         let status = StatusCode::from_u16(res.code.unwrap())?;
+
+                        #[cfg(not(feature = "ffi"))]
+                        let reason = ();
+                        #[cfg(feature = "ffi")]
+                        let reason = {
+                            let reason = res.reason.unwrap();
+                            // Only save the reason phrase if it isnt the canonical reason
+                            if Some(reason) != status.canonical_reason() {
+                                Some(Bytes::copy_from_slice(reason.as_bytes()))
+                            } else {
+                                None
+                            }
+                        };
+
                         let version = if res.version.unwrap() == 1 {
                             Version::HTTP_11
                         } else {
@@ -680,7 +697,7 @@ impl Http1Transaction for Client {
                         };
                         record_header_indices(bytes, &res.headers, &mut headers_indices)?;
                         let headers_len = res.headers.len();
-                        (len, status, version, headers_len)
+                        (len, status, reason, version, headers_len)
                     }
                     httparse::Status::Partial => return Ok(None),
                 }
@@ -691,6 +708,9 @@ impl Http1Transaction for Client {
             let mut headers = ctx.cached_headers.take().unwrap_or_else(HeaderMap::new);
 
             let mut keep_alive = version == Version::HTTP_11;
+
+            #[cfg(feature = "ffi")]
+            let mut header_case_map = crate::ffi::HeaderCaseMap::default();
 
             headers.reserve(headers_len);
             for header in &headers_indices[..headers_len] {
@@ -707,14 +727,35 @@ impl Http1Transaction for Client {
                         keep_alive = headers::connection_keep_alive(&value);
                     }
                 }
+
+                #[cfg(feature = "ffi")]
+                if ctx.preserve_header_case {
+                    header_case_map.append(&name, slice.slice(header.name.0..header.name.1));
+                }
+
                 headers.append(name, value);
             }
+
+            #[allow(unused_mut)]
+            let mut extensions = http::Extensions::default();
+
+            #[cfg(feature = "ffi")]
+            if ctx.preserve_header_case {
+                extensions.insert(header_case_map);
+            }
+
+            #[cfg(feature = "ffi")]
+            if let Some(reason) = reason {
+                extensions.insert(crate::ffi::ReasonPhrase(reason));
+            }
+            #[cfg(not(feature = "ffi"))]
+            drop(reason);
 
             let head = MessageHead {
                 version,
                 subject: status,
                 headers,
-                extensions: http::Extensions::default(),
+                extensions,
             };
             if let Some((decode, is_upgrade)) = Client::decoder(&head, ctx.req_method)? {
                 return Ok(Some(ParsedMessage {
@@ -766,11 +807,28 @@ impl Http1Transaction for Client {
         }
         extend(dst, b"\r\n");
 
-        if msg.title_case_headers {
-            write_headers_title_case(&msg.head.headers, dst);
-        } else {
-            write_headers(&msg.head.headers, dst);
+        #[cfg(feature = "ffi")]
+        {
+            if msg.title_case_headers {
+                write_headers_title_case(&msg.head.headers, dst);
+            } else if let Some(orig_headers) =
+                msg.head.extensions.get::<crate::ffi::HeaderCaseMap>()
+            {
+                write_headers_original_case(&msg.head.headers, orig_headers, dst);
+            } else {
+                write_headers(&msg.head.headers, dst);
+            }
         }
+
+        #[cfg(not(feature = "ffi"))]
+        {
+            if msg.title_case_headers {
+                write_headers_title_case(&msg.head.headers, dst);
+            } else {
+                write_headers(&msg.head.headers, dst);
+            }
+        }
+
         extend(dst, b"\r\n");
         msg.head.headers.clear(); //TODO: remove when switching to drain()
 
@@ -1081,6 +1139,40 @@ fn write_headers(headers: &HeaderMap, dst: &mut Vec<u8>) {
     }
 }
 
+#[cfg(feature = "ffi")]
+#[cold]
+fn write_headers_original_case(
+    headers: &HeaderMap,
+    orig_case: &crate::ffi::HeaderCaseMap,
+    dst: &mut Vec<u8>,
+) {
+    // For each header name/value pair, there may be a value in the casemap
+    // that corresponds to the HeaderValue. So, we iterator all the keys,
+    // and for each one, try to pair the originally cased name with the value.
+    //
+    // TODO: consider adding http::HeaderMap::entries() iterator
+    for name in headers.keys() {
+        let mut names = orig_case.get_all(name).iter();
+
+        for value in headers.get_all(name) {
+            if let Some(orig_name) = names.next() {
+                extend(dst, orig_name);
+            } else {
+                extend(dst, name.as_str().as_bytes());
+            }
+
+            // Wanted for curl test cases that send `X-Custom-Header:\r\n`
+            if value.is_empty() {
+                extend(dst, b":\r\n");
+            } else {
+                extend(dst, b": ");
+                extend(dst, value.as_bytes());
+                extend(dst, b"\r\n");
+            }
+        }
+    }
+}
+
 struct FastWrite<'a>(&'a mut Vec<u8>);
 
 impl<'a> fmt::Write for FastWrite<'a> {
@@ -1117,6 +1209,8 @@ mod tests {
             ParseContext {
                 cached_headers: &mut None,
                 req_method: &mut method,
+                #[cfg(feature = "ffi")]
+                preserve_header_case: false,
             },
         )
         .unwrap()
@@ -1137,6 +1231,8 @@ mod tests {
         let ctx = ParseContext {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
+            #[cfg(feature = "ffi")]
+            preserve_header_case: false,
         };
         let msg = Client::parse(&mut raw, ctx).unwrap().unwrap();
         assert_eq!(raw.len(), 0);
@@ -1152,6 +1248,8 @@ mod tests {
         let ctx = ParseContext {
             cached_headers: &mut None,
             req_method: &mut None,
+            #[cfg(feature = "ffi")]
+            preserve_header_case: false,
         };
         Server::parse(&mut raw, ctx).unwrap_err();
     }
@@ -1165,6 +1263,8 @@ mod tests {
                 ParseContext {
                     cached_headers: &mut None,
                     req_method: &mut None,
+                    #[cfg(feature = "ffi")]
+                    preserve_header_case: false,
                 },
             )
             .expect("parse ok")
@@ -1178,6 +1278,8 @@ mod tests {
                 ParseContext {
                     cached_headers: &mut None,
                     req_method: &mut None,
+                    #[cfg(feature = "ffi")]
+                    preserve_header_case: false,
                 },
             )
             .expect_err(comment)
@@ -1380,6 +1482,8 @@ mod tests {
                 ParseContext {
                     cached_headers: &mut None,
                     req_method: &mut Some(Method::GET),
+                    #[cfg(feature = "ffi")]
+                    preserve_header_case: false,
                 }
             )
             .expect("parse ok")
@@ -1393,6 +1497,8 @@ mod tests {
                 ParseContext {
                     cached_headers: &mut None,
                     req_method: &mut Some(m),
+                    #[cfg(feature = "ffi")]
+                    preserve_header_case: false,
                 },
             )
             .expect("parse ok")
@@ -1406,6 +1512,8 @@ mod tests {
                 ParseContext {
                     cached_headers: &mut None,
                     req_method: &mut Some(Method::GET),
+                    #[cfg(feature = "ffi")]
+                    preserve_header_case: false,
                 },
             )
             .expect_err("parse should err")
@@ -1719,12 +1827,50 @@ mod tests {
             ParseContext {
                 cached_headers: &mut None,
                 req_method: &mut Some(Method::GET),
+                #[cfg(feature = "ffi")]
+                preserve_header_case: false,
             },
         )
         .expect("parse ok")
         .expect("parse complete");
 
         assert_eq!(parsed.head.headers["server"], "hello\tworld");
+    }
+
+    #[cfg(feature = "ffi")]
+    #[test]
+    fn test_write_headers_orig_case_empty_value() {
+        let mut headers = HeaderMap::new();
+        let name = http::header::HeaderName::from_static("x-empty");
+        headers.insert(&name, "".parse().expect("parse empty"));
+        let mut orig_cases = crate::ffi::HeaderCaseMap::default();
+        orig_cases.insert(name, Bytes::from_static(b"X-EmptY"));
+
+        let mut dst = Vec::new();
+        super::write_headers_original_case(&headers, &orig_cases, &mut dst);
+
+        assert_eq!(
+            dst, b"X-EmptY:\r\n",
+            "there should be no space between the colon and CRLF"
+        );
+    }
+
+    #[cfg(feature = "ffi")]
+    #[test]
+    fn test_write_headers_orig_case_multiple_entries() {
+        let mut headers = HeaderMap::new();
+        let name = http::header::HeaderName::from_static("x-empty");
+        headers.insert(&name, "a".parse().unwrap());
+        headers.append(&name, "b".parse().unwrap());
+
+        let mut orig_cases = crate::ffi::HeaderCaseMap::default();
+        orig_cases.insert(name.clone(), Bytes::from_static(b"X-Empty"));
+        orig_cases.append(name, Bytes::from_static(b"X-EMPTY"));
+
+        let mut dst = Vec::new();
+        super::write_headers_original_case(&headers, &orig_cases, &mut dst);
+
+        assert_eq!(dst, b"X-Empty: a\r\nX-EMPTY: b\r\n");
     }
 
     #[cfg(feature = "nightly")]
@@ -1762,6 +1908,8 @@ mod tests {
                 ParseContext {
                     cached_headers: &mut headers,
                     req_method: &mut None,
+                    #[cfg(feature = "ffi")]
+                    preserve_header_case: false,
                 },
             )
             .unwrap()
@@ -1795,6 +1943,8 @@ mod tests {
                 ParseContext {
                     cached_headers: &mut headers,
                     req_method: &mut None,
+                    #[cfg(feature = "ffi")]
+                    preserve_header_case: false,
                 },
             )
             .unwrap()

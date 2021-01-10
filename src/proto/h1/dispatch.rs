@@ -58,10 +58,10 @@ cfg_client! {
 impl<D, Bs, I, T> Dispatcher<D, Bs, I, T>
 where
     D: Dispatch<
-            PollItem = MessageHead<T::Outgoing>,
-            PollBody = Bs,
-            RecvItem = MessageHead<T::Incoming>,
-        > + Unpin,
+        PollItem = MessageHead<T::Outgoing>,
+        PollBody = Bs,
+        RecvItem = MessageHead<T::Incoming>,
+    > + Unpin,
     D::PollError: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin,
     T: Http1Transaction + Unpin,
@@ -405,10 +405,10 @@ where
 impl<D, Bs, I, T> Future for Dispatcher<D, Bs, I, T>
 where
     D: Dispatch<
-            PollItem = MessageHead<T::Outgoing>,
-            PollBody = Bs,
-            RecvItem = MessageHead<T::Incoming>,
-        > + Unpin,
+        PollItem = MessageHead<T::Outgoing>,
+        PollBody = Bs,
+        RecvItem = MessageHead<T::Incoming>,
+    > + Unpin,
     D::PollError: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin,
     T: Http1Transaction + Unpin,
@@ -492,7 +492,7 @@ cfg_server! {
                     version: parts.version,
                     subject: parts.status,
                     headers: parts.headers,
-                    extensions: http::Extensions::default(),
+                    extensions: parts.extensions,
                 };
                 Poll::Ready(Some(Ok((head, body))))
             } else {
@@ -576,7 +576,7 @@ cfg_client! {
                                 version: parts.version,
                                 subject: crate::proto::RequestLine(parts.method, parts.uri),
                                 headers: parts.headers,
-                                extensions: http::Extensions::default(),
+                                extensions: parts.extensions,
                             };
                             *this.callback = Some(cb);
                             Poll::Ready(Some(Ok((head, body))))

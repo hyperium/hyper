@@ -24,7 +24,6 @@ pub struct MessageHead<S> {
     pub subject: S,
     /// Headers of the Incoming message.
     pub headers: http::HeaderMap,
-
     /// Extensions.
     extensions: http::Extensions,
 }
