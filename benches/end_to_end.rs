@@ -313,9 +313,7 @@ impl Opts {
                     for _ in 0..chunk_cnt {
                         tx.send_data(chunk.into()).await.expect("send_data");
                     }
-                    tx.send_trailers(HeaderMap::new())
-                        .await
-                        .expect("send_trailers");
+                    tx.send_trailers(HeaderMap::new()).expect("send_trailers");
                 });
                 body
             } else {
