@@ -559,7 +559,7 @@ impl Sender {
         futures_util::future::poll_fn(|cx| self.poll_ready(cx)).await
     }
 
-    /// Send data on this channel when it is ready.
+    /// Send data on data channel when it is ready.
     pub async fn send_data(&mut self, chunk: Bytes) -> crate::Result<()> {
         self.ready().await?;
         self.data_tx
@@ -567,9 +567,8 @@ impl Sender {
             .map_err(|_| crate::Error::new_closed())
     }
 
-    /// Send trailers on this channel when it is ready.
-    pub async fn send_trailers(&mut self, trailers: HeaderMap) -> crate::Result<()> {
-        self.ready().await?;
+    /// Send trailers on trailers channel.
+    pub fn send_trailers(&mut self, trailers: HeaderMap) -> crate::Result<()> {
         let tx = match self.trailers_tx.take() {
             Some(tx) => tx,
             None => return Err(crate::Error::new_closed()),
