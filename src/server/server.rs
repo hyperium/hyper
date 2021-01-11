@@ -6,7 +6,7 @@ use std::net::{SocketAddr, TcpListener as StdTcpListener};
 #[cfg(feature = "tcp")]
 use std::time::Duration;
 
-use pin_project::pin_project;
+use pin_project_lite::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::accept::Accept;
@@ -21,16 +21,17 @@ use super::shutdown::{Graceful, GracefulWatcher};
 #[cfg(feature = "tcp")]
 use super::tcp::AddrIncoming;
 
-/// A listening HTTP server that accepts connections in both HTTP1 and HTTP2 by default.
-///
-/// `Server` is a `Future` mapping a bound listener with a set of service
-/// handlers. It is built using the [`Builder`](Builder), and the future
-/// completes when the server has been shutdown. It should be run by an
-/// `Executor`.
-#[pin_project]
-pub struct Server<I, S, E = Exec> {
-    #[pin]
-    spawn_all: SpawnAll<I, S, E>,
+pin_project! {
+    /// A listening HTTP server that accepts connections in both HTTP1 and HTTP2 by default.
+    ///
+    /// `Server` is a `Future` mapping a bound listener with a set of service
+    /// handlers. It is built using the [`Builder`](Builder), and the future
+    /// completes when the server has been shutdown. It should be run by an
+    /// `Executor`.
+    pub struct Server<I, S, E = Exec> {
+        #[pin]
+        spawn_all: SpawnAll<I, S, E>,
+    }
 }
 
 /// A builder for a [`Server`](Server).
