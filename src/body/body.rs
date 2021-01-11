@@ -16,8 +16,7 @@ use super::DecodedLength;
 #[cfg(feature = "stream")]
 use crate::common::sync_wrapper::SyncWrapper;
 use crate::common::Future;
-#[cfg(any(feature = "http1", feature = "http2"))]
-#[cfg(feature = "client")]
+#[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]
 use crate::common::Never;
 use crate::common::{task, watch, Pin, Poll};
 #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
@@ -74,8 +73,7 @@ struct Extra {
     delayed_eof: Option<DelayEof>,
 }
 
-#[cfg(any(feature = "http1", feature = "http2"))]
-#[cfg(feature = "client")]
+#[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]
 type DelayEofUntil = oneshot::Receiver<Never>;
 
 enum DelayEof {

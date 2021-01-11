@@ -2,10 +2,9 @@
 use bytes::BytesMut;
 use http::header::CONTENT_LENGTH;
 use http::header::{HeaderValue, ValueIter};
-#[cfg(feature = "http2")]
-#[cfg(feature = "client")]
-use http::Method;
 use http::HeaderMap;
+#[cfg(all(feature = "http2", feature = "client"))]
+use http::Method;
 
 #[cfg(feature = "http1")]
 pub(super) fn connection_keep_alive(value: &HeaderValue) -> bool {
@@ -29,8 +28,7 @@ fn connection_has(value: &HeaderValue, needle: &str) -> bool {
     false
 }
 
-#[cfg(feature = "http1")]
-#[cfg(feature = "server")]
+#[cfg(all(feature = "http1", feature = "server"))]
 pub(super) fn content_length_parse(value: &HeaderValue) -> Option<u64> {
     value.to_str().ok().and_then(|s| s.parse().ok())
 }
@@ -66,8 +64,7 @@ pub(super) fn content_length_parse_all_values(values: ValueIter<'_, HeaderValue>
     }
 }
 
-#[cfg(feature = "http2")]
-#[cfg(feature = "client")]
+#[cfg(all(feature = "http2", feature = "client"))]
 pub(super) fn method_has_defined_payload_semantics(method: &Method) -> bool {
     match *method {
         Method::GET | Method::HEAD | Method::DELETE | Method::CONNECT => false,
