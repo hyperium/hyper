@@ -52,8 +52,7 @@
 pub use self::connect::HttpConnector;
 
 pub mod connect;
-#[cfg(test)]
-#[cfg(feature = "runtime")]
+#[cfg(all(test, feature = "runtime"))]
 mod tests;
 
 cfg_feature! {

@@ -37,8 +37,7 @@ pub(crate) type RequestHead = MessageHead<RequestLine>;
 pub(crate) struct RequestLine(pub(crate) http::Method, pub(crate) http::Uri);
 
 /// An incoming response message.
-#[cfg(feature = "http1")]
-#[cfg(feature = "client")]
+#[cfg(all(feature = "http1", feature = "client"))]
 pub(crate) type ResponseHead = MessageHead<http::StatusCode>;
 
 #[derive(Debug)]

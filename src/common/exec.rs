@@ -5,8 +5,7 @@ use std::sync::Arc;
 
 #[cfg(feature = "server")]
 use crate::body::{Body, HttpBody};
-#[cfg(feature = "http2")]
-#[cfg(feature = "server")]
+#[cfg(all(feature = "http2", feature = "server"))]
 use crate::proto::h2::server::H2Stream;
 use crate::rt::Executor;
 #[cfg(feature = "server")]

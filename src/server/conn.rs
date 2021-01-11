@@ -49,8 +49,7 @@ use std::fmt;
 use std::marker::PhantomData;
 #[cfg(feature = "tcp")]
 use std::net::SocketAddr;
-#[cfg(feature = "runtime")]
-#[cfg(feature = "http2")]
+#[cfg(all(feature = "runtime", feature = "http2"))]
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -63,8 +62,7 @@ use crate::common::exec::{ConnStreamExec, Exec, NewSvcExec};
 #[cfg(feature = "http2")]
 use crate::common::io::Rewind;
 use crate::common::{task, Future, Pin, Poll, Unpin};
-#[cfg(feature = "http1")]
-#[cfg(feature = "http2")]
+#[cfg(all(feature = "http1", feature = "http2"))]
 use crate::error::{Kind, Parse};
 use crate::proto;
 use crate::service::{HttpService, MakeServiceRef};
@@ -107,8 +105,7 @@ enum ConnectionMode {
     #[cfg(feature = "http2")]
     H2Only,
     /// Use HTTP/1 and try to upgrade to h2 when a parse error occurs.
-    #[cfg(feature = "http1")]
-    #[cfg(feature = "http2")]
+    #[cfg(all(feature = "http1", feature = "http2"))]
     Fallback,
 }
 
@@ -160,8 +157,7 @@ where
     S: HttpService<Body>,
 {
     pub(super) conn: Option<ProtoServer<T, S::ResBody, S, E>>,
-    #[cfg(feature = "http1")]
-    #[cfg(feature = "http2")]
+    #[cfg(all(feature = "http1", feature = "http2"))]
     fallback: Fallback<E>,
 }
 
@@ -186,16 +182,14 @@ where
     H2(#[pin] proto::h2::Server<Rewind<T>, S, B, E>),
 }
 
-#[cfg(feature = "http1")]
-#[cfg(feature = "http2")]
+#[cfg(all(feature = "http1", feature = "http2"))]
 #[derive(Clone, Debug)]
 enum Fallback<E> {
     ToHttp2(proto::h2::server::Config, E),
     Http1Only,
 }
 
-#[cfg(feature = "http1")]
-#[cfg(feature = "http2")]
+#[cfg(all(feature = "http1", feature = "http2"))]
 impl<E> Fallback<E> {
     fn to_h2(&self) -> bool {
         match *self {
@@ -205,8 +199,7 @@ impl<E> Fallback<E> {
     }
 }
 
-#[cfg(feature = "http1")]
-#[cfg(feature = "http2")]
+#[cfg(all(feature = "http1", feature = "http2"))]
 impl<E> Unpin for Fallback<E> {}
 
 /// Deconstructed parts of a `Connection`.
@@ -701,8 +694,7 @@ where
         })
     }
 
-    #[cfg(feature = "http1")]
-    #[cfg(feature = "http2")]
+    #[cfg(all(feature = "http1", feature = "http2"))]
     fn upgrade_h2(&mut self) {
         trace!("Trying to upgrade connection to h2");
         let conn = self.conn.take();
