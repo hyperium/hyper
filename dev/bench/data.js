@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1610491643013,
+  "lastUpdate": 1610491670205,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -1981,6 +1981,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 57415,
             "range": "± 1920",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "446dd2f0c70dba22d8d589a68b224c2838a4ddf1",
+          "message": "chore(security): add a SECURITY.md policy (#2395)",
+          "timestamp": "2021-01-12T14:45:10-08:00",
+          "tree_id": "bb354693eb5c0c6bb50733be6b61409e21d6d2a1",
+          "url": "https://github.com/hyperium/hyper/commit/446dd2f0c70dba22d8d589a68b224c2838a4ddf1"
+        },
+        "date": 1610491668708,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 56881,
+            "range": "± 4922",
             "unit": "ns/iter"
           }
         ]
