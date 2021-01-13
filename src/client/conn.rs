@@ -272,7 +272,7 @@ where
         ResponseFuture { inner }
     }
 
-    pub(crate) fn send_request_retryable(
+    pub(super) fn send_request_retryable(
         &mut self,
         req: Request<B>,
     ) -> impl Future<Output = Result<Response<Body>, (crate::Error, Option<Request<B>>)>> + Unpin
