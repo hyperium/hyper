@@ -29,7 +29,7 @@ pub(crate) mod watch;
 #[cfg(any(feature = "http1", feature = "http2"))]
 #[cfg(feature = "client")]
 pub(crate) use self::lazy::{lazy, Started as Lazy};
-pub use self::never::Never;
+pub(crate) use self::never::Never;
 pub(crate) use self::task::Poll;
 
 // group up types normally needed for `Future`
