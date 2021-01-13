@@ -47,10 +47,10 @@
 //!
 //! - `http1`: Enables HTTP/1 support.
 //! - `http2`: Enables HTTP/2 support.
-//! - `client`: Enables the HTTP `client`.
-//! - `server`: Enables the HTTP `server`.
+//! - `client`: Enables the HTTP `client` (requires one of http1` or `http2` features).
+//! - `server`: Enables the HTTP `server` (requires one of http1` or `http2` features).
 //! - `runtime`: Enables convenient integration with `tokio`, providing
-//!   connectors and acceptors for TCP, and a default executor.
+//!   connectors and acceptors for TCP, and a default executor (requires one of http1` or `http2` features).
 //! - `tcp`: Enables convenient implementations over TCP (using tokio).
 //! - `stream`: Provides `futures::Stream` capabilities.
 //!
