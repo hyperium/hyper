@@ -5,19 +5,19 @@ use tokio::sync::watch;
 
 use super::{task, Future, Pin, Poll};
 
-pub fn channel() -> (Signal, Watch) {
+pub(crate) fn channel() -> (Signal, Watch) {
     let (tx, rx) = watch::channel(());
     (Signal { tx }, Watch { rx })
 }
 
-pub struct Signal {
+pub(crate) struct Signal {
     tx: watch::Sender<()>,
 }
 
-pub struct Draining(Pin<Box<dyn Future<Output = ()> + Send + Sync>>);
+pub(crate) struct Draining(Pin<Box<dyn Future<Output = ()> + Send + Sync>>);
 
 #[derive(Clone)]
-pub struct Watch {
+pub(crate) struct Watch {
     rx: watch::Receiver<()>,
 }
 
@@ -37,7 +37,7 @@ enum State<F> {
 }
 
 impl Signal {
-    pub fn drain(self) -> Draining {
+    pub(crate) fn drain(self) -> Draining {
         let _ = self.tx.send(());
         Draining(Box::pin(async move { self.tx.closed().await }))
     }
@@ -52,7 +52,7 @@ impl Future for Draining {
 }
 
 impl Watch {
-    pub fn watch<F, FN>(self, future: F, on_drain: FN) -> Watching<F, FN>
+    pub(crate) fn watch<F, FN>(self, future: F, on_drain: FN) -> Watching<F, FN>
     where
         F: Future,
         FN: FnOnce(Pin<&mut F>),

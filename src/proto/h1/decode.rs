@@ -17,7 +17,7 @@ use self::Kind::{Chunked, Eof, Length};
 /// If a message body does not include a Transfer-Encoding, it *should*
 /// include a Content-Length header.
 #[derive(Clone, PartialEq)]
-pub struct Decoder {
+pub(crate) struct Decoder {
     kind: Kind,
 }
 
@@ -65,19 +65,19 @@ enum ChunkedState {
 impl Decoder {
     // constructors
 
-    pub fn length(x: u64) -> Decoder {
+    pub(crate) fn length(x: u64) -> Decoder {
         Decoder {
             kind: Kind::Length(x),
         }
     }
 
-    pub fn chunked() -> Decoder {
+    pub(crate) fn chunked() -> Decoder {
         Decoder {
             kind: Kind::Chunked(ChunkedState::Size, 0),
         }
     }
 
-    pub fn eof() -> Decoder {
+    pub(crate) fn eof() -> Decoder {
         Decoder {
             kind: Kind::Eof(false),
         }
@@ -93,11 +93,11 @@ impl Decoder {
 
     // methods
 
-    pub fn is_eof(&self) -> bool {
+    pub(crate) fn is_eof(&self) -> bool {
         matches!(self.kind, Length(0) | Chunked(ChunkedState::End, _) | Eof(true))
     }
 
-    pub fn decode<R: MemRead>(
+    pub(crate) fn decode<R: MemRead>(
         &mut self,
         cx: &mut task::Context<'_>,
         body: &mut R,

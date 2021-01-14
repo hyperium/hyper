@@ -100,7 +100,7 @@ impl Config {
 }
 
 impl<T> Pool<T> {
-    pub fn new(config: Config, __exec: &Exec) -> Pool<T> {
+    pub(super) fn new(config: Config, __exec: &Exec) -> Pool<T> {
         let inner = if config.is_enabled() {
             Some(Arc::new(Mutex::new(PoolInner {
                 connecting: HashSet::new(),
@@ -140,7 +140,7 @@ impl<T> Pool<T> {
 impl<T: Poolable> Pool<T> {
     /// Returns a `Checkout` which is a future that resolves if an idle
     /// connection becomes available.
-    pub fn checkout(&self, key: Key) -> Checkout<T> {
+    pub(super) fn checkout(&self, key: Key) -> Checkout<T> {
         Checkout {
             key,
             pool: self.clone(),
@@ -489,11 +489,11 @@ pub(super) struct Pooled<T: Poolable> {
 }
 
 impl<T: Poolable> Pooled<T> {
-    pub fn is_reused(&self) -> bool {
+    pub(super) fn is_reused(&self) -> bool {
         self.is_reused
     }
 
-    pub fn is_pool_enabled(&self) -> bool {
+    pub(super) fn is_pool_enabled(&self) -> bool {
         self.pool.0.is_some()
     }
 

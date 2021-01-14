@@ -35,7 +35,7 @@ where
     B: Buf,
     T: Http1Transaction,
 {
-    pub fn new(io: I) -> Conn<I, B, T> {
+    pub(crate) fn new(io: I) -> Conn<I, B, T> {
         Conn {
             io: Buffered::new(io),
             state: State {
@@ -60,21 +60,21 @@ where
     }
 
     #[cfg(feature = "server")]
-    pub fn set_flush_pipeline(&mut self, enabled: bool) {
+    pub(crate) fn set_flush_pipeline(&mut self, enabled: bool) {
         self.io.set_flush_pipeline(enabled);
     }
 
-    pub fn set_max_buf_size(&mut self, max: usize) {
+    pub(crate) fn set_max_buf_size(&mut self, max: usize) {
         self.io.set_max_buf_size(max);
     }
 
     #[cfg(feature = "client")]
-    pub fn set_read_buf_exact_size(&mut self, sz: usize) {
+    pub(crate) fn set_read_buf_exact_size(&mut self, sz: usize) {
         self.io.set_read_buf_exact_size(sz);
     }
 
     #[cfg(feature = "client")]
-    pub fn set_title_case_headers(&mut self) {
+    pub(crate) fn set_title_case_headers(&mut self) {
         self.state.title_case_headers = true;
     }
 
@@ -83,23 +83,23 @@ where
         self.state.allow_half_close = true;
     }
 
-    pub fn into_inner(self) -> (I, Bytes) {
+    pub(crate) fn into_inner(self) -> (I, Bytes) {
         self.io.into_inner()
     }
 
-    pub fn pending_upgrade(&mut self) -> Option<crate::upgrade::Pending> {
+    pub(crate) fn pending_upgrade(&mut self) -> Option<crate::upgrade::Pending> {
         self.state.upgrade.take()
     }
 
-    pub fn is_read_closed(&self) -> bool {
+    pub(crate) fn is_read_closed(&self) -> bool {
         self.state.is_read_closed()
     }
 
-    pub fn is_write_closed(&self) -> bool {
+    pub(crate) fn is_write_closed(&self) -> bool {
         self.state.is_write_closed()
     }
 
-    pub fn can_read_head(&self) -> bool {
+    pub(crate) fn can_read_head(&self) -> bool {
         match self.state.reading {
             Reading::Init => {
                 if T::should_read_first() {
@@ -115,7 +115,7 @@ where
         }
     }
 
-    pub fn can_read_body(&self) -> bool {
+    pub(crate) fn can_read_body(&self) -> bool {
         match self.state.reading {
             Reading::Body(..) | Reading::Continue(..) => true,
             _ => false,
@@ -211,7 +211,7 @@ where
         }
     }
 
-    pub fn poll_read_body(
+    pub(crate) fn poll_read_body(
         &mut self,
         cx: &mut task::Context<'_>,
     ) -> Poll<Option<io::Result<Bytes>>> {
@@ -268,13 +268,13 @@ where
         ret
     }
 
-    pub fn wants_read_again(&mut self) -> bool {
+    pub(crate) fn wants_read_again(&mut self) -> bool {
         let ret = self.state.notify_read;
         self.state.notify_read = false;
         ret
     }
 
-    pub fn poll_read_keep_alive(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    pub(crate) fn poll_read_keep_alive(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
         debug_assert!(!self.can_read_head() && !self.can_read_body());
 
         if self.is_read_closed() {
@@ -412,7 +412,7 @@ where
         self.maybe_notify(cx);
     }
 
-    pub fn can_write_head(&self) -> bool {
+    pub(crate) fn can_write_head(&self) -> bool {
         if !T::should_read_first() {
             if let Reading::Closed = self.state.reading {
                 return false;
@@ -424,18 +424,18 @@ where
         }
     }
 
-    pub fn can_write_body(&self) -> bool {
+    pub(crate) fn can_write_body(&self) -> bool {
         match self.state.writing {
             Writing::Body(..) => true,
             Writing::Init | Writing::KeepAlive | Writing::Closed => false,
         }
     }
 
-    pub fn can_buffer_body(&self) -> bool {
+    pub(crate) fn can_buffer_body(&self) -> bool {
         self.io.can_buffer()
     }
 
-    pub fn write_head(&mut self, head: MessageHead<T::Outgoing>, body: Option<BodyLength>) {
+    pub(crate) fn write_head(&mut self, head: MessageHead<T::Outgoing>, body: Option<BodyLength>) {
         if let Some(encoder) = self.encode_head(head, body) {
             self.state.writing = if !encoder.is_eof() {
                 Writing::Body(encoder)
@@ -447,7 +447,7 @@ where
         }
     }
 
-    pub fn write_full_msg(&mut self, head: MessageHead<T::Outgoing>, body: B) {
+    pub(crate) fn write_full_msg(&mut self, head: MessageHead<T::Outgoing>, body: B) {
         if let Some(encoder) =
             self.encode_head(head, Some(BodyLength::Known(body.remaining() as u64)))
         {
@@ -555,7 +555,7 @@ where
         // the user's headers be.
     }
 
-    pub fn write_body(&mut self, chunk: B) {
+    pub(crate) fn write_body(&mut self, chunk: B) {
         debug_assert!(self.can_write_body() && self.can_buffer_body());
         // empty chunks should be discarded at Dispatcher level
         debug_assert!(chunk.remaining() != 0);
@@ -580,7 +580,7 @@ where
         self.state.writing = state;
     }
 
-    pub fn write_body_and_end(&mut self, chunk: B) {
+    pub(crate) fn write_body_and_end(&mut self, chunk: B) {
         debug_assert!(self.can_write_body() && self.can_buffer_body());
         // empty chunks should be discarded at Dispatcher level
         debug_assert!(chunk.remaining() != 0);
@@ -600,7 +600,7 @@ where
         self.state.writing = state;
     }
 
-    pub fn end_body(&mut self) -> crate::Result<()> {
+    pub(crate) fn end_body(&mut self) -> crate::Result<()> {
         debug_assert!(self.can_write_body());
 
         let mut res = Ok(());
@@ -657,14 +657,14 @@ where
         Err(err)
     }
 
-    pub fn poll_flush(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+    pub(crate) fn poll_flush(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
         ready!(Pin::new(&mut self.io).poll_flush(cx))?;
         self.try_keep_alive(cx);
         trace!("flushed({}): {:?}", T::LOG, self.state);
         Poll::Ready(Ok(()))
     }
 
-    pub fn poll_shutdown(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+    pub(crate) fn poll_shutdown(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
         match ready!(Pin::new(self.io.io_mut()).poll_shutdown(cx)) {
             Ok(()) => {
                 trace!("shut down IO complete");
@@ -691,16 +691,16 @@ where
         }
     }
 
-    pub fn close_read(&mut self) {
+    pub(crate) fn close_read(&mut self) {
         self.state.close_read();
     }
 
-    pub fn close_write(&mut self) {
+    pub(crate) fn close_write(&mut self) {
         self.state.close_write();
     }
 
     #[cfg(feature = "server")]
-    pub fn disable_keep_alive(&mut self) {
+    pub(crate) fn disable_keep_alive(&mut self) {
         if self.state.is_idle() {
             trace!("disable_keep_alive; closing idle connection");
             self.state.close();
@@ -710,7 +710,7 @@ where
         }
     }
 
-    pub fn take_error(&mut self) -> crate::Result<()> {
+    pub(crate) fn take_error(&mut self) -> crate::Result<()> {
         if let Some(err) = self.state.error.take() {
             Err(err)
         } else {

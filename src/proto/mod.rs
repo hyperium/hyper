@@ -17,33 +17,33 @@ cfg_http2! {
 
 /// An Incoming Message head. Includes request/status line, and headers.
 #[derive(Debug, Default)]
-pub struct MessageHead<S> {
+pub(crate) struct MessageHead<S> {
     /// HTTP version of the message.
-    pub version: http::Version,
+    pub(crate) version: http::Version,
     /// Subject (request line or status line) of Incoming message.
-    pub subject: S,
+    pub(crate) subject: S,
     /// Headers of the Incoming message.
-    pub headers: http::HeaderMap,
+    pub(crate) headers: http::HeaderMap,
     /// Extensions.
     extensions: http::Extensions,
 }
 
 /// An incoming request message.
 #[cfg(feature = "http1")]
-pub type RequestHead = MessageHead<RequestLine>;
+pub(crate) type RequestHead = MessageHead<RequestLine>;
 
 #[derive(Debug, Default, PartialEq)]
 #[cfg(feature = "http1")]
-pub struct RequestLine(pub http::Method, pub http::Uri);
+pub(crate) struct RequestLine(pub(crate) http::Method, pub(crate) http::Uri);
 
 /// An incoming response message.
 #[cfg(feature = "http1")]
 #[cfg(feature = "client")]
-pub type ResponseHead = MessageHead<http::StatusCode>;
+pub(crate) type ResponseHead = MessageHead<http::StatusCode>;
 
 #[derive(Debug)]
 #[cfg(feature = "http1")]
-pub enum BodyLength {
+pub(crate) enum BodyLength {
     /// Content-Length
     Known(u64),
     /// Transfer-Encoding: chunked (if h1)
