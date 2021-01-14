@@ -63,12 +63,12 @@ pub fn on<T: sealed::CanUpgrade>(msg: T) -> OnUpgrade {
 }
 
 #[cfg(feature = "http1")]
-pub(crate) struct Pending {
+pub(super) struct Pending {
     tx: oneshot::Sender<crate::Result<Upgraded>>,
 }
 
 #[cfg(feature = "http1")]
-pub(crate) fn pending() -> (Pending, OnUpgrade) {
+pub(super) fn pending() -> (Pending, OnUpgrade) {
     let (tx, rx) = oneshot::channel();
     (Pending { tx }, OnUpgrade { rx: Some(rx) })
 }
@@ -77,7 +77,7 @@ pub(crate) fn pending() -> (Pending, OnUpgrade) {
 
 impl Upgraded {
     #[cfg(any(feature = "http1", test))]
-    pub(crate) fn new<T>(io: T, read_buf: Bytes) -> Self
+    pub(super) fn new<T>(io: T, read_buf: Bytes) -> Self
     where
         T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     {
@@ -154,12 +154,12 @@ impl fmt::Debug for Upgraded {
 // ===== impl OnUpgrade =====
 
 impl OnUpgrade {
-    pub(crate) fn none() -> Self {
+    pub(super) fn none() -> Self {
         OnUpgrade { rx: None }
     }
 
     #[cfg(feature = "http1")]
-    pub(crate) fn is_none(&self) -> bool {
+    pub(super) fn is_none(&self) -> bool {
         self.rx.is_none()
     }
 }
@@ -189,14 +189,14 @@ impl fmt::Debug for OnUpgrade {
 
 #[cfg(feature = "http1")]
 impl Pending {
-    pub(crate) fn fulfill(self, upgraded: Upgraded) {
+    pub(super) fn fulfill(self, upgraded: Upgraded) {
         trace!("pending upgrade fulfill");
         let _ = self.tx.send(Ok(upgraded));
     }
 
     /// Don't fulfill the pending Upgrade, but instead signal that
     /// upgrades are handled manually.
-    pub(crate) fn manual(self) {
+    pub(super) fn manual(self) {
         trace!("pending upgrade handled manually");
         let _ = self.tx.send(Err(crate::Error::new_user_manual_upgrade()));
     }
@@ -221,7 +221,7 @@ impl StdError for UpgradeExpected {}
 
 // ===== impl Io =====
 
-pub(crate) trait Io: AsyncRead + AsyncWrite + Unpin + 'static {
+pub(super) trait Io: AsyncRead + AsyncWrite + Unpin + 'static {
     fn __hyper_type_id(&self) -> TypeId {
         TypeId::of::<Self>()
     }

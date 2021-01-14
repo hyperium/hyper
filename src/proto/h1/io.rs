@@ -15,7 +15,7 @@ use crate::common::{task, Pin, Poll};
 pub(crate) const INIT_BUFFER_SIZE: usize = 8192;
 
 /// The minimum value that can be set to max buffer size.
-pub const MINIMUM_MAX_BUFFER_SIZE: usize = INIT_BUFFER_SIZE;
+pub(crate) const MINIMUM_MAX_BUFFER_SIZE: usize = INIT_BUFFER_SIZE;
 
 /// The default maximum read buffer size. If the buffer gets this big and
 /// a message is still not complete, a `TooLarge` error is triggered.
@@ -29,7 +29,7 @@ pub(crate) const DEFAULT_MAX_BUFFER_SIZE: usize = 8192 + 4096 * 100;
 /// forces a flush if the queue gets this big.
 const MAX_BUF_LIST_BUFFERS: usize = 16;
 
-pub struct Buffered<T, B> {
+pub(crate) struct Buffered<T, B> {
     flush_pipeline: bool,
     io: T,
     read_blocked: bool,
@@ -55,7 +55,7 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
     B: Buf,
 {
-    pub fn new(io: T) -> Buffered<T, B> {
+    pub(crate) fn new(io: T) -> Buffered<T, B> {
         let write_buf = WriteBuf::new(&io);
         Buffered {
             flush_pipeline: false,
@@ -68,7 +68,7 @@ where
     }
 
     #[cfg(feature = "server")]
-    pub fn set_flush_pipeline(&mut self, enabled: bool) {
+    pub(crate) fn set_flush_pipeline(&mut self, enabled: bool) {
         debug_assert!(!self.write_buf.has_remaining());
         self.flush_pipeline = enabled;
         if enabled {
@@ -76,7 +76,7 @@ where
         }
     }
 
-    pub fn set_max_buf_size(&mut self, max: usize) {
+    pub(crate) fn set_max_buf_size(&mut self, max: usize) {
         assert!(
             max >= MINIMUM_MAX_BUFFER_SIZE,
             "The max_buf_size cannot be smaller than {}.",
@@ -87,19 +87,19 @@ where
     }
 
     #[cfg(feature = "client")]
-    pub fn set_read_buf_exact_size(&mut self, sz: usize) {
+    pub(crate) fn set_read_buf_exact_size(&mut self, sz: usize) {
         self.read_buf_strategy = ReadStrategy::Exact(sz);
     }
 
     #[cfg(feature = "server")]
-    pub fn set_write_strategy_flatten(&mut self) {
+    pub(crate) fn set_write_strategy_flatten(&mut self) {
         // this should always be called only at construction time,
         // so this assert is here to catch myself
         debug_assert!(self.write_buf.queue.bufs_cnt() == 0);
         self.write_buf.set_strategy(WriteStrategy::Flatten);
     }
 
-    pub fn read_buf(&self) -> &[u8] {
+    pub(crate) fn read_buf(&self) -> &[u8] {
         self.read_buf.as_ref()
     }
 
@@ -115,7 +115,7 @@ where
         self.read_buf.capacity() - self.read_buf.len()
     }
 
-    pub fn headers_buf(&mut self) -> &mut Vec<u8> {
+    pub(crate) fn headers_buf(&mut self) -> &mut Vec<u8> {
         let buf = self.write_buf.headers_mut();
         &mut buf.bytes
     }
@@ -124,15 +124,15 @@ where
         &mut self.write_buf
     }
 
-    pub fn buffer<BB: Buf + Into<B>>(&mut self, buf: BB) {
+    pub(crate) fn buffer<BB: Buf + Into<B>>(&mut self, buf: BB) {
         self.write_buf.buffer(buf)
     }
 
-    pub fn can_buffer(&self) -> bool {
+    pub(crate) fn can_buffer(&self) -> bool {
         self.flush_pipeline || self.write_buf.can_buffer()
     }
 
-    pub fn consume_leading_lines(&mut self) {
+    pub(crate) fn consume_leading_lines(&mut self) {
         if !self.read_buf.is_empty() {
             let mut i = 0;
             while i < self.read_buf.len() {
@@ -182,7 +182,7 @@ where
         }
     }
 
-    pub fn poll_read_from_io(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<usize>> {
+    pub(crate) fn poll_read_from_io(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<usize>> {
         self.read_blocked = false;
         let next = self.read_buf_strategy.next();
         if self.read_buf_remaining_mut() < next {
@@ -212,19 +212,19 @@ where
         }
     }
 
-    pub fn into_inner(self) -> (T, Bytes) {
+    pub(crate) fn into_inner(self) -> (T, Bytes) {
         (self.io, self.read_buf.freeze())
     }
 
-    pub fn io_mut(&mut self) -> &mut T {
+    pub(crate) fn io_mut(&mut self) -> &mut T {
         &mut self.io
     }
 
-    pub fn is_read_blocked(&self) -> bool {
+    pub(crate) fn is_read_blocked(&self) -> bool {
         self.read_blocked
     }
 
-    pub fn poll_flush(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+    pub(crate) fn poll_flush(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
         if self.flush_pipeline && !self.read_buf.is_empty() {
             Poll::Ready(Ok(()))
         } else if self.write_buf.remaining() == 0 {
@@ -293,7 +293,7 @@ where
 impl<T: Unpin, B> Unpin for Buffered<T, B> {}
 
 // TODO: This trait is old... at least rename to PollBytes or something...
-pub trait MemRead {
+pub(crate) trait MemRead {
     fn read_mem(&mut self, cx: &mut task::Context<'_>, len: usize) -> Poll<io::Result<Bytes>>;
 }
 
@@ -402,7 +402,7 @@ impl Default for ReadStrategy {
 }
 
 #[derive(Clone)]
-pub struct Cursor<T> {
+pub(crate) struct Cursor<T> {
     bytes: T,
     pos: usize,
 }

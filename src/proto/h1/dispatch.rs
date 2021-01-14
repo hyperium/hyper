@@ -37,7 +37,7 @@ pub(crate) trait Dispatch {
 cfg_server! {
     use crate::service::HttpService;
 
-    pub struct Server<S: HttpService<B>, B> {
+    pub(crate) struct Server<S: HttpService<B>, B> {
         in_flight: Pin<Box<Option<S::Future>>>,
         pub(crate) service: S,
     }
@@ -45,7 +45,7 @@ cfg_server! {
 
 cfg_client! {
     #[pin_project::pin_project]
-    pub struct Client<B> {
+    pub(crate) struct Client<B> {
         callback: Option<crate::client::dispatch::Callback<Request<B>, http::Response<Body>>>,
         #[pin]
         rx: ClientRx<B>,
@@ -68,7 +68,7 @@ where
     Bs: HttpBody + 'static,
     Bs::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
-    pub fn new(dispatch: D, conn: Conn<I, Bs::Data, T>) -> Self {
+    pub(crate) fn new(dispatch: D, conn: Conn<I, Bs::Data, T>) -> Self {
         Dispatcher {
             conn,
             dispatch,
@@ -79,14 +79,14 @@ where
     }
 
     #[cfg(feature = "server")]
-    pub fn disable_keep_alive(&mut self) {
+    pub(crate) fn disable_keep_alive(&mut self) {
         self.conn.disable_keep_alive();
         if self.conn.is_write_closed() {
             self.close();
         }
     }
 
-    pub fn into_inner(self) -> (I, Bytes, D) {
+    pub(crate) fn into_inner(self) -> (I, Bytes, D) {
         let (io, buf) = self.conn.into_inner();
         (io, buf, self.dispatch)
     }
@@ -454,14 +454,14 @@ cfg_server! {
     where
         S: HttpService<B>,
     {
-        pub fn new(service: S) -> Server<S, B> {
+        pub(crate) fn new(service: S) -> Server<S, B> {
             Server {
                 in_flight: Box::pin(None),
                 service,
             }
         }
 
-        pub fn into_service(self) -> S {
+        pub(crate) fn into_service(self) -> S {
             self.service
         }
     }
@@ -538,7 +538,7 @@ cfg_server! {
 
 cfg_client! {
     impl<B> Client<B> {
-        pub fn new(rx: ClientRx<B>) -> Client<B> {
+        pub(crate) fn new(rx: ClientRx<B>) -> Client<B> {
             Client {
                 callback: None,
                 rx,
