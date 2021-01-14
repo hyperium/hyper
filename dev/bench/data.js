@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1610661550244,
+  "lastUpdate": 1610661555921,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -1079,6 +1079,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 47587,
             "range": "± 1136",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "constantin.nickel@gmail.com",
+            "name": "nickelc",
+            "username": "nickelc"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "257d6a99193c9404ce055727833e1490c23a7197",
+          "message": "docs(server): set doc_cfg attributes for `tcp` feature gated Server methods (#2401)",
+          "timestamp": "2021-01-14T13:56:49-08:00",
+          "tree_id": "50a57b0eb9c3a2e602849788aa791e078f5087bb",
+          "url": "https://github.com/hyperium/hyper/commit/257d6a99193c9404ce055727833e1490c23a7197"
+        },
+        "date": 1610661551243,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 43654,
+            "range": "± 3673",
             "unit": "ns/iter"
           }
         ]
