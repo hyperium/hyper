@@ -60,6 +60,7 @@ impl Server<AddrIncoming, ()> {
     ///
     /// This method will panic if binding to the address fails. For a method
     /// to bind to an address and return a `Result`, see `Server::try_bind`.
+    #[cfg_attr(docsrs, doc(cfg(feature = "tcp")))]
     pub fn bind(addr: &SocketAddr) -> Builder<AddrIncoming> {
         let incoming = AddrIncoming::new(addr).unwrap_or_else(|e| {
             panic!("error binding to {}: {}", addr, e);
@@ -68,11 +69,13 @@ impl Server<AddrIncoming, ()> {
     }
 
     /// Tries to bind to the provided address, and returns a [`Builder`](Builder).
+    #[cfg_attr(docsrs, doc(cfg(feature = "tcp")))]
     pub fn try_bind(addr: &SocketAddr) -> crate::Result<Builder<AddrIncoming>> {
         AddrIncoming::new(addr).map(Server::builder)
     }
 
     /// Create a new instance from a `std::net::TcpListener` instance.
+    #[cfg_attr(docsrs, doc(cfg(feature = "tcp")))]
     pub fn from_tcp(listener: StdTcpListener) -> Result<Builder<AddrIncoming>, crate::Error> {
         AddrIncoming::from_std(listener).map(Server::builder)
     }
@@ -81,6 +84,7 @@ impl Server<AddrIncoming, ()> {
 #[cfg(feature = "tcp")]
 impl<S, E> Server<AddrIncoming, S, E> {
     /// Returns the local address that this server is bound to.
+    #[cfg_attr(docsrs, doc(cfg(feature = "tcp")))]
     pub fn local_addr(&self) -> SocketAddr {
         self.spawn_all.local_addr()
     }
