@@ -24,7 +24,7 @@ pub trait NewSvcExec<I, N, S: HttpService<Body>, E, W: Watcher<I, S, E>>: Clone 
     fn execute_new_svc(&mut self, fut: NewSvcTask<I, N, S, E, W>);
 }
 
-pub type BoxSendFuture = Pin<Box<dyn Future<Output = ()> + Send>>;
+pub(crate) type BoxSendFuture = Pin<Box<dyn Future<Output = ()> + Send>>;
 
 // Either the user provides an executor for background tasks, or we use
 // `tokio::spawn`.

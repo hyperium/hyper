@@ -1,5 +1,7 @@
 // We have a lot of c-types in here, stop warning about their names!
 #![allow(non_camel_case_types)]
+// unreachable_pub warns `#[no_mangle] pub extern fn` in private mod.
+#![allow(unreachable_pub)]
 
 // We may eventually allow the FFI to be enabled without `client` or `http1`,
 // that is why we don't auto enable them as `ffi = ["client", "http1"]` in

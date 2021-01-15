@@ -8,6 +8,7 @@ use tokio::time::Sleep;
 
 use crate::common::{task, Future, Pin, Poll};
 
+#[allow(unreachable_pub)] // https://github.com/rust-lang/rust/issues/57411
 pub use self::addr_stream::AddrStream;
 use super::accept::Accept;
 
