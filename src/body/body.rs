@@ -185,6 +185,7 @@ impl Body {
     /// This function requires enabling the `stream` feature in your
     /// `Cargo.toml`.
     #[cfg(feature = "stream")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
     pub fn wrap_stream<S, O, E>(stream: S) -> Body
     where
         S: Stream<Item = Result<O, E>> + Send + 'static,
