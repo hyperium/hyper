@@ -382,7 +382,7 @@ impl HttpBody for Body {
                 ..
             } => match ready!(Pin::new(trailers_rx).poll(cx)) {
                 Ok(t) => Poll::Ready(Ok(Some(t))),
-                Err(_) => Poll::Ready(Err(crate::Error::new_closed())),
+                Err(_) => Poll::Ready(Ok(None)),
             },
             #[cfg(feature = "ffi")]
             Kind::Ffi(ref mut body) => body.poll_trailers(cx),
@@ -568,7 +568,7 @@ impl Sender {
     }
 
     /// Send trailers on trailers channel.
-    pub fn send_trailers(&mut self, trailers: HeaderMap) -> crate::Result<()> {
+    pub async fn send_trailers(&mut self, trailers: HeaderMap) -> crate::Result<()> {
         let tx = match self.trailers_tx.take() {
             Some(tx) => tx,
             None => return Err(crate::Error::new_closed()),
