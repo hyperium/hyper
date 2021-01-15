@@ -147,7 +147,7 @@ pub(super) struct SpawnAll<I, S, E> {
     //
     // See https://github.com/rust-lang/rust/issues/64705
     #[pin]
-    pub serve: Serve<I, S, E>,
+    pub(super) serve: Serve<I, S, E>,
 }
 
 /// A future binding a connection with a Service.
@@ -815,7 +815,7 @@ impl Default for ConnectionMode {
 impl<I, S, E> Serve<I, S, E> {
     /// Get a reference to the incoming stream.
     #[inline]
-    pub fn incoming_ref(&self) -> &I {
+    pub(super) fn incoming_ref(&self) -> &I {
         &self.incoming
     }
 
@@ -1025,7 +1025,7 @@ pub(crate) mod spawn_all {
     }
 
     #[pin_project(project = StateProj)]
-    pub enum State<I, N, S: HttpService<Body>, E, W: Watcher<I, S, E>> {
+    pub(super) enum State<I, N, S: HttpService<Body>, E, W: Watcher<I, S, E>> {
         Connecting(#[pin] Connecting<I, N, E>, W),
         Connected(#[pin] W::Future),
     }

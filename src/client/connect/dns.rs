@@ -346,7 +346,7 @@ mod sealed {
     }
 }
 
-pub(crate) async fn resolve<R>(resolver: &mut R, name: Name) -> Result<R::Addrs, R::Error>
+pub(super) async fn resolve<R>(resolver: &mut R, name: Name) -> Result<R::Addrs, R::Error>
 where
     R: Resolve,
 {

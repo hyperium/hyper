@@ -46,7 +46,7 @@
 /// [`poll`]: https://doc.rust-lang.org/std/future/trait.Future.html#method.poll
 /// [`Sync`]: https://doc.rust-lang.org/std/marker/trait.Sync.html
 #[repr(transparent)]
-pub struct SyncWrapper<T>(T);
+pub(crate) struct SyncWrapper<T>(T);
 
 impl<T> SyncWrapper<T> {
     /// Creates a new SyncWrapper containing the given value.
@@ -58,7 +58,7 @@ impl<T> SyncWrapper<T> {
     ///
     /// let wrapped = SyncWrapper::new(42);
     /// ```
-    pub fn new(value: T) -> Self {
+    pub(crate) fn new(value: T) -> Self {
         Self(value)
     }
 
@@ -82,7 +82,7 @@ impl<T> SyncWrapper<T> {
     /// *value = 0;
     /// assert_eq!(*wrapped.get_mut(), 0);
     /// ```
-    pub fn get_mut(&mut self) -> &mut T {
+    pub(crate) fn get_mut(&mut self) -> &mut T {
         &mut self.0
     }
 
@@ -105,7 +105,7 @@ impl<T> SyncWrapper<T> {
     /// assert_eq!(wrapped.into_inner(), 42);
     /// ```
     #[allow(dead_code)]
-    pub fn into_inner(self) -> T {
+    pub(crate) fn into_inner(self) -> T {
         self.0
     }
 }

@@ -18,7 +18,7 @@ struct ErrorImpl {
 }
 
 #[derive(Debug, PartialEq)]
-pub(crate) enum Kind {
+pub(super) enum Kind {
     Parse(Parse),
     User(User),
     /// A message reached EOF, but is not complete.
@@ -64,7 +64,7 @@ pub(crate) enum Kind {
 }
 
 #[derive(Debug, PartialEq)]
-pub(crate) enum Parse {
+pub(super) enum Parse {
     Method,
     Version,
     #[cfg(feature = "http1")]
@@ -76,7 +76,7 @@ pub(crate) enum Parse {
 }
 
 #[derive(Debug, PartialEq)]
-pub(crate) enum User {
+pub(super) enum User {
     /// Error calling user's HttpBody::poll_data().
     #[cfg(any(feature = "http1", feature = "http2"))]
     Body,
@@ -124,7 +124,7 @@ pub(crate) enum User {
 
 // Sentinel type to indicate the error was caused by a timeout.
 #[derive(Debug)]
-pub(crate) struct TimedOut;
+pub(super) struct TimedOut;
 
 impl Error {
     /// Returns true if this was an HTTP parse error.
@@ -172,19 +172,19 @@ impl Error {
         self.inner.cause
     }
 
-    pub(crate) fn new(kind: Kind) -> Error {
+    pub(super) fn new(kind: Kind) -> Error {
         Error {
             inner: Box::new(ErrorImpl { kind, cause: None }),
         }
     }
 
-    pub(crate) fn with<C: Into<Cause>>(mut self, cause: C) -> Error {
+    pub(super) fn with<C: Into<Cause>>(mut self, cause: C) -> Error {
         self.inner.cause = Some(cause.into());
         self
     }
 
     #[cfg(any(all(feature = "http1", feature = "server"), feature = "ffi"))]
-    pub(crate) fn kind(&self) -> &Kind {
+    pub(super) fn kind(&self) -> &Kind {
         &self.inner.kind
     }
 
@@ -202,7 +202,7 @@ impl Error {
     }
 
     #[cfg(feature = "http2")]
-    pub(crate) fn h2_reason(&self) -> h2::Reason {
+    pub(super) fn h2_reason(&self) -> h2::Reason {
         // Find an h2::Reason somewhere in the cause stack, if it exists,
         // otherwise assume an INTERNAL_ERROR.
         self.find_source::<h2::Error>()
@@ -210,68 +210,68 @@ impl Error {
             .unwrap_or(h2::Reason::INTERNAL_ERROR)
     }
 
-    pub(crate) fn new_canceled() -> Error {
+    pub(super) fn new_canceled() -> Error {
         Error::new(Kind::Canceled)
     }
 
     #[cfg(feature = "http1")]
-    pub(crate) fn new_incomplete() -> Error {
+    pub(super) fn new_incomplete() -> Error {
         Error::new(Kind::IncompleteMessage)
     }
 
     #[cfg(feature = "http1")]
-    pub(crate) fn new_too_large() -> Error {
+    pub(super) fn new_too_large() -> Error {
         Error::new(Kind::Parse(Parse::TooLarge))
     }
 
     #[cfg(feature = "http1")]
-    pub(crate) fn new_version_h2() -> Error {
+    pub(super) fn new_version_h2() -> Error {
         Error::new(Kind::Parse(Parse::VersionH2))
     }
 
     #[cfg(feature = "http1")]
-    pub(crate) fn new_unexpected_message() -> Error {
+    pub(super) fn new_unexpected_message() -> Error {
         Error::new(Kind::UnexpectedMessage)
     }
 
     #[cfg(any(feature = "http1", feature = "http2"))]
-    pub(crate) fn new_io(cause: std::io::Error) -> Error {
+    pub(super) fn new_io(cause: std::io::Error) -> Error {
         Error::new(Kind::Io).with(cause)
     }
 
     #[cfg(all(any(feature = "http1", feature = "http2"), feature = "tcp"))]
     #[cfg(feature = "server")]
-    pub(crate) fn new_listen<E: Into<Cause>>(cause: E) -> Error {
+    pub(super) fn new_listen<E: Into<Cause>>(cause: E) -> Error {
         Error::new(Kind::Listen).with(cause)
     }
 
     #[cfg(any(feature = "http1", feature = "http2"))]
     #[cfg(feature = "server")]
-    pub(crate) fn new_accept<E: Into<Cause>>(cause: E) -> Error {
+    pub(super) fn new_accept<E: Into<Cause>>(cause: E) -> Error {
         Error::new(Kind::Accept).with(cause)
     }
 
     #[cfg(any(feature = "http1", feature = "http2"))]
     #[cfg(feature = "client")]
-    pub(crate) fn new_connect<E: Into<Cause>>(cause: E) -> Error {
+    pub(super) fn new_connect<E: Into<Cause>>(cause: E) -> Error {
         Error::new(Kind::Connect).with(cause)
     }
 
-    pub(crate) fn new_closed() -> Error {
+    pub(super) fn new_closed() -> Error {
         Error::new(Kind::ChannelClosed)
     }
 
     #[cfg(any(feature = "http1", feature = "http2", feature = "stream"))]
-    pub(crate) fn new_body<E: Into<Cause>>(cause: E) -> Error {
+    pub(super) fn new_body<E: Into<Cause>>(cause: E) -> Error {
         Error::new(Kind::Body).with(cause)
     }
 
     #[cfg(any(feature = "http1", feature = "http2"))]
-    pub(crate) fn new_body_write<E: Into<Cause>>(cause: E) -> Error {
+    pub(super) fn new_body_write<E: Into<Cause>>(cause: E) -> Error {
         Error::new(Kind::BodyWrite).with(cause)
     }
 
-    pub(crate) fn new_body_write_aborted() -> Error {
+    pub(super) fn new_body_write_aborted() -> Error {
         Error::new(Kind::BodyWriteAborted)
     }
 
@@ -281,71 +281,71 @@ impl Error {
 
     #[cfg(feature = "http1")]
     #[cfg(feature = "server")]
-    pub(crate) fn new_user_header() -> Error {
+    pub(super) fn new_user_header() -> Error {
         Error::new_user(User::UnexpectedHeader)
     }
 
     #[cfg(any(feature = "http1", feature = "http2"))]
     #[cfg(feature = "client")]
-    pub(crate) fn new_user_unsupported_version() -> Error {
+    pub(super) fn new_user_unsupported_version() -> Error {
         Error::new_user(User::UnsupportedVersion)
     }
 
     #[cfg(any(feature = "http1", feature = "http2"))]
     #[cfg(feature = "client")]
-    pub(crate) fn new_user_unsupported_request_method() -> Error {
+    pub(super) fn new_user_unsupported_request_method() -> Error {
         Error::new_user(User::UnsupportedRequestMethod)
     }
 
     #[cfg(feature = "http1")]
     #[cfg(feature = "server")]
-    pub(crate) fn new_user_unsupported_status_code() -> Error {
+    pub(super) fn new_user_unsupported_status_code() -> Error {
         Error::new_user(User::UnsupportedStatusCode)
     }
 
     #[cfg(any(feature = "http1", feature = "http2"))]
     #[cfg(feature = "client")]
-    pub(crate) fn new_user_absolute_uri_required() -> Error {
+    pub(super) fn new_user_absolute_uri_required() -> Error {
         Error::new_user(User::AbsoluteUriRequired)
     }
 
-    pub(crate) fn new_user_no_upgrade() -> Error {
+    pub(super) fn new_user_no_upgrade() -> Error {
         Error::new_user(User::NoUpgrade)
     }
 
     #[cfg(feature = "http1")]
-    pub(crate) fn new_user_manual_upgrade() -> Error {
+    pub(super) fn new_user_manual_upgrade() -> Error {
         Error::new_user(User::ManualUpgrade)
     }
 
     #[cfg(any(feature = "http1", feature = "http2"))]
     #[cfg(feature = "server")]
-    pub(crate) fn new_user_make_service<E: Into<Cause>>(cause: E) -> Error {
+    pub(super) fn new_user_make_service<E: Into<Cause>>(cause: E) -> Error {
         Error::new_user(User::MakeService).with(cause)
     }
 
     #[cfg(any(feature = "http1", feature = "http2"))]
-    pub(crate) fn new_user_service<E: Into<Cause>>(cause: E) -> Error {
+    pub(super) fn new_user_service<E: Into<Cause>>(cause: E) -> Error {
         Error::new_user(User::Service).with(cause)
     }
 
     #[cfg(any(feature = "http1", feature = "http2"))]
-    pub(crate) fn new_user_body<E: Into<Cause>>(cause: E) -> Error {
+    pub(super) fn new_user_body<E: Into<Cause>>(cause: E) -> Error {
         Error::new_user(User::Body).with(cause)
     }
 
     #[cfg(feature = "http1")]
-    pub(crate) fn new_shutdown(cause: std::io::Error) -> Error {
+    pub(super) fn new_shutdown(cause: std::io::Error) -> Error {
         Error::new(Kind::Shutdown).with(cause)
     }
 
     #[cfg(feature = "ffi")]
-    pub(crate) fn new_user_aborted_by_callback() -> Error {
+    pub(super) fn new_user_aborted_by_callback() -> Error {
         Error::new_user(User::AbortedByCallback)
     }
 
     #[cfg(feature = "http2")]
-    pub(crate) fn new_h2(cause: ::h2::Error) -> Error {
+    pub(super) fn new_h2(cause: ::h2::Error) -> Error {
         if cause.is_io() {
             Error::new_io(cause.into_io().expect("h2::Error::is_io"))
         } else {

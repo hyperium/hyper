@@ -272,53 +272,59 @@ where
     }
 }
 
+fn get_host_port<'u>(config: &Config, dst: &'u Uri) -> Result<(&'u str, u16), ConnectError> {
+    trace!(
+        "Http::connect; scheme={:?}, host={:?}, port={:?}",
+        dst.scheme(),
+        dst.host(),
+        dst.port(),
+    );
+
+    if config.enforce_http {
+        if dst.scheme() != Some(&Scheme::HTTP) {
+            return Err(ConnectError {
+                msg: INVALID_NOT_HTTP.into(),
+                cause: None,
+            });
+        }
+    } else if dst.scheme().is_none() {
+        return Err(ConnectError {
+            msg: INVALID_MISSING_SCHEME.into(),
+            cause: None,
+        });
+    }
+
+    let host = match dst.host() {
+        Some(s) => s,
+        None => {
+            return Err(ConnectError {
+                msg: INVALID_MISSING_HOST.into(),
+                cause: None,
+            })
+        }
+    };
+    let port = match dst.port() {
+        Some(port) => port.as_u16(),
+        None => {
+            if dst.scheme() == Some(&Scheme::HTTPS) {
+                443
+            } else {
+                80
+            }
+        }
+    };
+
+    Ok((host, port))
+}
+
 impl<R> HttpConnector<R>
 where
     R: Resolve,
 {
     async fn call_async(&mut self, dst: Uri) -> Result<TcpStream, ConnectError> {
-        trace!(
-            "Http::connect; scheme={:?}, host={:?}, port={:?}",
-            dst.scheme(),
-            dst.host(),
-            dst.port(),
-        );
-
-        if self.config.enforce_http {
-            if dst.scheme() != Some(&Scheme::HTTP) {
-                return Err(ConnectError {
-                    msg: INVALID_NOT_HTTP.into(),
-                    cause: None,
-                });
-            }
-        } else if dst.scheme().is_none() {
-            return Err(ConnectError {
-                msg: INVALID_MISSING_SCHEME.into(),
-                cause: None,
-            });
-        }
-
-        let host = match dst.host() {
-            Some(s) => s,
-            None => {
-                return Err(ConnectError {
-                    msg: INVALID_MISSING_HOST.into(),
-                    cause: None,
-                })
-            }
-        };
-        let port = match dst.port() {
-            Some(port) => port.as_u16(),
-            None => {
-                if dst.scheme() == Some(&Scheme::HTTPS) {
-                    443
-                } else {
-                    80
-                }
-            }
-        };
-
         let config = &self.config;
+
+        let (host, port) = get_host_port(config, &dst)?;
 
         // If the host is already an IP addr (v4 or v6),
         // skip resolving the dns and start connecting right away.
@@ -328,10 +334,12 @@ where
             let addrs = resolve(&mut self.resolver, dns::Name::new(host.into()))
                 .await
                 .map_err(ConnectError::dns)?;
-            let addrs = addrs.map(|mut addr| {
-                addr.set_port(port);
-                addr
-            }).collect();
+            let addrs = addrs
+                .map(|mut addr| {
+                    addr.set_port(port);
+                    addr
+                })
+                .collect();
             dns::SocketAddrs::new(addrs)
         };
 

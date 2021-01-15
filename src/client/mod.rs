@@ -63,7 +63,7 @@ cfg_feature! {
 
     mod client;
     pub mod conn;
-    pub(crate) mod dispatch;
+    pub(super) mod dispatch;
     mod pool;
     pub mod service;
 }

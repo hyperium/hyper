@@ -63,6 +63,32 @@ impl Default for Config {
     }
 }
 
+fn new_builder(config: &Config) -> Builder {
+    let mut builder = Builder::default();
+    builder
+        .initial_window_size(config.initial_stream_window_size)
+        .initial_connection_window_size(config.initial_conn_window_size)
+        .max_frame_size(config.max_frame_size)
+        .enable_push(false);
+    builder
+}
+
+fn new_ping_config(config: &Config) -> ping::Config {
+    ping::Config {
+        bdp_initial_window: if config.adaptive_window {
+            Some(config.initial_stream_window_size)
+        } else {
+            None
+        },
+        #[cfg(feature = "runtime")]
+        keep_alive_interval: config.keep_alive_interval,
+        #[cfg(feature = "runtime")]
+        keep_alive_timeout: config.keep_alive_timeout,
+        #[cfg(feature = "runtime")]
+        keep_alive_while_idle: config.keep_alive_while_idle,
+    }
+}
+
 pub(crate) async fn handshake<T, B>(
     io: T,
     req_rx: ClientRx<B>,
@@ -74,11 +100,7 @@ where
     B: HttpBody,
     B::Data: Send + 'static,
 {
-    let (h2_tx, mut conn) = Builder::default()
-        .initial_window_size(config.initial_stream_window_size)
-        .initial_connection_window_size(config.initial_conn_window_size)
-        .max_frame_size(config.max_frame_size)
-        .enable_push(false)
+    let (h2_tx, mut conn) = new_builder(config)
         .handshake::<_, SendBuf<B::Data>>(io)
         .await
         .map_err(crate::Error::new_h2)?;
@@ -96,21 +118,9 @@ where
         }
     });
 
-    let ping_config = ping::Config {
-        bdp_initial_window: if config.adaptive_window {
-            Some(config.initial_stream_window_size)
-        } else {
-            None
-        },
-        #[cfg(feature = "runtime")]
-        keep_alive_interval: config.keep_alive_interval,
-        #[cfg(feature = "runtime")]
-        keep_alive_timeout: config.keep_alive_timeout,
-        #[cfg(feature = "runtime")]
-        keep_alive_while_idle: config.keep_alive_while_idle,
-    };
+    let ping_config = new_ping_config(&config);
 
-    let ping = if ping_config.is_enabled() {
+    let (conn, ping) = if ping_config.is_enabled() {
         let pp = conn.ping_pong().expect("conn.ping_pong");
         let (recorder, mut ponger) = ping::channel(pp, ping_config);
 
@@ -130,16 +140,13 @@ where
 
             Pin::new(&mut conn).poll(cx)
         });
-        let conn = conn.map_err(|e| debug!("connection error: {}", e));
-
-        exec.execute(conn_task(conn, conn_drop_rx, cancel_tx));
-        recorder
+        (Either::Left(conn), recorder)
     } else {
-        let conn = conn.map_err(|e| debug!("connection error: {}", e));
-
-        exec.execute(conn_task(conn, conn_drop_rx, cancel_tx));
-        ping::disabled()
+        (Either::Right(conn), ping::disabled())
     };
+    let conn = conn.map_err(|e| debug!("connection error: {}", e));
+
+    exec.execute(conn_task(conn, conn_drop_rx, cancel_tx));
 
     Ok(ClientTask {
         ping,

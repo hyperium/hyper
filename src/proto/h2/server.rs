@@ -136,7 +136,7 @@ where
         }
     }
 
-    pub fn graceful_shutdown(&mut self) {
+    pub(crate) fn graceful_shutdown(&mut self) {
         trace!("graceful_shutdown");
         match self.state {
             State::Handshaking { .. } => {
