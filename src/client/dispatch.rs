@@ -138,25 +138,22 @@ impl<T, U> Clone for UnboundedSender<T, U> {
     }
 }
 
-#[pin_project::pin_project(PinnedDrop)]
 pub(crate) struct Receiver<T, U> {
-    #[pin]
     inner: mpsc::UnboundedReceiver<Envelope<T, U>>,
     taker: want::Taker,
 }
 
 impl<T, U> Receiver<T, U> {
-    pub(crate) fn poll_next(
-        self: Pin<&mut Self>,
+    pub(crate) fn poll_recv(
+        &mut self,
         cx: &mut task::Context<'_>,
     ) -> Poll<Option<(T, Callback<T, U>)>> {
-        let mut this = self.project();
-        match this.inner.poll_recv(cx) {
+        match self.inner.poll_recv(cx) {
             Poll::Ready(item) => {
                 Poll::Ready(item.map(|mut env| env.0.take().expect("envelope not dropped")))
             }
             Poll::Pending => {
-                this.taker.want();
+                self.taker.want();
                 Poll::Pending
             }
         }
@@ -177,12 +174,11 @@ impl<T, U> Receiver<T, U> {
     }
 }
 
-#[pin_project::pinned_drop]
-impl<T, U> PinnedDrop for Receiver<T, U> {
-    fn drop(mut self: Pin<&mut Self>) {
+impl<T, U> Drop for Receiver<T, U> {
+    fn drop(&mut self) {
         // Notify the giver about the closure first, before dropping
         // the mpsc::Receiver.
-        self.as_mut().taker.cancel();
+        self.taker.cancel();
     }
 }
 
@@ -279,8 +275,8 @@ mod tests {
     impl<T, U> Future for Receiver<T, U> {
         type Output = Option<(T, Callback<T, U>)>;
 
-        fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-            self.poll_next(cx)
+        fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+            self.poll_recv(cx)
         }
     }
 

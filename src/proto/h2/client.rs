@@ -213,7 +213,7 @@ where
                 }
             };
 
-            match Pin::new(&mut self.req_rx).poll_next(cx) {
+            match self.req_rx.poll_recv(cx) {
                 Poll::Ready(Some((req, cb))) => {
                     // check that future hasn't been canceled already
                     if cb.is_canceled() {
