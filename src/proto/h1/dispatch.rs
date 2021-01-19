@@ -44,10 +44,8 @@ cfg_server! {
 }
 
 cfg_client! {
-    #[pin_project::pin_project]
     pub(crate) struct Client<B> {
         callback: Option<crate::client::dispatch::Callback<Request<B>, http::Response<Body>>>,
-        #[pin]
         rx: ClientRx<B>,
         rx_closed: bool,
     }
@@ -557,12 +555,12 @@ cfg_client! {
         type RecvItem = crate::proto::ResponseHead;
 
         fn poll_msg(
-            self: Pin<&mut Self>,
+            mut self: Pin<&mut Self>,
             cx: &mut task::Context<'_>,
         ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), crate::common::Never>>> {
-            let this = self.project();
-            debug_assert!(!*this.rx_closed);
-            match this.rx.poll_next(cx) {
+            let mut this = self.as_mut();
+            debug_assert!(!this.rx_closed);
+            match this.rx.poll_recv(cx) {
                 Poll::Ready(Some((req, mut cb))) => {
                     // check that future hasn't been canceled already
                     match cb.poll_canceled(cx) {
@@ -578,7 +576,7 @@ cfg_client! {
                                 headers: parts.headers,
                                 extensions: parts.extensions,
                             };
-                            *this.callback = Some(cb);
+                            this.callback = Some(cb);
                             Poll::Ready(Some(Ok((head, body))))
                         }
                     }
@@ -586,7 +584,7 @@ cfg_client! {
                 Poll::Ready(None) => {
                     // user has dropped sender handle
                     trace!("client tx closed");
-                    *this.rx_closed = true;
+                    this.rx_closed = true;
                     Poll::Ready(None)
                 }
                 Poll::Pending => Poll::Pending,
