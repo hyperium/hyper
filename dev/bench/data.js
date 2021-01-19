@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1610756960178,
+  "lastUpdate": 1611073946602,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -1169,6 +1169,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 45335,
             "range": "± 5126",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mikeroelens@gmail.com",
+            "name": "Mike Roelens",
+            "username": "mikeroelens"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ec2fd4a15f6c0ec612c38a9596c56cd87477d0f9",
+          "message": "docs(client): fix typo in httpbin.org domain (#2406)",
+          "timestamp": "2021-01-19T08:30:17-08:00",
+          "tree_id": "e7ca69f8ee39808cd92f849107091c006710c06e",
+          "url": "https://github.com/hyperium/hyper/commit/ec2fd4a15f6c0ec612c38a9596c56cd87477d0f9"
+        },
+        "date": 1611073945246,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 46005,
+            "range": "± 1026",
             "unit": "ns/iter"
           }
         ]
