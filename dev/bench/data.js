@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1611096861185,
+  "lastUpdate": 1611096879529,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -7875,6 +7875,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_req_100kb",
             "value": 104746,
             "range": "± 1296",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "erikdesjardins@users.noreply.github.com",
+            "name": "erikdesjardins",
+            "username": "erikdesjardins"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9956587f83428a5dbe338ba0b55c1dc0bce8c282",
+          "message": "feat(body): reexport `hyper::body::SizeHint` (#2404)",
+          "timestamp": "2021-01-19T14:50:07-08:00",
+          "tree_id": "56032966673662aaf1b8aa45fabd5895f1546240",
+          "url": "https://github.com/hyperium/hyper/commit/9956587f83428a5dbe338ba0b55c1dc0bce8c282"
+        },
+        "date": 1611096878165,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_body_both_100kb",
+            "value": 69514,
+            "range": "± 858",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_body_both_10mb",
+            "value": 6453892,
+            "range": "± 394011",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_get",
+            "value": 29355,
+            "range": "± 673",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 212540,
+            "range": "± 4445",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 51611521,
+            "range": "± 1592341",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 51632354,
+            "range": "± 1442207",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 55939372,
+            "range": "± 1834927",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 3395857,
+            "range": "± 215573",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_post",
+            "value": 32868,
+            "range": "± 478",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_get",
+            "value": 46800,
+            "range": "± 856",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 147728,
+            "range": "± 1505",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 7659758,
+            "range": "± 8860907",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7813688,
+            "range": "± 8925323",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7475234,
+            "range": "± 8506281",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 53448606,
+            "range": "± 3987426",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 65798818,
+            "range": "± 12252027",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5554481,
+            "range": "± 703424",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_post",
+            "value": 52268,
+            "range": "± 1247",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_req_100kb",
+            "value": 103298,
+            "range": "± 1956",
             "unit": "ns/iter"
           }
         ]
