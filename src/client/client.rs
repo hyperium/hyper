@@ -147,7 +147,7 @@ where
     ///
     /// let req = Request::builder()
     ///     .method("POST")
-    ///     .uri("http://httpin.org/post")
+    ///     .uri("http://httpbin.org/post")
     ///     .body(Body::from("Hallo!"))
     ///     .expect("request builder");
     ///
