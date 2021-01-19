@@ -17,6 +17,7 @@
 
 pub use bytes::{Buf, Bytes};
 pub use http_body::Body as HttpBody;
+pub use http_body::SizeHint;
 
 pub use self::aggregate::aggregate;
 pub use self::body::{Body, Sender};
