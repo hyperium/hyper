@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1611096736412,
+  "lastUpdate": 1611096757933,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -2401,6 +2401,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 53675,
             "range": "± 3673",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "erikdesjardins@users.noreply.github.com",
+            "name": "erikdesjardins",
+            "username": "erikdesjardins"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9956587f83428a5dbe338ba0b55c1dc0bce8c282",
+          "message": "feat(body): reexport `hyper::body::SizeHint` (#2404)",
+          "timestamp": "2021-01-19T14:50:07-08:00",
+          "tree_id": "56032966673662aaf1b8aa45fabd5895f1546240",
+          "url": "https://github.com/hyperium/hyper/commit/9956587f83428a5dbe338ba0b55c1dc0bce8c282"
+        },
+        "date": 1611096756448,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 55064,
+            "range": "± 6123",
             "unit": "ns/iter"
           }
         ]
