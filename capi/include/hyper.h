@@ -54,6 +54,10 @@ typedef enum {
    An optional hyper feature was not enabled.
    */
   HYPERE_FEATURE_NOT_ENABLED,
+  /*
+   The peer sent an HTTP message that could not be parsed.
+   */
+  HYPERE_INVALID_PEER_MESSAGE,
 } hyper_code;
 
 typedef enum {

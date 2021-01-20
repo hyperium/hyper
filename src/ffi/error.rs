@@ -20,6 +20,8 @@ pub enum hyper_code {
     /// An optional hyper feature was not enabled.
     #[cfg_attr(feature = "http2", allow(unused))]
     HYPERE_FEATURE_NOT_ENABLED,
+    /// The peer sent an HTTP message that could not be parsed.
+    HYPERE_INVALID_PEER_MESSAGE,
 }
 
 // ===== impl hyper_error =====
@@ -30,6 +32,7 @@ impl hyper_error {
         use crate::error::User;
 
         match self.0.kind() {
+            ErrorKind::Parse(_) => hyper_code::HYPERE_INVALID_PEER_MESSAGE,
             ErrorKind::IncompleteMessage => hyper_code::HYPERE_UNEXPECTED_EOF,
             ErrorKind::User(User::AbortedByCallback) => hyper_code::HYPERE_ABORTED_BY_CALLBACK,
             // TODO: add more variants
