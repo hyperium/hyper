@@ -12,12 +12,11 @@ use tokio::net::TcpListener;
 #[bench]
 fn http_connector(b: &mut test::Bencher) {
     let _ = pretty_env_logger::try_init();
-    let mut rt = tokio::runtime::Builder::new()
+    let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
-        .basic_scheduler()
         .build()
         .expect("rt build");
-    let mut listener = rt
+    let listener = rt
         .block_on(TcpListener::bind(&SocketAddr::from(([127, 0, 0, 1], 0))))
         .expect("bind");
     let addr = listener.local_addr().expect("local_addr");

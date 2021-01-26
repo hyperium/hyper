@@ -16,7 +16,7 @@ use hyper::{Body, Response, Server};
 const PIPELINED_REQUESTS: usize = 16;
 
 #[bench]
-fn hello_world(b: &mut test::Bencher) {
+fn hello_world_16(b: &mut test::Bencher) {
     let _ = pretty_env_logger::try_init();
     let (_until_tx, until_rx) = oneshot::channel::<()>();
 
@@ -31,9 +31,8 @@ fn hello_world(b: &mut test::Bencher) {
                 }))
             });
 
-            let mut rt = tokio::runtime::Builder::new()
+            let rt = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
-                .basic_scheduler()
                 .build()
                 .expect("rt build");
             let srv = rt.block_on(async move {

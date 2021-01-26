@@ -1,17 +1,23 @@
+#[cfg(feature = "http1")]
 use bytes::BytesMut;
-use http::header::{HeaderValue, OccupiedEntry, ValueIter};
-use http::header::{CONTENT_LENGTH, TRANSFER_ENCODING};
-use http::method::Method;
+use http::header::CONTENT_LENGTH;
+use http::header::{HeaderValue, ValueIter};
+#[cfg(feature = "http2")]
+#[cfg(feature = "client")]
+use http::Method;
 use http::HeaderMap;
 
-pub fn connection_keep_alive(value: &HeaderValue) -> bool {
+#[cfg(feature = "http1")]
+pub(super) fn connection_keep_alive(value: &HeaderValue) -> bool {
     connection_has(value, "keep-alive")
 }
 
-pub fn connection_close(value: &HeaderValue) -> bool {
+#[cfg(feature = "http1")]
+pub(super) fn connection_close(value: &HeaderValue) -> bool {
     connection_has(value, "close")
 }
 
+#[cfg(feature = "http1")]
 fn connection_has(value: &HeaderValue, needle: &str) -> bool {
     if let Ok(s) = value.to_str() {
         for val in s.split(',') {
@@ -23,15 +29,17 @@ fn connection_has(value: &HeaderValue, needle: &str) -> bool {
     false
 }
 
-pub fn content_length_parse(value: &HeaderValue) -> Option<u64> {
+#[cfg(feature = "http1")]
+#[cfg(feature = "server")]
+pub(super) fn content_length_parse(value: &HeaderValue) -> Option<u64> {
     value.to_str().ok().and_then(|s| s.parse().ok())
 }
 
-pub fn content_length_parse_all(headers: &HeaderMap) -> Option<u64> {
+pub(super) fn content_length_parse_all(headers: &HeaderMap) -> Option<u64> {
     content_length_parse_all_values(headers.get_all(CONTENT_LENGTH).into_iter())
 }
 
-pub fn content_length_parse_all_values(values: ValueIter<'_, HeaderValue>) -> Option<u64> {
+pub(super) fn content_length_parse_all_values(values: ValueIter<'_, HeaderValue>) -> Option<u64> {
     // If multiple Content-Length headers were sent, everything can still
     // be alright if they all contain the same value, and all parse
     // correctly. If not, then it's an error.
@@ -58,24 +66,29 @@ pub fn content_length_parse_all_values(values: ValueIter<'_, HeaderValue>) -> Op
     }
 }
 
-pub fn method_has_defined_payload_semantics(method: &Method) -> bool {
+#[cfg(feature = "http2")]
+#[cfg(feature = "client")]
+pub(super) fn method_has_defined_payload_semantics(method: &Method) -> bool {
     match *method {
         Method::GET | Method::HEAD | Method::DELETE | Method::CONNECT => false,
         _ => true,
     }
 }
 
-pub fn set_content_length_if_missing(headers: &mut HeaderMap, len: u64) {
+#[cfg(feature = "http2")]
+pub(super) fn set_content_length_if_missing(headers: &mut HeaderMap, len: u64) {
     headers
         .entry(CONTENT_LENGTH)
         .or_insert_with(|| HeaderValue::from(len));
 }
 
-pub fn transfer_encoding_is_chunked(headers: &HeaderMap) -> bool {
-    is_chunked(headers.get_all(TRANSFER_ENCODING).into_iter())
+#[cfg(feature = "http1")]
+pub(super) fn transfer_encoding_is_chunked(headers: &HeaderMap) -> bool {
+    is_chunked(headers.get_all(http::header::TRANSFER_ENCODING).into_iter())
 }
 
-pub fn is_chunked(mut encodings: ValueIter<'_, HeaderValue>) -> bool {
+#[cfg(feature = "http1")]
+pub(super) fn is_chunked(mut encodings: ValueIter<'_, HeaderValue>) -> bool {
     // chunked must always be the last encoding, according to spec
     if let Some(line) = encodings.next_back() {
         return is_chunked_(line);
@@ -84,7 +97,8 @@ pub fn is_chunked(mut encodings: ValueIter<'_, HeaderValue>) -> bool {
     false
 }
 
-pub fn is_chunked_(value: &HeaderValue) -> bool {
+#[cfg(feature = "http1")]
+pub(super) fn is_chunked_(value: &HeaderValue) -> bool {
     // chunked must always be the last encoding, according to spec
     if let Ok(s) = value.to_str() {
         if let Some(encoding) = s.rsplit(',').next() {
@@ -95,7 +109,8 @@ pub fn is_chunked_(value: &HeaderValue) -> bool {
     false
 }
 
-pub fn add_chunked(mut entry: OccupiedEntry<'_, HeaderValue>) {
+#[cfg(feature = "http1")]
+pub(super) fn add_chunked(mut entry: http::header::OccupiedEntry<'_, HeaderValue>) {
     const CHUNKED: &str = "chunked";
 
     if let Some(line) = entry.iter_mut().next_back() {

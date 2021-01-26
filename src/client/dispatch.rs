@@ -1,12 +1,15 @@
-use futures_util::future;
+#[cfg(feature = "http2")]
+use std::future::Future;
+
+use futures_util::FutureExt;
 use tokio::sync::{mpsc, oneshot};
 
-use crate::common::{task, Future, Pin, Poll};
+use crate::common::{task, Pin, Poll};
 
-pub type RetryPromise<T, U> = oneshot::Receiver<Result<U, (crate::Error, Option<T>)>>;
-pub type Promise<T> = oneshot::Receiver<Result<T, crate::Error>>;
+pub(crate) type RetryPromise<T, U> = oneshot::Receiver<Result<U, (crate::Error, Option<T>)>>;
+pub(crate) type Promise<T> = oneshot::Receiver<Result<T, crate::Error>>;
 
-pub fn channel<T, U>() -> (Sender<T, U>, Receiver<T, U>) {
+pub(crate) fn channel<T, U>() -> (Sender<T, U>, Receiver<T, U>) {
     let (tx, rx) = mpsc::unbounded_channel();
     let (giver, taker) = want::new();
     let tx = Sender {
@@ -22,7 +25,7 @@ pub fn channel<T, U>() -> (Sender<T, U>, Receiver<T, U>) {
 ///
 /// While the inner sender is unbounded, the Giver is used to determine
 /// if the Receiver is ready for another request.
-pub struct Sender<T, U> {
+pub(crate) struct Sender<T, U> {
     /// One message is always allowed, even if the Receiver hasn't asked
     /// for it yet. This boolean keeps track of whether we've sent one
     /// without notice.
@@ -40,24 +43,25 @@ pub struct Sender<T, U> {
 ///
 /// Cannot poll the Giver, but can still use it to determine if the Receiver
 /// has been dropped. However, this version can be cloned.
-pub struct UnboundedSender<T, U> {
+#[cfg(feature = "http2")]
+pub(crate) struct UnboundedSender<T, U> {
     /// Only used for `is_closed`, since mpsc::UnboundedSender cannot be checked.
     giver: want::SharedGiver,
     inner: mpsc::UnboundedSender<Envelope<T, U>>,
 }
 
 impl<T, U> Sender<T, U> {
-    pub fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    pub(crate) fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
         self.giver
             .poll_want(cx)
             .map_err(|_| crate::Error::new_closed())
     }
 
-    pub fn is_ready(&self) -> bool {
+    pub(crate) fn is_ready(&self) -> bool {
         self.giver.is_wanting()
     }
 
-    pub fn is_closed(&self) -> bool {
+    pub(crate) fn is_closed(&self) -> bool {
         self.giver.is_canceled()
     }
 
@@ -74,7 +78,7 @@ impl<T, U> Sender<T, U> {
         }
     }
 
-    pub fn try_send(&mut self, val: T) -> Result<RetryPromise<T, U>, T> {
+    pub(crate) fn try_send(&mut self, val: T) -> Result<RetryPromise<T, U>, T> {
         if !self.can_send() {
             return Err(val);
         }
@@ -85,7 +89,7 @@ impl<T, U> Sender<T, U> {
             .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
     }
 
-    pub fn send(&mut self, val: T) -> Result<Promise<U>, T> {
+    pub(crate) fn send(&mut self, val: T) -> Result<Promise<U>, T> {
         if !self.can_send() {
             return Err(val);
         }
@@ -96,7 +100,8 @@ impl<T, U> Sender<T, U> {
             .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
     }
 
-    pub fn unbound(self) -> UnboundedSender<T, U> {
+    #[cfg(feature = "http2")]
+    pub(crate) fn unbound(self) -> UnboundedSender<T, U> {
         UnboundedSender {
             giver: self.giver.shared(),
             inner: self.inner,
@@ -104,16 +109,17 @@ impl<T, U> Sender<T, U> {
     }
 }
 
+#[cfg(feature = "http2")]
 impl<T, U> UnboundedSender<T, U> {
-    pub fn is_ready(&self) -> bool {
+    pub(crate) fn is_ready(&self) -> bool {
         !self.giver.is_canceled()
     }
 
-    pub fn is_closed(&self) -> bool {
+    pub(crate) fn is_closed(&self) -> bool {
         self.giver.is_canceled()
     }
 
-    pub fn try_send(&mut self, val: T) -> Result<RetryPromise<T, U>, T> {
+    pub(crate) fn try_send(&mut self, val: T) -> Result<RetryPromise<T, U>, T> {
         let (tx, rx) = oneshot::channel();
         self.inner
             .send(Envelope(Some((val, Callback::Retry(tx)))))
@@ -122,6 +128,7 @@ impl<T, U> UnboundedSender<T, U> {
     }
 }
 
+#[cfg(feature = "http2")]
 impl<T, U> Clone for UnboundedSender<T, U> {
     fn clone(&self) -> Self {
         UnboundedSender {
@@ -131,13 +138,13 @@ impl<T, U> Clone for UnboundedSender<T, U> {
     }
 }
 
-pub struct Receiver<T, U> {
+pub(crate) struct Receiver<T, U> {
     inner: mpsc::UnboundedReceiver<Envelope<T, U>>,
     taker: want::Taker,
 }
 
 impl<T, U> Receiver<T, U> {
-    pub(crate) fn poll_next(
+    pub(crate) fn poll_recv(
         &mut self,
         cx: &mut task::Context<'_>,
     ) -> Poll<Option<(T, Callback<T, U>)>> {
@@ -152,15 +159,17 @@ impl<T, U> Receiver<T, U> {
         }
     }
 
+    #[cfg(feature = "http1")]
     pub(crate) fn close(&mut self) {
         self.taker.cancel();
         self.inner.close();
     }
 
+    #[cfg(feature = "http1")]
     pub(crate) fn try_recv(&mut self) -> Option<(T, Callback<T, U>)> {
-        match self.inner.try_recv() {
-            Ok(mut env) => env.0.take(),
-            Err(_) => None,
+        match self.inner.recv().now_or_never() {
+            Some(Some(mut env)) => env.0.take(),
+            _ => None,
         }
     }
 }
@@ -186,12 +195,13 @@ impl<T, U> Drop for Envelope<T, U> {
     }
 }
 
-pub enum Callback<T, U> {
+pub(crate) enum Callback<T, U> {
     Retry(oneshot::Sender<Result<U, (crate::Error, Option<T>)>>),
     NoRetry(oneshot::Sender<Result<U, crate::Error>>),
 }
 
 impl<T, U> Callback<T, U> {
+    #[cfg(feature = "http2")]
     pub(crate) fn is_canceled(&self) -> bool {
         match *self {
             Callback::Retry(ref tx) => tx.is_closed(),
@@ -217,10 +227,13 @@ impl<T, U> Callback<T, U> {
         }
     }
 
+    #[cfg(feature = "http2")]
     pub(crate) fn send_when(
         self,
         mut when: impl Future<Output = Result<U, (crate::Error, Option<T>)>> + Unpin,
     ) -> impl Future<Output = ()> {
+        use futures_util::future;
+
         let mut cb = Some(self);
 
         // "select" on this callback being canceled, and the future completing
@@ -263,7 +276,7 @@ mod tests {
         type Output = Option<(T, Callback<T, U>)>;
 
         fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-            self.poll_next(cx)
+            self.poll_recv(cx)
         }
     }
 
@@ -325,6 +338,7 @@ mod tests {
         let _ = tx.try_send(Custom(2)).expect("2 ready");
     }
 
+    #[cfg(feature = "http2")]
     #[test]
     fn unbounded_sender_doesnt_bound_on_want() {
         let (tx, rx) = channel::<Custom, ()>();
@@ -344,9 +358,8 @@ mod tests {
     fn giver_queue_throughput(b: &mut test::Bencher) {
         use crate::{Body, Request, Response};
 
-        let mut rt = tokio::runtime::Builder::new()
+        let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
-            .basic_scheduler()
             .build()
             .unwrap();
         let (mut tx, mut rx) = channel::<Request<Body>, Response<Body>>();
@@ -368,9 +381,8 @@ mod tests {
     #[cfg(feature = "nightly")]
     #[bench]
     fn giver_queue_not_ready(b: &mut test::Bencher) {
-        let mut rt = tokio::runtime::Builder::new()
+        let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
-            .basic_scheduler()
             .build()
             .unwrap();
         let (_tx, mut rx) = channel::<i32, ()>();

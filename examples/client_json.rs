@@ -4,7 +4,7 @@
 #[macro_use]
 extern crate serde_derive;
 
-use bytes::buf::BufExt as _;
+use bytes::Buf as _;
 use hyper::Client;
 
 // A simple type alias so as to DRY.

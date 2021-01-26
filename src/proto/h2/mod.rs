@@ -9,17 +9,21 @@ use pin_project::pin_project;
 use std::error::Error as StdError;
 use std::io::IoSlice;
 
-use super::DecodedLength;
-use crate::body::HttpBody;
+use crate::body::{DecodedLength, HttpBody};
 use crate::common::{task, Future, Pin, Poll};
 use crate::headers::content_length_parse_all;
 
-pub(crate) mod client;
 pub(crate) mod ping;
-pub(crate) mod server;
 
-pub(crate) use self::client::ClientTask;
-pub(crate) use self::server::Server;
+cfg_client! {
+    pub(crate) mod client;
+    pub(crate) use self::client::ClientTask;
+}
+
+cfg_server! {
+    pub(crate) mod server;
+    pub(crate) use self::server::Server;
+}
 
 /// Default initial stream window size defined in HTTP2 spec.
 pub(crate) const SPEC_WINDOW_SIZE: u32 = 65_535;
@@ -253,8 +257,8 @@ impl<B: Buf> Buf for SendBuf<B> {
     }
 
     #[inline]
-    fn bytes(&self) -> &[u8] {
-        self.0.as_ref().map(|b| b.bytes()).unwrap_or(&[])
+    fn chunk(&self) -> &[u8] {
+        self.0.as_ref().map(|b| b.chunk()).unwrap_or(&[])
     }
 
     #[inline]
@@ -264,7 +268,7 @@ impl<B: Buf> Buf for SendBuf<B> {
         }
     }
 
-    fn bytes_vectored<'a>(&'a self, dst: &mut [IoSlice<'a>]) -> usize {
-        self.0.as_ref().map(|b| b.bytes_vectored(dst)).unwrap_or(0)
+    fn chunks_vectored<'a>(&'a self, dst: &mut [IoSlice<'a>]) -> usize {
+        self.0.as_ref().map(|b| b.chunks_vectored(dst)).unwrap_or(0)
     }
 }

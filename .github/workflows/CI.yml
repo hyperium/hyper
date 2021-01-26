@@ -9,6 +9,18 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
+  ci-pass:
+    name: CI is green
+    runs-on: ubuntu-latest
+    needs:
+      - style
+      - test
+      - features
+      - ffi
+      - doc
+    steps:
+      - run: exit 0
+
   style:
     name: Check Style
     runs-on: ubuntu-latest
@@ -39,7 +51,7 @@ jobs:
           - stable
           - beta
           - nightly
-          - 1.39.0
+          - 1.45.2
 
         os:
           - ubuntu-latest
@@ -48,11 +60,11 @@ jobs:
 
         include:
           - rust: stable
-            features: ""
+            features: "--features full"
           - rust: beta
-            features: ""
+            features: "--features full"
           - rust: nightly
-            features: "--features nightly"
+            features: "--features full,nightly"
             benches: true
 
     runs-on: ${{ matrix.os }}
@@ -82,14 +94,29 @@ jobs:
           args: --benches ${{ matrix.features }}
 
   features:
-    name: Test Feature ${{ matrix.features }}
+    name: features
     needs: [style]
-    strategy:
-      matrix:
-        features:
-          - "--features __internal_happy_eyeballs_tests"
-          - "--no-default-features --features tcp"
-          - "--no-default-features"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+
+      - name: Install cargo-hack
+        run: cargo install cargo-hack
+
+      - name: check --each-feature
+        run: cargo hack check --each-feature --skip ffi -Z avoid-dev-deps
+
+  ffi:
+    name: Test C API (FFI)
+    needs: [style]
 
     runs-on: ubuntu-latest
 
@@ -104,11 +131,34 @@ jobs:
           toolchain: stable
           override: true
 
-      - name: Test
+      - name: Install cbindgen
         uses: actions-rs/cargo@v1
         with:
+          command: install
+          args: cbindgen
+
+      - name: Build FFI
+        uses: actions-rs/cargo@v1
+        env:
+          RUSTFLAGS: --cfg hyper_unstable_ffi
+        with:
+          command: build
+          args: --features client,http1,http2,ffi
+
+      # TODO: re-enable check once figuring out how to get it working in CI
+      # - name: Verify cbindgen
+      #   run: ./capi/gen_header.sh --verify
+
+      - name: Make Examples
+        run: cd capi/examples && make client
+
+      - name: Run FFI unit tests
+        uses: actions-rs/cargo@v1
+        env:
+          RUSTFLAGS: --cfg hyper_unstable_ffi
+        with:
           command: test
-          args: ${{ matrix.features }}
+          args: --features full,ffi --lib
 
   doc:
     name: Build docs
@@ -129,4 +179,4 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: rustdoc
-          args: -- -D broken-intra-doc-links
+          args: --features full -- --cfg docsrs -D broken-intra-doc-links

@@ -33,7 +33,7 @@ use std::time::Instant;
 
 use h2::{Ping, PingPong};
 #[cfg(feature = "runtime")]
-use tokio::time::{Delay, Instant};
+use tokio::time::{Instant, Sleep};
 
 type WindowSize = u32;
 
@@ -60,7 +60,7 @@ pub(super) fn channel(ping_pong: PingPong, config: Config) -> (Recorder, Ponger)
         interval,
         timeout: config.keep_alive_timeout,
         while_idle: config.keep_alive_while_idle,
-        timer: tokio::time::delay_for(interval),
+        timer: Box::pin(tokio::time::sleep(interval)),
         state: KeepAliveState::Init,
     });
 
@@ -156,7 +156,7 @@ struct KeepAlive {
     while_idle: bool,
 
     state: KeepAliveState,
-    timer: Delay,
+    timer: Pin<Box<Sleep>>,
 }
 
 #[cfg(feature = "runtime")]
@@ -236,6 +236,7 @@ impl Recorder {
 
     /// If the incoming stream is already closed, convert self into
     /// a disabled reporter.
+    #[cfg(feature = "client")]
     pub(super) fn for_stream(self, stream: &h2::RecvStream) -> Self {
         if stream.is_end_stream() {
             disabled()
@@ -440,7 +441,7 @@ impl KeepAlive {
 
                 self.state = KeepAliveState::Scheduled;
                 let interval = shared.last_read_at() + self.interval;
-                self.timer.reset(interval);
+                self.timer.as_mut().reset(interval);
             }
             KeepAliveState::PingSent => {
                 if shared.is_ping_sent() {
@@ -449,7 +450,7 @@ impl KeepAlive {
 
                 self.state = KeepAliveState::Scheduled;
                 let interval = shared.last_read_at() + self.interval;
-                self.timer.reset(interval);
+                self.timer.as_mut().reset(interval);
             }
             KeepAliveState::Scheduled => (),
         }
@@ -471,7 +472,7 @@ impl KeepAlive {
                 shared.send_ping();
                 self.state = KeepAliveState::PingSent;
                 let timeout = Instant::now() + self.timeout;
-                self.timer.reset(timeout);
+                self.timer.as_mut().reset(timeout);
             }
             KeepAliveState::Init | KeepAliveState::PingSent => (),
         }
