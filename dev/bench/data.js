@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1611686381361,
+  "lastUpdate": 1611686395552,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -2581,6 +2581,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 59284,
             "range": "± 18434",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "inikulin@cloudflare.com",
+            "name": "Ivan Nikulin",
+            "username": "inikulin"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2c8121f1735aa8efeb0d5e4ef595363c373ba470",
+          "message": "fix(client): HTTP/1 client \"Transfer-Encoding\" repair code would panic (#2410)\n\nCloses #2409",
+          "timestamp": "2021-01-26T10:36:58-08:00",
+          "tree_id": "774a20785cfcebc335095bbd9f4c823305ac5cd4",
+          "url": "https://github.com/hyperium/hyper/commit/2c8121f1735aa8efeb0d5e4ef595363c373ba470"
+        },
+        "date": 1611686394024,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 69611,
+            "range": "± 25296",
             "unit": "ns/iter"
           }
         ]
