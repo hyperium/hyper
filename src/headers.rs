@@ -117,9 +117,9 @@ pub(super) fn add_chunked(mut entry: http::header::OccupiedEntry<'_, HeaderValue
         // + 2 for ", "
         let new_cap = line.as_bytes().len() + CHUNKED.len() + 2;
         let mut buf = BytesMut::with_capacity(new_cap);
-        buf.copy_from_slice(line.as_bytes());
-        buf.copy_from_slice(b", ");
-        buf.copy_from_slice(CHUNKED.as_bytes());
+        buf.extend_from_slice(line.as_bytes());
+        buf.extend_from_slice(b", ");
+        buf.extend_from_slice(CHUNKED.as_bytes());
 
         *line = HeaderValue::from_maybe_shared(buf.freeze())
             .expect("original header value plus ascii is valid");
