@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1611686495394,
+  "lastUpdate": 1611871916109,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -1319,6 +1319,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 66957,
             "range": "± 9492",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jplatte+git@posteo.de",
+            "name": "Jonas Platte",
+            "username": "jplatte"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "43412a950f2052e7865eb596c1d39067b2002a94",
+          "message": "refactor(lib): Switch from pin-project to pin-project-lite",
+          "timestamp": "2021-01-28T14:09:53-08:00",
+          "tree_id": "f8f20dc86e8ecfa06a44b844b7c9c04a6e940a29",
+          "url": "https://github.com/hyperium/hyper/commit/43412a950f2052e7865eb596c1d39067b2002a94"
+        },
+        "date": 1611871914808,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 46165,
+            "range": "± 3117",
             "unit": "ns/iter"
           }
         ]
