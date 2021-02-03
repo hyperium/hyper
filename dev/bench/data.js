@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1612314671923,
+  "lastUpdate": 1612314710419,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -2761,6 +2761,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46561,
             "range": "± 7876",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "vorner@vorner.cz",
+            "name": "Michal 'vorner' Vaner",
+            "username": "vorner"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4d2125c67c8087de863f74278a017c4caf37e6a9",
+          "message": "perf(body): specialize BufList::copy_to_bytes (#2413)\n\nSome implementations of the Buf trait have an optimized version (for\r\nexample Bytes) of copy_to_bytes, opportunistically use that one.",
+          "timestamp": "2021-02-02T17:09:06-08:00",
+          "tree_id": "f97fa886587f34e8aa412ff28bb5d237ae850a3f",
+          "url": "https://github.com/hyperium/hyper/commit/4d2125c67c8087de863f74278a017c4caf37e6a9"
+        },
+        "date": 1612314701633,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 56293,
+            "range": "± 2048",
             "unit": "ns/iter"
           }
         ]
