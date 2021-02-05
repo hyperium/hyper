@@ -45,6 +45,7 @@
 
 use std::error::Error as StdError;
 use std::fmt;
+#[cfg(feature = "http1")]
 use std::marker::PhantomData;
 #[cfg(feature = "tcp")]
 use std::net::SocketAddr;
@@ -52,7 +53,7 @@ use std::net::SocketAddr;
 use std::time::Duration;
 
 use bytes::Bytes;
-use pin_project_lite::pin_project;
+use pin_project::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::accept::Accept;
@@ -108,85 +109,77 @@ enum ConnectionMode {
     Fallback,
 }
 
-pin_project! {
-    /// A stream mapping incoming IOs to new services.
-    ///
-    /// Yields `Connecting`s that are futures that should be put on a reactor.
-    #[must_use = "streams do nothing unless polled"]
-    #[derive(Debug)]
-    pub(super) struct Serve<I, S, E = Exec> {
+/// A stream mapping incoming IOs to new services.
+///
+/// Yields `Connecting`s that are futures that should be put on a reactor.
+#[must_use = "streams do nothing unless polled"]
+#[pin_project]
+#[derive(Debug)]
+pub(super) struct Serve<I, S, E = Exec> {
+    #[pin]
+    incoming: I,
+    make_service: S,
+    protocol: Http<E>,
+}
+
+/// A future building a new `Service` to a `Connection`.
+///
+/// Wraps the future returned from `MakeService` into one that returns
+/// a `Connection`.
+#[must_use = "futures do nothing unless polled"]
+#[pin_project]
+#[derive(Debug)]
+pub struct Connecting<I, F, E = Exec> {
+    #[pin]
+    future: F,
+    io: Option<I>,
+    protocol: Http<E>,
+}
+
+#[must_use = "futures do nothing unless polled"]
+#[pin_project]
+#[derive(Debug)]
+pub(super) struct SpawnAll<I, S, E> {
+    // TODO: re-add `pub(super)` once rustdoc can handle this.
+    //
+    // See https://github.com/rust-lang/rust/issues/64705
+    #[pin]
+    pub(super) serve: Serve<I, S, E>,
+}
+
+/// A future binding a connection with a Service.
+///
+/// Polling this future will drive HTTP forward.
+#[must_use = "futures do nothing unless polled"]
+#[pin_project]
+pub struct Connection<T, S, E = Exec>
+where
+    S: HttpService<Body>,
+{
+    pub(super) conn: Option<ProtoServer<T, S::ResBody, S, E>>,
+    #[cfg(all(feature = "http1", feature = "http2"))]
+    fallback: Fallback<E>,
+}
+
+#[pin_project(project = ProtoServerProj)]
+pub(super) enum ProtoServer<T, B, S, E = Exec>
+where
+    S: HttpService<Body>,
+    B: HttpBody,
+{
+    #[cfg(feature = "http1")]
+    H1(
         #[pin]
-        incoming: I,
-        make_service: S,
-        protocol: Http<E>,
-    }
-}
-
-pin_project! {
-    /// A future building a new `Service` to a `Connection`.
-    ///
-    /// Wraps the future returned from `MakeService` into one that returns
-    /// a `Connection`.
-    #[must_use = "futures do nothing unless polled"]
-    #[derive(Debug)]
-    pub struct Connecting<I, F, E = Exec> {
-        #[pin]
-        future: F,
-        io: Option<I>,
-        protocol: Http<E>,
-    }
-}
-
-pin_project! {
-    #[must_use = "futures do nothing unless polled"]
-    #[derive(Debug)]
-    pub(super) struct SpawnAll<I, S, E> {
-        // TODO: re-add `pub(super)` once rustdoc can handle this.
-        //
-        // See https://github.com/rust-lang/rust/issues/64705
-        #[pin]
-        pub(super) serve: Serve<I, S, E>,
-    }
-}
-
-pin_project! {
-    /// A future binding a connection with a Service.
-    ///
-    /// Polling this future will drive HTTP forward.
-    #[must_use = "futures do nothing unless polled"]
-    pub struct Connection<T, S, E = Exec>
-    where
-        S: HttpService<Body>,
-    {
-        pub(super) conn: Option<ProtoServer<T, S::ResBody, S, E>>,
-        fallback: Fallback<E>,
-    }
-}
-
-pin_project! {
-    #[project = ProtoServerProj]
-    pub(super) enum ProtoServer<T, B, S, E = Exec>
-    where
-        S: HttpService<Body>,
-        B: HttpBody,
-    {
-        #[cfg(feature = "http1")]
-        H1 {
-            #[pin]
-            h1: proto::h1::Dispatcher<
-                proto::h1::dispatch::Server<S, Body>,
-                B,
-                T,
-                proto::ServerTransaction,
-            >,
-            _phantom: PhantomData<E>,
-        },
-        #[cfg(feature = "http2")]
-        H2 {
-            #[pin]
-            h2: proto::h2::Server<Rewind<T>, S, B, E>,
-        },
-    }
+        proto::h1::Dispatcher<
+            proto::h1::dispatch::Server<S, Body>,
+            B,
+            T,
+            proto::ServerTransaction,
+        >,
+        PhantomData<E>,
+    ),
+    #[cfg(feature = "http2")]
+    H2(#[pin] proto::h2::Server<Rewind<T>, S, B, E>),
 }
 
 #[cfg(all(feature = "http1", feature = "http2"))]
@@ -195,10 +188,6 @@ enum Fallback<E> {
     ToHttp2(proto::h2::server::Config, E),
     Http1Only,
 }
-
-#[cfg(not(all(feature = "http1", feature = "http2")))]
-#[derive(Clone, Debug)]
-struct Fallback<E>(PhantomData<E>);
 
 #[cfg(all(feature = "http1", feature = "http2"))]
 impl<E> Fallback<E> {
@@ -530,10 +519,7 @@ impl<E> Http<E> {
                     conn.set_max_buf_size(max);
                 }
                 let sd = proto::h1::dispatch::Server::new(service);
-                ProtoServer::H1 {
-                    h1: proto::h1::Dispatcher::new(sd, conn),
-                    _phantom: PhantomData,
-                }
+                ProtoServer::H1(proto::h1::Dispatcher::new(sd, conn), PhantomData)
             }};
         }
 
@@ -549,7 +535,7 @@ impl<E> Http<E> {
                 let rewind_io = Rewind::new(io);
                 let h2 =
                     proto::h2::Server::new(rewind_io, service, &self.h2_builder, self.exec.clone());
-                ProtoServer::H2 { h2 }
+                ProtoServer::H2(h2)
             }
         };
 
@@ -604,14 +590,14 @@ where
     /// This should only be called while the `Connection` future is still
     /// pending. If called after `Connection::poll` has resolved, this does
     /// nothing.
-    pub fn graceful_shutdown(mut self: Pin<&mut Self>) {
-        match self.conn {
+    pub fn graceful_shutdown(self: Pin<&mut Self>) {
+        match self.project().conn {
             #[cfg(feature = "http1")]
-            Some(ProtoServer::H1 { ref mut h1, .. }) => {
+            Some(ProtoServer::H1(ref mut h1, _)) => {
                 h1.disable_keep_alive();
             }
             #[cfg(feature = "http2")]
-            Some(ProtoServer::H2 { ref mut h2 }) => {
+            Some(ProtoServer::H2(ref mut h2)) => {
                 h2.graceful_shutdown();
             }
             None => (),
@@ -638,7 +624,7 @@ where
     pub fn try_into_parts(self) -> Option<Parts<I, S>> {
         match self.conn.unwrap() {
             #[cfg(feature = "http1")]
-            ProtoServer::H1 { h1, .. } => {
+            ProtoServer::H1(h1, _) => {
                 let (io, read_buf, dispatch) = h1.into_inner();
                 Some(Parts {
                     io,
@@ -648,7 +634,7 @@ where
                 })
             }
             #[cfg(feature = "http2")]
-            ProtoServer::H2 { .. } => None,
+            ProtoServer::H2(_h2) => None,
         }
     }
 
@@ -672,7 +658,7 @@ where
         loop {
             match *self.conn.as_mut().unwrap() {
                 #[cfg(feature = "http1")]
-                ProtoServer::H1 { ref mut h1, .. } => match ready!(h1.poll_without_shutdown(cx)) {
+                ProtoServer::H1(ref mut h1, _) => match ready!(h1.poll_without_shutdown(cx)) {
                     Ok(()) => return Poll::Ready(Ok(())),
                     Err(e) => {
                         #[cfg(feature = "http2")]
@@ -688,7 +674,7 @@ where
                     }
                 },
                 #[cfg(feature = "http2")]
-                ProtoServer::H2 { ref mut h2 } => return Pin::new(h2).poll(cx).map_ok(|_| ()),
+                ProtoServer::H2(ref mut h2) => return Pin::new(h2).poll(cx).map_ok(|_| ()),
             };
         }
     }
@@ -714,8 +700,8 @@ where
         let conn = self.conn.take();
 
         let (io, read_buf, dispatch) = match conn.unwrap() {
-            ProtoServer::H1 { h1, .. } => h1.into_inner(),
-            ProtoServer::H2 { .. } => {
+            ProtoServer::H1(h1, _) => h1.into_inner(),
+            ProtoServer::H2(_h2) => {
                 panic!("h2 cannot into_inner");
             }
         };
@@ -728,7 +714,7 @@ where
         let h2 = proto::h2::Server::new(rewind_io, dispatch.into_service(), builder, exec.clone());
 
         debug_assert!(self.conn.is_none());
-        self.conn = Some(ProtoServer::H2 { h2 });
+        self.conn = Some(ProtoServer::H2(h2));
     }
 
     /// Enable this connection to support higher-level HTTP upgrades.
@@ -962,9 +948,9 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         match self.project() {
             #[cfg(feature = "http1")]
-            ProtoServerProj::H1 { h1, .. } => h1.poll(cx),
+            ProtoServerProj::H1(s, _) => s.poll(cx),
             #[cfg(feature = "http2")]
-            ProtoServerProj::H2 { h2 } => h2.poll(cx),
+            ProtoServerProj::H2(s) => s.poll(cx),
         }
     }
 }
@@ -978,7 +964,7 @@ pub(crate) mod spawn_all {
     use crate::common::exec::ConnStreamExec;
     use crate::common::{task, Future, Pin, Poll, Unpin};
     use crate::service::HttpService;
-    use pin_project_lite::pin_project;
+    use pin_project::pin_project;
 
     // Used by `SpawnAll` to optionally watch a `Connection` future.
     //
@@ -1023,36 +1009,23 @@ pub(crate) mod spawn_all {
     // Users cannot import this type, nor the associated `NewSvcExec`. Instead,
     // a blanket implementation for `Executor<impl Future>` is sufficient.
 
-    pin_project! {
-        #[allow(missing_debug_implementations)]
-        pub struct NewSvcTask<I, N, S: HttpService<Body>, E, W: Watcher<I, S, E>> {
-            #[pin]
-            state: State<I, N, S, E, W>,
-        }
+    #[pin_project]
+    #[allow(missing_debug_implementations)]
+    pub struct NewSvcTask<I, N, S: HttpService<Body>, E, W: Watcher<I, S, E>> {
+        #[pin]
+        state: State<I, N, S, E, W>,
     }
 
-    pin_project! {
-        #[project = StateProj]
-        pub(super) enum State<I, N, S: HttpService<Body>, E, W: Watcher<I, S, E>> {
-            Connecting {
-                #[pin]
-                connecting: Connecting<I, N, E>,
-                watcher: W,
-            },
-            Connected {
-                #[pin]
-                future: W::Future,
-            },
-        }
+    #[pin_project(project = StateProj)]
+    pub(super) enum State<I, N, S: HttpService<Body>, E, W: Watcher<I, S, E>> {
+        Connecting(#[pin] Connecting<I, N, E>, W),
+        Connected(#[pin] W::Future),
     }
 
     impl<I, N, S: HttpService<Body>, E, W: Watcher<I, S, E>> NewSvcTask<I, N, S, E, W> {
         pub(super) fn new(connecting: Connecting<I, N, E>, watcher: W) -> Self {
             NewSvcTask {
-                state: State::Connecting {
-                    connecting,
-                    watcher,
-                },
+                state: State::Connecting(connecting, watcher),
             }
         }
     }
@@ -1079,10 +1052,7 @@ pub(crate) mod spawn_all {
             loop {
                 let next = {
                     match me.state.as_mut().project() {
-                        StateProj::Connecting {
-                            connecting,
-                            watcher,
-                        } => {
+                        StateProj::Connecting(connecting, watcher) => {
                             let res = ready!(connecting.poll(cx));
                             let conn = match res {
                                 Ok(conn) => conn,
@@ -1092,10 +1062,10 @@ pub(crate) mod spawn_all {
                                     return Poll::Ready(());
                                 }
                             };
-                            let future = watcher.watch(conn.with_upgrades());
-                            State::Connected { future }
+                            let connected = watcher.watch(conn.with_upgrades());
+                            State::Connected(connected)
                         }
-                        StateProj::Connected { future } => {
+                        StateProj::Connected(future) => {
                             return future.poll(cx).map(|res| {
                                 if let Err(err) = res {
                                     debug!("connection error: {}", err);
@@ -1163,7 +1133,7 @@ mod upgrades {
                     #[cfg(feature = "http1")]
                     Ok(proto::Dispatched::Upgrade(pending)) => {
                         match self.inner.conn.take() {
-                            Some(ProtoServer::H1 { h1, .. }) => {
+                            Some(ProtoServer::H1(h1, _)) => {
                                 let (io, buf, _) = h1.into_inner();
                                 pending.fulfill(Upgraded::new(io, buf));
                                 return Poll::Ready(Ok(()));

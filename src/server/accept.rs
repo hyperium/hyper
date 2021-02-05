@@ -9,7 +9,7 @@
 #[cfg(feature = "stream")]
 use futures_core::Stream;
 #[cfg(feature = "stream")]
-use pin_project_lite::pin_project;
+use pin_project::pin_project;
 
 use crate::common::{
     task::{self, Poll},
@@ -86,12 +86,8 @@ pub fn from_stream<S, IO, E>(stream: S) -> impl Accept<Conn = IO, Error = E>
 where
     S: Stream<Item = Result<IO, E>>,
 {
-    pin_project! {
-        struct FromStream<S> {
-            #[pin]
-            stream: S,
-        }
-    }
+    #[pin_project]
+    struct FromStream<S>(#[pin] S);
 
     impl<S, IO, E> Accept for FromStream<S>
     where
@@ -103,9 +99,9 @@ where
             self: Pin<&mut Self>,
             cx: &mut task::Context<'_>,
         ) -> Poll<Option<Result<Self::Conn, Self::Error>>> {
-            self.project().stream.poll_next(cx)
+            self.project().0.poll_next(cx)
         }
     }
 
-    FromStream { stream }
+    FromStream(stream)
 }

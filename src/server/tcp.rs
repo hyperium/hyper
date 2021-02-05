@@ -229,14 +229,13 @@ mod addr_stream {
 
     use crate::common::{task, Pin, Poll};
 
-    pin_project_lite::pin_project! {
-        /// A transport returned yieled by `AddrIncoming`.
-        #[derive(Debug)]
-        pub struct AddrStream {
-            #[pin]
-            inner: TcpStream,
-            pub(super) remote_addr: SocketAddr,
-        }
+    /// A transport returned yieled by `AddrIncoming`.
+    #[pin_project::pin_project]
+    #[derive(Debug)]
+    pub struct AddrStream {
+        #[pin]
+        inner: TcpStream,
+        pub(super) remote_addr: SocketAddr,
     }
 
     impl AddrStream {
