@@ -213,6 +213,8 @@ impl Http1Transaction for Server {
                     if headers::is_chunked_(&value) {
                         is_te_chunked = true;
                         decoder = DecodedLength::CHUNKED;
+                    } else {
+                        is_te_chunked = false;
                     }
                 }
                 header::CONTENT_LENGTH => {
@@ -1442,6 +1444,16 @@ mod tests {
              \r\n\
              ",
             "transfer-encoding doesn't end in chunked",
+        );
+
+        parse_err(
+            "\
+             POST / HTTP/1.1\r\n\
+             transfer-encoding: chunked\r\n\
+             transfer-encoding: afterlol\r\n\
+             \r\n\
+             ",
+            "transfer-encoding multiple lines doesn't end in chunked",
         );
 
         // http/1.0
