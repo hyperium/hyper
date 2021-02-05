@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1612565745269,
+  "lastUpdate": 1612569253529,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -1439,6 +1439,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 45040,
             "range": "± 4156",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "4445e736ba45d4c91d2a4b2ad2aaac02ea7cf710",
+          "message": "refactor(client): fix unused Pin import without http2",
+          "timestamp": "2021-02-05T15:51:56-08:00",
+          "tree_id": "fa9a75ecb484a8ac069e00f1ae3ba10ecc08c5e4",
+          "url": "https://github.com/hyperium/hyper/commit/4445e736ba45d4c91d2a4b2ad2aaac02ea7cf710"
+        },
+        "date": 1612569252292,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 48340,
+            "range": "± 1261",
             "unit": "ns/iter"
           }
         ]
