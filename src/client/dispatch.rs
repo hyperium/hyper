@@ -4,7 +4,9 @@ use std::future::Future;
 use futures_util::FutureExt;
 use tokio::sync::{mpsc, oneshot};
 
-use crate::common::{task, Pin, Poll};
+use crate::common::{task, Poll};
+#[cfg(feature = "http2")]
+use crate::common::Pin;
 
 pub(crate) type RetryPromise<T, U> = oneshot::Receiver<Result<U, (crate::Error, Option<T>)>>;
 pub(crate) type Promise<T> = oneshot::Receiver<Result<T, crate::Error>>;
