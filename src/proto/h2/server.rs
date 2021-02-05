@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use h2::server::{Connection, Handshake, SendResponse};
 use h2::Reason;
-use pin_project_lite::pin_project;
+use pin_project::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::{decode_content_length, ping, PipeToSendStream, SendBuf};
@@ -57,16 +57,15 @@ impl Default for Config {
     }
 }
 
-pin_project! {
-    pub(crate) struct Server<T, S, B, E>
-    where
-        S: HttpService<Body>,
-        B: HttpBody,
-    {
-        exec: E,
-        service: S,
-        state: State<T, B>,
-    }
+#[pin_project]
+pub(crate) struct Server<T, S, B, E>
+where
+    S: HttpService<Body>,
+    B: HttpBody,
+{
+    exec: E,
+    service: S,
+    state: State<T, B>,
 }
 
 enum State<T, B>
@@ -316,33 +315,24 @@ where
     }
 }
 
-pin_project! {
-    #[allow(missing_debug_implementations)]
-    pub struct H2Stream<F, B>
-    where
-        B: HttpBody,
-    {
-        reply: SendResponse<SendBuf<B::Data>>,
-        #[pin]
-        state: H2StreamState<F, B>,
-    }
+#[allow(missing_debug_implementations)]
+#[pin_project]
+pub struct H2Stream<F, B>
+where
+    B: HttpBody,
+{
+    reply: SendResponse<SendBuf<B::Data>>,
+    #[pin]
+    state: H2StreamState<F, B>,
 }
 
-pin_project! {
-    #[project = H2StreamStateProj]
-    enum H2StreamState<F, B>
-    where
-        B: HttpBody,
-    {
-        Service {
-            #[pin]
-            fut: F,
-        },
-        Body {
-            #[pin]
-            pipe: PipeToSendStream<B>,
-        },
-    }
+#[pin_project(project = H2StreamStateProj)]
+enum H2StreamState<F, B>
+where
+    B: HttpBody,
+{
+    Service(#[pin] F),
+    Body(#[pin] PipeToSendStream<B>),
 }
 
 impl<F, B> H2Stream<F, B>
@@ -352,7 +342,7 @@ where
     fn new(fut: F, respond: SendResponse<SendBuf<B::Data>>) -> H2Stream<F, B> {
         H2Stream {
             reply: respond,
-            state: H2StreamState::Service { fut },
+            state: H2StreamState::Service(fut),
         }
     }
 }
@@ -381,7 +371,7 @@ where
         let mut me = self.project();
         loop {
             let next = match me.state.as_mut().project() {
-                H2StreamStateProj::Service { fut: h } => {
+                H2StreamStateProj::Service(h) => {
                     let res = match h.poll(cx) {
                         Poll::Ready(Ok(r)) => r,
                         Poll::Pending => {
@@ -419,15 +409,13 @@ where
 
                     if !body.is_end_stream() {
                         let body_tx = reply!(me, res, false);
-                        H2StreamState::Body {
-                            pipe: PipeToSendStream::new(body, body_tx),
-                        }
+                        H2StreamState::Body(PipeToSendStream::new(body, body_tx))
                     } else {
                         reply!(me, res, true);
                         return Poll::Ready(Ok(()));
                     }
                 }
-                H2StreamStateProj::Body { pipe } => {
+                H2StreamStateProj::Body(pipe) => {
                     return pipe.poll(cx);
                 }
             };
