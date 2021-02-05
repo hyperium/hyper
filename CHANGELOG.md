@@ -1,3 +1,22 @@
+### v0.14.3 (2021-02-05)
+
+
+#### Bug Fixes
+
+* **client:** HTTP/1 client "Transfer-Encoding" repair code would panic (#2410) ([2c8121f1](https://github.com/hyperium/hyper/commit/2c8121f1735aa8efeb0d5e4ef595363c373ba470), closes [#2409](https://github.com/hyperium/hyper/issues/2409))
+* **http1:** fix server misinterpretting multiple Transfer-Encoding headers ([8f93123e](https://github.com/hyperium/hyper/commit/8f93123efef5c1361086688fe4f34c83c89cec02))
+
+
+#### Features
+
+* **body:**
+  * reexport `hyper::body::SizeHint` (#2404) ([9956587f](https://github.com/hyperium/hyper/commit/9956587f83428a5dbe338ba0b55c1dc0bce8c282))
+  * add `send_trailers` to Body channel's `Sender` (#2387) ([bf8d74ad](https://github.com/hyperium/hyper/commit/bf8d74ad1cf7d0b33b470b1e61625ebac56f9c4c), closes [#2260](https://github.com/hyperium/hyper/issues/2260))
+* **ffi:**
+  * add HYPERE_INVALID_PEER_MESSAGE error code for parse errors ([1928682b](https://github.com/hyperium/hyper/commit/1928682b33f98244435ba6d574677546205a15ec))
+  * Initial C API for hyper ([3ae1581a](https://github.com/hyperium/hyper/commit/3ae1581a539b67363bd87d9d8fc8635a204eec5d))
+
+
 ### v0.14.2 (2020-12-29)
 
 
