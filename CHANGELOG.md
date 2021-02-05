@@ -1,3 +1,11 @@
+### v0.13.10 (2021-02-05)
+
+
+#### Bug Fixes
+
+* **http1:** fix server misinterpretting multiple Transfer-Encoding headers ([6d9e5f9f](https://github.com/hyperium/hyper/commit/6d9e5f9fd1691a0befe70b5b5be3393e45cac66a))
+
+
 ### v0.13.9 (2020-11-02)
 
 
