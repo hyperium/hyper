@@ -1,3 +1,11 @@
+### v0.14.4 (2021-02-05)
+
+
+#### Bug Fixes
+
+* **build**: Fix compile error when only `http1` feature was enabled.
+
+
 ### v0.14.3 (2021-02-05)
 
 
