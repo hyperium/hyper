@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1612569739136,
+  "lastUpdate": 1612624968814,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -2971,6 +2971,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 62594,
             "range": "± 16772",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "te316e89@gmail.com",
+            "name": "Taiki Endo",
+            "username": "taiki-e"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "95ce96048cd71fcfa63d75b1caa75ea000292487",
+          "message": "test(http1): fix non_fmt_panic warning (#2424)",
+          "timestamp": "2021-02-06T07:20:01-08:00",
+          "tree_id": "a82efa92576bf667d07a01250dd13e8e54e2de33",
+          "url": "https://github.com/hyperium/hyper/commit/95ce96048cd71fcfa63d75b1caa75ea000292487"
+        },
+        "date": 1612624967323,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 71225,
+            "range": "± 25354",
             "unit": "ns/iter"
           }
         ]
