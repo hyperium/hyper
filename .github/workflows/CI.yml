@@ -111,8 +111,8 @@ jobs:
       - name: Install cargo-hack
         run: cargo install cargo-hack
 
-      - name: check --each-feature
-        run: cargo hack check --each-feature --skip ffi -Z avoid-dev-deps
+      - name: check --feature-powerset
+        run: cargo hack check --feature-powerset --depth 2 --skip ffi -Z avoid-dev-deps
 
   ffi:
     name: Test C API (FFI)
