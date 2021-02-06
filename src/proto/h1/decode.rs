@@ -490,7 +490,7 @@ mod tests {
                     }
                 };
                 if state == ChunkedState::Body || state == ChunkedState::End {
-                    panic!(format!("Was Ok. Expected Err for {:?}", s));
+                    panic!("Was Ok. Expected Err for {:?}", s);
                 }
             }
         }
