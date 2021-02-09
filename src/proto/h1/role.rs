@@ -385,7 +385,7 @@ impl Http1Transaction for Server {
             }};
         }
 
-        'headers: for (opt_name, value) in msg.head.headers.drain() {
+        for (opt_name, value) in msg.head.headers.drain() {
             if let Some(n) = opt_name {
                 cur_name = Some(n);
                 handle_is_name_written!();
@@ -398,6 +398,14 @@ impl Http1Transaction for Server {
                         warn!("unexpected content-length found, canceling");
                         rewind(dst);
                         return Err(crate::Error::new_user_header());
+                    }
+                    // Can this response even contain Content-Length?
+                    if !Server::can_have_body(msg.req_method, msg.head.subject) {
+                        warn!(
+                            "illegal content-length ({:?}) seen for {:?} response to {:?} request",
+                            value, msg.head.subject, msg.req_method
+                        );
+                        continue;
                     }
                     match msg.body {
                         Some(BodyLength::Known(known_len)) => {
@@ -421,13 +429,15 @@ impl Http1Transaction for Server {
                             }
 
                             if !is_name_written {
-                                encoder = Encoder::length(known_len);
+                                if !Server::imply_body_only(msg.req_method, msg.head.subject) {
+                                    encoder = Encoder::length(known_len);
+                                }
                                 extend(dst, b"content-length: ");
                                 extend(dst, value.as_bytes());
                                 wrote_len = true;
                                 is_name_written = true;
                             }
-                            continue 'headers;
+                            continue;
                         }
                         Some(BodyLength::Unknown) => {
                             // The HttpBody impl didn't know how long the
@@ -446,16 +456,18 @@ impl Http1Transaction for Server {
                                         return Err(crate::Error::new_user_header());
                                     }
                                     debug_assert!(is_name_written);
-                                    continue 'headers;
+                                    continue;
                                 } else {
                                     // we haven't written content-length yet!
-                                    encoder = Encoder::length(len);
+                                    if !Server::imply_body_only(msg.req_method, msg.head.subject) {
+                                        encoder = Encoder::length(len);
+                                    }
                                     extend(dst, b"content-length: ");
                                     extend(dst, value.as_bytes());
                                     wrote_len = true;
                                     is_name_written = true;
                                     prev_con_len = Some(len);
-                                    continue 'headers;
+                                    continue;
                                 }
                             } else {
                                 warn!("illegal Content-Length value: {:?}", value);
@@ -464,13 +476,13 @@ impl Http1Transaction for Server {
                             }
                         }
                         None => {
-                            // We have no body to actually send,
-                            // but the headers claim a content-length.
-                            // There's only 2 ways this makes sense:
+                            // We have no body to actually send, but the headers claim a
+                            // content-length.  There are 3 ways this makes sense:
                             //
                             // - The header says the length is `0`.
+                            // - The response is NOT_MODIFIED
                             // - This is a response to a `HEAD` request.
-                            if msg.req_method == &Some(Method::HEAD) {
+                            if Server::imply_body_only(msg.req_method, msg.head.subject) {
                                 debug_assert_eq!(encoder, Encoder::length(0));
                             } else {
                                 if value.as_bytes() != b"0" {
@@ -479,7 +491,7 @@ impl Http1Transaction for Server {
                                         value
                                     );
                                 }
-                                continue 'headers;
+                                continue;
                             }
                         }
                     }
@@ -492,9 +504,13 @@ impl Http1Transaction for Server {
                         return Err(crate::Error::new_user_header());
                     }
                     // check that we actually can send a chunked body...
-                    if msg.head.version == Version::HTTP_10
-                        || !Server::can_chunked(msg.req_method, msg.head.subject)
-                    {
+                    if msg.head.version == Version::HTTP_10 {
+                        continue;
+                    } else if !Server::can_have_body(msg.req_method, msg.head.subject) {
+                        warn!(
+                            "illegal transfer-encoding ({:?}) seen for {:?} response to {:?} request",
+                            value, msg.head.subject, msg.req_method
+                        );
                         continue;
                     }
                     wrote_len = true;
@@ -503,7 +519,9 @@ impl Http1Transaction for Server {
                     must_write_chunked = !headers::is_chunked_(&value);
 
                     if !is_name_written {
-                        encoder = Encoder::chunked();
+                        if !Server::imply_body_only(msg.req_method, msg.head.subject) {
+                            encoder = Encoder::chunked();
+                        }
                         is_name_written = true;
                         extend(dst, b"transfer-encoding: ");
                         extend(dst, value.as_bytes());
@@ -511,7 +529,7 @@ impl Http1Transaction for Server {
                         extend(dst, b", ");
                         extend(dst, value.as_bytes());
                     }
-                    continue 'headers;
+                    continue;
                 }
                 header::CONNECTION => {
                     if !is_last && headers::connection_close(&value) {
@@ -525,7 +543,7 @@ impl Http1Transaction for Server {
                         extend(dst, b", ");
                         extend(dst, value.as_bytes());
                     }
-                    continue 'headers;
+                    continue;
                 }
                 header::DATE => {
                     wrote_date = true;
@@ -549,44 +567,50 @@ impl Http1Transaction for Server {
 
         handle_is_name_written!();
 
-        if !wrote_len {
-            encoder = match msg.body {
-                Some(BodyLength::Unknown) => {
-                    if msg.head.version == Version::HTTP_10
-                        || !Server::can_chunked(msg.req_method, msg.head.subject)
-                    {
-                        Encoder::close_delimited()
-                    } else {
-                        extend(dst, b"transfer-encoding: chunked\r\n");
-                        Encoder::chunked()
-                    }
+        // We should provide either a Content-Length or Transfer-Encoding header based on what we
+        // know about the Body, unless:
+        //   - the request was HEAD and the body is Body::empty(), because a service may simply not
+        //     provide generate the real body for a HEAD request.
+        //   - the response is a 304, like a HEAD, may imply things about a particular body, but a
+        //     service probably did not provide the full body in its Response.
+        //   - the response must neither contain nor imply a body.
+        if !wrote_len && Server::can_have_body(msg.req_method, msg.head.subject) {
+            match msg.body {
+                Some(BodyLength::Known(0)) => extend(dst, b"content-length: 0\r\n"),
+                Some(BodyLength::Known(len)) => {
+                    extend(dst, b"content-length: ");
+                    let _ = ::itoa::write(&mut dst, len);
+                    extend(dst, b"\r\n");
                 }
-                None | Some(BodyLength::Known(0)) => {
-                    if msg.head.subject != StatusCode::NOT_MODIFIED {
+                None => {
+                    if !Server::imply_body_only(msg.req_method, msg.head.subject) {
                         extend(dst, b"content-length: 0\r\n");
                     }
-                    Encoder::length(0)
                 }
-                Some(BodyLength::Known(len)) => {
-                    if msg.head.subject == StatusCode::NOT_MODIFIED {
-                        Encoder::length(0)
-                    } else {
-                        extend(dst, b"content-length: ");
-                        let _ = ::itoa::write(&mut dst, len);
-                        extend(dst, b"\r\n");
-                        Encoder::length(len)
+                Some(BodyLength::Unknown) => {
+                    if msg.head.version != Version::HTTP_10 {
+                        extend(dst, b"transfer-encoding: chunked\r\n");
                     }
                 }
             };
+
+            if !Server::imply_body_only(msg.req_method, msg.head.subject) {
+                encoder = match msg.body {
+                    Some(BodyLength::Unknown) if msg.head.version == Version::HTTP_10 => {
+                        Encoder::close_delimited()
+                    }
+                    Some(BodyLength::Unknown) => Encoder::chunked(),
+                    Some(BodyLength::Known(len)) => Encoder::length(len),
+                    None => Encoder::length(0),
+                };
+            }
         }
 
-        if !Server::can_have_body(msg.req_method, msg.head.subject) {
-            trace!(
-                "server body forced to 0; method={:?}, status={:?}",
-                msg.req_method,
-                msg.head.subject
-            );
-            encoder = Encoder::length(0);
+        #[cfg(debug_assertions)]
+        if Server::imply_body_only(msg.req_method, msg.head.subject)
+            || !Server::can_have_body(msg.req_method, msg.head.subject)
+        {
+            assert_eq!(encoder, Encoder::length(0));
         }
 
         // cached date is much faster than formatting every request
@@ -631,23 +655,18 @@ impl Http1Transaction for Server {
 #[cfg(feature = "server")]
 impl Server {
     fn can_have_body(method: &Option<Method>, status: StatusCode) -> bool {
-        Server::can_chunked(method, status)
-    }
-
-    fn can_chunked(method: &Option<Method>, status: StatusCode) -> bool {
-        if method == &Some(Method::HEAD) || method == &Some(Method::CONNECT) && status.is_success()
+        if method == &Some(Method::CONNECT) && status.is_success()
+            || status == StatusCode::NO_CONTENT
+            || status.is_informational()
         {
             false
         } else {
-            match status {
-                // TODO: support for 1xx codes needs improvement everywhere
-                // would be 100...199 => false
-                StatusCode::SWITCHING_PROTOCOLS
-                | StatusCode::NO_CONTENT
-                | StatusCode::NOT_MODIFIED => false,
-                _ => true,
-            }
+            true
         }
+    }
+
+    fn imply_body_only(method: &Option<Method>, status: StatusCode) -> bool {
+        method == &Some(Method::HEAD) || status == StatusCode::NOT_MODIFIED
     }
 }
 

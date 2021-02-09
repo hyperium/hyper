@@ -102,13 +102,13 @@ mod response_body_lengths {
 
         let body_str = match case.body {
             Bd::Known(b) => {
-                reply.body(b);
+                reply.body_bytes(b);
                 b
             }
             Bd::Unknown(b) => {
                 let (mut tx, body) = hyper::Body::channel();
                 tx.try_send_data(b.into()).expect("try_send_data");
-                reply.body_stream(body);
+                reply.body(body);
                 b
             }
         };
@@ -322,7 +322,7 @@ mod response_body_lengths {
 
         let server = serve();
         let addr_str = format!("http://{}", server.addr());
-        server.reply().body("Hello, World!");
+        server.reply().body_bytes("Hello, World!");
 
         let client = Client::builder()
             .http2_only(true)
@@ -345,7 +345,7 @@ mod response_body_lengths {
         server
             .reply()
             .header("content-length", "10")
-            .body("Hello, World!");
+            .body_bytes("Hello, World!");
 
         let client = Client::builder()
             .http2_only(true)
@@ -368,7 +368,7 @@ fn get_chunked_response_with_ka() {
     server
         .reply()
         .header("transfer-encoding", "chunked")
-        .body(foo_bar);
+        .body_bytes(foo_bar);
     let mut req = connect(server.addr());
     req.write_all(
         b"\
@@ -388,7 +388,7 @@ fn get_chunked_response_with_ka() {
     server
         .reply()
         .header("content-length", quux.len().to_string())
-        .body(quux);
+        .body_bytes(quux);
     req.write_all(
         b"\
         GET /quux HTTP/1.1\r\n\
@@ -484,7 +484,7 @@ fn head_response_doesnt_send_body() {
     let _ = pretty_env_logger::try_init();
     let foo_bar = b"foo bar baz";
     let server = serve();
-    server.reply().body(foo_bar);
+    server.reply().body_bytes(foo_bar);
     let mut req = connect(server.addr());
     req.write_all(
         b"\
@@ -515,7 +515,7 @@ fn response_does_not_set_chunked_if_body_not_allowed() {
     let server = serve();
     server
         .reply()
-        .status(hyper::StatusCode::NOT_MODIFIED)
+        .status(hyper::StatusCode::NO_CONTENT)
         .header("transfer-encoding", "chunked");
     let mut req = connect(server.addr());
     req.write_all(
@@ -534,7 +534,7 @@ fn response_does_not_set_chunked_if_body_not_allowed() {
     assert!(!response.contains("transfer-encoding"));
 
     let mut lines = response.lines();
-    assert_eq!(lines.next(), Some("HTTP/1.1 304 Not Modified"));
+    assert_eq!(lines.next(), Some("HTTP/1.1 204 No Content"));
 
     // no body or 0\r\n\r\n
     let mut lines = lines.skip_while(|line| !line.is_empty());
@@ -549,7 +549,7 @@ fn keep_alive() {
     server
         .reply()
         .header("content-length", foo_bar.len().to_string())
-        .body(foo_bar);
+        .body_bytes(foo_bar);
     let mut req = connect(server.addr());
     req.write_all(
         b"\
@@ -568,7 +568,7 @@ fn keep_alive() {
     server
         .reply()
         .header("content-length", quux.len().to_string())
-        .body(quux);
+        .body_bytes(quux);
     req.write_all(
         b"\
         GET /quux HTTP/1.1\r\n\
@@ -590,7 +590,7 @@ fn http_10_keep_alive() {
     server
         .reply()
         .header("content-length", foo_bar.len().to_string())
-        .body(foo_bar);
+        .body_bytes(foo_bar);
     let mut req = connect(server.addr());
     req.write_all(
         b"\
@@ -618,7 +618,7 @@ fn http_10_keep_alive() {
     server
         .reply()
         .header("content-length", quux.len().to_string())
-        .body(quux);
+        .body_bytes(quux);
     req.write_all(
         b"\
         GET /quux HTTP/1.0\r\n\
@@ -641,7 +641,7 @@ fn http_10_close_on_no_ka() {
         .reply()
         .version(Version::HTTP_10)
         .header("content-length", foo_bar.len().to_string())
-        .body(foo_bar);
+        .body_bytes(foo_bar);
     let mut req = connect(server.addr());
 
     // The client request with version 1.0 that may have the keep-alive header
@@ -676,7 +676,7 @@ fn disable_keep_alive() {
     server
         .reply()
         .header("content-length", foo_bar.len().to_string())
-        .body(foo_bar);
+        .body_bytes(foo_bar);
     let mut req = connect(server.addr());
     req.write_all(
         b"\
@@ -703,7 +703,7 @@ fn header_connection_close() {
         .reply()
         .header("content-length", foo_bar.len().to_string())
         .header("connection", "close")
-        .body(foo_bar);
+        .body_bytes(foo_bar);
     let mut req = connect(server.addr());
     req.write_all(
         b"\
@@ -844,11 +844,11 @@ fn pipeline_disabled() {
     server
         .reply()
         .header("content-length", "12")
-        .body("Hello World!");
+        .body_bytes("Hello World!");
     server
         .reply()
         .header("content-length", "12")
-        .body("Hello World!");
+        .body_bytes("Hello World!");
 
     req.write_all(
         b"\
@@ -891,11 +891,11 @@ fn pipeline_enabled() {
     server
         .reply()
         .header("content-length", "12")
-        .body("Hello World\n");
+        .body_bytes("Hello World\n");
     server
         .reply()
         .header("content-length", "12")
-        .body("Hello World\n");
+        .body_bytes("Hello World\n");
 
     req.write_all(
         b"\
@@ -1580,7 +1580,7 @@ fn streaming_body() {
     static S: &[&[u8]] = &[&[b'x'; 1_000] as &[u8]; 1_00] as _;
     let b = futures_util::stream::iter(S.iter()).map(|&s| Ok::<_, hyper::Error>(s));
     let b = hyper::Body::wrap_stream(b);
-    server.reply().body_stream(b);
+    server.reply().body(b);
 
     let mut tcp = connect(server.addr());
     tcp.write_all(b"GET / HTTP/1.1\r\n\r\n").unwrap();
@@ -1689,7 +1689,7 @@ fn http2_body_user_error_sends_reset_reason() {
     )));
     let b = hyper::Body::wrap_stream(b);
 
-    server.reply().body_stream(b);
+    server.reply().body(b);
 
     let rt = support::runtime();
 
@@ -1775,35 +1775,12 @@ async fn http2_service_poll_ready_error_sends_goaway() {
 }
 
 #[test]
-fn skips_content_length_for_304_responses() {
+fn keeps_content_length_and_drops_body_for_304_responses_no_cl() {
     let server = serve();
     server
         .reply()
         .status(hyper::StatusCode::NOT_MODIFIED)
-        .body("foo");
-    let mut req = connect(server.addr());
-    req.write_all(
-        b"\
-        GET / HTTP/1.1\r\n\
-        Host: example.domain\r\n\
-        Connection: close\r\n\
-        \r\n\
-    ",
-    )
-    .unwrap();
-
-    let mut response = String::new();
-    req.read_to_string(&mut response).unwrap();
-    assert!(!response.contains("content-length:"));
-}
-
-#[test]
-fn skips_content_length_and_body_for_304_responses() {
-    let server = serve();
-    server
-        .reply()
-        .status(hyper::StatusCode::NOT_MODIFIED)
-        .body("foo");
+        .body(Body::empty());
     let mut req = connect(server.addr());
     req.write_all(
         b"\
@@ -1820,6 +1797,64 @@ fn skips_content_length_and_body_for_304_responses() {
     assert!(!response.contains("content-length:"));
     let mut lines = response.lines();
     assert_eq!(lines.next(), Some("HTTP/1.1 304 Not Modified"));
+
+    let mut lines = lines.skip_while(|line| !line.is_empty());
+    assert_eq!(lines.next(), Some(""));
+    assert_eq!(lines.next(), None);
+}
+
+#[test]
+fn keeps_content_length_and_drops_body_for_304_responses() {
+    let server = serve();
+    server
+        .reply()
+        .status(hyper::StatusCode::NOT_MODIFIED)
+        .body_bytes("foo");
+    let mut req = connect(server.addr());
+    req.write_all(
+        b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: close\r\n\
+        \r\n\
+    ",
+    )
+    .unwrap();
+
+    let mut response = String::new();
+    req.read_to_string(&mut response).unwrap();
+    assert!(response.contains("content-length: 3"));
+    let mut lines = response.lines();
+    assert_eq!(lines.next(), Some("HTTP/1.1 304 Not Modified"));
+
+    let mut lines = lines.skip_while(|line| !line.is_empty());
+    assert_eq!(lines.next(), Some(""));
+    assert_eq!(lines.next(), None);
+}
+
+#[test]
+fn skips_content_length_and_body_for_204_response() {
+    let server = serve();
+    server
+        .reply()
+        .status(hyper::StatusCode::NO_CONTENT)
+        .body_bytes("foo");
+    let mut req = connect(server.addr());
+    req.write_all(
+        b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: close\r\n\
+        \r\n\
+    ",
+    )
+    .unwrap();
+
+    let mut response = String::new();
+    req.read_to_string(&mut response).unwrap();
+    assert!(!response.contains("content-length:"));
+    let mut lines = response.lines();
+    assert_eq!(lines.next(), Some("HTTP/1.1 204 No Content"));
 
     let mut lines = lines.skip_while(|line| !line.is_empty());
     assert_eq!(lines.next(), Some(""));
@@ -2076,15 +2111,11 @@ impl<'a> ReplyBuilder<'a> {
         self
     }
 
-    fn body<T: AsRef<[u8]>>(self, body: T) {
-        self.tx
-            .lock()
-            .unwrap()
-            .send(Reply::Body(body.as_ref().to_vec().into()))
-            .unwrap();
+    fn body_bytes<T: AsRef<[u8]>>(self, body: T) {
+        self.body(body.as_ref().to_vec().into());
     }
 
-    fn body_stream(self, body: Body) {
+    fn body(self, body: Body) {
         self.tx.lock().unwrap().send(Reply::Body(body)).unwrap();
     }
 
