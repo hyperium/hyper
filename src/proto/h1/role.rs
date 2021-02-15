@@ -553,7 +553,7 @@ impl Http1Transaction for Server {
             encoder = match msg.body {
                 Some(BodyLength::Unknown) => {
                     if msg.head.version == Version::HTTP_10
-                        || !Server::can_have_content_length(msg.req_method, msg.head.subject)
+                        || !Server::can_chunked(msg.req_method, msg.head.subject)
                     {
                         Encoder::close_delimited()
                     } else {
