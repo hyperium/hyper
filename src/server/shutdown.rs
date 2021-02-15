@@ -1,13 +1,13 @@
 use std::error::Error as StdError;
 
-use pin_project::{pin_project, project};
+use pin_project::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::conn::{SpawnAll, UpgradeableConnection, Watcher};
-use super::Accept;
+use super::accept::Accept;
 use crate::body::{Body, HttpBody};
 use crate::common::drain::{self, Draining, Signal, Watch, Watching};
-use crate::common::exec::{H2Exec, NewSvcExec};
+use crate::common::exec::{ConnStreamExec, NewSvcExec};
 use crate::common::{task, Future, Pin, Poll, Unpin};
 use crate::service::{HttpService, MakeServiceRef};
 
@@ -18,7 +18,7 @@ pub struct Graceful<I, S, F, E> {
     state: State<I, S, F, E>,
 }
 
-#[pin_project]
+#[pin_project(project = StateProj)]
 pub(super) enum State<I, S, F, E> {
     Running {
         drain: Option<(Signal, Watch)>,
@@ -53,19 +53,17 @@ where
     B: HttpBody + Send + Sync + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
     F: Future<Output = ()>,
-    E: H2Exec<<S::Service as HttpService<Body>>::Future, B>,
+    E: ConnStreamExec<<S::Service as HttpService<Body>>::Future, B>,
     E: NewSvcExec<IO, S::Future, S::Service, E, GracefulWatcher>,
 {
     type Output = crate::Result<()>;
 
-    #[project]
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         let mut me = self.project();
         loop {
             let next = {
-                #[project]
                 match me.state.as_mut().project() {
-                    State::Running {
+                    StateProj::Running {
                         drain,
                         spawn_all,
                         signal,
@@ -80,7 +78,7 @@ where
                             return spawn_all.poll_watch(cx, &GracefulWatcher(watch));
                         }
                     },
-                    State::Draining(ref mut draining) => {
+                    StateProj::Draining(ref mut draining) => {
                         return Pin::new(draining).poll(cx).map(Ok);
                     }
                 }
@@ -98,7 +96,7 @@ impl<I, S, E> Watcher<I, S, E> for GracefulWatcher
 where
     I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     S: HttpService<Body>,
-    E: H2Exec<S::Future, S::ResBody>,
+    E: ConnStreamExec<S::Future, S::ResBody>,
     S::ResBody: Send + Sync + 'static,
     <S::ResBody as HttpBody>::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
@@ -117,7 +115,7 @@ where
     I: AsyncRead + AsyncWrite + Unpin,
     S::ResBody: HttpBody + Send + 'static,
     <S::ResBody as HttpBody>::Error: Into<Box<dyn StdError + Send + Sync>>,
-    E: H2Exec<S::Future, S::ResBody>,
+    E: ConnStreamExec<S::Future, S::ResBody>,
 {
     conn.graceful_shutdown()
 }

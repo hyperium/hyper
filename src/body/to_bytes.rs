@@ -7,6 +7,12 @@ use super::HttpBody;
 /// This may require copying the data into a single buffer. If you don't need
 /// a contiguous buffer, prefer the [`aggregate`](crate::body::aggregate())
 /// function.
+///
+/// # Note
+///
+/// Care needs to be taken if the remote is untrusted. The function doesn't implement any length
+/// checks and an malicious peer might make it consume arbitrary amounts of memory. Checking the
+/// `Content-Length` is a possibility, but it is not strictly mandated to be present.
 pub async fn to_bytes<T>(body: T) -> Result<Bytes, T::Error>
 where
     T: HttpBody,
@@ -23,7 +29,7 @@ where
     let second = if let Some(buf) = body.data().await {
         buf?
     } else {
-        return Ok(first.to_bytes());
+        return Ok(first.copy_to_bytes(first.remaining()));
     };
 
     // With more than 1 buf, we gotta flatten into a Vec first.

@@ -2,7 +2,7 @@ use std::marker::Unpin;
 use std::{cmp, io};
 
 use bytes::{Buf, Bytes};
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 use crate::common::{task, Pin, Poll};
 
@@ -14,6 +14,7 @@ pub(crate) struct Rewind<T> {
 }
 
 impl<T> Rewind<T> {
+    #[cfg(any(all(feature = "http2", feature = "server"), test))]
     pub(crate) fn new(io: T) -> Self {
         Rewind {
             pre: None,
@@ -28,6 +29,7 @@ impl<T> Rewind<T> {
         }
     }
 
+    #[cfg(any(all(feature = "http1", feature = "http2", feature = "server"), test))]
     pub(crate) fn rewind(&mut self, bs: Bytes) {
         debug_assert!(self.pre.is_none());
         self.pre = Some(bs);
@@ -37,36 +39,33 @@ impl<T> Rewind<T> {
         (self.inner, self.pre.unwrap_or_else(Bytes::new))
     }
 
-    pub(crate) fn get_mut(&mut self) -> &mut T {
-        &mut self.inner
-    }
+    // pub(crate) fn get_mut(&mut self) -> &mut T {
+    //     &mut self.inner
+    // }
 }
 
 impl<T> AsyncRead for Rewind<T>
 where
     T: AsyncRead + Unpin,
 {
-    #[inline]
-    unsafe fn prepare_uninitialized_buffer(&self, buf: &mut [std::mem::MaybeUninit<u8>]) -> bool {
-        self.inner.prepare_uninitialized_buffer(buf)
-    }
-
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
         if let Some(mut prefix) = self.pre.take() {
             // If there are no remaining bytes, let the bytes get dropped.
             if !prefix.is_empty() {
-                let copy_len = cmp::min(prefix.len(), buf.len());
-                prefix.copy_to_slice(&mut buf[..copy_len]);
+                let copy_len = cmp::min(prefix.len(), buf.remaining());
+                // TODO: There should be a way to do following two lines cleaner...
+                buf.put_slice(&prefix[..copy_len]);
+                prefix.advance(copy_len);
                 // Put back whats left
                 if !prefix.is_empty() {
                     self.pre = Some(prefix);
                 }
 
-                return Poll::Ready(Ok(copy_len));
+                return Poll::Ready(Ok(()));
             }
         }
         Pin::new(&mut self.inner).poll_read(cx, buf)
@@ -85,6 +84,14 @@ where
         Pin::new(&mut self.inner).poll_write(cx, buf)
     }
 
+    fn poll_write_vectored(
+        mut self: Pin<&mut Self>,
+        cx: &mut task::Context<'_>,
+        bufs: &[io::IoSlice<'_>],
+    ) -> Poll<io::Result<usize>> {
+        Pin::new(&mut self.inner).poll_write_vectored(cx, bufs)
+    }
+
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
         Pin::new(&mut self.inner).poll_flush(cx)
     }
@@ -93,13 +100,8 @@ where
         Pin::new(&mut self.inner).poll_shutdown(cx)
     }
 
-    #[inline]
-    fn poll_write_buf<B: Buf>(
-        mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
-        buf: &mut B,
-    ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut self.inner).poll_write_buf(cx, buf)
+    fn is_write_vectored(&self) -> bool {
+        self.inner.is_write_vectored()
     }
 }
 

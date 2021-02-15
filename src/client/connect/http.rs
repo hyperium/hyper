@@ -3,7 +3,7 @@ use std::fmt;
 use std::future::Future;
 use std::io;
 use std::marker::PhantomData;
-use std::net::{IpAddr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{self, Poll};
@@ -12,8 +12,8 @@ use std::time::Duration;
 use futures_util::future::Either;
 use http::uri::{Scheme, Uri};
 use pin_project::pin_project;
-use tokio::net::TcpStream;
-use tokio::time::Delay;
+use tokio::net::{TcpSocket, TcpStream};
+use tokio::time::Sleep;
 
 use super::dns::{self, resolve, GaiResolver, Resolve};
 use super::{Connected, Connection};
@@ -27,6 +27,7 @@ use super::{Connected, Connection};
 ///
 /// Sets the [`HttpInfo`](HttpInfo) value on responses, which includes
 /// transport information such as the remote socket address used.
+#[cfg_attr(docsrs, doc(cfg(feature = "tcp")))]
 #[derive(Clone)]
 pub struct HttpConnector<R = GaiResolver> {
     config: Arc<Config>,
@@ -72,7 +73,8 @@ struct Config {
     enforce_http: bool,
     happy_eyeballs_timeout: Option<Duration>,
     keep_alive_timeout: Option<Duration>,
-    local_address: Option<IpAddr>,
+    local_address_ipv4: Option<Ipv4Addr>,
+    local_address_ipv6: Option<Ipv6Addr>,
     nodelay: bool,
     reuse_address: bool,
     send_buffer_size: Option<usize>,
@@ -103,7 +105,7 @@ impl HttpConnector<TokioThreadpoolGaiResolver> {
 impl<R> HttpConnector<R> {
     /// Construct a new HttpConnector.
     ///
-    /// Takes a `Resolve` to handle DNS lookups.
+    /// Takes a [`Resolver`](crate::client::connect::dns#resolvers-are-services) to handle DNS lookups.
     pub fn new_with_resolver(resolver: R) -> HttpConnector<R> {
         HttpConnector {
             config: Arc::new(Config {
@@ -111,7 +113,8 @@ impl<R> HttpConnector<R> {
                 enforce_http: true,
                 happy_eyeballs_timeout: Some(Duration::from_millis(300)),
                 keep_alive_timeout: None,
-                local_address: None,
+                local_address_ipv4: None,
+                local_address_ipv6: None,
                 nodelay: false,
                 reuse_address: false,
                 send_buffer_size: None,
@@ -166,7 +169,26 @@ impl<R> HttpConnector<R> {
     /// Default is `None`.
     #[inline]
     pub fn set_local_address(&mut self, addr: Option<IpAddr>) {
-        self.config_mut().local_address = addr;
+        let (v4, v6) = match addr {
+            Some(IpAddr::V4(a)) => (Some(a), None),
+            Some(IpAddr::V6(a)) => (None, Some(a)),
+            _ => (None, None),
+        };
+
+        let cfg = self.config_mut();
+
+        cfg.local_address_ipv4 = v4;
+        cfg.local_address_ipv6 = v6;
+    }
+
+    /// Set that all sockets are bound to the configured IPv4 or IPv6 address (depending on host's
+    /// preferences) before connection.
+    #[inline]
+    pub fn set_local_addresses(&mut self, addr_ipv4: Ipv4Addr, addr_ipv6: Ipv6Addr) {
+        let cfg = self.config_mut();
+
+        cfg.local_address_ipv4 = Some(addr_ipv4);
+        cfg.local_address_ipv6 = Some(addr_ipv6);
     }
 
     /// Set the connect timeout.
@@ -250,96 +272,84 @@ where
     }
 }
 
+fn get_host_port<'u>(config: &Config, dst: &'u Uri) -> Result<(&'u str, u16), ConnectError> {
+    trace!(
+        "Http::connect; scheme={:?}, host={:?}, port={:?}",
+        dst.scheme(),
+        dst.host(),
+        dst.port(),
+    );
+
+    if config.enforce_http {
+        if dst.scheme() != Some(&Scheme::HTTP) {
+            return Err(ConnectError {
+                msg: INVALID_NOT_HTTP.into(),
+                cause: None,
+            });
+        }
+    } else if dst.scheme().is_none() {
+        return Err(ConnectError {
+            msg: INVALID_MISSING_SCHEME.into(),
+            cause: None,
+        });
+    }
+
+    let host = match dst.host() {
+        Some(s) => s,
+        None => {
+            return Err(ConnectError {
+                msg: INVALID_MISSING_HOST.into(),
+                cause: None,
+            })
+        }
+    };
+    let port = match dst.port() {
+        Some(port) => port.as_u16(),
+        None => {
+            if dst.scheme() == Some(&Scheme::HTTPS) {
+                443
+            } else {
+                80
+            }
+        }
+    };
+
+    Ok((host, port))
+}
+
 impl<R> HttpConnector<R>
 where
     R: Resolve,
 {
     async fn call_async(&mut self, dst: Uri) -> Result<TcpStream, ConnectError> {
-        trace!(
-            "Http::connect; scheme={:?}, host={:?}, port={:?}",
-            dst.scheme(),
-            dst.host(),
-            dst.port(),
-        );
-
-        if self.config.enforce_http {
-            if dst.scheme() != Some(&Scheme::HTTP) {
-                return Err(ConnectError {
-                    msg: INVALID_NOT_HTTP.into(),
-                    cause: None,
-                });
-            }
-        } else if dst.scheme().is_none() {
-            return Err(ConnectError {
-                msg: INVALID_MISSING_SCHEME.into(),
-                cause: None,
-            });
-        }
-
-        let host = match dst.host() {
-            Some(s) => s,
-            None => {
-                return Err(ConnectError {
-                    msg: INVALID_MISSING_HOST.into(),
-                    cause: None,
-                })
-            }
-        };
-        let port = match dst.port() {
-            Some(port) => port.as_u16(),
-            None => {
-                if dst.scheme() == Some(&Scheme::HTTPS) {
-                    443
-                } else {
-                    80
-                }
-            }
-        };
-
         let config = &self.config;
+
+        let (host, port) = get_host_port(config, &dst)?;
 
         // If the host is already an IP addr (v4 or v6),
         // skip resolving the dns and start connecting right away.
-        let addrs = if let Some(addrs) = dns::IpAddrs::try_parse(host, port) {
+        let addrs = if let Some(addrs) = dns::SocketAddrs::try_parse(host, port) {
             addrs
         } else {
             let addrs = resolve(&mut self.resolver, dns::Name::new(host.into()))
                 .await
                 .map_err(ConnectError::dns)?;
-            let addrs = addrs.map(|addr| SocketAddr::new(addr, port)).collect();
-            dns::IpAddrs::new(addrs)
+            let addrs = addrs
+                .map(|mut addr| {
+                    addr.set_port(port);
+                    addr
+                })
+                .collect();
+            dns::SocketAddrs::new(addrs)
         };
 
-        let c = ConnectingTcp::new(
-            config.local_address,
-            addrs,
-            config.connect_timeout,
-            config.happy_eyeballs_timeout,
-            config.reuse_address,
-        );
+        let c = ConnectingTcp::new(addrs, config);
 
-        let sock = c
-            .connect()
-            .await
-            .map_err(ConnectError::m("tcp connect error"))?;
+        let sock = c.connect().await?;
 
-        if let Some(dur) = config.keep_alive_timeout {
-            sock.set_keepalive(Some(dur))
-                .map_err(ConnectError::m("tcp set_keepalive error"))?;
+        if let Err(e) = sock.set_nodelay(config.nodelay) {
+            warn!("tcp set_nodelay error: {}", e);
         }
-
-        if let Some(size) = config.send_buffer_size {
-            sock.set_send_buffer_size(size)
-                .map_err(ConnectError::m("tcp set_send_buffer_size error"))?;
-        }
-
-        if let Some(size) = config.recv_buffer_size {
-            sock.set_recv_buffer_size(size)
-                .map_err(ConnectError::m("tcp set_recv_buffer_size error"))?;
-        }
-
-        sock.set_nodelay(config.nodelay)
-            .map_err(ConnectError::m("tcp set_nodelay error"))?;
 
         Ok(sock)
     }
@@ -453,64 +463,55 @@ impl StdError for ConnectError {
     }
 }
 
-struct ConnectingTcp {
-    local_addr: Option<IpAddr>,
+struct ConnectingTcp<'a> {
     preferred: ConnectingTcpRemote,
     fallback: Option<ConnectingTcpFallback>,
-    reuse_address: bool,
+    config: &'a Config,
 }
 
-impl ConnectingTcp {
-    fn new(
-        local_addr: Option<IpAddr>,
-        remote_addrs: dns::IpAddrs,
-        connect_timeout: Option<Duration>,
-        fallback_timeout: Option<Duration>,
-        reuse_address: bool,
-    ) -> ConnectingTcp {
-        if let Some(fallback_timeout) = fallback_timeout {
-            let (preferred_addrs, fallback_addrs) = remote_addrs.split_by_preference(local_addr);
+impl<'a> ConnectingTcp<'a> {
+    fn new(remote_addrs: dns::SocketAddrs, config: &'a Config) -> Self {
+        if let Some(fallback_timeout) = config.happy_eyeballs_timeout {
+            let (preferred_addrs, fallback_addrs) = remote_addrs
+                .split_by_preference(config.local_address_ipv4, config.local_address_ipv6);
             if fallback_addrs.is_empty() {
                 return ConnectingTcp {
-                    local_addr,
-                    preferred: ConnectingTcpRemote::new(preferred_addrs, connect_timeout),
+                    preferred: ConnectingTcpRemote::new(preferred_addrs, config.connect_timeout),
                     fallback: None,
-                    reuse_address,
+                    config,
                 };
             }
 
             ConnectingTcp {
-                local_addr,
-                preferred: ConnectingTcpRemote::new(preferred_addrs, connect_timeout),
+                preferred: ConnectingTcpRemote::new(preferred_addrs, config.connect_timeout),
                 fallback: Some(ConnectingTcpFallback {
-                    delay: tokio::time::delay_for(fallback_timeout),
-                    remote: ConnectingTcpRemote::new(fallback_addrs, connect_timeout),
+                    delay: tokio::time::sleep(fallback_timeout),
+                    remote: ConnectingTcpRemote::new(fallback_addrs, config.connect_timeout),
                 }),
-                reuse_address,
+                config,
             }
         } else {
             ConnectingTcp {
-                local_addr,
-                preferred: ConnectingTcpRemote::new(remote_addrs, connect_timeout),
+                preferred: ConnectingTcpRemote::new(remote_addrs, config.connect_timeout),
                 fallback: None,
-                reuse_address,
+                config,
             }
         }
     }
 }
 
 struct ConnectingTcpFallback {
-    delay: Delay,
+    delay: Sleep,
     remote: ConnectingTcpRemote,
 }
 
 struct ConnectingTcpRemote {
-    addrs: dns::IpAddrs,
+    addrs: dns::SocketAddrs,
     connect_timeout: Option<Duration>,
 }
 
 impl ConnectingTcpRemote {
-    fn new(addrs: dns::IpAddrs, connect_timeout: Option<Duration>) -> Self {
+    fn new(addrs: dns::SocketAddrs, connect_timeout: Option<Duration>) -> Self {
         let connect_timeout = connect_timeout.map(|t| t / (addrs.len() as u32));
 
         Self {
@@ -521,15 +522,11 @@ impl ConnectingTcpRemote {
 }
 
 impl ConnectingTcpRemote {
-    async fn connect(
-        &mut self,
-        local_addr: &Option<IpAddr>,
-        reuse_address: bool,
-    ) -> io::Result<TcpStream> {
+    async fn connect(&mut self, config: &Config) -> Result<TcpStream, ConnectError> {
         let mut err = None;
         for addr in &mut self.addrs {
             debug!("connecting to {}", addr);
-            match connect(&addr, local_addr, reuse_address, self.connect_timeout)?.await {
+            match connect(&addr, config, self.connect_timeout)?.await {
                 Ok(tcp) => {
                     debug!("connected to {}", addr);
                     return Ok(tcp);
@@ -541,45 +538,121 @@ impl ConnectingTcpRemote {
             }
         }
 
-        Err(err.take().expect("missing connect error"))
+        match err {
+            Some(e) => Err(e),
+            None => Err(ConnectError::new(
+                "tcp connect error",
+                std::io::Error::new(std::io::ErrorKind::NotConnected, "Network unreachable"),
+            )),
+        }
     }
+}
+
+fn bind_local_address(
+    socket: &socket2::Socket,
+    dst_addr: &SocketAddr,
+    local_addr_ipv4: &Option<Ipv4Addr>,
+    local_addr_ipv6: &Option<Ipv6Addr>,
+) -> io::Result<()> {
+    match (*dst_addr, local_addr_ipv4, local_addr_ipv6) {
+        (SocketAddr::V4(_), Some(addr), _) => {
+            socket.bind(&SocketAddr::new(addr.clone().into(), 0).into())?;
+        }
+        (SocketAddr::V6(_), _, Some(addr)) => {
+            socket.bind(&SocketAddr::new(addr.clone().into(), 0).into())?;
+        }
+        _ => {
+            if cfg!(windows) {
+                // Windows requires a socket be bound before calling connect
+                let any: SocketAddr = match *dst_addr {
+                    SocketAddr::V4(_) => ([0, 0, 0, 0], 0).into(),
+                    SocketAddr::V6(_) => ([0, 0, 0, 0, 0, 0, 0, 0], 0).into(),
+                };
+                socket.bind(&any.into())?;
+            }
+        }
+    }
+
+    Ok(())
 }
 
 fn connect(
     addr: &SocketAddr,
-    local_addr: &Option<IpAddr>,
-    reuse_address: bool,
+    config: &Config,
     connect_timeout: Option<Duration>,
-) -> io::Result<impl Future<Output = io::Result<TcpStream>>> {
+) -> Result<impl Future<Output = Result<TcpStream, ConnectError>>, ConnectError> {
+    // TODO(eliza): if Tokio's `TcpSocket` gains support for setting the
+    // keepalive timeout, it would be nice to use that instead of socket2,
+    // and avoid the unsafe `into_raw_fd`/`from_raw_fd` dance...
     use socket2::{Domain, Protocol, Socket, Type};
+    use std::convert::TryInto;
+
     let domain = match *addr {
         SocketAddr::V4(_) => Domain::ipv4(),
         SocketAddr::V6(_) => Domain::ipv6(),
     };
-    let socket = Socket::new(domain, Type::stream(), Some(Protocol::tcp()))?;
+    let socket = Socket::new(domain, Type::stream(), Some(Protocol::tcp()))
+        .map_err(ConnectError::m("tcp open error"))?;
 
-    if reuse_address {
-        socket.set_reuse_address(true)?;
+    // When constructing a Tokio `TcpSocket` from a raw fd/socket, the user is
+    // responsible for ensuring O_NONBLOCK is set.
+    socket
+        .set_nonblocking(true)
+        .map_err(ConnectError::m("tcp set_nonblocking error"))?;
+
+    if let Some(dur) = config.keep_alive_timeout {
+        if let Err(e) = socket.set_keepalive(Some(dur)) {
+            warn!("tcp set_keepalive error: {}", e);
+        }
     }
 
-    if let Some(ref local_addr) = *local_addr {
-        // Caller has requested this socket be bound before calling connect
-        socket.bind(&SocketAddr::new(local_addr.clone(), 0).into())?;
-    } else if cfg!(windows) {
-        // Windows requires a socket be bound before calling connect
-        let any: SocketAddr = match *addr {
-            SocketAddr::V4(_) => ([0, 0, 0, 0], 0).into(),
-            SocketAddr::V6(_) => ([0, 0, 0, 0, 0, 0, 0, 0], 0).into(),
-        };
-        socket.bind(&any.into())?;
+    bind_local_address(
+        &socket,
+        addr,
+        &config.local_address_ipv4,
+        &config.local_address_ipv6,
+    )
+    .map_err(ConnectError::m("tcp bind local error"))?;
+
+    #[cfg(unix)]
+    let socket = unsafe {
+        // Safety: `from_raw_fd` is only safe to call if ownership of the raw
+        // file descriptor is transferred. Since we call `into_raw_fd` on the
+        // socket2 socket, it gives up ownership of the fd and will not close
+        // it, so this is safe.
+        use std::os::unix::io::{FromRawFd, IntoRawFd};
+        TcpSocket::from_raw_fd(socket.into_raw_fd())
+    };
+    #[cfg(windows)]
+    let socket = unsafe {
+        // Safety: `from_raw_socket` is only safe to call if ownership of the raw
+        // Windows SOCKET is transferred. Since we call `into_raw_socket` on the
+        // socket2 socket, it gives up ownership of the SOCKET and will not close
+        // it, so this is safe.
+        use std::os::windows::io::{FromRawSocket, IntoRawSocket};
+        TcpSocket::from_raw_socket(socket.into_raw_socket())
+    };
+
+    if config.reuse_address {
+        if let Err(e) = socket.set_reuseaddr(true) {
+            warn!("tcp set_reuse_address error: {}", e);
+        }
     }
 
-    let addr = *addr;
+    if let Some(size) = config.send_buffer_size {
+        if let Err(e) = socket.set_send_buffer_size(size.try_into().unwrap_or(std::u32::MAX)) {
+            warn!("tcp set_buffer_size error: {}", e);
+        }
+    }
 
-    let std_tcp = socket.into_tcp_stream();
+    if let Some(size) = config.recv_buffer_size {
+        if let Err(e) = socket.set_recv_buffer_size(size.try_into().unwrap_or(std::u32::MAX)) {
+            warn!("tcp set_recv_buffer_size error: {}", e);
+        }
+    }
 
+    let connect = socket.connect(*addr);
     Ok(async move {
-        let connect = TcpStream::connect_std(std_tcp, &addr);
         match connect_timeout {
             Some(dur) => match tokio::time::timeout(dur, connect).await {
                 Ok(Ok(s)) => Ok(s),
@@ -588,27 +661,26 @@ fn connect(
             },
             None => connect.await,
         }
+        .map_err(ConnectError::m("tcp connect error"))
     })
 }
 
-impl ConnectingTcp {
-    async fn connect(mut self) -> io::Result<TcpStream> {
-        let Self {
-            ref local_addr,
-            reuse_address,
-            ..
-        } = self;
+impl ConnectingTcp<'_> {
+    async fn connect(mut self) -> Result<TcpStream, ConnectError> {
         match self.fallback {
-            None => self.preferred.connect(local_addr, reuse_address).await,
+            None => self.preferred.connect(self.config).await,
             Some(mut fallback) => {
-                let preferred_fut = self.preferred.connect(local_addr, reuse_address);
+                let preferred_fut = self.preferred.connect(self.config);
                 futures_util::pin_mut!(preferred_fut);
 
-                let fallback_fut = fallback.remote.connect(local_addr, reuse_address);
+                let fallback_fut = fallback.remote.connect(self.config);
                 futures_util::pin_mut!(fallback_fut);
 
+                let fallback_delay = fallback.delay;
+                futures_util::pin_mut!(fallback_delay);
+
                 let (result, future) =
-                    match futures_util::future::select(preferred_fut, fallback.delay).await {
+                    match futures_util::future::select(preferred_fut, fallback_delay).await {
                         Either::Left((result, _fallback_delay)) => {
                             (result, Either::Right(fallback_fut))
                         }
@@ -639,7 +711,7 @@ mod tests {
     use ::http::Uri;
 
     use super::super::sealed::{Connect, ConnectSvc};
-    use super::HttpConnector;
+    use super::{Config, ConnectError, HttpConnector};
 
     async fn connect<C>(
         connector: C,
@@ -660,6 +732,32 @@ mod tests {
         assert_eq!(&*err.msg, super::INVALID_NOT_HTTP);
     }
 
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    fn get_local_ips() -> (Option<std::net::Ipv4Addr>, Option<std::net::Ipv6Addr>) {
+        use std::net::{IpAddr, TcpListener};
+
+        let mut ip_v4 = None;
+        let mut ip_v6 = None;
+
+        let ips = pnet_datalink::interfaces()
+            .into_iter()
+            .flat_map(|i| i.ips.into_iter().map(|n| n.ip()));
+
+        for ip in ips {
+            match ip {
+                IpAddr::V4(ip) if TcpListener::bind((ip, 0)).is_ok() => ip_v4 = Some(ip),
+                IpAddr::V6(ip) if TcpListener::bind((ip, 0)).is_ok() => ip_v6 = Some(ip),
+                _ => (),
+            }
+
+            if ip_v4.is_some() && ip_v6.is_some() {
+                break;
+            }
+        }
+
+        (ip_v4, ip_v6)
+    }
+
     #[tokio::test]
     async fn test_errors_missing_scheme() {
         let dst = "example.domain".parse().unwrap();
@@ -668,6 +766,44 @@ mod tests {
 
         let err = connect(connector, dst).await.unwrap_err();
         assert_eq!(&*err.msg, super::INVALID_MISSING_SCHEME);
+    }
+
+    // NOTE: pnet crate that we use in this test doesn't compile on Windows
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[tokio::test]
+    async fn local_address() {
+        use std::net::{IpAddr, TcpListener};
+        let _ = pretty_env_logger::try_init();
+
+        let (bind_ip_v4, bind_ip_v6) = get_local_ips();
+        let server4 = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = server4.local_addr().unwrap().port();
+        let server6 = TcpListener::bind(&format!("[::1]:{}", port)).unwrap();
+
+        let assert_client_ip = |dst: String, server: TcpListener, expected_ip: IpAddr| async move {
+            let mut connector = HttpConnector::new();
+
+            match (bind_ip_v4, bind_ip_v6) {
+                (Some(v4), Some(v6)) => connector.set_local_addresses(v4, v6),
+                (Some(v4), None) => connector.set_local_address(Some(v4.into())),
+                (None, Some(v6)) => connector.set_local_address(Some(v6.into())),
+                _ => unreachable!(),
+            }
+
+            connect(connector, dst.parse().unwrap()).await.unwrap();
+
+            let (_, client_addr) = server.accept().unwrap();
+
+            assert_eq!(client_addr.ip(), expected_ip);
+        };
+
+        if let Some(ip) = bind_ip_v4 {
+            assert_client_ip(format!("http://127.0.0.1:{}", port), server4, ip.into()).await;
+        }
+
+        if let Some(ip) = bind_ip_v6 {
+            assert_client_ip(format!("http://[::1]:{}", port), server6, ip.into()).await;
+        }
     }
 
     #[test]
@@ -683,10 +819,8 @@ mod tests {
         let server4 = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server4.local_addr().unwrap();
         let _server6 = TcpListener::bind(&format!("[::1]:{}", addr.port())).unwrap();
-        let mut rt = tokio::runtime::Builder::new()
-            .enable_io()
-            .enable_time()
-            .basic_scheduler()
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
             .build()
             .unwrap();
 
@@ -790,15 +924,21 @@ mod tests {
                         .iter()
                         .map(|host| (host.clone(), addr.port()).into())
                         .collect();
-                    let connecting_tcp = ConnectingTcp::new(
-                        None,
-                        dns::IpAddrs::new(addrs),
-                        None,
-                        Some(fallback_timeout),
-                        false,
-                    );
+                    let cfg = Config {
+                        local_address_ipv4: None,
+                        local_address_ipv6: None,
+                        connect_timeout: None,
+                        keep_alive_timeout: None,
+                        happy_eyeballs_timeout: Some(fallback_timeout),
+                        nodelay: false,
+                        reuse_address: false,
+                        enforce_http: false,
+                        send_buffer_size: None,
+                        recv_buffer_size: None,
+                    };
+                    let connecting_tcp = ConnectingTcp::new(dns::SocketAddrs::new(addrs), &cfg);
                     let start = Instant::now();
-                    Ok::<_, io::Error>((start, connecting_tcp.connect().await?))
+                    Ok::<_, ConnectError>((start, ConnectingTcp::connect(connecting_tcp).await?))
                 })
                 .unwrap();
             let res = if stream.peer_addr().unwrap().is_ipv4() {

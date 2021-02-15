@@ -41,6 +41,8 @@ pretty_env_logger = "0.4"
 
 * [`send_file`](send_file.rs) - A server that sends back content of files using tokio-util to read the files asynchronously.
 
+* [`service_struct_impl`](service_struct_impl.rs) - A struct that manually implements the `Service` trait and uses a shared counter across requests.
+
 * [`single_threaded`](single_threaded.rs) - A server only running on 1 thread, so it can make use of `!Send` app state (like an `Rc` counter).
 
 * [`state`](state.rs) - A webserver showing basic state sharing among requests. A counter is shared, incremented for every request, and every response is sent the last count.

@@ -10,15 +10,14 @@ fn main() {
     pretty_env_logger::init();
 
     // Configure a runtime that runs everything on the current thread
-    let mut rt = tokio::runtime::Builder::new()
+    let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
-        .basic_scheduler()
         .build()
         .expect("build runtime");
 
     // Combine it with a `LocalSet,  which means it can spawn !Send futures...
     let local = tokio::task::LocalSet::new();
-    local.block_on(&mut rt, run());
+    local.block_on(&rt, run());
 }
 
 async fn run() {
