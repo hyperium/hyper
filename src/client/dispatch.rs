@@ -4,9 +4,9 @@ use std::future::Future;
 use futures_util::FutureExt;
 use tokio::sync::{mpsc, oneshot};
 
-use crate::common::{task, Poll};
 #[cfg(feature = "http2")]
 use crate::common::Pin;
+use crate::common::{task, Poll};
 
 pub(crate) type RetryPromise<T, U> = oneshot::Receiver<Result<U, (crate::Error, Option<T>)>>;
 pub(crate) type Promise<T> = oneshot::Receiver<Result<T, crate::Error>>;
@@ -230,10 +230,10 @@ impl<T, U> Callback<T, U> {
     }
 
     #[cfg(feature = "http2")]
-    pub(crate) fn send_when(
+    pub(crate) async fn send_when(
         self,
         mut when: impl Future<Output = Result<U, (crate::Error, Option<T>)>> + Unpin,
-    ) -> impl Future<Output = ()> {
+    ) {
         use futures_util::future;
 
         let mut cb = Some(self);
@@ -257,6 +257,7 @@ impl<T, U> Callback<T, U> {
                 }
             }
         })
+        .await
     }
 }
 
