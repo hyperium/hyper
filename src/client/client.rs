@@ -162,7 +162,7 @@ where
             Version::HTTP_10 => {
                 if is_http_connect {
                     warn!("CONNECT is not allowed for HTTP/1.0");
-                    return ResponseFuture::new(Box::new(future::err(
+                    return ResponseFuture::new(Box::pin(future::err(
                         crate::Error::new_user_unsupported_request_method(),
                     )));
                 }
@@ -179,45 +179,41 @@ where
         let pool_key = match extract_domain(req.uri_mut(), is_http_connect) {
             Ok(s) => s,
             Err(err) => {
-                return ResponseFuture::new(Box::new(future::err(err)));
+                return ResponseFuture::new(Box::pin(future::err(err)));
             }
         };
 
-        ResponseFuture::new(Box::new(self.retryably_send_request(req, pool_key)))
+        ResponseFuture::new(Box::pin(self.clone().retryably_send_request(req, pool_key)))
     }
 
-    fn retryably_send_request(
-        &self,
-        req: Request<B>,
+    async fn retryably_send_request(
+        self,
+        mut req: Request<B>,
         pool_key: PoolKey,
-    ) -> impl Future<Output = crate::Result<Response<Body>>> {
-        let client = self.clone();
+    ) -> crate::Result<Response<Body>> {
         let uri = req.uri().clone();
 
-        async move {
-            let mut send_fut = client.send_request(req, pool_key.clone());
-            loop {
-                match send_fut.await {
-                    Ok(resp) => return Ok(resp),
-                    Err(ClientError::Normal(err)) => return Err(err),
-                    Err(ClientError::Canceled {
-                        connection_reused,
-                        mut req,
-                        reason,
-                    }) => {
-                        if !client.config.retry_canceled_requests || !connection_reused {
-                            // if client disabled, don't retry
-                            // a fresh connection means we definitely can't retry
-                            return Err(reason);
-                        }
-
-                        trace!(
-                            "unstarted request canceled, trying again (reason={:?})",
-                            reason
-                        );
-                        *req.uri_mut() = uri.clone();
-                        send_fut = client.send_request(req, pool_key.clone());
+        loop {
+            req = match self.send_request(req, pool_key.clone()).await {
+                Ok(resp) => return Ok(resp),
+                Err(ClientError::Normal(err)) => return Err(err),
+                Err(ClientError::Canceled {
+                    connection_reused,
+                    mut req,
+                    reason,
+                }) => {
+                    if !self.config.retry_canceled_requests || !connection_reused {
+                        // if client disabled, don't retry
+                        // a fresh connection means we definitely can't retry
+                        return Err(reason);
                     }
+
+                    trace!(
+                        "unstarted request canceled, trying again (reason={:?})",
+                        reason
+                    );
+                    *req.uri_mut() = uri.clone();
+                    req
                 }
             }
         }
@@ -558,13 +554,13 @@ impl<C, B> fmt::Debug for Client<C, B> {
 // ===== impl ResponseFuture =====
 
 impl ResponseFuture {
-    fn new(fut: Box<dyn Future<Output = crate::Result<Response<Body>>> + Send>) -> Self {
-        Self { inner: fut.into() }
+    fn new(fut: Pin<Box<dyn Future<Output = crate::Result<Response<Body>>> + Send>>) -> Self {
+        Self { inner: fut }
     }
 
     fn error_version(ver: Version) -> Self {
         warn!("Request has unsupported version \"{:?}\"", ver);
-        ResponseFuture::new(Box::new(future::err(
+        ResponseFuture::new(Box::pin(future::err(
             crate::Error::new_user_unsupported_version(),
         )))
     }
