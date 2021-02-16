@@ -280,39 +280,39 @@ where
             return fut.await;
         }
 
-        fut.map_ok(move |mut res| {
-            // If pooled is HTTP/2, we can toss this reference immediately.
-            //
-            // when pooled is dropped, it will try to insert back into the
-            // pool. To delay that, spawn a future that completes once the
-            // sender is ready again.
-            //
-            // This *should* only be once the related `Connection` has polled
-            // for a new request to start.
-            //
-            // It won't be ready if there is a body to stream.
-            if pooled.is_http2() || !pooled.is_pool_enabled() || pooled.is_ready() {
-                drop(pooled);
-            } else if !res.body().is_end_stream() {
-                let (delayed_tx, delayed_rx) = oneshot::channel();
-                res.body_mut().delayed_eof(delayed_rx);
-                let on_idle = future::poll_fn(move |cx| pooled.poll_ready(cx)).map(move |_| {
-                    // At this point, `pooled` is dropped, and had a chance
-                    // to insert into the pool (if conn was idle)
-                    drop(delayed_tx);
-                });
+        let mut res = fut.await?;
 
-                self.conn_builder.exec.execute(on_idle);
-            } else {
-                // There's no body to delay, but the connection isn't
-                // ready yet. Only re-insert when it's ready
-                let on_idle = future::poll_fn(move |cx| pooled.poll_ready(cx)).map(|_| ());
+        // If pooled is HTTP/2, we can toss this reference immediately.
+        //
+        // when pooled is dropped, it will try to insert back into the
+        // pool. To delay that, spawn a future that completes once the
+        // sender is ready again.
+        //
+        // This *should* only be once the related `Connection` has polled
+        // for a new request to start.
+        //
+        // It won't be ready if there is a body to stream.
+        if pooled.is_http2() || !pooled.is_pool_enabled() || pooled.is_ready() {
+            drop(pooled);
+        } else if !res.body().is_end_stream() {
+            let (delayed_tx, delayed_rx) = oneshot::channel();
+            res.body_mut().delayed_eof(delayed_rx);
+            let on_idle = future::poll_fn(move |cx| pooled.poll_ready(cx)).map(move |_| {
+                // At this point, `pooled` is dropped, and had a chance
+                // to insert into the pool (if conn was idle)
+                drop(delayed_tx);
+            });
 
-                self.conn_builder.exec.execute(on_idle);
-            }
-            res
-        })
-        .await
+            self.conn_builder.exec.execute(on_idle);
+        } else {
+            // There's no body to delay, but the connection isn't
+            // ready yet. Only re-insert when it's ready
+            let on_idle = future::poll_fn(move |cx| pooled.poll_ready(cx)).map(|_| ());
+
+            self.conn_builder.exec.execute(on_idle);
+        }
+
+        Ok(res)
     }
 
     async fn connection_for(
