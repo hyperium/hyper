@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1613673508236,
+  "lastUpdate": 1613673513927,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -1589,6 +1589,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 72941,
             "range": "± 11762",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "markus.westerlind@distilnetworks.com",
+            "name": "Markus Westerlind",
+            "username": "Marwes"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f01de8e503c649034a53a8fdf3ad2e107ad9ad2d",
+          "message": "refactor(client): Use async/await more (#2437)\n\n* refactor: Use async/await in client.rs\r\n\r\n* refactor: Simplify client.rs a bit more\r\n\r\n* refactor: Allow !Unpin in Lazy\r\n\r\n* Remove some impl Future\r\n\r\n* Remove some combinator use",
+          "timestamp": "2021-02-18T10:35:43-08:00",
+          "tree_id": "ecce068928942422a611eea6f2e2c7533022f73d",
+          "url": "https://github.com/hyperium/hyper/commit/f01de8e503c649034a53a8fdf3ad2e107ad9ad2d"
+        },
+        "date": 1613673503346,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 56357,
+            "range": "± 1399",
             "unit": "ns/iter"
           }
         ]
