@@ -36,6 +36,16 @@ impl AddrIncoming {
             .set_nonblocking(true)
             .map_err(crate::Error::new_listen)?;
         let listener = TcpListener::from_std(std_listener).map_err(crate::Error::new_listen)?;
+        AddrIncoming::from_listener(listener)
+    }
+
+    /// Creates a new `AddrIncoming` binding to provided socket address.
+    pub fn bind(addr: &SocketAddr) -> crate::Result<Self> {
+        AddrIncoming::new(addr)
+    }
+
+    /// Creates a new `AddrIncoming` from an existing `tokio::net::TcpListener`.
+    pub fn from_listener(listener: TcpListener) -> crate::Result<Self> {
         let addr = listener.local_addr().map_err(crate::Error::new_listen)?;
         Ok(AddrIncoming {
             listener,
@@ -45,11 +55,6 @@ impl AddrIncoming {
             tcp_nodelay: false,
             timeout: None,
         })
-    }
-
-    /// Creates a new `AddrIncoming` binding to provided socket address.
-    pub fn bind(addr: &SocketAddr) -> crate::Result<Self> {
-        AddrIncoming::new(addr)
     }
 
     /// Get the local address bound to this listener.
