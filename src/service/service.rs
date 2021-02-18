@@ -173,7 +173,6 @@ impl<F, R> fmt::Debug for ServiceFnOk<F, R> {
     }
 }
 
-//#[cfg(test)]
 fn _assert_fn_mut() {
     fn assert_service<T: Service>(_t: &T) {}
 
@@ -181,14 +180,14 @@ fn _assert_fn_mut() {
 
     let svc = service_fn(move |_req: Request<::Body>| {
         val += 1;
-        future::ok::<_, Never>(Response::new(::Body::empty()))
+        future::ok::<_, Never>(Response::new(::Body::from(val.to_string())))
     });
 
     assert_service(&svc);
 
     let svc = service_fn_ok(move |_req: Request<::Body>| {
         val += 1;
-        Response::new(::Body::empty())
+        Response::new(::Body::from(val.to_string()))
     });
 
     assert_service(&svc);
