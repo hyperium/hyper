@@ -1,3 +1,21 @@
+### v0.12.36 (2021-02-17)
+
+
+#### Bug Fixes
+
+* **client:** allow client GET requests with explicit body headers ([23fc8b08](https://github.com/hyperium/hyper/commit/23fc8b0806e7fde435ca00479cd5e3c8c5bdeee7), closes [#1925](https://github.com/hyperium/hyper/issues/1925))
+* **dependencies:** use correct minimum versions (#1974) ([90c1e8f4](https://github.com/hyperium/hyper/commit/90c1e8f44cb40d0eb1a2b36b2893e8bb5f970a96))
+* **http1:** fix server misinterpretting multiple Transfer-Encoding headers ([f6051250](https://github.com/hyperium/hyper/commit/f605125067562174920206e57cb589d31e2afb4b))
+* **server:** allow `Server::local_addr` to be called with custom executor (#2009) ([da16ed62](https://github.com/hyperium/hyper/commit/da16ed62a3f478800f7a44c49acca4b109e4448b))
+
+
+#### Features
+
+* **client:**
+  * add resolve timeout to HttpConnector (#1994) ([d4ee6996](https://github.com/hyperium/hyper/commit/d4ee6996bf99eda110a067a80b5b7967fec6af48))
+  * Add connect timeout to HttpConnector ([3d676fb7](https://github.com/hyperium/hyper/commit/3d676fb775a8291cab1491a2c7a9a7f247749e63))
+
+
 ### v0.12.35 (2019-09-13)
 
 
