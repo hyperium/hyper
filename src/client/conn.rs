@@ -192,12 +192,13 @@ impl<B> SendRequest<B> {
         self.dispatch.poll_ready(cx)
     }
 
-    pub(super) fn when_ready(self) -> impl Future<Output = crate::Result<Self>> {
+    pub(super) async fn when_ready(self) -> crate::Result<Self> {
         let mut me = Some(self);
         future::poll_fn(move |cx| {
             ready!(me.as_mut().unwrap().poll_ready(cx))?;
             Poll::Ready(Ok(me.take().unwrap()))
         })
+        .await
     }
 
     pub(super) fn is_ready(&self) -> bool {
