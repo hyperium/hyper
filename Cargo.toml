@@ -66,6 +66,7 @@ tokio = { version = "1", features = [
 ] }
 tokio-test = "0.4"
 tokio-util = { version = "0.6", features = ["codec"] }
+tower = { version = "0.4", features = ["make"] }
 tower-util = "0.3"
 url = "2.2"
 
