@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1613673675506,
+  "lastUpdate": 1613771588812,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -1619,6 +1619,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 56357,
             "range": "± 1399",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "david.pdrsn@gmail.com",
+            "name": "David Pedersen",
+            "username": "davidpdrsn"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6efc1a1cce0abdd4e3263e7ea328ad49616d8050",
+          "message": "docs(server): add server example using `tower::make::Shared` (#2440)\n\n`tower` 0.4.5 introduced `Shared` which is a `MakeService` that produces\r\nservices by cloning an inner service. This works quite well with `hyper`\r\nif your service doesn't need the incoming connection and implements\r\n`Clone`.\r\n\r\nHowever that might not be entirely obvious so I thought it made sense to\r\nadd an example to the docs.\r\n\r\nI wasn't quite sure if the example should go in the server or service\r\nmodule docs but since there already is an example using\r\n`make_service_fn` in the server docs I opted to add it there. Let me\r\nknow if you'd rather have it somewhere else.",
+          "timestamp": "2021-02-19T13:50:43-08:00",
+          "tree_id": "6b933a218c948e3b2b4e3c4609e622016b6c7137",
+          "url": "https://github.com/hyperium/hyper/commit/6efc1a1cce0abdd4e3263e7ea328ad49616d8050"
+        },
+        "date": 1613771587629,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 46170,
+            "range": "± 999",
             "unit": "ns/iter"
           }
         ]
