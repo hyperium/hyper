@@ -6,7 +6,7 @@ use std::time::Duration;
 use futures_channel::oneshot;
 use futures_util::future::{self, Either, FutureExt as _, TryFutureExt as _};
 use http::header::{HeaderValue, HOST};
-use http::uri::Scheme;
+use http::uri::{Port, Scheme};
 use http::{Method, Request, Response, Uri, Version};
 
 use super::conn;
@@ -231,7 +231,7 @@ where
                 let uri = req.uri().clone();
                 req.headers_mut().entry(HOST).or_insert_with(|| {
                     let hostname = uri.host().expect("authority implies host");
-                    if let Some(port) = uri.port() {
+                    if let Some(port) = get_non_default_port(&uri) {
                         let s = format!("{}:{}", hostname, port);
                         HeaderValue::from_str(&s)
                     } else {
@@ -820,6 +820,20 @@ fn set_scheme(uri: &mut Uri, scheme: Scheme) {
     *uri = Uri::from_parts(parts).expect("scheme is valid");
 }
 
+fn get_non_default_port(uri: &Uri) -> Option<Port<&str>> {
+    match (uri.port().map(|p| p.as_u16()), is_schema_secure(uri)) {
+        (Some(443), true) => None,
+        (Some(80), false) => None,
+        _ => uri.port(),
+    }
+}
+
+fn is_schema_secure(uri: &Uri) -> bool {
+    uri.scheme_str()
+        .map(|scheme_str| matches!(scheme_str, "wss" | "https"))
+        .unwrap_or_default()
+}
+
 /// A builder to configure a new [`Client`](Client).
 ///
 /// # Example
@@ -1220,5 +1234,49 @@ mod unit_tests {
         let (scheme, host) = extract_domain(&mut uri, true).expect("extract domain");
         assert_eq!(scheme, *"http");
         assert_eq!(host, "hyper.rs");
+    }
+
+    #[test]
+    fn test_is_secure() {
+        assert_eq!(
+            is_schema_secure(&"http://hyper.rs".parse::<Uri>().unwrap()),
+            false
+        );
+        assert_eq!(is_schema_secure(&"hyper.rs".parse::<Uri>().unwrap()), false);
+        assert_eq!(
+            is_schema_secure(&"wss://hyper.rs".parse::<Uri>().unwrap()),
+            true
+        );
+        assert_eq!(
+            is_schema_secure(&"ws://hyper.rs".parse::<Uri>().unwrap()),
+            false
+        );
+    }
+
+    #[test]
+    fn test_get_non_default_port() {
+        assert!(get_non_default_port(&"http://hyper.rs".parse::<Uri>().unwrap()).is_none());
+        assert!(get_non_default_port(&"http://hyper.rs:80".parse::<Uri>().unwrap()).is_none());
+        assert!(get_non_default_port(&"https://hyper.rs:443".parse::<Uri>().unwrap()).is_none());
+        assert!(get_non_default_port(&"hyper.rs:80".parse::<Uri>().unwrap()).is_none());
+
+        assert_eq!(
+            get_non_default_port(&"http://hyper.rs:123".parse::<Uri>().unwrap())
+                .unwrap()
+                .as_u16(),
+            123
+        );
+        assert_eq!(
+            get_non_default_port(&"https://hyper.rs:80".parse::<Uri>().unwrap())
+                .unwrap()
+                .as_u16(),
+            80
+        );
+        assert_eq!(
+            get_non_default_port(&"hyper.rs:123".parse::<Uri>().unwrap())
+                .unwrap()
+                .as_u16(),
+            123
+        );
     }
 }
