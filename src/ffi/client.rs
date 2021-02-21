@@ -7,8 +7,8 @@ use crate::rt::Executor as _;
 
 use super::error::hyper_code;
 use super::http_types::{hyper_request, hyper_response};
-use super::io::Io;
-use super::task::{hyper_task_return_type, AsTaskType, Exec, Task, WeakExec};
+use super::io::hyper_io;
+use super::task::{hyper_executor, hyper_task, hyper_task_return_type, AsTaskType, WeakExec};
 
 pub struct hyper_clientconn_options {
     builder: conn::Builder,
@@ -30,7 +30,7 @@ ffi_fn! {
     ///
     /// The returned `hyper_task *` must be polled with an executor until the
     /// handshake completes, at which point the value can be taken.
-    fn hyper_clientconn_handshake(io: *mut Io, options: *mut hyper_clientconn_options) -> *mut Task {
+    fn hyper_clientconn_handshake(io: *mut hyper_io, options: *mut hyper_clientconn_options) -> *mut hyper_task {
         if io.is_null() {
             return std::ptr::null_mut();
         }
@@ -41,7 +41,7 @@ ffi_fn! {
         let options = unsafe { Box::from_raw(options) };
         let io = unsafe { Box::from_raw(io) };
 
-        Box::into_raw(Task::boxed(async move {
+        Box::into_raw(hyper_task::boxed(async move {
             options.builder.handshake::<_, crate::Body>(io)
                 .await
                 .map(|(tx, conn)| {
@@ -59,7 +59,7 @@ ffi_fn! {
     ///
     /// Returns a task that needs to be polled until it is ready. When ready, the
     /// task yields a `hyper_response *`.
-    fn hyper_clientconn_send(conn: *mut hyper_clientconn, req: *mut hyper_request) -> *mut Task {
+    fn hyper_clientconn_send(conn: *mut hyper_clientconn, req: *mut hyper_request) -> *mut hyper_task {
         if conn.is_null() {
             return std::ptr::null_mut();
         }
@@ -78,7 +78,7 @@ ffi_fn! {
             fut.await.map(hyper_response::wrap)
         };
 
-        Box::into_raw(Task::boxed(fut))
+        Box::into_raw(hyper_task::boxed(fut))
     }
 }
 
@@ -118,11 +118,11 @@ ffi_fn! {
     /// Set the client background task executor.
     ///
     /// This does not consume the `options` or the `exec`.
-    fn hyper_clientconn_options_exec(opts: *mut hyper_clientconn_options, exec: *const Exec) {
+    fn hyper_clientconn_options_exec(opts: *mut hyper_clientconn_options, exec: *const hyper_executor) {
         let opts = unsafe { &mut *opts };
 
         let exec = unsafe { Arc::from_raw(exec) };
-        let weak_exec = Exec::downgrade(&exec);
+        let weak_exec = hyper_executor::downgrade(&exec);
         std::mem::forget(exec);
 
         opts.builder.executor(weak_exec.clone());
