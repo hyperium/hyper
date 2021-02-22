@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1613771821243,
+  "lastUpdate": 1614022567188,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -1649,6 +1649,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 46170,
             "range": "± 999",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "cfir16@gmail.com",
+            "name": "CfirTsabari",
+            "username": "CfirTsabari"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "0b11eee9bde421cdc1680cadabfd38c5aff8e62f",
+          "message": "fix(client): omit default port from automatic Host headers (#2441)\n\nFixes hyperium/hyper#2407",
+          "timestamp": "2021-02-22T11:33:28-08:00",
+          "tree_id": "5623a60dd93bcebc066f49c52f6b97ab29c074b1",
+          "url": "https://github.com/hyperium/hyper/commit/0b11eee9bde421cdc1680cadabfd38c5aff8e62f"
+        },
+        "date": 1614022565707,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 48833,
+            "range": "± 2218",
             "unit": "ns/iter"
           }
         ]
