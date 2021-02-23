@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1614039289689,
+  "lastUpdate": 1614039305072,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -3361,6 +3361,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 80341,
             "range": "± 26778",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "cfir16@gmail.com",
+            "name": "CfirTsabari",
+            "username": "CfirTsabari"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a60280873bbfe5c2a2806c88891bf91e3e4c3882",
+          "message": "refactor(ffi): Removed need for cbindgen type renames (#2442)\n\nFixes hyperium/hyper#2428",
+          "timestamp": "2021-02-22T16:12:06-08:00",
+          "tree_id": "9f554a19f8d87074aa036b33399d42eed1a3f3ce",
+          "url": "https://github.com/hyperium/hyper/commit/a60280873bbfe5c2a2806c88891bf91e3e4c3882"
+        },
+        "date": 1614039303386,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 69309,
+            "range": "± 27291",
             "unit": "ns/iter"
           }
         ]
