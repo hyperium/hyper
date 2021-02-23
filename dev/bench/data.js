@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1614039459821,
+  "lastUpdate": 1614039680583,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -1709,6 +1709,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 51930,
             "range": "± 2781",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "zonyitoo@users.noreply.github.com",
+            "name": "ty",
+            "username": "zonyitoo"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4c946af49cc7fbbc6bd4894283a654625c2ea383",
+          "message": "feat(server): add `AddrIncoming::from_listener` constructor (#2439)",
+          "timestamp": "2021-02-22T16:18:38-08:00",
+          "tree_id": "895fb85f54da75512a8656c13aeea97236b7fc04",
+          "url": "https://github.com/hyperium/hyper/commit/4c946af49cc7fbbc6bd4894283a654625c2ea383"
+        },
+        "date": 1614039679083,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 54429,
+            "range": "± 8795",
             "unit": "ns/iter"
           }
         ]
