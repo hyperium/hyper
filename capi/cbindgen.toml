@@ -7,8 +7,3 @@ documentation_style = "c"
 
 [parse.expand]
 crates = ["hyper-capi"]
-
-[export.rename]
-"Exec" = "hyper_executor"
-"Io" = "hyper_io"
-"Task" = "hyper_task"

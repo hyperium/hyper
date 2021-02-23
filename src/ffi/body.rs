@@ -6,7 +6,7 @@ use std::task::{Context, Poll};
 use http::HeaderMap;
 use libc::{c_int, size_t};
 
-use super::task::{hyper_context, hyper_task_return_type, AsTaskType, Task};
+use super::task::{hyper_context, hyper_task, hyper_task_return_type, AsTaskType};
 use super::{UserDataPointer, HYPER_ITER_CONTINUE};
 use crate::body::{Body, Bytes, HttpBody as _};
 
@@ -57,11 +57,11 @@ ffi_fn! {
     ///
     /// This does not consume the `hyper_body *`, so it may be used to again.
     /// However, it MUST NOT be used or freed until the related task completes.
-    fn hyper_body_data(body: *mut hyper_body) -> *mut Task {
+    fn hyper_body_data(body: *mut hyper_body) -> *mut hyper_task {
         // This doesn't take ownership of the Body, so don't allow destructor
         let mut body = ManuallyDrop::new(unsafe { Box::from_raw(body) });
 
-        Box::into_raw(Task::boxed(async move {
+        Box::into_raw(hyper_task::boxed(async move {
             body.0.data().await.map(|res| res.map(hyper_buf))
         }))
     }
@@ -78,7 +78,7 @@ ffi_fn! {
     /// chunks as they are received, or `HYPER_ITER_BREAK` to cancel.
     ///
     /// This will consume the `hyper_body *`, you shouldn't use it anymore or free it.
-    fn hyper_body_foreach(body: *mut hyper_body, func: hyper_body_foreach_callback, userdata: *mut c_void) -> *mut Task {
+    fn hyper_body_foreach(body: *mut hyper_body, func: hyper_body_foreach_callback, userdata: *mut c_void) -> *mut hyper_task {
         if body.is_null() {
             return ptr::null_mut();
         }
@@ -86,7 +86,7 @@ ffi_fn! {
         let mut body = unsafe { Box::from_raw(body) };
         let userdata = UserDataPointer(userdata);
 
-        Box::into_raw(Task::boxed(async move {
+        Box::into_raw(hyper_task::boxed(async move {
             while let Some(item) = body.0.data().await {
                 let chunk = item?;
                 if HYPER_ITER_CONTINUE != func(userdata.0, &hyper_buf(chunk)) {

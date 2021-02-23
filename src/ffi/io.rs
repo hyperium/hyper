@@ -15,7 +15,7 @@ type hyper_io_read_callback =
 type hyper_io_write_callback =
     extern "C" fn(*mut c_void, *mut hyper_context<'_>, *const u8, size_t) -> size_t;
 
-pub struct Io {
+pub struct hyper_io {
     read: hyper_io_read_callback,
     write: hyper_io_write_callback,
     userdata: *mut c_void,
@@ -26,8 +26,8 @@ ffi_fn! {
     ///
     /// The read and write functions of this transport should be set with
     /// `hyper_io_set_read` and `hyper_io_set_write`.
-    fn hyper_io_new() -> *mut Io {
-        Box::into_raw(Box::new(Io {
+    fn hyper_io_new() -> *mut hyper_io {
+        Box::into_raw(Box::new(hyper_io {
             read: read_noop,
             write: write_noop,
             userdata: std::ptr::null_mut(),
@@ -40,7 +40,7 @@ ffi_fn! {
     ///
     /// This is typically only useful if you aren't going to pass ownership
     /// of the IO handle to hyper, such as with `hyper_clientconn_handshake()`.
-    fn hyper_io_free(io: *mut Io) {
+    fn hyper_io_free(io: *mut hyper_io) {
         drop(unsafe { Box::from_raw(io) });
     }
 }
@@ -49,7 +49,7 @@ ffi_fn! {
     /// Set the user data pointer for this IO to some value.
     ///
     /// This value is passed as an argument to the read and write callbacks.
-    fn hyper_io_set_userdata(io: *mut Io, data: *mut c_void) {
+    fn hyper_io_set_userdata(io: *mut hyper_io, data: *mut c_void) {
         unsafe { &mut *io }.userdata = data;
     }
 }
@@ -71,7 +71,7 @@ ffi_fn! {
     ///
     /// If there is an irrecoverable error reading data, then `HYPER_IO_ERROR`
     /// should be the return value.
-    fn hyper_io_set_read(io: *mut Io, func: hyper_io_read_callback) {
+    fn hyper_io_set_read(io: *mut hyper_io, func: hyper_io_read_callback) {
         unsafe { &mut *io }.read = func;
     }
 }
@@ -90,7 +90,7 @@ ffi_fn! {
     ///
     /// If there is an irrecoverable error reading data, then `HYPER_IO_ERROR`
     /// should be the return value.
-    fn hyper_io_set_write(io: *mut Io, func: hyper_io_write_callback) {
+    fn hyper_io_set_write(io: *mut hyper_io, func: hyper_io_write_callback) {
         unsafe { &mut *io }.write = func;
     }
 }
@@ -115,7 +115,7 @@ extern "C" fn write_noop(
     0
 }
 
-impl AsyncRead for Io {
+impl AsyncRead for hyper_io {
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -141,7 +141,7 @@ impl AsyncRead for Io {
     }
 }
 
-impl AsyncWrite for Io {
+impl AsyncWrite for hyper_io {
     fn poll_write(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -169,5 +169,5 @@ impl AsyncWrite for Io {
     }
 }
 
-unsafe impl Send for Io {}
-unsafe impl Sync for Io {}
+unsafe impl Send for hyper_io {}
+unsafe impl Sync for hyper_io {}
