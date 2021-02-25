@@ -10,12 +10,18 @@ use super::http_types::{hyper_request, hyper_response};
 use super::io::hyper_io;
 use super::task::{hyper_executor, hyper_task, hyper_task_return_type, AsTaskType, WeakExec};
 
+/// An options builder to configure an HTTP client connection.
 pub struct hyper_clientconn_options {
     builder: conn::Builder,
     /// Use a `Weak` to prevent cycles.
     exec: WeakExec,
 }
 
+/// An HTTP client connection handle.
+///
+/// These are used to send a request on a single connection. It's possible to
+/// send multiple requests on a single connection, such as when HTTP/1
+/// keep-alive or HTTP/2 is used.
 pub struct hyper_clientconn {
     tx: conn::SendRequest<crate::Body>,
 }

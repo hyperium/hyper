@@ -10,8 +10,10 @@ use super::task::{hyper_context, hyper_task, hyper_task_return_type, AsTaskType}
 use super::{UserDataPointer, HYPER_ITER_CONTINUE};
 use crate::body::{Body, Bytes, HttpBody as _};
 
+/// A streaming HTTP body.
 pub struct hyper_body(pub(super) Body);
 
+/// A buffer of bytes that is sent or received on a `hyper_body`.
 pub struct hyper_buf(pub(super) Bytes);
 
 pub(crate) struct UserBody {

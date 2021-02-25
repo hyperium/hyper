@@ -118,8 +118,8 @@ nightly = []
 __internal_happy_eyeballs_tests = []
 
 [package.metadata.docs.rs]
-features = ["full"]
-rustdoc-args = ["--cfg", "docsrs"]
+features = ["ffi", "full"]
+rustdoc-args = ["--cfg", "docsrs", "--cfg", "hyper_unstable_ffi"]
 
 [package.metadata.playground]
 features = ["full"]
