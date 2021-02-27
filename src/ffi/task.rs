@@ -17,10 +17,17 @@ use super::UserDataPointer;
 type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send>>;
 type BoxAny = Box<dyn AsTaskType + Send + Sync>;
 
+/// Return in a poll function to indicate it was ready.
 pub const HYPER_POLL_READY: c_int = 0;
+/// Return in a poll function to indicate it is still pending.
+///
+/// The passed in `hyper_waker` should be registered to wake up the task at
+/// some later point.
 pub const HYPER_POLL_PENDING: c_int = 1;
+/// Return in a poll function indicate an error.
 pub const HYPER_POLL_ERROR: c_int = 3;
 
+/// A task executor for `hyper_task`s.
 pub struct hyper_executor {
     /// The executor of all task futures.
     ///
@@ -47,6 +54,7 @@ pub(crate) struct WeakExec(Weak<hyper_executor>);
 
 struct ExecWaker(AtomicBool);
 
+/// An async task.
 pub struct hyper_task {
     future: BoxFuture<BoxAny>,
     output: Option<BoxAny>,
@@ -57,12 +65,15 @@ struct TaskFuture {
     task: Option<Box<hyper_task>>,
 }
 
+/// An async context for a task that contains the related waker.
 pub struct hyper_context<'a>(Context<'a>);
 
+/// A waker that is saved and used to waken a pending task.
 pub struct hyper_waker {
     waker: std::task::Waker,
 }
 
+/// A descriptor for what type a `hyper_task` value is.
 #[repr(C)]
 pub enum hyper_task_return_type {
     /// The value of this task is null (does not imply an error).

@@ -7,7 +7,11 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::task::hyper_context;
 
+/// Sentinal value to return from a read or write callback that the operation
+/// is pending.
 pub const HYPER_IO_PENDING: size_t = 0xFFFFFFFF;
+/// Sentinal value to return from a read or write callback that the operation
+/// has errored.
 pub const HYPER_IO_ERROR: size_t = 0xFFFFFFFE;
 
 type hyper_io_read_callback =
@@ -15,6 +19,7 @@ type hyper_io_read_callback =
 type hyper_io_write_callback =
     extern "C" fn(*mut c_void, *mut hyper_context<'_>, *const u8, size_t) -> size_t;
 
+/// An IO object used to represent a socket or similar concept.
 pub struct hyper_io {
     read: hyper_io_read_callback,
     write: hyper_io_write_callback,

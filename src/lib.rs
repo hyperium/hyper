@@ -89,7 +89,7 @@ pub mod service;
 pub mod upgrade;
 
 #[cfg(feature = "ffi")]
-mod ffi;
+pub mod ffi;
 
 cfg_proto! {
     mod headers;
