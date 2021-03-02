@@ -363,6 +363,25 @@ test! {
         request: {
             method: GET,
             url: "http://{addr}/",
+            // body is Body::empty
+        },
+        response:
+            status: OK,
+            headers: {},
+            body: None,
+}
+
+test! {
+    name: client_get_req_body_explicitly_empty,
+
+    server:
+        expected: "GET / HTTP/1.1\r\nhost: {addr}\r\ncontent-length: 0\r\n\r\n",
+        reply: REPLY_OK,
+
+    client:
+        request: {
+            method: GET,
+            url: "http://{addr}/",
             body: "", // not Body::empty
         },
         response:

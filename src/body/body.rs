@@ -480,7 +480,7 @@ impl From<Bytes> for Body {
     #[inline]
     fn from(chunk: Bytes) -> Body {
         if chunk.is_empty() {
-            Body::empty()
+            Body::new(Kind::Once(Some(Bytes::new()))) // drop chunk ASAP
         } else {
             Body::new(Kind::Once(Some(chunk)))
         }
