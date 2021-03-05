@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1614395176818,
+  "lastUpdate": 1614906369509,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -1769,6 +1769,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 75207,
             "range": "± 8913",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "peter@smitmail.eu",
+            "name": "Peter Smit",
+            "username": "psmit"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8cbf9527dfb313b3f84fcd83260c5c72ce4a1beb",
+          "message": "fix(server): skip automatic Content-Length headers when not allowed (#2216)\n\nCloses #2215",
+          "timestamp": "2021-03-04T17:03:33-08:00",
+          "tree_id": "8c8f7d8ab9d86213ee1f48be464f206ede927d71",
+          "url": "https://github.com/hyperium/hyper/commit/8cbf9527dfb313b3f84fcd83260c5c72ce4a1beb"
+        },
+        "date": 1614906368123,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 49702,
+            "range": "± 2620",
             "unit": "ns/iter"
           }
         ]
