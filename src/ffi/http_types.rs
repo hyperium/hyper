@@ -9,10 +9,15 @@ use super::HYPER_ITER_CONTINUE;
 use crate::header::{HeaderName, HeaderValue};
 use crate::{Body, HeaderMap, Method, Request, Response, Uri};
 
+/// An HTTP request.
 pub struct hyper_request(pub(super) Request<Body>);
 
+/// An HTTP response.
 pub struct hyper_response(pub(super) Response<Body>);
 
+/// An HTTP header map.
+///
+/// These can be part of a request or response.
 #[derive(Default)]
 pub struct hyper_headers {
     pub(super) headers: HeaderMap,

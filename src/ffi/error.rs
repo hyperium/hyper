@@ -1,7 +1,9 @@
 use libc::size_t;
 
+/// A more detailed error object returned by some hyper functions.
 pub struct hyper_error(crate::Error);
 
+/// A return code for many of hyper's methods.
 #[repr(C)]
 pub enum hyper_code {
     /// All is well.
