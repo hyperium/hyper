@@ -1330,8 +1330,9 @@ async fn upgrades_new() {
         let mut buf = [0; 256];
         tcp.read(&mut buf).expect("read 1");
 
-        let expected = "HTTP/1.1 101 Switching Protocols\r\n";
-        assert_eq!(s(&buf[..expected.len()]), expected);
+        let response = s(&buf);
+        assert!(response.starts_with("HTTP/1.1 101 Switching Protocols\r\n"));
+        assert!(!has_header(&response, "content-length"));
         let _ = read_101_tx.send(());
 
         let n = tcp.read(&mut buf).expect("read 2");

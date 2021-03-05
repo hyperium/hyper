@@ -562,13 +562,13 @@ impl Http1Transaction for Server {
                     }
                 }
                 None | Some(BodyLength::Known(0)) => {
-                    if msg.head.subject != StatusCode::NOT_MODIFIED {
+                    if Server::can_have_content_length(msg.req_method, msg.head.subject) {
                         extend(dst, b"content-length: 0\r\n");
                     }
                     Encoder::length(0)
                 }
                 Some(BodyLength::Known(len)) => {
-                    if msg.head.subject == StatusCode::NOT_MODIFIED {
+                    if !Server::can_have_content_length(msg.req_method, msg.head.subject) {
                         Encoder::length(0)
                     } else {
                         extend(dst, b"content-length: ");
@@ -638,13 +638,22 @@ impl Server {
         if method == &Some(Method::HEAD) || method == &Some(Method::CONNECT) && status.is_success()
         {
             false
+        } else if status.is_informational() {
+            false
         } else {
             match status {
-                // TODO: support for 1xx codes needs improvement everywhere
-                // would be 100...199 => false
-                StatusCode::SWITCHING_PROTOCOLS
-                | StatusCode::NO_CONTENT
-                | StatusCode::NOT_MODIFIED => false,
+                StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED => false,
+                _ => true,
+            }
+        }
+    }
+
+    fn can_have_content_length(method: &Option<Method>, status: StatusCode) -> bool {
+        if status.is_informational() || method == &Some(Method::CONNECT) && status.is_success() {
+            false
+        } else {
+            match status {
+                StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED => false,
                 _ => true,
             }
         }
