@@ -10,7 +10,7 @@ Most of these examples use these dependencies:
 
 ```toml
 [dependencies]
-hyper = "0.13"
+hyper = { version = "0.14", features = ["full"] }
 tokio = { version = "0.2", features = ["full"] }
 pretty_env_logger = "0.4"
 ```
