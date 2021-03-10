@@ -11,7 +11,7 @@ Most of these examples use these dependencies:
 ```toml
 [dependencies]
 hyper = { version = "0.14", features = ["full"] }
-tokio = { version = "0.2", features = ["full"] }
+tokio = { version = "1", features = ["full"] }
 pretty_env_logger = "0.4"
 ```
 
