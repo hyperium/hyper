@@ -12,6 +12,34 @@ use crate::common::{task, Future, Pin, Poll};
 pub use self::addr_stream::AddrStream;
 use super::accept::Accept;
 
+/// Options to set on the server socket before binding it.
+#[derive(Clone, Debug)]
+pub struct SocketOptions {
+    reuse_port: bool,
+}
+
+impl Default for SocketOptions {
+    fn default() -> Self {
+        Self { reuse_port: false }
+    }
+}
+
+impl SocketOptions {
+    /// Constructs default socket options.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Requests setting the `SO_REUSEPORT` option on the server
+    /// socket before binding it.
+    ///
+    /// Only has effect on UNIX platforms.
+    pub fn reuse_port(mut self, enable: bool) -> Self {
+        self.reuse_port = enable;
+        self
+    }
+}
+
 /// A stream of connections from binding to an address.
 #[must_use = "streams do nothing unless polled"]
 pub struct AddrIncoming {
@@ -25,9 +53,27 @@ pub struct AddrIncoming {
 
 impl AddrIncoming {
     pub(super) fn new(addr: &SocketAddr) -> crate::Result<Self> {
-        let std_listener = StdTcpListener::bind(addr).map_err(crate::Error::new_listen)?;
+        AddrIncoming::new_with_options(addr, SocketOptions::default())
+    }
 
-        AddrIncoming::from_std(std_listener)
+    fn new_with_options(addr: &SocketAddr, _opts: SocketOptions) -> crate::Result<Self> {
+        use socket2::{Domain, Protocol, SockAddr, Type};
+        let domain = match &addr {
+            SocketAddr::V4(_) => Domain::ipv4(),
+            SocketAddr::V6(_) => Domain::ipv6(),
+        };
+        let socket = socket2::Socket::new(domain, Type::stream(), Some(Protocol::tcp()))
+            .map_err(crate::Error::new_listen)?;
+        #[cfg(all(unix, not(any(target_os = "solaris", target_os = "illumos"))))]
+        if _opts.reuse_port {
+            socket
+                .set_reuse_port(true)
+                .map_err(crate::Error::new_listen)?;
+        }
+        socket
+            .bind(&SockAddr::from(*addr))
+            .map_err(crate::Error::new_listen)?;
+        AddrIncoming::from_std(socket.into_tcp_listener())
     }
 
     pub(super) fn from_std(std_listener: StdTcpListener) -> crate::Result<Self> {
@@ -42,6 +88,11 @@ impl AddrIncoming {
     /// Creates a new `AddrIncoming` binding to provided socket address.
     pub fn bind(addr: &SocketAddr) -> crate::Result<Self> {
         AddrIncoming::new(addr)
+    }
+
+    /// Creates a new `AddrIncoming` binding the provided socket address with specified options.
+    pub fn bind_with_options(addr: &SocketAddr, opts: SocketOptions) -> crate::Result<Self> {
+        AddrIncoming::new_with_options(addr, opts)
     }
 
     /// Creates a new `AddrIncoming` from an existing `tokio::net::TcpListener`.
