@@ -7,6 +7,7 @@ use h2::server::{Connection, Handshake, SendResponse};
 use h2::Reason;
 use pin_project::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
+use tracing::debug;
 
 use super::{decode_content_length, ping, PipeToSendStream, SendBuf};
 use crate::body::HttpBody;
@@ -175,6 +176,10 @@ where
                     ref ping_config,
                 } => {
                     let mut conn = ready!(Pin::new(hs).poll(cx).map_err(crate::Error::new_h2))?;
+                    debug!(
+                        client.max_concurrent_recv_streams = conn.max_concurrent_recv_streams(),
+                        "HTTP/2 handshake complete"
+                    );
                     let ping = if ping_config.is_enabled() {
                         let pp = conn.ping_pong().expect("conn.ping_pong");
                         Some(ping::channel(pp, ping_config.clone()))
