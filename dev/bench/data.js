@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1615848204057,
+  "lastUpdate": 1615848355244,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -12171,6 +12171,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_req_100kb",
             "value": 167260,
             "range": "± 21144",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mail@dbrgn.ch",
+            "name": "Danilo Bargen",
+            "username": "dbrgn"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "eb0e7186963bbe4fa1ad4478ac493f75ddc92ae5",
+          "message": "docs(body): add links to to_bytes and aggregate (#2464)\n\nSince these two functions are not methods on the `Body`, they aren't\r\nvery discoverable. So a note in the docs would definitely be helpful.",
+          "timestamp": "2021-03-15T15:40:28-07:00",
+          "tree_id": "14b6039d4a111f52351c76ea2f9cdbb19cf616c6",
+          "url": "https://github.com/hyperium/hyper/commit/eb0e7186963bbe4fa1ad4478ac493f75ddc92ae5"
+        },
+        "date": 1615848353883,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_body_both_100kb",
+            "value": 113021,
+            "range": "± 16226",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_body_both_10mb",
+            "value": 6075280,
+            "range": "± 1214879",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_get",
+            "value": 39349,
+            "range": "± 3291",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 245740,
+            "range": "± 22490",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 52001662,
+            "range": "± 826536",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 47514571,
+            "range": "± 4090221",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 49869694,
+            "range": "± 4239080",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 3356224,
+            "range": "± 517482",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_post",
+            "value": 47066,
+            "range": "± 6061",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_get",
+            "value": 79466,
+            "range": "± 5856",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 202672,
+            "range": "± 19281",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 11340089,
+            "range": "± 8822357",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 11468619,
+            "range": "± 9160650",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 10899411,
+            "range": "± 9400465",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 60982657,
+            "range": "± 5816998",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 74969314,
+            "range": "± 13861685",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 6650593,
+            "range": "± 1404158",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_post",
+            "value": 95015,
+            "range": "± 18160",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_req_100kb",
+            "value": 163513,
+            "range": "± 15599",
             "unit": "ns/iter"
           }
         ]
