@@ -1567,7 +1567,7 @@ async fn max_buf_size() {
         .max_buf_size(MAX)
         .serve_connection(socket, HelloWorld)
         .await
-        .expect_err("should TooLarge error");
+        .expect_err("should HeaderSectionTooLarge error");
 }
 
 #[cfg(feature = "stream")]

@@ -609,7 +609,7 @@ impl Http1Transaction for Server {
             | Kind::Parse(Parse::Header)
             | Kind::Parse(Parse::Uri)
             | Kind::Parse(Parse::Version) => StatusCode::BAD_REQUEST,
-            Kind::Parse(Parse::TooLarge) => StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
+            Kind::Parse(Parse::HeaderSectionTooLarge) => StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
             _ => return None,
         };
 
@@ -1097,7 +1097,7 @@ fn record_header_indices(
     for (header, indices) in headers.iter().zip(indices.iter_mut()) {
         if header.name.len() >= (1 << 16) {
             debug!("header name larger than 64kb: {:?}", header.name);
-            return Err(crate::error::Parse::TooLarge);
+            return Err(crate::error::Parse::HeaderSectionTooLarge);
         }
         let name_start = header.name.as_ptr() as usize - bytes_ptr;
         let name_end = name_start + header.name.len();

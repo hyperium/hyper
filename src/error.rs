@@ -71,7 +71,7 @@ pub(super) enum Parse {
     VersionH2,
     Uri,
     Header,
-    TooLarge,
+    HeaderSectionTooLarge,
     Status,
 }
 
@@ -130,6 +130,12 @@ impl Error {
     /// Returns true if this was an HTTP parse error.
     pub fn is_parse(&self) -> bool {
         matches!(self.inner.kind, Kind::Parse(_))
+    }
+
+    /// Returns true if this was an HTTP parse error about the header section
+    /// being too large.
+    pub fn is_header_section_too_large(&self) -> bool {
+        self.inner.kind == Kind::Parse(Parse::HeaderSectionTooLarge)
     }
 
     /// Returns true if this error was caused by user code.
@@ -220,8 +226,8 @@ impl Error {
     }
 
     #[cfg(feature = "http1")]
-    pub(super) fn new_too_large() -> Error {
-        Error::new(Kind::Parse(Parse::TooLarge))
+    pub(super) fn new_header_section_too_large() -> Error {
+        Error::new(Kind::Parse(Parse::HeaderSectionTooLarge))
     }
 
     #[cfg(feature = "http1")]
@@ -361,7 +367,7 @@ impl Error {
             Kind::Parse(Parse::VersionH2) => "invalid HTTP version parsed (found HTTP2 preface)",
             Kind::Parse(Parse::Uri) => "invalid URI",
             Kind::Parse(Parse::Header) => "invalid HTTP header parsed",
-            Kind::Parse(Parse::TooLarge) => "message head is too large",
+            Kind::Parse(Parse::HeaderSectionTooLarge) => "message head is too large",
             Kind::Parse(Parse::Status) => "invalid HTTP status-code parsed",
             Kind::IncompleteMessage => "connection closed before message completed",
             #[cfg(feature = "http1")]
@@ -465,7 +471,7 @@ impl From<httparse::Error> for Parse {
             | httparse::Error::NewLine
             | httparse::Error::Token => Parse::Header,
             httparse::Error::Status => Parse::Status,
-            httparse::Error::TooManyHeaders => Parse::TooLarge,
+            httparse::Error::TooManyHeaders => Parse::HeaderSectionTooLarge,
             httparse::Error::Version => Parse::Version,
         }
     }

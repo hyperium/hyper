@@ -18,7 +18,7 @@ pub(crate) const INIT_BUFFER_SIZE: usize = 8192;
 pub(crate) const MINIMUM_MAX_BUFFER_SIZE: usize = INIT_BUFFER_SIZE;
 
 /// The default maximum read buffer size. If the buffer gets this big and
-/// a message is still not complete, a `TooLarge` error is triggered.
+/// a message is still not complete, a `HeaderSectionTooLarge` error is triggered.
 // Note: if this changes, update server::conn::Http::max_buf_size docs.
 pub(crate) const DEFAULT_MAX_BUFFER_SIZE: usize = 8192 + 4096 * 100;
 
@@ -172,7 +172,7 @@ where
                     let max = self.read_buf_strategy.max();
                     if self.read_buf.len() >= max {
                         debug!("max_buf_size ({}) reached, closing", max);
-                        return Poll::Ready(Err(crate::Error::new_too_large()));
+                        return Poll::Ready(Err(crate::Error::new_header_section_too_large()));
                     }
                 }
             }

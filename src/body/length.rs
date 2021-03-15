@@ -43,7 +43,7 @@ impl DecodedLength {
             Ok(DecodedLength(len))
         } else {
             warn!("content-length bigger than maximum: {} > {}", len, MAX_LEN);
-            Err(crate::error::Parse::TooLarge)
+            Err(crate::error::Parse::HeaderSectionTooLarge)
         }
     }
 
