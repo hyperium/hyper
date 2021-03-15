@@ -29,6 +29,9 @@ type TrailersSender = oneshot::Sender<HeaderMap>;
 ///
 /// A good default [`HttpBody`](crate::body::HttpBody) to use in many
 /// applications.
+///
+/// Note: To read the full body, use [`body::to_bytes`](crate::body::to_bytes)
+/// or [`body::aggregate`](crate::body::aggregate).
 #[must_use = "streams do nothing unless polled"]
 pub struct Body {
     kind: Kind,
