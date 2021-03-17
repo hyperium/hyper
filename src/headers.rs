@@ -42,26 +42,26 @@ pub(super) fn content_length_parse_all_values(values: ValueIter<'_, HeaderValue>
     // be alright if they all contain the same value, and all parse
     // correctly. If not, then it's an error.
 
-    let folded = values.fold(None, |prev, line| match prev {
-        Some(Ok(prev)) => Some(
-            line.to_str()
-                .map_err(|_| ())
-                .and_then(|s| s.parse().map_err(|_| ()))
-                .and_then(|n| if prev == n { Ok(n) } else { Err(()) }),
-        ),
-        None => Some(
-            line.to_str()
-                .map_err(|_| ())
-                .and_then(|s| s.parse().map_err(|_| ())),
-        ),
-        Some(Err(())) => Some(Err(())),
-    });
-
-    if let Some(Ok(n)) = folded {
-        Some(n)
-    } else {
-        None
+    let mut content_length: Option<u64> = None;
+    for h in values {
+        if let Ok(line) = h.to_str() {
+            for v in line.split(',') {
+                if let Some(n) = v.trim().parse().ok() {
+                    if content_length.is_none() {
+                        content_length = Some(n)
+                    } else if content_length != Some(n) {
+                        return None;
+                    }
+                } else {
+                    return None
+                }
+            }
+        } else {
+            return None
+        }
     }
+
+    return content_length
 }
 
 #[cfg(all(feature = "http2", feature = "client"))]
