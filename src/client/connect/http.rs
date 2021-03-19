@@ -584,14 +584,11 @@ fn connect(
     // TODO(eliza): if Tokio's `TcpSocket` gains support for setting the
     // keepalive timeout, it would be nice to use that instead of socket2,
     // and avoid the unsafe `into_raw_fd`/`from_raw_fd` dance...
-    use socket2::{Domain, Protocol, Socket, Type};
+    use socket2::{Domain, Protocol, Socket, TcpKeepalive, Type};
     use std::convert::TryInto;
 
-    let domain = match *addr {
-        SocketAddr::V4(_) => Domain::ipv4(),
-        SocketAddr::V6(_) => Domain::ipv6(),
-    };
-    let socket = Socket::new(domain, Type::stream(), Some(Protocol::tcp()))
+    let domain = Domain::for_address(*addr);
+    let socket = Socket::new(domain, Type::STREAM, Some(Protocol::TCP))
         .map_err(ConnectError::m("tcp open error"))?;
 
     // When constructing a Tokio `TcpSocket` from a raw fd/socket, the user is
@@ -601,7 +598,8 @@ fn connect(
         .map_err(ConnectError::m("tcp set_nonblocking error"))?;
 
     if let Some(dur) = config.keep_alive_timeout {
-        if let Err(e) = socket.set_keepalive(Some(dur)) {
+        let conf = TcpKeepalive::new().with_time(dur);
+        if let Err(e) = socket.set_tcp_keepalive(&conf) {
             warn!("tcp set_keepalive error: {}", e);
         }
     }
