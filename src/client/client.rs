@@ -972,6 +972,14 @@ impl Builder {
         self
     }
 
+    /// Set whether HTTP/0.9 responses should be tolerated.
+    ///
+    /// Default is false.
+    pub fn http09_responses(&mut self, val: bool) -> &mut Self {
+        self.conn_builder.h09_responses(val);
+        self
+    }
+
     /// Set whether the connection **must** use HTTP/2.
     ///
     /// The destination must either allow HTTP2 Prior Knowledge, or the

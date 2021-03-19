@@ -72,6 +72,7 @@ pub(crate) struct ParseContext<'a> {
     req_method: &'a mut Option<Method>,
     #[cfg(feature = "ffi")]
     preserve_header_case: bool,
+    h09_responses: bool,
 }
 
 /// Passed to Http1Transaction::encode
