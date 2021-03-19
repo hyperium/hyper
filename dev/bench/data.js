@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1616175676085,
+  "lastUpdate": 1616175706953,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -3781,6 +3781,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 63487,
             "range": "± 16941",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "ghostd@users.noreply.github.com",
+            "name": "Vincent Ricard",
+            "username": "ghostd"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "48fdaf160689f333e9bb63388d0b1d0fa29a1391",
+          "message": "fix(headers): Support multiple Content-Length values on same line (#2471)\n\nCloses #2470",
+          "timestamp": "2021-03-19T10:38:58-07:00",
+          "tree_id": "8444662a531c8356a16120e2128a7e4f20b905a2",
+          "url": "https://github.com/hyperium/hyper/commit/48fdaf160689f333e9bb63388d0b1d0fa29a1391"
+        },
+        "date": 1616175705073,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 54871,
+            "range": "± 4548",
             "unit": "ns/iter"
           }
         ]
