@@ -108,9 +108,6 @@ impl AddrIncoming {
             match ready!(self.listener.poll_accept(cx)) {
                 Ok((socket, addr)) => {
                     if let Some(dur) = self.tcp_keepalive_timeout {
-                        // TODO(eliza): if Tokio's `TcpSocket` API grows a few
-                        // more methods in the future, hopefully we shouldn't
-                        // have to do the `from_raw_fd` dance any longer...
                         let socket = socket2::SockRef::from(&socket);
                         let conf = socket2::TcpKeepalive::new().with_time(dur);
                         if let Err(e) = socket.set_tcp_keepalive(&conf) {
