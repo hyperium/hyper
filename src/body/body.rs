@@ -6,6 +6,7 @@ use std::fmt;
 use bytes::Bytes;
 use futures_channel::mpsc;
 use futures_channel::oneshot;
+use futures_core::stream::FusedStream;
 use futures_core::Stream; // for mpsc::Receiver
 #[cfg(feature = "stream")]
 use futures_util::TryStreamExt;
@@ -298,12 +299,16 @@ impl Body {
             } => {
                 want_tx.send(WANT_READY);
 
-                match ready!(Pin::new(data_rx).poll_next(cx)?) {
-                    Some(chunk) => {
-                        len.sub_if(chunk.len() as u64);
-                        Poll::Ready(Some(Ok(chunk)))
+                if data_rx.is_terminated() {
+                    Poll::Ready(None)
+                } else {
+                    match ready!(Pin::new(data_rx).poll_next(cx)?) {
+                        Some(chunk) => {
+                            len.sub_if(chunk.len() as u64);
+                            Poll::Ready(Some(Ok(chunk)))
+                        }
+                        None => Poll::Ready(None),
                     }
-                    None => Poll::Ready(None),
                 }
             }
             #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
