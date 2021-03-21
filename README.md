@@ -5,6 +5,8 @@
 [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![CI](https://github.com/hyperium/hyper/workflows/CI/badge.svg)](https://github.com/hyperium/hyper/actions?query=workflow%3ACI)
 [![Discord chat][discord-badge]][discord-url]
+[![dependency status](https://deps.rs/crate/hyper/0.14.4/status.svg)](https://deps.rs/crate/hyper/0.14.4)
+
 
 A **fast** and **correct** HTTP implementation for Rust.
 
