@@ -108,46 +108,11 @@ impl AddrIncoming {
             match ready!(self.listener.poll_accept(cx)) {
                 Ok((socket, addr)) => {
                     if let Some(dur) = self.tcp_keepalive_timeout {
-                        // Convert the Tokio `TcpStream` into a `socket2` socket
-                        // so we can call `set_keepalive`.
-                        // TODO(eliza): if Tokio's `TcpSocket` API grows a few
-                        // more methods in the future, hopefully we shouldn't
-                        // have to do the `from_raw_fd` dance any longer...
-                        #[cfg(unix)]
-                        let socket = unsafe {
-                            // Safety: `socket2`'s socket will try to close the
-                            // underlying fd when it's dropped. However, we
-                            // can't take ownership of the fd from the tokio
-                            // TcpStream, so instead we will call `into_raw_fd`
-                            // on the socket2 socket before dropping it. This
-                            // prevents it from trying to close the fd.
-                            use std::os::unix::io::{AsRawFd, FromRawFd};
-                            socket2::Socket::from_raw_fd(socket.as_raw_fd())
-                        };
-                        #[cfg(windows)]
-                        let socket = unsafe {
-                            // Safety: `socket2`'s socket will try to close the
-                            // underlying SOCKET when it's dropped. However, we
-                            // can't take ownership of the SOCKET from the tokio
-                            // TcpStream, so instead we will call `into_raw_socket`
-                            // on the socket2 socket before dropping it. This
-                            // prevents it from trying to close the SOCKET.
-                            use std::os::windows::io::{AsRawSocket, FromRawSocket};
-                            socket2::Socket::from_raw_socket(socket.as_raw_socket())
-                        };
-
-                        // Actually set the TCP keepalive timeout.
-                        if let Err(e) = socket.set_keepalive(Some(dur)) {
+                        let socket = socket2::SockRef::from(&socket);
+                        let conf = socket2::TcpKeepalive::new().with_time(dur);
+                        if let Err(e) = socket.set_tcp_keepalive(&conf) {
                             trace!("error trying to set TCP keepalive: {}", e);
                         }
-
-                        // Take ownershop of the fd/socket back from the socket2
-                        // `Socket`, so that socket2 doesn't try to close it
-                        // when it's dropped.
-                        #[cfg(unix)]
-                        drop(std::os::unix::io::IntoRawFd::into_raw_fd(socket));
-                        #[cfg(windows)]
-                        drop(std::os::windows::io::IntoRawSocket::into_raw_socket(socket));
                     }
                     if let Err(e) = socket.set_nodelay(self.tcp_nodelay) {
                         trace!("error trying to set TCP nodelay: {}", e);
