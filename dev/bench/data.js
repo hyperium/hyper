@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1616704607010,
+  "lastUpdate": 1616704615495,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -3901,6 +3901,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 67849,
             "range": "± 32642",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "vagelis.prokopiou@gmail.com",
+            "name": "Vagelis Prokopiou",
+            "username": "Vagelis-Prokopiou"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "51ed71b0a6e1d90d324f87151434334bab6fb837",
+          "message": "docs(client): use Method::POST to match the example in https://hyper.rs/guides/client/advanced/ (#2479)",
+          "timestamp": "2021-03-25T13:34:03-07:00",
+          "tree_id": "908a1fb4a47378d16439458035a25a2dd41c1516",
+          "url": "https://github.com/hyperium/hyper/commit/51ed71b0a6e1d90d324f87151434334bab6fb837"
+        },
+        "date": 1616704614234,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 64259,
+            "range": "± 14824",
             "unit": "ns/iter"
           }
         ]
