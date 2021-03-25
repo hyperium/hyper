@@ -37,7 +37,7 @@ ffi_fn! {
             write: write_noop,
             userdata: std::ptr::null_mut(),
         }))
-    }
+    } ?= std::ptr::null_mut()
 }
 
 ffi_fn! {

@@ -37,7 +37,7 @@ ffi_fn! {
     /// Construct a new HTTP request.
     fn hyper_request_new() -> *mut hyper_request {
         Box::into_raw(Box::new(hyper_request(Request::new(Body::empty()))))
-    }
+    } ?= std::ptr::null_mut()
 }
 
 ffi_fn! {
@@ -114,7 +114,7 @@ ffi_fn! {
     /// `hyper_request` has been consumed.
     fn hyper_request_headers(req: *mut hyper_request) -> *mut hyper_headers {
         hyper_headers::get_or_default(unsafe { &mut *req }.0.extensions_mut())
-    }
+    } ?= std::ptr::null_mut()
 }
 
 ffi_fn! {
@@ -170,7 +170,7 @@ ffi_fn! {
     /// buffer.
     fn hyper_response_reason_phrase(resp: *const hyper_response) -> *const u8 {
         unsafe { &*resp }.reason_phrase().as_ptr()
-    }
+    } ?= std::ptr::null()
 }
 
 ffi_fn! {
@@ -210,7 +210,7 @@ ffi_fn! {
     /// `hyper_response` has been freed.
     fn hyper_response_headers(resp: *mut hyper_response) -> *mut hyper_headers {
         hyper_headers::get_or_default(unsafe { &mut *resp }.0.extensions_mut())
-    }
+    } ?= std::ptr::null_mut()
 }
 
 ffi_fn! {
@@ -220,7 +220,7 @@ ffi_fn! {
     fn hyper_response_body(resp: *mut hyper_response) -> *mut hyper_body {
         let body = std::mem::take(unsafe { &mut *resp }.0.body_mut());
         Box::into_raw(Box::new(hyper_body(body)))
-    }
+    } ?= std::ptr::null_mut()
 }
 
 impl hyper_response {

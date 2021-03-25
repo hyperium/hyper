@@ -57,7 +57,7 @@ ffi_fn! {
                     hyper_clientconn { tx }
                 })
         }))
-    }
+    } ?= std::ptr::null_mut()
 }
 
 ffi_fn! {
@@ -85,7 +85,7 @@ ffi_fn! {
         };
 
         Box::into_raw(hyper_task::boxed(fut))
-    }
+    } ?= std::ptr::null_mut()
 }
 
 ffi_fn! {
@@ -110,7 +110,7 @@ ffi_fn! {
             builder: conn::Builder::new(),
             exec: WeakExec::new(),
         }))
-    }
+    } ?= std::ptr::null_mut()
 }
 
 ffi_fn! {

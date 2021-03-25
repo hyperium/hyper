@@ -189,7 +189,7 @@ ffi_fn! {
     /// Creates a new task executor.
     fn hyper_executor_new() -> *const hyper_executor {
         Arc::into_raw(hyper_executor::new())
-    }
+    } ?= ptr::null()
 }
 
 ffi_fn! {
@@ -230,7 +230,7 @@ ffi_fn! {
             Some(task) => Box::into_raw(task),
             None => ptr::null_mut(),
         }
-    }
+    } ?= ptr::null_mut()
 }
 
 // ===== impl hyper_task =====
@@ -303,7 +303,7 @@ ffi_fn! {
         } else {
             ptr::null_mut()
         }
-    }
+    } ?= ptr::null_mut()
 }
 
 ffi_fn! {
@@ -341,7 +341,7 @@ ffi_fn! {
         }
 
         unsafe { &*task }.userdata.0
-    }
+    } ?= ptr::null_mut()
 }
 
 // ===== impl AsTaskType =====
@@ -405,7 +405,7 @@ ffi_fn! {
     fn hyper_context_waker(cx: *mut hyper_context<'_>) -> *mut hyper_waker {
         let waker = unsafe { &mut *cx }.0.waker().clone();
         Box::into_raw(Box::new(hyper_waker { waker }))
-    }
+    } ?= ptr::null_mut()
 }
 
 // ===== impl hyper_waker =====
