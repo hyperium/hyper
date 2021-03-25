@@ -141,12 +141,12 @@ where
     /// ```
     /// # #[cfg(feature  = "runtime")]
     /// # fn run () {
-    /// use hyper::{Body, Client, Request};
+    /// use hyper::{Body, Method, Client, Request};
     ///
     /// let client = Client::new();
     ///
     /// let req = Request::builder()
-    ///     .method("POST")
+    ///     .method(Method::POST)
     ///     .uri("http://httpbin.org/post")
     ///     .body(Body::from("Hallo!"))
     ///     .expect("request builder");
