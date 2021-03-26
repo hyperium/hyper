@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1616783414958,
+  "lastUpdate": 1616783432999,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -4021,6 +4021,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 54069,
             "range": "± 4186",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "52582625+nylanderdev@users.noreply.github.com",
+            "name": "Rasmus Nylander",
+            "username": "nylanderdev"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "895e4cf3fbb4119daac06ff446c47ac478468c97",
+          "message": "refactor(ffi): return null ptr instead of aborting in C API (#2478)\n\nMake C API functions that return pointers return null in case of a\r\npanic, instead of aborting.\r\n\r\nAdd ffi_fn! macro rules that enable default error values to be returned\r\nby writing \"?= <value>\" after an ffi function's body.",
+          "timestamp": "2021-03-26T11:26:44-07:00",
+          "tree_id": "b6c8e5ea7a1d552350a2986fbc66e3cd784bc782",
+          "url": "https://github.com/hyperium/hyper/commit/895e4cf3fbb4119daac06ff446c47ac478468c97"
+        },
+        "date": 1616783431559,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 65836,
+            "range": "± 16777",
             "unit": "ns/iter"
           }
         ]
