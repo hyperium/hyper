@@ -161,6 +161,7 @@ where
                     req_method: parse_ctx.req_method,
                     #[cfg(feature = "ffi")]
                     preserve_header_case: parse_ctx.preserve_header_case,
+                    h09_responses: parse_ctx.h09_responses,
                 },
             )? {
                 Some(msg) => {
@@ -640,6 +641,7 @@ mod tests {
                 req_method: &mut None,
                 #[cfg(feature = "ffi")]
                 preserve_header_case: false,
+                h09_responses: false,
             };
             assert!(buffered
                 .parse::<ClientTransaction>(cx, parse_ctx)

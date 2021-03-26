@@ -112,6 +112,43 @@ macro_rules! test {
                 headers: { $($response_header_name:expr => $response_header_val:expr,)* },
                 body: $response_body:expr,
     ) => (
+        test! {
+            name: $name,
+            server:
+                expected: $server_expected,
+                reply: $server_reply,
+            client:
+                set_host: $set_host,
+                title_case_headers: $title_case_headers,
+                allow_h09_responses: false,
+                request: {$(
+                    $c_req_prop: $c_req_val,
+                )*},
+
+                response:
+                    status: $client_status,
+                    headers: { $($response_header_name => $response_header_val,)* },
+                    body: $response_body,
+        }
+    );
+    (
+        name: $name:ident,
+        server:
+            expected: $server_expected:expr,
+            reply: $server_reply:expr,
+        client:
+            set_host: $set_host:expr,
+            title_case_headers: $title_case_headers:expr,
+            allow_h09_responses: $allow_h09_responses:expr,
+            request: {$(
+                $c_req_prop:ident: $c_req_val:tt,
+            )*},
+
+            response:
+                status: $client_status:ident,
+                headers: { $($response_header_name:expr => $response_header_val:expr,)* },
+                body: $response_body:expr,
+    ) => (
         #[test]
         fn $name() {
             let _ = pretty_env_logger::try_init();
@@ -127,6 +164,7 @@ macro_rules! test {
                 client:
                     set_host: $set_host,
                     title_case_headers: $title_case_headers,
+                    allow_h09_responses: $allow_h09_responses,
                     request: {$(
                         $c_req_prop: $c_req_val,
                     )*},
@@ -181,6 +219,7 @@ macro_rules! test {
                 client:
                     set_host: true,
                     title_case_headers: false,
+                    allow_h09_responses: false,
                     request: {$(
                         $c_req_prop: $c_req_val,
                     )*},
@@ -205,6 +244,7 @@ macro_rules! test {
         client:
             set_host: $set_host:expr,
             title_case_headers: $title_case_headers:expr,
+            allow_h09_responses: $allow_h09_responses:expr,
             request: {$(
                 $c_req_prop:ident: $c_req_val:tt,
             )*},
@@ -217,6 +257,7 @@ macro_rules! test {
         let client = Client::builder()
             .set_host($set_host)
             .http1_title_case_headers($title_case_headers)
+            .http09_responses($allow_h09_responses)
             .build(connector);
 
         #[allow(unused_assignments, unused_mut)]
@@ -1065,6 +1106,31 @@ test! {
             headers: {
             },
             body: &b"abc"[..],
+}
+
+test! {
+    name: client_allows_http09_when_requested,
+
+    server:
+        expected: "\
+            GET / HTTP/1.1\r\n\
+            Host: {addr}\r\n\
+            \r\n\
+            ",
+        reply: "Mmmmh, baguettes.",
+
+    client:
+        set_host: true,
+        title_case_headers: true,
+        allow_h09_responses: true,
+        request: {
+            method: GET,
+            url: "http://{addr}/",
+        },
+        response:
+            status: OK,
+            headers: {},
+            body: &b"Mmmmh, baguettes."[..],
 }
 
 mod dispatch_impl {
