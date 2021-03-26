@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1616783432999,
+  "lastUpdate": 1616783539140,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -13161,6 +13161,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_req_100kb",
             "value": 128516,
             "range": "± 6083",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "52582625+nylanderdev@users.noreply.github.com",
+            "name": "Rasmus Nylander",
+            "username": "nylanderdev"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "895e4cf3fbb4119daac06ff446c47ac478468c97",
+          "message": "refactor(ffi): return null ptr instead of aborting in C API (#2478)\n\nMake C API functions that return pointers return null in case of a\r\npanic, instead of aborting.\r\n\r\nAdd ffi_fn! macro rules that enable default error values to be returned\r\nby writing \"?= <value>\" after an ffi function's body.",
+          "timestamp": "2021-03-26T11:26:44-07:00",
+          "tree_id": "b6c8e5ea7a1d552350a2986fbc66e3cd784bc782",
+          "url": "https://github.com/hyperium/hyper/commit/895e4cf3fbb4119daac06ff446c47ac478468c97"
+        },
+        "date": 1616783537748,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_body_both_100kb",
+            "value": 74748,
+            "range": "± 2287",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_body_both_10mb",
+            "value": 7114738,
+            "range": "± 282111",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_get",
+            "value": 32626,
+            "range": "± 1956",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 226273,
+            "range": "± 8483",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 52053268,
+            "range": "± 1755521",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 51847758,
+            "range": "± 1424892",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 54261379,
+            "range": "± 744890",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 4023714,
+            "range": "± 316912",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_post",
+            "value": 36978,
+            "range": "± 1876",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_get",
+            "value": 59073,
+            "range": "± 2262",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 184357,
+            "range": "± 7468",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 9898109,
+            "range": "± 9219169",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 10183841,
+            "range": "± 9224710",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 9980249,
+            "range": "± 9657908",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 61820919,
+            "range": "± 6166165",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 79005086,
+            "range": "± 16305547",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 6606657,
+            "range": "± 918396",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_post",
+            "value": 68801,
+            "range": "± 25564",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_req_100kb",
+            "value": 128284,
+            "range": "± 9437",
             "unit": "ns/iter"
           }
         ]
