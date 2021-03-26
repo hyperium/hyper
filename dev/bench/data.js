@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1616704792807,
+  "lastUpdate": 1616783250124,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -1979,6 +1979,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 46910,
             "range": "± 2399",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "123095+nox@users.noreply.github.com",
+            "name": "Anthony Ramine",
+            "username": "nox"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "68d4e4a3db91fb43f41a8c4fce1175ddb56816af",
+          "message": "feat(client): allow HTTP/0.9 responses behind a flag (#2473)\n\nFixes #2468",
+          "timestamp": "2021-03-26T11:25:00-07:00",
+          "tree_id": "659e8520b14a640bd1fbf5ccb416cd8911abcb6a",
+          "url": "https://github.com/hyperium/hyper/commit/68d4e4a3db91fb43f41a8c4fce1175ddb56816af"
+        },
+        "date": 1616783248746,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 42281,
+            "range": "± 5633",
             "unit": "ns/iter"
           }
         ]
