@@ -92,5 +92,5 @@ ffi_fn! {
     /// Returns a static ASCII (null terminated) string of the hyper version.
     fn hyper_version() -> *const libc::c_char {
         VERSION_CSTR.as_ptr() as _
-    }
+    } ?= std::ptr::null()
 }

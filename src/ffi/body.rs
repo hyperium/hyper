@@ -34,7 +34,7 @@ ffi_fn! {
     /// If not configured, this body acts as an empty payload.
     fn hyper_body_new() -> *mut hyper_body {
         Box::into_raw(Box::new(hyper_body(Body::empty())))
-    }
+    } ?= ptr::null_mut()
 }
 
 ffi_fn! {
@@ -66,7 +66,7 @@ ffi_fn! {
         Box::into_raw(hyper_task::boxed(async move {
             body.0.data().await.map(|res| res.map(hyper_buf))
         }))
-    }
+    } ?= ptr::null_mut()
 }
 
 ffi_fn! {
@@ -97,7 +97,7 @@ ffi_fn! {
             }
             Ok(())
         }))
-    }
+    } ?= ptr::null_mut()
 }
 
 ffi_fn! {
@@ -198,7 +198,7 @@ ffi_fn! {
             std::slice::from_raw_parts(buf, len)
         };
         Box::into_raw(Box::new(hyper_buf(Bytes::copy_from_slice(slice))))
-    }
+    } ?= ptr::null_mut()
 }
 
 ffi_fn! {
@@ -211,7 +211,7 @@ ffi_fn! {
     /// consumed/freed.
     fn hyper_buf_bytes(buf: *const hyper_buf) -> *const u8 {
         unsafe { (*buf).0.as_ptr() }
-    }
+    } ?= ptr::null()
 }
 
 ffi_fn! {
