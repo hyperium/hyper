@@ -1,3 +1,19 @@
+### v0.14.5 (2021-03-26)
+
+
+#### Bug Fixes
+
+* **client:** omit default port from automatic Host headers (#2441) ([0b11eee9](https://github.com/hyperium/hyper/commit/0b11eee9bde421cdc1680cadabfd38c5aff8e62f))
+* **headers:** Support multiple Content-Length values on same line (#2471) ([48fdaf16](https://github.com/hyperium/hyper/commit/48fdaf160689f333e9bb63388d0b1d0fa29a1391), closes [#2470](https://github.com/hyperium/hyper/issues/2470))
+* **server:** skip automatic Content-Length headers when not allowed (#2216) ([8cbf9527](https://github.com/hyperium/hyper/commit/8cbf9527dfb313b3f84fcd83260c5c72ce4a1beb), closes [#2215](https://github.com/hyperium/hyper/issues/2215))
+
+
+#### Features
+
+* **client:** allow HTTP/0.9 responses behind a flag (#2473) ([68d4e4a3](https://github.com/hyperium/hyper/commit/68d4e4a3db91fb43f41a8c4fce1175ddb56816af), closes [#2468](https://github.com/hyperium/hyper/issues/2468))
+* **server:** add `AddrIncoming::from_listener` constructor (#2439) ([4c946af4](https://github.com/hyperium/hyper/commit/4c946af49cc7fbbc6bd4894283a654625c2ea383))
+
+
 ### v0.14.4 (2021-02-05)
 
 
