@@ -126,6 +126,7 @@ pub struct Builder {
     h09_responses: bool,
     h1_parser_config: ParserConfig,
     h1_title_case_headers: bool,
+    h1_preserve_header_case: bool,
     h1_read_buf_exact_size: Option<usize>,
     h1_max_buf_size: Option<usize>,
     #[cfg(feature = "http2")]
@@ -500,6 +501,7 @@ impl Builder {
             h1_read_buf_exact_size: None,
             h1_parser_config: Default::default(),
             h1_title_case_headers: false,
+            h1_preserve_header_case: false,
             h1_max_buf_size: None,
             #[cfg(feature = "http2")]
             h2_builder: Default::default(),
@@ -534,6 +536,11 @@ impl Builder {
 
     pub(super) fn h1_title_case_headers(&mut self, enabled: bool) -> &mut Builder {
         self.h1_title_case_headers = enabled;
+        self
+    }
+
+    pub(crate) fn h1_preserve_header_case(&mut self, enabled: bool) -> &mut Builder {
+        self.h1_preserve_header_case = enabled;
         self
     }
 
@@ -718,6 +725,9 @@ impl Builder {
                     conn.set_h1_parser_config(opts.h1_parser_config);
                     if opts.h1_title_case_headers {
                         conn.set_title_case_headers();
+                    }
+                    if opts.h1_preserve_header_case {
+                        conn.set_preserve_header_case();
                     }
                     if opts.h09_responses {
                         conn.set_h09_responses();

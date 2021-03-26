@@ -5,16 +5,19 @@
 use std::fmt::{self, Write};
 use std::mem;
 
-#[cfg(feature = "ffi")]
+#[cfg(any(test, feature = "server", feature = "ffi"))]
 use bytes::Bytes;
 use bytes::BytesMut;
 use http::header::{self, Entry, HeaderName, HeaderValue};
+#[cfg(feature = "server")]
+use http::header::ValueIter;
 use http::{HeaderMap, Method, StatusCode, Version};
 
 use crate::body::DecodedLength;
 #[cfg(feature = "server")]
 use crate::common::date;
 use crate::error::Parse;
+use crate::ext::HeaderCaseMap;
 use crate::headers;
 use crate::proto::h1::{
     Encode, Encoder, Http1Transaction, ParseContext, ParseResult, ParsedMessage,
@@ -191,6 +194,12 @@ impl Http1Transaction for Server {
         let mut is_te_chunked = false;
         let mut wants_upgrade = subject.0 == Method::CONNECT;
 
+        let mut header_case_map = if ctx.preserve_header_case {
+            Some(HeaderCaseMap::default())
+        } else {
+            None
+        };
+
         let mut headers = ctx.cached_headers.take().unwrap_or_else(HeaderMap::new);
 
         headers.reserve(headers_len);
@@ -260,12 +269,22 @@ impl Http1Transaction for Server {
                 _ => (),
             }
 
+            if let Some(ref mut header_case_map) = header_case_map {
+                header_case_map.append(&name, slice.slice(header.name.0..header.name.1));
+            }
+
             headers.append(name, value);
         }
 
         if is_te && !is_te_chunked {
             debug!("request with transfer-encoding header, but not chunked, bad request");
             return Err(Parse::Header);
+        }
+
+        let mut extensions = http::Extensions::default();
+
+        if let Some(header_case_map) = header_case_map {
+            extensions.insert(header_case_map);
         }
 
         *ctx.req_method = Some(subject.0.clone());
@@ -275,7 +294,7 @@ impl Http1Transaction for Server {
                 version,
                 subject,
                 headers,
-                extensions: http::Extensions::default(),
+                extensions,
             },
             decode: decoder,
             expect_continue,
@@ -284,19 +303,12 @@ impl Http1Transaction for Server {
         }))
     }
 
-    fn encode(
-        mut msg: Encode<'_, Self::Outgoing>,
-        mut dst: &mut Vec<u8>,
-    ) -> crate::Result<Encoder> {
+    fn encode(mut msg: Encode<'_, Self::Outgoing>, dst: &mut Vec<u8>) -> crate::Result<Encoder> {
         trace!(
             "Server::encode status={:?}, body={:?}, req_method={:?}",
             msg.head.subject,
             msg.body,
             msg.req_method
-        );
-        debug_assert!(
-            !msg.title_case_headers,
-            "no server config for title case headers"
         );
 
         let mut wrote_len = false;
@@ -305,7 +317,7 @@ impl Http1Transaction for Server {
         // This is because Service only allows returning a single Response, and
         // so if you try to reply with a e.g. 100 Continue, you have no way of
         // replying with the latter status code response.
-        let (ret, mut is_last) = if msg.head.subject == StatusCode::SWITCHING_PROTOCOLS {
+        let (ret, is_last) = if msg.head.subject == StatusCode::SWITCHING_PROTOCOLS {
             (Ok(()), true)
         } else if msg.req_method == &Some(Method::CONNECT) && msg.head.subject.is_success() {
             // Sending content-length or transfer-encoding header on 2xx response
@@ -326,9 +338,6 @@ impl Http1Transaction for Server {
         // pushing some bytes onto the `dst`. In those cases, we don't want to send
         // the half-pushed message, so rewind to before.
         let orig_len = dst.len();
-        let rewind = |dst: &mut Vec<u8>| {
-            dst.truncate(orig_len);
-        };
 
         let init_cap = 30 + msg.head.headers.len() * AVERAGE_HEADER_SIZE;
         dst.reserve(init_cap);
@@ -358,6 +367,217 @@ impl Http1Transaction for Server {
             );
             extend(dst, b"\r\n");
         }
+
+        let orig_headers;
+        let extensions = mem::take(&mut msg.head.extensions);
+        let orig_headers = match extensions.get::<HeaderCaseMap>() {
+            None if msg.title_case_headers => {
+                orig_headers = HeaderCaseMap::default();
+                Some(&orig_headers)
+            }
+            orig_headers => orig_headers,
+        };
+        let encoder = if let Some(orig_headers) = orig_headers {
+            Self::encode_headers_with_original_case(
+                msg,
+                dst,
+                is_last,
+                orig_len,
+                wrote_len,
+                orig_headers,
+            )?
+        } else {
+            Self::encode_headers_with_lower_case(msg, dst, is_last, orig_len, wrote_len)?
+        };
+
+        ret.map(|()| encoder)
+    }
+
+    fn on_error(err: &crate::Error) -> Option<MessageHead<Self::Outgoing>> {
+        use crate::error::Kind;
+        let status = match *err.kind() {
+            Kind::Parse(Parse::Method)
+            | Kind::Parse(Parse::Header)
+            | Kind::Parse(Parse::Uri)
+            | Kind::Parse(Parse::Version) => StatusCode::BAD_REQUEST,
+            Kind::Parse(Parse::TooLarge) => StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
+            _ => return None,
+        };
+
+        debug!("sending automatic response ({}) for parse error", status);
+        let mut msg = MessageHead::default();
+        msg.subject = status;
+        Some(msg)
+    }
+
+    fn is_server() -> bool {
+        true
+    }
+
+    fn update_date() {
+        date::update();
+    }
+}
+
+#[cfg(feature = "server")]
+impl Server {
+    fn can_have_body(method: &Option<Method>, status: StatusCode) -> bool {
+        Server::can_chunked(method, status)
+    }
+
+    fn can_chunked(method: &Option<Method>, status: StatusCode) -> bool {
+        if method == &Some(Method::HEAD) || method == &Some(Method::CONNECT) && status.is_success()
+        {
+            false
+        } else if status.is_informational() {
+            false
+        } else {
+            match status {
+                StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED => false,
+                _ => true,
+            }
+        }
+    }
+
+    fn can_have_content_length(method: &Option<Method>, status: StatusCode) -> bool {
+        if status.is_informational() || method == &Some(Method::CONNECT) && status.is_success() {
+            false
+        } else {
+            match status {
+                StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED => false,
+                _ => true,
+            }
+        }
+    }
+
+    fn encode_headers_with_lower_case(
+        msg: Encode<'_, StatusCode>,
+        dst: &mut Vec<u8>,
+        is_last: bool,
+        orig_len: usize,
+        wrote_len: bool,
+    ) -> crate::Result<Encoder> {
+        struct LowercaseWriter;
+
+        impl HeaderNameWriter for LowercaseWriter {
+            #[inline]
+            fn write_full_header_line(
+                &mut self,
+                dst: &mut Vec<u8>,
+                line: &str,
+                _: (HeaderName, &str),
+            ) {
+                extend(dst, line.as_bytes())
+            }
+
+            #[inline]
+            fn write_header_name_with_colon(
+                &mut self,
+                dst: &mut Vec<u8>,
+                name_with_colon: &str,
+                _: HeaderName,
+            ) {
+                extend(dst, name_with_colon.as_bytes())
+            }
+
+            #[inline]
+            fn write_header_name(&mut self, dst: &mut Vec<u8>, name: &HeaderName) {
+                extend(dst, name.as_str().as_bytes())
+            }
+        }
+
+        Self::encode_headers(msg, dst, is_last, orig_len, wrote_len, LowercaseWriter)
+    }
+
+    #[cold]
+    #[inline(never)]
+    fn encode_headers_with_original_case(
+        msg: Encode<'_, StatusCode>,
+        dst: &mut Vec<u8>,
+        is_last: bool,
+        orig_len: usize,
+        wrote_len: bool,
+        orig_headers: &HeaderCaseMap,
+    ) -> crate::Result<Encoder> {
+        struct OrigCaseWriter<'map> {
+            map: &'map HeaderCaseMap,
+            current: Option<(HeaderName, ValueIter<'map, Bytes>)>,
+            title_case_headers: bool,
+        }
+
+        impl HeaderNameWriter for OrigCaseWriter<'_> {
+            #[inline]
+            fn write_full_header_line(
+                &mut self,
+                dst: &mut Vec<u8>,
+                _: &str,
+                (name, rest): (HeaderName, &str),
+            ) {
+                self.write_header_name(dst, &name);
+                extend(dst, rest.as_bytes());
+            }
+
+            #[inline]
+            fn write_header_name_with_colon(
+                &mut self,
+                dst: &mut Vec<u8>,
+                _: &str,
+                name: HeaderName,
+            ) {
+                self.write_header_name(dst, &name);
+                extend(dst, b": ");
+            }
+
+            #[inline]
+            fn write_header_name(&mut self, dst: &mut Vec<u8>, name: &HeaderName) {
+                let Self {
+                    map,
+                    ref mut current,
+                    title_case_headers,
+                } = *self;
+                if current.as_ref().map_or(true, |(last, _)| last != name) {
+                    *current = None;
+                }
+                let (_, values) =
+                    current.get_or_insert_with(|| (name.clone(), map.get_all_internal(name)));
+
+                if let Some(orig_name) = values.next() {
+                    extend(dst, orig_name);
+                } else if title_case_headers {
+                    title_case(dst, name.as_str().as_bytes());
+                } else {
+                    extend(dst, name.as_str().as_bytes());
+                }
+            }
+        }
+
+        let header_name_writer = OrigCaseWriter {
+            map: orig_headers,
+            current: None,
+            title_case_headers: msg.title_case_headers,
+        };
+
+        Self::encode_headers(msg, dst, is_last, orig_len, wrote_len, header_name_writer)
+    }
+
+    #[inline]
+    fn encode_headers<W>(
+        msg: Encode<'_, StatusCode>,
+        mut dst: &mut Vec<u8>,
+        mut is_last: bool,
+        orig_len: usize,
+        mut wrote_len: bool,
+        mut header_name_writer: W,
+    ) -> crate::Result<Encoder>
+    where
+        W: HeaderNameWriter,
+    {
+        // In some error cases, we don't know about the invalid message until already
+        // pushing some bytes onto the `dst`. In those cases, we don't want to send
+        // the half-pushed message, so rewind to before.
+        let rewind = |dst: &mut Vec<u8>| {
+            dst.truncate(orig_len);
+        };
 
         let mut encoder = Encoder::length(0);
         let mut wrote_date = false;
@@ -422,7 +642,11 @@ impl Http1Transaction for Server {
 
                             if !is_name_written {
                                 encoder = Encoder::length(known_len);
-                                extend(dst, b"content-length: ");
+                                header_name_writer.write_header_name_with_colon(
+                                    dst,
+                                    "content-length: ",
+                                    header::CONTENT_LENGTH,
+                                );
                                 extend(dst, value.as_bytes());
                                 wrote_len = true;
                                 is_name_written = true;
@@ -450,7 +674,11 @@ impl Http1Transaction for Server {
                                 } else {
                                     // we haven't written content-length yet!
                                     encoder = Encoder::length(len);
-                                    extend(dst, b"content-length: ");
+                                    header_name_writer.write_header_name_with_colon(
+                                        dst,
+                                        "content-length: ",
+                                        header::CONTENT_LENGTH,
+                                    );
                                     extend(dst, value.as_bytes());
                                     wrote_len = true;
                                     is_name_written = true;
@@ -505,7 +733,11 @@ impl Http1Transaction for Server {
                     if !is_name_written {
                         encoder = Encoder::chunked();
                         is_name_written = true;
-                        extend(dst, b"transfer-encoding: ");
+                        header_name_writer.write_header_name_with_colon(
+                            dst,
+                            "transfer-encoding: ",
+                            header::TRANSFER_ENCODING,
+                        );
                         extend(dst, value.as_bytes());
                     } else {
                         extend(dst, b", ");
@@ -519,7 +751,11 @@ impl Http1Transaction for Server {
                     }
                     if !is_name_written {
                         is_name_written = true;
-                        extend(dst, b"connection: ");
+                        header_name_writer.write_header_name_with_colon(
+                            dst,
+                            "connection: ",
+                            header::CONNECTION,
+                        );
                         extend(dst, value.as_bytes());
                     } else {
                         extend(dst, b", ");
@@ -541,7 +777,7 @@ impl Http1Transaction for Server {
                 "{:?} set is_name_written and didn't continue loop",
                 name,
             );
-            extend(dst, name.as_str().as_bytes());
+            header_name_writer.write_header_name(dst, name);
             extend(dst, b": ");
             extend(dst, value.as_bytes());
             extend(dst, b"\r\n");
@@ -557,13 +793,21 @@ impl Http1Transaction for Server {
                     {
                         Encoder::close_delimited()
                     } else {
-                        extend(dst, b"transfer-encoding: chunked\r\n");
+                        header_name_writer.write_full_header_line(
+                            dst,
+                            "transfer-encoding: chunked\r\n",
+                            (header::TRANSFER_ENCODING, ": chunked\r\n"),
+                        );
                         Encoder::chunked()
                     }
                 }
                 None | Some(BodyLength::Known(0)) => {
                     if Server::can_have_content_length(msg.req_method, msg.head.subject) {
-                        extend(dst, b"content-length: 0\r\n");
+                        header_name_writer.write_full_header_line(
+                            dst,
+                            "content-length: 0\r\n",
+                            (header::CONTENT_LENGTH, ": 0\r\n"),
+                        )
                     }
                     Encoder::length(0)
                 }
@@ -571,7 +815,11 @@ impl Http1Transaction for Server {
                     if !Server::can_have_content_length(msg.req_method, msg.head.subject) {
                         Encoder::length(0)
                     } else {
-                        extend(dst, b"content-length: ");
+                        header_name_writer.write_header_name_with_colon(
+                            dst,
+                            "content-length: ",
+                            header::CONTENT_LENGTH,
+                        );
                         let _ = ::itoa::write(&mut dst, len);
                         extend(dst, b"\r\n");
                         Encoder::length(len)
@@ -592,72 +840,32 @@ impl Http1Transaction for Server {
         // cached date is much faster than formatting every request
         if !wrote_date {
             dst.reserve(date::DATE_VALUE_LENGTH + 8);
-            extend(dst, b"date: ");
+            header_name_writer.write_header_name_with_colon(dst, "date: ", header::DATE);
             date::extend(dst);
             extend(dst, b"\r\n\r\n");
         } else {
             extend(dst, b"\r\n");
         }
 
-        ret.map(|()| encoder.set_last(is_last))
-    }
-
-    fn on_error(err: &crate::Error) -> Option<MessageHead<Self::Outgoing>> {
-        use crate::error::Kind;
-        let status = match *err.kind() {
-            Kind::Parse(Parse::Method)
-            | Kind::Parse(Parse::Header)
-            | Kind::Parse(Parse::Uri)
-            | Kind::Parse(Parse::Version) => StatusCode::BAD_REQUEST,
-            Kind::Parse(Parse::TooLarge) => StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
-            _ => return None,
-        };
-
-        debug!("sending automatic response ({}) for parse error", status);
-        let mut msg = MessageHead::default();
-        msg.subject = status;
-        Some(msg)
-    }
-
-    fn is_server() -> bool {
-        true
-    }
-
-    fn update_date() {
-        date::update();
+        Ok(encoder.set_last(is_last))
     }
 }
 
 #[cfg(feature = "server")]
-impl Server {
-    fn can_have_body(method: &Option<Method>, status: StatusCode) -> bool {
-        Server::can_chunked(method, status)
-    }
-
-    fn can_chunked(method: &Option<Method>, status: StatusCode) -> bool {
-        if method == &Some(Method::HEAD) || method == &Some(Method::CONNECT) && status.is_success()
-        {
-            false
-        } else if status.is_informational() {
-            false
-        } else {
-            match status {
-                StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED => false,
-                _ => true,
-            }
-        }
-    }
-
-    fn can_have_content_length(method: &Option<Method>, status: StatusCode) -> bool {
-        if status.is_informational() || method == &Some(Method::CONNECT) && status.is_success() {
-            false
-        } else {
-            match status {
-                StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED => false,
-                _ => true,
-            }
-        }
-    }
+trait HeaderNameWriter {
+    fn write_full_header_line(
+        &mut self,
+        dst: &mut Vec<u8>,
+        line: &str,
+        name_value_pair: (HeaderName, &str),
+    );
+    fn write_header_name_with_colon(
+        &mut self,
+        dst: &mut Vec<u8>,
+        name_with_colon: &str,
+        name: HeaderName,
+    );
+    fn write_header_name(&mut self, dst: &mut Vec<u8>, name: &HeaderName);
 }
 
 #[cfg(feature = "client")]
@@ -732,8 +940,11 @@ impl Http1Transaction for Client {
 
             let mut keep_alive = version == Version::HTTP_11;
 
-            #[cfg(feature = "ffi")]
-            let mut header_case_map = crate::ffi::HeaderCaseMap::default();
+            let mut header_case_map = if ctx.preserve_header_case {
+                Some(HeaderCaseMap::default())
+            } else {
+                None
+            };
 
             headers.reserve(headers_len);
             for header in &headers_indices[..headers_len] {
@@ -751,19 +962,16 @@ impl Http1Transaction for Client {
                     }
                 }
 
-                #[cfg(feature = "ffi")]
-                if ctx.preserve_header_case {
+                if let Some(ref mut header_case_map) = header_case_map {
                     header_case_map.append(&name, slice.slice(header.name.0..header.name.1));
                 }
 
                 headers.append(name, value);
             }
 
-            #[allow(unused_mut)]
             let mut extensions = http::Extensions::default();
 
-            #[cfg(feature = "ffi")]
-            if ctx.preserve_header_case {
+            if let Some(header_case_map) = header_case_map {
                 extensions.insert(header_case_map);
             }
 
@@ -830,26 +1038,17 @@ impl Http1Transaction for Client {
         }
         extend(dst, b"\r\n");
 
-        #[cfg(feature = "ffi")]
-        {
-            if msg.title_case_headers {
-                write_headers_title_case(&msg.head.headers, dst);
-            } else if let Some(orig_headers) =
-                msg.head.extensions.get::<crate::ffi::HeaderCaseMap>()
-            {
-                write_headers_original_case(&msg.head.headers, orig_headers, dst);
-            } else {
-                write_headers(&msg.head.headers, dst);
-            }
-        }
-
-        #[cfg(not(feature = "ffi"))]
-        {
-            if msg.title_case_headers {
-                write_headers_title_case(&msg.head.headers, dst);
-            } else {
-                write_headers(&msg.head.headers, dst);
-            }
+        if let Some(orig_headers) = msg.head.extensions.get::<HeaderCaseMap>() {
+            write_headers_original_case(
+                &msg.head.headers,
+                orig_headers,
+                dst,
+                msg.title_case_headers,
+            );
+        } else if msg.title_case_headers {
+            write_headers_title_case(&msg.head.headers, dst);
+        } else {
+            write_headers(&msg.head.headers, dst);
         }
 
         extend(dst, b"\r\n");
@@ -1162,12 +1361,12 @@ fn write_headers(headers: &HeaderMap, dst: &mut Vec<u8>) {
     }
 }
 
-#[cfg(feature = "ffi")]
 #[cold]
 fn write_headers_original_case(
     headers: &HeaderMap,
-    orig_case: &crate::ffi::HeaderCaseMap,
+    orig_case: &HeaderCaseMap,
     dst: &mut Vec<u8>,
+    title_case_headers: bool,
 ) {
     // For each header name/value pair, there may be a value in the casemap
     // that corresponds to the HeaderValue. So, we iterator all the keys,
@@ -1175,11 +1374,13 @@ fn write_headers_original_case(
     //
     // TODO: consider adding http::HeaderMap::entries() iterator
     for name in headers.keys() {
-        let mut names = orig_case.get_all(name).iter();
+        let mut names = orig_case.get_all(name);
 
         for value in headers.get_all(name) {
             if let Some(orig_name) = names.next() {
-                extend(dst, orig_name);
+                extend(dst, orig_name.as_ref());
+            } else if title_case_headers {
+                title_case(dst, name.as_str().as_bytes());
             } else {
                 extend(dst, name.as_str().as_bytes());
             }
@@ -1233,7 +1434,6 @@ mod tests {
                 cached_headers: &mut None,
                 req_method: &mut method,
                 h1_parser_config: Default::default(),
-                #[cfg(feature = "ffi")]
                 preserve_header_case: false,
                 h09_responses: false,
             },
@@ -1257,7 +1457,6 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
-            #[cfg(feature = "ffi")]
             preserve_header_case: false,
             h09_responses: false,
         };
@@ -1276,7 +1475,6 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut None,
             h1_parser_config: Default::default(),
-            #[cfg(feature = "ffi")]
             preserve_header_case: false,
             h09_responses: false,
         };
@@ -1293,7 +1491,6 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
-            #[cfg(feature = "ffi")]
             preserve_header_case: false,
             h09_responses: true,
         };
@@ -1312,7 +1509,6 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
-            #[cfg(feature = "ffi")]
             preserve_header_case: false,
             h09_responses: false,
         };
@@ -1335,7 +1531,6 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config,
-            #[cfg(feature = "ffi")]
             preserve_header_case: false,
             h09_responses: false,
         };
@@ -1355,11 +1550,43 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
-            #[cfg(feature = "ffi")]
             preserve_header_case: false,
             h09_responses: false,
         };
         Client::parse(&mut raw, ctx).unwrap_err();
+    }
+
+    #[test]
+    fn test_parse_preserve_header_case_in_request() {
+        let mut raw =
+            BytesMut::from("GET / HTTP/1.1\r\nHost: hyper.rs\r\nX-BREAD: baguette\r\n\r\n");
+        let ctx = ParseContext {
+            cached_headers: &mut None,
+            req_method: &mut None,
+            h1_parser_config: Default::default(),
+            preserve_header_case: true,
+            h09_responses: false,
+        };
+        let parsed_message = Server::parse(&mut raw, ctx).unwrap().unwrap();
+        let orig_headers = parsed_message
+            .head
+            .extensions
+            .get::<HeaderCaseMap>()
+            .unwrap();
+        assert_eq!(
+            orig_headers
+                .get_all_internal(&HeaderName::from_static("host"))
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec![&Bytes::from("Host")]
+        );
+        assert_eq!(
+            orig_headers
+                .get_all_internal(&HeaderName::from_static("x-bread"))
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec![&Bytes::from("X-BREAD")]
+        );
     }
 
     #[test]
@@ -1372,7 +1599,6 @@ mod tests {
                     cached_headers: &mut None,
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
-                    #[cfg(feature = "ffi")]
                     preserve_header_case: false,
                     h09_responses: false,
                 },
@@ -1389,7 +1615,6 @@ mod tests {
                     cached_headers: &mut None,
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
-                    #[cfg(feature = "ffi")]
                     preserve_header_case: false,
                     h09_responses: false,
                 },
@@ -1605,7 +1830,6 @@ mod tests {
                     cached_headers: &mut None,
                     req_method: &mut Some(Method::GET),
                     h1_parser_config: Default::default(),
-                    #[cfg(feature = "ffi")]
                     preserve_header_case: false,
                     h09_responses: false,
                 }
@@ -1622,7 +1846,6 @@ mod tests {
                     cached_headers: &mut None,
                     req_method: &mut Some(m),
                     h1_parser_config: Default::default(),
-                    #[cfg(feature = "ffi")]
                     preserve_header_case: false,
                     h09_responses: false,
                 },
@@ -1639,7 +1862,6 @@ mod tests {
                     cached_headers: &mut None,
                     req_method: &mut Some(Method::GET),
                     h1_parser_config: Default::default(),
-                    #[cfg(feature = "ffi")]
                     preserve_header_case: false,
                     h09_responses: false,
                 },
@@ -1928,6 +2150,75 @@ mod tests {
     }
 
     #[test]
+    fn test_client_request_encode_orig_case() {
+        use crate::proto::BodyLength;
+        use http::header::{HeaderValue, CONTENT_LENGTH};
+
+        let mut head = MessageHead::default();
+        head.headers
+            .insert("content-length", HeaderValue::from_static("10"));
+        head.headers
+            .insert("content-type", HeaderValue::from_static("application/json"));
+
+        let mut orig_headers = HeaderCaseMap::default();
+        orig_headers.insert(CONTENT_LENGTH, "CONTENT-LENGTH".into());
+        head.extensions.insert(orig_headers);
+
+        let mut vec = Vec::new();
+        Client::encode(
+            Encode {
+                head: &mut head,
+                body: Some(BodyLength::Known(10)),
+                keep_alive: true,
+                req_method: &mut None,
+                title_case_headers: false,
+            },
+            &mut vec,
+        )
+        .unwrap();
+
+        assert_eq!(
+            &*vec,
+            b"GET / HTTP/1.1\r\nCONTENT-LENGTH: 10\r\ncontent-type: application/json\r\n\r\n"
+                .as_ref(),
+        );
+    }
+    #[test]
+    fn test_client_request_encode_orig_and_title_case() {
+        use crate::proto::BodyLength;
+        use http::header::{HeaderValue, CONTENT_LENGTH};
+
+        let mut head = MessageHead::default();
+        head.headers
+            .insert("content-length", HeaderValue::from_static("10"));
+        head.headers
+            .insert("content-type", HeaderValue::from_static("application/json"));
+
+        let mut orig_headers = HeaderCaseMap::default();
+        orig_headers.insert(CONTENT_LENGTH, "CONTENT-LENGTH".into());
+        head.extensions.insert(orig_headers);
+
+        let mut vec = Vec::new();
+        Client::encode(
+            Encode {
+                head: &mut head,
+                body: Some(BodyLength::Known(10)),
+                keep_alive: true,
+                req_method: &mut None,
+                title_case_headers: true,
+            },
+            &mut vec,
+        )
+        .unwrap();
+
+        assert_eq!(
+            &*vec,
+            b"GET / HTTP/1.1\r\nCONTENT-LENGTH: 10\r\nContent-Type: application/json\r\n\r\n"
+                .as_ref(),
+        );
+    }
+
+    #[test]
     fn test_server_encode_connect_method() {
         let mut head = MessageHead::default();
 
@@ -1948,6 +2239,104 @@ mod tests {
     }
 
     #[test]
+    fn test_server_response_encode_title_case() {
+        use crate::proto::BodyLength;
+        use http::header::HeaderValue;
+
+        let mut head = MessageHead::default();
+        head.headers
+            .insert("content-length", HeaderValue::from_static("10"));
+        head.headers
+            .insert("content-type", HeaderValue::from_static("application/json"));
+
+        let mut vec = Vec::new();
+        Server::encode(
+            Encode {
+                head: &mut head,
+                body: Some(BodyLength::Known(10)),
+                keep_alive: true,
+                req_method: &mut None,
+                title_case_headers: true,
+            },
+            &mut vec,
+        )
+        .unwrap();
+
+        let expected_response =
+            b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\nContent-Type: application/json\r\n";
+
+        assert_eq!(&vec[..expected_response.len()], &expected_response[..]);
+    }
+
+    #[test]
+    fn test_server_response_encode_orig_case() {
+        use crate::proto::BodyLength;
+        use http::header::{HeaderValue, CONTENT_LENGTH};
+
+        let mut head = MessageHead::default();
+        head.headers
+            .insert("content-length", HeaderValue::from_static("10"));
+        head.headers
+            .insert("content-type", HeaderValue::from_static("application/json"));
+
+        let mut orig_headers = HeaderCaseMap::default();
+        orig_headers.insert(CONTENT_LENGTH, "CONTENT-LENGTH".into());
+        head.extensions.insert(orig_headers);
+
+        let mut vec = Vec::new();
+        Server::encode(
+            Encode {
+                head: &mut head,
+                body: Some(BodyLength::Known(10)),
+                keep_alive: true,
+                req_method: &mut None,
+                title_case_headers: false,
+            },
+            &mut vec,
+        )
+        .unwrap();
+
+        let expected_response =
+            b"HTTP/1.1 200 OK\r\nCONTENT-LENGTH: 10\r\ncontent-type: application/json\r\ndate: ";
+
+        assert_eq!(&vec[..expected_response.len()], &expected_response[..]);
+    }
+
+    #[test]
+    fn test_server_response_encode_orig_and_title_case() {
+        use crate::proto::BodyLength;
+        use http::header::{HeaderValue, CONTENT_LENGTH};
+
+        let mut head = MessageHead::default();
+        head.headers
+            .insert("content-length", HeaderValue::from_static("10"));
+        head.headers
+            .insert("content-type", HeaderValue::from_static("application/json"));
+
+        let mut orig_headers = HeaderCaseMap::default();
+        orig_headers.insert(CONTENT_LENGTH, "CONTENT-LENGTH".into());
+        head.extensions.insert(orig_headers);
+
+        let mut vec = Vec::new();
+        Server::encode(
+            Encode {
+                head: &mut head,
+                body: Some(BodyLength::Known(10)),
+                keep_alive: true,
+                req_method: &mut None,
+                title_case_headers: true,
+            },
+            &mut vec,
+        )
+        .unwrap();
+
+        let expected_response =
+            b"HTTP/1.1 200 OK\r\nCONTENT-LENGTH: 10\r\nContent-Type: application/json\r\nDate: ";
+
+        assert_eq!(&vec[..expected_response.len()], &expected_response[..]);
+    }
+
+    #[test]
     fn parse_header_htabs() {
         let mut bytes = BytesMut::from("HTTP/1.1 200 OK\r\nserver: hello\tworld\r\n\r\n");
         let parsed = Client::parse(
@@ -1956,7 +2345,6 @@ mod tests {
                 cached_headers: &mut None,
                 req_method: &mut Some(Method::GET),
                 h1_parser_config: Default::default(),
-                #[cfg(feature = "ffi")]
                 preserve_header_case: false,
                 h09_responses: false,
             },
@@ -1967,17 +2355,16 @@ mod tests {
         assert_eq!(parsed.head.headers["server"], "hello\tworld");
     }
 
-    #[cfg(feature = "ffi")]
     #[test]
     fn test_write_headers_orig_case_empty_value() {
         let mut headers = HeaderMap::new();
         let name = http::header::HeaderName::from_static("x-empty");
         headers.insert(&name, "".parse().expect("parse empty"));
-        let mut orig_cases = crate::ffi::HeaderCaseMap::default();
+        let mut orig_cases = HeaderCaseMap::default();
         orig_cases.insert(name, Bytes::from_static(b"X-EmptY"));
 
         let mut dst = Vec::new();
-        super::write_headers_original_case(&headers, &orig_cases, &mut dst);
+        super::write_headers_original_case(&headers, &orig_cases, &mut dst, false);
 
         assert_eq!(
             dst, b"X-EmptY:\r\n",
@@ -1985,7 +2372,6 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "ffi")]
     #[test]
     fn test_write_headers_orig_case_multiple_entries() {
         let mut headers = HeaderMap::new();
@@ -1993,12 +2379,12 @@ mod tests {
         headers.insert(&name, "a".parse().unwrap());
         headers.append(&name, "b".parse().unwrap());
 
-        let mut orig_cases = crate::ffi::HeaderCaseMap::default();
+        let mut orig_cases = HeaderCaseMap::default();
         orig_cases.insert(name.clone(), Bytes::from_static(b"X-Empty"));
         orig_cases.append(name, Bytes::from_static(b"X-EMPTY"));
 
         let mut dst = Vec::new();
-        super::write_headers_original_case(&headers, &orig_cases, &mut dst);
+        super::write_headers_original_case(&headers, &orig_cases, &mut dst, false);
 
         assert_eq!(dst, b"X-Empty: a\r\nX-EMPTY: b\r\n");
     }
@@ -2039,7 +2425,6 @@ mod tests {
                     cached_headers: &mut headers,
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
-                    #[cfg(feature = "ffi")]
                     preserve_header_case: false,
                     h09_responses: false,
                 },
@@ -2076,7 +2461,6 @@ mod tests {
                     cached_headers: &mut headers,
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
-                    #[cfg(feature = "ffi")]
                     preserve_header_case: false,
                     h09_responses: false,
                 },

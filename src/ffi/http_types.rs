@@ -6,6 +6,7 @@ use super::body::hyper_body;
 use super::error::hyper_code;
 use super::task::{hyper_task_return_type, AsTaskType};
 use super::HYPER_ITER_CONTINUE;
+use crate::ext::HeaderCaseMap;
 use crate::header::{HeaderName, HeaderValue};
 use crate::{Body, HeaderMap, Method, Request, Response, Uri};
 
@@ -18,15 +19,10 @@ pub struct hyper_response(pub(super) Response<Body>);
 /// An HTTP header map.
 ///
 /// These can be part of a request or response.
-#[derive(Default)]
 pub struct hyper_headers {
     pub(super) headers: HeaderMap,
     orig_casing: HeaderCaseMap,
 }
-
-// Will probably be moved to `hyper::ext::http1`
-#[derive(Debug, Default)]
-pub(crate) struct HeaderCaseMap(HeaderMap<Bytes>);
 
 #[derive(Debug)]
 pub(crate) struct ReasonPhrase(pub(crate) Bytes);
@@ -229,7 +225,7 @@ impl hyper_response {
         let orig_casing = resp
             .extensions_mut()
             .remove::<HeaderCaseMap>()
-            .unwrap_or_default();
+            .unwrap_or_else(HeaderCaseMap::default);
         resp.extensions_mut().insert(hyper_headers {
             headers,
             orig_casing,
@@ -265,10 +261,7 @@ type hyper_headers_foreach_callback =
 impl hyper_headers {
     pub(super) fn get_or_default(ext: &mut http::Extensions) -> &mut hyper_headers {
         if let None = ext.get_mut::<hyper_headers>() {
-            ext.insert(hyper_headers {
-                headers: Default::default(),
-                orig_casing: Default::default(),
-            });
+            ext.insert(hyper_headers::default());
         }
 
         ext.get_mut::<hyper_headers>().unwrap()
@@ -290,11 +283,11 @@ ffi_fn! {
         //
         // TODO: consider adding http::HeaderMap::entries() iterator
         for name in headers.headers.keys() {
-            let mut names = headers.orig_casing.get_all(name).iter();
+            let mut names = headers.orig_casing.get_all(name);
 
             for value in headers.headers.get_all(name) {
                 let (name_ptr, name_len) = if let Some(orig_name) = names.next() {
-                    (orig_name.as_ptr(), orig_name.len())
+                    (orig_name.as_ref().as_ptr(), orig_name.as_ref().len())
                 } else {
                     (
                         name.as_str().as_bytes().as_ptr(),
@@ -349,6 +342,15 @@ ffi_fn! {
     }
 }
 
+impl Default for hyper_headers {
+    fn default() -> Self {
+        Self {
+            headers: Default::default(),
+            orig_casing: HeaderCaseMap::default(),
+        }
+    }
+}
+
 unsafe fn raw_name_value(
     name: *const u8,
     name_len: size_t,
@@ -368,25 +370,6 @@ unsafe fn raw_name_value(
     };
 
     Ok((name, value, orig_name))
-}
-
-// ===== impl HeaderCaseMap =====
-
-impl HeaderCaseMap {
-    pub(crate) fn get_all(&self, name: &HeaderName) -> http::header::GetAll<'_, Bytes> {
-        self.0.get_all(name)
-    }
-
-    pub(crate) fn insert(&mut self, name: HeaderName, orig: Bytes) {
-        self.0.insert(name, orig);
-    }
-
-    pub(crate) fn append<N>(&mut self, name: N, orig: Bytes)
-    where
-        N: http::header::IntoHeaderName,
-    {
-        self.0.append(name, orig);
-    }
 }
 
 #[cfg(test)]

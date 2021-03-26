@@ -997,6 +997,17 @@ impl Builder {
         self
     }
 
+    /// Set whether HTTP/1 connections will write header names as provided
+    /// at the socket level.
+    ///
+    /// Note that this setting does not affect HTTP/2.
+    ///
+    /// Default is false.
+    pub fn http1_preserve_header_case(&mut self, val: bool) -> &mut Self {
+        self.conn_builder.h1_preserve_header_case(val);
+        self
+    }
+
     /// Set whether HTTP/0.9 responses should be tolerated.
     ///
     /// Default is false.

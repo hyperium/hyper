@@ -160,7 +160,6 @@ where
                     cached_headers: parse_ctx.cached_headers,
                     req_method: parse_ctx.req_method,
                     h1_parser_config: parse_ctx.h1_parser_config.clone(),
-                    #[cfg(feature = "ffi")]
                     preserve_header_case: parse_ctx.preserve_header_case,
                     h09_responses: parse_ctx.h09_responses,
                 },
@@ -644,7 +643,6 @@ mod tests {
                 cached_headers: &mut None,
                 req_method: &mut None,
                 h1_parser_config: Default::default(),
-                #[cfg(feature = "ffi")]
                 preserve_header_case: false,
                 h09_responses: false,
             };
