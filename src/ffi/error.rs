@@ -24,6 +24,8 @@ pub enum hyper_code {
     HYPERE_FEATURE_NOT_ENABLED,
     /// The peer sent an HTTP message that could not be parsed.
     HYPERE_INVALID_PEER_MESSAGE,
+    /// The peer sent an HTTP version header that we cannot parse
+    HYPERE_INVALID_HTTP_VERSION,
 }
 
 // ===== impl hyper_error =====
@@ -31,9 +33,11 @@ pub enum hyper_code {
 impl hyper_error {
     fn code(&self) -> hyper_code {
         use crate::error::Kind as ErrorKind;
+        use crate::error::Parse;
         use crate::error::User;
 
         match self.0.kind() {
+            ErrorKind::Parse(Parse::Version) => hyper_code::HYPERE_INVALID_HTTP_VERSION,
             ErrorKind::Parse(_) => hyper_code::HYPERE_INVALID_PEER_MESSAGE,
             ErrorKind::IncompleteMessage => hyper_code::HYPERE_UNEXPECTED_EOF,
             ErrorKind::User(User::AbortedByCallback) => hyper_code::HYPERE_ABORTED_BY_CALLBACK,
