@@ -7,10 +7,10 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::task::hyper_context;
 
-/// Sentinal value to return from a read or write callback that the operation
+/// Sentinel value to return from a read or write callback that the operation
 /// is pending.
 pub const HYPER_IO_PENDING: size_t = 0xFFFFFFFF;
-/// Sentinal value to return from a read or write callback that the operation
+/// Sentinel value to return from a read or write callback that the operation
 /// has errored.
 pub const HYPER_IO_ERROR: size_t = 0xFFFFFFFE;
 
