@@ -51,7 +51,7 @@ jobs:
           - stable
           - beta
           - nightly
-          - 1.45.2
+          - 1.46
 
         os:
           - ubuntu-latest
@@ -66,6 +66,8 @@ jobs:
           - rust: nightly
             features: "--features full,nightly"
             benches: true
+          - rust: 1.46
+            features: "--features full"
 
     runs-on: ${{ matrix.os }}
 
