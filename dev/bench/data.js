@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1617731148264,
+  "lastUpdate": 1617731179268,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -4141,6 +4141,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 60428,
             "range": "± 15684",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "pyfisch@posteo.org",
+            "name": "pyfisch",
+            "username": "pyfisch"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "96f7222435bc484d203a56ba4c9899690fada5b7",
+          "message": "chore(dependencies): Update httpdate to v1.0 (#2485)\n\nPrevious version would return wrong results for `Ord`.",
+          "timestamp": "2021-04-06T10:43:01-07:00",
+          "tree_id": "5d3619eba30f0dc17808ebf3a27d26d747979573",
+          "url": "https://github.com/hyperium/hyper/commit/96f7222435bc484d203a56ba4c9899690fada5b7"
+        },
+        "date": 1617731175857,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 67482,
+            "range": "± 19408",
             "unit": "ns/iter"
           }
         ]
