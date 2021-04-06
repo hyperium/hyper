@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1617731323380,
+  "lastUpdate": 1617731346747,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -2099,6 +2099,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 71034,
             "range": "± 11483",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "thomasdezeeuw@gmail.com",
+            "name": "Thomas de Zeeuw",
+            "username": "Thomasdezeeuw"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d84c794bade429790b93b9765158d195a29eb403",
+          "message": "chore(ci): Increase MSRV to 1.46 (#2486)\n\nSocket2 v0.4 requires Rust 1.46.",
+          "timestamp": "2021-04-06T10:46:21-07:00",
+          "tree_id": "ba3584344238381127ce3f4b0d5eef445e6488fd",
+          "url": "https://github.com/hyperium/hyper/commit/d84c794bade429790b93b9765158d195a29eb403"
+        },
+        "date": 1617731344856,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 47365,
+            "range": "± 2505",
             "unit": "ns/iter"
           }
         ]
