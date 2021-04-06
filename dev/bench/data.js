@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1617734570162,
+  "lastUpdate": 1617734597344,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -4261,6 +4261,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 70864,
             "range": "± 16456",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kevin@burke.dev",
+            "name": "Kevin Burke",
+            "username": "kevinburke"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c7ab1aace102688ca3ad1bba6b5a7c5fd93b21b6",
+          "message": "docs(ffi): spelling error (#2489)",
+          "timestamp": "2021-04-06T11:40:02-07:00",
+          "tree_id": "96f799750295164c98bbca0c2ed122bb084a588e",
+          "url": "https://github.com/hyperium/hyper/commit/c7ab1aace102688ca3ad1bba6b5a7c5fd93b21b6"
+        },
+        "date": 1617734595855,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 71797,
+            "range": "± 30148",
             "unit": "ns/iter"
           }
         ]
