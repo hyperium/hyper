@@ -17,6 +17,7 @@ jobs:
       - test
       - features
       - ffi
+      - ffi-header
       - doc
     steps:
       - run: exit 0
@@ -119,9 +120,7 @@ jobs:
   ffi:
     name: Test C API (FFI)
     needs: [style]
-
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v1
@@ -147,10 +146,6 @@ jobs:
           command: build
           args: --features client,http1,http2,ffi
 
-      # TODO: re-enable check once figuring out how to get it working in CI
-      # - name: Verify cbindgen
-      #   run: ./capi/gen_header.sh --verify
-
       - name: Make Examples
         run: cd capi/examples && make client
 
@@ -161,6 +156,39 @@ jobs:
         with:
           command: test
           args: --features full,ffi --lib
+
+  ffi-header:
+    name: Verify hyper.h is up to date
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          default: true
+          override: true
+          components: cargo
+
+      - name: Install cbindgen
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cbindgen
+
+      - name: Build FFI
+        uses: actions-rs/cargo@v1
+        env:
+          RUSTFLAGS: --cfg hyper_unstable_ffi
+        with:
+          command: build
+          args: --features client,http1,http2,ffi
+
+      - name: Ensure that hyper.h is up to date
+        run: ./capi/gen_header.sh --verify
 
   doc:
     name: Build docs
