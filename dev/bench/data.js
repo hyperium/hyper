@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1617837293331,
+  "lastUpdate": 1617837474940,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -14547,6 +14547,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_req_100kb",
             "value": 167611,
             "range": "± 40277",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kevin@burke.dev",
+            "name": "Kevin Burke",
+            "username": "kevinburke"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ed2fdb7b6a2963cea7577df05ddc41c56fee7246",
+          "message": "chore(ffi): fix compile errors and warnings (#2492)\n\nAs I understand it, \"cargo rustc\" in gen_header.sh generates a ton of\r\nerrors, but still manages to generate an object that can be used by\r\ncbindgen to generate hyper.h.\r\n\r\nHowever, I tried to make a separate change to add more fields to\r\nhyper.h, and learned that \"cargo rustc\" stops if it reaches 50 errors,\r\nwhich I reached. I was able to buy some headroom and fix a number of\r\nthe compilation errors by adding imports to the fake Cargo.toml we\r\ngenerate in gen_header.sh.\r\n\r\nI wasn't sure how to resolve imports like \"crate::Result\" which appear\r\nto reference the top-level src/error.rs, and print an error when they\r\nare compiled in gen_header.sh. But I only need to buy headroom under\r\nthe 50 error count for now, which I was able to do by adding the\r\nimports.\r\n\r\nIt is possible that someone more familiar with Rust than me could look\r\nat this and know what to change to get the total number of errors to\r\nzero.",
+          "timestamp": "2021-04-07T16:12:02-07:00",
+          "tree_id": "c86a0c709d655d6d25be94e3fbb6727ece6c8c72",
+          "url": "https://github.com/hyperium/hyper/commit/ed2fdb7b6a2963cea7577df05ddc41c56fee7246"
+        },
+        "date": 1617837473059,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_body_both_100kb",
+            "value": 119844,
+            "range": "± 21415",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_body_both_10mb",
+            "value": 6412808,
+            "range": "± 1084600",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_get",
+            "value": 46650,
+            "range": "± 7395",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 268348,
+            "range": "± 34418",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 52005160,
+            "range": "± 879563",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 51678190,
+            "range": "± 3600732",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 54049594,
+            "range": "± 3508334",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 3601290,
+            "range": "± 1024026",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_post",
+            "value": 51277,
+            "range": "± 7368",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_get",
+            "value": 87504,
+            "range": "± 10426",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 221833,
+            "range": "± 28499",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 12106030,
+            "range": "± 9763576",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 12569111,
+            "range": "± 9397087",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 11904927,
+            "range": "± 9260705",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 64159296,
+            "range": "± 7443116",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 77248738,
+            "range": "± 15226364",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 6504712,
+            "range": "± 1062013",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_post",
+            "value": 103305,
+            "range": "± 8864",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_req_100kb",
+            "value": 192308,
+            "range": "± 16236",
             "unit": "ns/iter"
           }
         ]
