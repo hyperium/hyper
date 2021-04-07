@@ -19,15 +19,16 @@ use super::HttpBody;
 /// # Example
 ///
 /// ```
+/// use hyper::body::HttpBody; /* Needed for the size_hint() method */
+///
 /// let response = client.request(req).await?;
 ///
 /// const MAX_ALLOWED_RESPONSE_SIZE: u32 = 1024;
 ///
-/// let response_content_length: u32 = response.headers()
-///     .get(hyper::header::CONTENT_LENGTH)
-///     .expect("Failed to extract the CONTENT_LENGTH")
-///     .to_str().expect("Failed to_str() the CONTENT_LENGTH")
-///     .parse::<u32>().expect("Failed to parse the CONTENT_LENGTH");
+/// let response_content_length = match response.body().size_hint().upper() {
+///     Some(v) => v,
+///     None => MAX_ALLOWED_RESPONSE_SIZE + 1 // Just to protect ourselves from a malicious response
+/// };
 ///
 /// if response_content_length < MAX_ALLOWED_RESPONSE_SIZE {
 ///     let body_bytes = hyper::body::to_bytes(response.into_body()).await.expect("body::to_bytes failed");
