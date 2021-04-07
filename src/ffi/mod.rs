@@ -61,9 +61,6 @@ pub use self::http_types::*;
 pub use self::io::*;
 pub use self::task::*;
 
-pub(crate) use self::body::UserBody;
-pub(crate) use self::http_types::{HeaderCaseMap, ReasonPhrase};
-
 /// Return in iter functions to continue iterating.
 pub const HYPER_ITER_CONTINUE: libc::c_int = 0;
 /// Return in iter functions to stop iterating.
