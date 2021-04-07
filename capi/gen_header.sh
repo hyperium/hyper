@@ -41,6 +41,27 @@ edition = "2018"
 publish = false
 
 [dependencies]
+# Determined which dependencies we need by running the "cargo rustc" command
+# below and watching the compile error output for references to unknown imports,
+# until we didn't get any errors.
+bytes = "1"
+futures-channel = "0.3"
+futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
+libc = { version = "0.2", optional = true }
+http = "0.2"
+http-body = "0.4"
+tokio = { version = "1", features = ["rt"] }
+
+[features]
+default = [
+    "client",
+    "ffi",
+    "http1",
+]
+
+http1 = []
+client = []
+ffi = ["libc", "tokio/rt"]
 EOF
 
 cp "$CAPI_DIR/include/hyper.h" "$header_file_backup"
@@ -50,7 +71,7 @@ cp "$CAPI_DIR/include/hyper.h" "$header_file_backup"
 cd "${WORK_DIR}" || exit 2
 
 # Expand just the ffi module
-if ! output=$(cargo rustc -- -Z unstable-options --pretty=expanded 2>&1 > expanded.rs); then
+if ! output=$(RUSTFLAGS='--cfg hyper_unstable_ffi' cargo rustc -- -Z unstable-options --pretty=expanded 2>&1 > expanded.rs); then
     # As of April 2021 the script above prints a lot of warnings/errors, and
     # exits with a nonzero return code, but hyper.h still gets generated.
     echo "$output"
