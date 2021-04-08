@@ -7,6 +7,7 @@ use futures_util::future::{self, Either, FutureExt as _, TryFutureExt as _};
 use futures_util::stream::StreamExt as _;
 use h2::client::{Builder, SendRequest};
 use tokio::io::{AsyncRead, AsyncWrite};
+use tracing::debug;
 
 use super::{decode_content_length, ping, PipeToSendStream, SendBuf};
 use crate::body::HttpBody;
@@ -104,6 +105,11 @@ where
         .handshake::<_, SendBuf<B::Data>>(io)
         .await
         .map_err(crate::Error::new_h2)?;
+
+    debug!(
+        server.max_concurrent_send_streams = conn.max_concurrent_send_streams(),
+        "HTTP/2 handshake complete"
+    );
 
     // An mpsc channel is used entirely to detect when the
     // 'Client' has been dropped. This is to get around a bug
