@@ -14,8 +14,6 @@ use super::HttpBody;
 /// checks and an malicious peer might make it consume arbitrary amounts of memory. Checking the
 /// `Content-Length` is a possibility, but it is not strictly mandated to be present.
 ///
-/// Create an empty `Body` stream.
-///
 /// # Example
 ///
 /// ```
