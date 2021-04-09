@@ -19,11 +19,18 @@ use super::HttpBody;
 /// # Example
 ///
 /// ```
-/// use hyper::body::HttpBody; /* Needed for the size_hint() method */
+/// # async fn doc() -> hyper::Result<()> {
+/// use hyper::{body::HttpBody};
 ///
-/// let response = client.request(req).await?;
+/// # let request = hyper::Request::builder()
+/// #        .method(hyper::Method::POST)
+/// #        .uri("http://httpbin.org/post")
+/// #        .header("content-type", "application/json")
+/// #        .body(hyper::Body::from(r#"{"library":"hyper"}"#)).unwrap();
+/// # let client = hyper::Client::new();
+/// let response = client.request(request).await?;
 ///
-/// const MAX_ALLOWED_RESPONSE_SIZE: u32 = 1024;
+/// const MAX_ALLOWED_RESPONSE_SIZE: u64 = 1024;
 ///
 /// let response_content_length = match response.body().size_hint().upper() {
 ///     Some(v) => v,
@@ -31,10 +38,13 @@ use super::HttpBody;
 /// };
 ///
 /// if response_content_length < MAX_ALLOWED_RESPONSE_SIZE {
-///     let body_bytes = hyper::body::to_bytes(response.into_body()).await.expect("body::to_bytes failed");
-///     let body_string = String::from_utf8(body_bytes.to_vec()).expect("String::from_utf8 failed");
+///     let body_bytes = hyper::body::to_bytes(response.into_body()).await?;
+///     let body_string = String::from_utf8(body_bytes.to_vec()).expect("!String::from_utf8");
 ///     println!("body: {}", body_string);
 /// }
+///
+/// # Ok(())
+/// # }
 /// ```
 pub async fn to_bytes<T>(body: T) -> Result<Bytes, T::Error>
 where
