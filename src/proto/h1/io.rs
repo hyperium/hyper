@@ -163,7 +163,9 @@ where
                     preserve_header_case: parse_ctx.preserve_header_case,
                     h09_responses: parse_ctx.h09_responses,
                 },
-            )? {
+            )
+            .map_err(crate::Error::new_parse)?
+            {
                 Some(msg) => {
                     debug!("parsed {} headers", msg.head.headers.len());
                     return Poll::Ready(Ok(msg));

@@ -497,7 +497,7 @@ impl KeepAlive {
 #[cfg(feature = "runtime")]
 impl KeepAliveTimedOut {
     pub(super) fn crate_error(self) -> crate::Error {
-        crate::Error::new(crate::error::Kind::Http2).with(self)
+        crate::Error::new_fake_h2(self)
     }
 }
 

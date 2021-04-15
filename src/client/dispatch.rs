@@ -317,7 +317,7 @@ mod tests {
             .expect("fulfilled")
             .expect_err("promise should error");
         match (err.0.kind(), err.1) {
-            (&crate::error::Kind::Canceled, Some(_)) => (),
+            (&crate::error::Kind::Canceled(_), Some(_)) => (),
             e => panic!("expected Error::Cancel(_), found {:?}", e),
         }
     }

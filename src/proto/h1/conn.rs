@@ -653,7 +653,7 @@ where
     fn on_parse_error(&mut self, err: crate::Error) -> crate::Result<()> {
         if let Writing::Init = self.state.writing {
             if self.has_h2_prefix() {
-                return Err(crate::Error::new_version_h2());
+                return Err(crate::Error::new_h2_preface());
             }
             if let Some(msg) = T::on_error(&err) {
                 // Drop the cached headers so as to not trigger a debug

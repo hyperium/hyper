@@ -701,7 +701,7 @@ where
                     Err(e) => {
                         #[cfg(feature = "http2")]
                         match *e.kind() {
-                            Kind::Parse(Parse::VersionH2) if self.fallback.to_h2() => {
+                            Kind::Parse(Parse::H2Preface(_)) if self.fallback.to_h2() => {
                                 self.upgrade_h2();
                                 continue;
                             }
@@ -798,7 +798,7 @@ where
                     #[cfg(feature = "http1")]
                     #[cfg(feature = "http2")]
                     match *e.kind() {
-                        Kind::Parse(Parse::VersionH2) if self.fallback.to_h2() => {
+                        Kind::Parse(Parse::H2Preface(_)) if self.fallback.to_h2() => {
                             self.upgrade_h2();
                             continue;
                         }
@@ -1186,7 +1186,7 @@ mod upgrades {
                         #[cfg(feature = "http1")]
                         #[cfg(feature = "http2")]
                         match *e.kind() {
-                            Kind::Parse(Parse::VersionH2) if self.inner.fallback.to_h2() => {
+                            Kind::Parse(Parse::H2Preface(_)) if self.inner.fallback.to_h2() => {
                                 self.inner.upgrade_h2();
                                 continue;
                             }
