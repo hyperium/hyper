@@ -1,5 +1,6 @@
 use bytes::BytesMut;
 use http::{HeaderMap, Method};
+use httparse::ParserConfig;
 
 use crate::body::DecodedLength;
 use crate::proto::{BodyLength, MessageHead};
@@ -70,6 +71,7 @@ pub(crate) struct ParsedMessage<T> {
 pub(crate) struct ParseContext<'a> {
     cached_headers: &'a mut Option<HeaderMap>,
     req_method: &'a mut Option<Method>,
+    h1_parser_config: ParserConfig,
     #[cfg(feature = "ffi")]
     preserve_header_case: bool,
     h09_responses: bool,

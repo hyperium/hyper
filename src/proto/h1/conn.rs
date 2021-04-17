@@ -5,6 +5,7 @@ use std::marker::PhantomData;
 use bytes::{Buf, Bytes};
 use http::header::{HeaderValue, CONNECTION};
 use http::{HeaderMap, Method, Version};
+use httparse::ParserConfig;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::io::Buffered;
@@ -44,6 +45,7 @@ where
                 error: None,
                 keep_alive: KA::Busy,
                 method: None,
+                h1_parser_config: ParserConfig::default(),
                 #[cfg(feature = "ffi")]
                 preserve_header_case: false,
                 title_case_headers: false,
@@ -77,6 +79,11 @@ where
     #[cfg(feature = "client")]
     pub(crate) fn set_title_case_headers(&mut self) {
         self.state.title_case_headers = true;
+    }
+
+    #[cfg(feature = "client")]
+    pub(crate) fn set_h1_parser_config(&mut self, parser_config: ParserConfig) {
+        self.state.h1_parser_config = parser_config;
     }
 
     #[cfg(feature = "client")]
@@ -150,6 +157,7 @@ where
             ParseContext {
                 cached_headers: &mut self.state.cached_headers,
                 req_method: &mut self.state.method,
+                h1_parser_config: self.state.h1_parser_config.clone(),
                 #[cfg(feature = "ffi")]
                 preserve_header_case: self.state.preserve_header_case,
                 h09_responses: self.state.h09_responses,
@@ -284,7 +292,10 @@ where
         ret
     }
 
-    pub(crate) fn poll_read_keep_alive(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    pub(crate) fn poll_read_keep_alive(
+        &mut self,
+        cx: &mut task::Context<'_>,
+    ) -> Poll<crate::Result<()>> {
         debug_assert!(!self.can_read_head() && !self.can_read_body());
 
         if self.is_read_closed() {
@@ -760,6 +771,7 @@ struct State {
     /// This is used to know things such as if the message can include
     /// a body or not.
     method: Option<Method>,
+    h1_parser_config: ParserConfig,
     #[cfg(feature = "ffi")]
     preserve_header_case: bool,
     title_case_headers: bool,

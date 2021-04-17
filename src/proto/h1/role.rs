@@ -683,7 +683,8 @@ impl Http1Transaction for Client {
                 );
                 let mut res = httparse::Response::new(&mut headers);
                 let bytes = buf.as_ref();
-                match res.parse(bytes) {
+                match ctx.h1_parser_config.parse_response(&mut res, bytes)
+                {
                     Ok(httparse::Status::Complete(len)) => {
                         trace!("Response.parse Complete({})", len);
                         let status = StatusCode::from_u16(res.code.unwrap())?;
@@ -1231,6 +1232,7 @@ mod tests {
             ParseContext {
                 cached_headers: &mut None,
                 req_method: &mut method,
+                h1_parser_config: Default::default(),
                 #[cfg(feature = "ffi")]
                 preserve_header_case: false,
                 h09_responses: false,
@@ -1254,6 +1256,7 @@ mod tests {
         let ctx = ParseContext {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
+            h1_parser_config: Default::default(),
             #[cfg(feature = "ffi")]
             preserve_header_case: false,
             h09_responses: false,
@@ -1272,6 +1275,7 @@ mod tests {
         let ctx = ParseContext {
             cached_headers: &mut None,
             req_method: &mut None,
+            h1_parser_config: Default::default(),
             #[cfg(feature = "ffi")]
             preserve_header_case: false,
             h09_responses: false,
@@ -1288,6 +1292,7 @@ mod tests {
         let ctx = ParseContext {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
+            h1_parser_config: Default::default(),
             #[cfg(feature = "ffi")]
             preserve_header_case: false,
             h09_responses: true,
@@ -1306,12 +1311,55 @@ mod tests {
         let ctx = ParseContext {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
+            h1_parser_config: Default::default(),
             #[cfg(feature = "ffi")]
             preserve_header_case: false,
             h09_responses: false,
         };
         Client::parse(&mut raw, ctx).unwrap_err();
         assert_eq!(raw, H09_RESPONSE);
+    }
+
+    const RESPONSE_WITH_WHITESPACE_BETWEEN_HEADER_NAME_AND_COLON: &'static str =
+        "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Credentials : true\r\n\r\n";
+
+    #[test]
+    fn test_parse_allow_response_with_spaces_before_colons() {
+        use httparse::ParserConfig;
+
+        let _ = pretty_env_logger::try_init();
+        let mut raw = BytesMut::from(RESPONSE_WITH_WHITESPACE_BETWEEN_HEADER_NAME_AND_COLON);
+        let mut h1_parser_config = ParserConfig::default();
+        h1_parser_config.allow_spaces_after_header_name_in_responses(true);
+        let ctx = ParseContext {
+            cached_headers: &mut None,
+            req_method: &mut Some(crate::Method::GET),
+            h1_parser_config,
+            #[cfg(feature = "ffi")]
+            preserve_header_case: false,
+            h09_responses: false,
+        };
+        let msg = Client::parse(&mut raw, ctx).unwrap().unwrap();
+        assert_eq!(raw.len(), 0);
+        assert_eq!(msg.head.subject, crate::StatusCode::OK);
+        assert_eq!(msg.head.version, crate::Version::HTTP_11);
+        assert_eq!(msg.head.headers.len(), 1);
+        assert_eq!(msg.head.headers["Access-Control-Allow-Credentials"], "true");
+    }
+
+    #[test]
+    fn test_parse_reject_response_with_spaces_before_colons() {
+        let _ = pretty_env_logger::try_init();
+        let mut raw = BytesMut::from(RESPONSE_WITH_WHITESPACE_BETWEEN_HEADER_NAME_AND_COLON);
+        let ctx = ParseContext {
+            cached_headers: &mut None,
+            req_method: &mut Some(crate::Method::GET),
+            h1_parser_config: Default::default(),
+            #[cfg(feature = "ffi")]
+            preserve_header_case: false,
+            h09_responses: false,
+        };
+        Client::parse(&mut raw, ctx).unwrap_err();
     }
 
     #[test]
@@ -1323,6 +1371,7 @@ mod tests {
                 ParseContext {
                     cached_headers: &mut None,
                     req_method: &mut None,
+                    h1_parser_config: Default::default(),
                     #[cfg(feature = "ffi")]
                     preserve_header_case: false,
                     h09_responses: false,
@@ -1339,6 +1388,7 @@ mod tests {
                 ParseContext {
                     cached_headers: &mut None,
                     req_method: &mut None,
+                    h1_parser_config: Default::default(),
                     #[cfg(feature = "ffi")]
                     preserve_header_case: false,
                     h09_responses: false,
@@ -1554,6 +1604,7 @@ mod tests {
                 ParseContext {
                     cached_headers: &mut None,
                     req_method: &mut Some(Method::GET),
+                    h1_parser_config: Default::default(),
                     #[cfg(feature = "ffi")]
                     preserve_header_case: false,
                     h09_responses: false,
@@ -1570,6 +1621,7 @@ mod tests {
                 ParseContext {
                     cached_headers: &mut None,
                     req_method: &mut Some(m),
+                    h1_parser_config: Default::default(),
                     #[cfg(feature = "ffi")]
                     preserve_header_case: false,
                     h09_responses: false,
@@ -1586,6 +1638,7 @@ mod tests {
                 ParseContext {
                     cached_headers: &mut None,
                     req_method: &mut Some(Method::GET),
+                    h1_parser_config: Default::default(),
                     #[cfg(feature = "ffi")]
                     preserve_header_case: false,
                     h09_responses: false,
@@ -1902,6 +1955,7 @@ mod tests {
             ParseContext {
                 cached_headers: &mut None,
                 req_method: &mut Some(Method::GET),
+                h1_parser_config: Default::default(),
                 #[cfg(feature = "ffi")]
                 preserve_header_case: false,
                 h09_responses: false,
@@ -1984,6 +2038,7 @@ mod tests {
                 ParseContext {
                     cached_headers: &mut headers,
                     req_method: &mut None,
+                    h1_parser_config: Default::default(),
                     #[cfg(feature = "ffi")]
                     preserve_header_case: false,
                     h09_responses: false,
@@ -2020,6 +2075,7 @@ mod tests {
                 ParseContext {
                     cached_headers: &mut headers,
                     req_method: &mut None,
+                    h1_parser_config: Default::default(),
                     #[cfg(feature = "ffi")]
                     preserve_header_case: false,
                     h09_responses: false,
