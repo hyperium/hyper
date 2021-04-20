@@ -961,6 +961,31 @@ impl Builder {
         self
     }
 
+    /// Set whether HTTP/1 connections will accept spaces between header names
+    /// and the colon that follow them in responses.
+    ///
+    /// You probably don't need this, here is what [RFC 7230 Section 3.2.4.] has
+    /// to say about it:
+    ///
+    /// > No whitespace is allowed between the header field-name and colon. In
+    /// > the past, differences in the handling of such whitespace have led to
+    /// > security vulnerabilities in request routing and response handling. A
+    /// > server MUST reject any received request message that contains
+    /// > whitespace between a header field-name and colon with a response code
+    /// > of 400 (Bad Request). A proxy MUST remove any such whitespace from a
+    /// > response message before forwarding the message downstream.
+    ///
+    /// Note that this setting does not affect HTTP/2.
+    ///
+    /// Default is false.
+    ///
+    /// [RFC 7230 Section 3.2.4.]: https://tools.ietf.org/html/rfc7230#section-3.2.4
+    pub fn http1_allow_spaces_after_header_name_in_responses(&mut self, val: bool) -> &mut Self {
+        self.conn_builder
+            .h1_allow_spaces_after_header_name_in_responses(val);
+        self
+    }
+
     /// Set whether HTTP/1 connections will write header names as title case at
     /// the socket level.
     ///
