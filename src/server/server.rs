@@ -231,6 +231,19 @@ impl<I, E> Builder<I, E> {
         self
     }
 
+    /// Set whether HTTP/1 connections will write header names as title case at
+    /// the socket level.
+    ///
+    /// Note that this setting does not affect HTTP/2.
+    ///
+    /// Default is false.
+    #[cfg(feature = "http1")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
+    pub fn http1_title_case_headers(&mut self, val: bool) -> &mut Self {
+        self.protocol.http1_title_case_headers(val);
+        self
+    }
+
     /// Sets whether HTTP/1 is required.
     ///
     /// Default is `false`.

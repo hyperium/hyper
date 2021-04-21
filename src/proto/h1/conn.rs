@@ -46,7 +46,6 @@ where
                 keep_alive: KA::Busy,
                 method: None,
                 h1_parser_config: ParserConfig::default(),
-                #[cfg(feature = "ffi")]
                 preserve_header_case: false,
                 title_case_headers: false,
                 h09_responses: false,
@@ -77,13 +76,16 @@ where
     }
 
     #[cfg(feature = "client")]
+    pub(crate) fn set_h1_parser_config(&mut self, parser_config: ParserConfig) {
+        self.state.h1_parser_config = parser_config;
+    }
+
     pub(crate) fn set_title_case_headers(&mut self) {
         self.state.title_case_headers = true;
     }
 
-    #[cfg(feature = "client")]
-    pub(crate) fn set_h1_parser_config(&mut self, parser_config: ParserConfig) {
-        self.state.h1_parser_config = parser_config;
+    pub(crate) fn set_preserve_header_case(&mut self) {
+        self.state.preserve_header_case = true;
     }
 
     #[cfg(feature = "client")]
@@ -158,7 +160,6 @@ where
                 cached_headers: &mut self.state.cached_headers,
                 req_method: &mut self.state.method,
                 h1_parser_config: self.state.h1_parser_config.clone(),
-                #[cfg(feature = "ffi")]
                 preserve_header_case: self.state.preserve_header_case,
                 h09_responses: self.state.h09_responses,
             }
@@ -499,16 +500,6 @@ where
 
         self.enforce_version(&mut head);
 
-        // Maybe check if we should preserve header casing on received
-        // message headers...
-        #[cfg(feature = "ffi")]
-        {
-            if T::is_client() && !self.state.preserve_header_case {
-                self.state.preserve_header_case =
-                    head.extensions.get::<crate::ffi::HeaderCaseMap>().is_some();
-            }
-        }
-
         let buf = self.io.headers_buf();
         match super::role::encode_headers::<T>(
             Encode {
@@ -772,7 +763,6 @@ struct State {
     /// a body or not.
     method: Option<Method>,
     h1_parser_config: ParserConfig,
-    #[cfg(feature = "ffi")]
     preserve_header_case: bool,
     title_case_headers: bool,
     h09_responses: bool,
