@@ -1,3 +1,12 @@
+### v0.14.6 (2021-04-21)
+
+
+#### Features
+
+* **client:** add option to allow misplaced spaces in HTTP/1 responses (#2506) ([11345394](https://github.com/hyperium/hyper/commit/11345394d968d4817e1a0ee2550228ac0ae7ce74))
+* **http1:** add options to preserve header casing (#2480) ([dbea7716](https://github.com/hyperium/hyper/commit/dbea7716f157896bf7d2d417be7b4e382e7dc34f), closes [#2313](https://github.com/hyperium/hyper/issues/2313))
+
+
 ### v0.14.5 (2021-03-26)
 
 
