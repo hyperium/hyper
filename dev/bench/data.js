@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1619024020787,
+  "lastUpdate": 1619024026541,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -2309,6 +2309,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 61053,
             "range": "± 14739",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "123095+nox@users.noreply.github.com",
+            "name": "Anthony Ramine",
+            "username": "nox"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "dbea7716f157896bf7d2d417be7b4e382e7dc34f",
+          "message": "feat(http1): add options to preserve header casing (#2480)\n\nDecouple preserving header case from FFI:\r\n\r\nThe feature is now supported in both the server and the client\r\nand can be combined with the title case feature, for headers\r\nwhich don't have entries in the header case map.\r\n\r\nCloses #2313",
+          "timestamp": "2021-04-21T09:50:35-07:00",
+          "tree_id": "7af54f6d37e20837e6e078489a52662a4530ee53",
+          "url": "https://github.com/hyperium/hyper/commit/dbea7716f157896bf7d2d417be7b4e382e7dc34f"
+        },
+        "date": 1619024024533,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 63954,
+            "range": "± 14630",
             "unit": "ns/iter"
           }
         ]
