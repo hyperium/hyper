@@ -89,6 +89,7 @@ pub struct Http<E = Exec> {
     h1_half_close: bool,
     h1_keep_alive: bool,
     h1_title_case_headers: bool,
+    h1_preserve_header_case: bool,
     #[cfg(feature = "http2")]
     h2_builder: proto::h2::server::Config,
     mode: ConnectionMode,
@@ -236,6 +237,7 @@ impl Http {
             h1_half_close: false,
             h1_keep_alive: true,
             h1_title_case_headers: false,
+            h1_preserve_header_case: false,
             #[cfg(feature = "http2")]
             h2_builder: Default::default(),
             mode: ConnectionMode::default(),
@@ -298,6 +300,19 @@ impl<E> Http<E> {
     #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
     pub fn http1_title_case_headers(&mut self, enabled: bool) -> &mut Self {
         self.h1_title_case_headers = enabled;
+        self
+    }
+
+    /// Set whether HTTP/1 connections will write header names as provided
+    /// at the socket level.
+    ///
+    /// Note that this setting does not affect HTTP/2.
+    ///
+    /// Default is false.
+    #[cfg(feature = "http1")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
+    pub fn http1_preserve_header_case(&mut self, enabled: bool) -> &mut Self {
+        self.h1_preserve_header_case = enabled;
         self
     }
 
@@ -475,6 +490,7 @@ impl<E> Http<E> {
             h1_half_close: self.h1_half_close,
             h1_keep_alive: self.h1_keep_alive,
             h1_title_case_headers: self.h1_title_case_headers,
+            h1_preserve_header_case: self.h1_preserve_header_case,
             #[cfg(feature = "http2")]
             h2_builder: self.h2_builder,
             mode: self.mode,
@@ -532,6 +548,9 @@ impl<E> Http<E> {
                 }
                 if self.h1_title_case_headers {
                     conn.set_title_case_headers();
+                }
+                if self.h1_preserve_header_case {
+                    conn.set_preserve_header_case();
                 }
                 conn.set_flush_pipeline(self.pipeline_flush);
                 if let Some(max) = self.max_buf_size {
