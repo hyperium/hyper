@@ -239,7 +239,7 @@ impl<I, E> Builder<I, E> {
     /// Default is false.
     #[cfg(feature = "http1")]
     #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
-    pub fn http1_title_case_headers(&mut self, val: bool) -> &mut Self {
+    pub fn http1_title_case_headers(mut self, val: bool) -> Self {
         self.protocol.http1_title_case_headers(val);
         self
     }
