@@ -1,3 +1,16 @@
+### v0.14.7 (2021-04-22)
+
+
+#### Bug Fixes
+
+* **http1:** http1_title_case_headers should move Builder ([a303b3c3](https://github.com/hyperium/hyper/commit/a303b3c329e6b8ecfa1da0b9b9e94736628167e0))
+
+
+#### Features
+
+* **server:** implement forgotten settings for case preserving ([4fd6c4cb](https://github.com/hyperium/hyper/commit/4fd6c4cb0b58bb0831ae0f876d858aba1588d0e3))
+
+
 ### v0.14.6 (2021-04-21)
 
 
