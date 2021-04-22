@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1619110427009,
+  "lastUpdate": 1619110434931,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -4741,6 +4741,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 65724,
             "range": "± 8905",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "nox@nox.paris",
+            "name": "Anthony Ramine",
+            "username": "nox"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "4fd6c4cb0b58bb0831ae0f876d858aba1588d0e3",
+          "message": "feat(server): implement forgotten settings for case preserving",
+          "timestamp": "2021-04-22T09:50:46-07:00",
+          "tree_id": "9f289776bd224b10068353c7440582a48532f8e3",
+          "url": "https://github.com/hyperium/hyper/commit/4fd6c4cb0b58bb0831ae0f876d858aba1588d0e3"
+        },
+        "date": 1619110432794,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 59466,
+            "range": "± 11391",
             "unit": "ns/iter"
           }
         ]
