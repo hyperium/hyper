@@ -18,8 +18,8 @@ type HttpClient = Client<hyper::client::HttpConnector>;
 // 2. config http_proxy in command line
 //    $ export http_proxy=http://127.0.0.1:8100
 //    $ export https_proxy=http://127.0.0.1:8100
-// 3. send requests (don't use a domain name)
-//    $ curl -i https://8.8.8.8
+// 3. send requests
+//    $ curl -i https://www.some_domain.com/
 #[tokio::main]
 async fn main() {
     let addr = SocketAddr::from(([127, 0, 0, 1], 8100));
@@ -88,13 +88,13 @@ async fn proxy(client: HttpClient, req: Request<Body>) -> Result<Response<Body>,
     }
 }
 
-fn host_addr(uri: &http::Uri) -> Option<SocketAddr> {
-    uri.authority().and_then(|auth| auth.as_str().parse().ok())
+fn host_addr(uri: &http::Uri) -> Option<String> {
+    uri.authority().and_then(|auth| Some(auth.to_string()))
 }
 
 // Create a TCP connection to host:port, build a tunnel between the connection and
 // the upgraded connection
-async fn tunnel(upgraded: Upgraded, addr: SocketAddr) -> std::io::Result<()> {
+async fn tunnel(upgraded: Upgraded, addr: String) -> std::io::Result<()> {
     // Connect to remote server
     let mut server = TcpStream::connect(addr).await?;
 
