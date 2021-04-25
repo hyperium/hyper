@@ -74,7 +74,15 @@ cd "${WORK_DIR}" || exit 2
 if ! output=$(RUSTFLAGS='--cfg hyper_unstable_ffi' cargo rustc -- -Z unstable-options --pretty=expanded 2>&1 > expanded.rs); then
     # As of April 2021 the script above prints a lot of warnings/errors, and
     # exits with a nonzero return code, but hyper.h still gets generated.
-    echo "$output"
+    #
+    # However, on Github Actions, this will result in automatic "annotations"
+    # being added to files not related to a PR, so if this is `--verify` mode,
+    # then don't show it.
+    #
+    # But yes show it when using it locally.
+    if [[ "--verify" != "$1" ]]; then
+        echo "$output"
+    fi
 fi
 
 # Replace the previous copy with the single expanded file

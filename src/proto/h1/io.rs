@@ -159,7 +159,7 @@ where
                 ParseContext {
                     cached_headers: parse_ctx.cached_headers,
                     req_method: parse_ctx.req_method,
-                    #[cfg(feature = "ffi")]
+                    h1_parser_config: parse_ctx.h1_parser_config.clone(),
                     preserve_header_case: parse_ctx.preserve_header_case,
                     h09_responses: parse_ctx.h09_responses,
                 },
@@ -183,7 +183,10 @@ where
         }
     }
 
-    pub(crate) fn poll_read_from_io(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<usize>> {
+    pub(crate) fn poll_read_from_io(
+        &mut self,
+        cx: &mut task::Context<'_>,
+    ) -> Poll<io::Result<usize>> {
         self.read_blocked = false;
         let next = self.read_buf_strategy.next();
         if self.read_buf_remaining_mut() < next {
@@ -378,7 +381,7 @@ impl ReadStrategy {
                         *decrease_now = false;
                     }
                 }
-            },
+            }
             #[cfg(feature = "client")]
             ReadStrategy::Exact(_) => (),
         }
@@ -639,7 +642,7 @@ mod tests {
             let parse_ctx = ParseContext {
                 cached_headers: &mut None,
                 req_method: &mut None,
-                #[cfg(feature = "ffi")]
+                h1_parser_config: Default::default(),
                 preserve_header_case: false,
                 h09_responses: false,
             };

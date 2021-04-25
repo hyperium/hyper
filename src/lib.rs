@@ -80,6 +80,7 @@ mod cfg;
 mod common;
 pub mod body;
 mod error;
+mod ext;
 #[cfg(test)]
 mod mock;
 #[cfg(any(feature = "http1", feature = "http2",))]

@@ -5,6 +5,7 @@ use std::marker::PhantomData;
 use bytes::{Buf, Bytes};
 use http::header::{HeaderValue, CONNECTION};
 use http::{HeaderMap, Method, Version};
+use httparse::ParserConfig;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::io::Buffered;
@@ -44,7 +45,7 @@ where
                 error: None,
                 keep_alive: KA::Busy,
                 method: None,
-                #[cfg(feature = "ffi")]
+                h1_parser_config: ParserConfig::default(),
                 preserve_header_case: false,
                 title_case_headers: false,
                 h09_responses: false,
@@ -75,8 +76,16 @@ where
     }
 
     #[cfg(feature = "client")]
+    pub(crate) fn set_h1_parser_config(&mut self, parser_config: ParserConfig) {
+        self.state.h1_parser_config = parser_config;
+    }
+
     pub(crate) fn set_title_case_headers(&mut self) {
         self.state.title_case_headers = true;
+    }
+
+    pub(crate) fn set_preserve_header_case(&mut self) {
+        self.state.preserve_header_case = true;
     }
 
     #[cfg(feature = "client")]
@@ -150,7 +159,7 @@ where
             ParseContext {
                 cached_headers: &mut self.state.cached_headers,
                 req_method: &mut self.state.method,
-                #[cfg(feature = "ffi")]
+                h1_parser_config: self.state.h1_parser_config.clone(),
                 preserve_header_case: self.state.preserve_header_case,
                 h09_responses: self.state.h09_responses,
             }
@@ -284,7 +293,10 @@ where
         ret
     }
 
-    pub(crate) fn poll_read_keep_alive(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    pub(crate) fn poll_read_keep_alive(
+        &mut self,
+        cx: &mut task::Context<'_>,
+    ) -> Poll<crate::Result<()>> {
         debug_assert!(!self.can_read_head() && !self.can_read_body());
 
         if self.is_read_closed() {
@@ -487,16 +499,6 @@ where
         }
 
         self.enforce_version(&mut head);
-
-        // Maybe check if we should preserve header casing on received
-        // message headers...
-        #[cfg(feature = "ffi")]
-        {
-            if T::is_client() && !self.state.preserve_header_case {
-                self.state.preserve_header_case =
-                    head.extensions.get::<crate::ffi::HeaderCaseMap>().is_some();
-            }
-        }
 
         let buf = self.io.headers_buf();
         match super::role::encode_headers::<T>(
@@ -760,7 +762,7 @@ struct State {
     /// This is used to know things such as if the message can include
     /// a body or not.
     method: Option<Method>,
-    #[cfg(feature = "ffi")]
+    h1_parser_config: ParserConfig,
     preserve_header_case: bool,
     title_case_headers: bool,
     h09_responses: bool,
