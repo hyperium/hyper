@@ -69,7 +69,10 @@ extern crate tracing;
 #[cfg(all(test, feature = "nightly"))]
 extern crate test;
 
-pub use http::{header, HeaderMap, Method, Request, Response, StatusCode, Uri, Version};
+pub use crate::http::{header, Method, Request, Response, StatusCode, Uri, Version};
+
+#[doc(no_inline)]
+pub use crate::http::HeaderMap;
 
 pub use crate::body::Body;
 pub use crate::error::{Error, Result};
