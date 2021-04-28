@@ -289,6 +289,11 @@ impl Http1Transaction for Server {
 
         *ctx.req_method = Some(subject.0.clone());
 
+        // We do not want to keep alive requests for which we wanted an upgrade.
+        // Some clients out there immediately send the payload for the upstream
+        // server without waiting for the 200 response to their CONNECT request.
+        keep_alive &= !wants_upgrade;
+
         Ok(Some(ParsedMessage {
             head: MessageHead {
                 version,
