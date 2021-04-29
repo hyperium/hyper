@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1619654984508,
+  "lastUpdate": 1619654998445,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -2429,6 +2429,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 41047,
             "range": "± 1553",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "telotic@gmail.com",
+            "name": "telotic",
+            "username": "telotic"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4e9a006498c7bdb5bb2ccb76a4c877f6da7e23b2",
+          "message": "docs(example): support requests to domain names in example http_proxy (#2513)",
+          "timestamp": "2021-04-28T17:07:03-07:00",
+          "tree_id": "ac63070d0aa45fc36b269038d9b02278ba0ef14f",
+          "url": "https://github.com/hyperium/hyper/commit/4e9a006498c7bdb5bb2ccb76a4c877f6da7e23b2"
+        },
+        "date": 1619654996988,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 57926,
+            "range": "± 7899",
             "unit": "ns/iter"
           }
         ]
