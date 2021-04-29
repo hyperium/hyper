@@ -3,8 +3,6 @@
 use std::convert::Infallible;
 use std::net::SocketAddr;
 
-use futures_util::future::try_join;
-
 use hyper::service::{make_service_fn, service_fn};
 use hyper::upgrade::Upgraded;
 use hyper::{Body, Client, Method, Request, Response, Server};
@@ -18,8 +16,8 @@ type HttpClient = Client<hyper::client::HttpConnector>;
 // 2. config http_proxy in command line
 //    $ export http_proxy=http://127.0.0.1:8100
 //    $ export https_proxy=http://127.0.0.1:8100
-// 3. send requests (don't use a domain name)
-//    $ curl -i https://8.8.8.8
+// 3. send requests
+//    $ curl -i https://www.some_domain.com/
 #[tokio::main]
 async fn main() {
     let addr = SocketAddr::from(([127, 0, 0, 1], 8100));
@@ -88,38 +86,25 @@ async fn proxy(client: HttpClient, req: Request<Body>) -> Result<Response<Body>,
     }
 }
 
-fn host_addr(uri: &http::Uri) -> Option<SocketAddr> {
-    uri.authority().and_then(|auth| auth.as_str().parse().ok())
+fn host_addr(uri: &http::Uri) -> Option<String> {
+    uri.authority().and_then(|auth| Some(auth.to_string()))
 }
 
 // Create a TCP connection to host:port, build a tunnel between the connection and
 // the upgraded connection
-async fn tunnel(upgraded: Upgraded, addr: SocketAddr) -> std::io::Result<()> {
+async fn tunnel(mut upgraded: Upgraded, addr: String) -> std::io::Result<()> {
     // Connect to remote server
     let mut server = TcpStream::connect(addr).await?;
 
     // Proxying data
-    let amounts = {
-        let (mut server_rd, mut server_wr) = server.split();
-        let (mut client_rd, mut client_wr) = tokio::io::split(upgraded);
-
-        let client_to_server = tokio::io::copy(&mut client_rd, &mut server_wr);
-        let server_to_client = tokio::io::copy(&mut server_rd, &mut client_wr);
-
-        try_join(client_to_server, server_to_client).await
-    };
+    let (from_client, from_server) =
+        tokio::io::copy_bidirectional(&mut upgraded, &mut server).await?;
 
     // Print message when done
-    match amounts {
-        Ok((from_client, from_server)) => {
-            println!(
-                "client wrote {} bytes and received {} bytes",
-                from_client, from_server
-            );
-        }
-        Err(e) => {
-            println!("tunnel error: {}", e);
-        }
-    };
+    println!(
+        "client wrote {} bytes and received {} bytes",
+        from_client, from_server
+    );
+
     Ok(())
 }
