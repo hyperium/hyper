@@ -2,15 +2,16 @@
 // can't upgrade yet
 #![allow(deprecated)]
 
+use std::convert::TryFrom;
 use std::fmt::{self, Write};
 use std::mem;
 
 #[cfg(any(test, feature = "server", feature = "ffi"))]
 use bytes::Bytes;
 use bytes::BytesMut;
-use http::header::{self, Entry, HeaderName, HeaderValue};
 #[cfg(feature = "server")]
 use http::header::ValueIter;
+use http::header::{self, Entry, HeaderName, HeaderValue};
 use http::{HeaderMap, Method, StatusCode, Version};
 
 use crate::body::DecodedLength;
@@ -891,8 +892,7 @@ impl Http1Transaction for Client {
                 );
                 let mut res = httparse::Response::new(&mut headers);
                 let bytes = buf.as_ref();
-                match ctx.h1_parser_config.parse_response(&mut res, bytes)
-                {
+                match ctx.h1_parser_config.parse_response(&mut res, bytes) {
                     Ok(httparse::Status::Complete(len)) => {
                         trace!("Response.parse Complete({})", len);
                         let status = StatusCode::from_u16(res.code.unwrap())?;
@@ -1033,6 +1033,16 @@ impl Http1Transaction for Client {
             Version::HTTP_2 => {
                 debug!("request with HTTP2 version coerced to HTTP/1.1");
                 extend(dst, b"HTTP/1.1");
+
+                // http/2 can sometimes split cookie headers into multiple haeder
+                // values, which is not compatible with http/1.
+                //
+                // We re-join them on behalf of the client.
+                //
+                // https://tools.ietf.org/html/rfc7540#section-8.1.2.5
+                if let Some(joined_cookies) = unsplit_cookie_headers(&msg.head.headers) {
+                    msg.head.headers.insert(header::COOKIE, joined_cookies);
+                }
             }
             other => panic!("unexpected request version: {:?}", other),
         }
@@ -1308,6 +1318,36 @@ fn record_header_indices(
     }
 
     Ok(())
+}
+
+/// Join cookie headers potentially split by http/2 beforehand.
+///
+/// Returns `None` if no or only a single cookie header was present in the map.
+///
+/// See https://tools.ietf.org/html/rfc7540#section-8.1.2.5
+fn unsplit_cookie_headers(map: &HeaderMap) -> Option<HeaderValue> {
+    const COOKIE_SEPARATOR: &[u8] = b"; ";
+
+    let cookie_count = map.get_all(header::COOKIE).iter().count();
+    if cookie_count < 2 {
+        return None;
+    }
+
+    let header_size: usize = map.get_all(header::COOKIE).iter().map(|h| h.len()).sum();
+    let prealloc_size = header_size + (cookie_count - 1) * COOKIE_SEPARATOR.len();
+
+    let mut buf = Vec::with_capacity(prealloc_size);
+
+    for (i, value) in map.get_all(header::COOKIE).iter().enumerate() {
+        // Intersperse with separator
+        if i > 0 && i < cookie_count - 1 {
+            buf.extend_from_slice(COOKIE_SEPARATOR);
+        }
+
+        buf.extend_from_slice(value.as_bytes());
+    }
+
+    Some(HeaderValue::try_from(buf).unwrap())
 }
 
 // Write header names as title case. The header name is assumed to be ASCII,
@@ -2542,5 +2582,19 @@ mod tests {
 
             vec.clear();
         })
+    }
+
+    #[test]
+    fn test_unsplit_cookie_headers() {
+        let mut map = HeaderMap::new();
+        map.append(header::COOKIE, "a=b".parse().unwrap());
+        map.append(header::COOKIE, "c=d".parse().unwrap());
+        map.append(header::COOKIE, "e=f".parse().unwrap());
+        let unsplit = unsplit_cookie_headers(&map).expect("did not join");
+        assert_eq!(unsplit.to_str().unwrap(), "a=b; c=d; e=f");
+
+        let mut map = HeaderMap::new();
+        map.append(header::COOKIE, "a=b".parse().unwrap());
+        assert!(unsplit_cookie_headers(&map).is_none());
     }
 }
