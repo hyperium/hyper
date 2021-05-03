@@ -1151,6 +1151,21 @@ impl Builder {
         self
     }
 
+    /// Sets the maximum number of HTTP2 concurrent locally reset streams.
+    ///
+    /// See the documentation of [`h2::client::Builder::max_concurrent_reset_streams`] for more
+    /// details.
+    ///
+    /// The default value is determined by the `h2` crate.
+    ///
+    /// [`h2::client::Builder::max_concurrent_reset_streams`]: https://docs.rs/h2/client/struct.Builder.html#method.max_concurrent_reset_streams
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
+    pub fn http2_max_concurrent_reset_streams(&mut self, max: usize) -> &mut Self {
+        self.conn_builder.http2_max_concurrent_reset_streams(max);
+        self
+    }
+
     /// Set whether to retry requests that get disrupted before ever starting
     /// to write.
     ///

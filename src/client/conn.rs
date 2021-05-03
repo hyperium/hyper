@@ -530,7 +530,8 @@ impl Builder {
         &mut self,
         enabled: bool,
     ) -> &mut Builder {
-        self.h1_parser_config.allow_spaces_after_header_name_in_responses(enabled);
+        self.h1_parser_config
+            .allow_spaces_after_header_name_in_responses(enabled);
         self
     }
 
@@ -698,6 +699,21 @@ impl Builder {
     #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_keep_alive_while_idle(&mut self, enabled: bool) -> &mut Self {
         self.h2_builder.keep_alive_while_idle = enabled;
+        self
+    }
+
+    /// Sets the maximum number of HTTP2 concurrent locally reset streams.
+    ///
+    /// See the documentation of [`h2::client::Builder::max_concurrent_reset_streams`] for more
+    /// details.
+    ///
+    /// The default value is determined by the `h2` crate.
+    ///
+    /// [`h2::client::Builder::max_concurrent_reset_streams`]: https://docs.rs/h2/client/struct.Builder.html#method.max_concurrent_reset_streams
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
+    pub fn http2_max_concurrent_reset_streams(&mut self, max: usize) -> &mut Self {
+        self.h2_builder.max_concurrent_reset_streams = Some(max);
         self
     }
 
