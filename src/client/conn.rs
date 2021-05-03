@@ -14,16 +14,14 @@
 //! # #[cfg(all(feature = "client", feature = "http1", feature = "runtime"))]
 //! # mod rt {
 //! use http::{Request, StatusCode};
-//! use hyper::{client::conn::Builder, Body};
+//! use hyper::{client::conn, Body};
 //! use tokio::net::TcpStream;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     let target_stream = TcpStream::connect("example.com:80").await?;
 //!
-//!     let (mut request_sender, connection) = Builder::new()
-//!         .handshake::<TcpStream, Body>(target_stream)
-//!         .await?;
+//!     let (mut request_sender, connection) = conn::handshake(target_stream).await?;
 //!
 //!     // spawn a task to poll the connection and drive the HTTP state
 //!     tokio::spawn(async move {
@@ -90,6 +88,7 @@ where
 /// Returns a handshake future over some IO.
 ///
 /// This is a shortcut for `Builder::new().handshake(io)`.
+/// See [`client::conn`](crate::client::conn) for more.
 pub async fn handshake<T>(
     io: T,
 ) -> crate::Result<(SendRequest<crate::Body>, Connection<T, crate::Body>)>
@@ -702,6 +701,10 @@ impl Builder {
     }
 
     /// Constructs a connection with the configured options and IO.
+    /// See [`client::conn`](crate::client::conn) for more.
+    ///
+    /// Note, if [`Connection`] is not `await`-ed, [`SendRequest`] will
+    /// do nothing.
     pub fn handshake<T, B>(
         &self,
         io: T,
