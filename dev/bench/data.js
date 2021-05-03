@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1620075702721,
+  "lastUpdate": 1620075705443,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -4921,6 +4921,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 48773,
             "range": "± 2859",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mohsen-alizadeh@users.noreply.github.com",
+            "name": "Mohsen Alizadeh",
+            "username": "mohsen-alizadeh"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d1d2f32a7358c1c7d489ebbb98f4cbfdca9bb573",
+          "message": "docs(headers): no_inline doc on HeaderMap (#2525)",
+          "timestamp": "2021-05-03T13:58:34-07:00",
+          "tree_id": "72f2a5e2407fddbc549e5cbc070fc913c857db94",
+          "url": "https://github.com/hyperium/hyper/commit/d1d2f32a7358c1c7d489ebbb98f4cbfdca9bb573"
+        },
+        "date": 1620075701632,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 63590,
+            "range": "± 13681",
             "unit": "ns/iter"
           }
         ]
