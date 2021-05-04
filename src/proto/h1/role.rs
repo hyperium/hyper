@@ -1,16 +1,12 @@
-// `mem::uninitialized` replaced with `mem::MaybeUninit`,
-// can't upgrade yet
-#![allow(deprecated)]
-
 use std::fmt::{self, Write};
-use std::mem;
+use std::mem::{self, MaybeUninit};
 
 #[cfg(any(test, feature = "server", feature = "ffi"))]
 use bytes::Bytes;
 use bytes::BytesMut;
-use http::header::{self, Entry, HeaderName, HeaderValue};
 #[cfg(feature = "server")]
 use http::header::ValueIter;
+use http::header::{self, Entry, HeaderName, HeaderValue};
 use http::{HeaderMap, Method, StatusCode, Version};
 
 use crate::body::DecodedLength;
@@ -126,9 +122,11 @@ impl Http1Transaction for Server {
         // but we *never* read any of it until after httparse has assigned
         // values into it. By not zeroing out the stack memory, this saves
         // a good ~5% on pipeline benchmarks.
-        let mut headers_indices: [HeaderIndices; MAX_HEADERS] = unsafe { mem::uninitialized() };
+        let mut headers_indices: [HeaderIndices; MAX_HEADERS] =
+            unsafe { MaybeUninit::uninit().assume_init() };
         {
-            let mut headers: [httparse::Header<'_>; MAX_HEADERS] = unsafe { mem::uninitialized() };
+            let mut headers: [httparse::Header<'_>; MAX_HEADERS] =
+                unsafe { MaybeUninit::uninit().assume_init() };
             trace!(
                 "Request.parse([Header; {}], [u8; {}])",
                 headers.len(),
@@ -880,10 +878,11 @@ impl Http1Transaction for Client {
         // Loop to skip information status code headers (100 Continue, etc).
         loop {
             // Unsafe: see comment in Server Http1Transaction, above.
-            let mut headers_indices: [HeaderIndices; MAX_HEADERS] = unsafe { mem::uninitialized() };
+            let mut headers_indices: [HeaderIndices; MAX_HEADERS] =
+                unsafe { MaybeUninit::uninit().assume_init() };
             let (len, status, reason, version, headers_len) = {
                 let mut headers: [httparse::Header<'_>; MAX_HEADERS] =
-                    unsafe { mem::uninitialized() };
+                    unsafe { MaybeUninit::uninit().assume_init() };
                 trace!(
                     "Response.parse([Header; {}], [u8; {}])",
                     headers.len(),
@@ -891,8 +890,7 @@ impl Http1Transaction for Client {
                 );
                 let mut res = httparse::Response::new(&mut headers);
                 let bytes = buf.as_ref();
-                match ctx.h1_parser_config.parse_response(&mut res, bytes)
-                {
+                match ctx.h1_parser_config.parse_response(&mut res, bytes) {
                     Ok(httparse::Status::Complete(len)) => {
                         trace!("Response.parse Complete({})", len);
                         let status = StatusCode::from_u16(res.code.unwrap())?;
