@@ -47,7 +47,7 @@ pub(super) use self::http::HttpService;
 #[cfg(all(any(feature = "http1", feature = "http2"), feature = "client"))]
 pub(super) use self::make::MakeConnection;
 #[cfg(all(any(feature = "http1", feature = "http2"), feature = "server"))]
-pub(super) use self::make::MakeServiceRef;
+pub(super) use self::make::{MakeServiceRef, Shared, SharedFuture};
 #[cfg(all(any(feature = "http1", feature = "http2"), feature = "client"))]
 pub(super) use self::oneshot::{oneshot, Oneshot};
 

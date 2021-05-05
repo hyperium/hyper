@@ -1,11 +1,14 @@
+use std::convert::Infallible;
 use std::error::Error as StdError;
 use std::fmt;
 
 use tokio::io::{AsyncRead, AsyncWrite};
 
+use pin_project::pin_project;
+
 use super::{HttpService, Service};
 use crate::body::HttpBody;
-use crate::common::{task, Future, Poll};
+use crate::common::{task, Future, Pin, Poll};
 
 // The same "trait alias" as tower::MakeConnection, but inlined to reduce
 // dependencies.
@@ -171,6 +174,48 @@ where
 impl<F> fmt::Debug for MakeServiceFn<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("MakeServiceFn").finish()
+    }
+}
+
+/// A `MakeService` that produces services by cloning an inner service.
+#[derive(Debug, Clone, Copy)]
+pub struct Shared<S> {
+    svc: S,
+}
+
+impl<S> Shared<S> {
+    pub(crate) fn new(svc: S) -> Self {
+        Self { svc }
+    }
+}
+
+impl<T, S> Service<T> for Shared<S>
+where
+    S: Clone,
+{
+    type Error = Infallible;
+    type Response = S;
+    type Future = SharedFuture<S>;
+
+    fn poll_ready(&mut self, _cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, _target: T) -> Self::Future {
+        SharedFuture(futures_util::future::ok(self.svc.clone()))
+    }
+}
+
+/// Response future for [`Shared`].
+#[pin_project]
+#[derive(Debug)]
+pub struct SharedFuture<S>(#[pin] futures_util::future::Ready<Result<S, Infallible>>);
+
+impl<S> Future for SharedFuture<S> {
+    type Output = Result<S, Infallible>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        self.project().0.poll(cx)
     }
 }
 

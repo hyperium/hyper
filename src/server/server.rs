@@ -13,7 +13,7 @@ use super::accept::Accept;
 use crate::body::{Body, HttpBody};
 use crate::common::exec::{ConnStreamExec, Exec, NewSvcExec};
 use crate::common::{task, Future, Pin, Poll, Unpin};
-use crate::service::{HttpService, MakeServiceRef};
+use crate::service::{HttpService, MakeServiceRef, Shared, SharedFuture};
 // Renamed `Http` as `Http_` for now so that people upgrading don't see an
 // error that `hyper::server::Http` is private...
 use super::conn::{Http as Http_, NoopWatcher, SpawnAll};
@@ -418,21 +418,64 @@ impl<I, E> Builder<I, E> {
     /// }
     /// # }
     /// ```
-    pub fn serve<S, B>(self, new_service: S) -> Server<I, S, E>
+    pub fn serve<M, B>(self, new_service: M) -> Server<I, M, E>
     where
         I: Accept,
         I::Error: Into<Box<dyn StdError + Send + Sync>>,
         I::Conn: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-        S: MakeServiceRef<I::Conn, Body, ResBody = B>,
-        S::Error: Into<Box<dyn StdError + Send + Sync>>,
+        M: MakeServiceRef<I::Conn, Body, ResBody = B>,
+        M::Error: Into<Box<dyn StdError + Send + Sync>>,
         B: HttpBody + 'static,
         B::Error: Into<Box<dyn StdError + Send + Sync>>,
-        E: NewSvcExec<I::Conn, S::Future, S::Service, E, NoopWatcher>,
-        E: ConnStreamExec<<S::Service as HttpService<Body>>::Future, B>,
+        E: NewSvcExec<I::Conn, M::Future, M::Service, E, NoopWatcher>,
+        E: ConnStreamExec<<M::Service as HttpService<Body>>::Future, B>,
     {
         let serve = self.protocol.serve(self.incoming, new_service);
         let spawn_all = serve.spawn_all();
         Server { spawn_all }
+    }
+
+    /// Consume this `Builder`, creating a [`Server`](Server) that will run the given service.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # #[cfg(feature = "tcp")]
+    /// # async fn run() {
+    /// use hyper::{Body, Error, Response, Server};
+    /// use hyper::service::{make_service_fn, service_fn};
+    ///
+    /// // Construct our SocketAddr to listen on...
+    /// let addr = ([127, 0, 0, 1], 3000).into();
+    ///
+    /// // Our service used to respond to requests...
+    /// let service = service_fn(|_req| async {
+    ///     Ok::<_, Error>(Response::new(Body::from("Hello World")))
+    /// });
+    ///
+    /// // Then bind and serve...
+    /// let server = Server::bind(&addr).serve_service(service);
+    ///
+    /// // Run forever-ish...
+    /// if let Err(err) = server.await {
+    ///     eprintln!("server error: {}", err);
+    /// }
+    /// # }
+    /// ```
+    pub fn serve_service<S, B>(self, service: S) -> Server<I, Shared<S>, E>
+    where
+        S: HttpService<Body, ResBody = B> + Clone,
+        S::Error: Into<Box<dyn StdError + Send + Sync>>,
+        B: HttpBody + 'static,
+        B::Error: Into<Box<dyn StdError + Send + Sync>>,
+        I: Accept,
+        I::Error: Into<Box<dyn StdError + Send + Sync>>,
+        I::Conn: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+        E: NewSvcExec<I::Conn, SharedFuture<S>, S, E, NoopWatcher>,
+        E: ConnStreamExec<S::Future, B>,
+    {
+        let make_service = Shared::new(service);
+        self.serve(make_service)
     }
 }
 
