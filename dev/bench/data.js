@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1620334278039,
+  "lastUpdate": 1620334334872,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -4981,6 +4981,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 63590,
             "range": "± 13681",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "david.pdrsn@gmail.com",
+            "name": "David Pedersen",
+            "username": "davidpdrsn"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e79d09396da955f235c267832312543d8230d867",
+          "message": "docs(client): document the guarantees of cloning a `Client` (#2540)\n\nSmall docs improvement to mention that cloning a `Client` is cheap and\r\nwill reuse the connection pool.\r\n\r\nFixes https://github.com/hyperium/hyper/issues/2239",
+          "timestamp": "2021-05-06T13:48:53-07:00",
+          "tree_id": "a6371682426d1fb76920579f6b2d19c48be52dce",
+          "url": "https://github.com/hyperium/hyper/commit/e79d09396da955f235c267832312543d8230d867"
+        },
+        "date": 1620334333330,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 71104,
+            "range": "± 13936",
             "unit": "ns/iter"
           }
         ]
