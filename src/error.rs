@@ -433,11 +433,7 @@ impl fmt::Debug for Error {
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(ref cause) = self.inner.cause {
-            write!(f, "{}: {}", self.description(), cause)
-        } else {
-            f.write_str(self.description())
-        }
+        f.write_str(self.description())
     }
 }
 

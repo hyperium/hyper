@@ -447,13 +447,7 @@ impl fmt::Debug for ConnectError {
 
 impl fmt::Display for ConnectError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.msg)?;
-
-        if let Some(ref cause) = self.cause {
-            write!(f, ": {}", cause)?;
-        }
-
-        Ok(())
+        f.write_str(&self.msg)
     }
 }
 
