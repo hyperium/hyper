@@ -129,15 +129,18 @@ impl Http1Transaction for Server {
             MaybeUninit::uninit().assume_init()
         };
         {
-            let mut headers: [httparse::Header<'_>; MAX_HEADERS] = unsafe { mem::uninitialized() };
+            /* SAFETY: it is safe to go from MaybeUninit array to array of MaybeUninit */
+            let mut headers: [MaybeUninit<httparse::Header<'_>>; MAX_HEADERS] = unsafe {
+                MaybeUninit::uninit().assume_init()
+            };
             trace!(
                 "Request.parse([Header; {}], [u8; {}])",
                 headers.len(),
                 buf.len()
             );
-            let mut req = httparse::Request::new(&mut headers);
             let bytes = buf.as_ref();
-            match req.parse(bytes) {
+            let (req, status) = httparse::Request::with_uninit_headers(&mut headers, bytes);
+            match status {
                 Ok(httparse::Status::Complete(parsed_len)) => {
                     trace!("Request.parse Complete({})", parsed_len);
                     len = parsed_len;
