@@ -891,16 +891,17 @@ impl Http1Transaction for Client {
                 MaybeUninit::uninit().assume_init()
             };
             let (len, status, reason, version, headers_len) = {
-                let mut headers: [httparse::Header<'_>; MAX_HEADERS] =
-                    unsafe { mem::uninitialized() };
+                // SAFETY: We can go safely from MaybeUninit array to array of MaybeUninit
+                let mut headers: [MaybeUninit<httparse::Header<'_>>; MAX_HEADERS] =
+                    unsafe { MaybeUninit::uninit().assume_init() };
                 trace!(
                     "Response.parse([Header; {}], [u8; {}])",
                     headers.len(),
                     buf.len()
                 );
-                let mut res = httparse::Response::new(&mut headers);
                 let bytes = buf.as_ref();
-                match ctx.h1_parser_config.parse_response(&mut res, bytes) {
+                let (res, status) = ctx.h1_parser_config.parse_response_with_uninit_headers(&mut headers, bytes);
+                match status {
                     Ok(httparse::Status::Complete(len)) => {
                         trace!("Response.parse Complete({})", len);
                         let status = StatusCode::from_u16(res.code.unwrap())?;
