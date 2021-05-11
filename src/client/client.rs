@@ -19,6 +19,9 @@ use crate::common::{exec::BoxSendFuture, lazy as hyper_lazy, task, Future, Lazy,
 use crate::rt::Executor;
 
 /// A Client to make outgoing HTTP requests.
+///
+/// `Client` is cheap to clone and cloning is the recommended way to share a `Client`. The
+/// underlying connection pool will be reused.
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
 pub struct Client<C, B = Body> {
     config: Config,
