@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1620777536167,
+  "lastUpdate": 1620777546632,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -5041,6 +5041,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 71104,
             "range": "± 13936",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "david.pdrsn@gmail.com",
+            "name": "David Pedersen",
+            "username": "davidpdrsn"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8a05f8eec133793899c94dcbf1520eee3b91aa50",
+          "message": "docs(server): add bigger example to server module (#2539)\n\nIt can sometimes be tricky to discover where to use `move` closures,\r\n`async move {}`, and `.clone()` when creating a server. This adds a\r\nslightly more bigger example that will hopefully help some.\r\n\r\nFixes https://github.com/hyperium/hyper/issues/2446",
+          "timestamp": "2021-05-11T16:56:01-07:00",
+          "tree_id": "a8a513b8ca14640d7a55adeae59a1beca6d0f18b",
+          "url": "https://github.com/hyperium/hyper/commit/8a05f8eec133793899c94dcbf1520eee3b91aa50"
+        },
+        "date": 1620777544383,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 71149,
+            "range": "± 18930",
             "unit": "ns/iter"
           }
         ]
