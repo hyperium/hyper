@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1620777546632,
+  "lastUpdate": 1620777630969,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -16527,6 +16527,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_req_100kb",
             "value": 169931,
             "range": "± 25755",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "david.pdrsn@gmail.com",
+            "name": "David Pedersen",
+            "username": "davidpdrsn"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8a05f8eec133793899c94dcbf1520eee3b91aa50",
+          "message": "docs(server): add bigger example to server module (#2539)\n\nIt can sometimes be tricky to discover where to use `move` closures,\r\n`async move {}`, and `.clone()` when creating a server. This adds a\r\nslightly more bigger example that will hopefully help some.\r\n\r\nFixes https://github.com/hyperium/hyper/issues/2446",
+          "timestamp": "2021-05-11T16:56:01-07:00",
+          "tree_id": "a8a513b8ca14640d7a55adeae59a1beca6d0f18b",
+          "url": "https://github.com/hyperium/hyper/commit/8a05f8eec133793899c94dcbf1520eee3b91aa50"
+        },
+        "date": 1620777629618,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_body_both_100kb",
+            "value": 68678,
+            "range": "± 729",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_body_both_10mb",
+            "value": 5972899,
+            "range": "± 141523",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_get",
+            "value": 29596,
+            "range": "± 743",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 211967,
+            "range": "± 5616",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 51149578,
+            "range": "± 2074768",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 43601064,
+            "range": "± 1125251",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 47218654,
+            "range": "± 811192",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 3275813,
+            "range": "± 157874",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_post",
+            "value": 32320,
+            "range": "± 915",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_get",
+            "value": 51001,
+            "range": "± 1002",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 160302,
+            "range": "± 1778",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 8962951,
+            "range": "± 8724802",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 9048522,
+            "range": "± 8936788",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 8705148,
+            "range": "± 8703701",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 55174314,
+            "range": "± 3280664",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 66594960,
+            "range": "± 12053720",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5640944,
+            "range": "± 614464",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_post",
+            "value": 58479,
+            "range": "± 1383",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_req_100kb",
+            "value": 113556,
+            "range": "± 1769",
             "unit": "ns/iter"
           }
         ]
