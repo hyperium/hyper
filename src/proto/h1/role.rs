@@ -138,9 +138,9 @@ impl Http1Transaction for Server {
                 headers.len(),
                 buf.len()
             );
+            let mut req = httparse::Request::new(&mut []);
             let bytes = buf.as_ref();
-            let (req, status) = httparse::Request::with_uninit_headers(&mut headers, bytes);
-            match status {
+            match req.parse_with_uninit_headers(bytes, &mut headers) {
                 Ok(httparse::Status::Complete(parsed_len)) => {
                     trace!("Request.parse Complete({})", parsed_len);
                     len = parsed_len;
@@ -899,9 +899,11 @@ impl Http1Transaction for Client {
                     headers.len(),
                     buf.len()
                 );
+                let mut res = httparse::Response::new(&mut []);
                 let bytes = buf.as_ref();
-                let (res, status) = ctx.h1_parser_config.parse_response_with_uninit_headers(&mut headers, bytes);
-                match status {
+                match ctx.h1_parser_config
+                    .parse_response_with_uninit_headers(&mut res, bytes, &mut headers)
+                {
                     Ok(httparse::Status::Complete(len)) => {
                         trace!("Response.parse Complete({})", len);
                         let status = StatusCode::from_u16(res.code.unwrap())?;
