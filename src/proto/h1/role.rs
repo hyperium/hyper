@@ -29,22 +29,10 @@ const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
 
 macro_rules! header_name {
     ($bytes:expr) => {{
-        #[cfg(debug_assertions)]
         {
             match HeaderName::from_bytes($bytes) {
-                Ok(name) => name,
-                Err(_) => panic!(
-                    "illegal header name from httparse: {:?}",
-                    ::bytes::Bytes::copy_from_slice($bytes)
-                ),
-            }
-        }
-
-        #[cfg(not(debug_assertions))]
-        {
-            match HeaderName::from_bytes($bytes) {
-                Ok(name) => name,
-                Err(_) => panic!("illegal header name from httparse: {:?}", $bytes),
+                Ok(name) => Ok(name),
+                Err(e) => maybe_panic!(e),
             }
         }
     }};
@@ -52,21 +40,26 @@ macro_rules! header_name {
 
 macro_rules! header_value {
     ($bytes:expr) => {{
-        #[cfg(debug_assertions)]
         {
             let __hvb: ::bytes::Bytes = $bytes;
             match HeaderValue::from_maybe_shared(__hvb.clone()) {
-                Ok(name) => name,
-                Err(_) => panic!("illegal header value from httparse: {:?}", __hvb),
+                Ok(name) => Ok(name),
+                Err(e) => maybe_panic!(e),
             }
         }
-
-        #[cfg(not(debug_assertions))]
-        {
-            // Unsafe: httparse already validated header value
-            unsafe { HeaderValue::from_maybe_shared_unchecked($bytes) }
-        }
     }};
+}
+
+macro_rules! maybe_panic {
+    ($($arg:tt)*) => ({
+        let _err = ($($arg)*);
+        if cfg!(debug_assertions) {
+            panic!("{:?}", _err);
+        } else {
+            error!("Internal Hyper error, please report {:?}", _err);
+            Err(_err)
+        }
+    })
 }
 
 pub(super) fn parse_headers<T>(
@@ -205,8 +198,8 @@ impl Http1Transaction for Server {
         headers.reserve(headers_len);
 
         for header in &headers_indices[..headers_len] {
-            let name = header_name!(&slice[header.name.0..header.name.1]);
-            let value = header_value!(slice.slice(header.value.0..header.value.1));
+            let name = header_name!(&slice[header.name.0..header.name.1])?;
+            let value = header_value!(slice.slice(header.value.0..header.value.1))?;
 
             match name {
                 header::TRANSFER_ENCODING => {
@@ -948,8 +941,8 @@ impl Http1Transaction for Client {
 
             headers.reserve(headers_len);
             for header in &headers_indices[..headers_len] {
-                let name = header_name!(&slice[header.name.0..header.name.1]);
-                let value = header_value!(slice.slice(header.value.0..header.value.1));
+                let name = header_name!(&slice[header.name.0..header.name.1])?;
+                let value = header_value!(slice.slice(header.value.0..header.value.1))?;
 
                 if let header::CONNECTION = name {
                     // keep_alive was previously set to default for Version
