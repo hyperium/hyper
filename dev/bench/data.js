@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1620869252026,
+  "lastUpdate": 1620869276633,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -5161,6 +5161,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 64861,
             "range": "± 18600",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "d@zerovolt.org",
+            "name": "boxdot",
+            "username": "boxdot"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b9916c410182c6225e857f0cded355ea1b74c865",
+          "message": "feat(client): allow to config http2 max concurrent reset streams (#2535)\n\nSetting streams to 0 makes h2 work on wasm platforms without a\r\n`Instant::now` implementation.",
+          "timestamp": "2021-05-13T01:24:41Z",
+          "tree_id": "fa97b29ba9fdf2a2d3f4963bfc5558397b8909b9",
+          "url": "https://github.com/hyperium/hyper/commit/b9916c410182c6225e857f0cded355ea1b74c865"
+        },
+        "date": 1620869275047,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 93071,
+            "range": "± 18413",
             "unit": "ns/iter"
           }
         ]
