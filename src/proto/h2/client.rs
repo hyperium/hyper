@@ -10,7 +10,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::{decode_content_length, ping, PipeToSendStream, SendBuf};
 use crate::body::HttpBody;
-use crate::common::{task, exec::Exec, Future, Never, Pin, Poll};
+use crate::common::{exec::Exec, task, Future, Never, Pin, Poll};
 use crate::headers;
 use crate::proto::Dispatched;
 use crate::{Body, Request, Response};
@@ -44,6 +44,7 @@ pub(crate) struct Config {
     pub(crate) keep_alive_timeout: Duration,
     #[cfg(feature = "runtime")]
     pub(crate) keep_alive_while_idle: bool,
+    pub(crate) max_concurrent_reset_streams: Option<usize>,
 }
 
 impl Default for Config {
@@ -59,6 +60,7 @@ impl Default for Config {
             keep_alive_timeout: Duration::from_secs(20),
             #[cfg(feature = "runtime")]
             keep_alive_while_idle: false,
+            max_concurrent_reset_streams: None,
         }
     }
 }
@@ -70,6 +72,9 @@ fn new_builder(config: &Config) -> Builder {
         .initial_connection_window_size(config.initial_conn_window_size)
         .max_frame_size(config.max_frame_size)
         .enable_push(false);
+    if let Some(max) = config.max_concurrent_reset_streams {
+        builder.max_concurrent_reset_streams(max);
+    }
     builder
 }
 

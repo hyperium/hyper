@@ -908,6 +908,83 @@ test! {
 }
 
 test! {
+    name: client_error_parse_too_large,
+
+    server:
+        expected: "\
+            GET /err HTTP/1.1\r\n\
+            host: {addr}\r\n\
+            \r\n\
+            ",
+        reply: {
+            let long_header = std::iter::repeat("A").take(500_000).collect::<String>();
+            format!("\
+                HTTP/1.1 200 OK\r\n\
+                {}: {}\r\n\
+                \r\n\
+                ",
+                long_header,
+                long_header,
+            )
+        },
+
+    client:
+        request: {
+            method: GET,
+            url: "http://{addr}/err",
+        },
+        // should get a Parse(TooLarge) error
+        error: |err| err.is_parse() && err.is_parse_too_large(),
+
+}
+
+test! {
+    name: client_error_parse_status_out_of_range,
+
+    server:
+        expected: "\
+            GET /err HTTP/1.1\r\n\
+            host: {addr}\r\n\
+            \r\n\
+            ",
+        reply: "\
+            HTTP/1.1 001 OK\r\n\
+            \r\n\
+            ",
+
+    client:
+        request: {
+            method: GET,
+            url: "http://{addr}/err",
+        },
+        // should get a Parse(Status) error
+        error: |err| err.is_parse() && err.is_parse_status(),
+}
+
+test! {
+    name: client_error_parse_status_syntactically_invalid,
+
+    server:
+        expected: "\
+            GET /err HTTP/1.1\r\n\
+            host: {addr}\r\n\
+            \r\n\
+            ",
+        reply: "\
+            HTTP/1.1 1 OK\r\n\
+            \r\n\
+            ",
+
+    client:
+        request: {
+            method: GET,
+            url: "http://{addr}/err",
+        },
+        // should get a Parse(Status) error
+        error: |err| err.is_parse() && err.is_parse_status(),
+}
+
+test! {
     name: client_100_continue,
 
     server:
