@@ -132,6 +132,17 @@ impl Error {
         matches!(self.inner.kind, Kind::Parse(_))
     }
 
+    /// Returns true if this was an HTTP parse error caused by a message that was too large.
+    pub fn is_parse_too_large(&self) -> bool {
+        matches!(self.inner.kind, Kind::Parse(Parse::TooLarge))
+    }
+
+    /// Returns true if this was an HTTP parse error caused by an invalid response status code or
+    /// reason phrase.
+    pub fn is_parse_status(&self) -> bool {
+        matches!(self.inner.kind, Kind::Parse(Parse::Status))
+    }
+
     /// Returns true if this error was caused by user code.
     pub fn is_user(&self) -> bool {
         matches!(self.inner.kind, Kind::User(_))
