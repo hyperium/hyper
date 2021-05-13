@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1620777630969,
+  "lastUpdate": 1620867263499,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -2549,6 +2549,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 64524,
             "range": "± 4993",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ccba59fb1b592dfdfca4b870e0922e5ba8244825",
+          "message": "docs(common): remove favicon doc from sync_wrapper module (#2548)",
+          "timestamp": "2021-05-13T00:51:45Z",
+          "tree_id": "12711abbabe5166eda6cb05bd0736aa4e80efea1",
+          "url": "https://github.com/hyperium/hyper/commit/ccba59fb1b592dfdfca4b870e0922e5ba8244825"
+        },
+        "date": 1620867259954,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 48505,
+            "range": "± 5939",
             "unit": "ns/iter"
           }
         ]
