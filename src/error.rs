@@ -73,6 +73,7 @@ pub(super) enum Parse {
     Header,
     TooLarge,
     Status,
+    #[cfg_attr(debug_assertions, allow(unused))]
     Internal,
 }
 
@@ -487,18 +488,6 @@ impl From<httparse::Error> for Parse {
 impl From<http::method::InvalidMethod> for Parse {
     fn from(_: http::method::InvalidMethod) -> Parse {
         Parse::Method
-    }
-}
-
-impl From<http::header::InvalidHeaderName> for Parse {
-    fn from(_: http::header::InvalidHeaderName) -> Parse {
-        Parse::Internal
-    }
-}
-
-impl From<http::header::InvalidHeaderValue> for Parse {
-    fn from(_: http::header::InvalidHeaderValue) -> Parse {
-        Parse::Internal
     }
 }
 

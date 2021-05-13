@@ -31,7 +31,7 @@ macro_rules! header_name {
     ($bytes:expr) => {{
         {
             match HeaderName::from_bytes($bytes) {
-                Ok(name) => Ok(name),
+                Ok(name) => name,
                 Err(e) => maybe_panic!(e),
             }
         }
@@ -43,7 +43,7 @@ macro_rules! header_value {
         {
             let __hvb: ::bytes::Bytes = $bytes;
             match HeaderValue::from_maybe_shared(__hvb.clone()) {
-                Ok(name) => Ok(name),
+                Ok(name) => name,
                 Err(e) => maybe_panic!(e),
             }
         }
@@ -57,7 +57,7 @@ macro_rules! maybe_panic {
             panic!("{:?}", _err);
         } else {
             error!("Internal Hyper error, please report {:?}", _err);
-            Err(_err)
+            return Err(Parse::Internal)
         }
     })
 }
@@ -198,8 +198,8 @@ impl Http1Transaction for Server {
         headers.reserve(headers_len);
 
         for header in &headers_indices[..headers_len] {
-            let name = header_name!(&slice[header.name.0..header.name.1])?;
-            let value = header_value!(slice.slice(header.value.0..header.value.1))?;
+            let name = header_name!(&slice[header.name.0..header.name.1]);
+            let value = header_value!(slice.slice(header.value.0..header.value.1));
 
             match name {
                 header::TRANSFER_ENCODING => {
@@ -941,8 +941,8 @@ impl Http1Transaction for Client {
 
             headers.reserve(headers_len);
             for header in &headers_indices[..headers_len] {
-                let name = header_name!(&slice[header.name.0..header.name.1])?;
-                let value = header_value!(slice.slice(header.value.0..header.value.1))?;
+                let name = header_name!(&slice[header.name.0..header.name.1]);
+                let value = header_value!(slice.slice(header.value.0..header.value.1));
 
                 if let header::CONNECTION = name {
                     // keep_alive was previously set to default for Version
