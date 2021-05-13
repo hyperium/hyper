@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1620869412662,
+  "lastUpdate": 1620869591863,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -2609,6 +2609,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 65657,
             "range": "± 22242",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "acfoltzer@fastly.com",
+            "name": "Adam C. Foltzer",
+            "username": "acfoltzer"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "960a69a5878ede82c56f50ac1444a9e75e885a8f",
+          "message": "feat(error): add `Error::is_parse_too_large` and `Error::is_parse_status` methods (#2538)\n\nThe discussion in #2462 opened up some larger questions about more comprehensive approaches to the\r\nerror API, with the agreement that additional methods would be desirable in the short term. These\r\nmethods address an immediate need of our customers, so I would like to get them in first before we\r\nflesh out a future solution.\r\n\r\nOne potentially controversial choice here is to still return `true` from `is_parse_error()` for\r\nthese variants. I hope the naming of the methods make it clear that the new predicates are\r\nrefinements of the existing one, but I didn't want to change the behavior of `is_parse_error()`\r\nwhich would require a major version bump.",
+          "timestamp": "2021-05-12T18:30:28-07:00",
+          "tree_id": "b4b4e710f271d39ee21b9504d202aad82be63b3d",
+          "url": "https://github.com/hyperium/hyper/commit/960a69a5878ede82c56f50ac1444a9e75e885a8f"
+        },
+        "date": 1620869589941,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 59855,
+            "range": "± 9762",
             "unit": "ns/iter"
           }
         ]
