@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1621372505704,
+  "lastUpdate": 1621372525237,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -2639,6 +2639,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 59855,
             "range": "± 9762",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4cd06bf25661d7e43e2fdf43eabdb8508055cf3a",
+          "message": "perf(http2): slow adaptive window pings as the BDP stabilizes (#2550)\n\nThis introduces a delay to sending a ping to calculate the BDP that\r\nbecomes shorter as the BDP is changing, to improve throughput quickly,\r\nbut then also becomes longer as the BDP stabilizes, to reduce the amount\r\nof pings sent. This improved the performance of the adaptive window\r\nend_to_end benchmark.\r\n\r\nIt should also reduce the amount of pings the remote has to deal with,\r\nhopefully preventing hyper from triggering ENHANCE_YOUR_CALM errors.",
+          "timestamp": "2021-05-18T14:12:15-07:00",
+          "tree_id": "b2db7e15a858ee44f6c645c5f92c2c1e4dc9b621",
+          "url": "https://github.com/hyperium/hyper/commit/4cd06bf25661d7e43e2fdf43eabdb8508055cf3a"
+        },
+        "date": 1621372518486,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 71653,
+            "range": "± 10076",
             "unit": "ns/iter"
           }
         ]
