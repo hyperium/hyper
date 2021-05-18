@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1621372525237,
+  "lastUpdate": 1621372672824,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -17319,6 +17319,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_req_100kb",
             "value": 150452,
             "range": "± 30596",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4cd06bf25661d7e43e2fdf43eabdb8508055cf3a",
+          "message": "perf(http2): slow adaptive window pings as the BDP stabilizes (#2550)\n\nThis introduces a delay to sending a ping to calculate the BDP that\r\nbecomes shorter as the BDP is changing, to improve throughput quickly,\r\nbut then also becomes longer as the BDP stabilizes, to reduce the amount\r\nof pings sent. This improved the performance of the adaptive window\r\nend_to_end benchmark.\r\n\r\nIt should also reduce the amount of pings the remote has to deal with,\r\nhopefully preventing hyper from triggering ENHANCE_YOUR_CALM errors.",
+          "timestamp": "2021-05-18T14:12:15-07:00",
+          "tree_id": "b2db7e15a858ee44f6c645c5f92c2c1e4dc9b621",
+          "url": "https://github.com/hyperium/hyper/commit/4cd06bf25661d7e43e2fdf43eabdb8508055cf3a"
+        },
+        "date": 1621372670701,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_body_both_100kb",
+            "value": 114990,
+            "range": "± 13681",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_body_both_10mb",
+            "value": 6028438,
+            "range": "± 1302759",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_get",
+            "value": 39504,
+            "range": "± 3397",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 249165,
+            "range": "± 18069",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 52002044,
+            "range": "± 127922",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 50242979,
+            "range": "± 6789430",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 54487519,
+            "range": "± 7461755",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 3409148,
+            "range": "± 813532",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_post",
+            "value": 50702,
+            "range": "± 9375",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_get",
+            "value": 80868,
+            "range": "± 7066",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 206605,
+            "range": "± 22525",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 11855945,
+            "range": "± 9242270",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 19808443,
+            "range": "± 9621506",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 11275390,
+            "range": "± 9657492",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 61381770,
+            "range": "± 8266897",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 73838263,
+            "range": "± 13864616",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 6195423,
+            "range": "± 876416",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_post",
+            "value": 95660,
+            "range": "± 13250",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_req_100kb",
+            "value": 166020,
+            "range": "± 27435",
             "unit": "ns/iter"
           }
         ]
