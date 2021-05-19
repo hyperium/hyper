@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1621443838983,
+  "lastUpdate": 1621443856752,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -5341,6 +5341,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 58750,
             "range": "± 15126",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "goffrie@dropbox.com",
+            "name": "Geoffry Song",
+            "username": "goffrie"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "be9677a1e782d33c4402772e0fc4ef0a4c49d507",
+          "message": "feat(http2): allow HTTP/2 requests by ALPN when http2_only is unset (#2527)",
+          "timestamp": "2021-05-19T10:01:20-07:00",
+          "tree_id": "4f026bd2f30f8d3847ec382002d4ad4c988577a3",
+          "url": "https://github.com/hyperium/hyper/commit/be9677a1e782d33c4402772e0fc4ef0a4c49d507"
+        },
+        "date": 1621443854707,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 61241,
+            "range": "± 81918",
             "unit": "ns/iter"
           }
         ]
