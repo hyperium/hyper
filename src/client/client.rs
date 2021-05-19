@@ -170,11 +170,7 @@ where
                     )));
                 }
             }
-            other_h2 @ Version::HTTP_2 => {
-                if self.config.ver != Ver::Http2 {
-                    return ResponseFuture::error_version(other_h2);
-                }
-            }
+            Version::HTTP_2 => (),
             // completely unsupported HTTP version (like HTTP/0.9)!
             other => return ResponseFuture::error_version(other),
         };
@@ -230,6 +226,13 @@ where
         let mut pooled = self.connection_for(pool_key).await?;
 
         if pooled.is_http1() {
+            if req.version() == Version::HTTP_2 {
+                warn!("Connection is HTTP/1, but request requires HTTP/2");
+                return Err(ClientError::Normal(
+                    crate::Error::new_user_unsupported_version(),
+                ));
+            }
+
             if self.config.set_host {
                 let uri = req.uri().clone();
                 req.headers_mut().entry(HOST).or_insert_with(|| {
