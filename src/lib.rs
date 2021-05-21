@@ -82,7 +82,7 @@ mod cfg;
 #[macro_use]
 mod common;
 pub mod body;
-mod error;
+pub mod error;
 mod ext;
 #[cfg(test)]
 mod mock;

@@ -55,7 +55,7 @@ where
     fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.inner
             .poll_ready(cx)
-            .map_err(|e| crate::Error::new(crate::error::Kind::Connect).with(e.into()))
+            .map_err(|e| crate::Error::new_connect(e))
     }
 
     fn call(&mut self, req: T) -> Self::Future {
@@ -76,7 +76,7 @@ where
                     Err(e) => Err(e),
                 },
                 Err(e) => {
-                    let err = crate::Error::new(crate::error::Kind::Connect).with(e.into());
+                    let err = crate::Error::new_connect(e);
                     Err(err)
                 }
             }

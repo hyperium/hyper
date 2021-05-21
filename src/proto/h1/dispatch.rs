@@ -686,7 +686,7 @@ mod tests {
                 .expect_err("callback should send error");
 
             match (err.0.kind(), err.1) {
-                (&crate::error::Kind::Canceled, Some(_)) => (),
+                (&crate::error::Kind::Canceled(_), Some(_)) => (),
                 other => panic!("expected Canceled, got {:?}", other),
             }
         });

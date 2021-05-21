@@ -35,8 +35,8 @@ impl hyper_error {
 
         match self.0.kind() {
             ErrorKind::Parse(_) => hyper_code::HYPERE_INVALID_PEER_MESSAGE,
-            ErrorKind::IncompleteMessage => hyper_code::HYPERE_UNEXPECTED_EOF,
-            ErrorKind::User(User::AbortedByCallback) => hyper_code::HYPERE_ABORTED_BY_CALLBACK,
+            ErrorKind::IncompleteMessage(_) => hyper_code::HYPERE_UNEXPECTED_EOF,
+            ErrorKind::User(User::AbortedByCallback(_)) => hyper_code::HYPERE_ABORTED_BY_CALLBACK,
             // TODO: add more variants
             _ => hyper_code::HYPERE_ERROR,
         }

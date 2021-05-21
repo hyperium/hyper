@@ -141,8 +141,9 @@ impl Http1Transaction for Server {
                     trace!("Request.parse Complete({})", parsed_len);
                     len = parsed_len;
                     subject = RequestLine(
-                        Method::from_bytes(req.method.unwrap().as_bytes())?,
-                        req.path.unwrap().parse()?,
+                        Method::from_bytes(req.method.unwrap().as_bytes())
+                            .map_err(Parse::from_invalid_method)?,
+                        req.path.unwrap().parse().map_err(Parse::from_invalid_uri)?,
                     );
                     version = if req.version.unwrap() == 1 {
                         keep_alive = true;
@@ -164,13 +165,13 @@ impl Http1Transaction for Server {
                         // if invalid Token, try to determine if for method or path
                         httparse::Error::Token => {
                             if req.method.is_none() {
-                                Parse::Method
+                                Parse::new_method()
                             } else {
                                 debug_assert!(req.path.is_none());
-                                Parse::Uri
+                                Parse::new_uri()
                             }
                         }
-                        other => other.into(),
+                        other => Parse::from_httparse(other),
                     });
                 }
             }
@@ -216,7 +217,7 @@ impl Http1Transaction for Server {
                     // malformed. A server should respond with 400 Bad Request.
                     if !is_http_11 {
                         debug!("HTTP/1.0 cannot have Transfer-Encoding header");
-                        return Err(Parse::Header);
+                        return Err(Parse::new_header());
                     }
                     is_te = true;
                     if headers::is_chunked_(&value) {
@@ -232,15 +233,15 @@ impl Http1Transaction for Server {
                     }
                     let len = value
                         .to_str()
-                        .map_err(|_| Parse::Header)
-                        .and_then(|s| s.parse().map_err(|_| Parse::Header))?;
+                        .map_err(|_| Parse::new_header())
+                        .and_then(|s| s.parse().map_err(|_| Parse::new_header()))?;
                     if let Some(prev) = con_len {
                         if prev != len {
                             debug!(
                                 "multiple Content-Length headers with different values: [{}, {}]",
                                 prev, len,
                             );
-                            return Err(Parse::Header);
+                            return Err(Parse::new_header());
                         }
                         // we don't need to append this secondary length
                         continue;
@@ -278,7 +279,7 @@ impl Http1Transaction for Server {
 
         if is_te && !is_te_chunked {
             debug!("request with transfer-encoding header, but not chunked, bad request");
-            return Err(Parse::Header);
+            return Err(Parse::new_header());
         }
 
         let mut extensions = http::Extensions::default();
@@ -396,11 +397,11 @@ impl Http1Transaction for Server {
     fn on_error(err: &crate::Error) -> Option<MessageHead<Self::Outgoing>> {
         use crate::error::Kind;
         let status = match *err.kind() {
-            Kind::Parse(Parse::Method)
-            | Kind::Parse(Parse::Header)
-            | Kind::Parse(Parse::Uri)
-            | Kind::Parse(Parse::Version) => StatusCode::BAD_REQUEST,
-            Kind::Parse(Parse::TooLarge) => StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
+            Kind::Parse(Parse::Method(_))
+            | Kind::Parse(Parse::Header(_))
+            | Kind::Parse(Parse::Uri(_))
+            | Kind::Parse(Parse::Version(_)) => StatusCode::BAD_REQUEST,
+            Kind::Parse(Parse::HeaderSectionTooLarge(_)) => StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
             _ => return None,
         };
 
@@ -895,7 +896,8 @@ impl Http1Transaction for Client {
                 {
                     Ok(httparse::Status::Complete(len)) => {
                         trace!("Response.parse Complete({})", len);
-                        let status = StatusCode::from_u16(res.code.unwrap())?;
+                        let status = StatusCode::from_u16(res.code.unwrap())
+                            .map_err(Parse::from_invalid_status_code)?;
 
                         #[cfg(not(feature = "ffi"))]
                         let reason = ();
@@ -930,7 +932,7 @@ impl Http1Transaction for Client {
 
                         (0, StatusCode::OK, reason, Version::HTTP_09, 0)
                     }
-                    Err(e) => return Err(e.into()),
+                    Err(e) => return Err(Parse::from_httparse(e)),
                 }
             };
 
@@ -1118,7 +1120,7 @@ impl Client {
             // malformed. A server should respond with 400 Bad Request.
             if inc.version == Version::HTTP_10 {
                 debug!("HTTP/1.0 cannot have Transfer-Encoding header");
-                Err(Parse::Header)
+                Err(Parse::new_header())
             } else if headers::transfer_encoding_is_chunked(&inc.headers) {
                 Ok(Some((DecodedLength::CHUNKED, false)))
             } else {
@@ -1129,7 +1131,7 @@ impl Client {
             Ok(Some((DecodedLength::checked_new(len)?, false)))
         } else if inc.headers.contains_key(header::CONTENT_LENGTH) {
             debug!("illegal Content-Length header");
-            Err(Parse::Header)
+            Err(Parse::new_header())
         } else {
             trace!("neither Transfer-Encoding nor Content-Length");
             Ok(Some((DecodedLength::CLOSE_DELIMITED, false)))
@@ -1297,7 +1299,7 @@ fn record_header_indices(
     for (header, indices) in headers.iter().zip(indices.iter_mut()) {
         if header.name.len() >= (1 << 16) {
             debug!("header name larger than 64kb: {:?}", header.name);
-            return Err(crate::error::Parse::TooLarge);
+            return Err(crate::error::Parse::new_header_section_too_large());
         }
         let name_start = header.name.as_ptr() as usize - bytes_ptr;
         let name_end = name_start + header.name.len();
