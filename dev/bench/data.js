@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1621880624295,
+  "lastUpdate": 1621880632151,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -5401,6 +5401,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 61241,
             "range": "± 81918",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "123095+nox@users.noreply.github.com",
+            "name": "Anthony Ramine",
+            "username": "nox"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5442b6faddaff9aeb7c073031a3b7aa4497fda4d",
+          "message": "feat(http2): Implement Client-side CONNECT support over HTTP/2 (#2523)\n\nCloses #2508",
+          "timestamp": "2021-05-24T18:20:44Z",
+          "tree_id": "7987609e0a16e6a0c0bab34003b6555d07694f41",
+          "url": "https://github.com/hyperium/hyper/commit/5442b6faddaff9aeb7c073031a3b7aa4497fda4d"
+        },
+        "date": 1621880630604,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 70876,
+            "range": "± 9332",
             "unit": "ns/iter"
           }
         ]
