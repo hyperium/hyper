@@ -2116,8 +2116,18 @@ mod dispatch_impl {
         // so the unwrapped responses futures show it still worked.
         assert_eq!(connects.load(Ordering::SeqCst), 3);
 
-        let res4 = client.get(url);
+        let res4 = client.get(url.clone());
         rt.block_on(res4).unwrap();
+
+        // HTTP/2 request allowed
+        let res5 = client.request(
+            Request::builder()
+                .uri(url)
+                .version(hyper::Version::HTTP_2)
+                .body(Default::default())
+                .unwrap(),
+        );
+        rt.block_on(res5).unwrap();
 
         assert_eq!(
             connects.load(Ordering::SeqCst),
