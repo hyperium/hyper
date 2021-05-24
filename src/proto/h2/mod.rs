@@ -1,5 +1,5 @@
-use bytes::Buf;
-use h2::SendStream;
+use bytes::{Buf, Bytes};
+use h2::{RecvStream, SendStream};
 use http::header::{
     HeaderName, CONNECTION, PROXY_AUTHENTICATE, PROXY_AUTHORIZATION, TE, TRAILER,
     TRANSFER_ENCODING, UPGRADE,
@@ -7,11 +7,14 @@ use http::header::{
 use http::HeaderMap;
 use pin_project::pin_project;
 use std::error::Error as StdError;
-use std::io::IoSlice;
+use std::io::{self, Cursor, IoSlice};
+use std::mem;
+use std::task::Context;
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
-use crate::body::{DecodedLength, HttpBody};
+use crate::body::HttpBody;
 use crate::common::{task, Future, Pin, Poll};
-use crate::headers::content_length_parse_all;
+use crate::proto::h2::ping::Recorder;
 
 pub(crate) mod ping;
 
@@ -80,15 +83,6 @@ fn strip_connection_headers(headers: &mut HeaderMap, is_request: bool) {
             let name = name.trim();
             headers.remove(name);
         }
-    }
-}
-
-fn decode_content_length(headers: &HeaderMap) -> DecodedLength {
-    if let Some(len) = content_length_parse_all(headers) {
-        // If the length is u64::MAX, oh well, just reported chunked.
-        DecodedLength::checked_new(len).unwrap_or_else(|_| DecodedLength::CHUNKED)
-    } else {
-        DecodedLength::CHUNKED
     }
 }
 
@@ -172,7 +166,7 @@ where
                             is_eos,
                         );
 
-                        let buf = SendBuf(Some(chunk));
+                        let buf = SendBuf::Buf(chunk);
                         me.body_tx
                             .send_data(buf, is_eos)
                             .map_err(crate::Error::new_body_write)?;
@@ -243,32 +237,202 @@ impl<B: Buf> SendStreamExt for SendStream<SendBuf<B>> {
 
     fn send_eos_frame(&mut self) -> crate::Result<()> {
         trace!("send body eos");
-        self.send_data(SendBuf(None), true)
+        self.send_data(SendBuf::None, true)
             .map_err(crate::Error::new_body_write)
     }
 }
 
-struct SendBuf<B>(Option<B>);
+#[repr(usize)]
+enum SendBuf<B> {
+    Buf(B),
+    Cursor(Cursor<Box<[u8]>>),
+    None,
+}
 
 impl<B: Buf> Buf for SendBuf<B> {
     #[inline]
     fn remaining(&self) -> usize {
-        self.0.as_ref().map(|b| b.remaining()).unwrap_or(0)
+        match *self {
+            Self::Buf(ref b) => b.remaining(),
+            Self::Cursor(ref c) => c.remaining(),
+            Self::None => 0,
+        }
     }
 
     #[inline]
     fn chunk(&self) -> &[u8] {
-        self.0.as_ref().map(|b| b.chunk()).unwrap_or(&[])
+        match *self {
+            Self::Buf(ref b) => b.chunk(),
+            Self::Cursor(ref c) => c.chunk(),
+            Self::None => &[],
+        }
     }
 
     #[inline]
     fn advance(&mut self, cnt: usize) {
-        if let Some(b) = self.0.as_mut() {
-            b.advance(cnt)
+        match *self {
+            Self::Buf(ref mut b) => b.advance(cnt),
+            Self::Cursor(ref mut c) => c.advance(cnt),
+            Self::None => {}
         }
     }
 
     fn chunks_vectored<'a>(&'a self, dst: &mut [IoSlice<'a>]) -> usize {
-        self.0.as_ref().map(|b| b.chunks_vectored(dst)).unwrap_or(0)
+        match *self {
+            Self::Buf(ref b) => b.chunks_vectored(dst),
+            Self::Cursor(ref c) => c.chunks_vectored(dst),
+            Self::None => 0,
+        }
+    }
+}
+
+struct H2Upgraded<B>
+where
+    B: Buf,
+{
+    ping: Recorder,
+    send_stream: UpgradedSendStream<B>,
+    recv_stream: RecvStream,
+    buf: Bytes,
+}
+
+impl<B> AsyncRead for H2Upgraded<B>
+where
+    B: Buf,
+{
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        read_buf: &mut ReadBuf<'_>,
+    ) -> Poll<Result<(), io::Error>> {
+        if self.buf.is_empty() {
+            self.buf = loop {
+                match ready!(self.recv_stream.poll_data(cx)) {
+                    None => return Poll::Ready(Ok(())),
+                    Some(Ok(buf)) if buf.is_empty() && !self.recv_stream.is_end_stream() => {
+                        continue
+                    }
+                    Some(Ok(buf)) => {
+                        self.ping.record_data(buf.len());
+                        break buf;
+                    }
+                    Some(Err(e)) => {
+                        return Poll::Ready(Err(h2_to_io_error(e)));
+                    }
+                }
+            };
+        }
+        let cnt = std::cmp::min(self.buf.len(), read_buf.remaining());
+        read_buf.put_slice(&self.buf[..cnt]);
+        self.buf.advance(cnt);
+        let _ = self.recv_stream.flow_control().release_capacity(cnt);
+        Poll::Ready(Ok(()))
+    }
+}
+
+impl<B> AsyncWrite for H2Upgraded<B>
+where
+    B: Buf,
+{
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<Result<usize, io::Error>> {
+        if let Poll::Ready(reset) = self.send_stream.poll_reset(cx) {
+            return Poll::Ready(Err(h2_to_io_error(match reset {
+                Ok(reason) => reason.into(),
+                Err(e) => e,
+            })));
+        }
+        if buf.is_empty() {
+            return Poll::Ready(Ok(0));
+        }
+        self.send_stream.reserve_capacity(buf.len());
+        Poll::Ready(match ready!(self.send_stream.poll_capacity(cx)) {
+            None => Ok(0),
+            Some(Ok(cnt)) => self.send_stream.write(&buf[..cnt], false).map(|()| cnt),
+            Some(Err(e)) => Err(h2_to_io_error(e)),
+        })
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_shutdown(
+        mut self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+    ) -> Poll<Result<(), io::Error>> {
+        Poll::Ready(self.send_stream.write(&[], true))
+    }
+}
+
+fn h2_to_io_error(e: h2::Error) -> io::Error {
+    if e.is_io() {
+        e.into_io().unwrap()
+    } else {
+        io::Error::new(io::ErrorKind::Other, e)
+    }
+}
+
+struct UpgradedSendStream<B>(SendStream<SendBuf<Neutered<B>>>);
+
+impl<B> UpgradedSendStream<B>
+where
+    B: Buf,
+{
+    unsafe fn new(inner: SendStream<SendBuf<B>>) -> Self {
+        assert_eq!(mem::size_of::<B>(), mem::size_of::<Neutered<B>>());
+        Self(mem::transmute(inner))
+    }
+
+    fn reserve_capacity(&mut self, cnt: usize) {
+        unsafe { self.as_inner_unchecked().reserve_capacity(cnt) }
+    }
+
+    fn poll_capacity(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<usize, h2::Error>>> {
+        unsafe { self.as_inner_unchecked().poll_capacity(cx) }
+    }
+
+    fn poll_reset(&mut self, cx: &mut Context<'_>) -> Poll<Result<h2::Reason, h2::Error>> {
+        unsafe { self.as_inner_unchecked().poll_reset(cx) }
+    }
+
+    fn write(&mut self, buf: &[u8], end_of_stream: bool) -> Result<(), io::Error> {
+        let send_buf = SendBuf::Cursor(Cursor::new(buf.into()));
+        unsafe {
+            self.as_inner_unchecked()
+                .send_data(send_buf, end_of_stream)
+                .map_err(h2_to_io_error)
+        }
+    }
+
+    unsafe fn as_inner_unchecked(&mut self) -> &mut SendStream<SendBuf<B>> {
+        &mut *(&mut self.0 as *mut _ as *mut _)
+    }
+}
+
+#[repr(transparent)]
+struct Neutered<B> {
+    _inner: B,
+    impossible: Impossible,
+}
+
+enum Impossible {}
+
+unsafe impl<B> Send for Neutered<B> {}
+
+impl<B> Buf for Neutered<B> {
+    fn remaining(&self) -> usize {
+        match self.impossible {}
+    }
+
+    fn chunk(&self) -> &[u8] {
+        match self.impossible {}
+    }
+
+    fn advance(&mut self, _cnt: usize) {
+        match self.impossible {}
     }
 }

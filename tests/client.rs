@@ -2261,14 +2261,16 @@ mod conn {
     use std::thread;
     use std::time::Duration;
 
+    use bytes::Buf;
     use futures_channel::oneshot;
     use futures_util::future::{self, poll_fn, FutureExt, TryFutureExt};
     use futures_util::StreamExt;
+    use hyper::upgrade::OnUpgrade;
     use tokio::io::{AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _, ReadBuf};
     use tokio::net::{TcpListener as TkTcpListener, TcpStream};
 
     use hyper::client::conn;
-    use hyper::{self, Body, Method, Request};
+    use hyper::{self, Body, Method, Request, Response, StatusCode};
 
     use super::{concat, s, support, tcp_connect, FutureHyperExt};
 
@@ -2982,6 +2984,125 @@ mod conn {
         future::poll_fn(|ctx| client.poll_ready(ctx))
             .await
             .expect("client should be open");
+    }
+
+    #[tokio::test]
+    async fn h2_connect() {
+        let _ = pretty_env_logger::try_init();
+
+        let listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+            .await
+            .unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        // Spawn an HTTP2 server that asks for bread and responds with baguette.
+        tokio::spawn(async move {
+            let sock = listener.accept().await.unwrap().0;
+            let mut h2 = h2::server::handshake(sock).await.unwrap();
+
+            let (req, mut respond) = h2.accept().await.unwrap().unwrap();
+            tokio::spawn(async move {
+                poll_fn(|cx| h2.poll_closed(cx)).await.unwrap();
+            });
+            assert_eq!(req.method(), Method::CONNECT);
+
+            let mut body = req.into_body();
+
+            let mut send_stream = respond.send_response(Response::default(), false).unwrap();
+
+            send_stream.send_data("Bread?".into(), true).unwrap();
+
+            let bytes = body.data().await.unwrap().unwrap();
+            assert_eq!(&bytes[..], b"Baguette!");
+            let _ = body.flow_control().release_capacity(bytes.len());
+
+            assert!(body.data().await.is_none());
+        });
+
+        let io = tcp_connect(&addr).await.expect("tcp connect");
+        let (mut client, conn) = conn::Builder::new()
+            .http2_only(true)
+            .handshake::<_, Body>(io)
+            .await
+            .expect("http handshake");
+
+        tokio::spawn(async move {
+            conn.await.expect("client conn shouldn't error");
+        });
+
+        let req = Request::connect("localhost")
+            .body(hyper::Body::empty())
+            .unwrap();
+        let res = client.send_request(req).await.expect("send_request");
+        assert_eq!(res.status(), StatusCode::OK);
+
+        let mut upgraded = hyper::upgrade::on(res).await.unwrap();
+
+        let mut vec = vec![];
+        upgraded.read_to_end(&mut vec).await.unwrap();
+        assert_eq!(s(&vec), "Bread?");
+
+        upgraded.write_all(b"Baguette!").await.unwrap();
+
+        upgraded.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn h2_connect_rejected() {
+        let _ = pretty_env_logger::try_init();
+
+        let listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+            .await
+            .unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (done_tx, done_rx) = oneshot::channel();
+
+        tokio::spawn(async move {
+            let sock = listener.accept().await.unwrap().0;
+            let mut h2 = h2::server::handshake(sock).await.unwrap();
+
+            let (req, mut respond) = h2.accept().await.unwrap().unwrap();
+            tokio::spawn(async move {
+                poll_fn(|cx| h2.poll_closed(cx)).await.unwrap();
+            });
+            assert_eq!(req.method(), Method::CONNECT);
+
+            let res = Response::builder().status(400).body(()).unwrap();
+            let mut send_stream = respond.send_response(res, false).unwrap();
+            send_stream
+                .send_data("No bread for you!".into(), true)
+                .unwrap();
+            done_rx.await.unwrap();
+        });
+
+        let io = tcp_connect(&addr).await.expect("tcp connect");
+        let (mut client, conn) = conn::Builder::new()
+            .http2_only(true)
+            .handshake::<_, Body>(io)
+            .await
+            .expect("http handshake");
+
+        tokio::spawn(async move {
+            conn.await.expect("client conn shouldn't error");
+        });
+
+        let req = Request::connect("localhost")
+            .body(hyper::Body::empty())
+            .unwrap();
+        let res = client.send_request(req).await.expect("send_request");
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+        assert!(res.extensions().get::<OnUpgrade>().is_none());
+
+        let mut body = String::new();
+        hyper::body::aggregate(res.into_body())
+            .await
+            .unwrap()
+            .reader()
+            .read_to_string(&mut body)
+            .unwrap();
+        assert_eq!(body, "No bread for you!");
+
+        done_tx.send(()).unwrap();
     }
 
     async fn drain_til_eof<T: AsyncRead + Unpin>(mut sock: T) -> io::Result<()> {

@@ -62,12 +62,12 @@ pub fn on<T: sealed::CanUpgrade>(msg: T) -> OnUpgrade {
     msg.on_upgrade()
 }
 
-#[cfg(feature = "http1")]
+#[cfg(any(feature = "http1", feature = "http2"))]
 pub(super) struct Pending {
     tx: oneshot::Sender<crate::Result<Upgraded>>,
 }
 
-#[cfg(feature = "http1")]
+#[cfg(any(feature = "http1", feature = "http2"))]
 pub(super) fn pending() -> (Pending, OnUpgrade) {
     let (tx, rx) = oneshot::channel();
     (Pending { tx }, OnUpgrade { rx: Some(rx) })
@@ -76,7 +76,7 @@ pub(super) fn pending() -> (Pending, OnUpgrade) {
 // ===== impl Upgraded =====
 
 impl Upgraded {
-    #[cfg(any(feature = "http1", test))]
+    #[cfg(any(feature = "http1", feature = "http2", test))]
     pub(super) fn new<T>(io: T, read_buf: Bytes) -> Self
     where
         T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
@@ -187,13 +187,14 @@ impl fmt::Debug for OnUpgrade {
 
 // ===== impl Pending =====
 
-#[cfg(feature = "http1")]
+#[cfg(any(feature = "http1", feature = "http2"))]
 impl Pending {
     pub(super) fn fulfill(self, upgraded: Upgraded) {
         trace!("pending upgrade fulfill");
         let _ = self.tx.send(Ok(upgraded));
     }
 
+    #[cfg(feature = "http1")]
     /// Don't fulfill the pending Upgrade, but instead signal that
     /// upgrades are handled manually.
     pub(super) fn manual(self) {

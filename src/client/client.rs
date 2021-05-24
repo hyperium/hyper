@@ -254,12 +254,9 @@ where
                 absolute_form(req.uri_mut());
             } else {
                 origin_form(req.uri_mut());
-            };
+            }
         } else if req.method() == Method::CONNECT {
-            debug!("client does not support CONNECT requests over HTTP2");
-            return Err(ClientError::Normal(
-                crate::Error::new_user_unsupported_request_method(),
-            ));
+            authority_form(req.uri_mut());
         }
 
         let fut = pooled

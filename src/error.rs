@@ -90,7 +90,7 @@ pub(super) enum User {
     /// User tried to send a certain header in an unexpected context.
     ///
     /// For example, sending both `content-length` and `transfer-encoding`.
-    #[cfg(feature = "http1")]
+    #[cfg(any(feature = "http1", feature = "http2"))]
     #[cfg(feature = "server")]
     UnexpectedHeader,
     /// User tried to create a Request with bad version.
@@ -290,7 +290,7 @@ impl Error {
         Error::new(Kind::User(user))
     }
 
-    #[cfg(feature = "http1")]
+    #[cfg(any(feature = "http1", feature = "http2"))]
     #[cfg(feature = "server")]
     pub(super) fn new_user_header() -> Error {
         Error::new_user(User::UnexpectedHeader)
@@ -405,7 +405,7 @@ impl Error {
             Kind::User(User::MakeService) => "error from user's MakeService",
             #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::User(User::Service) => "error from user's Service",
-            #[cfg(feature = "http1")]
+            #[cfg(any(feature = "http1", feature = "http2"))]
             #[cfg(feature = "server")]
             Kind::User(User::UnexpectedHeader) => "user sent unexpected header",
             #[cfg(any(feature = "http1", feature = "http2"))]
