@@ -1,3 +1,20 @@
+### v0.14.8 (2021-05-25)
+
+
+#### Features
+
+* **client:** allow to config http2 max concurrent reset streams (#2535) ([b9916c41](https://github.com/hyperium/hyper/commit/b9916c410182c6225e857f0cded355ea1b74c865))
+* **error:** add `Error::is_parse_too_large` and `Error::is_parse_status` methods (#2538) ([960a69a5](https://github.com/hyperium/hyper/commit/960a69a5878ede82c56f50ac1444a9e75e885a8f))
+* **http2:**
+  * Implement Client-side CONNECT support over HTTP/2 (#2523) ([5442b6fa](https://github.com/hyperium/hyper/commit/5442b6faddaff9aeb7c073031a3b7aa4497fda4d), closes [#2508](https://github.com/hyperium/hyper/issues/2508))
+  * allow HTTP/2 requests by ALPN when http2_only is unset (#2527) ([be9677a1](https://github.com/hyperium/hyper/commit/be9677a1e782d33c4402772e0fc4ef0a4c49d507))
+
+
+#### Performance
+
+* **http2:** reduce amount of adaptive window pings as BDP stabilizes (#2550) ([4cd06bf2](https://github.com/hyperium/hyper/commit/4cd06bf2))
+
+
 ### v0.14.7 (2021-04-22)
 
 
