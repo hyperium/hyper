@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1621955934927,
+  "lastUpdate": 1622131486270,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -2759,6 +2759,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 50852,
             "range": "± 5927",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "eb0c64639503bbd4f6e3b1ce3a02bff8eeea7ee8",
+          "message": "fix(http1): reduce memory used with flatten write strategy\n\nIf the write buffer was filled with large bufs from the user, such that\nit couldn't be fully written to the transport, the write buffer could\nstart to grow significantly as it moved its cursor without shifting over\nthe unwritten bytes.\n\nThis will now try to shift over the unwritten bytes if the next buf\nwouldn't fit in the already allocated space.",
+          "timestamp": "2021-05-27T09:02:05-07:00",
+          "tree_id": "ede096a3a17426aef277b8e35750a310bece8d62",
+          "url": "https://github.com/hyperium/hyper/commit/eb0c64639503bbd4f6e3b1ce3a02bff8eeea7ee8"
+        },
+        "date": 1622131484743,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 49794,
+            "range": "± 1060",
             "unit": "ns/iter"
           }
         ]
