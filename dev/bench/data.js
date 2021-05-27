@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1622131500300,
+  "lastUpdate": 1622131634981,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -18111,6 +18111,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_req_100kb",
             "value": 195390,
             "range": "± 28484",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "eb0c64639503bbd4f6e3b1ce3a02bff8eeea7ee8",
+          "message": "fix(http1): reduce memory used with flatten write strategy\n\nIf the write buffer was filled with large bufs from the user, such that\nit couldn't be fully written to the transport, the write buffer could\nstart to grow significantly as it moved its cursor without shifting over\nthe unwritten bytes.\n\nThis will now try to shift over the unwritten bytes if the next buf\nwouldn't fit in the already allocated space.",
+          "timestamp": "2021-05-27T09:02:05-07:00",
+          "tree_id": "ede096a3a17426aef277b8e35750a310bece8d62",
+          "url": "https://github.com/hyperium/hyper/commit/eb0c64639503bbd4f6e3b1ce3a02bff8eeea7ee8"
+        },
+        "date": 1622131633386,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_body_both_100kb",
+            "value": 70188,
+            "range": "± 3911",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_body_both_10mb",
+            "value": 6782422,
+            "range": "± 464979",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_get",
+            "value": 31444,
+            "range": "± 1574",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 215619,
+            "range": "± 13549",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 52757606,
+            "range": "± 1661508",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 48679558,
+            "range": "± 2571458",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 52126637,
+            "range": "± 1510541",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 3412385,
+            "range": "± 415836",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_post",
+            "value": 33386,
+            "range": "± 3270",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_get",
+            "value": 52317,
+            "range": "± 4242",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 171693,
+            "range": "± 16459",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 9180759,
+            "range": "± 9543772",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 9342009,
+            "range": "± 757637",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 9103938,
+            "range": "± 9668908",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 56075630,
+            "range": "± 4485143",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 70973746,
+            "range": "± 13526979",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 6126871,
+            "range": "± 667727",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_post",
+            "value": 59139,
+            "range": "± 8642",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_req_100kb",
+            "value": 116147,
+            "range": "± 13946",
             "unit": "ns/iter"
           }
         ]
