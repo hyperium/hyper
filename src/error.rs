@@ -376,7 +376,9 @@ impl Error {
             Kind::Parse(Parse::Header) => "invalid HTTP header parsed",
             Kind::Parse(Parse::TooLarge) => "message head is too large",
             Kind::Parse(Parse::Status) => "invalid HTTP status-code parsed",
-            Kind::Parse(Parse::Internal) => "internal error inside Hyper and/or its dependencies, please report",
+            Kind::Parse(Parse::Internal) => {
+                "internal error inside Hyper and/or its dependencies, please report"
+            }
             Kind::IncompleteMessage => "connection closed before message completed",
             #[cfg(feature = "http1")]
             Kind::UnexpectedMessage => "received unexpected message from connection",
