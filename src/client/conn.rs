@@ -87,7 +87,8 @@ where
     H2(#[pin] proto::h2::ClientTask<B>, PhantomData<fn(T)>),
 }
 
-/// Returns a handshake future over some IO.
+/// Returns a handshake future over some IO. The io parameter will usually be a
+/// [tokio::net::TcpStream](https://docs.rs/tokio/1.6.1/tokio/net/struct.TcpStream.html).
 ///
 /// This is a shortcut for `Builder::new().handshake(io)`.
 pub async fn handshake<T>(
@@ -105,6 +106,9 @@ pub struct SendRequest<B> {
 }
 
 /// A future that processes all HTTP state for the IO object.
+///
+/// The io parameter will usually be a
+/// [tokio::net::TcpStream](https://docs.rs/tokio/1.6.1/tokio/net/struct.TcpStream.html).
 ///
 /// In most cases, this should just be spawned into an executor, so that it
 /// can process incoming and outgoing messages, notice hangups, and the like.
