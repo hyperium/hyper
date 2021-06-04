@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1622843998865,
+  "lastUpdate": 1622844194587,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -18507,6 +18507,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_req_100kb",
             "value": 101791,
             "range": "± 2053",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jplatte@users.noreply.github.com",
+            "name": "Jonas Platte",
+            "username": "jplatte"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6a6a24030ec53321ce026fe294c56c86f21e19d4",
+          "message": "refactor(lib): Switch from pin-project to pin-project-lite (#2566)\n\nNote the practical affects of this change:\r\n\r\n- Dependency count with --features full dropped from 65 to 55.\r\n- Time to compile after a clean dropped from 48s to 35s (on a pretty underpowered VM).\r\n\r\nCloses #2388",
+          "timestamp": "2021-06-04T14:57:27-07:00",
+          "tree_id": "3fa597134ee8e48491492ca5fdba3dca8adb60f7",
+          "url": "https://github.com/hyperium/hyper/commit/6a6a24030ec53321ce026fe294c56c86f21e19d4"
+        },
+        "date": 1622844192592,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_body_both_100kb",
+            "value": 119738,
+            "range": "± 28800",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_body_both_10mb",
+            "value": 7643742,
+            "range": "± 1006926",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_get",
+            "value": 47831,
+            "range": "± 7189",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 291165,
+            "range": "± 19853",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 52008314,
+            "range": "± 881585",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 55119319,
+            "range": "± 2574808",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 55828612,
+            "range": "± 3073543",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 4372404,
+            "range": "± 644733",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_post",
+            "value": 54101,
+            "range": "± 6901",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_get",
+            "value": 90051,
+            "range": "± 10931",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 226018,
+            "range": "± 16866",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 12635221,
+            "range": "± 9266039",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 20813983,
+            "range": "± 8896738",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 12322806,
+            "range": "± 9012434",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 67190446,
+            "range": "± 6214473",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 82050538,
+            "range": "± 15438476",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 7120629,
+            "range": "± 1370060",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_post",
+            "value": 102272,
+            "range": "± 11721",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_req_100kb",
+            "value": 180634,
+            "range": "± 19263",
             "unit": "ns/iter"
           }
         ]
