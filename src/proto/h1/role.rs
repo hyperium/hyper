@@ -8,9 +8,9 @@ use std::mem;
 #[cfg(any(test, feature = "server", feature = "ffi"))]
 use bytes::Bytes;
 use bytes::BytesMut;
-use http::header::{self, Entry, HeaderName, HeaderValue};
 #[cfg(feature = "server")]
 use http::header::ValueIter;
+use http::header::{self, Entry, HeaderName, HeaderValue};
 use http::{HeaderMap, Method, StatusCode, Version};
 
 use crate::body::DecodedLength;
@@ -41,11 +41,7 @@ macro_rules! header_name {
 macro_rules! header_value {
     ($bytes:expr) => {{
         {
-            let __hvb: ::bytes::Bytes = $bytes;
-            match HeaderValue::from_maybe_shared(__hvb.clone()) {
-                Ok(name) => name,
-                Err(e) => maybe_panic!(e),
-            }
+            unsafe { HeaderValue::from_maybe_shared_unchecked($bytes) }
         }
     }};
 }
@@ -884,8 +880,7 @@ impl Http1Transaction for Client {
                 );
                 let mut res = httparse::Response::new(&mut headers);
                 let bytes = buf.as_ref();
-                match ctx.h1_parser_config.parse_response(&mut res, bytes)
-                {
+                match ctx.h1_parser_config.parse_response(&mut res, bytes) {
                     Ok(httparse::Status::Complete(len)) => {
                         trace!("Response.parse Complete({})", len);
                         let status = StatusCode::from_u16(res.code.unwrap())?;
