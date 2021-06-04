@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1622843990548,
+  "lastUpdate": 1622843998865,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -2819,6 +2819,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 39914,
             "range": "± 1391",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jplatte@users.noreply.github.com",
+            "name": "Jonas Platte",
+            "username": "jplatte"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6a6a24030ec53321ce026fe294c56c86f21e19d4",
+          "message": "refactor(lib): Switch from pin-project to pin-project-lite (#2566)\n\nNote the practical affects of this change:\r\n\r\n- Dependency count with --features full dropped from 65 to 55.\r\n- Time to compile after a clean dropped from 48s to 35s (on a pretty underpowered VM).\r\n\r\nCloses #2388",
+          "timestamp": "2021-06-04T14:57:27-07:00",
+          "tree_id": "3fa597134ee8e48491492ca5fdba3dca8adb60f7",
+          "url": "https://github.com/hyperium/hyper/commit/6a6a24030ec53321ce026fe294c56c86f21e19d4"
+        },
+        "date": 1622843997293,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 47177,
+            "range": "± 7816",
             "unit": "ns/iter"
           }
         ]
