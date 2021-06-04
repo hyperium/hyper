@@ -8,9 +8,9 @@ use std::mem;
 #[cfg(any(test, feature = "server", feature = "ffi"))]
 use bytes::Bytes;
 use bytes::BytesMut;
-use http::header::{self, Entry, HeaderName, HeaderValue};
 #[cfg(feature = "server")]
 use http::header::ValueIter;
+use http::header::{self, Entry, HeaderName, HeaderValue};
 use http::{HeaderMap, Method, StatusCode, Version};
 
 use crate::body::DecodedLength;
@@ -29,22 +29,10 @@ const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
 
 macro_rules! header_name {
     ($bytes:expr) => {{
-        #[cfg(debug_assertions)]
         {
             match HeaderName::from_bytes($bytes) {
                 Ok(name) => name,
-                Err(_) => panic!(
-                    "illegal header name from httparse: {:?}",
-                    ::bytes::Bytes::copy_from_slice($bytes)
-                ),
-            }
-        }
-
-        #[cfg(not(debug_assertions))]
-        {
-            match HeaderName::from_bytes($bytes) {
-                Ok(name) => name,
-                Err(_) => panic!("illegal header name from httparse: {:?}", $bytes),
+                Err(e) => maybe_panic!(e),
             }
         }
     }};
@@ -52,21 +40,22 @@ macro_rules! header_name {
 
 macro_rules! header_value {
     ($bytes:expr) => {{
-        #[cfg(debug_assertions)]
         {
-            let __hvb: ::bytes::Bytes = $bytes;
-            match HeaderValue::from_maybe_shared(__hvb.clone()) {
-                Ok(name) => name,
-                Err(_) => panic!("illegal header value from httparse: {:?}", __hvb),
-            }
-        }
-
-        #[cfg(not(debug_assertions))]
-        {
-            // Unsafe: httparse already validated header value
             unsafe { HeaderValue::from_maybe_shared_unchecked($bytes) }
         }
     }};
+}
+
+macro_rules! maybe_panic {
+    ($($arg:tt)*) => ({
+        let _err = ($($arg)*);
+        if cfg!(debug_assertions) {
+            panic!("{:?}", _err);
+        } else {
+            error!("Internal Hyper error, please report {:?}", _err);
+            return Err(Parse::Internal)
+        }
+    })
 }
 
 pub(super) fn parse_headers<T>(
@@ -891,8 +880,7 @@ impl Http1Transaction for Client {
                 );
                 let mut res = httparse::Response::new(&mut headers);
                 let bytes = buf.as_ref();
-                match ctx.h1_parser_config.parse_response(&mut res, bytes)
-                {
+                match ctx.h1_parser_config.parse_response(&mut res, bytes) {
                     Ok(httparse::Status::Complete(len)) => {
                         trace!("Response.parse Complete({})", len);
                         let status = StatusCode::from_u16(res.code.unwrap())?;
