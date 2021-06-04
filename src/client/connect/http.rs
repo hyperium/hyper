@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use futures_util::future::Either;
 use http::uri::{Scheme, Uri};
-use pin_project::pin_project;
+use pin_project_lite::pin_project;
 use tokio::net::{TcpSocket, TcpStream};
 use tokio::time::Sleep;
 
@@ -373,18 +373,19 @@ impl HttpInfo {
     }
 }
 
-// Not publicly exported (so missing_docs doesn't trigger).
-//
-// We return this `Future` instead of the `Pin<Box<dyn Future>>` directly
-// so that users don't rely on it fitting in a `Pin<Box<dyn Future>>` slot
-// (and thus we can change the type in the future).
-#[must_use = "futures do nothing unless polled"]
-#[pin_project]
-#[allow(missing_debug_implementations)]
-pub struct HttpConnecting<R> {
-    #[pin]
-    fut: BoxConnecting,
-    _marker: PhantomData<R>,
+pin_project! {
+    // Not publicly exported (so missing_docs doesn't trigger).
+    //
+    // We return this `Future` instead of the `Pin<Box<dyn Future>>` directly
+    // so that users don't rely on it fitting in a `Pin<Box<dyn Future>>` slot
+    // (and thus we can change the type in the future).
+    #[must_use = "futures do nothing unless polled"]
+    #[allow(missing_debug_implementations)]
+    pub struct HttpConnecting<R> {
+        #[pin]
+        fut: BoxConnecting,
+        _marker: PhantomData<R>,
+    }
 }
 
 type ConnectResult = Result<TcpStream, ConnectError>;
