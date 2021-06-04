@@ -5,7 +5,7 @@ use http::header::{
     TRANSFER_ENCODING, UPGRADE,
 };
 use http::HeaderMap;
-use pin_project::pin_project;
+use pin_project_lite::pin_project;
 use std::error::Error as StdError;
 use std::io::{self, Cursor, IoSlice};
 use std::mem;
@@ -88,15 +88,16 @@ fn strip_connection_headers(headers: &mut HeaderMap, is_request: bool) {
 
 // body adapters used by both Client and Server
 
-#[pin_project]
-struct PipeToSendStream<S>
-where
-    S: HttpBody,
-{
-    body_tx: SendStream<SendBuf<S::Data>>,
-    data_done: bool,
-    #[pin]
-    stream: S,
+pin_project! {
+    struct PipeToSendStream<S>
+    where
+        S: HttpBody,
+    {
+        body_tx: SendStream<SendBuf<S::Data>>,
+        data_done: bool,
+        #[pin]
+        stream: S,
+    }
 }
 
 impl<S> PipeToSendStream<S>
