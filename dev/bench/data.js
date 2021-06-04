@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1622844194587,
+  "lastUpdate": 1622845220563,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -2849,6 +2849,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 47177,
             "range": "± 7816",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "43443348+bensadiku@users.noreply.github.com",
+            "name": "bensadiku",
+            "username": "bensadiku"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "55d9a584b19a553b105842f6bf954edf46a007ee",
+          "message": "refactor(http1): return Parse::Internal error if there's an illegal header name or value (#2544)",
+          "timestamp": "2021-06-04T15:17:37-07:00",
+          "tree_id": "9fa546d5abcf08e16d08cfa9f19249e73de68d58",
+          "url": "https://github.com/hyperium/hyper/commit/55d9a584b19a553b105842f6bf954edf46a007ee"
+        },
+        "date": 1622845218435,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 72571,
+            "range": "± 9285",
             "unit": "ns/iter"
           }
         ]
