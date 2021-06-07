@@ -17,11 +17,12 @@ struct ErrorImpl {
     cause: Option<Cause>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub(super) enum Kind {
     Parse(Parse),
     User(User),
     /// A message reached EOF, but is not complete.
+    #[allow(unused)]
     IncompleteMessage,
     /// A connection received a message (or bytes) when not waiting for one.
     #[cfg(feature = "http1")]
@@ -34,6 +35,7 @@ pub(super) enum Kind {
     #[cfg(any(feature = "http1", feature = "http2"))]
     Io,
     /// Error occurred while connecting.
+    #[allow(unused)]
     Connect,
     /// Error creating a TcpListener.
     #[cfg(all(
@@ -63,7 +65,7 @@ pub(super) enum Kind {
     Http2,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub(super) enum Parse {
     Method,
     Version,
@@ -77,7 +79,7 @@ pub(super) enum Parse {
     Internal,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub(super) enum User {
     /// Error calling user's HttpBody::poll_data().
     #[cfg(any(feature = "http1", feature = "http2"))]
@@ -152,27 +154,27 @@ impl Error {
 
     /// Returns true if this was about a `Request` that was canceled.
     pub fn is_canceled(&self) -> bool {
-        self.inner.kind == Kind::Canceled
+        matches!(self.inner.kind, Kind::Canceled)
     }
 
     /// Returns true if a sender's channel is closed.
     pub fn is_closed(&self) -> bool {
-        self.inner.kind == Kind::ChannelClosed
+        matches!(self.inner.kind, Kind::ChannelClosed)
     }
 
     /// Returns true if this was an error from `Connect`.
     pub fn is_connect(&self) -> bool {
-        self.inner.kind == Kind::Connect
+        matches!(self.inner.kind, Kind::Connect)
     }
 
     /// Returns true if the connection closed before a message could complete.
     pub fn is_incomplete_message(&self) -> bool {
-        self.inner.kind == Kind::IncompleteMessage
+        matches!(self.inner.kind, Kind::IncompleteMessage)
     }
 
     /// Returns true if the body write was aborted.
     pub fn is_body_write_aborted(&self) -> bool {
-        self.inner.kind == Kind::BodyWriteAborted
+        matches!(self.inner.kind, Kind::BodyWriteAborted)
     }
 
     /// Returns true if the error was caused by a timeout.
