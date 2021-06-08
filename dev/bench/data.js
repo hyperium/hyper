@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1623156586855,
+  "lastUpdate": 1623156641186,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -5821,6 +5821,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 61215,
             "range": "± 22772",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "ea8b0cd86efe7543d9f6d7d368b2596c7341fa76",
+          "message": "refactor(error): remove PartialEq derives for error kind enums\n\nReplaced the comparisons with `matches!`. This should reduce a bit of\ncode generation that isn't really needed.",
+          "timestamp": "2021-06-08T05:47:11-07:00",
+          "tree_id": "06de179c28779e4cc3012cbf22e1678ba2ce9e91",
+          "url": "https://github.com/hyperium/hyper/commit/ea8b0cd86efe7543d9f6d7d368b2596c7341fa76"
+        },
+        "date": 1623156639619,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 47975,
+            "range": "± 1737",
             "unit": "ns/iter"
           }
         ]
