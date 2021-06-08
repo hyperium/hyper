@@ -72,11 +72,22 @@ pub(super) enum Parse {
     #[cfg(feature = "http1")]
     VersionH2,
     Uri,
-    Header,
+    Header(Header),
     TooLarge,
     Status,
     #[cfg_attr(debug_assertions, allow(unused))]
     Internal,
+}
+
+#[derive(Debug)]
+pub(super) enum Header {
+    Token,
+    #[cfg(feature = "http1")]
+    ContentLengthInvalid,
+    #[cfg(feature = "http1")]
+    TransferEncodingInvalid,
+    #[cfg(feature = "http1")]
+    TransferEncodingUnexpected,
 }
 
 #[derive(Debug)]
@@ -375,7 +386,19 @@ impl Error {
             #[cfg(feature = "http1")]
             Kind::Parse(Parse::VersionH2) => "invalid HTTP version parsed (found HTTP2 preface)",
             Kind::Parse(Parse::Uri) => "invalid URI",
-            Kind::Parse(Parse::Header) => "invalid HTTP header parsed",
+            Kind::Parse(Parse::Header(Header::Token)) => "invalid HTTP header parsed",
+            #[cfg(feature = "http1")]
+            Kind::Parse(Parse::Header(Header::ContentLengthInvalid)) => {
+                "invalid content-length parsed"
+            }
+            #[cfg(feature = "http1")]
+            Kind::Parse(Parse::Header(Header::TransferEncodingInvalid)) => {
+                "invalid transfer-encoding parsed"
+            }
+            #[cfg(feature = "http1")]
+            Kind::Parse(Parse::Header(Header::TransferEncodingUnexpected)) => {
+                "unexpected transfer-encoding parsed"
+            }
             Kind::Parse(Parse::TooLarge) => "message head is too large",
             Kind::Parse(Parse::Status) => "invalid HTTP status-code parsed",
             Kind::Parse(Parse::Internal) => {
@@ -475,13 +498,28 @@ impl From<Parse> for Error {
     }
 }
 
+#[cfg(feature = "http1")]
+impl Parse {
+    pub(crate) fn content_length_invalid() -> Self {
+        Parse::Header(Header::ContentLengthInvalid)
+    }
+
+    pub(crate) fn transfer_encoding_invalid() -> Self {
+        Parse::Header(Header::TransferEncodingInvalid)
+    }
+
+    pub(crate) fn transfer_encoding_unexpected() -> Self {
+        Parse::Header(Header::TransferEncodingUnexpected)
+    }
+}
+
 impl From<httparse::Error> for Parse {
     fn from(err: httparse::Error) -> Parse {
         match err {
             httparse::Error::HeaderName
             | httparse::Error::HeaderValue
             | httparse::Error::NewLine
-            | httparse::Error::Token => Parse::Header,
+            | httparse::Error::Token => Parse::Header(Header::Token),
             httparse::Error::Status => Parse::Status,
             httparse::Error::TooManyHeaders => Parse::TooLarge,
             httparse::Error::Version => Parse::Version,
