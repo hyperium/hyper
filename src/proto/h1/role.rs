@@ -205,7 +205,7 @@ impl Http1Transaction for Server {
                     // malformed. A server should respond with 400 Bad Request.
                     if !is_http_11 {
                         debug!("HTTP/1.0 cannot have Transfer-Encoding header");
-                        return Err(Parse::Header);
+                        return Err(Parse::transfer_encoding_unexpected());
                     }
                     is_te = true;
                     if headers::is_chunked_(&value) {
@@ -221,15 +221,15 @@ impl Http1Transaction for Server {
                     }
                     let len = value
                         .to_str()
-                        .map_err(|_| Parse::Header)
-                        .and_then(|s| s.parse().map_err(|_| Parse::Header))?;
+                        .map_err(|_| Parse::content_length_invalid())
+                        .and_then(|s| s.parse().map_err(|_| Parse::content_length_invalid()))?;
                     if let Some(prev) = con_len {
                         if prev != len {
                             debug!(
                                 "multiple Content-Length headers with different values: [{}, {}]",
                                 prev, len,
                             );
-                            return Err(Parse::Header);
+                            return Err(Parse::content_length_invalid());
                         }
                         // we don't need to append this secondary length
                         continue;
@@ -267,7 +267,7 @@ impl Http1Transaction for Server {
 
         if is_te && !is_te_chunked {
             debug!("request with transfer-encoding header, but not chunked, bad request");
-            return Err(Parse::Header);
+            return Err(Parse::transfer_encoding_invalid());
         }
 
         let mut extensions = http::Extensions::default();
@@ -386,7 +386,7 @@ impl Http1Transaction for Server {
         use crate::error::Kind;
         let status = match *err.kind() {
             Kind::Parse(Parse::Method)
-            | Kind::Parse(Parse::Header)
+            | Kind::Parse(Parse::Header(_))
             | Kind::Parse(Parse::Uri)
             | Kind::Parse(Parse::Version) => StatusCode::BAD_REQUEST,
             Kind::Parse(Parse::TooLarge) => StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
@@ -1106,7 +1106,7 @@ impl Client {
             // malformed. A server should respond with 400 Bad Request.
             if inc.version == Version::HTTP_10 {
                 debug!("HTTP/1.0 cannot have Transfer-Encoding header");
-                Err(Parse::Header)
+                Err(Parse::transfer_encoding_unexpected())
             } else if headers::transfer_encoding_is_chunked(&inc.headers) {
                 Ok(Some((DecodedLength::CHUNKED, false)))
             } else {
@@ -1117,7 +1117,7 @@ impl Client {
             Ok(Some((DecodedLength::checked_new(len)?, false)))
         } else if inc.headers.contains_key(header::CONTENT_LENGTH) {
             debug!("illegal Content-Length header");
-            Err(Parse::Header)
+            Err(Parse::content_length_invalid())
         } else {
             trace!("neither Transfer-Encoding nor Content-Length");
             Ok(Some((DecodedLength::CLOSE_DELIMITED, false)))
