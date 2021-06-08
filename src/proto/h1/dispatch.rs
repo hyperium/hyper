@@ -44,10 +44,13 @@ cfg_server! {
 }
 
 cfg_client! {
-    pub(crate) struct Client<B> {
-        callback: Option<crate::client::dispatch::Callback<Request<B>, http::Response<Body>>>,
-        rx: ClientRx<B>,
-        rx_closed: bool,
+    pin_project_lite::pin_project! {
+        pub(crate) struct Client<B> {
+            callback: Option<crate::client::dispatch::Callback<Request<B>, http::Response<Body>>>,
+            #[pin]
+            rx: ClientRx<B>,
+            rx_closed: bool,
+        }
     }
 
     type ClientRx<B> = crate::client::dispatch::Receiver<Request<B>, http::Response<Body>>;

@@ -170,11 +170,7 @@ where
                     )));
                 }
             }
-            other_h2 @ Version::HTTP_2 => {
-                if self.config.ver != Ver::Http2 {
-                    return ResponseFuture::error_version(other_h2);
-                }
-            }
+            Version::HTTP_2 => (),
             // completely unsupported HTTP version (like HTTP/0.9)!
             other => return ResponseFuture::error_version(other),
         };
@@ -230,6 +226,13 @@ where
         let mut pooled = self.connection_for(pool_key).await?;
 
         if pooled.is_http1() {
+            if req.version() == Version::HTTP_2 {
+                warn!("Connection is HTTP/1, but request requires HTTP/2");
+                return Err(ClientError::Normal(
+                    crate::Error::new_user_unsupported_version(),
+                ));
+            }
+
             if self.config.set_host {
                 let uri = req.uri().clone();
                 req.headers_mut().entry(HOST).or_insert_with(|| {
@@ -251,12 +254,9 @@ where
                 absolute_form(req.uri_mut());
             } else {
                 origin_form(req.uri_mut());
-            };
+            }
         } else if req.method() == Method::CONNECT {
-            debug!("client does not support CONNECT requests over HTTP2");
-            return Err(ClientError::Normal(
-                crate::Error::new_user_unsupported_request_method(),
-            ));
+            authority_form(req.uri_mut());
         }
 
         let fut = pooled
@@ -1148,6 +1148,21 @@ impl Builder {
     #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_keep_alive_while_idle(&mut self, enabled: bool) -> &mut Self {
         self.conn_builder.http2_keep_alive_while_idle(enabled);
+        self
+    }
+
+    /// Sets the maximum number of HTTP2 concurrent locally reset streams.
+    ///
+    /// See the documentation of [`h2::client::Builder::max_concurrent_reset_streams`] for more
+    /// details.
+    ///
+    /// The default value is determined by the `h2` crate.
+    ///
+    /// [`h2::client::Builder::max_concurrent_reset_streams`]: https://docs.rs/h2/client/struct.Builder.html#method.max_concurrent_reset_streams
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
+    pub fn http2_max_concurrent_reset_streams(&mut self, max: usize) -> &mut Self {
+        self.conn_builder.http2_max_concurrent_reset_streams(max);
         self
     }
 

@@ -16,7 +16,7 @@
 //!
 //! [`Server`](Server) accepts connections in both HTTP1 and HTTP2 by default.
 //!
-//! ## Example
+//! ## Examples
 //!
 //! ```no_run
 //! use std::convert::Infallible;
@@ -76,6 +76,67 @@
 //!     let server = Server::bind(&addr).serve(make_service);
 //!
 //!     // And run forever...
+//!     if let Err(e) = server.await {
+//!         eprintln!("server error: {}", e);
+//!     }
+//! }
+//! # #[cfg(not(feature = "runtime"))]
+//! # fn main() {}
+//! ```
+//!
+//! Passing data to your request handler can be done like so:
+//!
+//! ```no_run
+//! use std::convert::Infallible;
+//! use std::net::SocketAddr;
+//! use hyper::{Body, Request, Response, Server};
+//! use hyper::service::{make_service_fn, service_fn};
+//! use hyper::server::conn::AddrStream;
+//!
+//! #[derive(Clone)]
+//! struct AppContext {
+//!     // Whatever data your application needs can go here
+//! }
+//!
+//! async fn handle(
+//!     context: AppContext,
+//!     addr: SocketAddr,
+//!     req: Request<Body>
+//! ) -> Result<Response<Body>, Infallible> {
+//!     Ok(Response::new(Body::from("Hello World")))
+//! }
+//!
+//! # #[cfg(feature = "runtime")]
+//! #[tokio::main]
+//! async fn main() {
+//!     let context = AppContext {
+//!         // ...
+//!     };
+//!
+//!     // A `MakeService` that produces a `Service` to handle each connection.
+//!     let make_service = make_service_fn(move |conn: &AddrStream| {
+//!         // We have to clone the context to share it with each invocation of
+//!         // `make_service`. If your data doesn't implement `Clone` consider using
+//!         // an `std::sync::Arc`.
+//!         let context = context.clone();
+//!
+//!         // You can grab the address of the incoming connection like so.
+//!         let addr = conn.remote_addr();
+//!
+//!         // Create a `Service` for responding to the request.
+//!         let service = service_fn(move |req| {
+//!             handle(context.clone(), addr, req)
+//!         });
+//!
+//!         // Return the service to hyper.
+//!         async move { Ok::<_, Infallible>(service) }
+//!     });
+//!
+//!     // Run the server like above...
+//!     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+//!
+//!     let server = Server::bind(&addr).serve(make_service);
+//!
 //!     if let Err(e) = server.await {
 //!         eprintln!("server error: {}", e);
 //!     }

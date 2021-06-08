@@ -17,11 +17,12 @@ struct ErrorImpl {
     cause: Option<Cause>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub(super) enum Kind {
     Parse(Parse),
     User(User),
     /// A message reached EOF, but is not complete.
+    #[allow(unused)]
     IncompleteMessage,
     /// A connection received a message (or bytes) when not waiting for one.
     #[cfg(feature = "http1")]
@@ -34,6 +35,7 @@ pub(super) enum Kind {
     #[cfg(any(feature = "http1", feature = "http2"))]
     Io,
     /// Error occurred while connecting.
+    #[allow(unused)]
     Connect,
     /// Error creating a TcpListener.
     #[cfg(all(
@@ -63,7 +65,7 @@ pub(super) enum Kind {
     Http2,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub(super) enum Parse {
     Method,
     Version,
@@ -73,9 +75,11 @@ pub(super) enum Parse {
     Header,
     TooLarge,
     Status,
+    #[cfg_attr(debug_assertions, allow(unused))]
+    Internal,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub(super) enum User {
     /// Error calling user's HttpBody::poll_data().
     #[cfg(any(feature = "http1", feature = "http2"))]
@@ -90,7 +94,7 @@ pub(super) enum User {
     /// User tried to send a certain header in an unexpected context.
     ///
     /// For example, sending both `content-length` and `transfer-encoding`.
-    #[cfg(feature = "http1")]
+    #[cfg(any(feature = "http1", feature = "http2"))]
     #[cfg(feature = "server")]
     UnexpectedHeader,
     /// User tried to create a Request with bad version.
@@ -132,6 +136,17 @@ impl Error {
         matches!(self.inner.kind, Kind::Parse(_))
     }
 
+    /// Returns true if this was an HTTP parse error caused by a message that was too large.
+    pub fn is_parse_too_large(&self) -> bool {
+        matches!(self.inner.kind, Kind::Parse(Parse::TooLarge))
+    }
+
+    /// Returns true if this was an HTTP parse error caused by an invalid response status code or
+    /// reason phrase.
+    pub fn is_parse_status(&self) -> bool {
+        matches!(self.inner.kind, Kind::Parse(Parse::Status))
+    }
+
     /// Returns true if this error was caused by user code.
     pub fn is_user(&self) -> bool {
         matches!(self.inner.kind, Kind::User(_))
@@ -139,27 +154,27 @@ impl Error {
 
     /// Returns true if this was about a `Request` that was canceled.
     pub fn is_canceled(&self) -> bool {
-        self.inner.kind == Kind::Canceled
+        matches!(self.inner.kind, Kind::Canceled)
     }
 
     /// Returns true if a sender's channel is closed.
     pub fn is_closed(&self) -> bool {
-        self.inner.kind == Kind::ChannelClosed
+        matches!(self.inner.kind, Kind::ChannelClosed)
     }
 
     /// Returns true if this was an error from `Connect`.
     pub fn is_connect(&self) -> bool {
-        self.inner.kind == Kind::Connect
+        matches!(self.inner.kind, Kind::Connect)
     }
 
     /// Returns true if the connection closed before a message could complete.
     pub fn is_incomplete_message(&self) -> bool {
-        self.inner.kind == Kind::IncompleteMessage
+        matches!(self.inner.kind, Kind::IncompleteMessage)
     }
 
     /// Returns true if the body write was aborted.
     pub fn is_body_write_aborted(&self) -> bool {
-        self.inner.kind == Kind::BodyWriteAborted
+        matches!(self.inner.kind, Kind::BodyWriteAborted)
     }
 
     /// Returns true if the error was caused by a timeout.
@@ -279,7 +294,7 @@ impl Error {
         Error::new(Kind::User(user))
     }
 
-    #[cfg(feature = "http1")]
+    #[cfg(any(feature = "http1", feature = "http2"))]
     #[cfg(feature = "server")]
     pub(super) fn new_user_header() -> Error {
         Error::new_user(User::UnexpectedHeader)
@@ -363,6 +378,9 @@ impl Error {
             Kind::Parse(Parse::Header) => "invalid HTTP header parsed",
             Kind::Parse(Parse::TooLarge) => "message head is too large",
             Kind::Parse(Parse::Status) => "invalid HTTP status-code parsed",
+            Kind::Parse(Parse::Internal) => {
+                "internal error inside Hyper and/or its dependencies, please report"
+            }
             Kind::IncompleteMessage => "connection closed before message completed",
             #[cfg(feature = "http1")]
             Kind::UnexpectedMessage => "received unexpected message from connection",
@@ -394,7 +412,7 @@ impl Error {
             Kind::User(User::MakeService) => "error from user's MakeService",
             #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::User(User::Service) => "error from user's Service",
-            #[cfg(feature = "http1")]
+            #[cfg(any(feature = "http1", feature = "http2"))]
             #[cfg(feature = "server")]
             Kind::User(User::UnexpectedHeader) => "user sent unexpected header",
             #[cfg(any(feature = "http1", feature = "http2"))]
