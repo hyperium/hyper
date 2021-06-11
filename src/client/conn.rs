@@ -147,6 +147,8 @@ pub struct Builder {
     h1_preserve_header_case: bool,
     h1_read_buf_exact_size: Option<usize>,
     h1_max_buf_size: Option<usize>,
+    #[cfg(feature = "ffi")]
+    h1_headers_raw: bool,
     #[cfg(feature = "http2")]
     h2_builder: proto::h2::client::Config,
     version: Proto,
@@ -528,6 +530,8 @@ impl Builder {
             h1_title_case_headers: false,
             h1_preserve_header_case: false,
             h1_max_buf_size: None,
+            #[cfg(feature = "ffi")]
+            h1_headers_raw: false,
             #[cfg(feature = "http2")]
             h2_builder: Default::default(),
             #[cfg(feature = "http1")]
@@ -585,6 +589,12 @@ impl Builder {
 
         self.h1_max_buf_size = Some(max);
         self.h1_read_buf_exact_size = None;
+        self
+    }
+
+    #[cfg(feature = "ffi")]
+    pub(crate) fn http1_headers_raw(&mut self, enabled: bool) -> &mut Self {
+        self.h1_headers_raw = enabled;
         self
     }
 
@@ -773,6 +783,10 @@ impl Builder {
                     if opts.h09_responses {
                         conn.set_h09_responses();
                     }
+
+                    #[cfg(feature = "ffi")]
+                    conn.set_raw_headers(opts.h1_headers_raw);
+
                     if let Some(sz) = opts.h1_read_buf_exact_size {
                         conn.set_read_buf_exact_size(sz);
                     }

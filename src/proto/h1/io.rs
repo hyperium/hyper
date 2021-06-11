@@ -167,6 +167,8 @@ where
                     h1_parser_config: parse_ctx.h1_parser_config.clone(),
                     preserve_header_case: parse_ctx.preserve_header_case,
                     h09_responses: parse_ctx.h09_responses,
+                    #[cfg(feature = "ffi")]
+                    raw_headers: parse_ctx.raw_headers,
                 },
             )? {
                 Some(msg) => {
@@ -675,6 +677,8 @@ mod tests {
                 h1_parser_config: Default::default(),
                 preserve_header_case: false,
                 h09_responses: false,
+                #[cfg(feature = "ffi")]
+                raw_headers: false,
             };
             assert!(buffered
                 .parse::<ClientTransaction>(cx, parse_ctx)

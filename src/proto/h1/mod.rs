@@ -74,6 +74,8 @@ pub(crate) struct ParseContext<'a> {
     h1_parser_config: ParserConfig,
     preserve_header_case: bool,
     h09_responses: bool,
+    #[cfg(feature = "ffi")]
+    raw_headers: bool,
 }
 
 /// Passed to Http1Transaction::encode

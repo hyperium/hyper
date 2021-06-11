@@ -14,7 +14,7 @@ use crate::body::{Body, Bytes, HttpBody as _};
 pub struct hyper_body(pub(super) Body);
 
 /// A buffer of bytes that is sent or received on a `hyper_body`.
-pub struct hyper_buf(pub(super) Bytes);
+pub struct hyper_buf(pub(crate) Bytes);
 
 pub(crate) struct UserBody {
     data_func: hyper_body_data_callback,

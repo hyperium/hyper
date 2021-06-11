@@ -970,6 +970,11 @@ impl Http1Transaction for Client {
             #[cfg(not(feature = "ffi"))]
             drop(reason);
 
+            #[cfg(feature = "ffi")]
+            if ctx.raw_headers {
+                extensions.insert(crate::ffi::RawHeaders(crate::ffi::hyper_buf(slice)));
+            }
+
             let head = MessageHead {
                 version,
                 subject: status,
@@ -1424,6 +1429,8 @@ mod tests {
                 h1_parser_config: Default::default(),
                 preserve_header_case: false,
                 h09_responses: false,
+                #[cfg(feature = "ffi")]
+                raw_headers: false,
             },
         )
         .unwrap()
@@ -1447,6 +1454,8 @@ mod tests {
             h1_parser_config: Default::default(),
             preserve_header_case: false,
             h09_responses: false,
+            #[cfg(feature = "ffi")]
+            raw_headers: false,
         };
         let msg = Client::parse(&mut raw, ctx).unwrap().unwrap();
         assert_eq!(raw.len(), 0);
@@ -1465,6 +1474,8 @@ mod tests {
             h1_parser_config: Default::default(),
             preserve_header_case: false,
             h09_responses: false,
+            #[cfg(feature = "ffi")]
+            raw_headers: false,
         };
         Server::parse(&mut raw, ctx).unwrap_err();
     }
@@ -1481,6 +1492,8 @@ mod tests {
             h1_parser_config: Default::default(),
             preserve_header_case: false,
             h09_responses: true,
+            #[cfg(feature = "ffi")]
+            raw_headers: false,
         };
         let msg = Client::parse(&mut raw, ctx).unwrap().unwrap();
         assert_eq!(raw, H09_RESPONSE);
@@ -1499,6 +1512,8 @@ mod tests {
             h1_parser_config: Default::default(),
             preserve_header_case: false,
             h09_responses: false,
+            #[cfg(feature = "ffi")]
+            raw_headers: false,
         };
         Client::parse(&mut raw, ctx).unwrap_err();
         assert_eq!(raw, H09_RESPONSE);
@@ -1521,6 +1536,8 @@ mod tests {
             h1_parser_config,
             preserve_header_case: false,
             h09_responses: false,
+            #[cfg(feature = "ffi")]
+            raw_headers: false,
         };
         let msg = Client::parse(&mut raw, ctx).unwrap().unwrap();
         assert_eq!(raw.len(), 0);
@@ -1540,6 +1557,8 @@ mod tests {
             h1_parser_config: Default::default(),
             preserve_header_case: false,
             h09_responses: false,
+            #[cfg(feature = "ffi")]
+            raw_headers: false,
         };
         Client::parse(&mut raw, ctx).unwrap_err();
     }
@@ -1554,6 +1573,8 @@ mod tests {
             h1_parser_config: Default::default(),
             preserve_header_case: true,
             h09_responses: false,
+            #[cfg(feature = "ffi")]
+            raw_headers: false,
         };
         let parsed_message = Server::parse(&mut raw, ctx).unwrap().unwrap();
         let orig_headers = parsed_message
@@ -1589,6 +1610,8 @@ mod tests {
                     h1_parser_config: Default::default(),
                     preserve_header_case: false,
                     h09_responses: false,
+                    #[cfg(feature = "ffi")]
+                    raw_headers: false,
                 },
             )
             .expect("parse ok")
@@ -1605,6 +1628,8 @@ mod tests {
                     h1_parser_config: Default::default(),
                     preserve_header_case: false,
                     h09_responses: false,
+                    #[cfg(feature = "ffi")]
+                    raw_headers: false,
                 },
             )
             .expect_err(comment)
@@ -1820,6 +1845,8 @@ mod tests {
                     h1_parser_config: Default::default(),
                     preserve_header_case: false,
                     h09_responses: false,
+                    #[cfg(feature = "ffi")]
+                    raw_headers: false,
                 }
             )
             .expect("parse ok")
@@ -1836,6 +1863,8 @@ mod tests {
                     h1_parser_config: Default::default(),
                     preserve_header_case: false,
                     h09_responses: false,
+                    #[cfg(feature = "ffi")]
+                    raw_headers: false,
                 },
             )
             .expect("parse ok")
@@ -1852,6 +1881,8 @@ mod tests {
                     h1_parser_config: Default::default(),
                     preserve_header_case: false,
                     h09_responses: false,
+                    #[cfg(feature = "ffi")]
+                    raw_headers: false,
                 },
             )
             .expect_err("parse should err")
@@ -2335,6 +2366,8 @@ mod tests {
                 h1_parser_config: Default::default(),
                 preserve_header_case: false,
                 h09_responses: false,
+                #[cfg(feature = "ffi")]
+                raw_headers: false,
             },
         )
         .expect("parse ok")
@@ -2415,6 +2448,8 @@ mod tests {
                     h1_parser_config: Default::default(),
                     preserve_header_case: false,
                     h09_responses: false,
+                    #[cfg(feature = "ffi")]
+                    raw_headers: false,
                 },
             )
             .unwrap()
@@ -2451,6 +2486,8 @@ mod tests {
                     h1_parser_config: Default::default(),
                     preserve_header_case: false,
                     h09_responses: false,
+                    #[cfg(feature = "ffi")]
+                    raw_headers: false,
                 },
             )
             .unwrap()

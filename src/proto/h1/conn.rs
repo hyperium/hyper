@@ -49,6 +49,8 @@ where
                 preserve_header_case: false,
                 title_case_headers: false,
                 h09_responses: false,
+                #[cfg(feature = "ffi")]
+                raw_headers: false,
                 notify_read: false,
                 reading: Reading::Init,
                 writing: Writing::Init,
@@ -96,6 +98,11 @@ where
     #[cfg(feature = "server")]
     pub(crate) fn set_allow_half_close(&mut self) {
         self.state.allow_half_close = true;
+    }
+
+    #[cfg(feature = "ffi")]
+    pub(crate) fn set_raw_headers(&mut self, enabled: bool) {
+        self.state.raw_headers = enabled;
     }
 
     pub(crate) fn into_inner(self) -> (I, Bytes) {
@@ -162,6 +169,8 @@ where
                 h1_parser_config: self.state.h1_parser_config.clone(),
                 preserve_header_case: self.state.preserve_header_case,
                 h09_responses: self.state.h09_responses,
+                #[cfg(feature = "ffi")]
+                raw_headers: self.state.raw_headers,
             }
         )) {
             Ok(msg) => msg,
@@ -766,6 +775,8 @@ struct State {
     preserve_header_case: bool,
     title_case_headers: bool,
     h09_responses: bool,
+    #[cfg(feature = "ffi")]
+    raw_headers: bool,
     /// Set to true when the Dispatcher should poll read operations
     /// again. See the `maybe_notify` method for more.
     notify_read: bool,

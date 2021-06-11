@@ -159,3 +159,17 @@ ffi_fn! {
         }
     }
 }
+
+ffi_fn! {
+    /// Set the whether to include a copy of the raw headers in responses
+    /// received on this connection.
+    ///
+    /// Pass `0` to disable, `1` to enable.
+    ///
+    /// If enabled, see `hyper_response_headers_raw()` for usage.
+    fn hyper_clientconn_options_headers_raw(opts: *mut hyper_clientconn_options, enabled: c_int) -> hyper_code {
+        let opts = unsafe { &mut *opts };
+        opts.builder.http1_headers_raw(enabled != 0);
+        hyper_code::HYPERE_OK
+    }
+}
