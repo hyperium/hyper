@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1623156755699,
+  "lastUpdate": 1623421095616,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -2939,6 +2939,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 60206,
             "range": "± 7553",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "08b2138e4036c5ae3e4c6f5c85763d45fb869922",
+          "message": "refactor(error): add header parse error details in `hyper::Error`\n\nWhen a header parse error is because of content-length or\ntransfer-encoding semantics, include a better error message in the\n`hyper::Error`.",
+          "timestamp": "2021-06-11T07:15:31-07:00",
+          "tree_id": "d4acbc175b96260ecd8aa6490a728457e8c006af",
+          "url": "https://github.com/hyperium/hyper/commit/08b2138e4036c5ae3e4c6f5c85763d45fb869922"
+        },
+        "date": 1623421094075,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 68576,
+            "range": "± 6471",
             "unit": "ns/iter"
           }
         ]
