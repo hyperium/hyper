@@ -2,7 +2,7 @@ use bytes::Bytes;
 use libc::{c_int, size_t};
 use std::ffi::c_void;
 
-use super::body::hyper_body;
+use super::body::{hyper_body, hyper_buf};
 use super::error::hyper_code;
 use super::task::{hyper_task_return_type, AsTaskType};
 use super::HYPER_ITER_CONTINUE;
@@ -26,6 +26,8 @@ pub struct hyper_headers {
 
 #[derive(Debug)]
 pub(crate) struct ReasonPhrase(pub(crate) Bytes);
+
+pub(crate) struct RawHeaders(pub(crate) hyper_buf);
 
 // ===== impl hyper_request =====
 
@@ -176,6 +178,26 @@ ffi_fn! {
     fn hyper_response_reason_phrase_len(resp: *const hyper_response) -> size_t {
         unsafe { &*resp }.reason_phrase().len()
     }
+}
+
+ffi_fn! {
+    /// Get a reference to the full raw headers of this response.
+    ///
+    /// You must have enabled `hyper_clientconn_options_headers_raw()`, or this
+    /// will return NULL.
+    ///
+    /// The returned `hyper_buf *` is just a reference, owned by the response.
+    /// You need to make a copy if you wish to use it after freeing the
+    /// response.
+    ///
+    /// The buffer is not null-terminated, see the `hyper_buf` functions for
+    /// getting the bytes and length.
+    fn hyper_response_headers_raw(resp: *const hyper_response) -> *const hyper_buf {
+        match unsafe { &*resp }.0.extensions().get::<RawHeaders>() {
+            Some(raw) => &raw.0,
+            None => std::ptr::null(),
+        }
+    } ?= std::ptr::null()
 }
 
 ffi_fn! {

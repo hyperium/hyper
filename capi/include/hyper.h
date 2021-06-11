@@ -372,6 +372,17 @@ void hyper_clientconn_options_exec(struct hyper_clientconn_options *opts,
 enum hyper_code hyper_clientconn_options_http2(struct hyper_clientconn_options *opts, int enabled);
 
 /*
+ Set the whether to include a copy of the raw headers in responses
+ received on this connection.
+
+ Pass `0` to disable, `1` to enable.
+
+ If enabled, see `hyper_response_headers_raw()` for usage.
+ */
+enum hyper_code hyper_clientconn_options_headers_raw(struct hyper_clientconn_options *opts,
+                                                     int enabled);
+
+/*
  Frees a `hyper_error`.
  */
 void hyper_error_free(struct hyper_error *err);
@@ -474,6 +485,21 @@ const uint8_t *hyper_response_reason_phrase(const struct hyper_response *resp);
  Use `hyper_response_reason_phrase()` to get the buffer pointer.
  */
 size_t hyper_response_reason_phrase_len(const struct hyper_response *resp);
+
+/*
+ Get a reference to the full raw headers of this response.
+
+ You must have enabled `hyper_clientconn_options_headers_raw()`, or this
+ will return NULL.
+
+ The returned `hyper_buf *` is just a reference, owned by the response.
+ You need to make a copy if you wish to use it after freeing the
+ response.
+
+ The buffer is not null-terminated, see the `hyper_buf` functions for
+ getting the bytes and length.
+ */
+const struct hyper_buf *hyper_response_headers_raw(const struct hyper_response *resp);
 
 /*
  Get the HTTP version used by this response.
