@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1623772015765,
+  "lastUpdate": 1623772139965,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -19497,6 +19497,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_req_100kb",
             "value": 114951,
             "range": "± 1836",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "8c89a8c1665b6fbec3f13b8c0e84c79464179c89",
+          "message": "feat(ffi): add option to get raw headers from response",
+          "timestamp": "2021-06-15T08:43:50-07:00",
+          "tree_id": "c54d10d4c667af135f747ac65b0310dc0021a2d8",
+          "url": "https://github.com/hyperium/hyper/commit/8c89a8c1665b6fbec3f13b8c0e84c79464179c89"
+        },
+        "date": 1623772137776,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_body_both_100kb",
+            "value": 76734,
+            "range": "± 804",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_body_both_10mb",
+            "value": 7189014,
+            "range": "± 300847",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_get",
+            "value": 32496,
+            "range": "± 1818",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 224175,
+            "range": "± 7777",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 52766480,
+            "range": "± 1649818",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 50143099,
+            "range": "± 1397099",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 53485411,
+            "range": "± 842713",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 3835173,
+            "range": "± 405743",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_post",
+            "value": 36618,
+            "range": "± 1506",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_get",
+            "value": 59403,
+            "range": "± 2273",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 187722,
+            "range": "± 5617",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 10716662,
+            "range": "± 9667612",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 11899539,
+            "range": "± 18189004",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 10780011,
+            "range": "± 9827546",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 62476291,
+            "range": "± 7694302",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 79017920,
+            "range": "± 13027622",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 6944492,
+            "range": "± 1232801",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_post",
+            "value": 68859,
+            "range": "± 3060",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_req_100kb",
+            "value": 131116,
+            "range": "± 2232",
             "unit": "ns/iter"
           }
         ]
