@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1623771977536,
+  "lastUpdate": 1623772015765,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -5941,6 +5941,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 59294,
             "range": "± 5536",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "8c89a8c1665b6fbec3f13b8c0e84c79464179c89",
+          "message": "feat(ffi): add option to get raw headers from response",
+          "timestamp": "2021-06-15T08:43:50-07:00",
+          "tree_id": "c54d10d4c667af135f747ac65b0310dc0021a2d8",
+          "url": "https://github.com/hyperium/hyper/commit/8c89a8c1665b6fbec3f13b8c0e84c79464179c89"
+        },
+        "date": 1623772013661,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 66356,
+            "range": "± 8949",
             "unit": "ns/iter"
           }
         ]
