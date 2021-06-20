@@ -431,6 +431,23 @@ enum hyper_code hyper_request_set_uri(struct hyper_request *req,
                                       size_t uri_len);
 
 /*
+ Set the URI of the request with separate scheme, authority, and
+ path/query strings.
+
+ Each of `scheme`, `authority`, and `path_and_query` should either be
+ null, to skip providing a component, or point to a UTF-8 encoded
+ string. If any string pointer argument is non-null, its corresponding
+ `len` parameter must be set to the string's length.
+ */
+enum hyper_code hyper_request_set_uri_parts(struct hyper_request *req,
+                                            const uint8_t *scheme,
+                                            size_t scheme_len,
+                                            const uint8_t *authority,
+                                            size_t authority_len,
+                                            const uint8_t *path_and_query,
+                                            size_t path_and_query_len);
+
+/*
  Set the preferred HTTP version of the request.
 
  The version value should be one of the `HYPER_HTTP_VERSION_` constants.
