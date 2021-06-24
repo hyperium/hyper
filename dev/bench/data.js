@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1623772139965,
+  "lastUpdate": 1624555433133,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -5971,6 +5971,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 66356,
             "range": "± 8949",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c60a9dd9c9d69985676fb333eb9ad6486c480d93",
+          "message": "chore(github): add issue templates",
+          "timestamp": "2021-06-24T10:21:21-07:00",
+          "tree_id": "0f3bfb2286aa35a639db3cbf607253185f58aead",
+          "url": "https://github.com/hyperium/hyper/commit/c60a9dd9c9d69985676fb333eb9ad6486c480d93"
+        },
+        "date": 1624555431235,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 56399,
+            "range": "± 6755",
             "unit": "ns/iter"
           }
         ]
