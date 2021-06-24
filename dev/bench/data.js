@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1624555572108,
+  "lastUpdate": 1624555577685,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -6061,6 +6061,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 56399,
             "range": "± 6755",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "13594c377d4fce2b5bff4749eefebf0370af1268",
+          "message": "chore(github): merge duplicate issue templates",
+          "timestamp": "2021-06-24T10:23:39-07:00",
+          "tree_id": "755322ad5035a3f2174e337a0247cf66a68de8a1",
+          "url": "https://github.com/hyperium/hyper/commit/13594c377d4fce2b5bff4749eefebf0370af1268"
+        },
+        "date": 1624555576288,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 49385,
+            "range": "± 1520",
             "unit": "ns/iter"
           }
         ]
