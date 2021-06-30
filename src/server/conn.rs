@@ -1176,13 +1176,12 @@ pub(crate) mod spawn_all {
     }
 }
 
-mod upgrades {
+pub mod upgrades {
     use super::*;
 
-    // A future binding a connection with a Service with Upgrade support.
-    //
-    // This type is unnameable outside the crate, and so basically just an
-    // `impl Future`, without requiring Rust 1.26.
+    /// A future binding a connection with a Service with Upgrade support.
+    ///
+    /// Polling this future will drive HTTP forward.
     #[must_use = "futures do nothing unless polled"]
     #[allow(missing_debug_implementations)]
     pub struct UpgradeableConnection<T, S, E>
