@@ -432,6 +432,35 @@ fn post_with_chunked_body() {
 }
 
 #[test]
+fn post_with_chunked_overflow() {
+    let server = serve();
+    let mut req = connect(server.addr());
+    req.write_all(
+        b"\
+        POST / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Transfer-Encoding: chunked\r\n\
+        \r\n\
+        f0000000000000003\r\n\
+        abc\r\n\
+        0\r\n\
+        \r\n\
+        GET /sneaky HTTP/1.1\r\n\
+        \r\n\
+    ",
+    )
+    .unwrap();
+    req.read(&mut [0; 256]).unwrap();
+
+    let err = server.body_err().to_string();
+    assert!(
+        err.contains("overflow"),
+        "error should be overflow: {:?}",
+        err
+    );
+}
+
+#[test]
 fn post_with_incomplete_body() {
     let _ = pretty_env_logger::try_init();
     let server = serve();
