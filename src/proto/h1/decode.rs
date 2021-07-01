@@ -208,19 +208,32 @@ impl ChunkedState {
         size: &mut u64,
     ) -> Poll<Result<ChunkedState, io::Error>> {
         trace!("Read chunk hex size");
+
+        macro_rules! or_overflow {
+            ($e:expr) => (
+                match $e {
+                    Some(val) => val,
+                    None => return Poll::Ready(Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "invalid chunk size: overflow",
+                    ))),
+                }
+            )
+        }
+
         let radix = 16;
         match byte!(rdr, cx) {
             b @ b'0'..=b'9' => {
-                *size *= radix;
-                *size += (b - b'0') as u64;
+                *size = or_overflow!(size.checked_mul(radix));
+                *size = or_overflow!(size.checked_add((b - b'0') as u64));
             }
             b @ b'a'..=b'f' => {
-                *size *= radix;
-                *size += (b + 10 - b'a') as u64;
+                *size = or_overflow!(size.checked_mul(radix));
+                *size = or_overflow!(size.checked_add((b + 10 - b'a') as u64));
             }
             b @ b'A'..=b'F' => {
-                *size *= radix;
-                *size += (b + 10 - b'A') as u64;
+                *size = or_overflow!(size.checked_mul(radix));
+                *size = or_overflow!(size.checked_add((b + 10 - b'A') as u64));
             }
             b'\t' | b' ' => return Poll::Ready(Ok(ChunkedState::SizeLws)),
             b';' => return Poll::Ready(Ok(ChunkedState::Extension)),
@@ -449,7 +462,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_read_chunk_size() {
-        use std::io::ErrorKind::{InvalidInput, UnexpectedEof};
+        use std::io::ErrorKind::{InvalidData, InvalidInput, UnexpectedEof};
 
         async fn read(s: &str) -> u64 {
             let mut state = ChunkedState::Size;
@@ -524,6 +537,8 @@ mod tests {
         read_err("1 invalid extension\r\n", InvalidInput).await;
         read_err("1 A\r\n", InvalidInput).await;
         read_err("1;no CRLF", UnexpectedEof).await;
+        // Overflow
+        read_err("f0000000000000003\r\n", InvalidData).await;
     }
 
     #[tokio::test]
