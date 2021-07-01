@@ -24,7 +24,7 @@ fn connection_has(value: &HeaderValue, needle: &str) -> bool {
 }
 
 pub fn content_length_parse(value: &HeaderValue) -> Option<u64> {
-    value.to_str().ok().and_then(|s| s.parse().ok())
+    from_digits(value.as_bytes())
 }
 
 pub fn content_length_parse_all(headers: &HeaderMap) -> Option<u64> {
@@ -36,26 +36,53 @@ pub fn content_length_parse_all_values(values: ValueIter<'_, HeaderValue>) -> Op
     // be alright if they all contain the same value, and all parse
     // correctly. If not, then it's an error.
 
-    let folded = values.fold(None, |prev, line| match prev {
-        Some(Ok(prev)) => Some(
-            line.to_str()
-                .map_err(|_| ())
-                .and_then(|s| s.parse().map_err(|_| ()))
-                .and_then(|n| if prev == n { Ok(n) } else { Err(()) }),
-        ),
-        None => Some(
-            line.to_str()
-                .map_err(|_| ())
-                .and_then(|s| s.parse().map_err(|_| ())),
-        ),
-        Some(Err(())) => Some(Err(())),
-    });
-
-    if let Some(Ok(n)) = folded {
-        Some(n)
-    } else {
-        None
+    let mut content_length: Option<u64> = None;
+    for h in values {
+        if let Ok(line) = h.to_str() {
+            for v in line.split(',') {
+                if let Some(n) = from_digits(v.trim().as_bytes()) {
+                    if content_length.is_none() {
+                        content_length = Some(n)
+                    } else if content_length != Some(n) {
+                        return None;
+                    }
+                } else {
+                    return None;
+                }
+            }
+        } else {
+            return None;
+        }
     }
+
+    content_length
+}
+
+fn from_digits(bytes: &[u8]) -> Option<u64> {
+    // cannot use FromStr for u64, since it allows a signed prefix
+    let mut result = 0u64;
+    const RADIX: u64 = 10;
+
+    if bytes.is_empty() {
+        return None;
+    }
+
+    for &b in bytes {
+        // can't use char::to_digit, since we haven't verified these bytes
+        // are utf-8.
+        match b {
+            b'0'..=b'9' => {
+                result = result.checked_mul(RADIX)?;
+                result = result.checked_add((b - b'0') as u64)?;
+            }
+            _ => {
+                // not a DIGIT, get outta here!
+                return None;
+            }
+        }
+    }
+
+    Some(result)
 }
 
 pub fn method_has_defined_payload_semantics(method: &Method) -> bool {

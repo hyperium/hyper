@@ -212,10 +212,7 @@ impl Http1Transaction for Server {
                     if is_te {
                         continue;
                     }
-                    let len = value
-                        .to_str()
-                        .map_err(|_| Parse::Header)
-                        .and_then(|s| s.parse().map_err(|_| Parse::Header))?;
+                    let len = headers::content_length_parse(&value).ok_or_else(|| Parse::Header)?;
                     if let Some(prev) = con_len {
                         if prev != len {
                             debug!(
@@ -1317,6 +1314,16 @@ mod tests {
             "multiple content-lengths",
         );
 
+        // content-length with prefix is not allowed
+        parse_err(
+            "\
+             POST / HTTP/1.1\r\n\
+             content-length: +10\r\n\
+             \r\n\
+             ",
+            "prefixed content-length",
+        );
+
         // transfer-encoding that isn't chunked is an error
         parse_err(
             "\
@@ -1481,6 +1488,14 @@ mod tests {
              HTTP/1.1 200 OK\r\n\
              content-length: 8\r\n\
              content-length: 9\r\n\
+             \r\n\
+             ",
+        );
+
+        parse_err(
+            "\
+             HTTP/1.1 200 OK\r\n\
+             content-length: +8\r\n\
              \r\n\
              ",
         );
