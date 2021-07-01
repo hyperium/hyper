@@ -406,6 +406,44 @@ fn get_chunked_response_with_ka() {
 }
 
 #[test]
+fn post_with_content_length_body() {
+    let server = serve();
+    let mut req = connect(server.addr());
+    req.write_all(
+        b"\
+        POST / HTTP/1.1\r\n\
+        Content-Length: 5\r\n\
+        \r\n\
+        hello\
+    ",
+    )
+    .unwrap();
+    req.read(&mut [0; 256]).unwrap();
+
+    assert_eq!(server.body(), b"hello");
+}
+
+#[test]
+fn post_with_invalid_prefix_content_length() {
+    let server = serve();
+    let mut req = connect(server.addr());
+    req.write_all(
+        b"\
+        POST / HTTP/1.1\r\n\
+        Content-Length: +5\r\n\
+        \r\n\
+        hello\
+    ",
+    )
+    .unwrap();
+
+    let mut buf = [0; 256];
+    let _n = req.read(&mut buf).unwrap();
+    let expected = "HTTP/1.1 400 Bad Request\r\n";
+    assert_eq!(s(&buf[..expected.len()]), expected);
+}
+
+#[test]
 fn post_with_chunked_body() {
     let server = serve();
     let mut req = connect(server.addr());
