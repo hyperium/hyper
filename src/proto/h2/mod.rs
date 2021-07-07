@@ -255,7 +255,7 @@ impl<B: Buf> Buf for SendBuf<B> {
     fn remaining(&self) -> usize {
         match *self {
             Self::Buf(ref b) => b.remaining(),
-            Self::Cursor(ref c) => c.remaining(),
+            Self::Cursor(ref c) => Buf::remaining(c),
             Self::None => 0,
         }
     }
