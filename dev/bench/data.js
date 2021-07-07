@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1624555822171,
+  "lastUpdate": 1625677957015,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -3059,6 +3059,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 47899,
             "range": "± 2128",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "11cb4725ad2065ce1650b7187be3d918219176c5",
+          "message": "refactor(http2): fix unstable name clash of Cursor::remaining",
+          "timestamp": "2021-07-07T10:10:08-07:00",
+          "tree_id": "6cf15558d711b871af7ac6fb21bf98f6248c81a0",
+          "url": "https://github.com/hyperium/hyper/commit/11cb4725ad2065ce1650b7187be3d918219176c5"
+        },
+        "date": 1625677954876,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 49031,
+            "range": "± 1634",
             "unit": "ns/iter"
           }
         ]
