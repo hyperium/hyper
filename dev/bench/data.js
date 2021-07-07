@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1625683901365,
+  "lastUpdate": 1625683905445,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -6241,6 +6241,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 52145,
             "range": "± 6270",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "1cd40b7e26e6367a2693aa4bb540f5b2816fea8c",
+          "message": "docs(README): update crates.io badge",
+          "timestamp": "2021-07-07T11:49:24-07:00",
+          "tree_id": "0e6c9230a08a133e01fcb4390e2f34019a6359b1",
+          "url": "https://github.com/hyperium/hyper/commit/1cd40b7e26e6367a2693aa4bb540f5b2816fea8c"
+        },
+        "date": 1625683903922,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 50367,
+            "range": "± 16262",
             "unit": "ns/iter"
           }
         ]
