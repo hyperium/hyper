@@ -75,6 +75,8 @@ pub(crate) struct ParseContext<'a> {
     preserve_header_case: bool,
     h09_responses: bool,
     #[cfg(feature = "ffi")]
+    on_informational: &'a mut Option<crate::ffi::OnInformational>,
+    #[cfg(feature = "ffi")]
     raw_headers: bool,
 }
 
