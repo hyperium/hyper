@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1626129973125,
+  "lastUpdate": 1626129999636,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -6301,6 +6301,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 50367,
             "range": "± 16262",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "25d18c0b74ccf9e51f986daa3b2b98c0109f827a",
+          "message": "feat(ffi): add hyper_request_on_informational\n\nThis defines an extension type used in requests for the client that is\nused to setup a callback for receipt of informational (1xx) responses.\nThe type isn't currently public, and is only usable in the C API.",
+          "timestamp": "2021-07-12T15:43:58-07:00",
+          "tree_id": "da554dd5b853aebeb130f781735d452941b06e1e",
+          "url": "https://github.com/hyperium/hyper/commit/25d18c0b74ccf9e51f986daa3b2b98c0109f827a"
+        },
+        "date": 1626129997492,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 66418,
+            "range": "± 16255",
             "unit": "ns/iter"
           }
         ]
