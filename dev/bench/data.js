@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1626129999636,
+  "lastUpdate": 1626130142847,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -20685,6 +20685,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_req_100kb",
             "value": 116713,
             "range": "± 1991",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "25d18c0b74ccf9e51f986daa3b2b98c0109f827a",
+          "message": "feat(ffi): add hyper_request_on_informational\n\nThis defines an extension type used in requests for the client that is\nused to setup a callback for receipt of informational (1xx) responses.\nThe type isn't currently public, and is only usable in the C API.",
+          "timestamp": "2021-07-12T15:43:58-07:00",
+          "tree_id": "da554dd5b853aebeb130f781735d452941b06e1e",
+          "url": "https://github.com/hyperium/hyper/commit/25d18c0b74ccf9e51f986daa3b2b98c0109f827a"
+        },
+        "date": 1626130140686,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_body_both_100kb",
+            "value": 73342,
+            "range": "± 5787",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_body_both_10mb",
+            "value": 6733079,
+            "range": "± 521529",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_get",
+            "value": 30758,
+            "range": "± 3841",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 216288,
+            "range": "± 25063",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 52782527,
+            "range": "± 1704165",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 48193733,
+            "range": "± 1875685",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 51796207,
+            "range": "± 1392029",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 3779502,
+            "range": "± 427885",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_post",
+            "value": 34276,
+            "range": "± 4071",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_get",
+            "value": 54788,
+            "range": "± 5868",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 169222,
+            "range": "± 22773",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 9441309,
+            "range": "± 9744976",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 10236161,
+            "range": "± 18231709",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 9412218,
+            "range": "± 9454202",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 60754995,
+            "range": "± 6281178",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 70899805,
+            "range": "± 12868301",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 6088608,
+            "range": "± 837954",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_post",
+            "value": 62377,
+            "range": "± 7406",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_req_100kb",
+            "value": 128290,
+            "range": "± 7928",
             "unit": "ns/iter"
           }
         ]
