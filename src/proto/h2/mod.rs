@@ -1,9 +1,6 @@
 use bytes::{Buf, Bytes};
 use h2::{RecvStream, SendStream};
-use http::header::{
-    HeaderName, CONNECTION, PROXY_AUTHENTICATE, PROXY_AUTHORIZATION, TE, TRAILER,
-    TRANSFER_ENCODING, UPGRADE,
-};
+use http::header::{HeaderName, CONNECTION, TE, TRAILER, TRANSFER_ENCODING, UPGRADE};
 use http::HeaderMap;
 use pin_project_lite::pin_project;
 use std::error::Error as StdError;
@@ -40,8 +37,6 @@ fn strip_connection_headers(headers: &mut HeaderMap, is_request: bool) {
     let connection_headers = [
         HeaderName::from_lowercase(b"keep-alive").unwrap(),
         HeaderName::from_lowercase(b"proxy-connection").unwrap(),
-        PROXY_AUTHENTICATE,
-        PROXY_AUTHORIZATION,
         TRAILER,
         TRANSFER_ENCODING,
         UPGRADE,
