@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1626475895445,
+  "lastUpdate": 1626476055975,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -20883,6 +20883,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_req_100kb",
             "value": 128290,
             "range": "± 7928",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "123095+nox@users.noreply.github.com",
+            "name": "Anthony Ramine",
+            "username": "nox"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5243570137ae49628cb387fff5611eea0add33bf",
+          "message": "fix(http2): preserve `proxy-authenticate` and `proxy-authorization` headers (#2597)\n\nThat Proxy-Authenticate and Proxy-Authorization are forbidden over h2\r\nis not actually specified anywhere, plus h2 also supports CONNECT\r\nrequests, which are specifically made to do requests over a proxy,\r\nand those proxies may require authentication, sometimes through\r\nProxy-Authorization.\r\n\r\nNote that there is an openwebdocs project that just started to clear\r\nup any MDN-induced confusion in implementations:\r\n\r\n\thttps://github.com/openwebdocs/project/issues/43",
+          "timestamp": "2021-07-16T15:48:45-07:00",
+          "tree_id": "2d0605d2fa13183093df0cea98f8eee8585a415d",
+          "url": "https://github.com/hyperium/hyper/commit/5243570137ae49628cb387fff5611eea0add33bf"
+        },
+        "date": 1626476053974,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_body_both_100kb",
+            "value": 119499,
+            "range": "± 12579",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_body_both_10mb",
+            "value": 6749810,
+            "range": "± 1558045",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_get",
+            "value": 44280,
+            "range": "± 8556",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 257105,
+            "range": "± 39427",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 52018227,
+            "range": "± 2034853",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 56141022,
+            "range": "± 8364986",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 59597972,
+            "range": "± 8823146",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 3425016,
+            "range": "± 650049",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_post",
+            "value": 48594,
+            "range": "± 8522",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_get",
+            "value": 79962,
+            "range": "± 13245",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 206709,
+            "range": "± 41806",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 12136678,
+            "range": "± 9322234",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 19766946,
+            "range": "± 10878356",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 11990888,
+            "range": "± 9719472",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 62330332,
+            "range": "± 7618218",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 75063169,
+            "range": "± 15377356",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 6498331,
+            "range": "± 1875391",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_post",
+            "value": 93626,
+            "range": "± 19351",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_req_100kb",
+            "value": 174950,
+            "range": "± 39606",
             "unit": "ns/iter"
           }
         ]
