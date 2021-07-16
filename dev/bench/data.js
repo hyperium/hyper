@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1626130142847,
+  "lastUpdate": 1626475892482,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -3179,6 +3179,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 46048,
             "range": "± 3856",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "123095+nox@users.noreply.github.com",
+            "name": "Anthony Ramine",
+            "username": "nox"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5243570137ae49628cb387fff5611eea0add33bf",
+          "message": "fix(http2): preserve `proxy-authenticate` and `proxy-authorization` headers (#2597)\n\nThat Proxy-Authenticate and Proxy-Authorization are forbidden over h2\r\nis not actually specified anywhere, plus h2 also supports CONNECT\r\nrequests, which are specifically made to do requests over a proxy,\r\nand those proxies may require authentication, sometimes through\r\nProxy-Authorization.\r\n\r\nNote that there is an openwebdocs project that just started to clear\r\nup any MDN-induced confusion in implementations:\r\n\r\n\thttps://github.com/openwebdocs/project/issues/43",
+          "timestamp": "2021-07-16T15:48:45-07:00",
+          "tree_id": "2d0605d2fa13183093df0cea98f8eee8585a415d",
+          "url": "https://github.com/hyperium/hyper/commit/5243570137ae49628cb387fff5611eea0add33bf"
+        },
+        "date": 1626475890841,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 68780,
+            "range": "± 21539",
             "unit": "ns/iter"
           }
         ]
