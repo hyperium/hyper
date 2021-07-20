@@ -50,6 +50,8 @@ where
                 title_case_headers: false,
                 h09_responses: false,
                 #[cfg(feature = "ffi")]
+                on_informational: None,
+                #[cfg(feature = "ffi")]
                 raw_headers: false,
                 notify_read: false,
                 reading: Reading::Init,
@@ -170,6 +172,8 @@ where
                 preserve_header_case: self.state.preserve_header_case,
                 h09_responses: self.state.h09_responses,
                 #[cfg(feature = "ffi")]
+                on_informational: &mut self.state.on_informational,
+                #[cfg(feature = "ffi")]
                 raw_headers: self.state.raw_headers,
             }
         )) {
@@ -184,6 +188,12 @@ where
 
         // Prevent accepting HTTP/0.9 responses after the initial one, if any.
         self.state.h09_responses = false;
+
+        // Drop any OnInformational callbacks, we're done there!
+        #[cfg(feature = "ffi")]
+        {
+            self.state.on_informational = None;
+        }
 
         self.state.busy();
         self.state.keep_alive &= msg.keep_alive;
@@ -525,6 +535,14 @@ where
                 debug_assert!(self.state.cached_headers.is_none());
                 debug_assert!(head.headers.is_empty());
                 self.state.cached_headers = Some(head.headers);
+
+                #[cfg(feature = "ffi")]
+                {
+                    self.state.on_informational = head
+                        .extensions
+                        .remove::<crate::ffi::OnInformational>();
+                }
+
                 Some(encoder)
             }
             Err(err) => {
@@ -775,6 +793,11 @@ struct State {
     preserve_header_case: bool,
     title_case_headers: bool,
     h09_responses: bool,
+    /// If set, called with each 1xx informational response received for
+    /// the current request. MUST be unset after a non-1xx response is
+    /// received.
+    #[cfg(feature = "ffi")]
+    on_informational: Option<crate::ffi::OnInformational>,
     #[cfg(feature = "ffi")]
     raw_headers: bool,
     /// Set to true when the Dispatcher should poll read operations

@@ -81,6 +81,7 @@ struct UserDataPointer(*mut std::ffi::c_void);
 // We don't actually know anything about this pointer, it's up to the user
 // to do the right thing.
 unsafe impl Send for UserDataPointer {}
+unsafe impl Sync for UserDataPointer {}
 
 /// cbindgen:ignore
 static VERSION_CSTR: &str = concat!(env!("CARGO_PKG_VERSION"), "\0");

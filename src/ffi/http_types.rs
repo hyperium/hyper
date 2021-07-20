@@ -5,7 +5,7 @@ use std::ffi::c_void;
 use super::body::{hyper_body, hyper_buf};
 use super::error::hyper_code;
 use super::task::{hyper_task_return_type, AsTaskType};
-use super::HYPER_ITER_CONTINUE;
+use super::{UserDataPointer, HYPER_ITER_CONTINUE};
 use crate::ext::HeaderCaseMap;
 use crate::header::{HeaderName, HeaderValue};
 use crate::{Body, HeaderMap, Method, Request, Response, Uri};
@@ -28,6 +28,13 @@ pub struct hyper_headers {
 pub(crate) struct ReasonPhrase(pub(crate) Bytes);
 
 pub(crate) struct RawHeaders(pub(crate) hyper_buf);
+
+pub(crate) struct OnInformational {
+    func: hyper_request_on_informational_callback,
+    data: UserDataPointer,
+}
+
+type hyper_request_on_informational_callback = extern "C" fn(*mut c_void, *const hyper_response);
 
 // ===== impl hyper_request =====
 
@@ -125,6 +132,32 @@ ffi_fn! {
     fn hyper_request_set_body(req: *mut hyper_request, body: *mut hyper_body) -> hyper_code {
         let body = unsafe { Box::from_raw(body) };
         *unsafe { &mut *req }.0.body_mut() = body.0;
+        hyper_code::HYPERE_OK
+    }
+}
+
+ffi_fn! {
+    /// Set an informational (1xx) response callback.
+    ///
+    /// The callback is called each time hyper receives an informational (1xx)
+    /// response for this request.
+    ///
+    /// The third argument is an opaque user data pointer, which is passed to
+    /// the callback each time.
+    ///
+    /// The callback is passed the `void *` data pointer, and a
+    /// `hyper_response *` which can be inspected as any other response. The
+    /// body of the response will always be empty.
+    ///
+    /// NOTE: The `const hyper_response *` is just borrowed data, and will not
+    /// be valid after the callback finishes. You must copy any data you wish
+    /// to persist.
+    fn hyper_request_on_informational(req: *mut hyper_request, callback: hyper_request_on_informational_callback, data: *mut c_void) -> hyper_code {
+        let ext = OnInformational {
+            func: callback,
+            data: UserDataPointer(data),
+        };
+        unsafe { &mut *req }.0.extensions_mut().insert(ext);
         hyper_code::HYPERE_OK
     }
 }
@@ -392,6 +425,15 @@ unsafe fn raw_name_value(
     };
 
     Ok((name, value, orig_name))
+}
+
+// ===== impl OnInformational =====
+
+impl OnInformational {
+    pub(crate) fn call(&mut self, resp: Response<Body>) {
+        let mut resp = hyper_response(resp);
+        (self.func)(self.data.0, &mut resp);
+    }
 }
 
 #[cfg(test)]

@@ -219,10 +219,8 @@ impl Http1Transaction for Server {
                     if is_te {
                         continue;
                     }
-                    let len = value
-                        .to_str()
-                        .map_err(|_| Parse::content_length_invalid())
-                        .and_then(|s| s.parse().map_err(|_| Parse::content_length_invalid()))?;
+                    let len = headers::content_length_parse(&value)
+                        .ok_or_else(Parse::content_length_invalid)?;
                     if let Some(prev) = con_len {
                         if prev != len {
                             debug!(
@@ -993,6 +991,13 @@ impl Http1Transaction for Client {
                 }));
             }
 
+            #[cfg(feature = "ffi")]
+            if head.subject.is_informational() {
+                if let Some(callback) = ctx.on_informational {
+                    callback.call(head.into_response(crate::Body::empty()));
+                }
+            }
+
             // Parsing a 1xx response could have consumed the buffer, check if
             // it is empty now...
             if buf.is_empty() {
@@ -1430,6 +1435,8 @@ mod tests {
                 preserve_header_case: false,
                 h09_responses: false,
                 #[cfg(feature = "ffi")]
+                on_informational: &mut None,
+                #[cfg(feature = "ffi")]
                 raw_headers: false,
             },
         )
@@ -1455,6 +1462,8 @@ mod tests {
             preserve_header_case: false,
             h09_responses: false,
             #[cfg(feature = "ffi")]
+            on_informational: &mut None,
+            #[cfg(feature = "ffi")]
             raw_headers: false,
         };
         let msg = Client::parse(&mut raw, ctx).unwrap().unwrap();
@@ -1475,6 +1484,8 @@ mod tests {
             preserve_header_case: false,
             h09_responses: false,
             #[cfg(feature = "ffi")]
+            on_informational: &mut None,
+            #[cfg(feature = "ffi")]
             raw_headers: false,
         };
         Server::parse(&mut raw, ctx).unwrap_err();
@@ -1492,6 +1503,8 @@ mod tests {
             h1_parser_config: Default::default(),
             preserve_header_case: false,
             h09_responses: true,
+            #[cfg(feature = "ffi")]
+            on_informational: &mut None,
             #[cfg(feature = "ffi")]
             raw_headers: false,
         };
@@ -1512,6 +1525,8 @@ mod tests {
             h1_parser_config: Default::default(),
             preserve_header_case: false,
             h09_responses: false,
+            #[cfg(feature = "ffi")]
+            on_informational: &mut None,
             #[cfg(feature = "ffi")]
             raw_headers: false,
         };
@@ -1537,6 +1552,8 @@ mod tests {
             preserve_header_case: false,
             h09_responses: false,
             #[cfg(feature = "ffi")]
+            on_informational: &mut None,
+            #[cfg(feature = "ffi")]
             raw_headers: false,
         };
         let msg = Client::parse(&mut raw, ctx).unwrap().unwrap();
@@ -1558,6 +1575,8 @@ mod tests {
             preserve_header_case: false,
             h09_responses: false,
             #[cfg(feature = "ffi")]
+            on_informational: &mut None,
+            #[cfg(feature = "ffi")]
             raw_headers: false,
         };
         Client::parse(&mut raw, ctx).unwrap_err();
@@ -1573,6 +1592,8 @@ mod tests {
             h1_parser_config: Default::default(),
             preserve_header_case: true,
             h09_responses: false,
+            #[cfg(feature = "ffi")]
+            on_informational: &mut None,
             #[cfg(feature = "ffi")]
             raw_headers: false,
         };
@@ -1611,6 +1632,8 @@ mod tests {
                     preserve_header_case: false,
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
+                    on_informational: &mut None,
+                    #[cfg(feature = "ffi")]
                     raw_headers: false,
                 },
             )
@@ -1628,6 +1651,8 @@ mod tests {
                     h1_parser_config: Default::default(),
                     preserve_header_case: false,
                     h09_responses: false,
+                    #[cfg(feature = "ffi")]
+                    on_informational: &mut None,
                     #[cfg(feature = "ffi")]
                     raw_headers: false,
                 },
@@ -1775,6 +1800,16 @@ mod tests {
             "multiple content-lengths",
         );
 
+        // content-length with prefix is not allowed
+        parse_err(
+            "\
+             POST / HTTP/1.1\r\n\
+             content-length: +10\r\n\
+             \r\n\
+             ",
+            "prefixed content-length",
+        );
+
         // transfer-encoding that isn't chunked is an error
         parse_err(
             "\
@@ -1846,6 +1881,8 @@ mod tests {
                     preserve_header_case: false,
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
+                    on_informational: &mut None,
+                    #[cfg(feature = "ffi")]
                     raw_headers: false,
                 }
             )
@@ -1864,6 +1901,8 @@ mod tests {
                     preserve_header_case: false,
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
+                    on_informational: &mut None,
+                    #[cfg(feature = "ffi")]
                     raw_headers: false,
                 },
             )
@@ -1881,6 +1920,8 @@ mod tests {
                     h1_parser_config: Default::default(),
                     preserve_header_case: false,
                     h09_responses: false,
+                    #[cfg(feature = "ffi")]
+                    on_informational: &mut None,
                     #[cfg(feature = "ffi")]
                     raw_headers: false,
                 },
@@ -1954,6 +1995,14 @@ mod tests {
              HTTP/1.1 200 OK\r\n\
              content-length: 8\r\n\
              content-length: 9\r\n\
+             \r\n\
+             ",
+        );
+
+        parse_err(
+            "\
+             HTTP/1.1 200 OK\r\n\
+             content-length: +8\r\n\
              \r\n\
              ",
         );
@@ -2367,6 +2416,8 @@ mod tests {
                 preserve_header_case: false,
                 h09_responses: false,
                 #[cfg(feature = "ffi")]
+                on_informational: &mut None,
+                #[cfg(feature = "ffi")]
                 raw_headers: false,
             },
         )
@@ -2449,6 +2500,8 @@ mod tests {
                     preserve_header_case: false,
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
+                    on_informational: &mut None,
+                    #[cfg(feature = "ffi")]
                     raw_headers: false,
                 },
             )
@@ -2486,6 +2539,8 @@ mod tests {
                     h1_parser_config: Default::default(),
                     preserve_header_case: false,
                     h09_responses: false,
+                    #[cfg(feature = "ffi")]
+                    on_informational: &mut None,
                     #[cfg(feature = "ffi")]
                     raw_headers: false,
                 },

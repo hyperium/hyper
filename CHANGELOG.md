@@ -1,3 +1,18 @@
+### v0.14.10 (2021-07-07)
+
+
+#### Bug Fixes
+
+* **http1:**
+  * reject content-lengths that have a plus sign prefix ([06335158](https://github.com/hyperium/hyper/commit/06335158ca48724db9bf074398067d2db08613e7))
+  * protect against overflow in chunked decoder ([efd9a982](https://github.com/hyperium/hyper/commit/efd9a9821fd2f1ae04b545094de76a435b62e70f))
+
+
+#### Features
+
+* **ffi:** add option to get raw headers from response ([8c89a8c1](https://github.com/hyperium/hyper/commit/8c89a8c1665b6fbec3f13b8c0e84c79464179c89))
+
+
 ### v0.14.9 (2021-06-07)
 
 

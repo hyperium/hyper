@@ -207,6 +207,8 @@ typedef int (*hyper_body_foreach_callback)(void*, const struct hyper_buf*);
 
 typedef int (*hyper_body_data_callback)(void*, struct hyper_context*, struct hyper_buf**);
 
+typedef void (*hyper_request_on_informational_callback)(void*, const struct hyper_response*);
+
 typedef int (*hyper_headers_foreach_callback)(void*, const uint8_t*, size_t, const uint8_t*, size_t);
 
 typedef size_t (*hyper_io_read_callback)(void*, struct hyper_context*, uint8_t*, size_t);
@@ -453,6 +455,27 @@ struct hyper_headers *hyper_request_headers(struct hyper_request *req);
  free it after setting it on the request.
  */
 enum hyper_code hyper_request_set_body(struct hyper_request *req, struct hyper_body *body);
+
+/*
+ Set an informational (1xx) response callback.
+
+ The callback is called each time hyper receives an informational (1xx)
+ response for this request.
+
+ The third argument is an opaque user data pointer, which is passed to
+ the callback each time.
+
+ The callback is passed the `void *` data pointer, and a
+ `hyper_response *` which can be inspected as any other response. The
+ body of the response will always be empty.
+
+ NOTE: The `const hyper_response *` is just borrowed data, and will not
+ be valid after the callback finishes. You must copy any data you wish
+ to persist.
+ */
+enum hyper_code hyper_request_on_informational(struct hyper_request *req,
+                                               hyper_request_on_informational_callback callback,
+                                               void *data);
 
 /*
  Free an HTTP response after using it.

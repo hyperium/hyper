@@ -57,3 +57,14 @@ pub(crate) enum Dispatched {
     #[cfg(feature = "http1")]
     Upgrade(crate::upgrade::Pending),
 }
+
+impl MessageHead<http::StatusCode> {
+    fn into_response<B>(self, body: B) -> http::Response<B> {
+        let mut res = http::Response::new(body);
+        *res.status_mut() = self.subject;
+        *res.headers_mut() = self.headers;
+        *res.version_mut() = self.version;
+        *res.extensions_mut() = self.extensions;
+        res
+    }
+}
