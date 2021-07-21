@@ -71,7 +71,7 @@ async fn param_example(req: Request<Body>) -> Result<Response<Body>, hyper::Erro
         (&Method::GET, "/get") => {
             let query = if let Some(q) = req.uri().query() {
                 q
-            } else{
+            } else {
                 return Ok(Response::builder()
                     .status(StatusCode::UNPROCESSABLE_ENTITY)
                     .body(MISSING.into())
