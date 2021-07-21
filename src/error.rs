@@ -214,7 +214,7 @@ impl Error {
         &self.inner.kind
     }
 
-    fn find_source<E: StdError + 'static>(&self) -> Option<&E> {
+    pub(crate) fn find_source<E: StdError + 'static>(&self) -> Option<&E> {
         let mut cause = self.source();
         while let Some(err) = cause {
             if let Some(ref typed) = err.downcast_ref() {

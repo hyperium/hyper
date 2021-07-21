@@ -268,8 +268,18 @@ impl ChunkedState {
         rdr: &mut R,
     ) -> Poll<Result<ChunkedState, io::Error>> {
         trace!("read_extension");
+        // We don't care about extensions really at all. Just ignore them.
+        // They "end" at the next CRLF.
+        //
+        // However, some implementations may not check for the CR, so to save
+        // them from themselves, we reject extensions containing plain LF as
+        // well.
         match byte!(rdr, cx) {
             b'\r' => Poll::Ready(Ok(ChunkedState::SizeLf)),
+            b'\n' => Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "invalid chunk extension contains newline",
+            ))),
             _ => Poll::Ready(Ok(ChunkedState::Extension)), // no supported extensions
         }
     }
@@ -537,6 +547,7 @@ mod tests {
         read_err("1 invalid extension\r\n", InvalidInput).await;
         read_err("1 A\r\n", InvalidInput).await;
         read_err("1;no CRLF", UnexpectedEof).await;
+        read_err("1;reject\nnewlines\r\n", InvalidData).await;
         // Overflow
         read_err("f0000000000000003\r\n", InvalidData).await;
     }
