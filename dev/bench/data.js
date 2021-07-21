@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1626875431747,
+  "lastUpdate": 1626880782444,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -3269,6 +3269,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 45302,
             "range": "± 5456",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "123095+nox@users.noreply.github.com",
+            "name": "Anthony Ramine",
+            "username": "nox"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f51c677dec9debf60cb336dc938bae103adf17a0",
+          "message": "fix(http2): improve I/O errors emitted by H2Upgraded (#2598)\n\nWhen a `CONNECT` over HTTP2 has been established, and the user tries to write data right when the peer closes the stream, it will no longer return as a \"user error\". The reset code is checked, and converted into an appropriate `io::ErrorKind`.",
+          "timestamp": "2021-07-21T08:17:05-07:00",
+          "tree_id": "aa0fdd22f32af22b8a8527275f6a01ff6d67e041",
+          "url": "https://github.com/hyperium/hyper/commit/f51c677dec9debf60cb336dc938bae103adf17a0"
+        },
+        "date": 1626880780727,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 49790,
+            "range": "± 1294",
             "unit": "ns/iter"
           }
         ]
