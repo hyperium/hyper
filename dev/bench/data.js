@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1626826339903,
+  "lastUpdate": 1626875294901,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -3239,6 +3239,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 40854,
             "range": "± 5197",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "090ee08b03266491944b136f9fcd96bfaf2015b4",
+          "message": "refactor(http1): reject newlines in chunked extensions\n\nWe don't really care what bytes are in chunked extensions. We ignore\nthem until we find a CRLF. However, some other HTTP implementations may\nonly look for a LF, and forget that chunked requires the CR as well. To\nsave them from themselves, this makes hyper reject any chunked\nextensions that include an LF byte.\n\nThis isn't a *bug*. No one ever cares what's in the extensions. This is\nmeant as a way to help implementations that don't decoded chunked\nencoding correctly. This shouldn't affect really anyone in the real\nworld.",
+          "timestamp": "2021-07-21T06:45:54-07:00",
+          "tree_id": "92c65008f84d8ae1099fff1c69b1c4cdd090ff19",
+          "url": "https://github.com/hyperium/hyper/commit/090ee08b03266491944b136f9fcd96bfaf2015b4"
+        },
+        "date": 1626875293409,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 45302,
+            "range": "± 5456",
             "unit": "ns/iter"
           }
         ]
