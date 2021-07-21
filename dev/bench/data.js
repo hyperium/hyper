@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1626826113304,
+  "lastUpdate": 1626826339903,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -21081,6 +21081,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_req_100kb",
             "value": 174950,
             "range": "± 39606",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "123095+nox@users.noreply.github.com",
+            "name": "Anthony Ramine",
+            "username": "nox"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "52214f391c0a18dc66d1ccff9c0c004c5da85002",
+          "message": "fix(client): retry when pool checkout returns closed HTTP2 connection (#2585)\n\nWhen http2_only is true, we never try to open a new connection if there\r\nis one open already, which means that if the existing connection that\r\ngets checked out of the pool is closed, then the request won't happen.",
+          "timestamp": "2021-07-20T17:06:09-07:00",
+          "tree_id": "8f189953640da9ba3da04600bb07a0c0a481ad2e",
+          "url": "https://github.com/hyperium/hyper/commit/52214f391c0a18dc66d1ccff9c0c004c5da85002"
+        },
+        "date": 1626826337651,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_body_both_100kb",
+            "value": 136364,
+            "range": "± 25639",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_body_both_10mb",
+            "value": 7132061,
+            "range": "± 699508",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_get",
+            "value": 50328,
+            "range": "± 11467",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 302548,
+            "range": "± 30727",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 52842428,
+            "range": "± 3160125",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 60678273,
+            "range": "± 6868998",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 62593145,
+            "range": "± 4599618",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 3975898,
+            "range": "± 568904",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_post",
+            "value": 56607,
+            "range": "± 4355",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_get",
+            "value": 97915,
+            "range": "± 13138",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 246487,
+            "range": "± 20036",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 14193457,
+            "range": "± 9115330",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 22400763,
+            "range": "± 17236076",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 13490856,
+            "range": "± 9303084",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 70879439,
+            "range": "± 7503953",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 86595939,
+            "range": "± 15786737",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 7666722,
+            "range": "± 935142",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_post",
+            "value": 112611,
+            "range": "± 9999",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_req_100kb",
+            "value": 202970,
+            "range": "± 26276",
             "unit": "ns/iter"
           }
         ]
