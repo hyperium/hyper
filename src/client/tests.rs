@@ -7,7 +7,7 @@ use super::Client;
 
 #[tokio::test]
 async fn client_connect_uri_argument() {
-    let connector = tower_util::service_fn(|dst: http::Uri| {
+    let connector = tower::service_fn(|dst: http::Uri| {
         assert_eq!(dst.scheme(), Some(&http::uri::Scheme::HTTP));
         assert_eq!(dst.host(), Some("example.local"));
         assert_eq!(dst.port(), None);
