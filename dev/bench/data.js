@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1626875325296,
+  "lastUpdate": 1626875431747,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -21279,6 +21279,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_req_100kb",
             "value": 202970,
             "range": "± 26276",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "090ee08b03266491944b136f9fcd96bfaf2015b4",
+          "message": "refactor(http1): reject newlines in chunked extensions\n\nWe don't really care what bytes are in chunked extensions. We ignore\nthem until we find a CRLF. However, some other HTTP implementations may\nonly look for a LF, and forget that chunked requires the CR as well. To\nsave them from themselves, this makes hyper reject any chunked\nextensions that include an LF byte.\n\nThis isn't a *bug*. No one ever cares what's in the extensions. This is\nmeant as a way to help implementations that don't decoded chunked\nencoding correctly. This shouldn't affect really anyone in the real\nworld.",
+          "timestamp": "2021-07-21T06:45:54-07:00",
+          "tree_id": "92c65008f84d8ae1099fff1c69b1c4cdd090ff19",
+          "url": "https://github.com/hyperium/hyper/commit/090ee08b03266491944b136f9fcd96bfaf2015b4"
+        },
+        "date": 1626875430269,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_body_both_100kb",
+            "value": 69221,
+            "range": "± 1075",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_body_both_10mb",
+            "value": 7342932,
+            "range": "± 484186",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_get",
+            "value": 30200,
+            "range": "± 605",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 214551,
+            "range": "± 5580",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 51957671,
+            "range": "± 887210",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 54570488,
+            "range": "± 1540160",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 56561009,
+            "range": "± 1554442",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 3686877,
+            "range": "± 319670",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_post",
+            "value": 33361,
+            "range": "± 988",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_get",
+            "value": 51636,
+            "range": "± 897",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 161248,
+            "range": "± 1649",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 8992326,
+            "range": "± 8712624",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 9050074,
+            "range": "± 37035",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 8724537,
+            "range": "± 8612166",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 56689154,
+            "range": "± 3459220",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 70170194,
+            "range": "± 11704989",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 6025455,
+            "range": "± 676006",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_post",
+            "value": 59645,
+            "range": "± 1298",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_req_100kb",
+            "value": 115645,
+            "range": "± 1948",
             "unit": "ns/iter"
           }
         ]
