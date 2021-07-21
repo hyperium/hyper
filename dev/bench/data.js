@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1626884056706,
+  "lastUpdate": 1626884071663,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -6661,6 +6661,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 50078,
             "range": "± 2301",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "0112d354263bb73ebefd1980c9581cdc921ebc79",
+          "message": "refactor(error): mark TransferEncodingInvalid variant only with server feature",
+          "timestamp": "2021-07-21T09:11:12-07:00",
+          "tree_id": "b08f6f55cd8021920e5d2bd7d5f93586df3da3dd",
+          "url": "https://github.com/hyperium/hyper/commit/0112d354263bb73ebefd1980c9581cdc921ebc79"
+        },
+        "date": 1626884070105,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 48314,
+            "range": "± 1914",
             "unit": "ns/iter"
           }
         ]
