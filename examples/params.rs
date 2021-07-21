@@ -71,18 +71,18 @@ async fn param_example(req: Request<Body>) -> Result<Response<Body>, hyper::Erro
         (&Method::GET, "/get") => {
             let query = if let Some(q) = req.uri().query() {
                 q
-            }else{
+            } else{
                 return Ok(Response::builder()
                     .status(StatusCode::UNPROCESSABLE_ENTITY)
                     .body(MISSING.into())
                     .unwrap());
             };
-            let params = url::form_urlencoded::parse(query.as_bytes())
+            let params = form_urlencoded::parse(query.as_bytes())
                 .into_owned()
                 .collect::<HashMap<String, String>>();
             let page = if let Some(p) = params.get("page") {
                 p
-            }else {
+            } else {
                 return Ok(Response::builder()
                     .status(StatusCode::UNPROCESSABLE_ENTITY)
                     .body(MISSING.into())
