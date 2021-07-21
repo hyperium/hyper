@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1626476055975,
+  "lastUpdate": 1626826100777,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -6391,6 +6391,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 62922,
             "range": "± 33290",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "123095+nox@users.noreply.github.com",
+            "name": "Anthony Ramine",
+            "username": "nox"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "52214f391c0a18dc66d1ccff9c0c004c5da85002",
+          "message": "fix(client): retry when pool checkout returns closed HTTP2 connection (#2585)\n\nWhen http2_only is true, we never try to open a new connection if there\r\nis one open already, which means that if the existing connection that\r\ngets checked out of the pool is closed, then the request won't happen.",
+          "timestamp": "2021-07-20T17:06:09-07:00",
+          "tree_id": "8f189953640da9ba3da04600bb07a0c0a481ad2e",
+          "url": "https://github.com/hyperium/hyper/commit/52214f391c0a18dc66d1ccff9c0c004c5da85002"
+        },
+        "date": 1626826099256,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 49240,
+            "range": "± 5745",
             "unit": "ns/iter"
           }
         ]
