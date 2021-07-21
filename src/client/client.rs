@@ -690,24 +690,25 @@ where
     }
 
     fn reserve(self) -> Reservation<Self> {
-        match self.tx {
-            PoolTx::Http1(tx) => Reservation::Unique(PoolClient {
-                conn_info: self.conn_info,
-                tx: PoolTx::Http1(tx),
-            }),
-            #[cfg(feature = "http2")]
-            PoolTx::Http2(tx) => {
-                let b = PoolClient {
-                    conn_info: self.conn_info.clone(),
-                    tx: PoolTx::Http2(tx.clone()),
-                };
-                let a = PoolClient {
+        !self.conn_info.is_draining.load(Ordering::SeqCst)
+            && match self.tx {
+                PoolTx::Http1(tx) => Reservation::Unique(PoolClient {
                     conn_info: self.conn_info,
-                    tx: PoolTx::Http2(tx),
-                };
-                Reservation::Shared(a, b)
+                    tx: PoolTx::Http1(tx),
+                }),
+                #[cfg(feature = "http2")]
+                PoolTx::Http2(tx) => {
+                    let b = PoolClient {
+                        conn_info: self.conn_info.clone(),
+                        tx: PoolTx::Http2(tx.clone()),
+                    };
+                    let a = PoolClient {
+                        conn_info: self.conn_info,
+                        tx: PoolTx::Http2(tx),
+                    };
+                    Reservation::Shared(a, b)
+                }
             }
-        }
     }
 
     fn can_share(&self) -> bool {
