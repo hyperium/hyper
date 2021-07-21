@@ -1,3 +1,19 @@
+### v0.14.11 (2021-07-21)
+
+
+#### Bug Fixes
+
+* **client:** retry when pool checkout returns closed HTTP2 connection (#2585) ([52214f39](https://github.com/hyperium/hyper/commit/52214f391c0a18dc66d1ccff9c0c004c5da85002))
+* **http2:**
+  * improve I/O errors emitted by H2Upgraded (#2598) ([f51c677d](https://github.com/hyperium/hyper/commit/f51c677dec9debf60cb336dc938bae103adf17a0))
+  * preserve `proxy-authenticate` and `proxy-authorization` headers (#2597) ([52435701](https://github.com/hyperium/hyper/commit/5243570137ae49628cb387fff5611eea0add33bf))
+
+
+#### Features
+
+* **ffi:** add hyper_request_on_informational ([25d18c0b](https://github.com/hyperium/hyper/commit/25d18c0b74ccf9e51f986daa3b2b98c0109f827a))
+
+
 ### v0.14.10 (2021-07-07)
 
 
