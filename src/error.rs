@@ -84,7 +84,7 @@ pub(super) enum Header {
     Token,
     #[cfg(feature = "http1")]
     ContentLengthInvalid,
-    #[cfg(feature = "http1")]
+    #[cfg(all(feature = "http1", feature = "server"))]
     TransferEncodingInvalid,
     #[cfg(feature = "http1")]
     TransferEncodingUnexpected,
@@ -391,7 +391,7 @@ impl Error {
             Kind::Parse(Parse::Header(Header::ContentLengthInvalid)) => {
                 "invalid content-length parsed"
             }
-            #[cfg(feature = "http1")]
+            #[cfg(all(feature = "http1", feature = "server"))]
             Kind::Parse(Parse::Header(Header::TransferEncodingInvalid)) => {
                 "invalid transfer-encoding parsed"
             }
@@ -504,6 +504,7 @@ impl Parse {
         Parse::Header(Header::ContentLengthInvalid)
     }
 
+    #[cfg(all(feature = "http1", feature = "server"))]
     pub(crate) fn transfer_encoding_invalid() -> Self {
         Parse::Header(Header::TransferEncodingInvalid)
     }
