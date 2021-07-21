@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1626880967278,
+  "lastUpdate": 1626883927024,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -6571,6 +6571,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 63057,
             "range": "± 62490",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "76654022+0x79756b69@users.noreply.github.com",
+            "name": "0x79756b69",
+            "username": "0x79756b69"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f70c8ffc7b949a0c9135bfc95caf676e4dedcd4e",
+          "message": "docs(example): add a get query method to params example (#2601)",
+          "timestamp": "2021-07-21T09:09:38-07:00",
+          "tree_id": "5d8e6eadf2909ecd2a4d792fde5d96f0746bd427",
+          "url": "https://github.com/hyperium/hyper/commit/f70c8ffc7b949a0c9135bfc95caf676e4dedcd4e"
+        },
+        "date": 1626883925527,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 50078,
+            "range": "± 2301",
             "unit": "ns/iter"
           }
         ]
