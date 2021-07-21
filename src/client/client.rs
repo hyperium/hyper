@@ -11,7 +11,9 @@ use http::{Method, Request, Response, Uri, Version};
 
 use super::conn;
 use super::connect::{self, sealed::Connect, Alpn, Connected, Connection};
-use super::pool::{self, Key as PoolKey, Pool, Poolable, Pooled, Reservation};
+use super::pool::{
+    self, CheckoutIsClosedError, Key as PoolKey, Pool, Poolable, Pooled, Reservation,
+};
 #[cfg(feature = "tcp")]
 use super::HttpConnector;
 use crate::body::{Body, HttpBody};
@@ -223,7 +225,17 @@ where
         mut req: Request<B>,
         pool_key: PoolKey,
     ) -> Result<Response<Body>, ClientError<B>> {
-        let mut pooled = self.connection_for(pool_key).await?;
+        let mut pooled = match self.connection_for(pool_key).await {
+            Ok(pooled) => pooled,
+            Err(ClientConnectError::Normal(err)) => return Err(ClientError::Normal(err)),
+            Err(ClientConnectError::H2CheckoutIsClosed(reason)) => {
+                return Err(ClientError::Canceled {
+                    connection_reused: true,
+                    req,
+                    reason,
+                })
+            }
+        };
 
         if pooled.is_http1() {
             if req.version() == Version::HTTP_2 {
@@ -321,7 +333,7 @@ where
     async fn connection_for(
         &self,
         pool_key: PoolKey,
-    ) -> Result<Pooled<PoolClient<B>>, ClientError<B>> {
+    ) -> Result<Pooled<PoolClient<B>>, ClientConnectError> {
         // This actually races 2 different futures to try to get a ready
         // connection the fastest, and to reduce connection churn.
         //
@@ -337,6 +349,7 @@ where
         //   and then be inserted into the pool as an idle connection.
         let checkout = self.pool.checkout(pool_key.clone());
         let connect = self.connect_to(pool_key);
+        let is_ver_h2 = self.config.ver == Ver::Http2;
 
         // The order of the `select` is depended on below...
 
@@ -380,16 +393,25 @@ where
             // In both cases, we should just wait for the other future.
             Either::Left((Err(err), connecting)) => {
                 if err.is_canceled() {
-                    connecting.await.map_err(ClientError::Normal)
+                    connecting.await.map_err(ClientConnectError::Normal)
                 } else {
-                    Err(ClientError::Normal(err))
+                    Err(ClientConnectError::Normal(err))
                 }
             }
             Either::Right((Err(err), checkout)) => {
                 if err.is_canceled() {
-                    checkout.await.map_err(ClientError::Normal)
+                    checkout.await.map_err(move |err| {
+                        if is_ver_h2
+                            && err.is_canceled()
+                            && err.find_source::<CheckoutIsClosedError>().is_some()
+                        {
+                            ClientConnectError::H2CheckoutIsClosed(err)
+                        } else {
+                            ClientConnectError::Normal(err)
+                        }
+                    })
                 } else {
-                    Err(ClientError::Normal(err))
+                    Err(ClientConnectError::Normal(err))
                 }
             }
         }
@@ -720,6 +742,11 @@ impl<B> ClientError<B> {
             }
         }
     }
+}
+
+enum ClientConnectError {
+    Normal(crate::Error),
+    H2CheckoutIsClosed(crate::Error),
 }
 
 /// A marker to identify what version a pooled connection is.

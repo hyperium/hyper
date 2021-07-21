@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::error::Error as StdError;
 use std::fmt;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex, Weak};
@@ -560,28 +561,40 @@ pub(super) struct Checkout<T> {
     waiter: Option<oneshot::Receiver<T>>,
 }
 
+#[derive(Debug)]
+pub(super) struct CheckoutIsClosedError;
+
+impl StdError for CheckoutIsClosedError {}
+
+impl fmt::Display for CheckoutIsClosedError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("checked out connection was closed")
+    }
+}
+
 impl<T: Poolable> Checkout<T> {
     fn poll_waiter(
         &mut self,
         cx: &mut task::Context<'_>,
     ) -> Poll<Option<crate::Result<Pooled<T>>>> {
-        static CANCELED: &str = "pool checkout failed";
         if let Some(mut rx) = self.waiter.take() {
             match Pin::new(&mut rx).poll(cx) {
                 Poll::Ready(Ok(value)) => {
                     if value.is_open() {
                         Poll::Ready(Some(Ok(self.pool.reuse(&self.key, value))))
                     } else {
-                        Poll::Ready(Some(Err(crate::Error::new_canceled().with(CANCELED))))
+                        Poll::Ready(Some(Err(
+                            crate::Error::new_canceled().with(CheckoutIsClosedError)
+                        )))
                     }
                 }
                 Poll::Pending => {
                     self.waiter = Some(rx);
                     Poll::Pending
                 }
-                Poll::Ready(Err(_canceled)) => {
-                    Poll::Ready(Some(Err(crate::Error::new_canceled().with(CANCELED))))
-                }
+                Poll::Ready(Err(_canceled)) => Poll::Ready(Some(Err(
+                    crate::Error::new_canceled().with("request has been canceled")
+                ))),
             }
         } else {
             Poll::Ready(None)
