@@ -104,6 +104,10 @@ typedef enum hyper_code {
    The peer sent an HTTP message that could not be parsed.
    */
   HYPERE_INVALID_PEER_MESSAGE,
+  /*
+   The peer sent an HTTP version header that we cannot parse
+   */
+  HYPERE_INVALID_HTTP_VERSION,
 } hyper_code;
 
 /*
