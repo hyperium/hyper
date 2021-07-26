@@ -718,7 +718,9 @@ struct hyper_waker *hyper_context_waker(struct hyper_context *cx);
 void hyper_waker_free(struct hyper_waker *waker);
 
 /*
- Free a waker that hasn't been woken.
+ Wake up the task associated with a waker.
+
+ NOTE: This consumes the waker. You should not use or free the waker afterwards.
  */
 void hyper_waker_wake(struct hyper_waker *waker);
 
