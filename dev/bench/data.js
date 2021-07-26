@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1627323684051,
+  "lastUpdate": 1627323717419,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -6781,6 +6781,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 48860,
             "range": "± 1570",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "divergentdave@gmail.com",
+            "name": "David Cook",
+            "username": "divergentdave"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6393a0cc031f504dbd50eb4b021bae51e21f6140",
+          "message": "docs(ffi): fix copy-paste error on hyper_waker_wake (#2604)",
+          "timestamp": "2021-07-26T11:18:50-07:00",
+          "tree_id": "7e5c8357ba1642bdfcb16250fdebb13a029638d6",
+          "url": "https://github.com/hyperium/hyper/commit/6393a0cc031f504dbd50eb4b021bae51e21f6140"
+        },
+        "date": 1627323713948,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 74419,
+            "range": "± 24259",
             "unit": "ns/iter"
           }
         ]
