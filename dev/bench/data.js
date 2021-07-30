@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1627323830290,
+  "lastUpdate": 1627682968177,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -6811,6 +6811,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 74419,
             "range": "± 24259",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "54b57c4797e1210924d901a665f9d17ae7dd9956",
+          "message": "chore(dependencies): remove tower-util dev-dependency (#2603)",
+          "timestamp": "2021-07-30T15:07:11-07:00",
+          "tree_id": "08872ed918121c8a117e7045ab97aae55e9f4cc0",
+          "url": "https://github.com/hyperium/hyper/commit/54b57c4797e1210924d901a665f9d17ae7dd9956"
+        },
+        "date": 1627682966742,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 48837,
+            "range": "± 1431",
             "unit": "ns/iter"
           }
         ]
