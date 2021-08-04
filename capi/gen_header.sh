@@ -71,7 +71,7 @@ cp "$CAPI_DIR/include/hyper.h" "$header_file_backup"
 cd "${WORK_DIR}" || exit 2
 
 # Expand just the ffi module
-if ! output=$(RUSTFLAGS='--cfg hyper_unstable_ffi' cargo rustc -- -Z unstable-options --pretty=expanded 2>&1 > expanded.rs); then
+if ! output=$(RUSTFLAGS='--cfg hyper_unstable_ffi' cargo rustc -- -Z unpretty=expanded 2>&1 > expanded.rs); then
     # As of April 2021 the script above prints a lot of warnings/errors, and
     # exits with a nonzero return code, but hyper.h still gets generated.
     #
