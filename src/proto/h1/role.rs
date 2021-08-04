@@ -1308,36 +1308,18 @@ fn record_header_indices(
     Ok(())
 }
 
-// Write header names as title case. The header name is assumed to be ASCII,
-// therefore it is trivial to convert an ASCII character from lowercase to
-// uppercase. It is as simple as XORing the lowercase character byte with
-// space.
+// Write header names as title case. The header name is assumed to be ASCII.
 fn title_case(dst: &mut Vec<u8>, name: &[u8]) {
     dst.reserve(name.len());
 
-    let mut iter = name.iter();
-
-    // Uppercase the first character
-    if let Some(c) = iter.next() {
-        if *c >= b'a' && *c <= b'z' {
-            dst.push(*c ^ b' ');
-        } else {
-            dst.push(*c);
+    // Ensure first character is uppercased
+    let mut prev = b'-';
+    for &(mut c) in name {
+        if prev == b'-' {
+            c.make_ascii_uppercase();
         }
-    }
-
-    while let Some(c) = iter.next() {
-        dst.push(*c);
-
-        if *c == b'-' {
-            if let Some(c) = iter.next() {
-                if *c >= b'a' && *c <= b'z' {
-                    dst.push(*c ^ b' ');
-                } else {
-                    dst.push(*c);
-                }
-            }
-        }
+        dst.push(c);
+        prev = c;
     }
 }
 
@@ -2316,6 +2298,8 @@ mod tests {
             .insert("content-length", HeaderValue::from_static("10"));
         head.headers
             .insert("content-type", HeaderValue::from_static("application/json"));
+        head.headers
+            .insert("weird--header", HeaderValue::from_static(""));
 
         let mut vec = Vec::new();
         Server::encode(
@@ -2331,7 +2315,7 @@ mod tests {
         .unwrap();
 
         let expected_response =
-            b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\nContent-Type: application/json\r\n";
+            b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\nContent-Type: application/json\r\nWeird--Header: \r\n";
 
         assert_eq!(&vec[..expected_response.len()], &expected_response[..]);
     }
