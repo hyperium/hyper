@@ -971,7 +971,7 @@ impl Builder {
     ///
     /// Default is an adaptive read buffer.
     pub fn http1_read_buf_exact_size(&mut self, sz: usize) -> &mut Self {
-        self.conn_builder.h1_read_buf_exact_size(Some(sz));
+        self.conn_builder.http1_read_buf_exact_size(Some(sz));
         self
     }
 
@@ -987,7 +987,7 @@ impl Builder {
     #[cfg(feature = "http1")]
     #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
     pub fn http1_max_buf_size(&mut self, max: usize) -> &mut Self {
-        self.conn_builder.h1_max_buf_size(max);
+        self.conn_builder.http1_max_buf_size(max);
         self
     }
 
@@ -1012,7 +1012,7 @@ impl Builder {
     /// [RFC 7230 Section 3.2.4.]: https://tools.ietf.org/html/rfc7230#section-3.2.4
     pub fn http1_allow_spaces_after_header_name_in_responses(&mut self, val: bool) -> &mut Self {
         self.conn_builder
-            .h1_allow_spaces_after_header_name_in_responses(val);
+            .http1_allow_spaces_after_header_name_in_responses(val);
         self
     }
 
@@ -1023,7 +1023,7 @@ impl Builder {
     ///
     /// Default is false.
     pub fn http1_title_case_headers(&mut self, val: bool) -> &mut Self {
-        self.conn_builder.h1_title_case_headers(val);
+        self.conn_builder.http1_title_case_headers(val);
         self
     }
 
@@ -1034,7 +1034,7 @@ impl Builder {
     ///
     /// Default is false.
     pub fn http1_preserve_header_case(&mut self, val: bool) -> &mut Self {
-        self.conn_builder.h1_preserve_header_case(val);
+        self.conn_builder.http1_preserve_header_case(val);
         self
     }
 
@@ -1042,7 +1042,7 @@ impl Builder {
     ///
     /// Default is false.
     pub fn http09_responses(&mut self, val: bool) -> &mut Self {
-        self.conn_builder.h09_responses(val);
+        self.conn_builder.http09_responses(val);
         self
     }
 
