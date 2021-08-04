@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1628102991853,
+  "lastUpdate": 1628110489356,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -3479,6 +3479,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 51131,
             "range": "± 2081",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "aturon@fastly.com",
+            "name": "Aaron Turon",
+            "username": "aturon"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "73bff4e98c372ce04b006370c0b0d2af29ea8718",
+          "message": "feat(client): expose http09 and http1 options on `client::conn::Builder` (#2611)\n\nThese options are currently available on the high-level builder only.\r\n\r\nAlong the way, rename the setters to follow the public API conventions\r\nand add docs.\r\n\r\nCloses #2461",
+          "timestamp": "2021-08-04T13:52:35-07:00",
+          "tree_id": "4bdd25a28c1c2b1e3b807e83b0d04fca3d8d7c01",
+          "url": "https://github.com/hyperium/hyper/commit/73bff4e98c372ce04b006370c0b0d2af29ea8718"
+        },
+        "date": 1628110487898,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 47166,
+            "range": "± 878",
             "unit": "ns/iter"
           }
         ]
