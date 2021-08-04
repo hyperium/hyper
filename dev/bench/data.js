@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1627683151610,
+  "lastUpdate": 1628102852306,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -3449,6 +3449,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 65621,
             "range": "± 8132",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "91bbce4ed3bb8379bf4f17e30c8df896c32aa731",
+          "message": "chore(ffi): update gen_header script to use unpretty option",
+          "timestamp": "2021-08-04T11:45:03-07:00",
+          "tree_id": "ffc63c69babbadd3e0ebe1ef2ffd960cc4ca7264",
+          "url": "https://github.com/hyperium/hyper/commit/91bbce4ed3bb8379bf4f17e30c8df896c32aa731"
+        },
+        "date": 1628102850534,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 51131,
+            "range": "± 2081",
             "unit": "ns/iter"
           }
         ]
