@@ -344,11 +344,11 @@ macro_rules! __client_req_prop {
 }
 
 macro_rules! __client_req_header {
-    ($req_builder:ident, { $($name:expr => $val:expr,)* }) => {
+    ($req_builder:ident, { $($name:expr => $val:expr,)* }) => {{
         $(
         $req_builder = $req_builder.header($name, $val);
         )*
-    }
+    }}
 }
 
 static REPLY_OK: &str = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
