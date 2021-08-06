@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1628208213919,
+  "lastUpdate": 1628208239560,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -3509,6 +3509,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 47166,
             "range": "± 878",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jan.verbeek@posteo.nl",
+            "name": "Jan Verbeek",
+            "username": "blyxxyz"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "684f2fa76d44fa2b1b063ad0443a1b0d16dfad0e",
+          "message": "fix(http1): apply header title case for consecutive dashes (#2613)\n\nFix the header title-casing to work with consecutive\r\ndashes. Previously with two dashes in a row the first dash would\r\nuppercase the second dash which would then not count, so\r\n`weird--header` would be cased as `Weird--header` instead of\r\n`Weird--Header`.",
+          "timestamp": "2021-08-05T17:00:57-07:00",
+          "tree_id": "c4addadac6da5e25de7b59c6c888b4a7cb7beb18",
+          "url": "https://github.com/hyperium/hyper/commit/684f2fa76d44fa2b1b063ad0443a1b0d16dfad0e"
+        },
+        "date": 1628208236671,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 82909,
+            "range": "± 22867",
             "unit": "ns/iter"
           }
         ]
