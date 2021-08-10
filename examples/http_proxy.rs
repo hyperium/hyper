@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 
 use hyper::service::{make_service_fn, service_fn};
 use hyper::upgrade::Upgraded;
-use hyper::{Body, Client, Method, Request, Response, Server};
+use hyper::{http, Body, Client, Method, Request, Response, Server};
 
 use tokio::net::TcpStream;
 
