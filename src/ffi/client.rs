@@ -107,7 +107,7 @@ ffi_fn! {
     /// Creates a new set of HTTP clientconn options to be used in a handshake.
     fn hyper_clientconn_options_new() -> *mut hyper_clientconn_options {
         let mut builder = conn::Builder::new();
-        builder.h1_preserve_header_case(true);
+        builder.http1_preserve_header_case(true);
 
         Box::into_raw(Box::new(hyper_clientconn_options {
             builder,
@@ -157,5 +157,19 @@ ffi_fn! {
             drop(enabled);
             hyper_code::HYPERE_FEATURE_NOT_ENABLED
         }
+    }
+}
+
+ffi_fn! {
+    /// Set the whether to include a copy of the raw headers in responses
+    /// received on this connection.
+    ///
+    /// Pass `0` to disable, `1` to enable.
+    ///
+    /// If enabled, see `hyper_response_headers_raw()` for usage.
+    fn hyper_clientconn_options_headers_raw(opts: *mut hyper_clientconn_options, enabled: c_int) -> hyper_code {
+        let opts = unsafe { &mut *opts };
+        opts.builder.http1_headers_raw(enabled != 0);
+        hyper_code::HYPERE_OK
     }
 }

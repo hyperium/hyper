@@ -418,7 +418,9 @@ ffi_fn! {
 }
 
 ffi_fn! {
-    /// Free a waker that hasn't been woken.
+    /// Wake up the task associated with a waker.
+    ///
+    /// NOTE: This consumes the waker. You should not use or free the waker afterwards.
     fn hyper_waker_wake(waker: *mut hyper_waker) {
         let waker = unsafe { Box::from_raw(waker) };
         waker.waker.wake();

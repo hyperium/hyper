@@ -177,7 +177,7 @@ macro_rules! __internal_eq_prop {
     (headers: $map:tt) => {{
         #[allow(unused_mut)]
         {
-            let mut headers = Vec::new();
+            let mut headers = Vec::<std::sync::Arc<dyn Fn(&hyper::HeaderMap) + Send + Sync>>::new();
             __internal_headers_eq!(headers, $map);
             headers
         }
@@ -216,12 +216,12 @@ macro_rules! __internal_headers_eq {
             }
         }) as std::sync::Arc<dyn Fn(&hyper::HeaderMap) + Send + Sync>
     };
-    (@val $name: expr, NONE) => {
+    (@val $name: expr, NONE) => {{
         __internal_headers_eq!(@pat $name, None);
-    };
-    (@val $name: expr, SOME) => {
-        __internal_headers_eq!(@pat $name, Some(_));
-    };
+    }};
+    (@val $name: expr, SOME) => {{
+        __internal_headers_eq!(@pat $name, Some(_))
+    }};
     (@val $name: expr, $val:expr) => ({
         let __val = Option::from($val);
         std::sync::Arc::new(move |__hdrs: &hyper::HeaderMap| {
@@ -232,11 +232,11 @@ macro_rules! __internal_headers_eq {
             }
         }) as std::sync::Arc<dyn Fn(&hyper::HeaderMap) + Send + Sync>
     });
-    ($headers:ident, { $($name:expr => $val:tt,)* }) => {
+    ($headers:ident, { $($name:expr => $val:tt,)* }) => {{
         $(
         $headers.push(__internal_headers_eq!(@val $name, $val));
         )*
-    }
+    }}
 }
 
 #[derive(Clone, Debug)]

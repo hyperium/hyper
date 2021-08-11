@@ -2,10 +2,10 @@ use bytes::Bytes;
 use libc::{c_int, size_t};
 use std::ffi::c_void;
 
-use super::body::hyper_body;
+use super::body::{hyper_body, hyper_buf};
 use super::error::hyper_code;
 use super::task::{hyper_task_return_type, AsTaskType};
-use super::HYPER_ITER_CONTINUE;
+use super::{UserDataPointer, HYPER_ITER_CONTINUE};
 use crate::ext::HeaderCaseMap;
 use crate::header::{HeaderName, HeaderValue};
 use crate::{Body, HeaderMap, Method, Request, Response, Uri};
@@ -26,6 +26,15 @@ pub struct hyper_headers {
 
 #[derive(Debug)]
 pub(crate) struct ReasonPhrase(pub(crate) Bytes);
+
+pub(crate) struct RawHeaders(pub(crate) hyper_buf);
+
+pub(crate) struct OnInformational {
+    func: hyper_request_on_informational_callback,
+    data: UserDataPointer,
+}
+
+type hyper_request_on_informational_callback = extern "C" fn(*mut c_void, *const hyper_response);
 
 // ===== impl hyper_request =====
 
@@ -127,6 +136,32 @@ ffi_fn! {
     }
 }
 
+ffi_fn! {
+    /// Set an informational (1xx) response callback.
+    ///
+    /// The callback is called each time hyper receives an informational (1xx)
+    /// response for this request.
+    ///
+    /// The third argument is an opaque user data pointer, which is passed to
+    /// the callback each time.
+    ///
+    /// The callback is passed the `void *` data pointer, and a
+    /// `hyper_response *` which can be inspected as any other response. The
+    /// body of the response will always be empty.
+    ///
+    /// NOTE: The `const hyper_response *` is just borrowed data, and will not
+    /// be valid after the callback finishes. You must copy any data you wish
+    /// to persist.
+    fn hyper_request_on_informational(req: *mut hyper_request, callback: hyper_request_on_informational_callback, data: *mut c_void) -> hyper_code {
+        let ext = OnInformational {
+            func: callback,
+            data: UserDataPointer(data),
+        };
+        unsafe { &mut *req }.0.extensions_mut().insert(ext);
+        hyper_code::HYPERE_OK
+    }
+}
+
 impl hyper_request {
     pub(super) fn finalize_request(&mut self) {
         if let Some(headers) = self.0.extensions_mut().remove::<hyper_headers>() {
@@ -176,6 +211,26 @@ ffi_fn! {
     fn hyper_response_reason_phrase_len(resp: *const hyper_response) -> size_t {
         unsafe { &*resp }.reason_phrase().len()
     }
+}
+
+ffi_fn! {
+    /// Get a reference to the full raw headers of this response.
+    ///
+    /// You must have enabled `hyper_clientconn_options_headers_raw()`, or this
+    /// will return NULL.
+    ///
+    /// The returned `hyper_buf *` is just a reference, owned by the response.
+    /// You need to make a copy if you wish to use it after freeing the
+    /// response.
+    ///
+    /// The buffer is not null-terminated, see the `hyper_buf` functions for
+    /// getting the bytes and length.
+    fn hyper_response_headers_raw(resp: *const hyper_response) -> *const hyper_buf {
+        match unsafe { &*resp }.0.extensions().get::<RawHeaders>() {
+            Some(raw) => &raw.0,
+            None => std::ptr::null(),
+        }
+    } ?= std::ptr::null()
 }
 
 ffi_fn! {
@@ -370,6 +425,15 @@ unsafe fn raw_name_value(
     };
 
     Ok((name, value, orig_name))
+}
+
+// ===== impl OnInformational =====
+
+impl OnInformational {
+    pub(crate) fn call(&mut self, resp: Response<Body>) {
+        let mut resp = hyper_response(resp);
+        (self.func)(self.data.0, &mut resp);
+    }
 }
 
 #[cfg(test)]

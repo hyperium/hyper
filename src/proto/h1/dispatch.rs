@@ -44,10 +44,13 @@ cfg_server! {
 }
 
 cfg_client! {
-    pub(crate) struct Client<B> {
-        callback: Option<crate::client::dispatch::Callback<Request<B>, http::Response<Body>>>,
-        rx: ClientRx<B>,
-        rx_closed: bool,
+    pin_project_lite::pin_project! {
+        pub(crate) struct Client<B> {
+            callback: Option<crate::client::dispatch::Callback<Request<B>, http::Response<Body>>>,
+            #[pin]
+            rx: ClientRx<B>,
+            rx_closed: bool,
+        }
     }
 
     type ClientRx<B> = crate::client::dispatch::Receiver<Request<B>, http::Response<Body>>;
@@ -595,11 +598,7 @@ cfg_client! {
             match msg {
                 Ok((msg, body)) => {
                     if let Some(cb) = self.callback.take() {
-                        let mut res = http::Response::new(body);
-                        *res.status_mut() = msg.subject;
-                        *res.headers_mut() = msg.headers;
-                        *res.version_mut() = msg.version;
-                        *res.extensions_mut() = msg.extensions;
+                        let res = msg.into_response(body);
                         cb.send(Ok(res));
                         Ok(())
                     } else {

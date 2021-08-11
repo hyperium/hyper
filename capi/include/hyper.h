@@ -207,6 +207,8 @@ typedef int (*hyper_body_foreach_callback)(void*, const struct hyper_buf*);
 
 typedef int (*hyper_body_data_callback)(void*, struct hyper_context*, struct hyper_buf**);
 
+typedef void (*hyper_request_on_informational_callback)(void*, const struct hyper_response*);
+
 typedef int (*hyper_headers_foreach_callback)(void*, const uint8_t*, size_t, const uint8_t*, size_t);
 
 typedef size_t (*hyper_io_read_callback)(void*, struct hyper_context*, uint8_t*, size_t);
@@ -372,6 +374,17 @@ void hyper_clientconn_options_exec(struct hyper_clientconn_options *opts,
 enum hyper_code hyper_clientconn_options_http2(struct hyper_clientconn_options *opts, int enabled);
 
 /*
+ Set the whether to include a copy of the raw headers in responses
+ received on this connection.
+
+ Pass `0` to disable, `1` to enable.
+
+ If enabled, see `hyper_response_headers_raw()` for usage.
+ */
+enum hyper_code hyper_clientconn_options_headers_raw(struct hyper_clientconn_options *opts,
+                                                     int enabled);
+
+/*
  Frees a `hyper_error`.
  */
 void hyper_error_free(struct hyper_error *err);
@@ -444,6 +457,27 @@ struct hyper_headers *hyper_request_headers(struct hyper_request *req);
 enum hyper_code hyper_request_set_body(struct hyper_request *req, struct hyper_body *body);
 
 /*
+ Set an informational (1xx) response callback.
+
+ The callback is called each time hyper receives an informational (1xx)
+ response for this request.
+
+ The third argument is an opaque user data pointer, which is passed to
+ the callback each time.
+
+ The callback is passed the `void *` data pointer, and a
+ `hyper_response *` which can be inspected as any other response. The
+ body of the response will always be empty.
+
+ NOTE: The `const hyper_response *` is just borrowed data, and will not
+ be valid after the callback finishes. You must copy any data you wish
+ to persist.
+ */
+enum hyper_code hyper_request_on_informational(struct hyper_request *req,
+                                               hyper_request_on_informational_callback callback,
+                                               void *data);
+
+/*
  Free an HTTP response after using it.
  */
 void hyper_response_free(struct hyper_response *resp);
@@ -474,6 +508,21 @@ const uint8_t *hyper_response_reason_phrase(const struct hyper_response *resp);
  Use `hyper_response_reason_phrase()` to get the buffer pointer.
  */
 size_t hyper_response_reason_phrase_len(const struct hyper_response *resp);
+
+/*
+ Get a reference to the full raw headers of this response.
+
+ You must have enabled `hyper_clientconn_options_headers_raw()`, or this
+ will return NULL.
+
+ The returned `hyper_buf *` is just a reference, owned by the response.
+ You need to make a copy if you wish to use it after freeing the
+ response.
+
+ The buffer is not null-terminated, see the `hyper_buf` functions for
+ getting the bytes and length.
+ */
+const struct hyper_buf *hyper_response_headers_raw(const struct hyper_response *resp);
 
 /*
  Get the HTTP version used by this response.
@@ -669,7 +718,9 @@ struct hyper_waker *hyper_context_waker(struct hyper_context *cx);
 void hyper_waker_free(struct hyper_waker *waker);
 
 /*
- Free a waker that hasn't been woken.
+ Wake up the task associated with a waker.
+
+ NOTE: This consumes the waker. You should not use or free the waker afterwards.
  */
 void hyper_waker_wake(struct hyper_waker *waker);
 
