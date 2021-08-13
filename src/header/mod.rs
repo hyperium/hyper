@@ -540,7 +540,7 @@ impl<'a> FromIterator<HeaderView<'a>> for Headers {
     }
 }
 
-
+#[deprecated(note="The semantics of formatting a HeaderFormat directly are not clear")]
 impl<'a> fmt::Display for &'a (HeaderFormat + Send + Sync) {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
