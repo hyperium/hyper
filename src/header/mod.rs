@@ -540,7 +540,7 @@ impl<'a> FromIterator<HeaderView<'a>> for Headers {
     }
 }
 
-#[deprecated(note="The semantics of formatting a HeaderFormat directly are not clear")]
+
 impl<'a> fmt::Display for &'a (HeaderFormat + Send + Sync) {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -716,6 +716,12 @@ mod tests {
     fn test_trailing_whitespace() {
         let headers = Headers::from_raw(&raw!(b"Content-Length: 10   ")).unwrap();
         assert_eq!(headers.get::<ContentLength>(), Some(&ContentLength(10)));
+    }
+
+    #[test]
+    fn test_deny_plus_for_content_length() {
+        let headers = Headers::from_raw(&raw!(b"Content-Length: +10")).unwrap();
+        assert_eq!(headers.get::<ContentLength>(), None);
     }
 
     #[test]

@@ -21,6 +21,36 @@ pub fn from_raw_str<T: str::FromStr>(raw: &[u8]) -> ::Result<T> {
     T::from_str(s).or(Err(::Error::Header))
 }
 
+/// Reads a raw string into a u64 expecting entire value to be digits
+pub fn from_digits(bytes: &[u8]) -> ::Result<u64> {
+    // cannot use FromStr for u64, since it allows a signed prefix
+    let mut result = 0u64;
+    const RADIX: u64 = 10;
+
+    if bytes.is_empty() {
+        return Err(::Error::Header);
+    }
+
+    for &b in bytes {
+        // can't use char::to_digit, since we haven't verified these bytes
+        // are utf-8.
+        match b {
+            b'0'..=b'9' => {
+                result = result.checked_mul(RADIX).ok_or(::Error::Header)?;
+                result = result
+                    .checked_add((b - b'0') as u64)
+                    .ok_or(::Error::Header)?;
+            }
+            _ => {
+                // not a DIGIT, get outta here!
+                return Err(::Error::Header);
+            }
+        }
+    }
+
+    Ok(result)
+}
+
 /// Reads a comma-delimited raw header into a Vec.
 #[inline]
 pub fn from_comma_delimited<T: str::FromStr, S: AsRef<[u8]>>(raw: &[S]) -> ::Result<Vec<T>> {

@@ -4,7 +4,7 @@ use header::{HeaderFormat, Header, parsing};
 
 /// `Content-Length` header, defined in
 /// [RFC7230](http://tools.ietf.org/html/rfc7230#section-3.3.2)
-/// 
+///
 /// When a message does not have a `Transfer-Encoding` header field, a
 /// Content-Length header field can provide the anticipated size, as a
 /// decimal number of octets, for a potential payload body.  For messages
@@ -13,19 +13,19 @@ use header::{HeaderFormat, Header, parsing};
 /// body (and message) ends.  For messages that do not include a payload
 /// body, the Content-Length indicates the size of the selected
 /// representation.
-/// 
+///
 /// # ABNF
 /// ```plain
 /// Content-Length = 1*DIGIT
 /// ```
-/// 
+///
 /// # Example values
 /// * `3495`
-/// 
+///
 /// # Example
 /// ```
 /// use hyper::header::{Headers, ContentLength};
-/// 
+///
 /// let mut headers = Headers::new();
 /// headers.set(ContentLength(1024u64));
 /// ```
@@ -43,7 +43,7 @@ impl Header for ContentLength {
         // correctly. If not, then it's an error.
         raw.iter()
             .map(::std::ops::Deref::deref)
-            .map(parsing::from_raw_str)
+            .map(parsing::from_digits)
             .fold(None, |prev, x| {
                 match (prev, x) {
                     (None, x) => Some(x),
