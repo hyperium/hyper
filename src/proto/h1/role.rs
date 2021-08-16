@@ -1,5 +1,3 @@
-#![allow(deprecated)]
-
 use std::fmt::{self, Write};
 use std::mem::{self, MaybeUninit};
 
