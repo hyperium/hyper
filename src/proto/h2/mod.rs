@@ -377,9 +377,24 @@ where
 
     fn poll_shutdown(
         mut self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
+        cx: &mut Context<'_>,
     ) -> Poll<Result<(), io::Error>> {
-        Poll::Ready(self.send_stream.write(&[], true))
+        if self.send_stream.write(&[], true).is_ok() {
+            return Poll::Ready(Ok(()))
+        }
+
+        Poll::Ready(Err(h2_to_io_error(
+            match ready!(self.send_stream.poll_reset(cx)) {
+                Ok(Reason::NO_ERROR) => {
+                    return Poll::Ready(Ok(()))
+                }
+                Ok(Reason::CANCEL) | Ok(Reason::STREAM_CLOSED) => {
+                    return Poll::Ready(Err(io::ErrorKind::BrokenPipe.into()))
+                }
+                Ok(reason) => reason.into(),
+                Err(e) => e,
+            },
+        )))
     }
 }
 
