@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1628208367497,
+  "lastUpdate": 1629307914288,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -3539,6 +3539,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 82909,
             "range": "± 22867",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c35153998e96870ed4fed2e2afe538e984cdfad2",
+          "message": "docs(capi): output the hyper_version in the capi examples (#2623)",
+          "timestamp": "2021-08-18T10:29:20-07:00",
+          "tree_id": "74b363efb7576a0bede8fe11fc059b1c01620ec1",
+          "url": "https://github.com/hyperium/hyper/commit/c35153998e96870ed4fed2e2afe538e984cdfad2"
+        },
+        "date": 1629307911617,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 63578,
+            "range": "± 9999",
             "unit": "ns/iter"
           }
         ]
