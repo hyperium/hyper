@@ -40,11 +40,7 @@ ffi_fn! {
 ffi_fn! {
     /// Free a `hyper_body *`.
     fn hyper_body_free(body: *mut hyper_body) {
-        if body.is_null() {
-            return;
-        }
-
-        drop(unsafe { Box::from_raw(body) });
+        drop(non_null!(Box::from_raw(body) ?= ()));
     }
 }
 
@@ -61,7 +57,7 @@ ffi_fn! {
     /// However, it MUST NOT be used or freed until the related task completes.
     fn hyper_body_data(body: *mut hyper_body) -> *mut hyper_task {
         // This doesn't take ownership of the Body, so don't allow destructor
-        let mut body = ManuallyDrop::new(unsafe { Box::from_raw(body) });
+        let mut body = ManuallyDrop::new(non_null!(Box::from_raw(body) ?= ptr::null_mut()));
 
         Box::into_raw(hyper_task::boxed(async move {
             body.0.data().await.map(|res| res.map(hyper_buf))
@@ -81,11 +77,7 @@ ffi_fn! {
     ///
     /// This will consume the `hyper_body *`, you shouldn't use it anymore or free it.
     fn hyper_body_foreach(body: *mut hyper_body, func: hyper_body_foreach_callback, userdata: *mut c_void) -> *mut hyper_task {
-        if body.is_null() {
-            return ptr::null_mut();
-        }
-
-        let mut body = unsafe { Box::from_raw(body) };
+        let mut body = non_null!(Box::from_raw(body) ?= ptr::null_mut());
         let userdata = UserDataPointer(userdata);
 
         Box::into_raw(hyper_task::boxed(async move {
@@ -103,7 +95,7 @@ ffi_fn! {
 ffi_fn! {
     /// Set userdata on this body, which will be passed to callback functions.
     fn hyper_body_set_userdata(body: *mut hyper_body, userdata: *mut c_void) {
-        let b = unsafe { &mut *body };
+        let b = non_null!(&mut *body ?= ());
         b.0.as_ffi_mut().userdata = userdata;
     }
 }
@@ -129,7 +121,7 @@ ffi_fn! {
     /// If some error has occurred, you can return `HYPER_POLL_ERROR` to abort
     /// the body.
     fn hyper_body_set_data_func(body: *mut hyper_body, func: hyper_body_data_callback) {
-        let b = unsafe { &mut *body };
+        let b = non_null!{ &mut *body ?= () };
         b.0.as_ffi_mut().data_func = func;
     }
 }

@@ -48,7 +48,7 @@ ffi_fn! {
 ffi_fn! {
     /// Free an HTTP request if not going to send it on a client.
     fn hyper_request_free(req: *mut hyper_request) {
-        drop(unsafe { Box::from_raw(req) });
+        drop(non_null!(Box::from_raw(req) ?= ()));
     }
 }
 
@@ -58,9 +58,10 @@ ffi_fn! {
         let bytes = unsafe {
             std::slice::from_raw_parts(method, method_len as usize)
         };
+        let req = non_null!(&mut *req ?= hyper_code::HYPERE_INVALID_ARG);
         match Method::from_bytes(bytes) {
             Ok(m) => {
-                *unsafe { &mut *req }.0.method_mut() = m;
+                *req.0.method_mut() = m;
                 hyper_code::HYPERE_OK
             },
             Err(_) => {
@@ -76,9 +77,10 @@ ffi_fn! {
         let bytes = unsafe {
             std::slice::from_raw_parts(uri, uri_len as usize)
         };
+        let req = non_null!(&mut *req ?= hyper_code::HYPERE_INVALID_ARG);
         match Uri::from_maybe_shared(bytes) {
             Ok(u) => {
-                *unsafe { &mut *req }.0.uri_mut() = u;
+                *req.0.uri_mut() = u;
                 hyper_code::HYPERE_OK
             },
             Err(_) => {
@@ -98,7 +100,8 @@ ffi_fn! {
     fn hyper_request_set_version(req: *mut hyper_request, version: c_int) -> hyper_code {
         use http::Version;
 
-        *unsafe { &mut *req }.0.version_mut() = match version {
+        let req = non_null!(&mut *req ?= hyper_code::HYPERE_INVALID_ARG);
+        *req.0.version_mut() = match version {
             super::HYPER_HTTP_VERSION_NONE => Version::HTTP_11,
             super::HYPER_HTTP_VERSION_1_0 => Version::HTTP_10,
             super::HYPER_HTTP_VERSION_1_1 => Version::HTTP_11,
@@ -130,8 +133,9 @@ ffi_fn! {
     /// This takes ownership of the `hyper_body *`, you must not use it or
     /// free it after setting it on the request.
     fn hyper_request_set_body(req: *mut hyper_request, body: *mut hyper_body) -> hyper_code {
-        let body = unsafe { Box::from_raw(body) };
-        *unsafe { &mut *req }.0.body_mut() = body.0;
+        let body = non_null!(Box::from_raw(body) ?= hyper_code::HYPERE_INVALID_ARG);
+        let req = non_null!(&mut *req ?= hyper_code::HYPERE_INVALID_ARG);
+        *req.0.body_mut() = body.0;
         hyper_code::HYPERE_OK
     }
 }
@@ -157,7 +161,8 @@ ffi_fn! {
             func: callback,
             data: UserDataPointer(data),
         };
-        unsafe { &mut *req }.0.extensions_mut().insert(ext);
+        let req = non_null!(&mut *req ?= hyper_code::HYPERE_INVALID_ARG);
+        req.0.extensions_mut().insert(ext);
         hyper_code::HYPERE_OK
     }
 }
@@ -176,7 +181,7 @@ impl hyper_request {
 ffi_fn! {
     /// Free an HTTP response after using it.
     fn hyper_response_free(resp: *mut hyper_response) {
-        drop(unsafe { Box::from_raw(resp) });
+        drop(non_null!(Box::from_raw(resp) ?= ()));
     }
 }
 
@@ -185,7 +190,7 @@ ffi_fn! {
     ///
     /// It will always be within the range of 100-599.
     fn hyper_response_status(resp: *const hyper_response) -> u16 {
-        unsafe { &*resp }.0.status().as_u16()
+        non_null!(&*resp ?= 0).0.status().as_u16()
     }
 }
 
@@ -200,7 +205,7 @@ ffi_fn! {
     /// Use `hyper_response_reason_phrase_len()` to get the length of this
     /// buffer.
     fn hyper_response_reason_phrase(resp: *const hyper_response) -> *const u8 {
-        unsafe { &*resp }.reason_phrase().as_ptr()
+        non_null!(&*resp ?= std::ptr::null()).reason_phrase().as_ptr()
     } ?= std::ptr::null()
 }
 
@@ -209,7 +214,7 @@ ffi_fn! {
     ///
     /// Use `hyper_response_reason_phrase()` to get the buffer pointer.
     fn hyper_response_reason_phrase_len(resp: *const hyper_response) -> size_t {
-        unsafe { &*resp }.reason_phrase().len()
+        non_null!(&*resp ?= 0).reason_phrase().len()
     }
 }
 
@@ -226,7 +231,8 @@ ffi_fn! {
     /// The buffer is not null-terminated, see the `hyper_buf` functions for
     /// getting the bytes and length.
     fn hyper_response_headers_raw(resp: *const hyper_response) -> *const hyper_buf {
-        match unsafe { &*resp }.0.extensions().get::<RawHeaders>() {
+        let resp = non_null!(&*resp ?= std::ptr::null());
+        match resp.0.extensions().get::<RawHeaders>() {
             Some(raw) => &raw.0,
             None => std::ptr::null(),
         }
@@ -245,7 +251,7 @@ ffi_fn! {
     fn hyper_response_version(resp: *const hyper_response) -> c_int {
         use http::Version;
 
-        match unsafe { &*resp }.0.version() {
+        match non_null!(&*resp ?= 0).0.version() {
             Version::HTTP_10 => super::HYPER_HTTP_VERSION_1_0,
             Version::HTTP_11 => super::HYPER_HTTP_VERSION_1_1,
             Version::HTTP_2 => super::HYPER_HTTP_VERSION_2,
@@ -269,7 +275,7 @@ ffi_fn! {
     ///
     /// It is safe to free the response even after taking ownership of its body.
     fn hyper_response_body(resp: *mut hyper_response) -> *mut hyper_body {
-        let body = std::mem::take(unsafe { &mut *resp }.0.body_mut());
+        let body = std::mem::take(non_null!(&mut *resp ?= std::ptr::null_mut()).0.body_mut());
         Box::into_raw(Box::new(hyper_body(body)))
     } ?= std::ptr::null_mut()
 }
@@ -331,7 +337,7 @@ ffi_fn! {
     /// The callback should return `HYPER_ITER_CONTINUE` to keep iterating, or
     /// `HYPER_ITER_BREAK` to stop.
     fn hyper_headers_foreach(headers: *const hyper_headers, func: hyper_headers_foreach_callback, userdata: *mut c_void) {
-        let headers = unsafe { &*headers };
+        let headers = non_null!(&*headers ?= ());
         // For each header name/value pair, there may be a value in the casemap
         // that corresponds to the HeaderValue. So, we iterator all the keys,
         // and for each one, try to pair the originally cased name with the value.
@@ -366,7 +372,7 @@ ffi_fn! {
     ///
     /// This overwrites any previous value set for the header.
     fn hyper_headers_set(headers: *mut hyper_headers, name: *const u8, name_len: size_t, value: *const u8, value_len: size_t) -> hyper_code {
-        let headers = unsafe { &mut *headers };
+        let headers = non_null!(&mut *headers ?= hyper_code::HYPERE_INVALID_ARG);
         match unsafe { raw_name_value(name, name_len, value, value_len) } {
             Ok((name, value, orig_name)) => {
                 headers.headers.insert(&name, value);
@@ -384,7 +390,7 @@ ffi_fn! {
     /// If there were already existing values for the name, this will append the
     /// new value to the internal list.
     fn hyper_headers_add(headers: *mut hyper_headers, name: *const u8, name_len: size_t, value: *const u8, value_len: size_t) -> hyper_code {
-        let headers = unsafe { &mut *headers };
+        let headers = non_null!(&mut *headers ?= hyper_code::HYPERE_INVALID_ARG);
 
         match unsafe { raw_name_value(name, name_len, value, value_len) } {
             Ok((name, value, orig_name)) => {

@@ -1,3 +1,4 @@
+use std::ptr;
 use std::sync::Arc;
 
 use libc::c_int;
@@ -37,15 +38,8 @@ ffi_fn! {
     /// The returned `hyper_task *` must be polled with an executor until the
     /// handshake completes, at which point the value can be taken.
     fn hyper_clientconn_handshake(io: *mut hyper_io, options: *mut hyper_clientconn_options) -> *mut hyper_task {
-        if io.is_null() {
-            return std::ptr::null_mut();
-        }
-        if options.is_null() {
-            return std::ptr::null_mut();
-        }
-
-        let options = unsafe { Box::from_raw(options) };
-        let io = unsafe { Box::from_raw(io) };
+        let options = non_null! { Box::from_raw(options) ?= ptr::null_mut() };
+        let io = non_null! { Box::from_raw(io) ?= ptr::null_mut() };
 
         Box::into_raw(hyper_task::boxed(async move {
             options.builder.handshake::<_, crate::Body>(io)
@@ -66,19 +60,12 @@ ffi_fn! {
     /// Returns a task that needs to be polled until it is ready. When ready, the
     /// task yields a `hyper_response *`.
     fn hyper_clientconn_send(conn: *mut hyper_clientconn, req: *mut hyper_request) -> *mut hyper_task {
-        if conn.is_null() {
-            return std::ptr::null_mut();
-        }
-        if req.is_null() {
-            return std::ptr::null_mut();
-        }
-
-        let mut req = unsafe { Box::from_raw(req) };
+        let mut req = non_null! { Box::from_raw(req) ?= ptr::null_mut() };
 
         // Update request with original-case map of headers
         req.finalize_request();
 
-        let fut = unsafe { &mut *conn }.tx.send_request(req.0);
+        let fut = non_null! { &mut *conn ?= ptr::null_mut() }.tx.send_request(req.0);
 
         let fut = async move {
             fut.await.map(hyper_response::wrap)
@@ -91,7 +78,7 @@ ffi_fn! {
 ffi_fn! {
     /// Free a `hyper_clientconn *`.
     fn hyper_clientconn_free(conn: *mut hyper_clientconn) {
-        drop(unsafe { Box::from_raw(conn) });
+        drop(non_null! { Box::from_raw(conn) ?= () });
     }
 }
 
@@ -119,7 +106,7 @@ ffi_fn! {
 ffi_fn! {
     /// Free a `hyper_clientconn_options *`.
     fn hyper_clientconn_options_free(opts: *mut hyper_clientconn_options) {
-        drop(unsafe { Box::from_raw(opts) });
+        drop(non_null! { Box::from_raw(opts) ?= () });
     }
 }
 
@@ -128,9 +115,9 @@ ffi_fn! {
     ///
     /// This does not consume the `options` or the `exec`.
     fn hyper_clientconn_options_exec(opts: *mut hyper_clientconn_options, exec: *const hyper_executor) {
-        let opts = unsafe { &mut *opts };
+        let opts = non_null! { &mut *opts ?= () };
 
-        let exec = unsafe { Arc::from_raw(exec) };
+        let exec = non_null! { Arc::from_raw(exec) ?= () };
         let weak_exec = hyper_executor::downgrade(&exec);
         std::mem::forget(exec);
 
@@ -146,7 +133,7 @@ ffi_fn! {
     fn hyper_clientconn_options_http2(opts: *mut hyper_clientconn_options, enabled: c_int) -> hyper_code {
         #[cfg(feature = "http2")]
         {
-            let opts = unsafe { &mut *opts };
+            let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
             opts.builder.http2_only(enabled != 0);
             hyper_code::HYPERE_OK
         }
@@ -168,7 +155,7 @@ ffi_fn! {
     ///
     /// If enabled, see `hyper_response_headers_raw()` for usage.
     fn hyper_clientconn_options_headers_raw(opts: *mut hyper_clientconn_options, enabled: c_int) -> hyper_code {
-        let opts = unsafe { &mut *opts };
+        let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
         opts.builder.http1_headers_raw(enabled != 0);
         hyper_code::HYPERE_OK
     }
