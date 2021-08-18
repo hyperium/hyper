@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1629321541602,
+  "lastUpdate": 1629321571164,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -7201,6 +7201,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 67904,
             "range": "± 27334",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "daniel@haxx.se",
+            "name": "Daniel Stenberg",
+            "username": "bagder"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a1995ee1cb7aa1306f6c5cbf3f50eafac49776c4",
+          "message": "docs(capi): build 'upload' example too by default (#2625)",
+          "timestamp": "2021-08-18T14:16:07-07:00",
+          "tree_id": "bbec2338ce904934dfcaa08058351558631d2e4b",
+          "url": "https://github.com/hyperium/hyper/commit/a1995ee1cb7aa1306f6c5cbf3f50eafac49776c4"
+        },
+        "date": 1629321569700,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 48944,
+            "range": "± 2008",
             "unit": "ns/iter"
           }
         ]
