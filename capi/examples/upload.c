@@ -153,8 +153,10 @@ static void print_informational(void *userdata, const hyper_response *resp) {
 
     printf("\nInformational (1xx): %d\n", http_status);
 
-    const hyper_buf* headers = hyper_response_headers_raw(resp);
-    write(1, hyper_buf_bytes(headers), hyper_buf_len(headers));
+    const hyper_buf *headers = hyper_response_headers_raw(resp);
+    if (headers) {
+        write(1, hyper_buf_bytes(headers), hyper_buf_len(headers));
+    }
 }
 
 typedef enum {
