@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1629321481408,
+  "lastUpdate": 1629321484355,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -3569,6 +3569,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 63578,
             "range": "± 9999",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3b265728769a1199d6b4b7f66a3645064bf1f885",
+          "message": "refactor(ffi): check pointer arguments for NULL (#2624)\n\nThis changes all the extern C functions in `hyper::ffi` to check passed\r\npointer arguments for being `NULL` before trying to use them. Before, we\r\nwould just assume the programmer had passed a good pointer, which could\r\nresult in segmentation faults. Now:\r\n\r\n- In debug builds, it will assert they aren't null, and so if they are,\r\n  a message identifying the argument name will be printed and then the\r\n  process will crash.\r\n- In release builds, it will still check for null, but if found, it will\r\n  return early, with a return value indicating failure if the return type\r\n  allows (such as returning NULL, or `HYPERE_INVALID_ARG`).\r\n\r\nCloses #2620",
+          "timestamp": "2021-08-18T14:15:14-07:00",
+          "tree_id": "2fbb6c1db50936bdc69038c2ebcfe37b06865c8b",
+          "url": "https://github.com/hyperium/hyper/commit/3b265728769a1199d6b4b7f66a3645064bf1f885"
+        },
+        "date": 1629321482270,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 74273,
+            "range": "± 14648",
             "unit": "ns/iter"
           }
         ]
