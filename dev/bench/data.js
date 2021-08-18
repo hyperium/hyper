@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1629321571164,
+  "lastUpdate": 1629321656530,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -23517,6 +23517,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_req_100kb",
             "value": 131464,
             "range": "± 3770",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3b265728769a1199d6b4b7f66a3645064bf1f885",
+          "message": "refactor(ffi): check pointer arguments for NULL (#2624)\n\nThis changes all the extern C functions in `hyper::ffi` to check passed\r\npointer arguments for being `NULL` before trying to use them. Before, we\r\nwould just assume the programmer had passed a good pointer, which could\r\nresult in segmentation faults. Now:\r\n\r\n- In debug builds, it will assert they aren't null, and so if they are,\r\n  a message identifying the argument name will be printed and then the\r\n  process will crash.\r\n- In release builds, it will still check for null, but if found, it will\r\n  return early, with a return value indicating failure if the return type\r\n  allows (such as returning NULL, or `HYPERE_INVALID_ARG`).\r\n\r\nCloses #2620",
+          "timestamp": "2021-08-18T14:15:14-07:00",
+          "tree_id": "2fbb6c1db50936bdc69038c2ebcfe37b06865c8b",
+          "url": "https://github.com/hyperium/hyper/commit/3b265728769a1199d6b4b7f66a3645064bf1f885"
+        },
+        "date": 1629321654355,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_body_both_100kb",
+            "value": 126972,
+            "range": "± 25102",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_body_both_10mb",
+            "value": 6786106,
+            "range": "± 1028025",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_get",
+            "value": 48109,
+            "range": "± 10575",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 276869,
+            "range": "± 53324",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 52745806,
+            "range": "± 2393984",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 54984390,
+            "range": "± 6575456",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 60664189,
+            "range": "± 5017141",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 3727900,
+            "range": "± 859049",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_post",
+            "value": 53832,
+            "range": "± 8989",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_get",
+            "value": 81448,
+            "range": "± 14038",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 209978,
+            "range": "± 40979",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 12228930,
+            "range": "± 9114789",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 12204461,
+            "range": "± 1993871",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 12286620,
+            "range": "± 9629428",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 63775074,
+            "range": "± 8773991",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 79991941,
+            "range": "± 15932760",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 6500623,
+            "range": "± 1184493",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_post",
+            "value": 90666,
+            "range": "± 11387",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_req_100kb",
+            "value": 173626,
+            "range": "± 48613",
             "unit": "ns/iter"
           }
         ]
