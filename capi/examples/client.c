@@ -175,7 +175,7 @@ int main(int argc, char *argv[]) {
     hyper_io_set_read(io, read_cb);
     hyper_io_set_write(io, write_cb);
 
-    printf("http handshake ...\n");
+    printf("http handshake (hyper v%s) ...\n", hyper_version());
 
     // We need an executor generally to poll futures
     const hyper_executor *exec = hyper_executor_new();
