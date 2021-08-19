@@ -34,7 +34,7 @@ pub(crate) struct OnInformational {
     data: UserDataPointer,
 }
 
-type hyper_request_on_informational_callback = extern "C" fn(*mut c_void, *const hyper_response);
+type hyper_request_on_informational_callback = extern "C" fn(*mut c_void, *mut hyper_response);
 
 // ===== impl hyper_request =====
 
@@ -153,7 +153,7 @@ ffi_fn! {
     /// `hyper_response *` which can be inspected as any other response. The
     /// body of the response will always be empty.
     ///
-    /// NOTE: The `const hyper_response *` is just borrowed data, and will not
+    /// NOTE: The `hyper_response *` is just borrowed data, and will not
     /// be valid after the callback finishes. You must copy any data you wish
     /// to persist.
     fn hyper_request_on_informational(req: *mut hyper_request, callback: hyper_request_on_informational_callback, data: *mut c_void) -> hyper_code {
@@ -437,7 +437,7 @@ unsafe fn raw_name_value(
 
 impl OnInformational {
     pub(crate) fn call(&mut self, resp: Response<Body>) {
-        let mut resp = hyper_response(resp);
+        let mut resp = hyper_response::wrap(resp);
         (self.func)(self.data.0, &mut resp);
     }
 }

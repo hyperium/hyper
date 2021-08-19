@@ -1,5 +1,5 @@
 use std::fmt::{self, Write};
-use std::mem::{self, MaybeUninit};
+use std::mem::MaybeUninit;
 
 #[cfg(any(test, feature = "server", feature = "ffi"))]
 use bytes::Bytes;
@@ -360,7 +360,7 @@ impl Http1Transaction for Server {
         }
 
         let orig_headers;
-        let extensions = mem::take(&mut msg.head.extensions);
+        let extensions = std::mem::take(&mut msg.head.extensions);
         let orig_headers = match extensions.get::<HeaderCaseMap>() {
             None if msg.title_case_headers => {
                 orig_headers = HeaderCaseMap::default();
