@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1629396458379,
+  "lastUpdate": 1629396509489,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -7321,6 +7321,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 61435,
             "range": "± 8150",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "123095+nox@users.noreply.github.com",
+            "name": "Anthony Ramine",
+            "username": "nox"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "be08648e8298cdb13e9879ee761a73f827268962",
+          "message": "fix(http2): improve errors emitted by HTTP2 `Upgraded` stream shutdown (#2622)",
+          "timestamp": "2021-08-19T11:05:26-07:00",
+          "tree_id": "b87a965d6deaa6c7940a31bea0c0c2ce6c6f4413",
+          "url": "https://github.com/hyperium/hyper/commit/be08648e8298cdb13e9879ee761a73f827268962"
+        },
+        "date": 1629396507199,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 68487,
+            "range": "± 14947",
             "unit": "ns/iter"
           }
         ]
