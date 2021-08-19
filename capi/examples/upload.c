@@ -148,7 +148,7 @@ static int print_each_header(void *userdata,
     return HYPER_ITER_CONTINUE;
 }
 
-static void print_informational(void *userdata, const hyper_response *resp) {
+static void print_informational(void *userdata, hyper_response *resp) {
     uint16_t http_status = hyper_response_status(resp);
 
     printf("\nInformational (1xx): %d\n", http_status);
