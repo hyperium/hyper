@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1629401057756,
+  "lastUpdate": 1629401109998,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -3749,6 +3749,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 78852,
             "range": "± 5363",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "39b6d01aa0e520077bb25e16811f5ece00a224d6",
+          "message": "fix(ffi): on_informational callback had no headers",
+          "timestamp": "2021-08-19T12:21:17-07:00",
+          "tree_id": "699fdcb767a88974626500366392be4ed79a6421",
+          "url": "https://github.com/hyperium/hyper/commit/39b6d01aa0e520077bb25e16811f5ece00a224d6"
+        },
+        "date": 1629401108202,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 66552,
+            "range": "± 9046",
             "unit": "ns/iter"
           }
         ]
