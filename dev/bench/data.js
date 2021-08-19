@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1629388385161,
+  "lastUpdate": 1629388394489,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -7261,6 +7261,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 48944,
             "range": "± 2008",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "daniel@haxx.se",
+            "name": "Daniel Stenberg",
+            "username": "bagder"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9a113ed4169a530b94fbd99f1e0f4b7902fb655c",
+          "message": "docs(capi): fix typo in the upload example build (#2626)",
+          "timestamp": "2021-08-19T08:50:21-07:00",
+          "tree_id": "13e41b7f78c69b0b505c6f22731316e247855b44",
+          "url": "https://github.com/hyperium/hyper/commit/9a113ed4169a530b94fbd99f1e0f4b7902fb655c"
+        },
+        "date": 1629388392706,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 61435,
+            "range": "± 8150",
             "unit": "ns/iter"
           }
         ]
