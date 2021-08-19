@@ -19,7 +19,7 @@ $(TARGET): $(OBJS)
 	$(CC) -o $(TARGET) $(OBJS) $(LDFLAGS) $(LIBS)
 
 $(TARGET2): $(OBJS2)
-	$(CC) -o $(TARGET2) $(OBJS) $(LDFLAGS) $(LIBS)
+	$(CC) -o $(TARGET2) $(OBJS2) $(LDFLAGS) $(LIBS)
 
 clean:
 	rm -f $(OBJS) $(TARGET) $(OBJS2) $(TARGET2)
