@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1629396948961,
+  "lastUpdate": 1629398018630,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -3719,6 +3719,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 44952,
             "range": "± 8288",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "adaa8b3f0e97f5b5ceac91650d71bebb4476786b",
+          "message": "chore(dependencies): require httparse 1.5.1",
+          "timestamp": "2021-08-19T11:30:41-07:00",
+          "tree_id": "42de182e3a64c094f8a7fef679e70de851325ea6",
+          "url": "https://github.com/hyperium/hyper/commit/adaa8b3f0e97f5b5ceac91650d71bebb4476786b"
+        },
+        "date": 1629398016409,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 78852,
+            "range": "± 5363",
             "unit": "ns/iter"
           }
         ]
