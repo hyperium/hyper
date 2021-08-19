@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1629396764357,
+  "lastUpdate": 1629396803231,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -7381,6 +7381,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 68487,
             "range": "± 14947",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "marx.tomasz@gmail.com",
+            "name": "Soveu",
+            "username": "Soveu"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "95a978344c29351e2e381af0a91772093e01e255",
+          "message": "refactor(http1): use MaybeUninit for parsing with uninitialized headers (#2545)\n\nCloses #2532",
+          "timestamp": "2021-08-19T11:10:30-07:00",
+          "tree_id": "eaeb29f117b9a6f09fb36d95326130d8086ec876",
+          "url": "https://github.com/hyperium/hyper/commit/95a978344c29351e2e381af0a91772093e01e255"
+        },
+        "date": 1629396801012,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 60002,
+            "range": "± 15806",
             "unit": "ns/iter"
           }
         ]
