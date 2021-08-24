@@ -1,3 +1,18 @@
+### v0.14.12 (2021-08-24)
+
+
+#### Bug Fixes
+
+* **ffi:** on_informational callback had no headers ([39b6d01a](https://github.com/hyperium/hyper/commit/39b6d01aa0e520077bb25e16811f5ece00a224d6))
+* **http1:** apply header title case for consecutive dashes (#2613) ([684f2fa7](https://github.com/hyperium/hyper/commit/684f2fa76d44fa2b1b063ad0443a1b0d16dfad0e))
+* **http2:** improve errors emitted by HTTP2 `Upgraded` stream shutdown (#2622) ([be08648e](https://github.com/hyperium/hyper/commit/be08648e8298cdb13e9879ee761a73f827268962))
+
+
+#### Features
+
+* **client:** expose http09 and http1 options on `client::conn::Builder` (#2611) ([73bff4e9](https://github.com/hyperium/hyper/commit/73bff4e98c372ce04b006370c0b0d2af29ea8718), closes [#2461](https://github.com/hyperium/hyper/issues/2461))
+
+
 ### v0.14.11 (2021-07-21)
 
 
