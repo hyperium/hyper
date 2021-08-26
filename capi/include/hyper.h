@@ -299,6 +299,8 @@ void hyper_body_set_data_func(struct hyper_body *body, hyper_body_data_callback 
 
  This makes an owned copy of the bytes, so the `buf` argument can be
  freed or changed afterwards.
+
+ This returns `NULL` if allocating a new buffer fails.
  */
 struct hyper_buf *hyper_buf_copy(const uint8_t *buf, size_t len);
 

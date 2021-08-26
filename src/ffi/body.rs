@@ -185,6 +185,8 @@ ffi_fn! {
     ///
     /// This makes an owned copy of the bytes, so the `buf` argument can be
     /// freed or changed afterwards.
+    ///
+    /// This returns `NULL` if allocating a new buffer fails.
     fn hyper_buf_copy(buf: *const u8, len: size_t) -> *mut hyper_buf {
         let slice = unsafe {
             std::slice::from_raw_parts(buf, len)
