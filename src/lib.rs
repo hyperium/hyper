@@ -93,7 +93,7 @@ cfg_proto! {
 }
 
 cfg_feature! {
-    #![all(feature = "client")]
+    #![feature = "client"]
 
     pub mod client;
     #[cfg(any(feature = "http1", feature = "http2"))]
@@ -102,7 +102,7 @@ cfg_feature! {
 }
 
 cfg_feature! {
-    #![all(feature = "server")]
+    #![feature = "server"]
 
     pub mod server;
     #[cfg(any(feature = "http1", feature = "http2"))]
