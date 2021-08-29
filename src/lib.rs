@@ -58,13 +58,6 @@
 
 #[doc(hidden)]
 pub use http;
-#[cfg(any(
-    feature = "http1",
-    feature = "http2",
-    all(feature = "client", feature = "tcp")
-))]
-#[macro_use]
-extern crate tracing;
 
 #[cfg(all(test, feature = "nightly"))]
 extern crate test;

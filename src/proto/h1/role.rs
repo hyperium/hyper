@@ -8,6 +8,7 @@ use bytes::BytesMut;
 use http::header::ValueIter;
 use http::header::{self, Entry, HeaderName, HeaderValue};
 use http::{HeaderMap, Method, StatusCode, Version};
+use tracing::{debug, error, trace, trace_span, warn};
 
 use crate::body::DecodedLength;
 #[cfg(feature = "server")]
@@ -117,9 +118,8 @@ impl Http1Transaction for Server {
         };
         {
             /* SAFETY: it is safe to go from MaybeUninit array to array of MaybeUninit */
-            let mut headers: [MaybeUninit<httparse::Header<'_>>; MAX_HEADERS] = unsafe {
-                MaybeUninit::uninit().assume_init()
-            };
+            let mut headers: [MaybeUninit<httparse::Header<'_>>; MAX_HEADERS] =
+                unsafe { MaybeUninit::uninit().assume_init() };
             trace!(
                 "Request.parse([Header; {}], [u8; {}])",
                 headers.len(),
@@ -886,9 +886,11 @@ impl Http1Transaction for Client {
                 );
                 let mut res = httparse::Response::new(&mut []);
                 let bytes = buf.as_ref();
-                match ctx.h1_parser_config
-                    .parse_response_with_uninit_headers(&mut res, bytes, &mut headers)
-                {
+                match ctx.h1_parser_config.parse_response_with_uninit_headers(
+                    &mut res,
+                    bytes,
+                    &mut headers,
+                ) {
                     Ok(httparse::Status::Complete(len)) => {
                         trace!("Response.parse Complete({})", len);
                         let status = StatusCode::from_u16(res.code.unwrap())?;

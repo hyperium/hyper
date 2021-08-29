@@ -31,6 +31,7 @@ use std::{fmt, io, vec};
 
 use tokio::task::JoinHandle;
 use tower_service::Service;
+use tracing::debug;
 
 pub(super) use self::sealed::Resolve;
 

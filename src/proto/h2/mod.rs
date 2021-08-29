@@ -8,6 +8,7 @@ use std::io::{self, Cursor, IoSlice};
 use std::mem;
 use std::task::Context;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tracing::{debug, trace, warn};
 
 use crate::body::HttpBody;
 use crate::common::{task, Future, Pin, Poll};

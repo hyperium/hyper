@@ -55,6 +55,7 @@ use std::time::Duration;
 use bytes::Bytes;
 use pin_project_lite::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
+use tracing::trace;
 
 use super::accept::Accept;
 use crate::body::{Body, HttpBody};
@@ -1037,6 +1038,7 @@ where
 pub(crate) mod spawn_all {
     use std::error::Error as StdError;
     use tokio::io::{AsyncRead, AsyncWrite};
+    use tracing::debug;
 
     use super::{Connecting, UpgradeableConnection};
     use crate::body::{Body, HttpBody};

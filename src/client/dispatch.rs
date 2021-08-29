@@ -235,6 +235,7 @@ impl<T, U> Callback<T, U> {
         mut when: impl Future<Output = Result<U, (crate::Error, Option<T>)>> + Unpin,
     ) {
         use futures_util::future;
+        use tracing::trace;
 
         let mut cb = Some(self);
 

@@ -8,6 +8,7 @@ use futures_util::future::{self, Either, FutureExt as _, TryFutureExt as _};
 use http::header::{HeaderValue, HOST};
 use http::uri::{Port, Scheme};
 use http::{Method, Request, Response, Uri, Version};
+use tracing::{debug, trace, warn};
 
 use super::conn;
 use super::connect::{self, sealed::Connect, Alpn, Connected, Connection};
