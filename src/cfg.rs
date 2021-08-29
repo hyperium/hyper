@@ -24,24 +24,6 @@ macro_rules! cfg_proto {
 }
 
 cfg_proto! {
-    macro_rules! cfg_http1 {
-        ($($item:item)*) => {
-            cfg_feature! {
-                #![feature = "http1"]
-                $($item)*
-            }
-        }
-    }
-
-    macro_rules! cfg_http2 {
-        ($($item:item)*) => {
-            cfg_feature! {
-                #![feature = "http2"]
-                $($item)*
-            }
-        }
-    }
-
     macro_rules! cfg_client {
         ($($item:item)*) => {
             cfg_feature! {
