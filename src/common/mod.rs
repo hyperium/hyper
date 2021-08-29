@@ -12,7 +12,7 @@ pub(crate) mod buf;
 pub(crate) mod date;
 #[cfg(all(feature = "server", any(feature = "http1", feature = "http2")))]
 pub(crate) mod drain;
-#[cfg(any(feature = "http1", feature = "http2"))]
+#[cfg(any(feature = "http1", feature = "http2", feature = "server"))]
 pub(crate) mod exec;
 pub(crate) mod io;
 #[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]
