@@ -73,8 +73,7 @@ use crate::service::{HttpService, MakeServiceRef};
 use crate::upgrade::Upgraded;
 
 use self::spawn_all::NewSvcTask;
-pub(super) use self::spawn_all::NoopWatcher;
-pub(super) use self::spawn_all::Watcher;
+pub(super) use self::spawn_all::{NoopWatcher, Watcher};
 pub(super) use self::upgrades::UpgradeableConnection;
 
 #[cfg(feature = "tcp")]
