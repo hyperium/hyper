@@ -353,8 +353,7 @@ impl<I, E> Builder<I, E> {
     /// # Cargo Feature
     ///
     /// Requires the `runtime` cargo feature to be enabled.
-    #[cfg(feature = "runtime")]
-    #[cfg(feature = "http2")]
+    #[cfg(all(feature = "runtime", feature = "http2"))]
     #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_keep_alive_interval(mut self, interval: impl Into<Option<Duration>>) -> Self {
         self.protocol.http2_keep_alive_interval(interval);
@@ -371,8 +370,7 @@ impl<I, E> Builder<I, E> {
     /// # Cargo Feature
     ///
     /// Requires the `runtime` cargo feature to be enabled.
-    #[cfg(feature = "runtime")]
-    #[cfg(feature = "http2")]
+    #[cfg(all(feature = "runtime", feature = "http2"))]
     #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_keep_alive_timeout(mut self, timeout: Duration) -> Self {
         self.protocol.http2_keep_alive_timeout(timeout);

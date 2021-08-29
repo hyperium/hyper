@@ -25,12 +25,7 @@ pub(crate) mod watch;
 
 #[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]
 pub(crate) use self::lazy::{lazy, Started as Lazy};
-#[cfg(any(
-    feature = "client",
-    feature = "http1",
-    feature = "http2",
-    feature = "runtime"
-))]
+#[cfg(any(feature = "http1", feature = "http2", feature = "runtime"))]
 pub(crate) use self::never::Never;
 pub(crate) use self::task::Poll;
 

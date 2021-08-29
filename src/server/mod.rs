@@ -157,10 +157,6 @@ cfg_feature! {
     pub mod conn;
     mod server;
     mod shutdown;
-
-    cfg_feature! {
-        #![feature = "tcp"]
-
-        mod tcp;
-    }
+    #[cfg(feature = "tcp")]
+    mod tcp;
 }
