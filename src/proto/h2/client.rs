@@ -9,6 +9,7 @@ use futures_util::stream::StreamExt as _;
 use h2::client::{Builder, SendRequest};
 use http::{Method, StatusCode};
 use tokio::io::{AsyncRead, AsyncWrite};
+use tracing::{debug, trace, warn};
 
 use super::{ping, H2Upgraded, PipeToSendStream, SendBuf};
 use crate::body::HttpBody;

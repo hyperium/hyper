@@ -34,6 +34,7 @@ use std::time::Instant;
 use h2::{Ping, PingPong};
 #[cfg(feature = "runtime")]
 use tokio::time::{Instant, Sleep};
+use tracing::{debug, trace};
 
 type WindowSize = u32;
 

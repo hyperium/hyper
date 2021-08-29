@@ -60,6 +60,7 @@ use httparse::ParserConfig;
 use pin_project_lite::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tower_service::Service;
+use tracing::{debug, trace};
 
 use super::dispatch;
 use crate::body::HttpBody;
