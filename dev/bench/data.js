@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1630453115217,
+  "lastUpdate": 1630453116643,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -7681,6 +7681,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 55855,
             "range": "± 9441",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jplatte+git@posteo.de",
+            "name": "Jonas Platte",
+            "username": "jplatte"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "0a4b56acb82ef41a3336f482b240c67c784c434f",
+          "message": "feat(lib): Export more things with Cargo features [server, !http1, !http2]\n\n* server::Server\n* server::conn::{AddrIncoming, AddrStream}\n\nThis allows higher-level libraries to use or re-export more parts of the\nAPI without deciding for the end user which HTTP versions the hyper\nserver will support.",
+          "timestamp": "2021-08-31T16:35:52-07:00",
+          "tree_id": "f7a112350c427c3975a963ffa117f82e89b2fa86",
+          "url": "https://github.com/hyperium/hyper/commit/0a4b56acb82ef41a3336f482b240c67c784c434f"
+        },
+        "date": 1630453114852,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 58458,
+            "range": "± 11697",
             "unit": "ns/iter"
           }
         ]
