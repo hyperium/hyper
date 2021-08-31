@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1630453116643,
+  "lastUpdate": 1630453249882,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -25239,6 +25239,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_req_100kb",
             "value": 177941,
             "range": "± 26286",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jplatte+git@posteo.de",
+            "name": "Jonas Platte",
+            "username": "jplatte"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "0a4b56acb82ef41a3336f482b240c67c784c434f",
+          "message": "feat(lib): Export more things with Cargo features [server, !http1, !http2]\n\n* server::Server\n* server::conn::{AddrIncoming, AddrStream}\n\nThis allows higher-level libraries to use or re-export more parts of the\nAPI without deciding for the end user which HTTP versions the hyper\nserver will support.",
+          "timestamp": "2021-08-31T16:35:52-07:00",
+          "tree_id": "f7a112350c427c3975a963ffa117f82e89b2fa86",
+          "url": "https://github.com/hyperium/hyper/commit/0a4b56acb82ef41a3336f482b240c67c784c434f"
+        },
+        "date": 1630453247900,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_body_both_100kb",
+            "value": 111283,
+            "range": "± 28902",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_body_both_10mb",
+            "value": 5626508,
+            "range": "± 1141845",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_get",
+            "value": 38041,
+            "range": "± 6295",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 229289,
+            "range": "± 20416",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 52000429,
+            "range": "± 508064",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 43214814,
+            "range": "± 6989272",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 51258693,
+            "range": "± 7069417",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 3157625,
+            "range": "± 422658",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_post",
+            "value": 46886,
+            "range": "± 8214",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_get",
+            "value": 73448,
+            "range": "± 19261",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 188602,
+            "range": "± 42227",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 10708951,
+            "range": "± 10380638",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 18862154,
+            "range": "± 10053535",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 11198771,
+            "range": "± 10155615",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 57459229,
+            "range": "± 10601303",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 69454198,
+            "range": "± 16778522",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 6013482,
+            "range": "± 1751771",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_post",
+            "value": 88561,
+            "range": "± 29366",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_req_100kb",
+            "value": 166335,
+            "range": "± 36832",
             "unit": "ns/iter"
           }
         ]
