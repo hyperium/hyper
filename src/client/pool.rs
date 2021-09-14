@@ -1005,6 +1005,7 @@ mod tests {
 
     #[derive(Debug)]
     struct CanClose {
+        #[allow(unused)]
         val: i32,
         closed: bool,
     }
