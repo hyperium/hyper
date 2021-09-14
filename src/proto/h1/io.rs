@@ -98,11 +98,16 @@ where
     }
 
     #[cfg(feature = "server")]
-    pub(crate) fn set_write_strategy_flatten(&mut self) {
+    fn set_write_strategy_flatten(&mut self) {
         // this should always be called only at construction time,
         // so this assert is here to catch myself
         debug_assert!(self.write_buf.queue.bufs_cnt() == 0);
         self.write_buf.set_strategy(WriteStrategy::Flatten);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_write_strategy_queue(&mut self) {
+        self.write_buf.set_strategy(WriteStrategy::Queue);
     }
 
     pub(crate) fn read_buf(&self) -> &[u8] {
@@ -119,6 +124,15 @@ where
     /// that could be allocated in the future.
     fn read_buf_remaining_mut(&self) -> usize {
         self.read_buf.capacity() - self.read_buf.len()
+    }
+
+    /// Return whether we can append to the headers buffer.
+    ///
+    /// Reasons we can't:
+    /// - The write buf is in queue mode, and some of the past body is still
+    ///   needing to be flushed.
+    pub(crate) fn can_headers_buf(&self) -> bool {
+        !self.write_buf.queue.has_remaining()
     }
 
     pub(crate) fn headers_buf(&mut self) -> &mut Vec<u8> {

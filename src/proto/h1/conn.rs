@@ -71,6 +71,11 @@ where
         self.io.set_flush_pipeline(enabled);
     }
 
+    #[cfg(test)]
+    pub(crate) fn set_write_strategy_queue(&mut self) {
+        self.io.set_write_strategy_queue();
+    }
+
     pub(crate) fn set_max_buf_size(&mut self, max: usize) {
         self.io.set_max_buf_size(max);
     }
@@ -461,7 +466,7 @@ where
             }
         }
         match self.state.writing {
-            Writing::Init => true,
+            Writing::Init => self.io.can_headers_buf(),
             _ => false,
         }
     }
