@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1630453249882,
+  "lastUpdate": 1631663569796,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -3869,6 +3869,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 67128,
             "range": "± 7927",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "e3ab409808a6aa06ebacaaa936cb926785913d24",
+          "message": "refactor(lints): fix unused warnings in tests/docs",
+          "timestamp": "2021-09-14T16:50:22-07:00",
+          "tree_id": "6402dac444dafa0cc5b25ba25a538b059f2beee6",
+          "url": "https://github.com/hyperium/hyper/commit/e3ab409808a6aa06ebacaaa936cb926785913d24"
+        },
+        "date": 1631663567525,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 41493,
+            "range": "± 3634",
             "unit": "ns/iter"
           }
         ]
