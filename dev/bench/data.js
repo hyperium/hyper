@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1631663738757,
+  "lastUpdate": 1631726895058,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -3899,6 +3899,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 41493,
             "range": "± 3634",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "c88011da4ed5b5ca9107c4a2339a7ab054c5f27f",
+          "message": "fix(client): don't reuse a connection while still flushing\n\nA client connection that read a full response while the request body was\nstill flushing would see incorrect behavior, since the pool would let it\nbe checked out again for a new request. In debug builds, it would then\npanic, but in release builds it would intermix the 2nd request bytes\nwith the body of the previous request.\n\nIn practice, this only ever happens if a server replies with a full\nresponse before reading the full request, while also choosing to not\nclose that connection. Most servers either wait for the full request, or\nclose the connection after the new response is written, so as to stop\nreading.",
+          "timestamp": "2021-09-15T10:25:17-07:00",
+          "tree_id": "ae57e007e32ebd80f3840d8bbd960e6df71b69af",
+          "url": "https://github.com/hyperium/hyper/commit/c88011da4ed5b5ca9107c4a2339a7ab054c5f27f"
+        },
+        "date": 1631726892741,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 68703,
+            "range": "± 8244",
             "unit": "ns/iter"
           }
         ]
