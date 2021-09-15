@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1631746424642,
+  "lastUpdate": 1631746428771,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -7861,6 +7861,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 74689,
             "range": "± 8082",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "ea3e228287e714b97aa44c840a487abd3a915e15",
+          "message": "fix(server): convert panic to error if Connection::without_shutdown called on HTTP/2 conn",
+          "timestamp": "2021-09-15T15:50:49-07:00",
+          "tree_id": "fa2fa04ac435fdfcf43e0e1b6094aa8ec2a277d8",
+          "url": "https://github.com/hyperium/hyper/commit/ea3e228287e714b97aa44c840a487abd3a915e15"
+        },
+        "date": 1631746426588,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 76701,
+            "range": "± 18273",
             "unit": "ns/iter"
           }
         ]
