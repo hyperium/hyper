@@ -37,8 +37,7 @@ use super::HttpBody;
 ///
 /// if response_content_length < MAX_ALLOWED_RESPONSE_SIZE {
 ///     let body_bytes = hyper::body::to_bytes(response.into_body()).await?;
-///     let body_string = String::from_utf8(body_bytes.to_vec()).expect("!String::from_utf8");
-///     println!("body: {}", body_string);
+///     println!("body: {:?}", body_bytes);
 /// }
 ///
 /// # Ok(())
