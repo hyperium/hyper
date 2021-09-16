@@ -13,7 +13,7 @@
 //! ```no_run
 //! # #[cfg(all(feature = "client", feature = "http1", feature = "runtime"))]
 //! # mod rt {
-//! use futures::future;
+//! use tower::ServiceExt;
 //! use http::{Request, StatusCode};
 //! use hyper::{client::conn, Body};
 //! use tokio::net::TcpStream;
@@ -41,7 +41,7 @@
 //!
 //!     // To send via the same connection again, it may not work as it may not be ready,
 //!     // so we have to wait until the request_sender becomes ready.
-//!     future::poll_fn(|cx| request_sender.poll_fn(cx)).await?;
+//!     request_sender.ready().await?;
 //!     let request = Request::builder()
 //!         .header("Host", "example.com")
 //!         .method("GET")
