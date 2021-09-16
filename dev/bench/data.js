@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1631813498669,
+  "lastUpdate": 1631822190389,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -8071,6 +8071,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 49289,
             "range": "± 7800",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "e6b2cbda03ea794d8a9ed17c233e0743041beae2",
+          "message": "docs(dev): start a set of \"dev\" docs\n\nInitially this creates a top-level \"dev\" directory to hold documents\npertaining to the development, as opposed to the usage, of hyper. For a\nfirst doc, it splits out the commit guidelines to its own file.\n\ncc #2586",
+          "timestamp": "2021-09-16T12:53:59-07:00",
+          "tree_id": "fb7d1b6be316d16126908ad65f477f8af8b11ab7",
+          "url": "https://github.com/hyperium/hyper/commit/e6b2cbda03ea794d8a9ed17c233e0743041beae2"
+        },
+        "date": 1631822188262,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 48813,
+            "range": "± 3109",
             "unit": "ns/iter"
           }
         ]
