@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1631835462763,
+  "lastUpdate": 1631835485912,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -8281,6 +8281,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 66570,
             "range": "± 10124",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "ddao@ualberta.ca",
+            "name": "Dai Dao",
+            "username": "dai-dao"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3908eeb788333f7dae8bb8878714ccc84ab9df0e",
+          "message": "docs(examples): updated imports in client_json example (#2412)",
+          "timestamp": "2021-09-16T16:34:10-07:00",
+          "tree_id": "57e7b4a06313e9f2a07a3719123f6dcf29bdf5ec",
+          "url": "https://github.com/hyperium/hyper/commit/3908eeb788333f7dae8bb8878714ccc84ab9df0e"
+        },
+        "date": 1631835484058,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 64719,
+            "range": "± 14708",
             "unit": "ns/iter"
           }
         ]
