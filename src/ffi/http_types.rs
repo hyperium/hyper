@@ -73,6 +73,19 @@ ffi_fn! {
 
 ffi_fn! {
     /// Set the URI of the request.
+    ///
+    /// The request's URI is best described as the `request-target` from the RFCs. So in HTTP/1,
+    /// whatever is set will get sent as-is in the first line (GET $uri HTTP/1.1). It
+    /// supports the 4 defined variants, origin-form, absolute-form, authority-form, and
+    /// asterisk-form.
+    ///
+    /// The underlying type was built to efficiently support HTTP/2 where the request-target is
+    /// split over :scheme, :authority, and :path. As such, each part can be set explicitly, or the
+    /// type can parse a single contiguous string and if a scheme is found, that slot is "set". If
+    /// the string just starts with a path, only the path portion is set. All pseudo headers that
+    /// have been parsed/set are sent when the connection type is HTTP/2.
+    ///
+    /// To set each slot explicitly, use `hyper_request_set_uri_parts`.
     fn hyper_request_set_uri(req: *mut hyper_request, uri: *const u8, uri_len: size_t) -> hyper_code {
         let bytes = unsafe {
             std::slice::from_raw_parts(uri, uri_len as usize)
