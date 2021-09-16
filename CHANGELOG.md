@@ -1,3 +1,20 @@
+### v0.14.13 (2021-09-16)
+
+
+#### Bug Fixes
+
+* **client:** don't reuse a connection while still flushing ([c88011da](https://github.com/hyperium/hyper/commit/c88011da4ed5b5ca9107c4a2339a7ab054c5f27f))
+* **server:** convert panic to error if Connection::without_shutdown called on HTTP/2 conn ([ea3e2282](https://github.com/hyperium/hyper/commit/ea3e228287e714b97aa44c840a487abd3a915e15))
+
+
+#### Features
+
+* **ffi:** add hyper_request_set_uri_parts ([a54689b9](https://github.com/hyperium/hyper/commit/a54689b921ca16dd0f29b3f4a74feae60218db34))
+* **lib:**
+  * Export more things with Cargo features (server, !http1, !http2) ([0a4b56ac](https://github.com/hyperium/hyper/commit/0a4b56acb82ef41a3336f482b240c67c784c434f))
+  * Export rt module independently of Cargo features ([cf6f62c7](https://github.com/hyperium/hyper/commit/cf6f62c71eda3b3a8732d86387e4ed8711cf9a86))
+
+
 ### v0.14.12 (2021-08-24)
 
 
