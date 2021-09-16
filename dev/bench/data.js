@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1631835097765,
+  "lastUpdate": 1631835272174,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -4109,6 +4109,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 65813,
             "range": "± 4227",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "pickfire@riseup.net",
+            "name": "Ivan Tham",
+            "username": "pickfire"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7757789589ab2be15a8391d7d21898b0b9201a4c",
+          "message": "docs(client): add link and cleanup example for `hyper::client::conn` (#2533)",
+          "timestamp": "2021-09-16T16:31:59-07:00",
+          "tree_id": "f96f2828ba08c9ec0285ff9aeef68d9036219f4c",
+          "url": "https://github.com/hyperium/hyper/commit/7757789589ab2be15a8391d7d21898b0b9201a4c"
+        },
+        "date": 1631835270379,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 48564,
+            "range": "± 3127",
             "unit": "ns/iter"
           }
         ]
