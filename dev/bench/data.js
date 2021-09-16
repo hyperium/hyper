@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1631834904734,
+  "lastUpdate": 1631834906408,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -4079,6 +4079,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 69180,
             "range": "± 5931",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "vagelis.prokopiou@gmail.com",
+            "name": "Vagelis Prokopiou",
+            "username": "Vagelis-Prokopiou"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "0460cd909e9442aef010c342b4000072827c07e3",
+          "message": "docs(body): add example for to_bytes()\n\ncc #2201",
+          "timestamp": "2021-09-16T16:25:40-07:00",
+          "tree_id": "4eeea4288d42d3a631919b03c518928fa5830656",
+          "url": "https://github.com/hyperium/hyper/commit/0460cd909e9442aef010c342b4000072827c07e3"
+        },
+        "date": 1631834902470,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 65813,
+            "range": "± 4227",
             "unit": "ns/iter"
           }
         ]
