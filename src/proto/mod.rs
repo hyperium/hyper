@@ -1,6 +1,8 @@
 //! Pieces pertaining to the HTTP message protocol.
 
-cfg_http1! {
+cfg_feature! {
+    #![feature = "http1"]
+
     pub(crate) mod h1;
 
     pub(crate) use self::h1::Conn;
@@ -11,9 +13,8 @@ cfg_http1! {
     pub(crate) use self::h1::ServerTransaction;
 }
 
-cfg_http2! {
-    pub(crate) mod h2;
-}
+#[cfg(feature = "http2")]
+pub(crate) mod h2;
 
 /// An Incoming Message head. Includes request/status line, and headers.
 #[derive(Debug, Default)]
@@ -56,4 +57,15 @@ pub(crate) enum Dispatched {
     /// Dispatcher has pending upgrade, and so did not shutdown.
     #[cfg(feature = "http1")]
     Upgrade(crate::upgrade::Pending),
+}
+
+impl MessageHead<http::StatusCode> {
+    fn into_response<B>(self, body: B) -> http::Response<B> {
+        let mut res = http::Response::new(body);
+        *res.status_mut() = self.subject;
+        *res.headers_mut() = self.headers;
+        *res.version_mut() = self.version;
+        *res.extensions_mut() = self.extensions;
+        res
+    }
 }

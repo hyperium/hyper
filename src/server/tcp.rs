@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use tokio::net::TcpListener;
 use tokio::time::Sleep;
+use tracing::{debug, error, trace};
 
 use crate::common::{task, Future, Pin, Poll};
 
@@ -199,13 +200,14 @@ mod addr_stream {
 
     use crate::common::{task, Pin, Poll};
 
-    /// A transport returned yieled by `AddrIncoming`.
-    #[pin_project::pin_project]
-    #[derive(Debug)]
-    pub struct AddrStream {
-        #[pin]
-        inner: TcpStream,
-        pub(super) remote_addr: SocketAddr,
+    pin_project_lite::pin_project! {
+        /// A transport returned yieled by `AddrIncoming`.
+        #[derive(Debug)]
+        pub struct AddrStream {
+            #[pin]
+            inner: TcpStream,
+            pub(super) remote_addr: SocketAddr,
+        }
     }
 
     impl AddrStream {

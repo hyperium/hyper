@@ -1,6 +1,6 @@
 use std::mem;
 
-use pin_project::pin_project;
+use pin_project_lite::pin_project;
 use tokio::sync::watch;
 
 use super::{task, Future, Pin, Poll};
@@ -21,14 +21,15 @@ pub(crate) struct Watch {
     rx: watch::Receiver<()>,
 }
 
-#[allow(missing_debug_implementations)]
-#[pin_project]
-pub struct Watching<F, FN> {
-    #[pin]
-    future: F,
-    state: State<FN>,
-    watch: Pin<Box<dyn Future<Output = ()> + Send + Sync>>,
-    _rx: watch::Receiver<()>,
+pin_project! {
+    #[allow(missing_debug_implementations)]
+    pub struct Watching<F, FN> {
+        #[pin]
+        future: F,
+        state: State<FN>,
+        watch: Pin<Box<dyn Future<Output = ()> + Send + Sync>>,
+        _rx: watch::Receiver<()>,
+    }
 }
 
 enum State<F> {

@@ -1,17 +1,14 @@
-// `mem::uninitialized` replaced with `mem::MaybeUninit`,
-// can't upgrade yet
-#![allow(deprecated)]
-
 use std::fmt::{self, Write};
-use std::mem;
+use std::mem::MaybeUninit;
 
 #[cfg(any(test, feature = "server", feature = "ffi"))]
 use bytes::Bytes;
 use bytes::BytesMut;
-use http::header::{self, Entry, HeaderName, HeaderValue};
 #[cfg(feature = "server")]
 use http::header::ValueIter;
+use http::header::{self, Entry, HeaderName, HeaderValue};
 use http::{HeaderMap, Method, StatusCode, Version};
+use tracing::{debug, error, trace, trace_span, warn};
 
 use crate::body::DecodedLength;
 #[cfg(feature = "server")]
@@ -29,22 +26,10 @@ const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
 
 macro_rules! header_name {
     ($bytes:expr) => {{
-        #[cfg(debug_assertions)]
         {
             match HeaderName::from_bytes($bytes) {
                 Ok(name) => name,
-                Err(_) => panic!(
-                    "illegal header name from httparse: {:?}",
-                    ::bytes::Bytes::copy_from_slice($bytes)
-                ),
-            }
-        }
-
-        #[cfg(not(debug_assertions))]
-        {
-            match HeaderName::from_bytes($bytes) {
-                Ok(name) => name,
-                Err(_) => panic!("illegal header name from httparse: {:?}", $bytes),
+                Err(e) => maybe_panic!(e),
             }
         }
     }};
@@ -52,21 +37,22 @@ macro_rules! header_name {
 
 macro_rules! header_value {
     ($bytes:expr) => {{
-        #[cfg(debug_assertions)]
         {
-            let __hvb: ::bytes::Bytes = $bytes;
-            match HeaderValue::from_maybe_shared(__hvb.clone()) {
-                Ok(name) => name,
-                Err(_) => panic!("illegal header value from httparse: {:?}", __hvb),
-            }
-        }
-
-        #[cfg(not(debug_assertions))]
-        {
-            // Unsafe: httparse already validated header value
             unsafe { HeaderValue::from_maybe_shared_unchecked($bytes) }
         }
     }};
+}
+
+macro_rules! maybe_panic {
+    ($($arg:tt)*) => ({
+        let _err = ($($arg)*);
+        if cfg!(debug_assertions) {
+            panic!("{:?}", _err);
+        } else {
+            error!("Internal Hyper error, please report {:?}", _err);
+            return Err(Parse::Internal)
+        }
+    })
 }
 
 pub(super) fn parse_headers<T>(
@@ -126,17 +112,22 @@ impl Http1Transaction for Server {
         // but we *never* read any of it until after httparse has assigned
         // values into it. By not zeroing out the stack memory, this saves
         // a good ~5% on pipeline benchmarks.
-        let mut headers_indices: [HeaderIndices; MAX_HEADERS] = unsafe { mem::uninitialized() };
+        let mut headers_indices: [MaybeUninit<HeaderIndices>; MAX_HEADERS] = unsafe {
+            // SAFETY: We can go safely from MaybeUninit array to array of MaybeUninit
+            MaybeUninit::uninit().assume_init()
+        };
         {
-            let mut headers: [httparse::Header<'_>; MAX_HEADERS] = unsafe { mem::uninitialized() };
+            /* SAFETY: it is safe to go from MaybeUninit array to array of MaybeUninit */
+            let mut headers: [MaybeUninit<httparse::Header<'_>>; MAX_HEADERS] =
+                unsafe { MaybeUninit::uninit().assume_init() };
             trace!(
                 "Request.parse([Header; {}], [u8; {}])",
                 headers.len(),
                 buf.len()
             );
-            let mut req = httparse::Request::new(&mut headers);
+            let mut req = httparse::Request::new(&mut []);
             let bytes = buf.as_ref();
-            match req.parse(bytes) {
+            match req.parse_with_uninit_headers(bytes, &mut headers) {
                 Ok(httparse::Status::Complete(parsed_len)) => {
                     trace!("Request.parse Complete({})", parsed_len);
                     len = parsed_len;
@@ -205,6 +196,8 @@ impl Http1Transaction for Server {
         headers.reserve(headers_len);
 
         for header in &headers_indices[..headers_len] {
+            // SAFETY: array is valid up to `headers_len`
+            let header = unsafe { &*header.as_ptr() };
             let name = header_name!(&slice[header.name.0..header.name.1]);
             let value = header_value!(slice.slice(header.value.0..header.value.1));
 
@@ -216,7 +209,7 @@ impl Http1Transaction for Server {
                     // malformed. A server should respond with 400 Bad Request.
                     if !is_http_11 {
                         debug!("HTTP/1.0 cannot have Transfer-Encoding header");
-                        return Err(Parse::Header);
+                        return Err(Parse::transfer_encoding_unexpected());
                     }
                     is_te = true;
                     if headers::is_chunked_(&value) {
@@ -230,17 +223,15 @@ impl Http1Transaction for Server {
                     if is_te {
                         continue;
                     }
-                    let len = value
-                        .to_str()
-                        .map_err(|_| Parse::Header)
-                        .and_then(|s| s.parse().map_err(|_| Parse::Header))?;
+                    let len = headers::content_length_parse(&value)
+                        .ok_or_else(Parse::content_length_invalid)?;
                     if let Some(prev) = con_len {
                         if prev != len {
                             debug!(
                                 "multiple Content-Length headers with different values: [{}, {}]",
                                 prev, len,
                             );
-                            return Err(Parse::Header);
+                            return Err(Parse::content_length_invalid());
                         }
                         // we don't need to append this secondary length
                         continue;
@@ -278,7 +269,7 @@ impl Http1Transaction for Server {
 
         if is_te && !is_te_chunked {
             debug!("request with transfer-encoding header, but not chunked, bad request");
-            return Err(Parse::Header);
+            return Err(Parse::transfer_encoding_invalid());
         }
 
         let mut extensions = http::Extensions::default();
@@ -369,7 +360,7 @@ impl Http1Transaction for Server {
         }
 
         let orig_headers;
-        let extensions = mem::take(&mut msg.head.extensions);
+        let extensions = std::mem::take(&mut msg.head.extensions);
         let orig_headers = match extensions.get::<HeaderCaseMap>() {
             None if msg.title_case_headers => {
                 orig_headers = HeaderCaseMap::default();
@@ -397,7 +388,7 @@ impl Http1Transaction for Server {
         use crate::error::Kind;
         let status = match *err.kind() {
             Kind::Parse(Parse::Method)
-            | Kind::Parse(Parse::Header)
+            | Kind::Parse(Parse::Header(_))
             | Kind::Parse(Parse::Uri)
             | Kind::Parse(Parse::Version) => StatusCode::BAD_REQUEST,
             Kind::Parse(Parse::TooLarge) => StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
@@ -880,19 +871,26 @@ impl Http1Transaction for Client {
         // Loop to skip information status code headers (100 Continue, etc).
         loop {
             // Unsafe: see comment in Server Http1Transaction, above.
-            let mut headers_indices: [HeaderIndices; MAX_HEADERS] = unsafe { mem::uninitialized() };
+            let mut headers_indices: [MaybeUninit<HeaderIndices>; MAX_HEADERS] = unsafe {
+                // SAFETY: We can go safely from MaybeUninit array to array of MaybeUninit
+                MaybeUninit::uninit().assume_init()
+            };
             let (len, status, reason, version, headers_len) = {
-                let mut headers: [httparse::Header<'_>; MAX_HEADERS] =
-                    unsafe { mem::uninitialized() };
+                // SAFETY: We can go safely from MaybeUninit array to array of MaybeUninit
+                let mut headers: [MaybeUninit<httparse::Header<'_>>; MAX_HEADERS] =
+                    unsafe { MaybeUninit::uninit().assume_init() };
                 trace!(
                     "Response.parse([Header; {}], [u8; {}])",
                     headers.len(),
                     buf.len()
                 );
-                let mut res = httparse::Response::new(&mut headers);
+                let mut res = httparse::Response::new(&mut []);
                 let bytes = buf.as_ref();
-                match ctx.h1_parser_config.parse_response(&mut res, bytes)
-                {
+                match ctx.h1_parser_config.parse_response_with_uninit_headers(
+                    &mut res,
+                    bytes,
+                    &mut headers,
+                ) {
                     Ok(httparse::Status::Complete(len)) => {
                         trace!("Response.parse Complete({})", len);
                         let status = StatusCode::from_u16(res.code.unwrap())?;
@@ -948,6 +946,8 @@ impl Http1Transaction for Client {
 
             headers.reserve(headers_len);
             for header in &headers_indices[..headers_len] {
+                // SAFETY: array is valid up to `headers_len`
+                let header = unsafe { &*header.as_ptr() };
                 let name = header_name!(&slice[header.name.0..header.name.1]);
                 let value = header_value!(slice.slice(header.value.0..header.value.1));
 
@@ -982,6 +982,11 @@ impl Http1Transaction for Client {
             #[cfg(not(feature = "ffi"))]
             drop(reason);
 
+            #[cfg(feature = "ffi")]
+            if ctx.raw_headers {
+                extensions.insert(crate::ffi::RawHeaders(crate::ffi::hyper_buf(slice)));
+            }
+
             let head = MessageHead {
                 version,
                 subject: status,
@@ -998,6 +1003,13 @@ impl Http1Transaction for Client {
                     keep_alive: keep_alive && !is_upgrade,
                     wants_upgrade: is_upgrade,
                 }));
+            }
+
+            #[cfg(feature = "ffi")]
+            if head.subject.is_informational() {
+                if let Some(callback) = ctx.on_informational {
+                    callback.call(head.into_response(crate::Body::empty()));
+                }
             }
 
             // Parsing a 1xx response could have consumed the buffer, check if
@@ -1118,7 +1130,7 @@ impl Client {
             // malformed. A server should respond with 400 Bad Request.
             if inc.version == Version::HTTP_10 {
                 debug!("HTTP/1.0 cannot have Transfer-Encoding header");
-                Err(Parse::Header)
+                Err(Parse::transfer_encoding_unexpected())
             } else if headers::transfer_encoding_is_chunked(&inc.headers) {
                 Ok(Some((DecodedLength::CHUNKED, false)))
             } else {
@@ -1129,7 +1141,7 @@ impl Client {
             Ok(Some((DecodedLength::checked_new(len)?, false)))
         } else if inc.headers.contains_key(header::CONTENT_LENGTH) {
             debug!("illegal Content-Length header");
-            Err(Parse::Header)
+            Err(Parse::content_length_invalid())
         } else {
             trace!("neither Transfer-Encoding nor Content-Length");
             Ok(Some((DecodedLength::CLOSE_DELIMITED, false)))
@@ -1290,7 +1302,7 @@ struct HeaderIndices {
 fn record_header_indices(
     bytes: &[u8],
     headers: &[httparse::Header<'_>],
-    indices: &mut [HeaderIndices],
+    indices: &mut [MaybeUninit<HeaderIndices>],
 ) -> Result<(), crate::error::Parse> {
     let bytes_ptr = bytes.as_ptr() as usize;
 
@@ -1301,45 +1313,36 @@ fn record_header_indices(
         }
         let name_start = header.name.as_ptr() as usize - bytes_ptr;
         let name_end = name_start + header.name.len();
-        indices.name = (name_start, name_end);
         let value_start = header.value.as_ptr() as usize - bytes_ptr;
         let value_end = value_start + header.value.len();
-        indices.value = (value_start, value_end);
+
+        // FIXME(maybe_uninit_extra)
+        // FIXME(addr_of)
+        // Currently we don't have `ptr::addr_of_mut` in stable rust or
+        // MaybeUninit::write, so this is some way of assigning into a MaybeUninit
+        // safely
+        let new_header_indices = HeaderIndices {
+            name: (name_start, name_end),
+            value: (value_start, value_end),
+        };
+        *indices = MaybeUninit::new(new_header_indices);
     }
 
     Ok(())
 }
 
-// Write header names as title case. The header name is assumed to be ASCII,
-// therefore it is trivial to convert an ASCII character from lowercase to
-// uppercase. It is as simple as XORing the lowercase character byte with
-// space.
+// Write header names as title case. The header name is assumed to be ASCII.
 fn title_case(dst: &mut Vec<u8>, name: &[u8]) {
     dst.reserve(name.len());
 
-    let mut iter = name.iter();
-
-    // Uppercase the first character
-    if let Some(c) = iter.next() {
-        if *c >= b'a' && *c <= b'z' {
-            dst.push(*c ^ b' ');
-        } else {
-            dst.push(*c);
+    // Ensure first character is uppercased
+    let mut prev = b'-';
+    for &(mut c) in name {
+        if prev == b'-' {
+            c.make_ascii_uppercase();
         }
-    }
-
-    while let Some(c) = iter.next() {
-        dst.push(*c);
-
-        if *c == b'-' {
-            if let Some(c) = iter.next() {
-                if *c >= b'a' && *c <= b'z' {
-                    dst.push(*c ^ b' ');
-                } else {
-                    dst.push(*c);
-                }
-            }
-        }
+        dst.push(c);
+        prev = c;
     }
 }
 
@@ -1436,6 +1439,10 @@ mod tests {
                 h1_parser_config: Default::default(),
                 preserve_header_case: false,
                 h09_responses: false,
+                #[cfg(feature = "ffi")]
+                on_informational: &mut None,
+                #[cfg(feature = "ffi")]
+                raw_headers: false,
             },
         )
         .unwrap()
@@ -1459,6 +1466,10 @@ mod tests {
             h1_parser_config: Default::default(),
             preserve_header_case: false,
             h09_responses: false,
+            #[cfg(feature = "ffi")]
+            on_informational: &mut None,
+            #[cfg(feature = "ffi")]
+            raw_headers: false,
         };
         let msg = Client::parse(&mut raw, ctx).unwrap().unwrap();
         assert_eq!(raw.len(), 0);
@@ -1477,6 +1488,10 @@ mod tests {
             h1_parser_config: Default::default(),
             preserve_header_case: false,
             h09_responses: false,
+            #[cfg(feature = "ffi")]
+            on_informational: &mut None,
+            #[cfg(feature = "ffi")]
+            raw_headers: false,
         };
         Server::parse(&mut raw, ctx).unwrap_err();
     }
@@ -1493,6 +1508,10 @@ mod tests {
             h1_parser_config: Default::default(),
             preserve_header_case: false,
             h09_responses: true,
+            #[cfg(feature = "ffi")]
+            on_informational: &mut None,
+            #[cfg(feature = "ffi")]
+            raw_headers: false,
         };
         let msg = Client::parse(&mut raw, ctx).unwrap().unwrap();
         assert_eq!(raw, H09_RESPONSE);
@@ -1511,6 +1530,10 @@ mod tests {
             h1_parser_config: Default::default(),
             preserve_header_case: false,
             h09_responses: false,
+            #[cfg(feature = "ffi")]
+            on_informational: &mut None,
+            #[cfg(feature = "ffi")]
+            raw_headers: false,
         };
         Client::parse(&mut raw, ctx).unwrap_err();
         assert_eq!(raw, H09_RESPONSE);
@@ -1533,6 +1556,10 @@ mod tests {
             h1_parser_config,
             preserve_header_case: false,
             h09_responses: false,
+            #[cfg(feature = "ffi")]
+            on_informational: &mut None,
+            #[cfg(feature = "ffi")]
+            raw_headers: false,
         };
         let msg = Client::parse(&mut raw, ctx).unwrap().unwrap();
         assert_eq!(raw.len(), 0);
@@ -1552,6 +1579,10 @@ mod tests {
             h1_parser_config: Default::default(),
             preserve_header_case: false,
             h09_responses: false,
+            #[cfg(feature = "ffi")]
+            on_informational: &mut None,
+            #[cfg(feature = "ffi")]
+            raw_headers: false,
         };
         Client::parse(&mut raw, ctx).unwrap_err();
     }
@@ -1566,6 +1597,10 @@ mod tests {
             h1_parser_config: Default::default(),
             preserve_header_case: true,
             h09_responses: false,
+            #[cfg(feature = "ffi")]
+            on_informational: &mut None,
+            #[cfg(feature = "ffi")]
+            raw_headers: false,
         };
         let parsed_message = Server::parse(&mut raw, ctx).unwrap().unwrap();
         let orig_headers = parsed_message
@@ -1601,6 +1636,10 @@ mod tests {
                     h1_parser_config: Default::default(),
                     preserve_header_case: false,
                     h09_responses: false,
+                    #[cfg(feature = "ffi")]
+                    on_informational: &mut None,
+                    #[cfg(feature = "ffi")]
+                    raw_headers: false,
                 },
             )
             .expect("parse ok")
@@ -1617,6 +1656,10 @@ mod tests {
                     h1_parser_config: Default::default(),
                     preserve_header_case: false,
                     h09_responses: false,
+                    #[cfg(feature = "ffi")]
+                    on_informational: &mut None,
+                    #[cfg(feature = "ffi")]
+                    raw_headers: false,
                 },
             )
             .expect_err(comment)
@@ -1762,6 +1805,16 @@ mod tests {
             "multiple content-lengths",
         );
 
+        // content-length with prefix is not allowed
+        parse_err(
+            "\
+             POST / HTTP/1.1\r\n\
+             content-length: +10\r\n\
+             \r\n\
+             ",
+            "prefixed content-length",
+        );
+
         // transfer-encoding that isn't chunked is an error
         parse_err(
             "\
@@ -1832,6 +1885,10 @@ mod tests {
                     h1_parser_config: Default::default(),
                     preserve_header_case: false,
                     h09_responses: false,
+                    #[cfg(feature = "ffi")]
+                    on_informational: &mut None,
+                    #[cfg(feature = "ffi")]
+                    raw_headers: false,
                 }
             )
             .expect("parse ok")
@@ -1848,6 +1905,10 @@ mod tests {
                     h1_parser_config: Default::default(),
                     preserve_header_case: false,
                     h09_responses: false,
+                    #[cfg(feature = "ffi")]
+                    on_informational: &mut None,
+                    #[cfg(feature = "ffi")]
+                    raw_headers: false,
                 },
             )
             .expect("parse ok")
@@ -1864,6 +1925,10 @@ mod tests {
                     h1_parser_config: Default::default(),
                     preserve_header_case: false,
                     h09_responses: false,
+                    #[cfg(feature = "ffi")]
+                    on_informational: &mut None,
+                    #[cfg(feature = "ffi")]
+                    raw_headers: false,
                 },
             )
             .expect_err("parse should err")
@@ -1935,6 +2000,14 @@ mod tests {
              HTTP/1.1 200 OK\r\n\
              content-length: 8\r\n\
              content-length: 9\r\n\
+             \r\n\
+             ",
+        );
+
+        parse_err(
+            "\
+             HTTP/1.1 200 OK\r\n\
+             content-length: +8\r\n\
              \r\n\
              ",
         );
@@ -2248,6 +2321,8 @@ mod tests {
             .insert("content-length", HeaderValue::from_static("10"));
         head.headers
             .insert("content-type", HeaderValue::from_static("application/json"));
+        head.headers
+            .insert("weird--header", HeaderValue::from_static(""));
 
         let mut vec = Vec::new();
         Server::encode(
@@ -2263,7 +2338,7 @@ mod tests {
         .unwrap();
 
         let expected_response =
-            b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\nContent-Type: application/json\r\n";
+            b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\nContent-Type: application/json\r\nWeird--Header: \r\n";
 
         assert_eq!(&vec[..expected_response.len()], &expected_response[..]);
     }
@@ -2347,6 +2422,10 @@ mod tests {
                 h1_parser_config: Default::default(),
                 preserve_header_case: false,
                 h09_responses: false,
+                #[cfg(feature = "ffi")]
+                on_informational: &mut None,
+                #[cfg(feature = "ffi")]
+                raw_headers: false,
             },
         )
         .expect("parse ok")
@@ -2427,6 +2506,10 @@ mod tests {
                     h1_parser_config: Default::default(),
                     preserve_header_case: false,
                     h09_responses: false,
+                    #[cfg(feature = "ffi")]
+                    on_informational: &mut None,
+                    #[cfg(feature = "ffi")]
+                    raw_headers: false,
                 },
             )
             .unwrap()
@@ -2463,6 +2546,10 @@ mod tests {
                     h1_parser_config: Default::default(),
                     preserve_header_case: false,
                     h09_responses: false,
+                    #[cfg(feature = "ffi")]
+                    on_informational: &mut None,
+                    #[cfg(feature = "ffi")]
+                    raw_headers: false,
                 },
             )
             .unwrap()

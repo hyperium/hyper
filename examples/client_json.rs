@@ -41,5 +41,6 @@ async fn fetch_json(url: hyper::Uri) -> Result<Vec<User>> {
 #[derive(Deserialize, Debug)]
 struct User {
     id: i32,
+    #[allow(unused)]
     name: String,
 }

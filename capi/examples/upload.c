@@ -148,6 +148,17 @@ static int print_each_header(void *userdata,
     return HYPER_ITER_CONTINUE;
 }
 
+static void print_informational(void *userdata, hyper_response *resp) {
+    uint16_t http_status = hyper_response_status(resp);
+
+    printf("\nInformational (1xx): %d\n", http_status);
+
+    const hyper_buf *headers = hyper_response_headers_raw(resp);
+    if (headers) {
+        write(1, hyper_buf_bytes(headers), hyper_buf_len(headers));
+    }
+}
+
 typedef enum {
     EXAMPLE_NOT_SET = 0, // tasks we don't know about won't have a userdata set
     EXAMPLE_HANDSHAKE,
@@ -172,7 +183,7 @@ int main(int argc, char *argv[]) {
     upload.fd = open(file, O_RDONLY);
 
     if (upload.fd < 0) {
-        printf("error opening file to upload: %d", errno);
+        printf("error opening file to upload: %s\n", strerror(errno));
         return 1;
     }
     printf("connecting to port %s on %s...\n", port, host);
@@ -208,7 +219,7 @@ int main(int argc, char *argv[]) {
     hyper_io_set_read(io, read_cb);
     hyper_io_set_write(io, write_cb);
 
-    printf("http handshake ...\n");
+    printf("http handshake (hyper v%s) ...\n", hyper_version());
 
     // We need an executor generally to poll futures
     const hyper_executor *exec = hyper_executor_new();
@@ -216,6 +227,7 @@ int main(int argc, char *argv[]) {
     // Prepare client options
     hyper_clientconn_options *opts = hyper_clientconn_options_new();
     hyper_clientconn_options_exec(opts, exec);
+    hyper_clientconn_options_headers_raw(opts, 1);
 
     hyper_task *handshake = hyper_clientconn_handshake(io, opts);
     hyper_task_set_userdata(handshake, (void *)EXAMPLE_HANDSHAKE);
@@ -262,7 +274,14 @@ int main(int argc, char *argv[]) {
                 }
 
                 hyper_headers *req_headers = hyper_request_headers(req);
-                hyper_headers_set(req_headers,  STR_ARG("host"), STR_ARG(host));
+                hyper_headers_set(req_headers, STR_ARG("host"), STR_ARG(host));
+                hyper_headers_set(req_headers, STR_ARG("expect"), STR_ARG("100-continue"));
+
+                // NOTE: We aren't handling *waiting* for the 100 Continue,
+                // the body is sent immediately. This will just print if any
+                // informational headers are received.
+                printf("    with expect-continue ...\n");
+                hyper_request_on_informational(req, print_informational, NULL);
 
                 // Prepare the req body
                 hyper_body *body = hyper_body_new();

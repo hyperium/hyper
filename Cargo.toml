@@ -1,6 +1,6 @@
 [package]
 name = "hyper"
-version = "0.14.7" # don't forget to update html_root_url
+version = "0.14.13"
 description = "A fast and correct HTTP library."
 readme = "README.md"
 homepage = "https://hyper.rs"
@@ -30,11 +30,11 @@ futures-util = { version = "0.3", default-features = false }
 http = "0.2"
 http-body = "0.4"
 httpdate = "1.0"
-httparse = "1.4"
-h2 = { version = "0.3", optional = true }
+httparse = "1.5.1"
+h2 = { version = "0.3.3", optional = true }
 itoa = "0.4.1"
 tracing = { version = "0.1", default-features = false, features = ["std"] }
-pin-project = "1.0"
+pin-project-lite = "0.2.4"
 tower-service = "0.3"
 tokio = { version = "1", features = ["sync"] }
 want = "0.3"
@@ -66,8 +66,7 @@ tokio = { version = "1", features = [
 ] }
 tokio-test = "0.4"
 tokio-util = { version = "0.6", features = ["codec"] }
-tower = { version = "0.4", features = ["make"] }
-tower-util = "0.3"
+tower = { version = "0.4", features = ["make", "util"] }
 url = "2.2"
 
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dev-dependencies]

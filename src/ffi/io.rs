@@ -46,7 +46,7 @@ ffi_fn! {
     /// This is typically only useful if you aren't going to pass ownership
     /// of the IO handle to hyper, such as with `hyper_clientconn_handshake()`.
     fn hyper_io_free(io: *mut hyper_io) {
-        drop(unsafe { Box::from_raw(io) });
+        drop(non_null!(Box::from_raw(io) ?= ()));
     }
 }
 
@@ -55,7 +55,7 @@ ffi_fn! {
     ///
     /// This value is passed as an argument to the read and write callbacks.
     fn hyper_io_set_userdata(io: *mut hyper_io, data: *mut c_void) {
-        unsafe { &mut *io }.userdata = data;
+        non_null!(&mut *io ?= ()).userdata = data;
     }
 }
 
@@ -77,7 +77,7 @@ ffi_fn! {
     /// If there is an irrecoverable error reading data, then `HYPER_IO_ERROR`
     /// should be the return value.
     fn hyper_io_set_read(io: *mut hyper_io, func: hyper_io_read_callback) {
-        unsafe { &mut *io }.read = func;
+        non_null!(&mut *io ?= ()).read = func;
     }
 }
 
@@ -96,7 +96,7 @@ ffi_fn! {
     /// If there is an irrecoverable error reading data, then `HYPER_IO_ERROR`
     /// should be the return value.
     fn hyper_io_set_write(io: *mut hyper_io, func: hyper_io_write_callback) {
-        unsafe { &mut *io }.write = func;
+        non_null!(&mut *io ?= ()).write = func;
     }
 }
 

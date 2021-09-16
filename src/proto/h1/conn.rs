@@ -7,6 +7,7 @@ use http::header::{HeaderValue, CONNECTION};
 use http::{HeaderMap, Method, Version};
 use httparse::ParserConfig;
 use tokio::io::{AsyncRead, AsyncWrite};
+use tracing::{debug, error, trace};
 
 use super::io::Buffered;
 use super::{Decoder, Encode, EncodedBuf, Encoder, Http1Transaction, ParseContext, Wants};
@@ -49,6 +50,10 @@ where
                 preserve_header_case: false,
                 title_case_headers: false,
                 h09_responses: false,
+                #[cfg(feature = "ffi")]
+                on_informational: None,
+                #[cfg(feature = "ffi")]
+                raw_headers: false,
                 notify_read: false,
                 reading: Reading::Init,
                 writing: Writing::Init,
@@ -64,6 +69,11 @@ where
     #[cfg(feature = "server")]
     pub(crate) fn set_flush_pipeline(&mut self, enabled: bool) {
         self.io.set_flush_pipeline(enabled);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_write_strategy_queue(&mut self) {
+        self.io.set_write_strategy_queue();
     }
 
     pub(crate) fn set_max_buf_size(&mut self, max: usize) {
@@ -96,6 +106,11 @@ where
     #[cfg(feature = "server")]
     pub(crate) fn set_allow_half_close(&mut self) {
         self.state.allow_half_close = true;
+    }
+
+    #[cfg(feature = "ffi")]
+    pub(crate) fn set_raw_headers(&mut self, enabled: bool) {
+        self.state.raw_headers = enabled;
     }
 
     pub(crate) fn into_inner(self) -> (I, Bytes) {
@@ -162,6 +177,10 @@ where
                 h1_parser_config: self.state.h1_parser_config.clone(),
                 preserve_header_case: self.state.preserve_header_case,
                 h09_responses: self.state.h09_responses,
+                #[cfg(feature = "ffi")]
+                on_informational: &mut self.state.on_informational,
+                #[cfg(feature = "ffi")]
+                raw_headers: self.state.raw_headers,
             }
         )) {
             Ok(msg) => msg,
@@ -175,6 +194,12 @@ where
 
         // Prevent accepting HTTP/0.9 responses after the initial one, if any.
         self.state.h09_responses = false;
+
+        // Drop any OnInformational callbacks, we're done there!
+        #[cfg(feature = "ffi")]
+        {
+            self.state.on_informational = None;
+        }
 
         self.state.busy();
         self.state.keep_alive &= msg.keep_alive;
@@ -441,7 +466,7 @@ where
             }
         }
         match self.state.writing {
-            Writing::Init => true,
+            Writing::Init => self.io.can_headers_buf(),
             _ => false,
         }
     }
@@ -516,6 +541,13 @@ where
                 debug_assert!(self.state.cached_headers.is_none());
                 debug_assert!(head.headers.is_empty());
                 self.state.cached_headers = Some(head.headers);
+
+                #[cfg(feature = "ffi")]
+                {
+                    self.state.on_informational =
+                        head.extensions.remove::<crate::ffi::OnInformational>();
+                }
+
                 Some(encoder)
             }
             Err(err) => {
@@ -766,6 +798,13 @@ struct State {
     preserve_header_case: bool,
     title_case_headers: bool,
     h09_responses: bool,
+    /// If set, called with each 1xx informational response received for
+    /// the current request. MUST be unset after a non-1xx response is
+    /// received.
+    #[cfg(feature = "ffi")]
+    on_informational: Option<crate::ffi::OnInformational>,
+    #[cfg(feature = "ffi")]
+    raw_headers: bool,
     /// Set to true when the Dispatcher should poll read operations
     /// again. See the `maybe_notify` method for more.
     notify_read: bool,

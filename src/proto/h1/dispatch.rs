@@ -3,6 +3,7 @@ use std::error::Error as StdError;
 use bytes::{Buf, Bytes};
 use http::Request;
 use tokio::io::{AsyncRead, AsyncWrite};
+use tracing::{debug, trace};
 
 use super::{Http1Transaction, Wants};
 use crate::body::{Body, DecodedLength, HttpBody};
@@ -44,10 +45,13 @@ cfg_server! {
 }
 
 cfg_client! {
-    pub(crate) struct Client<B> {
-        callback: Option<crate::client::dispatch::Callback<Request<B>, http::Response<Body>>>,
-        rx: ClientRx<B>,
-        rx_closed: bool,
+    pin_project_lite::pin_project! {
+        pub(crate) struct Client<B> {
+            callback: Option<crate::client::dispatch::Callback<Request<B>, http::Response<Body>>>,
+            #[pin]
+            rx: ClientRx<B>,
+            rx_closed: bool,
+        }
     }
 
     type ClientRx<B> = crate::client::dispatch::Receiver<Request<B>, http::Response<Body>>;
@@ -595,11 +599,7 @@ cfg_client! {
             match msg {
                 Ok((msg, body)) => {
                     if let Some(cb) = self.callback.take() {
-                        let mut res = http::Response::new(body);
-                        *res.status_mut() = msg.subject;
-                        *res.headers_mut() = msg.headers;
-                        *res.version_mut() = msg.version;
-                        *res.extensions_mut() = msg.extensions;
+                        let res = msg.into_response(body);
                         cb.send(Ok(res));
                         Ok(())
                     } else {
@@ -665,7 +665,6 @@ mod tests {
 
             // Block at 0 for now, but we will release this response before
             // the request is ready to write later...
-            //let io = AsyncIo::new_buf(b"HTTP/1.1 200 OK\r\n\r\n".to_vec(), 0);
             let (mut tx, rx) = crate::client::dispatch::channel();
             let conn = Conn::<_, bytes::Bytes, ClientTransaction>::new(io);
             let mut dispatcher = Dispatcher::new(Client::new(rx), conn);
@@ -690,6 +689,34 @@ mod tests {
                 other => panic!("expected Canceled, got {:?}", other),
             }
         });
+    }
+
+    #[tokio::test]
+    async fn client_flushing_is_not_ready_for_next_request() {
+        let _ = pretty_env_logger::try_init();
+
+        let (io, _handle) = tokio_test::io::Builder::new()
+            .write(b"POST / HTTP/1.1\r\ncontent-length: 4\r\n\r\n")
+            .read(b"HTTP/1.1 200 OK\r\ncontent-length: 0\r\n\r\n")
+            .wait(std::time::Duration::from_secs(2))
+            .build_with_handle();
+
+        let (mut tx, rx) = crate::client::dispatch::channel();
+        let mut conn = Conn::<_, bytes::Bytes, ClientTransaction>::new(io);
+        conn.set_write_strategy_queue();
+
+        let dispatcher = Dispatcher::new(Client::new(rx), conn);
+        let _dispatcher = tokio::spawn(async move { dispatcher.await });
+
+        let req = crate::Request::builder()
+            .method("POST")
+            .body(crate::Body::from("reee"))
+            .unwrap();
+
+        let res = tx.try_send(req).unwrap().await.expect("response");
+        drop(res);
+
+        assert!(!tx.is_ready());
     }
 
     #[tokio::test]
