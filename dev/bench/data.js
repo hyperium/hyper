@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1631811468037,
+  "lastUpdate": 1631811471476,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -7921,6 +7921,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 76701,
             "range": "± 18273",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "divergentdave@gmail.com",
+            "name": "David Cook",
+            "username": "divergentdave"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "a54689b921ca16dd0f29b3f4a74feae60218db34",
+          "message": "feat(ffi): add hyper_request_set_uri_parts\n\nAdd a second FFI interface for setting the URI of a request with three\nseparate schema, authority, and path/query strings, rather than one URI\nstring.",
+          "timestamp": "2021-09-16T09:55:28-07:00",
+          "tree_id": "a78e13871e4cce35cae2aad14b659c61b45709e8",
+          "url": "https://github.com/hyperium/hyper/commit/a54689b921ca16dd0f29b3f4a74feae60218db34"
+        },
+        "date": 1631811469860,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 48472,
+            "range": "± 2182",
             "unit": "ns/iter"
           }
         ]
