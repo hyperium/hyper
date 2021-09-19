@@ -18,7 +18,7 @@ use super::pool::{
 #[cfg(feature = "tcp")]
 use super::HttpConnector;
 use crate::body::{Body, HttpBody};
-use crate::common::{exec::BoxSendFuture, lazy as hyper_lazy, task, Future, Lazy, Pin, Poll};
+use crate::common::{exec::BoxSendFuture, sync_wrapper::SyncWrapper, lazy as hyper_lazy, task, Future, Lazy, Pin, Poll};
 use crate::rt::Executor;
 
 /// A Client to make outgoing HTTP requests.
@@ -45,7 +45,7 @@ struct Config {
 /// This is returned by `Client::request` (and `Client::get`).
 #[must_use = "futures do nothing unless polled"]
 pub struct ResponseFuture {
-    inner: Pin<Box<dyn Future<Output = crate::Result<Response<Body>>> + Send>>,
+    inner: SyncWrapper<Pin<Box<dyn Future<Output = crate::Result<Response<Body>>> + Send>>>,
 }
 
 // ===== impl Client =====
@@ -168,9 +168,9 @@ where
             Version::HTTP_10 => {
                 if is_http_connect {
                     warn!("CONNECT is not allowed for HTTP/1.0");
-                    return ResponseFuture::new(Box::pin(future::err(
+                    return ResponseFuture::new(future::err(
                         crate::Error::new_user_unsupported_request_method(),
-                    )));
+                    ));
                 }
             }
             Version::HTTP_2 => (),
@@ -181,11 +181,11 @@ where
         let pool_key = match extract_domain(req.uri_mut(), is_http_connect) {
             Ok(s) => s,
             Err(err) => {
-                return ResponseFuture::new(Box::pin(future::err(err)));
+                return ResponseFuture::new(future::err(err));
             }
         };
 
-        ResponseFuture::new(Box::pin(self.clone().retryably_send_request(req, pool_key)))
+        ResponseFuture::new(self.clone().retryably_send_request(req, pool_key))
     }
 
     async fn retryably_send_request(
@@ -580,8 +580,13 @@ impl<C, B> fmt::Debug for Client<C, B> {
 // ===== impl ResponseFuture =====
 
 impl ResponseFuture {
-    fn new(fut: Pin<Box<dyn Future<Output = crate::Result<Response<Body>>> + Send>>) -> Self {
-        Self { inner: fut }
+    fn new<F>(value: F) -> Self
+    where
+        F: Future<Output = crate::Result<Response<Body>>> + Send + 'static,
+    {
+        Self {
+            inner: SyncWrapper::new(Box::pin(value))
+        }
     }
 
     fn error_version(ver: Version) -> Self {
@@ -602,7 +607,7 @@ impl Future for ResponseFuture {
     type Output = crate::Result<Response<Body>>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.inner).poll(cx)
+        self.inner.get_mut().as_mut().poll(cx)
     }
 }
 
@@ -1275,6 +1280,12 @@ impl fmt::Debug for Builder {
 #[cfg(test)]
 mod unit_tests {
     use super::*;
+
+    #[test]
+    fn response_future_is_sync() {
+        fn assert_sync<T: Sync>() {}
+        assert_sync::<ResponseFuture>();
+    }
 
     #[test]
     fn set_relative_uri_with_implicit_path() {
