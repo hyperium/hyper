@@ -18,7 +18,10 @@ pub(crate) mod io;
 #[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]
 mod lazy;
 mod never;
-#[cfg(feature = "stream")]
+#[cfg(any(
+    feature = "stream",
+    all(feature = "client", any(feature = "http1", feature = "http2"))
+))]
 pub(crate) mod sync_wrapper;
 pub(crate) mod task;
 pub(crate) mod watch;
