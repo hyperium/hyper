@@ -52,7 +52,7 @@ jobs:
           - stable
           - beta
           - nightly
-          - 1.46
+          - 1.46 # keep in sync with MSRV.md dev doc
 
         os:
           - ubuntu-latest
