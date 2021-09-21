@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1632265508690,
+  "lastUpdate": 1632265663627,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -27417,6 +27417,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_req_100kb",
             "value": 128762,
             "range": "± 3715",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "ecd5dc1034a21413b327eb14f3447ede9b3be4c8",
+          "message": "docs(contrib): add Minimum Support Rust Version (MSRV) policy",
+          "timestamp": "2021-09-21T16:02:04-07:00",
+          "tree_id": "024f9012f31ff8d113d8960240679fd0f2bdefb6",
+          "url": "https://github.com/hyperium/hyper/commit/ecd5dc1034a21413b327eb14f3447ede9b3be4c8"
+        },
+        "date": 1632265661245,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_body_both_100kb",
+            "value": 128275,
+            "range": "± 15617",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_body_both_10mb",
+            "value": 7039345,
+            "range": "± 2188329",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_get",
+            "value": 43164,
+            "range": "± 9322",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 273610,
+            "range": "± 50387",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 52017695,
+            "range": "± 924165",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 54365276,
+            "range": "± 12518763",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 61098735,
+            "range": "± 6186331",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 3761765,
+            "range": "± 648480",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_post",
+            "value": 49239,
+            "range": "± 12499",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_get",
+            "value": 79906,
+            "range": "± 9485",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 210969,
+            "range": "± 48770",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 12259212,
+            "range": "± 9293130",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 12201403,
+            "range": "± 1925704",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 12490760,
+            "range": "± 9482939",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 64520610,
+            "range": "± 8245602",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 84786422,
+            "range": "± 15785067",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 7094023,
+            "range": "± 1630907",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_post",
+            "value": 98117,
+            "range": "± 19396",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_req_100kb",
+            "value": 189539,
+            "range": "± 48851",
             "unit": "ns/iter"
           }
         ]
