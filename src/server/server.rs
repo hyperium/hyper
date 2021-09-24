@@ -271,6 +271,16 @@ impl<I, E> Builder<I, E> {
         self
     }
 
+    /// Defend against slow request header read attacks in H1 scenarios.
+    ///
+    /// Default is None.
+    #[cfg(feature = "http1")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
+    pub fn h1_header_read_timeout(mut self, read_timeout: Duration) -> Self {
+        self.protocol.h1_header_read_timeout(read_timeout);
+        self
+    }
+
     /// Set whether HTTP/1 connections will write header names as provided
     /// at the socket level.
     ///

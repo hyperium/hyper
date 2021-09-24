@@ -103,6 +103,7 @@ pub struct Http<E = Exec> {
     h1_keep_alive: bool,
     h1_title_case_headers: bool,
     h1_preserve_header_case: bool,
+    h1_header_read_timeout: Option<Duration>,
     #[cfg(feature = "http2")]
     h2_builder: proto::h2::server::Config,
     mode: ConnectionMode,
@@ -284,6 +285,7 @@ impl Http {
             h1_keep_alive: true,
             h1_title_case_headers: false,
             h1_preserve_header_case: false,
+            h1_header_read_timeout: None,
             #[cfg(feature = "http2")]
             h2_builder: Default::default(),
             mode: ConnectionMode::default(),
@@ -347,6 +349,16 @@ impl<E> Http<E> {
     #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
     pub fn http1_title_case_headers(&mut self, enabled: bool) -> &mut Self {
         self.h1_title_case_headers = enabled;
+        self
+    }
+
+    /// Defend against slow request header read attacks in H1 scenarios.
+    ///
+    /// Default is None.
+    #[cfg(feature = "http1")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
+    pub fn h1_header_read_timeout(&mut self, read_timeout: Duration) -> &mut Self {
+        self.h1_header_read_timeout = Some(read_timeout);
         self
     }
 
@@ -538,6 +550,7 @@ impl<E> Http<E> {
             h1_keep_alive: self.h1_keep_alive,
             h1_title_case_headers: self.h1_title_case_headers,
             h1_preserve_header_case: self.h1_preserve_header_case,
+            h1_header_read_timeout: self.h1_header_read_timeout,
             #[cfg(feature = "http2")]
             h2_builder: self.h2_builder,
             mode: self.mode,
@@ -605,7 +618,7 @@ impl<E> Http<E> {
                 }
                 let sd = proto::h1::dispatch::Server::new(service);
                 ProtoServer::H1 {
-                    h1: proto::h1::Dispatcher::new(sd, conn),
+                    h1: proto::h1::Dispatcher::new(sd, conn, self.h1_header_read_timeout),
                 }
             }};
         }

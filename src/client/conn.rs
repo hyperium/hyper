@@ -844,7 +844,7 @@ impl Builder {
                         conn.set_max_buf_size(max);
                     }
                     let cd = proto::h1::dispatch::Client::new(rx);
-                    let dispatch = proto::h1::Dispatcher::new(cd, conn);
+                    let dispatch = proto::h1::Dispatcher::new(cd, conn, None);
                     ProtoClient::H1 { h1: dispatch }
                 }
                 #[cfg(feature = "http2")]
