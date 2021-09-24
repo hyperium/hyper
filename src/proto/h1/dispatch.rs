@@ -1,9 +1,11 @@
 use std::error::Error as StdError;
+use std::time::Duration;
 
 use bytes::{Buf, Bytes};
 use http::Request;
 use tokio::io::{AsyncRead, AsyncWrite};
-use tracing::{debug, trace};
+use tokio::time::{Sleep, sleep};
+use tracing::{warn, debug, trace};
 
 use super::{Http1Transaction, Wants};
 use crate::body::{Body, DecodedLength, HttpBody};
@@ -18,6 +20,8 @@ pub(crate) struct Dispatcher<D, Bs: HttpBody, I, T> {
     dispatch: D,
     body_tx: Option<crate::body::Sender>,
     body_rx: Pin<Box<Option<Bs>>>,
+    header_read_timeout_fut: Option<Pin<Box<Sleep>>>,
+    header_read_timeout: Option<Duration>,
     is_closing: bool,
 }
 
@@ -70,12 +74,14 @@ where
     Bs: HttpBody + 'static,
     Bs::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
-    pub(crate) fn new(dispatch: D, conn: Conn<I, Bs::Data, T>) -> Self {
+    pub(crate) fn new(dispatch: D, conn: Conn<I, Bs::Data, T>, header_read_timeout: Option<Duration>) -> Self {
         Dispatcher {
             conn,
             dispatch,
             body_tx: None,
             body_rx: Box::pin(None),
+            header_read_timeout_fut: None,
+            header_read_timeout,
             is_closing: false,
         }
     }
@@ -180,12 +186,29 @@ where
         task::yield_now(cx).map(|never| match never {})
     }
 
+    fn check_header_read_timeout(&mut self, cx: &mut task::Context<'_>) -> crate::Result<()> {
+        if self.header_read_timeout.is_some() {
+            if let Some(read_timeout_fut) = &mut self.header_read_timeout_fut {
+                if Pin::new(read_timeout_fut).poll(cx).is_ready() {
+                    warn!("read header from client timeout");
+                    return Err(crate::Error::new_header_timeout());
+                }
+            } else {
+                self.header_read_timeout_fut = Some(Box::pin(sleep(self.header_read_timeout.unwrap())))
+            }
+        }
+        Ok(())
+    }
+
     fn poll_read(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
         loop {
             if self.is_closing {
                 return Poll::Ready(Ok(()));
             } else if self.conn.can_read_head() {
-                ready!(self.poll_read_head(cx))?;
+                self.check_header_read_timeout(cx)?;
+                let read_head_rt = ready!(self.poll_read_head(cx));
+                self.header_read_timeout_fut.take();
+                read_head_rt?;
             } else if let Some(mut body) = self.body_tx.take() {
                 if self.conn.can_read_body() {
                     match body.poll_ready(cx) {
@@ -667,7 +690,7 @@ mod tests {
             // the request is ready to write later...
             let (mut tx, rx) = crate::client::dispatch::channel();
             let conn = Conn::<_, bytes::Bytes, ClientTransaction>::new(io);
-            let mut dispatcher = Dispatcher::new(Client::new(rx), conn);
+            let mut dispatcher = Dispatcher::new(Client::new(rx), conn, None);
 
             // First poll is needed to allow tx to send...
             assert!(Pin::new(&mut dispatcher).poll(cx).is_pending());
@@ -705,7 +728,7 @@ mod tests {
         let mut conn = Conn::<_, bytes::Bytes, ClientTransaction>::new(io);
         conn.set_write_strategy_queue();
 
-        let dispatcher = Dispatcher::new(Client::new(rx), conn);
+        let dispatcher = Dispatcher::new(Client::new(rx), conn, None);
         let _dispatcher = tokio::spawn(async move { dispatcher.await });
 
         let req = crate::Request::builder()
@@ -730,7 +753,7 @@ mod tests {
 
         let (mut tx, rx) = crate::client::dispatch::channel();
         let conn = Conn::<_, bytes::Bytes, ClientTransaction>::new(io);
-        let mut dispatcher = tokio_test::task::spawn(Dispatcher::new(Client::new(rx), conn));
+        let mut dispatcher = tokio_test::task::spawn(Dispatcher::new(Client::new(rx), conn, None));
 
         // First poll is needed to allow tx to send...
         assert!(dispatcher.poll().is_pending());
