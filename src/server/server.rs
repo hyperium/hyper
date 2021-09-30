@@ -1,7 +1,7 @@
 use std::fmt;
 #[cfg(feature = "tcp")]
 use std::net::{SocketAddr, TcpListener as StdTcpListener};
-#[cfg(feature = "tcp")]
+#[cfg(any(feature = "tcp", feature = "http1"))]
 use std::time::Duration;
 
 #[cfg(all(feature = "tcp", any(feature = "http1", feature = "http2")))]
@@ -268,6 +268,16 @@ impl<I, E> Builder<I, E> {
     #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
     pub fn http1_title_case_headers(mut self, val: bool) -> Self {
         self.protocol.http1_title_case_headers(val);
+        self
+    }
+
+    /// Defend against slow request header read attacks in H1 scenarios.
+    ///
+    /// Default is None.
+    #[cfg(feature = "http1")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
+    pub fn h1_header_read_timeout(mut self, read_timeout: Duration) -> Self {
+        self.protocol.h1_header_read_timeout(read_timeout);
         self
     }
 

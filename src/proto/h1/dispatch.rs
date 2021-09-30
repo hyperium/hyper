@@ -1,9 +1,11 @@
 use std::error::Error as StdError;
+use std::time::Duration;
 
 use bytes::{Buf, Bytes};
 use http::Request;
 use tokio::io::{AsyncRead, AsyncWrite};
-use tracing::{debug, trace};
+use tokio::time::{Sleep, sleep};
+use tracing::{warn, debug, trace};
 
 use super::{Http1Transaction, Wants};
 use crate::body::{Body, DecodedLength, HttpBody};
@@ -13,11 +15,60 @@ use crate::proto::{
 };
 use crate::upgrade::OnUpgrade;
 
+struct HeaderReadTimeout {
+    header_read_timeout: Option<Duration>,
+    header_read_timeout_fut: Option<Pin<Box<Sleep>>>,
+    is_first_pending: bool,
+}
+
+impl HeaderReadTimeout {
+    fn new(header_read_timeout: Option<Duration>) -> Self {
+        HeaderReadTimeout {
+            header_read_timeout,
+            header_read_timeout_fut: None,
+            is_first_pending: true,
+        }
+    }
+
+    fn reset_state(&mut self) {
+        if self.header_read_timeout_fut.is_some() {
+            debug!("check_header_read_timeout clean");
+        }
+        self.header_read_timeout_fut = None;
+        self.is_first_pending = true;
+    }
+
+    /// Hyper will poll once after the request ends.
+    /// If the poll is pending, header_read_timeout_fut will be created by mistake.
+    /// Therefore, the is_first_pending flag is used to avoid this problem.
+    fn check(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+        if let Some(header_read_timeout) = self.header_read_timeout {
+            if self.header_read_timeout_fut.is_none() {
+                if self.is_first_pending {
+                    self.is_first_pending = false;
+                    debug!("check_header_read_timeout pending");
+                    return Poll::Pending;
+                }
+                debug!("check_header_read_timeout crate");
+                self.header_read_timeout_fut = Some(Box::pin(sleep(header_read_timeout)));
+            }
+            let read_timeout_fut = self.header_read_timeout_fut.as_mut().unwrap();
+            if Pin::new(read_timeout_fut).poll(cx).is_ready() {
+                warn!("read header from client timeout");
+                return Poll::Ready(Err(crate::Error::new_header_timeout()));
+            }
+        }
+        debug!("check_header_read_timeout pending");
+        Poll::Pending
+    }
+}
+
 pub(crate) struct Dispatcher<D, Bs: HttpBody, I, T> {
     conn: Conn<I, Bs::Data, T>,
     dispatch: D,
     body_tx: Option<crate::body::Sender>,
     body_rx: Pin<Box<Option<Bs>>>,
+    header_read_timeout: HeaderReadTimeout,
     is_closing: bool,
 }
 
@@ -70,12 +121,13 @@ where
     Bs: HttpBody + 'static,
     Bs::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
-    pub(crate) fn new(dispatch: D, conn: Conn<I, Bs::Data, T>) -> Self {
+    pub(crate) fn new(dispatch: D, conn: Conn<I, Bs::Data, T>, header_read_timeout: Option<Duration>) -> Self {
         Dispatcher {
             conn,
             dispatch,
             body_tx: None,
             body_rx: Box::pin(None),
+            header_read_timeout: HeaderReadTimeout::new(header_read_timeout),
             is_closing: false,
         }
     }
@@ -244,8 +296,14 @@ where
                 return Poll::Ready(Ok(()));
             }
         }
+        let read_head_rt = if let Poll::Ready(read_head_rt) = self.conn.poll_read_head(cx) {
+            self.header_read_timeout.reset_state();
+            read_head_rt
+        } else {
+            return self.header_read_timeout.check(cx);
+        };
         // dispatch is ready for a message, try to read one
-        match ready!(self.conn.poll_read_head(cx)) {
+        match read_head_rt {
             Some(Ok((mut head, body_len, wants))) => {
                 let body = match body_len {
                     DecodedLength::ZERO => Body::empty(),
@@ -667,7 +725,7 @@ mod tests {
             // the request is ready to write later...
             let (mut tx, rx) = crate::client::dispatch::channel();
             let conn = Conn::<_, bytes::Bytes, ClientTransaction>::new(io);
-            let mut dispatcher = Dispatcher::new(Client::new(rx), conn);
+            let mut dispatcher = Dispatcher::new(Client::new(rx), conn, None);
 
             // First poll is needed to allow tx to send...
             assert!(Pin::new(&mut dispatcher).poll(cx).is_pending());
@@ -705,7 +763,7 @@ mod tests {
         let mut conn = Conn::<_, bytes::Bytes, ClientTransaction>::new(io);
         conn.set_write_strategy_queue();
 
-        let dispatcher = Dispatcher::new(Client::new(rx), conn);
+        let dispatcher = Dispatcher::new(Client::new(rx), conn, None);
         let _dispatcher = tokio::spawn(async move { dispatcher.await });
 
         let req = crate::Request::builder()
@@ -730,7 +788,7 @@ mod tests {
 
         let (mut tx, rx) = crate::client::dispatch::channel();
         let conn = Conn::<_, bytes::Bytes, ClientTransaction>::new(io);
-        let mut dispatcher = tokio_test::task::spawn(Dispatcher::new(Client::new(rx), conn));
+        let mut dispatcher = tokio_test::task::spawn(Dispatcher::new(Client::new(rx), conn, None));
 
         // First poll is needed to allow tx to send...
         assert!(dispatcher.poll().is_pending());

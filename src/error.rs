@@ -104,6 +104,11 @@ pub(super) enum User {
     #[cfg(any(feature = "http1", feature = "http2"))]
     #[cfg(feature = "server")]
     UnexpectedHeader,
+
+    /// read header timeout.
+    #[cfg(any(feature = "http1"))]
+    HeaderTimeout,
+
     /// User tried to create a Request with bad version.
     #[cfg(any(feature = "http1", feature = "http2"))]
     #[cfg(feature = "client")]
@@ -310,6 +315,11 @@ impl Error {
         Error::new_user(User::UnexpectedHeader)
     }
 
+    #[cfg(any(feature = "http1"))]
+    pub(super) fn new_header_timeout() -> Error {
+        Error::new_user(User::HeaderTimeout)
+    }
+
     #[cfg(any(feature = "http1", feature = "http2"))]
     #[cfg(feature = "client")]
     pub(super) fn new_user_unsupported_version() -> Error {
@@ -441,6 +451,8 @@ impl Error {
             #[cfg(any(feature = "http1", feature = "http2"))]
             #[cfg(feature = "server")]
             Kind::User(User::UnexpectedHeader) => "user sent unexpected header",
+            #[cfg(any(feature = "http1"))]
+            Kind::User(User::HeaderTimeout) => "read header from client timeout",
             #[cfg(any(feature = "http1", feature = "http2"))]
             #[cfg(feature = "client")]
             Kind::User(User::UnsupportedVersion) => "request has unsupported HTTP version",
