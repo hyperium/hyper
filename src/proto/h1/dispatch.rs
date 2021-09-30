@@ -187,16 +187,17 @@ where
     }
 
     fn check_header_read_timeout(&mut self, cx: &mut task::Context<'_>) -> crate::Result<()> {
-        if self.header_read_timeout.is_some() {
+        if let Some(header_read_timeout) = self.header_read_timeout {
             if let Some(read_timeout_fut) = &mut self.header_read_timeout_fut {
                 if Pin::new(read_timeout_fut).poll(cx).is_ready() {
                     warn!("read header from client timeout");
                     return Err(crate::Error::new_header_timeout());
                 }
             } else {
-                self.header_read_timeout_fut = Some(Box::pin(sleep(self.header_read_timeout.unwrap())))
+                self.header_read_timeout_fut = Some(Box::pin(sleep(header_read_timeout)))
             }
         }
+
         Ok(())
     }
 
