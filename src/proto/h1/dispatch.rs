@@ -208,7 +208,7 @@ where
             } else if self.conn.can_read_head() {
                 self.check_header_read_timeout(cx)?;
                 let read_head_rt = ready!(self.poll_read_head(cx));
-                self.header_read_timeout_fut.take();
+                self.header_read_timeout_fut = None;
                 read_head_rt?;
             } else if let Some(mut body) = self.body_tx.take() {
                 if self.conn.can_read_body() {
