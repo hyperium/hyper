@@ -186,18 +186,18 @@ where
         task::yield_now(cx).map(|never| match never {})
     }
 
-    fn check_header_read_timeout(&mut self, cx: &mut task::Context<'_>) -> crate::Result<()> {
-        if self.header_read_timeout.is_some() {
-            if let Some(read_timeout_fut) = &mut self.header_read_timeout_fut {
-                if Pin::new(read_timeout_fut).poll(cx).is_ready() {
-                    warn!("read header from client timeout");
-                    return Err(crate::Error::new_header_timeout());
-                }
-            } else {
-                self.header_read_timeout_fut = Some(Box::pin(sleep(self.header_read_timeout.unwrap())))
+    fn check_header_read_timeout(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+        if let Some(header_read_timeout) = self.header_read_timeout {
+            if self.header_read_timeout_fut.is_none() {
+                self.header_read_timeout_fut = Some(Box::pin(sleep(header_read_timeout)));
+            }
+            let read_timeout_fut = self.header_read_timeout_fut.as_mut().unwrap();
+            if Pin::new(read_timeout_fut).poll(cx).is_ready() {
+                warn!("read header from client timeout");
+                return Poll::Ready(Err(crate::Error::new_header_timeout()));
             }
         }
-        Ok(())
+        Poll::Pending
     }
 
     fn poll_read(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
@@ -205,10 +205,12 @@ where
             if self.is_closing {
                 return Poll::Ready(Ok(()));
             } else if self.conn.can_read_head() {
-                self.check_header_read_timeout(cx)?;
-                let read_head_rt = ready!(self.poll_read_head(cx));
-                self.header_read_timeout_fut.take();
-                read_head_rt?;
+                if let Poll::Ready(read_head_rt) = self.poll_read_head(cx) {
+                    self.header_read_timeout_fut = None;
+                    read_head_rt?;
+                } else {
+                    ready!(self.check_header_read_timeout(cx))?;
+                }
             } else if let Some(mut body) = self.body_tx.take() {
                 if self.conn.can_read_body() {
                     match body.poll_ready(cx) {

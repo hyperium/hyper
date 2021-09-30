@@ -1,7 +1,7 @@
 use std::fmt;
 #[cfg(feature = "tcp")]
 use std::net::{SocketAddr, TcpListener as StdTcpListener};
-#[cfg(feature = "tcp")]
+#[cfg(any(feature = "tcp", feature = "http1"))]
 use std::time::Duration;
 
 #[cfg(all(feature = "tcp", any(feature = "http1", feature = "http2")))]

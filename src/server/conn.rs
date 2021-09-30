@@ -50,7 +50,7 @@
 use std::marker::PhantomData;
 #[cfg(feature = "tcp")]
 use std::net::SocketAddr;
-#[cfg(all(feature = "runtime", feature = "http2"))]
+#[cfg(any(feature = "http2", feature = "http1"))]
 use std::time::Duration;
 
 #[cfg(feature = "http2")]
