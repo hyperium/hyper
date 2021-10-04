@@ -316,7 +316,9 @@ where
                     Some(Err(e)) => {
                         return Poll::Ready(match e.reason() {
                             Some(Reason::NO_ERROR) | Some(Reason::CANCEL) => Ok(()),
-                            Some(Reason::STREAM_CLOSED) => Err(io::ErrorKind::BrokenPipe.into()),
+                            Some(Reason::STREAM_CLOSED) => {
+                                Err(io::Error::new(io::ErrorKind::BrokenPipe, e))
+                            }
                             _ => Err(h2_to_io_error(e)),
                         })
                     }
