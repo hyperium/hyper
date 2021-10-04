@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1633379866169,
+  "lastUpdate": 1633379885905,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -8401,6 +8401,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 73234,
             "range": "± 13961",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "nox@nox.paris",
+            "name": "Anthony Ramine",
+            "username": "nox"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "6169db250c932dd012d391389826cd34833077b4",
+          "message": "feat(h2): always include original h2 error on broken pipe",
+          "timestamp": "2021-10-04T13:35:07-07:00",
+          "tree_id": "e55c996e68297d08a6630e792941b468bd581612",
+          "url": "https://github.com/hyperium/hyper/commit/6169db250c932dd012d391389826cd34833077b4"
+        },
+        "date": 1633379882561,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 78352,
+            "range": "± 26890",
             "unit": "ns/iter"
           }
         ]
