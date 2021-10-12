@@ -2,6 +2,7 @@
 
 use std::cell::Cell;
 use std::rc::Rc;
+use tokio::sync::oneshot;
 
 use hyper::body::{Bytes, HttpBody};
 use hyper::header::{HeaderMap, HeaderValue};
@@ -80,6 +81,13 @@ async fn run() {
     });
 
     let server = Server::bind(&addr).executor(LocalExec).serve(make_service);
+
+    // Just shows that with_graceful_shutdown compiles with !Send,
+    // !Sync HttpBody.
+    let (_tx, rx) = oneshot::channel::<()>();
+    let server = server.with_graceful_shutdown(async move {
+        rx.await.ok();
+    });
 
     println!("Listening on http://{}", addr);
 

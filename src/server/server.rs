@@ -121,7 +121,7 @@ where
     IO: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     S: MakeServiceRef<IO, Body, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
-    B: HttpBody + Send + Sync + 'static,
+    B: HttpBody + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
     E: ConnStreamExec<<S::Service as HttpService<Body>>::Future, B>,
     E: NewSvcExec<IO, S::Future, S::Service, E, GracefulWatcher>,
