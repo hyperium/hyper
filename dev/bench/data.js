@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1633380002178,
+  "lastUpdate": 1634082555323,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -4229,6 +4229,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 73655,
             "range": "± 11628",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "espindola@chiselstrike.com",
+            "name": "Rafael Ávila de Espíndola",
+            "username": "espindola"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "1d553e52c6953ea3b039f5c3f89d35cb56e2436a",
+          "message": "feat(server): Remove Send + Sync requirement for Body in with_graceful_shutdown\n\nAlso expand the single threaded example to use that.",
+          "timestamp": "2021-10-12T16:47:03-07:00",
+          "tree_id": "a0203afc743d75e173f4d9c838c377c03cfd849f",
+          "url": "https://github.com/hyperium/hyper/commit/1d553e52c6953ea3b039f5c3f89d35cb56e2436a"
+        },
+        "date": 1634082553661,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 47750,
+            "range": "± 7705",
             "unit": "ns/iter"
           }
         ]
