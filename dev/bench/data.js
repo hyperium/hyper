@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1634082756932,
+  "lastUpdate": 1634165827620,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -4259,6 +4259,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 47750,
             "range": "± 7705",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "ryan.goodfellow@oxide.computer",
+            "name": "Ryan Goodfellow",
+            "username": "rcgoodfellow"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "910e02687df3245aae4bc519fb0bd7eb6a34db7d",
+          "message": "fix(client): remove ipv6 square brackets before resolving",
+          "timestamp": "2021-10-13T15:54:38-07:00",
+          "tree_id": "2742a90adf3c9961c5f74ab528376b907b47855f",
+          "url": "https://github.com/hyperium/hyper/commit/910e02687df3245aae4bc519fb0bd7eb6a34db7d"
+        },
+        "date": 1634165825221,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 70457,
+            "range": "± 11853",
             "unit": "ns/iter"
           }
         ]
