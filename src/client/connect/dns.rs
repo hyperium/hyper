@@ -191,7 +191,6 @@ impl SocketAddrs {
                 iter: vec![SocketAddr::V4(addr)].into_iter(),
             });
         }
-        let host = host.trim_start_matches('[').trim_end_matches(']');
         if let Ok(addr) = host.parse::<Ipv6Addr>() {
             let addr = SocketAddrV6::new(addr, port, 0, 0);
             return Some(SocketAddrs {
