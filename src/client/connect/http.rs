@@ -326,6 +326,7 @@ where
         let config = &self.config;
 
         let (host, port) = get_host_port(config, &dst)?;
+        let host = host.trim_start_matches('[').trim_end_matches(']');
 
         // If the host is already an IP addr (v4 or v6),
         // skip resolving the dns and start connecting right away.
