@@ -416,17 +416,4 @@ mod tests {
         assert_eq!(name.as_str(), DOMAIN);
         assert_eq!(name.to_string(), DOMAIN);
     }
-
-    #[test]
-    fn ip_addrs_try_parse_v6() {
-        let dst = ::http::Uri::from_static("http://[::1]:8080/");
-
-        let mut addrs =
-            SocketAddrs::try_parse(dst.host().expect("host"), dst.port_u16().expect("port"))
-                .expect("try_parse");
-
-        let expected = "[::1]:8080".parse::<SocketAddr>().expect("expected");
-
-        assert_eq!(addrs.next(), Some(expected));
-    }
 }
