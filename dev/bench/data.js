@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1634171325135,
+  "lastUpdate": 1634171336693,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -8581,6 +8581,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 59874,
             "range": "± 4329",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "55a61c072d4cbc50c28176cda809d6a0504654ea",
+          "message": "test(client): remove unneeded ipv6 dns parse test",
+          "timestamp": "2021-10-13T17:26:36-07:00",
+          "tree_id": "1130144e1b5c0042e6385c73352b201f7ee45226",
+          "url": "https://github.com/hyperium/hyper/commit/55a61c072d4cbc50c28176cda809d6a0504654ea"
+        },
+        "date": 1634171334500,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 48980,
+            "range": "± 18603",
             "unit": "ns/iter"
           }
         ]
