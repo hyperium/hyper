@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1634171499217,
+  "lastUpdate": 1634172278026,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -4319,6 +4319,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 51423,
             "range": "± 767",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "e48519a1e2f94eb7fa3fe929a1b34cd426892555",
+          "message": "refactor(http1): adjust a few tracing event outputs",
+          "timestamp": "2021-10-13T17:42:30-07:00",
+          "tree_id": "c0116a97894487b48c3b31a90d62f8d6754adf77",
+          "url": "https://github.com/hyperium/hyper/commit/e48519a1e2f94eb7fa3fe929a1b34cd426892555"
+        },
+        "date": 1634172275859,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 50164,
+            "range": "± 1966",
             "unit": "ns/iter"
           }
         ]
