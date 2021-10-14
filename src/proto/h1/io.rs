@@ -223,6 +223,7 @@ where
         match Pin::new(&mut self.io).poll_read(cx, &mut buf) {
             Poll::Ready(Ok(_)) => {
                 let n = buf.filled().len();
+                trace!("received {} bytes", n);
                 unsafe {
                     // Safety: we just read that many bytes into the
                     // uninitialized part of the buffer, so this is okay.
