@@ -120,11 +120,7 @@ impl Http1Transaction for Server {
             /* SAFETY: it is safe to go from MaybeUninit array to array of MaybeUninit */
             let mut headers: [MaybeUninit<httparse::Header<'_>>; MAX_HEADERS] =
                 unsafe { MaybeUninit::uninit().assume_init() };
-            trace!(
-                "Request.parse([Header; {}], [u8; {}])",
-                headers.len(),
-                buf.len()
-            );
+            trace!(bytes = buf.len(), "Request.parse");
             let mut req = httparse::Request::new(&mut []);
             let bytes = buf.as_ref();
             match req.parse_with_uninit_headers(bytes, &mut headers) {
@@ -144,7 +140,6 @@ impl Http1Transaction for Server {
                         is_http_11 = false;
                         Version::HTTP_10
                     };
-                    trace!("headers: {:?}", &req.headers);
 
                     record_header_indices(bytes, &req.headers, &mut headers_indices)?;
                     headers_len = req.headers.len();
@@ -879,11 +874,7 @@ impl Http1Transaction for Client {
                 // SAFETY: We can go safely from MaybeUninit array to array of MaybeUninit
                 let mut headers: [MaybeUninit<httparse::Header<'_>>; MAX_HEADERS] =
                     unsafe { MaybeUninit::uninit().assume_init() };
-                trace!(
-                    "Response.parse([Header; {}], [u8; {}])",
-                    headers.len(),
-                    buf.len()
-                );
+                trace!(bytes = buf.len(), "Response.parse");
                 let mut res = httparse::Response::new(&mut []);
                 let bytes = buf.as_ref();
                 match ctx.h1_parser_config.parse_response_with_uninit_headers(
