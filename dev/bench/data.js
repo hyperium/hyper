@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1634576284504,
+  "lastUpdate": 1634578072558,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -8731,6 +8731,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 49527,
             "range": "± 3193",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "aliceryhl@google.com",
+            "name": "Alice Ryhl",
+            "username": "Darksonn"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "bd6c35b98f9513f14ed9cecad933bc7fdb8635ea",
+          "message": "fix(client): make ResponseFuture implement Sync",
+          "timestamp": "2021-10-18T10:25:27-07:00",
+          "tree_id": "53695385d2517c02f563291bdc9f82cc3fe6adaf",
+          "url": "https://github.com/hyperium/hyper/commit/bd6c35b98f9513f14ed9cecad933bc7fdb8635ea"
+        },
+        "date": 1634578070734,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 57206,
+            "range": "± 8822",
             "unit": "ns/iter"
           }
         ]
