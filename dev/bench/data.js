@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1634172483068,
+  "lastUpdate": 1634576060010,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -4349,6 +4349,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 50164,
             "range": "± 1966",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "d0c6aaa59d9e34aea96b33e7971bffaf832500d8",
+          "message": "chore(ci): only run cargo check on MSRV, not tests",
+          "timestamp": "2021-10-18T09:52:21-07:00",
+          "tree_id": "0600e700febd4f25c6db9eccc31eca6d3b940fd8",
+          "url": "https://github.com/hyperium/hyper/commit/d0c6aaa59d9e34aea96b33e7971bffaf832500d8"
+        },
+        "date": 1634576058365,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 44625,
+            "range": "± 5804",
             "unit": "ns/iter"
           }
         ]
