@@ -1,3 +1,19 @@
+### v0.14.14 (2021-10-22)
+
+
+#### Bug Fixes
+
+* **client:**
+  * make ResponseFuture implement Sync ([bd6c35b9](https://github.com/hyperium/hyper/commit/bd6c35b98f9513f14ed9cecad933bc7fdb8635ea))
+  * remove ipv6 square brackets before resolving ([910e0268](https://github.com/hyperium/hyper/commit/910e02687df3245aae4bc519fb0bd7eb6a34db7d))
+
+
+#### Features
+
+* **h2:** always include original h2 error on broken pipe ([6169db25](https://github.com/hyperium/hyper/commit/6169db250c932dd012d391389826cd34833077b4))
+* **server:** Remove Send + Sync requirement for Body in with_graceful_shutdown ([1d553e52](https://github.com/hyperium/hyper/commit/1d553e52c6953ea3b039f5c3f89d35cb56e2436a))
+
+
 ### v0.14.13 (2021-09-16)
 
 
