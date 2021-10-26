@@ -3,10 +3,11 @@ use std::fmt;
 use std::io::{self, IoSlice};
 use std::marker::Unpin;
 use std::mem::MaybeUninit;
+use std::future::Future;
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tracing::{debug, trace};
+use tracing::{debug, warn, trace};
 
 use super::{Http1Transaction, ParseContext, ParsedMessage};
 use crate::common::buf::BufList;
@@ -180,6 +181,8 @@ where
                     cached_headers: parse_ctx.cached_headers,
                     req_method: parse_ctx.req_method,
                     h1_parser_config: parse_ctx.h1_parser_config.clone(),
+                    h1_header_read_timeout: parse_ctx.h1_header_read_timeout,
+                    h1_header_read_timeout_fut: parse_ctx.h1_header_read_timeout_fut,
                     preserve_header_case: parse_ctx.preserve_header_case,
                     h09_responses: parse_ctx.h09_responses,
                     #[cfg(feature = "ffi")]
@@ -190,6 +193,8 @@ where
             )? {
                 Some(msg) => {
                     debug!("parsed {} headers", msg.head.headers.len());
+
+                    *parse_ctx.h1_header_read_timeout_fut = None;
                     return Poll::Ready(Ok(msg));
                 }
                 None => {
@@ -197,6 +202,15 @@ where
                     if self.read_buf.len() >= max {
                         debug!("max_buf_size ({}) reached, closing", max);
                         return Poll::Ready(Err(crate::Error::new_too_large()));
+                    }
+
+                    if let Some(h1_header_read_timeout_fut) = parse_ctx.h1_header_read_timeout_fut {
+                        if Pin::new( h1_header_read_timeout_fut).poll(cx).is_ready() {
+                            *parse_ctx.h1_header_read_timeout_fut = None;
+
+                            warn!("read header from client timeout");
+                            return Poll::Ready(Err(crate::Error::new_header_timeout()))
+                        }
                     }
                 }
             }
@@ -693,6 +707,8 @@ mod tests {
                 cached_headers: &mut None,
                 req_method: &mut None,
                 h1_parser_config: Default::default(),
+                h1_header_read_timeout: None,
+                h1_header_read_timeout_fut: &mut None,
                 preserve_header_case: false,
                 h09_responses: false,
                 #[cfg(feature = "ffi")]
