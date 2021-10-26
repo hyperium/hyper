@@ -86,7 +86,7 @@ full = [
 ]
 
 # HTTP versions
-http1 = []
+http1 = ["tokio/time"]
 http2 = ["h2"]
 
 # Client/Server

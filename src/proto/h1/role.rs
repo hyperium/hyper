@@ -2531,6 +2531,8 @@ mod tests {
                     cached_headers: &mut headers,
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
+                    h1_header_read_timeout: None,
+                    h1_header_read_timeout_fut: &mut None,
                     preserve_header_case: false,
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
@@ -2571,6 +2573,8 @@ mod tests {
                     cached_headers: &mut headers,
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
+                    h1_header_read_timeout: None,
+                    h1_header_read_timeout_fut: &mut None,
                     preserve_header_case: false,
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
