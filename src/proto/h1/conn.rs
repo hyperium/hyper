@@ -49,9 +49,7 @@ where
                 keep_alive: KA::Busy,
                 method: None,
                 h1_parser_config: ParserConfig::default(),
-                #[cfg(feature = "server")]
                 h1_header_read_timeout: None,
-                #[cfg(feature = "server")]
                 h1_header_read_timeout_fut: None,
                 preserve_header_case: false,
                 title_case_headers: false,
@@ -189,9 +187,7 @@ where
                 cached_headers: &mut self.state.cached_headers,
                 req_method: &mut self.state.method,
                 h1_parser_config: self.state.h1_parser_config.clone(),
-                #[cfg(feature = "server")]
                 h1_header_read_timeout: self.state.h1_header_read_timeout,
-                #[cfg(feature = "server")]
                 h1_header_read_timeout_fut: &mut self.state.h1_header_read_timeout_fut,
                 preserve_header_case: self.state.preserve_header_case,
                 h09_responses: self.state.h09_responses,
@@ -813,9 +809,7 @@ struct State {
     /// a body or not.
     method: Option<Method>,
     h1_parser_config: ParserConfig,
-    #[cfg(feature = "server")]
     h1_header_read_timeout: Option<Duration>,
-    #[cfg(feature = "server")]
     h1_header_read_timeout_fut: Option<Pin<Box<Sleep>>>,
     preserve_header_case: bool,
     title_case_headers: bool,
