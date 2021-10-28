@@ -1305,17 +1305,24 @@ async fn header_read_timeout_slow_writes() {
         tcp.write_all(
             b"\
             GET / HTTP/1.1\r\n\
-            Something: 1\r\n\
         ",
         )
         .expect("write 1");
+        thread::sleep(Duration::from_secs(3));
+        tcp.write_all(
+            b"\
+            Something: 1\r\n\
+            \r\n\
+        ",
+        )
+        .expect("write 2");
         thread::sleep(Duration::from_secs(6));
         tcp.write_all(
             b"\
             Works: 0\r\n\
         ",
         )
-        .expect_err("write 2");
+        .expect_err("write 3");
     });
 
     let (socket, _) = listener.accept().await.unwrap();
@@ -1335,36 +1342,62 @@ async fn header_read_timeout_slow_writes() {
 }
 
 #[tokio::test]
-async fn header_read_timeout_slow_writes_2nd_request() {
+async fn header_read_timeout_slow_writes_multiple_requests() {
     let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
 
     thread::spawn(move || {
         let mut tcp = connect(&addr);
+
         tcp.write_all(
             b"\
             GET / HTTP/1.1\r\n\
-            Something: 1\r\n\
-            \r\n\
         ",
         )
         .expect("write 1");
-        thread::sleep(Duration::from_secs(6));
+        thread::sleep(Duration::from_secs(3));
         tcp.write_all(
             b"\
-            GET / HTTP/1.1\r\n\
             Something: 1\r\n\
             \r\n\
         ",
         )
         .expect("write 2");
+
+        thread::sleep(Duration::from_secs(3));
+
+        tcp.write_all(
+            b"\
+            GET / HTTP/1.1\r\n\
+        ",
+        )
+        .expect("write 3");
+        thread::sleep(Duration::from_secs(3));
+        tcp.write_all(
+            b"\
+            Something: 1\r\n\
+            \r\n\
+        ",
+        )
+        .expect("write 4");
+
+        thread::sleep(Duration::from_secs(6));
+
+        tcp.write_all(
+            b"\
+            GET / HTTP/1.1\r\n\
+            Something: 1\r\n\
+            \r\n\
+        ",
+        )
+        .expect("write 5");
         thread::sleep(Duration::from_secs(6));
         tcp.write_all(
             b"\
             Works: 0\r\n\
         ",
         )
-        .expect_err("write 3");
+        .expect_err("write 6");
     });
 
     let (socket, _) = listener.accept().await.unwrap();
