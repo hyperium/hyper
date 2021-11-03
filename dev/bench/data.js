@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1634921919847,
+  "lastUpdate": 1635964963925,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -4439,6 +4439,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 51088,
             "range": "± 745",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "luqman@oxide.computer",
+            "name": "Luqman Aden",
+            "username": "luqmana"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "ab469eb3c6cd5e7a035d734f3d21ff4d2d6a21ab",
+          "message": "feat(upgrade): allow http upgrades with any body type\n\nAllow using `Request<T>`/`Response<T>` for any given T with\n`upgrade::on` instead of just restricting it to `hyper::Body`.",
+          "timestamp": "2021-11-03T11:40:33-07:00",
+          "tree_id": "d657502ce9810ed4a91249e9a079b12553cf185f",
+          "url": "https://github.com/hyperium/hyper/commit/ab469eb3c6cd5e7a035d734f3d21ff4d2d6a21ab"
+        },
+        "date": 1635964962241,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 53632,
+            "range": "± 4267",
             "unit": "ns/iter"
           }
         ]
