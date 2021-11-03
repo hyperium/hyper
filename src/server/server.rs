@@ -453,6 +453,15 @@ impl<I, E> Builder<I, E> {
         self
     }
 
+    /// Enables the [extended CONNECT protocol].
+    ///
+    /// [extended CONNECT protocol]: https://datatracker.ietf.org/doc/html/rfc8441#section-4
+    #[cfg(feature = "http2")]
+    pub fn http2_enable_connect_protocol(mut self) -> Self {
+        self.protocol.http2_enable_connect_protocol();
+        self
+    }
+
     /// Sets the `Executor` to deal with connection tasks.
     ///
     /// Default is `tokio::spawn`.

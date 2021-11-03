@@ -558,6 +558,15 @@ impl<E> Http<E> {
         self
     }
 
+    /// Enables the [extended CONNECT protocol].
+    ///
+    /// [extended CONNECT protocol]: https://datatracker.ietf.org/doc/html/rfc8441#section-4
+    #[cfg(feature = "http2")]
+    pub fn http2_enable_connect_protocol(&mut self) -> &mut Self {
+        self.h2_builder.enable_connect_protocol = true;
+        self
+    }
+
     /// Set the maximum buffer size for the connection.
     ///
     /// Default is ~400kb.

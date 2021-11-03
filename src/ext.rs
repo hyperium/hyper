@@ -1,9 +1,67 @@
-//! HTTP extensions
+//! HTTP extensions.
 
 use bytes::Bytes;
 #[cfg(feature = "http1")]
 use http::header::{HeaderName, IntoHeaderName, ValueIter};
 use http::HeaderMap;
+#[cfg(feature = "http2")]
+use std::fmt;
+
+#[cfg(feature = "http2")]
+/// Represents the `:protocol` pseudo-header used by
+/// the [Extended CONNECT Protocol].
+///
+/// [Extended CONNECT Protocol]: https://datatracker.ietf.org/doc/html/rfc8441#section-4
+#[derive(Clone, Eq, PartialEq)]
+pub struct Protocol {
+    inner: h2::ext::Protocol,
+}
+
+#[cfg(feature = "http2")]
+impl Protocol {
+    /// Converts a static string to a protocol name.
+    pub const fn from_static(value: &'static str) -> Self {
+        Self {
+            inner: h2::ext::Protocol::from_static(value),
+        }
+    }
+
+    /// Returns a str representation of the header.
+    pub fn as_str(&self) -> &str {
+        self.inner.as_str()
+    }
+
+    pub(crate) fn from_inner(inner: h2::ext::Protocol) -> Self {
+        Self { inner }
+    }
+
+    pub(crate) fn into_inner(self) -> h2::ext::Protocol {
+        self.inner
+    }
+}
+
+#[cfg(feature = "http2")]
+impl<'a> From<&'a str> for Protocol {
+    fn from(value: &'a str) -> Self {
+        Self {
+            inner: h2::ext::Protocol::from(value),
+        }
+    }
+}
+
+#[cfg(feature = "http2")]
+impl AsRef<[u8]> for Protocol {
+    fn as_ref(&self) -> &[u8] {
+        self.inner.as_ref()
+    }
+}
+
+#[cfg(feature = "http2")]
+impl fmt::Debug for Protocol {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.inner.fmt(f)
+    }
+}
 
 /// A map from header names to their original casing as received in an HTTP message.
 ///

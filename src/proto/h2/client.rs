@@ -14,6 +14,7 @@ use tracing::{debug, trace, warn};
 use super::{ping, H2Upgraded, PipeToSendStream, SendBuf};
 use crate::body::HttpBody;
 use crate::common::{exec::Exec, task, Future, Never, Pin, Poll};
+use crate::ext::Protocol;
 use crate::headers;
 use crate::proto::h2::UpgradedSendStream;
 use crate::proto::Dispatched;
@@ -204,6 +205,15 @@ where
     req_rx: ClientRx<B>,
 }
 
+impl<B> ClientTask<B>
+where
+    B: HttpBody + 'static,
+{
+    pub(crate) fn is_extended_connect_protocol_enabled(&self) -> bool {
+        self.h2_tx.is_extended_connect_protocol_enabled()
+    }
+}
+
 impl<B> Future for ClientTask<B>
 where
     B: HttpBody + Send + 'static,
@@ -258,6 +268,10 @@ where
                             )));
                             continue;
                         }
+                    }
+
+                    if let Some(protocol) = req.extensions_mut().remove::<Protocol>() {
+                        req.extensions_mut().insert(protocol.into_inner());
                     }
 
                     let (fut, body_tx) = match self.h2_tx.send_request(req, !is_connect && eos) {
