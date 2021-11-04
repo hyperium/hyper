@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1636065157373,
+  "lastUpdate": 1636065259504,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -29397,6 +29397,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_req_100kb",
             "value": 131203,
             "range": "± 7981",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "123095+nox@users.noreply.github.com",
+            "name": "Anthony Ramine",
+            "username": "nox"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "80627141ede3cdaf37b833ee91d08be0af0f5c84",
+          "message": " feat(http1): Add `http1_writev(bool)` to client and server Builders\n\nRestore a way to force queue writing strategy.\r\n\r\nCloses #2676",
+          "timestamp": "2021-11-04T15:29:43-07:00",
+          "tree_id": "51a34d795c852a9c025f5d90748f0d8b5a9b0570",
+          "url": "https://github.com/hyperium/hyper/commit/80627141ede3cdaf37b833ee91d08be0af0f5c84"
+        },
+        "date": 1636065257137,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_body_both_100kb",
+            "value": 73024,
+            "range": "± 662",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_body_both_10mb",
+            "value": 6401901,
+            "range": "± 914719",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_get",
+            "value": 31868,
+            "range": "± 212",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 235718,
+            "range": "± 3083",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 51997106,
+            "range": "± 2460369",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 49432631,
+            "range": "± 2882382",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 53232699,
+            "range": "± 2019379",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 3486076,
+            "range": "± 522125",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_post",
+            "value": 35586,
+            "range": "± 573",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_get",
+            "value": 53348,
+            "range": "± 575",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 162343,
+            "range": "± 1866",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 9324137,
+            "range": "± 8679169",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 9401445,
+            "range": "± 9092228",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 9070431,
+            "range": "± 9113413",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 57272532,
+            "range": "± 3269524",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 71297146,
+            "range": "± 13017563",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 6273723,
+            "range": "± 796248",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_post",
+            "value": 60620,
+            "range": "± 849",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_req_100kb",
+            "value": 120046,
+            "range": "± 2046",
             "unit": "ns/iter"
           }
         ]
