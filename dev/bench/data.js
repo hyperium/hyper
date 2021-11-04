@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1636065136271,
+  "lastUpdate": 1636065157373,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -8941,6 +8941,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 76021,
             "range": "± 44129",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "123095+nox@users.noreply.github.com",
+            "name": "Anthony Ramine",
+            "username": "nox"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "80627141ede3cdaf37b833ee91d08be0af0f5c84",
+          "message": " feat(http1): Add `http1_writev(bool)` to client and server Builders\n\nRestore a way to force queue writing strategy.\r\n\r\nCloses #2676",
+          "timestamp": "2021-11-04T15:29:43-07:00",
+          "tree_id": "51a34d795c852a9c025f5d90748f0d8b5a9b0570",
+          "url": "https://github.com/hyperium/hyper/commit/80627141ede3cdaf37b833ee91d08be0af0f5c84"
+        },
+        "date": 1636065155414,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 77126,
+            "range": "± 32886",
             "unit": "ns/iter"
           }
         ]
