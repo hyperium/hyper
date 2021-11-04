@@ -97,16 +97,17 @@ where
         self.read_buf_strategy = ReadStrategy::Exact(sz);
     }
 
-    #[cfg(feature = "server")]
-    fn set_write_strategy_flatten(&mut self) {
+    pub(crate) fn set_write_strategy_flatten(&mut self) {
         // this should always be called only at construction time,
         // so this assert is here to catch myself
         debug_assert!(self.write_buf.queue.bufs_cnt() == 0);
         self.write_buf.set_strategy(WriteStrategy::Flatten);
     }
 
-    #[cfg(test)]
     pub(crate) fn set_write_strategy_queue(&mut self) {
+        // this should always be called only at construction time,
+        // so this assert is here to catch myself
+        debug_assert!(self.write_buf.queue.bufs_cnt() == 0);
         self.write_buf.set_strategy(WriteStrategy::Queue);
     }
 
@@ -520,7 +521,6 @@ impl<B> WriteBuf<B>
 where
     B: Buf,
 {
-    #[cfg(feature = "server")]
     fn set_strategy(&mut self, strategy: WriteStrategy) {
         self.strategy = strategy;
     }
