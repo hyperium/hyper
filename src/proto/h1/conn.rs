@@ -111,7 +111,7 @@ where
     }
 
     #[cfg(feature = "server")]
-    pub(crate) fn set_http1_header_parse_timeout(&mut self, val: Duration) {
+    pub(crate) fn set_http1_header_read_timeout(&mut self, val: Duration) {
         debug!("setting initial h1 header read timeout timer");
 
         self.state.h1_header_read_timeout = Some(val);

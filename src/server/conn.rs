@@ -638,8 +638,8 @@ impl<E> Http<E> {
                 if self.h1_preserve_header_case {
                     conn.set_preserve_header_case();
                 }
-                if let Some(header_parse_timeout) = self.h1_header_read_timeout {
-                    conn.set_http1_header_parse_timeout(header_parse_timeout);
+                if let Some(header_read_timeout) = self.h1_header_read_timeout {
+                    conn.set_http1_header_read_timeout(header_read_timeout);
                 }
                 if let Some(writev) = self.h1_writev {
                     if writev {
