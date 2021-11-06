@@ -27,10 +27,10 @@
 //! [full client example](https://github.com/hyperium/hyper/blob/master/examples/client.rs).
 //!
 //! ```
+//! # #[cfg(all(feature = "tcp", feature = "client", any(feature = "http1", feature = "http2")))]
+//! # async fn fetch_httpbin() -> hyper::Result<()> {
 //! use hyper::{body::HttpBody as _, Client, Uri};
 //!
-//! # #[cfg(feature = "tcp")]
-//! # async fn fetch_httpbin() -> hyper::Result<()> {
 //! let client = Client::new();
 //!
 //! // Make a GET /ip to 'http://httpbin.org'
