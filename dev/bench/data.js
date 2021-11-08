@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1636397385719,
+  "lastUpdate": 1636397387958,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -9001,6 +9001,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 77126,
             "range": "± 32886",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "muvlon@hentzes.de",
+            "name": "muvlon",
+            "username": "whentze"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "913be88f7155ea4695c7f8098d968bf1f340f8be",
+          "message": "docs(client): fix missing feature attrs in another doctest\n\nwhen testing my fix for #2687, I noticed that this doctest has the same issue,\nso here's another fix.",
+          "timestamp": "2021-11-08T10:47:08-08:00",
+          "tree_id": "2df4decf54b6a12200899b95a0c87fbb2d532728",
+          "url": "https://github.com/hyperium/hyper/commit/913be88f7155ea4695c7f8098d968bf1f340f8be"
+        },
+        "date": 1636397385702,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 61185,
+            "range": "± 7487",
             "unit": "ns/iter"
           }
         ]
