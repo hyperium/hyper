@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1636410328071,
+  "lastUpdate": 1636410359055,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -9061,6 +9061,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 61185,
             "range": "± 7487",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "ahmed.sobeh@signavio.com",
+            "name": "Ahmed Sobeh",
+            "username": "ahmedsobeh"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "174b553d2d877a332090b0df43375e7edb685671",
+          "message": "fit(client): cancel blocking DNS lookup if GaiFuture dropped (#2689)\n\nCloses #2686",
+          "timestamp": "2021-11-08T14:23:18-08:00",
+          "tree_id": "a5bd07c362269dc1a353e37d80853096275b8299",
+          "url": "https://github.com/hyperium/hyper/commit/174b553d2d877a332090b0df43375e7edb685671"
+        },
+        "date": 1636410357120,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 60209,
+            "range": "± 4924",
             "unit": "ns/iter"
           }
         ]
