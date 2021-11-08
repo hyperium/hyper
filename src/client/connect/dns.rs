@@ -160,7 +160,9 @@ impl fmt::Debug for GaiFuture {
 }
 
 impl Drop for GaiFuture {
-    fn drop(&mut self) { self.inner.abort() }
+    fn drop(&mut self) {
+        self.inner.abort();
+    }
 }
 
 impl Iterator for GaiAddrs {
