@@ -1262,40 +1262,6 @@ fn header_name_too_long() {
 }
 
 #[tokio::test]
-async fn header_read_timeout_no_write() {
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = listener.local_addr().unwrap();
-
-    thread::spawn(move || {
-        let mut tcp = connect(&addr);
-        thread::sleep(Duration::from_secs(6));
-        tcp.write_all(
-            b"\
-            GET / HTTP/1.1\r\n\
-            Something: 1\r\n\
-            \r\n\
-        ",
-        )
-        .expect_err("write 1");
-    });
-
-    let (socket, _) = listener.accept().await.unwrap();
-    let conn = Http::new()
-        .http1_header_read_timeout(Duration::from_secs(5))
-        .serve_connection(
-            socket,
-            service_fn(|_| {
-                let res = Response::builder()
-                    .status(200)
-                    .body(hyper::Body::empty())
-                    .unwrap();
-                future::ready(Ok::<_, hyper::Error>(res))
-            }),
-        );
-    conn.without_shutdown().await.expect("header timeout");
-}
-
-#[tokio::test]
 async fn header_read_timeout_slow_writes() {
     let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
