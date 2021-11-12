@@ -13,20 +13,20 @@ use hyper::{body::HttpBody as _, Body, Method, Request, Response, Server};
 // HTTP1
 
 #[bench]
-fn http1_get(b: &mut test::Bencher) {
+fn http1_consecutive_x1_empty(b: &mut test::Bencher) {
     opts().bench(b)
 }
 
 #[bench]
-fn http1_post(b: &mut test::Bencher) {
+fn http1_consecutive_x1_req_10b(b: &mut test::Bencher) {
     opts()
         .method(Method::POST)
-        .request_body(b"foo bar baz quux")
+        .request_body(&[b's'; 10])
         .bench(b)
 }
 
 #[bench]
-fn http1_body_both_100kb(b: &mut test::Bencher) {
+fn http1_consecutive_x1_both_100kb(b: &mut test::Bencher) {
     let body = &[b'x'; 1024 * 100];
     opts()
         .method(Method::POST)
@@ -36,7 +36,7 @@ fn http1_body_both_100kb(b: &mut test::Bencher) {
 }
 
 #[bench]
-fn http1_body_both_10mb(b: &mut test::Bencher) {
+fn http1_consecutive_x1_both_10mb(b: &mut test::Bencher) {
     let body = &[b'x'; 1024 * 1024 * 10];
     opts()
         .method(Method::POST)
@@ -87,21 +87,21 @@ fn http1_parallel_x10_res_10mb(b: &mut test::Bencher) {
 const HTTP2_MAX_WINDOW: u32 = std::u32::MAX >> 1;
 
 #[bench]
-fn http2_get(b: &mut test::Bencher) {
+fn http2_consecutive_x1_empty(b: &mut test::Bencher) {
     opts().http2().bench(b)
 }
 
 #[bench]
-fn http2_post(b: &mut test::Bencher) {
+fn http2_consecutive_x1_req_10b(b: &mut test::Bencher) {
     opts()
         .http2()
         .method(Method::POST)
-        .request_body(b"foo bar baz quux")
+        .request_body(&[b's'; 10])
         .bench(b)
 }
 
 #[bench]
-fn http2_req_100kb(b: &mut test::Bencher) {
+fn http2_consecutive_x1_req_100kb(b: &mut test::Bencher) {
     let body = &[b'x'; 1024 * 100];
     opts()
         .http2()
