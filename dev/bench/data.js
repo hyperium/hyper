@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1637016605148,
+  "lastUpdate": 1637016619133,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -4589,6 +4589,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 78746,
             "range": "± 7770",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "a12db28542e2ecd6f67459b4777a24cb71b9bdc8",
+          "message": "docs(upgrade): add module documentation for HTTP upgrades",
+          "timestamp": "2021-11-15T14:47:29-08:00",
+          "tree_id": "e3dd92b3d64bc525831174bfd31bb97c2f004606",
+          "url": "https://github.com/hyperium/hyper/commit/a12db28542e2ecd6f67459b4777a24cb71b9bdc8"
+        },
+        "date": 1637016616615,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 89491,
+            "range": "± 16021",
             "unit": "ns/iter"
           }
         ]
