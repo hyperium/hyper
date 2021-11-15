@@ -1,5 +1,39 @@
 //! HTTP Upgrades
 //!
+//! This module deals with managing [HTTP Upgrades][mdn] in hyper. Since
+//! several concepts in HTTP allow for first talking HTTP, and then converting
+//! to a different protocol, this module conflates them into a single API.
+//! Those include:
+//!
+//! - HTTP/1.1 Upgrades
+//! - HTTP `CONNECT`
+//!
+//! You are responsible for any other pre-requisites to establish an upgrade,
+//! such as sending the appropriate headers, methods, and status codes. You can
+//! then use [`on`][] to grab a `Future` which will resolve to the upgraded
+//! connection object, or an error if the upgrade fails.
+//!
+//! [mdn]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Protocol_upgrade_mechanism
+//!
+//! # Client
+//!
+//! Sending an HTTP ugprade from the [`client`](super::client) involves setting
+//! either the appropriate method, if wanting to `CONNECT`, or headers such as
+//! `Upgrade` and `Connection`, on the `http::Request`. Once receiving the
+//! `http::Response` back, you must check for the specific information that the
+//! upgrade is agreed upon by the server (such as a `101` status code), and then
+//! get the `Future` from the `Response`.
+//!
+//! # Server
+//!
+//! Receiving upgrade requests in a server requires you to check the relevant
+//! headers in a `Request`, and if an upgrade should be done, you then send the
+//! corresponding headers in a response. To then wait for hyper to finish the
+//! upgrade, you call `on()` with the `Request`, and then can spawn a task
+//! awaiting it.
+//!
+//! # Example
+//!
 //! See [this example][example] showing how upgrades work with both
 //! Clients and Servers.
 //!
@@ -60,6 +94,13 @@ pub struct Parts<T> {
 }
 
 /// Gets a pending HTTP upgrade from this message.
+///
+/// This can be called on the following types:
+///
+/// - `http::Request<B>`
+/// - `http::Response<B>`
+/// - `&mut http::Request<B>`
+/// - `&mut http::Response<B>`
 pub fn on<T: sealed::CanUpgrade>(msg: T) -> OnUpgrade {
     msg.on_upgrade()
 }
