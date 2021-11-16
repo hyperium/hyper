@@ -1,3 +1,15 @@
+### v0.14.15 (2021-11-16)
+
+#### Bug Fixes
+
+* **client:** cancel blocking DNS lookup if `GaiFuture` is dropped ([174b553d](https://github.com/hyperium/hyper/commit/174b553d)
+
+#### Features
+
+* **http1:** add `http1_writev(bool)` options to Client and Server builders, to allow forcing vectored writes ([80627141](https://github.com/hyperium/hyper/commit/80627141))
+* **upgrade:** allow http upgrades with any body type ([ab469eb3](https://github.com/hyperium/hyper/commit/ab469eb3c6cd5e7a035d734f3d21ff4d2d6a21ab))
+
+
 ### v0.14.14 (2021-10-22)
 
 
