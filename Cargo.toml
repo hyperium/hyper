@@ -33,7 +33,6 @@ httpdate = "1.0"
 httparse = "1.5.1"
 h2 = { version = "0.3.3", optional = true }
 itoa = "0.4.1"
-tracing = { version = "0.1", default-features = false, features = ["std"] }
 pin-project-lite = "0.2.4"
 tower-service = "0.3"
 tokio = { version = "1", features = ["sync"] }
@@ -42,7 +41,11 @@ want = "0.3"
 # Optional
 
 libc = { version = "0.2", optional = true }
+log = { version = "0.4.14", optional = true }
+serde_json = { version = "1.0", optional = true }
 socket2 = { version = "0.4", optional = true }
+tracing = { version = "0.1", default-features = false, features = ["std"], optional = true }
+tracing-subscriber = { version = "0.3", optional = true }
 
 [dev-dependencies]
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
@@ -80,9 +83,10 @@ full = [
     "client",
     "http1",
     "http2",
+    "layers",
+    "runtime",
     "server",
     "stream",
-    "runtime",
 ]
 
 # HTTP versions
@@ -107,6 +111,9 @@ tcp = [
     "tokio/rt",
     "tokio/time",
 ]
+
+# Tracing layers
+layers = ["serde_json", "tracing", "tracing-subscriber"]
 
 # C-API support (currently unstable (no semver))
 ffi = ["libc"]
@@ -139,6 +146,21 @@ required-features = ["full"]
 name = "client_json"
 path = "examples/client_json.rs"
 required-features = ["full"]
+
+[[example]]
+name = "client_json_tracing"
+path = "examples/client_json_tracing.rs"
+required-features = ["full",
+    "tracing/max_level_info",
+    ]
+
+[[example]]
+name = "client_json_tracing_off"
+path = "examples/client_json_tracing_off.rs"
+required-features = ["tracing",
+    "tracing/max_level_off",
+    "log/max_level_off",
+    ]
 
 [[example]]
 name = "echo"

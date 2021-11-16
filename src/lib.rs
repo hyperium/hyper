@@ -48,11 +48,12 @@
 //! - `http1`: Enables HTTP/1 support.
 //! - `http2`: Enables HTTP/2 support.
 //! - `client`: Enables the HTTP `client`.
+//! - `layers`: Provides print, JSON and OpenTelemetry layers for `tracing` spans and events.
 //! - `server`: Enables the HTTP `server`.
 //! - `runtime`: Enables convenient integration with `tokio`, providing
 //!   connectors and acceptors for TCP, and a default executor.
-//! - `tcp`: Enables convenient implementations over TCP (using tokio).
 //! - `stream`: Provides `futures::Stream` capabilities.
+//! - `tcp`: Enables convenient implementations over TCP (using tokio).
 //!
 //! [feature flags]: https://doc.rust-lang.org/cargo/reference/manifest.html#the-features-section
 
@@ -86,11 +87,17 @@ pub mod upgrade;
 #[cfg(feature = "ffi")]
 pub mod ffi;
 
+#[cfg(feature = "layers")]
+pub use crate::common::layers::json::HyperLayer as JsonLayer;
+#[cfg(feature = "layers")]
+pub use crate::common::layers::otel::HyperLayer as OtelLayer;
+#[cfg(feature = "layers")]
+pub use crate::common::layers::print::HyperLayer as PrintLayer;
+
 cfg_proto! {
     mod headers;
     mod proto;
 }
-
 cfg_feature! {
     #![feature = "client"]
 

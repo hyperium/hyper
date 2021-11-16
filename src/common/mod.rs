@@ -25,6 +25,8 @@ mod never;
 pub(crate) mod sync_wrapper;
 pub(crate) mod task;
 pub(crate) mod watch;
+#[cfg(all(feature = "layers", any(feature = "http1", feature = "http2")))]
+pub mod layers;
 
 #[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]
 pub(crate) use self::lazy::{lazy, Started as Lazy};
