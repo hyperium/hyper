@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1637016765268,
+  "lastUpdate": 1637092004792,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -4619,6 +4619,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 89491,
             "range": "± 16021",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "a1502e1067d28b5fc1883e48ac7daacf2fbe4b9e",
+          "message": "docs(http1): clarify HTTP1 preserve case option",
+          "timestamp": "2021-11-16T11:44:21-08:00",
+          "tree_id": "9541d6426eaa5b4fd8d1f020a8e90a7b79a2ac0d",
+          "url": "https://github.com/hyperium/hyper/commit/a1502e1067d28b5fc1883e48ac7daacf2fbe4b9e"
+        },
+        "date": 1637092002500,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 55457,
+            "range": "± 4518",
             "unit": "ns/iter"
           }
         ]
