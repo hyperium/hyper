@@ -89,10 +89,12 @@ pub mod ffi;
 
 #[cfg(feature = "layers")]
 pub use crate::common::layers::json::HyperLayer as JsonLayer;
-#[cfg(feature = "layers")]
-pub use crate::common::layers::otel::HyperLayer as OtelLayer;
+// #[cfg(feature = "layers")]
+// pub use crate::common::layers::otel::HyperLayer as OtelLayer;
 #[cfg(feature = "layers")]
 pub use crate::common::layers::print::HyperLayer as PrintLayer;
+#[cfg(feature = "layers")]
+#[macro_use] extern crate tracing;
 
 cfg_proto! {
     mod headers;

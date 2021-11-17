@@ -2,10 +2,21 @@
 #[derive(Debug)]
 pub struct HyperLayer;
 
+impl HyperLayer
+// where
+//     S: tracing::Subscriber,
+{
+    /// Create a new layer
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
 impl<S> tracing_subscriber::Layer<S> for HyperLayer
 where
     S: tracing::Subscriber,
 {
+
     fn on_event(
         &self,
         event: &tracing::Event<'_>,

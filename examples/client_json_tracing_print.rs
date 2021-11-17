@@ -19,8 +19,7 @@
 
 use hyper::body::Buf;
 use hyper::Client;
-//use hyper::PrintLayer;
-use hyper::JsonLayer;
+use hyper::PrintLayer;
 use serde::Deserialize;
 use tracing::info;
 use tracing_subscriber::prelude::*;
@@ -32,7 +31,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 #[tokio::main]
 async fn main() -> Result<()> {
     // Set up `tracing-subscriber` to process tracing data.
-    tracing_subscriber::registry().with(JsonLayer).init();
+    tracing_subscriber::registry().with(PrintLayer).init();
 
     // Log a `tracing` "event".
     info!(status = true, answer = 42, message = "first event");
