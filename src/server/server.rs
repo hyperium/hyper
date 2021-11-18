@@ -1,7 +1,7 @@
 use std::fmt;
 #[cfg(feature = "tcp")]
 use std::net::{SocketAddr, TcpListener as StdTcpListener};
-#[cfg(feature = "tcp")]
+#[cfg(any(feature = "tcp", feature = "http1"))]
 use std::time::Duration;
 
 #[cfg(all(feature = "tcp", any(feature = "http1", feature = "http2")))]
@@ -306,6 +306,17 @@ impl<I, E> Builder<I, E> {
     #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
     pub fn http1_preserve_header_case(mut self, val: bool) -> Self {
         self.protocol.http1_preserve_header_case(val);
+        self
+    }
+
+    /// Set a timeout for reading client request headers. If a client does not 
+    /// transmit the entire header within this time, the connection is closed.
+    ///
+    /// Default is None.
+    #[cfg(all(feature = "http1", feature = "runtime"))]
+    #[cfg_attr(docsrs, doc(cfg(all(feature = "http1", feature = "runtime"))))]
+    pub fn http1_header_read_timeout(mut self, read_timeout: Duration) -> Self {
+        self.protocol.http1_header_read_timeout(read_timeout);
         self
     }
 

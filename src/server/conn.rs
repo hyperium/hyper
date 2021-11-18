@@ -50,7 +50,6 @@
 use std::marker::PhantomData;
 #[cfg(feature = "tcp")]
 use std::net::SocketAddr;
-#[cfg(all(feature = "runtime", feature = "http2"))]
 use std::time::Duration;
 
 #[cfg(feature = "http2")]
@@ -103,6 +102,8 @@ pub struct Http<E = Exec> {
     h1_keep_alive: bool,
     h1_title_case_headers: bool,
     h1_preserve_header_case: bool,
+    #[cfg(all(feature = "http1", feature = "runtime"))]
+    h1_header_read_timeout: Option<Duration>,
     h1_writev: Option<bool>,
     #[cfg(feature = "http2")]
     h2_builder: proto::h2::server::Config,
@@ -285,6 +286,8 @@ impl Http {
             h1_keep_alive: true,
             h1_title_case_headers: false,
             h1_preserve_header_case: false,
+            #[cfg(all(feature = "http1", feature = "runtime"))]
+            h1_header_read_timeout: None,
             h1_writev: None,
             #[cfg(feature = "http2")]
             h2_builder: Default::default(),
@@ -369,6 +372,17 @@ impl<E> Http<E> {
     #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
     pub fn http1_preserve_header_case(&mut self, enabled: bool) -> &mut Self {
         self.h1_preserve_header_case = enabled;
+        self
+    }
+
+    /// Set a timeout for reading client request headers. If a client does not 
+    /// transmit the entire header within this time, the connection is closed.
+    ///
+    /// Default is None.
+    #[cfg(all(feature = "http1", feature = "runtime"))]
+    #[cfg_attr(docsrs, doc(cfg(all(feature = "http1", feature = "runtime"))))]
+    pub fn http1_header_read_timeout(&mut self, read_timeout: Duration) -> &mut Self {
+        self.h1_header_read_timeout = Some(read_timeout);
         self
     }
 
@@ -567,6 +581,8 @@ impl<E> Http<E> {
             h1_keep_alive: self.h1_keep_alive,
             h1_title_case_headers: self.h1_title_case_headers,
             h1_preserve_header_case: self.h1_preserve_header_case,
+            #[cfg(all(feature = "http1", feature = "runtime"))]
+            h1_header_read_timeout: self.h1_header_read_timeout,
             h1_writev: self.h1_writev,
             #[cfg(feature = "http2")]
             h2_builder: self.h2_builder,
@@ -628,6 +644,10 @@ impl<E> Http<E> {
                 }
                 if self.h1_preserve_header_case {
                     conn.set_preserve_header_case();
+                }
+                #[cfg(all(feature = "http1", feature = "runtime"))]
+                if let Some(header_read_timeout) = self.h1_header_read_timeout {
+                    conn.set_http1_header_read_timeout(header_read_timeout);
                 }
                 if let Some(writev) = self.h1_writev {
                     if writev {

@@ -3,10 +3,15 @@ use std::fmt;
 use std::io::{self, IoSlice};
 use std::marker::Unpin;
 use std::mem::MaybeUninit;
+use std::future::Future;
+#[cfg(all(feature = "server", feature = "runtime"))]
+use std::time::Duration;
 
+#[cfg(all(feature = "server", feature = "runtime"))]
+use tokio::time::Instant;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tracing::{debug, trace};
+use tracing::{debug, warn, trace};
 
 use super::{Http1Transaction, ParseContext, ParsedMessage};
 use crate::common::buf::BufList;
@@ -181,6 +186,12 @@ where
                     cached_headers: parse_ctx.cached_headers,
                     req_method: parse_ctx.req_method,
                     h1_parser_config: parse_ctx.h1_parser_config.clone(),
+                    #[cfg(all(feature = "server", feature = "runtime"))]
+                    h1_header_read_timeout: parse_ctx.h1_header_read_timeout,
+                    #[cfg(all(feature = "server", feature = "runtime"))]
+                    h1_header_read_timeout_fut: parse_ctx.h1_header_read_timeout_fut,
+                    #[cfg(all(feature = "server", feature = "runtime"))]
+                    h1_header_read_timeout_running: parse_ctx.h1_header_read_timeout_running,
                     preserve_header_case: parse_ctx.preserve_header_case,
                     h09_responses: parse_ctx.h09_responses,
                     #[cfg(feature = "ffi")]
@@ -191,6 +202,16 @@ where
             )? {
                 Some(msg) => {
                     debug!("parsed {} headers", msg.head.headers.len());
+
+                    #[cfg(all(feature = "server", feature = "runtime"))]
+                    {
+                        *parse_ctx.h1_header_read_timeout_running = false;
+
+                        if let Some(h1_header_read_timeout_fut) = parse_ctx.h1_header_read_timeout_fut {
+                            // Reset the timer in order to avoid woken up when the timeout finishes
+                            h1_header_read_timeout_fut.as_mut().reset(Instant::now() + Duration::from_secs(30 * 24 * 60 * 60));
+                        }
+                    }
                     return Poll::Ready(Ok(msg));
                 }
                 None => {
@@ -198,6 +219,18 @@ where
                     if self.read_buf.len() >= max {
                         debug!("max_buf_size ({}) reached, closing", max);
                         return Poll::Ready(Err(crate::Error::new_too_large()));
+                    }
+
+                    #[cfg(all(feature = "server", feature = "runtime"))]
+                    if *parse_ctx.h1_header_read_timeout_running {
+                        if let Some(h1_header_read_timeout_fut) = parse_ctx.h1_header_read_timeout_fut {
+                            if Pin::new( h1_header_read_timeout_fut).poll(cx).is_ready() {
+                                *parse_ctx.h1_header_read_timeout_running = false;
+
+                                warn!("read header from client timeout");
+                                return Poll::Ready(Err(crate::Error::new_header_timeout()))
+                            }
+                        }
                     }
                 }
             }
@@ -693,6 +726,9 @@ mod tests {
                 cached_headers: &mut None,
                 req_method: &mut None,
                 h1_parser_config: Default::default(),
+                h1_header_read_timeout: None,
+                h1_header_read_timeout_fut: &mut None,
+                h1_header_read_timeout_running: &mut false,
                 preserve_header_case: false,
                 h09_responses: false,
                 #[cfg(feature = "ffi")]

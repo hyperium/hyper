@@ -100,6 +100,7 @@ stream = []
 runtime = [
     "tcp",
     "tokio/rt",
+    "tokio/time",
 ]
 tcp = [
     "socket2",

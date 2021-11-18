@@ -1262,6 +1262,127 @@ fn header_name_too_long() {
 }
 
 #[tokio::test]
+async fn header_read_timeout_slow_writes() {
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        tcp.write_all(
+            b"\
+            GET / HTTP/1.1\r\n\
+        ",
+        )
+        .expect("write 1");
+        thread::sleep(Duration::from_secs(3));
+        tcp.write_all(
+            b"\
+            Something: 1\r\n\
+            \r\n\
+        ",
+        )
+        .expect("write 2");
+        thread::sleep(Duration::from_secs(6));
+        tcp.write_all(
+            b"\
+            Works: 0\r\n\
+        ",
+        )
+        .expect_err("write 3");
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    let conn = Http::new()
+        .http1_header_read_timeout(Duration::from_secs(5))
+        .serve_connection(
+            socket,
+            service_fn(|_| {
+                let res = Response::builder()
+                    .status(200)
+                    .body(hyper::Body::empty())
+                    .unwrap();
+                future::ready(Ok::<_, hyper::Error>(res))
+            }),
+        );
+    conn.without_shutdown().await.expect_err("header timeout");
+}
+
+#[tokio::test]
+async fn header_read_timeout_slow_writes_multiple_requests() {
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+
+        tcp.write_all(
+            b"\
+            GET / HTTP/1.1\r\n\
+        ",
+        )
+        .expect("write 1");
+        thread::sleep(Duration::from_secs(3));
+        tcp.write_all(
+            b"\
+            Something: 1\r\n\
+            \r\n\
+        ",
+        )
+        .expect("write 2");
+
+        thread::sleep(Duration::from_secs(3));
+
+        tcp.write_all(
+            b"\
+            GET / HTTP/1.1\r\n\
+        ",
+        )
+        .expect("write 3");
+        thread::sleep(Duration::from_secs(3));
+        tcp.write_all(
+            b"\
+            Something: 1\r\n\
+            \r\n\
+        ",
+        )
+        .expect("write 4");
+
+        thread::sleep(Duration::from_secs(6));
+
+        tcp.write_all(
+            b"\
+            GET / HTTP/1.1\r\n\
+            Something: 1\r\n\
+            \r\n\
+        ",
+        )
+        .expect("write 5");
+        thread::sleep(Duration::from_secs(6));
+        tcp.write_all(
+            b"\
+            Works: 0\r\n\
+        ",
+        )
+        .expect_err("write 6");
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    let conn = Http::new()
+        .http1_header_read_timeout(Duration::from_secs(5))
+        .serve_connection(
+            socket,
+            service_fn(|_| {
+                let res = Response::builder()
+                    .status(200)
+                    .body(hyper::Body::empty())
+                    .unwrap();
+                future::ready(Ok::<_, hyper::Error>(res))
+            }),
+        );
+    conn.without_shutdown().await.expect_err("header timeout");
+}
+
+#[tokio::test]
 async fn upgrades() {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 

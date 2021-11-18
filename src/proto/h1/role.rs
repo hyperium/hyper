@@ -1,6 +1,8 @@
 use std::fmt::{self, Write};
 use std::mem::MaybeUninit;
 
+#[cfg(all(feature = "server", feature = "runtime"))]
+use tokio::time::Instant;
 #[cfg(any(test, feature = "server", feature = "ffi"))]
 use bytes::Bytes;
 use bytes::BytesMut;
@@ -69,6 +71,25 @@ where
 
     let span = trace_span!("parse_headers");
     let _s = span.enter();
+
+    #[cfg(all(feature = "server", feature = "runtime"))]
+    if !*ctx.h1_header_read_timeout_running {
+    if let Some(h1_header_read_timeout) = ctx.h1_header_read_timeout {
+        let deadline = Instant::now() + h1_header_read_timeout;
+
+        match ctx.h1_header_read_timeout_fut {
+            Some(h1_header_read_timeout_fut) => {
+                debug!("resetting h1 header read timeout timer");
+                h1_header_read_timeout_fut.as_mut().reset(deadline);
+            },
+            None => {
+                debug!("setting h1 header read timeout timer");
+                *ctx.h1_header_read_timeout_fut = Some(Box::pin(tokio::time::sleep_until(deadline)));
+            }
+        }
+    }
+}
+
     T::parse(bytes, ctx)
 }
 
@@ -1428,6 +1449,9 @@ mod tests {
                 cached_headers: &mut None,
                 req_method: &mut method,
                 h1_parser_config: Default::default(),
+                h1_header_read_timeout: None,
+                h1_header_read_timeout_fut: &mut None,
+                h1_header_read_timeout_running: &mut false,
                 preserve_header_case: false,
                 h09_responses: false,
                 #[cfg(feature = "ffi")]
@@ -1455,6 +1479,9 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
+            h1_header_read_timeout: None,
+            h1_header_read_timeout_fut: &mut None,
+            h1_header_read_timeout_running: &mut false,
             preserve_header_case: false,
             h09_responses: false,
             #[cfg(feature = "ffi")]
@@ -1477,6 +1504,9 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut None,
             h1_parser_config: Default::default(),
+            h1_header_read_timeout: None,
+            h1_header_read_timeout_fut: &mut None,
+            h1_header_read_timeout_running: &mut false,
             preserve_header_case: false,
             h09_responses: false,
             #[cfg(feature = "ffi")]
@@ -1497,6 +1527,9 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
+            h1_header_read_timeout: None,
+            h1_header_read_timeout_fut: &mut None,
+            h1_header_read_timeout_running: &mut false,
             preserve_header_case: false,
             h09_responses: true,
             #[cfg(feature = "ffi")]
@@ -1519,6 +1552,9 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
+            h1_header_read_timeout: None,
+            h1_header_read_timeout_fut: &mut None,
+            h1_header_read_timeout_running: &mut false,
             preserve_header_case: false,
             h09_responses: false,
             #[cfg(feature = "ffi")]
@@ -1545,6 +1581,9 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config,
+            h1_header_read_timeout: None,
+            h1_header_read_timeout_fut: &mut None,
+            h1_header_read_timeout_running: &mut false,
             preserve_header_case: false,
             h09_responses: false,
             #[cfg(feature = "ffi")]
@@ -1568,6 +1607,9 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
+            h1_header_read_timeout: None,
+            h1_header_read_timeout_fut: &mut None,
+            h1_header_read_timeout_running: &mut false,
             preserve_header_case: false,
             h09_responses: false,
             #[cfg(feature = "ffi")]
@@ -1586,6 +1628,9 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut None,
             h1_parser_config: Default::default(),
+            h1_header_read_timeout: None,
+            h1_header_read_timeout_fut: &mut None,
+            h1_header_read_timeout_running: &mut false,
             preserve_header_case: true,
             h09_responses: false,
             #[cfg(feature = "ffi")]
@@ -1625,6 +1670,9 @@ mod tests {
                     cached_headers: &mut None,
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
+                    h1_header_read_timeout: None,
+                    h1_header_read_timeout_fut: &mut None,
+                    h1_header_read_timeout_running: &mut false,
                     preserve_header_case: false,
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
@@ -1645,6 +1693,9 @@ mod tests {
                     cached_headers: &mut None,
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
+                    h1_header_read_timeout: None,
+                    h1_header_read_timeout_fut: &mut None,
+                    h1_header_read_timeout_running: &mut false,
                     preserve_header_case: false,
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
@@ -1874,6 +1925,9 @@ mod tests {
                     cached_headers: &mut None,
                     req_method: &mut Some(Method::GET),
                     h1_parser_config: Default::default(),
+                    h1_header_read_timeout: None,
+                    h1_header_read_timeout_fut: &mut None,
+                    h1_header_read_timeout_running: &mut false,
                     preserve_header_case: false,
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
@@ -1894,6 +1948,9 @@ mod tests {
                     cached_headers: &mut None,
                     req_method: &mut Some(m),
                     h1_parser_config: Default::default(),
+                    h1_header_read_timeout: None,
+                    h1_header_read_timeout_fut: &mut None,
+                    h1_header_read_timeout_running: &mut false,
                     preserve_header_case: false,
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
@@ -1914,6 +1971,9 @@ mod tests {
                     cached_headers: &mut None,
                     req_method: &mut Some(Method::GET),
                     h1_parser_config: Default::default(),
+                    h1_header_read_timeout: None,
+                    h1_header_read_timeout_fut: &mut None,
+                    h1_header_read_timeout_running: &mut false,
                     preserve_header_case: false,
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
@@ -2411,6 +2471,9 @@ mod tests {
                 cached_headers: &mut None,
                 req_method: &mut Some(Method::GET),
                 h1_parser_config: Default::default(),
+                h1_header_read_timeout: None,
+                h1_header_read_timeout_fut: &mut None,
+                h1_header_read_timeout_running: &mut false,
                 preserve_header_case: false,
                 h09_responses: false,
                 #[cfg(feature = "ffi")]
@@ -2495,6 +2558,9 @@ mod tests {
                     cached_headers: &mut headers,
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
+                    h1_header_read_timeout: None,
+                    h1_header_read_timeout_fut: &mut None,
+                    h1_header_read_timeout_running: &mut false,
                     preserve_header_case: false,
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
@@ -2535,6 +2601,9 @@ mod tests {
                     cached_headers: &mut headers,
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
+                    h1_header_read_timeout: None,
+                    h1_header_read_timeout_fut: &mut None,
+                    h1_header_read_timeout_running: &mut false,
                     preserve_header_case: false,
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
