@@ -286,7 +286,7 @@ impl Http {
             h1_keep_alive: true,
             h1_title_case_headers: false,
             h1_preserve_header_case: false,
-            #[cfg(feature = "http1")]
+            #[cfg(all(feature = "http1", feature = "runtime"))]
             h1_header_read_timeout: None,
             h1_writev: None,
             #[cfg(feature = "http2")]
@@ -379,8 +379,8 @@ impl<E> Http<E> {
     /// transmit the entire header withing this time, the connection is closed.
     ///
     /// Default is None.
-    #[cfg(feature = "http1")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
+    #[cfg(all(feature = "http1", feature = "runtime"))]
+    #[cfg_attr(docsrs, doc(cfg(all(feature = "http1", feature = "runtime"))))]
     pub fn http1_header_read_timeout(&mut self, read_timeout: Duration) -> &mut Self {
         self.h1_header_read_timeout = Some(read_timeout);
         self

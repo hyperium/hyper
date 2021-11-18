@@ -2560,6 +2560,7 @@ mod tests {
                     h1_parser_config: Default::default(),
                     h1_header_read_timeout: None,
                     h1_header_read_timeout_fut: &mut None,
+                    h1_header_read_timeout_running: &mut false,
                     preserve_header_case: false,
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
@@ -2602,6 +2603,7 @@ mod tests {
                     h1_parser_config: Default::default(),
                     h1_header_read_timeout: None,
                     h1_header_read_timeout_fut: &mut None,
+                    h1_header_read_timeout_running: &mut false,
                     preserve_header_case: false,
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
