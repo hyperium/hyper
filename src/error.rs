@@ -44,6 +44,9 @@ pub(super) enum Kind {
     #[cfg(any(feature = "http1", feature = "http2"))]
     #[cfg(feature = "server")]
     Accept,
+    /// User took too long to send headers
+    #[cfg(all(feature = "http1", feature = "server", feature = "runtime"))]
+    HeaderTimeout,
     /// Error while reading a body from connection.
     #[cfg(any(feature = "http1", feature = "http2", feature = "stream"))]
     Body,
@@ -104,9 +107,6 @@ pub(super) enum User {
     #[cfg(any(feature = "http1", feature = "http2"))]
     #[cfg(feature = "server")]
     UnexpectedHeader,
-    /// User took too long to send headers
-    #[cfg(all(feature = "http1", feature = "runtime"))]
-    HeaderTimeout,
     /// User tried to create a Request with bad version.
     #[cfg(any(feature = "http1", feature = "http2"))]
     #[cfg(feature = "client")]
@@ -313,9 +313,9 @@ impl Error {
         Error::new_user(User::UnexpectedHeader)
     }
 
-    #[cfg(all(feature = "http1", feature = "runtime"))]
+    #[cfg(all(feature = "http1", feature = "server", feature = "runtime"))]
     pub(super) fn new_header_timeout() -> Error {
-        Error::new_user(User::HeaderTimeout)
+        Error::new(Kind::HeaderTimeout)
     }
 
     #[cfg(any(feature = "http1", feature = "http2"))]
@@ -427,6 +427,8 @@ impl Error {
             #[cfg(any(feature = "http1", feature = "http2"))]
             #[cfg(feature = "server")]
             Kind::Accept => "error accepting connection",
+            #[cfg(all(feature = "http1", feature = "server", feature = "runtime"))]
+            Kind::HeaderTimeout => "read header from client timeout",
             #[cfg(any(feature = "http1", feature = "http2", feature = "stream"))]
             Kind::Body => "error reading a body from connection",
             #[cfg(any(feature = "http1", feature = "http2"))]
@@ -449,8 +451,6 @@ impl Error {
             #[cfg(any(feature = "http1", feature = "http2"))]
             #[cfg(feature = "server")]
             Kind::User(User::UnexpectedHeader) => "user sent unexpected header",
-            #[cfg(all(feature = "http1", feature = "runtime"))]
-            Kind::User(User::HeaderTimeout) => "read header from client timeout",
             #[cfg(any(feature = "http1", feature = "http2"))]
             #[cfg(feature = "client")]
             Kind::User(User::UnsupportedVersion) => "request has unsupported HTTP version",
