@@ -8,6 +8,8 @@ use bytes::BytesMut;
 use http::header::ValueIter;
 use http::header::{self, Entry, HeaderName, HeaderValue};
 use http::{HeaderMap, Method, StatusCode, Version};
+#[cfg(feature = "layers")]
+use opentelemetry::trace::SpanKind;
 use tracing::{debug, error, trace, trace_span, warn};
 
 use crate::body::DecodedLength;
@@ -98,6 +100,30 @@ impl Http1Transaction for Server {
     type Outgoing = StatusCode;
     const LOG: &'static str = "{role=server}";
 
+    #[cfg_attr(feature = "layers",
+        instrument( level = "trace",
+                    skip(buf, ctx),
+                    fields( otel.name           = "Server::parse",
+                            otel.kind           = ?SpanKind::Server,
+                            otel.status_code    = ?opentelemetry::trace::StatusCode::Unset,
+                            otel.status_message = tracing::field::Empty,
+                            // OTel required (HTTP)
+                            http.host     = tracing::field::Empty,
+                            http.method   = tracing::field::Empty,
+                            http.scheme   = tracing::field::Empty,
+                            http.target   = tracing::field::Empty,
+                            http.url      = tracing::field::Empty,
+                            net.peer.ip   = tracing::field::Empty,
+                            net.peer.name = tracing::field::Empty,
+                            net.peer.port = tracing::field::Empty,
+                            // OTel optional (HTTP)
+                            http.flavor                 = tracing::field::Empty,
+                            http.request_content_length = tracing::field::Empty,
+                            // OTel optional (General)
+                            net.transport = "IP.TCP",
+                        )
+                    )
+                )]
     fn parse(buf: &mut BytesMut, ctx: ParseContext<'_>) -> ParseResult<RequestLine> {
         debug_assert!(!buf.is_empty(), "parse called with empty buf");
 
@@ -120,22 +146,32 @@ impl Http1Transaction for Server {
             /* SAFETY: it is safe to go from MaybeUninit array to array of MaybeUninit */
             let mut headers: [MaybeUninit<httparse::Header<'_>>; MAX_HEADERS] =
                 unsafe { MaybeUninit::uninit().assume_init() };
-            trace!(bytes = buf.len(), "Request.parse");
+            if cfg!(feature = "layers") {
+                trace!(bytes = buf.len(), "Request.parse");
+            }
             let mut req = httparse::Request::new(&mut []);
             let bytes = buf.as_ref();
             match req.parse_with_uninit_headers(bytes, &mut headers) {
                 Ok(httparse::Status::Complete(parsed_len)) => {
-                    trace!("Request.parse Complete({})", parsed_len);
+                    if cfg!(feature = "layers") {
+                        trace!("Request.parse Complete({})", parsed_len);
+                    }
                     len = parsed_len;
                     subject = RequestLine(
                         Method::from_bytes(req.method.unwrap().as_bytes())?,
                         req.path.unwrap().parse()?,
                     );
                     version = if req.version.unwrap() == 1 {
+                        if cfg!(feature = "layers") {
+                            tracing::Span::current().record("http.flavor", &1.1);
+                        }
                         keep_alive = true;
                         is_http_11 = true;
                         Version::HTTP_11
                     } else {
+                        if cfg!(feature = "layers") {
+                            tracing::Span::current().record("http.flavor", &1.0);
+                        }
                         keep_alive = false;
                         is_http_11 = false;
                         Version::HTTP_10
@@ -289,13 +325,41 @@ impl Http1Transaction for Server {
         }))
     }
 
+    #[cfg_attr(feature = "layers",
+        instrument( level = "trace",
+                    skip(msg),
+                    fields( otel.name           = "Server::encode",
+                            otel.kind           = ?SpanKind::Server,
+                            otel.status_code    = ?opentelemetry::trace::StatusCode::Unset,
+                            otel.status_message = tracing::field::Empty,
+                            // OTel required (HTTP)
+                            http.host     = tracing::field::Empty,
+                            http.method   = tracing::field::Empty,
+                            http.scheme   = tracing::field::Empty,
+                            http.target   = tracing::field::Empty,
+                            http.url      = tracing::field::Empty,
+                            net.peer.ip   = tracing::field::Empty,
+                            net.peer.name = tracing::field::Empty,
+                            net.peer.port = tracing::field::Empty,
+                            // OTel optional (HTTP)
+                            http.flavor                 = tracing::field::Empty,
+                            http.request_content_length = tracing::field::Empty,
+                            // OTel optional (General)
+                            net.transport = "IP.TCP",
+                       )
+                    )
+                )]
     fn encode(mut msg: Encode<'_, Self::Outgoing>, dst: &mut Vec<u8>) -> crate::Result<Encoder> {
-        trace!(
-            "Server::encode status={:?}, body={:?}, req_method={:?}",
-            msg.head.subject,
-            msg.body,
-            msg.req_method
-        );
+        let mut otel_status_messages: Vec<String> = vec![];
+        if cfg!(feature = "layers") {
+            tracing::Span::current()
+                .record("http.method", &format!("{:?}", msg.req_method).as_str());
+            tracing::Span::current().record(
+                "http.status_code",
+                &format!("{:?}", msg.head.subject).as_str(),
+            );
+            trace!("Server::encode body={:?}", msg.body);
+        }
 
         let mut wrote_len = false;
 
@@ -328,16 +392,42 @@ impl Http1Transaction for Server {
         let init_cap = 30 + msg.head.headers.len() * AVERAGE_HEADER_SIZE;
         dst.reserve(init_cap);
         if msg.head.version == Version::HTTP_11 && msg.head.subject == StatusCode::OK {
+            if cfg!(feature = "layers") {
+                tracing::Span::current().record("http.flavor", &1.1);
+            }
             extend(dst, b"HTTP/1.1 200 OK\r\n");
         } else {
             match msg.head.version {
-                Version::HTTP_10 => extend(dst, b"HTTP/1.0 "),
-                Version::HTTP_11 => extend(dst, b"HTTP/1.1 "),
-                Version::HTTP_2 => {
-                    debug!("response with HTTP2 version coerced to HTTP/1.1");
+                Version::HTTP_10 => {
+                    if cfg!(feature = "layers") {
+                        tracing::Span::current().record("http.flavor", &1.0);
+                    }
+                    extend(dst, b"HTTP/1.0 ");
+                }
+                Version::HTTP_11 => {
+                    if cfg!(feature = "layers") {
+                        tracing::Span::current().record("http.flavor", &1.1);
+                    }
                     extend(dst, b"HTTP/1.1 ");
                 }
-                other => panic!("unexpected response version: {:?}", other),
+                Version::HTTP_2 => {
+                    if cfg!(feature = "layers") {
+                        tracing::Span::current().record("http.flavor", &1.1);
+                        otel_status_messages
+                            .push("response with HTTP2 version coerced to HTTP/1.1".to_string());
+                    }
+                    extend(dst, b"HTTP/1.1 ");
+                }
+                other => {
+                    if cfg!(feature = "layers") {
+                        // 0.0 is a placeholder until `impl Debug for Version`
+                        tracing::Span::current().record("http.flavor", &0.0);
+                        tracing::Span::current().record("otel.status", &format!("{:?}", opentelemetry::trace::StatusCode::Error).as_str());
+                        otel_status_messages
+                            .push(format!("PANIC: unexpected response version: {:?}", other))
+                    }
+                    panic!("unexpected response version: {:?}", other);
+                }
             }
 
             extend(dst, msg.head.subject.as_str().as_bytes());
@@ -860,6 +950,30 @@ impl Http1Transaction for Client {
     type Outgoing = RequestLine;
     const LOG: &'static str = "{role=client}";
 
+    #[cfg_attr(feature = "layers",
+        instrument( level = "trace",
+                    skip(buf, ctx),
+                    fields( otel.name           = "Client::parse",
+                            otel.kind           = ?SpanKind::Client,
+                            otel.status_code    = ?opentelemetry::trace::StatusCode::Unset,
+                            otel.status_message = tracing::field::Empty,
+                            // OTel required (HTTP)
+                            http.host     = tracing::field::Empty,
+                            http.method   = tracing::field::Empty,
+                            http.scheme   = tracing::field::Empty,
+                            http.target   = tracing::field::Empty,
+                            http.url      = tracing::field::Empty,
+                            net.peer.ip   = tracing::field::Empty,
+                            net.peer.name = tracing::field::Empty,
+                            net.peer.port = tracing::field::Empty,
+                            // OTel optional (HTTP)
+                            http.flavor                 = tracing::field::Empty,
+                            http.request_content_length = tracing::field::Empty,
+                            // OTel optional (General)
+                            net.transport = "IP.TCP",
+                        )
+                    )
+                )]
     fn parse(buf: &mut BytesMut, ctx: ParseContext<'_>) -> ParseResult<StatusCode> {
         debug_assert!(!buf.is_empty(), "parse called with empty buf");
 
@@ -919,7 +1033,9 @@ impl Http1Transaction for Client {
 
                         (0, StatusCode::OK, reason, Version::HTTP_09, 0)
                     }
-                    Err(e) => return Err(e.into()),
+                    Err(e) => {
+                        return Err(e.into());
+                    },
                 }
             };
 
@@ -1011,6 +1127,30 @@ impl Http1Transaction for Client {
         }
     }
 
+    #[cfg_attr(feature = "layers",
+        instrument( level = "trace",
+                    skip(msg),
+                    fields( otel.name           = "Client::encode",
+                            otel.kind           = ?SpanKind::Client,
+                            otel.status_code    = ?opentelemetry::trace::StatusCode::Unset,
+                            otel.status_message = tracing::field::Empty,
+                            // OTel required (HTTP)
+                            http.host     = tracing::field::Empty,
+                            http.method   = tracing::field::Empty,
+                            http.scheme   = tracing::field::Empty,
+                            http.target   = tracing::field::Empty,
+                            http.url      = tracing::field::Empty,
+                            net.peer.ip   = tracing::field::Empty,
+                            net.peer.name = tracing::field::Empty,
+                            net.peer.port = tracing::field::Empty,
+                            // OTel optional (HTTP)
+                            http.flavor                 = tracing::field::Empty,
+                            http.request_content_length = tracing::field::Empty,
+                            // OTel optional (General)
+                            net.transport = "IP.TCP",
+                       )
+                    )
+                )]
     fn encode(msg: Encode<'_, Self::Outgoing>, dst: &mut Vec<u8>) -> crate::Result<Encoder> {
         trace!(
             "Client::encode method={:?}, body={:?}",

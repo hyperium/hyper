@@ -19,7 +19,7 @@
 
 use hyper::body::Buf;
 use hyper::Client;
-// use hyper::OtelLayer;
+//use hyper::OtelLayer;
 use serde::Deserialize;
 use tracing::info;
 use tracing_subscriber::layer::SubscriberExt;
@@ -32,42 +32,30 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // // Set up `tracing-subscriber` to process tracing data.
-    // // Create a jaeger exporter pipeline for a `trace_demo` service.
-    // let addr = std::net::SocketAddr::from(([127, 0, 0, 1], 6831));
-    // // Build a Jaeger batch span processor
-    // let jaeger_processor = opentelemetry::sdk::trace::BatchSpanProcessor::builder(
-    //     opentelemetry_jaeger::new_pipeline()
-    //         .with_service_name("mre-jaeger")
-    //         .with_agent_endpoint(addr)
-    //         .with_trace_config(opentelemetry::sdk::trace::config().with_resource(
-    //             opentelemetry::sdk::Resource::new(vec![
-    //                 opentelemetry::KeyValue::new("service.name", "client"),
-    //                 opentelemetry::KeyValue::new("service.namespace", "client-namespace"),
-    //             ]),
-    //         ))
-    //         .init_async_exporter(opentelemetry::runtime::Tokio)
-    //         .expect("Jaeger Tokio async exporter"),
-    //     opentelemetry::runtime::Tokio,
-    // )
-    // .build();
-    // Start an otel jaeger trace pipeline
-    opentelemetry::global::set_text_map_propagator(opentelemetry::sdk::propagation::TraceContextPropagator::new());
-    //global::set_text_map_propagator(opentelemetry_jaeger::Propagator::new());
-    // Then create a composite propagator
-    // let composite_propagator =  opentelemetry::sdk::propagation::TextMapCompositePropagator::new(vec![
-    //     Box::new(baggage_propagator),
-    //     Box::new(trace_context_propagator),
-    // ]);
+    // First create propagators
+    let baggage_propagator = opentelemetry::sdk::propagation::BaggagePropagator::new();
+    let trace_context_propagator = opentelemetry::sdk::propagation::TraceContextPropagator::new();
+    let jaeger_propagator = opentelemetry_jaeger::Propagator::new();
+    opentelemetry::global::set_text_map_propagator(
+        opentelemetry::sdk::propagation::TraceContextPropagator::new(),
+    );
+
+    // Second compose propagators
+    let _composite_propagator =  opentelemetry::sdk::propagation::TextMapCompositePropagator::new(vec![
+        Box::new(baggage_propagator),
+        Box::new(trace_context_propagator),
+        Box::new(jaeger_propagator),
+    ]);
     let tracer = opentelemetry_jaeger::new_pipeline()
         .with_service_name("client_json2")
         .install_batch(opentelemetry::runtime::Tokio)
         .unwrap();
     // Initialize `tracing` using `opentelemetry-tracing` and configure logging
     tracing_subscriber::Registry::default()
-        //.with(tracing_subscriber::EnvFilter::new("TRACE"))
+        .with(tracing_subscriber::EnvFilter::new("TRACE"))
+        .with(hyper::OtelLayer::new(tracer))
         .with(tracing_subscriber::fmt::layer())
-        .with(tracing_opentelemetry::layer().with_tracer(tracer))
+        //.with(tracing_tree::HierarchicalLayer::new(2))
         .init();
 
     // // Setup Tracer Provider
@@ -89,30 +77,34 @@ async fn main() -> Result<()> {
     //let subscriber = tracing_subscriber::Registry::default().with(telemetry);
 
     // Trace executed (async) code
-    //tracing::subscriber::with_default(subscriber, || async {
-    // Create a span and enter it, returning a guard....
+    // tracing::subscriber::with_default(subscriber, || async {
+        // Create a span and enter it, returning a guard....
     let root_span = tracing::span!(tracing::Level::INFO, "root_span_echo").entered();
+    root_span.in_scope(|| async {
+        // After setting up OpenTelemetry/Jaeger, redirect all `log`'s events to our subscriber/layer
+        // let logger = tracing_log::LogTracer::new();
+        // log::set_boxed_logger(Box::new(logger))?;
 
-    // We are now inside the span! Like `enter()`, the guard returned by
-    // `entered()` will exit the span when it is dropped...
+        // We are now inside the span! Like `enter()`, the guard returned by
+        // `entered()` will exit the span when it is dropped...
 
-    // Log a `tracing` "event".
-    info!(status = true, answer = 42, message = "first event");
+        // Log a `tracing` "event".
+        info!(status = true, answer = 42, message = "first event");
 
-    let url = "http://jsonplaceholder.typicode.com/users".parse().unwrap();
-    let users = fetch_json(url).await.expect("Vector of user data");
-    // print users
-    println!("users: {:#?}", users);
+        let url = "http://jsonplaceholder.typicode.com/users".parse().unwrap();
+        let users = fetch_json(url).await.expect("Vector of user data");
+        // print users
+        println!("users: {:#?}", users);
 
-    // print the sum of ids
-    let sum = users.iter().fold(0, |acc, user| acc + user.id);
-    println!("sum of ids: {}", sum);
+        // print the sum of ids
+        let sum = users.iter().fold(0, |acc, user| acc + user.id);
+        println!("sum of ids: {}", sum);
 
-    // ...but, it can also be exited explicitly, returning the `Span`
-    // struct:
-    let _root_span = root_span.exit();
+        // ...but, it can also be exited explicitly, returning the `Span`
+        // struct:
+        //let _root_span = root_span.exit();
+    }).await;
     opentelemetry::global::shutdown_tracer_provider();
-    //}).await;
     Ok(())
 }
 

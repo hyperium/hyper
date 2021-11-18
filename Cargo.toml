@@ -47,10 +47,12 @@ opentelemetry-jaeger = { version = "0.15.0", features = ["reqwest_collector_clie
 serde_json = { version = "1.0", optional = true }
 socket2 = { version = "0.4", optional = true }
 reqwest = {version = "0.11", optional = true }
-tracing = { version = "0.1", default-features = false, features = ["std"], optional = true }
+tracing = { version = "0.1", default-features = false, features = ["std", "log"], optional = true }
 tracing-core = { version = "0.1", default-features = false, optional = true }
+tracing-log = { version = "0.1", default-features = false, optional = true }
 tracing-opentelemetry = { version = "0.16", optional = true }
-tracing-subscriber = { version = "0.3", features = ["std"], optional = true }
+tracing-subscriber = { version = "0.3", features = ["std", "env-filter"], optional = true }
+tracing-tree = { version = "0.1", default-features = false, optional = true }
 
 [dev-dependencies]
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
@@ -119,14 +121,18 @@ tcp = [
 
 # Tracing layers
 layers = [
+    "log",
     "opentelemetry",
     "opentelemetry-jaeger",
     "serde_json",
     "reqwest",
     "tracing",
     "tracing-core",
+    "tracing-log",
     "tracing-opentelemetry",
-    "tracing-subscriber"]
+    "tracing-subscriber",
+    "tracing-tree",
+    ]
 
 # C-API support (currently unstable (no semver))
 ffi = ["libc"]
@@ -176,8 +182,8 @@ required-features = ["full",
     ]
 
 [[example]]
-name = "client_otel_tracing"
-path = "examples/client_otel_tracing.rs"
+name = "client_json_tracing_otel"
+path = "examples/client_json_tracing_otel.rs"
 required-features = ["full",
     "tracing/max_level_trace",
     ]

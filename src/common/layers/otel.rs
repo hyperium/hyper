@@ -1,12 +1,3 @@
-/// A layer for the tracing framework to record structured event and span data.
-// use crate::common::layers::otel::otel::SpanRef;
-// use opentelemetry::trace::SpanRef;
-
-use opentelemetry::trace::TracerProvider;
-use opentelemetry::trace::Tracer;
-
-use tracing_subscriber::registry::SpanRef;
-
 use opentelemetry::{
     trace::{self as otel, noop, TraceContextExt},
     Context as OtelContext, Key, KeyValue,
@@ -16,13 +7,13 @@ use std::fmt;
 use std::marker;
 use std::time::{Instant, SystemTime};
 use tracing_core::span::{self, Attributes, Id, Record};
-use tracing_core::{field, Event};
+use tracing_core::{field, Event, Subscriber};
+#[cfg(feature = "tracing-log")]
+use tracing_log::NormalizeEvent;
 use tracing_opentelemetry::PreSampledTracer;
-// #[cfg(feature = "tracing-log")]
-// use tracing_log::NormalizeEvent;
 use tracing_subscriber::layer::Context;
-//use tracing_subscriber::registry::LookupSpan;
-//use tracing_subscriber::Layer;
+use tracing_subscriber::registry::LookupSpan;
+use tracing_subscriber::Layer;
 
 const SPAN_NAME_FIELD: &str = "otel.name";
 const SPAN_KIND_FIELD: &str = "otel.kind";
@@ -49,28 +40,6 @@ where
     fn default() -> Self {
         HyperLayer::new(noop::NoopTracer::new())
     }
-}
-
-/// Construct a layer to track spans via [OpenTelemetry].
-///
-/// [OpenTelemetry]: https://opentelemetry.io
-///
-/// # Examples
-///
-/// ```rust,no_run
-/// use tracing_subscriber::layer::SubscriberExt;
-/// use tracing_subscriber::Registry;
-///
-/// // Use the tracing subscriber `Registry`, or any other subscriber
-/// // that impls `LookupSpan`
-/// let subscriber = Registry::default().with(tracing_opentelemetry::layer());
-/// # drop(subscriber);
-/// ```
-pub fn layer<S>() -> HyperLayer<S, noop::NoopTracer>
-where
-    S: tracing_core::Subscriber + for<'span> tracing_subscriber::registry::LookupSpan<'span>,
-{
-    HyperLayer::default()
 }
 
 // this function "remembers" the types of the subscriber so that we
@@ -268,20 +237,34 @@ impl<'a> field::Visit for SpanAttributeVisitor<'a> {
     }
 }
 
-// pub struct HyperSubscriber {}
-
-// impl<C> tracing_subscriber::Subscribe<C> for HyperSubscriber<C>
-// where
-//     C: tracing_core::Collect + for<'a> tracing_subscriber::registry::LookupSpan<'a>,
-// {
-
-// }
-
 impl<S, T> HyperLayer<S, T>
 where
     S: tracing_core::Subscriber + for<'span> tracing_subscriber::registry::LookupSpan<'span>,
     T: otel::Tracer + PreSampledTracer + 'static,
 {
+    /// Construct a layer to track spans via [OpenTelemetry].
+    ///
+    /// [OpenTelemetry]: https://opentelemetry.io
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use tracing_subscriber::layer::SubscriberExt;
+    /// use tracing_subscriber::Registry;
+    /// use hyper::OtelLayer;
+    ///
+    /// // Use the tracing subscriber `Registry`, or any other subscriber
+    /// // that impls `LookupSpan`
+    /// let subscriber = Registry::default().with(OtelLayer::layer());
+    /// # drop(subscriber);
+    /// ```
+    pub fn layer() -> HyperLayer<S, noop::NoopTracer>
+    where
+        S: tracing_core::Subscriber + for<'span> tracing_subscriber::registry::LookupSpan<'span>,
+    {
+        HyperLayer::default()
+    }
+
     /// Set the [`Tracer`] that this layer will use to produce and track
     /// OpenTelemetry [`Span`]s.
     ///
@@ -291,7 +274,7 @@ where
     /// # Examples
     ///
     /// ```no_run
-    /// use tracing_opentelemetry::HyperLayer;
+    /// use hyper::OtelLayer;
     /// use tracing_subscriber::layer::SubscriberExt;
     /// use tracing_subscriber::Registry;
     ///
@@ -302,7 +285,7 @@ where
     ///     .expect("Error initializing Jaeger exporter");
     ///
     /// // Create a layer with the configured tracer
-    /// let otel_layer = HyperLayer::new(tracer);
+    /// let otel_layer = OtelLayer::new(tracer);
     ///
     /// // Use the tracing subscriber `Registry`, or any other subscriber
     /// // that impls `LookupSpan`
@@ -337,7 +320,7 @@ where
     ///     .expect("Error initializing Jaeger exporter");
     ///
     /// // Create a layer with the configured tracer
-    /// let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
+    /// let otel_layer = hyper::OtelLayer::layer().with_tracer(tracer);
     ///
     /// // Use the tracing subscriber `Registry`, or any other subscriber
     /// // that impls `LookupSpan`
@@ -420,9 +403,9 @@ where
     }
 }
 
-impl<S, T> tracing_subscriber::Layer<S> for HyperLayer<S, T>
+impl<S, T> Layer<S> for HyperLayer<S, T>
 where
-    S: tracing_core::Subscriber + for<'span> tracing_subscriber::registry::LookupSpan<'span>,
+    S: Subscriber + for<'span> LookupSpan<'span>,
     T: otel::Tracer + PreSampledTracer + 'static,
 {
     /// Creates an [OpenTelemetry `Span`] for the corresponding [tracing `Span`].
@@ -430,6 +413,7 @@ where
     /// [OpenTelemetry `Span`]: opentelemetry::trace::Span
     /// [tracing `Span`]: tracing::Span
     fn on_new_span(&self, attrs: &Attributes<'_>, id: &span::Id, ctx: Context<'_, S>) {
+        println!("NEW SPAN... {:?}", id);
         let span = ctx.span(id).expect("Span not found, this is a bug");
         let mut extensions = span.extensions_mut();
 
@@ -437,16 +421,19 @@ where
             extensions.insert(Timings::new());
         }
 
+        let sid = self.tracer.new_span_id();
+        println!("OTel span ID... {:?}", sid);
         let mut builder = self
             .tracer
             .span_builder(attrs.metadata().name())
             .with_start_time(SystemTime::now())
             .with_parent_context(self.parent_context(attrs, &ctx))
             // Eagerly assign span id so children have stable parent id
-            .with_span_id(self.tracer.new_span_id());
+            .with_span_id(sid);
 
         // Record new trace id if there is no active parent span
         if !builder.parent_context.has_active_span() {
+            println!("... creating new trace id ...");
             builder.trace_id = Some(self.tracer.new_trace_id());
         }
 
@@ -544,51 +531,47 @@ where
 
     /// Records OpenTelemetry [`Event`] data on event.
     ///
-    /// Note:
-    /// An [`ERROR`]-level event will also set the OpenTelemetry span status
-    /// code to [`Error`], signaling that an error has occurred.
+    /// Note: an [`ERROR`]-level event will also set the OpenTelemetry span status code to
+    /// [`Error`], signaling that an error has occurred.
     ///
     /// [`Event`]: opentelemetry::trace::Event
     /// [`ERROR`]: tracing::Level::ERROR
     /// [`Error`]: opentelemetry::trace::StatusCode::Error
     fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
-        // let mut spans: Vec<SpanRef<'_, S>> = vec![];
-        //for span in scope.from_root() {
-        let span: SpanRef<'_,S>;
+        // Ignore events that are not in the context of a span
         if let Some(span) = ctx.lookup_current() {
             // Performing read operations before getting a write lock to avoid a deadlock
             // See https://github.com/tokio-rs/tracing/issues/763
-            let (meta, otel_event) = Self::process_event(event);
-            Self::process_span(span, meta, otel_event);
-        } else {
-            // Adopt orphan events that are not in the context of a span
-            if event.is_root() {
-                // the event should be a root.
-                let tracer = opentelemetry::global::tracer_provider();
-                let tracer = tracer.tracer("",Some(""));
-                let metadata = event.metadata();
-                let span = tracer.span_builder(metadata.name())
-                                .with_kind(opentelemetry::trace::SpanKind::Internal)
-                                .start(&tracer);
-                let ctx = opentelemetry::trace::Span::span_context(&span);
-                // let span = ctx.lookup_current();
-            } else {
-                // Setup adopter-span under the root for the orphan event
-                let mut scope = ctx
-                    .event_scope(event)
-                    .expect("A root span must be entered.");
-                let span = scope.nth(1).unwrap();
+            #[cfg(feature = "tracing-log")]
+            let normalized_meta = event.normalized_metadata();
+            #[cfg(feature = "tracing-log")]
+            let meta = normalized_meta.as_ref().unwrap_or_else(|| event.metadata());
+            #[cfg(not(feature = "tracing-log"))]
+            let meta = event.metadata();
+            let mut otel_event = otel::Event::new(
+                String::new(),
+                SystemTime::now(),
+                vec![
+                    Key::new("level").string(meta.level().to_string()),
+                    Key::new("target").string(meta.target().to_string()),
+                ],
+                0,
+            );
+            event.record(&mut SpanEventVisitor(&mut otel_event));
+
+            let mut extensions = span.extensions_mut();
+            if let Some(builder) = extensions.get_mut::<otel::SpanBuilder>() {
+                if builder.status_code.is_none() && *meta.level() == tracing_core::Level::ERROR {
+                    builder.status_code = Some(otel::StatusCode::Error);
+                }
+
+                if let Some(ref mut events) = builder.events {
+                    events.push(otel_event);
+                } else {
+                    builder.events = Some(vec![otel_event]);
+                }
             }
-            // let meta = parent.metadata();
-            // let fields = parent.fields();
-            // let values: &tracing::field::ValueSet<'_> = fields.into();
-            // let span = tracing::Span::child_of(parent, meta, values);
-            // let context = span.span_context();
-            // let spanref = context.lookup_current();
-            let (meta, otel_event) = Self::process_event(event);
-            Self::process_span(span, meta, otel_event);
-        }
-        // spans.push(span);
+        };
     }
 
     /// Exports an OpenTelemetry [`Span`] on close.
@@ -618,8 +601,7 @@ where
         }
     }
 
-    // SAFETY:
-    // This is safe because the `WithContext` function pointer is valid
+    // SAFETY: this is safe because the `WithContext` function pointer is valid
     // for the lifetime of `&self`.
     unsafe fn downcast_raw(&self, id: TypeId) -> Option<*const ()> {
         match id {
@@ -629,49 +611,6 @@ where
             }
             _ => None,
         }
-    }
-}
-
-impl<S, T> HyperLayer<S, T>
-where
-    S: tracing_core::Subscriber + for<'span> tracing_subscriber::registry::LookupSpan<'span>,
-    T: otel::Tracer + PreSampledTracer + 'static,
-{
-    fn process_span(span: SpanRef<'_,S>, meta: &tracing::Metadata<'_>, otel_event: otel::Event) {
-        {
-            let mut extensions = span.extensions_mut();
-            if let Some(builder) = extensions.get_mut::<otel::SpanBuilder>() {
-                if builder.status_code.is_none() && *meta.level() == tracing_core::Level::ERROR {
-                    builder.status_code = Some(otel::StatusCode::Error);
-                }
-
-                if let Some(ref mut events) = builder.events {
-                    events.push(otel_event);
-                } else {
-                    builder.events = Some(vec![otel_event]);
-                }
-            }
-        }
-    }
-
-    fn process_event<'a>(event: &'a tracing_core::Event<'_>) -> (&'a tracing::Metadata<'a>, otel::Event) {
-        #[cfg(feature = "tracing-log")]
-        let normalized_meta = event.normalized_metadata();
-        #[cfg(feature = "tracing-log")]
-        let meta = normalized_meta.as_ref().unwrap_or_else(|| event.metadata());
-        #[cfg(not(feature = "tracing-log"))]
-        let meta = event.metadata();
-        let mut otel_event = otel::Event::new(
-            String::new(),
-            SystemTime::now(),
-            vec![
-                Key::new("level").string(meta.level().to_string()),
-                Key::new("target").string(meta.target().to_string()),
-            ],
-            0,
-        );
-        event.record(&mut SpanEventVisitor(&mut otel_event));
-        (meta, otel_event)
     }
 }
 
