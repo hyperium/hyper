@@ -289,8 +289,15 @@ impl<I, E> Builder<I, E> {
         self
     }
 
-    /// Set whether HTTP/1 connections will write header names as provided
-    /// at the socket level.
+    /// Set whether to support preserving original header cases.
+    ///
+    /// Currently, this will record the original cases received, and store them
+    /// in a private extension on the `Request`. It will also look for and use
+    /// such an extension in any provided `Response`.
+    ///
+    /// Since the relevant extension is still private, there is no way to
+    /// interact with the original cases. The only effect this can have now is
+    /// to forward the cases in a proxy-like fashion.
     ///
     /// Note that this setting does not affect HTTP/2.
     ///
