@@ -105,7 +105,7 @@ pub(super) enum User {
     #[cfg(feature = "server")]
     UnexpectedHeader,
     /// User took too long to send headers
-    #[cfg(feature = "http1")]
+    #[cfg(all(feature = "http1", feature = "runtime"))]
     HeaderTimeout,
     /// User tried to create a Request with bad version.
     #[cfg(any(feature = "http1", feature = "http2"))]
@@ -313,7 +313,7 @@ impl Error {
         Error::new_user(User::UnexpectedHeader)
     }
 
-    #[cfg(feature = "http1")]
+    #[cfg(all(feature = "http1", feature = "runtime"))]
     pub(super) fn new_header_timeout() -> Error {
         Error::new_user(User::HeaderTimeout)
     }
@@ -449,7 +449,7 @@ impl Error {
             #[cfg(any(feature = "http1", feature = "http2"))]
             #[cfg(feature = "server")]
             Kind::User(User::UnexpectedHeader) => "user sent unexpected header",
-            #[cfg(feature = "http1")]
+            #[cfg(all(feature = "http1", feature = "runtime"))]
             Kind::User(User::HeaderTimeout) => "read header from client timeout",
             #[cfg(any(feature = "http1", feature = "http2"))]
             #[cfg(feature = "client")]

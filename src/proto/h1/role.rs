@@ -70,6 +70,7 @@ where
     let span = trace_span!("parse_headers");
     let _s = span.enter();
 
+    #[cfg(all(feature = "server", feature = "runtime"))]
     if let Some(h1_header_read_timeout) = ctx.h1_header_read_timeout {
         if ctx.h1_header_read_timeout_fut.is_none() {
             debug!("setting h1 header read timeout timer");

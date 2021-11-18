@@ -645,6 +645,7 @@ impl<E> Http<E> {
                 if self.h1_preserve_header_case {
                     conn.set_preserve_header_case();
                 }
+                #[cfg(all(feature = "http1", feature = "runtime"))]
                 if let Some(header_read_timeout) = self.h1_header_read_timeout {
                     conn.set_http1_header_read_timeout(header_read_timeout);
                 }

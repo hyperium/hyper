@@ -313,8 +313,8 @@ impl<I, E> Builder<I, E> {
     /// transmit the entire header withing this time, the connection is closed.
     ///
     /// Default is None.
-    #[cfg(feature = "http1")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
+    #[cfg(all(feature = "http1", feature = "runtime"))]
+    #[cfg_attr(docsrs, doc(cfg(all(feature = "http1", feature = "runtime"))))]
     pub fn http1_header_read_timeout(mut self, read_timeout: Duration) -> Self {
         self.protocol.http1_header_read_timeout(read_timeout);
         self

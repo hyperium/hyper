@@ -182,7 +182,9 @@ where
                     cached_headers: parse_ctx.cached_headers,
                     req_method: parse_ctx.req_method,
                     h1_parser_config: parse_ctx.h1_parser_config.clone(),
+                    #[cfg(all(feature = "server", feature = "runtime"))]
                     h1_header_read_timeout: parse_ctx.h1_header_read_timeout,
+                    #[cfg(all(feature = "server", feature = "runtime"))]
                     h1_header_read_timeout_fut: parse_ctx.h1_header_read_timeout_fut,
                     preserve_header_case: parse_ctx.preserve_header_case,
                     h09_responses: parse_ctx.h09_responses,
@@ -195,7 +197,10 @@ where
                 Some(msg) => {
                     debug!("parsed {} headers", msg.head.headers.len());
 
-                    *parse_ctx.h1_header_read_timeout_fut = None;
+                    #[cfg(all(feature = "server", feature = "runtime"))]
+                    {
+                        *parse_ctx.h1_header_read_timeout_fut = None;
+                    }
                     return Poll::Ready(Ok(msg));
                 }
                 None => {
@@ -205,6 +210,7 @@ where
                         return Poll::Ready(Err(crate::Error::new_too_large()));
                     }
 
+                    #[cfg(all(feature = "server", feature = "runtime"))]
                     if let Some(h1_header_read_timeout_fut) = parse_ctx.h1_header_read_timeout_fut {
                         if Pin::new( h1_header_read_timeout_fut).poll(cx).is_ready() {
                             *parse_ctx.h1_header_read_timeout_fut = None;

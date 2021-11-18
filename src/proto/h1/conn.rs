@@ -8,6 +8,7 @@ use http::header::{HeaderValue, CONNECTION};
 use http::{HeaderMap, Method, Version};
 use httparse::ParserConfig;
 use tokio::io::{AsyncRead, AsyncWrite};
+#[cfg(all(feature = "server", feature = "runtime"))]
 use tokio::time::Sleep;
 use tracing::{debug, error, trace};
 
@@ -49,7 +50,9 @@ where
                 keep_alive: KA::Busy,
                 method: None,
                 h1_parser_config: ParserConfig::default(),
+                #[cfg(all(feature = "server", feature = "runtime"))]
                 h1_header_read_timeout: None,
+                #[cfg(all(feature = "server", feature = "runtime"))]
                 h1_header_read_timeout_fut: None,
                 preserve_header_case: false,
                 title_case_headers: false,
@@ -110,7 +113,7 @@ where
         self.state.h09_responses = true;
     }
 
-    #[cfg(feature = "server")]
+    #[cfg(all(feature = "server", feature = "runtime"))]
     pub(crate) fn set_http1_header_read_timeout(&mut self, val: Duration) {
         self.state.h1_header_read_timeout = Some(val);
     }
@@ -187,7 +190,9 @@ where
                 cached_headers: &mut self.state.cached_headers,
                 req_method: &mut self.state.method,
                 h1_parser_config: self.state.h1_parser_config.clone(),
+                #[cfg(all(feature = "server", feature = "runtime"))]
                 h1_header_read_timeout: self.state.h1_header_read_timeout,
+                #[cfg(all(feature = "server", feature = "runtime"))]
                 h1_header_read_timeout_fut: &mut self.state.h1_header_read_timeout_fut,
                 preserve_header_case: self.state.preserve_header_case,
                 h09_responses: self.state.h09_responses,
@@ -809,7 +814,9 @@ struct State {
     /// a body or not.
     method: Option<Method>,
     h1_parser_config: ParserConfig,
+    #[cfg(all(feature = "server", feature = "runtime"))]
     h1_header_read_timeout: Option<Duration>,
+    #[cfg(all(feature = "server", feature = "runtime"))]
     h1_header_read_timeout_fut: Option<Pin<Box<Sleep>>>,
     preserve_header_case: bool,
     title_case_headers: bool,
