@@ -18,6 +18,13 @@
 //!   binary.  The final result should be smaller, and faster, than the
 //!   [`client_json`] example.
 //!
+//! ```bash
+//! podman run -p6831:6831/udp -p6832:6832/udp -p16686:16686 jaegertracing/all-in-one:latest
+//! cargo run --features="full tracing/max_level_trace" --example client_json_tracing_otel
+//! firefox http://localhost:16686
+//! # See also stdout
+//! ```
+//!
 //! [tracing]: https://docs.rs/tracing
 //! [Exceptions]: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/exceptions.md
 //! [General]: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/span-general.md

@@ -46,11 +46,12 @@ async fn main() -> Result<()> {
         Box::new(trace_context_propagator),
         Box::new(jaeger_propagator),
     ]);
+    // Third create Jaeger pipeline
     let tracer = opentelemetry_jaeger::new_pipeline()
         .with_service_name("client_json2")
         .install_batch(opentelemetry::runtime::Tokio)
         .unwrap();
-    // Initialize `tracing` using `opentelemetry-tracing` and configure logging
+    // Initialize `tracing` using `opentelemetry-tracing` and configure stdout logging
     tracing_subscriber::Registry::default()
         .with(tracing_subscriber::EnvFilter::new("TRACE"))
         .with(hyper::OtelLayer::new(tracer))
@@ -58,36 +59,11 @@ async fn main() -> Result<()> {
         //.with(tracing_tree::HierarchicalLayer::new(2))
         .init();
 
-    // // Setup Tracer Provider
-    // let provider = opentelemetry::sdk::trace::TracerProvider::builder()
-    //     // We can build a span processor and pass it into provider.
-    //     .with_span_processor(jaeger_processor)
-    //     .build();
-    // // Get new Tracer from TracerProvider
-    // let tracer = opentelemetry::trace::TracerProvider::tracer(&provider, "client_json", None);
-    // // Create a layer with the configured tracer
-    // let telemetry = hyper::OtelLayer::new(tracer);
-    // // Use the tracing subscriber `Registry`, or any other subscriber
-    // // that impls `LookupSpan`
-    // tracing_subscriber::registry()
-    //     .with(telemetry)
-    //     .try_init()
-    //     .expect("Default subscriber");
-
-    //let subscriber = tracing_subscriber::Registry::default().with(telemetry);
-
     // Trace executed (async) code
     // tracing::subscriber::with_default(subscriber, || async {
-        // Create a span and enter it, returning a guard....
+    // Create a span and enter it, returning a guard....
     let root_span = tracing::span!(tracing::Level::INFO, "root_span_echo").entered();
     root_span.in_scope(|| async {
-        // After setting up OpenTelemetry/Jaeger, redirect all `log`'s events to our subscriber/layer
-        // let logger = tracing_log::LogTracer::new();
-        // log::set_boxed_logger(Box::new(logger))?;
-
-        // We are now inside the span! Like `enter()`, the guard returned by
-        // `entered()` will exit the span when it is dropped...
-
         // Log a `tracing` "event".
         info!(status = true, answer = 42, message = "first event");
 
