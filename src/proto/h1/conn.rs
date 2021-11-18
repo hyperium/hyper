@@ -54,6 +54,8 @@ where
                 h1_header_read_timeout: None,
                 #[cfg(all(feature = "server", feature = "runtime"))]
                 h1_header_read_timeout_fut: None,
+                #[cfg(all(feature = "server", feature = "runtime"))]
+                h1_header_read_timeout_running: false,
                 preserve_header_case: false,
                 title_case_headers: false,
                 h09_responses: false,
@@ -194,6 +196,8 @@ where
                 h1_header_read_timeout: self.state.h1_header_read_timeout,
                 #[cfg(all(feature = "server", feature = "runtime"))]
                 h1_header_read_timeout_fut: &mut self.state.h1_header_read_timeout_fut,
+                #[cfg(all(feature = "server", feature = "runtime"))]
+                h1_header_read_timeout_running: &mut self.state.h1_header_read_timeout_running,
                 preserve_header_case: self.state.preserve_header_case,
                 h09_responses: self.state.h09_responses,
                 #[cfg(feature = "ffi")]
@@ -818,6 +822,8 @@ struct State {
     h1_header_read_timeout: Option<Duration>,
     #[cfg(all(feature = "server", feature = "runtime"))]
     h1_header_read_timeout_fut: Option<Pin<Box<Sleep>>>,
+    #[cfg(all(feature = "server", feature = "runtime"))]
+    h1_header_read_timeout_running: bool,
     preserve_header_case: bool,
     title_case_headers: bool,
     h09_responses: bool,

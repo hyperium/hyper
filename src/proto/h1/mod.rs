@@ -81,6 +81,8 @@ pub(crate) struct ParseContext<'a> {
     h1_header_read_timeout: Option<Duration>,
     #[cfg(all(feature = "server", feature = "runtime"))]
     h1_header_read_timeout_fut: &'a mut Option<Pin<Box<Sleep>>>,
+    #[cfg(all(feature = "server", feature = "runtime"))]
+    h1_header_read_timeout_running: &'a mut bool,
     preserve_header_case: bool,
     h09_responses: bool,
     #[cfg(feature = "ffi")]

@@ -4,7 +4,11 @@ use std::io::{self, IoSlice};
 use std::marker::Unpin;
 use std::mem::MaybeUninit;
 use std::future::Future;
+#[cfg(all(feature = "server", feature = "runtime"))]
+use std::time::Duration;
 
+#[cfg(all(feature = "server", feature = "runtime"))]
+use tokio::time::Instant;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tracing::{debug, warn, trace};
@@ -186,6 +190,8 @@ where
                     h1_header_read_timeout: parse_ctx.h1_header_read_timeout,
                     #[cfg(all(feature = "server", feature = "runtime"))]
                     h1_header_read_timeout_fut: parse_ctx.h1_header_read_timeout_fut,
+                    #[cfg(all(feature = "server", feature = "runtime"))]
+                    h1_header_read_timeout_running: parse_ctx.h1_header_read_timeout_running,
                     preserve_header_case: parse_ctx.preserve_header_case,
                     h09_responses: parse_ctx.h09_responses,
                     #[cfg(feature = "ffi")]
@@ -199,7 +205,12 @@ where
 
                     #[cfg(all(feature = "server", feature = "runtime"))]
                     {
-                        *parse_ctx.h1_header_read_timeout_fut = None;
+                        *parse_ctx.h1_header_read_timeout_running = false;
+
+                        if let Some(h1_header_read_timeout_fut) = parse_ctx.h1_header_read_timeout_fut {
+                            // Reset the timer in order to avoid woken up when the timeout finishes
+                            h1_header_read_timeout_fut.as_mut().reset(Instant::now() + Duration::from_secs(30 * 24 * 60 * 60));
+                        }
                     }
                     return Poll::Ready(Ok(msg));
                 }
@@ -211,12 +222,14 @@ where
                     }
 
                     #[cfg(all(feature = "server", feature = "runtime"))]
-                    if let Some(h1_header_read_timeout_fut) = parse_ctx.h1_header_read_timeout_fut {
-                        if Pin::new( h1_header_read_timeout_fut).poll(cx).is_ready() {
-                            *parse_ctx.h1_header_read_timeout_fut = None;
+                    if *parse_ctx.h1_header_read_timeout_running {
+                        if let Some(h1_header_read_timeout_fut) = parse_ctx.h1_header_read_timeout_fut {
+                            if Pin::new( h1_header_read_timeout_fut).poll(cx).is_ready() {
+                                *parse_ctx.h1_header_read_timeout_running = false;
 
-                            warn!("read header from client timeout");
-                            return Poll::Ready(Err(crate::Error::new_header_timeout()))
+                                warn!("read header from client timeout");
+                                return Poll::Ready(Err(crate::Error::new_header_timeout()))
+                            }
                         }
                     }
                 }
@@ -715,6 +728,7 @@ mod tests {
                 h1_parser_config: Default::default(),
                 h1_header_read_timeout: None,
                 h1_header_read_timeout_fut: &mut None,
+                h1_header_read_timeout_running: &mut false,
                 preserve_header_case: false,
                 h09_responses: false,
                 #[cfg(feature = "ffi")]
