@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1637265862473,
+  "lastUpdate": 1637265895543,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -9361,6 +9361,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 60199,
             "range": "± 13750",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "paolo@paolo565.org",
+            "name": "Paolo Barbolini",
+            "username": "paolobarbolini"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "842c6553a5414a3a4a0fbf973079200612a9c3d2",
+          "message": "feat(server): add HTTP/1 header read timeout option (#2675)\n\nAdds `Server::http1_header_read_timeout(Duration)`. Setting a duration will determine how long a client has to finish sending all the request headers before trigger a timeout test. This can help reduce resource usage when bad actors open connections without sending full requests.\r\n\r\nCloses #2457",
+          "timestamp": "2021-11-18T12:02:06-08:00",
+          "tree_id": "efa4ba8fe8bb148407c1fe6e6376462c9385fef1",
+          "url": "https://github.com/hyperium/hyper/commit/842c6553a5414a3a4a0fbf973079200612a9c3d2"
+        },
+        "date": 1637265893425,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 77342,
+            "range": "± 36168",
             "unit": "ns/iter"
           }
         ]
