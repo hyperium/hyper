@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1637265895543,
+  "lastUpdate": 1637266094072,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -30783,6 +30783,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 8787897,
             "range": "± 2666813",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "paolo@paolo565.org",
+            "name": "Paolo Barbolini",
+            "username": "paolobarbolini"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "842c6553a5414a3a4a0fbf973079200612a9c3d2",
+          "message": "feat(server): add HTTP/1 header read timeout option (#2675)\n\nAdds `Server::http1_header_read_timeout(Duration)`. Setting a duration will determine how long a client has to finish sending all the request headers before trigger a timeout test. This can help reduce resource usage when bad actors open connections without sending full requests.\r\n\r\nCloses #2457",
+          "timestamp": "2021-11-18T12:02:06-08:00",
+          "tree_id": "efa4ba8fe8bb148407c1fe6e6376462c9385fef1",
+          "url": "https://github.com/hyperium/hyper/commit/842c6553a5414a3a4a0fbf973079200612a9c3d2"
+        },
+        "date": 1637266091867,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 128722,
+            "range": "± 13078",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 8573656,
+            "range": "± 1635695",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 48337,
+            "range": "± 2629",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 53247,
+            "range": "± 4804",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 425734,
+            "range": "± 132225",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 55172546,
+            "range": "± 2381838",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 74144902,
+            "range": "± 10770813",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 76430203,
+            "range": "± 7764363",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 5679644,
+            "range": "± 2646505",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 86033,
+            "range": "± 7545",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 184072,
+            "range": "± 15180",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 98345,
+            "range": "± 10624",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 227880,
+            "range": "± 35143",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 14113653,
+            "range": "± 9724696",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 14070462,
+            "range": "± 1112564",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 13659511,
+            "range": "± 9036844",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 75614985,
+            "range": "± 19475574",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 102115664,
+            "range": "± 44073499",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 8355608,
+            "range": "± 7487494",
             "unit": "ns/iter"
           }
         ]
