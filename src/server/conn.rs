@@ -102,7 +102,7 @@ pub struct Http<E = Exec> {
     h1_keep_alive: bool,
     h1_title_case_headers: bool,
     h1_preserve_header_case: bool,
-    #[cfg(feature = "http1")]
+    #[cfg(all(feature = "http1", feature = "runtime"))]
     h1_header_read_timeout: Option<Duration>,
     h1_writev: Option<bool>,
     #[cfg(feature = "http2")]
@@ -581,7 +581,7 @@ impl<E> Http<E> {
             h1_keep_alive: self.h1_keep_alive,
             h1_title_case_headers: self.h1_title_case_headers,
             h1_preserve_header_case: self.h1_preserve_header_case,
-            #[cfg(feature = "http1")]
+            #[cfg(all(feature = "http1", feature = "runtime"))]
             h1_header_read_timeout: self.h1_header_read_timeout,
             h1_writev: self.h1_writev,
             #[cfg(feature = "http2")]
