@@ -668,7 +668,7 @@ impl Builder {
     #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
     pub fn http1_max_buf_size(&mut self, max: usize) -> &mut Self {
         assert!(
-            max >= proto::h1::MINIMUM_MAX_BUFFER_SIZE,
+            max >= proto::MINIMUM_MAX_BUFFER_SIZE,
             "the max_buf_size cannot be smaller than the minimum that h1 specifies."
         );
 

@@ -237,13 +237,17 @@ impl<I, E> Builder<I, E> {
         self
     }
 
-    /// Set the maximum buffer size.
+    /// Set the HTTP/1 maximum buffer size.
     ///
     /// Default is ~ 400kb.
+    ///
+    /// # Panics
+    ///
+    /// The minimum value allowed is 8192. This method panics if the passed `max` is less than the minimum.
     #[cfg(feature = "http1")]
     #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
-    pub fn http1_max_buf_size(mut self, val: usize) -> Self {
-        self.protocol.max_buf_size(val);
+    pub fn http1_max_buf_size(mut self, max: usize) -> Self {
+        self.protocol.http1_max_buf_size(max);
         self
     }
 
@@ -337,6 +341,20 @@ impl<I, E> Builder<I, E> {
     #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_only(mut self, val: bool) -> Self {
         self.protocol.http2_only(val);
+        self
+    }
+
+    /// Set the HTTP/2 maximum send buffer size.
+    ///
+    /// Default is ~ 400kb.
+    ///
+    /// # Panics
+    ///
+    /// The minimum value allowed is 8192. This method panics if the passed `max` is less than the minimum.
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
+    pub fn http2_max_send_buf_size(mut self, val: usize) -> Self {
+        self.protocol.http2_max_buf_size(val);
         self
     }
 

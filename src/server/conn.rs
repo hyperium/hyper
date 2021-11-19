@@ -375,7 +375,7 @@ impl<E> Http<E> {
         self
     }
 
-    /// Set a timeout for reading client request headers. If a client does not 
+    /// Set a timeout for reading client request headers. If a client does not
     /// transmit the entire header within this time, the connection is closed.
     ///
     /// Default is None.
@@ -406,9 +406,13 @@ impl<E> Http<E> {
         self
     }
 
-    /// Sets whether HTTP2 is required.
+    /// Set the HTTP/2 maximum send buffer size.
     ///
-    /// Default is false
+    /// Default is ~ 400kb.
+    ///
+    /// # Panics
+    ///
+    /// The minimum value allowed is 8192. This method panics if the passed `max` is less than the minimum.
     #[cfg(feature = "http2")]
     #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_only(&mut self, val: bool) -> &mut Self {
@@ -543,7 +547,7 @@ impl<E> Http<E> {
         self
     }
 
-    /// Set the maximum buffer size for the connection.
+    /// Set the HTTP/1 maximum buffer size for the connection.
     ///
     /// Default is ~400kb.
     ///
@@ -552,12 +556,27 @@ impl<E> Http<E> {
     /// The minimum value allowed is 8192. This method panics if the passed `max` is less than the minimum.
     #[cfg(feature = "http1")]
     #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
-    pub fn max_buf_size(&mut self, max: usize) -> &mut Self {
+    pub fn http1_max_buf_size(&mut self, max: usize) -> &mut Self {
         assert!(
-            max >= proto::h1::MINIMUM_MAX_BUFFER_SIZE,
+            max >= proto::MINIMUM_MAX_BUFFER_SIZE,
             "the max_buf_size cannot be smaller than the minimum that h1 specifies."
         );
         self.max_buf_size = Some(max);
+        self
+    }
+
+    /// Set the HTTP/2 maximum buffer size for the connection.
+    ///
+    /// Default is ~400kb.
+    ///
+    /// # Panics
+    ///
+    /// The minimum value allowed is 8192. This method panics if the passed `max` is less than the minimum.
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
+    pub fn http2_max_buf_size(&mut self, max: usize) -> &mut Self {
+        assert!(max >= proto::MINIMUM_MAX_BUFFER_SIZE);
+        self.h2_builder.max_send_buf_size = max;
         self
     }
 
@@ -848,7 +867,12 @@ where
         let mut conn = Some(self);
         futures_util::future::poll_fn(move |cx| {
             ready!(conn.as_mut().unwrap().poll_without_shutdown(cx))?;
-            Poll::Ready(conn.take().unwrap().try_into_parts().ok_or_else(crate::Error::new_without_shutdown_not_h1))
+            Poll::Ready(
+                conn.take()
+                    .unwrap()
+                    .try_into_parts()
+                    .ok_or_else(crate::Error::new_without_shutdown_not_h1),
+            )
         })
     }
 

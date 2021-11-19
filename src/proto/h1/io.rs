@@ -16,17 +16,10 @@ use tracing::{debug, warn, trace};
 use super::{Http1Transaction, ParseContext, ParsedMessage};
 use crate::common::buf::BufList;
 use crate::common::{task, Pin, Poll};
+use crate::proto::{DEFAULT_MAX_BUFFER_SIZE, MINIMUM_MAX_BUFFER_SIZE};
 
 /// The initial buffer size allocated before trying to read from IO.
-pub(crate) const INIT_BUFFER_SIZE: usize = 8192;
-
-/// The minimum value that can be set to max buffer size.
-pub(crate) const MINIMUM_MAX_BUFFER_SIZE: usize = INIT_BUFFER_SIZE;
-
-/// The default maximum read buffer size. If the buffer gets this big and
-/// a message is still not complete, a `TooLarge` error is triggered.
-// Note: if this changes, update server::conn::Http::max_buf_size docs.
-pub(crate) const DEFAULT_MAX_BUFFER_SIZE: usize = 8192 + 4096 * 100;
+pub(crate) const INIT_BUFFER_SIZE: usize = MINIMUM_MAX_BUFFER_SIZE;
 
 /// The maximum number of distinct `Buf`s to hold in a list before requiring
 /// a flush. Only affects when the buffer strategy is to queue buffers.

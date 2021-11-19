@@ -14,8 +14,6 @@ pub(crate) use self::conn::Conn;
 pub(crate) use self::decode::Decoder;
 pub(crate) use self::dispatch::Dispatcher;
 pub(crate) use self::encode::{EncodedBuf, Encoder};
- //TODO: move out of h1::io
-pub(crate) use self::io::MINIMUM_MAX_BUFFER_SIZE;
 
 mod conn;
 mod decode;

@@ -2056,14 +2056,14 @@ async fn illegal_request_length_returns_400_response() {
 #[should_panic]
 fn max_buf_size_panic_too_small() {
     const MAX: usize = 8191;
-    Http::new().max_buf_size(MAX);
+    Http::new().http1_max_buf_size(MAX);
 }
 
 #[cfg(feature = "http1")]
 #[test]
 fn max_buf_size_no_panic() {
     const MAX: usize = 8193;
-    Http::new().max_buf_size(MAX);
+    Http::new().http1_max_buf_size(MAX);
 }
 
 #[cfg(feature = "http1")]
@@ -2088,7 +2088,7 @@ async fn max_buf_size() {
 
     let (socket, _) = listener.accept().await.unwrap();
     Http::new()
-        .max_buf_size(MAX)
+        .http1_max_buf_size(MAX)
         .serve_connection(socket, HelloWorld)
         .await
         .expect_err("should TooLarge error");
