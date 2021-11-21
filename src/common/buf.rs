@@ -47,10 +47,8 @@ impl<T: Buf> Buf for BufList<T> {
                 if rem > cnt {
                     front.advance(cnt);
                     return;
-                } else {
-                    front.advance(rem);
-                    cnt -= rem;
                 }
+                cnt -= rem;
             }
             self.bufs.pop_front();
         }
