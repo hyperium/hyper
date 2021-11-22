@@ -71,6 +71,7 @@ pub(super) enum Parse {
     #[cfg(feature = "http1")]
     VersionH2,
     Uri,
+    UriTooLong,
     Header(Header),
     TooLarge,
     Status,
@@ -398,6 +399,7 @@ impl Error {
             #[cfg(feature = "http1")]
             Kind::Parse(Parse::VersionH2) => "invalid HTTP version parsed (found HTTP2 preface)",
             Kind::Parse(Parse::Uri) => "invalid URI",
+            Kind::Parse(Parse::UriTooLong) => "URI too long",
             Kind::Parse(Parse::Header(Header::Token)) => "invalid HTTP header parsed",
             #[cfg(feature = "http1")]
             Kind::Parse(Parse::Header(Header::ContentLengthInvalid)) => {

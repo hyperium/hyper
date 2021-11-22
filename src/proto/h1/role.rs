@@ -25,6 +25,7 @@ use crate::proto::{BodyLength, MessageHead, RequestHead, RequestLine};
 
 const MAX_HEADERS: usize = 100;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
+const MAX_URI_LEN: usize = (u16::MAX - 1) as usize;
 
 macro_rules! header_name {
     ($bytes:expr) => {{
@@ -148,6 +149,9 @@ impl Http1Transaction for Server {
                 Ok(httparse::Status::Complete(parsed_len)) => {
                     trace!("Request.parse Complete({})", parsed_len);
                     len = parsed_len;
+                    if req.path.unwrap().len() > MAX_URI_LEN {
+                        return Err(Parse::UriTooLong);
+                    }
                     subject = RequestLine(
                         Method::from_bytes(req.method.unwrap().as_bytes())?,
                         req.path.unwrap().parse()?,
@@ -407,6 +411,7 @@ impl Http1Transaction for Server {
             | Kind::Parse(Parse::Header(_))
             | Kind::Parse(Parse::Uri)
             | Kind::Parse(Parse::Version) => StatusCode::BAD_REQUEST,
+            Kind::Parse(Parse::UriTooLong) => StatusCode::URI_TOO_LONG,
             Kind::Parse(Parse::TooLarge) => StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
             _ => return None,
         };
