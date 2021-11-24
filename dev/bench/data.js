@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1637266094072,
+  "lastUpdate": 1637792932032,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -4709,6 +4709,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 54269,
             "range": "± 9500",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "1010614a0de032b43306ef9dc6da5a3e8ebf7a09",
+          "message": "test(client): refactor client helper macro to handle options better",
+          "timestamp": "2021-11-24T14:26:26-08:00",
+          "tree_id": "f16b6ed175fcda7c4efb8c1d950dfcd30d6b5870",
+          "url": "https://github.com/hyperium/hyper/commit/1010614a0de032b43306ef9dc6da5a3e8ebf7a09"
+        },
+        "date": 1637792930089,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 58571,
+            "range": "± 3005",
             "unit": "ns/iter"
           }
         ]
