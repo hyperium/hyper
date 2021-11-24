@@ -35,111 +35,9 @@ macro_rules! test {
             expected: $server_expected:expr,
             reply: $server_reply:expr,
         client:
-            request: {$(
-                $c_req_prop:ident: $c_req_val: tt,
-            )*},
-
-            response:
-                status: $client_status:ident,
-                headers: { $($response_header_name:expr => $response_header_val:expr,)* },
-                body: $response_body:expr,
-    ) => (
-        test! {
-            name: $name,
-            server:
-                expected: $server_expected,
-                reply: $server_reply,
-            client:
-                set_host: true,
-                request: {$(
-                    $c_req_prop: $c_req_val,
-                )*},
-
-                response:
-                    status: $client_status,
-                    headers: { $($response_header_name => $response_header_val,)* },
-                    body: $response_body,
-        }
-    );
-    (
-        name: $name:ident,
-        server:
-            expected: $server_expected:expr,
-            reply: $server_reply:expr,
-        client:
-            set_host: $set_host:expr,
-            request: {$(
-                $c_req_prop:ident: $c_req_val:tt,
-            )*},
-
-            response:
-                status: $client_status:ident,
-                headers: { $($response_header_name:expr => $response_header_val:expr,)* },
-                body: $response_body:expr,
-    ) => (
-        test! {
-            name: $name,
-            server:
-                expected: $server_expected,
-                reply: $server_reply,
-            client:
-                set_host: $set_host,
-                title_case_headers: false,
-                request: {$(
-                    $c_req_prop: $c_req_val,
-                )*},
-
-                response:
-                    status: $client_status,
-                    headers: { $($response_header_name => $response_header_val,)* },
-                    body: $response_body,
-        }
-    );
-    (
-        name: $name:ident,
-        server:
-            expected: $server_expected:expr,
-            reply: $server_reply:expr,
-        client:
-            set_host: $set_host:expr,
-            title_case_headers: $title_case_headers:expr,
-            request: {$(
-                $c_req_prop:ident: $c_req_val:tt,
-            )*},
-
-            response:
-                status: $client_status:ident,
-                headers: { $($response_header_name:expr => $response_header_val:expr,)* },
-                body: $response_body:expr,
-    ) => (
-        test! {
-            name: $name,
-            server:
-                expected: $server_expected,
-                reply: $server_reply,
-            client:
-                set_host: $set_host,
-                title_case_headers: $title_case_headers,
-                allow_h09_responses: false,
-                request: {$(
-                    $c_req_prop: $c_req_val,
-                )*},
-
-                response:
-                    status: $client_status,
-                    headers: { $($response_header_name => $response_header_val,)* },
-                    body: $response_body,
-        }
-    );
-    (
-        name: $name:ident,
-        server:
-            expected: $server_expected:expr,
-            reply: $server_reply:expr,
-        client:
-            set_host: $set_host:expr,
-            title_case_headers: $title_case_headers:expr,
-            allow_h09_responses: $allow_h09_responses:expr,
+            $(options: {$(
+                $c_opt_prop:ident: $c_opt_val:tt,
+            )*},)?
             request: {$(
                 $c_req_prop:ident: $c_req_val:tt,
             )*},
@@ -162,9 +60,9 @@ macro_rules! test {
                     expected: $server_expected,
                     reply: $server_reply,
                 client:
-                    set_host: $set_host,
-                    title_case_headers: $title_case_headers,
-                    allow_h09_responses: $allow_h09_responses,
+                    $(options: {$(
+                        $c_opt_prop: $c_opt_val,
+                    )*},)?
                     request: {$(
                         $c_req_prop: $c_req_val,
                     )*},
@@ -217,9 +115,6 @@ macro_rules! test {
                     expected: $server_expected,
                     reply: $server_reply,
                 client:
-                    set_host: true,
-                    title_case_headers: false,
-                    allow_h09_responses: false,
                     request: {$(
                         $c_req_prop: $c_req_val,
                     )*},
@@ -242,9 +137,9 @@ macro_rules! test {
             expected: $server_expected:expr,
             reply: $server_reply:expr,
         client:
-            set_host: $set_host:expr,
-            title_case_headers: $title_case_headers:expr,
-            allow_h09_responses: $allow_h09_responses:expr,
+            $(options: {$(
+                $c_opt_prop:ident: $c_opt_val:tt,
+            )*},)?
             request: {$(
                 $c_req_prop:ident: $c_req_val:tt,
             )*},
@@ -255,9 +150,7 @@ macro_rules! test {
 
         let connector = ::hyper::client::HttpConnector::new();
         let client = Client::builder()
-            .set_host($set_host)
-            .http1_title_case_headers($title_case_headers)
-            .http09_responses($allow_h09_responses)
+            $($(.$c_opt_prop($c_opt_val))*)?
             .build(connector);
 
         #[allow(unused_assignments, unused_mut)]
@@ -1086,7 +979,9 @@ test! {
             ",
 
     client:
-        set_host: false,
+        options: {
+            set_host: false,
+        },
         request: {
             method: GET,
             url: "http://{addr}/no-host/{addr}",
@@ -1114,8 +1009,9 @@ test! {
             ",
 
     client:
-        set_host: true,
-        title_case_headers: true,
+        options: {
+            http1_title_case_headers: true,
+        },
         request: {
             method: GET,
             url: "http://{addr}/",
@@ -1191,15 +1087,15 @@ test! {
     server:
         expected: "\
             GET / HTTP/1.1\r\n\
-            Host: {addr}\r\n\
+            host: {addr}\r\n\
             \r\n\
             ",
         reply: "Mmmmh, baguettes.",
 
     client:
-        set_host: true,
-        title_case_headers: true,
-        allow_h09_responses: true,
+        options: {
+            http09_responses: true,
+        },
         request: {
             method: GET,
             url: "http://{addr}/",
