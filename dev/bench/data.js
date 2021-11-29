@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1638218057705,
+  "lastUpdate": 1638218065412,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -4739,6 +4739,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 58571,
             "range": "± 3005",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rajing@gmail.com",
+            "name": "Rajin Gill",
+            "username": "rajing"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5f938fffa64df23a2e4af81ed4e6d8bd760e2d05",
+          "message": "fix(http1): return 414 when URI contains more than 65534 characters (#2706)\n\nPrevious behavior returned a 404 Bad Request. Conforms to HTTP 1.1 RFC.\r\n\r\nCloses #2701",
+          "timestamp": "2021-11-29T12:31:41-08:00",
+          "tree_id": "dc3b9bd05a578e1efae0927f1c2e731cdf36d838",
+          "url": "https://github.com/hyperium/hyper/commit/5f938fffa64df23a2e4af81ed4e6d8bd760e2d05"
+        },
+        "date": 1638218063322,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 81765,
+            "range": "± 13071",
             "unit": "ns/iter"
           }
         ]
