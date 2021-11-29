@@ -153,7 +153,10 @@ impl Error {
 
     /// Returns true if this was an HTTP parse error caused by a message that was too large.
     pub fn is_parse_too_large(&self) -> bool {
-        matches!(self.inner.kind, Kind::Parse(Parse::TooLarge) | Kind::Parse(Parse::UriTooLong))
+        matches!(
+            self.inner.kind,
+            Kind::Parse(Parse::TooLarge) | Kind::Parse(Parse::UriTooLong)
+        )
     }
 
     /// Returns true if this was an HTTP parse error caused by an invalid response status code or
