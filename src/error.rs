@@ -71,6 +71,7 @@ pub(super) enum Parse {
     #[cfg(feature = "http1")]
     VersionH2,
     Uri,
+    UriTooLong,
     Header(Header),
     TooLarge,
     Status,
@@ -152,7 +153,10 @@ impl Error {
 
     /// Returns true if this was an HTTP parse error caused by a message that was too large.
     pub fn is_parse_too_large(&self) -> bool {
-        matches!(self.inner.kind, Kind::Parse(Parse::TooLarge))
+        matches!(
+            self.inner.kind,
+            Kind::Parse(Parse::TooLarge) | Kind::Parse(Parse::UriTooLong)
+        )
     }
 
     /// Returns true if this was an HTTP parse error caused by an invalid response status code or
@@ -398,6 +402,7 @@ impl Error {
             #[cfg(feature = "http1")]
             Kind::Parse(Parse::VersionH2) => "invalid HTTP version parsed (found HTTP2 preface)",
             Kind::Parse(Parse::Uri) => "invalid URI",
+            Kind::Parse(Parse::UriTooLong) => "URI too long",
             Kind::Parse(Parse::Header(Header::Token)) => "invalid HTTP header parsed",
             #[cfg(feature = "http1")]
             Kind::Parse(Parse::Header(Header::ContentLengthInvalid)) => {

@@ -1025,6 +1025,23 @@ fn http_10_request_receives_http_10_response() {
     assert_eq!(s(&buf[..expected.len()]), expected);
 }
 
+#[test]
+fn http_11_uri_too_long() {
+    let server = serve();
+
+    let long_path = "a".repeat(65534);
+    let request_line = format!("GET /{} HTTP/1.1\r\n\r\n", long_path);
+
+    let mut req = connect(server.addr());
+    req.write_all(request_line.as_bytes()).unwrap();
+
+    let expected = "HTTP/1.1 414 URI Too Long\r\ncontent-length: 0\r\n";
+    let mut buf = [0; 256];
+    let n = req.read(&mut buf).unwrap();
+    assert!(n >= expected.len(), "read: {:?} >= {:?}", n, expected.len());
+    assert_eq!(s(&buf[..expected.len()]), expected);
+}
+
 #[tokio::test]
 async fn disable_keep_alive_mid_request() {
     let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
