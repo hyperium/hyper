@@ -1,7 +1,5 @@
 #[cfg(all(feature = "server", feature = "runtime"))]
-use std::pin::Pin;
-#[cfg(all(feature = "server", feature = "runtime"))]
-use std::time::Duration;
+use std::{pin::Pin, time::Duration};
 
 use bytes::BytesMut;
 use http::{HeaderMap, Method};
