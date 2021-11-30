@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1638291683445,
+  "lastUpdate": 1638291711084,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -9541,6 +9541,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 51733,
             "range": "± 28134",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jonte_murray@hotmail.com",
+            "name": "Jonathan Murray",
+            "username": "JonathanMurray"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7435cc3399895643062f4e399fae6d5b20b049a1",
+          "message": "fix(server): use case-insensitive comparison for Expect: 100-continue (#2709)\n\nAccording to rfc2616#section-14.20 the header value is case-insensitive. Certain clients send the expectation as `100-Continue` and this should be handled by the server.\r\n\r\nCloses #2708",
+          "timestamp": "2021-11-30T08:58:50-08:00",
+          "tree_id": "eedd3b37fbf30886a6fa0df4ae99dc7ac9f17a52",
+          "url": "https://github.com/hyperium/hyper/commit/7435cc3399895643062f4e399fae6d5b20b049a1"
+        },
+        "date": 1638291709043,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 66859,
+            "range": "± 23313",
             "unit": "ns/iter"
           }
         ]
