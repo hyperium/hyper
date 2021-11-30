@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1638296949274,
+  "lastUpdate": 1638296968284,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -9601,6 +9601,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 66859,
             "range": "± 23313",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ce8242571fc4dd6db8ccaad76eadab80ac009d32",
+          "message": "refactor(lib): resolve unused warnings from server-specific code (#2710)",
+          "timestamp": "2021-11-30T10:26:20-08:00",
+          "tree_id": "69cf5735b2bfff18adb71f2d053903d8f95086d2",
+          "url": "https://github.com/hyperium/hyper/commit/ce8242571fc4dd6db8ccaad76eadab80ac009d32"
+        },
+        "date": 1638296965657,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 63280,
+            "range": "± 14830",
             "unit": "ns/iter"
           }
         ]
