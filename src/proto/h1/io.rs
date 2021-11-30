@@ -3,6 +3,7 @@ use std::fmt;
 use std::io::{self, IoSlice};
 use std::marker::Unpin;
 use std::mem::MaybeUninit;
+#[cfg(all(feature = "server", feature = "runtime"))]
 use std::future::Future;
 #[cfg(all(feature = "server", feature = "runtime"))]
 use std::time::Duration;
@@ -11,7 +12,7 @@ use std::time::Duration;
 use tokio::time::Instant;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tracing::{debug, warn, trace};
+use tracing::{debug, trace};
 
 use super::{Http1Transaction, ParseContext, ParsedMessage};
 use crate::common::buf::BufList;
@@ -227,7 +228,7 @@ where
                             if Pin::new( h1_header_read_timeout_fut).poll(cx).is_ready() {
                                 *parse_ctx.h1_header_read_timeout_running = false;
 
-                                warn!("read header from client timeout");
+                                tracing::warn!("read header from client timeout");
                                 return Poll::Ready(Err(crate::Error::new_header_timeout()))
                             }
                         }

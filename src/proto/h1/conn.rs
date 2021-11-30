@@ -1,6 +1,7 @@
 use std::fmt;
 use std::io;
 use std::marker::PhantomData;
+#[cfg(all(feature = "server", feature = "runtime"))]
 use std::time::Duration;
 
 use bytes::{Buf, Bytes};
