@@ -832,6 +832,39 @@ fn expect_continue_sends_100() {
 }
 
 #[test]
+fn expect_continue_accepts_upper_cased_expectation() {
+    let server = serve();
+    let mut req = connect(server.addr());
+    server.reply();
+
+    req.write_all(
+        b"\
+        POST /foo HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Expect: 100-Continue\r\n\
+        Content-Length: 5\r\n\
+        Connection: Close\r\n\
+        \r\n\
+    ",
+    )
+    .expect("write 1");
+
+    let msg = b"HTTP/1.1 100 Continue\r\n\r\n";
+    let mut buf = vec![0; msg.len()];
+    req.read_exact(&mut buf).expect("read 1");
+    assert_eq!(buf, msg);
+
+    let msg = b"hello";
+    req.write_all(msg).expect("write 2");
+
+    let mut body = String::new();
+    req.read_to_string(&mut body).expect("read 2");
+
+    let body = server.body();
+    assert_eq!(body, msg);
+}
+
+#[test]
 fn expect_continue_but_no_body_is_ignored() {
     let server = serve();
     let mut req = connect(server.addr());
