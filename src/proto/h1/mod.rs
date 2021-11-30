@@ -1,4 +1,6 @@
+#[cfg(all(feature = "server", feature = "runtime"))]
 use std::pin::Pin;
+#[cfg(all(feature = "server", feature = "runtime"))]
 use std::time::Duration;
 
 use bytes::BytesMut;

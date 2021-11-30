@@ -71,6 +71,7 @@ pub(super) enum Parse {
     #[cfg(feature = "http1")]
     VersionH2,
     Uri,
+    #[cfg_attr(not(all(feature = "http1", feature = "server")), allow(unused))]
     UriTooLong,
     Header(Header),
     TooLarge,
