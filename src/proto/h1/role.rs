@@ -271,7 +271,10 @@ impl Http1Transaction for Server {
                     }
                 }
                 header::EXPECT => {
-                    expect_continue = value.as_bytes() == b"100-continue";
+                    // According to https://datatracker.ietf.org/doc/html/rfc2616#section-14.20
+                    // Comparison of expectation values is case-insensitive for unquoted tokens
+                    // (including the 100-continue token)
+                    expect_continue = value.to_str().map(|s| s.eq_ignore_ascii_case("100-continue")).unwrap_or(false);
                 }
                 header::UPGRADE => {
                     // Upgrades are only allowed with HTTP/1.1
