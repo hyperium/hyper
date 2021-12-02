@@ -41,10 +41,9 @@ pub(super) enum Kind {
     #[cfg(all(feature = "tcp", feature = "server"))]
     Listen,
     /// Error accepting on an Incoming stream.
-    #[cfg(any(feature = "http1", feature = "http2"))]
-    #[cfg(feature = "server")]
+    #[cfg(all(any(feature = "http1", feature = "http2"), feature = "server"))]
     Accept,
-    /// User took too long to send headers
+    /// User took too long to send headers.
     #[cfg(all(feature = "http1", feature = "server", feature = "runtime"))]
     HeaderTimeout,
     /// Error while reading a body from connection.
@@ -171,6 +170,18 @@ impl Error {
         matches!(self.inner.kind, Kind::User(_))
     }
 
+    /// Returns true if the connection closed before a message could complete.
+    pub fn is_incomplete_message(&self) -> bool {
+        matches!(self.inner.kind, Kind::IncompleteMessage)
+    }
+
+    /// Returns true if the connection received a message (or bytes) when not waiting for one.
+    #[cfg(feature = "http1")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
+    pub fn is_unexpected_message(&self) -> bool {
+        matches!(self.inner.kind, Kind::UnexpectedMessage)
+    }
+
     /// Returns true if this was about a `Request` that was canceled.
     pub fn is_canceled(&self) -> bool {
         matches!(self.inner.kind, Kind::Canceled)
@@ -181,19 +192,79 @@ impl Error {
         matches!(self.inner.kind, Kind::ChannelClosed)
     }
 
+    /// Returns true if an [`io::Error`](std::io::Error) occurred while trying to read or write to a network stream.
+    #[cfg(any(feature = "http1", feature = "http2"))]
+    #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
+    pub fn is_io(&self) -> bool {
+        matches!(self.inner.kind, Kind::Io)
+    }
+
     /// Returns true if this was an error from `Connect`.
     pub fn is_connect(&self) -> bool {
         matches!(self.inner.kind, Kind::Connect)
     }
 
-    /// Returns true if the connection closed before a message could complete.
-    pub fn is_incomplete_message(&self) -> bool {
-        matches!(self.inner.kind, Kind::IncompleteMessage)
+    /// Returns true if there was an error creating a [`TcpListener`](std::net::TcpListener).
+    #[cfg(all(feature = "tcp", feature = "server"))]
+    #[cfg_attr(docsrs, doc(cfg(all(feature = "tcp", feature = "server"))))]
+    pub fn is_listen(&self) -> bool {
+        matches!(self.inner.kind, Kind::Listen)
+    }
+
+    /// Returns true if an error occurred while accepting on an incoming stream.
+    #[cfg(all(any(feature = "http1", feature = "http2"), feature = "server"))]
+    #[cfg_attr(
+        docsrs,
+        doc(cfg(all(any(feature = "http1", feature = "http2"), feature = "server")))
+    )]
+    pub fn is_accept(&self) -> bool {
+        matches!(self.inner.kind, Kind::Accept)
+    }
+
+    /// Returns true if the user took too long to send headers.
+    #[cfg(all(feature = "http1", feature = "server", feature = "runtime"))]
+    #[cfg_attr(
+        docsrs,
+        doc(cfg(all(feature = "http1", feature = "server", feature = "runtime")))
+    )]
+    pub fn is_header_timeout(&self) -> bool {
+        matches!(self.inner.kind, Kind::HeaderTimeout)
+    }
+
+    /// Returns true if there was an error while reading a body from a connection.
+    #[cfg(any(feature = "http1", feature = "http2", feature = "stream"))]
+    #[cfg_attr(
+        docsrs,
+        doc(cfg(any(feature = "http1", feature = "http2", feature = "stream")))
+    )]
+    pub fn is_body(&self) -> bool {
+        matches!(self.inner.kind, Kind::Body)
+    }
+
+    /// Returns true if there was an error while writing a body to a connection.
+    #[cfg(any(feature = "http1", feature = "http2"))]
+    #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
+    pub fn is_body_write(&self) -> bool {
+        matches!(self.inner.kind, Kind::BodyWrite)
     }
 
     /// Returns true if the body write was aborted.
     pub fn is_body_write_aborted(&self) -> bool {
         matches!(self.inner.kind, Kind::BodyWriteAborted)
+    }
+
+    /// Returns true if there was an error shutting down the connection.
+    #[cfg(feature = "http1")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
+    pub fn is_shutdown(&self) -> bool {
+        matches!(self.inner.kind, Kind::Shutdown)
+    }
+
+    /// Returns true if there was a general HTTP/2 error.
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
+    pub fn is_http2(&self) -> bool {
+        matches!(self.inner.kind, Kind::Http2)
     }
 
     /// Returns true if the error was caused by a timeout.
