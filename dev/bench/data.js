@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1638829052328,
+  "lastUpdate": 1638829068575,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -9661,6 +9661,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 63280,
             "range": "± 14830",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "84b78b6c877ff9aaa28d1e348a5deb63a9282503",
+          "message": "fix(http2): received `Body::size_hint()` now return 0 if implicitly empty (#2715)\n\nAn HTTP/2 stream may include a set of headers, and a flag signalling\r\nEND-STREAM, even if a `content-length` isn't included. hyper wouldn't\r\nnotice, and so the `Body` would report a size-hint of `0..MAX`. hyper\r\nnow notices that the stream is ended, and couldn't possibly include any\r\nbytes for the body, and thus will give a size-hint of `0` exactly.",
+          "timestamp": "2021-12-06T14:14:41-08:00",
+          "tree_id": "7f02415cdc380ac956b62bf2671b6d32791b50a1",
+          "url": "https://github.com/hyperium/hyper/commit/84b78b6c877ff9aaa28d1e348a5deb63a9282503"
+        },
+        "date": 1638829065976,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 77430,
+            "range": "± 6934",
             "unit": "ns/iter"
           }
         ]
