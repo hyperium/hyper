@@ -361,6 +361,26 @@ mod response_body_lengths {
         assert_eq!(res.headers().get("content-length").unwrap(), "10");
         assert_eq!(res.body().size_hint().exact(), Some(10));
     }
+
+    #[tokio::test]
+    async fn http2_implicit_empty_size_hint() {
+        use http_body::Body;
+
+        let server = serve();
+        let addr_str = format!("http://{}", server.addr());
+        server.reply();
+
+        let client = Client::builder()
+            .http2_only(true)
+            .build_http::<hyper::Body>();
+        let uri = addr_str
+            .parse::<hyper::Uri>()
+            .expect("server addr should parse");
+
+        let res = client.get(uri).await.unwrap();
+        assert_eq!(res.headers().get("content-length"), None);
+        assert_eq!(res.body().size_hint().exact(), Some(0));
+    }
 }
 
 #[test]

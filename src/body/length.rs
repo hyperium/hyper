@@ -68,6 +68,16 @@ impl DecodedLength {
             }
         }
     }
+
+    /// Returns whether this represents an exact length.
+    ///
+    /// This includes 0, which of course is an exact known length.
+    ///
+    /// It would return false if "chunked" or otherwise size-unknown.
+    #[cfg(feature = "http2")]
+    pub(crate) fn is_exact(&self) -> bool {
+        self.0 <= MAX_LEN
+    }
 }
 
 impl fmt::Debug for DecodedLength {
