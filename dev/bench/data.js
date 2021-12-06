@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1638829068575,
+  "lastUpdate": 1638829222702,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -31773,6 +31773,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 7115457,
             "range": "± 907067",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "84b78b6c877ff9aaa28d1e348a5deb63a9282503",
+          "message": "fix(http2): received `Body::size_hint()` now return 0 if implicitly empty (#2715)\n\nAn HTTP/2 stream may include a set of headers, and a flag signalling\r\nEND-STREAM, even if a `content-length` isn't included. hyper wouldn't\r\nnotice, and so the `Body` would report a size-hint of `0..MAX`. hyper\r\nnow notices that the stream is ended, and couldn't possibly include any\r\nbytes for the body, and thus will give a size-hint of `0` exactly.",
+          "timestamp": "2021-12-06T14:14:41-08:00",
+          "tree_id": "7f02415cdc380ac956b62bf2671b6d32791b50a1",
+          "url": "https://github.com/hyperium/hyper/commit/84b78b6c877ff9aaa28d1e348a5deb63a9282503"
+        },
+        "date": 1638829220194,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 125554,
+            "range": "± 17778",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 6637670,
+            "range": "± 745762",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 43163,
+            "range": "± 5333",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 50780,
+            "range": "± 7359",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 290128,
+            "range": "± 49554",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 52392573,
+            "range": "± 1678644",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 53580723,
+            "range": "± 6533045",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 59752671,
+            "range": "± 4890291",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 3848883,
+            "range": "± 474708",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 80520,
+            "range": "± 11366",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 166358,
+            "range": "± 24455",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 93502,
+            "range": "± 13803",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 197255,
+            "range": "± 34098",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 13068695,
+            "range": "± 10020291",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 12342520,
+            "range": "± 1719234",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 12197568,
+            "range": "± 9936313",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 66218546,
+            "range": "± 8336452",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 81354576,
+            "range": "± 16267261",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 7215954,
+            "range": "± 1871400",
             "unit": "ns/iter"
           }
         ]
