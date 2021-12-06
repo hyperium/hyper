@@ -484,12 +484,13 @@ where
                         }
                     }
 
-                    // automatically set Content-Length from body...
-                    if let Some(len) = body.size_hint().exact() {
-                        headers::set_content_length_if_missing(res.headers_mut(), len);
-                    }
 
                     if !body.is_end_stream() {
+                        // automatically set Content-Length from body...
+                        if let Some(len) = body.size_hint().exact() {
+                            headers::set_content_length_if_missing(res.headers_mut(), len);
+                        }
+
                         let body_tx = reply!(me, res, false);
                         H2StreamState::Body {
                             pipe: PipeToSendStream::new(body, body_tx),
