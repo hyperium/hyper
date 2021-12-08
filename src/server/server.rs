@@ -439,6 +439,20 @@ impl<I, E> Builder<I, E> {
         self
     }
 
+    /// Set the maximum write buffer size for each HTTP/2 stream.
+    ///
+    /// Default is currently ~400KB, but may change.
+    ///
+    /// # Panics
+    ///
+    /// The value must be no larger than `u32::MAX`.
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
+    pub fn http2_max_send_buf_size(mut self, max: usize) -> Self {
+        self.protocol.http2_max_send_buf_size(max);
+        self
+    }
+
     /// Sets the `Executor` to deal with connection tasks.
     ///
     /// Default is `tokio::spawn`.
