@@ -31,7 +31,7 @@ http = "0.2"
 http-body = "0.4"
 httpdate = "1.0"
 httparse = "1.5.1"
-h2 = { version = "0.3.3", optional = true }
+h2 = { version = "0.3.9", optional = true }
 itoa = "0.4.1"
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 pin-project-lite = "0.2.4"

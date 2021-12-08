@@ -33,6 +33,7 @@ use crate::{Body, Response};
 const DEFAULT_CONN_WINDOW: u32 = 1024 * 1024; // 1mb
 const DEFAULT_STREAM_WINDOW: u32 = 1024 * 1024; // 1mb
 const DEFAULT_MAX_FRAME_SIZE: u32 = 1024 * 16; // 16kb
+const DEFAULT_MAX_SEND_BUF_SIZE: usize = 1024 * 400; // 400kb
 
 #[derive(Clone, Debug)]
 pub(crate) struct Config {
@@ -45,6 +46,7 @@ pub(crate) struct Config {
     pub(crate) keep_alive_interval: Option<Duration>,
     #[cfg(feature = "runtime")]
     pub(crate) keep_alive_timeout: Duration,
+    pub(crate) max_send_buffer_size: usize,
 }
 
 impl Default for Config {
@@ -59,6 +61,7 @@ impl Default for Config {
             keep_alive_interval: None,
             #[cfg(feature = "runtime")]
             keep_alive_timeout: Duration::from_secs(20),
+            max_send_buffer_size: DEFAULT_MAX_SEND_BUF_SIZE,
         }
     }
 }
@@ -109,7 +112,8 @@ where
         builder
             .initial_window_size(config.initial_stream_window_size)
             .initial_connection_window_size(config.initial_conn_window_size)
-            .max_frame_size(config.max_frame_size);
+            .max_frame_size(config.max_frame_size)
+            .max_send_buffer_size(config.max_send_buffer_size);
         if let Some(max) = config.max_concurrent_streams {
             builder.max_concurrent_streams(max);
         }

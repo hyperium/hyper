@@ -543,6 +543,21 @@ impl<E> Http<E> {
         self
     }
 
+    /// Set the maximum write buffer size for each HTTP/2 stream.
+    ///
+    /// Default is currently ~400KB, but may change.
+    ///
+    /// # Panics
+    ///
+    /// The value must be no larger than `u32::MAX`.
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
+    pub fn http2_max_send_buf_size(&mut self, max: usize) -> &mut Self {
+        assert!(max <= std::u32::MAX as usize);
+        self.h2_builder.max_send_buffer_size = max;
+        self
+    }
+
     /// Set the maximum buffer size for the connection.
     ///
     /// Default is ~400kb.

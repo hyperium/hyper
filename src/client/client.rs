@@ -1223,6 +1223,20 @@ impl Builder {
         self
     }
 
+    /// Set the maximum write buffer size for each HTTP/2 stream.
+    ///
+    /// Default is currently 1MB, but may change.
+    ///
+    /// # Panics
+    ///
+    /// The value must be no larger than `u32::MAX`.
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
+    pub fn http2_max_send_buf_size(&mut self, max: usize) -> &mut Self {
+        self.conn_builder.http2_max_send_buf_size(max);
+        self
+    }
+
     /// Set whether to retry requests that get disrupted before ever starting
     /// to write.
     ///
