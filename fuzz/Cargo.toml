@@ -1,0 +1,29 @@
+
+[package]
+name = "hyper-fuzz"
+version = "0.0.0"
+authors = ["Automatically generated"]
+publish = false
+edition = "2018"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+tokio = "1.14.0"
+async-io = "1.6.0"
+
+[dependencies.hyper]
+path = ".."
+features = ["full"]
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "fuzz_request"
+path = "fuzz_targets/fuzz_request.rs"
+test = false
+doc = false
