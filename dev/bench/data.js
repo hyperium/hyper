@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1639073320993,
+  "lastUpdate": 1639073333141,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -4859,6 +4859,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 78953,
             "range": "± 21756",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "bff977b73ca8d737f5492c86c09fd64735c45461",
+          "message": "feat(http2): add `http2_max_send_buf_size` option to client and server\n\nThis value is like a high-water mark. It applies per stream. Once a\nstream has buffered that amount of bytes to send, it won't poll more\ndata from the `HttpBody` until the stream has been able to flush under\nit.",
+          "timestamp": "2021-12-09T10:06:14-08:00",
+          "tree_id": "81b62a218812f1725ee6f1535539dbf4e130d184",
+          "url": "https://github.com/hyperium/hyper/commit/bff977b73ca8d737f5492c86c09fd64735c45461"
+        },
+        "date": 1639073331143,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 58381,
+            "range": "± 4297",
             "unit": "ns/iter"
           }
         ]
