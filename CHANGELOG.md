@@ -1,3 +1,19 @@
+### v0.14.16 (2021-12-09)
+
+
+#### Bug Fixes
+
+* **http1:** return 414 when URI contains more than 65534 characters (#2706) ([5f938fff](https://github.com/hyperium/hyper/commit/5f938fffa64df23a2e4af81ed4e6d8bd760e2d05), closes [#2701](https://github.com/hyperium/hyper/issues/2701))
+* **http2:** received `Body::size_hint()` now return 0 if implicitly empty (#2715) ([84b78b6c](https://github.com/hyperium/hyper/commit/84b78b6c877ff9aaa28d1e348a5deb63a9282503))
+* **server:** use case-insensitive comparison for Expect: 100-continue (#2709) ([7435cc33](https://github.com/hyperium/hyper/commit/7435cc3399895643062f4e399fae6d5b20b049a1), closes [#2708](https://github.com/hyperium/hyper/issues/2708))
+
+
+#### Features
+
+* **http2:** add `http2_max_send_buf_size` option to client and server ([bff977b7](https://github.com/hyperium/hyper/commit/bff977b73ca8d737f5492c86c09fd64735c45461))
+* **server:** add HTTP/1 header read timeout option (#2675) ([842c6553](https://github.com/hyperium/hyper/commit/842c6553a5414a3a4a0fbf973079200612a9c3d2), closes [#2457](https://github.com/hyperium/hyper/issues/2457))
+
+
 ### v0.14.15 (2021-11-16)
 
 #### Bug Fixes
