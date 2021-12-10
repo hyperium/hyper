@@ -7,4 +7,4 @@ You want to contribute? You're awesome! Don't know where to start? Check the [li
 
 ## Pull Requests
 
-- [Commit Guidelines](./dev/COMMITS.md)
+- [Commit Guidelines](./docs/COMMITS.md)
