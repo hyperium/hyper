@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1639098411244,
+  "lastUpdate": 1639098413773,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -9841,6 +9841,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 60626,
             "range": "± 10984",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "9ee73231cc9c81155be6f33e94e4a1a756d46a3f",
+          "message": "docs(dev): rename dev docs directory to 'docs'",
+          "timestamp": "2021-12-09T17:02:25-08:00",
+          "tree_id": "1c9814553cfc70eb2e384696f537a51796946789",
+          "url": "https://github.com/hyperium/hyper/commit/9ee73231cc9c81155be6f33e94e4a1a756d46a3f"
+        },
+        "date": 1639098409934,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 59777,
+            "range": "± 19229",
             "unit": "ns/iter"
           }
         ]
