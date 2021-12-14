@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1639102825505,
+  "lastUpdate": 1639497845426,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -9931,6 +9931,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 49308,
             "range": "± 3862",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rajing@gmail.com",
+            "name": "Rajin Gill",
+            "username": "rajing"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "f44f7265e09d2192d4bab4f22688e4e0c820c6a2",
+          "message": "style(http1): correct indentation\n\nMinor reformatting of single block.",
+          "timestamp": "2021-12-14T08:01:14-08:00",
+          "tree_id": "a3b5bdafe443c603fb968ea7b9fc00ea8e86b40a",
+          "url": "https://github.com/hyperium/hyper/commit/f44f7265e09d2192d4bab4f22688e4e0c820c6a2"
+        },
+        "date": 1639497841700,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 58270,
+            "range": "± 10226",
             "unit": "ns/iter"
           }
         ]
