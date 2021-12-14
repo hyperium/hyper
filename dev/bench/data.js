@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1639508268786,
+  "lastUpdate": 1639508276352,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -10021,6 +10021,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 58270,
             "range": "± 10226",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bruce.mitchener@gmail.com",
+            "name": "Bruce Mitchener",
+            "username": "waywardmonkeys"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "02f3630af64715daa3c184d3701fadc5918cd0a6",
+          "message": "chore(dependencies): update to itoa 1",
+          "timestamp": "2021-12-14T10:55:21-08:00",
+          "tree_id": "ff34d1920c08580cc05e8caa5fb5364e66d680f1",
+          "url": "https://github.com/hyperium/hyper/commit/02f3630af64715daa3c184d3701fadc5918cd0a6"
+        },
+        "date": 1639508274501,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 49985,
+            "range": "± 4547",
             "unit": "ns/iter"
           }
         ]
