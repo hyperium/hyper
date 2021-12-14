@@ -76,21 +76,22 @@ where
 
     #[cfg(all(feature = "server", feature = "runtime"))]
     if !*ctx.h1_header_read_timeout_running {
-    if let Some(h1_header_read_timeout) = ctx.h1_header_read_timeout {
-        let deadline = Instant::now() + h1_header_read_timeout;
+        if let Some(h1_header_read_timeout) = ctx.h1_header_read_timeout {
+            let deadline = Instant::now() + h1_header_read_timeout;
 
-        match ctx.h1_header_read_timeout_fut {
-            Some(h1_header_read_timeout_fut) => {
-                debug!("resetting h1 header read timeout timer");
-                h1_header_read_timeout_fut.as_mut().reset(deadline);
-            },
-            None => {
-                debug!("setting h1 header read timeout timer");
-                *ctx.h1_header_read_timeout_fut = Some(Box::pin(tokio::time::sleep_until(deadline)));
+            match ctx.h1_header_read_timeout_fut {
+                Some(h1_header_read_timeout_fut) => {
+                    debug!("resetting h1 header read timeout timer");
+                    h1_header_read_timeout_fut.as_mut().reset(deadline);
+                }
+                None => {
+                    debug!("setting h1 header read timeout timer");
+                    *ctx.h1_header_read_timeout_fut =
+                        Some(Box::pin(tokio::time::sleep_until(deadline)));
+                }
             }
         }
     }
-}
 
     T::parse(bytes, ctx)
 }
