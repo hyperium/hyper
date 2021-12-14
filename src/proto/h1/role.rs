@@ -581,7 +581,7 @@ impl Server {
     #[inline]
     fn encode_headers<W>(
         msg: Encode<'_, StatusCode>,
-        mut dst: &mut Vec<u8>,
+        dst: &mut Vec<u8>,
         mut is_last: bool,
         orig_len: usize,
         mut wrote_len: bool,
@@ -838,7 +838,7 @@ impl Server {
                             "content-length: ",
                             header::CONTENT_LENGTH,
                         );
-                        let _ = ::itoa::write(&mut dst, len);
+                        extend(dst, ::itoa::Buffer::new().format(len).as_bytes());
                         extend(dst, b"\r\n");
                         Encoder::length(len)
                     }
