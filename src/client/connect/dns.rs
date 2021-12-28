@@ -38,7 +38,7 @@ pub(super) use self::sealed::Resolve;
 /// A domain name to resolve into IP addresses.
 #[derive(Clone, Hash, Eq, PartialEq)]
 pub struct Name {
-    host: String,
+    host: Box<str>,
 }
 
 /// A resolver using blocking `getaddrinfo` calls in a threadpool.
@@ -58,7 +58,7 @@ pub struct GaiFuture {
 }
 
 impl Name {
-    pub(super) fn new(host: String) -> Name {
+    pub(super) fn new(host: Box<str>) -> Name {
         Name { host }
     }
 
@@ -85,7 +85,7 @@ impl FromStr for Name {
 
     fn from_str(host: &str) -> Result<Self, Self::Err> {
         // Possibly add validation later
-        Ok(Name::new(host.to_owned()))
+        Ok(Name::new(host.into()))
     }
 }
 
