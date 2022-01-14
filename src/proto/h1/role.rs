@@ -955,7 +955,21 @@ impl Http1Transaction for Client {
                 }
             };
 
-            let slice = buf.split_to(len).freeze();
+            let mut slice = buf.split_to(len);
+
+            if ctx.h1_parser_config.obsolete_multiline_headers_in_responses_are_allowed() {
+                for header in &headers_indices[..headers_len] {
+                    // SAFETY: array is valid up to `headers_len`
+                    let header = unsafe { &*header.as_ptr() };
+                    for b in &mut slice[header.value.0..header.value.1] {
+                        if *b == b'\r' || *b == b'\n' {
+                            *b = b' ';
+                        }
+                    }
+                }
+            }
+
+            let slice = slice.freeze();
 
             let mut headers = ctx.cached_headers.take().unwrap_or_else(HeaderMap::new);
 
