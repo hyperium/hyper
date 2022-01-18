@@ -396,6 +396,11 @@ impl Error {
         }
     }
 
+    /// The error's standalone message, without the message from the source.
+    pub fn message(&self) -> impl fmt::Display + '_ {
+        self.description()
+    }
+
     fn description(&self) -> &str {
         match self.inner.kind {
             Kind::Parse(Parse::Method) => "invalid HTTP method parsed",
