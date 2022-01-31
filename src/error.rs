@@ -56,7 +56,6 @@ pub(super) enum Kind {
     /// The body write was aborted.
     BodyWriteAborted,
     /// Error calling AsyncWrite::shutdown()
-    #[cfg(feature = "http1")]
     Shutdown,
 
     /// A general error from h2.
@@ -199,6 +198,11 @@ impl Error {
     /// Returns true if the error was caused by a timeout.
     pub fn is_timeout(&self) -> bool {
         self.find_source::<TimedOut>().is_some()
+    }
+
+    /// Returns true if the error was caused by a shutdown.
+    pub fn is_shutdown(&self) -> bool {
+        matches!(self.inner.kind, Kind::Shutdown)
     }
 
     /// Consumes the error, returning its cause.
@@ -440,7 +444,6 @@ impl Error {
             #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::BodyWrite => "error writing a body to connection",
             Kind::BodyWriteAborted => "body write aborted",
-            #[cfg(feature = "http1")]
             Kind::Shutdown => "error shutting down connection",
             #[cfg(feature = "http2")]
             Kind::Http2 => "http2 error",
