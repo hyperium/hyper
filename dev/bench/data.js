@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1643675767962,
+  "lastUpdate": 1643675869635,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -33357,6 +33357,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 8201581,
             "range": "± 16048185",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "ver@buoyant.io",
+            "name": "Oliver Gould",
+            "username": "olix0r"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "dcdd6d109069949ee68ba70ece4a2b4f21079479",
+          "message": "fix(client): avoid panics in uses of `Instant` (#2746)\n\nEven though this is almost definitely a bug in Rust, it seems most\r\nprudent to actively avoid the uses of `Instant` that are prone to this\r\nbug.\r\n\r\nThis change replaces uses of `Instant::elapsed` and `Instant::sub` with\r\ncalls to `Instant::saturating_duration_since` to prevent this class of\r\npanic.",
+          "timestamp": "2022-01-31T16:33:16-08:00",
+          "tree_id": "531665b8b0a7a5761307eb9477534386e94e1d0b",
+          "url": "https://github.com/hyperium/hyper/commit/dcdd6d109069949ee68ba70ece4a2b4f21079479"
+        },
+        "date": 1643675867875,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 72597,
+            "range": "± 730",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 6974667,
+            "range": "± 828635",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 31319,
+            "range": "± 276",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 34532,
+            "range": "± 443",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 234677,
+            "range": "± 3154",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 52004194,
+            "range": "± 121729",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 50488102,
+            "range": "± 2200681",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 52898531,
+            "range": "± 1351518",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 3710136,
+            "range": "± 521059",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 52063,
+            "range": "± 556",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 119371,
+            "range": "± 1857",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 60619,
+            "range": "± 750",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 157244,
+            "range": "± 1267",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 9217260,
+            "range": "± 8686602",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 9386202,
+            "range": "± 8841958",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 8998202,
+            "range": "± 8718603",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 58731075,
+            "range": "± 3879603",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 75180021,
+            "range": "± 14214736",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 6266061,
+            "range": "± 1109655",
             "unit": "ns/iter"
           }
         ]
