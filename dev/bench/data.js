@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1640795923677,
+  "lastUpdate": 1643675746564,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -5069,6 +5069,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 52875,
             "range": "± 4475",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "ver@buoyant.io",
+            "name": "Oliver Gould",
+            "username": "olix0r"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "dcdd6d109069949ee68ba70ece4a2b4f21079479",
+          "message": "fix(client): avoid panics in uses of `Instant` (#2746)\n\nEven though this is almost definitely a bug in Rust, it seems most\r\nprudent to actively avoid the uses of `Instant` that are prone to this\r\nbug.\r\n\r\nThis change replaces uses of `Instant::elapsed` and `Instant::sub` with\r\ncalls to `Instant::saturating_duration_since` to prevent this class of\r\npanic.",
+          "timestamp": "2022-01-31T16:33:16-08:00",
+          "tree_id": "531665b8b0a7a5761307eb9477534386e94e1d0b",
+          "url": "https://github.com/hyperium/hyper/commit/dcdd6d109069949ee68ba70ece4a2b4f21079479"
+        },
+        "date": 1643675744369,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 68449,
+            "range": "± 12915",
             "unit": "ns/iter"
           }
         ]
