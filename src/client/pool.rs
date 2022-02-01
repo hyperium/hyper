@@ -458,7 +458,9 @@ impl<T: Poolable> PoolInner<T> {
                     trace!("idle interval evicting closed for {:?}", key);
                     return false;
                 }
-                if now - entry.idle_at > dur {
+
+                // Avoid `Instant::sub` to avoid issues like rust-lang/rust#86470.
+                if now.saturating_duration_since(entry.idle_at) > dur {
                     trace!("idle interval evicting expired for {:?}", key);
                     return false;
                 }
@@ -721,7 +723,8 @@ impl Expiration {
 
     fn expires(&self, instant: Instant) -> bool {
         match self.0 {
-            Some(timeout) => instant.elapsed() > timeout,
+            // Avoid `Instant::elapsed` to avoid issues like rust-lang/rust#86470.
+            Some(timeout) => Instant::now().saturating_duration_since(instant) > timeout,
             None => false,
         }
     }
