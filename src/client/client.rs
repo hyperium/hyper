@@ -251,7 +251,7 @@ where
             if req.version() == Version::HTTP_2 {
                 warn!("Connection is HTTP/1, but request requires HTTP/2");
                 return Err(ClientError::Normal(
-                    crate::Error::new_user_unsupported_version(),
+                    crate::Error::new_user_unsupported_version().with_client_connect_info(pooled.conn_info.clone()),
                 ));
             }
 
@@ -281,10 +281,15 @@ where
             authority_form(req.uri_mut());
         }
 
-        let mut res = pooled
-            .send_request_retryable(req)
-            .await
-            .map_err(ClientError::map_with_reused(pooled.is_reused()))?;
+        let mut res = match pooled.send_request_retryable(req).await {
+            Err((err, orig_req)) => {
+                return Err(ClientError::map_with_reused(pooled.is_reused())((
+                    err.with_client_connect_info(pooled.conn_info.clone()),
+                    orig_req,
+                )));
+            }
+            Ok(res) => res,
+        };
 
         // If the Connector included 'extra' info, add to Response...
         if let Some(extra) = &pooled.conn_info.extra {
