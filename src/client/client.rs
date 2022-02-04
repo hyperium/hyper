@@ -281,18 +281,15 @@ where
             authority_form(req.uri_mut());
         }
 
-        let fut = pooled
+        let mut res = pooled
             .send_request_retryable(req)
-            .map_err(ClientError::map_with_reused(pooled.is_reused()));
+            .await
+            .map_err(ClientError::map_with_reused(pooled.is_reused()))?;
 
         // If the Connector included 'extra' info, add to Response...
-        let extra_info = pooled.conn_info.extra.clone();
-        let fut = fut.map_ok(move |mut res| {
-            if let Some(extra) = extra_info {
-                extra.set(res.extensions_mut());
-            }
-            res
-        });
+        if let Some(extra) = &pooled.conn_info.extra {
+            extra.set(res.extensions_mut());
+        }
 
         // As of futures@0.1.21, there is a race condition in the mpsc
         // channel, such that sending when the receiver is closing can
@@ -302,10 +299,8 @@ where
         // To counteract this, we must check if our senders 'want' channel
         // has been closed after having tried to send. If so, error out...
         if pooled.is_closed() {
-            return fut.await;
+            return Ok(res);
         }
-
-        let mut res = fut.await?;
 
         // If pooled is HTTP/2, we can toss this reference immediately.
         //
