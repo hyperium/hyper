@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1644023577643,
+  "lastUpdate": 1644023720053,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -33555,6 +33555,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 6266061,
             "range": "± 1109655",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "david.pdrsn@gmail.com",
+            "name": "David Pedersen",
+            "username": "davidpdrsn"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6932896a7fca58fe461269461f925da8fd4e8d8a",
+          "message": "feat(error): add `Error::message` (#2737)\n\nThis adds Error::message which returns the message that is unique to the error, without the message from the source. That way users can create a newtype around hyper::Error and use this in the Display impl to work around #2732.\r\n\r\nCloses #2732",
+          "timestamp": "2022-02-04T17:10:00-08:00",
+          "tree_id": "93068abb38c05ac04c481a72fe0c1b743ed400a0",
+          "url": "https://github.com/hyperium/hyper/commit/6932896a7fca58fe461269461f925da8fd4e8d8a"
+        },
+        "date": 1644023718127,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 81650,
+            "range": "± 4161",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 6923076,
+            "range": "± 491786",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 35776,
+            "range": "± 1768",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 39393,
+            "range": "± 1547",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 256472,
+            "range": "± 19706",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 53683130,
+            "range": "± 4331910",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 50410210,
+            "range": "± 2469696",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 54376509,
+            "range": "± 1795234",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 3774528,
+            "range": "± 456456",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 60779,
+            "range": "± 3369",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 136667,
+            "range": "± 5660",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 70289,
+            "range": "± 3547",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 179919,
+            "range": "± 29764",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 10686093,
+            "range": "± 9346828",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 10602408,
+            "range": "± 9404524",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 10253971,
+            "range": "± 9595838",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 65144878,
+            "range": "± 4530585",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 79610245,
+            "range": "± 13282374",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 6910010,
+            "range": "± 937407",
             "unit": "ns/iter"
           }
         ]
