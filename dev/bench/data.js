@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1643675869635,
+  "lastUpdate": 1644023548422,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -5099,6 +5099,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 68449,
             "range": "± 12915",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "david.pdrsn@gmail.com",
+            "name": "David Pedersen",
+            "username": "davidpdrsn"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6932896a7fca58fe461269461f925da8fd4e8d8a",
+          "message": "feat(error): add `Error::message` (#2737)\n\nThis adds Error::message which returns the message that is unique to the error, without the message from the source. That way users can create a newtype around hyper::Error and use this in the Display impl to work around #2732.\r\n\r\nCloses #2732",
+          "timestamp": "2022-02-04T17:10:00-08:00",
+          "tree_id": "93068abb38c05ac04c481a72fe0c1b743ed400a0",
+          "url": "https://github.com/hyperium/hyper/commit/6932896a7fca58fe461269461f925da8fd4e8d8a"
+        },
+        "date": 1644023546598,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 56079,
+            "range": "± 1375",
             "unit": "ns/iter"
           }
         ]
