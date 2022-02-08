@@ -76,7 +76,7 @@ mod cfg;
 mod common;
 pub mod body;
 mod error;
-mod ext;
+pub mod ext;
 #[cfg(test)]
 mod mock;
 pub mod rt;

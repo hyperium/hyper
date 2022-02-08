@@ -487,6 +487,23 @@ where
             Poll::Ready(Ok(conn.take().unwrap().into_parts()))
         })
     }
+
+    /// Returns whether the [extended CONNECT protocol][1] is enabled or not.
+    ///
+    /// This setting is configured by the server peer by sending the
+    /// [`SETTINGS_ENABLE_CONNECT_PROTOCOL` parameter][2] in a `SETTINGS` frame.
+    /// This method returns the currently acknowledged value recieved from the
+    /// remote.
+    ///
+    /// [1]: https://datatracker.ietf.org/doc/html/rfc8441#section-4
+    /// [2]: https://datatracker.ietf.org/doc/html/rfc8441#section-3
+    #[cfg(feature = "http2")]
+    pub fn http2_is_extended_connect_protocol_enabled(&self) -> bool {
+        match self.inner.as_ref().unwrap() {
+            ProtoClient::H1 { .. } => false,
+            ProtoClient::H2 { h2 } => h2.is_extended_connect_protocol_enabled(),
+        }
+    }
 }
 
 impl<T, B> Future for Connection<T, B>
