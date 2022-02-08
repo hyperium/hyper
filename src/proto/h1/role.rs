@@ -1354,11 +1354,27 @@ fn record_header_indices(
     Ok(())
 }
 
+// Special constants for title-casing sec-websocket-*
+// Maybe overkill, but we have compile-time length guarantees.
+const SEC_WEBSOCKET_LENGTH: usize = 14;
+const SEC_WEBSOCKET_LOWER_CASE: &[u8; SEC_WEBSOCKET_LENGTH] = b"sec-websocket-";
+const SEC_WEBSOCKET_TITLE_CASE: &[u8; SEC_WEBSOCKET_LENGTH] = b"Sec-WebSocket-";
+
 // Write header names as title case. The header name is assumed to be ASCII.
 fn title_case(dst: &mut Vec<u8>, name: &[u8]) {
     dst.reserve(name.len());
 
-    // Ensure first character is uppercased
+    // If name starts with sec-websocket-, push Sec-WebSocket- instead, and re-let name to start
+    // afterwards for normal title-casing.
+    let name = if name.starts_with(SEC_WEBSOCKET_LOWER_CASE) {
+       dst.extend_from_slice(SEC_WEBSOCKET_TITLE_CASE);
+       &name[SEC_WEBSOCKET_LENGTH..]
+    } else {
+        name
+    };
+
+    // Ensure first character is uppercased. 
+    // If name started with sec-websocket-, prev byte actually was b'-'.
     let mut prev = b'-';
     for &(mut c) in name {
         if prev == b'-' {
@@ -2267,6 +2283,7 @@ mod tests {
         head.headers
             .insert("content-type", HeaderValue::from_static("application/json"));
         head.headers.insert("*-*", HeaderValue::from_static("o_o"));
+        head.headers.insert("sec-websocket-version", HeaderValue::from_static("13"));
 
         let mut vec = Vec::new();
         Client::encode(
@@ -2281,7 +2298,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(vec, b"GET / HTTP/1.1\r\nContent-Length: 10\r\nContent-Type: application/json\r\n*-*: o_o\r\n\r\n".to_vec());
+        assert_eq!(vec, b"GET / HTTP/1.1\r\nContent-Length: 10\r\nContent-Type: application/json\r\n*-*: o_o\r\nSec-WebSocket-Version: 13\r\n\r\n".to_vec());
     }
 
     #[test]
