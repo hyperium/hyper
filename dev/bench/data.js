@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1644284297622,
+  "lastUpdate": 1644284309825,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -5129,6 +5129,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 56079,
             "range": "± 1375",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "123095+nox@users.noreply.github.com",
+            "name": "Anthony Ramine",
+            "username": "nox"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5ec094caa5c999e6f919a2bc82f5f3b7d40c2d8a",
+          "message": "feat(client): implement the HTTP/2 extended CONNECT protocol from RFC 8441 (#2682)",
+          "timestamp": "2022-02-07T17:35:34-08:00",
+          "tree_id": "fdec04698a653d299a179535d3e15ef8f2c29b8a",
+          "url": "https://github.com/hyperium/hyper/commit/5ec094caa5c999e6f919a2bc82f5f3b7d40c2d8a"
+        },
+        "date": 1644284308082,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 55790,
+            "range": "± 2029",
             "unit": "ns/iter"
           }
         ]
