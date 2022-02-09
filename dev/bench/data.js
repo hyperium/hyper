@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1644440513431,
+  "lastUpdate": 1644440522066,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -10321,6 +10321,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 47248,
             "range": "± 2362",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "123095+nox@users.noreply.github.com",
+            "name": "Anthony Ramine",
+            "username": "nox"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1f0c177b35b14054eb1e5108e75f8bd3ff52813e",
+          "message": "feat(http1): implement obsolete line folding (#2734)\n\nThe client now has an option to allow parsing responses with obsolete line folding in headers. The option is off by default, since the spec recommends to reject such things if you can.",
+          "timestamp": "2022-02-09T12:59:23-08:00",
+          "tree_id": "0605d3eb51060ddcaca84a9906980060478dcd22",
+          "url": "https://github.com/hyperium/hyper/commit/1f0c177b35b14054eb1e5108e75f8bd3ff52813e"
+        },
+        "date": 1644440520244,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 49090,
+            "range": "± 1417",
             "unit": "ns/iter"
           }
         ]
