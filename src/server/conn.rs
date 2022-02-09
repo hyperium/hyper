@@ -102,6 +102,7 @@ pub struct Http<E = Exec> {
     h1_keep_alive: bool,
     h1_title_case_headers: bool,
     h1_preserve_header_case: bool,
+    add_date: bool,
     #[cfg(all(feature = "http1", feature = "runtime"))]
     h1_header_read_timeout: Option<Duration>,
     h1_writev: Option<bool>,
@@ -286,6 +287,7 @@ impl Http {
             h1_keep_alive: true,
             h1_title_case_headers: false,
             h1_preserve_header_case: false,
+            add_date: true,
             #[cfg(all(feature = "http1", feature = "runtime"))]
             h1_header_read_timeout: None,
             h1_writev: None,
@@ -372,6 +374,23 @@ impl<E> Http<E> {
     #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
     pub fn http1_preserve_header_case(&mut self, enabled: bool) -> &mut Self {
         self.h1_preserve_header_case = enabled;
+        self
+    }
+
+    /// Set whether to automatically add the `DATE` header to responses.
+    ///
+    /// If true, and a request does not include a `DATE` header, one will be
+    /// added automatically.
+    ///
+    /// It is a protocol violation not to include a `DATE` header unless the 
+    /// server does not have a clock capable of providing a reasonable 
+    /// approximation of the time.
+    ///
+    /// Currently, this setting is unimplemented for HTTP/2.
+    ///
+    /// Default is `true`. 
+    pub fn add_date(&mut self, enabled: bool) -> &mut Self {
+        self.add_date = enabled;
         self
     }
 
@@ -605,6 +624,7 @@ impl<E> Http<E> {
             h1_keep_alive: self.h1_keep_alive,
             h1_title_case_headers: self.h1_title_case_headers,
             h1_preserve_header_case: self.h1_preserve_header_case,
+            add_date: self.add_date,
             #[cfg(all(feature = "http1", feature = "runtime"))]
             h1_header_read_timeout: self.h1_header_read_timeout,
             h1_writev: self.h1_writev,
@@ -668,6 +688,9 @@ impl<E> Http<E> {
                 }
                 if self.h1_preserve_header_case {
                     conn.set_preserve_header_case();
+                }
+                if !self.add_date {
+                    conn.disable_add_date();
                 }
                 #[cfg(all(feature = "http1", feature = "runtime"))]
                 if let Some(header_read_timeout) = self.h1_header_read_timeout {

@@ -59,6 +59,8 @@ where
                 h1_header_read_timeout_running: false,
                 preserve_header_case: false,
                 title_case_headers: false,
+                #[cfg(feature = "server")]
+                add_date: true,
                 h09_responses: false,
                 #[cfg(feature = "ffi")]
                 on_informational: None,
@@ -109,6 +111,11 @@ where
 
     pub(crate) fn set_preserve_header_case(&mut self) {
         self.state.preserve_header_case = true;
+    }
+
+    #[cfg(feature = "server")]
+    pub(crate) fn disable_add_date(&mut self) {
+        self.state.add_date = false;
     }
 
     #[cfg(feature = "client")]
@@ -558,6 +565,8 @@ where
                 keep_alive: self.state.wants_keep_alive(),
                 req_method: &mut self.state.method,
                 title_case_headers: self.state.title_case_headers,
+                #[cfg(feature = "server")]
+                add_date: self.state.add_date,
             },
             buf,
         ) {
@@ -827,6 +836,8 @@ struct State {
     h1_header_read_timeout_running: bool,
     preserve_header_case: bool,
     title_case_headers: bool,
+    #[cfg(feature = "server")]
+    add_date: bool,
     h09_responses: bool,
     /// If set, called with each 1xx informational response received for
     /// the current request. MUST be unset after a non-1xx response is

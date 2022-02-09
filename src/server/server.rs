@@ -309,6 +309,22 @@ impl<I, E> Builder<I, E> {
         self
     }
 
+    /// Set whether to automatically add the `DATE` header to responses.
+    ///
+    /// If true, and a request does not include a `DATE` header, one will be
+    /// added automatically.
+    ///
+    /// It is a protocol violation not to include a `DATE` header unless the 
+    /// server does not have a clock capable of providing a reasonable 
+    /// approximation of the time.
+    ///
+    /// Currently, this setting is unimplemented for HTTP/2.
+    ///
+    /// Default is `true`. 
+    pub fn add_date(mut self, val: bool) -> Self {
+        self.protocol.add_date(val);
+        self
+    }
     /// Set a timeout for reading client request headers. If a client does not 
     /// transmit the entire header within this time, the connection is closed.
     ///
