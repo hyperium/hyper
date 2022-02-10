@@ -38,7 +38,7 @@
 pub use tower_service::Service;
 
 mod http;
-mod make;
+pub mod make;
 #[cfg(all(any(feature = "http1", feature = "http2"), feature = "client"))]
 mod oneshot;
 mod util;
