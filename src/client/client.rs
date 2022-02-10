@@ -1000,6 +1000,9 @@ impl Builder {
     /// Set whether HTTP/1 connections will accept spaces between header names
     /// and the colon that follow them in responses.
     ///
+    /// Newline codepoints (`\r` and `\n`) will be transformed to spaces when
+    /// parsing.
+    ///
     /// You probably don't need this, here is what [RFC 7230 Section 3.2.4.] has
     /// to say about it:
     ///
@@ -1019,6 +1022,43 @@ impl Builder {
     pub fn http1_allow_spaces_after_header_name_in_responses(&mut self, val: bool) -> &mut Self {
         self.conn_builder
             .http1_allow_spaces_after_header_name_in_responses(val);
+        self
+    }
+
+    /// Set whether HTTP/1 connections will accept obsolete line folding for
+    /// header values.
+    ///
+    /// You probably don't need this, here is what [RFC 7230 Section 3.2.4.] has
+    /// to say about it:
+    ///
+    /// > A server that receives an obs-fold in a request message that is not
+    /// > within a message/http container MUST either reject the message by
+    /// > sending a 400 (Bad Request), preferably with a representation
+    /// > explaining that obsolete line folding is unacceptable, or replace
+    /// > each received obs-fold with one or more SP octets prior to
+    /// > interpreting the field value or forwarding the message downstream.
+    ///
+    /// > A proxy or gateway that receives an obs-fold in a response message
+    /// > that is not within a message/http container MUST either discard the
+    /// > message and replace it with a 502 (Bad Gateway) response, preferably
+    /// > with a representation explaining that unacceptable line folding was
+    /// > received, or replace each received obs-fold with one or more SP
+    /// > octets prior to interpreting the field value or forwarding the
+    /// > message downstream.
+    ///
+    /// > A user agent that receives an obs-fold in a response message that is
+    /// > not within a message/http container MUST replace each received
+    /// > obs-fold with one or more SP octets prior to interpreting the field
+    /// > value.
+    ///
+    /// Note that this setting does not affect HTTP/2.
+    ///
+    /// Default is false.
+    ///
+    /// [RFC 7230 Section 3.2.4.]: https://tools.ietf.org/html/rfc7230#section-3.2.4
+    pub fn http1_allow_obsolete_multiline_headers_in_responses(&mut self, val: bool) -> &mut Self {
+        self.conn_builder
+            .http1_allow_obsolete_multiline_headers_in_responses(val);
         self
     }
 
