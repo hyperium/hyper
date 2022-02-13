@@ -33,7 +33,6 @@ httpdate = "1.0"
 httparse = "1.6"
 h2 = { version = "0.3.9", optional = true }
 itoa = "1"
-tracing = { version = "0.1", default-features = false, features = ["std"] }
 pin-project-lite = "0.2.4"
 tower-service = "0.3"
 tokio = { version = "1", features = ["sync"] }
@@ -45,7 +44,7 @@ libc = { version = "0.2", optional = true }
 opentelemetry = { version = "0.17.0", features = ["rt-tokio", "trace"], optional = true }
 socket2 = { version = "0.4", optional = true }
 tracing = { version = "0.1", default-features = false, features = ["std"], optional = true }
-tracing-attributes-http = { path = "./../tracing-attributes-http", version = "0.1", default-features = false, optional = true }
+tracing-attributes-http = { version = "0.1", default-features = false, optional = true }
 
 [dev-dependencies]
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
