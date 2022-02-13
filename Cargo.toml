@@ -42,13 +42,18 @@ want = "0.3"
 # Optional
 
 libc = { version = "0.2", optional = true }
+opentelemetry = { version = "0.17.0", features = ["rt-tokio", "trace"], optional = true }
 socket2 = { version = "0.4", optional = true }
+tracing = { version = "0.1", default-features = false, features = ["std"], optional = true }
+tracing-attributes-http = { path = "./../tracing-attributes-http", version = "0.1", default-features = false, optional = true }
 
 [dev-dependencies]
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
 matches = "0.1"
 num_cpus = "1.0"
+opentelemetry-jaeger = { version = "0.16", features = ["reqwest_collector_client","rt-tokio"]}
 pretty_env_logger = "0.4"
+reqwest = {version = "0.11"}
 spmc = "0.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -66,6 +71,8 @@ tokio = { version = "1", features = [
 tokio-test = "0.4"
 tokio-util = { version = "0.6", features = ["codec"] }
 tower = { version = "0.4", features = ["make", "util"] }
+tracing-opentelemetry = "0.17.0"
+tracing-subscriber = { version = "0.3", features = ["std", "env-filter"]}
 url = "2.2"
 
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dev-dependencies]
@@ -80,9 +87,9 @@ full = [
     "client",
     "http1",
     "http2",
+    "runtime",
     "server",
     "stream",
-    "runtime",
 ]
 
 # HTTP versions
@@ -107,6 +114,13 @@ tcp = [
     "tokio/net",
     "tokio/rt",
     "tokio/time",
+]
+
+# Trace functionality
+traceable = [
+    "opentelemetry",
+    "tracing",
+    "tracing-attributes-http"
 ]
 
 # C-API support (currently unstable (no semver))
@@ -142,9 +156,24 @@ path = "examples/client_json.rs"
 required-features = ["full"]
 
 [[example]]
+name = "client_json_traceable"
+path = "examples/client_json_traceable.rs"
+required-features = ["full",
+    "trace",
+    ]
+
+[[example]]
 name = "echo"
 path = "examples/echo.rs"
 required-features = ["full"]
+
+[[example]]
+name = "echo_traceable"
+path = "examples/echo_traceable.rs"
+required-features = ["full",
+    "traceable",
+    "tracing/max_level_trace",
+    ]
 
 [[example]]
 name = "gateway"

@@ -51,8 +51,8 @@
 //! - `server`: Enables the HTTP `server`.
 //! - `runtime`: Enables convenient integration with `tokio`, providing
 //!   connectors and acceptors for TCP, and a default executor.
-//! - `tcp`: Enables convenient implementations over TCP (using tokio).
 //! - `stream`: Provides `futures::Stream` capabilities.
+//! - `tcp`: Enables convenient implementations over TCP (using tokio).
 //!
 //! [feature flags]: https://doc.rust-lang.org/cargo/reference/manifest.html#the-features-section
 
@@ -86,11 +86,16 @@ pub mod upgrade;
 #[cfg(feature = "ffi")]
 pub mod ffi;
 
+#[cfg(feature = "traceable")]
+#[macro_use]
+extern crate tracing;
+#[cfg(feature = "traceable")]
+extern crate opentelemetry;
+
 cfg_proto! {
     mod headers;
     mod proto;
 }
-
 cfg_feature! {
     #![feature = "client"]
 

@@ -103,8 +103,8 @@ pub(super) fn encode_headers<T>(
 where
     T: Http1Transaction,
 {
-    let span = trace_span!("encode_headers");
-    let _s = span.enter();
+    // let span = trace_span!("encode_headers");
+    // let _s = span.enter();
     T::encode(enc, dst)
 }
 
@@ -144,7 +144,7 @@ impl Http1Transaction for Server {
             /* SAFETY: it is safe to go from MaybeUninit array to array of MaybeUninit */
             let mut headers: [MaybeUninit<httparse::Header<'_>>; MAX_HEADERS] =
                 unsafe { MaybeUninit::uninit().assume_init() };
-            trace!(bytes = buf.len(), "Request.parse");
+                trace!(bytes = buf.len(), "Request.parse");
             let mut req = httparse::Request::new(&mut []);
             let bytes = buf.as_ref();
             match req.parse_with_uninit_headers(bytes, &mut headers) {
@@ -320,14 +320,28 @@ impl Http1Transaction for Server {
         }))
     }
 
+    #[cfg_attr(feature = "traceable", tracing_attributes_http::server_send(level = tracing::Level::TRACE, name = "Server::encode", skip = [dst, msg]))]
     fn encode(mut msg: Encode<'_, Self::Outgoing>, dst: &mut Vec<u8>) -> crate::Result<Encoder> {
-        trace!(
-            "Server::encode status={:?}, body={:?}, req_method={:?}",
-            msg.head.subject,
-            msg.body,
-            msg.req_method
-        );
-
+        // Avoid getting the current span multiple times:
+        // `tracing::Span::current()` performs a thread-local storage access.
+        let span: Option<_>;
+        if cfg!(feature = "traceable") {
+            span = Some(tracing::Span::current());
+        } else {
+            span = None;
+        }
+        #[cfg(feature = "traceable")]
+        {
+            let s = span_setup(&span, &msg);
+            s.record(
+                "http.status_code",
+                &format!("{:?}", msg.head.subject).as_str(),
+            );
+            s.record(
+                "http.response_content_length_uncompressed",
+                &format!("{:?}", msg.body.as_ref().unwrap()).as_str(),
+            );
+        }
         let mut wrote_len = false;
 
         // hyper currently doesn't support returning 1xx status codes as a Response
@@ -342,7 +356,18 @@ impl Http1Transaction for Server {
             wrote_len = true;
             (Ok(()), true)
         } else if msg.head.subject.is_informational() {
-            warn!("response with 1xx status code not supported");
+            #[cfg(feature = "traceable")]
+            {
+                span.as_ref().unwrap().record(
+                    "otel.status_code",
+                    &format!("{:?}", opentelemetry::trace::StatusCode::Error).as_str(),
+                );
+                span.as_ref().unwrap().record(
+                    "otel.status_message",
+                    &format!("ERROR: response with 1xx status code not supported.").as_str(),
+                );
+            }
+
             *msg.head = MessageHead::default();
             msg.head.subject = StatusCode::INTERNAL_SERVER_ERROR;
             msg.body = None;
@@ -359,16 +384,51 @@ impl Http1Transaction for Server {
         let init_cap = 30 + msg.head.headers.len() * AVERAGE_HEADER_SIZE;
         dst.reserve(init_cap);
         if msg.head.version == Version::HTTP_11 && msg.head.subject == StatusCode::OK {
+            #[cfg(feature = "traceable")]
+            span.as_ref().unwrap().record("http.flavor", &1.1);
+
             extend(dst, b"HTTP/1.1 200 OK\r\n");
         } else {
             match msg.head.version {
-                Version::HTTP_10 => extend(dst, b"HTTP/1.0 "),
-                Version::HTTP_11 => extend(dst, b"HTTP/1.1 "),
-                Version::HTTP_2 => {
-                    debug!("response with HTTP2 version coerced to HTTP/1.1");
+                Version::HTTP_10 => {
+                    #[cfg(feature = "traceable")]
+                    span.as_ref().unwrap().record("http.flavor", &1.0);
+
+                    extend(dst, b"HTTP/1.0 ");
+                }
+                Version::HTTP_11 => {
+                    #[cfg(feature = "traceable")]
+                    span.as_ref().unwrap().record("http.flavor", &1.1);
+
                     extend(dst, b"HTTP/1.1 ");
                 }
-                other => panic!("unexpected response version: {:?}", other),
+                Version::HTTP_2 => {
+                    #[cfg(feature = "traceable")]
+                    {
+                        span.as_ref().unwrap().record("http.flavor", &1.1);
+                        event!(
+                            tracing::Level::TRACE,
+                            "response with HTTP2 version coerced to HTTP/1.1"
+                        );
+                    }
+                    extend(dst, b"HTTP/1.1 ");
+                }
+                other => {
+                    #[cfg(feature = "traceable")]
+                    {
+                        // 0.0 is a placeholder for `other` until `impl Debug for Version`
+                        span.as_ref().unwrap().record("http.flavor", &0.0);
+                        span.as_ref().unwrap().record(
+                            "otel.status_code",
+                            &format!("{:?}", opentelemetry::trace::StatusCode::Error).as_str(),
+                        );
+                        span.as_ref().unwrap().record(
+                            "otel.status_message",
+                            &format!("PANIC: unexpected response version: {:?}", other).as_str(),
+                        );
+                    }
+                    panic!("unexpected response version: {:?}", other);
+                }
             }
 
             extend(dst, msg.head.subject.as_str().as_bytes());
@@ -435,6 +495,32 @@ impl Http1Transaction for Server {
     fn update_date() {
         date::update();
     }
+}
+
+// Record those values required at span creation (OTel HTTP semantics).
+//  - http.method
+//  - http.scheme
+//  - http.target
+//  - net.host.name
+//  - net.host.port
+fn span_setup<'s>(
+    span: &'s Option<tracing::Span>,
+    msg: &Encode<'_, StatusCode>,
+) -> &'s tracing::Span {
+    let s = span.as_ref().unwrap();
+    s.record(
+        "http.method",
+        &format!("{:?}", msg.req_method.as_ref().unwrap()).as_str(),
+    );
+    // Cannot, currently, reliably infer scheme
+    s.record("http.scheme", &tracing::field::Empty);
+    // Cannot, currently, reliably infer target [HTTP request line](https://datatracker.ietf.org/doc/html/rfc7230#section-3.1.1)
+    s.record("http.target", &tracing::field::Empty);
+    // Cannot, currently, reliably infer network host name
+    s.record("net.host.name", &tracing::field::Empty);
+    // Cannot, currently, reliably infer network host port
+    s.record("net.host.port", &tracing::field::Empty);
+    s
 }
 
 #[cfg(feature = "server")]
