@@ -59,6 +59,7 @@ impl Client<HttpConnector, Body> {
     /// The default connector does **not** handle TLS. Speaking to `https`
     /// destinations will require [configuring a connector that implements
     /// TLS](https://hyper.rs/guides/client/configuration).
+    #[cfg_attr(docsrs, doc(cfg(feature = "tcp")))]
     #[inline]
     pub fn new() -> Client<HttpConnector, Body> {
         Builder::default().build_http()
