@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1644967552533,
+  "lastUpdate": 1644967554521,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -10441,6 +10441,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 50158,
             "range": "± 2651",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "ilya.trefilov@outlook.com",
+            "name": "Ilya Trefilov",
+            "username": "ilyatrefilov"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "4fcfe1f4ba461209483dec960e36293459a1c60a",
+          "message": "docs(client): Add tcp feature for Client::new docs\n\nadded cfg attr to denote required tcp feature in docs for Client::new method\n\nCloses: #2759",
+          "timestamp": "2022-02-15T15:23:15-08:00",
+          "tree_id": "35575e7f75d6a7e9ab75619b01f569dae890724e",
+          "url": "https://github.com/hyperium/hyper/commit/4fcfe1f4ba461209483dec960e36293459a1c60a"
+        },
+        "date": 1644967552052,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46384,
+            "range": "± 3729",
             "unit": "ns/iter"
           }
         ]
