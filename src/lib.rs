@@ -5,6 +5,11 @@
 #![cfg_attr(test, deny(warnings))]
 #![cfg_attr(all(test, feature = "nightly"), feature(test))]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(hyper_unstable_ffi, crate_type = "cdylib")]
+#![cfg_attr(
+    hyper_unstable_ffi,
+    allow(unknown_lints, deprecated_cfg_attr_crate_type_name)
+)]
 
 //! # hyper
 //!
