@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1644967696073,
+  "lastUpdate": 1645725115185,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -5249,6 +5249,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 55201,
             "range": "± 1886",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "75345222d791d850fcb83ccaf5f56579757466c2",
+          "message": "chore(ci): increase MSRV to 1.49",
+          "timestamp": "2022-02-24T09:48:41-08:00",
+          "tree_id": "5de55cb62394fa729cf83ba2e63f60efac959d61",
+          "url": "https://github.com/hyperium/hyper/commit/75345222d791d850fcb83ccaf5f56579757466c2"
+        },
+        "date": 1645725110734,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 58980,
+            "range": "± 2374",
             "unit": "ns/iter"
           }
         ]
