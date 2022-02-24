@@ -100,7 +100,7 @@ jobs:
     strategy:
       matrix:
         rust:
-          - 1.46 # keep in sync with MSRV.md dev doc
+          - 1.49 # keep in sync with MSRV.md dev doc
 
         os:
           - ubuntu-latest
