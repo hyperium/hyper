@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1645725276098,
+  "lastUpdate": 1645813836827,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -5279,6 +5279,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 58980,
             "range": "± 2374",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "git@stephank.nl",
+            "name": "Stéphan Kochen",
+            "username": "stephank"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6464c0ed49a3fd1e5a7fa383c463d67799b84449",
+          "message": "docs(upgrade): fix typo in upgrade docs (#2765)",
+          "timestamp": "2022-02-25T10:28:13-08:00",
+          "tree_id": "9a9fb503c58840e975cb3cc7d271af7436a16654",
+          "url": "https://github.com/hyperium/hyper/commit/6464c0ed49a3fd1e5a7fa383c463d67799b84449"
+        },
+        "date": 1645813834548,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 47799,
+            "range": "± 6429",
             "unit": "ns/iter"
           }
         ]
