@@ -17,7 +17,7 @@
 //!
 //! # Client
 //!
-//! Sending an HTTP ugprade from the [`client`](super::client) involves setting
+//! Sending an HTTP upgrade from the [`client`](super::client) involves setting
 //! either the appropriate method, if wanting to `CONNECT`, or headers such as
 //! `Upgrade` and `Connection`, on the `http::Request`. Once receiving the
 //! `http::Response` back, you must check for the specific information that the
