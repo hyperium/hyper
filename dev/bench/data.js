@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1646079843716,
+  "lastUpdate": 1646086869447,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -5339,6 +5339,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 49276,
             "range": "± 3291",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "dvr.sahin@gmail.com",
+            "name": "Devrim Şahin",
+            "username": "kubuzetto"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "055b4e7ea6bd22859c20d60776b0c8f20d27498e",
+          "message": "feat(client): add `HttpInfo::local_addr()` method\n\nThis adds `local_addr` information from `TcpStream` to the `HttpInfo` struct\r\n\r\nCloses #2767",
+          "timestamp": "2022-02-28T14:18:51-08:00",
+          "tree_id": "d9fb767bcc204f34900616ae09a673bc6761fc70",
+          "url": "https://github.com/hyperium/hyper/commit/055b4e7ea6bd22859c20d60776b0c8f20d27498e"
+        },
+        "date": 1646086867628,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 53092,
+            "range": "± 3842",
             "unit": "ns/iter"
           }
         ]
