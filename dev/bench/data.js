@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1646348869888,
+  "lastUpdate": 1646348871926,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -5369,6 +5369,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 53092,
             "range": "± 3842",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "remy.rakic+github@gmail.com",
+            "name": "Rémy Rakic",
+            "username": "lqd"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "1e9cd4f292cf1ac7a6e1193896659c8163cb76be",
+          "message": "docs(ffi): document nightly requirement for FFI\n\nUpdate the command to use `--crate-type`.",
+          "timestamp": "2022-03-03T15:05:42-08:00",
+          "tree_id": "08d09c5113004ec8917647ef48b3558c9f202f46",
+          "url": "https://github.com/hyperium/hyper/commit/1e9cd4f292cf1ac7a6e1193896659c8163cb76be"
+        },
+        "date": 1646348869110,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 74178,
+            "range": "± 12666",
             "unit": "ns/iter"
           }
         ]
