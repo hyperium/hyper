@@ -48,6 +48,7 @@
     not(all(feature = "http1", feature = "http2"))
 ))]
 use std::marker::PhantomData;
+#[cfg(all(any(feature = "http1", feature = "http2"), feature = "runtime"))]
 use std::time::Duration;
 
 #[cfg(feature = "http2")]
