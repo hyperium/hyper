@@ -22,7 +22,7 @@ pub(crate) struct EncodedBuf<B> {
 }
 
 #[derive(Debug)]
-pub(crate) struct NotEof;
+pub(crate) struct NotEof(u64);
 
 #[derive(Debug, PartialEq, Clone)]
 enum Kind {
@@ -98,7 +98,7 @@ impl Encoder {
             })),
             #[cfg(feature = "server")]
             Kind::CloseDelimited => Ok(None),
-            Kind::Length(_) => Err(NotEof),
+            Kind::Length(n) => Err(NotEof(n)),
         }
     }
 
@@ -350,6 +350,14 @@ impl<B: Buf> From<Chain<Chain<ChunkSize, B>, StaticBuf>> for EncodedBuf<B> {
         }
     }
 }
+
+impl fmt::Display for NotEof {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "early end, expected {} more bytes", self.0)
+    }
+}
+
+impl std::error::Error for NotEof {}
 
 #[cfg(test)]
 mod tests {

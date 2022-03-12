@@ -686,10 +686,8 @@ where
                             Writing::KeepAlive
                         }
                     }
-                    Err(_not_eof) => {
-                        res = Err(crate::Error::new_user_body(
-                            crate::Error::new_body_write_aborted(),
-                        ));
+                    Err(not_eof) => {
+                        res = Err(crate::Error::new_body_write_aborted().with(not_eof));
                         Writing::Closed
                     }
                 }

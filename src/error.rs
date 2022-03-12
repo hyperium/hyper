@@ -53,8 +53,6 @@ pub(super) enum Kind {
     /// Error while writing a body to connection.
     #[cfg(any(feature = "http1", feature = "http2"))]
     BodyWrite,
-    /// The body write was aborted.
-    BodyWriteAborted,
     /// Error calling AsyncWrite::shutdown()
     #[cfg(feature = "http1")]
     Shutdown,
@@ -96,6 +94,8 @@ pub(super) enum User {
     /// Error calling user's HttpBody::poll_data().
     #[cfg(any(feature = "http1", feature = "http2"))]
     Body,
+    /// The user aborted writing of the outgoing body.
+    BodyWriteAborted,
     /// Error calling user's MakeService.
     #[cfg(any(feature = "http1", feature = "http2"))]
     #[cfg(feature = "server")]
@@ -193,7 +193,7 @@ impl Error {
 
     /// Returns true if the body write was aborted.
     pub fn is_body_write_aborted(&self) -> bool {
-        matches!(self.inner.kind, Kind::BodyWriteAborted)
+        matches!(self.inner.kind, Kind::User(User::BodyWriteAborted))
     }
 
     /// Returns true if the error was caused by a timeout.
@@ -305,7 +305,7 @@ impl Error {
     }
 
     pub(super) fn new_body_write_aborted() -> Error {
-        Error::new(Kind::BodyWriteAborted)
+        Error::new(Kind::User(User::BodyWriteAborted))
     }
 
     fn new_user(user: User) -> Error {
@@ -444,7 +444,6 @@ impl Error {
             Kind::Body => "error reading a body from connection",
             #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::BodyWrite => "error writing a body to connection",
-            Kind::BodyWriteAborted => "body write aborted",
             #[cfg(feature = "http1")]
             Kind::Shutdown => "error shutting down connection",
             #[cfg(feature = "http2")]
@@ -454,6 +453,7 @@ impl Error {
 
             #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::User(User::Body) => "error from user's HttpBody stream",
+            Kind::User(User::BodyWriteAborted) => "user body write aborted",
             #[cfg(any(feature = "http1", feature = "http2"))]
             #[cfg(feature = "server")]
             Kind::User(User::MakeService) => "error from user's MakeService",
