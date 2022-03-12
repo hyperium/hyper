@@ -1,36 +1,29 @@
+use std::error::Error as StdError;
 use std::fmt;
 #[cfg(feature = "tcp")]
 use std::net::{SocketAddr, TcpListener as StdTcpListener};
 #[cfg(any(feature = "tcp", feature = "http1"))]
 use std::time::Duration;
 
-#[cfg(all(feature = "tcp", any(feature = "http1", feature = "http2")))]
+use pin_project_lite::pin_project;
+use tokio::io::{AsyncRead, AsyncWrite};
+use tracing::trace;
+
+use super::accept::Accept;
+#[cfg(all(feature = "tcp"))]
 use super::tcp::AddrIncoming;
+use crate::body::{Body, HttpBody};
 use crate::common::exec::Exec;
+use crate::common::exec::{ConnStreamExec, NewSvcExec};
+use crate::common::{task, Future, Pin, Poll, Unpin};
+// Renamed `Http` as `Http_` for now so that people upgrading don't see an
+// error that `hyper::server::Http` is private...
+use super::conn::{Connection, Http as Http_, UpgradeableConnection};
+use super::shutdown::{Graceful, GracefulWatcher};
+use crate::service::{HttpService, MakeServiceRef};
 
-cfg_feature! {
-    #![any(feature = "http1", feature = "http2")]
+use self::new_svc::NewSvcTask;
 
-    use std::error::Error as StdError;
-
-    use pin_project_lite::pin_project;
-    use tokio::io::{AsyncRead, AsyncWrite};
-    use tracing::trace;
-
-    use super::accept::Accept;
-    use crate::body::{Body, HttpBody};
-    use crate::common::{task, Future, Pin, Poll, Unpin};
-    use crate::common::exec::{ConnStreamExec, NewSvcExec};
-    // Renamed `Http` as `Http_` for now so that people upgrading don't see an
-    // error that `hyper::server::Http` is private...
-    use super::conn::{Connection, Http as Http_, UpgradeableConnection};
-    use super::shutdown::{Graceful, GracefulWatcher};
-    use crate::service::{HttpService, MakeServiceRef};
-
-    use self::new_svc::NewSvcTask;
-}
-
-#[cfg(any(feature = "http1", feature = "http2"))]
 pin_project! {
     /// A listening HTTP server that accepts connections in both HTTP1 and HTTP2 by default.
     ///
@@ -46,17 +39,8 @@ pin_project! {
     }
 }
 
-/// A listening HTTP server that accepts connections in both HTTP1 and HTTP2 by default.
-///
-/// Needs at least one of the `http1` and `http2` features to be activated to actually be useful.
-#[cfg(not(any(feature = "http1", feature = "http2")))]
-pub struct Server<I, S, E = Exec> {
-    _marker: std::marker::PhantomData<(I, S, E)>,
-}
-
 /// A builder for a [`Server`](Server).
 #[derive(Debug)]
-#[cfg(any(feature = "http1", feature = "http2"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
 pub struct Builder<I, E = Exec> {
     incoming: I,
@@ -65,7 +49,6 @@ pub struct Builder<I, E = Exec> {
 
 // ===== impl Server =====
 
-#[cfg(any(feature = "http1", feature = "http2"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
 impl<I> Server<I, ()> {
     /// Starts a [`Builder`](Builder) with the provided incoming stream.
@@ -77,47 +60,48 @@ impl<I> Server<I, ()> {
     }
 }
 
-cfg_feature! {
-    #![all(feature = "tcp", any(feature = "http1", feature = "http2"))]
+#[cfg(feature = "tcp")]
+#[cfg_attr(
+    docsrs,
+    doc(cfg(all(feature = "tcp", any(feature = "http1", feature = "http2"))))
+)]
+impl Server<AddrIncoming, ()> {
+    /// Binds to the provided address, and returns a [`Builder`](Builder).
+    ///
+    /// # Panics
+    ///
+    /// This method will panic if binding to the address fails. For a method
+    /// to bind to an address and return a `Result`, see `Server::try_bind`.
+    pub fn bind(addr: &SocketAddr) -> Builder<AddrIncoming> {
+        let incoming = AddrIncoming::new(addr).unwrap_or_else(|e| {
+            panic!("error binding to {}: {}", addr, e);
+        });
+        Server::builder(incoming)
+    }
 
-    impl Server<AddrIncoming, ()> {
-        /// Binds to the provided address, and returns a [`Builder`](Builder).
-        ///
-        /// # Panics
-        ///
-        /// This method will panic if binding to the address fails. For a method
-        /// to bind to an address and return a `Result`, see `Server::try_bind`.
-        pub fn bind(addr: &SocketAddr) -> Builder<AddrIncoming> {
-            let incoming = AddrIncoming::new(addr).unwrap_or_else(|e| {
-                panic!("error binding to {}: {}", addr, e);
-            });
-            Server::builder(incoming)
-        }
+    /// Tries to bind to the provided address, and returns a [`Builder`](Builder).
+    pub fn try_bind(addr: &SocketAddr) -> crate::Result<Builder<AddrIncoming>> {
+        AddrIncoming::new(addr).map(Server::builder)
+    }
 
-        /// Tries to bind to the provided address, and returns a [`Builder`](Builder).
-        pub fn try_bind(addr: &SocketAddr) -> crate::Result<Builder<AddrIncoming>> {
-            AddrIncoming::new(addr).map(Server::builder)
-        }
-
-        /// Create a new instance from a `std::net::TcpListener` instance.
-        pub fn from_tcp(listener: StdTcpListener) -> Result<Builder<AddrIncoming>, crate::Error> {
-            AddrIncoming::from_std(listener).map(Server::builder)
-        }
+    /// Create a new instance from a `std::net::TcpListener` instance.
+    pub fn from_tcp(listener: StdTcpListener) -> Result<Builder<AddrIncoming>, crate::Error> {
+        AddrIncoming::from_std(listener).map(Server::builder)
     }
 }
 
-cfg_feature! {
-    #![all(feature = "tcp", any(feature = "http1", feature = "http2"))]
-
-    impl<S, E> Server<AddrIncoming, S, E> {
-        /// Returns the local address that this server is bound to.
-        pub fn local_addr(&self) -> SocketAddr {
-            self.incoming.local_addr()
-        }
+#[cfg(feature = "tcp")]
+#[cfg_attr(
+    docsrs,
+    doc(cfg(all(feature = "tcp", any(feature = "http1", feature = "http2"))))
+)]
+impl<S, E> Server<AddrIncoming, S, E> {
+    /// Returns the local address that this server is bound to.
+    pub fn local_addr(&self) -> SocketAddr {
+        self.incoming.local_addr()
     }
 }
 
-#[cfg(any(feature = "http1", feature = "http2"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
 impl<I, IO, IE, S, E, B> Server<I, S, E>
 where
@@ -220,7 +204,6 @@ where
     }
 }
 
-#[cfg(any(feature = "http1", feature = "http2"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
 impl<I, IO, IE, S, B, E> Future for Server<I, S, E>
 where
@@ -244,7 +227,6 @@ where
 impl<I: fmt::Debug, S: fmt::Debug> fmt::Debug for Server<I, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut st = f.debug_struct("Server");
-        #[cfg(any(feature = "http1", feature = "http2"))]
         st.field("listener", &self.incoming);
         st.finish()
     }
@@ -252,7 +234,6 @@ impl<I: fmt::Debug, S: fmt::Debug> fmt::Debug for Server<I, S> {
 
 // ===== impl Builder =====
 
-#[cfg(any(feature = "http1", feature = "http2"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
 impl<I, E> Builder<I, E> {
     /// Start a new builder, wrapping an incoming stream and low-level options.
@@ -572,7 +553,11 @@ impl<I, E> Builder<I, E> {
     }
 }
 
-#[cfg(all(feature = "tcp", any(feature = "http1", feature = "http2")))]
+#[cfg(feature = "tcp")]
+#[cfg_attr(
+    docsrs,
+    doc(cfg(all(feature = "tcp", any(feature = "http1", feature = "http2"))))
+)]
 impl<E> Builder<AddrIncoming, E> {
     /// Set whether TCP keepalive messages are enabled on accepted connections.
     ///
@@ -619,7 +604,6 @@ impl<E> Builder<AddrIncoming, E> {
 // The `Server::with_graceful_shutdown` needs to keep track of all active
 // connections, and signal that they start to shutdown when prompted, so
 // it has a `GracefulWatcher` implementation to do that.
-#[cfg(any(feature = "http1", feature = "http2"))]
 pub trait Watcher<I, S: HttpService<Body>, E>: Clone {
     type Future: Future<Output = crate::Result<()>>;
 
@@ -628,10 +612,8 @@ pub trait Watcher<I, S: HttpService<Body>, E>: Clone {
 
 #[allow(missing_debug_implementations)]
 #[derive(Copy, Clone)]
-#[cfg(any(feature = "http1", feature = "http2"))]
 pub struct NoopWatcher;
 
-#[cfg(any(feature = "http1", feature = "http2"))]
 impl<I, S, E> Watcher<I, S, E> for NoopWatcher
 where
     I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
@@ -647,7 +629,6 @@ where
     }
 }
 
-#[cfg(any(feature = "http1", feature = "http2"))]
 // used by exec.rs
 pub(crate) mod new_svc {
     use std::error::Error as StdError;
@@ -759,7 +740,6 @@ pub(crate) mod new_svc {
     }
 }
 
-#[cfg(any(feature = "http1", feature = "http2"))]
 pin_project! {
     /// A future building a new `Service` to a `Connection`.
     ///
@@ -776,7 +756,6 @@ pin_project! {
     }
 }
 
-#[cfg(any(feature = "http1", feature = "http2"))]
 impl<I, F, S, FE, E, B> Future for Connecting<I, F, E>
 where
     I: AsyncRead + AsyncWrite + Unpin,
