@@ -149,7 +149,7 @@
 
 pub mod accept;
 pub mod conn;
-mod server;
+pub(crate) mod server;
 #[cfg(feature = "tcp")]
 mod tcp;
 
