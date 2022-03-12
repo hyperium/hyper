@@ -1,4 +1,4 @@
-use bytes::{Buf, BufMut, Bytes};
+use bytes::{Buf, BufMut, Bytes, BytesMut};
 
 use super::HttpBody;
 
@@ -50,7 +50,7 @@ where
 {
     futures_util::pin_mut!(body);
 
-    // If there's only 1 chunk, we can just return Buf::to_bytes()
+    // If there's only 1 chunk, we can just return Buf::copy_to_bytes()
     let mut first = if let Some(buf) = body.data().await {
         buf?
     } else {
@@ -63,15 +63,15 @@ where
         return Ok(first.copy_to_bytes(first.remaining()));
     };
 
-    // With more than 1 buf, we gotta flatten into a Vec first.
+    // With more than 1 buf, we gotta flatten into a BytesMut first.
     let cap = first.remaining() + second.remaining() + body.size_hint().lower() as usize;
-    let mut vec = Vec::with_capacity(cap);
-    vec.put(first);
-    vec.put(second);
+    let mut bytes = BytesMut::with_capacity(cap);
+    bytes.put(first);
+    bytes.put(second);
 
     while let Some(buf) = body.data().await {
-        vec.put(buf?);
+        bytes.put(buf?);
     }
 
-    Ok(vec.into())
+    Ok(bytes.freeze())
 }
