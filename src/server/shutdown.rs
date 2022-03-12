@@ -5,7 +5,8 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tracing::debug;
 
 use super::accept::Accept;
-use super::conn::{SpawnAll, UpgradeableConnection, Watcher};
+use super::conn::UpgradeableConnection;
+use super::server::{Server, Watcher};
 use crate::body::{Body, HttpBody};
 use crate::common::drain::{self, Draining, Signal, Watch, Watching};
 use crate::common::exec::{ConnStreamExec, NewSvcExec};
@@ -26,7 +27,7 @@ pin_project! {
         Running {
             drain: Option<(Signal, Watch)>,
             #[pin]
-            spawn_all: SpawnAll<I, S, E>,
+            server: Server<I, S, E>,
             #[pin]
             signal: F,
         },
@@ -35,12 +36,12 @@ pin_project! {
 }
 
 impl<I, S, F, E> Graceful<I, S, F, E> {
-    pub(super) fn new(spawn_all: SpawnAll<I, S, E>, signal: F) -> Self {
+    pub(super) fn new(server: Server<I, S, E>, signal: F) -> Self {
         let drain = Some(drain::channel());
         Graceful {
             state: State::Running {
                 drain,
-                spawn_all,
+                server,
                 signal,
             },
         }
@@ -69,7 +70,7 @@ where
                 match me.state.as_mut().project() {
                     StateProj::Running {
                         drain,
-                        spawn_all,
+                        server,
                         signal,
                     } => match signal.poll(cx) {
                         Poll::Ready(()) => {
@@ -81,7 +82,7 @@ where
                         }
                         Poll::Pending => {
                             let watch = drain.as_ref().expect("drain channel").1.clone();
-                            return spawn_all.poll_watch(cx, &GracefulWatcher(watch));
+                            return server.poll_watch(cx, &GracefulWatcher(watch));
                         }
                     },
                     StateProj::Draining { ref mut draining } => {
