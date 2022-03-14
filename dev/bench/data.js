@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1646348999300,
+  "lastUpdate": 1647279218863,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -5399,6 +5399,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 74178,
             "range": "± 12666",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "740654e55d2bb2f50709f20fb4054a5504d8c2fb",
+          "message": "refactor(error): improve error message when user body ends early",
+          "timestamp": "2022-03-14T10:31:31-07:00",
+          "tree_id": "e19b15447240efe0424d9b7f40097afa75db7b31",
+          "url": "https://github.com/hyperium/hyper/commit/740654e55d2bb2f50709f20fb4054a5504d8c2fb"
+        },
+        "date": 1647279215470,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 56482,
+            "range": "± 1150",
             "unit": "ns/iter"
           }
         ]
