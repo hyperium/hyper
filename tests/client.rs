@@ -3114,6 +3114,44 @@ mod conn {
         done_tx.send(()).unwrap();
     }
 
+    #[tokio::test]
+    async fn test_body_panics() {
+        use hyper::body::HttpBody;
+
+        let _ = pretty_env_logger::try_init();
+
+        let listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+            .await
+            .unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        // spawn a server that reads but doesn't write
+        tokio::spawn(async move {
+            let sock = listener.accept().await.unwrap().0;
+            drain_til_eof(sock).await.expect("server read");
+        });
+
+        let io = tcp_connect(&addr).await.expect("tcp connect");
+
+        let (mut client, conn) = conn::Builder::new().handshake(io).await.expect("handshake");
+
+        tokio::spawn(async move {
+            conn.await.expect("client conn shouldn't error");
+        });
+
+        let req = Request::post("/a")
+            .body(Body::from("baguette").map_data::<_, &[u8]>(|_| panic!("oopsie")))
+            .unwrap();
+
+        let error = client.send_request(req).await.unwrap_err();
+
+        assert!(error.is_user());
+        assert_eq!(
+            error.to_string(),
+            "dispatch task is gone: user code panicked"
+        );
+    }
+
     async fn drain_til_eof<T: AsyncRead + Unpin>(mut sock: T) -> io::Result<()> {
         let mut buf = [0u8; 1024];
         loop {
