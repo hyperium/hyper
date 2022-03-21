@@ -40,6 +40,7 @@ impl Protocol {
         self.inner.as_str()
     }
 
+    #[cfg(feature = "server")]
     pub(crate) fn from_inner(inner: h2::ext::Protocol) -> Self {
         Self { inner }
     }
