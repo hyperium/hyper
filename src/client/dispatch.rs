@@ -86,7 +86,7 @@ impl<T, U> Sender<T, U> {
         }
         let (tx, rx) = oneshot::channel();
         self.inner
-            .send(Envelope(Some((val, Callback::Retry(tx)))))
+            .send(Envelope(Some((val, Callback::Retry(Some(tx))))))
             .map(move |_| rx)
             .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
     }
@@ -97,7 +97,7 @@ impl<T, U> Sender<T, U> {
         }
         let (tx, rx) = oneshot::channel();
         self.inner
-            .send(Envelope(Some((val, Callback::NoRetry(tx)))))
+            .send(Envelope(Some((val, Callback::NoRetry(Some(tx))))))
             .map(move |_| rx)
             .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
     }
@@ -124,7 +124,7 @@ impl<T, U> UnboundedSender<T, U> {
     pub(crate) fn try_send(&mut self, val: T) -> Result<RetryPromise<T, U>, T> {
         let (tx, rx) = oneshot::channel();
         self.inner
-            .send(Envelope(Some((val, Callback::Retry(tx)))))
+            .send(Envelope(Some((val, Callback::Retry(Some(tx))))))
             .map(move |_| rx)
             .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
     }
@@ -198,33 +198,59 @@ impl<T, U> Drop for Envelope<T, U> {
 }
 
 pub(crate) enum Callback<T, U> {
-    Retry(oneshot::Sender<Result<U, (crate::Error, Option<T>)>>),
-    NoRetry(oneshot::Sender<Result<U, crate::Error>>),
+    Retry(Option<oneshot::Sender<Result<U, (crate::Error, Option<T>)>>>),
+    NoRetry(Option<oneshot::Sender<Result<U, crate::Error>>>),
+}
+
+impl<T, U> Drop for Callback<T, U> {
+    fn drop(&mut self) {
+        // FIXME(nox): What errors do we want here?
+        let error = crate::Error::new_user_dispatch_gone().with(if std::thread::panicking() {
+            "user code panicked"
+        } else {
+            "runtime dropped the dispatch task"
+        });
+
+        match self {
+            Callback::Retry(tx) => {
+                if let Some(tx) = tx.take() {
+                    let _ = tx.send(Err((error, None)));
+                }
+            }
+            Callback::NoRetry(tx) => {
+                if let Some(tx) = tx.take() {
+                    let _ = tx.send(Err(error));
+                }
+            }
+        }
+    }
 }
 
 impl<T, U> Callback<T, U> {
     #[cfg(feature = "http2")]
     pub(crate) fn is_canceled(&self) -> bool {
         match *self {
-            Callback::Retry(ref tx) => tx.is_closed(),
-            Callback::NoRetry(ref tx) => tx.is_closed(),
+            Callback::Retry(Some(ref tx)) => tx.is_closed(),
+            Callback::NoRetry(Some(ref tx)) => tx.is_closed(),
+            _ => unreachable!(),
         }
     }
 
     pub(crate) fn poll_canceled(&mut self, cx: &mut task::Context<'_>) -> Poll<()> {
         match *self {
-            Callback::Retry(ref mut tx) => tx.poll_closed(cx),
-            Callback::NoRetry(ref mut tx) => tx.poll_closed(cx),
+            Callback::Retry(Some(ref mut tx)) => tx.poll_closed(cx),
+            Callback::NoRetry(Some(ref mut tx)) => tx.poll_closed(cx),
+            _ => unreachable!(),
         }
     }
 
-    pub(crate) fn send(self, val: Result<U, (crate::Error, Option<T>)>) {
+    pub(crate) fn send(mut self, val: Result<U, (crate::Error, Option<T>)>) {
         match self {
-            Callback::Retry(tx) => {
-                let _ = tx.send(val);
+            Callback::Retry(ref mut tx) => {
+                let _ = tx.take().unwrap().send(val);
             }
-            Callback::NoRetry(tx) => {
-                let _ = tx.send(val.map_err(|e| e.0));
+            Callback::NoRetry(ref mut tx) => {
+                let _ = tx.take().unwrap().send(val.map_err(|e| e.0));
             }
         }
     }
