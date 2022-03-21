@@ -110,6 +110,10 @@ pub(super) enum User {
     #[cfg(feature = "http1")]
     ManualUpgrade,
 
+    /// The dispatch task is gone.
+    #[cfg(feature = "client")]
+    DispatchGone,
+
     /// User aborted in an FFI callback.
     #[cfg(feature = "ffi")]
     AbortedByCallback,
@@ -314,6 +318,11 @@ impl Error {
         Error::new_user(User::AbortedByCallback)
     }
 
+    #[cfg(feature = "client")]
+    pub(super) fn new_user_dispatch_gone() -> Error {
+        Error::new(Kind::User(User::DispatchGone))
+    }
+
     #[cfg(feature = "http2")]
     pub(super) fn new_h2(cause: ::h2::Error) -> Error {
         if cause.is_io() {
@@ -390,6 +399,8 @@ impl Error {
             Kind::User(User::NoUpgrade) => "no upgrade available",
             #[cfg(feature = "http1")]
             Kind::User(User::ManualUpgrade) => "upgrade expected but low level API in use",
+            #[cfg(feature = "client")]
+            Kind::User(User::DispatchGone) => "dispatch task is gone",
             #[cfg(feature = "ffi")]
             Kind::User(User::AbortedByCallback) => "operation aborted by an application callback",
         }
