@@ -91,6 +91,7 @@
 //! use std::net::SocketAddr;
 //! use hyper::{Body, Request, Response, Server};
 //! use hyper::service::{make_service_fn, service_fn};
+//! # #[cfg(feature = "runtime")]
 //! use hyper::server::conn::AddrStream;
 //!
 //! #[derive(Clone)]
