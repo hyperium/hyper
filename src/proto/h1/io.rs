@@ -727,8 +727,11 @@ mod tests {
                 cached_headers: &mut None,
                 req_method: &mut None,
                 h1_parser_config: Default::default(),
+                #[cfg(feature = "runtime")]
                 h1_header_read_timeout: None,
+                #[cfg(feature = "runtime")]
                 h1_header_read_timeout_fut: &mut None,
+                #[cfg(feature = "runtime")]
                 h1_header_read_timeout_running: &mut false,
                 preserve_header_case: false,
                 h09_responses: false,
