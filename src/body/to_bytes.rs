@@ -17,7 +17,7 @@ use super::HttpBody;
 /// # Example
 ///
 /// ```
-/// # #[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]
+/// # #[cfg(all(feature = "client", feature = "tcp", any(feature = "http1", feature = "http2")))]
 /// # async fn doc() -> hyper::Result<()> {
 /// use hyper::{body::HttpBody};
 ///
