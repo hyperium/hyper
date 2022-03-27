@@ -16,6 +16,7 @@ jobs:
       - style
       - test
       - msrv
+      - miri
       - features
       - ffi
       - ffi-header
@@ -123,6 +124,27 @@ jobs:
         with:
           command: check
           args: --features full
+
+  miri:
+    name: Test with Miri
+    needs: [style]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          components: miri
+          override: true
+
+      - name: Test
+        # Can't enable tcp feature since Miri does not support the tokio runtime
+        run: MIRIFLAGS="-Zmiri-disable-isolation" cargo miri test --features http1,http2,client,server,stream,nightly
 
   features:
     name: features
