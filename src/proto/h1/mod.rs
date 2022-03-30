@@ -14,7 +14,7 @@ pub(crate) use self::conn::Conn;
 pub(crate) use self::decode::Decoder;
 pub(crate) use self::dispatch::Dispatcher;
 pub(crate) use self::encode::{EncodedBuf, Encoder};
- //TODO: move out of h1::io
+//TODO: move out of h1::io
 pub(crate) use self::io::MINIMUM_MAX_BUFFER_SIZE;
 
 mod conn;
@@ -23,7 +23,6 @@ pub(crate) mod dispatch;
 mod encode;
 mod io;
 mod role;
-
 
 cfg_client! {
     pub(crate) type ClientTransaction = role::Client;
@@ -84,6 +83,8 @@ pub(crate) struct ParseContext<'a> {
     #[cfg(all(feature = "server", feature = "runtime"))]
     h1_header_read_timeout_running: &'a mut bool,
     preserve_header_case: bool,
+    #[cfg(feature = "ffi")]
+    preserve_header_order: bool,
     h09_responses: bool,
     #[cfg(feature = "ffi")]
     on_informational: &'a mut Option<crate::ffi::OnInformational>,

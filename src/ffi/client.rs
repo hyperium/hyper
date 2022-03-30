@@ -95,12 +95,33 @@ ffi_fn! {
     fn hyper_clientconn_options_new() -> *mut hyper_clientconn_options {
         let mut builder = conn::Builder::new();
         builder.http1_preserve_header_case(true);
+        builder.http1_preserve_header_order(true);
 
         Box::into_raw(Box::new(hyper_clientconn_options {
             builder,
             exec: WeakExec::new(),
         }))
     } ?= std::ptr::null_mut()
+}
+
+ffi_fn! {
+    /// Set the whether or not header case is preserved.
+    ///
+    /// Pass `0` to allow lowercase normalization (default), `1` to retain original case.
+    fn hyper_clientconn_options_set_preserve_header_case(opts: *mut hyper_clientconn_options, enabled: c_int) {
+        let opts = non_null! { &mut *opts ?= () };
+        opts.builder.http1_preserve_header_case(enabled != 0);
+    }
+}
+
+ffi_fn! {
+    /// Set the whether or not header order is preserved.
+    ///
+    /// Pass `0` to allow reordering (default), `1` to retain original ordering.
+    fn hyper_clientconn_options_set_preserve_header_order(opts: *mut hyper_clientconn_options, enabled: c_int) {
+        let opts = non_null! { &mut *opts ?= () };
+        opts.builder.http1_preserve_header_order(enabled != 0);
+    }
 }
 
 ffi_fn! {

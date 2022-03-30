@@ -1,9 +1,11 @@
 //! HTTP extensions.
 
 use bytes::Bytes;
+use http::header::HeaderName;
 #[cfg(feature = "http1")]
-use http::header::{HeaderName, IntoHeaderName, ValueIter};
+use http::header::{IntoHeaderName, ValueIter};
 use http::HeaderMap;
+use std::collections::HashMap;
 #[cfg(feature = "http2")]
 use std::fmt;
 
@@ -118,5 +120,51 @@ impl HeaderCaseMap {
         N: IntoHeaderName,
     {
         self.0.append(name, orig);
+    }
+}
+
+#[derive(Clone, Debug)]
+/// Hashmap<Headername, numheaders with that name>
+pub(crate) struct OriginalHeaderOrder(HashMap<HeaderName, usize>, Vec<(HeaderName, usize)>);
+
+#[cfg(all(feature = "http1", feature = "ffi"))]
+impl OriginalHeaderOrder {
+    pub(crate) fn default() -> Self {
+        Self(Default::default(), Default::default())
+    }
+
+    #[cfg(any(test, feature = "ffi"))]
+    pub(crate) fn insert(&mut self, name: HeaderName) {
+        if !self.0.contains_key(&name) {
+            let idx = 0;
+            self.0.insert(name.clone(), 1);
+            self.1.push((name, idx));
+        }
+        // replacing an already existing element does not
+        // change ordering, so we only care if its the first
+        // header name encountered
+    }
+
+    pub(crate) fn append<N>(&mut self, name: N)
+    where
+        N: IntoHeaderName + Into<HeaderName> + Clone,
+    {
+        let name: HeaderName = name.into();
+        let idx;
+        if self.0.contains_key(&name) {
+            idx = self.0[&name];
+            *self.0.get_mut(&name).unwrap() += 1;
+        } else {
+            idx = 0;
+            self.0.insert(name.clone(), 1);
+        }
+        self.1.push((name, idx));
+    }
+
+    /// This returns an iterator that provides header names and indexes
+    /// in the original order recieved.
+    #[cfg(any(test, feature = "ffi"))]
+    pub(crate) fn get_in_order(&self) -> impl Iterator<Item = &(HeaderName, usize)> {
+        self.1.iter()
     }
 }

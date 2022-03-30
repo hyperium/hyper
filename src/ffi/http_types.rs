@@ -6,7 +6,7 @@ use super::body::{hyper_body, hyper_buf};
 use super::error::hyper_code;
 use super::task::{hyper_task_return_type, AsTaskType};
 use super::{UserDataPointer, HYPER_ITER_CONTINUE};
-use crate::ext::HeaderCaseMap;
+use crate::ext::{HeaderCaseMap, OriginalHeaderOrder};
 use crate::header::{HeaderName, HeaderValue};
 use crate::{Body, HeaderMap, Method, Request, Response, Uri};
 
@@ -22,6 +22,7 @@ pub struct hyper_response(pub(super) Response<Body>);
 pub struct hyper_headers {
     pub(super) headers: HeaderMap,
     orig_casing: HeaderCaseMap,
+    orig_order: OriginalHeaderOrder,
 }
 
 #[derive(Debug)]
@@ -233,6 +234,7 @@ impl hyper_request {
         if let Some(headers) = self.0.extensions_mut().remove::<hyper_headers>() {
             *self.0.headers_mut() = headers.headers;
             self.0.extensions_mut().insert(headers.orig_casing);
+            self.0.extensions_mut().insert(headers.orig_order);
         }
     }
 }
@@ -348,9 +350,14 @@ impl hyper_response {
             .extensions_mut()
             .remove::<HeaderCaseMap>()
             .unwrap_or_else(HeaderCaseMap::default);
+        let orig_order = resp
+            .extensions_mut()
+            .remove::<OriginalHeaderOrder>()
+            .unwrap_or_else(OriginalHeaderOrder::default);
         resp.extensions_mut().insert(hyper_headers {
             headers,
             orig_casing,
+            orig_order,
         });
 
         hyper_response(resp)
@@ -429,6 +436,37 @@ ffi_fn! {
 }
 
 ffi_fn! {
+    /// Iterates the headers in the order the were recieved, passing each name and value pair to the callback.
+    ///
+    /// The `userdata` pointer is also passed to the callback.
+    ///
+    /// The callback should return `HYPER_ITER_CONTINUE` to keep iterating, or
+    /// `HYPER_ITER_BREAK` to stop.
+    fn hyper_headers_foreach_ordered(headers: *const hyper_headers, func: hyper_headers_foreach_callback, userdata: *mut c_void) {
+        let headers = non_null!(&*headers ?= ());
+        // For each header name/value pair, there may be a value in the casemap
+        // that corresponds to the HeaderValue. So, we iterator all the keys,
+        // and for each one, try to pair the originally cased name with the value.
+        //
+        // TODO: consider adding http::HeaderMap::entries() iterator
+        for (name, idx) in headers.orig_order.get_in_order() {
+            let orig_name = headers.orig_casing.get_all(&name).nth(*idx).unwrap();
+            let value = headers.headers.get_all(name).iter().nth(*idx).unwrap();
+
+            let name_ptr = orig_name.as_ref().as_ptr();
+            let name_len = orig_name.as_ref().len();
+
+            let val_ptr = value.as_bytes().as_ptr();
+            let val_len = value.as_bytes().len();
+
+            if HYPER_ITER_CONTINUE != func(userdata, name_ptr, name_len, val_ptr, val_len) {
+                return;
+            }
+        }
+    }
+}
+
+ffi_fn! {
     /// Sets the header with the provided name to the provided value.
     ///
     /// This overwrites any previous value set for the header.
@@ -437,7 +475,8 @@ ffi_fn! {
         match unsafe { raw_name_value(name, name_len, value, value_len) } {
             Ok((name, value, orig_name)) => {
                 headers.headers.insert(&name, value);
-                headers.orig_casing.insert(name, orig_name);
+                headers.orig_casing.insert(name.clone(), orig_name.clone());
+                headers.orig_order.insert(name);
                 hyper_code::HYPERE_OK
             }
             Err(code) => code,
@@ -456,7 +495,8 @@ ffi_fn! {
         match unsafe { raw_name_value(name, name_len, value, value_len) } {
             Ok((name, value, orig_name)) => {
                 headers.headers.append(&name, value);
-                headers.orig_casing.append(name, orig_name);
+                headers.orig_casing.append(&name, orig_name.clone());
+                headers.orig_order.append(name);
                 hyper_code::HYPERE_OK
             }
             Err(code) => code,
@@ -469,6 +509,7 @@ impl Default for hyper_headers {
         Self {
             headers: Default::default(),
             orig_casing: HeaderCaseMap::default(),
+            orig_order: OriginalHeaderOrder::default(),
         }
     }
 }
@@ -535,6 +576,67 @@ mod tests {
         hyper_headers_foreach(&headers, concat, &mut vec as *mut _ as *mut c_void);
 
         assert_eq!(vec, b"Set-CookiE: a=b\r\nSET-COOKIE: c=d\r\n");
+
+        extern "C" fn concat(
+            vec: *mut c_void,
+            name: *const u8,
+            name_len: usize,
+            value: *const u8,
+            value_len: usize,
+        ) -> c_int {
+            unsafe {
+                let vec = &mut *(vec as *mut Vec<u8>);
+                let name = std::slice::from_raw_parts(name, name_len);
+                let value = std::slice::from_raw_parts(value, value_len);
+                vec.extend(name);
+                vec.extend(b": ");
+                vec.extend(value);
+                vec.extend(b"\r\n");
+            }
+            HYPER_ITER_CONTINUE
+        }
+    }
+
+    #[cfg(all(feature = "http1", feature = "ffi"))]
+    #[test]
+    fn test_headers_foreach_order_preserved() {
+        let mut headers = hyper_headers::default();
+
+        let name1 = b"Set-CookiE";
+        let value1 = b"a=b";
+        hyper_headers_add(
+            &mut headers,
+            name1.as_ptr(),
+            name1.len(),
+            value1.as_ptr(),
+            value1.len(),
+        );
+
+        let name2 = b"Content-Encoding";
+        let value2 = b"gzip";
+        hyper_headers_add(
+            &mut headers,
+            name2.as_ptr(),
+            name2.len(),
+            value2.as_ptr(),
+            value2.len(),
+        );
+
+        let name3 = b"SET-COOKIE";
+        let value3 = b"c=d";
+        hyper_headers_add(
+            &mut headers,
+            name3.as_ptr(),
+            name3.len(),
+            value3.as_ptr(),
+            value3.len(),
+        );
+
+        let mut vec = Vec::<u8>::new();
+        hyper_headers_foreach_ordered(&headers, concat, &mut vec as *mut _ as *mut c_void);
+
+        println!("{}", std::str::from_utf8(&vec).unwrap());
+        assert_eq!(vec, b"Set-CookiE: a=b\r\nContent-Encoding: gzip\r\nSET-COOKIE: c=d\r\n");
 
         extern "C" fn concat(
             vec: *mut c_void,
