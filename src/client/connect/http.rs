@@ -79,6 +79,7 @@ struct Config {
     local_address_ipv6: Option<Ipv6Addr>,
     nodelay: bool,
     reuse_address: bool,
+    connection_filter: Option<fn(&SocketAddr) -> Result<(), Box<dyn StdError + Send + Sync>>>,
     send_buffer_size: Option<usize>,
     recv_buffer_size: Option<usize>,
 }
@@ -119,6 +120,7 @@ impl<R> HttpConnector<R> {
                 local_address_ipv6: None,
                 nodelay: false,
                 reuse_address: false,
+                connection_filter: None,
                 send_buffer_size: None,
                 recv_buffer_size: None,
             }),
@@ -228,6 +230,22 @@ impl<R> HttpConnector<R> {
     pub fn set_reuse_address(&mut self, reuse_address: bool) -> &mut Self {
         self.config_mut().reuse_address = reuse_address;
         self
+    }
+
+    /// Set the filter callback function to be called before connecting.
+    /// The argument of the callback function is the DNS resolved IPv4 or IPv6 address.
+    ///
+    /// If the callback function returns `Ok` the connection will be established.
+    ///
+    /// If the callback function returns an `Error` the connection will not be established.
+    ///
+    /// Default is `None`.
+    #[inline]
+    pub fn set_connection_filter(
+        &mut self,
+        connection_filter: fn(&SocketAddr) -> Result<(), Box<dyn StdError + Send + Sync>>,
+    ) {
+        self.config_mut().connection_filter = Some(connection_filter);
     }
 
     // private
@@ -534,6 +552,14 @@ impl ConnectingTcpRemote {
     async fn connect(&mut self, config: &Config) -> Result<TcpStream, ConnectError> {
         let mut err = None;
         for addr in &mut self.addrs {
+            if let Some(connection_filter) = config.connection_filter {
+                connection_filter(&addr)
+                    .map_err(|e| {
+                        debug!("connection filtered {}", addr);
+                        ConnectError::new("tcp connection filtered", e)
+                    })?;
+            }
+
             debug!("connecting to {}", addr);
             match connect(&addr, config, self.connect_timeout)?.await {
                 Ok(tcp) => {
@@ -714,6 +740,7 @@ impl ConnectingTcp<'_> {
 #[cfg(test)]
 mod tests {
     use std::io;
+    use std::net::SocketAddr;
 
     use ::http::Uri;
 
@@ -811,6 +838,45 @@ mod tests {
         if let Some(ip) = bind_ip_v6 {
             assert_client_ip(format!("http://[::1]:{}", port), server6, ip.into()).await;
         }
+    }
+
+    #[tokio::test]
+    async fn connection_filter() {
+        use std::error::Error as StdError;
+        use std::net::TcpListener;
+        let _ = pretty_env_logger::try_init();
+
+        let server4 = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = server4.local_addr().unwrap().port();
+        let server6 = TcpListener::bind(&format!("[::1]:{}", port)).unwrap();
+
+        let assert_connection_filter = |dst: String, server: TcpListener| async move {
+            let mut connector = HttpConnector::new();
+            fn accept_connection(_: &SocketAddr) -> Result<(), Box<dyn StdError + Send + Sync>> {
+                Ok(())
+            }
+            connector.set_connection_filter(accept_connection);
+
+            connect(connector, dst.parse().unwrap()).await.unwrap();
+
+            assert!(server.accept().is_ok());
+
+            fn block_connection(_: &SocketAddr) -> Result<(), Box<dyn StdError + Send + Sync>> {
+                Err(io::Error::new(io::ErrorKind::NotConnected, "not connected").into())
+            }
+
+            let mut connector = HttpConnector::new();
+            connector.set_connection_filter(block_connection);
+
+            let err = connect(connector, dst.parse().unwrap()).await.unwrap_err();
+
+            assert_eq!(err.msg.to_string(), "tcp connection filtered".to_string());
+            assert_eq!(err.cause.unwrap().to_string(), "not connected");
+        };
+
+        assert_connection_filter(format!("http://127.0.0.1:{}", port), server4).await;
+
+        assert_connection_filter(format!("http://[::1]:{}", port), server6).await;
     }
 
     #[test]
@@ -940,6 +1006,7 @@ mod tests {
                         nodelay: false,
                         reuse_address: false,
                         enforce_http: false,
+                        connection_filter: None,
                         send_buffer_size: None,
                         recv_buffer_size: None,
                     };
