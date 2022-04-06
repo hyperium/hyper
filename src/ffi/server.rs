@@ -216,17 +216,12 @@ impl Service<Request<Body>> for hyper_service {
         (self.service_func)(self.userdata, req_ptr, res_ptr);
 
         let hyper_res = non_null! {
-            &mut *res_ptr ?= Box::pin(async { Err(crate::error::Error::new(
+            Box::from_raw(res_ptr) ?= Box::pin(async { Err(crate::error::Error::new(
                 crate::error::Kind::Io
             ))})
         };
 
-        Box::pin(async move {
-            Ok(std::mem::replace(
-                &mut hyper_res.0,
-                Response::new(Body::empty()),
-            ))
-        })
+        Box::pin(async move { Ok((*hyper_res).0) })
     }
 }
 
