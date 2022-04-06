@@ -52,6 +52,7 @@ mod client;
 mod error;
 mod http_types;
 mod io;
+mod server;
 mod task;
 
 pub use self::body::*;

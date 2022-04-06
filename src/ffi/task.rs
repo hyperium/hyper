@@ -11,6 +11,11 @@ use std::task::{Context, Poll};
 use futures_util::stream::{FuturesUnordered, Stream};
 use libc::c_int;
 
+use crate::body::HttpBody;
+use crate::common::exec::ConnStreamExec;
+use crate::proto::h2::server::H2Stream;
+use crate::rt::Executor;
+
 use super::error::hyper_code;
 use super::UserDataPointer;
 
@@ -177,11 +182,21 @@ impl WeakExec {
     }
 }
 
-impl crate::rt::Executor<BoxFuture<()>> for WeakExec {
+impl Executor<BoxFuture<()>> for WeakExec {
     fn execute(&self, fut: BoxFuture<()>) {
         if let Some(exec) = self.0.upgrade() {
             exec.spawn(hyper_task::boxed(fut));
         }
+    }
+}
+
+impl<F, B> ConnStreamExec<F, B> for WeakExec
+where
+    H2Stream<F, B>: Future<Output = ()> + Send + 'static,
+    B: HttpBody,
+{
+    fn execute_h2stream(&mut self, fut: H2Stream<F, B>) {
+        self.execute(Box::pin(fut))
     }
 }
 
