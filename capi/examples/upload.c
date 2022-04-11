@@ -385,17 +385,17 @@ int main(int argc, char *argv[]) {
         if (sel_ret < 0) {
             printf("select() error\n");
             return 1;
-        } else {
-            if (FD_ISSET(conn->fd, &fds_read)) {
-                hyper_waker_wake(conn->read_waker);
-                conn->read_waker = NULL;
-            }
-            if (FD_ISSET(conn->fd, &fds_write)) {
-                hyper_waker_wake(conn->write_waker);
-                conn->write_waker = NULL;
-            }
         }
 
+        if (FD_ISSET(conn->fd, &fds_read)) {
+            hyper_waker_wake(conn->read_waker);
+            conn->read_waker = NULL;
+        }
+
+        if (FD_ISSET(conn->fd, &fds_write)) {
+            hyper_waker_wake(conn->write_waker);
+            conn->write_waker = NULL;
+        }
     }
 
 
