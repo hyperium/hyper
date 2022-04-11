@@ -140,17 +140,17 @@ typedef enum {
 #define STR_ARG(XX) (uint8_t *)XX, strlen(XX)
 
 int main(int argc, char *argv[]) {
-        const char *host = argc > 1 ? argv[1] : "httpbin.org";
-        const char *port = argc > 2 ? argv[2] : "80";
-        const char *path = argc > 3 ? argv[3] : "/";
-        printf("connecting to port %s on %s...\n", port, host);
+    const char *host = argc > 1 ? argv[1] : "httpbin.org";
+    const char *port = argc > 2 ? argv[2] : "80";
+    const char *path = argc > 3 ? argv[3] : "/";
+    printf("connecting to port %s on %s...\n", port, host);
 
-        int fd = connect_to(host, port);
+    int fd = connect_to(host, port);
     if (fd < 0) {
         return 1;
     }
-        printf("connected to %s, now get %s\n", host, path);
 
+    printf("connected to %s, now get %s\n", host, path);
     if (fcntl(fd, F_SETFL, O_NONBLOCK) != 0) {
         printf("failed to set socket to non-blocking\n");
         return 1;
@@ -165,7 +165,6 @@ int main(int argc, char *argv[]) {
     conn->fd = fd;
     conn->read_waker = NULL;
     conn->write_waker = NULL;
-
 
     // Hookup the IO
     hyper_io *io = hyper_io_new();
