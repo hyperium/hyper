@@ -96,9 +96,9 @@ static int connect_to(const char *host, const char *port) {
 
         if (connect(sfd, rp->ai_addr, rp->ai_addrlen) != -1) {
             break;
-        } else {
-            close(sfd);
         }
+
+        close(sfd);
     }
 
     freeaddrinfo(result);
