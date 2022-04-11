@@ -349,20 +349,20 @@ int main(int argc, char *argv[]) {
                     hyper_executor_push(exec, body_data);
 
                     break;
-                } else {
-                    assert(task_type == HYPER_TASK_EMPTY);
-                    hyper_task_free(task);
-                    hyper_body_free(resp_body);
-
-                    printf("\n -- Done! -- \n");
-
-                    // Cleaning up before exiting
-                    hyper_executor_free(exec);
-                    free_conn_data(conn);
-                    free(upload.buf);
-
-                    return 0;
                 }
+
+                assert(task_type == HYPER_TASK_EMPTY);
+                hyper_task_free(task);
+                hyper_body_free(resp_body);
+
+                printf("\n -- Done! -- \n");
+
+                // Cleaning up before exiting
+                hyper_executor_free(exec);
+                free_conn_data(conn);
+                free(upload.buf);
+
+                return 0;
             case EXAMPLE_NOT_SET:
                 // A background task for hyper completed...
                 hyper_task_free(task);
