@@ -45,22 +45,21 @@ static size_t write_cb(void *userdata, hyper_context *ctx, const uint8_t *buf, s
     struct conn_data *conn = (struct conn_data *)userdata;
     ssize_t ret = write(conn->fd, buf, buf_len);
 
-    if (ret < 0) {
-        int err = errno;
-        if (err == EAGAIN) {
-            // would block, register interest
-            if (conn->write_waker != NULL) {
-                hyper_waker_free(conn->write_waker);
-            }
-            conn->write_waker = hyper_context_waker(ctx);
-            return HYPER_IO_PENDING;
-        } else {
-            // kaboom
-            return HYPER_IO_ERROR;
-        }
-    } else {
+    if (ret >= 0) {
         return ret;
     }
+
+    if (errno != EAGAIN) {
+        // kaboom
+        return HYPER_IO_ERROR;
+    }
+
+    // would block, register interest
+    if (conn->write_waker != NULL) {
+        hyper_waker_free(conn->write_waker);
+    }
+    conn->write_waker = hyper_context_waker(ctx);
+    return HYPER_IO_PENDING;
 }
 
 static void free_conn_data(struct conn_data *conn) {
