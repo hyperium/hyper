@@ -124,17 +124,20 @@ static int poll_req_upload(void *userdata,
     struct upload_body* upload = userdata;
 
     ssize_t res = read(upload->fd, upload->buf, upload->len);
-    if (res < 0) {
-        printf("error reading upload file: %d", errno);
-        return HYPER_POLL_ERROR;
-    } else if (res == 0) {
-        // All done!
-        *chunk = NULL;
-        return HYPER_POLL_READY;
-    } else {
+    if (res > 0) {
         *chunk = hyper_buf_copy(upload->buf, res);
         return HYPER_POLL_READY;
     }
+
+    if (res == 0) {
+        // All done!
+        *chunk = NULL;
+        return HYPER_POLL_READY;
+    }
+
+    // Oh no!
+    printf("error reading upload file: %d", errno);
+    return HYPER_POLL_ERROR;
 }
 
 static int print_each_header(void *userdata,
