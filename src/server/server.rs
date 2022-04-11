@@ -1,33 +1,29 @@
+use std::error::Error as StdError;
 use std::fmt;
 #[cfg(feature = "tcp")]
 use std::net::{SocketAddr, TcpListener as StdTcpListener};
 #[cfg(any(feature = "tcp", feature = "http1"))]
 use std::time::Duration;
 
-#[cfg(all(feature = "tcp", any(feature = "http1", feature = "http2")))]
+use pin_project_lite::pin_project;
+use tokio::io::{AsyncRead, AsyncWrite};
+use tracing::trace;
+
+use super::accept::Accept;
+#[cfg(all(feature = "tcp"))]
 use super::tcp::AddrIncoming;
+use crate::body::{Body, HttpBody};
 use crate::common::exec::Exec;
+use crate::common::exec::{ConnStreamExec, NewSvcExec};
+use crate::common::{task, Future, Pin, Poll, Unpin};
+// Renamed `Http` as `Http_` for now so that people upgrading don't see an
+// error that `hyper::server::Http` is private...
+use super::conn::{Connection, Http as Http_, UpgradeableConnection};
+use super::shutdown::{Graceful, GracefulWatcher};
+use crate::service::{HttpService, MakeServiceRef};
 
-cfg_feature! {
-    #![any(feature = "http1", feature = "http2")]
+use self::new_svc::NewSvcTask;
 
-    use std::error::Error as StdError;
-
-    use pin_project_lite::pin_project;
-    use tokio::io::{AsyncRead, AsyncWrite};
-
-    use super::accept::Accept;
-    use crate::body::{Body, HttpBody};
-    use crate::common::{task, Future, Pin, Poll, Unpin};
-    use crate::common::exec::{ConnStreamExec, NewSvcExec};
-    // Renamed `Http` as `Http_` for now so that people upgrading don't see an
-    // error that `hyper::server::Http` is private...
-    use super::conn::{Http as Http_, NoopWatcher, SpawnAll};
-    use super::shutdown::{Graceful, GracefulWatcher};
-    use crate::service::{HttpService, MakeServiceRef};
-}
-
-#[cfg(any(feature = "http1", feature = "http2"))]
 pin_project! {
     /// A listening HTTP server that accepts connections in both HTTP1 and HTTP2 by default.
     ///
@@ -37,21 +33,14 @@ pin_project! {
     /// `Executor`.
     pub struct Server<I, S, E = Exec> {
         #[pin]
-        spawn_all: SpawnAll<I, S, E>,
+        incoming: I,
+        make_service: S,
+        protocol: Http_<E>,
     }
-}
-
-/// A listening HTTP server that accepts connections in both HTTP1 and HTTP2 by default.
-///
-/// Needs at least one of the `http1` and `http2` features to be activated to actually be useful.
-#[cfg(not(any(feature = "http1", feature = "http2")))]
-pub struct Server<I, S, E = Exec> {
-    _marker: std::marker::PhantomData<(I, S, E)>,
 }
 
 /// A builder for a [`Server`](Server).
 #[derive(Debug)]
-#[cfg(any(feature = "http1", feature = "http2"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
 pub struct Builder<I, E = Exec> {
     incoming: I,
@@ -60,7 +49,6 @@ pub struct Builder<I, E = Exec> {
 
 // ===== impl Server =====
 
-#[cfg(any(feature = "http1", feature = "http2"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
 impl<I> Server<I, ()> {
     /// Starts a [`Builder`](Builder) with the provided incoming stream.
@@ -72,47 +60,48 @@ impl<I> Server<I, ()> {
     }
 }
 
-cfg_feature! {
-    #![all(feature = "tcp", any(feature = "http1", feature = "http2"))]
+#[cfg(feature = "tcp")]
+#[cfg_attr(
+    docsrs,
+    doc(cfg(all(feature = "tcp", any(feature = "http1", feature = "http2"))))
+)]
+impl Server<AddrIncoming, ()> {
+    /// Binds to the provided address, and returns a [`Builder`](Builder).
+    ///
+    /// # Panics
+    ///
+    /// This method will panic if binding to the address fails. For a method
+    /// to bind to an address and return a `Result`, see `Server::try_bind`.
+    pub fn bind(addr: &SocketAddr) -> Builder<AddrIncoming> {
+        let incoming = AddrIncoming::new(addr).unwrap_or_else(|e| {
+            panic!("error binding to {}: {}", addr, e);
+        });
+        Server::builder(incoming)
+    }
 
-    impl Server<AddrIncoming, ()> {
-        /// Binds to the provided address, and returns a [`Builder`](Builder).
-        ///
-        /// # Panics
-        ///
-        /// This method will panic if binding to the address fails. For a method
-        /// to bind to an address and return a `Result`, see `Server::try_bind`.
-        pub fn bind(addr: &SocketAddr) -> Builder<AddrIncoming> {
-            let incoming = AddrIncoming::new(addr).unwrap_or_else(|e| {
-                panic!("error binding to {}: {}", addr, e);
-            });
-            Server::builder(incoming)
-        }
+    /// Tries to bind to the provided address, and returns a [`Builder`](Builder).
+    pub fn try_bind(addr: &SocketAddr) -> crate::Result<Builder<AddrIncoming>> {
+        AddrIncoming::new(addr).map(Server::builder)
+    }
 
-        /// Tries to bind to the provided address, and returns a [`Builder`](Builder).
-        pub fn try_bind(addr: &SocketAddr) -> crate::Result<Builder<AddrIncoming>> {
-            AddrIncoming::new(addr).map(Server::builder)
-        }
-
-        /// Create a new instance from a `std::net::TcpListener` instance.
-        pub fn from_tcp(listener: StdTcpListener) -> Result<Builder<AddrIncoming>, crate::Error> {
-            AddrIncoming::from_std(listener).map(Server::builder)
-        }
+    /// Create a new instance from a `std::net::TcpListener` instance.
+    pub fn from_tcp(listener: StdTcpListener) -> Result<Builder<AddrIncoming>, crate::Error> {
+        AddrIncoming::from_std(listener).map(Server::builder)
     }
 }
 
-cfg_feature! {
-    #![all(feature = "tcp", any(feature = "http1", feature = "http2"))]
-
-    impl<S, E> Server<AddrIncoming, S, E> {
-        /// Returns the local address that this server is bound to.
-        pub fn local_addr(&self) -> SocketAddr {
-            self.spawn_all.local_addr()
-        }
+#[cfg(feature = "tcp")]
+#[cfg_attr(
+    docsrs,
+    doc(cfg(all(feature = "tcp", any(feature = "http1", feature = "http2"))))
+)]
+impl<S, E> Server<AddrIncoming, S, E> {
+    /// Returns the local address that this server is bound to.
+    pub fn local_addr(&self) -> SocketAddr {
+        self.incoming.local_addr()
     }
 }
 
-#[cfg(any(feature = "http1", feature = "http2"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
 impl<I, IO, IE, S, E, B> Server<I, S, E>
 where
@@ -124,7 +113,6 @@ where
     B: HttpBody + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
     E: ConnStreamExec<<S::Service as HttpService<Body>>::Future, B>,
-    E: NewSvcExec<IO, S::Future, S::Service, E, GracefulWatcher>,
 {
     /// Prepares a server to handle graceful shutdown when the provided future
     /// completes.
@@ -165,12 +153,57 @@ where
     pub fn with_graceful_shutdown<F>(self, signal: F) -> Graceful<I, S, F, E>
     where
         F: Future<Output = ()>,
+        E: NewSvcExec<IO, S::Future, S::Service, E, GracefulWatcher>,
     {
-        Graceful::new(self.spawn_all, signal)
+        Graceful::new(self, signal)
+    }
+
+    fn poll_next_(
+        self: Pin<&mut Self>,
+        cx: &mut task::Context<'_>,
+    ) -> Poll<Option<crate::Result<Connecting<IO, S::Future, E>>>> {
+        let me = self.project();
+        match ready!(me.make_service.poll_ready_ref(cx)) {
+            Ok(()) => (),
+            Err(e) => {
+                trace!("make_service closed");
+                return Poll::Ready(Some(Err(crate::Error::new_user_make_service(e))));
+            }
+        }
+
+        if let Some(item) = ready!(me.incoming.poll_accept(cx)) {
+            let io = item.map_err(crate::Error::new_accept)?;
+            let new_fut = me.make_service.make_service_ref(&io);
+            Poll::Ready(Some(Ok(Connecting {
+                future: new_fut,
+                io: Some(io),
+                protocol: me.protocol.clone(),
+            })))
+        } else {
+            Poll::Ready(None)
+        }
+    }
+
+    pub(super) fn poll_watch<W>(
+        mut self: Pin<&mut Self>,
+        cx: &mut task::Context<'_>,
+        watcher: &W,
+    ) -> Poll<crate::Result<()>>
+    where
+        E: NewSvcExec<IO, S::Future, S::Service, E, W>,
+        W: Watcher<IO, S::Service, E>,
+    {
+        loop {
+            if let Some(connecting) = ready!(self.as_mut().poll_next_(cx)?) {
+                let fut = NewSvcTask::new(connecting, watcher.clone());
+                self.as_mut().project().protocol.exec.execute_new_svc(fut);
+            } else {
+                return Poll::Ready(Ok(()));
+            }
+        }
     }
 }
 
-#[cfg(any(feature = "http1", feature = "http2"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
 impl<I, IO, IE, S, B, E> Future for Server<I, S, E>
 where
@@ -187,22 +220,20 @@ where
     type Output = crate::Result<()>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        self.project().spawn_all.poll_watch(cx, &NoopWatcher)
+        self.poll_watch(cx, &NoopWatcher)
     }
 }
 
 impl<I: fmt::Debug, S: fmt::Debug> fmt::Debug for Server<I, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut st = f.debug_struct("Server");
-        #[cfg(any(feature = "http1", feature = "http2"))]
-        st.field("listener", &self.spawn_all.incoming_ref());
+        st.field("listener", &self.incoming);
         st.finish()
     }
 }
 
 // ===== impl Builder =====
 
-#[cfg(any(feature = "http1", feature = "http2"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
 impl<I, E> Builder<I, E> {
     /// Start a new builder, wrapping an incoming stream and low-level options.
@@ -309,7 +340,7 @@ impl<I, E> Builder<I, E> {
         self
     }
 
-    /// Set a timeout for reading client request headers. If a client does not 
+    /// Set a timeout for reading client request headers. If a client does not
     /// transmit the entire header within this time, the connection is closed.
     ///
     /// Default is None.
@@ -502,7 +533,7 @@ impl<I, E> Builder<I, E> {
     /// }
     /// # }
     /// ```
-    pub fn serve<S, B>(self, new_service: S) -> Server<I, S, E>
+    pub fn serve<S, B>(self, make_service: S) -> Server<I, S, E>
     where
         I: Accept,
         I::Error: Into<Box<dyn StdError + Send + Sync>>,
@@ -514,13 +545,19 @@ impl<I, E> Builder<I, E> {
         E: NewSvcExec<I::Conn, S::Future, S::Service, E, NoopWatcher>,
         E: ConnStreamExec<<S::Service as HttpService<Body>>::Future, B>,
     {
-        let serve = self.protocol.serve(self.incoming, new_service);
-        let spawn_all = serve.spawn_all();
-        Server { spawn_all }
+        Server {
+            incoming: self.incoming,
+            make_service,
+            protocol: self.protocol.clone(),
+        }
     }
 }
 
-#[cfg(all(feature = "tcp", any(feature = "http1", feature = "http2")))]
+#[cfg(feature = "tcp")]
+#[cfg_attr(
+    docsrs,
+    doc(cfg(all(feature = "tcp", any(feature = "http1", feature = "http2"))))
+)]
 impl<E> Builder<AddrIncoming, E> {
     /// Set whether TCP keepalive messages are enabled on accepted connections.
     ///
@@ -556,5 +593,184 @@ impl<E> Builder<AddrIncoming, E> {
     pub fn tcp_sleep_on_accept_errors(mut self, val: bool) -> Self {
         self.incoming.set_sleep_on_errors(val);
         self
+    }
+}
+
+// Used by `Server` to optionally watch a `Connection` future.
+//
+// The regular `hyper::Server` just uses a `NoopWatcher`, which does
+// not need to watch anything, and so returns the `Connection` untouched.
+//
+// The `Server::with_graceful_shutdown` needs to keep track of all active
+// connections, and signal that they start to shutdown when prompted, so
+// it has a `GracefulWatcher` implementation to do that.
+pub trait Watcher<I, S: HttpService<Body>, E>: Clone {
+    type Future: Future<Output = crate::Result<()>>;
+
+    fn watch(&self, conn: UpgradeableConnection<I, S, E>) -> Self::Future;
+}
+
+#[allow(missing_debug_implementations)]
+#[derive(Copy, Clone)]
+pub struct NoopWatcher;
+
+impl<I, S, E> Watcher<I, S, E> for NoopWatcher
+where
+    I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    S: HttpService<Body>,
+    E: ConnStreamExec<S::Future, S::ResBody>,
+    S::ResBody: 'static,
+    <S::ResBody as HttpBody>::Error: Into<Box<dyn StdError + Send + Sync>>,
+{
+    type Future = UpgradeableConnection<I, S, E>;
+
+    fn watch(&self, conn: UpgradeableConnection<I, S, E>) -> Self::Future {
+        conn
+    }
+}
+
+// used by exec.rs
+pub(crate) mod new_svc {
+    use std::error::Error as StdError;
+    use tokio::io::{AsyncRead, AsyncWrite};
+    use tracing::debug;
+
+    use super::{Connecting, Watcher};
+    use crate::body::{Body, HttpBody};
+    use crate::common::exec::ConnStreamExec;
+    use crate::common::{task, Future, Pin, Poll, Unpin};
+    use crate::service::HttpService;
+    use pin_project_lite::pin_project;
+
+    // This is a `Future<Item=(), Error=()>` spawned to an `Executor` inside
+    // the `Server`. By being a nameable type, we can be generic over the
+    // user's `Service::Future`, and thus an `Executor` can execute it.
+    //
+    // Doing this allows for the server to conditionally require `Send` futures,
+    // depending on the `Executor` configured.
+    //
+    // Users cannot import this type, nor the associated `NewSvcExec`. Instead,
+    // a blanket implementation for `Executor<impl Future>` is sufficient.
+
+    pin_project! {
+        #[allow(missing_debug_implementations)]
+        pub struct NewSvcTask<I, N, S: HttpService<Body>, E, W: Watcher<I, S, E>> {
+            #[pin]
+            state: State<I, N, S, E, W>,
+        }
+    }
+
+    pin_project! {
+        #[project = StateProj]
+        pub(super) enum State<I, N, S: HttpService<Body>, E, W: Watcher<I, S, E>> {
+            Connecting {
+                #[pin]
+                connecting: Connecting<I, N, E>,
+                watcher: W,
+            },
+            Connected {
+                #[pin]
+                future: W::Future,
+            },
+        }
+    }
+
+    impl<I, N, S: HttpService<Body>, E, W: Watcher<I, S, E>> NewSvcTask<I, N, S, E, W> {
+        pub(super) fn new(connecting: Connecting<I, N, E>, watcher: W) -> Self {
+            NewSvcTask {
+                state: State::Connecting {
+                    connecting,
+                    watcher,
+                },
+            }
+        }
+    }
+
+    impl<I, N, S, NE, B, E, W> Future for NewSvcTask<I, N, S, E, W>
+    where
+        I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+        N: Future<Output = Result<S, NE>>,
+        NE: Into<Box<dyn StdError + Send + Sync>>,
+        S: HttpService<Body, ResBody = B>,
+        B: HttpBody + 'static,
+        B::Error: Into<Box<dyn StdError + Send + Sync>>,
+        E: ConnStreamExec<S::Future, B>,
+        W: Watcher<I, S, E>,
+    {
+        type Output = ();
+
+        fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+            // If it weren't for needing to name this type so the `Send` bounds
+            // could be projected to the `Serve` executor, this could just be
+            // an `async fn`, and much safer. Woe is me.
+
+            let mut me = self.project();
+            loop {
+                let next = {
+                    match me.state.as_mut().project() {
+                        StateProj::Connecting {
+                            connecting,
+                            watcher,
+                        } => {
+                            let res = ready!(connecting.poll(cx));
+                            let conn = match res {
+                                Ok(conn) => conn,
+                                Err(err) => {
+                                    let err = crate::Error::new_user_make_service(err);
+                                    debug!("connecting error: {}", err);
+                                    return Poll::Ready(());
+                                }
+                            };
+                            let future = watcher.watch(conn.with_upgrades());
+                            State::Connected { future }
+                        }
+                        StateProj::Connected { future } => {
+                            return future.poll(cx).map(|res| {
+                                if let Err(err) = res {
+                                    debug!("connection error: {}", err);
+                                }
+                            });
+                        }
+                    }
+                };
+
+                me.state.set(next);
+            }
+        }
+    }
+}
+
+pin_project! {
+    /// A future building a new `Service` to a `Connection`.
+    ///
+    /// Wraps the future returned from `MakeService` into one that returns
+    /// a `Connection`.
+    #[must_use = "futures do nothing unless polled"]
+    #[derive(Debug)]
+    #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
+    pub struct Connecting<I, F, E = Exec> {
+        #[pin]
+        future: F,
+        io: Option<I>,
+        protocol: Http_<E>,
+    }
+}
+
+impl<I, F, S, FE, E, B> Future for Connecting<I, F, E>
+where
+    I: AsyncRead + AsyncWrite + Unpin,
+    F: Future<Output = Result<S, FE>>,
+    S: HttpService<Body, ResBody = B>,
+    B: HttpBody + 'static,
+    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+    E: ConnStreamExec<S::Future, B>,
+{
+    type Output = Result<Connection<I, S, E>, FE>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let mut me = self.project();
+        let service = ready!(me.future.poll(cx))?;
+        let io = Option::take(&mut me.io).expect("polled after complete");
+        Poll::Ready(Ok(me.protocol.serve_connection(io, service)))
     }
 }

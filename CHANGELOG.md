@@ -1,3 +1,16 @@
+### v0.14.18 (2022-03-22)
+
+
+#### Bug Fixes
+
+* **ffi:** don't build C libraries by default ([1c663706](https://github.com/hyperium/hyper/commit/1c6637060e36654ddb2fdfccb0d146c7ad527476))
+
+
+#### Features
+
+* **client:** add `HttpInfo::local_addr()` method ([055b4e7e](https://github.com/hyperium/hyper/commit/055b4e7ea6bd22859c20d60776b0c8f20d27498e), closes [#2767](https://github.com/hyperium/hyper/issues/2767))
+
+
 ### v0.14.17 (2022-02-10)
 
 
