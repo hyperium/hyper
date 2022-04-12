@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1649722984697,
+  "lastUpdate": 1649723154873,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -36129,6 +36129,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 7434719,
             "range": "± 1161396",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "39114273+Some-Dood@users.noreply.github.com",
+            "name": "Basti Ortiz",
+            "username": "Some-Dood"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1d895b8dfce0a19dcc84d96b6df9e2fdc6ac4294",
+          "message": "refactor(capi): make early returns consistent in C examples (#2812)\n\n- Since the `if` condition already causes the loop to `break`,\r\n  the `else` is not necessary. We wouldn't have reached the `else`\r\n  block, anyway, if the prior `if` condition passed.\r\n- We are more likely to poll a successful chunk than finish\r\n  the request or throw an error. Thus, it is best if we go\r\n  for the optimistic route and check for the successful\r\n  case first.",
+          "timestamp": "2022-04-11T17:20:14-07:00",
+          "tree_id": "55367ac192d24c153795bb17e98c59e55b12def5",
+          "url": "https://github.com/hyperium/hyper/commit/1d895b8dfce0a19dcc84d96b6df9e2fdc6ac4294"
+        },
+        "date": 1649723152805,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 127930,
+            "range": "± 14702",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 6806904,
+            "range": "± 1066796",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 49263,
+            "range": "± 5637",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 56231,
+            "range": "± 5116",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 312846,
+            "range": "± 27747",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 52021068,
+            "range": "± 2466924",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 52209996,
+            "range": "± 5111313",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 54278145,
+            "range": "± 4896479",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 3571090,
+            "range": "± 820422",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 83178,
+            "range": "± 8112",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 178348,
+            "range": "± 31155",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 99887,
+            "range": "± 13997",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 201007,
+            "range": "± 17583",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 12183182,
+            "range": "± 9144911",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 20428055,
+            "range": "± 9519095",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 11780863,
+            "range": "± 9153280",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 66078445,
+            "range": "± 8795674",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 81301754,
+            "range": "± 17991341",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 6956360,
+            "range": "± 1709117",
             "unit": "ns/iter"
           }
         ]
