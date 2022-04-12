@@ -24,44 +24,42 @@ static size_t read_cb(void *userdata, hyper_context *ctx, uint8_t *buf, size_t b
     struct conn_data *conn = (struct conn_data *)userdata;
     ssize_t ret = read(conn->fd, buf, buf_len);
 
-    if (ret < 0) {
-        int err = errno;
-        if (err == EAGAIN) {
-            // would block, register interest
-            if (conn->read_waker != NULL) {
-                hyper_waker_free(conn->read_waker);
-            }
-            conn->read_waker = hyper_context_waker(ctx);
-            return HYPER_IO_PENDING;
-        } else {
-            // kaboom
-            return HYPER_IO_ERROR;
-        }
-    } else {
+    if (ret >= 0) {
         return ret;
     }
+
+    if (errno != EAGAIN) {
+        // kaboom
+        return HYPER_IO_ERROR;
+    }
+
+    // would block, register interest
+    if (conn->read_waker != NULL) {
+        hyper_waker_free(conn->read_waker);
+    }
+    conn->read_waker = hyper_context_waker(ctx);
+    return HYPER_IO_PENDING;
 }
 
 static size_t write_cb(void *userdata, hyper_context *ctx, const uint8_t *buf, size_t buf_len) {
     struct conn_data *conn = (struct conn_data *)userdata;
     ssize_t ret = write(conn->fd, buf, buf_len);
 
-    if (ret < 0) {
-        int err = errno;
-        if (err == EAGAIN) {
-            // would block, register interest
-            if (conn->write_waker != NULL) {
-                hyper_waker_free(conn->write_waker);
-            }
-            conn->write_waker = hyper_context_waker(ctx);
-            return HYPER_IO_PENDING;
-        } else {
-            // kaboom
-            return HYPER_IO_ERROR;
-        }
-    } else {
+    if (ret >= 0) {
         return ret;
     }
+
+    if (errno != EAGAIN) {
+        // kaboom
+        return HYPER_IO_ERROR;
+    }
+
+    // would block, register interest
+    if (conn->write_waker != NULL) {
+        hyper_waker_free(conn->write_waker);
+    }
+    conn->write_waker = hyper_context_waker(ctx);
+    return HYPER_IO_PENDING;
 }
 
 static void free_conn_data(struct conn_data *conn) {
@@ -98,9 +96,9 @@ static int connect_to(const char *host, const char *port) {
 
         if (connect(sfd, rp->ai_addr, rp->ai_addrlen) != -1) {
             break;
-        } else {
-            close(sfd);
         }
+
+        close(sfd);
     }
 
     freeaddrinfo(result);
@@ -142,17 +140,17 @@ typedef enum {
 #define STR_ARG(XX) (uint8_t *)XX, strlen(XX)
 
 int main(int argc, char *argv[]) {
-        const char *host = argc > 1 ? argv[1] : "httpbin.org";
-        const char *port = argc > 2 ? argv[2] : "80";
-        const char *path = argc > 3 ? argv[3] : "/";
-        printf("connecting to port %s on %s...\n", port, host);
+    const char *host = argc > 1 ? argv[1] : "httpbin.org";
+    const char *port = argc > 2 ? argv[2] : "80";
+    const char *path = argc > 3 ? argv[3] : "/";
+    printf("connecting to port %s on %s...\n", port, host);
 
-        int fd = connect_to(host, port);
+    int fd = connect_to(host, port);
     if (fd < 0) {
         return 1;
     }
-        printf("connected to %s, now get %s\n", host, path);
 
+    printf("connected to %s, now get %s\n", host, path);
     if (fcntl(fd, F_SETFL, O_NONBLOCK) != 0) {
         printf("failed to set socket to non-blocking\n");
         return 1;
@@ -167,7 +165,6 @@ int main(int argc, char *argv[]) {
     conn->fd = fd;
     conn->read_waker = NULL;
     conn->write_waker = NULL;
-
 
     // Hookup the IO
     hyper_io *io = hyper_io_new();
@@ -315,15 +312,16 @@ int main(int argc, char *argv[]) {
         if (sel_ret < 0) {
             printf("select() error\n");
             return 1;
-        } else {
-            if (FD_ISSET(conn->fd, &fds_read)) {
-                hyper_waker_wake(conn->read_waker);
-                conn->read_waker = NULL;
-            }
-            if (FD_ISSET(conn->fd, &fds_write)) {
-                hyper_waker_wake(conn->write_waker);
-                conn->write_waker = NULL;
-            }
+        }
+
+        if (FD_ISSET(conn->fd, &fds_read)) {
+            hyper_waker_wake(conn->read_waker);
+            conn->read_waker = NULL;
+        }
+
+        if (FD_ISSET(conn->fd, &fds_write)) {
+            hyper_waker_wake(conn->write_waker);
+            conn->write_waker = NULL;
         }
 
     }
