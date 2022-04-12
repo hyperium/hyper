@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1649807791074,
+  "lastUpdate": 1649807809646,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -11041,6 +11041,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 60137,
             "range": "± 3538",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "311ba2b97e328586ce3629b3a6a3789991b31b50",
+          "message": "docs(lib): define the VISION and TENETS",
+          "timestamp": "2022-04-12T16:54:27-07:00",
+          "tree_id": "3080fa130dc1d7d019b054fc18b1a6f1fe807967",
+          "url": "https://github.com/hyperium/hyper/commit/311ba2b97e328586ce3629b3a6a3789991b31b50"
+        },
+        "date": 1649807807233,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 49409,
+            "range": "± 2702",
             "unit": "ns/iter"
           }
         ]
