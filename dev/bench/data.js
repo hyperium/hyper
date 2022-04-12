@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1649462842256,
+  "lastUpdate": 1649722948337,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -5489,6 +5489,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 49987,
             "range": "± 4115",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "39114273+Some-Dood@users.noreply.github.com",
+            "name": "Basti Ortiz",
+            "username": "Some-Dood"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1d895b8dfce0a19dcc84d96b6df9e2fdc6ac4294",
+          "message": "refactor(capi): make early returns consistent in C examples (#2812)\n\n- Since the `if` condition already causes the loop to `break`,\r\n  the `else` is not necessary. We wouldn't have reached the `else`\r\n  block, anyway, if the prior `if` condition passed.\r\n- We are more likely to poll a successful chunk than finish\r\n  the request or throw an error. Thus, it is best if we go\r\n  for the optimistic route and check for the successful\r\n  case first.",
+          "timestamp": "2022-04-11T17:20:14-07:00",
+          "tree_id": "55367ac192d24c153795bb17e98c59e55b12def5",
+          "url": "https://github.com/hyperium/hyper/commit/1d895b8dfce0a19dcc84d96b6df9e2fdc6ac4294"
+        },
+        "date": 1649722946459,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 48341,
+            "range": "± 8082",
             "unit": "ns/iter"
           }
         ]
