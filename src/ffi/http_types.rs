@@ -411,56 +411,53 @@ ffi_fn! {
         // and for each one, try to pair the originally cased name with the value.
         //
         // TODO: consider adding http::HeaderMap::entries() iterator
-        for name in headers.headers.keys() {
-            let mut names = headers.orig_casing.get_all(name);
-
-            for value in headers.headers.get_all(name) {
-                let (name_ptr, name_len) = if let Some(orig_name) = names.next() {
+        let mut ordered_iter =  headers.orig_order.get_in_order().peekable();
+        if ordered_iter.peek().is_some() {
+            for (name, idx) in ordered_iter {
+                let (name_ptr, name_len) = if let Some(orig_name) = headers.orig_casing.get_all(name).nth(*idx) {
                     (orig_name.as_ref().as_ptr(), orig_name.as_ref().len())
                 } else {
                     (
-                        name.as_str().as_bytes().as_ptr(),
-                        name.as_str().as_bytes().len(),
+                    name.as_str().as_bytes().as_ptr(),
+                    name.as_str().as_bytes().len(),
                     )
                 };
 
-                let val_ptr = value.as_bytes().as_ptr();
-                let val_len = value.as_bytes().len();
+                let val_ptr;
+                let val_len;
+                if let Some(value) = headers.headers.get_all(name).iter().nth(*idx) {
+                    val_ptr = value.as_bytes().as_ptr();
+                    val_len = value.as_bytes().len();
+                } else {
+                    // Stop iterating, something has gone wrong.
+                    return;
+                }
 
                 if HYPER_ITER_CONTINUE != func(userdata, name_ptr, name_len, val_ptr, val_len) {
                     return;
                 }
             }
-        }
-    }
-}
+        } else {
+            for name in headers.headers.keys() {
+                let mut names = headers.orig_casing.get_all(name);
 
-ffi_fn! {
-    /// Iterates the headers in the order the were recieved, passing each name and value pair to the callback.
-    ///
-    /// The `userdata` pointer is also passed to the callback.
-    ///
-    /// The callback should return `HYPER_ITER_CONTINUE` to keep iterating, or
-    /// `HYPER_ITER_BREAK` to stop.
-    fn hyper_headers_foreach_ordered(headers: *const hyper_headers, func: hyper_headers_foreach_callback, userdata: *mut c_void) {
-        let headers = non_null!(&*headers ?= ());
-        // For each header name/value pair, there may be a value in the casemap
-        // that corresponds to the HeaderValue. So, we iterator all the keys,
-        // and for each one, try to pair the originally cased name with the value.
-        //
-        // TODO: consider adding http::HeaderMap::entries() iterator
-        for (name, idx) in headers.orig_order.get_in_order() {
-            let orig_name = headers.orig_casing.get_all(&name).nth(*idx).unwrap();
-            let value = headers.headers.get_all(name).iter().nth(*idx).unwrap();
+                for value in headers.headers.get_all(name) {
+                    let (name_ptr, name_len) = if let Some(orig_name) = names.next() {
+                        (orig_name.as_ref().as_ptr(), orig_name.as_ref().len())
+                    } else {
+                        (
+                            name.as_str().as_bytes().as_ptr(),
+                            name.as_str().as_bytes().len(),
+                        )
+                    };
 
-            let name_ptr = orig_name.as_ref().as_ptr();
-            let name_len = orig_name.as_ref().len();
+                    let val_ptr = value.as_bytes().as_ptr();
+                    let val_len = value.as_bytes().len();
 
-            let val_ptr = value.as_bytes().as_ptr();
-            let val_len = value.as_bytes().len();
-
-            if HYPER_ITER_CONTINUE != func(userdata, name_ptr, name_len, val_ptr, val_len) {
-                return;
+                    if HYPER_ITER_CONTINUE != func(userdata, name_ptr, name_len, val_ptr, val_len) {
+                        return;
+                    }
+                }
             }
         }
     }
@@ -633,10 +630,13 @@ mod tests {
         );
 
         let mut vec = Vec::<u8>::new();
-        hyper_headers_foreach_ordered(&headers, concat, &mut vec as *mut _ as *mut c_void);
+        hyper_headers_foreach(&headers, concat, &mut vec as *mut _ as *mut c_void);
 
         println!("{}", std::str::from_utf8(&vec).unwrap());
-        assert_eq!(vec, b"Set-CookiE: a=b\r\nContent-Encoding: gzip\r\nSET-COOKIE: c=d\r\n");
+        assert_eq!(
+            vec,
+            b"Set-CookiE: a=b\r\nContent-Encoding: gzip\r\nSET-COOKIE: c=d\r\n"
+        );
 
         extern "C" fn concat(
             vec: *mut c_void,

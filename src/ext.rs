@@ -125,22 +125,34 @@ impl HeaderCaseMap {
 
 #[derive(Clone, Debug)]
 /// Hashmap<Headername, numheaders with that name>
-pub(crate) struct OriginalHeaderOrder(HashMap<HeaderName, usize>, Vec<(HeaderName, usize)>);
+pub(crate) struct OriginalHeaderOrder {
+    /// Stores how many entries a Headername maps to. This is used
+    /// for accounting.
+    num_entries: HashMap<HeaderName, usize>,
+    /// Stores the ordering of the headers. ex: `vec[i] = (headerName, idx)`,
+    /// The vector is ordered such that the ith element
+    /// represents the ith header that came in off the line.
+    /// The `HeaderName` and `idx` are then used elsewhere to index into
+    /// the multi map that stores the header values.
+    entry_order: Vec<(HeaderName, usize)>,
+}
 
 #[cfg(all(feature = "http1", feature = "ffi"))]
 impl OriginalHeaderOrder {
     pub(crate) fn default() -> Self {
-        Self(Default::default(), Default::default())
+        OriginalHeaderOrder {
+            num_entries: HashMap::new(),
+            entry_order: Vec::new(),
+        }
     }
 
-    #[cfg(any(test, feature = "ffi"))]
     pub(crate) fn insert(&mut self, name: HeaderName) {
-        if !self.0.contains_key(&name) {
+        if !self.num_entries.contains_key(&name) {
             let idx = 0;
-            self.0.insert(name.clone(), 1);
-            self.1.push((name, idx));
+            self.num_entries.insert(name.clone(), 1);
+            self.entry_order.push((name, idx));
         }
-        // replacing an already existing element does not
+        // Replacing an already existing element does not
         // change ordering, so we only care if its the first
         // header name encountered
     }
@@ -151,20 +163,57 @@ impl OriginalHeaderOrder {
     {
         let name: HeaderName = name.into();
         let idx;
-        if self.0.contains_key(&name) {
-            idx = self.0[&name];
-            *self.0.get_mut(&name).unwrap() += 1;
+        if self.num_entries.contains_key(&name) {
+            idx = self.num_entries[&name];
+            *self.num_entries.get_mut(&name).unwrap() += 1;
         } else {
             idx = 0;
-            self.0.insert(name.clone(), 1);
+            self.num_entries.insert(name.clone(), 1);
         }
-        self.1.push((name, idx));
+        self.entry_order.push((name, idx));
     }
 
+    // No doc test is run here because `RUSTFLAGS='--cfg hyper_unstable_ffi'`
+    // is needed to compile. Once ffi is stablized `no_run` should be removed
+    // here.
     /// This returns an iterator that provides header names and indexes
     /// in the original order recieved.
-    #[cfg(any(test, feature = "ffi"))]
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use hyper::ext::OriginalHeaderOrder;
+    /// use hyper::header::{HeaderName, HeaderValue, HeaderMap};
+    ///
+    /// let mut h_order = OriginalHeaderOrder::default();
+    /// let mut h_map = Headermap::new();
+    ///
+    /// let name1 = b"Set-CookiE";
+    /// let value1 = b"a=b";
+    /// h_map.append(name1);
+    /// h_order.append(name1);
+    ///
+    /// let name2 = b"Content-Encoding";
+    /// let value2 = b"gzip";
+    /// h_map.append(name2, value2);
+    /// h_order.append(name2);
+    ///
+    /// let name3 = b"SET-COOKIE";
+    /// let value3 = b"c=d";
+    /// h_map.append(name3, value3);
+    /// h_order.append(name3)
+    ///
+    /// let mut iter = h_order.get_in_order()
+    ///
+    /// let (name, idx) = iter.next();
+    /// assert_eq!(b"a=b", h_map.get_all(name).nth(idx).unwrap());
+    ///
+    /// let (name, idx) = iter.next();
+    /// assert_eq!(b"gzip", h_map.get_all(name).nth(idx).unwrap());
+    ///
+    /// let (name, idx) = iter.next();
+    /// assert_eq!(b"c=d", h_map.get_all(name).nth(idx).unwrap());
+    /// ```
     pub(crate) fn get_in_order(&self) -> impl Iterator<Item = &(HeaderName, usize)> {
-        self.1.iter()
+        self.entry_order.iter()
     }
 }

@@ -612,18 +612,6 @@ void hyper_headers_foreach(const struct hyper_headers *headers,
                            void *userdata);
 
 /*
- Iterates the headers in the order the were recieved, passing each name and value pair to the callback.
-
- The `userdata` pointer is also passed to the callback.
-
- The callback should return `HYPER_ITER_CONTINUE` to keep iterating, or
- `HYPER_ITER_BREAK` to stop.
- */
-void hyper_headers_foreach_ordered(const struct hyper_headers *headers,
-                                   hyper_headers_foreach_callback func,
-                                   void *userdata);
-
-/*
  Sets the header with the provided name to the provided value.
 
  This overwrites any previous value set for the header.
