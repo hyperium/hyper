@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1650039712145,
+  "lastUpdate": 1650039730329,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -5549,6 +5549,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 51126,
             "range": "± 4817",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "d2c945e8ed4fa3595bc984c11793c29ce1fac0cb",
+          "message": "docs(contrib): add contributing guide for submitting pull requests",
+          "timestamp": "2022-04-15T09:19:32-07:00",
+          "tree_id": "44b36d92f926f108f298b8c3684c86d45cdfac8f",
+          "url": "https://github.com/hyperium/hyper/commit/d2c945e8ed4fa3595bc984c11793c29ce1fac0cb"
+        },
+        "date": 1650039728185,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 78635,
+            "range": "± 18189",
             "unit": "ns/iter"
           }
         ]
