@@ -5,6 +5,7 @@ use http::header::HeaderName;
 #[cfg(feature = "http1")]
 use http::header::{IntoHeaderName, ValueIter};
 use http::HeaderMap;
+#[cfg(feature = "ffi")]
 use std::collections::HashMap;
 #[cfg(feature = "http2")]
 use std::fmt;
@@ -123,6 +124,7 @@ impl HeaderCaseMap {
     }
 }
 
+#[cfg(feature = "ffi")]
 #[derive(Clone, Debug)]
 /// Hashmap<Headername, numheaders with that name>
 pub(crate) struct OriginalHeaderOrder {

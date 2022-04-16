@@ -16,7 +16,9 @@ use crate::body::DecodedLength;
 #[cfg(feature = "server")]
 use crate::common::date;
 use crate::error::Parse;
-use crate::ext::{HeaderCaseMap, OriginalHeaderOrder};
+use crate::ext::HeaderCaseMap;
+#[cfg(feature = "ffi")]
+use crate::ext::OriginalHeaderOrder;
 use crate::headers;
 use crate::proto::h1::{
     Encode, Encoder, Http1Transaction, ParseContext, ParseResult, ParsedMessage,
@@ -316,6 +318,7 @@ impl Http1Transaction for Server {
             extensions.insert(header_case_map);
         }
 
+        #[cfg(feature = "ffi")]
         if let Some(header_order) = header_order {
             extensions.insert(header_order);
         }
@@ -1043,6 +1046,7 @@ impl Http1Transaction for Client {
                 extensions.insert(header_case_map);
             }
 
+            #[cfg(feature = "ffi")]
             if let Some(header_order) = header_order {
                 extensions.insert(header_order);
             }

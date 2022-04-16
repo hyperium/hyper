@@ -560,6 +560,7 @@ impl Builder {
             h1_parser_config: Default::default(),
             h1_title_case_headers: false,
             h1_preserve_header_case: false,
+            #[cfg(feature = "ffi")]
             h1_preserve_header_order: false,
             h1_max_buf_size: None,
             #[cfg(feature = "ffi")]
@@ -966,9 +967,11 @@ impl Builder {
                     if opts.h1_title_case_headers {
                         conn.set_title_case_headers();
                     }
+                    #[cfg(feature = "ffi")]
                     if opts.h1_preserve_header_case {
                         conn.set_preserve_header_case();
                     }
+                    #[cfg(feature = "ffi")]
                     if opts.h1_preserve_header_order {
                         conn.set_preserve_header_order();
                     }
