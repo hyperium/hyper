@@ -18,7 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let body = Body::empty();
 
-    let req = Request::get(uri).body(body)?;
+    let req = Request::get(uri.path_and_query().unwrap().to_string()).body(body)?;
     let res = svc.call(req).await?;
 
     println!("RESPONSE={:?}", res);
