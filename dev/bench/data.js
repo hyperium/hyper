@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1650039822182,
+  "lastUpdate": 1650494294076,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -11131,6 +11131,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 49946,
             "range": "± 4098",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "Ilya.Trefilov@outlook.com",
+            "name": "Ilya Trefilov",
+            "username": "ilyatrefilov"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ffbf610b1631cabfacb20886270e3c137fa93800",
+          "message": "feat(server): add `AddrStream::local_addr()` (#2816)\n\nExpose local address of tcp connection in AddrStream.\n\nCloses #2773",
+          "timestamp": "2022-04-20T15:35:36-07:00",
+          "tree_id": "4def3b56269570b09516674288388752cb7e190e",
+          "url": "https://github.com/hyperium/hyper/commit/ffbf610b1631cabfacb20886270e3c137fa93800"
+        },
+        "date": 1650494291459,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 57877,
+            "range": "± 8107",
             "unit": "ns/iter"
           }
         ]
