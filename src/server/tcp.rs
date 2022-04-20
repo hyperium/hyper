@@ -107,7 +107,7 @@ impl AddrIncoming {
 
         loop {
             match ready!(self.listener.poll_accept(cx)) {
-                Ok((socket, addr)) => {
+                Ok((socket, remote_addr)) => {
                     if let Some(dur) = self.tcp_keepalive_timeout {
                         let socket = socket2::SockRef::from(&socket);
                         let conf = socket2::TcpKeepalive::new().with_time(dur);
@@ -118,7 +118,8 @@ impl AddrIncoming {
                     if let Err(e) = socket.set_nodelay(self.tcp_nodelay) {
                         trace!("error trying to set TCP nodelay: {}", e);
                     }
-                    return Poll::Ready(Ok(AddrStream::new(socket, addr)));
+                    let local_addr = socket.local_addr()?;
+                    return Poll::Ready(Ok(AddrStream::new(socket, remote_addr, local_addr)));
                 }
                 Err(e) => {
                     // Connection errors can be ignored directly, continue by
@@ -174,9 +175,12 @@ impl Accept for AddrIncoming {
 /// The timeout is useful to handle resource exhaustion errors like ENFILE
 /// and EMFILE. Otherwise, could enter into tight loop.
 fn is_connection_error(e: &io::Error) -> bool {
-    matches!(e.kind(), io::ErrorKind::ConnectionRefused
-        | io::ErrorKind::ConnectionAborted
-        | io::ErrorKind::ConnectionReset)
+    matches!(
+        e.kind(),
+        io::ErrorKind::ConnectionRefused
+            | io::ErrorKind::ConnectionAborted
+            | io::ErrorKind::ConnectionReset
+    )
 }
 
 impl fmt::Debug for AddrIncoming {
@@ -207,14 +211,20 @@ mod addr_stream {
             #[pin]
             inner: TcpStream,
             pub(super) remote_addr: SocketAddr,
+            pub(super) local_addr: SocketAddr
         }
     }
 
     impl AddrStream {
-        pub(super) fn new(tcp: TcpStream, addr: SocketAddr) -> AddrStream {
+        pub(super) fn new(
+            tcp: TcpStream,
+            remote_addr: SocketAddr,
+            local_addr: SocketAddr,
+        ) -> AddrStream {
             AddrStream {
                 inner: tcp,
-                remote_addr: addr,
+                remote_addr,
+                local_addr,
             }
         }
 
@@ -222,6 +232,12 @@ mod addr_stream {
         #[inline]
         pub fn remote_addr(&self) -> SocketAddr {
             self.remote_addr
+        }
+
+        /// Returns the local address of this connection.
+        #[inline]
+        pub fn local_addr(&self) -> SocketAddr {
+            self.local_addr
         }
 
         /// Consumes the AddrStream and returns the underlying IO object
