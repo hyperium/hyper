@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1650494409696,
+  "lastUpdate": 1650571121004,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -5609,6 +5609,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 76856,
             "range": "± 7567",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "post@ralfj.de",
+            "name": "Ralf Jung",
+            "username": "RalfJung"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "e1138d716da2a0ae755b4d7d07dfbcabd3dcd522",
+          "message": "test(lib): add CI job to test with Miri",
+          "timestamp": "2022-04-21T12:55:52-07:00",
+          "tree_id": "48e310602c1c3aa8277e6c88fb62ae5562ddf327",
+          "url": "https://github.com/hyperium/hyper/commit/e1138d716da2a0ae755b4d7d07dfbcabd3dcd522"
+        },
+        "date": 1650571118094,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 49508,
+            "range": "± 3071",
             "unit": "ns/iter"
           }
         ]
