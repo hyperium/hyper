@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1650571351615,
+  "lastUpdate": 1650730079646,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -11251,6 +11251,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 64889,
             "range": "± 19413",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "32559457+liamwarfield@users.noreply.github.com",
+            "name": "Liam Warfield",
+            "username": "liamwarfield"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "78de8914eadeab4b9a2c71a82c77b2ce33fe6c74",
+          "message": "feature(ffi): add connection option to preserve header order (#2798)\n\nLibcurl expects that headers are iterated in the same order that they\r\nare recieved. Previously this caused curl tests 580 and 581 to fail.\r\nThis necessitated exposing a way to preserve the original ordering of\r\nhttp headers.\r\n\r\nSUMMARY OF CHANGES: Add a new data structure called OriginalHeaderOrder that\r\nrepresents the order in which headers originally appear in a HTTP\r\nmessage. This datastructure is `Vec<(Headername, multimap-index)>`.\r\nThis vector is ordered by the order which headers were recieved.\r\nAdd the following ffi functions:\r\n- ffi::client::hyper_clientconn_options_set_preserve_header_order : An\r\n     ffi interface to configure a connection to preserve header order.\r\n- ffi::client::hyper_clientconn_options_set_preserve_header_case : An\r\n     ffi interface to configure a connection to preserve header case.\r\n- Add a new option to ParseContext, and Conn::State called `preserve_header_order`.\r\n  This option, and all the code paths it creates are behind the `ffi`\r\n  feature flag. This should not change performance of response parsing for\r\n  non-ffi users.\r\n\r\nCloses #2780\r\n\r\nBREAKING CHANGE: hyper_clientconn_options_new no longer\r\n  sets the http1_preserve_header_case connection option by default.\r\n  Users should now call\r\n  hyper_clientconn_options_set_preserve_header_case\r\n  if they desire that functionality.",
+          "timestamp": "2022-04-23T09:05:37-07:00",
+          "tree_id": "e7dcd42cbccf281118e393fb459acbca29ec873c",
+          "url": "https://github.com/hyperium/hyper/commit/78de8914eadeab4b9a2c71a82c77b2ce33fe6c74"
+        },
+        "date": 1650730077760,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 49182,
+            "range": "± 2469",
             "unit": "ns/iter"
           }
         ]
