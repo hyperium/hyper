@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1650730098014,
+  "lastUpdate": 1650730209286,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -37119,6 +37119,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 8743064,
             "range": "± 2237515",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "32559457+liamwarfield@users.noreply.github.com",
+            "name": "Liam Warfield",
+            "username": "liamwarfield"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "78de8914eadeab4b9a2c71a82c77b2ce33fe6c74",
+          "message": "feature(ffi): add connection option to preserve header order (#2798)\n\nLibcurl expects that headers are iterated in the same order that they\r\nare recieved. Previously this caused curl tests 580 and 581 to fail.\r\nThis necessitated exposing a way to preserve the original ordering of\r\nhttp headers.\r\n\r\nSUMMARY OF CHANGES: Add a new data structure called OriginalHeaderOrder that\r\nrepresents the order in which headers originally appear in a HTTP\r\nmessage. This datastructure is `Vec<(Headername, multimap-index)>`.\r\nThis vector is ordered by the order which headers were recieved.\r\nAdd the following ffi functions:\r\n- ffi::client::hyper_clientconn_options_set_preserve_header_order : An\r\n     ffi interface to configure a connection to preserve header order.\r\n- ffi::client::hyper_clientconn_options_set_preserve_header_case : An\r\n     ffi interface to configure a connection to preserve header case.\r\n- Add a new option to ParseContext, and Conn::State called `preserve_header_order`.\r\n  This option, and all the code paths it creates are behind the `ffi`\r\n  feature flag. This should not change performance of response parsing for\r\n  non-ffi users.\r\n\r\nCloses #2780\r\n\r\nBREAKING CHANGE: hyper_clientconn_options_new no longer\r\n  sets the http1_preserve_header_case connection option by default.\r\n  Users should now call\r\n  hyper_clientconn_options_set_preserve_header_case\r\n  if they desire that functionality.",
+          "timestamp": "2022-04-23T09:05:37-07:00",
+          "tree_id": "e7dcd42cbccf281118e393fb459acbca29ec873c",
+          "url": "https://github.com/hyperium/hyper/commit/78de8914eadeab4b9a2c71a82c77b2ce33fe6c74"
+        },
+        "date": 1650730206832,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 72332,
+            "range": "± 651",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 6857994,
+            "range": "± 597249",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 31813,
+            "range": "± 1291",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 34453,
+            "range": "± 371",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 230659,
+            "range": "± 3109",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 52001028,
+            "range": "± 120882",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 48034809,
+            "range": "± 1138571",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 50328906,
+            "range": "± 725876",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 3965056,
+            "range": "± 390058",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 51604,
+            "range": "± 749",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 118997,
+            "range": "± 5957",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 60121,
+            "range": "± 4292",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 156655,
+            "range": "± 2580",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 9307710,
+            "range": "± 8630048",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 9416361,
+            "range": "± 367874",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 9062610,
+            "range": "± 8816918",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 60345162,
+            "range": "± 3709438",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 73522734,
+            "range": "± 14425275",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 6686034,
+            "range": "± 1690303",
             "unit": "ns/iter"
           }
         ]
