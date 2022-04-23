@@ -356,6 +356,22 @@ void hyper_clientconn_free(struct hyper_clientconn *conn);
 struct hyper_clientconn_options *hyper_clientconn_options_new(void);
 
 /*
+ Set the whether or not header case is preserved.
+
+ Pass `0` to allow lowercase normalization (default), `1` to retain original case.
+ */
+void hyper_clientconn_options_set_preserve_header_case(struct hyper_clientconn_options *opts,
+                                                       int enabled);
+
+/*
+ Set the whether or not header order is preserved.
+
+ Pass `0` to allow reordering (default), `1` to retain original ordering.
+ */
+void hyper_clientconn_options_set_preserve_header_order(struct hyper_clientconn_options *opts,
+                                                        int enabled);
+
+/*
  Free a `hyper_clientconn_options *`.
  */
 void hyper_clientconn_options_free(struct hyper_clientconn_options *opts);

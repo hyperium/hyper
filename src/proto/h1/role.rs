@@ -17,6 +17,8 @@ use crate::body::DecodedLength;
 use crate::common::date;
 use crate::error::Parse;
 use crate::ext::HeaderCaseMap;
+#[cfg(feature = "ffi")]
+use crate::ext::OriginalHeaderOrder;
 use crate::headers;
 use crate::proto::h1::{
     Encode, Encoder, Http1Transaction, ParseContext, ParseResult, ParsedMessage,
@@ -214,6 +216,13 @@ impl Http1Transaction for Server {
             None
         };
 
+        #[cfg(feature = "ffi")]
+        let mut header_order = if ctx.preserve_header_order {
+            Some(OriginalHeaderOrder::default())
+        } else {
+            None
+        };
+
         let mut headers = ctx.cached_headers.take().unwrap_or_else(HeaderMap::new);
 
         headers.reserve(headers_len);
@@ -290,6 +299,11 @@ impl Http1Transaction for Server {
                 header_case_map.append(&name, slice.slice(header.name.0..header.name.1));
             }
 
+            #[cfg(feature = "ffi")]
+            if let Some(ref mut header_order) = header_order {
+                header_order.append(&name);
+            }
+
             headers.append(name, value);
         }
 
@@ -302,6 +316,11 @@ impl Http1Transaction for Server {
 
         if let Some(header_case_map) = header_case_map {
             extensions.insert(header_case_map);
+        }
+
+        #[cfg(feature = "ffi")]
+        if let Some(header_order) = header_order {
+            extensions.insert(header_order);
         }
 
         *ctx.req_method = Some(subject.0.clone());
@@ -957,7 +976,10 @@ impl Http1Transaction for Client {
 
             let mut slice = buf.split_to(len);
 
-            if ctx.h1_parser_config.obsolete_multiline_headers_in_responses_are_allowed() {
+            if ctx
+                .h1_parser_config
+                .obsolete_multiline_headers_in_responses_are_allowed()
+            {
                 for header in &headers_indices[..headers_len] {
                     // SAFETY: array is valid up to `headers_len`
                     let header = unsafe { &*header.as_ptr() };
@@ -977,6 +999,13 @@ impl Http1Transaction for Client {
 
             let mut header_case_map = if ctx.preserve_header_case {
                 Some(HeaderCaseMap::default())
+            } else {
+                None
+            };
+
+            #[cfg(feature = "ffi")]
+            let mut header_order = if ctx.preserve_header_order {
+                Some(OriginalHeaderOrder::default())
             } else {
                 None
             };
@@ -1003,6 +1032,11 @@ impl Http1Transaction for Client {
                     header_case_map.append(&name, slice.slice(header.name.0..header.name.1));
                 }
 
+                #[cfg(feature = "ffi")]
+                if let Some(ref mut header_order) = header_order { 
+                    header_order.append(&name);
+                }
+
                 headers.append(name, value);
             }
 
@@ -1010,6 +1044,11 @@ impl Http1Transaction for Client {
 
             if let Some(header_case_map) = header_case_map {
                 extensions.insert(header_case_map);
+            }
+
+            #[cfg(feature = "ffi")]
+            if let Some(header_order) = header_order {
+                extensions.insert(header_order);
             }
 
             #[cfg(feature = "ffi")]
@@ -1481,6 +1520,8 @@ mod tests {
                 #[cfg(feature = "runtime")]
                 h1_header_read_timeout_running: &mut false,
                 preserve_header_case: false,
+                #[cfg(feature = "ffi")]
+                preserve_header_order: false,
                 h09_responses: false,
                 #[cfg(feature = "ffi")]
                 on_informational: &mut None,
@@ -1514,6 +1555,8 @@ mod tests {
             #[cfg(feature = "runtime")]
             h1_header_read_timeout_running: &mut false,
             preserve_header_case: false,
+            #[cfg(feature = "ffi")]
+            preserve_header_order: false,
             h09_responses: false,
             #[cfg(feature = "ffi")]
             on_informational: &mut None,
@@ -1542,6 +1585,8 @@ mod tests {
             #[cfg(feature = "runtime")]
             h1_header_read_timeout_running: &mut false,
             preserve_header_case: false,
+            #[cfg(feature = "ffi")]
+            preserve_header_order: false,
             h09_responses: false,
             #[cfg(feature = "ffi")]
             on_informational: &mut None,
@@ -1568,6 +1613,8 @@ mod tests {
             #[cfg(feature = "runtime")]
             h1_header_read_timeout_running: &mut false,
             preserve_header_case: false,
+            #[cfg(feature = "ffi")]
+            preserve_header_order: false,
             h09_responses: true,
             #[cfg(feature = "ffi")]
             on_informational: &mut None,
@@ -1596,6 +1643,8 @@ mod tests {
             #[cfg(feature = "runtime")]
             h1_header_read_timeout_running: &mut false,
             preserve_header_case: false,
+            #[cfg(feature = "ffi")]
+            preserve_header_order: false,
             h09_responses: false,
             #[cfg(feature = "ffi")]
             on_informational: &mut None,
@@ -1628,6 +1677,8 @@ mod tests {
             #[cfg(feature = "runtime")]
             h1_header_read_timeout_running: &mut false,
             preserve_header_case: false,
+            #[cfg(feature = "ffi")]
+            preserve_header_order: false,
             h09_responses: false,
             #[cfg(feature = "ffi")]
             on_informational: &mut None,
@@ -1657,6 +1708,8 @@ mod tests {
             #[cfg(feature = "runtime")]
             h1_header_read_timeout_running: &mut false,
             preserve_header_case: false,
+            #[cfg(feature = "ffi")]
+            preserve_header_order: false,
             h09_responses: false,
             #[cfg(feature = "ffi")]
             on_informational: &mut None,
@@ -1681,6 +1734,8 @@ mod tests {
             #[cfg(feature = "runtime")]
             h1_header_read_timeout_running: &mut false,
             preserve_header_case: true,
+            #[cfg(feature = "ffi")]
+            preserve_header_order: false,
             h09_responses: false,
             #[cfg(feature = "ffi")]
             on_informational: &mut None,
@@ -1726,6 +1781,8 @@ mod tests {
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout_running: &mut false,
                     preserve_header_case: false,
+                    #[cfg(feature = "ffi")]
+                    preserve_header_order: false,
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
                     on_informational: &mut None,
@@ -1752,6 +1809,8 @@ mod tests {
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout_running: &mut false,
                     preserve_header_case: false,
+                    #[cfg(feature = "ffi")]
+                    preserve_header_order: false,
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
                     on_informational: &mut None,
@@ -1987,6 +2046,8 @@ mod tests {
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout_running: &mut false,
                     preserve_header_case: false,
+                    #[cfg(feature = "ffi")]
+                    preserve_header_order: false,
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
                     on_informational: &mut None,
@@ -2013,6 +2074,8 @@ mod tests {
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout_running: &mut false,
                     preserve_header_case: false,
+                    #[cfg(feature = "ffi")]
+                    preserve_header_order: false,
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
                     on_informational: &mut None,
@@ -2039,6 +2102,8 @@ mod tests {
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout_running: &mut false,
                     preserve_header_case: false,
+                    #[cfg(feature = "ffi")]
+                    preserve_header_order: false,
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
                     on_informational: &mut None,
@@ -2542,6 +2607,8 @@ mod tests {
                 #[cfg(feature = "runtime")]
                 h1_header_read_timeout_running: &mut false,
                 preserve_header_case: false,
+                #[cfg(feature = "ffi")]
+                preserve_header_order: false,
                 h09_responses: false,
                 #[cfg(feature = "ffi")]
                 on_informational: &mut None,
@@ -2632,6 +2699,8 @@ mod tests {
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout_running: &mut false,
                     preserve_header_case: false,
+                    #[cfg(feature = "ffi")]
+                    preserve_header_order: false,
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
                     on_informational: &mut None,
@@ -2678,6 +2747,8 @@ mod tests {
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout_running: &mut false,
                     preserve_header_case: false,
+                    #[cfg(feature = "ffi")]
+                    preserve_header_order: false,
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
                     on_informational: &mut None,

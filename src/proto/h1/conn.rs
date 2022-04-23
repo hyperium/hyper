@@ -58,6 +58,8 @@ where
                 #[cfg(all(feature = "server", feature = "runtime"))]
                 h1_header_read_timeout_running: false,
                 preserve_header_case: false,
+                #[cfg(feature = "ffi")]
+                preserve_header_order: false,
                 title_case_headers: false,
                 h09_responses: false,
                 #[cfg(feature = "ffi")]
@@ -109,6 +111,11 @@ where
 
     pub(crate) fn set_preserve_header_case(&mut self) {
         self.state.preserve_header_case = true;
+    }
+
+    #[cfg(feature = "ffi")]
+    pub(crate) fn set_preserve_header_order(&mut self) {
+        self.state.preserve_header_order = true;
     }
 
     #[cfg(feature = "client")]
@@ -200,6 +207,8 @@ where
                 #[cfg(all(feature = "server", feature = "runtime"))]
                 h1_header_read_timeout_running: &mut self.state.h1_header_read_timeout_running,
                 preserve_header_case: self.state.preserve_header_case,
+                #[cfg(feature = "ffi")]
+                preserve_header_order: self.state.preserve_header_order,
                 h09_responses: self.state.h09_responses,
                 #[cfg(feature = "ffi")]
                 on_informational: &mut self.state.on_informational,
@@ -824,6 +833,8 @@ struct State {
     #[cfg(all(feature = "server", feature = "runtime"))]
     h1_header_read_timeout_running: bool,
     preserve_header_case: bool,
+    #[cfg(feature = "ffi")]
+    preserve_header_order: bool,
     title_case_headers: bool,
     h09_responses: bool,
     /// If set, called with each 1xx informational response received for
