@@ -363,7 +363,10 @@ where
     }
 
     fn is_mid_message(&self) -> bool {
-        !matches!((self.state.reading, self.state.writing), (Reading::Init, Writing::Init))
+        !matches!(
+            (self.state.reading, self.state.writing),
+            (Reading::Init, Writing::Init)
+        )
     }
 
     // This will check to make sure the io object read is empty.
@@ -742,10 +745,7 @@ where
 
         // If still in Reading::Body, just give up
         match self.state.reading {
-            Reading::Init | Reading::KeepAlive => {
-                trace!("body drained");
-                return;
-            }
+            Reading::Init | Reading::KeepAlive => trace!("body drained"),
             _ => self.close_read(),
         }
     }
