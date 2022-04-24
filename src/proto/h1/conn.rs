@@ -665,32 +665,31 @@ where
     pub(crate) fn end_body(&mut self) -> crate::Result<()> {
         debug_assert!(self.can_write_body());
 
-        let mut res = Ok(());
-        let state = match self.state.writing {
-            Writing::Body(ref mut encoder) => {
-                // end of stream, that means we should try to eof
-                match encoder.end() {
-                    Ok(end) => {
-                        if let Some(end) = end {
-                            self.io.buffer(end);
-                        }
-                        if encoder.is_last() || encoder.is_close_delimited() {
-                            Writing::Closed
-                        } else {
-                            Writing::KeepAlive
-                        }
-                    }
-                    Err(not_eof) => {
-                        res = Err(crate::Error::new_body_write_aborted().with(not_eof));
-                        Writing::Closed
-                    }
-                }
-            }
+        let encoder = match self.state.writing {
+            Writing::Body(ref mut enc) => enc,
             _ => return Ok(()),
         };
 
-        self.state.writing = state;
-        res
+        // end of stream, that means we should try to eof
+        match encoder.end() {
+            Ok(end) => {
+                if let Some(end) = end {
+                    self.io.buffer(end);
+                }
+
+                self.state.writing = if encoder.is_last() || encoder.is_close_delimited() {
+                    Writing::Closed
+                } else {
+                    Writing::KeepAlive
+                };
+
+                Ok(())
+            }
+            Err(not_eof) => {
+                self.state.writing = Writing::Closed;
+                Err(crate::Error::new_body_write_aborted().with(not_eof))
+            }
+        };
     }
 
     // When we get a parse error, depending on what side we are, we might be able
