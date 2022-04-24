@@ -960,8 +960,8 @@ impl State {
     }
 
     fn try_keep_alive<T: Http1Transaction>(&mut self) {
-        match (&self.reading, &self.writing) {
-            (&Reading::KeepAlive, &Writing::KeepAlive) => {
+        match (self.reading, self.writing) {
+            (Reading::KeepAlive, Writing::KeepAlive) => {
                 if let KA::Busy = self.keep_alive.status() {
                     self.idle::<T>();
                 } else {
@@ -973,7 +973,7 @@ impl State {
                     self.close();
                 }
             }
-            (&Reading::Closed, &Writing::KeepAlive) | (&Reading::KeepAlive, &Writing::Closed) => {
+            (Reading::Closed, Writing::KeepAlive) | (Reading::KeepAlive, Writing::Closed) => {
                 self.close()
             }
             _ => (),
