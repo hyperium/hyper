@@ -443,7 +443,7 @@ where
             return;
         }
 
-        if matches!(self.state.writing, Writing::Body(..)) {
+        if self.can_write_body() {
             return;
         }
 
@@ -494,10 +494,7 @@ where
     }
 
     pub(crate) fn can_write_body(&self) -> bool {
-        match self.state.writing {
-            Writing::Body(..) => true,
-            Writing::Init | Writing::KeepAlive | Writing::Closed => false,
-        }
+        matches!(self.state.writing, Writing::Body(..))
     }
 
     pub(crate) fn can_buffer_body(&self) -> bool {
