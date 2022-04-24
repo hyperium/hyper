@@ -692,7 +692,7 @@ where
                 self.state.writing = Writing::Closed;
                 Err(crate::Error::new_body_write_aborted().with(not_eof))
             }
-        };
+        }
     }
 
     // When we get a parse error, depending on what side we are, we might be able
