@@ -439,16 +439,12 @@ where
         // determined we couldn't keep reading until we knew how writing
         // would finish.
 
-        match self.state.reading {
-            Reading::Continue(..) | Reading::Body(..) | Reading::KeepAlive | Reading::Closed => {
-                return
-            }
-            Reading::Init => (),
-        };
+        if !matches!(self.state.reading, Reading::Init) {
+            return;
+        }
 
-        match self.state.writing {
-            Writing::Body(..) => return,
-            Writing::Init | Writing::KeepAlive | Writing::Closed => (),
+        if matches!(self.state.writing, Writing::Body(..)) {
+            return;
         }
 
         if !self.io.is_read_blocked() {
