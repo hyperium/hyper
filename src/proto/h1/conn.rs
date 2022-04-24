@@ -1016,25 +1016,15 @@ impl State {
     }
 
     fn is_idle(&self) -> bool {
-        if let KA::Idle = self.keep_alive.status() {
-            true
-        } else {
-            false
-        }
+        matches!(self.keep_alive.status(), KA::Idle)
     }
 
     fn is_read_closed(&self) -> bool {
-        match self.reading {
-            Reading::Closed => true,
-            _ => false,
-        }
+        matches!(self.reading, Reading::Closed)
     }
 
     fn is_write_closed(&self) -> bool {
-        match self.writing {
-            Writing::Closed => true,
-            _ => false,
-        }
+        matches!(self.writing, Writing::Closed)
     }
 
     fn prepare_upgrade(&mut self) -> crate::upgrade::OnUpgrade {
