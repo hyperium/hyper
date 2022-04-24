@@ -4,7 +4,7 @@
 
 - Don't be mean.
 - Insulting anyone is prohibited.
-- Harrassment of any kind is prohibited.
+- Harassment of any kind is prohibited.
 - If another person feels uncomfortable with your remarks, stop it.
 - If a moderator deems your comment or conduct as inappropriate, stop it.
 - Disagreeing is fine, but keep it to technical arguments. Never attack the person.

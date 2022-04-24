@@ -179,7 +179,7 @@ impl OriginalHeaderOrder {
     // is needed to compile. Once ffi is stablized `no_run` should be removed
     // here.
     /// This returns an iterator that provides header names and indexes
-    /// in the original order recieved.
+    /// in the original order received.
     ///
     /// # Examples
     /// ```no_run
