@@ -155,19 +155,15 @@ where
     }
 
     pub(crate) fn can_read_head(&self) -> bool {
-        match self.state.reading {
-            Reading::Init => {
-                if T::should_read_first() {
-                    true
-                } else {
-                    match self.state.writing {
-                        Writing::Init => false,
-                        _ => true,
-                    }
-                }
-            }
-            _ => false,
+        if !matches!(self.state.reading, Reading::Init) {
+            return false;
         }
+
+        if T::should_read_first() {
+            return true;
+        }
+
+        !matches!(self.state.writing, Writing::Init)
     }
 
     pub(crate) fn can_read_body(&self) -> bool {
@@ -367,10 +363,7 @@ where
     }
 
     fn is_mid_message(&self) -> bool {
-        match (&self.state.reading, &self.state.writing) {
-            (&Reading::Init, &Writing::Init) => false,
-            _ => true,
-        }
+        !matches!((self.state.reading, self.state.writing), (Reading::Init, Writing::Init))
     }
 
     // This will check to make sure the io object read is empty.
