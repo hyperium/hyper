@@ -626,14 +626,14 @@ where
             Writing::Body(ref mut encoder) => {
                 self.io.buffer(encoder.encode(chunk));
 
-                if encoder.is_eof() {
-                    if encoder.is_last() {
-                        Writing::Closed
-                    } else {
-                        Writing::KeepAlive
-                    }
-                } else {
+                if !encoder.is_eof() {
                     return;
+                }
+
+                if encoder.is_last() {
+                    Writing::Closed
+                } else {
+                    Writing::KeepAlive
                 }
             }
             _ => unreachable!("write_body invalid state: {:?}", self.state.writing),
