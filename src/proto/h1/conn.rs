@@ -482,11 +482,10 @@ where
     }
 
     pub(crate) fn can_write_head(&self) -> bool {
-        if !T::should_read_first() {
-            if let Reading::Closed = self.state.reading {
-                return false;
-            }
+        if !T::should_read_first() && matches!(self.state.reading, Reading::Closed) {
+            return false;
         }
+
         match self.state.writing {
             Writing::Init => self.io.can_headers_buf(),
             _ => false,
