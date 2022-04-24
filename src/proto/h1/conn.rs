@@ -996,20 +996,22 @@ impl State {
 
         self.method = None;
         self.keep_alive.idle();
-        if self.is_idle() {
-            self.reading = Reading::Init;
-            self.writing = Writing::Init;
 
-            // !T::should_read_first() means Client.
-            //
-            // If Client connection has just gone idle, the Dispatcher
-            // should try the poll loop one more time, so as to poll the
-            // pending requests stream.
-            if !T::should_read_first() {
-                self.notify_read = true;
-            }
-        } else {
+        if !self.is_idle() {
             self.close();
+            return;
+        }
+
+        self.reading = Reading::Init;
+        self.writing = Writing::Init;
+
+        // !T::should_read_first() means Client.
+        //
+        // If Client connection has just gone idle, the Dispatcher
+        // should try the poll loop one more time, so as to poll the
+        // pending requests stream.
+        if !T::should_read_first() {
+            self.notify_read = true;
         }
     }
 
