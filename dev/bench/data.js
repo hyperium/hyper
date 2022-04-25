@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1650730209286,
+  "lastUpdate": 1650910100582,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -11311,6 +11311,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 49182,
             "range": "± 2469",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "imcusg@gmail.com",
+            "name": "cui fliter",
+            "username": "cuishuang"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "89598dfcfe3d3fb65cd3bcd50900b3c7b0ebc09a",
+          "message": "docs(lib): fix some typos (#2818)\n\nSigned-off-by: cuishuang <imcusg@gmail.com>",
+          "timestamp": "2022-04-25T11:05:48-07:00",
+          "tree_id": "26d1626c67dc4019e0bf1f189e196a1e45749725",
+          "url": "https://github.com/hyperium/hyper/commit/89598dfcfe3d3fb65cd3bcd50900b3c7b0ebc09a"
+        },
+        "date": 1650910098062,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 49096,
+            "range": "± 2951",
             "unit": "ns/iter"
           }
         ]
