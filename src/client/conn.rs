@@ -494,7 +494,7 @@ where
     ///
     /// This setting is configured by the server peer by sending the
     /// [`SETTINGS_ENABLE_CONNECT_PROTOCOL` parameter][2] in a `SETTINGS` frame.
-    /// This method returns the currently acknowledged value recieved from the
+    /// This method returns the currently acknowledged value received from the
     /// remote.
     ///
     /// [1]: https://datatracker.ietf.org/doc/html/rfc8441#section-4

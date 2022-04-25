@@ -30,7 +30,7 @@ important than **Correct** or **Fast**:
 
 - Say an individual were to bring forward a contribution that makes hyper more
   correct, or faster, perhaps fixing some serious bug. But in doing so, they
-  also insulted people, harrassed other contributors or users, or shamed
+  also insulted people, harassed other contributors or users, or shamed
   everyone for the previous code. They felt their contribution was "invaluable".
   We would not accept such a contribution, instead banning the user and
   rewriting the code amongst the kind collaborators of the project.
