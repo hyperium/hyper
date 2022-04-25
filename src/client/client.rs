@@ -1063,6 +1063,39 @@ impl Builder {
         self
     }
 
+    /// Sets whether invalid header lines should be silently ignored in HTTP/1 responses.
+    ///
+    /// This mimicks the behaviour of major browsers. You probably don't want this.
+    /// You should only want this if you are implementing a proxy whose main
+    /// purpose is to sit in front of browsers whose users access arbitrary content
+    /// which may be malformed, and they expect everything that works without
+    /// the proxy to keep working with the proxy.
+    ///
+    /// This option will prevent Hyper's client from returning an error encountered
+    /// when parsing a header, except if the error was caused by the character NUL
+    /// (ASCII code 0), as Chrome specifically always reject those.
+    ///
+    /// The ignorable errors are:
+    /// * empty header names;
+    /// * characters that are not allowed in header names, except for `\0` and `\r`;
+    /// * when `allow_spaces_after_header_name_in_responses` is not enabled,
+    ///   spaces and tabs between the header name and the colon;
+    /// * missing colon between header name and colon;
+    /// * characters that are not allowed in header values except for `\0` and `\r`.
+    ///
+    /// If an ignorable error is encountered, the parser tries to find the next
+    /// line in the input to resume parsing the rest of the headers. An error
+    /// will be emitted nonetheless if it finds `\0` or a lone `\r` while
+    /// looking for the next line.
+    pub fn http1_ignore_invalid_headers_in_responses(
+        &mut self,
+        val: bool,
+    ) -> &mut Builder {
+        self.conn_builder
+            .http1_ignore_invalid_headers_in_responses(val);
+        self
+    }
+
     /// Set whether HTTP/1 connections should try to use vectored writes,
     /// or always flatten into a single buffer.
     ///

@@ -662,6 +662,24 @@ impl Builder {
         self
     }
 
+    /// Set whether HTTP/1 connections will silently ignored malformed header lines.
+    ///
+    /// If this is enabled and and a header line does not start with a valid header
+    /// name, or does not include a colon at all, the line will be silently ignored
+    /// and no error will be reported.
+    ///
+    /// Note that this setting does not affect HTTP/2.
+    ///
+    /// Default is false.
+    pub fn http1_ignore_invalid_headers_in_responses(
+        &mut self,
+        enabled: bool,
+    ) -> &mut Builder {
+        self.h1_parser_config
+            .ignore_invalid_headers_in_responses(enabled);
+        self
+    }
+
     /// Set whether HTTP/1 connections should try to use vectored writes,
     /// or always flatten into a single buffer.
     ///
