@@ -442,12 +442,16 @@ where
         // determined we couldn't keep reading until we knew how writing
         // would finish.
 
-        if !matches!(self.state.reading, Reading::Init) {
-            return;
-        }
+        match self.state.reading {
+            Reading::Continue(..) | Reading::Body(..) | Reading::KeepAlive | Reading::Closed => {
+                return
+            }
+            Reading::Init => (),
+        };
 
-        if self.can_write_body() {
-            return;
+        match self.state.writing {
+            Writing::Body(..) => return,
+            Writing::Init | Writing::KeepAlive | Writing::Closed => (),
         }
 
         if !self.io.is_read_blocked() {
@@ -496,7 +500,10 @@ where
     }
 
     pub(crate) fn can_write_body(&self) -> bool {
-        matches!(self.state.writing, Writing::Body(..))
+        match self.state.writing {
+            Writing::Body(..) => true,
+            Writing::Init | Writing::KeepAlive | Writing::Closed => false,
+        }
     }
 
     pub(crate) fn can_buffer_body(&self) -> bool {
