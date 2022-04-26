@@ -967,7 +967,6 @@ impl Builder {
                     if opts.h1_title_case_headers {
                         conn.set_title_case_headers();
                     }
-                    #[cfg(feature = "ffi")]
                     if opts.h1_preserve_header_case {
                         conn.set_preserve_header_case();
                     }
