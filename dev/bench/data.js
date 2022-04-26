@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1650997941175,
+  "lastUpdate": 1650998069745,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -37713,6 +37713,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 7433139,
             "range": "± 1001155",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "39114273+Some-Dood@users.noreply.github.com",
+            "name": "Basti Ortiz",
+            "username": "Some-Dood"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "faf24c6ad8eee1c3d5ccc9a4d4835717b8e2903f",
+          "message": "refactor(http1): assorted code readability improvements in `h1/conn.rs` (#2817)\n\n* refactor: use `matches` macro to flatten code\r\n\r\n* refactor: prefer `matches` over explicit matching\r\n\r\n* refactor: reuse `can_write_body` method\r\n\r\n* refactor: use `matches` over `if`-`let`\r\n\r\n* refactor: nested `if`-`else` as early return\r\n\r\n* refactor: move inner `match` logic outside\r\n\r\n* refactor: unneeded `return` in `match`\r\n\r\n* refactor: remove unneeded reference matching\r\n\r\n* refactor: use early returns for idle check\r\n\r\n* refactor: use `matches` macro for Boolean `match`",
+          "timestamp": "2022-04-26T11:29:49-07:00",
+          "tree_id": "5f5d80cddfc8b43f61345d83b88888536dbc36d8",
+          "url": "https://github.com/hyperium/hyper/commit/faf24c6ad8eee1c3d5ccc9a4d4835717b8e2903f"
+        },
+        "date": 1650998067226,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 71738,
+            "range": "± 3147",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 6422995,
+            "range": "± 426862",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 31341,
+            "range": "± 350",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 34177,
+            "range": "± 393",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 230552,
+            "range": "± 2995",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 52010160,
+            "range": "± 824586",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 48806378,
+            "range": "± 969653",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 50607810,
+            "range": "± 1079749",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 3558336,
+            "range": "± 324173",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 51154,
+            "range": "± 685",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 117727,
+            "range": "± 1906",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 58904,
+            "range": "± 915",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 156313,
+            "range": "± 1677",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 9217915,
+            "range": "± 8716061",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 9293871,
+            "range": "± 50028",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 8941469,
+            "range": "± 8502702",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 58206016,
+            "range": "± 4046549",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 74405528,
+            "range": "± 12519362",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 6344040,
+            "range": "± 719992",
             "unit": "ns/iter"
           }
         ]
