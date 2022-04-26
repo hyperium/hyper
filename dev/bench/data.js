@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1650986872095,
+  "lastUpdate": 1650986992039,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -37515,6 +37515,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 7451351,
             "range": "± 1489819",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "123095+nox@users.noreply.github.com",
+            "name": "Anthony Ramine",
+            "username": "nox"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6a35c175f2b416851518b5831c2c7827d6dbd822",
+          "message": "fix(http1): fix preserving header case without enabling ffi (#2820)\n\nThe previous commit broke this, but it wasn't released, so released versions will never notice the breakage.",
+          "timestamp": "2022-04-26T08:24:57-07:00",
+          "tree_id": "787d8612911f951b798be2b97870d3a4a99888ee",
+          "url": "https://github.com/hyperium/hyper/commit/6a35c175f2b416851518b5831c2c7827d6dbd822"
+        },
+        "date": 1650986989484,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 72803,
+            "range": "± 1001",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 8028671,
+            "range": "± 738116",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 32061,
+            "range": "± 433",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 35171,
+            "range": "± 529",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 235536,
+            "range": "± 3414",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 51994139,
+            "range": "± 84598",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 51392382,
+            "range": "± 1188331",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 52863224,
+            "range": "± 2679028",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 4905964,
+            "range": "± 339593",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 51375,
+            "range": "± 848",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 119806,
+            "range": "± 2968",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 59359,
+            "range": "± 2054",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 157234,
+            "range": "± 2268",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 9482111,
+            "range": "± 8865626",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 18023036,
+            "range": "± 9067061",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 9212196,
+            "range": "± 8698001",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 66789579,
+            "range": "± 6647499",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 86271417,
+            "range": "± 16751379",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 7433139,
+            "range": "± 1001155",
             "unit": "ns/iter"
           }
         ]
