@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1650986836997,
+  "lastUpdate": 1650986872095,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -11401,6 +11401,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 49096,
             "range": "± 2951",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "123095+nox@users.noreply.github.com",
+            "name": "Anthony Ramine",
+            "username": "nox"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6a35c175f2b416851518b5831c2c7827d6dbd822",
+          "message": "fix(http1): fix preserving header case without enabling ffi (#2820)\n\nThe previous commit broke this, but it wasn't released, so released versions will never notice the breakage.",
+          "timestamp": "2022-04-26T08:24:57-07:00",
+          "tree_id": "787d8612911f951b798be2b97870d3a4a99888ee",
+          "url": "https://github.com/hyperium/hyper/commit/6a35c175f2b416851518b5831c2c7827d6dbd822"
+        },
+        "date": 1650986869304,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 54846,
+            "range": "± 4895",
             "unit": "ns/iter"
           }
         ]
