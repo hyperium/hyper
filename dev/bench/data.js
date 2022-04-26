@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1650986992039,
+  "lastUpdate": 1650997933763,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -5729,6 +5729,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 47243,
             "range": "± 3325",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "39114273+Some-Dood@users.noreply.github.com",
+            "name": "Basti Ortiz",
+            "username": "Some-Dood"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "faf24c6ad8eee1c3d5ccc9a4d4835717b8e2903f",
+          "message": "refactor(http1): assorted code readability improvements in `h1/conn.rs` (#2817)\n\n* refactor: use `matches` macro to flatten code\r\n\r\n* refactor: prefer `matches` over explicit matching\r\n\r\n* refactor: reuse `can_write_body` method\r\n\r\n* refactor: use `matches` over `if`-`let`\r\n\r\n* refactor: nested `if`-`else` as early return\r\n\r\n* refactor: move inner `match` logic outside\r\n\r\n* refactor: unneeded `return` in `match`\r\n\r\n* refactor: remove unneeded reference matching\r\n\r\n* refactor: use early returns for idle check\r\n\r\n* refactor: use `matches` macro for Boolean `match`",
+          "timestamp": "2022-04-26T11:29:49-07:00",
+          "tree_id": "5f5d80cddfc8b43f61345d83b88888536dbc36d8",
+          "url": "https://github.com/hyperium/hyper/commit/faf24c6ad8eee1c3d5ccc9a4d4835717b8e2903f"
+        },
+        "date": 1650997931281,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 64354,
+            "range": "± 7185",
             "unit": "ns/iter"
           }
         ]
