@@ -77,6 +77,7 @@ struct Config {
     keep_alive_timeout: Option<Duration>,
     local_address_ipv4: Option<Ipv4Addr>,
     local_address_ipv6: Option<Ipv6Addr>,
+    local_device: Option<Vec<u8>>,
     nodelay: bool,
     reuse_address: bool,
     send_buffer_size: Option<usize>,
@@ -117,6 +118,7 @@ impl<R> HttpConnector<R> {
                 keep_alive_timeout: None,
                 local_address_ipv4: None,
                 local_address_ipv6: None,
+                local_device: None,
                 nodelay: false,
                 reuse_address: false,
                 send_buffer_size: None,
@@ -191,6 +193,21 @@ impl<R> HttpConnector<R> {
 
         cfg.local_address_ipv4 = Some(addr_ipv4);
         cfg.local_address_ipv6 = Some(addr_ipv6);
+    }
+
+    /// Set that all sockets are bound to the configured interface
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let mut http = HttpConnector::new();
+    /// http.set_local_device(Some("wlan0".into()));
+    /// ```
+    #[inline]
+    pub fn set_local_device(&mut self, device: Option<Vec<u8>>) {
+        let cfg = self.config_mut();
+
+        cfg.local_device = device;
     }
 
     /// Set the connect timeout.
@@ -585,6 +602,17 @@ fn bind_local_address(
     Ok(())
 }
 
+fn bind_local_device(
+    socket: &socket2::Socket,
+    device_interface: &Option<Vec<u8>>,
+) -> io::Result<()> {
+    // None value would unbind the device
+    if let Some(device) = device_interface {
+        socket.bind_device(Some(device.as_slice()))?;
+    }
+    Ok(())
+}
+
 fn connect(
     addr: &SocketAddr,
     config: &Config,
@@ -619,7 +647,15 @@ fn connect(
         &config.local_address_ipv4,
         &config.local_address_ipv6,
     )
-    .map_err(ConnectError::m("tcp bind local error"))?;
+    .map_err(ConnectError::m("tcp bind local IP error"))?;
+
+
+    bind_local_device(
+        &socket,
+        &config.local_device,
+    )
+    .map_err(ConnectError::m("tcp bind local device error"))?;
+
 
     #[cfg(unix)]
     let socket = unsafe {
@@ -934,6 +970,7 @@ mod tests {
                     let cfg = Config {
                         local_address_ipv4: None,
                         local_address_ipv6: None,
+                        local_device: None,
                         connect_timeout: None,
                         keep_alive_timeout: None,
                         happy_eyeballs_timeout: Some(fallback_timeout),
