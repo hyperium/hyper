@@ -581,7 +581,11 @@ fn bind_local_address(
     local_addr_ipv6: &Option<Ipv6Addr>,
 ) -> io::Result<()> {
     match (*dst_addr, local_addr_ipv4, local_addr_ipv6) {
-        (SocketAddr::V4(_), Some(addr), _) => {
+        (SocketAddr::V4(_), Some(addr), None) => {
+            socket.bind(&SocketAddr::new(addr.clone().into(), 0).into())?;
+        }
+        (SocketAddr::V4(_), None, Some(addr)) => {
+            // Connection from IPv6 local to IPv4 remote
             socket.bind(&SocketAddr::new(addr.clone().into(), 0).into())?;
         }
         (SocketAddr::V6(_), _, Some(addr)) => {
