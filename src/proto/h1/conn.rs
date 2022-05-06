@@ -154,6 +154,10 @@ where
         self.state.is_write_closed()
     }
 
+    pub(crate) fn is_idle(&self) -> bool {
+        self.state.is_idle()
+    }
+
     pub(crate) fn can_read_head(&self) -> bool {
         if !matches!(self.state.reading, Reading::Init) {
             return false;
