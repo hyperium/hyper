@@ -433,7 +433,7 @@ impl<F, B, E> H2Stream<F, B>
 where
     F: Future<Output = Result<Response<B>, E>>,
     B: HttpBody,
-    B::Data: 'static,
+    B::Data: Send + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
     E: Into<Box<dyn StdError + Send + Sync>>,
 {
@@ -489,7 +489,7 @@ where
                                 H2Upgraded {
                                     ping: connect_parts.ping,
                                     recv_stream: connect_parts.recv_stream,
-                                    send_stream: unsafe { UpgradedSendStream::new(send_stream) },
+                                    send_stream: UpgradedSendStream::new(send_stream),
                                     buf: Bytes::new(),
                                 },
                                 Bytes::new(),
@@ -527,7 +527,7 @@ impl<F, B, E> Future for H2Stream<F, B>
 where
     F: Future<Output = Result<Response<B>, E>>,
     B: HttpBody,
-    B::Data: 'static,
+    B::Data: Send + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
     E: Into<Box<dyn StdError + Send + Sync>>,
 {

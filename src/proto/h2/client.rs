@@ -341,7 +341,7 @@ where
                                 let (pending, on_upgrade) = crate::upgrade::pending();
                                 let io = H2Upgraded {
                                     ping,
-                                    send_stream: unsafe { UpgradedSendStream::new(send_stream) },
+                                    send_stream: UpgradedSendStream::new(send_stream),
                                     recv_stream,
                                     buf: Bytes::new(),
                                 };

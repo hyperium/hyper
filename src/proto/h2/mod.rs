@@ -5,7 +5,6 @@ use http::HeaderMap;
 use pin_project_lite::pin_project;
 use std::error::Error as StdError;
 use std::io::{self, Cursor, IoSlice};
-use std::mem;
 use std::task::Context;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tracing::{debug, trace, warn};
@@ -409,63 +408,32 @@ fn h2_to_io_error(e: h2::Error) -> io::Error {
     }
 }
 
-struct UpgradedSendStream<B>(SendStream<SendBuf<Neutered<B>>>);
+struct UpgradedSendStream<B: Buf>(SendStream<SendBuf<B>>);
 
 impl<B> UpgradedSendStream<B>
 where
     B: Buf,
 {
-    unsafe fn new(inner: SendStream<SendBuf<B>>) -> Self {
-        assert_eq!(mem::size_of::<B>(), mem::size_of::<Neutered<B>>());
-        Self(mem::transmute(inner))
+    fn new(inner: SendStream<SendBuf<B>>) -> Self {
+        Self(inner)
     }
 
     fn reserve_capacity(&mut self, cnt: usize) {
-        unsafe { self.as_inner_unchecked().reserve_capacity(cnt) }
+        self.0.reserve_capacity(cnt)
     }
 
     fn poll_capacity(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<usize, h2::Error>>> {
-        unsafe { self.as_inner_unchecked().poll_capacity(cx) }
+        self.0.poll_capacity(cx)
     }
 
     fn poll_reset(&mut self, cx: &mut Context<'_>) -> Poll<Result<h2::Reason, h2::Error>> {
-        unsafe { self.as_inner_unchecked().poll_reset(cx) }
+        self.0.poll_reset(cx)
     }
 
     fn write(&mut self, buf: &[u8], end_of_stream: bool) -> Result<(), io::Error> {
         let send_buf = SendBuf::Cursor(Cursor::new(buf.into()));
-        unsafe {
-            self.as_inner_unchecked()
-                .send_data(send_buf, end_of_stream)
-                .map_err(h2_to_io_error)
-        }
-    }
-
-    unsafe fn as_inner_unchecked(&mut self) -> &mut SendStream<SendBuf<B>> {
-        &mut *(&mut self.0 as *mut _ as *mut _)
-    }
-}
-
-#[repr(transparent)]
-struct Neutered<B> {
-    _inner: B,
-    impossible: Impossible,
-}
-
-enum Impossible {}
-
-unsafe impl<B> Send for Neutered<B> {}
-
-impl<B> Buf for Neutered<B> {
-    fn remaining(&self) -> usize {
-        match self.impossible {}
-    }
-
-    fn chunk(&self) -> &[u8] {
-        match self.impossible {}
-    }
-
-    fn advance(&mut self, _cnt: usize) {
-        match self.impossible {}
+        self.0
+            .send_data(send_buf, end_of_stream)
+            .map_err(h2_to_io_error)
     }
 }
