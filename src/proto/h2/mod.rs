@@ -5,7 +5,6 @@ use http::HeaderMap;
 use pin_project_lite::pin_project;
 use std::error::Error as StdError;
 use std::io::{self, Cursor, IoSlice};
-use std::mem;
 use std::task::Context;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tracing::{debug, trace, warn};
@@ -409,15 +408,14 @@ fn h2_to_io_error(e: h2::Error) -> io::Error {
     }
 }
 
-struct UpgradedSendStream<B>(SendStream<SendBuf<Neutered<B>>>);
+struct UpgradedSendStream<B>(SendStream<SendBuf<B>>);
 
 impl<B> UpgradedSendStream<B>
 where
     B: Buf,
 {
     unsafe fn new(inner: SendStream<SendBuf<B>>) -> Self {
-        assert_eq!(mem::size_of::<B>(), mem::size_of::<Neutered<B>>());
-        Self(mem::transmute(inner))
+        Self(inner)
     }
 
     fn reserve_capacity(&mut self, cnt: usize) {
@@ -442,30 +440,24 @@ where
     }
 
     unsafe fn as_inner_unchecked(&mut self) -> &mut SendStream<SendBuf<B>> {
-        &mut *(&mut self.0 as *mut _ as *mut _)
+        &mut self.0
     }
 }
 
-#[repr(transparent)]
-struct Neutered<B> {
-    _inner: B,
-    impossible: Impossible,
-}
+const _: () = {
+    #[repr(transparent)]
+    struct Sendable<B>(B);
 
-enum Impossible {}
+    unsafe impl<B> Send for Sendable<B> {}
 
-unsafe impl<B> Send for Neutered<B> {}
-
-impl<B> Buf for Neutered<B> {
-    fn remaining(&self) -> usize {
-        match self.impossible {}
-    }
-
-    fn chunk(&self) -> &[u8] {
-        match self.impossible {}
-    }
-
-    fn advance(&mut self, _cnt: usize) {
-        match self.impossible {}
-    }
-}
+    // Because `B` can't be sent through an `UpgradedSendStream`, we want to implement `Send` even if
+    // `B` is not. We can do this by only implementing `Send` on `UpgradedSendStream<B>` if
+    // `SendStream<StreamBuf<Sendable<B>>>` is also `Send`. This is better than unconditionally
+    // implementing it because in that case `UpgradedSendStream` would be `Send` even when
+    // `SendStream<SendBuf<B>>` is not (for some `B: Send`). This could be the case if `SendStream` or
+    // `SendBuf` stopped being `Send` (even for sendable `B`).
+    unsafe impl<B> Send for UpgradedSendStream<B>
+    where
+        SendStream<SendBuf<Sendable<B>>>: Send,
+    {}
+};
