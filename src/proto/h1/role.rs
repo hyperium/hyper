@@ -1,8 +1,6 @@
 use std::fmt::{self, Write};
 use std::mem::MaybeUninit;
 
-#[cfg(all(feature = "server", feature = "runtime"))]
-use tokio::time::Instant;
 #[cfg(any(test, feature = "server", feature = "ffi"))]
 use bytes::Bytes;
 use bytes::BytesMut;
@@ -10,6 +8,8 @@ use bytes::BytesMut;
 use http::header::ValueIter;
 use http::header::{self, Entry, HeaderName, HeaderValue};
 use http::{HeaderMap, Method, StatusCode, Version};
+#[cfg(all(feature = "server", feature = "runtime"))]
+use tokio::time::Instant;
 use tracing::{debug, error, trace, trace_span, warn};
 
 use crate::body::DecodedLength;
@@ -487,6 +487,10 @@ impl Server {
         }
     }
 
+    fn can_have_implicit_zero_content_length(method: &Option<Method>, status: StatusCode) -> bool {
+        Server::can_have_content_length(method, status) && method != &Some(Method::HEAD)
+    }
+
     fn encode_headers_with_lower_case(
         msg: Encode<'_, StatusCode>,
         dst: &mut Vec<u8>,
@@ -839,7 +843,10 @@ impl Server {
                     }
                 }
                 None | Some(BodyLength::Known(0)) => {
-                    if Server::can_have_content_length(msg.req_method, msg.head.subject) {
+                    if Server::can_have_implicit_zero_content_length(
+                        msg.req_method,
+                        msg.head.subject,
+                    ) {
                         header_name_writer.write_full_header_line(
                             dst,
                             "content-length: 0\r\n",
@@ -1033,7 +1040,7 @@ impl Http1Transaction for Client {
                 }
 
                 #[cfg(feature = "ffi")]
-                if let Some(ref mut header_order) = header_order { 
+                if let Some(ref mut header_order) = header_order {
                     header_order.append(&name);
                 }
 
