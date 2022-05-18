@@ -519,6 +519,16 @@ impl<E> Http<E> {
         self
     }
 
+    /// Sets the max size of received header frames.
+    ///
+    /// Default is currently ~16MB, but may change.
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
+    pub fn http2_max_header_list_size(&mut self, max: u32) -> &mut Self {
+        self.h2_builder.max_header_list_size = max;
+        self
+    }
+
     /// Set the maximum buffer size for the connection.
     ///
     /// Default is ~400kb.
