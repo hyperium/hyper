@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1652918066880,
+  "lastUpdate": 1652918099961,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -11581,6 +11581,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 56149,
             "range": "± 23749",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "32766901+silence-coding@users.noreply.github.com",
+            "name": "silence-coding",
+            "username": "silence-coding"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a32658c1ae7f1261fa234a767df963be4fc63521",
+          "message": "feat(server): add `Connection::http2_max_header_list_size` option (#2828)\n\nThis allows setting the HTTP/2 `SETTINGS_MAX_HEADER_LIST_SIZE` which advertises to the peer the maximum header size allowed, and internally is enforced.\r\n\r\nCloses #2826",
+          "timestamp": "2022-05-18T16:52:01-07:00",
+          "tree_id": "2623a37b443d030a036440b7ed1a3e97b66ae8b9",
+          "url": "https://github.com/hyperium/hyper/commit/a32658c1ae7f1261fa234a767df963be4fc63521"
+        },
+        "date": 1652918097782,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 54734,
+            "range": "± 5822",
             "unit": "ns/iter"
           }
         ]
