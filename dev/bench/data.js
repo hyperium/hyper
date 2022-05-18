@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1650998069745,
+  "lastUpdate": 1652896347030,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -5759,6 +5759,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 64354,
             "range": "± 7185",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jannes.dev@posteo.net",
+            "name": "Jannes (思明)",
+            "username": "jannes"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "67b73138f110979f3c77ef7b56588f018837e592",
+          "message": "fix(server): don't add implicit content-length to HEAD responses (#2836)\n\nHEAD responses should not have content-length implicitly set by hyper.\r\n\r\nCo-authored-by: Jannes Timm <jannes@cloudflare.com>",
+          "timestamp": "2022-05-18T10:49:58-07:00",
+          "tree_id": "64a711cbed5723185988a7e5c2b6ea63c5d53f92",
+          "url": "https://github.com/hyperium/hyper/commit/67b73138f110979f3c77ef7b56588f018837e592"
+        },
+        "date": 1652896343896,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 49733,
+            "range": "± 4066",
             "unit": "ns/iter"
           }
         ]
