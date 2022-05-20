@@ -1120,11 +1120,10 @@ mod dispatch_impl {
     use futures_util::stream::StreamExt;
     use http::Uri;
     use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-    use tokio::net::TcpStream;
 
     use super::support;
     use hyper::body::HttpBody;
-    use hyper::client::connect::{Connected, Connection, HttpConnector};
+    use hyper::client::connect::{Connected, Connection, HttpConnection, HttpConnector};
     use hyper::Client;
 
     #[test]
@@ -2090,7 +2089,7 @@ mod dispatch_impl {
     }
 
     struct DebugStream {
-        tcp: TcpStream,
+        tcp: HttpConnection,
         on_drop: mpsc::Sender<()>,
         is_alpn_h2: bool,
         is_proxy: bool,
