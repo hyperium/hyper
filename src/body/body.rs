@@ -2,6 +2,8 @@ use std::borrow::Cow;
 #[cfg(feature = "stream")]
 use std::error::Error as StdError;
 use std::fmt;
+#[cfg(all(feature = "runtime", any(feature = "http1", feature = "http2")))]
+use std::time::Duration;
 
 use bytes::Bytes;
 use futures_channel::mpsc;
@@ -15,6 +17,8 @@ use http_body::{Body as HttpBody, SizeHint};
 use super::DecodedLength;
 #[cfg(feature = "stream")]
 use crate::common::sync_wrapper::SyncWrapper;
+#[cfg(all(feature = "runtime", any(feature = "http1", feature = "http2")))]
+use crate::common::timeout::Timeout;
 use crate::common::Future;
 #[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]
 use crate::common::Never;
@@ -74,6 +78,8 @@ struct Extra {
     /// a brand new connection, since the pool didn't know about the idle
     /// connection yet.
     delayed_eof: Option<DelayEof>,
+    #[cfg(all(feature = "runtime", any(feature = "http1", feature = "http2")))]
+    read_chunk_timeout: Option<Timeout>,
 }
 
 #[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]
@@ -221,6 +227,17 @@ impl Body {
         body
     }
 
+    /// Defines the inactivity timeout while reading a client request body
+    #[cfg(all(feature = "runtime", any(feature = "http1", feature = "http2")))]
+    pub fn read_chunk_timeout(&mut self, timeout: Option<Duration>) {
+        self.extra_mut().read_chunk_timeout = timeout.map(Timeout::new);
+    }
+
+    #[cfg(all(feature = "runtime", any(feature = "http1", feature = "http2")))]
+    fn read_chunk_timeout_mut(&mut self) -> Option<&mut Timeout> {
+        self.extra.as_mut()?.read_chunk_timeout.as_mut()
+    }
+
     #[cfg(any(feature = "http1", feature = "http2"))]
     #[cfg(feature = "client")]
     pub(crate) fn delayed_eof(&mut self, fut: DelayEofUntil) {
@@ -235,8 +252,13 @@ impl Body {
 
     #[cfg(any(feature = "http1", feature = "http2"))]
     fn extra_mut(&mut self) -> &mut Extra {
-        self.extra
-            .get_or_insert_with(|| Box::new(Extra { delayed_eof: None }))
+        self.extra.get_or_insert_with(|| {
+            Box::new(Extra {
+                delayed_eof: None,
+                #[cfg(all(feature = "runtime", any(feature = "http1", feature = "http2")))]
+                read_chunk_timeout: None,
+            })
+        })
     }
 
     fn poll_eof(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<crate::Result<Bytes>>> {
@@ -364,7 +386,31 @@ impl HttpBody for Body {
         mut self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,
     ) -> Poll<Option<Result<Self::Data, Self::Error>>> {
-        self.poll_eof(cx)
+        #[cfg(all(feature = "runtime", any(feature = "http1", feature = "http2")))]
+        if let Some(timeout_mut) = self.read_chunk_timeout_mut() {
+            if timeout_mut.poll_elapsed(cx) {
+                return Poll::Ready(Some(Err(Self::Error::new_body_timeout())));
+            }
+        }
+
+        match self.poll_eof(cx) {
+            Poll::Ready(Some(data)) => {
+                #[cfg(all(feature = "runtime", any(feature = "http1", feature = "http2")))]
+                if let Some(timeout_mut) = self.read_chunk_timeout_mut() {
+                    timeout_mut.flush_time();
+                }
+                Poll::Ready(Some(data))
+            }
+            Poll::Ready(None) => {
+                #[cfg(all(feature = "runtime", any(feature = "http1", feature = "http2")))]
+                if let Some(timeout_mut) = self.read_chunk_timeout_mut() {
+                    // far future to invoke
+                    timeout_mut.reset(Duration::from_secs(86400 * 365 * 30));
+                }
+                Poll::Ready(None)
+            }
+            Poll::Pending => Poll::Pending,
+        }
     }
 
     fn poll_trailers(
@@ -637,6 +683,7 @@ impl fmt::Debug for Sender {
 mod tests {
     use std::mem;
     use std::task::Poll;
+    use std::time::Duration;
 
     use super::{Body, DecodedLength, HttpBody, Sender, SizeHint};
 
@@ -781,5 +828,28 @@ mod tests {
             Poll::Ready(Err(ref e)) if e.is_closed() => (),
             unexpected => panic!("tx poll ready unexpected: {:?}", unexpected),
         }
+    }
+
+    #[cfg(all(feature = "runtime", any(feature = "http1", feature = "http2")))]
+    #[tokio::test]
+    async fn slow_body() {
+        let (mut sender, mut body) = Body::channel();
+        body.read_chunk_timeout(Some(Duration::from_secs(2)));
+        tokio::spawn(async move {
+            let _ = sender.send_data((&b"data"[..]).into()).await;
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            let _ = sender.send_data((&b"data"[..]).into()).await;
+            tokio::time::sleep(Duration::from_secs(3)).await;
+            let _ = sender.send_data((&b"data"[..]).into()).await;
+            let _ = sender.send_data((&b"data"[..]).into()).await;
+        });
+        let result = body.data().await.unwrap();
+        assert!(result.is_ok());
+        let result = body.data().await.unwrap();
+        assert!(result.is_ok());
+        let result = body.data().await.unwrap();
+        assert!(result.unwrap_err().is_body_timeout());
+        let result = body.data().await.unwrap();
+        assert!(result.unwrap_err().is_body_timeout());
     }
 }

@@ -53,6 +53,9 @@ pub(super) enum Kind {
     /// Error while writing a body to connection.
     #[cfg(any(feature = "http1", feature = "http2"))]
     BodyWrite,
+    /// User took too long to send body
+    #[cfg(all(feature = "runtime", any(feature = "http1", feature = "http2")))]
+    BodyTimeout,
     /// Error calling AsyncWrite::shutdown()
     #[cfg(feature = "http1")]
     Shutdown,
@@ -196,6 +199,12 @@ impl Error {
         matches!(self.inner.kind, Kind::User(User::BodyWriteAborted))
     }
 
+    /// Returns true if the read body timeout from client.
+    #[cfg(all(feature = "runtime", any(feature = "http1", feature = "http2")))]
+    pub fn is_body_timeout(&self) -> bool {
+        matches!(self.inner.kind, Kind::BodyTimeout)
+    }
+
     /// Returns true if the error was caused by a timeout.
     pub fn is_timeout(&self) -> bool {
         self.find_source::<TimedOut>().is_some()
@@ -302,6 +311,11 @@ impl Error {
     #[cfg(any(feature = "http1", feature = "http2"))]
     pub(super) fn new_body_write<E: Into<Cause>>(cause: E) -> Error {
         Error::new(Kind::BodyWrite).with(cause)
+    }
+
+    #[cfg(all(feature = "runtime", any(feature = "http1", feature = "http2")))]
+    pub(super) fn new_body_timeout() -> Error {
+        Error::new(Kind::BodyTimeout)
     }
 
     pub(super) fn new_body_write_aborted() -> Error {
@@ -444,6 +458,8 @@ impl Error {
             Kind::Body => "error reading a body from connection",
             #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::BodyWrite => "error writing a body to connection",
+            #[cfg(all(feature = "runtime", any(feature = "http1", feature = "http2")))]
+            Kind::BodyTimeout => "read body from client timeout",
             #[cfg(feature = "http1")]
             Kind::Shutdown => "error shutting down connection",
             #[cfg(feature = "http2")]

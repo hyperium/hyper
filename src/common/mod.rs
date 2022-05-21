@@ -37,3 +37,6 @@ cfg_proto! {
     pub(crate) use std::marker::Unpin;
 }
 pub(crate) use std::{future::Future, pin::Pin};
+
+#[cfg(all(feature = "runtime", any(feature = "http1", feature = "http2")))]
+pub(crate) mod timeout;
